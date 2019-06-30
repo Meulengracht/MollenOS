@@ -69,42 +69,17 @@ _CODE_BEGIN
 /*******************************************************************************
  * Memory Extensions
  *******************************************************************************/
-CRTDECL(OsStatus_t, MemoryAllocate(void* Hint,size_t Length, Flags_t Flags, void** MemoryOut));
+CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, Flags_t Flags, void** MemoryOut));
 CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
 CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, Flags_t Flags, Flags_t* PreviousFlags));
 
-CRTDECL(OsStatus_t, MemoryShare(size_t Length, size_t Capacity, void** Buffer, UUId_t* HandleOut));
-CRTDECL(OsStatus_t, MemoryInherit(UUId_t Handle, void** BufferOut, size_t* LengthOut, size_t* CapacityOut));
-CRTDECL(OsStatus_t, MemoryResize(UUId_t Handle, void* Buffer, size_t Length));
-CRTDECL(OsStatus_t, MemoryRefresh(UUId_t Handle, void* Buffer, size_t CurrentLength));
-CRTDECL(OsStatus_t, MemoryUnshare(UUId_t Handle));
-
-/* OsStatusToErrno
- * Convert the default os error code into a standard c error code equivalent. 
- * Returns 0 on success code, -1 on an error code. */
-CRTDECL(int,
-OsStatusToErrno(
-    _In_ OsStatus_t Status));
-
-/* SystemQuery
- * Queries the underlying system for hardware information */
-CRTDECL(OsStatus_t,
-SystemQuery(
-    _In_ SystemDescriptor_t* Descriptor));
-
-/* GetSystemTime
- * Retrieves the system time. This is only ticking if a system clock has been initialized. */
-CRTDECL(OsStatus_t,
-GetSystemTime(
-    _In_ SystemTime_t* Time));
-
-/* GetSystemTick
- * Retrieves the system tick counter. This is only ticking if a system timer has been initialized. */
-CRTDECL(OsStatus_t,
-GetSystemTick(
-    _In_ int              TickBase,
-    _In_ LargeUInteger_t* Tick));
-
+/*******************************************************************************
+ * System Extensions
+ *******************************************************************************/
+CRTDECL(int,        OsStatusToErrno(OsStatus_t Status));
+CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* Descriptor));
+CRTDECL(OsStatus_t, GetSystemTime(SystemTime_t* Time));
+CRTDECL(OsStatus_t, GetSystemTick(int TickBase, LargeUInteger_t* Tick));
 CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* Frequency));
 CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* Value));
 CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));

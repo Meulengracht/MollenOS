@@ -232,53 +232,9 @@ PrintTaskDataErrorString(uint8_t TaskDataError)
     }
 }
 
-OsStatus_t 
-AhciCommandFinish(
-    _In_ AhciTransaction_t* Transaction)
-{
-    StorageOperationResult_t Result = { 0 };
-    TRACE("AhciCommandFinish()");
-
-    // Verify the command execution
-    Result.Status             = AhciVerifyRegisterFIS(Transaction);
-    Result.SectorsTransferred = Transaction->SectorCount;
-    
-    // Release it, and handle callbacks
-    AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
-    if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
-        AhciManagerCreateDeviceCallback(Transaction->Device);
-    }
-    else {
-        RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
-    }
-    free(Transaction);
-    return Result.Status;
-}
-
 /************************************************************************
  * RegisterFIS
  ************************************************************************/
-OsStatus_t
-AhciVerifyRegisterFIS(
-    _In_ AhciTransaction_t *Transaction)
-{
-    AHCIFis_t* Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
-
-    // Is the error bit set?
-    if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
-        PrintTaskDataErrorString(Fis->RegisterD2H.Error);
-        return OsError;
-    }
-
-    // Is the fault bit set?
-    if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
-        ERROR("AHCI::Port (%i): Device Fault, error 0x%x",
-            Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
-        return OsError;
-    }
-    return OsSuccess;
-}
-
 static void
 ComposeRegisterFIS(
     _In_ AhciDevice_t*      Device,

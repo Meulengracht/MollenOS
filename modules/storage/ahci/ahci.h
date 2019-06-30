@@ -322,10 +322,9 @@ typedef struct _AhciPort {
 
     AHCIPortRegisters_t*    Registers;
     AHCICommandList_t*      CommandList;
-    AHCIFis_t*              RecievedFisTable;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
-        
+
     struct {
         UUId_t              BufferHandle;
         void*               Buffer;

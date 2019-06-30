@@ -53,9 +53,20 @@ AhciPortCreate(
     }
     
     memset(AhciPort, 0, sizeof(AhciPort_t));
-    AhciPort->Id           = Port;     // Sequential port number
-    AhciPort->Index        = Index;    // Index in validity map
-    AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index)); // @todo port nr or bit index?
+    AhciPort->Id        = Port;     // Sequential port number
+    AhciPort->Index     = Index;    // Index in validity map
+    AhciPort->SlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
+
+    // Allocate a transfer buffer for internal transactions
+    AhciPort->InternalBuffer.BufferLength = AhciManagerGetFrameSize();
+    MemoryAllocate(NULL, AhciManagerGetFrameSize(), MEMORY_READ | MEMORY_COMMIT, 
+        &AhciPort->InternalBuffer.Buffer);
+    MemoryShare(AhciManagerGetFrameSize(), AhciManagerGetFrameSize(), 
+        &AhciPort->InternalBuffer.Buffer, &AhciPort->InternalBuffer.BufferHandle);
+    
+    // TODO: port nr or bit index? Right now use the Index in the validity map
+    AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index));
+    AhciPort->Transactions = CollectionCreate(KeyInteger);
     return AhciPort;
 }
 
@@ -69,9 +80,15 @@ AhciPortCleanup(
     // Null out the port-entry in the controller
     Controller->Ports[Port->Index] = NULL;
 
-    // Cleanup all transactions
+    // Go through each transaction for the ports and clean up
     _foreach(Node, Port->Transactions) {
-        cnd_destroy((cnd_t*)Node->Data);
+        AhciTransaction_t* Transaction = (AhciTransaction_t*)Node;
+
+    }
+
+    if (Port->InternalBuffer.Buffer != NULL) {
+        MemoryUnshare(Port->InternalBuffer.BufferHandle);
+        MemoryFree(Port->InternalBuffer.Buffer, Port->InternalBuffer.BufferLength);
     }
 
     // Free the memory resources allocated
@@ -86,7 +103,9 @@ AhciPortIdentifyDevice(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
+    // Update port status
     Port->Connected = 1;
+
     TRACE(" > device present 0x%x on port %i", Port->Registers->Signature, Port->Id);
     return AhciManagerCreateDevice(Controller, Port);
 }
@@ -337,6 +356,42 @@ AhciPortStartCommandSlot(
     WriteVolatile32(&Port->Registers->CommandIssue, (1 << Slot));
 }
 
+OsStatus_t
+AhciPortAllocateCommandSlot(
+    _In_  AhciPort_t* Port,
+    _Out_ int*        SlotOut)
+{
+    OsStatus_t Status = OsError;
+    int        Slots;
+    int        i;
+    
+    while (Status != OsSuccess) {
+        Slots = atomic_load(&Port->Slots);
+        
+        for (i = 0; i < Port->SlotCount; i++) {
+            // Check availability status on this command slot
+            if (Slots & (1 << i)) {
+                continue;
+            }
+
+            if (atomic_compare_exchange_strong(&Port->Slots, &Slots, Slots | (1 << i))) {
+                Status   = OsSuccess;
+                *SlotOut = i;
+            }
+            break;
+        }
+    }
+    return Status;
+}
+
+void
+AhciPortFreeCommandSlot(
+    _In_ AhciPort_t* Port,
+    _In_ int         Slot)
+{
+    
+}
+
 void
 AhciPortInterruptHandler(
     _In_ AhciController_t* Controller, 
@@ -345,7 +400,6 @@ AhciPortInterruptHandler(
     AhciTransaction_t* Transaction;
     reg32_t            InterruptStatus;
     reg32_t            DoneCommands;
-    CollectionItem_t*  tNode;
     DataKey_t          Key;
     int                i;
     
@@ -389,29 +443,27 @@ HandleInterrupt:
     }
 
     // Get completed commands, by using our own slot-status
-    DoneCommands = Port->SlotStatus ^ ReadVolatile32(&Port->Registers->AtaActive);
+    DoneCommands = atomic_load(&Port->Slots) ^ ReadVolatile32(&Port->Registers->AtaActive);
     TRACE("DoneCommands(0x%x) <= SlotStatus(0x%x) ^ AtaActive(0x%x)", 
-        DoneCommands, Port->SlotStatus, Port->Registers->AtaActive);
+        DoneCommands, atomic_load(&Port->Slots), Port->Registers->AtaActive);
 
     // Check for command completion
     // by iterating through the command slots
     if (DoneCommands != 0) {
         for (i = 0; i < AHCI_MAX_PORTS; i++) {
             if (DoneCommands & (1 << i)) {
-                Key.Value.Integer   = i;
-                tNode               = CollectionGetNodeByKey(Port->Transactions, Key, 0);
-                
-                assert(tNode != NULL);
-                Transaction = (AhciTransaction_t*)tNode;
+                Key.Value.Integer = i;
+                Transaction       = (AhciTransaction_t*)CollectionGetNodeByKey(Port->Transactions, Key, 0);                
+                assert(Transaction != NULL);
 
-                // Remove and destroy node
-                CollectionRemoveByNode(Port->Transactions, tNode);
-                CollectionDestroyNode(Port->Transactions, tNode);
+                // Handle transaction completion, release slot, queue up a new command if any
+                // and then handle the event
+                CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
+                memcpy((void*)&Transaction->Response, (void*)Port->RecievedFis, sizeof(AHCIFis_t));
+                AhciPortFreeCommandSlot(Port, Transaction->Slot);
+                Transaction->Slot = -1;
 
-                // Copy data over - we make a copy of the recieved fis
-                // to make the slot reusable as quickly as possible
-                memcpy((void*)&Port->RecievedFisTable[i], (void*)Port->RecievedFis, sizeof(AHCIFis_t));
-                AhciCommandFinish(Transaction);
+                AhciTransactionHandleResponse(Transaction);
             }
         }
     }

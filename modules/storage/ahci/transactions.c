@@ -126,3 +126,48 @@ AhciTransactionCreate(
     }
     return Status;
 }
+
+static OsStatus_t
+VerifyRegisterFIS(
+    _In_ AhciTransaction_t *Transaction)
+{
+    AHCIFis_t* Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
+
+    // Is the error bit set?
+    if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
+        PrintTaskDataErrorString(Fis->RegisterD2H.Error);
+        return OsError;
+    }
+
+    // Is the fault bit set?
+    if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
+        ERROR("AHCI::Port (%i): Device Fault, error 0x%x",
+            Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
+        return OsError;
+    }
+    return OsSuccess;
+}
+
+OsStatus_t
+AhciTransactionHandleResponse(
+    _In_ AhciTransaction_t* Transaction)
+{
+    StorageOperationResult_t Result = { 0 };
+    TRACE("AhciCommandFinish()");
+
+    // Verify the command execution
+    // if transaction == register_fis_h2d
+    // verify_register_fis_d2h
+    Result.Status             = VerifyRegisterFIS(Transaction);
+    Result.SectorsTransferred = Transaction->SectorCount;
+    
+    // Release it, and handle callbacks
+    if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
+        AhciManagerCreateDeviceCallback(Transaction->Device);
+    }
+    else {
+        RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
+    }
+    free(Transaction);
+    return Result.Status;
+}

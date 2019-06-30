@@ -67,6 +67,7 @@ typedef struct {
     AhciDevice_t*        Device;
     int                  Slot;
     int                  Direction;
+    AHCIFis_t            Response;
 
     uint64_t             Sector;
     int                  SectorAlignment;
@@ -88,6 +89,8 @@ typedef struct {
 __EXTERN OsStatus_t AhciManagerInitialize(void);
 __EXTERN OsStatus_t AhciManagerDestroy(void);
 __EXTERN size_t     AhciManagerGetFrameSize(void);
+__EXTERN OsStatus_t AhciManagerRegisterDevice(AhciDevice_t*);
+__EXTERN OsStatus_t AhciManagerUnregisterDevice(AhciDevice_t*);
 
 /**
  * AhciDeviceRegister
