@@ -24,8 +24,6 @@
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
 
-/* UsbQueryControllerCount
- * Queries the available number of usb controllers. */
 OsStatus_t
 UsbQueryControllerCount(
     _Out_ int* ControllerCount)
@@ -38,9 +36,6 @@ UsbQueryControllerCount(
 	return RPCExecute(&Request);
 }
 
-/* UsbQueryController
- * Queries the controller with the given index. Index-max is
- * the controller count - 1. */
 OsStatus_t
 UsbQueryController(
     _In_ int                Index,

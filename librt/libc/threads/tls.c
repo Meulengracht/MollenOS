@@ -93,13 +93,13 @@ static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 },
     0
 };
 
-/* tls_create
- * Initializes a new thread-storage space for the caller thread.
- * Part of CRT initialization routines. */
 OsStatus_t 
 tls_create(
-    _In_ thread_storage_t*  Tls)
+    _In_ thread_storage_t* Tls)
 {
+    struct dma_buffer_info info;
+    void* buffer;
+    
     memset(Tls, 0, sizeof(thread_storage_t));
 
     // Store it at reserved pointer place first
@@ -115,9 +115,12 @@ tls_create(
 
     // Setup a local transfer buffer for stdio operations
     // TODO: do on first read/write instead?
-    Tls->transfer_buffer.buffer = malloc(BUFSIZ);
-    Tls->transfer_buffer.length = BUFSIZ;
-    return MemoryShare(BUFSIZ, BUFSIZ, &Tls->transfer_buffer.buffer, &Tls->transfer_buffer.handle);
+    buffer = malloc(BUFSIZ);
+    
+    info.length   = BUFSIZ;
+    info.capacity = BUFSIZ;
+    info.flags    = DMA_BUF_NO_CLEANUP;
+    return dma_export(buffer, &info, &Tls->transfer_buffer);
 }
 
 /* tls_destroy
@@ -128,7 +131,7 @@ tls_destroy(
 {
     // TODO: this is called twice for primary thread. Look into this
     if (Tls->transfer_buffer.buffer != NULL) {
-        MemoryUnshare(Tls->transfer_buffer.handle);
+        dma_detach(&Tls->transfer_buffer);
         free(Tls->transfer_buffer.buffer);
     }
     return OsSuccess;

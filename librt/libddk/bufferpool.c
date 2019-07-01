@@ -28,79 +28,96 @@
 #include "../common/bytepool.h"
 #include <stdlib.h>
 
-typedef struct _BufferPool {
-    UUId_t      BufferHandle;
-    BytePool_t* Pool;
-    uintptr_t   VirtualBase;
-    uintptr_t   DmaVector[1];
-} BufferPool_t;
+struct dma_pool {
+    BytePool_t*            pool;
+    struct dma_attachment* attachment;
+    int                    sg_size;
+    struct dma_sg          sg_list[1];
+};
 
 OsStatus_t
-BufferPoolCreate(
-    _In_  UUId_t         BufferHandle,
-    _In_  void*          Buffer,
-    _In_  size_t         Length,
-    _Out_ BufferPool_t** PoolOut)
+dma_pool_create(
+    _In_  struct dma_attachment* attachment,
+    _Out_ struct dma_pool**      pool_out)
 {
-    BufferPool_t* Pool;
-    OsStatus_t    Status;
-    int           VectorSize;
+    struct dma_pool* pool;
+    OsStatus_t       status;
+    int              sg_size;
     
-    // Get buffer metrics and mappings
-    Status = MemoryGetSharedMetrics(BufferHandle, &VectorSize, NULL);
-    if (Status != OsSuccess) {
-        return Status;
+    if (!attachment || !pool_out || !attachment->buffer) {
+        return OsInvalidParameters;
     }
     
-    // Allocate the pool
-    Pool               = (BufferPool_t*)malloc(sizeof(BufferPool_t) + (VectorSize * sizeof(uintptr_t)));
-    Pool->BufferHandle = BufferHandle;
-    Pool->VirtualBase  = (uintptr_t)Buffer;
-    Status             = MemoryGetSharedMetrics(BufferHandle, NULL, &Pool->DmaVector[0]);
-    Status             = bpool(Buffer, Length, &Pool->Pool);
-    return Status;
+    status = dma_get_metrics(attachment, &sg_size, NULL);
+    if (status != OsSuccess) {
+        return status;
+    }
+    
+    pool             = (struct dma_pool*)malloc(sizeof(struct dma_pool) + (sg_size * sizeof(struct dma_sg)));
+    pool->attachment = attachment;
+    pool->sg_size    = sg_size;
+    
+    status = dma_get_metrics(attachment, NULL, &pool->sg_list[0]);
+    status = bpool(attachment->buffer, attachment->length, &pool->pool);
+    
+    *pool_out = pool;
+    return status;
 }
 
 OsStatus_t
-BufferPoolDestroy(
-    _In_ BufferPool_t* Pool)
+dma_pool_destroy(
+    _In_ struct dma_pool* pool)
 {
-    free(Pool->Pool);
-    free(Pool);
+    free(pool->pool);
+    free(pool);
+    return OsSuccess;
+}
+
+static uintptr_t
+dma_pool_get_dma(
+    _In_ struct dma_pool* pool,
+    _In_ size_t           offset)
+{
+    int i;
+    for (i = 0; i < pool->sg_size; i++) {
+        if (offset < pool->sg_list[i].length) {
+            return pool->sg_list[i].address + offset;
+        }
+        offset -= pool->sg_list[i].length;
+    }
+    return 0;
+}
+
+OsStatus_t
+dma_pool_allocate(
+    _In_  struct dma_pool* pool,
+    _In_  size_t           length,
+    _Out_ void**           address_out,
+    _Out_ uintptr_t*       dma_address_out)
+{
+    ptrdiff_t difference;
+    void*     allocation;
+
+    TRACE("dma_pool_allocate(Size %u)", length);
+
+    allocation = bget(pool->pool, length);
+    if (!allocation) {
+        ERROR("Failed to allocate bufferpool memory (size %u)", length);
+        return OsOutOfMemory;
+    }
+    
+    difference       = (uintptr_t)allocation - (uintptr_t)pool->attachment->buffer;
+    *address_out     = allocation;
+    *dma_address_out = dma_pool_get_dma(pool, difference);
+    TRACE(" > Virtual address 0x%x => Physical address 0x%x", allocation, *dma_address_out);
     return OsSuccess;
 }
 
 OsStatus_t
-BufferPoolAllocate(
-    _In_  BufferPool_t* Pool,
-    _In_  size_t        Size,
-    _Out_ uintptr_t**   VirtualPointer,
-    _Out_ uintptr_t*    PhysicalAddress)
+dma_pool_free(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address)
 {
-    ptrdiff_t Difference;
-    void*     Allocation;
-
-    TRACE("BufferPoolAllocate(Size %u)", Size);
-
-    Allocation = bget(Pool->Pool, Size);
-    if (!Allocation) {
-        ERROR("Failed to allocate bufferpool memory (size %u)", Size);
-        return OsError;
-    }
-    
-    // Calculate the addresses and update out's
-    Difference       = (uintptr_t)Allocation - Pool->VirtualBase;
-    *PhysicalAddress = Pool->DmaVector[Difference / 0x1000] + (Difference % 0x1000);
-    *VirtualPointer  = (uintptr_t*)Allocation;
-    TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
-    return OsSuccess;
-}
-
-OsStatus_t
-BufferPoolFree(
-    _In_ BufferPool_t* Pool,
-    _In_ uintptr_t*    VirtualPointer)
-{
-    brel(Pool->Pool, (void*)VirtualPointer);
+    brel(pool->pool, address);
     return OsSuccess;
 }

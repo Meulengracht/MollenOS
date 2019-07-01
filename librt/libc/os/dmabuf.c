@@ -21,6 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
 #include <os/dmabuf.h>
 
 OsStatus_t
@@ -110,12 +111,12 @@ dma_detach(
 
 OsStatus_t
 dma_get_metrics(
-    _In_  UUId_t         handle,
-    _Out_ int*           count,
-    _Out_ struct dma_sg* sg_list)
+    _In_  struct dma_attachment* attachment,
+    _Out_ int*                   count,
+    _Out_ struct dma_sg*         sg_list)
 {
-    if (handle == UUID_INVALID) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
-    return Syscall_DmaGetMetrics(handle, count, sg_list);
+    return Syscall_DmaGetMetrics(attachment, count, sg_list);
 }

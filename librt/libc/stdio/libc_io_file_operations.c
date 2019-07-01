@@ -70,18 +70,24 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length >= builtin_length) {
-        UUId_t buffer_handle;
+        struct dma_buffer_info info;
+        struct dma_attachment  attachment;
         
         // enforce dword alignment on the buffer
         assert(((uintptr_t)buffer % 0x4) == 0);
         
-        status = MemoryShare(length, length, &buffer, &buffer_handle);
+        info.length   = length;
+        info.capacity = length;
+        info.flags    = DMA_BUF_NO_CLEANUP;
+        
+        status = dma_export(buffer, &info, &attachment);
         if (status != OsSuccess) {
             return status;
         }
         
-        err_code = perform_transfer(handle->InheritationHandle, buffer_handle, 0, length, 0, length, bytes_read);
-        MemoryUnshare(buffer_handle);
+        err_code = perform_transfer(handle->InheritationHandle, attachment.handle,
+            0, length, 0, length, bytes_read);
+        dma_detach(&attachment);
         return err_code == EOK ? OsSuccess : OsError;
     }
     
@@ -100,18 +106,24 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length >= builtin_length) {
-        UUId_t buffer_handle;
+        struct dma_buffer_info info;
+        struct dma_attachment  attachment;
         
         // enforce dword alignment on the buffer
         assert(((uintptr_t)buffer % 0x4) == 0);
         
-        status = MemoryShare(length, length, (void*)&buffer, &buffer_handle);
+        info.length   = length;
+        info.capacity = length;
+        info.flags    = DMA_BUF_NO_CLEANUP;
+        
+        status = dma_export((void*)buffer, &info, &attachment);
         if (status != OsSuccess) {
             return status;
         }
         
-        err_code = perform_transfer(handle->InheritationHandle, buffer_handle, 1, length, 0, length, bytes_written);
-        MemoryUnshare(buffer_handle);
+        err_code = perform_transfer(handle->InheritationHandle, attachment.handle,
+            1, length, 0, length, bytes_written);
+        dma_detach(&attachment);
         return err_code == EOK ? OsSuccess : OsError;
     }
     

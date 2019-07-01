@@ -70,11 +70,16 @@ typedef struct _SystemMemoryMappingHandler {
 } SystemMemoryMappingHandler_t;
 
 typedef struct {
+    uintptr_t Address;
     size_t    Length;
-    size_t    Capacity;
-    Flags_t   Flags;
-    int       PageCount;
-    uintptr_t Pages[1];
+} SystemScatterGather_t;
+
+typedef struct {
+    size_t                Length;
+    size_t                Capacity;
+    Flags_t               Flags;
+    int                   SgCount;
+    SystemScatterGather_t SgList[1];
 } SystemSharedRegion_t;
 
 typedef struct _SystemMemorySpaceContext {

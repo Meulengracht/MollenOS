@@ -148,7 +148,7 @@ extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
 // The static system calls function table.
-uintptr_t SystemCallsTable[77] = {
+uintptr_t SystemCallsTable[81] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -233,24 +233,28 @@ uintptr_t SystemCallsTable[77] = {
     DefineSyscall(57, ScMemoryAllocate),
     DefineSyscall(58, ScMemoryFree),
     DefineSyscall(59, ScMemoryProtect),
-    DefineSyscall(60, ScMemoryShare),
-    DefineSyscall(61, ScMemoryInherit),
-    DefineSyscall(62, ScMemoryResize),
-    DefineSyscall(63, ScMemoryRefresh),
-    DefineSyscall(64, ScMemoryGetSharedMetrics),
     
-
+    DefineSyscall(60, ScDmaCreate),
+    DefineSyscall(61, ScDmaExport),
+    DefineSyscall(62, ScDmaAttach),
+    DefineSyscall(63, ScDmaAttachmentMap),
+    DefineSyscall(64, ScDmaAttachmentResize),
+    DefineSyscall(65, ScDmaAttachmentRefresh),
+    DefineSyscall(66, ScDmaAttachmentUnmap),
+    DefineSyscall(67, ScDmaDetach),
+    DefineSyscall(68, ScDmaGetMetrics),
+    
     // Support system calls
-    DefineSyscall(65, ScDestroyHandle),
-    DefineSyscall(66, ScInstallSignalHandler),
-    DefineSyscall(67, ScGetSignalOriginalContext),
-    DefineSyscall(68, ScCreateMemoryHandler),
-    DefineSyscall(69, ScDestroyMemoryHandler),
-    DefineSyscall(70, ScFlushHardwareCache),
-    DefineSyscall(71, ScSystemQuery),
-    DefineSyscall(72, ScSystemTick),
-    DefineSyscall(73, ScPerformanceFrequency),
-    DefineSyscall(74, ScPerformanceTick),
-    DefineSyscall(75, ScSystemTime),
-    DefineSyscall(76, ScIsServiceAvailable)
+    DefineSyscall(69, ScDestroyHandle),
+    DefineSyscall(70, ScInstallSignalHandler),
+    DefineSyscall(71, ScGetSignalOriginalContext),
+    DefineSyscall(72, ScCreateMemoryHandler),
+    DefineSyscall(73, ScDestroyMemoryHandler),
+    DefineSyscall(74, ScFlushHardwareCache),
+    DefineSyscall(75, ScSystemQuery),
+    DefineSyscall(76, ScSystemTick),
+    DefineSyscall(77, ScPerformanceFrequency),
+    DefineSyscall(78, ScPerformanceTick),
+    DefineSyscall(79, ScSystemTime),
+    DefineSyscall(80, ScIsServiceAvailable)
 };

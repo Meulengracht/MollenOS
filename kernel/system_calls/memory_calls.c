@@ -108,105 +108,70 @@ ScMemoryProtect(
 
 OsStatus_t
 ScDmaCreate(
-    struct dma_buffer_info* info,
-    struct dma_attachment*  attachment)
+    _In_ struct dma_buffer_info* info,
+    _In_ struct dma_attachment*  attachment)
 {
-    
-}
-
-OsStatus_t
-ScDmaExport(
-    void*,
-    struct dma_buffer_info*,
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaAttach(
-    UUId_t,
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaAttachmentMap(
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaAttachmentResize(
-    struct dma_attachment*,
-    size_t)
-{
-    
-}
-
-OsStatus_t
-ScDmaAttachmentRefresh(
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaAttachmentUnmap(
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaDetach(
-    struct dma_attachment*)
-{
-    
-}
-
-OsStatus_t
-ScDmaGetMetrics(
-    struct dma_attachment*,
-    int*,
-    struct dma_sg*)
-{
-    
-}
-
-
-
-
-
-OsStatus_t
-ScMemoryShare(
-    _In_     size_t  Length,
-    _In_     size_t  Capacity,
-    _InOut_  void**  Memory,
-    _Out_    UUId_t* HandleOut)
-{
-    if (!Capacity || !HandleOut || !Memory) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
+
+    // TODO:
     return MemoryCreateSharedRegion(Length, Capacity, Memory, HandleOut);
 }
 
 OsStatus_t
-ScMemoryInherit(
-    _In_  UUId_t  Handle,
-    _Out_ void**  MemoryOut,
-    _Out_ size_t* LengthOut,
-    _Out_ size_t* CapacityOut)
+ScDmaExport(
+    _In_ void*                   buffer,
+    _In_ struct dma_buffer_info* info,
+    _In_ struct dma_attachment*  attachment)
 {
-    SystemSharedRegion_t* Region = (SystemSharedRegion_t*)AcquireHandle(Handle);
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    
+    // TODO:
+    return MemoryCreateSharedRegion(Length, Capacity, Memory, HandleOut);
+}
+
+OsStatus_t
+ScDmaAttach(
+    _In_ UUId_t                 handle,
+    _In_ struct dma_attachment* attachment)
+{
+    SystemSharedRegion_t* Region;
+    
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    
+    Region = (SystemSharedRegion_t*)AcquireHandle(handle);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    // Update the attachment with info as it were correct
+    attachment->handle = handle;
+    return OsSuccess;
+}
+
+OsStatus_t
+ScDmaAttachmentMap(
+    _In_ struct dma_attachment* attachment)
+{
+    SystemSharedRegion_t* Region;
     OsStatus_t            Status;
     uintptr_t             Offset;
     uintptr_t             Address;
-    if (!Region) {
+    
+    if (!attachment) {
         return OsInvalidParameters;
-    }   
+    }
+    
+    Region = (SystemSharedRegion_t*)LookupHandleOfType(
+        attachment->handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
     
     // TODO: Guard against already committed regions, check attributes
     // 
@@ -236,47 +201,71 @@ ScMemoryInherit(
 }
 
 OsStatus_t
-ScMemoryResize(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory,
-    _In_ size_t NewLength)
+ScDmaAttachmentResize(
+    _In_ struct dma_attachment* attachment,
+    _In_ size_t                 length)
 {
-    if (!Memory) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryResizeSharedRegion(Handle, Memory, NewLength);
+    return MemoryResizeSharedRegion(attachment->handle, attachment->buffer, length);
 }
 
 OsStatus_t
-ScMemoryRefresh(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory,
-    _In_ size_t CurrentLength)
+ScDmaAttachmentRefresh(
+    _In_ struct dma_attachment* attachment)
 {
-    if (!Memory) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryRefreshSharedRegion(Handle, Memory, CurrentLength);
+    return MemoryRefreshSharedRegion(attachment->handle, attachment->buffer, attachment->length);
 }
 
 OsStatus_t
-ScMemoryGetSharedMetrics(
-    _In_      UUId_t     Handle,
-    _Out_Opt_ int*       VectorLengthOut,
-    _Out_Opt_ uintptr_t* VectorOut)
+ScDmaAttachmentUnmap(
+    _In_ struct dma_attachment* attachment)
 {
-    SystemSharedRegion_t* Buffer = (SystemSharedRegion_t*)
-        LookupHandleOfType(Handle, HandleTypeMemoryRegion);
-    if (!Buffer) {
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return ScMemoryFree(attachment->buffer, attachment->length);
+}
+
+OsStatus_t
+ScDmaDetach(
+    _In_ struct dma_attachment* attachment)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return DestroyHandle(attachment->handle);
+}
+
+OsStatus_t
+ScDmaGetMetrics(
+    _In_  struct dma_attachment* attachment,
+    _Out_ int*                   sg_count_out,
+    _Out_ struct dma_sg*         sg_list_out)
+{
+    SystemSharedRegion_t* Region;
+    
+    if (!attachment) {
         return OsInvalidParameters;
     }
     
-    if (VectorLengthOut) {
-        *VectorLengthOut = Buffer->PageCount;
+    Region = (SystemSharedRegion_t*)LookupHandleOfType(
+        attachment->handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
     }
     
-    if (VectorOut) {
-        memcpy((void*)&VectorOut[0], (void*)&Buffer->Pages[0], sizeof(uintptr_t) * Buffer->PageCount);
+    if (sg_count_out) {
+        *sg_count_out = Region->SgCount;
+    }
+    
+    if (sg_list_out) {
+        memcpy((void*)&sg_list_out[0], (void*)&Region->SgList[0], 
+            sizeof(SystemScatterGather_t) * Region->SgCount);
     }
     return OsSuccess;
 }

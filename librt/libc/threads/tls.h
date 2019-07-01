@@ -23,30 +23,27 @@
 #ifndef __STDC_TLS__
 #define __STDC_TLS__
 
-#include <os/osdefs.h>
 #include <errno.h>
+#include <os/osdefs.h>
+#include <os/dmabuf.h>
 #include <threads.h>
 #include <wchar.h>
 
 // Number of tls entries
-#define TLS_NUMBER_ENTRIES          64
+#define TLS_NUMBER_ENTRIES 64
 
 PACKED_TYPESTRUCT(thread_storage, {
-    thrd_t           thr_id;
-    void*            handle;
-    errno_t          err_no;
-    void*            locale;
-    mbstate_t        mbst;
-    unsigned int     seed;
-    char*            strtok_next;
-    struct tm        tm_buffer;
-    char             asc_buffer[26];
-    struct {
-        UUId_t handle;
-        size_t length;
-        void*  buffer;
-    } transfer_buffer;
-    uintptr_t        tls_array[TLS_NUMBER_ENTRIES];
+    thrd_t                thr_id;
+    void*                 handle;
+    errno_t               err_no;
+    void*                 locale;
+    mbstate_t             mbst;
+    unsigned int          seed;
+    char*                 strtok_next;
+    struct tm             tm_buffer;
+    char                  asc_buffer[26];
+    struct dma_attachment transfer_buffer;
+    uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 });
 
 _CODE_BEGIN

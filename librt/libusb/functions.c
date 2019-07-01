@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <os/dmabuf.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
 #include <ddk/bufferpool.h>
@@ -32,40 +33,49 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t  LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
-static void*         __LibUsbBuffer           = NULL;
-static UUId_t        __LibUsbBufferHandle     = UUID_INVALID;
-static BufferPool_t* __LibUsbBufferPool       = NULL;
+static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
+static struct dma_pool*      DmaPool                  = NULL;
+static struct dma_attachment DmaAttachment;
 
 OsStatus_t
 UsbInitialize(void)
 {
-    MemoryShare(LIBUSB_SHAREDBUFFER_SIZE, LIBUSB_SHAREDBUFFER_SIZE, 
-        &__LibUsbBuffer, &__LibUsbBufferHandle);
-    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, 
-        LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferPool);
+    struct dma_buffer_info info;
+    OsStatus_t             status;
+    
+    info.length   = LIBUSB_SHAREDBUFFER_SIZE;
+    info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
+    info.flags    = 0;
+    
+    status = dma_create(&info, &DmaAttachment);
+    if (status != OsSuccess) {
+        return status;
+    }
+    
+    status = dma_pool_create(&DmaAttachment, &DmaPool);
+    if (status != OsSuccess) {
+        return dma_detach(&DmaAttachment);
+    }
+    return status;
 }
 
 OsStatus_t
 UsbCleanup(void)
 {
-    if (!__LibUsbBuffer) {
+    if (!DmaPool) {
         return OsNotSupported;
     }
 
-    BufferPoolDestroy(__LibUsbBufferPool);
-    MemoryFree(__LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE);
-    MemoryUnshare(__LibUsbBufferHandle);
-    __LibUsbBuffer = NULL;
+    dma_pool_destroy(DmaPool);
+    dma_detach(&DmaAttachment);
+    DmaPool = NULL;
     return OsSuccess;
 }
 
-/* UsbRetrievePool 
- * Retrieves the shared usb-memory pool for transfers. Only
- * use this for small short-term use buffers. */
-BufferPool_t*
-UsbRetrievePool(void) {
-    return __LibUsbBufferPool;
+struct dma_pool*
+UsbRetrievePool(void)
+{
+    return DmaPool;
 }
 
 /* UsbTransferInitialize
@@ -409,7 +419,7 @@ UsbSetAddress(
     _In_ int                        Address)
 {
     // Variables
-    uintptr_t *PacketBuffer     = NULL;
+    void* PacketBuffer     = NULL;
     uintptr_t PacketPhysical    = 0;
     UsbPacket_t *Packet         = NULL;
 
@@ -426,7 +436,7 @@ UsbSetAddress(
     }
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
         &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -452,7 +462,7 @@ UsbSetAddress(
         ERROR("Usb transfer returned error");
         Result.Status = TransferNotProcessed;
     }
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -466,23 +476,20 @@ UsbGetDeviceDescriptor(
     _In_  UsbHcEndpointDescriptor_t*Endpoint,
     _Out_ UsbDeviceDescriptor_t*    DeviceDescriptor)
 {
-    // Constants
-    const size_t DESCRIPTOR_SIZE        = 0x12; // Max Descriptor Length is 18 bytes
+    const size_t DESCRIPTOR_SIZE = 0x12; // Max Descriptor Length is 18 bytes
 
-    // Variables
-    UsbDeviceDescriptor_t *Descriptor   = NULL;
-    uintptr_t *DescriptorVirtual        = NULL;
-    uintptr_t DescriptorPhysical        = 0;
-    uintptr_t *PacketBuffer             = NULL;
-    uintptr_t PacketPhysical            = 0;
-    UsbPacket_t *Packet                 = NULL;
+    UsbDeviceDescriptor_t *Descriptor = NULL;
+    void*     DescriptorVirtual       = NULL;
+    uintptr_t DescriptorPhysical      = 0;
+    void*     PacketBuffer            = NULL;
+    uintptr_t PacketPhysical          = 0;
+    UsbPacket_t *Packet               = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result          = { 0 };
-    UsbTransfer_t Transfer              = { 0 };
+    UsbTransferResult_t Result = { 0 };
+    UsbTransfer_t Transfer     = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -498,10 +505,10 @@ UsbGetDeviceDescriptor(
     Packet->Length          = DESCRIPTOR_SIZE;    
 
     // Allocate a data-buffer
-    if (BufferPoolAllocate(__LibUsbBufferPool, DESCRIPTOR_SIZE, 
+    if (dma_pool_allocate(DmaPool, DESCRIPTOR_SIZE, 
             &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
 
@@ -528,8 +535,8 @@ UsbGetDeviceDescriptor(
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, DescriptorVirtual);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -545,20 +552,18 @@ UsbGetInitialConfigDescriptor(
     _In_  UsbHcEndpointDescriptor_t*Endpoint,
     _Out_ UsbConfigDescriptor_t*    ConfigDescriptor)
 {
-    // Variables
-    UsbConfigDescriptor_t *Descriptor   = NULL;
-    uintptr_t *DescriptorVirtual        = NULL;
-    uintptr_t DescriptorPhysical        = 0;
-    uintptr_t *PacketBuffer             = NULL;
-    uintptr_t PacketPhysical            = 0;
-    UsbPacket_t *Packet                 = NULL;
+    UsbConfigDescriptor_t *Descriptor = NULL;
+    void*        DescriptorVirtual    = NULL;
+    uintptr_t    DescriptorPhysical   = 0;
+    void*        PacketBuffer         = NULL;
+    uintptr_t    PacketPhysical       = 0;
+    UsbPacket_t* Packet               = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result          = { 0 };
-    UsbTransfer_t Transfer              = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -574,11 +579,11 @@ UsbGetInitialConfigDescriptor(
     Packet->Length      = sizeof(UsbConfigDescriptor_t);
 
     // Allocate a data-buffer
-    if (BufferPoolAllocate(__LibUsbBufferPool,
+    if (dma_pool_allocate(DmaPool,
         sizeof(UsbConfigDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
 
@@ -604,8 +609,8 @@ UsbGetInitialConfigDescriptor(
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, DescriptorVirtual);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -622,16 +627,14 @@ UsbGetConfigDescriptor(
     _Out_ void*                     ConfigDescriptorBuffer,
     _Out_ size_t                    ConfigDescriptorBufferLength)
 {
-    // Variables
-    uintptr_t *DescriptorVirtual    = NULL;
-    uintptr_t DescriptorPhysical    = 0;
-    uintptr_t *PacketBuffer         = NULL;
-    uintptr_t PacketPhysical        = 0;
-    UsbPacket_t *Packet             = NULL;
+    void*        DescriptorVirtual  = NULL;
+    uintptr_t    DescriptorPhysical = 0;
+    void*        PacketBuffer       = NULL;
+    uintptr_t    PacketPhysical     = 0;
+    UsbPacket_t* Packet             = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result      = { 0 };
-    UsbTransfer_t Transfer          = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
     
     // Sanitize parameters
     if (ConfigDescriptorBuffer == NULL 
@@ -646,7 +649,7 @@ UsbGetConfigDescriptor(
     }
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -662,10 +665,10 @@ UsbGetConfigDescriptor(
     Packet->Length      = ConfigDescriptorBufferLength;
 
     // Allocate a data-buffer
-    if (BufferPoolAllocate(__LibUsbBufferPool, ConfigDescriptorBufferLength, 
+    if (dma_pool_allocate(DmaPool, ConfigDescriptorBufferLength, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
     
@@ -688,8 +691,8 @@ UsbGetConfigDescriptor(
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, DescriptorVirtual);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -704,7 +707,7 @@ UsbSetConfiguration(
     _In_ int                        Configuration)
 {
     // Variables
-    uintptr_t *PacketBuffer     = NULL;
+    void* PacketBuffer     = NULL;
     uintptr_t PacketPhysical    = 0;
     UsbPacket_t *Packet         = NULL;
 
@@ -713,7 +716,7 @@ UsbSetConfiguration(
     UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -739,7 +742,7 @@ UsbSetConfiguration(
         ERROR("Usb transfer returned error");
         Result.Status = TransferNotProcessed;
     }
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -754,20 +757,18 @@ UsbGetStringLanguages(
     _In_  UsbHcEndpointDescriptor_t*Endpoint,
     _Out_ UsbStringDescriptor_t*    StringDescriptor)
 {
-    // Variables
-    UsbStringDescriptor_t *Descriptor   = NULL;
-    uintptr_t *DescriptorVirtual        = NULL;
-    uintptr_t DescriptorPhysical        = 0;
-    uintptr_t *PacketBuffer             = NULL;
-    uintptr_t PacketPhysical            = 0;
-    UsbPacket_t *Packet                 = NULL;
+    UsbStringDescriptor_t *Descriptor = NULL;
+    void*        DescriptorVirtual   = NULL;
+    uintptr_t    DescriptorPhysical  = 0;
+    void*        PacketBuffer        = NULL;
+    uintptr_t    PacketPhysical      = 0;
+    UsbPacket_t* Packet              = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result          = { 0 };
-    UsbTransfer_t Transfer              = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -783,11 +784,11 @@ UsbGetStringLanguages(
     Packet->Length      = sizeof(UsbStringDescriptor_t);
 
     // Allocate a data-buffer
-    if (BufferPoolAllocate(__LibUsbBufferPool,
+    if (dma_pool_allocate(DmaPool,
         sizeof(UsbStringDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
 
@@ -813,8 +814,8 @@ UsbGetStringLanguages(
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, DescriptorVirtual);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -831,20 +832,18 @@ UsbGetStringDescriptor(
     _In_  size_t                    StringIndex, 
     _Out_ char*                     String)
 {
-    // Variables
-    const char *StringBuffer        = NULL;
-    uintptr_t *DescriptorVirtual    = NULL;
-    uintptr_t DescriptorPhysical    = 0;
-    uintptr_t *PacketBuffer         = NULL;
-    uintptr_t PacketPhysical        = 0;
-    UsbPacket_t *Packet             = NULL;
+    const char *StringBuffer     = NULL;
+    void*     DescriptorVirtual  = NULL;
+    uintptr_t DescriptorPhysical = 0;
+    void*     PacketBuffer       = NULL;
+    uintptr_t PacketPhysical     = 0;
+    UsbPacket_t *Packet          = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result      = { 0 };
-    UsbTransfer_t Transfer          = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -860,10 +859,10 @@ UsbGetStringDescriptor(
     Packet->Length      = 64;
 
     // Allocate a data-buffer
-    if (BufferPoolAllocate(__LibUsbBufferPool, 64, 
+    if (dma_pool_allocate(DmaPool, 64, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
 
@@ -891,8 +890,8 @@ UsbGetStringDescriptor(
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, DescriptorVirtual);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -908,17 +907,15 @@ UsbClearFeature(
     _In_ uint16_t                   Index, 
     _In_ uint16_t                   Feature)
 {
-    // Variables
-    uintptr_t *PacketBuffer     = NULL;
-    uintptr_t PacketPhysical    = 0;
-    UsbPacket_t *Packet         = NULL;
+    void*        PacketBuffer   = NULL;
+    uintptr_t    PacketPhysical = 0;
+    UsbPacket_t* Packet         = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t Transfer      = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -944,7 +941,7 @@ UsbClearFeature(
         ERROR("Usb transfer returned error");
         Result.Status = TransferNotProcessed;
     }
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -960,17 +957,15 @@ UsbSetFeature(
 	_In_ uint16_t                   Index, 
     _In_ uint16_t                   Feature)
 {
-    // Variables
-    uintptr_t *PacketBuffer     = NULL;
-    uintptr_t PacketPhysical    = 0;
-    UsbPacket_t *Packet         = NULL;
-
-    // Buffers
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t Transfer      = { 0 };
+    void*        PacketBuffer   = NULL;
+    uintptr_t    PacketPhysical = 0;
+    UsbPacket_t* Packet         = NULL;
+    
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -996,7 +991,7 @@ UsbSetFeature(
         ERROR("Usb transfer returned error");
         Result.Status = TransferNotProcessed;
     }
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }
 
@@ -1017,20 +1012,18 @@ UsbExecutePacket(
     _In_  uint16_t                  Length,
     _Out_ void*                     Buffer)
 {
-    // Variables
-    UsbTransactionType_t DataStageType  = OutTransaction;
-    uintptr_t *DescriptorVirtual        = NULL;
-    uintptr_t DescriptorPhysical        = 0;
-    uintptr_t *PacketBuffer             = NULL;
-    uintptr_t PacketPhysical            = 0;
-    UsbPacket_t *Packet                 = NULL;
+    UsbTransactionType_t DataStageType = OutTransaction;
+    void*        DescriptorVirtual     = NULL;
+    uintptr_t    DescriptorPhysical    = 0;
+    void*        PacketBuffer          = NULL;
+    uintptr_t    PacketPhysical        = 0;
+    UsbPacket_t* Packet                = NULL;
 
-    // Buffers
-    UsbTransferResult_t Result          = { 0 };
-    UsbTransfer_t Transfer              = { 0 };
+    UsbTransferResult_t Result   = { 0 };
+    UsbTransfer_t       Transfer = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+    if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -1046,10 +1039,10 @@ UsbExecutePacket(
     Packet->Length      = Length;
 
     // Allocate a data-buffer
-    if (Length != 0 && BufferPoolAllocate(__LibUsbBufferPool,
+    if (Length != 0 && dma_pool_allocate(DmaPool,
         Length, &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer data buffer");
-        BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+        dma_pool_free(DmaPool, PacketBuffer);
         return TransferInvalid;
     }
 
@@ -1082,8 +1075,8 @@ UsbExecutePacket(
 
     // Cleanup allocations
     if (Length != 0) {
-        BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
+        dma_pool_free(DmaPool, DescriptorVirtual);
     }
-    BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
+    dma_pool_free(DmaPool, PacketBuffer);
     return Result.Status;
 }

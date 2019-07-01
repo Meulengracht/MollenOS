@@ -256,7 +256,7 @@ UsbCleanup(void);
  * Retrieves the shared usb-memory pool for transfers. Only
  * use this for small short-term use buffers. */
 __EXTERN
-BufferPool_t*
+struct dma_pool*
 UsbRetrievePool(void);
 
 /* UsbTransferInitialize
