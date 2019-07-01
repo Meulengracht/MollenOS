@@ -107,6 +107,80 @@ ScMemoryProtect(
 }
 
 OsStatus_t
+ScDmaCreate(
+    struct dma_buffer_info* info,
+    struct dma_attachment*  attachment)
+{
+    
+}
+
+OsStatus_t
+ScDmaExport(
+    void*,
+    struct dma_buffer_info*,
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaAttach(
+    UUId_t,
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaAttachmentMap(
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaAttachmentResize(
+    struct dma_attachment*,
+    size_t)
+{
+    
+}
+
+OsStatus_t
+ScDmaAttachmentRefresh(
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaAttachmentUnmap(
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaDetach(
+    struct dma_attachment*)
+{
+    
+}
+
+OsStatus_t
+ScDmaGetMetrics(
+    struct dma_attachment*,
+    int*,
+    struct dma_sg*)
+{
+    
+}
+
+
+
+
+
+OsStatus_t
 ScMemoryShare(
     _In_     size_t  Length,
     _In_     size_t  Capacity,

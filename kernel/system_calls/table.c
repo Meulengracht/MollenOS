@@ -33,6 +33,9 @@
 #include <time.h>
 
 struct MemoryMappingParameters;
+struct dma_sg;
+struct dma_buffer_info;
+struct dma_attachment;
 
 ///////////////////////////////////////////////
 // Operating System Interface
@@ -118,11 +121,16 @@ extern OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_
 extern OsStatus_t ScMemoryAllocate(void*, size_t, Flags_t, void**);
 extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
 extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, Flags_t Flags, Flags_t* PreviousFlags);
-extern OsStatus_t ScMemoryShare(size_t, size_t, void**, UUId_t*);
-extern OsStatus_t ScMemoryInherit(UUId_t, void**, size_t*, size_t*);
-extern OsStatus_t ScMemoryResize(UUId_t, void*, size_t);
-extern OsStatus_t ScMemoryRefresh(UUId_t, void*, size_t);
-extern OsStatus_t ScMemoryGetSharedMetrics(UUId_t, int*, uintptr_t*);
+
+extern OsStatus_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
+extern OsStatus_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
+extern OsStatus_t ScDmaAttach(UUId_t, struct dma_attachment*);
+extern OsStatus_t ScDmaAttachmentMap(struct dma_attachment*);
+extern OsStatus_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
+extern OsStatus_t ScDmaAttachmentRefresh(struct dma_attachment*);
+extern OsStatus_t ScDmaAttachmentUnmap(struct dma_attachment*);
+extern OsStatus_t ScDmaDetach(struct dma_attachment*);
+extern OsStatus_t ScDmaGetMetrics(struct dma_attachment*, int*, struct dma_sg*);
 
 // Support system calls
 extern OsStatus_t ScDestroyHandle(UUId_t Handle);

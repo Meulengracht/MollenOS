@@ -23,8 +23,8 @@
 //#define __TRACE
 
 #include <ddk/bufferpool.h>
-#include <ddk/memory.h>
 #include <ddk/utils.h>
+#include <os/dmabuf.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
 

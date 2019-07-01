@@ -32,16 +32,6 @@ struct MemoryMappingParameters {
     Flags_t   Flags;
 };
 
-/**
- * MemoryGetSharedMetrics
- * * Retrieve information about a shared memory handle
- */
-DDKDECL(OsStatus_t,
-MemoryGetSharedMetrics(
-    _In_      UUId_t     Handle,
-    _Out_Opt_ int*       VectorLengthOut,
-    _Out_Opt_ uintptr_t* VectorOut));
-
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */
 DDKDECL(OsStatus_t,

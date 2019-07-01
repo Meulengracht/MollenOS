@@ -60,36 +60,3 @@ MemoryProtect(
 	}
     return Syscall_MemoryProtect(Memory, Length, Flags, PreviousFlags);
 }
-
-OsStatus_t
-MemoryShare(
-    _In_    size_t  Length,
-    _In_    size_t  Capacity,
-    _InOut_ void**  Buffer,
-    _Out_   UUId_t* HandleOut)
-{
-    if (!Capacity || !Buffer || !HandleOut) {
-        return OsInvalidParameters;
-    }
-    return Syscall_MemoryShare(Length, Capacity, Buffer, HandleOut);
-}
-
-OsStatus_t
-MemoryInherit(
-    _In_  UUId_t  Handle,
-    _Out_ void**  BufferOut,
-    _Out_ size_t* LengthOut,
-    _Out_ size_t* CapacityOut)
-{
-    if (!BufferOut) {
-        return OsInvalidParameters;
-    }
-    return Syscall_MemoryInherit(Handle, BufferOut, LengthOut, CapacityOut);
-}
-
-OsStatus_t
-MemoryUnshare(
-    _In_ UUId_t Handle)
-{
-    return Syscall_DestroyHandle(Handle);
-}

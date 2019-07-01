@@ -25,18 +25,6 @@
 #include <ddk/memory.h>
 
 OsStatus_t
-MemoryGetSharedMetrics(
-    _In_      UUId_t     Handle,
-    _Out_Opt_ int*       VectorLengthOut,
-    _Out_Opt_ uintptr_t* VectorOut)
-{
-    if (Handle == UUID_INVALID) {
-        return OsInvalidParameters;
-    }
-    return Syscall_MemoryGetSharedMetrics(Handle, VectorLengthOut, VectorOut);
-}
-
-OsStatus_t
 CreateMemorySpace(
     _In_  Flags_t Flags,
     _Out_ UUId_t* Handle)
