@@ -148,12 +148,24 @@ AreMemorySpacesRelated(
     _In_ SystemMemorySpace_t* Space1,
     _In_ SystemMemorySpace_t* Space2);
 
+/**
+ * MemoryCreateSharedRegion
+ */
 KERNELAPI OsStatus_t KERNELABI
 MemoryCreateSharedRegion(
-    _In_     size_t  Length,
-    _In_     size_t  Capacity,
-    _InOut_  void**  Memory,
-    _Out_    UUId_t* HandleOut);
+    _In_  size_t  Length,
+    _In_  size_t  Capacity,
+    _In_  Flags_t Flags,
+    _Out_ void*   Memory,
+    _Out_ UUId_t* HandleOut);
+
+KERNELAPI OsStatus_t KERNELABI
+MemoryExportSharedRegion(
+    _In_  size_t  Length,
+    _In_  size_t  Capacity,
+    _In_  Flags_t Flags,
+    _In_  void*   Memory,
+    _Out_ UUId_t* HandleOut);
 
 KERNELAPI OsStatus_t KERNELABI
 MemoryResizeSharedRegion(

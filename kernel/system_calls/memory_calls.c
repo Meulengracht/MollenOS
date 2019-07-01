@@ -21,8 +21,10 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/memory.h>
+
+#include <os/mollenos.h>
+#include <os/dmabuf.h>
 
 #include <modules/manager.h>
 #include <memoryspace.h>
@@ -111,12 +113,20 @@ ScDmaCreate(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
+    OsStatus_t Status;
+
     if (!attachment) {
         return OsInvalidParameters;
     }
 
     // TODO:
-    return MemoryCreateSharedRegion(Length, Capacity, Memory, HandleOut);
+    Status = MemoryCreateSharedRegion(info->length, info->capacity, 
+        info->flags, &attachment->buffer, &attachment->handle);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+
+    
 }
 
 OsStatus_t
@@ -125,12 +135,20 @@ ScDmaExport(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
+    OsStatus_t Status;
+
     if (!attachment) {
         return OsInvalidParameters;
     }
     
     // TODO:
-    return MemoryCreateSharedRegion(Length, Capacity, Memory, HandleOut);
+    Status = MemoryExportSharedRegion(info->length, info->capacity,
+        info->flags, buffer, &attachment->handle);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+
+
 }
 
 OsStatus_t
