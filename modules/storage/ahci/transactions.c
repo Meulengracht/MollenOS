@@ -23,6 +23,7 @@
  *    - Power Management
  */
 
+#include <assert.h>
 #include "manager.h"
 
 static UUId_t TransactionId = 0;
@@ -69,6 +70,15 @@ GetSgMetricsFromOffset(
     }
 }
 
+static OsStatus_t
+AhciTransactionDestroy(
+    _In_ AhciTransaction_t* Transaction)
+{
+    // Detach from our buffer reference
+    dma_detach(&Transaction->DmaAttachment);
+    free(Transaction);   
+}
+
 OsStatus_t
 AhciTransactionCreate(
     _In_ AhciDevice_t*         Device,
@@ -104,6 +114,7 @@ AhciTransactionCreate(
     memcpy(&Transaction->ResponAtaPIOIdentifyDeviceseAddress, Address, sizeof(MRemoteCallAddress_t));
     memcpy(&Transaction->DmaAttachment, &DmaAttachment, sizeof(struct dma_attachment));
     Transaction->Header.Key.Id = TransactionId++;
+    Transaction->Type          = TransactionRegisterFISH2D;
     Transaction->SgCount       = SgCount;
     Transaction->Sector        = Operation->AbsoluteSector;
     Transaction->Device        = Device;
@@ -142,16 +153,16 @@ AhciTransactionCreate(
     // The transaction is now prepared and ready for the dispatch
     Status = AhciDeviceQueueTransaction(Device, Transaction);
     if (Status != OsSuccess) {
-        // TODO: Cleanup transaction
+        AhciTransactionDestroy(Transaction);
     }
     return Status;
 }
 
 static OsStatus_t
-VerifyRegisterFIS(
-    _In_ AhciTransaction_t *Transaction)
+VerifyRegisterFISD2H(
+    _In_ AhciTransaction_t* Transaction)
 {
-    AHCIFis_t* Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
+    AHCIFis_t* Fis = &Transaction->Response;
 
     // Is the error bit set?
     if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
@@ -174,20 +185,27 @@ AhciTransactionHandleResponse(
 {
     StorageOperationResult_t Result = { 0 };
     TRACE("AhciCommandFinish()");
-
-    // Verify the command execution
-    // if transaction == register_fis_h2d
-    // verify_register_fis_d2h
-    Result.Status             = VerifyRegisterFIS(Transaction);
-    Result.SectorsTransferred = Transaction->SectorCount;
     
-    // Release it, and handle callbacks
-    if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
-        AhciManagerCreateDeviceCallback(Transaction->Device);
+    // Verify the command execution
+    if (Transaction->Type == TransactionRegisterFISH2D) {
+        Result.Status = VerifyRegisterFISD2H(Transaction);
     }
     else {
-        RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
+        assert(0);
     }
-    free(Transaction);
-    return Result.Status;
+
+    // Is the transaction finished? (Or did it error?)
+    if (Result.Status != OsSuccess || Transaction->BytesLeft == 0) {
+        if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
+            AhciManagerCreateDeviceCallback(Transaction->Device);
+        }
+        else {
+            Result.SectorsTransferred = Transaction->BytesLeft / Transaction->Device->SectorSize;
+            RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
+        }
+        return AhciTransactionDestroy(Transaction);
+    }
+    else {
+        return AhciDeviceQueueTransaction(Transaction->Device, Transaction);
+    }
 }

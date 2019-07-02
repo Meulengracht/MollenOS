@@ -37,6 +37,10 @@ typedef enum {
     TransactionInProgress
 } TransactionState_t;
 
+typedef enum {
+    TransactionRegisterFISH2D
+} TransactionType_t;
+
 typedef struct {
     StorageDescriptor_t     Descriptor;
 
@@ -63,6 +67,7 @@ typedef struct {
     MRemoteCallAddress_t  ResponseAddress;
     
     TransactionState_t    State;
+    TransactionType_t     Type;
     ATACommandType_t      Command;
     AhciDevice_t*         Device;
     int                   Slot;
