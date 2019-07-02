@@ -51,49 +51,69 @@ static struct {
     { -1, -1, -1, 0, 0, 0 }
 }
 
+static void
+GetSgMetricsFromOffset(
+    _In_  AhciTransaction_t* Transaction,
+    _In_  int                SgCount,
+    _In_  size_t             Offset,
+    _Out_ int*               SgIndexOut,
+    _Out_ size_t*            SgOffsetOut)
+{
+    for (int i = 0; i < SgCount; i++) {
+        if (Offset < Transaction->SgList[i].length) {
+            *SgIndexOut  = i;
+            *SgOffsetOut = Offset;
+            break;
+        }
+        Offset -= Transaction->SgList[i].length;
+    }
+}
+
 OsStatus_t
 AhciTransactionCreate(
     _In_ AhciDevice_t*         Device,
     _In_ MRemoteCallAddress_t* Address,
     _In_ StorageOperation_t*   Operation)
 {
-    AhciTransaction_t* Transaction;
-    int                FrameCount;
-    OsStatus_t         Status;
-    size_t             StartOffset;
-    int                i;
+    struct dma_attachment DmaAttachment;
+    AhciTransaction_t*    Transaction;
+    int                   SgCount;
+    OsStatus_t            Status;
+    size_t                StartOffset;
+    int                   i;
     
     if (!Device || !Address || !Operation) {
         return OsInvalidParameters;
     }
     
-    Status = MemoryGetSharedMetrics(Operation->BufferHandle, &FrameCount, NULL);
+    Status = dma_attach(Operation->BufferHandle, &DmaAttachment);
     if (Status != OsSuccess) {
         return OsInvalidParameters;
     }
     
+    dma_get_metrics(&DmaAttachment, &SgCount, NULL);
     Transaction = (AhciTransaction_t*)malloc(
-        sizeof(AhciTransaction_t) + (sizeof(uintptr_t) * FrameCount));
+        sizeof(AhciTransaction_t) + (sizeof(struct dma_sg) * SgCount));
     if (!Transactions) {
+        dma_detach(&DmaAttachment);
         return OsOutOfMemory;
     }
     
     // Do not bother about zeroing the array
     memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memcpy((void*)&Transaction->ResponAtaPIOIdentifyDeviceseAddress, Address, sizeof(MRemoteCallAddress_t));
+    memcpy(&Transaction->ResponAtaPIOIdentifyDeviceseAddress, Address, sizeof(MRemoteCallAddress_t));
+    memcpy(&Transaction->DmaAttachment, &DmaAttachment, sizeof(struct dma_attachment));
     Transaction->Header.Key.Id = TransactionId++;
+    Transaction->SgCount       = SgCount;
+    Transaction->Sector        = Operation->AbsoluteSector;
+    Transaction->Device        = Device;
+    Transaction->State         = TransactionCreated;
+    Transaction->Slot          = -1;
     
     // Do not bother to check return code again, things should go ok now
-    MemoryGetSharedMetrics(Operation->BufferHandle, NULL, &Transaction->Frame[0]);
-    
-    StartOffset              = ((Transaction->Frame[0] % AhciManagerGetFrameSize()) + Operation->BufferOffset);
-    Transaction->Frame[0]   &= ~(AhciManagerGetFrameSize() - 1);
-    Transaction->FrameIndex  = StartOffset / AhciManagerGetFrameSize();
-    Transaction->FrameOffset = StartOffset % AhciManagerGetFrameSize();
-    Transaction->Sector      = Operation->AbsoluteSector;
-    Transaction->Device      = Device;
-    Transaction->State       = TransactionCreated;
-    Transaction->Slot        = -1;
+    dma_get_metrics(&DmaAttachment, &Transaction->SgCount, &Transaction->SgList[0]);
+    GetSgMetricsFromOffset(Transaction, SgCount, Operation->BufferOffset, 
+        &Transaction->SgIndex, &Transaction->SgOffset);
     
     // Set upper bound on transaction
     if ((Transaction->Sector + Transaction->SectorCount) >= Device->SectorsLBA) {

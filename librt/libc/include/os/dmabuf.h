@@ -116,9 +116,9 @@ CRTDECL(OsStatus_t, dma_detach(struct dma_attachment* attachment));
  * * Call this once with the count parameter to get the number of
  * * scatter-gather entries, then the second time with the dma_sg parameter
  * * to retrieve a list of all the entries
- * @param attachment  [In]  Attachment to the dma buffer to query the list of dma entries
- * @param count       [Out] Pointer to an int variable storage to put the number of dma_sg entries
- * @param sg_list     [Out] Pointer to an array of struct dma_sg large enough to fit <count> entries
+ * @param attachment  [In]            Attachment to the dma buffer to query the list of dma entries
+ * @param count       [Out, Required] Pointer to an int variable storage to put the number of dma_sg entries
+ * @param sg_list     [Out]           Pointer to an array of struct dma_sg large enough to fit <count> entries
  */
 CRTDECL(OsStatus_t, dma_get_metrics(struct dma_attachment* attachment, int* count, struct dma_sg* sg_list));
 

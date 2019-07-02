@@ -115,7 +115,7 @@ dma_get_metrics(
     _Out_ int*                   count,
     _Out_ struct dma_sg*         sg_list)
 {
-    if (!attachment) {
+    if (!attachment || !count) {
         return OsInvalidParameters;
     }
     return Syscall_DmaGetMetrics(attachment, count, sg_list);

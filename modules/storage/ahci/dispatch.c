@@ -69,33 +69,35 @@ BuildPRDTTable(
     _In_  AHCICommandTable_t* CommandTable,
     _Out_ int*                PrdtCountOut)
 {
-    int i;
+    size_t BytesQueued = 0;
+    int    i;
     TRACE("Building PRDT Table");
     
     // Build PRDT entries
     for (i = 0; i < AHCI_COMMAND_TABLE_PRDT_COUNT && Transaction->BytesLeft > 0; i++) {
         AHCIPrdtEntry_t* Prdt           = &CommandTable->PrdtEntry[i];
-        uintptr_t        Address        = Transaction->Frames[Transaction->FrameIndex];
-        uintptr_t        NextAddress    = Address + AhciManagerGetFrameSize();
-        size_t           TransferLength = AhciManagerGetFrameSize() - Transaction->FrameOffset;
-        int              j              = 0;
-        
-        // So, since we have a scatter gather list, lets try to see how many consecutive
-        // frames are available for each loop
-        while (NextAddress == Transaction->Frames[Transaction->FrameIndex + j]) {
-            TransferLength += AhciManagerGetFrameSize();
-            NextAddress    += AhciManagerGetFrameSize();
-            j++;
-        }
-        
-        // Adjust for maximum size
-        Address       += Transaction->FrameOffset;
-        TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, TransferLength);
+        uintptr_t        Address        = Transaction->SgList[Transaction->SgIndex].address + Transaction->SgOffset;
+        size_t           TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, 
+            MIN(Transaction->BytesLeft, Transaction->SgList[Transaction->SgIndex].length - Transaction->SgOffset));
         
         // On some transfers (sector transfers) we would like to have sector alignment
-        // on the transfer we read
-        if (Transaction->SectorAlignment) {
-            TransferLength -= TransferLength % Device->SectorSize;
+        // on the transfer we read. This should only ever be neccessary if we cannot fit
+        // the entire transaction into <AHCI_COMMAND_TABLE_PRDT_COUNT> prdt entries. Then 
+        // we should make sure we transfer on sector boundaries between rounds. So on the last
+        // PRDT entry, we must make sure that the total transfer length is on boundaries
+        if (i == (AHCI_COMMAND_TABLE_PRDT_COUNT - 1) && Transaction->SectorAlignment &&
+            TransferLength != Transaction->BytesLeft) {
+            if ((BytesQueued + TransferLength) % Device->SectorSize != 0) {
+                if (TransferLength < Device->SectorSize) {
+                    // Perform a larger correctional action as no longer have space to reduce
+                    // to the next boundary. Instead of correcting the number of bytes to transfer
+                    // we drop the previous PRDT entry entirely and let the next transaction round
+                    // take care of this.
+                    i--;
+                    break;
+                }
+                TransferLength -= (BytesQueued + TransferLength) % Device->SectorSize;
+            }
         }
         
         Prdt->DataBaseAddress      = LODWORD(Address);
@@ -105,9 +107,13 @@ BuildPRDTTable(
         TRACE("PRDT %u, Address 0x%x, Length 0x%x", PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
 
         // Adjust frame index and offset
-        Transaction->FrameIndex  += (Transaction->FrameOffset + TransferLength) / AhciManagerGetFrameSize();
-        Transaction->FrameOffset = (Transaction->FrameOffset + TransferLength) % AhciManagerGetFrameSize();
-        Transaction->BytesLeft   -= TransferLength;
+        Transaction->SgOffset += TransferLength;
+        if (Transaction->SgOffset == Transaction->SgList[Transaction->SgIndex].length) {
+            Transaction->SgOffset = 0;
+            Transaction->SgIndex++;
+        }
+        Transaction->BytesLeft -= TransferLength;
+        BytesQueued            += TransferLength;
     }
 
     // Set IOC on the last PRDT entry
@@ -147,7 +153,7 @@ DispatchCommand(
     _In_ AhciDevice_t*      Device,
     _In_ AhciTransaction_t* Transaction,
     _In_ Flags_t            Flags,
-    _In_ void*              AtaCommand, 
+    _In_ void*              AtaCommand,
     _In_ size_t             AtaCommandLength,
     _In_ void*              AtapiCommand, 
     _In_ size_t             AtapiCommandLength)

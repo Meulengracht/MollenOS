@@ -36,7 +36,8 @@ AhciPortCreate(
     _In_ int                Port, 
     _In_ int                Index)
 {
-    AhciPort_t* AhciPort;
+    struct dma_buffer_info DmaInfo;
+    AhciPort_t*            AhciPort;
 
     // Sanitize the port, don't create an already existing
     // and make sure port is valid
@@ -58,11 +59,10 @@ AhciPortCreate(
     AhciPort->SlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
     // Allocate a transfer buffer for internal transactions
-    AhciPort->InternalBuffer.BufferLength = AhciManagerGetFrameSize();
-    MemoryAllocate(NULL, AhciManagerGetFrameSize(), MEMORY_READ | MEMORY_COMMIT, 
-        &AhciPort->InternalBuffer.Buffer);
-    MemoryShare(AhciManagerGetFrameSize(), AhciManagerGetFrameSize(), 
-        &AhciPort->InternalBuffer.Buffer, &AhciPort->InternalBuffer.BufferHandle);
+    DmaInfo.length   = AhciManagerGetFrameSize();
+    DmaInfo.capacity = AhciManagerGetFrameSize();
+    DmaInfo.flags    = 0;
+    dma_create(&DmaInfo, &AhciPort->InternalBuffer);
     
     // TODO: port nr or bit index? Right now use the Index in the validity map
     AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index));
@@ -85,16 +85,12 @@ AhciPortCleanup(
         AhciTransaction_t* Transaction = (AhciTransaction_t*)Node;
 
     }
-
-    if (Port->InternalBuffer.Buffer != NULL) {
-        MemoryUnshare(Port->InternalBuffer.BufferHandle);
-        MemoryFree(Port->InternalBuffer.Buffer, Port->InternalBuffer.BufferLength);
-    }
-
-    // Free the memory resources allocated
-    if (Port->RecievedFisTable != NULL) {
-        free((void*)Port->RecievedFisTable);
-    }
+    
+    // Destroy the internal transfer buffer
+    dma_attachment_unmap(&Port->InternalBuffer);
+    dma_detach(&Port->InternalBuffer);
+    
+    CollectionDestroy(Port->Transactions);
     free(Port);
 }
 
@@ -224,12 +220,7 @@ AhciPortRebase(
     else {
         Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
     }
-    
-    // Setup Recieved-FIS table
-    Port->RecievedFisTable = (AHCIFis_t*)malloc(Controller->CommandSlotCount * AHCI_RECIEVED_FIS_SIZE);
-    assert(Port->RecievedFisTable != NULL);
-    memset((void*)Port->RecievedFisTable, 0, Controller->CommandSlotCount * AHCI_RECIEVED_FIS_SIZE);
-    
+
     // Iterate the 32 command headers
     for (i = 0; i < 32; i++) {
         Port->CommandList->Headers[i].Flags        = 0;

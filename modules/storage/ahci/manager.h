@@ -59,23 +59,25 @@ typedef struct {
 #define AHCI_DEVICE_MODE_LBA48  2
 
 typedef struct {
-    CollectionItem_t     Header;
-    MRemoteCallAddress_t ResponseAddress;
+    CollectionItem_t      Header;
+    MRemoteCallAddress_t  ResponseAddress;
     
-    TransactionState_t   State;
-    ATACommandType_t     Command;
-    AhciDevice_t*        Device;
-    int                  Slot;
-    int                  Direction;
-    AHCIFis_t            Response;
+    TransactionState_t    State;
+    ATACommandType_t      Command;
+    AhciDevice_t*         Device;
+    int                   Slot;
+    int                   Direction;
+    AHCIFis_t             Response;
+    struct dma_attachment DmaAttachment;
 
-    uint64_t             Sector;
-    int                  SectorAlignment;
-    size_t               BytesLeft;
+    uint64_t              Sector;
+    int                   SectorAlignment;
+    size_t                BytesLeft;
     
-    int                  FrameIndex;
-    size_t               FrameOffset;
-    uintptr_t            Frames[1];
+    int                   SgIndex;
+    size_t                SgOffset;
+    int                   SgCount;
+    struct dma_sg         SgList[1];
 } AhciTransaction_t;
 
 #define AHCI_XACTION_IN     0

@@ -326,7 +326,9 @@ MemoryCreateSharedRegion(
     Region->Length    = Length;
     Region->Capacity  = Capacity;
     Region->PageCount = PageCount;
-    return CreateHandle(HandleTypeMemoryRegion, Region);
+    
+    *Handle = CreateHandle(HandleTypeMemoryRegion, Region);
+    return Status;
 }
 
 OsStatus_t
@@ -366,7 +368,9 @@ MemoryExportSharedRegion(
     Region->Length    = Length;
     Region->Capacity  = Length;
     Region->PageCount = PageCount;
-    return CreateHandle(HandleTypeMemoryRegion, Region);
+    
+    Handle = CreateHandle(HandleTypeMemoryRegion, Region);
+    return Status;
 }
 
 OsStatus_t

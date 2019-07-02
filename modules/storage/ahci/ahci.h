@@ -27,6 +27,7 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/dmabuf.h>
 #include <ds/collection.h>
 #include <ddk/contracts/base.h>
 #include <ddk/contracts/storage.h>
@@ -324,12 +325,7 @@ typedef struct _AhciPort {
     AHCICommandList_t*      CommandList;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
-
-    struct {
-        UUId_t              BufferHandle;
-        void*               Buffer;
-        size_t              BufferLength;
-    } InternalBuffer;
+    struct dma_attachment   InternalBuffer;
 
     _Atomic(int)            Slots;
     int                     SlotCount;
