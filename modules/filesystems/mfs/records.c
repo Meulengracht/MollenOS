@@ -60,9 +60,6 @@ MfsExtractToken(
     return OsSuccess;
 }
 
-/* MfsLocateRecord
- * Locates a given file-record by the path given, all sub entries must be 
- * directories. File is only allocated and set if the function returns FsOk */
 FileSystemCode_t
 MfsLocateRecord(
     _In_ FileSystemDescriptor_t*    FileSystem,
@@ -112,7 +109,7 @@ MfsLocateRecord(
         TRACE("Reading bucket %u with length %u, link 0x%x", CurrentBucket, Link.Length, Link.Link);
         
         // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.Handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
+        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
                 Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
@@ -122,7 +119,7 @@ MfsLocateRecord(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)Mfs->TransferBuffer.Pointer;
+        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
         for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
             MString_t* Filename;
             int CompareResult;
@@ -235,7 +232,7 @@ MfsLocateFreeRecord(
             CurrentBucket, Link.Length, Link.Link);
         
         // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.Handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
+        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
                 Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
@@ -244,7 +241,7 @@ MfsLocateFreeRecord(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)Mfs->TransferBuffer.Pointer;
+        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
         for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
             MString_t* Filename;
             int CompareResult;
@@ -302,7 +299,7 @@ MfsLocateFreeRecord(
                             * FileSystem->Disk.Descriptor.SectorSize;
 
                         // Write back record bucket
-                        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.Handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket),
+                        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket),
                                 Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
                             ERROR("Failed to update bucket %u", CurrentBucket);
                             Result = FsDiskError;

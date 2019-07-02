@@ -161,7 +161,6 @@ DispatchCommand(
     AHCICommandHeader_t* CommandHeader;
     AHCICommandTable_t*  CommandTable;
     size_t               CommandLength = 0;
-    int                  PrdtCount;
 
     TRACE("DispatchCommand(Port %u, Flags 0x%x)", Device->Port->Id, Flags);
 
@@ -169,8 +168,8 @@ DispatchCommand(
     // The number of bytes to transfer must also be WORD aligned, however as
     // the storage interface is implemented one can only transfer in sectors so
     // this is always true.
-    if (((uintptr_t)Transaction->FrameOffset & 0x1) != 0) {
-        ERROR("DispatchCommand::FrameOffset was not dword aligned (0x%x)", Transaction->FrameOffset);
+    if (((uintptr_t)Transaction->SgOffset & 0x1) != 0) {
+        ERROR("DispatchCommand::FrameOffset was not dword aligned (0x%x)", Transaction->SgOffset);
         return OsInvalidParameters;
     }
 
@@ -214,12 +213,12 @@ DispatchCommand(
     CommandHeader->Flags |= (DISPATCH_MULTIPLIER(Flags) << 12);
     
     TRACE("Enabling command on slot %u", Transaction->Slot);
-    AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
+    AhciPortStartCommandSlot(Device->Port, Transaction->Slot);
 
 #ifdef __TRACE
     // Dump state
     thrd_sleepex(5000);
-    AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
+    AhciDumpCurrentState(Device->Controller, Device->Port);
 #endif
     return OsSuccess;
 }
@@ -249,12 +248,12 @@ ComposeRegisterFIS(
     _In_ int                BytesQueued)
 {
     size_t SectorCount = BytesQueued / Device->SectorSize;
-    int    Device      = 0; // TODO: what is this again?
+    int    DeviceLUN   = 0; // TODO: Is this LUN or what is it?
 
     Fis->Type    = LOBYTE(FISRegisterH2D);
     Fis->Flags  |= FIS_HOST_TO_DEVICE;
     Fis->Command = LOBYTE(Transaction->Command);
-    Fis->Device  = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
+    Fis->Device  = 0x40 | ((LOBYTE(DeviceLUN) & 0x1) << 4);
     Fis->Count   = (uint16_t)SectorCount;
     
     // Handle LBA to CHS translation if disk uses
@@ -288,7 +287,6 @@ AhciDispatchRegisterFIS(
     _In_ AhciTransaction_t* Transaction)
 {
     FISRegisterH2D_t Fis = { 0 };
-    OsStatus_t       Status;
     Flags_t          Flags;
     int              BytesQueued;
 
@@ -309,5 +307,5 @@ AhciDispatchRegisterFIS(
     if (Transaction->Direction == AHCI_XACTION_OUT) {
         Flags |= DISPATCH_WRITE;
     }
-    return AhciCommandDispatch(Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
+    return DispatchCommand(Device, Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 }

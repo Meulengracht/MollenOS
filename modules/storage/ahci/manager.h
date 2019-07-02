@@ -41,7 +41,8 @@ typedef enum {
     TransactionRegisterFISH2D
 } TransactionType_t;
 
-typedef struct {
+typedef struct _AhciDevice {
+    CollectionItem_t        Header;
     StorageDescriptor_t     Descriptor;
 
     AhciController_t*       Controller;
@@ -69,7 +70,6 @@ typedef struct {
     TransactionState_t    State;
     TransactionType_t     Type;
     ATACommandType_t      Command;
-    AhciDevice_t*         Device;
     int                   Slot;
     int                   Direction;
     AHCIFis_t             Response;

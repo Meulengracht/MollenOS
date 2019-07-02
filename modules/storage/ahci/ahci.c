@@ -130,9 +130,6 @@ AhciControllerCreate(
     }
 }
 
-/* AhciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
 OsStatus_t
 AhciControllerDestroy(
     _In_ AhciController_t* Controller)

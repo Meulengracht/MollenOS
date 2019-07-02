@@ -71,7 +71,7 @@ FsReadFromDirectory(
         uint64_t Sector     = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
         size_t   Count      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength);
         size_t   Offset     = Position - Handle->BucketByteBoundary;
-        uint8_t* Data       = (uint8_t*)Mfs->TransferBuffer.Pointer;
+        uint8_t* Data       = (uint8_t*)Mfs->TransferBuffer.buffer;
         size_t   BucketSize = Count * FileSystem->Disk.Descriptor.SectorSize;
         size_t   SectorsRead;
         TRACE("read_metrics:: sector %u, count %u, offset %u, bucket-size %u",
@@ -79,7 +79,7 @@ FsReadFromDirectory(
 
         if (BucketSize > Offset) {
             // The code here is simple because we assume we can fit entire bucket at any time
-            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.Handle, 
+            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 
                     0, Sector, Count, &SectorsRead) != OsSuccess) {
                 ERROR("Failed to read sector");
                 Result = FsDiskError;

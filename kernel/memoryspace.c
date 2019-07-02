@@ -369,7 +369,7 @@ MemoryExportSharedRegion(
     Region->Capacity  = Length;
     Region->PageCount = PageCount;
     
-    Handle = CreateHandle(HandleTypeMemoryRegion, Region);
+    *HandleOut = CreateHandle(HandleTypeMemoryRegion, Region);
     return Status;
 }
 

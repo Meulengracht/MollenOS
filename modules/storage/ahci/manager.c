@@ -24,14 +24,13 @@
  */
 //#define __TRACE
 
-#include <ddk/services/file.h>
 #include <os/mollenos.h>
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
-#include <stdlib.h>
 #include "manager.h"
 
-static Collection_t Disks           = COLLECTION_INIT(KeyId);
-static UUId_t       DiskIdGenerator = 0;
+static Collection_t Devices           = COLLECTION_INIT(KeyId);
+static UUId_t       DeviceIdGenerator = 0;
 static size_t       FrameSize;
 
 OsStatus_t
@@ -52,14 +51,7 @@ OsStatus_t
 AhciManagerDestroy(void)
 {
     TRACE("AhciManagerDestroy()");
-
-    foreach(dNode, &Disks) {
-        AhciDevice_t* Device = (AhciDevice_t*)dNode->Data;
-        UnregisterStorage(Device->Descriptor.Device, __STORAGE_FORCED_REMOVE);
-        DestroyBuffer(Device->Buffer);
-        free(Device);
-    }
-    return CollectionClear(&Disks);
+    return CollectionClear(&Devices);
 }
 
 size_t
@@ -69,15 +61,23 @@ AhciManagerGetFrameSize(void)
 }
 
 OsStatus_t
-AhciManagerRegisterDevice(AhciDevice_t*)
+AhciManagerRegisterDevice(
+    _In_ AhciDevice_t* Device)
 {
+    Device->Descriptor.Device = DeviceIdGenerator++;
+    Device->Header.Key.Value.Id = Device->Descriptor.Device;
 
+    CollectionAppend(&Devices, &Device->Header);
+    return RegisterStorage(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
 OsStatus_t
-AhciManagerUnregisterDevice(AhciDevice_t*)
+AhciManagerUnregisterDevice(
+    _In_ AhciDevice_t* Device)
 {
-
+    OsStatus_t Status = UnregisterStorage(Device->Header.Key.Value.Id, __STORAGE_FORCED_REMOVE);
+    CollectionRemoveByNode(&Devices, &Device->Header);
+    return Status;
 }
 
 AhciDevice_t*
@@ -85,5 +85,5 @@ AhciManagerGetDevice(
     _In_ UUId_t Disk)
 {
     DataKey_t Key = { .Value.Id = Disk };
-    return CollectionGetDataByKey(&Disks, Key, 0);
+    return CollectionGetDataByKey(&Devices, Key, 0);
 }

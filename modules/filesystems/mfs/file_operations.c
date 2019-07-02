@@ -80,7 +80,7 @@ FsReadFromFile(
         size_t   ByteCount;
         
         // The buffer handle + offset that was selected for reading 
-        UUId_t SelectedHandle = Mfs->TransferBuffer.Handle;
+        UUId_t SelectedHandle = Mfs->TransferBuffer.handle;
         size_t SelectedOffset = 0;
         
         // Calculate the sector index into bucket
@@ -104,7 +104,7 @@ FsReadFromFile(
         // room for <SectorOffset> and also the spill-over bytes thats left for the sector
         else if ((SectorOffset + BytesToRead + (FileSystem->Disk.Descriptor.SectorSize - 
                     ((SectorOffset + BytesToRead) % FileSystem->Disk.Descriptor.SectorSize))) <= 
-                        Mfs->TransferBuffer.Length) {
+                        Mfs->TransferBuffer.length) {
             SectorCount = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
             if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
                 SectorCount++; // Take into account the extra sector we have to read
@@ -151,8 +151,8 @@ FsReadFromFile(
             
             // If we used the intermediate buffer for the transfer we now have to copy
             // <ByteCount> amount of bytes from <TransferBuffer> + <SectorOffset> to <Buffer> + <BufferOffset>
-            if (SelectedHandle == Mfs->TransferBuffer.Handle) {
-                memcpy(((uint8_t*)Buffer + BufferOffset), ((uint8_t*)Mfs->TransferBuffer.Pointer + SectorOffset), ByteCount);
+            if (SelectedHandle == Mfs->TransferBuffer.handle) {
+                memcpy(((uint8_t*)Buffer + BufferOffset), ((uint8_t*)Mfs->TransferBuffer.buffer + SectorOffset), ByteCount);
             }
             
             // Increament all read-state variables
@@ -233,7 +233,7 @@ FsWriteToFile(
         size_t   ByteCount;
         
         // The buffer handle + offset that was selected for writing 
-        UUId_t SelectedHandle = Mfs->TransferBuffer.Handle;
+        UUId_t SelectedHandle = Mfs->TransferBuffer.handle;
         size_t SelectedOffset = 0;
 
         // Calculate the sector index into bucket
@@ -274,13 +274,13 @@ FsWriteToFile(
     
             // First of all, calculate the bounds as we might need to read
             // in existing data - Start out by clearing our combination buffer
-            if (SelectedHandle == Mfs->TransferBuffer.Handle) {
-                memset(Mfs->TransferBuffer.Pointer, 0, Mfs->TransferBuffer.Length);
+            if (SelectedHandle == Mfs->TransferBuffer.handle) {
+                memset(Mfs->TransferBuffer.buffer, 0, Mfs->TransferBuffer.length);
                 
                 // CASE READ-WRITE: We do this to support appending to sectors and overwriting
                 // bytes in a sector. This must occur when we either have a <SectorOffset> != 0
                 // or when the <SectorOffset> == 0 and <ByteCount> is less than a sector. 
-                if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.Handle, 0, 
+                if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, 
                         Sector, SectorCount, &SectorsWritten) != OsSuccess) {
                     ERROR("Failed to read sector %u for combination step", 
                         LODWORD(Sector));
@@ -290,7 +290,7 @@ FsWriteToFile(
                 
                 // Now perform the user copy operation where we overwrite some of the data
                 // Copy from <Buffer> + <BufferOffset> to <TransferBuffer> + <SectorOffset>
-                memcpy(((uint8_t*)Mfs->TransferBuffer.Pointer + SectorOffset), ((uint8_t*)Buffer + BufferOffset), ByteCount);
+                memcpy(((uint8_t*)Mfs->TransferBuffer.buffer + SectorOffset), ((uint8_t*)Buffer + BufferOffset), ByteCount);
             }
             
             // Write either the intermediate buffer or directly from user

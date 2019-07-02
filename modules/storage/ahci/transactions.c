@@ -31,7 +31,7 @@ static UUId_t TransactionId = 0;
 static struct {
     int              Direction;
     int              DMA;
-    int              AddressingMode,
+    int              AddressingMode;
     ATACommandType_t Command;
     size_t           SectorAlignment;
     size_t           MaxSectors;
@@ -151,7 +151,7 @@ AhciTransactionCreate(
     assert(Transaction->BytesLeft != 0);
     
     // The transaction is now prepared and ready for the dispatch
-    Status = AhciDeviceQueueTransaction(Device, Transaction);
+    Status = AhciPortQueueTransaction(Device->Port, Transaction);
     if (Status != OsSuccess) {
         AhciTransactionDestroy(Transaction);
     }
@@ -160,6 +160,7 @@ AhciTransactionCreate(
 
 static OsStatus_t
 VerifyRegisterFISD2H(
+    _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
     AHCIFis_t* Fis = &Transaction->Response;
@@ -173,7 +174,7 @@ VerifyRegisterFISD2H(
     // Is the fault bit set?
     if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
         ERROR("AHCI::Port (%i): Device Fault, error 0x%x",
-            Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
+            Port->Id, (size_t)Fis->RegisterD2H.Error);
         return OsError;
     }
     return OsSuccess;
@@ -181,6 +182,7 @@ VerifyRegisterFISD2H(
 
 OsStatus_t
 AhciTransactionHandleResponse(
+    _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
     StorageOperationResult_t Result = { 0 };
@@ -205,7 +207,5 @@ AhciTransactionHandleResponse(
         }
         return AhciTransactionDestroy(Transaction);
     }
-    else {
-        return AhciDeviceQueueTransaction(Transaction->Device, Transaction);
-    }
+    return AhciPortQueueTransaction(Port, Transaction);
 }

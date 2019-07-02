@@ -312,8 +312,8 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 #define AHCI_PORT_SSTS_DET_ENABLED          0x3
 #define AHCI_PORT_SSTS_DET_DISABLED         0x4
 
-/* The AHCI Controller Port 
- * Contains all memory structures neccessary for port transactions */
+typedef struct _AhciDevice AhciDevice_t;
+
 typedef struct _AhciPort {
     int                     Id;
     int                     Index;
@@ -329,6 +329,7 @@ typedef struct _AhciPort {
 
     _Atomic(int)            Slots;
     int                     SlotCount;
+    AhciDevice_t*           Device;
     Collection_t*           Transactions;
 } AhciPort_t;
 

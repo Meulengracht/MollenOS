@@ -85,12 +85,13 @@ AhciPortCleanup(
         AhciTransaction_t* Transaction = (AhciTransaction_t*)Node;
 
     }
+    CollectionDestroy(Port->Transactions);
     
     // Destroy the internal transfer buffer
     dma_attachment_unmap(&Port->InternalBuffer);
     dma_detach(&Port->InternalBuffer);
-    
-    CollectionDestroy(Port->Transactions);
+
+    AhciManagerDestroyDevice(Port->Device);
     free(Port);
 }
 
@@ -347,7 +348,7 @@ AhciPortStartCommandSlot(
     WriteVolatile32(&Port->Registers->CommandIssue, (1 << Slot));
 }
 
-OsStatus_t
+static OsStatus_t
 AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* Port,
     _Out_ int*        SlotOut)
@@ -375,12 +376,39 @@ AhciPortAllocateCommandSlot(
     return Status;
 }
 
-void
+static void
 AhciPortFreeCommandSlot(
     _In_ AhciPort_t* Port,
     _In_ int         Slot)
 {
     
+}
+
+OsStatus_t
+AhciPortQueueTransaction(
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction)
+{
+    OsStatus_t Status;
+    
+    // OK so the transaction we just recieved needs to be queued up,
+    // so we must initally see if we can allocate a new slot on the port
+    Status = AhciPortAllocateCommandSlot(Port, &Transaction->Slot);
+    CollectionAppend(Port->Transactions, &Transaction->Header);
+    if (Status != OsSuccess) {
+        Transaction->State = TransactionQueued;
+        return OsSuccess;
+    }
+    
+    // If we reach here we've successfully allocated a slot, now we should dispatch 
+    // the transaction
+    Transaction->State = TransactionInProgress;
+    Status = AhciDispatchRegisterFIS(Port, Transaction);
+    if (Status != OsSuccess) {
+        CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
+        AhciPortFreeCommandSlot(Port, Transaction->Slot);
+    }
+    return Status;
 }
 
 void
@@ -425,7 +453,8 @@ HandleInterrupt:
         reg32_t Status = ReadVolatile32(&Port->Registers->AtaStatus);
         if (TFD & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
             || (AHCI_PORT_STSS_DET(Status) != AHCI_PORT_SSTS_DET_ENABLED)) {
-            AhciManagerRemoveDevice(Controller, Port);
+            AhciManagerDestroyDevice(Port->Device);
+            Port->Device    = NULL;
             Port->Connected = 0;
         }
         else {
@@ -454,7 +483,7 @@ HandleInterrupt:
                 AhciPortFreeCommandSlot(Port, Transaction->Slot);
                 Transaction->Slot = -1;
 
-                AhciTransactionHandleResponse(Transaction);
+                AhciTransactionHandleResponse(Port, Transaction);
             }
         }
     }

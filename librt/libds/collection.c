@@ -51,11 +51,9 @@ CollectionConstruct(
     Collection->KeyType = KeyType;
 }
 
-/* CollectionClear
- * Clears the Collection of members, cleans up nodes. */
 OsStatus_t
 CollectionClear(
-    _In_ Collection_t*          Collection)
+    _In_ Collection_t* Collection)
 {
     CollectionItem_t *Node = NULL;
     assert(Collection != NULL);
