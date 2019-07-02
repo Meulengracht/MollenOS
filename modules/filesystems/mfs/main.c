@@ -243,9 +243,9 @@ FsDestroy(
     }
 
     // Cleanup all allocated resources
-    if (Mfs->TransferBuffer.Pointer != NULL) {
-        MemoryFree(Mfs->TransferBuffer.Pointer, Mfs->TransferBuffer.Length);
-        MemoryUnshare(Mfs->TransferBuffer.Handle);
+    if (Mfs->TransferBuffer.buffer != NULL) {
+        dma_attachment_unmap(&Mfs->TransferBuffer);
+        dma_detach(&Mfs->TransferBuffer);
     }
 
     // Free the bucket-map
@@ -280,13 +280,13 @@ FsInitialize(
     BootRecord_t*   BootRecord;
     MfsInstance_t*  Mfs;
     uint8_t*        bMap;
-    void*           Buffer;
-    UUId_t          BufferHandle;
     uint64_t        BytesRead;
     uint64_t        BytesLeft;
     OsStatus_t      Status;
     size_t          i, imax;
     size_t          SectorsTransferred;
+    
+    struct dma_buffer_info DmaInfo;
 
     TRACE("FsInitialize()");
 
@@ -299,26 +299,25 @@ FsInitialize(
     memset(Mfs, 0, sizeof(MfsInstance_t));
     
     // Create a generic transferbuffer for us to use
-    Status = MemoryShare(Descriptor->Disk.Descriptor.SectorSize, 
-        Descriptor->Disk.Descriptor.SectorSize, &Buffer, &BufferHandle);
+    DmaInfo.length   = Descriptor->Disk.Descriptor.SectorSize;
+    DmaInfo.capacity = Descriptor->Disk.Descriptor.SectorSize;
+    DmaInfo.flags    = 0;
+    
+    Status = dma_create(&DmaInfo, &Mfs->TransferBuffer);
     if (Status != OsSuccess) {
         free(Mfs);
         return Status;
     }
 
-    Mfs->TransferBuffer.Handle  = BufferHandle;
-    Mfs->TransferBuffer.Pointer = Buffer;
-    Mfs->TransferBuffer.Length  = Descriptor->Disk.Descriptor.SectorSize;
-
     // Read the boot-sector
-    if (MfsReadSectors(Descriptor, BufferHandle, 0, 0, 
+    if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0, 0, 
             1, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs boot-sector record");
         goto Error;
     }
 
     Descriptor->ExtensionData = (uintptr_t*)Mfs;
-    BootRecord                = (BootRecord_t*)Buffer;
+    BootRecord                = (BootRecord_t*)Mfs->TransferBuffer.buffer;
     if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
         ERROR("Failed to validate boot-record signature (0x%x, expected 0x%x)",
             BootRecord->Magic, MFS_BOOTRECORD_MAGIC);
@@ -341,13 +340,13 @@ FsInitialize(
     Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
 
     // Read the master-record
-    if (MfsReadSectors(Descriptor, BufferHandle, 0,
+    if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0,
             Mfs->MasterRecordSector, 1, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs master-sectofferfferr record");
         Status = OsError;
         goto Error;
     }
-    MasterRecord = (MasterRecord_t*)Buffer;
+    MasterRecord = (MasterRecord_t*)Mfs->TransferBuffer.buffer;
 
     // Process the master-record
     if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -358,23 +357,19 @@ FsInitialize(
     }
     TRACE("Partition-name: %s", &MasterRecord->PartitionName[0]);
     memcpy(&Mfs->MasterRecord, MasterRecord, sizeof(MasterRecord_t));
-    MemoryFree(Buffer, Descriptor->Disk.Descriptor.SectorSize);
-    MemoryUnshare(BufferHandle);
-    Buffer = NULL;
+    dma_attachment_unmap(&Mfs->TransferBuffer);
+    dma_detach(&Mfs->TransferBuffer);
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
-    BytesLeft = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE;
-    Status    = MemoryShare(BytesLeft, BytesLeft, &Buffer, &BufferHandle);
+    DmaInfo.length   = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE;
+    DmaInfo.capacity = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE;
+    Status           = dma_create(&DmaInfo, &Mfs->TransferBuffer);
     if (Status != OsSuccess) {
         free(Mfs);
         return Status;
     }
     
-    Mfs->TransferBuffer.Handle  = BufferHandle;
-    Mfs->TransferBuffer.Pointer = Buffer;
-    Mfs->TransferBuffer.Length  = BytesLeft;
-
     TRACE("Caching bucket-map (Sector %u - Size %u Bytes)",
         LODWORD(Mfs->MasterRecord.MapSector),
         LODWORD(Mfs->MasterRecord.MapSize));
@@ -392,14 +387,14 @@ FsInitialize(
         size_t   SectorCount  = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
 
         // Read sectors
-        if (MfsReadSectors(Descriptor, BufferHandle, 0, 
+        if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0, 
                 MapSector, SectorCount, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
             goto Error;
         }
 
         // Reset buffer position to 0 and read the data into the map
-        memcpy(bMap, Buffer, TransferSize);
+        memcpy(bMap, Mfs->TransferBuffer.buffer, TransferSize);
         BytesLeft   -= TransferSize;
         BytesRead   += TransferSize;
         bMap        += TransferSize;

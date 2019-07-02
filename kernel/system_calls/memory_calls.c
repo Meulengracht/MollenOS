@@ -114,19 +114,24 @@ ScDmaCreate(
     _In_ struct dma_attachment*  attachment)
 {
     OsStatus_t Status;
+    Flags_t    Flags = 0;
 
-    if (!attachment) {
+    if (!info || !attachment) {
         return OsInvalidParameters;
     }
 
-    // TODO:
+    if (info->flags & DMA_BUF_NO_CLEANUP) {
+        Flags |= MEMORY_REGION_PERSISTANT;
+    }
+    
     Status = MemoryCreateSharedRegion(info->length, info->capacity, 
-        info->flags, &attachment->buffer, &attachment->handle);
+        Flags, &attachment->buffer, &attachment->handle);
     if (Status != OsSuccess) {
         return Status;
     }
 
-    
+    attachment->length = info->length;
+    return Status;
 }
 
 OsStatus_t
@@ -136,19 +141,25 @@ ScDmaExport(
     _In_ struct dma_attachment*  attachment)
 {
     OsStatus_t Status;
+    Flags_t    Flags = 0;
 
-    if (!attachment) {
+    if (!buffer || !info || !attachment) {
         return OsInvalidParameters;
     }
     
-    // TODO:
-    Status = MemoryExportSharedRegion(info->length, info->capacity,
-        info->flags, buffer, &attachment->handle);
+    if (info->flags & DMA_BUF_NO_CLEANUP) {
+        Flags |= MEMORY_REGION_PERSISTANT;
+    }
+    
+    Status = MemoryExportSharedRegion(buffer, info->length,
+        Flags, &attachment->handle);
     if (Status != OsSuccess) {
         return Status;
     }
 
-
+    attachment->buffer = buffer;
+    attachment->length = info->length;
+    return Status;
 }
 
 OsStatus_t
@@ -169,6 +180,8 @@ ScDmaAttach(
     
     // Update the attachment with info as it were correct
     attachment->handle = handle;
+    attachment->length = Region->Length;
+    attachment->buffer = NULL;
     return OsSuccess;
 }
 
@@ -180,8 +193,9 @@ ScDmaAttachmentMap(
     OsStatus_t            Status;
     uintptr_t             Offset;
     uintptr_t             Address;
+    size_t                Length;
     
-    if (!attachment) {
+    if (!attachment || (attachment->buffer != NULL)) {
         return OsInvalidParameters;
     }
     
@@ -191,12 +205,12 @@ ScDmaAttachmentMap(
         return OsDoesNotExist;
     }
     
-    // TODO: Guard against already committed regions, check attributes
-    // 
+    MutexLock(&Region->SyncObject);
     
     // This is more tricky, for the calling process we must make a new
     // mapping that spans the entire Capacity, but is uncommitted, and then commit
     // the Length of it.
+    Length = MIN(attachment->length, Region->Length);
     Offset = (Region->Pages[0] % GetMemorySpacePageSize());
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
         (VirtualAddress_t*)&Address, NULL, Region->Capacity + Offset, 
@@ -208,13 +222,12 @@ ScDmaAttachmentMap(
     
     // Now commit <Length> in pages
     Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
-        Address, &Region->Pages[0], Region->Length + Offset, 
-        MAPPING_PHYSICAL_FIXED, __MASK);
-    if (Status == OsSuccess) {
-        *MemoryOut   = (void*)(Address + Offset);
-        *LengthOut   = Region->Length;
-        *CapacityOut = Region->Capacity;
-    }
+        Address, &Region->Pages[0], Length,
+        MAPPING_PHYSICAL_CONTIGIOUS, __MASK);
+    MutexUnlock(&Region->SyncObject);
+    
+    attachment->buffer = (void*)(Address + Offset);
+    attachment->length = Length;
     return Status;
 }
 
@@ -236,7 +249,8 @@ ScDmaAttachmentRefresh(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryRefreshSharedRegion(attachment->handle, attachment->buffer, attachment->length);
+    return MemoryRefreshSharedRegion(attachment->handle, attachment->buffer, 
+        attachment->length, &attachment->length);
 }
 
 OsStatus_t
@@ -246,7 +260,7 @@ ScDmaAttachmentUnmap(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return ScMemoryFree(attachment->buffer, attachment->length);
+    return ScMemoryFree((uintptr_t)attachment->buffer, attachment->length);
 }
 
 OsStatus_t
@@ -266,6 +280,7 @@ ScDmaGetMetrics(
     _Out_ struct dma_sg*         sg_list_out)
 {
     SystemSharedRegion_t* Region;
+    size_t                PageSize = GetMemorySpacePageSize();
     
     if (!attachment) {
         return OsInvalidParameters;
@@ -277,13 +292,35 @@ ScDmaGetMetrics(
         return OsDoesNotExist;
     }
     
+    // Requested count of the scatter-gather units, so count
+    // how many entries it would take to fill a list
     if (sg_count_out) {
-        *sg_count_out = Region->SgCount;
+        int sg_count = 0;
+        for (int i = 0; i < Region->PageCount; i++) {
+            if (i == 0 || (Region->Pages[i - 1] + PageSize) != Region->Pages[i]) {
+                sg_count++;
+            }
+        }
+        *sg_count_out = sg_count;
     }
     
-    if (sg_list_out) {
-        memcpy((void*)&sg_list_out[0], (void*)&Region->SgList[0], 
-            sizeof(SystemScatterGather_t) * Region->SgCount);
+    if (sg_count_out && sg_list_out) {
+        int sg_count = *sg_count_out;
+        for (int i = 0, j = 0; (i < sg_count) && (j < Region->PageCount); i++) {
+            struct dma_sg* sg = &sg_list_out[0];
+            
+            sg->address = Region->Pages[j++];
+            sg->length  = PageSize;
+            
+            while ((j < Region->PageCount) &&
+                   (Region->Pages[j - 1] + PageSize) == Region->Pages[j]) {
+                sg->length += PageSize;
+                j++;
+            }
+        }
+        
+        // Adjust the initial sg entry for offset
+        sg_list_out[0].length -= sg_list_out[0].address % PageSize;
     }
     return OsSuccess;
 }

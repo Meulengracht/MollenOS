@@ -283,22 +283,68 @@ AreMemorySpacesRelated(
 
 OsStatus_t
 MemoryCreateSharedRegion(
-    _In_     size_t  Length,
-    _In_     size_t  Capacity,
-    _InOut_  void**  Memory,
-    _Out_    UUId_t* HandleOut)
+    _In_  size_t  Length,
+    _In_  size_t  Capacity,
+    _In_  Flags_t Flags,
+    _Out_ void**  Memory,
+    _Out_ UUId_t* Handle)
+{
+    SystemSharedRegion_t* Region;
+    OsStatus_t            Status;
+    int                   PageCount;
+
+    // Capacity is the expected maximum size of the region. Regions
+    // are resizable, but to ensure that enough continious space is
+    // allocated we must do it like this. Otherwise one must create a new.
+    PageCount = DIVUP(Capacity, GetMemorySpacePageSize());
+    Region    = (SystemSharedRegion_t*)kmalloc(
+        sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
+    if (!Region) {
+        return OsOutOfMemory;
+    }
+    memset(Region, 0, sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
+    
+    // This is more tricky, for the calling process we must make a new
+    // mapping that spans the entire Capacity, but is uncommitted, and then commit
+    // the Length of it.
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)Memory, NULL, Capacity, 
+        MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
+    if (Status != OsSuccess) {
+        kfree(Region);
+        return Status;
+    }
+    
+    // Now commit <Length> in pages
+    Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t)*Memory, &Region->Pages[0], Length, 
+        MAPPING_PHYSICAL_DEFAULT, __MASK);
+    
+    MutexConstruct(&Region->SyncObject, MUTEX_PLAIN);
+    Region->Flags     = Flags;
+    Region->Length    = Length;
+    Region->Capacity  = Capacity;
+    Region->PageCount = PageCount;
+    return CreateHandle(HandleTypeMemoryRegion, Region);
+}
+
+OsStatus_t
+MemoryExportSharedRegion(
+    _In_  void*   Memory,
+    _In_  size_t  Length,
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* HandleOut)
 {
     SystemSharedRegion_t* Region;
     OsStatus_t            Status;
     int                   PageCount;
     size_t                CapacityWithOffset;
-    uintptr_t             MemoryAddress = (uintptr_t)*Memory;
-    Flags_t               Flags         = 0;
 
     // Capacity is the expected maximum size of the region. Regions
     // are resizable, but to ensure that enough continious space is
     // allocated we must do it like this. Otherwise one must create a new.
-    CapacityWithOffset = Capacity + ((uintptr_t)MemoryAddress % GetMemorySpacePageSize());
+    CapacityWithOffset = Length + ((uintptr_t)Memory % GetMemorySpacePageSize());
     PageCount          = DIVUP(CapacityWithOffset, GetMemorySpacePageSize());
     
     Region = (SystemSharedRegion_t*)kmalloc(
@@ -308,38 +354,17 @@ MemoryCreateSharedRegion(
     }
     memset(Region, 0, sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
     
-    // If the memory is provided we would like to just query for dma's
-    if (MemoryAddress != 0) {
-        Flags  = MEMORY_REGION_SUPPLIED;
-        Status = GetMemorySpaceMapping(GetCurrentMemorySpace(), 
-            MemoryAddress, PageCount, &Region->Pages[0]);
-        if (Status != OsSuccess) {
-            kfree(Region);
-            return Status;
-        }
-    }
-    else {
-        // This is more tricky, for the calling process we must make a new
-        // mapping that spans the entire Capacity, but is uncommitted, and then commit
-        // the Length of it.
-        Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-            (VirtualAddress_t*)Memory, NULL, CapacityWithOffset, 
-            MAPPING_USERSPACE | MAPPING_PERSISTENT,
-            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
-        if (Status != OsSuccess) {
-            kfree(Region);
-            return Status;
-        }
-        
-        // Now commit <Length> in pages
-        Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
-            (VirtualAddress_t)*Memory, &Region->Pages[0], Length, 
-            MAPPING_PHYSICAL_DEFAULT, __MASK);
+    Status = GetMemorySpaceMapping(GetCurrentMemorySpace(), 
+        (uintptr_t)Memory, PageCount, &Region->Pages[0]);
+    if (Status != OsSuccess) {
+        kfree(Region);
+        return Status;
     }
     
+    MutexConstruct(&Region->SyncObject, MUTEX_PLAIN);
     Region->Flags     = Flags;
     Region->Length    = Length;
-    Region->Capacity  = Capacity;
+    Region->Capacity  = Length;
     Region->PageCount = PageCount;
     return CreateHandle(HandleTypeMemoryRegion, Region);
 }
@@ -367,12 +392,14 @@ MemoryResizeSharedRegion(
         return OsInvalidParameters;
     }
     
+    MutexLock(&Region->SyncObject);
     CurrentPages = DIVUP(Region->Length, GetMemorySpacePageSize());
     NewPages     = DIVUP(NewLength, GetMemorySpacePageSize());
     
     // If we are shrinking (not supported atm) or equal then simply move on
     // and report success. We won't perform any unmapping
     if (CurrentPages >= NewPages) {
+        MutexUnlock(&Region->SyncObject);
         return OsSuccess;
     }
     
@@ -384,25 +411,33 @@ MemoryResizeSharedRegion(
     if (Status == OsSuccess) {
         Region->Length = NewLength;
     }
+    MutexUnlock(&Region->SyncObject);
     return Status;
 }
 
 OsStatus_t
 MemoryRefreshSharedRegion(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory,
-    _In_ size_t CurrentLength)
+    _In_  UUId_t  Handle,
+    _In_  void*   Memory,
+    _In_  size_t  CurrentLength,
+    _Out_ size_t* NewLength)
 {
     SystemSharedRegion_t* Region;
     int                   CurrentPages;
     int                   NewPages;
     uintptr_t             End;
+    OsStatus_t            Status;
     
     // Lookup region
     Region = LookupHandleOfType(Handle, HandleTypeMemoryRegion);
     if (!Region) {
         return OsDoesNotExist;
     }
+    
+    MutexLock(&Region->SyncObject);
+    
+    // Update the out first
+    *NewLength = Region->Length;
     
     // Calculate the new number of pages that should be mapped,
     // but instead of using the provided argument as new, it must be
@@ -413,15 +448,18 @@ MemoryRefreshSharedRegion(
     // If we are shrinking (not supported atm) or equal then simply move on
     // and report success. We won't perform any unmapping
     if (CurrentPages >= NewPages) {
+        MutexUnlock(&Region->SyncObject);
         return OsSuccess;
     }
     
     // Otherwise commit mappings, but instead of doing like the Resize
     // operation we will tell that we provide them ourself
     End = (uintptr_t)Memory + (CurrentPages * GetMemorySpacePageSize());
-    return CommitMemorySpaceMapping(GetCurrentMemorySpace(), End, 
+    Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(), End, 
         &Region->Pages[CurrentPages], Region->Length - CurrentLength,
         MAPPING_PHYSICAL_FIXED, __MASK);
+    MutexUnlock(&Region->SyncObject);
+    return Status;
 }
 
 OsStatus_t
@@ -430,7 +468,7 @@ MemoryDestroySharedRegion(
 {
     SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
     OsStatus_t            Status = OsSuccess;
-    if (!(Region->Flags & MEMORY_REGION_SUPPLIED)) {
+    if (!(Region->Flags & MEMORY_REGION_PERSISTANT)) {
         for (int i = 0; i < Region->PageCount; i++) {
             Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
         }

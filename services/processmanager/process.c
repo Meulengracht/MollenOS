@@ -28,6 +28,7 @@
 #include <os/services/file.h>
 #include <os/services/path.h>
 #include <os/mollenos.h>
+#include <os/dmabuf.h>
 #include <os/context.h>
 #include "process.h"
 #include <ds/mstring.h>
@@ -264,25 +265,31 @@ LoadFile(
 
     Size = (size_t)QueriedSize.QuadPart;
     if (Size != 0) {
-        UUId_t BufferHandle;
+        struct dma_buffer_info DmaInfo;
+        struct dma_attachment  DmaAttachment;
+        
         Buffer = dsalloc(Size);
         if (!Buffer) {
             return OsOutOfMemory;
         }
+        
+        DmaInfo.length   = Size;
+        DmaInfo.capacity = Size;
+        DmaInfo.flags    = DMA_BUF_NO_CLEANUP;
 
-        Status = MemoryShare(Size, Size, &Buffer, &BufferHandle);
+        Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
         if (Status == OsSuccess) {
             size_t Read = 0;
-            FsCode = TransferFile(Handle, BufferHandle, 0, 0, Size, &Read);
+            FsCode = TransferFile(Handle, DmaAttachment.handle, 0, 0, Size, &Read);
             TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
             if (FsCode != FsOk) {
                 Status = OsError;
                 Buffer = NULL;
             }
-            MemoryUnshare(BufferHandle);
+            dma_detach(&DmaAttachment);
         }
         else {
-            ERROR("Failed to create a transfer buffer");
+            ERROR("Failed to export a transfer buffer");
             Status = OsError;
         }
     }

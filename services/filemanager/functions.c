@@ -22,10 +22,11 @@
 //#define __TRACE
 
 #include "include/vfs.h"
-#include <ddk/services/file.h>
+#include <os/mollenos.h>
+#include <os/dmabuf.h>
 #include <os/services/file.h>
 #include <os/services/process.h>
-#include <os/mollenos.h>
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
 
 #include <stdlib.h>
@@ -519,9 +520,7 @@ VfsReadEntry(
     FileSystemCode_t         Code;
     FileSystem_t*            Fs;
     OsStatus_t               Status;
-    void*                    Buffer;
-    size_t                   BufferLength;
-    size_t                   BufferCapacity;
+    struct dma_attachment    DmaAttachment;
     
     if (BufferHandle == UUID_INVALID || Length == 0) {
         ERROR("Buffer/length is invalid.");
@@ -538,20 +537,30 @@ VfsReadEntry(
         Code = VfsFlushFile(Requester, Handle);
     }
 
-    Status = MemoryInherit(BufferHandle, &Buffer, &BufferLength, &BufferCapacity);
+    Status = dma_attach(BufferHandle, &DmaAttachment);
     if (Status != OsSuccess) {
         ERROR("User specified buffer was invalid");
         return FsInvalidParameters;
     }
+    
+    Status = dma_attachment_map(&DmaAttachment);
+    if (Status != OsSuccess) {
+        ERROR("Failed to map the user buffer");
+        dma_detach(&DmaAttachment);
+        return FsInvalidParameters;
+    }
 
     Fs   = (FileSystem_t*)EntryHandle->Entry->System;
-    Code = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, BufferHandle, &Buffer, Offset, Length, BytesRead);
+    Code = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, BufferHandle, 
+        DmaAttachment.buffer, Offset, Length, BytesRead);
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_READ;
         EntryHandle->Position       += *BytesRead;
     }
-    MemoryFree(Buffer, BufferCapacity);
-    MemoryUnshare(BufferHandle);
+    
+    // Unregister the dma buffer
+    dma_attachment_unmap(&DmaAttachment);
+    dma_detach(&DmaAttachment);
     return Code;
 }
 
@@ -568,9 +577,7 @@ VsfWriteEntry(
     FileSystemCode_t         Code;
     FileSystem_t*            Fs;
     OsStatus_t               Status;
-    void*                    Buffer;
-    size_t                   BufferLength;
-    size_t                   BufferCapacity;
+    struct dma_attachment    DmaAttachment;
 
     TRACE("VsfWriteEntry(Length %u)", Length);
 
@@ -589,14 +596,22 @@ VsfWriteEntry(
         Code = VfsFlushFile(Requester, Handle);
     }
 
-    Status = MemoryInherit(BufferHandle, &Buffer, &BufferLength, &BufferCapacity);
+    Status = dma_attach(BufferHandle, &DmaAttachment);
     if (Status != OsSuccess) {
         ERROR("User specified buffer was invalid");
         return FsInvalidParameters;
     }
+    
+    Status = dma_attachment_map(&DmaAttachment);
+    if (Status != OsSuccess) {
+        ERROR("Failed to map the user buffer");
+        dma_detach(&DmaAttachment);
+        return FsInvalidParameters;
+    }
 
     Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle, Buffer, Offset, Length, BytesWritten);
+    Code    = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle,
+        DmaAttachment.buffer, Offset, Length, BytesWritten);
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_WRITE;
         EntryHandle->Position       += *BytesWritten;
@@ -604,8 +619,10 @@ VsfWriteEntry(
             EntryHandle->Entry->Descriptor.Size.QuadPart = EntryHandle->Position;
         }
     }
-    MemoryFree(Buffer, BufferCapacity);
-    MemoryUnshare(BufferHandle);
+    
+    // Unregister the dma buffer
+    dma_attachment_unmap(&DmaAttachment);
+    dma_detach(&DmaAttachment);
     return Code;
 }
 

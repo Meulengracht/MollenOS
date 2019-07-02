@@ -33,6 +33,7 @@
 #include <ddk/contracts/filesystem.h>
 #include <os/services/file.h>
 #include <os/mollenos.h>
+#include <os/dmabuf.h>
 #include <ds/mstring.h>
 
 /**
@@ -214,11 +215,7 @@ typedef struct _MfsInstance {
     Flags_t    Flags;
     int        Version;
     size_t     SectorsPerBucket;
-    struct {
-        UUId_t Handle;
-        void*  Pointer;
-        size_t Length;
-    } TransferBuffer;
+    struct dma_attachment TransferBuffer;
     
     uint64_t MasterRecordSector;
     uint64_t MasterRecordMirrorSector;
