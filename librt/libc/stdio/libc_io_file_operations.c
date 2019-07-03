@@ -78,7 +78,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
         
         info.length   = length;
         info.capacity = length;
-        info.flags    = DMA_BUF_NO_CLEANUP;
+        info.flags    = DMA_PERSISTANT;
         
         status = dma_export(buffer, &info, &attachment);
         if (status != OsSuccess) {
@@ -114,7 +114,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
         
         info.length   = length;
         info.capacity = length;
-        info.flags    = DMA_BUF_NO_CLEANUP;
+        info.flags    = DMA_PERSISTANT;
         
         status = dma_export((void*)buffer, &info, &attachment);
         if (status != OsSuccess) {

@@ -247,8 +247,9 @@ ComposeRegisterFIS(
     _In_ FISRegisterH2D_t*  Fis,
     _In_ int                BytesQueued)
 {
-    size_t SectorCount = BytesQueued / Device->SectorSize;
-    int    DeviceLUN   = 0; // TODO: Is this LUN or what is it?
+    uint64_t Sector      = Transaction->Sector + Transaction->SectorsTransferred;
+    size_t   SectorCount = BytesQueued / Device->SectorSize;
+    int      DeviceLUN   = 0; // TODO: Is this LUN or what is it?
 
     Fis->Type    = LOBYTE(FISRegisterH2D);
     Fis->Flags  |= FIS_HOST_TO_DEVICE;
@@ -268,15 +269,15 @@ ComposeRegisterFIS(
     else if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA28 || 
              Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
         // Set LBA 28 parameters
-        Fis->SectorNo            = LOBYTE(Transaction->Sector);
-        Fis->CylinderLow         = (uint8_t)((Transaction->Sector >> 8) & 0xFF);
-        Fis->CylinderHigh        = (uint8_t)((Transaction->Sector >> 16) & 0xFF);
-        Fis->SectorNoExtended    = (uint8_t)((Transaction->Sector >> 24) & 0xFF);
+        Fis->SectorNo            = LOBYTE(Sector);
+        Fis->CylinderLow         = (uint8_t)((Sector >> 8) & 0xFF);
+        Fis->CylinderHigh        = (uint8_t)((Sector >> 16) & 0xFF);
+        Fis->SectorNoExtended    = (uint8_t)((Sector >> 24) & 0xFF);
 
         // If it's an LBA48, set LBA48 params as well
         if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
-            Fis->CylinderLowExtended     = (uint8_t)((Transaction->Sector >> 32) & 0xFF);
-            Fis->CylinderHighExtended    = (uint8_t)((Transaction->Sector >> 40) & 0xFF);
+            Fis->CylinderLowExtended     = (uint8_t)((Sector >> 32) & 0xFF);
+            Fis->CylinderHighExtended    = (uint8_t)((Sector >> 40) & 0xFF);
         }
     }
 }
@@ -300,7 +301,7 @@ AhciDispatchRegisterFIS(
     // Start out by building dispatcher flags here
     Flags = DISPATCH_MULTIPLIER(0);
     
-    if (Device->Type == AHCI_DEVICE_TYPE_ATAPI) {
+    if (Device->Type == DeviceATAPI) {
         Flags |= DISPATCH_ATAPI;
     }
 

@@ -275,7 +275,7 @@ LoadFile(
         
         DmaInfo.length   = Size;
         DmaInfo.capacity = Size;
-        DmaInfo.flags    = DMA_BUF_NO_CLEANUP;
+        DmaInfo.flags    = DMA_PERSISTANT;
 
         Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
         if (Status == OsSuccess) {

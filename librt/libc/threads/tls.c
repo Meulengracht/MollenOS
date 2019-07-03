@@ -119,7 +119,7 @@ tls_create(
     
     info.length   = BUFSIZ;
     info.capacity = BUFSIZ;
-    info.flags    = DMA_BUF_NO_CLEANUP;
+    info.flags    = DMA_PERSISTANT;
     return dma_export(buffer, &info, &Tls->transfer_buffer);
 }
 

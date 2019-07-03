@@ -120,7 +120,7 @@ ScDmaCreate(
         return OsInvalidParameters;
     }
 
-    if (info->flags & DMA_BUF_NO_CLEANUP) {
+    if (info->flags & DMA_PERSISTANT) {
         Flags |= MEMORY_REGION_PERSISTANT;
     }
     
@@ -147,7 +147,7 @@ ScDmaExport(
         return OsInvalidParameters;
     }
     
-    if (info->flags & DMA_BUF_NO_CLEANUP) {
+    if (info->flags & DMA_PERSISTANT) {
         Flags |= MEMORY_REGION_PERSISTANT;
     }
     

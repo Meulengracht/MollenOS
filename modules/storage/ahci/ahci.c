@@ -144,25 +144,8 @@ AhciControllerDestroy(
         }
     }
 
-    // Free the controller resources
-    if (Controller->CommandListBase != NULL) {
-        MemoryFree(Controller->CommandListBase, 1024 * Controller->PortCount);
-    }
-    if (Controller->CommandTableBase != NULL) {
-        MemoryFree(Controller->CommandListBase, 
-            (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
-    }
-    if (Controller->FisBase != NULL) {
-        if (ReadVolatile32(&Controller->Registers->Capabilities) & AHCI_CAPABILITIES_FBSS) {
-            MemoryFree(Controller->FisBase, 0x1000 * Controller->PortCount);
-        }
-        else {
-            MemoryFree(Controller->FisBase, 256 * Controller->PortCount);
-        }
-    }
     UnregisterInterruptSource(Controller->InterruptId);
     ReleaseDeviceIo(Controller->IoBase);
-
     free(Controller);
     return OsSuccess;
 }
@@ -250,57 +233,6 @@ AhciTakeOwnership(
 }
 
 OsStatus_t
-AllocateOperationalMemory(
-    _In_ AhciController_t* Controller)
-{
-    Flags_t MemoryFlags = MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN | 
-        MEMORY_COMMIT | MEMORY_UNCHACHEABLE | MEMORY_READ | MEMORY_WRITE;
-    TRACE("AllocateOperationalMemory()");
-
-    // Allocate some shared resources. The resource we need is 
-    // 1K for the Command List per port
-    // A Command table for each command header (32) per port
-    if (MemoryAllocate(NULL, sizeof(AHCICommandList_t) * Controller->PortCount, 
-        MemoryFlags, &Controller->CommandListBase, &Controller->CommandListBasePhysical) != OsSuccess) {
-        ERROR("AHCI::Failed to allocate memory for the command list.");
-        return OsError;
-    }
-    if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount, 
-        MemoryFlags, &Controller->CommandTableBase, &Controller->CommandTableBasePhysical) != OsSuccess) {
-        ERROR("AHCI::Failed to allocate memory for the command table.");
-        return OsError;
-    }
-
-    // Trace allocations
-    TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandListBase, Controller->CommandListBasePhysical,
-        sizeof(AHCICommandList_t) * Controller->PortCount);
-    TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandTableBase, Controller->CommandTableBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
-    
-    // We have to take into account FIS based switching here, 
-    // if it's supported we need 4K per port, otherwise 256 bytes per port
-    if (ReadVolatile32(&Controller->Registers->Capabilities) & AHCI_CAPABILITIES_FBSS) {
-        if (MemoryAllocate(NULL, 0x1000 * Controller->PortCount,
-            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
-    }
-    else {
-        if (MemoryAllocate(NULL, 256 * Controller->PortCount,
-            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
-    }
-    TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x", 
-        Controller->FisBase, Controller->FisBasePhysical, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
-    return OsSuccess;
-}
-
-OsStatus_t
 AhciSetup(
     _In_ AhciController_t*Controller)
 {
@@ -336,12 +268,6 @@ AhciSetup(
         Controller->PortCount++;
     }
     TRACE("Port Validity Bitmap 0x%x, Capabilities 0x%x", Controller->ValidPorts, Caps);
-
-    // Allocate memory neccessary, we must have set Controller->PortCount by this point
-    if (AllocateOperationalMemory(Controller) != OsSuccess) {
-        ERROR("Failed to allocate neccessary memory for the controller.");
-        return OsError;
-    }
 
     // Initialize ports
     for (i = 0; i < AHCI_MAX_PORTS; i++) {

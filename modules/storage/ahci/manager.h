@@ -41,6 +41,13 @@ typedef enum {
     TransactionRegisterFISH2D
 } TransactionType_t;
 
+typedef enum {
+    DeviceATA,
+    DeviceATAPI,
+    DevicePM,  // Port Multiplier
+    DeviceSEMB // Enclosure Management Bridge
+} DeviceType_t;
+
 typedef struct _AhciDevice {
     CollectionItem_t        Header;
     StorageDescriptor_t     Descriptor;
@@ -49,15 +56,18 @@ typedef struct _AhciDevice {
     AhciPort_t*             Port;
     int                     Index;
 
-    int                     Type;              // 0 -> ATA, 1 -> ATAPI
-    int                     UseDMA;
-    uint64_t                SectorsLBA;
-    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
+    DeviceType_t            Type;
+    int                     HasDMAEngine;
     size_t                  SectorSize;
+    uint64_t                SectorCount;
+    
+    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
+    struct {
+        uint16_t CylinderCount;
+        uint8_t  TracksPerCylinder;
+        uint8_t  SectorsPerTrack;
+    } CHS;
 } AhciDevice_t;
-
-#define AHCI_DEVICE_TYPE_ATA    0
-#define AHCI_DEVICE_TYPE_ATAPI  1
 
 #define AHCI_DEVICE_MODE_CHS    0
 #define AHCI_DEVICE_MODE_LBA28  1
@@ -69,13 +79,14 @@ typedef struct {
     
     TransactionState_t    State;
     TransactionType_t     Type;
-    ATACommandType_t      Command;
+    AtaCommand_t          Command;
     int                   Slot;
     int                   Direction;
     AHCIFis_t             Response;
     struct dma_attachment DmaAttachment;
 
     uint64_t              Sector;
+    size_t                SectorsTransferred;
     int                   SectorAlignment;
     size_t                BytesLeft;
     
@@ -96,58 +107,53 @@ typedef struct {
 __EXTERN OsStatus_t AhciManagerInitialize(void);
 __EXTERN OsStatus_t AhciManagerDestroy(void);
 __EXTERN size_t     AhciManagerGetFrameSize(void);
-__EXTERN OsStatus_t AhciManagerRegisterDevice(AhciDevice_t*);
-__EXTERN OsStatus_t AhciManagerUnregisterDevice(AhciDevice_t*);
+__EXTERN OsStatus_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
+__EXTERN OsStatus_t AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
+__EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransaction_t*);
 
 /**
- * AhciDeviceRegister
- */
-__EXTERN OsStatus_t
-AhciDeviceRegister(
-    _In_ AhciController_t* Controller,
-    _In_ AhciPort_t*       Port);
-
-/**
- * AhciDeviceUnregister
- */
-__EXTERN OsStatus_t
-AhciDeviceUnregister(
-    _In_ AhciController_t* Controller,
-    _In_ AhciPort_t*       Port);
-
-/**
- * AhciDeviceGet
+ * AhciManagerGetDevice
  * * Convert a system device identifier to a AhciDevice_t structure.
  */
 __EXTERN AhciDevice_t*
-AhciDeviceGet(
-    _In_ UUId_t DiskId);
+AhciManagerGetDevice(
+    _In_ UUId_t DeviceId);
 
 /**
- * AhciDeviceQueueTransaction
- * @param Device      [In] The device that should handle the transaction.
- * @param Transaction [In] The transaction that should get queued up.
+ * AhciTransactionControlCreate
+ * @param Device  [In] The device that should handle the transaction.
+ * @param Command [In] The transaction that should get queued up.
  */
 __EXTERN OsStatus_t
-AhciDeviceQueueTransaction(
-    _In_ AhciDevice_t*      Device,
-    _In_ AhciTransaction_t* Transaction);
+AhciTransactionControlCreate(
+    _In_ AhciDevice_t* Device,
+    _In_ AtaCommand_t  Command);
+
+/**
+ * AhciTransactionStorageCreate
+ * @param Device    [In] The device that should handle the transaction.
+ * @param Address   [In] The transaction that should get queued up.
+ * @param Operation [In] The transaction that should get queued up.
+ */
+__EXTERN OsStatus_t
+AhciTransactionStorageCreate(
+    _In_ AhciDevice_t*         Device,
+    _In_ MRemoteCallAddress_t* Address,
+    _In_ StorageOperation_t*   Operation);
 
 /** 
  * AhciDeviceCancelTransaction
  */
 __EXTERN OsStatus_t
 AhciManagerCancelTransaction(
-    _In_ AhciDevice_t* Device,
-    _In_ UUId_t        TransactionId);
+    _In_ AhciTransaction_t* Transaction);
 
-/** 
- * AhciTransactionCreate
+/**
+ * AhciTransactionHandleResponse
  */
-__EXTERN OsStatus_t
-AhciTransactionCreate(
-    _In_ AhciDevice_t*         Device,
-    _In_ MRemoteCallAddress_t* Address,
-    _In_ StorageOperation_t*   Operation);
+OsStatus_t
+AhciTransactionHandleResponse(
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction);
 
 #endif //!_AHCI_MANAGER_H_

@@ -144,7 +144,7 @@ PACKED_TYPESTRUCT(AHCICommandHeader, {
 /* The command list structure 
  * Contains a number of entries (1K /32 bytes) for each port to execute */
 PACKED_TYPESTRUCT(AHCICommandList, {
-    AHCICommandHeader_t Headers[32];            
+    AHCICommandHeader_t Headers[32];
 });
 
 /* Received FIS 
@@ -312,24 +312,24 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 #define AHCI_PORT_SSTS_DET_ENABLED          0x3
 #define AHCI_PORT_SSTS_DET_DISABLED         0x4
 
-typedef struct _AhciDevice AhciDevice_t;
-
 typedef struct _AhciPort {
     int                     Id;
     int                     Index;
     int                     MultiplierIndex;
-
     int                     Connected;
+    
+    struct dma_attachment   InternalBuffer;
+    struct dma_attachment   CommandListDMA;
+    struct dma_attachment   CommandTableDMA;
+    struct dma_attachment   RecievedFisDMA;
 
     AHCIPortRegisters_t*    Registers;
     AHCICommandList_t*      CommandList;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
-    struct dma_attachment   InternalBuffer;
 
     _Atomic(int)            Slots;
     int                     SlotCount;
-    AhciDevice_t*           Device;
     Collection_t*           Transactions;
 } AhciPort_t;
 
@@ -354,14 +354,7 @@ typedef struct _AhciController {
     AhciPort_t*             Ports[AHCI_MAX_PORTS];
     uint32_t                ValidPorts;
     int                     PortCount;
-
     size_t                  CommandSlotCount;
-    void*                   CommandListBase;
-    uintptr_t               CommandListBasePhysical;
-    void*                   CommandTableBase;
-    uintptr_t               CommandTableBasePhysical;
-    void*                   FisBase;
-    uintptr_t               FisBasePhysical;
 } AhciController_t;
 
 /* AhciControllerCreate

@@ -70,6 +70,42 @@ GetSgMetricsFromOffset(
     }
 }
 
+OsStatus_t
+QueueTransaction(
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction)
+{
+    OsStatus_t Status;
+    
+    // OK so the transaction we just recieved needs to be queued up,
+    // so we must initally see if we can allocate a new slot on the port
+    Status = AhciPortAllocateCommandSlot(Port, &Transaction->Slot);
+    CollectionAppend(Port->Transactions, &Transaction->Header);
+    if (Status != OsSuccess) {
+        Transaction->State = TransactionQueued;
+        return OsSuccess;
+    }
+    
+    // If we reach here we've successfully allocated a slot, now we should dispatch 
+    // the transaction
+    Transaction->State = TransactionInProgress;
+    switch (Transaction->Type) {
+        case TransactionRegisterFISH2D: {
+            Status = AhciDispatchRegisterFIS(Port, Transaction);
+        } break;
+        
+        default: {
+            assert(0);
+        } break;
+    }
+    
+    if (Status != OsSuccess) {
+        CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
+        AhciPortFreeCommandSlot(Port, Transaction->Slot);
+    }
+    return Status;
+}
+
 static OsStatus_t
 AhciTransactionDestroy(
     _In_ AhciTransaction_t* Transaction)
@@ -80,7 +116,15 @@ AhciTransactionDestroy(
 }
 
 OsStatus_t
-AhciTransactionCreate(
+AhciTransactionControlCreate(
+    _In_ AhciDevice_t*      Device,
+    _In_ enum AtaCommand    Command)
+{
+    
+}
+
+OsStatus_t
+AhciTransactionStorageCreate(
     _In_ AhciDevice_t*         Device,
     _In_ MRemoteCallAddress_t* Address,
     _In_ StorageOperation_t*   Operation)
@@ -151,7 +195,7 @@ AhciTransactionCreate(
     assert(Transaction->BytesLeft != 0);
     
     // The transaction is now prepared and ready for the dispatch
-    Status = AhciPortQueueTransaction(Device->Port, Transaction);
+    Status = QueueTransaction(Device->Port, Transaction);
     if (Status != OsSuccess) {
         AhciTransactionDestroy(Transaction);
     }
@@ -163,20 +207,23 @@ VerifyRegisterFISD2H(
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
-    AHCIFis_t* Fis = &Transaction->Response;
+    FISRegisterD2H_t* Result = &Transaction->Response.RegisterD2H;
 
     // Is the error bit set?
-    if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
-        PrintTaskDataErrorString(Fis->RegisterD2H.Error);
+    if (Result->Status & ATA_STS_DEV_ERROR) {
+        PrintTaskDataErrorString(Result->Error);
         return OsError;
     }
 
     // Is the fault bit set?
-    if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
+    if (Result->Status & ATA_STS_DEV_FAULT) {
         ERROR("AHCI::Port (%i): Device Fault, error 0x%x",
-            Port->Id, (size_t)Fis->RegisterD2H.Error);
+            Port->Id, (size_t)Result->Error);
         return OsError;
     }
+    
+    // Increase the sector with the number of sectors transferred
+    Transaction->SectorsTransferred += Result->Count;
     return OsSuccess;
 }
 
@@ -199,13 +246,13 @@ AhciTransactionHandleResponse(
     // Is the transaction finished? (Or did it error?)
     if (Result.Status != OsSuccess || Transaction->BytesLeft == 0) {
         if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
-            AhciManagerCreateDeviceCallback(Transaction->Device);
+            AhciManagerHandleControlResponse(Port, Transaction);
         }
         else {
-            Result.SectorsTransferred = Transaction->BytesLeft / Transaction->Device->SectorSize;
+            Result.SectorsTransferred = Transaction->SectorsTransferred;
             RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
         }
         return AhciTransactionDestroy(Transaction);
     }
-    return AhciPortQueueTransaction(Port, Transaction);
+    return QueueTransaction(Port, Transaction);
 }

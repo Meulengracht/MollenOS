@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Serial-ATA Header
+ * Serial-ATA Header
  * - Contains shared definitions for SATA that can
  *   be used by all storage drivers that implement the SATA protocol
  */

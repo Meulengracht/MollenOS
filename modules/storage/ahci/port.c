@@ -26,6 +26,7 @@
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "manager.h"
+#include "dispatch.h"
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -81,30 +82,18 @@ AhciPortCleanup(
     Controller->Ports[Port->Index] = NULL;
 
     // Go through each transaction for the ports and clean up
-    _foreach(Node, Port->Transactions) {
-        AhciTransaction_t* Transaction = (AhciTransaction_t*)Node;
-
+    Node = CollectionPopFront(Port->Transactions);
+    while (Node) {
+        AhciManagerCancelTransaction((AhciTransaction_t*)Node);
+        Node = CollectionPopFront(Port->Transactions);
     }
     CollectionDestroy(Port->Transactions);
+    AhciManagerUnregisterDevice(Controller, Port);
     
     // Destroy the internal transfer buffer
     dma_attachment_unmap(&Port->InternalBuffer);
     dma_detach(&Port->InternalBuffer);
-
-    AhciManagerDestroyDevice(Port->Device);
     free(Port);
-}
-
-OsStatus_t
-AhciPortIdentifyDevice(
-    _In_ AhciController_t* Controller, 
-    _In_ AhciPort_t*       Port)
-{
-    // Update port status
-    Port->Connected = 1;
-
-    TRACE(" > device present 0x%x on port %i", Port->Registers->Signature, Port->Id);
-    return AhciManagerCreateDevice(Controller, Port);
 }
 
 void
@@ -199,6 +188,68 @@ AhciPortFinishSetup(
     return OsSuccess;
 }
 
+static OsStatus_t
+AllocateOperationalMemory(
+    _In_ AhciController_t* Controller,
+    _In_ AhciPort_t*       Port)
+{
+    struct dma_buffer_info DmaInfo;
+    OsStatus_t             Status;
+    
+    TRACE("AllocateOperationalMemory()");
+
+    // Allocate some shared resources. The resource we need is 
+    // 1K for the Command List per port
+    // A Command table for each command header (32) per port
+    DmaInfo.length   = sizeof(AHCICommandList_t) * Controller->PortCount;
+    DmaInfo.capacity = sizeof(AHCICommandList_t) * Controller->PortCount;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    
+    Status = dma_create(&DmaInfo, &Controller->CommandListDMA);
+    if (Status != OsSuccess) {
+        ERROR("AHCI::Failed to allocate memory for the command list.");
+        return OsOutOfMemory;
+    }
+    
+    DmaInfo.length   = (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount;
+    DmaInfo.capacity = (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    
+    Status = dma_create(&DmaInfo, &Controller->CommandTableDMA);
+    if (Status != OsSuccess) {
+        ERROR("AHCI::Failed to allocate memory for the command table.");
+        return OsOutOfMemory;
+    }
+
+    // Trace allocations
+    TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
+        Controller->CommandListBase, Controller->CommandListBasePhysical,
+        sizeof(AHCICommandList_t) * Controller->PortCount);
+    TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
+        Controller->CommandTableBase, Controller->CommandTableBasePhysical,
+        (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
+    
+    // We have to take into account FIS based switching here, 
+    // if it's supported we need 4K per port, otherwise 256 bytes per port
+    if (ReadVolatile32(&Controller->Registers->Capabilities) & AHCI_CAPABILITIES_FBSS) {
+        if (MemoryAllocate(NULL, 0x1000 * Controller->PortCount,
+            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
+            ERROR("AHCI::Failed to allocate memory for the fis-area.");
+            return OsError;
+        }
+    }
+    else {
+        if (MemoryAllocate(NULL, 256 * Controller->PortCount,
+            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
+            ERROR("AHCI::Failed to allocate memory for the fis-area.");
+            return OsError;
+        }
+    }
+    TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x", 
+        Controller->FisBase, Controller->FisBasePhysical, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
+    return OsSuccess;
+}
+
 void
 AhciPortRebase(
     _In_ AhciController_t* Controller,
@@ -279,7 +330,9 @@ AhciPortEnable(
         ERROR(" > command engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
         return OsTimeout;
     }
-    return AhciPortIdentifyDevice(Controller, Port);
+    
+    Port->Connected = 1;
+    return AhciManagerRegisterDevice(Controller, Port, Port->Registers->Signature);
 }
 
 OsStatus_t
@@ -384,33 +437,6 @@ AhciPortFreeCommandSlot(
     
 }
 
-OsStatus_t
-AhciPortQueueTransaction(
-    _In_ AhciPort_t*        Port,
-    _In_ AhciTransaction_t* Transaction)
-{
-    OsStatus_t Status;
-    
-    // OK so the transaction we just recieved needs to be queued up,
-    // so we must initally see if we can allocate a new slot on the port
-    Status = AhciPortAllocateCommandSlot(Port, &Transaction->Slot);
-    CollectionAppend(Port->Transactions, &Transaction->Header);
-    if (Status != OsSuccess) {
-        Transaction->State = TransactionQueued;
-        return OsSuccess;
-    }
-    
-    // If we reach here we've successfully allocated a slot, now we should dispatch 
-    // the transaction
-    Transaction->State = TransactionInProgress;
-    Status = AhciDispatchRegisterFIS(Port, Transaction);
-    if (Status != OsSuccess) {
-        CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
-        AhciPortFreeCommandSlot(Port, Transaction->Slot);
-    }
-    return Status;
-}
-
 void
 AhciPortInterruptHandler(
     _In_ AhciController_t* Controller, 
@@ -453,12 +479,12 @@ HandleInterrupt:
         reg32_t Status = ReadVolatile32(&Port->Registers->AtaStatus);
         if (TFD & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
             || (AHCI_PORT_STSS_DET(Status) != AHCI_PORT_SSTS_DET_ENABLED)) {
-            AhciManagerDestroyDevice(Port->Device);
-            Port->Device    = NULL;
+            AhciManagerUnregisterDevice(Controller, Port);
             Port->Connected = 0;
         }
         else {
-            AhciPortIdentifyDevice(Controller, Port);
+            Port->Connected = 1;
+            AhciManagerRegisterDevice(Controller, Port, Port->Registers->Signature);
         }
     }
 
