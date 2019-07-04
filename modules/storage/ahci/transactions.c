@@ -155,6 +155,10 @@ AhciTransactionControlCreate(
     Transaction->Command   = Command;
     Transaction->BytesLeft = Length;
     Transaction->Direction = Direction;
+
+    Transaction->Target.Type = Device->Type;
+    Transaction->Target.SectorSize = Device->SectorSize;
+    Transaction->Target.AddressingMode = Device->AddressingMode;
     
     // Do not bother to check return code again, things should go ok now
     (void)dma_get_metrics(&Transaction->DmaAttachment,
@@ -209,6 +213,10 @@ AhciTransactionStorageCreate(
     Transaction->State   = TransactionCreated;
     Transaction->Slot    = -1;
 
+    Transaction->Target.Type = Device->Type;
+    Transaction->Target.SectorSize = Device->SectorSize;
+    Transaction->Target.AddressingMode = Device->AddressingMode;
+    
     if (Operation->Direction == __STORAGE_OPERATION_READ) {
         Transaction->Direction = AHCI_XACTION_IN;
     }

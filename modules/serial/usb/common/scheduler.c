@@ -76,12 +76,13 @@ UsbSchedulerInitialize(
     _In_  UsbSchedulerSettings_t* Settings,
     _Out_ UsbScheduler_t**        SchedulerOut)
 {
-    UsbScheduler_t* Scheduler;
-    uintptr_t       PoolPhysical  = 0;
-    size_t          PoolSizeBytes = 0;
-    uint8_t*        Pool          = NULL;
-    Flags_t         MemoryFlags;
-    int             i;
+    struct dma_buffer_info DmaInfo;
+    UsbScheduler_t*        Scheduler;
+    uintptr_t              PoolPhysical  = 0;
+    size_t                 PoolSizeBytes = 0;
+    uint8_t*               Pool          = NULL;
+    OsStatus_t             Status;
+    int                    i;
 
     // Debug
     TRACE("UsbSchedulerInitialize()");
@@ -104,16 +105,28 @@ UsbSchedulerInitialize(
     // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
     // Require contigious memory to make allocation/address conversion easier
-    MemoryFlags = MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST |
-        MEMORY_UNCHACHEABLE | MEMORY_READ | MEMORY_WRITE;
+    DmaInfo.length   = PoolSizeBytes;
+    DmaInfo.capacity = PoolSizeBytes;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
-    // Perform the allocation
-    TRACE(" > Allocating memory (%u bytes)", PoolSizeBytes);
-    if (MemoryAllocate(NULL, PoolSizeBytes, MemoryFlags, (void**)&Pool, &PoolPhysical) != OsSuccess) {
-        ERROR("Failed to allocate memory for resource-pool");
-        return OsError;
+    // Setup a new instance
+    Scheduler = (UsbScheduler_t*)malloc(sizeof(UsbScheduler_t));
+    if (!Scheduler) {
+        return OsOutOfMemory;
     }
-    TRACE(" > Allocated address 0x%" PRIxIN " (=> Physical 0x%" PRIxIN ")", Pool, PoolPhysical);
+
+    memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
+
+    spinlock_init(&Scheduler->Lock, spinlock_plain);
+    memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
+    Scheduler->PoolSizeBytes = PoolSizeBytes;
+
+    TRACE(" > Allocating memory (%u bytes)", PoolSizeBytes);
+    Status = dma_create(&DmaInfo, &Scheduler->ElementPoolDMA);
+    if (Status != OsSuccess) {
+        ERROR("Failed to allocate memory for resource-pool");
+        return Status;
+    }
 
     // Validate memory boundaries
     if (!(Settings->Flags & USB_SCHEDULER_FL64)) {
@@ -124,16 +137,6 @@ UsbSchedulerInitialize(
         }
     }
 
-    // Setup a new instance
-    Scheduler = (UsbScheduler_t*)malloc(sizeof(UsbScheduler_t));
-    assert(Scheduler != NULL);
-    memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
-
-    // Store initial information we were given
-    spinlock_init(&Scheduler->Lock, spinlock_plain);
-    memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
-    Scheduler->PoolSizeBytes = PoolSizeBytes;
-
     // Setup pool variables
     if (Settings->Flags & USB_SCHEDULER_FRAMELIST) {
         Scheduler->Settings.FrameListPhysical = PoolPhysical;
@@ -143,8 +146,7 @@ UsbSchedulerInitialize(
     }
 
     for (i = 0; i < Settings->PoolCount; i++) {
-        Scheduler->Settings.Pools[i].ElementPoolPhysical = PoolPhysical;
-        Scheduler->Settings.Pools[i].ElementPool         = Pool;
+        Scheduler->Settings.Pools[i].ElementPool = Pool;
         Pool            += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
         PoolPhysical    += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
     }
