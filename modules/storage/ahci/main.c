@@ -190,14 +190,13 @@ OnQuery(
             UUId_t                   DiskId    = (UUId_t)Arg0->Data.Value;
             AhciDevice_t*            Device    = AhciManagerGetDevice(DiskId);
             StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
-            AhciTransaction_t*       Transaction;
             
             if (Device == NULL) {
                 return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
             }
             
             // Create the requested transaction
-            Result.Status = AhciTransactionCreate(Device, Address, Operation);
+            Result.Status = AhciTransactionStorageCreate(Device, Address, Operation);
             if (Result.Status != OsSuccess) {
                 return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
             }

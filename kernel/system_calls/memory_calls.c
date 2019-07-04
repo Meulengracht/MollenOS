@@ -282,7 +282,7 @@ ScDmaGetMetrics(
     SystemSharedRegion_t* Region;
     size_t                PageSize = GetMemorySpacePageSize();
     
-    if (!attachment) {
+    if (!attachment || !sg_count_out) {
         return OsInvalidParameters;
     }
     
@@ -294,7 +294,9 @@ ScDmaGetMetrics(
     
     // Requested count of the scatter-gather units, so count
     // how many entries it would take to fill a list
-    if (sg_count_out) {
+    // Assume that if both pointers are supplied we are trying to fill
+    // the list with the requested amount, and thus skip this step.
+    if (sg_count_out && !sg_list_out) {
         int sg_count = 0;
         for (int i = 0; i < Region->PageCount; i++) {
             if (i == 0 || (Region->Pages[i - 1] + PageSize) != Region->Pages[i]) {
@@ -304,6 +306,7 @@ ScDmaGetMetrics(
         *sg_count_out = sg_count;
     }
     
+    // In order to get the list both counters must be filled
     if (sg_count_out && sg_list_out) {
         int sg_count = *sg_count_out;
         for (int i = 0, j = 0; (i < sg_count) && (j < Region->PageCount); i++) {

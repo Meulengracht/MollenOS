@@ -85,6 +85,12 @@ typedef struct {
     AHCIFis_t             Response;
     struct dma_attachment DmaAttachment;
 
+    struct {
+        DeviceType_t Type;
+        size_t       SectorSize;
+        int          AddressingMode;
+    } Target;
+
     uint64_t              Sector;
     size_t                SectorsTransferred;
     int                   SectorAlignment;
@@ -127,7 +133,9 @@ AhciManagerGetDevice(
 __EXTERN OsStatus_t
 AhciTransactionControlCreate(
     _In_ AhciDevice_t* Device,
-    _In_ AtaCommand_t  Command);
+    _In_ AtaCommand_t  Command,
+    _In_ size_t        Length,
+    _In_ int           Direction);
 
 /**
  * AhciTransactionStorageCreate
@@ -153,6 +161,7 @@ AhciManagerCancelTransaction(
  */
 OsStatus_t
 AhciTransactionHandleResponse(
+    _In_ AhciController_t*  Controller,
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction);
 

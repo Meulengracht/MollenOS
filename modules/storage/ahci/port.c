@@ -25,6 +25,7 @@
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>
+#include <ds/collection.h>
 #include "manager.h"
 #include "dispatch.h"
 #include <threads.h>
@@ -201,98 +202,93 @@ AllocateOperationalMemory(
     // Allocate some shared resources. The resource we need is 
     // 1K for the Command List per port
     // A Command table for each command header (32) per port
-    DmaInfo.length   = sizeof(AHCICommandList_t) * Controller->PortCount;
-    DmaInfo.capacity = sizeof(AHCICommandList_t) * Controller->PortCount;
+    DmaInfo.length   = sizeof(AHCICommandList_t);
+    DmaInfo.capacity = sizeof(AHCICommandList_t);
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
     
-    Status = dma_create(&DmaInfo, &Controller->CommandListDMA);
+    Status = dma_create(&DmaInfo, &Port->CommandListDMA);
     if (Status != OsSuccess) {
         ERROR("AHCI::Failed to allocate memory for the command list.");
         return OsOutOfMemory;
     }
     
-    DmaInfo.length   = (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount;
-    DmaInfo.capacity = (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount;
+    // Allocate memory for the 32 command tables, one for each command header.
+    // 32 Command headers = 4K memory, but command headers must be followed by
+    // 1..63365 prdt entries. 
+    DmaInfo.length   = AHCI_COMMAND_TABLE_SIZE * 32;
+    DmaInfo.capacity = AHCI_COMMAND_TABLE_SIZE * 32;
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
     
-    Status = dma_create(&DmaInfo, &Controller->CommandTableDMA);
+    Status = dma_create(&DmaInfo, &Port->CommandTableDMA);
     if (Status != OsSuccess) {
         ERROR("AHCI::Failed to allocate memory for the command table.");
         return OsOutOfMemory;
     }
-
-    // Trace allocations
-    TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandListBase, Controller->CommandListBasePhysical,
-        sizeof(AHCICommandList_t) * Controller->PortCount);
-    TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandTableBase, Controller->CommandTableBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
     
     // We have to take into account FIS based switching here, 
-    // if it's supported we need 4K per port, otherwise 256 bytes per port
-    if (ReadVolatile32(&Controller->Registers->Capabilities) & AHCI_CAPABILITIES_FBSS) {
-        if (MemoryAllocate(NULL, 0x1000 * Controller->PortCount,
-            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
+    // if it's supported we need 4K per port, otherwise 256 bytes. 
+    // But don't allcoate anything below 4K anyway
+    DmaInfo.length   = 0x1000;
+    DmaInfo.capacity = 0x1000;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    
+    Status = dma_create(&DmaInfo, &Port->RecievedFisDMA);
+    if (Status != OsSuccess) {
+        ERROR("AHCI::Failed to allocate memory for the command table.");
+        return OsOutOfMemory;
     }
-    else {
-        if (MemoryAllocate(NULL, 256 * Controller->PortCount,
-            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
-    }
-    TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x", 
-        Controller->FisBase, Controller->FisBasePhysical, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
     return OsSuccess;
 }
 
-void
+OsStatus_t
 AhciPortRebase(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    uintptr_t CommandTablePointerPhysical = 0;
-    reg32_t   Caps = ReadVolatile32(&Controller->Registers->Capabilities);
-    int       i;
+    reg32_t            Caps = ReadVolatile32(&Controller->Registers->Capabilities);
+    AHCICommandList_t* CommandList;
+    OsStatus_t         Status;
+    struct dma_sg*     CommandTableSg;
+    int                CommandTableSgCount;
+    uintptr_t          PhysicalAddress;
+    int                i;
+    int                j;
 
-    // Initialize memory structures - both RecievedFIS and PRDT
-    Port->CommandList  = (AHCICommandList_t*)((uint8_t*)Controller->CommandListBase + (sizeof(AHCICommandList_t) * Port->Id));
-    Port->CommandTable = (void*)((uint8_t*)Controller->CommandTableBase + ((AHCI_COMMAND_TABLE_SIZE  * 32) * Port->Id));
-    
-    CommandTablePointerPhysical = Controller->CommandTableBasePhysical + ((AHCI_COMMAND_TABLE_SIZE * 32) * Port->Id);
+    Status = AllocateOperationalMemory(Controller, Port);
+    if (Status != OsSuccess) {
+        return Status;
+    }
 
-    // Setup FIS Area
-    if (Caps & AHCI_CAPABILITIES_FBSS) {
-        Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (0x1000 * Port->Id));
+    (void)dma_get_metrics(&Port->CommandTableDMA, &CommandTableSgCount, NULL);
+    CommandTableSg = (struct dma_sg*)malloc(sizeof(struct dma_sg) * CommandTableSgCount);
+    if (!CommandTableSg) {
+        return OsOutOfMemory;
     }
-    else {
-        Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
-    }
+    (void)dma_get_metrics(&Port->CommandTableDMA, &CommandTableSgCount, CommandTableSg);
 
     // Iterate the 32 command headers
-    for (i = 0; i < 32; i++) {
-        Port->CommandList->Headers[i].Flags        = 0;
-        Port->CommandList->Headers[i].TableLength  = 0;
-        Port->CommandList->Headers[i].PRDByteCount = 0;
-
+    CommandList     = (AHCICommandList_t*)Port->CommandListDMA.buffer;
+    PhysicalAddress = CommandTableSg[0].address;
+    for (i = 0, j = 0; i < 32; i++) {
         // Load the command table address (physical)
-        Port->CommandList->Headers[i].CmdTableBaseAddress = 
-            LODWORD(CommandTablePointerPhysical);
+        CommandList->Headers[i].CmdTableBaseAddress = LODWORD(PhysicalAddress);
 
         // Set command table address upper register if supported and we are in 64 bit
         if (Caps & AHCI_CAPABILITIES_S64A) {
-            Port->CommandList->Headers[i].CmdTableBaseAddressUpper = 
-                (sizeof(void*) > 4) ? HIDWORD(CommandTablePointerPhysical) : 0;
+            CommandList->Headers[i].CmdTableBaseAddressUpper = 
+                (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
         }
-        else {
-            Port->CommandList->Headers[i].CmdTableBaseAddressUpper = 0;
+
+        PhysicalAddress          += AHCI_COMMAND_TABLE_SIZE;
+        CommandTableSg[j].length -= AHCI_COMMAND_TABLE_SIZE;
+        if (!CommandTableSg[j].length) {
+            j++;
+            PhysicalAddress = CommandTableSg[j].address;
         }
-        CommandTablePointerPhysical += AHCI_COMMAND_TABLE_SIZE;
     }
+
+    free(CommandTableSg);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -340,32 +336,27 @@ AhciPortStart(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    uintptr_t PhysicalAddress;
-    reg32_t   Caps = ReadVolatile32(&Controller->Registers->Capabilities);
-    int       Hung = 0;
+    struct dma_sg DmaSg;
+    int           DmaSgCount = 1;
+    reg32_t       Caps       = ReadVolatile32(&Controller->Registers->Capabilities);
+    int           Hung       = 0;
 
     // Setup the physical data addresses
-    if (Caps & AHCI_CAPABILITIES_FBSS) {
-        PhysicalAddress = Controller->FisBasePhysical + (0x1000 * Port->Id);
-    }
-    else {
-        PhysicalAddress = Controller->FisBasePhysical + (256 * Port->Id);
-    }
-
-    WriteVolatile32(&Port->Registers->FISBaseAddress, LOWORD(PhysicalAddress));
+    (void)dma_get_metrics(&Port->RecievedFisDMA, &DmaSgCount, &DmaSg);
+    WriteVolatile32(&Port->Registers->FISBaseAddress, LOWORD(DmaSg.address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
         WriteVolatile32(&Port->Registers->FISBaseAdressUpper,
-            (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0);
+            (sizeof(void*) > 4) ? HIDWORD(DmaSg.address) : 0);
     }
     else {
         WriteVolatile32(&Port->Registers->FISBaseAdressUpper, 0);
     }
 
-    PhysicalAddress = Controller->CommandListBasePhysical + (sizeof(AHCICommandList_t) * Port->Id);
-    WriteVolatile32(&Port->Registers->CmdListBaseAddress, LODWORD(PhysicalAddress));
+    (void)dma_get_metrics(&Port->CommandListDMA, &DmaSgCount, &DmaSg);
+    WriteVolatile32(&Port->Registers->CmdListBaseAddress, LODWORD(DmaSg.address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
         WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper,
-            (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0);
+            (sizeof(void*) > 4) ? HIDWORD(DmaSg.address) : 0);
     }
     else {
         WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper, 0);
@@ -401,7 +392,7 @@ AhciPortStartCommandSlot(
     WriteVolatile32(&Port->Registers->CommandIssue, (1 << Slot));
 }
 
-static OsStatus_t
+OsStatus_t
 AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* Port,
     _Out_ int*        SlotOut)
@@ -429,7 +420,7 @@ AhciPortAllocateCommandSlot(
     return Status;
 }
 
-static void
+void
 AhciPortFreeCommandSlot(
     _In_ AhciPort_t* Port,
     _In_ int         Slot)
@@ -505,11 +496,11 @@ HandleInterrupt:
                 // Handle transaction completion, release slot, queue up a new command if any
                 // and then handle the event
                 CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
-                memcpy((void*)&Transaction->Response, (void*)Port->RecievedFis, sizeof(AHCIFis_t));
+                memcpy((void*)&Transaction->Response, Port->RecievedFisDMA.buffer, sizeof(AHCIFis_t));
                 AhciPortFreeCommandSlot(Port, Transaction->Slot);
                 Transaction->Slot = -1;
 
-                AhciTransactionHandleResponse(Port, Transaction);
+                AhciTransactionHandleResponse(Controller, Port, Transaction);
             }
         }
     }

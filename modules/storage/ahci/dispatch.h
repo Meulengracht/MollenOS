@@ -27,7 +27,7 @@
 #define __AHCI_DISPATCH_H__
 
 #include <os/osdefs.h>
-#include "ahci.h"
+#include "manager.h"
 
 // Dispatcher Flags 
 // Used to setup transfer flags for ahci-transactions
@@ -37,19 +37,14 @@
 #define DISPATCH_CLEARBUSY              0x40
 #define DISPATCH_ATAPI                  0x80
 
-/* AhciCommandFinish
- * Verifies and cleans up a transaction made by dispatch */
-__EXTERN OsStatus_t
-AhciCommandFinish(
-    _In_ AhciTransaction_t* Transaction);
-
 /**
  * AhciDispatchRegisterFIS 
- * Builds a new AHCI Transaction based on a register FIS
+ * * Builds a new AHCI Transaction based on a register FIS
  */
 __EXTERN OsStatus_t
 AhciDispatchRegisterFIS(
-    _In_ AhciDevice_t*      Device,
+    _In_ AhciController_t*  Controller,
+    _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction);
 
 #endif //!__AHCI_DISPATCH_H__

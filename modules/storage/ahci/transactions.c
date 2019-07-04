@@ -22,19 +22,23 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
+//#define __TRACE
 
 #include <assert.h>
+#include "dispatch.h"
+#include <ddk/utils.h>
 #include "manager.h"
+#include <stdlib.h>
 
 static UUId_t TransactionId = 0;
 
 static struct {
-    int              Direction;
-    int              DMA;
-    int              AddressingMode;
-    ATACommandType_t Command;
-    size_t           SectorAlignment;
-    size_t           MaxSectors;
+    int          Direction;
+    int          DMA;
+    int          AddressingMode;
+    AtaCommand_t Command;
+    size_t       SectorAlignment;
+    size_t       MaxSectors;
 } CommandTable[] = {
     { __STORAGE_OPERATION_READ, 0, 2, AtaPIOReadExt, 1, 0xFFFF },
     { __STORAGE_OPERATION_READ, 0, 1, AtaPIORead, 1, 0xFF },
@@ -50,7 +54,7 @@ static struct {
     { __STORAGE_OPERATION_WRITE, 1, 1, AtaDMAWrite, 1, 0xFF },
     { __STORAGE_OPERATION_WRITE, 1, 0, AtaDMAWrite, 1, 0xFF },
     { -1, -1, -1, 0, 0, 0 }
-}
+};
 
 static void
 GetSgMetricsFromOffset(
@@ -70,8 +74,9 @@ GetSgMetricsFromOffset(
     }
 }
 
-OsStatus_t
+static OsStatus_t
 QueueTransaction(
+    _In_ AhciController_t*  Controller,
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
@@ -91,7 +96,7 @@ QueueTransaction(
     Transaction->State = TransactionInProgress;
     switch (Transaction->Type) {
         case TransactionRegisterFISH2D: {
-            Status = AhciDispatchRegisterFIS(Port, Transaction);
+            Status = AhciDispatchRegisterFIS(Controller, Port, Transaction);
         } break;
         
         default: {
@@ -112,15 +117,55 @@ AhciTransactionDestroy(
 {
     // Detach from our buffer reference
     dma_detach(&Transaction->DmaAttachment);
-    free(Transaction);   
+    free(Transaction);
+    return OsSuccess;
 }
 
 OsStatus_t
 AhciTransactionControlCreate(
-    _In_ AhciDevice_t*      Device,
-    _In_ enum AtaCommand    Command)
+    _In_ AhciDevice_t* Device,
+    _In_ AtaCommand_t  Command,
+    _In_ size_t        Length,
+    _In_ int           Direction)
 {
+    AhciTransaction_t*    Transaction;
+    int                   SgCount = 1;
+    OsStatus_t            Status;
     
+    if (!Device) {
+        return OsInvalidParameters;
+    }
+
+    Transaction = (AhciTransaction_t*)malloc(
+        sizeof(AhciTransaction_t) + (sizeof(struct dma_sg) * SgCount));
+    if (!Transaction) {
+        return OsOutOfMemory;
+    }
+    
+    // Do not bother about zeroing the array
+    memset(Transaction, 0, sizeof(AhciTransaction_t));
+    dma_attach(Device->Port->InternalBuffer.handle, &Transaction->DmaAttachment);
+    Transaction->Header.Key.Value.Id     = TransactionId++;
+    Transaction->ResponseAddress.Process = UUID_INVALID;
+
+    Transaction->Type      = TransactionRegisterFISH2D;
+    Transaction->SgCount   = SgCount;
+    Transaction->State     = TransactionCreated;
+    Transaction->Slot      = -1;
+    Transaction->Command   = Command;
+    Transaction->BytesLeft = Length;
+    Transaction->Direction = Direction;
+    
+    // Do not bother to check return code again, things should go ok now
+    (void)dma_get_metrics(&Transaction->DmaAttachment,
+        &Transaction->SgCount, &Transaction->SgList[0]);
+    
+    // The transaction is now prepared and ready for the dispatch
+    Status = QueueTransaction(Device->Controller, Device->Port, Transaction);
+    if (Status != OsSuccess) {
+        AhciTransactionDestroy(Transaction);
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -133,7 +178,6 @@ AhciTransactionStorageCreate(
     AhciTransaction_t*    Transaction;
     int                   SgCount;
     OsStatus_t            Status;
-    size_t                StartOffset;
     int                   i;
     
     if (!Device || !Address || !Operation) {
@@ -145,25 +189,32 @@ AhciTransactionStorageCreate(
         return OsInvalidParameters;
     }
     
-    dma_get_metrics(&DmaAttachment, &SgCount, NULL);
+    (void)dma_get_metrics(&DmaAttachment, &SgCount, NULL);
     Transaction = (AhciTransaction_t*)malloc(
         sizeof(AhciTransaction_t) + (sizeof(struct dma_sg) * SgCount));
-    if (!Transactions) {
+    if (!Transaction) {
         dma_detach(&DmaAttachment);
         return OsOutOfMemory;
     }
     
     // Do not bother about zeroing the array
     memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&Transaction->ResponAtaPIOIdentifyDeviceseAddress, Address, sizeof(MRemoteCallAddress_t));
+    memcpy(&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
     memcpy(&Transaction->DmaAttachment, &DmaAttachment, sizeof(struct dma_attachment));
-    Transaction->Header.Key.Id = TransactionId++;
-    Transaction->Type          = TransactionRegisterFISH2D;
-    Transaction->SgCount       = SgCount;
-    Transaction->Sector        = Operation->AbsoluteSector;
-    Transaction->Device        = Device;
-    Transaction->State         = TransactionCreated;
-    Transaction->Slot          = -1;
+    Transaction->Header.Key.Value.Id = TransactionId++;
+
+    Transaction->Type    = TransactionRegisterFISH2D;
+    Transaction->SgCount = SgCount;
+    Transaction->Sector  = Operation->AbsoluteSector;
+    Transaction->State   = TransactionCreated;
+    Transaction->Slot    = -1;
+
+    if (Operation->Direction == __STORAGE_OPERATION_READ) {
+        Transaction->Direction = AHCI_XACTION_IN;
+    }
+    else {
+        Transaction->Direction = AHCI_XACTION_OUT;
+    }
     
     // Do not bother to check return code again, things should go ok now
     dma_get_metrics(&DmaAttachment, &Transaction->SgCount, &Transaction->SgList[0]);
@@ -171,15 +222,15 @@ AhciTransactionStorageCreate(
         &Transaction->SgIndex, &Transaction->SgOffset);
     
     // Set upper bound on transaction
-    if ((Transaction->Sector + Transaction->SectorCount) >= Device->SectorsLBA) {
-        Transaction->SectorCount = Device->SectorsLBA - Transaction->Sector;
+    if ((Transaction->Sector + Operation->SectorCount) >= Device->SectorCount) {
+        Operation->SectorCount = Device->SectorCount - Transaction->Sector;
     }
     
     // Select the appropriate command
-    i = 0
+    i = 0;
     while (CommandTable[i].Direction != -1) {
         if (CommandTable[i].Direction      == Operation->Direction &&
-            CommandTable[i].DMA            == Device->UseDMA &&
+            CommandTable[i].DMA            == Device->HasDMAEngine &&
             CommandTable[i].AddressingMode == Device->AddressingMode) {
             // Found the appropriate command
             Transaction->Command         = CommandTable[i].Command;
@@ -195,11 +246,18 @@ AhciTransactionStorageCreate(
     assert(Transaction->BytesLeft != 0);
     
     // The transaction is now prepared and ready for the dispatch
-    Status = QueueTransaction(Device->Port, Transaction);
+    Status = QueueTransaction(Device->Controller, Device->Port, Transaction);
     if (Status != OsSuccess) {
         AhciTransactionDestroy(Transaction);
     }
     return Status;
+}
+
+OsStatus_t
+AhciManagerCancelTransaction(
+    _In_ AhciTransaction_t* Transaction)
+{
+    return OsNotSupported;
 }
 
 static OsStatus_t
@@ -207,7 +265,7 @@ VerifyRegisterFISD2H(
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
-    FISRegisterD2H_t* Result = &Transaction->Response.RegisterD2H;
+    FISRegisterD2H_t* Result = (FISRegisterD2H_t*)&Transaction->Response.RegisterD2H;
 
     // Is the error bit set?
     if (Result->Status & ATA_STS_DEV_ERROR) {
@@ -229,6 +287,7 @@ VerifyRegisterFISD2H(
 
 OsStatus_t
 AhciTransactionHandleResponse(
+    _In_ AhciController_t*  Controller,
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
@@ -237,7 +296,7 @@ AhciTransactionHandleResponse(
     
     // Verify the command execution
     if (Transaction->Type == TransactionRegisterFISH2D) {
-        Result.Status = VerifyRegisterFISD2H(Transaction);
+        Result.Status = VerifyRegisterFISD2H(Port, Transaction);
     }
     else {
         assert(0);
@@ -254,5 +313,5 @@ AhciTransactionHandleResponse(
         }
         return AhciTransactionDestroy(Transaction);
     }
-    return QueueTransaction(Port, Transaction);
+    return QueueTransaction(Controller, Port, Transaction);
 }

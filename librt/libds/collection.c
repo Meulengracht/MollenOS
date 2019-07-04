@@ -244,7 +244,7 @@ CollectionAppend(
  * Removes and returns the first element in the collection. */
 CollectionItem_t*
 CollectionPopFront(
-    _In_ Collection_t*          Collection)
+    _In_ Collection_t* Collection)
 {
     // Variables
     CollectionItem_t *Current = NULL;

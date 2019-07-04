@@ -116,8 +116,8 @@ PACKED_TYPESTRUCT(AHCICommandTable, {
 });
 
 #define AHCI_COMMAND_TABLE_HEADER_SIZE  128 // == sizeof(AHCICommandTable_t)
-#define AHCI_COMMAND_TABLE_PRDT_COUNT   32
-#define AHCI_COMMAND_TABLE_SIZE         (AHCI_COMMAND_TABLE_HEADER_SIZE + (AHCI_COMMAND_TABLE_PRDT_SIZE * AHCI_COMMAND_TABLE_PRDT_COUNT))
+#define AHCI_COMMAND_TABLE_PRDT_COUNT   ((4096 - AHCI_COMMAND_TABLE_HEADER_SIZE) / AHCI_COMMAND_TABLE_PRDT_SIZE)
+#define AHCI_COMMAND_TABLE_SIZE         4096 // Use an entire page of memory on 4kb systems
 
 /* The command list entry structure 
  * Contains a command for the port to execute */
@@ -317,16 +317,12 @@ typedef struct _AhciPort {
     int                     Index;
     int                     MultiplierIndex;
     int                     Connected;
+    AHCIPortRegisters_t*    Registers;
     
     struct dma_attachment   InternalBuffer;
     struct dma_attachment   CommandListDMA;
     struct dma_attachment   CommandTableDMA;
     struct dma_attachment   RecievedFisDMA;
-
-    AHCIPortRegisters_t*    Registers;
-    AHCICommandList_t*      CommandList;
-    AHCIFis_t*              RecievedFis;
-    void*                   CommandTable;
 
     _Atomic(int)            Slots;
     int                     SlotCount;
@@ -402,7 +398,7 @@ AhciPortFinishSetup(
 /* AhciPortRebase
  * Rebases the port by setting up allocated memory tables and command memory. This can only be done
  * when the port is in a disabled state. */
-__EXTERN void
+__EXTERN OsStatus_t
 AhciPortRebase(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
@@ -414,20 +410,15 @@ AhciPortStart(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
-/* AhciPortAcquireCommandSlot
- * Allocates an available command slot on a port returns index on success, OsError */
-__EXTERN OsStatus_t
-AhciPortAcquireCommandSlot(
-    _In_  AhciController_t* Controller, 
-    _In_  AhciPort_t*       Port,
-    _Out_ int*              Index);
+OsStatus_t
+AhciPortAllocateCommandSlot(
+    _In_  AhciPort_t* Port,
+    _Out_ int*        SlotOut);
 
-/* AhciPortReleaseCommandSlot
- * Deallocates a previously allocated command slot */
-__EXTERN void
-AhciPortReleaseCommandSlot(
-    _In_ AhciPort_t*        Port, 
-    _In_ int                Slot);
+void
+AhciPortFreeCommandSlot(
+    _In_ AhciPort_t* Port,
+    _In_ int         Slot);
 
 /* AhciPortStartCommandSlot
  * Starts a command slot on the given port */

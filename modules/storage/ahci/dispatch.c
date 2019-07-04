@@ -64,9 +64,9 @@ DumpCurrentState(
 
 static void
 BuildPRDTTable(
-    _In_  AhciDevice_t*       Device,
     _In_  AhciTransaction_t*  Transaction,
     _In_  AHCICommandTable_t* CommandTable,
+    _In_  size_t              SectorSize,
     _Out_ int*                PrdtCountOut)
 {
     size_t BytesQueued = 0;
@@ -87,8 +87,8 @@ BuildPRDTTable(
         // PRDT entry, we must make sure that the total transfer length is on boundaries
         if (i == (AHCI_COMMAND_TABLE_PRDT_COUNT - 1) && Transaction->SectorAlignment &&
             TransferLength != Transaction->BytesLeft) {
-            if ((BytesQueued + TransferLength) % Device->SectorSize != 0) {
-                if (TransferLength < Device->SectorSize) {
+            if ((BytesQueued + TransferLength) % SectorSize != 0) {
+                if (TransferLength < SectorSize) {
                     // Perform a larger correctional action as no longer have space to reduce
                     // to the next boundary. Instead of correcting the number of bytes to transfer
                     // we drop the previous PRDT entry entirely and let the next transaction round
@@ -96,7 +96,7 @@ BuildPRDTTable(
                     i--;
                     break;
                 }
-                TransferLength -= (BytesQueued + TransferLength) % Device->SectorSize;
+                TransferLength -= (BytesQueued + TransferLength) % SectorSize;
             }
         }
         
@@ -125,22 +125,23 @@ BuildPRDTTable(
 
 static size_t
 PrepareCommandSlot(
-    _In_  AhciDevice_t*      Device,
-    _In_  AhciTransaction_t* Transaction)
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction,
+    _In_ size_t             SectorSize)
 {
+    AHCICommandList_t*   CommandList;
     AHCICommandHeader_t* CommandHeader;
     AHCICommandTable_t*  CommandTable;
     size_t               BytesQueued = Transaction->BytesLeft;
     int                  PrdtCount;
 
     // Get a reference to the command slot and reset the data in the command table
-    CommandHeader = &Device->Port->CommandList->Headers[Transaction->Slot];
-    CommandTable  = (AHCICommandTable_t*)((uint8_t*)Device->Port->CommandTable
-            + (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
-    memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
+    CommandList   = (AHCICommandList_t*)Port->CommandListDMA.buffer;
+    CommandTable  = (AHCICommandTable_t*)Port->CommandTableDMA.buffer;
+    CommandHeader = &CommandList->Headers[Transaction->Slot];
 
     // Build the PRDT table
-    BuildPRDTTable(Device, Transaction, CommandTable, &PrdtCount);
+    BuildPRDTTable(Transaction, CommandTable, SectorSize, &PrdtCount);
 
     // Update command table to the new command
     CommandHeader->PRDByteCount = 0;
@@ -150,7 +151,8 @@ PrepareCommandSlot(
 
 static OsStatus_t
 DispatchCommand(
-    _In_ AhciDevice_t*      Device,
+    _In_ AhciController_t*  Controller,
+    _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction,
     _In_ Flags_t            Flags,
     _In_ void*              AtaCommand,
@@ -158,11 +160,12 @@ DispatchCommand(
     _In_ void*              AtapiCommand, 
     _In_ size_t             AtapiCommandLength)
 {
+    AHCICommandList_t*   CommandList;
     AHCICommandHeader_t* CommandHeader;
     AHCICommandTable_t*  CommandTable;
     size_t               CommandLength = 0;
 
-    TRACE("DispatchCommand(Port %u, Flags 0x%x)", Device->Port->Id, Flags);
+    TRACE("DispatchCommand(Port %u, Flags 0x%x)", Port->Id, Flags);
 
     // Assert that buffer is WORD aligned, this must be true
     // The number of bytes to transfer must also be WORD aligned, however as
@@ -179,9 +182,9 @@ DispatchCommand(
         return OsInvalidParameters;
     }
 
-    CommandHeader = &Device->Port->CommandList->Headers[Transaction->Slot];
-    CommandTable  = (AHCICommandTable_t*)((uint8_t*)Device->Port->CommandTable
-            + (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
+    CommandList   = (AHCICommandList_t*)Port->CommandListDMA.buffer;
+    CommandTable  = (AHCICommandTable_t*)Port->CommandTableDMA.buffer;
+    CommandHeader = &CommandList->Headers[Transaction->Slot];
 
     if (AtaCommand != NULL) {
         memcpy(&CommandTable->FISCommand[0], AtaCommand, AtaCommandLength);
@@ -213,12 +216,12 @@ DispatchCommand(
     CommandHeader->Flags |= (DISPATCH_MULTIPLIER(Flags) << 12);
     
     TRACE("Enabling command on slot %u", Transaction->Slot);
-    AhciPortStartCommandSlot(Device->Port, Transaction->Slot);
+    AhciPortStartCommandSlot(Port, Transaction->Slot);
 
 #ifdef __TRACE
     // Dump state
     thrd_sleepex(5000);
-    AhciDumpCurrentState(Device->Controller, Device->Port);
+    AhciDumpCurrentState(Controller, Port);
 #endif
     return OsSuccess;
 }
@@ -242,13 +245,14 @@ PrintTaskDataErrorString(uint8_t TaskDataError)
  ************************************************************************/
 static void
 ComposeRegisterFIS(
-    _In_ AhciDevice_t*      Device,
     _In_ AhciTransaction_t* Transaction,
     _In_ FISRegisterH2D_t*  Fis,
-    _In_ int                BytesQueued)
+    _In_ int                BytesQueued,
+    _In_ size_t             SectorSize,
+    _In_ int                AddressingMode)
 {
     uint64_t Sector      = Transaction->Sector + Transaction->SectorsTransferred;
-    size_t   SectorCount = BytesQueued / Device->SectorSize;
+    size_t   SectorCount = BytesQueued / SectorSize;
     int      DeviceLUN   = 0; // TODO: Is this LUN or what is it?
 
     Fis->Type    = LOBYTE(FISRegisterH2D);
@@ -259,32 +263,33 @@ ComposeRegisterFIS(
     
     // Handle LBA to CHS translation if disk uses
     // the CHS scheme
-    if (Device->AddressingMode == AHCI_DEVICE_MODE_CHS) {
+    if (AddressingMode == AHCI_DEVICE_MODE_CHS) {
         //uint16_t Head = 0, Cylinder = 0, Sector = 0;
 
         // Step 1 -> Transform LBA into CHS
 
         // Set CHS params
     }
-    else if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA28 || 
-             Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
+    else if (AddressingMode == AHCI_DEVICE_MODE_LBA28 || 
+             AddressingMode == AHCI_DEVICE_MODE_LBA48) {
         // Set LBA 28 parameters
-        Fis->SectorNo            = LOBYTE(Sector);
-        Fis->CylinderLow         = (uint8_t)((Sector >> 8) & 0xFF);
-        Fis->CylinderHigh        = (uint8_t)((Sector >> 16) & 0xFF);
-        Fis->SectorNoExtended    = (uint8_t)((Sector >> 24) & 0xFF);
+        Fis->SectorNo         = LOBYTE(Sector);
+        Fis->CylinderLow      = (uint8_t)((Sector >> 8) & 0xFF);
+        Fis->CylinderHigh     = (uint8_t)((Sector >> 16) & 0xFF);
+        Fis->SectorNoExtended = (uint8_t)((Sector >> 24) & 0xFF);
 
         // If it's an LBA48, set LBA48 params as well
-        if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
-            Fis->CylinderLowExtended     = (uint8_t)((Sector >> 32) & 0xFF);
-            Fis->CylinderHighExtended    = (uint8_t)((Sector >> 40) & 0xFF);
+        if (AddressingMode == AHCI_DEVICE_MODE_LBA48) {
+            Fis->CylinderLowExtended  = (uint8_t)((Sector >> 32) & 0xFF);
+            Fis->CylinderHighExtended = (uint8_t)((Sector >> 40) & 0xFF);
         }
     }
 }
 
 OsStatus_t
 AhciDispatchRegisterFIS(
-    _In_ AhciDevice_t*      Device,
+    _In_ AhciController_t*  Controller,
+    _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
     FISRegisterH2D_t Fis = { 0 };
@@ -295,18 +300,19 @@ AhciDispatchRegisterFIS(
         LOBYTE(Transaction->Command), LODWORD(Transaction->Sector));
     
     // Initialize the command
-    BytesQueued = PrepareCommandSlot(Device, Transaction);
-    ComposeRegisterFIS(Device, Transaction, &Fis, BytesQueued);
+    BytesQueued = PrepareCommandSlot(Port, Transaction, Transaction->Target.SectorSize);
+    ComposeRegisterFIS(Transaction, &Fis, BytesQueued, 
+        Transaction->Target.SectorSize, Transaction->Target.AddressingMode);
     
     // Start out by building dispatcher flags here
     Flags = DISPATCH_MULTIPLIER(0);
     
-    if (Device->Type == DeviceATAPI) {
+    if (Transaction->Target.Type == DeviceATAPI) {
         Flags |= DISPATCH_ATAPI;
     }
 
     if (Transaction->Direction == AHCI_XACTION_OUT) {
         Flags |= DISPATCH_WRITE;
     }
-    return DispatchCommand(Device, Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
+    return DispatchCommand(Controller, Port, Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 }
