@@ -173,7 +173,8 @@ OhciQueueDestroy(
 
     // Make sure everything is unscheduled, reset and clean
     OhciQueueReset(Controller);
-    return UsbSchedulerDestroy(Controller->Base.Scheduler);
+    UsbSchedulerDestroy(Controller->Base.Scheduler);
+    return OsSuccess;
 }
 
 /* OhciGetStatusCode

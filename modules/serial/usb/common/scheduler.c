@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -71,114 +72,179 @@ UsbSchedulerResetInternalData(
     return OsSuccess;
 }
 
-OsStatus_t
-UsbSchedulerInitialize(
-    _In_  UsbSchedulerSettings_t* Settings,
-    _Out_ UsbScheduler_t**        SchedulerOut)
+static OsStatus_t
+AllocateMemoryForPool(
+    _In_ UsbSchedulerPool_t* Pool)
 {
+    size_t                 ElementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
     struct dma_buffer_info DmaInfo;
-    UsbScheduler_t*        Scheduler;
-    uintptr_t              PoolPhysical  = 0;
-    size_t                 PoolSizeBytes = 0;
-    uint8_t*               Pool          = NULL;
     OsStatus_t             Status;
-    int                    i;
+        
+    // Setup required memory allocation flags
+    // Require low memory as most usb controllers don't work with physical memory above 2GB
+    // Require uncacheable memory as it's hardware accessible memory.
+    // Require contigious memory to make allocation/address conversion easier
+    DmaInfo.length   = ElementBytes;
+    DmaInfo.capacity = ElementBytes;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
-    // Debug
-    TRACE("UsbSchedulerInitialize()");
-
-    // Parameter assertions
-    assert(Settings->FrameCount > 0);
-    assert(Settings->SubframeCount > 0);
-    assert(Settings->PoolCount > 0);
-
-    // Calculate the number of bytes we must allocate for our resources
-    if (Settings->Flags & USB_SCHEDULER_FRAMELIST) {
-        PoolSizeBytes = Settings->FrameCount * 4;
+    TRACE("... allocating element pool memory (%u bytes)", ElementBytes);
+    Status = dma_create(&DmaInfo, &Pool->ElementPoolDMA);
+    if (Status != OsSuccess) {
+        ERROR("... failed! %u", Status);
+        return Status;
     }
+
+    // We are not completly done yet, we need the physical memory array for
+    // all the elements so we can quickly lookup their dma addresses.
+    (void)dma_get_metrics(&Pool->ElementPoolDMA,
+        &Pool->ElementSgCount, NULL);
+    Pool->ElementSgList = malloc(sizeof(struct dma_sg) * Pool->ElementSgCount);
+    if (!Pool->ElementSgList) {
+        return OsOutOfMemory;
+    }
+    (void)dma_get_metrics(&Pool->ElementPoolDMA,
+        &Pool->ElementSgCount, Pool->ElementSgList);
     
-    for (i = 0; i < Settings->PoolCount; i++) {
-        PoolSizeBytes += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
-    }
+    Pool->ElementPool = Pool->ElementPoolDMA.buffer;
+    return OsSuccess;
+}
+
+static OsStatus_t
+AllocateMemoryForFrameList(
+    _In_ UsbScheduler_t* Scheduler)
+{
+    size_t                 FrameListBytes = Scheduler->Settings.FrameCount * 4;
+    int                    DmaSgCount     = 1;
+    struct dma_buffer_info DmaInfo;
+    struct dma_sg          DmaSgList;
+    OsStatus_t             Status;
     
     // Setup required memory allocation flags
     // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
     // Require contigious memory to make allocation/address conversion easier
-    DmaInfo.length   = PoolSizeBytes;
-    DmaInfo.capacity = PoolSizeBytes;
+    DmaInfo.length   = FrameListBytes;
+    DmaInfo.capacity = FrameListBytes;
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
-    // Setup a new instance
+    TRACE("... allocating frame list memory (%u bytes)", FrameListBytes);
+    Status = dma_create(&DmaInfo, &Scheduler->Settings.FrameListDMA);
+    if (Status != OsSuccess) {
+        ERROR("... failed! %u", Status);
+        return Status;
+    }
+    
+    // Get the physical location of the framelist, we need quick access for this
+    (void)dma_get_metrics(&Scheduler->Settings.FrameListDMA, &DmaSgCount, &DmaSgList);
+    Scheduler->Settings.FrameListPhysical = DmaSgList.address;
+    Scheduler->Settings.FrameList         = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
+    return OsSuccess;
+}
+
+OsStatus_t
+UsbSchedulerInitialize(
+    _In_  UsbSchedulerSettings_t* Settings,
+    _Out_ UsbScheduler_t**        SchedulerOut)
+{
+    UsbScheduler_t* Scheduler;
+    OsStatus_t      Status;
+    int             i;
+
+    TRACE("UsbSchedulerInitialize()");
+
+    assert(Settings->FrameCount > 0);
+    assert(Settings->SubframeCount > 0);
+    assert(Settings->PoolCount > 0);
+
     Scheduler = (UsbScheduler_t*)malloc(sizeof(UsbScheduler_t));
     if (!Scheduler) {
         return OsOutOfMemory;
     }
 
     memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
-
     spinlock_init(&Scheduler->Lock, spinlock_plain);
     memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
-    Scheduler->PoolSizeBytes = PoolSizeBytes;
 
-    TRACE(" > Allocating memory (%u bytes)", PoolSizeBytes);
-    Status = dma_create(&DmaInfo, &Scheduler->ElementPoolDMA);
-    if (Status != OsSuccess) {
-        ERROR("Failed to allocate memory for resource-pool");
-        return Status;
-    }
-
-    // Validate memory boundaries
-    if (!(Settings->Flags & USB_SCHEDULER_FL64)) {
-        if ((PoolPhysical + PoolSizeBytes) > 0xFFFFFFFF) {
-            ERROR("Failed to allocate memory below 4gb memory for usb resources");
-            MemoryFree((void*)Pool, PoolSizeBytes);
-            return OsError;
+    // Start out by allocating the frame list unless it has been provided for us
+    if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
+        Status = AllocateMemoryForFrameList(Scheduler);
+        if (Status != OsSuccess) {
+            UsbSchedulerDestroy(Scheduler);
+            return Status;
         }
     }
 
-    // Setup pool variables
-    if (Settings->Flags & USB_SCHEDULER_FRAMELIST) {
-        Scheduler->Settings.FrameListPhysical = PoolPhysical;
-        Scheduler->Settings.FrameList         = (reg32_t*)Pool;
-        Pool            += Settings->FrameCount * 4;
-        PoolPhysical    += Settings->FrameCount * 4;
+    // Validate the physical location of the framelist, on most usb controllers
+    // it is not supported that its located above 32 bit memory space. Unless
+    // we have been told to ignore this then assert on it.
+    if (!(Scheduler->Settings.Flags & USB_SCHEDULER_FL64)) {
+        if ((Scheduler->Settings.FrameListPhysical + (Scheduler->Settings.FrameCount * 4)) > 0xFFFFFFFF) {
+            ERROR("Failed to allocate memory below 4gb memory for usb resources");
+            UsbSchedulerDestroy(Scheduler);
+            return OsError;
+        }
     }
-
-    for (i = 0; i < Settings->PoolCount; i++) {
-        Scheduler->Settings.Pools[i].ElementPool = Pool;
-        Pool            += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
-        PoolPhysical    += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
+    
+    // Initialize all the requested pools. Memory resources must be allocated
+    // for them.
+    for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
+        Status = AllocateMemoryForPool(&Scheduler->Settings.Pools[i]);
+        if (Status != OsSuccess) {
+            UsbSchedulerDestroy(Scheduler);
+            return Status;
+        }
     }
 
     // Allocate the last resources
     TRACE(" > Allocating management resources");
     Scheduler->VirtualFrameList = (uintptr_t*)malloc(Settings->FrameCount * sizeof(uintptr_t));
-    assert(Scheduler->VirtualFrameList != NULL);
+    Scheduler->Bandwidth        = (size_t*)malloc((Settings->FrameCount * Settings->SubframeCount * sizeof(size_t)));
+    if (!Scheduler->VirtualFrameList || !Scheduler->Bandwidth) {
+        UsbSchedulerDestroy(Scheduler);
+        return OsOutOfMemory;
+    }
     
-    Scheduler->Bandwidth = (size_t*)malloc((Settings->FrameCount * Settings->SubframeCount * sizeof(size_t)));
-    assert(Scheduler->Bandwidth != NULL);
-
     *SchedulerOut = Scheduler;
-    TRACE(" > Resetting internal data");
     return UsbSchedulerResetInternalData(Scheduler, 1, 1);
 }
 
-OsStatus_t
+static void
+FreePoolMemory(
+    _In_ UsbSchedulerPool_t* Pool)
+{
+    if (!Pool->ElementPoolDMA.buffer) {
+        return;
+    }
+    
+    (void)dma_attachment_unmap(&Pool->ElementPoolDMA);
+    (void)dma_detach(&Pool->ElementPoolDMA);
+}
+
+static void
+FreeFrameListMemory(
+    _In_ UsbScheduler_t* Scheduler)
+{
+    if (!Scheduler->Settings.FrameListDMA.buffer) {
+        return;
+    }
+    
+    (void)dma_attachment_unmap(&Scheduler->Settings.FrameListDMA);
+    (void)dma_detach(&Scheduler->Settings.FrameListDMA);
+}
+
+void
 UsbSchedulerDestroy(
     _In_ UsbScheduler_t* Scheduler)
 {
-    // Clear out allocated resources
-    // Root is pool 0 or framelist
+    int i;
+    
     if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
-        if (MemoryFree(Scheduler->Settings.FrameList, Scheduler->PoolSizeBytes) != OsSuccess) {
-            return OsError;
-        }
+        FreeFrameListMemory(Scheduler);
     }
-    else {
-        if (MemoryFree(Scheduler->Settings.Pools[0].ElementPool, Scheduler->PoolSizeBytes) != OsSuccess) {
-            return OsError;
-        }
+    
+    for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
+        FreePoolMemory(&Scheduler->Settings.Pools[i]);
     }
 
     if (Scheduler->VirtualFrameList != NULL) {
@@ -188,7 +254,6 @@ UsbSchedulerDestroy(
         free(Scheduler->Bandwidth);
     }
     free(Scheduler);
-    return OsSuccess;
 }
 
 long
@@ -259,23 +324,6 @@ UsbSchedulerGetPoolFromElement(
         uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPool;
         uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount) - 1;
         if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
-            *Pool = &Scheduler->Settings.Pools[i];
-            return OsSuccess;
-        }
-    }
-    return OsError;
-}
-
-OsStatus_t
-UsbSchedulerGetPoolFromElementPhysical(
-    _In_  UsbScheduler_t*      Scheduler,
-    _In_  uintptr_t            ElementPhysical,
-    _Out_ UsbSchedulerPool_t** Pool)
-{
-    for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
-        uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPoolPhysical;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
-        if (ISINRANGE(ElementPhysical, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
             return OsSuccess;
         }
@@ -562,4 +610,21 @@ UsbSchedulerFreeElement(
         UsbSchedulerFreeBandwidth(Scheduler, Element);
     }
     memset((void*)Element, 0, sPool->ElementAlignedSize);
+}
+
+uintptr_t
+UsbSchedulerGetDma(
+    _In_ UsbSchedulerPool_t* Pool,
+    _In_ uint8_t*            ElementPointer)
+{
+    size_t Offset = (uintptr_t)ElementPointer - (uintptr_t)Pool->ElementPoolDMA.buffer;
+    int    i;
+    
+    for (i = 0; i < Pool->ElementSgCount; i++) {
+        if (Offset < Pool->ElementSgList[i].length) {
+            return Pool->ElementSgList[i].address + Offset;
+        }
+        Offset -= Pool->ElementSgList[i].length;
+    }
+    return 0;
 }

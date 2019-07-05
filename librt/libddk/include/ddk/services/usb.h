@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -192,65 +193,48 @@ typedef enum _UsbTransferStatus {
 	TransferBabble
 } UsbTransferStatus_t;
 
-/* UsbTransaction
- * Describes a single transaction in an usb-transfer operation */
 PACKED_TYPESTRUCT(UsbTransaction, {
-	UsbTransactionType_t				Type;
-	int									Handshake;	// ACK always end in 1
-	int									ZeroLength;
-
-	// Data Information
-	uintptr_t							BufferAddress;
-	size_t								Length;
+	UsbTransactionType_t Type;
+	uintptr_t            BufferHandle;
+	size_t               BufferOffset;
+	size_t               Length;
+	Flags_t              Flags;
 });
 
-/* UsbTransfer 
- * Describes an usb-transfer, that consists of transfer information
- * and a bunch of transactions. */
+// Bit definitions for UsbTransaction::Flags
+#define USB_TRANSACTION_ZLP       0x00000001
+#define USB_TRANSACTION_HANDSHAKE 0x00000002
+
 PACKED_TYPESTRUCT(UsbTransfer, {
-    // Generic Information
-    Flags_t                             Flags;
-	UsbTransferType_t                   Type;
-	UsbSpeed_t                          Speed;
+    Flags_t                   Flags;
+	UsbTransferType_t         Type;
+	UsbSpeed_t                Speed;
 
     // Addressing information
-    UsbHcAddress_t                      Address;
-    UsbTransaction_t                    Transactions[USB_TRANSACTIONCOUNT];
-    int                                 TransactionCount;
-
-	// Endpoint Information
-	UsbHcEndpointDescriptor_t           Endpoint;
+    UsbHcAddress_t            Address;
+	UsbHcEndpointDescriptor_t Endpoint;
+	
+    UsbTransaction_t          Transactions[USB_TRANSACTIONCOUNT];
+    int                       TransactionCount;
 
 	// Periodic Information
-    const void*                         PeriodicData;
-    size_t                              PeriodicBufferSize;
+    const void*               PeriodicData;
+    size_t                    PeriodicBufferSize;
 });
 
 /* UsbTransfer::Flags
  * Bit-definitions and declarations for the field. */
-#define USB_TRANSFER_NO_NOTIFICATION    0x00000001
-#define USB_TRANSFER_SHORT_NOT_OK       0x00000002
+#define USB_TRANSFER_NO_NOTIFICATION 0x00000001
+#define USB_TRANSFER_SHORT_NOT_OK    0x00000002
 
-/* UsbTransferResult
- * Describes the result of an usb-transfer */
 PACKED_TYPESTRUCT(UsbTransferResult, {
-	UUId_t					Id;
-	size_t					BytesTransferred;
-	UsbTransferStatus_t 	Status;
+	UUId_t				Id;
+	size_t				BytesTransferred;
+	UsbTransferStatus_t Status;
 });
 
-/* UsbInitialize
- * Initializes libusb and enables the use of all the control
- * functions that require a shared buffer-pool. */
-__EXTERN
-OsStatus_t
-UsbInitialize(void);
-
-/* UsbCleanup
- * Frees the shared resources allocated by UsbInitialize. */
-__EXTERN
-OsStatus_t
-UsbCleanup(void);
+__EXTERN OsStatus_t UsbInitialize(void);
+__EXTERN OsStatus_t UsbCleanup(void);
 
 /* UsbRetrievePool 
  * Retrieves the shared usb-memory pool for transfers. Only
@@ -277,23 +261,26 @@ UsbTransferInitialize(
 __EXTERN
 OsStatus_t
 UsbTransferSetup(
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ uintptr_t                  SetupAddress,
-    _In_ uintptr_t                  DataAddress,
-    _In_ size_t                     DataLength,
-    _In_ UsbTransactionType_t       DataType);
+    _In_ UsbTransfer_t*       Transfer,
+    _In_ UUId_t               SetupBufferHandle,
+    _In_ size_t               SetupBufferOffset,
+    _In_ UUId_t               DataBufferHandle,
+    _In_ size_t               DataBufferOffset,
+    _In_ size_t               DataLength,
+    _In_ UsbTransactionType_t DataType);
 
 /* UsbTransferPeriodic
  * Initializes a transfer for a periodic-transaction. */
 __EXTERN
 OsStatus_t
 UsbTransferPeriodic(
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ uintptr_t                  BufferAddress,
-    _In_ size_t                     BufferLength,
-    _In_ size_t                     DataLength,
-    _In_ UsbTransactionType_t       DataDirection,
-    _In_ const void*                NotifificationData);
+    _In_ UsbTransfer_t*       Transfer,
+    _In_ UUId_t               BufferHandle,
+    _In_ size_t               BufferOffset,
+    _In_ size_t               BufferLength,
+    _In_ size_t               DataLength,
+    _In_ UsbTransactionType_t DataDirection,
+    _In_ const void*          NotifificationData);
 
 /* UsbTransferIn 
  * Creates an In-transaction in the given usb-transfer. Both buffer and length 
@@ -301,10 +288,11 @@ UsbTransferPeriodic(
 __EXTERN
 OsStatus_t
 UsbTransferIn(
-	_In_ UsbTransfer_t*             Transfer,
-	_In_ uintptr_t                  BufferAddress, 
-	_In_ size_t                     Length,
-    _In_ int                        Handshake);
+	_In_ UsbTransfer_t* Transfer,
+    _In_ UUId_t         BufferHandle,
+    _In_ size_t         BufferOffset,
+	_In_ size_t         Length,
+    _In_ int            Handshake);
     
 /* UsbTransferOut 
  * Creates an Out-transaction in the given usb-transfer. Both buffer and length 
@@ -312,10 +300,11 @@ UsbTransferIn(
 __EXTERN
 OsStatus_t
 UsbTransferOut(
-	_In_ UsbTransfer_t*             Transfer,
-	_In_ uintptr_t                  BufferAddress, 
-	_In_ size_t                     Length,
-	_In_ int                        Handshake);
+	_In_ UsbTransfer_t* Transfer,
+    _In_ UUId_t         BufferHandle,
+    _In_ size_t         BufferOffset,
+	_In_ size_t         Length,
+    _In_ int            Handshake);
 
 /* UsbTransferQueue 
  * Queues a new Control or Bulk transfer for the given driver

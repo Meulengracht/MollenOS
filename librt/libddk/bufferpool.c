@@ -92,8 +92,7 @@ OsStatus_t
 dma_pool_allocate(
     _In_  struct dma_pool* pool,
     _In_  size_t           length,
-    _Out_ void**           address_out,
-    _Out_ uintptr_t*       dma_address_out)
+    _Out_ void**           address_out)
 {
     ptrdiff_t difference;
     void*     allocation;
@@ -106,9 +105,8 @@ dma_pool_allocate(
         return OsOutOfMemory;
     }
     
-    difference       = (uintptr_t)allocation - (uintptr_t)pool->attachment->buffer;
-    *address_out     = allocation;
-    *dma_address_out = dma_pool_get_dma(pool, difference);
+    difference   = (uintptr_t)allocation - (uintptr_t)pool->attachment->buffer;
+    *address_out = allocation;
     TRACE(" > Virtual address 0x%x => Physical address 0x%x", allocation, *dma_address_out);
     return OsSuccess;
 }
@@ -120,4 +118,25 @@ dma_pool_free(
 {
     brel(pool->pool, address);
     return OsSuccess;
+}
+
+UUId_t
+dma_pool_handle(
+    _In_ struct dma_pool* pool)
+{
+    if (!pool || !pool->attachment) {
+        return UUID_INVALID;
+    }
+    return pool->attachment->handle;
+}
+
+size_t
+dma_pool_offset(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address)
+{
+    if (!pool || !pool->attachment) {
+        return 0;
+    }
+    return (uintptr_t)address - (uintptr_t)pool->attachment->buffer;
 }

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011 - 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
@@ -24,6 +25,7 @@
 #ifndef __USB_OHCI__
 #define __USB_OHCI__
 
+#include <os/dmabuf.h>
 #include <os/osdefs.h>
 #include <ddk/contracts/usbhost.h>
 #include <ds/collection.h>
@@ -285,6 +287,7 @@ typedef struct {
 
     // Registers and resources
     OhciRegisters_t*        Registers;
+    struct dma_attachment   HccaDMA;
     OhciHCCA_t*             Hcca;
     reg32_t                 HccaPhysical;
 

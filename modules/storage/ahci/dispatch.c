@@ -89,6 +89,7 @@ BuildPRDTTable(
             TransferLength != Transaction->BytesLeft) {
             if ((BytesQueued + TransferLength) % SectorSize != 0) {
                 if (TransferLength < SectorSize) {
+                    assert(0);
                     // Perform a larger correctional action as no longer have space to reduce
                     // to the next boundary. Instead of correcting the number of bytes to transfer
                     // we drop the previous PRDT entry entirely and let the next transaction round

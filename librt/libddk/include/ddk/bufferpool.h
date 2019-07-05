@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,8 +34,7 @@ _CODE_BEGIN
 /* BufferPoolCreate
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
-DDKDECL(
-OsStatus_t,
+DDKDECL(OsStatus_t,
 dma_pool_create(
     _In_  struct dma_attachment* attachment,
     _Out_ struct dma_pool**      pool_out));
@@ -42,8 +42,7 @@ dma_pool_create(
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
  * allocated. This does not destroy the buffer-object. */
-DDKDECL(
-OsStatus_t,
+DDKDECL(OsStatus_t,
 dma_pool_destroy(
     _In_ struct dma_pool* pool));
 
@@ -51,20 +50,26 @@ dma_pool_destroy(
  * Allocates the requested size and outputs two addresses. The
  * virtual pointer to the accessible data, and the address of its 
  * corresponding physical address for hardware. */
-DDKDECL(
-OsStatus_t,
+DDKDECL(OsStatus_t,
 dma_pool_allocate(
     _In_  struct dma_pool* pool,
     _In_  size_t           length,
-    _Out_ void**           address_out,
-    _Out_ uintptr_t*       dma_address_out));
+    _Out_ void**           address_out));
 
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
-DDKDECL(
-OsStatus_t,
+DDKDECL(OsStatus_t,
 dma_pool_free(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address));
+
+DDKDECL(UUId_t,
+dma_pool_handle(
+    _In_ struct dma_pool* pool));    
+
+DDKDECL(size_t,
+dma_pool_offset(
     _In_ struct dma_pool* pool,
     _In_ void*            address));
 _CODE_END

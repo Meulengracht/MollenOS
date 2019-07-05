@@ -92,8 +92,6 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 #define USB_POOL_MAXCOUNT               8
 
 typedef struct _UsbSchedulerPool {
-    uint8_t*  ElementPool;
-
     size_t    ElementBaseSize;            // Size of an element
     size_t    ElementAlignedSize;         // Size of an element
     size_t    ElementCount;               // Number of elements
@@ -102,6 +100,11 @@ typedef struct _UsbSchedulerPool {
     size_t    ElementLinkBreathOffset;    // Offset to the physical breath link member
     size_t    ElementDepthBreathOffset;   // Offset to the physical breath link member
     size_t    ElementObjectOffset;        // Offset to the UsbSchedulerObject
+    
+    struct dma_attachment ElementPoolDMA;         // Frame element pool DMA attachment
+    uint8_t*              ElementPool;
+    int                   ElementSgCount;
+    struct dma_sg*        ElementSgList;
 } UsbSchedulerPool_t;
 
 typedef struct _UsbSchedulerSettings {
@@ -125,22 +128,16 @@ typedef struct _UsbSchedulerSettings {
 #define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
 
 typedef struct _UsbScheduler {
-    // Meta
     UsbSchedulerSettings_t  Settings;
     spinlock_t              Lock;
 
-    // Resources
-    struct dma_attachment   ElementPoolDMA;         // Frame element pool DMA attachment
-    size_t                  PoolSizeBytes;          // The total number of bytes allocated
-    uintptr_t*              VirtualFrameList;       // Virtual frame list
-    
-    // Bandwidth
-    size_t*                 Bandwidth;              // Bandwidth[FrameCount]
-    size_t                  TotalBandwidth;         // Total bandwidth
+    uintptr_t* VirtualFrameList;       // Virtual frame list
+    size_t*    Bandwidth;              // Bandwidth[FrameCount]
+    size_t     TotalBandwidth;         // Total bandwidth
 } UsbScheduler_t;
 
 #define USB_ELEMENT_INDEX(Pool, Index)              (uint8_t*)&(Pool->ElementPool[(Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementAlignedSize])
-#define USB_ELEMENT_PHYSICAL(Pool, Index)           (Pool->ElementPoolPhysical + ((Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementAlignedSize))
+#define USB_ELEMENT_PHYSICAL(Pool, Index)           (UsbSchedulerGetDma(Pool, USB_ELEMENT_INDEX(Pool, Index)))
 #define USB_ELEMENT_GET_POOL(Scheduler, Index)      &Scheduler->Settings.Pools[(Index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK]
 
 #define USB_ELEMENT_LINK(Pool, Element, Direction)  *(reg32_t*)((uint8_t*)Element + ((Direction == USB_CHAIN_BREATH) ? Pool->ElementLinkBreathOffset : Pool->ElementDepthBreathOffset))
@@ -192,7 +189,7 @@ UsbSchedulerInitialize(
 /* UsbSchedulerDestroy 
  * Cleans up any resources allocated by the scheduler. Any transactions already
  * scheduled by this scheduler will be unreachable and invalid after this call. */
-__EXTERN OsStatus_t
+__EXTERN void
 UsbSchedulerDestroy(
 	_In_ UsbScheduler_t*            Scheduler);
 
@@ -205,6 +202,11 @@ UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ int                        ResetElements,
     _In_ int                        ResetFramelist);
+
+__EXTERN uintptr_t
+UsbSchedulerGetDma(
+    _In_ UsbSchedulerPool_t* Pool,
+    _In_ uint8_t*            ElementPointer);
 
 /* UsbSchedulerGetPoolElement
  * Retrieves the element at the given pool and index. */
@@ -222,14 +224,6 @@ __EXTERN OsStatus_t
 UsbSchedulerGetPoolFromElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  uint8_t*                  Element,
-    _Out_ UsbSchedulerPool_t**      Pool);
-
-/* UsbSchedulerGetPoolFromElementPhysical
- * Retrieves which pool an element belongs to by only knowing the physical address. */
-__EXTERN OsStatus_t
-UsbSchedulerGetPoolFromElementPhysical(
-    _In_  UsbScheduler_t*           Scheduler,
-    _In_  uintptr_t                 ElementPhysical,
     _Out_ UsbSchedulerPool_t**      Pool);
 
 /* UsbSchedulerAllocateElement

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -36,10 +37,12 @@ UsbManagerController_t*
 HciControllerCreate(
     _In_ MCoreDevice_t* Device)
 {
-    // Variables
-    OhciController_t *Controller    = NULL;
-    DeviceIo_t *IoBase              = NULL;
-    uintptr_t HccaPhysical;
+    struct dma_buffer_info DmaInfo;
+    DeviceIo_t*            IoBase  = NULL;
+    int                    SgCount = 1;
+    struct dma_sg          SgList;
+    OhciController_t*      Controller;
+    OsStatus_t             Status;
     int i;
 
     // Allocate a new instance of the controller
@@ -78,26 +81,30 @@ HciControllerCreate(
     TRACE("Found Io-Space (Type %u, Physical 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
         IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
 
+    // Allocate the HCCA-space in low memory as controllers
+    // have issues with higher memory (<2GB)
+    DmaInfo.length   = 0x1000;
+    DmaInfo.capacity = 0x1000;
+    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    
+    Status = dma_create(&DmaInfo, &Controller->HccaDMA);
+    if (Status != OsSuccess) {
+        ERROR("Failed to allocate space for HCCA");
+        free(Controller);
+        return NULL;
+    }
+    
+    // Retrieve the physical location of the HCCA
+    (void)dma_get_metrics(&Controller->HccaDMA, &SgCount, &SgList);
+    Controller->HccaPhysical = SgList.address;
+
     // Acquire the io-space
+    Controller->Base.IoBase = IoBase;
     if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(Controller);
         return NULL;
     }
-    else {
-        // Store information
-        Controller->Base.IoBase = IoBase;
-    }
-
-    // Allocate the HCCA-space in low memory as controllers
-    // have issues with higher memory (<2GB)
-    if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT | MEMORY_READ | MEMORY_WRITE
-        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, (void**)&Controller->Hcca, &HccaPhysical) != OsSuccess) {
-        ERROR("Failed to allocate space for HCCA");
-        free(Controller);
-        return NULL;
-    }
-    Controller->HccaPhysical = HccaPhysical;
 
     // Start out by initializing the contract
     InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
@@ -165,7 +172,8 @@ HciControllerDestroy(
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
-        MemoryFree((void*)((OhciController_t*)Controller), 0x1000);
+        dma_attachment_unmap(&((OhciController_t*)Controller)->HccaDMA);
+        dma_detach(&((OhciController_t*)Controller)->HccaDMA);
     }
 
     // Unregister the interrupt

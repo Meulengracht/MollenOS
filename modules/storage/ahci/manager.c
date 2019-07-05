@@ -161,7 +161,8 @@ AhciManagerRegisterDevice(
         return OsOutOfMemory;
     }
     
-    Status = AhciTransactionControlCreate(Device, AtaPIOIdentifyDevice);
+    Status = AhciTransactionControlCreate(Device, AtaPIOIdentifyDevice,
+        sizeof(ATAIdentify_t), AHCI_XACTION_IN);
     if (Status != OsSuccess) {
         free(Device);
         return Status;

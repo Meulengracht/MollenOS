@@ -172,19 +172,17 @@ EhciQueueReset(
     return EhciQueueResetInternalData(Controller);
 }
 
-/* EhciQueueDestroy
- * Unschedules any scheduled ed's and frees all resources allocated
- * by the initialize function */
 OsStatus_t
 EhciQueueDestroy(
-    _In_ EhciController_t*  Controller)
+    _In_ EhciController_t* Controller)
 {
     // Debug
     TRACE("EhciQueueDestroy()");
 
     // Reset first
     EhciQueueReset(Controller);
-    return UsbSchedulerDestroy(Controller->Base.Scheduler);
+    UsbSchedulerDestroy(Controller->Base.Scheduler);
+    return OsSuccess;
 }
 
 /* EhciConditionCodeToIndex

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,22 +17,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "ehci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -59,10 +54,10 @@ EhciTransactionCount(
         while (BytesToTransfer || AddZeroLength == 1
             || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             if (Type == SetupTransaction) {
-                ByteStep    = BytesToTransfer;
+                ByteStep = BytesToTransfer;
             }
             else {
-                ByteStep    = EHCI_TD_LENGTH(BytesToTransfer);
+                ByteStep = EHCI_TD_LENGTH(BytesToTransfer);
             }
             TransactionCount++;
 
@@ -208,14 +203,10 @@ EhciTransferFill(
     }
 }
 
-/* HciQueueTransferGeneric 
- * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
- * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t*  Transfer)
 {
-    // Variables
     EhciQueueHead_t *EndpointDescriptor     = NULL;
     EhciController_t *Controller            = NULL;
     DataKey_t Key;
