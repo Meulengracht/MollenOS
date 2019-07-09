@@ -35,10 +35,16 @@ struct dma_sg {
     size_t    length;
 };
 
+struct dma_sg_table {
+    struct dma_sg* entries;
+    int            count;
+};
+
 struct dma_buffer_info {
-    size_t  length;
-    size_t  capacity;
-    Flags_t flags;
+    const char* name;
+    size_t      length;
+    size_t      capacity;
+    Flags_t     flags;
 };
 
 struct dma_attachment {
@@ -118,10 +124,20 @@ CRTDECL(OsStatus_t, dma_detach(struct dma_attachment* attachment));
  * * Call this once with the count parameter to get the number of
  * * scatter-gather entries, then the second time with the dma_sg parameter
  * * to retrieve a list of all the entries
- * @param attachment  [In]            Attachment to the dma buffer to query the list of dma entries
- * @param count       [Out, Required] Pointer to an int variable storage to put the number of dma_sg entries
- * @param sg_list     [Out]           Pointer to an array of struct dma_sg large enough to fit <count> entries
+ * @param attachment [In]  Attachment to the dma buffer to query the list of dma entries
+ * @param sg_table   [Out] Pointer to storage for the sg_table. This must be manually freed.
+ * @param max_count  [In]  Max number of entries, if 0 or below it will get all number of entries.
  */
-CRTDECL(OsStatus_t, dma_get_metrics(struct dma_attachment* attachment, int* count, struct dma_sg* sg_list));
+CRTDECL(OsStatus_t, dma_get_sg_table(struct dma_attachment* attachment, struct dma_sg_table* sg_table, int max_count));
+
+/**
+ * dma_sg_table_offset
+ * * Converts a virtual buffer offset into a dma_sg index + offset
+ * @param sg_table  [In]  Scatter-gather table to perform the lookup in.
+ * @param offset    [In]  The offset that should be converted to a sg-index/offset 
+ * @param sg_index  [Out] A pointer to the variable for the index.
+ * @param sg_offset [Out] A pointer to the variable for the offset.
+ */
+CRTDECL(OsStatus_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t, int*, size_t*));
 
 #endif //!__DMABUF_H__

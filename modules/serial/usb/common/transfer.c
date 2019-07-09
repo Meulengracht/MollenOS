@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -33,13 +34,13 @@ static UUId_t __GlbTransferId = 0;
 
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t*         Transfer,
-    _In_ MRemoteCallAddress_t*  Address,
-    _In_ UUId_t                 Device)
+    _In_ UsbTransfer_t*        Transfer,
+    _In_ MRemoteCallAddress_t* Address,
+    _In_ UUId_t                DeviceId)
 {
-    UsbManagerTransfer_t *UsbTransfer = NULL;
+    UsbManagerTransfer_t* UsbTransfer;
+    int                   i;
 
-    // Allocate a new instance
     UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
     if (!UsbTransfer) {
         return NULL;
@@ -49,10 +50,50 @@ UsbManagerCreateTransfer(
     // Copy information over
     memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
     memcpy(&UsbTransfer->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
+    
     UsbTransfer->DeviceId = Device;
     UsbTransfer->Id       = __GlbTransferId++;
     UsbTransfer->Status   = TransferNotProcessed;
+    
+    // When attaching to dma buffers make sure we don't attach
+    // multiple times as we can then save a system call or two
+    for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+        if (i != 0 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
+                UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
+            // reuse information
+            memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 1],
+                sizeof(struct UsbManagerTransaction));
+        }
+        else {
+            dma_attach(UsbTransfer->Transfer.Transactions[i].BufferHandle,
+                &UsbTransfer->Transactions[i].DmaAttachment);
+            dma_get_sg_table(&UsbTransfer->Transactions[i].DmaAttachment,
+                &UsbTransfer->Transactions[i].DmaTable, -1);
+        }
+        dma_sg_table_offset(&UsbTransfer->Transactions[i].DmaTable,
+            UsbTransfer->Transfer.Transactions[i].BufferOffset,
+            &UsbTransfer->Transactions[i].SgIndex, 
+            &UsbTransfer->Transactions[i].SgOffset);
+    }
     return UsbTransfer;
+}
+
+void
+UsbManagerDestroyTransfer(
+    _In_ UsbManagerTransfer_t* Transfer)
+{
+    int i;
+    for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+        if (i != 0 && Transfer->Transfer.Transactions[i].BufferHandle ==
+                Transfer->Transfer.Transactions[i - 1].BufferHandle) {
+            // do nothing, we already freed
+        }
+        else {
+            free(Transfer->Transactions[i].DmaTable.entries);
+            dma_detach(&UsbTransfer->Transactions[i].DmaAttachment);
+        }
+    }
+    free(Transfer);
 }
 
 void

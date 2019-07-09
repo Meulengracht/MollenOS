@@ -31,8 +31,7 @@
 struct dma_pool {
     BytePool_t*            pool;
     struct dma_attachment* attachment;
-    int                    sg_size;
-    struct dma_sg          sg_list[1];
+    struct dma_sg_table    table;
 };
 
 OsStatus_t
@@ -42,22 +41,15 @@ dma_pool_create(
 {
     struct dma_pool* pool;
     OsStatus_t       status;
-    int              sg_size;
     
     if (!attachment || !pool_out || !attachment->buffer) {
         return OsInvalidParameters;
     }
     
-    status = dma_get_metrics(attachment, &sg_size, NULL);
-    if (status != OsSuccess) {
-        return status;
-    }
-    
-    pool             = (struct dma_pool*)malloc(sizeof(struct dma_pool) + (sg_size * sizeof(struct dma_sg)));
+    pool             = (struct dma_pool*)malloc(sizeof(struct dma_pool));
     pool->attachment = attachment;
-    pool->sg_size    = sg_size;
     
-    status = dma_get_metrics(attachment, NULL, &pool->sg_list[0]);
+    status = dma_get_sg_table(attachment, &pool->table, -1);
     status = bpool(attachment->buffer, attachment->length, &pool->pool);
     
     *pool_out = pool;
@@ -68,6 +60,7 @@ OsStatus_t
 dma_pool_destroy(
     _In_ struct dma_pool* pool)
 {
+    free(pool->table.entries);
     free(pool->pool);
     free(pool);
     return OsSuccess;
@@ -78,14 +71,11 @@ dma_pool_get_dma(
     _In_ struct dma_pool* pool,
     _In_ size_t           offset)
 {
-    int i;
-    for (i = 0; i < pool->sg_size; i++) {
-        if (offset < pool->sg_list[i].length) {
-            return pool->sg_list[i].address + offset;
-        }
-        offset -= pool->sg_list[i].length;
-    }
-    return 0;
+    int        entry_index;
+    size_t     sg_offset;
+    OsStatus_t status = dma_sg_table_offset(
+        &pool->table, offset, &entry_index, &sg_offset);
+    return status != OsSuccess ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 
 OsStatus_t

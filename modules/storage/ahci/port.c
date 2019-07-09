@@ -245,30 +245,24 @@ AhciPortRebase(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    reg32_t            Caps = ReadVolatile32(&Controller->Registers->Capabilities);
-    AHCICommandList_t* CommandList;
-    OsStatus_t         Status;
-    struct dma_sg*     CommandTableSg;
-    int                CommandTableSgCount;
-    uintptr_t          PhysicalAddress;
-    int                i;
-    int                j;
+    reg32_t             Caps = ReadVolatile32(&Controller->Registers->Capabilities);
+    AHCICommandList_t*  CommandList;
+    OsStatus_t          Status;
+    struct dma_sg_table SgTable;
+    uintptr_t           PhysicalAddress;
+    int                 i;
+    int                 j;
 
     Status = AllocateOperationalMemory(Controller, Port);
     if (Status != OsSuccess) {
         return Status;
     }
-
-    (void)dma_get_metrics(&Port->CommandTableDMA, &CommandTableSgCount, NULL);
-    CommandTableSg = (struct dma_sg*)malloc(sizeof(struct dma_sg) * CommandTableSgCount);
-    if (!CommandTableSg) {
-        return OsOutOfMemory;
-    }
-    (void)dma_get_metrics(&Port->CommandTableDMA, &CommandTableSgCount, CommandTableSg);
+    
+    (void)dma_get_sg_table(&Port->CommandTableDMA, &SgTable, -1);
 
     // Iterate the 32 command headers
     CommandList     = (AHCICommandList_t*)Port->CommandListDMA.buffer;
-    PhysicalAddress = CommandTableSg[0].address;
+    PhysicalAddress = SgTable.entries[0].address;
     for (i = 0, j = 0; i < 32; i++) {
         // Load the command table address (physical)
         CommandList->Headers[i].CmdTableBaseAddress = LODWORD(PhysicalAddress);
@@ -279,15 +273,15 @@ AhciPortRebase(
                 (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
         }
 
-        PhysicalAddress          += AHCI_COMMAND_TABLE_SIZE;
-        CommandTableSg[j].length -= AHCI_COMMAND_TABLE_SIZE;
-        if (!CommandTableSg[j].length) {
+        PhysicalAddress           += AHCI_COMMAND_TABLE_SIZE;
+        SgTable.entries[j].length -= AHCI_COMMAND_TABLE_SIZE;
+        if (!SgTable.entries[j].length) {
             j++;
-            PhysicalAddress = CommandTableSg[j].address;
+            PhysicalAddress = SgTable.entries[j].address;
         }
     }
 
-    free(CommandTableSg);
+    free(SgTable.entries);
     return OsSuccess;
 }
 
@@ -336,8 +330,7 @@ AhciPortStart(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    struct dma_sg DmaSg;
-    int           DmaSgCount = 1;
+    struct dma_sg_table DmaTable;
     reg32_t       Caps       = ReadVolatile32(&Controller->Registers->Capabilities);
     int           Hung       = 0;
 

@@ -25,10 +25,11 @@
 #ifndef __USB_TRANSFER__
 #define __USB_TRANSFER__
 
+#include <os/dmabuf.h>
+#include <os/osdefs.h>
+#include <os/spinlock.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
-#include <os/spinlock.h>
-#include <os/osdefs.h>
 
 typedef enum _UsbManagerTransferFlags {
     TransferFlagNone        = 0x0,
@@ -41,39 +42,56 @@ typedef enum _UsbManagerTransferFlags {
 } UsbManagerTransferFlags_t;
 
 typedef struct {
-    UsbTransfer_t               Transfer;
-    MRemoteCallAddress_t        ResponseAddress;
+    UsbTransfer_t             Transfer;
+    MRemoteCallAddress_t      ResponseAddress;
 
     // Transfer Metadata
-    UUId_t                      Id;
-    UUId_t                      DeviceId;
-    UsbTransferStatus_t         Status;
-    UsbManagerTransferFlags_t   Flags;
+    UUId_t                    Id;
+    UUId_t                    DeviceId;
+    UsbTransferStatus_t       Status;
+    UsbManagerTransferFlags_t Flags;
+    void*                     EndpointDescriptor;  // We only use one no matter what
+    
+    // Per-transaction data
+    struct UsbManagerTransaction {
+        struct dma_attachment DmaAttachment;
+        struct dma_sg_table   DmaTable;
+        int                   SgIndex;
+        size_t                SgOffset;
+        size_t                BytesTransferred;
+    } Transactions[USB_TRANSACTIONCOUNT];
+    int                       TransactionsExecuted;
+    int                       TransactionsTotal;
 
-    // Control/Interrupt transfers are small, but carry data.
-    // Information here is shared
-    void*                       EndpointDescriptor;  // We only use one no matter what
-    int                         TransactionsExecuted;
-    int                         TransactionsTotal;
-    size_t                      BytesTransferred[USB_TRANSACTIONCOUNT]; // In Total
-    size_t                      CurrentDataIndex;    // Periodic Transfers
+    // Periodic Transfers
+    size_t                    CurrentDataIndex;    
 } UsbManagerTransfer_t;
 
-/* UsbManagerCreateTransfer
- * Creates a new transfer with the usb-manager.
- * Identifies and registers with neccessary services */
+/**
+ * UsbManagerCreateTransfer
+ * * Creates a new transfer that is registered with the usb-management
+ */
 __EXTERN UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t*         Transfer,
-    _In_ MRemoteCallAddress_t*  Address,
-    _In_ UUId_t                 Device);
+    _In_ UsbTransfer_t*        Transfer,
+    _In_ MRemoteCallAddress_t* Address,
+    _In_ UUId_t                Device);
 
-/* UsbManagerSendNotification
- * Sends a notification to the subscribing process whenever a periodic
- * transaction has completed/failed. */
+/**
+ * UsbManagerDestroyTransfer
+ * * Cleans up a usb transfer and frees resources.
+ */
+__EXTERN void
+UsbManagerDestroyTransfer(
+    _In_ UsbManagerTransfer_t* Transfer);
+
+/**
+ * UsbManagerSendNotification
+ * * Sends a notification to the subscribing process whenever a periodic
+ * * transaction has completed/failed. */
 __EXTERN void
 UsbManagerSendNotification(
-    _In_ UsbManagerTransfer_t*  Transfer);
+    _In_ UsbManagerTransfer_t* Transfer);
 
 #endif //!__USB_TRANSFER__
  

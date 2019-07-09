@@ -24,6 +24,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/dmabuf.h>
+#include <stdlib.h>
 
 OsStatus_t
 dma_create(
@@ -111,13 +112,53 @@ dma_detach(
 }
 
 OsStatus_t
-dma_get_metrics(
-    _In_  struct dma_attachment* attachment,
-    _Out_ int*                   count,
-    _Out_ struct dma_sg*         sg_list)
+dma_get_sg_table(
+    _In_ struct dma_attachment* attachment,
+    _In_ struct dma_sg_table*   sg_table,
+    _In_ int                    max_count)
 {
-    if (!attachment || !count) {
+    OsStatus_t status;
+    
+    if (!attachment || !sg_table) {
         return OsInvalidParameters;
     }
-    return Syscall_DmaGetMetrics(attachment, count, sg_list);
+    
+    // get count unless provided, 
+    // then allocate space and then retrieve full list
+    sg_table->count = max_count;
+    if (max_count <= 0) {
+        status = Syscall_DmaGetMetrics(attachment, &sg_table->count, NULL);
+        if (status != OsSuccess) {
+            return status;
+        }
+    }
+    
+    sg_table->entries = malloc(sizeof(struct dma_sg) * sg_table->count);
+    if (!sg_table->entries) {
+        return OsOutOfMemory;
+    }
+    return Syscall_DmaGetMetrics(attachment, &sg_table->count, sg_table->entries);
+}
+
+
+OsStatus_t
+dma_sg_table_offset(
+    _In_  struct dma_sg_table* sg_table,
+    _In_  size_t               offset,
+    _Out_ int*                 sg_index_out,
+    _Out_ size_t*              sg_offset_out)
+{
+    if (!sg_table || !sg_index_out || !sg_offset_out) {
+        return OsInvalidParameters;
+    }
+    
+    for (int i = 0; i < sg_table->count; i++) {
+        if (offset < sg_table->entries[i].length) {
+            *sg_index_out  = i;
+            *sg_offset_out = offset;
+            return OsSuccess;
+        }
+        offset -= sg_table->entries[i].length;
+    }
+    return OsInvalidParameters;
 }
