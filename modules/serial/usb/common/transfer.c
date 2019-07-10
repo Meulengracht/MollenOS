@@ -51,7 +51,7 @@ UsbManagerCreateTransfer(
     memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
     memcpy(&UsbTransfer->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
     
-    UsbTransfer->DeviceId = Device;
+    UsbTransfer->DeviceId = DeviceId;
     UsbTransfer->Id       = __GlbTransferId++;
     UsbTransfer->Status   = TransferNotProcessed;
     
@@ -62,6 +62,12 @@ UsbManagerCreateTransfer(
                 UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
             // reuse information
             memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 1],
+                sizeof(struct UsbManagerTransaction));
+        }
+        else if (i == 2 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
+                UsbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
+            // reuse information
+            memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 2],
                 sizeof(struct UsbManagerTransaction));
         }
         else {
@@ -88,9 +94,13 @@ UsbManagerDestroyTransfer(
                 Transfer->Transfer.Transactions[i - 1].BufferHandle) {
             // do nothing, we already freed
         }
+        else if (i == 2 && Transfer->Transfer.Transactions[i].BufferHandle ==
+                Transfer->Transfer.Transactions[i - 2].BufferHandle) {
+            // do nothing, we already freed
+        }
         else {
             free(Transfer->Transactions[i].DmaTable.entries);
-            dma_detach(&UsbTransfer->Transactions[i].DmaAttachment);
+            dma_detach(&Transfer->Transactions[i].DmaAttachment);
         }
     }
     free(Transfer);
@@ -115,9 +125,9 @@ UsbManagerSendNotification(
         }
         Transfer->Flags         |= TransferFlagNotified;
         Result.Id               = Transfer->Id;
-        Result.BytesTransferred = Transfer->BytesTransferred[0];
-        Result.BytesTransferred += Transfer->BytesTransferred[1];
-        Result.BytesTransferred += Transfer->BytesTransferred[2];
+        Result.BytesTransferred = Transfer->Transactions[0].BytesTransferred;
+        Result.BytesTransferred += Transfer->Transactions[1].BytesTransferred;
+        Result.BytesTransferred += Transfer->Transactions[2].BytesTransferred;
 
         Result.Status = Transfer->Status;
         RPCRespond(&Transfer->ResponseAddress, (void*)&Result, sizeof(UsbTransferResult_t));

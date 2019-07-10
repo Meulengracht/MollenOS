@@ -138,6 +138,6 @@ CRTDECL(OsStatus_t, dma_get_sg_table(struct dma_attachment* attachment, struct d
  * @param sg_index  [Out] A pointer to the variable for the index.
  * @param sg_offset [Out] A pointer to the variable for the offset.
  */
-CRTDECL(OsStatus_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t, int*, size_t*));
+CRTDECL(OsStatus_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t offset, int* sg_index, size_t* sg_offset));
 
 #endif //!__DMABUF_H__

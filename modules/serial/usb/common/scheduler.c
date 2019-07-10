@@ -94,18 +94,8 @@ AllocateMemoryForPool(
         ERROR("... failed! %u", Status);
         return Status;
     }
+    dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
-    // We are not completly done yet, we need the physical memory array for
-    // all the elements so we can quickly lookup their dma addresses.
-    (void)dma_get_metrics(&Pool->ElementPoolDMA,
-        &Pool->ElementSgCount, NULL);
-    Pool->ElementSgList = malloc(sizeof(struct dma_sg) * Pool->ElementSgCount);
-    if (!Pool->ElementSgList) {
-        return OsOutOfMemory;
-    }
-    (void)dma_get_metrics(&Pool->ElementPoolDMA,
-        &Pool->ElementSgCount, Pool->ElementSgList);
-    
     Pool->ElementPool = Pool->ElementPoolDMA.buffer;
     return OsSuccess;
 }
@@ -115,9 +105,7 @@ AllocateMemoryForFrameList(
     _In_ UsbScheduler_t* Scheduler)
 {
     size_t                 FrameListBytes = Scheduler->Settings.FrameCount * 4;
-    int                    DmaSgCount     = 1;
     struct dma_buffer_info DmaInfo;
-    struct dma_sg          DmaSgList;
     OsStatus_t             Status;
     
     // Setup required memory allocation flags
@@ -134,11 +122,10 @@ AllocateMemoryForFrameList(
         ERROR("... failed! %u", Status);
         return Status;
     }
+    dma_get_sg_table(&Scheduler->Settings.FrameListDMA, 
+        &Scheduler->Settings.FrameListDMATable, -1);
     
-    // Get the physical location of the framelist, we need quick access for this
-    (void)dma_get_metrics(&Scheduler->Settings.FrameListDMA, &DmaSgCount, &DmaSgList);
-    Scheduler->Settings.FrameListPhysical = DmaSgList.address;
-    Scheduler->Settings.FrameList         = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
+    Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
     return OsSuccess;
 }
 
@@ -179,7 +166,8 @@ UsbSchedulerInitialize(
     // it is not supported that its located above 32 bit memory space. Unless
     // we have been told to ignore this then assert on it.
     if (!(Scheduler->Settings.Flags & USB_SCHEDULER_FL64)) {
-        if ((Scheduler->Settings.FrameListPhysical + (Scheduler->Settings.FrameCount * 4)) > 0xFFFFFFFF) {
+        if ((Scheduler->Settings.FrameListDMATable.entries[0].address + 
+                (Scheduler->Settings.FrameCount * 4)) > 0xFFFFFFFF) {
             ERROR("Failed to allocate memory below 4gb memory for usb resources");
             UsbSchedulerDestroy(Scheduler);
             return OsError;
@@ -219,6 +207,7 @@ FreePoolMemory(
     
     (void)dma_attachment_unmap(&Pool->ElementPoolDMA);
     (void)dma_detach(&Pool->ElementPoolDMA);
+    free(Pool->ElementPoolDMATable.entries);
 }
 
 static void
@@ -231,6 +220,7 @@ FreeFrameListMemory(
     
     (void)dma_attachment_unmap(&Scheduler->Settings.FrameListDMA);
     (void)dma_detach(&Scheduler->Settings.FrameListDMA);
+    free(Scheduler->Settings.FrameListDMATable.entries);
 }
 
 void
@@ -620,11 +610,11 @@ UsbSchedulerGetDma(
     size_t Offset = (uintptr_t)ElementPointer - (uintptr_t)Pool->ElementPoolDMA.buffer;
     int    i;
     
-    for (i = 0; i < Pool->ElementSgCount; i++) {
-        if (Offset < Pool->ElementSgList[i].length) {
-            return Pool->ElementSgList[i].address + Offset;
+    for (i = 0; i < Pool->ElementPoolDMATable.count; i++) {
+        if (Offset < Pool->ElementPoolDMATable.entries[i].length) {
+            return Pool->ElementPoolDMATable.entries[i].address + Offset;
         }
-        Offset -= Pool->ElementSgList[i].length;
+        Offset -= Pool->ElementPoolDMATable.entries[i].length;
     }
     return 0;
 }

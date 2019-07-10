@@ -84,6 +84,7 @@ typedef struct {
     int                   Direction;
     AHCIFis_t             Response;
     struct dma_attachment DmaAttachment;
+    struct dma_sg_table   DmaTable;
 
     struct {
         DeviceType_t Type;
@@ -98,8 +99,6 @@ typedef struct {
     
     int                   SgIndex;
     size_t                SgOffset;
-    int                   SgCount;
-    struct dma_sg         SgList[1];
 } AhciTransaction_t;
 
 #define AHCI_XACTION_IN     0

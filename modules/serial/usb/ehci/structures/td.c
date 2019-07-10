@@ -34,7 +34,7 @@
 size_t
 EhciTdFill(
     _In_ EhciController_t*         Controller,
-    _In_ EhciTransferDescriptor_t* Td, 
+    _In_ EhciTransferDescriptor_t* Td,
     _In_ uintptr_t                 BufferAddress, 
     _In_ size_t                    Length)
 {

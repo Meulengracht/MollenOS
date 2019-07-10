@@ -56,24 +56,6 @@ static struct {
     { -1, -1, -1, 0, 0, 0 }
 };
 
-static void
-GetSgMetricsFromOffset(
-    _In_  AhciTransaction_t* Transaction,
-    _In_  int                SgCount,
-    _In_  size_t             Offset,
-    _Out_ int*               SgIndexOut,
-    _Out_ size_t*            SgOffsetOut)
-{
-    for (int i = 0; i < SgCount; i++) {
-        if (Offset < Transaction->SgList[i].length) {
-            *SgIndexOut  = i;
-            *SgOffsetOut = Offset;
-            break;
-        }
-        Offset -= Transaction->SgList[i].length;
-    }
-}
-
 static OsStatus_t
 QueueTransaction(
     _In_ AhciController_t*  Controller,
@@ -117,6 +99,7 @@ AhciTransactionDestroy(
 {
     // Detach from our buffer reference
     dma_detach(&Transaction->DmaAttachment);
+    free(Transaction->DmaTable.entries);
     free(Transaction);
     return OsSuccess;
 }
@@ -128,16 +111,14 @@ AhciTransactionControlCreate(
     _In_ size_t        Length,
     _In_ int           Direction)
 {
-    AhciTransaction_t*    Transaction;
-    int                   SgCount = 1;
-    OsStatus_t            Status;
+    AhciTransaction_t* Transaction;
+    OsStatus_t         Status;
     
     if (!Device) {
         return OsInvalidParameters;
     }
 
-    Transaction = (AhciTransaction_t*)malloc(
-        sizeof(AhciTransaction_t) + (sizeof(struct dma_sg) * SgCount));
+    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
     if (!Transaction) {
         return OsOutOfMemory;
     }
@@ -145,11 +126,11 @@ AhciTransactionControlCreate(
     // Do not bother about zeroing the array
     memset(Transaction, 0, sizeof(AhciTransaction_t));
     dma_attach(Device->Port->InternalBuffer.handle, &Transaction->DmaAttachment);
+    dma_get_sg_table(&Transaction->DmaAttachment, &Transaction->DmaTable, -1);
     Transaction->Header.Key.Value.Id     = TransactionId++;
     Transaction->ResponseAddress.Process = UUID_INVALID;
 
     Transaction->Type      = TransactionRegisterFISH2D;
-    Transaction->SgCount   = SgCount;
     Transaction->State     = TransactionCreated;
     Transaction->Slot      = -1;
     Transaction->Command   = Command;
@@ -159,10 +140,6 @@ AhciTransactionControlCreate(
     Transaction->Target.Type = Device->Type;
     Transaction->Target.SectorSize = Device->SectorSize;
     Transaction->Target.AddressingMode = Device->AddressingMode;
-    
-    // Do not bother to check return code again, things should go ok now
-    (void)dma_get_metrics(&Transaction->DmaAttachment,
-        &Transaction->SgCount, &Transaction->SgList[0]);
     
     // The transaction is now prepared and ready for the dispatch
     Status = QueueTransaction(Device->Controller, Device->Port, Transaction);
@@ -180,7 +157,6 @@ AhciTransactionStorageCreate(
 {
     struct dma_attachment DmaAttachment;
     AhciTransaction_t*    Transaction;
-    int                   SgCount;
     OsStatus_t            Status;
     int                   i;
     
@@ -193,9 +169,7 @@ AhciTransactionStorageCreate(
         return OsInvalidParameters;
     }
     
-    (void)dma_get_metrics(&DmaAttachment, &SgCount, NULL);
-    Transaction = (AhciTransaction_t*)malloc(
-        sizeof(AhciTransaction_t) + (sizeof(struct dma_sg) * SgCount));
+    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
     if (!Transaction) {
         dma_detach(&DmaAttachment);
         return OsOutOfMemory;
@@ -208,7 +182,6 @@ AhciTransactionStorageCreate(
     Transaction->Header.Key.Value.Id = TransactionId++;
 
     Transaction->Type    = TransactionRegisterFISH2D;
-    Transaction->SgCount = SgCount;
     Transaction->Sector  = Operation->AbsoluteSector;
     Transaction->State   = TransactionCreated;
     Transaction->Slot    = -1;
@@ -225,8 +198,8 @@ AhciTransactionStorageCreate(
     }
     
     // Do not bother to check return code again, things should go ok now
-    dma_get_metrics(&DmaAttachment, &Transaction->SgCount, &Transaction->SgList[0]);
-    GetSgMetricsFromOffset(Transaction, SgCount, Operation->BufferOffset, 
+    dma_get_sg_table(&DmaAttachment, &Transaction->DmaTable, -1);
+    dma_sg_table_offset(&Transaction->DmaTable, Operation->BufferOffset, 
         &Transaction->SgIndex, &Transaction->SgOffset);
     
     // Set upper bound on transaction

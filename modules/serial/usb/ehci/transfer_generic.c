@@ -30,15 +30,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* EhciTransactionCount
- * Returns the number of transactions neccessary for the transfer. */
 static OsStatus_t
 EhciTransactionCount(
     _In_  EhciController_t*     Controller,
     _In_  UsbManagerTransfer_t* Transfer,
     _Out_ int*                  TransactionsTotal)
 {
-    // Variables
     int TransactionCount    = 0;
     int i;
 
@@ -51,8 +48,8 @@ EhciTransactionCount(
         int AddZeroLength           = 0;
 
         // Keep adding td's
-        while (BytesToTransfer || AddZeroLength == 1
-            || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
+        while (BytesToTransfer || AddZeroLength == 1 || 
+                Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             if (Type == SetupTransaction) {
                 ByteStep = BytesToTransfer;
             }
@@ -83,14 +80,11 @@ EhciTransactionCount(
     return OsSuccess;
 }
 
-/* EhciTransferFill 
- * Fills the transfer with as many transfer-descriptors as possible/needed. */
 static OsStatus_t
 EhciTransferFill(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
-    // Variables
     EhciTransferDescriptor_t *PreviousTd    = NULL;
     EhciTransferDescriptor_t *Td            = NULL;
     EhciQueueHead_t *Qh                     = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
@@ -212,8 +206,8 @@ HciQueueTransferGeneric(
     DataKey_t Key;
 
     // Get Controller
-    Controller          = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status    = TransferNotProcessed;
+    Controller       = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Transfer->Status = TransferNotProcessed;
 
     // Step 1 - Allocate queue head
     if (Transfer->EndpointDescriptor == NULL) {

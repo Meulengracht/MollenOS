@@ -335,25 +335,27 @@ AhciPortStart(
     int           Hung       = 0;
 
     // Setup the physical data addresses
-    (void)dma_get_metrics(&Port->RecievedFisDMA, &DmaSgCount, &DmaSg);
-    WriteVolatile32(&Port->Registers->FISBaseAddress, LOWORD(DmaSg.address));
+    dma_get_sg_table(&Port->RecievedFisDMA, &DmaTable, -1);
+    WriteVolatile32(&Port->Registers->FISBaseAddress, LOWORD(DmaTable.entries[0].address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
         WriteVolatile32(&Port->Registers->FISBaseAdressUpper,
-            (sizeof(void*) > 4) ? HIDWORD(DmaSg.address) : 0);
+            (sizeof(void*) > 4) ? HIDWORD(DmaTable.entries[0].address) : 0);
     }
     else {
         WriteVolatile32(&Port->Registers->FISBaseAdressUpper, 0);
     }
+    free(DmaTable.entries);
 
-    (void)dma_get_metrics(&Port->CommandListDMA, &DmaSgCount, &DmaSg);
-    WriteVolatile32(&Port->Registers->CmdListBaseAddress, LODWORD(DmaSg.address));
+    dma_get_sg_table(&Port->CommandListDMA, &DmaTable, -1);
+    WriteVolatile32(&Port->Registers->CmdListBaseAddress, LODWORD(DmaTable.entries[0].address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
         WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper,
-            (sizeof(void*) > 4) ? HIDWORD(DmaSg.address) : 0);
+            (sizeof(void*) > 4) ? HIDWORD(DmaTable.entries[0].address) : 0);
     }
     else {
         WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper, 0);
     }
+    free(DmaTable.entries);
 
     // Setup the interesting interrupts we want
     WriteVolatile32(&Port->Registers->InterruptEnable, (reg32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE

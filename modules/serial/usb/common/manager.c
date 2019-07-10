@@ -293,7 +293,7 @@ UsbManagerFinalizeTransfer(
                 break;
             }
         }
-        free(Transfer);
+        UsbManagerDestroyTransfer(Transfer);
         return OsSuccess;
     }
 }

@@ -102,9 +102,8 @@ typedef struct _UsbSchedulerPool {
     size_t    ElementObjectOffset;        // Offset to the UsbSchedulerObject
     
     struct dma_attachment ElementPoolDMA;         // Frame element pool DMA attachment
+    struct dma_sg_table   ElementPoolDMATable;
     uint8_t*              ElementPool;
-    int                   ElementSgCount;
-    struct dma_sg*        ElementSgList;
 } UsbSchedulerPool_t;
 
 typedef struct _UsbSchedulerSettings {
@@ -114,8 +113,8 @@ typedef struct _UsbSchedulerSettings {
     size_t      MaxBandwidthPerFrame;           // Max bandwidth per frame
     
     struct dma_attachment FrameListDMA;         // Frame list DMA attachment
+    struct dma_sg_table   FrameListDMATable;
     reg32_t*              FrameList;            // Physical frame list
-    uintptr_t             FrameListPhysical;    // Physical address of frame list
     
     int                PoolCount;               // Number of pools in use
     UsbSchedulerPool_t Pools[USB_POOL_MAXCOUNT];// Pools
