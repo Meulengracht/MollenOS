@@ -115,6 +115,7 @@ typedef struct _UsbSchedulerSettings {
     struct dma_attachment FrameListDMA;         // Frame list DMA attachment
     struct dma_sg_table   FrameListDMATable;
     reg32_t*              FrameList;            // Physical frame list
+    uintptr_t             FrameListPhysical;
     
     int                PoolCount;               // Number of pools in use
     UsbSchedulerPool_t Pools[USB_POOL_MAXCOUNT];// Pools

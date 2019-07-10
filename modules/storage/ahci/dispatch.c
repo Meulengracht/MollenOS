@@ -76,9 +76,9 @@ BuildPRDTTable(
     // Build PRDT entries
     for (i = 0; i < AHCI_COMMAND_TABLE_PRDT_COUNT && Transaction->BytesLeft > 0; i++) {
         AHCIPrdtEntry_t* Prdt           = &CommandTable->PrdtEntry[i];
-        uintptr_t        Address        = Transaction->SgList[Transaction->SgIndex].address + Transaction->SgOffset;
+        uintptr_t        Address        = Transaction->DmaTable.entries[Transaction->SgIndex].address + Transaction->SgOffset;
         size_t           TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, 
-            MIN(Transaction->BytesLeft, Transaction->SgList[Transaction->SgIndex].length - Transaction->SgOffset));
+            MIN(Transaction->BytesLeft, Transaction->DmaTable.entries[Transaction->SgIndex].length - Transaction->SgOffset));
         
         // On some transfers (sector transfers) we would like to have sector alignment
         // on the transfer we read. This should only ever be neccessary if we cannot fit
@@ -109,7 +109,7 @@ BuildPRDTTable(
 
         // Adjust frame index and offset
         Transaction->SgOffset += TransferLength;
-        if (Transaction->SgOffset == Transaction->SgList[Transaction->SgIndex].length) {
+        if (Transaction->SgOffset == Transaction->DmaTable.entries[Transaction->SgIndex].length) {
             Transaction->SgOffset = 0;
             Transaction->SgIndex++;
         }

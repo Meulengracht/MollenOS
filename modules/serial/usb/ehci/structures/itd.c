@@ -16,36 +16,29 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
  * - Transaction Translator Support
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ehci.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 
-/* EhciTdIsochronous
- * This initiates any periodic scheduling information that might be needed */
 OsStatus_t
 EhciTdIsochronous(
-    _In_ EhciController_t*              Controller,
-    _In_ UsbTransfer_t*                 Transfer,
-    _In_ EhciIsochronousDescriptor_t*   iTd,
-    _In_ uintptr_t                      BufferAddress,
-    _In_ size_t                         ByteCount,
-    _In_ size_t                         Address,
-    _In_ size_t                         Endpoint)
+    _In_ EhciController_t*            Controller,
+    _In_ UsbTransfer_t*               Transfer,
+    _In_ EhciIsochronousDescriptor_t* iTd,
+    _In_ uintptr_t                    BufferAddress,
+    _In_ size_t                       ByteCount,
+    _In_ size_t                       Address,
+    _In_ size_t                       Endpoint)
 {
     // Variables
     uintptr_t BufferIterator    = BufferAddress;

@@ -126,6 +126,7 @@ AllocateMemoryForFrameList(
         &Scheduler->Settings.FrameListDMATable, -1);
     
     Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
+    Scheduler->Settings.FrameListPhysical = Scheduler->Settings.FrameListDMATable.entries[0].address;
     return OsSuccess;
 }
 

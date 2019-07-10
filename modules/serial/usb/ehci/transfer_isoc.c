@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
  * - Transaction Translator Support

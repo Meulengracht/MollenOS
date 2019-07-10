@@ -69,9 +69,9 @@ EhciTdFill(
 
 void
 EhciTdSetup(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td,
-    _In_ UsbTransaction_t*          Transaction)
+    _In_ EhciController_t*         Controller,
+    _In_ EhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 Address)
 {
     size_t CalculatedLength;
 
@@ -83,7 +83,7 @@ EhciTdSetup(
     Td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
     // Calculate the length of the setup transfer
-    CalculatedLength = EhciTdFill(Controller, Td, Transaction->BufferAddress, sizeof(UsbPacket_t));
+    CalculatedLength = EhciTdFill(Controller, Td, Address, sizeof(UsbPacket_t));
     Td->Length       = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
 
     // Store copies
@@ -91,16 +91,18 @@ EhciTdSetup(
     Td->OriginalToken  = Td->Token;
 }
 
-void
+size_t
 EhciTdIo(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td,
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ UsbTransaction_t*          Transaction,
-    _In_ int                        Toggle)
+    _In_ EhciController_t*         Controller,
+    _In_ EhciTransferDescriptor_t* Td,
+    _In_ size_t                    MaxPacketSize,
+    _In_ UsbTransactionType_t      Direction,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length,
+    _In_ int                       Toggle)
 {
     uintptr_t NullTdPhysical   = 0;
-    uint8_t   PId              = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
+    uint8_t   PId              = (Direction == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
     size_t    CalculatedLength = 0;
 
     // Initialize the new Td
@@ -115,7 +117,7 @@ EhciTdIo(
     }
 
     // Calculate the length of the transfer
-    CalculatedLength = EhciTdFill(Controller, Td, Transaction->BufferAddress, Transaction->Length);
+    CalculatedLength = EhciTdFill(Controller, Td, Address, Length);
     Td->Length       = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
     if (Toggle) {
         Td->Length |= EHCI_TD_TOGGLE;
@@ -123,11 +125,12 @@ EhciTdIo(
 
     // Calculate next toggle 
     // if transaction spans multiple transfers
-    if (Transaction->Length > 0 && !(DIVUP(Transaction->Length, Transfer->Endpoint.MaxPacketSize) % 2)) {
+    if (Length > 0 && !(DIVUP(Length, MaxPacketSize) % 2)) {
         Toggle ^= 0x1;
     }
     Td->OriginalLength = Td->Length;
     Td->OriginalToken  = Td->Token;
+    return CalculatedLength;
 }
 
 void
@@ -135,7 +138,7 @@ EhciTdDump(
     _In_ EhciController_t*          Controller,
     _In_ EhciTransferDescriptor_t*  Td)
 {
-    uintptr_t PhysicalAddress = 0;
+    uintptr_t PhysicalAddress;
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
         Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
@@ -167,7 +170,7 @@ EhciTdValidate(
     Transfer->TransactionsExecuted++;
 
     // Get error code based on type of transfer
-    ErrorCode               = EhciConditionCodeToIndex(
+    ErrorCode = EhciConditionCodeToIndex(
         Transfer->Transfer.Speed == HighSpeed ? (Td->Status & 0xFC) : Td->Status);
     
     if (ErrorCode != 0) {
@@ -193,8 +196,8 @@ EhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->BytesTransferred[i]) {
-                Transfer->BytesTransferred[i] += BytesTransferred;
+            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
         }
