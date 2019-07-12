@@ -665,11 +665,12 @@ EhciQhRestart(
  * This allocates & initializes a TD for a setup transaction 
  * this is only used for control transactions */
 __EXTERN
-void
+size_t
 EhciTdSetup(
     _In_ EhciController_t*         Controller,
     _In_ EhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 Address);
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length);
 
 /* EhciTdIo
  * This allocates & initializes a TD for an i/o transaction 

@@ -32,13 +32,14 @@
 #include <ddk/services/usb.h>
 
 typedef enum _UsbManagerTransferFlags {
-    TransferFlagNone        = 0x0,
+    TransferFlagNone        = 0,
     TransferFlagShort       = 0x1,
     TransferFlagSync        = 0x2,
     TransferFlagSchedule    = 0x4,
     TransferFlagUnschedule  = 0x8,
     TransferFlagCleanup     = 0x10,
-    TransferFlagNotified    = 0x20
+    TransferFlagNotified    = 0x20,
+    TransferFlagPartial     = 0x40
 } UsbManagerTransferFlags_t;
 
 typedef struct {
@@ -60,8 +61,6 @@ typedef struct {
         size_t                SgOffset;
         size_t                BytesTransferred;
     } Transactions[USB_TRANSACTIONCOUNT];
-    int                       TransactionsExecuted;
-    int                       TransactionsTotal;
 
     // Periodic Transfers
     size_t                    CurrentDataIndex;    

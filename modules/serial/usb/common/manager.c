@@ -262,10 +262,10 @@ UsbManagerFinalizeTransfer(
     int               BytesLeft = 0;
     TRACE("UsbManagerFinalizeTransfer()");
 
-    // Is the transfer done?
+    // Is the transfer only partially done?
     if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
         && Transfer->Status == TransferFinished
-        && Transfer->TransactionsExecuted != Transfer->TransactionsTotal
+        && (Transfer->Flags & TransferFlagPartial)
         && !(Transfer->Flags & TransferFlagShort)) {
         BytesLeft = 1;
     }
@@ -305,7 +305,7 @@ UsbManagerClearTransfers(
     // Avoid requeuing by setting executed == total
     foreach(tNode, Controller->TransactionList) {
         UsbManagerTransfer_t *Transfer = (UsbManagerTransfer_t*)tNode->Data;
-        Transfer->TransactionsExecuted = Transfer->TransactionsTotal;
+        Transfer->Flags &= ~(TransferFlagPartial);
         HciTransactionFinalize(Controller, Transfer, 1);
         UsbManagerFinalizeTransfer(Controller, Transfer);
     }

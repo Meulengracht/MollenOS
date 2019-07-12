@@ -383,15 +383,16 @@ OhciQhLink(
 /* OhciTdSetup 
  * Creates a new setup token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 OhciTdSetup(
-    _In_ UsbTransaction_t*          Transaction,
-    _In_ OhciTransferDescriptor_t*  Td);
+    _In_ OhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length);
 
 /* OhciTdIo 
  * Creates a new io token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 OhciTdIo(
     _In_ OhciTransferDescriptor_t*  Td,
     _In_ UsbTransferType_t          Type,

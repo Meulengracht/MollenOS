@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -16,112 +17,112 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ohci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
-/* OhciTdSetup 
- * Creates a new setup token td and initializes all the members.
- * The Td is immediately ready for execution. */
-void
+size_t
 OhciTdSetup(
-    _In_ UsbTransaction_t*          Transaction,
-    _In_ OhciTransferDescriptor_t*  Td)
+    _In_ OhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length)
 {
+    size_t CalculatedLength;
+    
+    // TODO: page size?
+    // We can encompass a maximum of two pages (when the initial page offset is 0)
+    // so make sure we correct for that limit
+    CalculatedLength = MIN((0x2000 - (Address % 0x1000)), Length);
+    
     // Set no link
-    Td->Link            = 0;
+    Td->Link = 0;
 
     // Initialize the Td flags
-    Td->Flags           |= OHCI_TD_SETUP;
-    Td->Flags           |= OHCI_TD_IOC_NONE;
-    Td->Flags           |= OHCI_TD_TOGGLE_LOCAL;
-    Td->Flags           |= OHCI_TD_ACTIVE;
+    Td->Flags |= OHCI_TD_SETUP;
+    Td->Flags |= OHCI_TD_IOC_NONE;
+    Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+    Td->Flags |= OHCI_TD_ACTIVE;
 
     // Install the buffer
-    Td->Cbp             = Transaction->BufferAddress;
-    Td->BufferEnd       = Td->Cbp + sizeof(UsbPacket_t) - 1;
+    Td->Cbp       = Address;
+    Td->BufferEnd = Td->Cbp + CalculatedLength - 1;
 
     // Store copy of original content
-    Td->OriginalFlags   = Td->Flags;
-    Td->OriginalCbp     = Td->Cbp;
+    Td->OriginalFlags = Td->Flags;
+    Td->OriginalCbp   = Td->Cbp;
+    return CalculatedLength;
 }
 
-/* OhciTdIo 
- * Creates a new io token td and initializes all the members.
- * The Td is immediately ready for execution. */
-void
+size_t
 OhciTdIo(
-    _In_ OhciTransferDescriptor_t*  Td,
-    _In_ UsbTransferType_t          Type,
-    _In_ uint32_t                   PId,
-    _In_ int                        Toggle,
-    _In_ uintptr_t                  Address,
-    _In_ size_t                     Length)
+    _In_ OhciTransferDescriptor_t* Td,
+    _In_ UsbTransferType_t         Type,
+    _In_ uint32_t                  PId,
+    _In_ int                       Toggle,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length)
 {
-    // Debug
+    size_t CalculatedLength;
+    
     TRACE("OhciTdIo(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
         Type, PId, Toggle, Address, Length);
+    
+    // TODO: page size?
+    // We can encompass a maximum of two pages (when the initial page offset is 0)
+    // so make sure we correct for that limit
+    CalculatedLength = MIN((0x2000 - (Address % 0x1000)), Length);
 
     // Set this is as end of chain
-    Td->Link            = 0;
+    Td->Link = 0;
 
     // Initialize flags as a IO Td
-    Td->Flags           |= PId;
-    Td->Flags           |= OHCI_TD_IOC_NONE;
-    Td->Flags           |= OHCI_TD_TOGGLE_LOCAL;
-    Td->Flags           |= OHCI_TD_ACTIVE;
+    Td->Flags |= PId;
+    Td->Flags |= OHCI_TD_IOC_NONE;
+    Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+    Td->Flags |= OHCI_TD_ACTIVE;
 
     // We have to allow short-packets in some cases
     // where data returned or send might be shorter
     if (Type == ControlTransfer) {
         if (PId == OHCI_TD_IN && Length > 0) {
-            Td->Flags   |= OHCI_TD_SHORTPACKET_OK;
+            Td->Flags |= OHCI_TD_SHORTPACKET_OK;
         }
     }
     else if (PId == OHCI_TD_IN) {
-        Td->Flags       |= OHCI_TD_SHORTPACKET_OK;
+        Td->Flags |= OHCI_TD_SHORTPACKET_OK;
     }
 
     // Set the data-toggle?
     if (Toggle) {
-        Td->Flags       |= OHCI_TD_TOGGLE;
+        Td->Flags |= OHCI_TD_TOGGLE;
     }
 
     // Is there bytes to transfer or null packet?
-    if (Length > 0) {
-        Td->Cbp         = LODWORD(Address);
-        Td->BufferEnd   = Td->Cbp + (Length - 1);
+    if (CalculatedLength > 0) {
+        Td->Cbp       = LODWORD(Address);
+        Td->BufferEnd = Td->Cbp + (CalculatedLength - 1);
     }
 
     // Store copy of original content
-    Td->OriginalFlags   = Td->Flags;
-    Td->OriginalCbp     = Td->Cbp;
+    Td->OriginalFlags = Td->Flags;
+    Td->OriginalCbp   = Td->Cbp;
+    return CalculatedLength;
 }
 
-/* OhciTdDump
- * Dumps the information contained in the descriptor by writing it. */
 void
 OhciTdDump(
-    _In_ OhciController_t*          Controller,
-    _In_ OhciTransferDescriptor_t*  Td)
+    _In_ OhciController_t*         Controller,
+    _In_ OhciTransferDescriptor_t* Td)
 {
-    // Variables
-    uintptr_t PhysicalAddress   = 0;
+    uintptr_t PhysicalAddress = 0;
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_TD_POOL, 
         Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
@@ -129,17 +130,13 @@ OhciTdDump(
         PhysicalAddress, Td->Link, Td->Flags, Td->Cbp, Td->BufferEnd);
 }
 
-/* OhciTdValidate
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
 void
 OhciTdValidate(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  OhciTransferDescriptor_t* Td)
 {
-    // Variables
-    int ErrorCount          = OHCI_TD_ERRORCOUNT(Td->Flags);
-    int ErrorCode           = OHCI_TD_ERRORCODE(Td->Flags);
+    int ErrorCount = OHCI_TD_ERRORCOUNT(Td->Flags);
+    int ErrorCode  = OHCI_TD_ERRORCODE(Td->Flags);
     int i;
 
     // Sanitize active status
@@ -151,23 +148,23 @@ OhciTdValidate(
         }
         return;
     }
-    Transfer->TransactionsExecuted++;
 
     // Sanitize the error code
     if ((ErrorCount == 2 && ErrorCode != 0)) {
-        Transfer->Status    = OhciGetStatusCode(ErrorCode);
+        Transfer->Status = OhciGetStatusCode(ErrorCode);
     }
     else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
-        Transfer->Status    = TransferFinished;
+        Transfer->Status = TransferFinished;
     }
 
     // Calculate length transferred 
     // Take into consideration the N-1 
     if (Td->BufferEnd != 0) {
-        int BytesTransferred    = 0;
-        int BytesRequested      = (Td->BufferEnd - Td->OriginalCbp) + 1;
-        if (Td->Cbp == 0)       BytesTransferred = BytesRequested;
-        else                    BytesTransferred = Td->Cbp - Td->OriginalCbp;
+        int BytesTransferred = 0;
+        int BytesRequested   = (Td->BufferEnd - Td->OriginalCbp) + 1;
+        
+        if (Td->Cbp == 0) BytesTransferred = BytesRequested;
+        else              BytesTransferred = Td->Cbp - Td->OriginalCbp;
 
         if (BytesTransferred < BytesRequested) {
             Transfer->Flags |= TransferFlagShort;
@@ -179,23 +176,19 @@ OhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->BytesTransferred[i]) {
-                Transfer->BytesTransferred[i] += BytesTransferred;
+            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
         }
     }
 }
 
-/* OhciTdSynchronize
- * Synchronizes the toggle status of the transfer descriptor by retrieving
- * current and updating the pipe toggle. */
 void
 OhciTdSynchronize(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  OhciTransferDescriptor_t* Td)
 {
-    // Variables
     int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Is it neccessary?
@@ -204,56 +197,52 @@ OhciTdSynchronize(
     }
 
     // Clear
-    Td->Flags          &= ~(OHCI_TD_TOGGLE);
+    Td->Flags &= ~(OHCI_TD_TOGGLE);
     if (Toggle) {
-        Td->Flags      |= OHCI_TD_TOGGLE;
+        Td->Flags |= OHCI_TD_TOGGLE;
     }
 
     // Update copy
-    Td->OriginalFlags  = Td->Flags;
+    Td->OriginalFlags = Td->Flags;
     UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 }
 
-/* OhciTdRestart
- * Restarts a transfer descriptor that already exists in queue. 
- * Synchronizes toggles, updates buffer points if the transfer is not isochronous. */
 void
 OhciTdRestart(
-    _In_ OhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ OhciTransferDescriptor_t*  Td)
+    _In_ OhciController_t*         Controller,
+    _In_ UsbManagerTransfer_t*     Transfer,
+    _In_ OhciTransferDescriptor_t* Td)
 {
-    // Variables
+    uintptr_t BufferStep;
     uintptr_t BufferBaseUpdated = 0;
-    uintptr_t BufferStep    = 0;
-    uintptr_t LinkAddress   = 0;
-    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    uintptr_t LinkAddress       = 0;
+    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
-    BufferStep              = Transfer->Transfer.Endpoint.MaxPacketSize;
+    BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
 
     // Clear
-    Td->OriginalFlags       &= ~(OHCI_TD_TOGGLE);
+    Td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
     if (Toggle) {
-        Td->OriginalFlags   |= OHCI_TD_TOGGLE;
+        Td->OriginalFlags |= OHCI_TD_TOGGLE;
     }
     UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {
-        BufferBaseUpdated   = ADDLIMIT(Transfer->Transfer.Transactions[0].BufferAddress, Td->OriginalCbp, 
-            BufferStep, (Transfer->Transfer.Transactions[0].BufferAddress + Transfer->Transfer.PeriodicBufferSize));
-        Td->OriginalCbp     = LODWORD(BufferBaseUpdated);
+        BufferBaseUpdated = ADDLIMIT(Transfer->Transactions[0].DmaTable.entries[0].address, Td->OriginalCbp, 
+            BufferStep, (Transfer->Transactions[0].DmaTable.entries[0].address + Transfer->Transactions[0].DmaTable.entries[0].length));
+        Td->OriginalCbp   = LODWORD(BufferBaseUpdated);
     }
 
     // Reset attributes
-    Td->Flags               = Td->OriginalFlags;
-    Td->Cbp                 = Td->OriginalCbp;
-    Td->BufferEnd           = Td->Cbp + (BufferStep - 1);
+    Td->Flags     = Td->OriginalFlags;
+    Td->Cbp       = Td->OriginalCbp;
+    Td->BufferEnd = Td->Cbp + (BufferStep - 1);
     
     // Restore link
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
         (Td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
         Td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
-    Td->Link                = LinkAddress;
+    Td->Link = LinkAddress;
     assert(Td->Link != 0);
 }

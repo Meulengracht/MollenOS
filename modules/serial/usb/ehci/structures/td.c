@@ -67,11 +67,12 @@ EhciTdFill(
     return Count; // Return how many bytes were "buffered"
 }
 
-void
+size_t
 EhciTdSetup(
     _In_ EhciController_t*         Controller,
     _In_ EhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 Address)
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length)
 {
     size_t CalculatedLength;
 
@@ -83,12 +84,13 @@ EhciTdSetup(
     Td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
     // Calculate the length of the setup transfer
-    CalculatedLength = EhciTdFill(Controller, Td, Address, sizeof(UsbPacket_t));
+    CalculatedLength = EhciTdFill(Controller, Td, Address, Length);
     Td->Length       = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
 
     // Store copies
     Td->OriginalLength = Td->Length;
     Td->OriginalToken  = Td->Token;
+    return CalculatedLength;
 }
 
 size_t
@@ -167,7 +169,6 @@ EhciTdValidate(
         }
         return;
     }
-    Transfer->TransactionsExecuted++;
 
     // Get error code based on type of transfer
     ErrorCode = EhciConditionCodeToIndex(

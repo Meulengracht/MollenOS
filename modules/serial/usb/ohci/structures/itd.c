@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,42 +17,31 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ohci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
-/* OhciTdIsochronous
- * Creates a new isoc token td and initializes all the members.
- * The Td is immediately ready for execution. */
 void
 OhciTdIsochronous(
-    _In_ OhciIsocTransferDescriptor_t*  Td,
-    _In_ size_t                         MaxPacketSize,
-    _In_ uint32_t                       PId,
-    _In_ uintptr_t                      Address,
-    _In_ size_t                         Length)
+    _In_ OhciIsocTransferDescriptor_t* Td,
+    _In_ size_t                        MaxPacketSize,
+    _In_ uint32_t                      PId,
+    _In_ uintptr_t                     Address,
+    _In_ size_t                        Length)
 {
-    // Variables
-    size_t BytesToTransfer          = Length;
-    size_t BufferOffset             = 0;
-    int FrameCount                  = DIVUP(Length, MaxPacketSize);
-    int FrameIndex                  = 0;
-    int Crossed                     = 0;
+    size_t BytesToTransfer = Length;
+    size_t BufferOffset    = 0;
+    int    FrameCount      = DIVUP(Length, MaxPacketSize);
+    int    FrameIndex      = 0;
+    int    Crossed         = 0;
     
     // Debug
     TRACE("OhciTdIsochronous(Id %u, Address 0x%x, Length 0x%x", 
@@ -66,14 +56,14 @@ OhciTdIsochronous(
     }
 
     // Initialize flags
-    Td->Flags       |= PId;
-    Td->Flags       |= OHCI_iTD_FRAMECOUNT((FrameCount - 1));
-    Td->Flags       |= OHCI_TD_IOC_NONE;
-    Td->Flags       |= OHCI_TD_ACTIVE;
+    Td->Flags |= PId;
+    Td->Flags |= OHCI_iTD_FRAMECOUNT((FrameCount - 1));
+    Td->Flags |= OHCI_TD_IOC_NONE;
+    Td->Flags |= OHCI_TD_ACTIVE;
 
     // Initialize buffer access
-    Td->Cbp         = LODWORD(Address);
-    Td->BufferEnd   = Td->Cbp + Length - 1;
+    Td->Cbp       = LODWORD(Address);
+    Td->BufferEnd = Td->Cbp + Length - 1;
 
     // Iterate frames and setup
     while (BytesToTransfer) {
@@ -86,8 +76,8 @@ OhciTdIsochronous(
 
         // Sanity on page-crossover
         if (((Address + BufferOffset) & 0xFFFFF000) != (Address & 0xFFFFF000)) {
-            BufferOffset        = (Address + BufferOffset) & 0xFFF; // Reset offset
-            Crossed             = 1;
+            BufferOffset = (Address + BufferOffset) & 0xFFF; // Reset offset
+            Crossed      = 1;
         }
 
         // Update iterators
@@ -96,23 +86,20 @@ OhciTdIsochronous(
     }
 
     // Set this is as end of chain
-    Td->Link            = 0;
+    Td->Link = 0;
 
     // Store copy of original content
-    Td->OriginalFlags   = Td->Flags;
-    Td->OriginalCbp     = Td->Cbp;
+    Td->OriginalFlags     = Td->Flags;
+    Td->OriginalCbp       = Td->Cbp;
     Td->OriginalBufferEnd = Td->BufferEnd;
 }
 
-/* OhciiTdDump
- * Dumps the information contained in the descriptor by writing it. */
 void
 OhciiTdDump(
     _In_ OhciController_t*              Controller,
     _In_ OhciIsocTransferDescriptor_t*  Td)
 {
-    // Variables
-    uintptr_t PhysicalAddress   = 0;
+    uintptr_t PhysicalAddress = 0;
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_iTD_POOL, 
         Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
@@ -120,15 +107,11 @@ OhciiTdDump(
         PhysicalAddress, Td->Link, Td->Flags, Td->Cbp, Td->BufferEnd);
 }
 
-/* OhciiTdValidate
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
 void
 OhciiTdValidate(
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ OhciIsocTransferDescriptor_t*  Td)
+    _In_ UsbManagerTransfer_t*         Transfer,
+    _In_ OhciIsocTransferDescriptor_t* Td)
 {
-    // Variables
     int i;
 
     // Sanitize active status
@@ -140,7 +123,6 @@ OhciiTdValidate(
         }
         return;
     }
-    Transfer->TransactionsExecuted++;
 
     // Sanitize the error codes
     for (i = 0; i < 8; i++) {
@@ -175,26 +157,22 @@ OhciiTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->BytesTransferred[i]) {
-                Transfer->BytesTransferred[i] += BytesTransferred;
+            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
         }
     }
 }
 
-/* OhciiTdRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 void
 OhciiTdRestart(
-    _In_ OhciController_t*              Controller,
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ OhciIsocTransferDescriptor_t*  Td)
+    _In_ OhciController_t*             Controller,
+    _In_ UsbManagerTransfer_t*         Transfer,
+    _In_ OhciIsocTransferDescriptor_t* Td)
 {
-    // Variables
-    uintptr_t LinkAddress   = 0;
-    int i;
+    uintptr_t LinkAddress = 0;
+    int       i;
 
     // Reset offsets
     for (i = 0; i < 8; i++) {
@@ -210,6 +188,6 @@ OhciiTdRestart(
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
         (Td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
         Td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
-    Td->Link                = LinkAddress;
+    Td->Link = LinkAddress;
     assert(Td->Link != 0);
 }
