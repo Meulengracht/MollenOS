@@ -49,11 +49,11 @@ PACKED_TYPESTRUCT(StorageDescriptor, {
 });
 
 PACKED_TYPESTRUCT(StorageOperation, {
-    int       Direction;
-    uint64_t  AbsoluteSector;
-    uintptr_t BufferHandle;
-    size_t    BufferOffset;
-    size_t    SectorCount;
+    int      Direction;
+    uint64_t AbsoluteSector;
+    UUId_t   BufferHandle;
+    size_t   BufferOffset;
+    size_t   SectorCount;
 });
 
 PACKED_TYPESTRUCT(StorageOperationResult, {

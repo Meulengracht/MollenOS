@@ -70,8 +70,16 @@ EhciTransferFill(
             PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
         }
+        
+        // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
+        // the MPS, then we should make sure we add a ZLP
+        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
+            Transfer->Transfer.Type == BulkTransfer &&
+            Transfer->Transfer.Transactions[i].Type == OutTransaction) {
+            Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
+            IsZLP = 1;
+        }
 
-        // Keep adding td's
         TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
             struct dma_sg* Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
@@ -122,21 +130,11 @@ EhciTransferFill(
                         Transfer->Transactions[i].SgOffset = 0;
                     }
                 }
-
-                // Handle terminating condition on zero lengths
-                if (IsZLP) {
+                else {
+                    assert(IsZLP != 0);
                     TRACE(" > Encountered zero-length");
                     Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
-                }
-
-                // If it was out, and we had a multiple of MPS, then ZLP
-                if (Length == Transfer->Transfer.Endpoint.MaxPacketSize 
-                    && BytesToTransfer == 0
-                    && Transfer->Transfer.Type == BulkTransfer
-                    && Transfer->Transfer.Transactions[i].Type == OutTransaction) {
-                    Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
-                    IsZLP = 1;
                 }
             }
         }

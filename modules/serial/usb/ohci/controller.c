@@ -39,8 +39,6 @@ HciControllerCreate(
 {
     struct dma_buffer_info DmaInfo;
     DeviceIo_t*            IoBase  = NULL;
-    int                    SgCount = 1;
-    struct dma_sg          SgList;
     OhciController_t*      Controller;
     OsStatus_t             Status;
     int i;
@@ -95,8 +93,7 @@ HciControllerCreate(
     }
     
     // Retrieve the physical location of the HCCA
-    (void)dma_get_metrics(&Controller->HccaDMA, &SgCount, &SgList);
-    Controller->HccaPhysical = SgList.address;
+    (void)dma_get_sg_table(&Controller->HccaDMA, &Controller->HccaDMATable, -1);
 
     // Acquire the io-space
     Controller->Base.IoBase = IoBase;
@@ -314,7 +311,7 @@ OhciReset(
     WriteVolatile32(&Controller->Registers->HcFmInterval, FmInt);
 
     // Setup the Hcca Address and initiate some members of the HCCA
-    WriteVolatile32(&Controller->Registers->HcHCCA, Controller->HccaPhysical);
+    WriteVolatile32(&Controller->Registers->HcHCCA, Controller->HccaDMATable.entries[0].address);
     Controller->Hcca->CurrentFrame = 0;
     Controller->Hcca->HeadDone     = 0;
 

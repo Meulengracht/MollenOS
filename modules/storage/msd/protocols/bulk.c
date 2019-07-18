@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  *  - Bulk Protocol Implementation
  */
 //#define __TRACE
@@ -30,9 +31,6 @@
 #include <ddk/utils.h>
 #include "../msd.h"
 
-/* BulkReset
- * Performs an Bulk-Only Mass Storage Reset
- * Bulk endpoint data toggles and STALL conditions are preserved. */
 OsStatus_t
 BulkReset(
     _In_ MsdDevice_t *Device)
@@ -61,9 +59,6 @@ BulkReset(
     }
 }
 
-/* BulkResetRecovery
- * Performs a full interface and endpoint reset, should only be used
- * for fatal interface errors. */
 OsStatus_t
 BulkResetRecovery(
     _In_ MsdDevice_t *Device,
@@ -113,8 +108,6 @@ BulkResetRecovery(
     return OsSuccess;
 }
 
-/* BulkScsiCommandConstruct
- * Constructs a new SCSI command structure from the information given. */
 void
 BulkScsiCommandConstruct(
     _InOut_ MsdCommandBlock_t *CmdBlock,
@@ -363,8 +356,6 @@ BulkScsiCommandConstruct(
     }
 }
 
-/* BulkInitialize 
- * Validates the available endpoints and initializes the device. */
 OsStatus_t
 BulkInitialize(
     _In_ MsdDevice_t *Device)
@@ -397,8 +388,6 @@ BulkInitialize(
     return OsSuccess;
 }
 
-/* MsdSanitizeResponse
- * Used for making sure the CSW we get back is valid */
 UsbTransferStatus_t
 MsdSanitizeResponse(
     _In_ MsdDevice_t *Device, 
@@ -432,17 +421,15 @@ MsdSanitizeResponse(
     return TransferFinished;
 }
 
-/* BulkSendCommand
- * Sends a new command on the bulk protocol. */
 UsbTransferStatus_t 
 BulkSendCommand(
     _In_ MsdDevice_t *Device,
-    _In_ uint8_t ScsiCommand,
-    _In_ uint64_t SectorStart,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ uint8_t      ScsiCommand,
+    _In_ uint64_t     SectorStart,
+    _In_ UUId_t       BufferHandle,
+    _In_ size_t       BufferOffset,
+    _In_ size_t       DataLength)
 {
-    // Variables
     UsbTransferResult_t Result  = { 0 };
     UsbTransfer_t CommandStage  = { 0 };
 
@@ -455,7 +442,8 @@ BulkSendCommand(
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
     UsbTransferInitialize(&CommandStage, &Device->Base.Device, 
         Device->Out, BulkTransfer, 0);
-    UsbTransferOut(&CommandStage, Device->CommandBlockAddress, 
+    UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
+        dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
         sizeof(MsdCommandBlock_t), 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &CommandStage, &Result);
@@ -477,19 +465,19 @@ BulkSendCommand(
  * Tries to read a bulk data response from the device. */
 UsbTransferStatus_t 
 BulkReadData(
-    _In_ MsdDevice_t *Device,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _Out_ size_t *BytesRead)
+    _In_  MsdDevice_t* Device,
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       DataLength,
+    _Out_ size_t*      BytesRead)
 {
-    // Variables
     UsbTransferResult_t Result  = { 0 };
     UsbTransfer_t DataStage     = { 0 };
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer, 0);
-    UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
+    UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
     
@@ -512,23 +500,21 @@ BulkReadData(
     return Result.Status;
 }
 
-/* BulkWriteData
- * Tries to write a bulk data packet to the device. */
 UsbTransferStatus_t 
 BulkWriteData(
-    _In_ MsdDevice_t *Device,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _Out_ size_t *BytesWritten)
+    _In_  MsdDevice_t* Device,
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       DataLength,
+    _Out_ size_t*      BytesWritten)
 {
-    // Variables
     UsbTransferResult_t Result  = { 0 };
     UsbTransfer_t DataStage     = { 0 };
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->Out, BulkTransfer, 0);
-    UsbTransferOut(&DataStage, DataAddress, DataLength, 0);
+    UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
 
@@ -551,14 +537,10 @@ BulkWriteData(
     return Result.Status;
 }
 
-/* BulkGetStatus
- * Tries to retrieve a command-status response from the device. 
- * This will be retried up to MSD_CSW_RETRIES count. */
 UsbTransferStatus_t 
 BulkGetStatus(
-    _In_ MsdDevice_t *Device)
+    _In_ MsdDevice_t* Device)
 {
-    // Variables
     UsbTransferResult_t Result  = { 0 };
     UsbTransfer_t StatusStage   = { 0 };
 
@@ -568,8 +550,8 @@ BulkGetStatus(
     // Perform the transfer
     UsbTransferInitialize(&StatusStage, &Device->Base.Device, 
         Device->In, BulkTransfer, 0);
-    UsbTransferIn(&StatusStage, Device->StatusBlockAddress, 
-        sizeof(MsdCommandStatus_t), 0);
+    UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
+        dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &StatusStage, &Result);
 
@@ -595,8 +577,6 @@ BulkGetStatus(
     return Result.Status;
 }
 
-/* Global 
- * - Static function table */
 MsdOperations_t BulkOperations = {
     BulkInitialize,
     BulkSendCommand,

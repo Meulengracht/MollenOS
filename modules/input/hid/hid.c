@@ -25,8 +25,6 @@
 #include <stdlib.h>
 #include "hid.h"
 
-/* HidDeviceCreate
- * Initializes a new hid-device from the given usb-device */
 HidDevice_t*
 HidDeviceCreate(
     _In_ MCoreUsbDevice_t *UsbDevice)
@@ -80,8 +78,7 @@ HidDeviceCreate(
     }
 
     // Allocate a ringbuffer for use
-    if (BufferPoolAllocate(UsbRetrievePool(), 0x400, 
-        &Device->Buffer, &Device->BufferAddress) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), 0x400, (void**)&Device->Buffer) != OsSuccess) {
         ERROR("Failed to allocate reusable buffer (interrupt-buffer)");
         goto Error;
     }
@@ -89,7 +86,8 @@ HidDeviceCreate(
     // Install interrupt pipe
     UsbTransferInitialize(&Device->Transfer, &Device->Base.Device, 
         Device->Interrupt, InterruptTransfer, 0);
-    UsbTransferPeriodic(&Device->Transfer, Device->BufferAddress, 0x400, 
+    UsbTransferPeriodic(&Device->Transfer, dma_pool_handle(UsbRetrievePool()), 
+        dma_pool_offset(UsbRetrievePool(), Device->Buffer), 0x400, 
         Device->ReportLength, InTransaction, (const void*)Device);
     if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
         &Device->Transfer, &Device->TransferId) != TransferQueued) {
@@ -110,9 +108,6 @@ Error:
     return NULL;
 }
 
-/* HidDeviceDestroy
- * Destroys an existing hid device instance and cleans up
- * any resources related to it */
 OsStatus_t
 HidDeviceDestroy(
     _In_ HidDevice_t *Device)
@@ -128,7 +123,7 @@ HidDeviceDestroy(
     
     // Cleanup the buffer
     if (Device->Buffer != NULL) {
-        BufferPoolFree(UsbRetrievePool(), Device->Buffer);
+        dma_pool_free(UsbRetrievePool(), Device->Buffer);
     }
 
     // Cleanup structure
@@ -136,9 +131,6 @@ HidDeviceDestroy(
     return OsSuccess;
 }
 
-/* HidInterrupt
- * Should be called from the primary driver OnInterrupt
- * Performs the report-parsing and post-interrupt stuff */
 InterruptStatus_t
 HidInterrupt(
     _In_ HidDevice_t *Device, 

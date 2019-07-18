@@ -1,6 +1,7 @@
-/* MollenOS
+/** 
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  */
 
 #ifndef _USB_MSD_H_
@@ -123,9 +124,9 @@ typedef enum _MsdProtocolType {
 typedef struct _MsdDevice MsdDevice_t;
 typedef struct _MsdOperations {
     OsStatus_t          (*Initialize)(MsdDevice_t*);
-    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t ScsiCommand, uint64_t SectorStart, uintptr_t DataAddress, size_t DataLength);
-    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, uintptr_t DataAddress, size_t DataLength, size_t* BytesRead);
-    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, uintptr_t DataAddress, size_t DataLength, size_t* BytesWritten);
+    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, UUId_t, size_t, size_t);
+    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
+    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
     UsbTransferStatus_t (*GetStatus)(MsdDevice_t*);
 } MsdOperations_t;
 
@@ -143,9 +144,7 @@ typedef struct _MsdDevice {
 
     // Reusable buffers
     MsdCommandBlock_t*  CommandBlock;
-    uintptr_t           CommandBlockAddress;
     MsdCommandStatus_t* StatusBlock;
-    uintptr_t           StatusBlockAddress;
     
     // CBI Information
     UsbHcEndpointDescriptor_t* Control;
@@ -185,20 +184,22 @@ MsdDeviceStart(
  * Read a given amount of sectors (bytes/sector-size) from the MSD. */
 __EXTERN OsStatus_t
 MsdReadSectors(
-    _In_ MsdDevice_t *Device,
-    _In_ uint64_t SectorStart, 
-    _In_ uintptr_t BufferAddress,
-    _In_ size_t SectorCount,
-    _Out_ size_t *SectorsRead);
+    _In_  MsdDevice_t* Device,
+    _In_  uint64_t     SectorStart, 
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       SectorCount,
+    _Out_ size_t*      SectorsRead);
 
 /* MsdWriteSectors
  * Write a given amount of sectors (bytes/sector-size) to the MSD. */
 __EXTERN OsStatus_t
 MsdWriteSectors(
-    _In_ MsdDevice_t *Device,
-    _In_ uint64_t SectorStart, 
-    _In_ uintptr_t BufferAddress,
-    _In_ size_t SectorCount,
-    _Out_ size_t *SectorsWritten);
+    _In_  MsdDevice_t* Device,
+    _In_  uint64_t     SectorStart, 
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       SectorCount,
+    _Out_ size_t*      SectorsWritten);
 
 #endif // !_USB_MSD_H_

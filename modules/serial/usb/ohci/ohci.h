@@ -288,8 +288,8 @@ typedef struct {
     // Registers and resources
     OhciRegisters_t*        Registers;
     struct dma_attachment   HccaDMA;
+    struct dma_sg_table     HccaDMATable;
     OhciHCCA_t*             Hcca;
-    reg32_t                 HccaPhysical;
 
     // State information
     size_t                  PowerOnDelayMs;

@@ -72,7 +72,7 @@ OhciTdIsochronous(
         Td->Offsets[FrameIndex] = BufferOffset;
         Td->Offsets[FrameIndex] |= ((Crossed & 0x1) << 12);
         Td->OriginalOffsets[FrameIndex] = Td->Offsets[FrameIndex];
-        BufferOffset            += BytesStep;
+        BufferOffset += BytesStep;
 
         // Sanity on page-crossover
         if (((Address + BufferOffset) & 0xFFFFF000) != (Address & 0xFFFFF000)) {

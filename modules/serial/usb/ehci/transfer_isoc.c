@@ -36,7 +36,6 @@ HciQueueTransferIsochronous(
     EhciIsochronousDescriptor_t* FirstTd    = NULL;
     EhciIsochronousDescriptor_t* PreviousTd = NULL;
     EhciController_t*            Controller;
-    uintptr_t                    AddressPointer;
     size_t                       BytesToTransfer;
     size_t                       MaxBytesPerDescriptor;
     DataKey_t                    Key;
@@ -53,6 +52,7 @@ HciQueueTransferIsochronous(
     // Allocate resources
     while (BytesToTransfer) {
         EhciIsochronousDescriptor_t* iTd;
+        uintptr_t                    AddressPointer;
         size_t                       BytesStep;
         
         // Out of three different limiters we must select the lowest one. Either
