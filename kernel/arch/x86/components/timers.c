@@ -30,47 +30,29 @@
 #include "../cmos.h"
 #include "../pit.h"
 
-/* TimersDiscover 
- * Discover the available system timers for the x86 platform. */
 OsStatus_t
 TimersDiscover(void)
 {
-	ACPI_TABLE_HEADER *Header   = NULL;
-    int BootTimers              = 1;
-    int RtcAvailable            = 1;
-
-    // Debug
+    int RtcAvailable = 1;
+    
     TRACE("TimersDiscover()");
 
     // Start out by detecting presence of HPET
     if (AcpiAvailable() == ACPI_AVAILABLE) {
-        if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header))) {
-            TRACE("Not initializing any timers as hpet is present");
-            BootTimers = 0;
-        }
         if (AcpiGbl_FADT.BootFlags & ACPI_FADT_NO_CMOS_RTC) {
             RtcAvailable = 0;
         }
     }
 	
-    // Start timers?
-    if (BootTimers == 0) {
-        // Nope, start only clock
-        RtcAvailable = 0;
-    }
-    else {
-        // Do we have an RTC?
-        if (RtcAvailable == 0) {
-            if (PitInitialize() != OsSuccess) {
-                ERROR("Failed to initialize the PIT.");
-            }
+    // Do we have an RTC?
+    if (RtcAvailable == 0) {
+        if (PitInitialize() != OsSuccess) {
+            ERROR("Failed to initialize the PIT.");
         }
     }
     return CmosInitialize(RtcAvailable);
 }
 
-/* InitializeSystemTimers (@arch)
- * Register and start all neccessary system timers for the operating system to run. */
 OsStatus_t
 InitializeSystemTimers(void)
 {

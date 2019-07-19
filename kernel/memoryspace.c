@@ -309,7 +309,7 @@ MemoryCreateSharedRegion(
     // the Length of it.
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
         (VirtualAddress_t*)Memory, NULL, Capacity, 
-        MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_USERSPACE | MAPPING_PERSISTENT | Flags,
         MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
     if (Status != OsSuccess) {
         kfree(Region);
@@ -472,7 +472,7 @@ MemoryDestroySharedRegion(
 {
     SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
     OsStatus_t            Status = OsSuccess;
-    if (!(Region->Flags & MEMORY_REGION_PERSISTANT)) {
+    if (!(Region->Flags & MAPPING_PERSISTENT)) {
         for (int i = 0; i < Region->PageCount; i++) {
             Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
         }
@@ -595,8 +595,8 @@ CreateMemorySpaceMapping(
             // DmaVector
             // On-the-fly 
             if (MemoryFlags & MAPPING_COMMIT) {
-                if (MemoryFlags & (MAPPING_PHYSICAL_FIXED | MAPPING_PHYSICAL_DEFAULT))  {
-                    if ((MemoryFlags & MAPPING_PHYSICAL_CONTIGIOUS) == MAPPING_PHYSICAL_CONTIGIOUS) {
+                if (PlacementFlags & (MAPPING_PHYSICAL_FIXED | MAPPING_PHYSICAL_DEFAULT)) {
+                    if ((PlacementFlags & MAPPING_PHYSICAL_CONTIGIOUS) == MAPPING_PHYSICAL_CONTIGIOUS) {
                         PhysicalPage = DmaVector[0] + (i * GetMemorySpacePageSize());
                     }
                     else if (DmaVector) {
@@ -612,8 +612,7 @@ CreateMemorySpaceMapping(
                 VirtualPage, MemoryFlags, PlacementFlags);
             if (Status != OsSuccess) {
                 if ((MemoryFlags & (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT)) == 
-                        (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) &&
-                    !DmaVector) {
+                        (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) && !DmaVector) {
                     FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
                 }
                 break;

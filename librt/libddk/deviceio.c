@@ -238,7 +238,6 @@ WriteDeviceIo(
     return Status;
 }
 
-
 reg32_t __IoReadMemory32(volatile reg32_t* Register)
 {
     reg32_t Value = *Register;

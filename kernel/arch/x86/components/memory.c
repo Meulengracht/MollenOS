@@ -18,7 +18,7 @@
  * MollenOS Memory Utility Functions
  *   - Implements helpers and utility functions with the MemoryInitialize.
  */
-#define __MODULE "PMEM"
+#define __MODULE "MEM0"
 #define __TRACE
 
 #include <arch/interrupts.h>

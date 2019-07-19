@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,10 +17,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * System Calls
+ * Memory related system call implementations
  */
+
 #define __MODULE "SCIF"
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/memory.h>
 
@@ -119,15 +121,25 @@ ScDmaCreate(
     if (!info || !attachment) {
         return OsInvalidParameters;
     }
+    
+    TRACE("ScDmaCreate(%u, 0x%x)", LODWORD(info->length), Flags);
 
     if (info->flags & DMA_PERSISTANT) {
-        Flags |= MEMORY_REGION_PERSISTANT;
+        Flags |= MAPPING_PERSISTENT;
+    }
+    
+    if (info->flags & DMA_UNCACHEABLE) {
+        Flags |= MAPPING_NOCACHE;
     }
     
     Status = MemoryCreateSharedRegion(info->length, info->capacity, 
         Flags, &attachment->buffer, &attachment->handle);
     if (Status != OsSuccess) {
         return Status;
+    }
+    
+    if (info->flags & DMA_CLEAN) {
+        memset(attachment->buffer, 0, info->length);
     }
 
     attachment->length = info->length;
@@ -148,8 +160,14 @@ ScDmaExport(
     }
     
     if (info->flags & DMA_PERSISTANT) {
-        Flags |= MEMORY_REGION_PERSISTANT;
+        Flags |= MAPPING_PERSISTENT;
     }
+    
+    if (info->flags & DMA_UNCACHEABLE) {
+        Flags |= MAPPING_NOCACHE;
+    }
+    
+    TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
     
     Status = MemoryExportSharedRegion(buffer, info->length,
         Flags, &attachment->handle);
@@ -157,6 +175,10 @@ ScDmaExport(
         return Status;
     }
 
+    if (info->flags & DMA_CLEAN) {
+        memset(buffer, 0, info->length);
+    }
+    
     attachment->buffer = buffer;
     attachment->length = info->length;
     return Status;
@@ -172,6 +194,7 @@ ScDmaAttach(
     if (!attachment) {
         return OsInvalidParameters;
     }
+    TRACE("ScDmaAttach(0x%x)", LODWORD(handle));
     
     Region = (SystemSharedRegion_t*)AcquireHandle(handle);
     if (!Region) {
@@ -198,6 +221,7 @@ ScDmaAttachmentMap(
     if (!attachment || (attachment->buffer != NULL)) {
         return OsInvalidParameters;
     }
+    TRACE("ScDmaAttachmentMap(0x%x)", LODWORD(attachment->handle));
     
     Region = (SystemSharedRegion_t*)LookupHandleOfType(
         attachment->handle, HandleTypeMemoryRegion);
@@ -212,6 +236,8 @@ ScDmaAttachmentMap(
     // the Length of it.
     Length = MIN(attachment->length, Region->Length);
     Offset = (Region->Pages[0] % GetMemorySpacePageSize());
+    
+    TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
         (VirtualAddress_t*)&Address, NULL, Region->Capacity + Offset, 
         MAPPING_USERSPACE | MAPPING_PERSISTENT,
@@ -221,6 +247,7 @@ ScDmaAttachmentMap(
     }
     
     // Now commit <Length> in pages
+    TRACE("... committing vmem mappings of length 0x%x", LODWORD(Length));
     Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
         Address, &Region->Pages[0], Length,
         MAPPING_PHYSICAL_CONTIGIOUS, __MASK);
@@ -285,6 +312,7 @@ ScDmaGetMetrics(
     if (!attachment || !sg_count_out) {
         return OsInvalidParameters;
     }
+    TRACE("ScDmaGetMetrics(0x%x)", LODWORD(attachment->handle));
     
     Region = (SystemSharedRegion_t*)LookupHandleOfType(
         attachment->handle, HandleTypeMemoryRegion);
@@ -303,6 +331,7 @@ ScDmaGetMetrics(
                 sg_count++;
             }
         }
+        TRACE("... count is %i", sg_count);
         *sg_count_out = sg_count;
     }
     

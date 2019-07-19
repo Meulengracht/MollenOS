@@ -23,8 +23,6 @@
 #ifndef __DRIVER_PIT_H__
 #define __DRIVER_PIT_H__
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 #include <arch.h>
 #include <time.h>

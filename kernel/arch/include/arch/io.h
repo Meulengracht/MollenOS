@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,53 +28,69 @@
 #include <memoryspace.h>
 #include <deviceio.h>
 
+/* ReadVolatileMemory 
+ * Reads a value from memory with optimizations disabled. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+ReadVolatileMemory(
+    _In_  uintptr_t Address,
+    _In_  size_t    Width,
+    _Out_ size_t*   Value);
+
+/* WriteVolatileMemory 
+ * Writes a value to memory with optimizations disabled. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+WriteVolatileMemory(
+    _In_ uintptr_t Address,
+    _In_ size_t    Width,
+    _In_ size_t    Value);
+
 /* ReadDirectIo 
  * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 KERNELAPI OsStatus_t KERNELABI
 ReadDirectIo(
-    _In_  DeviceIoType_t            Type,
-    _In_  uintptr_t                 Address,
-    _In_  size_t                    Width,
-    _Out_ size_t*                   Value);
+    _In_  DeviceIoType_t Type,
+    _In_  uintptr_t      Address,
+    _In_  size_t         Width,
+    _Out_ size_t*        Value);
 
 /* WriteDirectIo 
  * Writes a value to the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 KERNELAPI OsStatus_t KERNELABI
 WriteDirectIo(
-    _In_ DeviceIoType_t             Type,
-    _In_ uintptr_t                  Address,
-    _In_ size_t                     Width,
-    _In_ size_t                     Value);
+    _In_ DeviceIoType_t Type,
+    _In_ uintptr_t      Address,
+    _In_ size_t         Width,
+    _In_ size_t         Value);
 
 /* ReadDirectPci
  * Reads a value from the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 KERNELAPI OsStatus_t KERNELABI
 ReadDirectPci(
-    _In_  unsigned                  Bus,
-    _In_  unsigned                  Slot,
-    _In_  unsigned                  Function,
-    _In_  unsigned                  Register,
-    _In_  size_t                    Width,
-    _Out_ size_t*                   Value);
+    _In_  unsigned Bus,
+    _In_  unsigned Slot,
+    _In_  unsigned Function,
+    _In_  unsigned Register,
+    _In_  size_t   Width,
+    _Out_ size_t*  Value);
 
 /* WriteDirectPci
  * Writes a value to the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 KERNELAPI OsStatus_t KERNELABI
 WriteDirectPci(
-    _In_ unsigned                   Bus,
-    _In_ unsigned                   Slot,
-    _In_ unsigned                   Function,
-    _In_ unsigned                   Register,
-    _In_ size_t                     Width,
-    _In_ size_t                     Value);
+    _In_ unsigned Bus,
+    _In_ unsigned Slot,
+    _In_ unsigned Function,
+    _In_ unsigned Register,
+    _In_ size_t   Width,
+    _In_ size_t   Value);
 
 /* SetDirectIoAccess
  * Set's the io status of the given memory space. */
 KERNELAPI OsStatus_t KERNELABI
 SetDirectIoAccess(
-    _In_ UUId_t                     CoreId,
-    _In_ SystemMemorySpace_t*       MemorySpace,
-    _In_ uint16_t                   Port,
-    _In_ int                        Enable);
+    _In_ UUId_t               CoreId,
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ uint16_t             Port,
+    _In_ int                  Enable);
 
 #endif //!__SYSTEM_IO_INTEFACE_H__

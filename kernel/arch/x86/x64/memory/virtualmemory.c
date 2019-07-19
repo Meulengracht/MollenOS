@@ -20,7 +20,7 @@
  * - Contains the implementation of virtual memory management
  *   for the X86-64 Architecture 
  */
-#define __MODULE "VMEM"
+#define __MODULE "MEM1"
 //#define __TRACE
 #define __COMPILE_ASSERT
 

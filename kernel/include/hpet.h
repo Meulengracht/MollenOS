@@ -22,15 +22,10 @@
 #ifndef _HPET_H_
 #define _HPET_H_
 
-/* Includes 
- * - Library */
+#include <acpiinterface.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <time.h>
-
-/* Includes
- * - System */
-#include <acpiinterface.h>
 
 /* HPET Definitions
  * Magic constants and things like that which won't change */
@@ -78,6 +73,7 @@
  * Bit        6: Set Comparator Value Switch 
  * Bit        7: Reserved
  * Bit        8: 32 Bit Mode
+ * Bit     9-13: Irq
  * Bit       14: MSI Enable/Disable
  * Bit       15: MSI Support
  * Bits 32 - 63: Interrupt Map */
@@ -125,16 +121,30 @@ typedef struct _HpController {
 
 	int						 Is64Bit;
 	size_t					 TickMinimum;
-	uint32_t				 Period;
+	size_t  				 Period;
 	LargeInteger_t			 Frequency;
 	clock_t					 Clock;
 } HpController_t;
 
 /* HpInitialize
  * Initializes the ACPI hpet timer from the hpet table. */
-__EXTERN
-ACPI_STATUS
+__EXTERN ACPI_STATUS
 HpInitialize(
 	_In_ ACPI_TABLE_HPET *Table);
+
+/* HpComparatorStart
+ * Starts a new hpet timer. If a legacy irq is provided that will be used
+ * instead of allocating a new based on the supported mappings. */
+__EXTERN OsStatus_t
+HpComparatorStart(
+    _In_ int      Index,
+    _In_ uint64_t Frequency,
+    _In_ int      Periodic,
+    _In_ int      LegacyIrq);
+
+/* HpHasLegacyController
+ * Returns whether or not the hpet is available on the system. */
+__EXTERN OsStatus_t
+HpHasLegacyController(void);
 
 #endif //!_HPET_H_

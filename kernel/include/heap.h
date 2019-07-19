@@ -68,9 +68,8 @@ typedef struct MemoryCache {
 #define HEAP_DEBUG_OVERRUN          0x2
 
 // Configuration options for caches
-#define HEAP_CACHE_DEFAULT          0x4    // Only set for fixed size caches
-#define HEAP_CONTIGIOUS             0x8    // If the memory allocated must be contigious
-#define HEAP_SLAB_NO_ATOMIC_CACHE   0x10   // Set to disable smp optimizations
+#define HEAP_CACHE_DEFAULT          0x4 // Only set for fixed size caches
+#define HEAP_SLAB_NO_ATOMIC_CACHE   0x8 // Set to disable smp optimizations
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.

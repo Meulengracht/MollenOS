@@ -61,8 +61,6 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_VIRTUAL_FIXED           0x00000010  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x0000001C
 
-#define MEMORY_REGION_PERSISTANT        0x00000001
-
 typedef struct _SystemMemoryMappingHandler {
     CollectionItem_t Header;
     UUId_t           Handle;

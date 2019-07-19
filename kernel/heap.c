@@ -60,19 +60,11 @@ static struct FixedCache {
 };
 
 static uintptr_t
-allocate_virtual_memory(Flags_t Flags, size_t PageCount)
+allocate_virtual_memory(size_t PageCount)
 {
-    uintptr_t  Address;
     size_t     PageSize = GetMemorySpacePageSize();
-    Flags_t    AllocationFlags = MAPPING_VIRTUAL_GLOBAL;
+    uintptr_t  Address;
     OsStatus_t Status;
-    
-    if (Flags & HEAP_CONTIGIOUS) {
-        AllocationFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
-    }
-    else {
-        AllocationFlags |= MAPPING_PHYSICAL_DEFAULT;
-    }
     
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Address, NULL, 
         PageSize * PageCount, MAPPING_COMMIT | MAPPING_DOMAIN, 
@@ -198,7 +190,7 @@ slab_create(
 {
     MemorySlab_t* Slab;
     uintptr_t     ObjectAddress;
-    uintptr_t     DataAddress = allocate_virtual_memory(Cache->Flags, Cache->PageCount);
+    uintptr_t     DataAddress = allocate_virtual_memory(Cache->PageCount);
     TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
 
     if (Cache->SlabOnSite) {
@@ -222,7 +214,7 @@ slab_create(
         Slab          = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
         ObjectAddress = DataAddress;
     }
-
+    
     // Handle debug flags
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset((void*)DataAddress, MEMORY_OVERRUN_PATTERN, (Cache->PageCount * GetMemorySpacePageSize()));
@@ -601,7 +593,7 @@ MemoryCacheAllocate(
     dsunlock(&Cache->SyncObject);
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    TRACE(" => 0x%" PRIxIN "", Allocated);
+    TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
     return Allocated;
 }
 
@@ -765,5 +757,5 @@ MemoryCacheDump(
 void
 MemoryCacheInitialize(void)
 {
-    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
+    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 16, 0, NULL, NULL);
 }

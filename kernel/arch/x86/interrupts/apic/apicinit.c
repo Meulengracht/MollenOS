@@ -442,7 +442,7 @@ ApicInitialize(void)
     // Perform the remap
     TRACE(" > local apic at 0x%" PRIxIN "", OriginalApAddress);
     CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-        &UpdatedApAddress,&OriginalApAddress, 
+        &UpdatedApAddress, &OriginalApAddress, 
         GetMemorySpacePageSize(), 
         MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
         MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
