@@ -251,20 +251,25 @@ StdioParseInheritanceBlock(
         }
     }
 
-    // Make sure all default handles have been set for std
+    // Make sure all default handles have been set for std. The operations for
+    // stdout and stderr will be null operations, as no output has been specified
+    // for this process. If the process wants to get output it must reopen the
+    // stdout/stderr handles.
     object_out = stdio_object_get(STDOUT_FILENO);
     if (object_out == NULL) {
-        stdio_object_create(STDOUT_FILENO, WX_PIPE | WX_TTY, &object_out);
+        stdio_object_create(STDOUT_FILENO, 0, &object_out);
     }
     
+    // Always create a pipe handle for stdin, that has valid operations.
     object_in = stdio_object_get(STDIN_FILENO);
     if (object_in == NULL) {
         stdio_object_create(STDIN_FILENO, WX_PIPE | WX_TTY, &object_in);
+        stdio_object_set_ops_type(object_out, STDIO_HANDLE_PIPE);
     }
     
     object_err = stdio_object_get(STDERR_FILENO);
     if (object_err == NULL) {
-        stdio_object_create(STDERR_FILENO, WX_PIPE | WX_TTY, &object_out);
+        stdio_object_create(STDERR_FILENO, 0, &object_out);
     }
     
     stdio_object_set_buffered(object_out, &__GlbStdout, _IOWRT);

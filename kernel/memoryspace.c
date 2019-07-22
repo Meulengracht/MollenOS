@@ -488,9 +488,10 @@ ResolveVirtualSystemMemorySpaceAddress(
     _In_ size_t               Size,
     _In_ Flags_t              PlacementFlags)
 {
-    VirtualAddress_t VirtualBase = 0;
+    VirtualAddress_t VirtualBase  = 0;
+    Flags_t          VirtualFlags = PlacementFlags & MAPPING_VIRTUAL_MASK;
 
-    switch (PlacementFlags & MAPPING_VIRTUAL_MASK) {
+    switch (VirtualFlags) {
         case MAPPING_VIRTUAL_FIXED: {
             assert(VirtualAddress != NULL);
             VirtualBase = *VirtualAddress;
@@ -512,7 +513,7 @@ ResolveVirtualSystemMemorySpaceAddress(
         } break;
 
         default: {
-            FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate virtual memory for flags: 0x%" PRIxIN "", PlacementFlags);
+            FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate virtual memory for flags: 0x%" PRIxIN "", VirtualFlags);
         } break;
     }
     assert(VirtualBase != 0);
@@ -557,6 +558,8 @@ CreateMemorySpaceMapping(
     OsStatus_t        Status;
     int               i;
     
+    TRACE("CreateMemorySpaceMapping(%u, 0x%x, 0x%x)", LODWORD(Length), MemoryFlags, PlacementFlags);
+    
     assert(MemorySpace != NULL);
     assert(PlacementFlags != 0);
     
@@ -568,7 +571,8 @@ CreateMemorySpaceMapping(
     
     // Handle the resolvement of the physical address, only do this if we are
     // not to save the allocations and we haven't been supplied
-    if (DmaVector != NULL && (PlacementFlags & MAPPING_PHYSICAL_DEFAULT)) {
+    if (DmaVector != NULL && (MemoryFlags & MAPPING_COMMIT) && 
+            (PlacementFlags & MAPPING_PHYSICAL_DEFAULT)) {
         CleanupOnError = 1;
         for (i = 0; i < PageCount; i++) {
             DmaVector[i] = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
@@ -611,8 +615,9 @@ CreateMemorySpaceMapping(
             Status = InstallMemoryMapping(MemorySpace, PhysicalPage, 
                 VirtualPage, MemoryFlags, PlacementFlags);
             if (Status != OsSuccess) {
-                if ((MemoryFlags & (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT)) == 
-                        (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) && !DmaVector) {
+                if ((MemoryFlags & MAPPING_COMMIT) &&
+                    (PlacementFlags & MAPPING_PHYSICAL_DEFAULT) && 
+                    !DmaVector) {
                     FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
                 }
                 break;

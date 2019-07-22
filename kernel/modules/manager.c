@@ -32,25 +32,8 @@
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t   Modules               = COLLECTION_INIT(KeyInteger);
-static stdio_object_t ModuleInheriations[2] = { 0 };
-static int            ModuleIdGenerator     = 1;
-
-void
-InitializeModuleInheritationBlock(void)
-{
-    // STDOUT_FILENO
-    ModuleInheriations[0].fd                       = STDOUT_FILENO;
-    ModuleInheriations[0].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
-    ModuleInheriations[0].handle.InheritationType  = STDIO_HANDLE_PIPE;
-    ModuleInheriations[0].handle.InheritationHandle = GetSystemStdOutHandle();
-
-    // STDERR_FILENO
-    ModuleInheriations[1].fd                       = STDERR_FILENO;
-    ModuleInheriations[1].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
-    ModuleInheriations[1].handle.InheritationType  = STDIO_HANDLE_PIPE;
-    ModuleInheriations[1].handle.InheritationHandle = GetSystemStdErrHandle();
-}
+static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
+static int          ModuleIdGenerator = 1;
 
 OsStatus_t
 RegisterModule(
@@ -75,9 +58,6 @@ RegisterModule(
     Module->Length = Length;
     Module->Path   = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(Module->Path, Path, StrUTF8);
-
-    Module->InheritanceBlock       = (void*)&ModuleInheriations[0];
-    Module->InheritanceBlockLength = sizeof(ModuleInheriations);
 
     Module->VendorId        = VendorId;
     Module->DeviceId        = DeviceId;

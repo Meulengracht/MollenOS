@@ -192,7 +192,6 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    InitializeModuleInheritationBlock();
     Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");

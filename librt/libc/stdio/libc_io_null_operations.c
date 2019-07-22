@@ -25,27 +25,27 @@
 
 OsStatus_t stdio_null_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_null_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_null_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_null_op_resize(stdio_handle_t* handle, long long resize_by)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_null_op_close(stdio_handle_t* handle, int options)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 void stdio_get_null_operations(stdio_ops_t* ops)

@@ -22,7 +22,7 @@
  *
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
-#define __MODULE        "IRQS"
+#define __MODULE "IRQS"
 //#define __TRACE
 
 #include <arch.h>
@@ -138,9 +138,9 @@ ExceptionEntry(
     }
     else if (Registers->Irq == 13) { // General Protection Fault
         Core = GetCurrentProcessorCore();
-        assert(Core->CurrentThread != NULL);
         ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "", 
-            Core->CurrentThread->Name, Registers->ErrorCode, CONTEXT_IP(Registers));
+                Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                Registers->ErrorCode, CONTEXT_IP(Registers));
         SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 14) {    // Page Fault
@@ -158,9 +158,9 @@ ExceptionEntry(
         }
         else {
             Core = GetCurrentProcessorCore();
-            assert(Core->CurrentThread != NULL);
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
-                Core->CurrentThread->Name, Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+                Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                Address, Registers->ErrorCode, CONTEXT_IP(Registers));
             SignalExecute(Registers, SIGSEGV, NULL);
         }
     }

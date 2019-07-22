@@ -21,7 +21,7 @@
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
-//#define __TRACE
+#define __TRACE
 #define __COMPILE_ASSERT
 
 #include <os/mollenos.h>
@@ -96,6 +96,7 @@ AllocateMemoryForPool(
     }
     dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
+    TRACE("... address 0x%" PRIxIN, Pool->ElementPoolDMATable.entries[0].address);
     Pool->ElementPool = Pool->ElementPoolDMA.buffer;
     return OsSuccess;
 }
@@ -125,6 +126,7 @@ AllocateMemoryForFrameList(
     dma_get_sg_table(&Scheduler->Settings.FrameListDMA, 
         &Scheduler->Settings.FrameListDMATable, -1);
     
+    TRACE("... address 0x%" PRIxIN, Scheduler->Settings.FrameListDMATable.entries[0].address);
     Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
     Scheduler->Settings.FrameListPhysical = Scheduler->Settings.FrameListDMATable.entries[0].address;
     return OsSuccess;
@@ -154,7 +156,7 @@ UsbSchedulerInitialize(
     spinlock_init(&Scheduler->Lock, spinlock_plain);
     memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
 
-    // Start out by allocating the frame list unless it has been provided for us
+    // Start out by allocating the frame list if requested by the user
     if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
         Status = AllocateMemoryForFrameList(Scheduler);
         if (Status != OsSuccess) {
@@ -167,7 +169,7 @@ UsbSchedulerInitialize(
     // it is not supported that its located above 32 bit memory space. Unless
     // we have been told to ignore this then assert on it.
     if (!(Scheduler->Settings.Flags & USB_SCHEDULER_FL64)) {
-        if ((Scheduler->Settings.FrameListDMATable.entries[0].address + 
+        if ((Scheduler->Settings.FrameListPhysical + 
                 (Scheduler->Settings.FrameCount * 4)) > 0xFFFFFFFF) {
             ERROR("Failed to allocate memory below 4gb memory for usb resources");
             UsbSchedulerDestroy(Scheduler);

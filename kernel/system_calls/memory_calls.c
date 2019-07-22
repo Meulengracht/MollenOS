@@ -122,7 +122,7 @@ ScDmaCreate(
         return OsInvalidParameters;
     }
     
-    TRACE("ScDmaCreate(%u, 0x%x)", LODWORD(info->length), Flags);
+    TRACE("ScDmaCreate(%u, 0x%x)", LODWORD(info->length), info->flags);
 
     if (info->flags & DMA_PERSISTANT) {
         Flags |= MAPPING_PERSISTENT;

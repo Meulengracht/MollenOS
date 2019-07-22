@@ -22,16 +22,10 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
+#include <assert.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "scheduler.h"
-
-/* Includes
- * - Library */
-#include <assert.h>
-#include <stddef.h>
 #include <stdlib.h>
 
 void

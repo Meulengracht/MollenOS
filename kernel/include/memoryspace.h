@@ -56,10 +56,10 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_PHYSICAL_CONTIGIOUS    (MAPPING_PHYSICAL_FIXED | 0x00000004)  // (Physical) Single mapping that is contigious
 #define MAPPING_PHYSICAL_MASK           0x00000007
 
-#define MAPPING_VIRTUAL_GLOBAL          0x00000004  // (Virtual) Mapping is done in global access memory
-#define MAPPING_VIRTUAL_PROCESS         0x00000008  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_FIXED           0x00000010  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x0000001C
+#define MAPPING_VIRTUAL_GLOBAL          0x00000008  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000010  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_FIXED           0x00000020  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x00000038
 
 typedef struct _SystemMemoryMappingHandler {
     CollectionItem_t Header;

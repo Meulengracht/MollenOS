@@ -135,7 +135,7 @@ DebugPanic(
     va_list Arguments;
     UUId_t CoreId;
 
-    TRACE("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
+    ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
     CoreId = ArchGetProcessorCoreId();
@@ -157,14 +157,18 @@ DebugPanic(
     va_end(Arguments);
     LogSetRenderMode(1);
     LogAppendMessage(LogError, Module, &MessageBuffer[0]);
-
+    
     // Log cpu and threads
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
             CurrentThread->Name, CurrentThread->Header.Key.Value.Id, CoreId);
     }
-    DebugStackTrace(Context, 8);
+    
+    if (Context) {
+        ArchDumpThreadContext(Context);
+        DebugStackTrace(Context, 8);
+    }
 
     // Handle based on the scope of the fatality
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
@@ -224,9 +228,6 @@ DebugGetModuleByAddress(
     return OsError;
 }
 
-/* DebugStackTrace
- * Performs a verbose stack trace in the current context 
- * Goes back a maximum of <MaxFrames> in the stack */
 OsStatus_t
 DebugStackTrace(
     _In_ Context_t* Context,

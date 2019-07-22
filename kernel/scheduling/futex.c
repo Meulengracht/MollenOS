@@ -211,6 +211,14 @@ FutexWait(
     IntStatus_t        CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
+    if (!Object) {
+        // This is called by the ACPICA implemention indirectly through the Semaphore
+        // implementation, which occurs during boot up of cores before a scheduler is running.
+        // In this case we want the semaphore to act like a spinlock, which it will if we just
+        // return anything else than OsTimeout.
+        return OsNotSupported;
+    }
+    
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
@@ -271,12 +279,20 @@ FutexWaitOperation(
     _In_ size_t        Timeout)
 {
     SystemMemorySpaceContext_t* Context = NULL;
-    SchedulerObject_t* Object     = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
+    SchedulerObject_t* Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     FutexBucket_t*     FutexQueue;
     FutexItem_t*       FutexItem;
     uintptr_t          FutexAddress;
     IntStatus_t        CpuState;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
+    
+    if (!Object) {
+        // This is called by the ACPICA implemention indirectly through the Semaphore
+        // implementation, which occurs during boot up of cores before a scheduler is running.
+        // In this case we want the semaphore to act like a spinlock, which it will if we just
+        // return anything else than OsTimeout.
+        return OsNotSupported;
+    }
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping

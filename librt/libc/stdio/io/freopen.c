@@ -63,6 +63,7 @@ FILE* freopen(
 	else {
 		if (mode != NULL) {
 			_fflags(mode, &open_flags, &stream_flags);
+			// TODO: support multiple types of streams
 			if (SetFileOptions(stream->_fd, _fopts(open_flags), _faccess(open_flags)) != OsSuccess) {
 				_set_errno(EINVAL);
 			}

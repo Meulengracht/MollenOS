@@ -48,8 +48,6 @@ static SystemInterruptMode_t        InterruptMode   = InterruptModePic;
 size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
 uintptr_t GlbLocalApicBase = 0;
 
-/* GetSystemLvtByAcpi
- * Retrieves lvt setup for the calling cpu and the given Lvt index. */
 static Flags_t
 GetSystemLvtByAcpi(
     _In_ uint8_t Lvt)

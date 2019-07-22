@@ -33,7 +33,6 @@
 
 static SystemLog_t LogObject                 = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
-static UUId_t PipeThreads[2]                 = { 0 };
 
 void
 LogPipeHandler(
@@ -61,9 +60,6 @@ LogPipeHandler(
     }
 }
 
-/* LogInitialize
- * Initializes loggin data-structures and global variables
- * by setting everything to sane value */
 void
 LogInitialize(void)
 {
@@ -75,14 +71,10 @@ LogInitialize(void)
     LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
 }
 
-/* LogInitializeFull
- * Upgrades the log to a larger buffer, initializing pipes and installs the message thread. */
 void
 LogInitializeFull(void)
 {
-    SystemPipe_t* StdOut;
-    SystemPipe_t* StdErr;
-    void*         UpgradeBuffer;
+    void* UpgradeBuffer;
 
     // Upgrade the buffer
     UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
@@ -95,23 +87,8 @@ LogInitializeFull(void)
     LogObject.Lines         = (SystemLogLine_t*)UpgradeBuffer;
     LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
 	dsunlock(&LogObject.SyncObject);
-
-    // Create 4kb pipes
-    StdOut = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
-    StdErr = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
-
-    // Create handles for modules
-    LogObject.StdOutHandle = CreateHandle(HandleTypePipe, StdOut);
-    LogObject.StdErrHandle = CreateHandle(HandleTypePipe, StdErr);
-
-    // Create the threads that will echo the pipes
-    CreateThread("log-stdout", LogPipeHandler, (void*)StdOut, 0, UUID_INVALID, &PipeThreads[0]);
-    CreateThread("log-stderr", LogPipeHandler, (void*)StdErr, 0, UUID_INVALID, &PipeThreads[1]);
 }
 
-/* LogRenderMessages
- * Makes sure RenderIndex catches up to the LineIndex by rendering all unrendered messages
- * to the screen. */
 void
 LogRenderMessages(void)
 {
@@ -143,12 +120,9 @@ LogRenderMessages(void)
 	dsunlock(&LogObject.SyncObject);
 }
 
-/* LogSetRenderMode
- * Enables or disables the log from rendering to the screen. This can be used at start to 
- * indicate when rendering is available, and at end to disable kernel from modifying screen. */
 void
 LogSetRenderMode(
-    _In_ int            Enable)
+    _In_ int Enable)
 {
     // Update status, flush log
     LogObject.AllowRender = Enable;
@@ -157,9 +131,6 @@ LogSetRenderMode(
     }
 }
 
-/* LogAppendMessage
- * Appends a new message of the given parameters to the global log object. If the buffer
- * reaches the end wrap-around will happen. */
 void
 LogAppendMessage(
     _In_ SystemLogType_t Type,
@@ -167,11 +138,9 @@ LogAppendMessage(
     _In_ const char*     Message,
     ...)
 {
-    // Variables
-    SystemLogLine_t *Line = NULL;
-	va_list Arguments;
+    SystemLogLine_t* Line;
+	va_list          Arguments;
 
-    // Sanitize
     assert(Header != NULL);
     assert(Message != NULL);
 
@@ -194,14 +163,4 @@ LogAppendMessage(
     if (LogObject.AllowRender) {
         LogRenderMessages();
     }
-}
-
-UUId_t GetSystemStdOutHandle(void)
-{
-    return LogObject.StdOutHandle;
-}
-
-UUId_t GetSystemStdErrHandle(void)
-{
-    return LogObject.StdErrHandle;
 }

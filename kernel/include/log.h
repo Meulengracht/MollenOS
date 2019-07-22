@@ -52,11 +52,9 @@ typedef struct _SystemLog {
     SystemLogLine_t* Lines;
     SafeMemoryLock_t SyncObject;
     
-    int    LineIndex;
-    int    RenderIndex;
-    int    AllowRender;
-    UUId_t StdOutHandle;
-    UUId_t StdErrHandle;
+    int LineIndex;
+    int RenderIndex;
+    int AllowRender;
 } SystemLog_t;
 
 /* LogInitialize
@@ -75,7 +73,7 @@ LogInitializeFull(void);
  * indicate when rendering is available, and at end to disable kernel from modifying screen. */
 KERNELAPI void KERNELABI
 LogSetRenderMode(
-    _In_ int            Enable);
+    _In_ int Enable);
 
 /* LogAppendMessage
  * Appends a new message of the given parameters to the global log object. If the buffer
@@ -86,8 +84,5 @@ LogAppendMessage(
     _In_ const char*     Header,
     _In_ const char*     Message,
     ...);
-
-KERNELAPI UUId_t KERNELABI GetSystemStdOutHandle(void);
-KERNELAPI UUId_t KERNELABI GetSystemStdErrHandle(void);
 
 #endif // !__LOGGING_INTERFACE__

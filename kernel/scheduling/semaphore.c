@@ -57,7 +57,7 @@ SemaphoreDestruct(
     if (!Semaphore) {
         return OsInvalidParameters;
     }
-    return FutexWake(&Semaphore->Value, INT_MAX, FUTEX_WAKE_PRIVATE);
+    return FutexWake(&Semaphore->Value, INT_MAX, 0);
 }
 
 OsStatus_t
@@ -71,7 +71,7 @@ SemaphoreWait(
     while (1) {
         Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
         while (Value < 1) {
-            Status = FutexWait(&(Semaphore->Value), Value, FUTEX_WAIT_PRIVATE, Timeout);
+            Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
             if (Status == OsTimeout) {
                 break;
             }
@@ -108,7 +108,7 @@ SemaphoreSignal(
                     break;
                 }
             }
-            FutexWake(&Semaphore->Value, 1, FUTEX_WAKE_PRIVATE);
+            FutexWake(&Semaphore->Value, 1, 0);
         }
         Status = OsSuccess;
     }

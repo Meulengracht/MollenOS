@@ -21,7 +21,7 @@
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>
@@ -95,8 +95,10 @@ HciControllerCreate(
     // Retrieve the physical location of the HCCA
     (void)dma_get_sg_table(&Controller->HccaDMA, &Controller->HccaDMATable, -1);
 
-    // Acquire the io-space
+    Controller->Hcca        = (OhciHCCA_t*)Controller->HccaDMA.buffer;
     Controller->Base.IoBase = IoBase;
+    
+    // Acquire the io-space
     if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(Controller);
@@ -123,6 +125,7 @@ HciControllerCreate(
     RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register contract before interrupt
+    TRACE("... register contract");
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ohci-controller");
         ReleaseDeviceIo(Controller->Base.IoBase);
@@ -131,11 +134,13 @@ HciControllerCreate(
     }
 
     // Register interrupt
+    TRACE("... register interrupt");
     RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
+    TRACE("... enabling device");
     if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
@@ -146,8 +151,7 @@ HciControllerCreate(
         return NULL;
     }
 
-    // Now that all formalities has been taken care
-    // off we can actually setup controller
+    TRACE("... initializing device");
     if (OhciSetup(Controller) == OsSuccess) {
         return &Controller->Base;
     }

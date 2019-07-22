@@ -255,7 +255,7 @@ GetSegmentProductionSpot(
     while (1) {
         ProductionSpots = atomic_load(&Segment->ProductionSpots);
         if (!ProductionSpots) {
-            FutexWait(&Segment->ProductionSpots, ProductionSpots, FUTEX_WAIT_PRIVATE, 0);
+            FutexWait(&Segment->ProductionSpots, ProductionSpots, 0, 0);
             continue; // Start over
         }
 
@@ -300,7 +300,7 @@ AcquireSegmentBufferSpace(
         BytesAvailable  = MIN(
             CalculateBytesAvailableForWriting(Buffer, ReadIndex, WriteIndex), Length);
         if (BytesAvailable != Length) {
-            FutexWait((atomic_int*)&Buffer->ReadCommitted, (int)ReadIndex, FUTEX_WAIT_PRIVATE, 0);
+            FutexWait((atomic_int*)&Buffer->ReadCommitted, (int)ReadIndex, 0, 0);
             continue; // Start over
         }
 
@@ -392,7 +392,7 @@ WriteRawSegmentBuffer(
             if (Pipe->Configuration & PIPE_NOBLOCK) {
                 break;
             }
-            FutexWait((atomic_int*)&Buffer->ReadCommitted, (int)ReadIndex, FUTEX_WAIT_PRIVATE, 0);
+            FutexWait((atomic_int*)&Buffer->ReadCommitted, (int)ReadIndex, 0, 0);
             continue; // Start over
         }
 
@@ -429,7 +429,7 @@ WriteRawSegmentBuffer(
             Buffer->Pointer[(WriteIndex++ & (Buffer->Size - 1))] = Data[BytesWritten++];
         }
         atomic_fetch_add(&Buffer->WriteCommitted, BytesCommitted);
-        FutexWake((atomic_int*)&Buffer->WriteCommitted, 1, FUTEX_WAKE_PRIVATE);
+        FutexWake((atomic_int*)&Buffer->WriteCommitted, 1, 0);
     }
     return BytesWritten;
 }
@@ -460,7 +460,7 @@ ReadRawSegmentBuffer(
             if (Pipe->Configuration & PIPE_NOBLOCK) {
                 break;
             }
-            FutexWait((atomic_int*)&Buffer->WriteCommitted, (int)WriteIndex, FUTEX_WAIT_PRIVATE, 0);
+            FutexWait((atomic_int*)&Buffer->WriteCommitted, (int)WriteIndex, 0, 0);
             continue; // Start over
         }
 
@@ -497,7 +497,7 @@ ReadRawSegmentBuffer(
             Data[BytesRead++] = Buffer->Pointer[(ReadIndex++ & (Buffer->Size - 1))];
         }
         atomic_fetch_add(&Buffer->ReadCommitted, BytesCommitted);
-        FutexWake((atomic_int*)&Buffer->ReadCommitted, 1, FUTEX_WAKE_PRIVATE);
+        FutexWake((atomic_int*)&Buffer->ReadCommitted, 1, 0);
 
         // If it was possible read bytes, return. With raw bytes we allow
         // the reader to read less, however never allow to read 0
@@ -563,13 +563,13 @@ SetSegmentEntryWriteable(
 {
     // Mark buffer read and free, and wakeup writers
     atomic_fetch_add(&Segment->Buffer.ReadCommitted, Entry->Length);
-    FutexWake((atomic_int*)&Segment->Buffer.ReadCommitted, 1, FUTEX_WAKE_PRIVATE);
+    FutexWake((atomic_int*)&Segment->Buffer.ReadCommitted, 1, 0);
 
     // No need to signal if we are unbounded, we don't reuse spots
     if (!(Pipe->Configuration & PIPE_UNBOUNDED)) {
         Entry->Length = 0;
         atomic_fetch_add(&Segment->ProductionSpots, 1);
-        FutexWake(&Segment->ProductionSpots, 1, FUTEX_WAKE_PRIVATE);
+        FutexWake(&Segment->ProductionSpots, 1, 0);
     }
     atomic_fetch_sub(&Segment->References, 1);
 }
