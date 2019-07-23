@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,9 +17,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
@@ -109,8 +111,9 @@ MfsLocateRecord(
         TRACE("Reading bucket %u with length %u, link 0x%x", CurrentBucket, Link.Length, Link.Link);
         
         // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
-                Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
+        if (!Link.Length || 
+                MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
+                    Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
             goto Cleanup;

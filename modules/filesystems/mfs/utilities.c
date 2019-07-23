@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include "mfs.h"
@@ -87,10 +87,13 @@ MfsGetBucketLink(
     MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
 
     TRACE("MfsGetBucketLink(Bucket %u)", Bucket);
-
-    Link->Link   = Mfs->BucketMap[(Bucket * 2)];
-    Link->Length = Mfs->BucketMap[(Bucket * 2) + 1];
-    return OsSuccess;
+    if (Bucket < Mfs->BucketCount) {
+        Link->Link   = Mfs->BucketMap[(Bucket * 2)];
+        Link->Length = Mfs->BucketMap[(Bucket * 2) + 1];
+        TRACE("... link %u, length %u", Link->Link, Link->Length);
+        return OsSuccess;
+    }
+    return OsInvalidParameters;
 }
 
 OsStatus_t 

@@ -180,26 +180,12 @@ __EXTERN OsStatus_t
 MsdDeviceStart(
     _In_ MsdDevice_t *Device);
 
-/* MsdReadSectors
- * Read a given amount of sectors (bytes/sector-size) from the MSD. */
+/* MsdTransferSectors
+ * Transfers a given amount of sectors (bytes/sector-size) from or to the MSD. */
 __EXTERN OsStatus_t
-MsdReadSectors(
-    _In_  MsdDevice_t* Device,
-    _In_  uint64_t     SectorStart, 
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       SectorCount,
-    _Out_ size_t*      SectorsRead);
-
-/* MsdWriteSectors
- * Write a given amount of sectors (bytes/sector-size) to the MSD. */
-__EXTERN OsStatus_t
-MsdWriteSectors(
-    _In_  MsdDevice_t* Device,
-    _In_  uint64_t     SectorStart, 
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       SectorCount,
-    _Out_ size_t*      SectorsWritten);
+MsdTransferSectors(
+    _In_  MsdDevice_t*        Device,
+    _In_  StorageOperation_t* Operation,
+    _Out_ size_t*             SectorsTransferred);
 
 #endif // !_USB_MSD_H_

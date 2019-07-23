@@ -380,24 +380,29 @@ FsInitialize(
     BytesLeft      = Mfs->MasterRecord.MapSize;
     BytesRead      = 0;
     i              = 0;
-    imax           = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)); //GetBufferSize(Buffer)
+    imax           = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
     while (BytesLeft) {
         uint64_t MapSector    = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
         size_t   TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
         size_t   SectorCount  = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
 
-        // Read sectors
         if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0, 
                 MapSector, SectorCount, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
             goto Error;
         }
 
+        if (SectorsTransferred != SectorCount) {
+            ERROR("Read %u sectors instead of %u from sector %u", 
+                LODWORD(SectorsTransferred), LODWORD(SectorCount), LODWORD(MapSector));
+            goto Error;
+        }
+
         // Reset buffer position to 0 and read the data into the map
         memcpy(bMap, Mfs->TransferBuffer.buffer, TransferSize);
-        BytesLeft   -= TransferSize;
-        BytesRead   += TransferSize;
-        bMap        += TransferSize;
+        BytesLeft -= TransferSize;
+        BytesRead += TransferSize;
+        bMap      += TransferSize;
         i++;
         if (i == (imax / 4) || i == (imax / 2) || i == ((imax / 4) * 3)) {
             WARNING("Cached %u/%u bytes of sector-map", LODWORD(BytesRead), LODWORD(Mfs->MasterRecord.MapSize));

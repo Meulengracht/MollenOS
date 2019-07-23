@@ -142,7 +142,7 @@ OnQuery(
         case __STORAGE_TRANSFER: {
             StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
             DataKey_t                Key       = { .Value.Id = Arg0->Data.Value };
-            StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
+            StorageOperationResult_t Result    = { .Status = OsInvalidParameters, 0 };
             MsdDevice_t*             Device;
             
             Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
@@ -150,15 +150,7 @@ OnQuery(
                 return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
             }
 
-            // Determine the kind of operation
-            if (Operation->Direction == __STORAGE_OPERATION_READ) {
-                Result.Status = MsdReadSectors(Device, Operation->AbsoluteSector, Operation->BufferHandle, 
-                    Operation->BufferOffset, Operation->SectorCount, &Result.SectorsTransferred);
-            }
-            else if (Operation->Direction == __STORAGE_OPERATION_WRITE) {
-                Result.Status = MsdWriteSectors(Device, Operation->AbsoluteSector, Operation->BufferHandle, 
-                    Operation->BufferOffset, Operation->SectorCount, &Result.SectorsTransferred);
-            }
+            Result.Status = MsdTransferSectors(Device, Operation, &Result.SectorsTransferred);
             return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
         } break;
 

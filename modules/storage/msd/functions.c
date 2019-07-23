@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +17,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  */
+
 //#define __TRACE
 
 #include "msd.h"
@@ -123,8 +125,7 @@ MsdScsiCommand(
     size_t              DataToTransfer = DataLength;
     int                 RetryCount     = 3;
 
-    // Debug
-    TRACE("MsdScsiCommand(Direction %i, Command %u, Start %u, Length %u)",
+    TRACE("MsdScsiCommand(Direction %i, Command 0x%x, Start %u, Length %u)",
         Direction, ScsiCommand, LODWORD(SectorStart), DataLength);
 
     // It is invalid to send zero length packets for bulk
@@ -163,8 +164,6 @@ MsdScsiCommand(
     return Device->Operations->GetStatus(Device);
 }
 
-/* MsdDevicePrepare
- * Ready's the device by performing TDR's and requesting sense-status. */
 OsStatus_t
 MsdDevicePrepare(
     MsdDevice_t *Device)
@@ -223,8 +222,6 @@ MsdDevicePrepare(
     return OsSuccess;
 }
 
-/* MsdReadCapabilities
- * Reads the geometric capabilities of the device as sector-count and sector-size. */
 OsStatus_t 
 MsdReadCapabilities(
     _In_ MsdDevice_t *Device)
@@ -276,9 +273,6 @@ MsdReadCapabilities(
     return OsSuccess;
 }
 
-/* MsdDeviceStart
- * Initializes the device by performing one-time setup and reading device
- * capabilities and features. */
 OsStatus_t
 MsdDeviceStart(
     _In_ MsdDevice_t *Device)
@@ -328,135 +322,75 @@ MsdDeviceStart(
     return MsdReadCapabilities(Device);
 }
 
-OsStatus_t
-MsdReadSectors(
-    _In_  MsdDevice_t* Device,
-    _In_  uint64_t     SectorStart,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       SectorCount,
-    _Out_ size_t*      SectorsRead)
+static void
+SelectScsiTransferCommand(
+    _In_  MsdDevice_t*        Device,
+    _In_  StorageOperation_t* Operation,
+    _Out_ uint8_t*            CommandOut,
+    _Out_ size_t*             MaxSectorsCountOut)
 {
-    UsbTransferStatus_t Result;
-    size_t              SectorsToBeRead;
-    uint8_t             ReadCommand;
-
-    TRACE("MsdReadSectors(Sector %u, Length %u)", LODWORD(SectorStart), BufferLength);
-
-    // Protect against bad start sector
-    if (SectorStart >= Device->Descriptor.SectorCount) {
-        return OsInvalidParameters;
-    }
-
-    // Of course it's possible that the requester is requesting too much data in one
-    // go, so we will have to clamp some of the values. Is the sector valid first of all?
-    SectorsToBeRead = SectorCount;
-    if ((SectorStart + SectorsToBeRead) >= Device->Descriptor.SectorCount) {
-        SectorsToBeRead = Device->Descriptor.SectorCount - SectorStart;
-    }
-    
     // Detect limits based on type of device and protocol
     if (Device->Protocol == ProtocolCB || Device->Protocol == ProtocolCBI) {
-        ReadCommand     = SCSI_READ_6;
-		SectorsToBeRead = MIN(SectorsToBeRead, UINT8_MAX);
+        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ_6 : SCSI_WRITE_6;
+        *MaxSectorsCountOut = UINT8_MAX;
     }
     else if (!Device->IsExtended) {
-        ReadCommand     = SCSI_READ;
-		SectorsToBeRead = MIN(SectorsToBeRead, UINT16_MAX);
+        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ : SCSI_WRITE;
+        *MaxSectorsCountOut = UINT16_MAX;
     }
     else {
-        ReadCommand = SCSI_READ_16;
+        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ_16 : SCSI_WRITE_16;
+        *MaxSectorsCountOut = UINT32_MAX;
     }
-    
-    // Update the sectors to be transferred
-    if (SectorsRead) {
-        *SectorsRead = SectorsToBeRead;
-    }
-    
-    // Put in the read request
-    Result = MsdScsiCommand(Device, 0, ReadCommand, SectorStart, 
-        BufferHandle, BufferOffset, SectorsToBeRead * Device->Descriptor.SectorSize);
-        
-    // Convert between usb status to storage operating status
-    if (Result != TransferFinished) {
-        if (SectorsRead) {
-            *SectorsRead = 0;
-        }
-        return OsError;
-    }
-    else {
-        if (SectorsRead && Device->StatusBlock->DataResidue) {
-            // Data residue is in bytes not transferred as it does not seem
-            // required that we transfer in sectors
-            size_t SectorsNotRead = DIVUP(Device->StatusBlock->DataResidue, 
-                Device->Descriptor.SectorSize);
-            *SectorsRead -= SectorsNotRead;
-        }
-    }
-    return OsSuccess;
 }
 
 OsStatus_t
-MsdWriteSectors(
-    _In_  MsdDevice_t* Device,
-    _In_  uint64_t     SectorStart, 
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       SectorCount,
-    _Out_ size_t*      SectorsWritten)
+MsdTransferSectors(
+    _In_  MsdDevice_t*        Device,
+    _In_  StorageOperation_t* Operation,
+    _Out_ size_t*             SectorsTransferred)
 {
     UsbTransferStatus_t Result;
-    size_t              SectorsToBeWritten;
-    uint8_t             WriteCommand;
+    size_t              SectorsToBeTransferred;
+    uint8_t             Command;
+    size_t              MaxSectorsPerCommand;
+
+    TRACE("MsdTransferSectors(Sector %u, Count %u)", 
+        LODWORD(Operation->AbsoluteSector), LODWORD(Operation->SectorCount));
 
     // Protect against bad start sector
-    if (SectorStart >= Device->Descriptor.SectorCount) {
+    if (Operation->AbsoluteSector >= Device->Descriptor.SectorCount) {
         return OsInvalidParameters;
     }
 
     // Of course it's possible that the requester is requesting too much data in one
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
-    SectorsToBeWritten = SectorCount;
-    if ((SectorStart + SectorsToBeWritten) >= Device->Descriptor.SectorCount) {
-        SectorsToBeWritten = Device->Descriptor.SectorCount - SectorStart;
+    SectorsToBeTransferred = Operation->SectorCount;
+    if ((Operation->AbsoluteSector + SectorsToBeTransferred) >= Device->Descriptor.SectorCount) {
+        SectorsToBeTransferred = Device->Descriptor.SectorCount - Operation->AbsoluteSector;
     }
     
     // Detect limits based on type of device and protocol
-    if (Device->Protocol == ProtocolCB || Device->Protocol == ProtocolCBI) {
-        WriteCommand       = SCSI_WRITE_6;
-		SectorsToBeWritten = MIN(SectorsToBeWritten, UINT8_MAX);
-    }
-    else if (!Device->IsExtended) {
-        WriteCommand       = SCSI_WRITE;
-		SectorsToBeWritten = MIN(SectorsToBeWritten, UINT16_MAX);
-    }
-    else {
-        WriteCommand = SCSI_WRITE_16;
-    }
-    
-    // Update the sectors to be transferred
-    if (SectorsWritten) {
-        *SectorsWritten = SectorsToBeWritten;
-    }
+    SelectScsiTransferCommand(Device, Operation, &Command, &MaxSectorsPerCommand);
+    SectorsToBeTransferred = MIN(SectorsToBeTransferred, MaxSectorsPerCommand);
 
-    // Perform the write command
-    Result = MsdScsiCommand(Device, 1, WriteCommand, SectorStart, 
-        BufferHandle, BufferOffset, SectorsToBeWritten * Device->Descriptor.SectorSize);
-
-    // Convert between usb status to storage operating status
+    Result = MsdScsiCommand(Device, Operation->Direction == __STORAGE_OPERATION_WRITE, Command, 
+        Operation->AbsoluteSector, Operation->BufferHandle, Operation->BufferOffset,
+        SectorsToBeTransferred * Device->Descriptor.SectorSize);
     if (Result != TransferFinished) {
-        if (SectorsWritten) {
-            *SectorsWritten = 0;
+        if (SectorsTransferred) {
+            *SectorsTransferred = 0;
         }
         return OsError;
     }
-    else {
-        if (SectorsWritten && Device->StatusBlock->DataResidue) {
+    else if (SectorsTransferred) {
+        *SectorsTransferred = SectorsToBeTransferred;
+        if (Device->StatusBlock->DataResidue) {
             // Data residue is in bytes not transferred as it does not seem
             // required that we transfer in sectors
-            size_t SectorsNotWritten = DIVUP(Device->StatusBlock->DataResidue, 
+            size_t SectorsLeft = DIVUP(Device->StatusBlock->DataResidue, 
                 Device->Descriptor.SectorSize);
-            *SectorsWritten -= SectorsNotWritten;
+            *SectorsTransferred -= SectorsLeft;
         }
     }
     return OsSuccess;

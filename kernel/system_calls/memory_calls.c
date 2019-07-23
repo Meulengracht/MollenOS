@@ -336,7 +336,7 @@ ScDmaGetMetrics(
     if (sg_count_out && sg_list_out) {
         int sg_count = *sg_count_out;
         for (int i = 0, j = 0; (i < sg_count) && (j < Region->PageCount); i++) {
-            struct dma_sg* sg = &sg_list_out[0];
+            struct dma_sg* sg = &sg_list_out[i];
             
             sg->address = Region->Pages[j++];
             sg->length  = PageSize;

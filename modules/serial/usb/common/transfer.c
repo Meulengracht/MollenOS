@@ -21,6 +21,7 @@
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
+
 //#define __TRACE
 #define __COMPILE_ASSERT
 
@@ -62,15 +63,18 @@ UsbManagerCreateTransfer(
             continue;
         }
         
+        TRACE("... acquiring buffer for transaction %i (handle 0x%x, offset 0x%x)",
+            i, LODWORD(UsbTransfer->Transfer.Transactions[i].BufferHandle),
+            LODWORD(UsbTransfer->Transfer.Transactions[i].BufferOffset));
         if (i != 0 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
                 UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
-            // reuse information
+            TRACE("... reusing");
             memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 1],
                 sizeof(struct UsbManagerTransaction));
         }
         else if (i == 2 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
                 UsbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
-            // reuse information
+            TRACE("... reusing");
             memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 2],
                 sizeof(struct UsbManagerTransaction));
         }
@@ -82,8 +86,11 @@ UsbManagerCreateTransfer(
         }
         dma_sg_table_offset(&UsbTransfer->Transactions[i].DmaTable,
             UsbTransfer->Transfer.Transactions[i].BufferOffset,
-            &UsbTransfer->Transactions[i].SgIndex, 
+            &UsbTransfer->Transactions[i].SgIndex,
             &UsbTransfer->Transactions[i].SgOffset);
+        TRACE("... sg_index %i, sg_offset %u", 
+            UsbTransfer->Transactions[i].SgIndex,
+            LODWORD(UsbTransfer->Transactions[i].SgOffset));
     }
     return UsbTransfer;
 }
