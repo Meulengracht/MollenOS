@@ -163,12 +163,16 @@ UhciTransferFill(
         // Keep adding td's
         TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
-            struct dma_sg* Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
-            uintptr_t      Address = Dma->address + Transfer->Transactions[i].SgOffset;
-            size_t         Length;
+            struct dma_sg* Dma     = NULL;
+            size_t         Length  = BytesToTransfer;
+            uintptr_t      Address = 0;
             
-            Length = MIN(BytesToTransfer, Dma->length - Transfer->Transactions[i].SgOffset);
-            Length = MIN(Length, Transfer->Transfer.Endpoint.MaxPacketSize);
+            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+                Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
+                Address = Dma->address + Transfer->Transactions[i].SgOffset;
+                Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
+                Length  = MIN(Length, Transfer->Transfer.Endpoint.MaxPacketSize);
+            }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
@@ -214,7 +218,7 @@ UhciTransferFill(
                 if (Length) {
                     BytesToTransfer                    -= Length;
                     Transfer->Transactions[i].SgOffset += Length;
-                    if (Transfer->Transactions[i].SgOffset == Dma->length) {
+                    if (Dma && Transfer->Transactions[i].SgOffset == Dma->length) {
                         Transfer->Transactions[i].SgIndex++;
                         Transfer->Transactions[i].SgOffset = 0;
                     }

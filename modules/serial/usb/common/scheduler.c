@@ -21,7 +21,8 @@
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
-#define __TRACE
+
+//#define __TRACE
 #define __COMPILE_ASSERT
 
 #include <os/mollenos.h>
@@ -94,7 +95,7 @@ AllocateMemoryForPool(
         ERROR("... failed! %u", Status);
         return Status;
     }
-    dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
+    (void)dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
     TRACE("... address 0x%" PRIxIN, Pool->ElementPoolDMATable.entries[0].address);
     Pool->ElementPool = Pool->ElementPoolDMA.buffer;
@@ -110,9 +111,8 @@ AllocateMemoryForFrameList(
     OsStatus_t             Status;
     
     // Setup required memory allocation flags
-    // Require low memory as most usb controllers don't work with physical memory above 2GB
+    // TODO: Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
-    // Require contigious memory to make allocation/address conversion easier
     DmaInfo.length   = FrameListBytes;
     DmaInfo.capacity = FrameListBytes;
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
@@ -123,7 +123,7 @@ AllocateMemoryForFrameList(
         ERROR("... failed! %u", Status);
         return Status;
     }
-    dma_get_sg_table(&Scheduler->Settings.FrameListDMA, 
+    (void)dma_get_sg_table(&Scheduler->Settings.FrameListDMA, 
         &Scheduler->Settings.FrameListDMATable, -1);
     
     TRACE("... address 0x%" PRIxIN, Scheduler->Settings.FrameListDMATable.entries[0].address);

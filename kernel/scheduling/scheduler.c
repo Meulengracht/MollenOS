@@ -143,6 +143,29 @@ QueueOnCoreFunction(
     }
 }
 
+static inline void
+QueueObjectImmediately(
+    _In_ SchedulerObject_t* Object)
+{
+    SystemCpuCore_t* Core;
+    
+    // If the object is running on our core, just append it
+    Core = GetCurrentProcessorCore();
+    if (Core->Id == Object->CoreId) {
+        dslock(&Core->Scheduler.SyncObject);
+        QueueForScheduler(&Core->Scheduler, Object, 1);
+        dsunlock(&Core->Scheduler.SyncObject);
+        if (ThreadingIsCurrentTaskIdle(Core->Id)) {
+            ThreadingYield();
+        }
+    }
+    else {
+        // Send a message to the correct core
+        ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
+            QueueOnCoreFunction, Object);
+    }
+}
+
 static void
 AllocateScheduler(
     _In_ SchedulerObject_t* Object)
@@ -227,8 +250,7 @@ void
 SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object)
 {
-    SystemCpuCore_t* Core;
-    OsStatus_t       Status;
+    OsStatus_t Status;
     
     if (Object->State == SchedulerObjectStateBlocked) {
         // Either sleeping, which means we'll interrupt it immediately
@@ -244,18 +266,7 @@ SchedulerExpediteObject(
         // We removed it, activate its timeout
         TimersGetSystemTick(&Object->InterruptedAt);
         
-        // If the object is running on our core, just append it
-        Core = GetCurrentProcessorCore();
-        if (Core->Id == Object->CoreId) {
-            dslock(&Core->Scheduler.SyncObject);
-            QueueForScheduler(&Core->Scheduler, Object, 1);
-            dsunlock(&Core->Scheduler.SyncObject);
-        }
-        else {
-            // Send a message to the correct core
-            ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
-                QueueOnCoreFunction, Object);
-        }
+        QueueObjectImmediately(Object);
     }
 }
 
@@ -312,27 +323,13 @@ OsStatus_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* Object)
 {
-    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Object->CoreId);
-    
     // We only allow idle and blocked threads to be queued up again
     if (Object->State != SchedulerObjectStateIdle &&
         Object->State != SchedulerObjectStateBlocked) {
         return OsInvalidParameters;    
     }
     
-    // Is the object for this core or someone else? If the object is for
-    // the current core no need to invoke an IPI, we instead just do it in
-    // a thread-safe way by acquiring the scheduler lock
-    if (GetCurrentProcessorCore()->Id == Object->CoreId) {
-        dslock(&Scheduler->SyncObject);
-        QueueForScheduler(Scheduler, Object, 1);
-        dsunlock(&Scheduler->SyncObject);
-    }
-    else {
-        // Execute function on the target core
-        ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
-            QueueOnCoreFunction, Object);
-    }
+    QueueObjectImmediately(Object);
     return OsSuccess;
 }
 

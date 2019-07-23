@@ -31,13 +31,10 @@
 OsStatus_t
 OnLoad(void)
 {
-    // Initialize core-systems
     if (UsbCoreInitialize() != OsSuccess) {
         ERROR("Failed to initialize usb-core systems.");
         return OsError;
     }
-
-    // Register us with server manager
 	return RegisterService(__USBMANAGER_TARGET);
 }
 
@@ -47,7 +44,6 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-	// Destroy core-systems and let them cleanup
 	return UsbCoreDestroy();
 }
 

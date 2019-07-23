@@ -107,19 +107,14 @@ OhciQueueResetInternalData(
     return OsSuccess;
 }
 
-/* OhciQueueInitialize
- * Initialize the controller's queue resources and resets counters */
 OsStatus_t
 OhciQueueInitialize(
-    _In_ OhciController_t*          Controller)
+    _In_ OhciController_t* Controller)
 {
-    // Variables
     UsbSchedulerSettings_t Settings;
 
-    // Debug
     TRACE("OhciQueueInitialize()");
 
-    // Initialize the scheduler
     TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
 
@@ -146,32 +141,23 @@ OhciQueueInitialize(
     return OhciQueueResetInternalData(Controller);
 }
 
-/* OhciQueueReset
- * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
 OhciQueueReset(
-    _In_ OhciController_t*          Controller)
+    _In_ OhciController_t* Controller)
 {
-    // Debug
     TRACE("OhciQueueReset()");
 
-    // Stop Controller
     OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
     UsbManagerClearTransfers(&Controller->Base);
     return OhciQueueResetInternalData(Controller);
 }
 
-/* OhciQueueDestroy
- * Unschedules any scheduled ed's and frees all resources allocated
- * by the initialize function */
 OsStatus_t
 OhciQueueDestroy(
-    _In_ OhciController_t*          Controller)
+    _In_ OhciController_t* Controller)
 {
-    // Debug
     TRACE("OhciQueueDestroy()");
 
-    // Make sure everything is unscheduled, reset and clean
     OhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
     return OsSuccess;

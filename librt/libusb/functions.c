@@ -54,7 +54,7 @@ UsbInitialize(void)
     
     status = dma_pool_create(&DmaAttachment, &DmaPool);
     if (status != OsSuccess) {
-        return dma_detach(&DmaAttachment);
+        (void)dma_detach(&DmaAttachment);
     }
     return status;
 }
@@ -136,9 +136,10 @@ UsbTransferSetup(
     }
 
     // Ack-stage
-    Transfer->Transactions[AckIndex].Flags = USB_TRANSACTION_ZLP | USB_TRANSACTION_HANDSHAKE;
-    Transfer->Transactions[AckIndex].Type  = AckType;
-    Transfer->TransactionCount             = AckIndex + 1;
+    Transfer->Transactions[AckIndex].Flags        = USB_TRANSACTION_ZLP | USB_TRANSACTION_HANDSHAKE;
+    Transfer->Transactions[AckIndex].BufferHandle = UUID_INVALID;
+    Transfer->Transactions[AckIndex].Type         = AckType;
+    Transfer->TransactionCount                    = AckIndex + 1;
     return OsSuccess;
 }
 

@@ -21,7 +21,8 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+
+//#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>
@@ -254,12 +255,10 @@ OsStatus_t
 OhciReset(
     _In_ OhciController_t* Controller)
 {
-    // Variables
     reg32_t Temporary = 0;
     reg32_t FmInt     = 0;
     int     i         = 0;
 
-    // Trace
     TRACE("OhciReset()");
 
     // Verify HcFmInterval and store the original value
@@ -315,6 +314,7 @@ OhciReset(
     WriteVolatile32(&Controller->Registers->HcFmInterval, FmInt);
 
     // Setup the Hcca Address and initiate some members of the HCCA
+    TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.entries[0].address);
     WriteVolatile32(&Controller->Registers->HcHCCA, Controller->HccaDMATable.entries[0].address);
     Controller->Hcca->CurrentFrame = 0;
     Controller->Hcca->HeadDone     = 0;
@@ -353,7 +353,7 @@ OhciReset(
     WriteVolatile32(&Controller->Registers->HcControl, Temporary);
     
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
-    TRACE(" > Wrote control to controller");
+    TRACE(" > Wrote control 0x%x to controller", Temporary);
     return OsSuccess;
 }
 

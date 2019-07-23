@@ -339,9 +339,8 @@ UsbQueryConfigurationDescriptors(
 OsStatus_t
 UsbCoreInitialize(void)
 {
-    // Initialize globals to a known state
     GlbUsbControllers = CollectionCreate(KeyInteger);
-    GlbUsbDevices = CollectionCreate(KeyInteger);
+    GlbUsbDevices     = CollectionCreate(KeyInteger);
     return UsbInitialize();
 }
 

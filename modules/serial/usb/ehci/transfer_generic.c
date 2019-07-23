@@ -82,9 +82,15 @@ EhciTransferFill(
 
         TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
-            struct dma_sg* Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
-            uintptr_t      Address = Dma->address + Transfer->Transactions[i].SgOffset;
-            size_t         Length  = MIN(BytesToTransfer, Dma->length - Transfer->Transactions[i].SgOffset);
+            struct dma_sg* Dma     = NULL;
+            size_t         Length  = BytesToTransfer;
+            uintptr_t      Address = 0;
+            
+            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+                Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
+                Address = Dma->address + Transfer->Transactions[i].SgOffset;
+                Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
+            }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {

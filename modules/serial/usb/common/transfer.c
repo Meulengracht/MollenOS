@@ -57,7 +57,11 @@ UsbManagerCreateTransfer(
     
     // When attaching to dma buffers make sure we don't attach
     // multiple times as we can then save a system call or two
-    for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+    for (i = 0; i < UsbTransfer->Transfer.TransactionCount; i++) {
+        if (UsbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+            continue;
+        }
+        
         if (i != 0 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
                 UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
             // reuse information
@@ -89,7 +93,11 @@ UsbManagerDestroyTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     int i;
-    for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+    for (i = 0; i < Transfer->Transfer.TransactionCount; i++) {
+        if (Transfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+            continue;
+        }
+        
         if (i != 0 && Transfer->Transfer.Transactions[i].BufferHandle ==
                 Transfer->Transfer.Transactions[i - 1].BufferHandle) {
             // do nothing, we already freed

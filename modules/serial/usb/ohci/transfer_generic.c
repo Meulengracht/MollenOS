@@ -21,6 +21,7 @@
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 
 #include <os/mollenos.h>
@@ -58,16 +59,18 @@ OhciTransferFill(
         int                  IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
         int                  IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
         
-        TRACE("Transaction(%i, Length %u, Type %i)", i, BytesToTransfer, Type);
+        TRACE("Transaction(%i, Length %u, Type %i, ZLP %i, Handshake %i)", 
+            i, BytesToTransfer, Type, IsZLP, IsHandshake);
 
         BytesToTransfer -= Transfer->Transactions[i].BytesTransferred;
         if (BytesToTransfer == 0 && !IsZLP) {
-            TRACE(" > Skipping");
+            TRACE(" ... skipping");
             continue;
         }
 
         // If it's a handshake package AND it's first td of package, then set toggle
         if (Transfer->Transactions[i].BytesTransferred == 0 && IsHandshake) {
+            TRACE("... setting toggle");
             Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
             PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
@@ -78,25 +81,33 @@ OhciTransferFill(
         if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
             Transfer->Transfer.Type == BulkTransfer &&
             Transfer->Transfer.Transactions[i].Type == OutTransaction) {
+            TRACE("... appending zlp");
             Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
         }
 
-        TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
+        TRACE("... BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
-            struct dma_sg* Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
-            uintptr_t      Address = Dma->address + Transfer->Transactions[i].SgOffset;
-            size_t         Length  = MIN(BytesToTransfer, Dma->length - Transfer->Transactions[i].SgOffset);
+            struct dma_sg* Dma     = NULL;
+            size_t         Length  = BytesToTransfer;
+            uintptr_t      Address = 0;
+            
+            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+                Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
+                Address = Dma->address + Transfer->Transactions[i].SgOffset;
+                Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
+            }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+            TRACE("... address 0x%" PRIxIN ", length %u, toggle %i", Address, LODWORD(Length), Toggle);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
                 if (Type == SetupTransaction) {
-                    TRACE(" > Creating setup packet");
+                    TRACE("... setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
                     Length = OhciTdSetup(Td, Address, Length);
                 }
                 else {
-                    TRACE(" > Creating io packet");
+                    TRACE("... io packet");
                     Length = OhciTdIo(Td, Transfer->Transfer.Type, 
                         (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), 
                         Toggle, Address, Length);
@@ -106,7 +117,7 @@ OhciTransferFill(
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
             if (Td == NULL) {
-                TRACE(" > Failed to allocate descriptor");
+                TRACE(".. failed to allocate descriptor");
                 if (PreviousToggle != -1) {
                     UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, PreviousToggle);
                     Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
@@ -128,14 +139,14 @@ OhciTransferFill(
                 if (Length) {
                     BytesToTransfer                    -= Length;
                     Transfer->Transactions[i].SgOffset += Length;
-                    if (Transfer->Transactions[i].SgOffset == Dma->length) {
+                    if (Dma && Transfer->Transactions[i].SgOffset == Dma->length) {
                         Transfer->Transactions[i].SgIndex++;
                         Transfer->Transactions[i].SgOffset = 0;
                     }
                 }
                 else {
                     assert(IsZLP != 0);
-                    TRACE(" > Encountered zero-length");
+                    TRACE(".. zlp, done");
                     Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
                 }

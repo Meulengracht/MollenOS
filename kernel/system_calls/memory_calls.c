@@ -194,7 +194,6 @@ ScDmaAttach(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    TRACE("ScDmaAttach(0x%x)", LODWORD(handle));
     
     Region = (SystemSharedRegion_t*)AcquireHandle(handle);
     if (!Region) {
@@ -312,7 +311,6 @@ ScDmaGetMetrics(
     if (!attachment || !sg_count_out) {
         return OsInvalidParameters;
     }
-    TRACE("ScDmaGetMetrics(0x%x)", LODWORD(attachment->handle));
     
     Region = (SystemSharedRegion_t*)LookupHandleOfType(
         attachment->handle, HandleTypeMemoryRegion);
@@ -331,7 +329,6 @@ ScDmaGetMetrics(
                 sg_count++;
             }
         }
-        TRACE("... count is %i", sg_count);
         *sg_count_out = sg_count;
     }
     

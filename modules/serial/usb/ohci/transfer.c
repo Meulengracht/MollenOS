@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,19 +17,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 //#define __DIAGNOSE
 
-/* Includes 
- * - System */
+#include <assert.h>
+#include "ohci.h"
 #include <os/mollenos.h>
 #include <ddk/utils.h>
-#include "ohci.h"
-#include <assert.h>
 
 UsbTransferStatus_t
 OhciTransactionDispatch(

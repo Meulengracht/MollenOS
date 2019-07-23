@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -18,6 +19,7 @@
  *
  * Threading Signal Implementation
  */
+
 #define __MODULE "SIG0"
 //#define __TRACE
 
@@ -95,6 +97,7 @@ SignalQueue(
     
     if (!atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
             &Expected, SIGNAL_ALLOCATED)) {
+        TRACE("Signal was already pending");
         return OsExists; // Ignored, already pending
     }
     
@@ -105,6 +108,7 @@ SignalQueue(
     
     // Wake up thread if neccessary
     if (!Target->HandlingSignals) {
+        TRACE("Waking up object");
         SchedulerExpediteObject(Target->SchedulerObject);
     }
     return OsSuccess;

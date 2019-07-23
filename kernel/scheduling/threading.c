@@ -496,8 +496,7 @@ ThreadingAdvance(
         // Handle any received signals during runtime, they will happen in
         // the threads next allocated timeslot only. However if the thread
         // is currently blocked we must unblock it
-        if (!Current->HandlingSignals && 
-            atomic_load(&Current->PendingSignals) != 0) {
+        if (!Current->HandlingSignals && atomic_load(&Current->PendingSignals)) {
             SchedulerUnblockObject(Current->SchedulerObject);
         }
     }

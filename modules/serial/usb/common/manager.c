@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +21,7 @@
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
+
 //#define __TRACE
 
 #include <os/mollenos.h>
@@ -355,7 +357,6 @@ UsbManagerScheduleTransfer(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ void*                   Context)
 {
-    
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
         TRACE("UNSCHEDULE(Id %u)", Transfer->Id);
