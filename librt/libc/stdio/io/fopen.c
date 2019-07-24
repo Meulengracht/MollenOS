@@ -25,7 +25,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 /* Information 
 "r"    read: Open file for input operations. The file must exist.
@@ -40,7 +40,7 @@
 FILE* fdopen(int fd, const char *mode)
 {
     int open_flags, stream_flags;
-    stdio_object_t* object;
+    stdio_handle_t* handle;
 
     if (fd < 0 || mode == NULL) {
         _set_errno(EINVAL);
@@ -48,16 +48,16 @@ FILE* fdopen(int fd, const char *mode)
     }
     _fflags(mode, &open_flags, &stream_flags);
     
-    object = stdio_object_get(fd);
-    if (!object) {
+    handle = stdio_handle_get(fd);
+    if (!handle) {
         _set_errno(EBADF);
         return NULL;
     }
     
-    if (stdio_object_set_buffered(object, NULL, stream_flags)) {
+    if (stdio_handle_set_buffered(handle, NULL, stream_flags)) {
         return NULL;
     }
-    return object->buffered_stream;
+    return handle->buffered_stream;
 }
 
 FILE *fopen(const char* filename, const char* mode)

@@ -21,7 +21,7 @@
 */
 
 #include <stdio.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int fflush(
 	_In_ FILE *file)

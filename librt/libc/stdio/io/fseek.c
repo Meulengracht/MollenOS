@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -25,17 +26,17 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 long long lseeki64(
 	_In_ int        fd, 
 	_In_ long long  offset, 
 	_In_ int        whence)
 {
-    stdio_object_t* object   = stdio_object_get(fd);
+    stdio_handle_t* handle   = stdio_handle_get(fd);
 	long long       position = 0;
 
-    if (object == NULL) {
+    if (handle == NULL) {
         _set_errno(EBADFD);
         return -1;
     }
@@ -45,12 +46,12 @@ long long lseeki64(
 		return -1;
 	}
 	
-	if (object->ops.seek(&object->handle, whence, offset, &position)) {
+	if (handle->ops.seek(handle, whence, offset, &position)) {
 		return -1;
 	}
 	
 	// clear out eof after seeks
-	object->wxflag &= ~(WX_ATEOF|WX_READEOF);
+	handle->wxflag &= ~(WX_ATEOF|WX_READEOF);
 	return position;
 }
 

@@ -26,25 +26,25 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int close(int fd)
 {
-	stdio_object_t* object;
+	stdio_handle_t* handle;
 	int             result = EOK;
 
-	object = stdio_object_get(fd);
-	if (!object) {
+	handle = stdio_handle_get(fd);
+	if (!handle) {
         _set_errno(EBADFD);
 		return -1;
 	}
 	
 	// The cases where we close is when the handle is
 	// not inheritted and the handle is not persistant
-	if (!(object->wxflag & (WX_INHERITTED | WX_PERSISTANT))) {
-	    result = object->ops.close(&object->handle, 0);
+	if (!(handle->wxflag & (WX_INHERITTED | WX_PERSISTANT))) {
+	    result = handle->ops.close(handle, 0);
 	}
-	stdio_object_destroy(object, 0);
+	stdio_handle_destroy(handle, 0);
     return result;
 }
 

@@ -21,7 +21,7 @@
  */
 
 #include <errno.h>
-#include "libc_io.h"
+#include <internal/_io.h>
 
 OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {

@@ -25,27 +25,27 @@
 #include <string.h>
 #include <stdlib.h>
 #include <io.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int write(int fd, const void* buffer, unsigned int length)
 {
-	stdio_object_t* object       = stdio_object_get(fd);
+	stdio_handle_t* handle       = stdio_handle_get(fd);
 	size_t          BytesWritten = 0;
 
 	// Don't write uneven bytes in case of UTF8/16
-	if ((object->wxflag & WX_UTF) == WX_UTF && (length & 1)) {
+	if ((handle->wxflag & WX_UTF) == WX_UTF && (length & 1)) {
 		_set_errno(EINVAL);
 		return -1;
 	}
 
 	// If appending, go to EOF
-	if (object->wxflag & WX_APPEND) {
+	if (handle->wxflag & WX_APPEND) {
 		lseek(fd, 0, SEEK_END);
 	}
 
 	// If we aren't in text mode, raw write the data
 	// without any text-processing
-	if (object->ops.write(&object->handle, (char*)buffer, 
+	if (handle->ops.write(handle, (char*)buffer, 
 		length, &BytesWritten) == OsSuccess) {
 		return (int)BytesWritten;
 	}

@@ -23,7 +23,7 @@
 #include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/mollenos.h>
-#include "../stdio/libc_io.h"
+#include <internal/_io.h>
 
 OsStatus_t
 SystemQuery(

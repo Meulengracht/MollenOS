@@ -23,7 +23,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include "libc_io.h"
+#include <internal/_io.h>
 #include <stdlib.h>
 #include <string.h>
 

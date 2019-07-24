@@ -34,7 +34,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <assert.h>
-#include "../../stdio/libc_io.h"
+#include <internal/_io.h>
 
 void
 InitializeStartupInformation(

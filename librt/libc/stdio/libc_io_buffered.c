@@ -23,7 +23,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include "libc_io.h"
+#include <internal/_io.h>
 #include <io.h>
 #include <stdlib.h>
 
@@ -126,13 +126,13 @@ int
 os_flush_all_buffers(
     _In_ int mask)
 {
-    stdio_object_t*  Object;
+    stdio_handle_t*  Object;
     int             FilesFlushes = 0;
     FILE*           File;
 
     LOCK_FILES();
-    foreach(Node, stdio_get_objects()) {
-        Object  = (stdio_object_t*)Node->Data;
+    foreach(Node, stdio_get_handles()) {
+        Object  = (stdio_handle_t*)Node->Data;
         File    = Object->buffered_stream;
         if (File != NULL && (File->_flag & mask)) {
             fflush(File);
@@ -149,8 +149,8 @@ _lock_file(
 {
     TRACE("_lock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
-        assert(stdio_object_get(file->_fd) != NULL);
-        spinlock_acquire(&stdio_object_get(file->_fd)->lock);
+        assert(stdio_handle_get(file->_fd) != NULL);
+        spinlock_acquire(&stdio_handle_get(file->_fd)->lock);
     }
     return OsSuccess;
 }
@@ -161,8 +161,8 @@ _unlock_file(
 {
     TRACE("_unlock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
-        assert(stdio_object_get(file->_fd) != NULL);
-        spinlock_release(&stdio_object_get(file->_fd)->lock);
+        assert(stdio_handle_get(file->_fd) != NULL);
+        spinlock_release(&stdio_handle_get(file->_fd)->lock);
     }
     return OsSuccess;
 }

@@ -24,20 +24,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
  
 wint_t fputwc(
     _In_ wchar_t c,
     _In_ FILE* stream)
 {
-    stdio_object_t* object;
+    stdio_handle_t* handle;
     if (!stream) {
         _set_errno(EINVAL);
         return WEOF;
     }
     
-    object = stdio_object_get(stream->_fd);
-    if (!object) {
+    handle = stdio_handle_get(stream->_fd);
+    if (!handle) {
         _set_errno(EBADFD);
         return WEOF;
     }
@@ -45,7 +45,7 @@ wint_t fputwc(
     /* If this is a real file stream (and not some temporary one for
        sprintf-like functions), check whether it is opened in text mode.
        In this case, we have to perform an implicit conversion to ANSI. */
-    if (!(stream->_flag & _IOSTRG) && object->wxflag & WX_TEXT) {
+    if (!(stream->_flag & _IOSTRG) && handle->wxflag & WX_TEXT) {
         /* Convert to multibyte in text mode */
         char mbc[MB_LEN_MAX];
         int mb_return;

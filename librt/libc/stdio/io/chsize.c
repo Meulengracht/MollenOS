@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -23,24 +24,24 @@
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int chsize(
     _In_ int  fd,
     _In_ long size)
 {
-    stdio_object_t* object   = stdio_object_get(fd);
+    stdio_handle_t* handle = stdio_handle_get(fd);
 
-    if (object == NULL) {
+    if (handle == NULL) {
         _set_errno(EBADFD);
         return -1;
     }
 
-	if (object->ops.resize(&object->handle, size)) {
+	if (handle->ops.resize(handle, size)) {
 		return -1;
 	}
 	
 	// clear out eof after resizes
-	object->wxflag &= ~(WX_ATEOF|WX_READEOF);
+	handle->wxflag &= ~(WX_ATEOF|WX_READEOF);
 	return EOK;
 }

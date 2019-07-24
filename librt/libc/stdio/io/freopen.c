@@ -27,14 +27,14 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 FILE* freopen(
 	_In_ const char* filename, 
 	_In_ const char* mode, 
 	_In_ FILE*       stream)
 {
-	stdio_object_t* object;
+	stdio_handle_t* handle;
 	int             open_flags;
 	int             stream_flags;
 	int             fd;
@@ -57,8 +57,8 @@ FILE* freopen(
 		if (fd == -1) {
 			return NULL;
 		}
-		object = stdio_object_get(fd);
-		stdio_object_set_buffered(object, stream, stream_flags);
+		handle = stdio_handle_get(fd);
+		stdio_handle_set_buffered(handle, stream, stream_flags);
 	}
 	else {
 		if (mode != NULL) {

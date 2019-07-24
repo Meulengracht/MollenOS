@@ -25,7 +25,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 #include <io.h>
 
 long tell(
@@ -43,7 +43,7 @@ long long telli64(
 long long ftelli64(
 	_In_ FILE *stream)
 {
-    stdio_object_t* object;
+    stdio_handle_t* handle;
 	long long       position;
 
 	if (!stream) {
@@ -52,8 +52,8 @@ long long ftelli64(
 	}
 	
 	_lock_file(stream);
-	object = stdio_object_get(stream->_fd);
-    if (object == NULL) {
+	handle = stdio_handle_get(stream->_fd);
+    if (handle == NULL) {
 		_unlock_file(stream);
         _set_errno(EBADFD);
         return -1;
@@ -72,7 +72,7 @@ long long ftelli64(
 			position += stream->_ptr - stream->_base;
 
 			// Extra special case in case of text stream
-			if (object->wxflag & WX_TEXT) {
+			if (handle->wxflag & WX_TEXT) {
 				char *p;
 
 				for (p = stream->_base; p < stream->_ptr; p++) {
@@ -92,7 +92,7 @@ long long ftelli64(
 			position -= stream->_cnt;
 
 			// Special case for text streams again
-			if (object->wxflag & WX_TEXT) {
+			if (handle->wxflag & WX_TEXT) {
 				for (i = 0; i < stream->_cnt; i++) {
 					if (stream->_ptr[i] == '\n') {
 						position--;
@@ -114,8 +114,8 @@ long long ftelli64(
 			position += stream->_ptr - stream->_base;
 
 			// And lastly, special text case
-			if (object->wxflag & WX_TEXT) {
-				if (object->wxflag & WX_READNL) {
+			if (handle->wxflag & WX_TEXT) {
+				if (handle->wxflag & WX_READNL) {
 					position--;
 				}
 

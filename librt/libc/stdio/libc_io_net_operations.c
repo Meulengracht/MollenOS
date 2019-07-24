@@ -20,32 +20,50 @@
  * - Standard IO socket operation implementations.
  */
 
+#include <internal/_io.h>
+#include <internal/_syscalls.h>
 #include <errno.h>
-#include "libc_io.h"
+#include <os/mollenos.h>
 
 OsStatus_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    return OsSuccess;
+    intmax_t num_bytes = recv(handle->fd, buffer, length, 0);
+    if (num_bytes >= 0) {
+        *bytes_read = (size_t)num_bytes;
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 OsStatus_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    return OsSuccess;
+    intmax_t num_bytes = send(handle->fd, buffer, length, 0);
+    if (num_bytes >= 0) {
+        *bytes_written = (size_t)num_bytes;
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 OsStatus_t stdio_net_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    return OsSuccess;
+    // It is not possible to seek in sockets.
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 {
-    return OsSuccess;
+    // TODO: Implement resizing of socket buffers
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    return OsSuccess;
+    // Reuse existing system calls as the socket structure is a combination
+    // of different services. What we should do here is actually query the size
+    // of the queues before calling free, but currently all queues are 4k
+    MemoryFree(handle->object.data.socket.recv_queue, 0x1000);
+    return Syscall_DestroyHandle(handle->object.handle);
 }
 
 void stdio_get_net_operations(stdio_ops_t* ops)

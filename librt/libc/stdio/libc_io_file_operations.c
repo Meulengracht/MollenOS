@@ -31,7 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "libc_io.h"
+#include <internal/_io.h>
 #include "../threads/tls.h"
 
 static inline int
@@ -85,13 +85,13 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
             return status;
         }
         
-        err_code = perform_transfer(handle->InheritationHandle, attachment.handle,
+        err_code = perform_transfer(handle->object.handle, attachment.handle,
             0, length, 0, length, bytes_read);
         dma_detach(&attachment);
         return err_code == EOK ? OsSuccess : OsError;
     }
     
-    err_code = perform_transfer(handle->InheritationHandle, builtin_handle, 0, builtin_length, 0, length, bytes_read);
+    err_code = perform_transfer(handle->object.handle, builtin_handle, 0, builtin_length, 0, length, bytes_read);
     memcpy(buffer, tls_current()->transfer_buffer.buffer, *bytes_read);
     return err_code == EOK ? OsSuccess : OsError;
 }
@@ -121,14 +121,14 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
             return status;
         }
         
-        err_code = perform_transfer(handle->InheritationHandle, attachment.handle,
+        err_code = perform_transfer(handle->object.handle, attachment.handle,
             1, length, 0, length, bytes_written);
         dma_detach(&attachment);
         return err_code == EOK ? OsSuccess : OsError;
     }
     
     memcpy(tls_current()->transfer_buffer.buffer, buffer, length);
-    err_code = perform_transfer(handle->InheritationHandle, builtin_handle, 1, builtin_length, 0, length, bytes_written);
+    err_code = perform_transfer(handle->object.handle, builtin_handle, 1, builtin_length, 0, length, bytes_written);
     return err_code == EOK ? OsSuccess : OsError;
 }
 
@@ -144,7 +144,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            Status = GetFilePosition(handle->InheritationHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            Status = GetFilePosition(handle->object.handle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (Status != OsSuccess) {
                 ERROR("failed to get file position");
                 return OsError;
@@ -158,7 +158,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
             }
         }
         else {
-            Status = GetFileSize(handle->InheritationHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            Status = GetFileSize(handle->object.handle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (Status != OsSuccess) {
                 ERROR("failed to get file size");
                 return OsError;
@@ -171,7 +171,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
     }
 
     // Now perform the seek
-    FsStatus = SeekFile(handle->InheritationHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
+    FsStatus = SeekFile(handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
     if (!_fval((int)FsStatus)) {
         *position_out = SeekFinal.QuadPart;
         return OsSuccess;
@@ -187,7 +187,7 @@ OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
-	int        result    = (int)CloseFile(handle->InheritationHandle);
+	int        result    = (int)CloseFile(handle->object.handle);
 	OsStatus_t converted = OsSuccess;
     if (_fval(result)) {
         result    = -1;

@@ -1,28 +1,7 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
- *
- * This program is free software : you can redistribute it and / or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation ? , either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Support
- * - Standard IO Support header
- */
+#ifndef __INTERNAL_IO_H__
+#define __INTERNAL_IO_H__
 
-#ifndef __STDIO_IO_H__
-#define __STDIO_IO_H__
-
+#include <internal/_socket.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 #include <os/spinlock.h>
@@ -57,12 +36,17 @@
 #define STDIO_HANDLE_FILE       2
 #define STDIO_HANDLE_SOCKET     3
 
+typedef struct stdio_handle stdio_handle_t;
+
 // Inheritable handle that is shared with child processes
 // should contain only portable information
 typedef struct {
-    int    InheritationType;
-    UUId_t InheritationHandle;
-} stdio_handle_t;
+    UUId_t handle;
+    int    type;
+    union {
+        struct socket socket;
+    } data;
+} stdio_object_t;
 
 // Stdio descriptor operations
 typedef OsStatus_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
@@ -81,24 +65,24 @@ typedef struct {
 
 // Local to application handle that also handles state, stream and buffer
 // support for a handle.
-typedef struct {
+typedef struct stdio_handle {
     int            fd;
     spinlock_t     lock;
-    stdio_handle_t handle;
+    stdio_object_t object;
     stdio_ops_t    ops;
     unsigned short wxflag;
     char           lookahead[3];
     FILE*          buffered_stream;
-} stdio_object_t;
+} stdio_handle_t;
 
 // io-object interface
-extern int             stdio_object_create(int, int, stdio_object_t**);
-extern int             stdio_object_set_handle(stdio_object_t*, UUId_t);
-extern int             stdio_object_set_ops_type(stdio_object_t*, int);
-extern int             stdio_object_set_buffered(stdio_object_t*, FILE*, unsigned int);
-extern int             stdio_object_destroy(stdio_object_t*, int);
-extern stdio_object_t* stdio_object_get(int fd);
-extern Collection_t*   stdio_get_objects(void);
+extern int             stdio_handle_create(int, int, stdio_handle_t**);
+extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
+extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
+extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
+extern int             stdio_handle_destroy(stdio_handle_t*, int);
+extern stdio_handle_t* stdio_handle_get(int fd);
+extern Collection_t*   stdio_get_handles(void);
 
 // io-buffer interface
 extern OsStatus_t os_alloc_buffer(FILE* file);
@@ -130,4 +114,4 @@ StdioCreateInheritanceBlock(
     _Out_ void**                       InheritationBlock,
     _Out_ size_t*                      InheritationBlockLength);
 
-#endif //!__STDIO_IO_H__
+#endif //!__INTERNAL_IO_H__

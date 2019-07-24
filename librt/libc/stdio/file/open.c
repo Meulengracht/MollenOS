@@ -30,7 +30,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 // Convert O_* flags to WX_* flags
 static unsigned
@@ -65,7 +65,7 @@ oftowx(unsigned oflags)
 int open(const char* file, int flags, ...)
 {
     FileSystemCode_t code;
-    stdio_object_t*  object;
+    stdio_handle_t*  object;
     UUId_t           handle;
     int              pmode = 0;
     int              fd    = -1;
@@ -86,12 +86,12 @@ int open(const char* file, int flags, ...)
     // Try to open the file by directly communicating with the file-service
     code = OpenFile(file, _fopts(flags), _faccess(flags), &handle);
     if (!_fval(code)) {
-        if (stdio_object_create(-1, oftowx((unsigned int)flags), &object)) {
+        if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
             CloseFile(handle);
             return -1;
         }
-        stdio_object_set_ops_type(object, STDIO_HANDLE_FILE);
-        stdio_object_set_handle(object, handle);
+        stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
+        stdio_handle_set_handle(object, handle);
     }
     return fd;
 }

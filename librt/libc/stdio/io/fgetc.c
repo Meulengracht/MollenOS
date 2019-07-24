@@ -24,7 +24,7 @@
 
 #include <io.h>
 #include <stdio.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int _filbuf(
 	_In_ FILE *file)

@@ -25,11 +25,11 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "../stdlib/mb/mbctype.h"
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 wint_t fgetwc(FILE *stream)
 {
-	stdio_object_t* object;
+	stdio_handle_t* handle;
     wint_t          Result;
     int             ch;
     
@@ -39,14 +39,14 @@ wint_t fgetwc(FILE *stream)
     }
 
     _lock_file(stream);
-    object = stdio_object_get(stream->_fd);
-    if (!object) {
+    handle = stdio_handle_get(stream->_fd);
+    if (!handle) {
         _unlock_file(stream);
         _set_errno(EBADFD);
         return WEOF;
     }
 
-    if ((object->wxflag & WX_UTF) || !(object->wxflag & WX_TEXT)) {
+    if ((handle->wxflag & WX_UTF) || !(handle->wxflag & WX_TEXT)) {
         char *p;
         for (p = (char *)&Result; (wint_t *)p < &Result + 1; p++) {
             ch = fgetc(stream);

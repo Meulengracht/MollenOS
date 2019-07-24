@@ -28,7 +28,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <io.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int
 _fflags(

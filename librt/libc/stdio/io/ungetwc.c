@@ -21,7 +21,7 @@
  */
 
 #include <errno.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -30,7 +30,7 @@ wint_t ungetwc(
     _In_ wint_t wc, 
     _In_ FILE *file)
 {
-    stdio_object_t* object;
+    stdio_handle_t* handle;
     wchar_t         mwc = wc;
 
     if (wc == WEOF) {
@@ -43,8 +43,8 @@ wint_t ungetwc(
     }
     _lock_file(file);
     
-    object = stdio_object_get(file->_fd);
-    if ((object->wxflag & WX_UTF) || !(object->wxflag & WX_TEXT)) {
+    handle = stdio_handle_get(file->_fd);
+    if ((handle->wxflag & WX_UTF) || !(handle->wxflag & WX_TEXT)) {
         unsigned char *pp = (unsigned char *)&mwc;
         int i;
 

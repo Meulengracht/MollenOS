@@ -79,6 +79,10 @@ _CODE_END
 #define Syscall_FutexWait(Parameters)                                      (OsStatus_t)syscall1(47, SCPARAM(Parameters))
 #define Syscall_FutexWake(Parameters)                                      (OsStatus_t)syscall1(48, SCPARAM(Parameters))
 
+#define Syscall_CreateSocket(Flags, HandleOut, RecieveQueueOut)            (OsStatus_t)syscall3(49, SCPARAM(Flags), SCPARAM(HandleOut), SCPARAM(RecieveQueueOut))
+#define Syscall_InheritSocket(Handle, RecieveQueueOut)                     (OsStatus_t)syscall2(50, SCPARAM(Handle), SCPARAM(RecieveQueueOut))
+#define Syscall_BindSocket(Handle, LocalAddress)                           (OsStatus_t)syscall2(51, SCPARAM(Handle), SCPARAM(LocalAddress))
+
 #define Syscall_CreatePipe(Flags, HandleOut)                               (OsStatus_t)syscall2(49, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_DestroyPipe(Handle)                                        (OsStatus_t)syscall1(50, SCPARAM(Handle))
 #define Syscall_ReadPipe(Handle, Buffer, Length)                           (OsStatus_t)syscall3(51, SCPARAM(Handle), SCPARAM(Buffer), SCPARAM(Length))

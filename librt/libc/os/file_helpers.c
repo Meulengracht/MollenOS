@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -27,7 +28,7 @@
 #include <os/services/storage.h>
 #include <os/mollenos.h>
 #include <stdio.h>
-#include "../stdio/libc_io.h"
+#include <internal/_io.h>
 
 OsStatus_t
 GetFilePathFromFd(
@@ -35,13 +36,13 @@ GetFilePathFromFd(
     _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-    stdio_object_t* object = stdio_object_get(FileDescriptor);
+    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
 
-    if (object == NULL || PathBuffer == NULL || 
-        object->handle.InheritationType != STDIO_HANDLE_FILE) {
+    if (handle == NULL || PathBuffer == NULL || 
+        handle->object.type != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFilePath(object->handle.InheritationHandle, PathBuffer, MaxLength);
+    return GetFilePath(handle->object.handle, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -60,13 +61,13 @@ GetStorageInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsStorageDescriptor_t* Information)
 {
-    stdio_object_t* object = stdio_object_get(FileDescriptor);
+    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
 
-    if (object == NULL || Information == NULL ||
-        object->handle.InheritationType != STDIO_HANDLE_FILE) {
+    if (handle == NULL || Information == NULL ||
+        handle->object.type != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryStorageByHandle(object->handle.InheritationHandle, Information);
+    return QueryStorageByHandle(handle->object.handle, Information);
 }
 
 FileSystemCode_t
@@ -85,13 +86,13 @@ GetFileSystemInformationFromFd(
     _In_ int FileDescriptor,
     _In_ OsFileSystemDescriptor_t *Information)
 {
-    stdio_object_t* object = stdio_object_get(FileDescriptor);
+    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
 
-    if (object == NULL || Information == NULL ||
-        object->handle.InheritationType != STDIO_HANDLE_FILE) {
+    if (handle == NULL || Information == NULL ||
+        handle->object.type != STDIO_HANDLE_FILE) {
         return FsInvalidParameters;
     }
-    return GetFileSystemStatsByHandle(object->handle.InheritationHandle, Information);
+    return GetFileSystemStatsByHandle(handle->object.handle, Information);
 }
 
 FileSystemCode_t
@@ -110,13 +111,13 @@ GetFileInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsFileDescriptor_t*    Information)
 {
-    stdio_object_t* object = stdio_object_get(FileDescriptor);
+    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
 
-    if (object == NULL || Information == NULL ||
-        object->handle.InheritationType != STDIO_HANDLE_FILE) {
+    if (handle == NULL || Information == NULL ||
+        handle->object.type != STDIO_HANDLE_FILE) {
         return FsInvalidParameters;
     }
-    return GetFileStatsByHandle(object->handle.InheritationHandle, Information);
+    return GetFileStatsByHandle(handle->object.handle, Information);
 }
 
 OsStatus_t
@@ -129,11 +130,11 @@ CreateFileMapping(
     _Out_ UUId_t*  Handle)
 {
     FileMappingParameters_t Parameters;
-    stdio_object_t*         object = stdio_object_get(FileDescriptor);
+    stdio_handle_t*         handle = stdio_handle_get(FileDescriptor);
     OsStatus_t              Status;
 
     // Sanitize that the descritor is valid
-    if (object == NULL || object->handle.InheritationType != STDIO_HANDLE_FILE) {
+    if (handle == NULL || handle->object.type != STDIO_HANDLE_FILE) {
         return OsError;
     }
 

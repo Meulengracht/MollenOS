@@ -22,7 +22,7 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
-#include "../../librt/libc/stdio/libc_io.h"
+#include "../../librt/libc/include/internal/_io.h"
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
 #include <arch/interrupts.h>

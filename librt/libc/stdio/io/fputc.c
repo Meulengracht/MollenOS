@@ -21,7 +21,7 @@
  */
 
 #include <stdio.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int fputc(
     _In_ int   character,

@@ -23,7 +23,7 @@
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
-#include "../libc_io.h"
+#include <internal/_io.h>
 
 int fsetpos(
 	_In_ FILE*         stream, 
