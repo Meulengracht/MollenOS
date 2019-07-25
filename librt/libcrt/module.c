@@ -52,7 +52,7 @@ void __CrtModuleEntry(void)
     if (OnLoad() != OsSuccess) {
         exit(-1);
     }
-
+    
     // Initialize the driver event loop
     ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {

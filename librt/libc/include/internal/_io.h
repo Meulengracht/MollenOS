@@ -49,18 +49,20 @@ typedef struct {
 } stdio_object_t;
 
 // Stdio descriptor operations
-typedef OsStatus_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
-typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
-typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
+typedef OsStatus_t (*stdio_inherit)(stdio_handle_t*);
+typedef OsStatus_t (*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
+typedef OsStatus_t (*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
+typedef OsStatus_t (*stdio_resize)(stdio_handle_t*, long long);
+typedef OsStatus_t (*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
+typedef OsStatus_t (*stdio_close)(stdio_handle_t*, int);
 
 typedef struct {
-    stdio_read   read;
-    stdio_write  write;
-    stdio_resize resize;
-    stdio_seek   seek;
-    stdio_close  close;
+    stdio_inherit inherit;
+    stdio_read    read;
+    stdio_write   write;
+    stdio_resize  resize;
+    stdio_seek    seek;
+    stdio_close   close;
 } stdio_ops_t;
 
 // Local to application handle that also handles state, stream and buffer

@@ -56,14 +56,13 @@ int listen(int iod, int backlog)
         return -1;
     }
     
-    if (handle->object.data.socket.state != socket_bound) {
-        if (handle->object.data.socket.state == socket_connected ||
-            handle->object.data.socket.state == socket_listener) {
-            _set_errno(EISCONN);
-        }
-        else {
-            _set_errno(EHOSTUNREACH);
-        }
+    if (handle->object.data.socket.flags & (SOCKET_PASSIVE | SOCKET_CONNECTED)) {
+        _set_errno(EISCONN);
+        return -1;
+    }
+    
+    if (!(handle->object.data.socket.flags & SOCKET_BOUND)) {
+        _set_errno(EHOSTUNREACH);
         return -1;
     }
     
@@ -90,6 +89,6 @@ int listen(int iod, int backlog)
     
     // So if we reach here we can continue the listener process, update
     // the socket state to reflect the new state
-    handle->object.data.socket.state = socket_listener;
+    handle->object.data.socket.flags |= SOCKET_PASSIVE;
     return 0;
 }

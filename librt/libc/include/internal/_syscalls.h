@@ -81,7 +81,9 @@ _CODE_END
 
 #define Syscall_CreateSocket(Flags, HandleOut, RecieveQueueOut)            (OsStatus_t)syscall3(49, SCPARAM(Flags), SCPARAM(HandleOut), SCPARAM(RecieveQueueOut))
 #define Syscall_InheritSocket(Handle, RecieveQueueOut)                     (OsStatus_t)syscall2(50, SCPARAM(Handle), SCPARAM(RecieveQueueOut))
-#define Syscall_BindSocket(Handle, LocalAddress)                           (OsStatus_t)syscall2(51, SCPARAM(Handle), SCPARAM(LocalAddress))
+#define Syscall_BindSocket(Handle, Address)                                (OsStatus_t)syscall2(51, SCPARAM(Handle), SCPARAM(Address))
+#define Syscall_WriteSocket(Address, Buffer, Length, BytesWrittenOut)      (OsStatus_t)syscall4(52, SCPARAM(Address), SCPARAM(Buffer), SCPARAM(Length), SCPARAM(BytesWrittenOut))
+#define Syscall_GetSocketAddress(Handle, AddressOut, AddressLengthOut)     (OsStatus_t)syscall3(53, SCPARAM(Handle), SCPARAM(AddressOut), SCPARAM(AddressLengthOut))
 
 #define Syscall_CreatePipe(Flags, HandleOut)                               (OsStatus_t)syscall2(49, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_DestroyPipe(Handle)                                        (OsStatus_t)syscall1(50, SCPARAM(Handle))

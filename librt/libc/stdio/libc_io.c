@@ -201,8 +201,6 @@ StdioCreateInheritanceBlock(
     return OsSuccess;
 }
 
-/* StdioInheritObject
- * Inherits the given object that's been parsed from an inheritance block */
 static void
 StdioInheritObject(
     _In_ stdio_handle_t* InheritHandle)
@@ -223,9 +221,13 @@ StdioInheritObject(
         }
         stdio_handle_set_handle(handle, InheritHandle->object.handle);
         stdio_handle_set_ops_type(handle, InheritHandle->object.type);
+        if (handle->ops.inherit(handle) != OsSuccess) {
+            WARNING(" > failed to inherit fd %i", InheritHandle->fd);
+            stdio_handle_destroy(handle, 0);
+        }
     }
     else {
-        WARNING(" > failed to inherit fd %i", InheritHandle->fd);
+        WARNING(" > failed to create inheritted handle with fd %i", InheritHandle->fd);
     }
 }
 

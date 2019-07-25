@@ -48,11 +48,17 @@ OsStatus_t stdio_null_op_close(stdio_handle_t* handle, int options)
     return OsNotSupported;
 }
 
+OsStatus_t stdio_null_op_inherit(stdio_handle_t* handle)
+{
+    return OsSuccess;
+}
+
 void stdio_get_null_operations(stdio_ops_t* ops)
 {
-    ops->read   = stdio_null_op_read;
-    ops->write  = stdio_null_op_write;
-    ops->seek   = stdio_null_op_seek;
-    ops->resize = stdio_null_op_resize;
-    ops->close  = stdio_null_op_close;
+    ops->inherit = stdio_null_op_inherit;
+    ops->read    = stdio_null_op_read;
+    ops->write   = stdio_null_op_write;
+    ops->seek    = stdio_null_op_seek;
+    ops->resize  = stdio_null_op_resize;
+    ops->close   = stdio_null_op_close;
 }

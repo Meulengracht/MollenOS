@@ -196,11 +196,17 @@ OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
     return converted;
 }
 
+OsStatus_t stdio_file_op_inherit(stdio_handle_t* handle)
+{
+    return OsSuccess;
+}
+
 void stdio_get_file_operations(stdio_ops_t* ops)
 {
-    ops->read   = stdio_file_op_read;
-    ops->write  = stdio_file_op_write;
-    ops->seek   = stdio_file_op_seek;
-    ops->resize = stdio_file_op_resize;
-    ops->close  = stdio_file_op_close;
+    ops->inherit = stdio_file_op_inherit;
+    ops->read    = stdio_file_op_read;
+    ops->write   = stdio_file_op_write;
+    ops->seek    = stdio_file_op_seek;
+    ops->resize  = stdio_file_op_resize;
+    ops->close   = stdio_file_op_close;
 }

@@ -50,11 +50,12 @@
 #include <inet/local.h>
 #include <errno.h>
 #include <os/mollenos.h>
+#include <string.h>
 
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    int             i;
+    intmax_t        numbytes;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -76,19 +77,18 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
-    for (i = 0; i < msg_hdr->msg_iovlen; i++) {
-        //struct iovec* iov = &msg_hdr->msg_iov[i];
-    }
+    numbytes = handle->object.data.socket.domain_ops.recv(handle, msg_hdr, flags);
     
     // Fill in the souce address if one was provided already, and overwrite
-    // the one provided by the packet. Why??
-    if (msg_hdr->msg_name != NULL) {
-        if (handle->object.data.socket.state == socket_connected) {
-            // TODO:
-            // copy address
+    // the one provided by the packet.
+    if (numbytes > 0 && msg_hdr->msg_name != NULL) {
+        if (handle->object.data.socket.flags & SOCKET_CONNECTED) {
+            memcpy(msg_hdr->msg_name, &handle->object.data.socket.default_address,
+                handle->object.data.socket.default_address.__ss_len);
+            msg_hdr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
         }
     }
-    return 0;
+    return numbytes;
 }
 
 intmax_t recvfrom(int iod, void* buffer, size_t length, int flags, struct sockaddr* address_out, socklen_t* address_length_out)

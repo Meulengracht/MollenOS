@@ -51,8 +51,17 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
+    if (msg_hdr->msg_name == NULL) {
+        if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
+            _set_errno(EDESTADDRREQ);
+            return -1;
+        }
+        struct msghdr* msg_ptr = (struct msghdr*)msg_hdr;
+        msg_ptr->msg_name    = &handle->object.data.socket.default_address;
+        msg_ptr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
+    }
     
-    return 0;
+    return handle->object.data.socket.domain_ops.send(handle, msg_hdr, flags);
 }
 
 intmax_t sendto(int iod, const void* buffer, size_t length, int flags, const struct sockaddr* address, socklen_t address_length)

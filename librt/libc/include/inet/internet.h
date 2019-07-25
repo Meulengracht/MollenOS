@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -36,6 +37,38 @@ typedef	uint16_t in_port_t;
 typedef	uint32_t in_addr_t;
 #endif
 
+// Values that are available for sockets
+#define IPPROTO_IP            0    /* Dummy protocol for TCP */
+#define IPPROTO_HOPOPTS       0    /* IPv6 Hop-by-Hop options.  */
+#define IPPROTO_ICMP          1    /* Internet Control Message Protocol */
+#define IPPROTO_IGMP          2    /* Internet Group Management Protocol */
+#define IPPROTO_IPIP          4    /* IPIP tunnels (older KA9Q tunnels use 94) */
+#define IPPROTO_TCP           6    /* Transmission Control Protocol */
+#define IPPROTO_EGP           8    /* Exterior Gateway Protocol */
+#define IPPROTO_PUP           12   /* PUP protocol */
+#define IPPROTO_UDP           17   /* User Datagram Protocol */
+#define IPPROTO_IDP           22   /* XNS IDP protocol */
+#define IPPROTO_TP            29   /* SO Transport Protocol Class 4.  */
+#define IPPROTO_DCCP          33   /* Datagram Congestion Control Protocol */
+#define IPPROTO_IPV6          41   /* IPv6-in-IPv4 tunnelling */
+#define IPPROTO_ROUTING       43   /* IPv6 routing header. */
+#define IPPROTO_FRAGMENT      44   /* IPv6 fragmentation header.  */
+#define IPPROTO_RSVP          46   /* Reservation Protocol. */
+#define IPPROTO_GRE           47   /* General Routing Encapsulation. */
+#define IPPROTO_ESP           50   /* Encapsulation Security Payload protocol */
+#define IPPROTO_AH            51   /* Authentication Header protocol */
+#define IPPROTO_ICMPV6        58   /* ICMPv6 */
+#define IPPROTO_NONE          59   /* IPv6 no next header. */
+#define IPPROTO_DSTOPTS       60   /* IPv6 destination options. */
+#define IPPROTO_MTP           92   /* Multicast Transport Protocol.  */
+#define IPPROTO_ENCAP         98   /* Encapsulation Header. */
+#define IPPROTO_BEETPH        94   /* IP option pseudo header for BEET */
+#define IPPROTO_PIM           103  /* Protocol Independent Multicast */
+#define IPPROTO_COMP          108  /* Compression Header protocol */
+#define IPPROTO_SCTP          132  /* Stream Control Transport Protocol */
+#define IPPROTO_UDPLITE       136  /* UDP-Lite (RFC 3828) */
+#define IPPROTO_RAW           255  /* Raw IP packets */
+
 // Definitions of the bits in an Internet address integer.
 // On subnets, host and network parts are found according to
 // the subnet mask, not these masks.
@@ -58,22 +91,18 @@ typedef	uint32_t in_addr_t;
 #define IN_EXPERIMENTAL(a) ((((in_addr_t)(a)) & 0xe0000000) == 0xe0000000)
 #define IN_BADCLASS(a)     ((((in_addr_t)(a)) & 0xf0000000) == 0xf0000000)
 
-/* Address to accept any incoming messages.  */
-#define INADDR_ANY ((in_addr_t) 0x00000000)
+#define INADDR_ANY ((in_addr_t) 0x00000000)        /* Address to accept any incoming messages.  */
+#define INADDR_BROADCAST ((in_addr_t) 0xffffffff)  /* Address to send to all hosts.  */
+#define INADDR_NONE ((in_addr_t) 0xffffffff)       /* Address indicating an error return.  */
+#ifndef INADDR_LOOPBACK
+#define INADDR_LOOPBACK ((in_addr_t) 0x7f000001)   /* Address for loopback to local host, inet 127.0.0.1.  */
+#endif
 
-/* Address to send to all hosts.  */
-#define INADDR_BROADCAST ((in_addr_t) 0xffffffff)
-
-/* Address indicating an error return.  */
-#define INADDR_NONE ((in_addr_t) 0xffffffff)
+#define IN6ADDR_ANY_INIT      {{{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}}}
+#define IN6ADDR_LOOPBACK_INIT {{{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}}}
 
 /* Network number for local host loopback.  */
 #define IN_LOOPBACKNET 127
-
-/* Address to loopback in software to local host.  */
-#ifndef INADDR_LOOPBACK
-#define INADDR_LOOPBACK ((in_addr_t) 0x7f000001) /* Inet 127.0.0.1.  */
-#endif
 
 /* Defines for Multicast INADDR.  */
 #define INADDR_UNSPEC_GROUP    ((in_addr_t) 0xe0000000) /* 224.0.0.0 */

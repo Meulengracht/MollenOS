@@ -35,24 +35,38 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
 
 OsStatus_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    return OsSuccess;
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_pipe_op_resize(stdio_handle_t* handle, long long resize_by)
 {
-    return OsSuccess;
+    // This could be implemented some day, but for now we do not support
+    // the resize operation on pipes.
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
 {
+    // Depending on the setup of the pipe. If the pipe is local, then we 
+    // can simply free the structure. If the pipe is global/inheritable, we need
+    // to free the memory used, and destroy the handle.
+    return OsSuccess;
+}
+
+OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
+{
+    // dma_attach
+    // dma_attachment_map
+    // 
     return OsSuccess;
 }
 
 void stdio_get_pipe_operations(stdio_ops_t* ops)
 {
-    ops->read   = stdio_pipe_op_read;
-    ops->write  = stdio_pipe_op_write;
-    ops->seek   = stdio_pipe_op_seek;
-    ops->resize = stdio_pipe_op_resize;
-    ops->close  = stdio_pipe_op_close;
+    ops->inherit = stdio_pipe_op_inherit;
+    ops->read    = stdio_pipe_op_read;
+    ops->write   = stdio_pipe_op_write;
+    ops->seek    = stdio_pipe_op_seek;
+    ops->resize  = stdio_pipe_op_resize;
+    ops->close   = stdio_pipe_op_close;
 }

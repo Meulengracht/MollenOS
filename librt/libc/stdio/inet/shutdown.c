@@ -46,12 +46,6 @@ int shutdown(int iod, int how)
         return -1;
     }
     
-    if (handle->object.data.socket.state == socket_idle ||
-        handle->object.data.socket.state == socket_bound) {
-        _set_errno(ENOTCONN);
-        return -1;
-    }
-    
     switch (handle->object.data.socket.domain) {
         case AF_LOCAL: {
             // do nothing

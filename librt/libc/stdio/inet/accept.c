@@ -83,11 +83,11 @@ int accept(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
         return -1;        
     }
     
-    if (handle->object.data.socket.state != socket_listener) {
-        if (handle->object.data.socket.state == socket_connected) {
+    if (!(handle->object.data.socket.flags & SOCKET_PASSIVE)) {
+        if (handle->object.data.socket.flags & SOCKET_CONNECTED) {
             _set_errno(EISCONN);
         }
-        else if (handle->object.data.socket.state == socket_bound) {
+        else if (handle->object.data.socket.flags & SOCKET_BOUND) {
             _set_errno(ENOTCONN);
         }
         else {

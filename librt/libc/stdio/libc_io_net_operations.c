@@ -66,11 +66,37 @@ OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
     return Syscall_DestroyHandle(handle->object.handle);
 }
 
+OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
+{
+    OsStatus_t status = Syscall_InheritSocket(handle->object.handle, 
+        &handle->object.data.socket.recv_queue);
+    if (status != OsSuccess) {
+        return status;
+    }
+    
+    switch (handle->object.data.socket.domain) {
+        case AF_LOCAL: {
+            get_socket_ops_local(&handle->object.data.socket.domain_ops);
+        } break;
+        
+        case AF_INET:
+        case AF_INET6: {
+            get_socket_ops_inet(&handle->object.data.socket.domain_ops);
+        } break;
+        
+        default: {
+            get_socket_ops_null(&handle->object.data.socket.domain_ops);
+        } break;
+    }
+    return status;
+}
+
 void stdio_get_net_operations(stdio_ops_t* ops)
 {
-    ops->read   = stdio_net_op_read;
-    ops->write  = stdio_net_op_write;
-    ops->seek   = stdio_net_op_seek;
-    ops->resize = stdio_net_op_resize;
-    ops->close  = stdio_net_op_close;
+    ops->inherit = stdio_net_op_inherit;
+    ops->read    = stdio_net_op_read;
+    ops->write   = stdio_net_op_write;
+    ops->seek    = stdio_net_op_seek;
+    ops->resize  = stdio_net_op_resize;
+    ops->close   = stdio_net_op_close;
 }

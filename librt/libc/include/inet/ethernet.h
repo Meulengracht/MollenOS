@@ -17,30 +17,26 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Local Address Support Definitions & Structures
- * - This header describes the base lcaddr-structures, prototypes
+ * Ethernet Header Support Definitions & Structures
+ * - This header describes the base ethernet-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
- 
-#ifndef __INET_LOCAL_H__
-#define __INET_LOCAL_H__
 
-#include <inet/socket.h>
+#ifndef __INET_ETHERNET_H__
+#define	__INET_ETHERNET_H__
 
-// global paths
-#define LCADDR_INPUT "/lc/input"
-#define LCADDR_WM    "/lc/wm"
+#include <stdint.h>
 
-struct sockaddr_lc {
-	uint8_t     slc_len;
-	sa_family_t slc_family;   // AF_LOCAL
-    char        slc_addr[32]; // see defines above
+#define ETHER_ADDR_LEN  6
+
+struct ether_addr {
+  uint8_t ether_addr_octet[6];            /* 48-bit Ethernet address */
 };
 
-static inline struct sockaddr_lc *
-sstolc(struct sockaddr_storage *ss)
-{
-    return ((struct sockaddr_lc *)(ss));
-}
+struct ether_header {
+  uint8_t  ether_dhost[ETHER_ADDR_LEN];   /* Destination Ethernet address */
+  uint8_t  ether_shost[ETHER_ADDR_LEN];   /* Source Ethernet address */
+  uint16_t ether_type;                    /* Ethernet packet type*/
+};
 
-#endif //!__INET_LOCAL_H__
+#endif //!__INET_ETHERNET_H__

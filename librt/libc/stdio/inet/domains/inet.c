@@ -17,30 +17,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Local Address Support Definitions & Structures
- * - This header describes the base lcaddr-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * Standard C Support
+ * - Standard Socket IO Implementation
  */
- 
-#ifndef __INET_LOCAL_H__
-#define __INET_LOCAL_H__
 
-#include <inet/socket.h>
+#include <internal/_io.h>
 
-// global paths
-#define LCADDR_INPUT "/lc/input"
-#define LCADDR_WM    "/lc/wm"
-
-struct sockaddr_lc {
-	uint8_t     slc_len;
-	sa_family_t slc_family;   // AF_LOCAL
-    char        slc_addr[32]; // see defines above
-};
-
-static inline struct sockaddr_lc *
-sstolc(struct sockaddr_storage *ss)
+static intmax_t inet_recv(stdio_handle_t* handle, struct msghdr* msg, int flags)
 {
-    return ((struct sockaddr_lc *)(ss));
+    return 0;
 }
 
-#endif //!__INET_LOCAL_H__
+static intmax_t inet_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
+{
+    return 0;
+}
+
+void get_socket_ops_inet(struct socket_ops* ops)
+{
+    ops->recv = inet_recv;
+    ops->send = inet_send;
+}

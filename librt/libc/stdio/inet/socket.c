@@ -54,9 +54,23 @@ int socket(int domain, int type, int protocol)
     stdio_handle_set_handle(io_object, handle);
     stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
     
-    io_object->object.data.socket.domain = domain;
-    io_object->object.data.socket.type = type;
+    switch (domain) {
+        case AF_LOCAL: {
+            get_socket_ops_local(&io_object->object.data.socket.domain_ops);
+        } break;
+        
+        case AF_INET:
+        case AF_INET6: {
+            get_socket_ops_inet(&io_object->object.data.socket.domain_ops);
+        } break;
+        
+        default: {
+            get_socket_ops_null(&io_object->object.data.socket.domain_ops);
+        } break;
+    }
+    
+    io_object->object.data.socket.domain   = domain;
+    io_object->object.data.socket.type     = type;
     io_object->object.data.socket.protocol = protocol;
-    io_object->object.data.socket.state = socket_idle;
     return fd;
 }

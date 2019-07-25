@@ -55,19 +55,24 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
+    if (!(handle->object.data.socket.flags & SOCKET_BOUND)) {
+        // bind us to a random address / port
+        // TODO:
+    }
+    
     // Per the specification, if the type is DGRAM, then we simply provide a default
     // address for the send calls
     if (handle->object.data.socket.type == SOCK_DGRAM) {
         if (address->sa_family == AF_UNSPEC) {
-            handle->object.data.socket.state = socket_idle;
+            handle->object.data.socket.flags &= ~(SOCKET_CONNECTED);
         }
         else {
             memcpy(&handle->object.data.socket.default_address, address, address_length);
-            handle->object.data.socket.state = socket_connected;
+            handle->object.data.socket.flags |= SOCKET_CONNECTED;
         }
     }
     else {
-        if (handle->object.data.socket.state != socket_idle) {
+        if (handle->object.data.socket.flags & (SOCKET_CONNECTED | SOCKET_PASSIVE)) {
             _set_errno(EISCONN);
             return -1;
         }
@@ -95,7 +100,7 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
         
         // So if we reach here we can continue the connection process, update
         // the socket state to reflect the new state
-        handle->object.data.socket.state = socket_connected;
+        handle->object.data.socket.flags |= SOCKET_CONNECTED;
     }
     return 0;
 }
