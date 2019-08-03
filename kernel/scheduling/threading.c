@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -23,7 +24,6 @@
 #define __MODULE "MTIF"
 //#define __TRACE
 
-#include <garbagecollector.h>
 #include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
@@ -39,11 +39,6 @@
 #include <heap.h>
 
 OsStatus_t ThreadingReap(void *Context);
-
-static Collection_t    Threads       = COLLECTION_INIT(KeyId);
-static Collection_t    Zombies       = COLLECTION_INIT(KeyId);
-static UUId_t          GlbThreadGcId = UUID_INVALID;
-static _Atomic(UUId_t) GlbThreadId   = ATOMIC_VAR_INIT(1);
 
 // Common entry point for everything
 static void
@@ -65,7 +60,7 @@ ThreadingEntryPoint(void)
     else if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_KERNELENTRY)) {
         Thread->Flags &= ~(THREADING_KERNELENTRY);
         Thread->Function(Thread->Arguments);
-        TerminateThread(Thread->Header.Key.Value.Id, 0, 1);
+        TerminateThread(Thread->Handle, 0, 1);
     }
     else {
         EnterProtectedThreadLevel();
@@ -73,190 +68,12 @@ ThreadingEntryPoint(void)
     for (;;);
 }
 
-// Create default interrupt and signal stack that will be used
-// in kernel space, and is mandatory for each thread to provide.
 static void
-CreateDefaultThreadContexts(
-    _In_ MCoreThread_t* Thread)
+DestroyThread(
+    _In_ void* Resource)
 {
-    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
-        (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
-
-    // Should we create user stacks immediately?
-}
-
-// Setup defaults for a new thread and creates appropriate resources
-static void
-InitializeDefaultThread(
-    _In_ MCoreThread_t* Thread,
-    _In_ const char*    Name,
-    _In_ ThreadEntry_t  Function,
-    _In_ void*          Arguments,
-    _In_ Flags_t        Flags)
-{
-    char NameBuffer[16];
-
-    // Reset thread structure
-    memset(Thread, 0, sizeof(MCoreThread_t));
-    MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
-    SemaphoreConstruct(&Thread->EventObject, 0, 1);
-    
-    Thread->References          = ATOMIC_VAR_INIT(0);
-    Thread->Header.Key.Value.Id = atomic_fetch_add(&GlbThreadId, 1);
-    Thread->Function            = Function;
-    Thread->Arguments           = Arguments;
-    Thread->Flags               = Flags;
-    Thread->ParentThreadId      = UUID_INVALID;
-    
-    // Get the startup time
-    TimersGetSystemTick(&Thread->StartedAt);
-    
-    // Sanitize name, if NULL generate a new thread name of format 'Thread X'
-    if (Name == NULL) {
-        memset(&NameBuffer[0], 0, sizeof(NameBuffer));
-        sprintf(&NameBuffer[0], "thread %" PRIuIN, Thread->Header.Key.Value.Id);
-        Thread->Name = strdup(&NameBuffer[0]);
-    }
-    else {
-        Thread->Name = strdup(Name);
-    }
-    
-    // Create communication members
-    Thread->Pipe            = CreateSystemPipe(0, 6); // 64 entries, 4kb
-    Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
-    
-    // Register the thread with arch
-    if (ThreadingRegister(Thread) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
-    }
-    CreateDefaultThreadContexts(Thread);
-}
-
-static UUId_t
-CreateThreadCookie(
-    _In_ MCoreThread_t* Thread,
-    _In_ MCoreThread_t* Parent)
-{
-    UUId_t Cookie = Thread->StartedAt ^ Parent->StartedAt;
-    for (int i = 0; i < 5; i++) {
-        Cookie >>= i;
-        Cookie += Thread->StartedAt;
-        Cookie *= Parent->StartedAt;
-    }
-    return Cookie;
-}
-
-OsStatus_t
-ThreadingInitialize(void)
-{
-    GlbThreadGcId = GcRegister(ThreadingReap);
-    return OsSuccess;
-}
-
-OsStatus_t
-ThreadingEnable(void)
-{
-    MCoreThread_t* Thread = &GetCurrentProcessorCore()->IdleThread;
-    InitializeDefaultThread(Thread, "idle", NULL, NULL, 
-        THREADING_KERNELMODE | THREADING_IDLE);
-    
-    // Handle setup of memory space as that is not covered.
-    Thread->MemorySpace       = GetCurrentMemorySpace();
-    Thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
-    GetCurrentProcessorCore()->CurrentThread = Thread;
-    return CollectionAppend(&Threads, &Thread->Header);
-}
-
-OsStatus_t
-CreateThread(
-    _In_  const char*    Name,
-    _In_  ThreadEntry_t  Function,
-    _In_  void*          Arguments,
-    _In_  Flags_t        Flags,
-    _In_  UUId_t         MemorySpaceHandle,
-    _Out_ UUId_t*        Handle)
-{
-    MCoreThread_t*       Thread;
-    MCoreThread_t*       Parent;
-    UUId_t               CoreId;
-    DataKey_t            Key;
-
-    TRACE("CreateThread(%s, 0x%" PRIxIN ")", Name, Flags);
-
-    Key.Value.Id = atomic_fetch_add(&GlbThreadId, 1);
-    CoreId       = ArchGetProcessorCoreId();
-    Parent       = GetCurrentThreadForCore(CoreId);
-
-    Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-    InitializeDefaultThread(Thread, Name, Function, Arguments, Flags);
-    
-    // Setup parent and cookie information
-    Thread->ParentThreadId = Parent->Header.Key.Value.Id;
-    if (Flags & THREADING_INHERIT) {
-        Thread->Cookie = Parent->Cookie;
-    }
-    else {
-        Thread->Cookie = CreateThreadCookie(Thread, Parent);
-    }
-
-    // Is a memory space given to us that we should run in? Determine run mode automatically
-    if (MemorySpaceHandle != UUID_INVALID) {
-        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)LookupHandle(MemorySpaceHandle);
-        if (MemorySpace == NULL) {
-            return OsDoesNotExist;
-        }
-
-        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-            Thread->Flags |= THREADING_USERMODE;
-        }
-        Thread->MemorySpace       = MemorySpace;
-        Thread->MemorySpaceHandle = MemorySpaceHandle;
-        Thread->Cookie            = Parent->Cookie;
-        AcquireHandle(MemorySpaceHandle);
-    }
-    else {
-        if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-            Thread->MemorySpace       = GetDomainMemorySpace();
-            Thread->MemorySpaceHandle = UUID_INVALID;
-        }
-        else {
-            Flags_t MemorySpaceFlags = 0;
-            if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
-                MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
-            }
-            if (Flags & THREADING_INHERIT) {
-                MemorySpaceFlags |= MEMORY_SPACE_INHERIT;
-            }
-            if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
-                ERROR("Failed to create memory space for thread");
-                return OsError;
-            }
-            Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
-        }
-    }
-    
-    // Create pre-mapped tls region for userspace threads
-    if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
-        uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
-        size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
-        CreateMemorySpaceMapping(Thread->MemorySpace, &ThreadRegionStart,
-            NULL, ThreadRegionSize, 
-            MAPPING_DOMAIN | MAPPING_USERSPACE, 
-            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
-    }
-
-    CollectionAppend(&Threads, &Thread->Header);
-    SchedulerQueueObject(Thread->SchedulerObject);
-    *Handle = Thread->Header.Key.Value.Id;
-    return OsSuccess;
-}
-
-void
-ThreadingCleanupThread(
-    _In_ MCoreThread_t* Thread)
-{
-    int i;
+    MCoreThread_t* Thread = Resource;
+    int            i;
 
     assert(Thread != NULL);
     assert(atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 1);
@@ -292,24 +109,211 @@ ThreadingCleanupThread(
     kfree(Thread);
 }
 
+// Create default interrupt and signal stack that will be used
+// in kernel space, and is mandatory for each thread to provide.
+static void
+CreateDefaultThreadContexts(
+    _In_ MCoreThread_t* Thread)
+{
+    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
+        (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
+
+    // Should we create user stacks immediately?
+}
+
+// Setup defaults for a new thread and creates appropriate resources
+static void
+InitializeDefaultThread(
+    _In_ MCoreThread_t* Thread,
+    _In_ const char*    Name,
+    _In_ ThreadEntry_t  Function,
+    _In_ void*          Arguments,
+    _In_ Flags_t        Flags)
+{
+    char NameBuffer[16];
+
+    // Reset thread structure
+    memset(Thread, 0, sizeof(MCoreThread_t));
+    MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
+    SemaphoreConstruct(&Thread->EventObject, 0, 1);
+    
+    Thread->Handle         = CreateHandle(HandleTypeThread, 0, DestroyThread, Thread);
+    Thread->References     = ATOMIC_VAR_INIT(0);
+    Thread->Function       = Function;
+    Thread->Arguments      = Arguments;
+    Thread->Flags          = Flags;
+    Thread->ParentThreadId = UUID_INVALID;
+    
+    // Get the startup time
+    TimersGetSystemTick(&Thread->StartedAt);
+    
+    // Sanitize name, if NULL generate a new thread name of format 'Thread X'
+    if (Name == NULL) {
+        memset(&NameBuffer[0], 0, sizeof(NameBuffer));
+        sprintf(&NameBuffer[0], "thread %" PRIuIN, Thread->Handle);
+        Thread->Name = strdup(&NameBuffer[0]);
+    }
+    else {
+        Thread->Name = strdup(Name);
+    }
+    
+    // Create communication members
+    Thread->Pipe            = CreateSystemPipe(0, 6); // 64 entries, 4kb
+    Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
+    
+    // Register the thread with arch
+    if (ThreadingRegister(Thread) != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
+    }
+    CreateDefaultThreadContexts(Thread);
+}
+
+static UUId_t
+CreateThreadCookie(
+    _In_ MCoreThread_t* Thread,
+    _In_ MCoreThread_t* Parent)
+{
+    UUId_t Cookie = Thread->StartedAt ^ Parent->StartedAt;
+    for (int i = 0; i < 5; i++) {
+        Cookie >>= i;
+        Cookie += Thread->StartedAt;
+        Cookie *= Parent->StartedAt;
+    }
+    return Cookie;
+}
+
+void
+ThreadingEnable(void)
+{
+    MCoreThread_t* Thread = &GetCurrentProcessorCore()->IdleThread;
+    InitializeDefaultThread(Thread, "idle", NULL, NULL, 
+        THREADING_KERNELMODE | THREADING_IDLE);
+    
+    // Handle setup of memory space as that is not covered.
+    Thread->MemorySpace       = GetCurrentMemorySpace();
+    Thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
+    GetCurrentProcessorCore()->CurrentThread = Thread;
+}
+
+OsStatus_t
+CreateThread(
+    _In_  const char*    Name,
+    _In_  ThreadEntry_t  Function,
+    _In_  void*          Arguments,
+    _In_  Flags_t        Flags,
+    _In_  UUId_t         MemorySpaceHandle,
+    _Out_ UUId_t*        Handle)
+{
+    MCoreThread_t*       Thread;
+    MCoreThread_t*       Parent;
+    UUId_t               CoreId;
+
+    TRACE("CreateThread(%s, 0x%" PRIxIN ")", Name, Flags);
+
+    CoreId = ArchGetProcessorCoreId();
+    Parent = GetCurrentThreadForCore(CoreId);
+
+    Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+    InitializeDefaultThread(Thread, Name, Function, Arguments, Flags);
+    
+    // Setup parent and cookie information
+    Thread->ParentThreadId = Parent->Handle;
+    if (Flags & THREADING_INHERIT) {
+        Thread->Cookie = Parent->Cookie;
+    }
+    else {
+        Thread->Cookie = CreateThreadCookie(Thread, Parent);
+    }
+
+    // Is a memory space given to us that we should run in? Determine run mode automatically
+    if (MemorySpaceHandle != UUID_INVALID) {
+        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)LookupHandle(MemorySpaceHandle);
+        if (MemorySpace == NULL) {
+            // TODO: cleanup
+            return OsDoesNotExist;
+        }
+
+        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+            Thread->Flags |= THREADING_USERMODE;
+        }
+        Thread->MemorySpace       = MemorySpace;
+        Thread->MemorySpaceHandle = MemorySpaceHandle;
+        Thread->Cookie            = Parent->Cookie;
+        AcquireHandle(MemorySpaceHandle);
+    }
+    else {
+        if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
+            Thread->MemorySpace       = GetDomainMemorySpace();
+            Thread->MemorySpaceHandle = UUID_INVALID;
+        }
+        else {
+            Flags_t MemorySpaceFlags = 0;
+            if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
+                MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
+            }
+            if (Flags & THREADING_INHERIT) {
+                MemorySpaceFlags |= MEMORY_SPACE_INHERIT;
+            }
+            if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
+                ERROR("Failed to create memory space for thread");
+                // TODO: cleanup
+                return OsError;
+            }
+            Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
+        }
+    }
+    
+    // Create pre-mapped tls region for userspace threads
+    if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
+        uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
+        size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
+        CreateMemorySpaceMapping(Thread->MemorySpace, &ThreadRegionStart,
+            NULL, ThreadRegionSize, 
+            MAPPING_DOMAIN | MAPPING_USERSPACE, 
+            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
+        // TODO: check return code and cleanup
+    }
+
+    SchedulerQueueObject(Thread->SchedulerObject);
+    *Handle = Thread->Handle;
+    return OsSuccess;
+}
+
 OsStatus_t
 ThreadingDetachThread(
     _In_ UUId_t ThreadId)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    MCoreThread_t* Target = GetThread(ThreadId);
+    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
     OsStatus_t     Status = OsDoesNotExist;
     
     // Detach is allowed if the caller is the spawner or the caller
     // is in same process
     if (Target != NULL) {
         Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
-        if (Target->ParentThreadId == Thread->Header.Key.Value.Id || Status == OsSuccess) {
+        if (Target->ParentThreadId == Thread->Handle || Status == OsSuccess) {
             Target->ParentThreadId = UUID_INVALID;
             Status                 = OsSuccess;
         }
     }
     return Status;
+}
+
+static void
+TerminateChildOfThread(
+    _In_ void* Resource,
+    _In_ void* Context)
+{
+    MCoreThread_t* Thread = Resource;
+    struct {
+        UUId_t Handle;
+        int    ExitCode;
+    } *TerminateContext = Context;
+    
+    if (Thread->ParentThreadId == TerminateContext->Handle) {
+        TerminateThread(Thread->Handle, TerminateContext->ExitCode, 1);
+    }
 }
 
 OsStatus_t
@@ -318,8 +322,11 @@ TerminateThread(
     _In_ int    ExitCode,
     _In_ int    TerminateChildren)
 {
-    CollectionItem_t* Node;
-    MCoreThread_t*    Target = GetThread(ThreadId);
+    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
+    struct {
+        UUId_t Handle;
+        int    ExitCode;
+    } TerminateContext = { .Handle = ThreadId, .ExitCode = ExitCode };
 
     if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
         return OsError; // Never, ever kill system idle threads
@@ -328,12 +335,7 @@ TerminateThread(
     MutexLock(&Target->SyncObject);
     if (atomic_load(&Target->Cleanup) == 0) {
         if (TerminateChildren) {
-            _foreach(Node, &Threads) {
-                MCoreThread_t *Child = (MCoreThread_t*)Node;
-                if (Child->ParentThreadId == Target->Header.Key.Value.Id) {
-                    TerminateThread(Child->Header.Key.Value.Id, ExitCode, 1);
-                }
-            }
+            EnumerateHandlesOfType(HandleTypeThread, TerminateChildOfThread, &TerminateContext);
         }
         Target->RetCode = ExitCode;
         atomic_store(&Target->Cleanup, 1);
@@ -352,7 +354,7 @@ int
 ThreadingJoinThread(
     _In_ UUId_t ThreadId)
 {
-    MCoreThread_t* Target = GetThread(ThreadId);
+    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
     if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
         MutexLock(&Target->SyncObject);
         if (atomic_load(&Target->Cleanup) != 1) {
@@ -398,7 +400,7 @@ GetCurrentThreadId(void)
     if (GetCurrentProcessorCore()->CurrentThread == NULL) {
         return 0;
     }
-    return GetCurrentProcessorCore()->CurrentThread->Header.Key.Value.Id;
+    return GetCurrentProcessorCore()->CurrentThread->Handle;
 }
 
 OsStatus_t
@@ -406,25 +408,12 @@ AreThreadsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2)
 {
-    MCoreThread_t* First  = GetThread(Thread1);
-    MCoreThread_t* Second = GetThread(Thread2);
+    MCoreThread_t* First  = (MCoreThread_t*)LookupHandle(Thread1);
+    MCoreThread_t* Second = (MCoreThread_t*)LookupHandle(Thread2);
     if (First == NULL || Second == NULL) {
         return OsDoesNotExist;
     }
     return AreMemorySpacesRelated(First->MemorySpace, Second->MemorySpace);
-}
-
-MCoreThread_t*
-GetThread(
-    _In_ UUId_t ThreadId)
-{
-    foreach(Node, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)Node;
-        if (Thread->Header.Key.Value.Id == ThreadId) {
-            return Thread;
-        }
-    }
-    return NULL;
 }
 
 int
@@ -444,29 +433,22 @@ ThreadingGetCurrentMode(void)
     return GetCurrentThreadForCore(ArchGetProcessorCoreId())->Flags & THREADING_MODEMASK;
 }
 
-OsStatus_t
-ThreadingReap(
+static void
+DumpActiceThread(
+    _In_ void* Resource,
     _In_ void* Context)
 {
-    MCoreThread_t* Thread;
-    _CRT_UNUSED(Context);
-    
-    Thread = (MCoreThread_t*)CollectionPopFront(&Zombies);
-    while (Thread != NULL) {
-        ThreadingCleanupThread(Thread);
-        Thread = (MCoreThread_t*)CollectionPopFront(&Zombies);
+    MCoreThread_t* Thread = Resource;
+    if (!atomic_load(&Thread->Cleanup)) {
+        WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
+            Thread->Handle, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
     }
-    return OsSuccess;
 }
 
 void
 DisplayActiveThreads(void)
 {
-    foreach(i, &Threads) {
-        MCoreThread_t* Thread = (MCoreThread_t*)i;
-        WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
-            Thread->Header.Key.Value.Id, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
-    }
+    EnumerateHandlesOfType(HandleTypeThread, DumpActiceThread, NULL);
 }
 
 OsStatus_t
@@ -507,9 +489,7 @@ GetNextThread:
     if ((Current->Flags & THREADING_IDLE) || Cleanup == 1) {
         // If the thread is finished then add it to garbagecollector
         if (Cleanup == 1) {
-            CollectionRemoveByNode(&Threads, &Current->Header);
-            CollectionAppend(&Zombies, &Current->Header);
-            GcSignal(GlbThreadGcId, Current);
+            DestroyHandle(Current->Handle);
         }
         TRACE(" > (null-schedule) initial next thread: %s", (NextThread) ? NextThread->Name : "null");
         Current = NULL;

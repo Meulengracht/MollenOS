@@ -27,35 +27,49 @@
 #include <os/osdefs.h>
 #include <ds/collection.h>
 
+enum SystemHandleFlags {
+    HandleCleanup = 0x1
+};
+
 typedef enum _SystemHandleType {
     HandleGeneric = 0,
     HandleTypeMemorySpace,
     HandleTypeMemoryRegion,
+    HandleTypeThread,
     HandleTypePipe,
 
     HandleTypeCount
 } SystemHandleType_t;
 
-typedef OsStatus_t (*HandleDestructorFn)(void*);
+typedef void (*HandleDestructorFn)(void*);
 
 typedef struct _SystemHandle {
-    CollectionItem_t            Header;
-    SystemHandleType_t          Type;
-    atomic_int                  References;
-    void*                       Resource;
+    SystemHandleType_t Type;
+    Flags_t            Flags;
+    atomic_int         References;
+    HandleDestructorFn Destructor;
+    void*              Resource;
 } SystemHandle_t;
+
+KERNELAPI OsStatus_t KERNELABI
+InitializeHandles(void);
+
+KERNELAPI OsStatus_t KERNELABI
+InitializeHandleJanitor(void);
 
 /* CreateHandle
  * Allocates a new handle for a system resource with a reference of 1. */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
     _In_ SystemHandleType_t Type,
+    _In_ Flags_t            Flags,
+    _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource);
 
 /* DestroyHandle
  * Reduces the reference count of the given handle, and cleans up the handle on
  * reaching 0 references. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 DestroyHandle(
     _In_ UUId_t Handle);
 
@@ -80,5 +94,19 @@ KERNELAPI void* KERNELABI
 LookupHandleOfType(
     _In_ UUId_t             Handle,
     _In_ SystemHandleType_t Type);
+
+/**
+ * EnumerateHandlesOfType
+ * * Enumerates all system handles of the given type, and executes the callback function
+ * @param Type    [In] The type of handle to perform the callback on
+ * @param Fn      [In] A function pointer that takes two parameters, 1. Resource pointer, 2. Context pointer
+ * @param Context [In] A context pointer that is passed to the callback
+ */
+KERNELAPI void KERNELABI
+EnumerateHandlesOfType(
+    _In_ SystemHandleType_t Type,
+    _In_ void               (*Fn)(void*, void*),
+    _In_ void*              Context);
+
 
 #endif //! __HANDLE_INTERFACE__

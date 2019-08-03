@@ -206,7 +206,7 @@ CreateMemorySpace(
             CreateMemorySpaceContext(MemorySpace);
         }
         CloneVirtualSpace(Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        *Handle = CreateHandle(HandleTypeMemorySpace, MemorySpace);
+        *Handle = CreateHandle(HandleTypeMemorySpace, 0, DestroyMemorySpace, MemorySpace);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
@@ -214,7 +214,7 @@ CreateMemorySpace(
     return OsSuccess;
 }
 
-OsStatus_t
+void
 DestroyMemorySpace(
     _In_ void* Resource)
 {
@@ -229,7 +229,6 @@ DestroyMemorySpace(
         DestroyHandle(MemorySpace->ParentHandle);
     }
     kfree(MemorySpace);
-    return OsSuccess;
 }
 
 OsStatus_t
@@ -327,7 +326,7 @@ MemoryCreateSharedRegion(
     Region->Capacity  = Capacity;
     Region->PageCount = PageCount;
     
-    *Handle = CreateHandle(HandleTypeMemoryRegion, Region);
+    *Handle = CreateHandle(HandleTypeMemoryRegion, 0, MemoryDestroySharedRegion, Region);
     return Status;
 }
 
@@ -369,7 +368,7 @@ MemoryExportSharedRegion(
     Region->Capacity  = Length;
     Region->PageCount = PageCount;
     
-    *HandleOut = CreateHandle(HandleTypeMemoryRegion, Region);
+    *HandleOut = CreateHandle(HandleTypeMemoryRegion, 0, MemoryDestroySharedRegion, Region);
     return Status;
 }
 
@@ -466,19 +465,17 @@ MemoryRefreshSharedRegion(
     return Status;
 }
 
-OsStatus_t
+void
 MemoryDestroySharedRegion(
     _In_ void* Resource)
 {
     SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
-    OsStatus_t            Status = OsSuccess;
     if (!(Region->Flags & MAPPING_PERSISTENT)) {
         for (int i = 0; i < Region->PageCount; i++) {
-            Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
+            FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
         }
     }
     kfree(Region);
-    return Status;
 }
 
 static VirtualAddress_t

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,11 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Inter-Process Communication Interface
- * - Shared definitions
- * - Remote Procedure Call routines
- * - Event Procedure Call routines
- * - Pipe routines
+ * InterProcess Communication Interface
  */
 
 #ifndef __IPC_INTERFACE__
@@ -40,6 +37,24 @@
 #define ARGUMENT_NOTUSED                0
 #define ARGUMENT_BUFFER                 1
 #define ARGUMENT_REGISTER               2
+
+typedef struct {
+    void*  Buffer;
+    size_t Length;
+} IpcUntypedArgument_t;
+
+typedef struct {
+    size_t               TypedArguments[IPC_MAX_ARGUMENTS];
+    IpcUntypedArgument_t UntypedArguments[IPC_MAX_ARGUMENTS];
+} IpcMessage_t;
+
+typedef struct {
+    _Atomic(int) WriteSyncObject;
+    _Atomic(int) ReadSyncObject;
+    UUId_t       SenderHandle;
+    IpcMessage_t Message;
+    uint8_t      Buffer[1];
+} IpcArena_t;
 
 #include <ddk/ipc/rpc.h>
 #include <ddk/ipc/pipe.h>

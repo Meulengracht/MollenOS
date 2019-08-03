@@ -91,14 +91,13 @@ ConstructSystemPipe(
 
 /* DestroySystemPipe
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
-OsStatus_t
+void
 DestroySystemPipe(
-    _In_ void*                      Resource)
+    _In_ void* Resource)
 {
     // @todo pipe synchronization with threads waiting
     // for data in pipe.
     kfree(Resource);
-    return OsSuccess;
 }
 
 /////////////////////////////////////////////////////////////////////////

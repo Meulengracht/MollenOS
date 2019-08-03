@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2015, Philip Meulengracht
  *
@@ -19,9 +20,6 @@
  * Threading Interface
  * - Handles all common threading across architectures
  *   and implements systems like signaling, synchronization and rpc
- * 
- * - Threads are only ever cleaned up if they are in the Cleanup State, to reach this state
- *   someone must have either called Join or Detach (+ reach exit) on the thread
  */
 
 #ifndef __THREADING_H__
@@ -82,7 +80,7 @@ typedef struct {
 #define SIGNAL_PENDING   2
 
 typedef struct _MCoreThread {
-    CollectionItem_t        Header;
+    UUId_t                  Handle;
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
@@ -103,6 +101,7 @@ typedef struct _MCoreThread {
     Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
 
+    void*                   IpcArena;
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
     UUId_t                  MemorySpaceHandle;
@@ -113,14 +112,9 @@ typedef struct _MCoreThread {
     SystemSignal_t          Signals[NUMSIGNALS];
 } MCoreThread_t;
 
-/* ThreadingInitialize
- * Initializes static data and allocates resources. */
-KERNELAPI OsStatus_t KERNELABI
-ThreadingInitialize(void);
-
 /* ThreadingEnable
  * Enables the threading system for the given cpu calling the function. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 ThreadingEnable(void);
 
 /* CreateThread
@@ -192,12 +186,6 @@ KERNELAPI OsStatus_t KERNELABI
 AreThreadsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2);
-
-/* GetThread
- * Lookup thread by the given thread-id, returns NULL if invalid */
-KERNELAPI MCoreThread_t* KERNELABI
-GetThread(
-    _In_ UUId_t ThreadId);
 
 /* ThreadingAdvance
  * This is the thread-switch function and must be be called from the below architecture 

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -24,66 +25,53 @@
 //#define __TRACE
 
 #include <arch/thread.h>
-#include <scheduler.h>
 #include <assert.h>
-#include <string.h>
-#include <handle.h>
 #include <debug.h>
+#include <ds/array.h>
+#include <handle.h>
 #include <heap.h>
+#include <scheduler.h>
+#include <string.h>
+#include <threading.h>
 
-// Include all the systems that we have to cleanup
-#include <memoryspace.h>
-#include <pipe.h>
-
-static Collection_t       SystemHandles                       = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t)    IdGenerator                         = 1;
-static HandleDestructorFn HandleDestructors[HandleTypeCount]  = {
-    NULL,                      // Generic - Ignore
-    DestroyMemorySpace,
-    MemoryDestroySharedRegion,
-    DestroySystemPipe
-};
+static Semaphore_t EventHandle   = SEMAPHORE_INIT(0, 1);
+static Array_t*    SystemHandles = NULL;
+static UUId_t      JanitorHandle = UUID_INVALID;
 
 UUId_t
 CreateHandle(
-    _In_ SystemHandleType_t         Type,
-    _In_ void*                      Resource)
+    _In_ SystemHandleType_t Type,
+    _In_ Flags_t            Flags,
+    _In_ HandleDestructorFn Destructor,
+    _In_ void*              Resource)
 {
-    SystemHandle_t* Handle;
+    SystemHandle_t* Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
     UUId_t          Id;
-
-    assert(Resource != NULL);
-
-    // Allocate a new instance and add it to list
-    Handle  = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
-    Id      = atomic_fetch_add(&IdGenerator, 1);
-
-    memset((void*)Handle, 0, sizeof(SystemHandle_t));
-    Handle->Header.Key.Value.Id = Id;
-    Handle->Type                = Type;
-    Handle->Resource            = Resource;
+    
+    Handle->Type       = Type;
+    Handle->Flags      = Flags;
+    Handle->Resource   = Resource;
+    Handle->Destructor = Destructor;
     atomic_store_explicit(&Handle->References, 1, memory_order_relaxed);
-    CollectionAppend(&SystemHandles, &Handle->Header);
+    Id = ArrayAppend(SystemHandles, Handle);
+    if (Id == UUID_INVALID) {
+        kfree(Handle);
+    }
     return Id;
 }
 
 void*
 AcquireHandle(
-    _In_ UUId_t             Handle)
+    _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance;
-    DataKey_t       Key;
+    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
     int             PreviousReferences;
-
-    // Lookup the handle
-    Key.Value.Id    = Handle;
-    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return NULL;
     }
 
     PreviousReferences = atomic_fetch_add(&Instance->References, 1);
-    if (PreviousReferences == 0) {
+    if (PreviousReferences <= 0) {
         // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
         return NULL;
@@ -93,14 +81,9 @@ AcquireHandle(
 
 void*
 LookupHandle(
-    _In_ UUId_t             Handle)
+    _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance;
-    DataKey_t       Key;
-
-    // Lookup the handle
-    Key.Value.Id    = Handle;
-    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
     if (Instance == NULL) {
         return NULL;
     }
@@ -112,39 +95,79 @@ LookupHandleOfType(
     _In_ UUId_t             Handle,
     _In_ SystemHandleType_t Type)
 {
-    SystemHandle_t* Instance;
-    DataKey_t       Key;
-
-    // Lookup the handle
-    Key.Value.Id    = Handle;
-    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
     if (Instance == NULL || Instance->Type != Type) {
         return NULL;
     }
     return Instance->Resource;
 }
 
-OsStatus_t
+void
+EnumerateHandlesOfType(
+    _In_ SystemHandleType_t Type,
+    _In_ void               (*Fn)(void*, void*),
+    _In_ void*              Context)
+{
+    size_t i;
+    
+    for (i = 0; i < SystemHandles->Capacity; i++) {
+        SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
+        if (Instance->Type == Type) {
+            Fn(Instance->Resource, Context);
+        }
+    }
+}
+
+void
 DestroyHandle(
     _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance;
-    OsStatus_t      Status = OsSuccess;
-    DataKey_t       Key;
+    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
     int             References;
 
-    // Lookup the handle
-    Key.Value.Id    = Handle;
-    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
-        return OsError;
+        return;
     }
 
     References = atomic_fetch_sub(&Instance->References, 1) - 1;
     if (References == 0) {
-        CollectionRemoveByNode(&SystemHandles, &Instance->Header);
-        Status = (HandleDestructors[Instance->Type] != NULL) ? HandleDestructors[Instance->Type](Instance->Resource) : OsSuccess;
-        kfree(Instance);
+        Instance->Flags |= HandleCleanup;
+        SemaphoreSignal(&EventHandle, 1);
     }
-    return Status;
+}
+
+static void 
+HandleJanitorThread(
+    _In_Opt_ void* Args)
+{
+    SystemHandle_t* Instance;
+    int             Run = 1;
+    size_t          i;
+    _CRT_UNUSED(Args);
+    
+    while (Run) {
+        SemaphoreWait(&EventHandle, 0);
+        for (i = 0; i < SystemHandles->Capacity; i++) {
+            Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
+            if (Instance->Flags & HandleCleanup) {
+                ArrayRemove(SystemHandles, i);
+                if (Instance->Destructor) {
+                    Instance->Destructor(Instance->Resource);
+                }
+                kfree(Instance);
+            }
+        }
+    }
+}
+
+OsStatus_t
+InitializeHandles(void)
+{
+    return ArrayCreate(ARRAY_CAN_EXPAND, 128, &SystemHandles);
+}
+
+OsStatus_t
+InitializeHandleJanitor(void)
+{
+    return CreateThread("janitor", HandleJanitorThread, NULL, 0, UUID_INVALID, &JanitorHandle);
 }

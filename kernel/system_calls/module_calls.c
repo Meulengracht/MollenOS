@@ -133,7 +133,7 @@ ScModuleExit(
         WARNING("Process %s terminated with code %i", MStringRaw(Module->Executable->Name), ExitCode);
         // Are we detached? Then call only thread cleanup
         if (Thread->ParentThreadId == UUID_INVALID) {
-            Status = TerminateThread(Thread->Header.Key.Value.Id, ExitCode, 1);
+            Status = TerminateThread(Thread->Handle, ExitCode, 1);
         }
         else {
             Status = TerminateThread(Module->PrimaryThreadId, ExitCode, 1);

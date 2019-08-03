@@ -27,10 +27,10 @@
 #include <revision.h>
 #include <machine.h>
 
-#include <garbagecollector.h>
 #include <modules/ramdisk.h>
 #include <modules/manager.h>
 #include <acpiinterface.h>
+#include <handle.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
@@ -143,18 +143,13 @@ InitializeMachine(
 #endif
 
     // Create the rest of the OS systems
-    Status = ThreadingInitialize();
+    Status = InitializeHandles();
     if (Status != OsSuccess) {
-        ERROR("Failed to initialize threading for boot core.");
+        ERROR("Failed to initialize the handle subsystem.");
         ArchProcessorIdle();
     }
-
-    Status = ThreadingEnable();
-    if (Status != OsSuccess) {
-        ERROR("Failed to enable threading for boot core.");
-        ArchProcessorIdle();
-    }
-
+    
+    ThreadingEnable();
     InitializeInterruptTable();
     InitializeInterruptHandlers();
     Status = InterruptInitialize();
@@ -163,6 +158,12 @@ InitializeMachine(
         ArchProcessorIdle();
     }
     LogInitializeFull();
+    
+    Status = InitializeHandleJanitor();
+    if (Status != OsSuccess) {
+        ERROR("Failed to initialize system janitor.");
+        ArchProcessorIdle();
+    }
 
     // Perform the full acpi initialization sequence
 #ifdef __OSCONFIG_ACPI_SUPPORT
@@ -176,7 +177,6 @@ InitializeMachine(
 #endif
 
     // Last step is to enable timers that kickstart all other threads
-    GcInitialize();
     Status = InitializeSystemTimers();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize timers for system.");

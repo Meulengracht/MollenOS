@@ -107,7 +107,7 @@ CreateMemorySpace(
 
 /* DestroyMemorySpace
  * Callback invoked by the handle system when references on a process reaches zero */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 DestroyMemorySpace(
     _In_ void* Resource);
 
@@ -199,7 +199,7 @@ MemoryRefreshSharedRegion(
     _In_  size_t  CurrentLength,
     _Out_ size_t* NewLength);
 
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 MemoryDestroySharedRegion(
     _In_  void* Resource);
 
