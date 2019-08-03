@@ -22,16 +22,98 @@
 #define __MODULE "SCIF"
 #define __TRACE
 
-#include <ddk/ipc/ipc.h>
-#include <modules/manager.h>
-#include <modules/module.h>
 #include <arch/utils.h>
-#include <threading.h>
+#include <ddk/ipc/ipc.h>
+#include <debug.h>
+#include <futex.h>
+#include <handle.h>
 #include <os/input.h>
 #include <machine.h>
-#include <handle.h>
-#include <debug.h>
+#include <modules/manager.h>
+#include <modules/module.h>
 #include <pipe.h>
+#include <threading.h>
+
+OsStatus_t
+ScReplyIpc(void)
+{
+    return OsSuccess;
+}
+
+OsStatus_t
+ScWaitIpc(void)
+{
+    return OsSuccess;
+}
+
+OsStatus_t
+ScReplyIpcAndWait(void)
+{
+    OsStatus_t Status = ScReplyIpc();
+    return ScWaitIpc();
+}
+
+OsStatus_t
+ScGetIpcResponse(void)
+{
+    MCoreThread_t* Current = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    return OsSuccess;
+}
+
+OsStatus_t
+ScInvokeIpc(
+    _In_ UUId_t        TargetHandle,
+    _In_ IpcMessage_t* Message,
+    _In_ int           Async,
+    _In_ size_t        Timeout)
+{
+    MCoreThread_t* Target      = LookupHandle(TargetHandle);
+    IpcArena_t*    IpcArena    = Target->IpcArena;
+    size_t         BufferIndex = 0;
+    int            SyncValue;
+    int            i;
+    
+    SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
+    while (SyncValue) {
+        if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
+    }
+    
+    IpcArena->SenderHandle = GetCurrentThreadId();
+    for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+        // Handle typed argument
+        IpcArena->Message.TypedArguments[i]          = Message->TypedArguments[i];
+        IpcArena->Message.UntypedArguments[i].Length = Message->UntypedArguments[i].Length;
+        
+        // Handle the untyped, a bit more tricky. If the argument is larger than 512
+        // bytes, we will do a mapping clone instead of just copying data into sender.
+        if (Message->UntypedArguments[i].Length) {
+            if (Message->UntypedArguments[i].Length > 512) {
+                // perform clone
+                // clone_map(GetCurrentThread(), Target, typed_arg[i].buffer, typed_arg[i].size)
+            }
+            else {
+                memcpy(&IpcArena->Buffer[BufferIndex], 
+                    Message->UntypedArguments[i].Buffer,
+                    Message->UntypedArguments[i].Length);
+                IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
+                BufferIndex += Message->UntypedArguments[i].Length;
+            }
+        }
+    }
+    
+    if (Async) {
+        (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+    }
+    else {
+        // AssumeThread
+    }
+    
+    return OsSuccess;
+}
+
 
 OsStatus_t
 ScCreatePipe( 
@@ -49,7 +131,7 @@ ScCreatePipe(
     else {
         return OsInvalidParameters;
     }
-    *Handle = CreateHandle(HandleTypePipe, Pipe);
+    *Handle = CreateHandle(HandleTypePipe, 0, DestroySystemPipe, Pipe);
     return OsSuccess;
 }
 
@@ -58,22 +140,22 @@ ScDestroyPipe(
     _In_ UUId_t Handle)
 {
     SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
-    OsStatus_t    Status = OsInvalidParameters;
 
     if (Pipe != NULL) {
-        Status = DestroyHandle(Handle);
+        DestroyHandle(Handle);
         
         // Disable the window manager input event pipe
-        if (Status == OsSuccess && GetMachine()->StdInput == Pipe) {
+        if (GetMachine()->StdInput == Pipe) {
             GetMachine()->StdInput = NULL;
         }
 
         // Disable the window manager wm event pipe
-        if (Status == OsSuccess && GetMachine()->WmInput == Pipe) {
+        if (GetMachine()->WmInput == Pipe) {
             GetMachine()->WmInput = NULL;
         }
+        return OsSuccess;
     }
-    return Status;
+    return OsDoesNotExist;
 }
 
 OsStatus_t
@@ -173,7 +255,7 @@ ScRpcExecute(
     // Decrypt the sender for the receiver
     Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     RemoteCall->From.Process ^= Thread->Cookie;
-    RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
+    RemoteCall->From.Thread   = Thread->Handle;
 
     // Setup producer access
     AcquireSystemPipeProduction(Pipe, TotalLength, &State);
@@ -244,7 +326,7 @@ ScRpcRespond(
     _In_ const uint8_t*        Buffer, 
     _In_ size_t                Length)
 {
-    MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
+    MCoreThread_t* Thread = (MCoreThread_t*)LookupHandle(RemoteAddress->Thread);
     if (Thread) {
         if (Thread->Pipe) {
             WriteSystemPipe(Thread->Pipe, Buffer, Length);

@@ -112,14 +112,9 @@ ActivateApplicationCore(
     _In_ SystemCpuCore_t* Core)
 {
     SystemDomain_t* Domain;
-    OsStatus_t      Status;
 
     // Create the idle-thread and scheduler for the core
-	Status = ThreadingEnable();
-    if (Status != OsSuccess) {
-        ERROR("Failed to enable threading for application core %" PRIuIN ".", Core->Id);
-        ArchProcessorIdle();
-    }
+    ThreadingEnable();
     
     // Notify everyone that we are running beore switching on interrupts
     GetMachine()->NumberOfActiveCores++;

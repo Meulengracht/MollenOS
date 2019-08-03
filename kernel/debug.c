@@ -162,7 +162,7 @@ DebugPanic(
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-            CurrentThread->Name, CurrentThread->Header.Key.Value.Id, CoreId);
+            CurrentThread->Name, CurrentThread->Handle, CoreId);
     }
     
     if (Context) {

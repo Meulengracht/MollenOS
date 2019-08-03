@@ -296,7 +296,8 @@ ScDmaDetach(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return DestroyHandle(attachment->handle);
+    DestroyHandle(attachment->handle);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -382,7 +383,7 @@ ScGetThreadMemorySpaceHandle(
         }
         return OsError;
     }
-    Thread = GetThread(ThreadHandle);
+    Thread = (MCoreThread_t*)LookupHandle(ThreadHandle);
     if (Thread != NULL) {
         *Handle = Thread->MemorySpaceHandle;
         return OsSuccess;

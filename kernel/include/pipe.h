@@ -127,9 +127,9 @@ ConstructSystemPipe(
 
 /* DestroySystemPipe
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 DestroySystemPipe(
-    _In_ void*                      Resource);
+    _In_ void* Resource);
 
 /* ReadSystemPipe
  * Performs raw reading that can only be used on pipes opened in SPSC mode. */
