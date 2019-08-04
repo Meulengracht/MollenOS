@@ -51,10 +51,14 @@ typedef struct {
 typedef struct {
     _Atomic(int) WriteSyncObject;
     _Atomic(int) ReadSyncObject;
+    _Atomic(int) ResponseSyncObject;
     UUId_t       SenderHandle;
     IpcMessage_t Message;
     uint8_t      Buffer[1];
 } IpcArena_t;
+
+#define IPC_ASYNCHRONOUS 0x00000001
+#define IPC_NO_RESPONSE  0x00000002
 
 #include <ddk/ipc/rpc.h>
 #include <ddk/ipc/pipe.h>

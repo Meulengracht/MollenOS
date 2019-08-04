@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ *  MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -19,6 +20,7 @@
  * System call interface - IPC implementation
  *
  */
+
 #define __MODULE "SCIF"
 #define __TRACE
 
@@ -35,37 +37,92 @@
 #include <threading.h>
 
 OsStatus_t
-ScReplyIpc(void)
+ScReplyIpc(
+    _In_  void*  Buffer,
+    _In_  size_t Length)
 {
+    MCoreThread_t* Current         = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    CurrentIpcArena = Current->IpcArena;
+    MCoreThread_t* Target          = LookupHandle(CurrentIpcArena->SenderHandle);
+    IpcArena_t*    TargetIpcArena  = Target->IpcArena;
+
+    memcpy(TargetIpcArena->Buffer[-512], Buffer, MIN(512, Length));
+
+    atomic_store(&TargetIpcArena->ResponseSyncObject, 1);
+    (void)FutexWake(&TargetIpcArena->ResponseSyncObject, 1, 0);
     return OsSuccess;
 }
 
 OsStatus_t
-ScWaitIpc(void)
+ScWaitIpc(
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
 {
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->IpcArena;
+    int            SyncValue;
+
+    // Clear the WriteSyncObject
+    atomic_store(&IpcArena->WriteSyncObject, 0);
+    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    }
+
+    *MessageOut = &IpcArena->Message;
     return OsSuccess;
 }
 
 OsStatus_t
-ScReplyIpcAndWait(void)
+ScReplyAndWait(
+    _In_  void*          Buffer,
+    _In_  size_t         Length,
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
 {
-    OsStatus_t Status = ScReplyIpc();
-    return ScWaitIpc();
+    OsStatus_t Status = ScReplyIpc(Buffer, Length);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    return ScWaitIpc(Timeout, MessageOut);
 }
 
 OsStatus_t
-ScGetIpcResponse(void)
+ScGetIpcResponse(
+    _In_ size_t Timeout,
+    _In_ void** BufferOut)
 {
-    MCoreThread_t* Current = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->IpcArena;
+    int            SyncValue;
+
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    }
+
+    // TODO: calculate response index
+    *BufferOut = (void*)IpcArena->Buffer[-512];
     return OsSuccess;
 }
 
 OsStatus_t
 ScInvokeIpc(
-    _In_ UUId_t        TargetHandle,
-    _In_ IpcMessage_t* Message,
-    _In_ int           Async,
-    _In_ size_t        Timeout)
+    _In_  UUId_t        TargetHandle,
+    _In_  IpcMessage_t* Message,
+    _In_  unsigned int  Flags,
+    _In_  size_t        Timeout,
+    _Out_ void**        BufferOut)
 {
     MCoreThread_t* Target      = LookupHandle(TargetHandle);
     IpcArena_t*    IpcArena    = Target->IpcArena;
@@ -90,27 +147,37 @@ ScInvokeIpc(
         // Handle the untyped, a bit more tricky. If the argument is larger than 512
         // bytes, we will do a mapping clone instead of just copying data into sender.
         if (Message->UntypedArguments[i].Length) {
-            if (Message->UntypedArguments[i].Length > 512) {
+            // Events that don't have a response do not support longer arguments than 512 bytes.
+            if (Message->UntypedArguments[i].Length > 512 && !(Flags & IPC_NO_RESPONSE)) {
                 // perform clone
                 // clone_map(GetCurrentThread(), Target, typed_arg[i].buffer, typed_arg[i].size)
             }
             else {
+                // TODO: support longer but untill we run out of space?
+                if (Message->UntypedArguments[i].Length > 512) {
+                    WARNING("Event with more than 512 bytes of data for an argument, argument was truncated");
+                }
                 memcpy(&IpcArena->Buffer[BufferIndex], 
                     Message->UntypedArguments[i].Buffer,
-                    Message->UntypedArguments[i].Length);
+                    MIN(512, Message->UntypedArguments[i].Length));
                 IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
-                BufferIndex += Message->UntypedArguments[i].Length;
+                BufferIndex += MIN(512, Message->UntypedArguments[i].Length);
             }
         }
     }
     
-    if (Async) {
-        (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+    atomic_store(&IpcArena->ResponseSyncObject, 0);
+    if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {
+        atomic_store(&IpcArena->ReadSyncObject, 1);
+        (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
+        return OsSuccess;
     }
     else {
         // AssumeThread
     }
-    
+
+    // handle response
+    *BufferOut = (void*)IpcArena->Buffer[-512];
     return OsSuccess;
 }
 
