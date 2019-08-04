@@ -38,6 +38,10 @@
 #define ARGUMENT_BUFFER                 1
 #define ARGUMENT_REGISTER               2
 
+#define IPC_UNTYPED_THRESHOLD           512
+#define IPC_ARENA_SIZE                  0x1000
+#define IPC_RESPONSE_MAX_SIZE           512
+
 typedef struct {
     void*  Buffer;
     size_t Length;

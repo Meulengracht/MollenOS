@@ -80,9 +80,6 @@ extern OsStatus_t ScRegisterAliasId(UUId_t Alias);
 extern OsStatus_t ScLoadDriver(MCoreDevice_t* Device, size_t Length);
 extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
-extern OsStatus_t ScRegisterEventTarget(UUId_t StdInputHandle, UUId_t WmHandle);
-extern OsStatus_t ScKeyEvent(SystemKey_t* Key);
-extern OsStatus_t ScInputEvent(SystemInput_t* Input);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
 
 ///////////////////////////////////////////////
@@ -108,14 +105,11 @@ extern OsStatus_t ScFutexWait(FutexParameters_t* Parameters);
 extern OsStatus_t ScFutexWake(FutexParameters_t* Parameters);
 
 // Communication system calls
-extern OsStatus_t ScCreatePipe(int Type, UUId_t* Handle);
-extern OsStatus_t ScDestroyPipe(UUId_t Handle);
-extern OsStatus_t ScReadPipe(UUId_t Handle, uint8_t* Message, size_t Length);
-extern OsStatus_t ScWritePipe(UUId_t Handle, uint8_t* Message, size_t Length);
-extern OsStatus_t ScRpcResponse(MRemoteCall_t* RemoteCall);
-extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
-extern OsStatus_t ScRpcListen(UUId_t Handle, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
-extern OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
+extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
+extern OsStatus_t ScIpcGetResponse(size_t, void**);
+extern OsStatus_t ScIpcListen(size_t, IpcMessage_t**);
+extern OsStatus_t ScIpcReply(void*, size_t);
+extern OsStatus_t ScIpcReplyAndListen(void*, size_t, size_t, IpcMessage_t**);
 
 // Memory system calls
 extern OsStatus_t ScMemoryAllocate(void*, size_t, Flags_t, void**);
@@ -192,69 +186,63 @@ uintptr_t SystemCallsTable[81] = {
     DefineSyscall(28, ScLoadDriver),
     DefineSyscall(29, ScRegisterInterrupt),
     DefineSyscall(30, ScUnregisterInterrupt),
-    DefineSyscall(31, ScRegisterEventTarget),
-    DefineSyscall(32, ScKeyEvent),
-    DefineSyscall(33, ScInputEvent),
-    DefineSyscall(34, ScGetProcessBaseAddress),
+    DefineSyscall(31, ScGetProcessBaseAddress),
 
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Unprotected, all
 
     // Threading system calls
-    DefineSyscall(35, ScThreadCreate),
-    DefineSyscall(36, ScThreadExit),
-    DefineSyscall(37, ScThreadSignal),
-    DefineSyscall(38, ScThreadJoin),
-    DefineSyscall(39, ScThreadDetach),
-    DefineSyscall(40, ScThreadSleep),
-    DefineSyscall(41, ScThreadYield),
-    DefineSyscall(42, ScThreadGetCurrentId),
-    DefineSyscall(43, ScThreadCookie),
-    DefineSyscall(44, ScThreadSetCurrentName),
-    DefineSyscall(45, ScThreadGetCurrentName),
-    DefineSyscall(46, ScThreadGetContext),
+    DefineSyscall(32, ScThreadCreate),
+    DefineSyscall(33, ScThreadExit),
+    DefineSyscall(34, ScThreadSignal),
+    DefineSyscall(35, ScThreadJoin),
+    DefineSyscall(36, ScThreadDetach),
+    DefineSyscall(37, ScThreadSleep),
+    DefineSyscall(38, ScThreadYield),
+    DefineSyscall(39, ScThreadGetCurrentId),
+    DefineSyscall(40, ScThreadCookie),
+    DefineSyscall(41, ScThreadSetCurrentName),
+    DefineSyscall(42, ScThreadGetCurrentName),
+    DefineSyscall(43, ScThreadGetContext),
 
     // Synchronization system calls
-    DefineSyscall(47, ScFutexWait),
-    DefineSyscall(48, ScFutexWake),
+    DefineSyscall(44, ScFutexWait),
+    DefineSyscall(45, ScFutexWake),
 
     // Communication system calls
-    DefineSyscall(49, ScCreatePipe),
-    DefineSyscall(50, ScDestroyPipe),
-    DefineSyscall(51, ScReadPipe),
-    DefineSyscall(52, ScWritePipe),
-    DefineSyscall(53, ScRpcExecute),
-    DefineSyscall(54, ScRpcResponse),
-    DefineSyscall(55, ScRpcListen),
-    DefineSyscall(56, ScRpcRespond),
+    DefineSyscall(46, ScIpcInvoke),
+    DefineSyscall(47, ScIpcGetResponse),
+    DefineSyscall(48, ScIpcReply),
+    DefineSyscall(49, ScIpcListen),
+    DefineSyscall(50, ScIpcReplyAndListen),
 
     // Memory system calls
-    DefineSyscall(57, ScMemoryAllocate),
-    DefineSyscall(58, ScMemoryFree),
-    DefineSyscall(59, ScMemoryProtect),
+    DefineSyscall(51, ScMemoryAllocate),
+    DefineSyscall(52, ScMemoryFree),
+    DefineSyscall(53, ScMemoryProtect),
     
-    DefineSyscall(60, ScDmaCreate),
-    DefineSyscall(61, ScDmaExport),
-    DefineSyscall(62, ScDmaAttach),
-    DefineSyscall(63, ScDmaAttachmentMap),
-    DefineSyscall(64, ScDmaAttachmentResize),
-    DefineSyscall(65, ScDmaAttachmentRefresh),
-    DefineSyscall(66, ScDmaAttachmentUnmap),
-    DefineSyscall(67, ScDmaDetach),
-    DefineSyscall(68, ScDmaGetMetrics),
+    DefineSyscall(54, ScDmaCreate),
+    DefineSyscall(55, ScDmaExport),
+    DefineSyscall(56, ScDmaAttach),
+    DefineSyscall(57, ScDmaAttachmentMap),
+    DefineSyscall(58, ScDmaAttachmentResize),
+    DefineSyscall(59, ScDmaAttachmentRefresh),
+    DefineSyscall(60, ScDmaAttachmentUnmap),
+    DefineSyscall(61, ScDmaDetach),
+    DefineSyscall(62, ScDmaGetMetrics),
     
     // Support system calls
-    DefineSyscall(69, ScDestroyHandle),
-    DefineSyscall(70, ScInstallSignalHandler),
-    DefineSyscall(71, ScGetSignalOriginalContext),
-    DefineSyscall(72, ScCreateMemoryHandler),
-    DefineSyscall(73, ScDestroyMemoryHandler),
-    DefineSyscall(74, ScFlushHardwareCache),
-    DefineSyscall(75, ScSystemQuery),
-    DefineSyscall(76, ScSystemTick),
-    DefineSyscall(77, ScPerformanceFrequency),
-    DefineSyscall(78, ScPerformanceTick),
-    DefineSyscall(79, ScSystemTime),
-    DefineSyscall(80, ScIsServiceAvailable)
+    DefineSyscall(63, ScDestroyHandle),
+    DefineSyscall(64, ScInstallSignalHandler),
+    DefineSyscall(65, ScGetSignalOriginalContext),
+    DefineSyscall(66, ScCreateMemoryHandler),
+    DefineSyscall(67, ScDestroyMemoryHandler),
+    DefineSyscall(68, ScFlushHardwareCache),
+    DefineSyscall(69, ScSystemQuery),
+    DefineSyscall(70, ScSystemTick),
+    DefineSyscall(71, ScPerformanceFrequency),
+    DefineSyscall(72, ScPerformanceTick),
+    DefineSyscall(73, ScSystemTime),
+    DefineSyscall(74, ScIsServiceAvailable)
 };

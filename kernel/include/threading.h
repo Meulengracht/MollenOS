@@ -36,7 +36,6 @@
 // Forward some structures we need
 typedef struct _SystemMemorySpace SystemMemorySpace_t;
 typedef struct _SystemProcess     SystemProcess_t;
-typedef struct _SystemPipe        SystemPipe_t;
 typedef struct _SchedulerObject   SchedulerObject_t;
 
 #ifndef __THREADING_ENTRY
@@ -102,7 +101,6 @@ typedef struct _MCoreThread {
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
 
     void*                   IpcArena;
-    SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
     UUId_t                  MemorySpaceHandle;
     

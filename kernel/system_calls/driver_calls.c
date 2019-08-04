@@ -33,7 +33,6 @@
 #include <timers.h>
 #include <debug.h>
 #include <heap.h>
-#include <pipe.h>
 
 extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
 
@@ -249,43 +248,6 @@ ScUnregisterInterrupt(
         return OsInvalidPermissions;
     }
     return InterruptUnregister(Source);
-}
-
-OsStatus_t
-ScRegisterEventTarget(
-    _In_ UUId_t StdInputHandle,
-    _In_ UUId_t WmHandle)
-{
-    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(StdInputHandle);
-    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmHandle);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScKeyEvent(
-    _In_ SystemKey_t* Key)
-{
-#ifdef __OSCONFIG_ENABLE_DEBUG_SHORTCUTS
-    // Handle debug key events
-    if ((Key->Flags & (KEY_MODIFIER_LCTRL | KEY_MODIFIER_RCTRL)) && 
-        (Key->Flags & KEY_MODIFIER_RELEASED)) {
-        DebugHandleShortcut(Key);
-    }
-#endif
-    if (GetMachine()->StdInput != NULL) {
-        return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-ScInputEvent(
-    _In_ SystemInput_t* Input)
-{
-    if (GetMachine()->WmInput != NULL) {
-        return WriteSystemPipe(GetMachine()->WmInput, (const uint8_t*)Input, sizeof(SystemInput_t));
-    }
-    return OsSuccess;
 }
 
 OsStatus_t
