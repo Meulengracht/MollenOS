@@ -25,7 +25,6 @@
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
-#include <pipe.h>
 
 #define LOG_INITIAL_SIZE        (1024 * 4)
 #define LOG_PREFFERED_SIZE      (1024 * 65)

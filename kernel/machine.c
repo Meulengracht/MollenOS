@@ -51,7 +51,7 @@ static SystemMachine_t Machine = {
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },            // BootInformation, Processor, MemorySpace, PhysicalMemory
     { 0 }, { { 0 } }, COLLECTION_INIT(KeyInteger),   // GAMemory, Memory Map, SystemDomains
-    NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
+    NULL, 0, NULL,                                   // InterruptControllers
     { { { 0 } } },                                   // SystemTime
     0, 0, 0, 0, 0                                    // Total Information
 };

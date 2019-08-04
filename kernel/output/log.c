@@ -35,32 +35,6 @@ static SystemLog_t LogObject                 = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
 
 void
-LogPipeHandler(
-    _In_ void* PipeInstance)
-{
-    SystemPipe_t*   Pipe = (SystemPipe_t*)PipeInstance;
-    char            MessageBuffer[256];
-    int             i;
-
-    while (1) {
-        // Reset buffer
-        memset((void*)MessageBuffer, 0, sizeof(MessageBuffer));
-        i = 0;
-
-        // Read untill newline
-        while (1) {
-            ReadSystemPipe(Pipe, (uint8_t*)&MessageBuffer[i], 1);
-            if (MessageBuffer[i] == '\n') {
-                MessageBuffer[i] = '\0'; // Skip newlines, automatically added
-                break;
-            }
-            i++;
-        }
-        LogAppendMessage(LogPipe, "PIPE", (const char*)&MessageBuffer[0]);
-    }
-}
-
-void
 LogInitialize(void)
 {
     // Setup initial log space

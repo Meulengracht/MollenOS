@@ -99,7 +99,6 @@ DestroyThread(
             ContextDestroy(Thread->Contexts[i], i);
         }
     }
-    DestroySystemPipe(Thread->Pipe);
 
     // Remove a reference to the memory space if not root
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
@@ -159,7 +158,6 @@ InitializeDefaultThread(
     }
     
     // Create communication members
-    Thread->Pipe            = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
     
     // Register the thread with arch

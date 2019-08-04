@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -29,7 +30,6 @@
 #include <os/mollenos.h>
 #include <multiboot.h>
 #include <time.h>
-#include <pipe.h>
 
 // Components
 #include <component/domain.h>
@@ -58,8 +58,6 @@ typedef struct _SystemMachine {
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
-    SystemPipe_t*               StdInput;
-    SystemPipe_t*               WmInput;
     SystemTime_t                SystemTime;
 
     // Total information across domains
