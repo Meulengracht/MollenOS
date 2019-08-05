@@ -25,16 +25,15 @@
 #define __DDK_SERVICES_SESSION_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/ipc/ipc.h>
 #include <os/types/session.h>
 
 // IPC Function Declarations
-#define __SESSIONMANAGER_REGISTER          IPC_DECL_FUNCTION(0)
-#define __SESSIONMANAGER_UNREGISTER        IPC_DECL_FUNCTION(1)
-#define __SESSIONMANAGER_LOOKUP			   IPC_DECL_FUNCTION(2)
-#define __SESSIONMANAGER_NEWDEVICE         IPC_DECL_FUNCTION(3)
-#define __SESSIONMANAGER_LOGIN             IPC_DECL_FUNCTION(4)
-#define __SESSIONMANAGER_LOGOUT            IPC_DECL_FUNCTION(5)
+#define __SESSIONMANAGER_REGISTER          (int)0
+#define __SESSIONMANAGER_UNREGISTER        (int)1
+#define __SESSIONMANAGER_LOOKUP			   (int)2
+#define __SESSIONMANAGER_NEWDEVICE         (int)3
+#define __SESSIONMANAGER_LOGIN             (int)4
+#define __SESSIONMANAGER_LOGOUT            (int)5
 
 _CODE_BEGIN
 /* RegisterServiceObject

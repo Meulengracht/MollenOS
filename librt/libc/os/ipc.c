@@ -24,9 +24,13 @@
 #include <os/ipc.h>
 
 OsStatus_t
-IpcInvoke()
+IpcInvoke(
+    _In_ thrd_t        Target,
+    _In_ IpcMessage_t* Message, 
+    _In_ unsigned int  Flags,
+    _In_ int           Timeout)
 {
-    // syscall
+    return Syscall_IpcInvoke(Target, Message, Flags, Timeout);
 }
 
 OsStatus_t
@@ -34,25 +38,15 @@ IpcGetResponse(
     _In_  size_t Timeout,
     _Out_ void** BufferOut)
 {
-    IpcArena_t* IpcArena;// get_utcb();
-    int         SyncValue;
-
-    // Wait for response by 'polling' the value
-    SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
-    while (!SyncValue) {
-        if (FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
-            return OsTimeout;
-        }
-        SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
-    }
-    *BufferOut = (void*)&IpcArena->Buffer[IPC_ARENA_SIZE - IPC_RESPONSE_MAX_SIZE];
-    return OsSuccess;
+    return Syscall_IpcGetResponse(Timeout, BufferOut);
 }
 
 OsStatus_t
-IpcReply()
+IpcReply(
+    _In_  void*  Buffer,
+    _In_  size_t Length)
 {
-    // syscall
+    return Syscall_IpcReply(Buffer, Length);
 }
 
 OsStatus_t
@@ -60,22 +54,15 @@ IpcListen(
     _In_  size_t         Timeout,
     _Out_ IpcMessage_t** MessageOut)
 {
-    IpcArena_t* IpcArena;// get_utcb();
-    int         SyncValue;
+    return Syscall_IpcListen(Timeout, MessageOut);
+}
 
-    // Clear the WriteSyncObject
-    atomic_store(&IpcArena->WriteSyncObject, 0);
-    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
-
-    // Wait for response by 'polling' the value
-    SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
-    while (!SyncValue) {
-        if (FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
-            return OsTimeout;
-        }
-        SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
-    }
-
-    *MessageOut = &IpcArena->Message;
-    return OsSuccess;
+OsStatus_t
+IpcReplyAndListen(
+    _In_  void*          Buffer,
+    _In_  size_t         Length,
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
+{
+    return Syscall_IpcReplyAndListen(Buffer, Length, Timeout, MessageOut);
 }
