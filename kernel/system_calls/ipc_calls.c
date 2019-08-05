@@ -66,13 +66,75 @@ ScIpcReply(
     MCoreThread_t* Target          = LookupHandle(CurrentIpcArena->SenderHandle);
     IpcArena_t*    TargetIpcArena  = Target->IpcArena;
 
-    memcpy(&TargetIpcArena->Buffer[IPC_ARENA_SIZE - IPC_RESPONSE_MAX_SIZE], 
+    memcpy(&TargetIpcArena->Buffer[IPC_RESPONSE_LOCATION], 
         Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
 
     atomic_store(&TargetIpcArena->ResponseSyncObject, 1);
     (void)FutexWake(&TargetIpcArena->ResponseSyncObject, 1, 0);
     
     CleanupMessage(Current, &CurrentIpcArena->Message);
+    return OsSuccess;
+}
+
+OsStatus_t
+ScIpcListen(
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
+{
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->IpcArena;
+    int            SyncValue;
+
+    // Clear the WriteSyncObject
+    atomic_store(&IpcArena->WriteSyncObject, 0);
+    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    }
+
+    *MessageOut = &IpcArena->Message;
+    return OsSuccess;
+}
+
+OsStatus_t
+ScIpcReplyAndListen(
+    _In_  void*          Buffer,
+    _In_  size_t         Length,
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
+{
+    OsStatus_t Status = ScIpcReply(Buffer, Length);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    return ScIpcListen(Timeout, MessageOut);
+}
+
+OsStatus_t
+ScIpcGetResponse(
+    _In_ size_t Timeout,
+    _In_ void** BufferOut)
+{
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->IpcArena;
+    int            SyncValue;
+    
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    }
+    
+    *BufferOut = &IpcArena->Buffer[IPC_RESPONSE_LOCATION];
     return OsSuccess;
 }
 
@@ -149,5 +211,5 @@ ScIpcInvoke(
         // RunThreadInContext
         // TODO:
     }
-    return OsSuccess;
+    return ScIpcGetResponse(Timeout, BufferOut);
 }

@@ -25,6 +25,7 @@
 #define __SYSTEM_MMU_INTEFACE_H__
 
 #include <os/osdefs.h>
+#include <memoryspace.h>
 
 extern OsStatus_t InitializeVirtualSpace(SystemMemorySpace_t*);
 extern OsStatus_t CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);

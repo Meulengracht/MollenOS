@@ -23,9 +23,18 @@
 #ifndef __OS_IPC_H__
 #define __OS_IPC_H__
 
+#include <assert.h>
 #include <os/osdefs.h>
+#include <string.h>
+#include <threads.h>
 
-#define IPC_MAX_ARGUMENTS 5
+#define IPC_ARENA_SIZE        4096
+#define IPC_RESPONSE_MAX_SIZE 512
+#define IPC_RESPONSE_LOCATION (IPC_ARENA_SIZE - IPC_RESPONSE_MAX_SIZE - (sizeof(IpcArena_t) - 1))
+#define IPC_MAX_ARGUMENTS     5
+
+#define IPC_ASYNCHRONOUS      0x00000001
+#define IPC_NO_RESPONSE       0x00000002
 
 typedef struct {
     void*  Buffer;
@@ -40,6 +49,7 @@ typedef struct {
 typedef struct {
     _Atomic(int) WriteSyncObject;
     _Atomic(int) ReadSyncObject;
+    _Atomic(int) ResponseSyncObject;
     UUId_t       SenderHandle;
     IpcMessage_t Message;
     uint8_t      Buffer[1];
@@ -87,10 +97,19 @@ IpcGetResponse(
     _Out_ void** BufferOut));
     
 CRTDECL(OsStatus_t,
-IpcReply());
+IpcReply(
+    _In_  void*  Buffer,
+    _In_  size_t Length));
 
 CRTDECL(OsStatus_t,
 IpcListen(
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut));
+
+CRTDECL(OsStatus_t,
+IpcReplyAndListen(
+    _In_  void*          Buffer,
+    _In_  size_t         Length,
     _In_  size_t         Timeout,
     _Out_ IpcMessage_t** MessageOut));
 
