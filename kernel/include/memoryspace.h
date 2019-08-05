@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -256,9 +257,18 @@ CommitMemorySpaceMapping(
     _In_        Flags_t              Placement,
     _In_        uintptr_t            Mask);
 
-/* CloneMemorySpaceMapping
- * Clones a region of memory mappings into the address space provided. The new mapping
- * will automatically be marked PERSISTANT and PROVIDED. */
+/**
+ * CloneMemorySpaceMapping
+ * * Clones a region of memory mappings into the address space provided. The new mapping
+ * * will automatically be marked COMMIT, PERSISTANT and PROVIDED.
+ * @param SourceSpace
+ * @param DestinationSpace
+ * @param SourceAddress
+ * @param DestinationAddress
+ * @param Size
+ * @param MemoryFlags
+ * @param PlacementFlags
+ */
 KERNELAPI OsStatus_t KERNELABI
 CloneMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SourceSpace,
@@ -269,11 +279,16 @@ CloneMemorySpaceMapping(
     _In_        Flags_t              MemoryFlags,
     _In_        Flags_t              PlacementFlags);
 
-/* RemoveMemorySpaceMapping
- * Unmaps a virtual memory region from an address space */
+/**
+ * RemoveMemorySpaceMapping
+ * * Unmaps a virtual memory region from an address space.
+ * @param MemorySpace
+ * @param Address
+ * @param Size 
+ */
 KERNELAPI OsStatus_t KERNELABI
 RemoveMemorySpaceMapping(
-    _In_ SystemMemorySpace_t* SystemMemorySpace, 
+    _In_ SystemMemorySpace_t* MemorySpace, 
     _In_ VirtualAddress_t     Address, 
     _In_ size_t               Size);
 

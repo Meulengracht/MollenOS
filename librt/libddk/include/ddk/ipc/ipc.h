@@ -38,10 +38,6 @@
 #define ARGUMENT_BUFFER                 1
 #define ARGUMENT_REGISTER               2
 
-#define IPC_UNTYPED_THRESHOLD           512
-#define IPC_ARENA_SIZE                  0x1000
-#define IPC_RESPONSE_MAX_SIZE           512
-
 typedef struct {
     void*  Buffer;
     size_t Length;
@@ -55,14 +51,10 @@ typedef struct {
 typedef struct {
     _Atomic(int) WriteSyncObject;
     _Atomic(int) ReadSyncObject;
-    _Atomic(int) ResponseSyncObject;
     UUId_t       SenderHandle;
     IpcMessage_t Message;
     uint8_t      Buffer[1];
 } IpcArena_t;
-
-#define IPC_ASYNCHRONOUS 0x00000001
-#define IPC_NO_RESPONSE  0x00000002
 
 #include <ddk/ipc/rpc.h>
 #include <ddk/ipc/pipe.h>
