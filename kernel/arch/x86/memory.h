@@ -23,12 +23,7 @@
 #define _X86_MEMORY_H_
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-#include <multiboot.h>
-#include <machine.h>
 #include <paging.h>
-
-typedef struct _FastInterruptResources FastInterruptResources_t;
 
 // Shared bitfields
 #define PAGE_PRESENT            0x1
@@ -69,34 +64,20 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 /* ConvertSystemSpaceToPaging
  * Converts system memory-space generic flags to native x86 paging flags */
 KERNELAPI Flags_t KERNELABI
-ConvertSystemSpaceToPaging(Flags_t Flags);
+ConvertSystemSpaceToPaging(
+    _In_ Flags_t Flags);
 
 /* ConvertPagingToSystemSpace
  * Converts native x86 paging flags to system memory-space generic flags */
 KERNELAPI Flags_t KERNELABI
-ConvertPagingToSystemSpace(Flags_t Flags);
-
-/* SynchronizePageRegion
- * Synchronizes the page address across cores to make sure they have the
- * latest revision of the page-table cached. */
-KERNELAPI void KERNELABI
-SynchronizePageRegion(
-    _In_ SystemMemorySpace_t*       SystemMemorySpace,
-    _In_ uintptr_t                  Address,
-    _In_ size_t                     Length);
-
-/* PageSynchronizationHandler
- * Synchronizes the page address specified in the MemorySynchronization Object. */
-KERNELAPI InterruptStatus_t KERNELABI
-PageSynchronizationHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context);
+ConvertPagingToSystemSpace(
+    _In_ Flags_t Flags);
 
 /* ClearKernelMemoryAllocation
  * Clears the kernel memory allocation at the given address and size. */
 KERNELAPI OsStatus_t KERNELABI
 ClearKernelMemoryAllocation(
-    _In_ uintptr_t                  Address,
-    _In_ size_t                     Size);
+    _In_ uintptr_t Address,
+    _In_ size_t    Size);
 
 #endif // !_X86_MEMORY_H_

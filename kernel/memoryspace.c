@@ -23,6 +23,7 @@
 #define __MODULE "MEM2"
 
 #include <component/cpu.h>
+#include <arch/mmu.h>
 #include <arch/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
@@ -32,21 +33,6 @@
 #include <string.h>
 #include <debug.h>
 #include <heap.h>
-
-// External functions, must be implemented in arch layer
-extern OsStatus_t InitializeVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);
-extern OsStatus_t DestroyVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
-
-extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
-extern OsStatus_t SetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t);
-
-extern uintptr_t  GetVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
-
-extern OsStatus_t CommitVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t);
-extern OsStatus_t SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t, Flags_t);
-extern OsStatus_t ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
 
 typedef struct {
     volatile int CallsCompleted;
