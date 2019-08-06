@@ -21,6 +21,7 @@
  * - Common routines that are platform independant to provide
  *   a flexible and generic threading platfrom
  */
+
 #define __MODULE "MTIF"
 //#define __TRACE
 
@@ -57,7 +58,8 @@ ThreadingEntryPoint(void)
             ArchProcessorIdle();
         }
     }
-    else if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_KERNELENTRY)) {
+    else if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || 
+                (Thread->Flags & THREADING_KERNELENTRY)) {
         Thread->Flags &= ~(THREADING_KERNELENTRY);
         Thread->Function(Thread->Arguments);
         TerminateThread(Thread->Handle, 0, 1);
@@ -104,12 +106,12 @@ DestroyThread(
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
         DestroyHandle(Thread->MemorySpaceHandle);
     }
+    (void)RemoveMemorySpaceMapping(GetCurrentMemorySpace(), 
+        (VirtualAddress_t)Thread->IpcArena_t, IPC_ARENA_SIZE);
     kfree((void*)Thread->Name);
     kfree(Thread);
 }
 
-// Create default interrupt and signal stack that will be used
-// in kernel space, and is mandatory for each thread to provide.
 static void
 CreateDefaultThreadContexts(
     _In_ MCoreThread_t* Thread)
@@ -118,7 +120,7 @@ CreateDefaultThreadContexts(
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
         (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
 
-    // Should we create user stacks immediately?
+    // TODO: Should we create user stacks immediately?
 }
 
 // Setup defaults for a new thread and creates appropriate resources
@@ -130,7 +132,8 @@ InitializeDefaultThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-    char NameBuffer[16];
+    OsStatus_t Status;
+    char       NameBuffer[16];
 
     // Reset thread structure
     memset(Thread, 0, sizeof(MCoreThread_t));
@@ -159,6 +162,10 @@ InitializeDefaultThread(
     
     // Create communication members
     Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
+    Status                  = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Thread->IpcArena, NULL,
+        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
+        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
     
     // Register the thread with arch
     if (ThreadingRegister(Thread) != OsSuccess) {
