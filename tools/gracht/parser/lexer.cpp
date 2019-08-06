@@ -16,7 +16,7 @@ private:
 };
 
 GrachtAST::GrachtAST(const std::string& Path, std::shared_ptr<Language>& ASTLanguage)
-    : m_Parser(Path), m_Language(ASTLanguage), m_RootNode(nullptr), m_CurrentScope(ASTScope::Global)
+    : m_Parser(Path), m_Language(ASTLanguage), m_RootNode(nullptr)
 {
 }
 
@@ -30,9 +30,9 @@ bool GrachtAST::IsValid()
 
 bool GrachtAST::ParseTokens()
 {
-    std::queue<GrachtToken*> Tokens;
+    std::queue<std::shared_ptr<GrachtToken>> Tokens;
     for (auto Token : m_Parser.GetTokens()) {
-        Tokens.push(&Token);
+        Tokens.push(Token);
     }
 
     m_RootNode = m_Language->ParseTokens(Tokens);

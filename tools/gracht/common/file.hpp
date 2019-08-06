@@ -12,7 +12,7 @@ public:
     int ReadCharacter();
     
     unsigned int       GetHashCode() { return m_Hash; }
-    const std::string& GetPath() { return m_Path; }
+    const std::string& GetPath()     { return m_Path; }
 
 private:
     std::ifstream m_Stream;

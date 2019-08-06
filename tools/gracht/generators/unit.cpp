@@ -10,14 +10,13 @@ GrachtUnit::GrachtUnit(const std::string& Path, std::shared_ptr<Language> CodeLa
 
 bool GrachtUnit::IsValid()
 {
-    if (m_AST.IsValid()) {
-        return ParseAST();
-    }
-    return false;
+    return m_AST.IsValid();
 }
 
 bool GrachtUnit::ParseAST()
 {
+    auto RootAST = m_AST.GetRootStatement();
+
     return false;
 }
 

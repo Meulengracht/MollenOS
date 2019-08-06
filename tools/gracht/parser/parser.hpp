@@ -4,10 +4,11 @@
 
 #include "../common/file.hpp"
 #include "token.hpp"
+#include <memory>
 #include <list>
 
 class GrachtParser {
-    using TokenList = std::list<GrachtToken>;
+    using TokenList = std::list<std::shared_ptr<GrachtToken>>;
 public:
     GrachtParser(const std::string& Path);
 

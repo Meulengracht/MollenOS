@@ -7,5 +7,5 @@
 
 class Language {
 public:
-    virtual std::shared_ptr<Statement> ParseTokens(std::queue<GrachtToken*>&) = 0;
+    virtual std::shared_ptr<Statement> ParseTokens(std::queue<std::shared_ptr<GrachtToken>>&) = 0;
 };

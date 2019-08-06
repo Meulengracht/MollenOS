@@ -54,8 +54,9 @@ bool GrachtParser::ParseGrachtFile()
                 Identifier += static_cast<char>(Character & 0xFF);
                 Character   = m_Input.ReadCharacter(); LineIndex++;
             }
-            m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::DigitLiteral, Identifier, 
-                m_Input.GetPath(), Line, LineIndex));
+            m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                new GrachtToken(GrachtToken::TokenType::DigitLiteral, Identifier, 
+                    m_Input.GetPath(), Line, LineIndex)));
             Reuse = true;
             continue;
         }
@@ -68,8 +69,9 @@ bool GrachtParser::ParseGrachtFile()
                 String    += static_cast<char>(Character & 0xFF);
                 Character  = m_Input.ReadCharacter(); LineIndex++;
             }
-            m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::StringLiteral, String, 
-                m_Input.GetPath(), Line, LineIndex));
+            m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                new GrachtToken(GrachtToken::TokenType::StringLiteral, String, 
+                    m_Input.GetPath(), Line, LineIndex)));
             Reuse = true;
             continue;
         }
@@ -81,8 +83,9 @@ bool GrachtParser::ParseGrachtFile()
                 Identifier += static_cast<char>(Character & 0xFF);
                 Character   = m_Input.ReadCharacter(); LineIndex++;
             }
-            m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::Identifier, Identifier, 
-                m_Input.GetPath(), Line, LineIndex));
+            m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                new GrachtToken(GrachtToken::TokenType::Identifier, Identifier, 
+                    m_Input.GetPath(), Line, LineIndex)));
             Reuse = true;
             continue;
         }
@@ -90,36 +93,44 @@ bool GrachtParser::ParseGrachtFile()
         // Match rest against known fixed cases
         switch (Character) {
             case '(': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::LeftParenthesis, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::LeftParenthesis, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case ')': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::RightParenthesis, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::RightParenthesis, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case '{': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::LeftBracket, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::LeftBracket, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case '}': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::RightBracket, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::RightBracket, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case ',': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::Comma, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::Comma, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case ':': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::Colon, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::Colon, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case ';': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::SemiColon, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::SemiColon, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
             case '=': {
-                m_Tokens.push_back(GrachtToken(GrachtToken::TokenType::OperatorAssign, "", 
-                    m_Input.GetPath(), Line, LineIndex));
+                m_Tokens.push_back(std::shared_ptr<GrachtToken>(
+                    new GrachtToken(GrachtToken::TokenType::OperatorAssign, "", 
+                        m_Input.GetPath(), Line, LineIndex)));
             } break;
 
             default: {

@@ -10,26 +10,18 @@
 #include <string>
 
 class GrachtAST {
-private:
-    enum class ASTScope {
-        Global,
-        Object,
-        Enum
-    };
-
 public:
     GrachtAST(const std::string& Path, std::shared_ptr<Language>& ASTLanguage);
 
-    bool IsValid();
+    bool                       IsValid();
+    std::shared_ptr<Statement> GetRootStatement() { return m_RootNode; }
 
 private:
-    bool                       ParseTokens();
-    std::shared_ptr<Statement> GetNextStatement();
-    bool                       VerifyAST();
+    bool ParseTokens();
+    bool VerifyAST();
 
 private:
     GrachtParser               m_Parser;
     std::shared_ptr<Language>  m_Language;
     std::shared_ptr<Statement> m_RootNode;
-    ASTScope                   m_CurrentScope;
 };
