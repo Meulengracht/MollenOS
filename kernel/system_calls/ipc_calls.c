@@ -203,13 +203,10 @@ ScIpcInvoke(
     }
     
     atomic_store(&IpcArena->ResponseSyncObject, 0);
+    atomic_store(&IpcArena->ReadSyncObject, 1);
+    (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
     if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {
-        atomic_store(&IpcArena->ReadSyncObject, 1);
-        (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
-    }
-    else {
-        // RunThreadInContext
-        // TODO:
+        return OsSuccess;
     }
     return ScIpcGetResponse(Timeout, BufferOut);
 }
