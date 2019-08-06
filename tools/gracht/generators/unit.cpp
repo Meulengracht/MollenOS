@@ -3,8 +3,8 @@
 
 #include "unit.hpp"
 
-GrachtUnit::GrachtUnit(const std::string& Path)
-    : m_AST(Path)
+GrachtUnit::GrachtUnit(const std::string& Path, std::shared_ptr<Language> CodeLanguage)
+    : m_AST(Path, CodeLanguage)
 {
 }
 

@@ -344,7 +344,9 @@
         "cctype": "cpp",
         "cstdarg": "cpp",
         "cwctype": "cpp",
-        "iomanip": "cpp"
+        "iomanip": "cpp",
+        "__errc": "cpp",
+        "bit": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",

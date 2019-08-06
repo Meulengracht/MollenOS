@@ -26,7 +26,7 @@ private:
 class VariableExpression : public Expression
 {
 public:
-	Variable(const std::string& Identifier) 
+	VariableExpression(const std::string& Identifier) 
         : Expression(ExpressionType::Variable), m_Identifier(Identifier) { }
 
 	const std::string& GetIdentifier() { return m_Identifier; }

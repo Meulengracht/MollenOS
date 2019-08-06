@@ -6,6 +6,7 @@
 #include "parser/lexer.hpp"
 #include "generators/unit.hpp"
 #include "generators/c/c_generator.hpp"
+#include "parser/gracht/gracht_language.hpp"
 #include <memory>
 #include <queue>
 
@@ -24,9 +25,11 @@ int main(int argc, char** argv)
 {
     auto Arguments = GetArguments(argc, argv);
     if (Arguments.size() == 0) {
-        printf("no arguments are provided\n");
+        printf("gracht: no arguments are provided\n");
     }
-    std::unique_ptr<GrachtUnit> Code(new GrachtUnit(Arguments.front()));
+    
+    std::shared_ptr<Language>   Lang(new GrachtLanguage());
+    std::unique_ptr<GrachtUnit> Code(new GrachtUnit(Arguments.front(), Lang));
     if (Code->IsValid()) {
         std::unique_ptr<GrachtGeneratorC> Generator(new GrachtGeneratorC(std::move(Code)));
         return Generator->Generate("", "", "");

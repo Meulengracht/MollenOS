@@ -28,7 +28,7 @@ class GrachtUnit {
     using FunctionList = std::list<GrachtFunction>;
     using EnumList     = std::list<GrachtEnum>;
 public:
-    GrachtUnit(const std::string& Path);
+    GrachtUnit(const std::string& Path, std::shared_ptr<Language> CodeLanguage);
     
     bool IsValid();
 
