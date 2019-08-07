@@ -143,6 +143,7 @@ private:
     // RightParenthesis [Colon Identifier] SemiColon
     Statement* ParseFunctionStatement(std::shared_ptr<GrachtToken> FuncToken, TokenList Tokens) {
         auto NameToken = GetNextToken(Tokens);
+        std::string ReturnType = "void";
 
         if (NameToken == nullptr || !NameToken->Is(GrachtToken::TokenType::Identifier)) {
             fprintf(stderr, "expected name identifier after %s\n", FuncToken->ToString().c_str());
@@ -155,8 +156,7 @@ private:
             return nullptr;
         }
 
-        auto Func = new Function(NameToken->GetValue());
-
+        std::shared_ptr<Statement> Parameters(nullptr);
         auto Iterator = GetNextToken(Tokens);
         bool Comma    = false;
         while (Iterator && !Iterator->Is(GrachtToken::TokenType::RightParenthesis)) {
@@ -167,13 +167,13 @@ private:
 
             auto Child = std::shared_ptr<Statement>(
                 ParseParameterStatement(Iterator, Tokens, Comma));
-            if (Func->GetChildStatement() != nullptr) {
+            if (Parameters != nullptr) {
                 Child = std::shared_ptr<Statement>(
-                    new Sequence(Func->GetChildStatement(), Child));
+                    new Sequence(Parameters, Child));
             }
 
-            Func->SetChildStatement(Child);
-            Iterator = GetNextToken(Tokens);
+            Parameters = Child;
+            Iterator   = GetNextToken(Tokens);
         }
 
         // Get close parenthesis, must exist at this point here
@@ -190,6 +190,7 @@ private:
                 fprintf(stderr, "missing return type after ':' %s\n", ColonToken->ToString().c_str());
                 return nullptr;
             }
+            ReturnType = ReturnTypeToken->GetValue();
         }
 
         auto EndOfLine = GetNextToken(Tokens);
@@ -198,6 +199,8 @@ private:
             return nullptr;
         }
 
+        auto Func = new Function(NameToken->GetValue(), ReturnType);
+        Func->SetChildStatement(Parameters);
         return Func;
     }
 

@@ -79,19 +79,22 @@ public:
 	const std::string& GetIdentifier() { return m_Identifier; }
 
 private:
-	const std::string& m_Identifier;
+	std::string m_Identifier;
 };
 
 class Function : public Statement
 {
 public:
-	Function(const std::string& Identifier) 
-        : Statement(StatementType::Function), m_Identifier(Identifier) { }
+	Function(const std::string& Identifier, const std::string& ReturnType) 
+        : Statement(StatementType::Function), 
+          m_Identifier(Identifier), m_ReturnType(ReturnType) { }
 
 	const std::string& GetIdentifier() { return m_Identifier; }
+	const std::string& GetReturnType() { return m_ReturnType; }
 
 private:
-	const std::string& m_Identifier;
+	std::string m_Identifier;
+    std::string m_ReturnType;
 };
 
 class Sequence : public Statement

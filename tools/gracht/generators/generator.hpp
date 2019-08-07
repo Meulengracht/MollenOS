@@ -6,6 +6,7 @@
 
 class GrachtGenerator {
 public:
-    virtual int Generate(const std::string& CommonHeadersPath, const std::string& ClientSourcesPath, 
+    virtual int Generate(std::shared_ptr<GrachtUnit>, 
+        const std::string& CommonHeadersPath,
         const std::string& ServerSourcesPath) = 0;
 };

@@ -3,7 +3,8 @@ CXX ?= g++
 SOURCE = $(wildcard *.cpp) \
 		 $(wildcard common/*.cpp) \
 		 $(wildcard generators/*.cpp) \
-		 $(wildcard generators/c/*.cpp) \
+		 $(wildcard generators/gracht/*.cpp) \
+		 $(wildcard generators/gracht/c/*.cpp) \
 		 $(wildcard parser/*.cpp)
 OBJECTS = $(SOURCE:.cpp=.o)
 DEP = $(OBJECTS:.o=.d)
