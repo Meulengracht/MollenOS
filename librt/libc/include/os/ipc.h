@@ -39,6 +39,11 @@
 
 #define IPC_SET_TYPED(Message, Index, Value)           IpcSetTypedArgument(Message, Index, (size_t)Value)
 #define IPC_SET_UNTYPED_STRING(Message, Index, String) IpcSetUntypedArgument(Message, Index, (void*)String, strlen(String) + 1)
+
+#define IPC_GET_TYPED(Message, Index)                  Message->TypedArguments[Index]
+#define IPC_GET_UNTYPED(Message, Index)                Message->UntypedArguments[Index].Buffer
+#define IPC_GET_STRING(Message, Index)                 (char*)Message->UntypedArguments[Index].Buffer
+
 #define IPC_CAST_AND_DEREF(Pointer, Type)              (Type)*((size_t*)Pointer)
 
 #define IPC_ASYNCHRONOUS      0x00000001

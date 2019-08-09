@@ -151,6 +151,8 @@ RegisterContract(
 	OsStatus_t   Status;
 	void*        Result;
 	
+	Contract->DriverId = thrd_current();
+	
 	IpcInitialize(&Request);
 	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_REGISTERCONTRACT);
 	IpcSetUntypedArgument(&Request, 0, Contract, sizeof(MContract_t));

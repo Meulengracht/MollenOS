@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -22,16 +23,16 @@
  */
 #define __TRACE
 
+#include <assert.h>
+#include <bus.h>
+#include <ctype.h>
 #include "devicemanager.h"
 #include <ddk/driver.h>
+#include <ddk/services/device.h>
 #include <ddk/utils.h>
-#include <ddk/service.h>
 #include <ds/collection.h>
-#include <bus.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 static Collection_t Contracts           = COLLECTION_INIT(KeyId);
 static Collection_t Devices             = COLLECTION_INIT(KeyId);
@@ -64,31 +65,26 @@ OnUnload(void)
  * and should handle the given event */
 OsStatus_t
 OnEvent(
-    _In_ MRemoteCall_t *Message)
+    _In_ IpcMessage_t* Message)
 {
-    // Debug
-    TRACE("DeviceManager.OnEvent(Function %i)", Message->Function);
+    TRACE("DeviceManager.OnEvent(Function %i)", IPC_GET_TYPED(Message, 0));
 
-    // Which function is called?
-    switch (Message->Function) {
+    switch (IPC_GET_TYPED(Message, 0)) {
         case __DEVICEMANAGER_REGISTERDEVICE: {
             UUId_t         Result = UUID_INVALID;
             UUId_t         ParentDeviceId;
             MCoreDevice_t* Device;
             Flags_t        DeviceFlags;
             
-            // Extract variables
-            ParentDeviceId  = (UUId_t)Message->Arguments[0].Data.Value;
-            RPCCastArgumentToPointer(&Message->Arguments[1], (void**)&Device);
-            DeviceFlags     = (Flags_t)Message->Arguments[2].Data.Value;
-
-            // Sanitize buffer
+            ParentDeviceId = (UUId_t)IPC_GET_TYPED(Message, 1);
+            DeviceFlags    = (Flags_t)IPC_GET_TYPED(Message, 2);
+            Device         = IPC_GET_UNTYPED(Message, 0);
             if (Device != NULL) {
                 if (DmRegisterDevice(ParentDeviceId, Device, NULL, DeviceFlags, &Result) != OsSuccess) {
                     Result = UUID_INVALID;
                 }
             }
-            return RPCRespond(&Message->From, &Result, sizeof(UUId_t));
+            return IpcReply(Message, &Result, sizeof(UUId_t));
         } break;
 
         // Unregisters a device from the system, and 
@@ -109,36 +105,35 @@ OnEvent(
         case __DEVICEMANAGER_IOCTLDEVICE: {
             MCoreDevice_t* Device;
             OsStatus_t     Result = OsError;
-            DataKey_t      Key    = { .Value.Id = Message->Arguments[0].Data.Value };
+            DataKey_t      Key    = { .Value.Id = IPC_GET_TYPED(Message, 1) };
             
             Device = CollectionGetDataByKey(&Devices, Key, 0);
             if (Device != NULL) {
-                if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
+                if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
                     Result = DmIoctlDevice(Device, Message->Arguments[2].Data.Value);
                 }
-                else if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
-                    Result = DmIoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
-                        Message->Arguments[2].Data.Value, Message->Arguments[3].Data.Value,
-                        Message->Arguments[4].Data.Value);
+                else if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
+                    Result = DmIoctlDeviceEx(Device, IPC_GET_TYPED(Message, 2),
+                        IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
+                        (size_t)IPC_GET_UNTYPED(Message, 0));
                 }
             }
-            return RPCRespond(&Message->From, &Result, sizeof(OsStatus_t));
+            return IpcReply(Message, &Result, sizeof(OsStatus_t));
         } break;
 
         // Registers a driver for the given device 
         // We then store what contracts are related to 
         // which devices in order to keep track
         case __DEVICEMANAGER_REGISTERCONTRACT: {
-            MContract_t* Contract = (MContract_t*)Message->Arguments[0].Data.Buffer;
+            MContract_t* Contract = (MContract_t*)IPC_GET_UNTYPED(Message, 0);
             UUId_t       Result   = UUID_INVALID;
 
             // Evaluate request, but don't free
             // the allocated contract storage, we need it
-            Contract->DriverId = Message->From.Process;
             if (DmRegisterContract(Contract, &Result) != OsSuccess) {
                 Result = UUID_INVALID;
             }
-            return RPCRespond(&Message->From, &Result, sizeof(UUId_t));
+            return IpcReply(Message, &Result, sizeof(UUId_t));
         } break;
 
         // For now this function is un-implemented
