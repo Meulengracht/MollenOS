@@ -36,9 +36,11 @@ static UUId_t       ServiceHandleGenerator = 0;
 static UUId_t       WindowingSystemId      = UUID_INVALID;
 
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-	return RegisterService(__SESSIONMANAGER_TARGET);
+    *ServicePathOut = SERVICE_SESSION_PATH;
+    return OsSuccess;
 }
 
 OsStatus_t

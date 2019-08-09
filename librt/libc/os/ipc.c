@@ -25,12 +25,13 @@
 
 OsStatus_t
 IpcInvoke(
-    _In_ thrd_t        Target,
-    _In_ IpcMessage_t* Message, 
-    _In_ unsigned int  Flags,
-    _In_ int           Timeout)
+    _In_  thrd_t        Target,
+    _In_  IpcMessage_t* Message, 
+    _In_  unsigned int  Flags,
+    _In_  int           Timeout,
+    _Out_ void**        ResultBuffer)
 {
-    return Syscall_IpcInvoke(Target, Message, Flags, Timeout);
+    return Syscall_IpcInvoke(Target, Message, Flags, Timeout, ResultBuffer);
 }
 
 OsStatus_t
@@ -43,10 +44,11 @@ IpcGetResponse(
 
 OsStatus_t
 IpcReply(
-    _In_  void*  Buffer,
-    _In_  size_t Length)
+    _In_ IpcMessage_t* Message,
+    _In_ void*         Buffer,
+    _In_ size_t        Length)
 {
-    return Syscall_IpcReply(Buffer, Length);
+    return Syscall_IpcReply(Message, Buffer, Length);
 }
 
 OsStatus_t
@@ -59,10 +61,11 @@ IpcListen(
 
 OsStatus_t
 IpcReplyAndListen(
+    _In_  IpcMessage_t*  Message,
     _In_  void*          Buffer,
     _In_  size_t         Length,
     _In_  size_t         Timeout,
     _Out_ IpcMessage_t** MessageOut)
 {
-    return Syscall_IpcReplyAndListen(Buffer, Length, Timeout, MessageOut);
+    return Syscall_IpcReplyAndListen(Message, Buffer, Length, Timeout, MessageOut);
 }

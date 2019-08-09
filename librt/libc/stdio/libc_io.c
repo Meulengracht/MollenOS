@@ -82,17 +82,17 @@ thrd_t thrd_current(void) {
 
 #else
 //#define __TRACE
-#include <internal/_syscalls.h>
-#include <ds/collection.h>
-#include <ddk/ipc/ipc.h>
+#include <assert.h>
 #include <ddk/utils.h>
+#include <ds/collection.h>
+#include <errno.h>
+#include <internal/_syscalls.h>
+#include <internal/_io.h>
+#include <io.h>
 #include <os/input.h>
 #include <stdio.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <io.h>
-#include <internal/_io.h>
+#include <string.h>
 
 static Collection_t stdio_objects = COLLECTION_INIT(KeyInteger);
 static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
@@ -158,10 +158,10 @@ StdioGetNumberOfInheritableHandles(
 static OsStatus_t
 StdioCreateInheritanceBlock(
     _In_  ProcessStartupInformation_t* StartupInformation,
-    _Out_ void**                       InheritationBlock,
-    _Out_ size_t*                      InheritationBlockLength)
+    _Out_ void**                       InheritationBlockOut,
+    _Out_ size_t*                      InheritationBlockLengthOut)
 {
-    stdio_handle_t*  BlockPointer    = NULL;
+    stdio_handle_t* BlockPointer    = NULL;
     size_t          NumberOfObjects = 0;
 
     assert(StartupInformation != NULL);
@@ -172,9 +172,17 @@ StdioCreateInheritanceBlock(
     
     NumberOfObjects = StdioGetNumberOfInheritableHandles(StartupInformation);
     if (NumberOfObjects != 0) {
-        *InheritationBlockLength = NumberOfObjects * sizeof(stdio_handle_t);
-        *InheritationBlock       = malloc(NumberOfObjects * sizeof(stdio_handle_t));
-        BlockPointer             = (stdio_handle_t*)(*InheritationBlock);
+        void*  InheritationBlock;
+        size_t InheritationBlockLength;
+        
+        InheritationBlockLength = NumberOfObjects * sizeof(stdio_handle_t) + sizeof(size_t);
+        InheritationBlock       = malloc(InheritationBlockLength);
+        
+        *((size_t*)InheritationBlock) = NumberOfObjects * sizeof(stdio_handle_t);
+        BlockPointer                  = (stdio_handle_t*)(((size_t*)InheritationBlock) + 1);
+        
+        *InheritationBlockOut       = InheritationBlock;
+        *InheritationBlockLengthOut = InheritationBlockLength;
 
         LOCK_FILES();
         foreach(Node, &stdio_objects) {

@@ -174,9 +174,11 @@ VfsIdentifierFree(
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-    return RegisterService(__FILEMANAGER_TARGET);
+    *ServicePathOut = SERVICE_FILE_PATH;
+    return OsSuccess;
 }
 
 /* OnUnload

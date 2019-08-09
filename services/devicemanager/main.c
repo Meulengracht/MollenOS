@@ -42,12 +42,10 @@ static UUId_t       ContractIdGenerator = 0;
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-    // Register us with server manager
-    if (RegisterService(__DEVICEMANAGER_TARGET) != OsSuccess) {
-        return OsError; // Only one instance of devicemanager is allowed
-    }
+    *ServicePathOut = SERVICE_DEVICE_PATH;
     return BusEnumerate();
 }
 
@@ -148,35 +146,6 @@ OnEvent(
             WARNING("Got event __DEVICEMANAGER_UNREGISTERCONTRACT");
         } break;
 
-        // Query a contract for information 
-        // This usually redirects a message to
-        // the corresponding driver
-        case __DEVICEMANAGER_QUERYCONTRACT: {
-            // Hold a response buffer
-            void* ResponseBuffer = malloc(Message->Result.Length);
-            void* NullPointer    = NULL;
-
-            // Query contract
-            if (DmQueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
-                    (int)Message->Arguments[1].Data.Value,
-                    (Message->Arguments[2].Type == ARGUMENT_REGISTER) ?
-                    &Message->Arguments[2].Data.Value : Message->Arguments[2].Data.Buffer,
-                    Message->Arguments[2].Length,
-                    (Message->Arguments[3].Type == ARGUMENT_REGISTER) ?
-                    &Message->Arguments[3].Data.Value : Message->Arguments[3].Data.Buffer,
-                    Message->Arguments[3].Length,
-                    (Message->Arguments[4].Type == ARGUMENT_REGISTER) ?
-                    &Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
-                    Message->Arguments[4].Length,
-                    ResponseBuffer, Message->Result.Length) == OsSuccess) {
-                RPCRespond(&Message->From, ResponseBuffer, Message->Result.Length);
-            }
-            else {
-                RPCRespond(&Message->From, NullPointer, sizeof(void*));
-            }
-            free(ResponseBuffer);
-        } break;
-
         default: {
         } break;
     }
@@ -266,31 +235,4 @@ DmRegisterContract(
     }
     memcpy(CopyContract, Contract, sizeof(MContract_t));
     return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
-}
-
-/* DmQueryContract
- * Handles the generic query function, by resolving
- * the correct driver and asking for data */
-OsStatus_t 
-DmQueryContract(
-    _In_      MContractType_t   Type, 
-    _In_      int               Function,
-    _In_Opt_  const void*       Arg0,
-    _In_Opt_  size_t            Length0,
-    _In_Opt_  const void*       Arg1,
-    _In_Opt_  size_t            Length1,
-    _In_Opt_  const void*       Arg2,
-    _In_Opt_  size_t            Length2,
-    _Out_Opt_ const void*       ResultBuffer,
-    _In_Opt_  size_t            ResultLength)
-{
-    foreach(cNode, &Contracts) {
-        MContract_t *Contract = (MContract_t*)cNode->Data;
-        if (Contract->Type == Type) {
-            return QueryDriver(Contract, Function, 
-                Arg0, Length0, Arg1, Length1, Arg2, Length2,
-                ResultBuffer, ResultLength);
-        }
-    }
-    return OsError;
 }

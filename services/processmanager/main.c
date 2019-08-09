@@ -31,14 +31,11 @@
 #include "process.h"
 
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-    // Register us with server manager
-	OsStatus_t Status = RegisterService(__PROCESSMANAGER_TARGET);
-    if (Status == OsSuccess) {
-        Status = InitializeProcessManager();
-    }
-    return Status;
+    *ServicePathOut = SERVICE_PROCESS_PATH;
+    return InitializeProcessManager();
 }
 
 OsStatus_t

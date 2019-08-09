@@ -31,6 +31,7 @@
 #include <handle.h>
 #include <debug.h>
 #include <heap.h>
+#include <string.h>
 
 OsStatus_t
 ScModuleGetStartupInformation(

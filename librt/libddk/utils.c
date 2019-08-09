@@ -52,22 +52,6 @@ MollenOSEndBoot(void)
 }
 
 OsStatus_t
-WriteSystemInput(
-    _In_ SystemInput_t* Input)
-{
-    assert(Input != NULL);
-    return Syscall_InputEvent(Input);
-}
-
-OsStatus_t
-WriteSystemKey(
-    _In_ SystemKey_t* Key)
-{
-    assert(Key != NULL);
-    return Syscall_KeyEvent(Key);
-}
-
-OsStatus_t
 QueryDisplayInformation(
     _In_ VideoDescriptor_t *Descriptor)
 {

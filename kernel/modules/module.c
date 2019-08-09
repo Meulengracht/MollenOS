@@ -23,6 +23,7 @@
 #define __MODULE "PROC"
 //#define __TRACE
 
+#include <assert.h>
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <modules/module.h>

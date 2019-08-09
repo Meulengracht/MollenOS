@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -20,33 +21,43 @@
  * - This header describes the base storage-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
-#include <os/services/targets.h>
+
 #include <ddk/services/file.h>
+#include <os/ipc.h>
+#include <os/services/process.h>
 
 OsStatus_t
 RegisterStorage( 
-    _In_ UUId_t  Device, 
+    _In_ UUId_t  DeviceId, 
     _In_ Flags_t Flags)
 {
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_REGISTERSTORAGE);
-    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
-    return RPCEvent(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_REGISTERSTORAGE);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, DeviceId);
+	IPC_SET_TYPED(&Request, 3, Flags);
+	
+	return IpcInvoke(ServiceTarget, &Request, 
+	    IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
 
 OsStatus_t
 UnregisterStorage(
-    _In_ UUId_t  Device,
+    _In_ UUId_t  DeviceId,
     _In_ Flags_t Flags)
 {
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_UNREGISTERSTORAGE);
-    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
-    return RPCEvent(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_UNREGISTERSTORAGE);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, DeviceId);
+	IPC_SET_TYPED(&Request, 3, Flags);
+	
+	return IpcInvoke(ServiceTarget, &Request, 
+	    IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -45,6 +46,7 @@ typedef void (*HandleDestructorFn)(void*);
 
 typedef struct _SystemHandle {
     SystemHandleType_t Type;
+    const char*        Path;
     Flags_t            Flags;
     atomic_int         References;
     HandleDestructorFn Destructor;
@@ -79,6 +81,28 @@ DestroyHandle(
 KERNELAPI void* KERNELABI
 AcquireHandle(
     _In_ UUId_t Handle);
+
+/**
+ * RegisterHandlePath
+ * * Registers a global handle path that can be used to look up the handle.
+ * @param Handle [In] The handle to register the path with.
+ * @param Path   [In] The path at which the handle should reside.
+ */
+KERNELAPI OsStatus_t KERNELABI
+RegisterHandlePath(
+    _In_ UUId_t      Handle,
+    _In_ const char* Path);
+
+/**
+ * LookupHandleByPath
+ * * Tries to resolve a handle from the given path.
+ * @param Path      [In]  The path to resolve a handle for.
+ * @param HandleOut [Out] A pointer to handle storage.
+ */
+KERNELAPI OsStatus_t KERNELABI
+LookupHandleByPath(
+    _In_  const char* Path,
+    _Out_ UUId_t*     HandleOut);
 
 /* LookupHandle
  * Retrieves the handle given. This can fail if the handle

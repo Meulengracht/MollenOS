@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +23,9 @@
  */
 
 #include <ddk/contracts/base.h>
-#include <ddk/ipc/ipc.h>
-#include <ddk/service.h>
+#include <ddk/services/service.h>
 #include <ddk/device.h>
+#include <os/ipc.h>
 #include <string.h>
 
 UUId_t
@@ -33,186 +34,133 @@ RegisterDevice(
     _InOut_ MCoreDevice_t*  Device, 
     _In_    Flags_t         Flags)
 {
-    MRemoteCall_t Request;
-    UUId_t        Result = UUID_INVALID;
-    
-    // Sanitize
+	thrd_t       ServiceTarget = GetDeviceService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+
+    // Protect against badly formed parameters
     if (Device == NULL || (Device->Length < sizeof(MCoreDevice_t))) {
         return UUID_INVALID;
     }
-
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERDEVICE);
-    RPCSetArgument(&Request, 0, (const void*)&Parent, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)Device, Device->Length);
-    RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
     
-    RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
-    if (RPCExecute(&Request) != OsSuccess) {
-        return UUID_INVALID;
-    }
-    else {
-        Device->Id = Result;
-        return Result;
-    }
+	IpcInitialize(&Request);
+	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_REGISTERDEVICE);
+	IpcSetTypedArgument(&Request, 1, Parent);
+	IpcSetTypedArgument(&Request, 2, Flags);
+	IpcSetUntypedArgument(&Request, 0, Device, Device->Length);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return UUID_INVALID;
+	}
+	
+	// Update id's
+	Device->Id = *(UUId_t*)Result;
+	return Device->Id;
 }
 
-/* Device Unregistering
- * Allows removal of a device in the device-manager, and automatically 
- * unloads drivers for the removed device */
 OsStatus_t
 UnregisterDevice(
     _In_ UUId_t DeviceId)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Result = OsSuccess;
+	thrd_t       ServiceTarget = GetDeviceService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
 
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_UNREGISTERDEVICE);
-    RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-    if (RPCExecute(&Request) != OsSuccess) {
-        return OsError;
-    }
-    return Result;
+	IpcInitialize(&Request);
+	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_UNREGISTERDEVICE);
+	IpcSetTypedArgument(&Request, 1, DeviceId);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+    return (OsStatus_t)*((int*)Result);
 }
 
-/* Device I/O Control
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device */
 OsStatus_t
 IoctlDevice(
-    _In_ UUId_t  Device,
+    _In_ UUId_t  DeviceId,
     _In_ Flags_t Command,
     _In_ Flags_t Flags)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Result = OsSuccess;
+	thrd_t       ServiceTarget = GetDeviceService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
 
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Command, sizeof(Flags_t));
-    RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
-    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-    RPCExecute(&Request);
-    return Result;
+	IpcInitialize(&Request);
+	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_IOCTLDEVICE);
+	IpcSetTypedArgument(&Request, 1, DeviceId);
+	IpcSetTypedArgument(&Request, 2, Command);
+	IpcSetTypedArgument(&Request, 3, Flags);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+    return (OsStatus_t)*((int*)Result);
 }
 
-/* Device I/O Control (Extended)
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device.
- * <Direction> = 0 (Read), 1 (Write) */
 OsStatus_t
 IoctlDeviceEx(
-    _In_    UUId_t   Device,
+    _In_    UUId_t   DeviceId,
     _In_    int      Direction,
     _In_    Flags_t  Register,
     _InOut_ Flags_t* Value,
     _In_    size_t   Width)
 {
-    MRemoteCall_t Request;
-    Flags_t       Result = 0;
-    Flags_t       Select = 0;
-
+	thrd_t       ServiceTarget = GetDeviceService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+    Flags_t      Select = 0;
+    
     Select = __DEVICEMANAGER_IOCTL_EXT;
     if (Direction == 0) {
         Select |= __DEVICEMANAGER_IOCTL_EXT_READ;
     }
 
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Select, sizeof(Flags_t));
-    RPCSetArgument(&Request, 2, (const void*)&Register, sizeof(Flags_t));
-    RPCSetArgument(&Request, 3, (const void*)Value, sizeof(Flags_t));
-    RPCSetArgument(&Request, 4, (const void*)&Width, sizeof(size_t));
-    RPCSetResult(&Request, (const void*)&Result, sizeof(Flags_t));
-    RPCExecute(&Request);
-    if (Direction == 0 && Value != NULL) {
-        *Value = Result;
+	IpcInitialize(&Request);
+	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_IOCTLDEVICE);
+    IpcSetTypedArgument(&Request, 1, DeviceId);
+    IpcSetTypedArgument(&Request, 2, Select);
+    IpcSetTypedArgument(&Request, 3, Register);
+    IpcSetTypedArgument(&Request, 4, (Value != NULL) ? *Value : 0);
+    IpcSetUntypedArgument(&Request, 0, &Width, sizeof(size_t));
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	if (Direction == 0 && Value != NULL) {
+        *Value = *(Flags_t*)Result;
     }
-    else {
-        return (OsStatus_t)Result;
-    }
-    return OsSuccess;
+    return (OsStatus_t)(*(Flags_t*)Result);
 }
 
-/* RegisterContract 
- * Registers the given contact with the device-manager to let
- * the manager know we are handling this device, and what kind
- * of functionality the device supports */
 OsStatus_t
 RegisterContract(
     _In_ MContract_t* Contract)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Result = OsSuccess;
-    UUId_t        ContractId = UUID_INVALID;
-
-    // Initialize static RPC variables like
-    // type of RPC, pipe and version
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERCONTRACT);
-    RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
-    RPCSetResult(&Request, &ContractId, sizeof(UUId_t));
-    Result = RPCExecute(&Request);
-
+	thrd_t       ServiceTarget = GetDeviceService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_REGISTERCONTRACT);
+	IpcSetUntypedArgument(&Request, 0, Contract, sizeof(MContract_t));
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
     // Update the contract-id
-    Contract->ContractId = ContractId;
-    return Result;
-}
-
-/* QueryContract 
- * Handles the generic query function, by resolving the correct driver and asking for data */
-OsStatus_t
-QueryContract(
-    _In_      MContractType_t   Type, 
-    _In_      int               Function,
-    _In_Opt_  const void*       Arg0,
-    _In_Opt_  size_t            Length0,
-    _In_Opt_  const void*       Arg1,
-    _In_Opt_  size_t            Length1,
-    _In_Opt_  const void*       Arg2,
-    _In_Opt_  size_t            Length2,
-    _Out_Opt_ const void*       ResultBuffer,
-    _In_Opt_  size_t            ResultLength)
-{
-    // Variables
-    MRemoteCall_t Request;
-    OsStatus_t Result = OsSuccess;
-
-    // Initialize static RPC variables like
-    // type of RPC, pipe and version
-    RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_QUERYCONTRACT);
-    RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
-    RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
-
-    // Handle arguments
-    if (Arg0 != NULL && Length0 != 0) {
-        RPCSetArgument(&Request, 2, Arg0, Length0);
-    }
-    if (Arg1 != NULL && Length1 != 0) {
-        RPCSetArgument(&Request, 3, Arg1, Length1);
-    }
-    if (Arg2 != NULL && Length2 != 0) {
-        RPCSetArgument(&Request, 4, Arg2, Length2);
-    }
-
-    // Handle result - if none is given we must always
-    // get a osstatus - we also execute the rpc here
-    if (ResultBuffer != NULL && ResultLength != 0) {
-        RPCSetResult(&Request, ResultBuffer, ResultLength);
-        return RPCExecute(&Request);
-    }
-    else {
-        RPCSetResult(&Request, &Result, sizeof(OsStatus_t));
-        if (RPCExecute(&Request) != OsSuccess) {
-            return OsError;
-        }
-        else {
-            return Result;
-        }
-    }
+    Contract->ContractId = *(UUId_t*)Result;
+    return Status;
 }

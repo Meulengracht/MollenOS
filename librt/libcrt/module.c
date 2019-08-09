@@ -29,7 +29,7 @@ extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 extern OsStatus_t OnRegister(MCoreDevice_t*);
 extern OsStatus_t OnUnregister(MCoreDevice_t*);
-extern OsStatus_t OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
+extern OsStatus_t OnQuery(IpcMessage_t*);
 
 extern char**
 __CrtInitialize(
@@ -40,8 +40,7 @@ __CrtInitialize(
 void __CrtModuleEntry(void)
 {
     thread_storage_t Tls;
-    MRemoteCall_t    Message;
-    char*            ArgumentBuffer;
+    IpcMessage_t*    Message;
     int              IsRunning = 1;
 
     // Initialize environment
@@ -54,21 +53,17 @@ void __CrtModuleEntry(void)
     }
     
     // Initialize the driver event loop
-    ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
-        if (RPCListen(UUID_INVALID, &Message, ArgumentBuffer) == OsSuccess) {
-            switch (Message.Function) {
+        if (IpcListen(0, &Message) == OsSuccess) {
+            switch (Message->TypedArguments[0]) {
                 case __DRIVER_REGISTERINSTANCE: {
-                    OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                    OnRegister((MCoreDevice_t*)Message->UntypedArguments[0].Buffer);
                 } break;
                 case __DRIVER_UNREGISTERINSTANCE: {
-                    OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                    OnUnregister((MCoreDevice_t*)Message->UntypedArguments[0].Buffer);
                 } break;
                 case __DRIVER_QUERY: {
-                    OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
-                        (int)Message.Arguments[1].Data.Value, 
-                        &Message.Arguments[2], &Message.Arguments[3], 
-                        &Message.Arguments[4], &Message.From);
+                    OnQuery(Message);
                 } break;
                 case __DRIVER_UNLOAD: {
                     IsRunning = 0;

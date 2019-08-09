@@ -26,10 +26,25 @@
 #define _USB_INTERFACE_H_
 
 #include <ddk/ddkdefs.h>
-#include <ddk/ipc/ipc.h>
-#include <ddk/usb/definitions.h>
 #include <ddk/bufferpool.h>
 #include <ddk/device.h>
+#include <ddk/usb/definitions.h>
+#include <ddk/services/service.h>
+
+/* These definitions are in-place to allow a custom
+ * setting of the device-manager, these are set to values
+ * where in theory it should never be needed to have more */
+#define __USBMANAGER_INTERFACE_VERSION          1
+
+/* These are the different IPC functions supported
+ * by the usbmanager, note that some of them might
+ * be changed in the different versions, and/or new
+ * functions will be added */
+#define __USBMANAGER_REGISTERCONTROLLER         (int)0
+#define __USBMANAGER_UNREGISTERCONTROLLER       (int)1
+#define __USBMANAGER_PORTEVENT                  (int)2
+#define __USBMANAGER_QUERYCONTROLLERCOUNT       (int)3
+#define __USBMANAGER_QUERYCONTROLLER            (int)4
 
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */
@@ -483,13 +498,37 @@ UsbExecutePacket(
 /* UsbEndpointReset
  * Resets the data for the given endpoint. This includes the data-toggles. 
  * This function is unavailable for control-endpoints. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbEndpointReset(
     _In_ UUId_t                     Driver,
     _In_ UUId_t                     Device,
     _In_ UsbHcDevice_t*             UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t* Endpoint);
+
+/* UsbControllerRegister
+ * Registers a new controller with the given type and setup */
+DDKDECL(OsStatus_t,
+UsbControllerRegister(
+    _In_ MCoreDevice_t*      Device,
+    _In_ UsbControllerType_t Type,
+    _In_ size_t              Ports));
+
+/* UsbControllerUnregister
+ * Unregisters the given usb-controller from the manager and
+ * unregisters any devices registered by the controller */
+DDKDECL(OsStatus_t,
+UsbControllerUnregister(
+    _In_ UUId_t DeviceId));
+
+/* UsbEventPort 
+ * Fired by a usbhost controller driver whenever there is a change
+ * in port-status. The port-status is then queried automatically by
+ * the usbmanager. */
+DDKDECL(OsStatus_t,
+UsbEventPort(
+    _In_ UUId_t  DeviceId,
+    _In_ uint8_t HubAddress,
+    _In_ uint8_t PortAddress));
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */

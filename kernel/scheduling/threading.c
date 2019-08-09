@@ -28,6 +28,7 @@
 #include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <os/ipc.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
@@ -107,7 +108,7 @@ DestroyThread(
         DestroyHandle(Thread->MemorySpaceHandle);
     }
     (void)RemoveMemorySpaceMapping(GetCurrentMemorySpace(), 
-        (VirtualAddress_t)Thread->IpcArena_t, IPC_ARENA_SIZE);
+        (VirtualAddress_t)Thread->IpcArena, IPC_ARENA_SIZE);
     kfree((void*)Thread->Name);
     kfree(Thread);
 }

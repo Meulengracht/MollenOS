@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -21,19 +22,17 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
-
-#include <os/mollenos.h>
-#include <os/services/targets.h>
-#include <os/services/sharedobject.h>
+#include <ctype.h>
 #include <ddk/services/process.h>
-
 #include <ds/collection.h>
 #include <ds/mstring.h>
-#include <stdlib.h>
 #include <errno.h>
-#include <ctype.h>
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
+#include <os/mollenos.h>
+#include <os/services/sharedobject.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct _LibraryItem {
     CollectionItem_t Header;

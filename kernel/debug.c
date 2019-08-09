@@ -24,7 +24,6 @@
 //#define __TRACE
 
 #include "../librt/libds/pe/pe.h"
-#include <os/services/targets.h>
 #include <modules/manager.h>
 #include <arch/utils.h>
 #include <memoryspace.h>

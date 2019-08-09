@@ -28,10 +28,18 @@
 #include <string.h>
 #include <threads.h>
 
+// Arguments use up to 512 * 5 = 2560
+// Response use up to 1024 bytes
+// This allows for up to 512 bytes of structure data
 #define IPC_ARENA_SIZE        4096
-#define IPC_RESPONSE_MAX_SIZE 512
+#define IPC_RESPONSE_MAX_SIZE 1024
 #define IPC_RESPONSE_LOCATION (IPC_ARENA_SIZE - IPC_RESPONSE_MAX_SIZE - (sizeof(IpcArena_t) - 1))
 #define IPC_MAX_ARGUMENTS     5
+#define IPC_UNTYPED_THRESHOLD 512
+
+#define IPC_SET_TYPED(Message, Index, Value)           IpcSetTypedArgument(Message, Index, (size_t)Value)
+#define IPC_SET_UNTYPED_STRING(Message, Index, String) IpcSetUntypedArgument(Message, Index, (void*)String, strlen(String) + 1)
+#define IPC_CAST_AND_DEREF(Pointer, Type)              (Type)*((size_t*)Pointer)
 
 #define IPC_ASYNCHRONOUS      0x00000001
 #define IPC_NO_RESPONSE       0x00000002
@@ -42,6 +50,8 @@ typedef struct {
 } IpcUntypedArgument_t;
 
 typedef struct {
+    size_t               MetaLength;
+    thrd_t               Sender;
     size_t               TypedArguments[IPC_MAX_ARGUMENTS];
     IpcUntypedArgument_t UntypedArguments[IPC_MAX_ARGUMENTS];
 } IpcMessage_t;
@@ -50,7 +60,6 @@ typedef struct {
     _Atomic(int) WriteSyncObject;
     _Atomic(int) ReadSyncObject;
     _Atomic(int) ResponseSyncObject;
-    UUId_t       SenderHandle;
     IpcMessage_t Message;
     uint8_t      Buffer[1];
 } IpcArena_t;
@@ -73,7 +82,7 @@ IpcSetTypedArgument(
 }
 
 static inline void
-IpcSetUntypedArgumnet(
+IpcSetUntypedArgument(
     _In_ IpcMessage_t* Message,
     _In_ int           Index,
     _In_ void*         Buffer,
@@ -86,10 +95,11 @@ IpcSetUntypedArgumnet(
 
 CRTDECL(OsStatus_t,
 IpcInvoke(
-    _In_ thrd_t        Target,
-    _In_ IpcMessage_t* Message, 
-    _In_ unsigned int  Flags,
-    _In_ int           Timeout));
+    _In_  thrd_t        Target,
+    _In_  IpcMessage_t* Message, 
+    _In_  unsigned int  Flags,
+    _In_  int           Timeout,
+    _Out_ void**        ResultBuffer));
     
 CRTDECL(OsStatus_t,
 IpcGetResponse(
@@ -98,8 +108,9 @@ IpcGetResponse(
     
 CRTDECL(OsStatus_t,
 IpcReply(
-    _In_  void*  Buffer,
-    _In_  size_t Length));
+    _In_ IpcMessage_t* Message,
+    _In_ void*         Buffer,
+    _In_ size_t        Length));
 
 CRTDECL(OsStatus_t,
 IpcListen(
@@ -108,6 +119,7 @@ IpcListen(
 
 CRTDECL(OsStatus_t,
 IpcReplyAndListen(
+    _In_  IpcMessage_t*  Message,
     _In_  void*          Buffer,
     _In_  size_t         Length,
     _In_  size_t         Timeout,
