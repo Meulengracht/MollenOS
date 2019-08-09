@@ -30,8 +30,8 @@
 
 /* Storage device query functions that must be implemented
  * by the storage driver - those can then be used by this interface */
-#define __STORAGE_QUERY_STAT                IPC_DECL_FUNCTION(0)
-#define __STORAGE_TRANSFER                  IPC_DECL_FUNCTION(1)
+#define __STORAGE_QUERY_STAT                (int)0
+#define __STORAGE_TRANSFER                  (int)1
 
 #define __STORAGE_OPERATION_READ            0x00000001
 #define __STORAGE_OPERATION_WRITE           0x00000002

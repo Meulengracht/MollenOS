@@ -79,6 +79,42 @@ AcquireHandle(
     return Instance->Resource;
 }
 
+OsStatus_t
+RegisterHandlePath(
+    _In_ UUId_t      Handle,
+    _In_ const char* Path)
+{
+    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    UUId_t          ExistingHandle;
+    
+    if (!Instance) {
+        return OsDoesNotExist;
+    }
+    
+    if (LookupHandleByPath(Path, &ExistingHandle) != OsDoesNotExist) {
+        return OsExists;
+    }
+    
+    Instance->Path = strdup(Path);
+    return OsSuccess;
+}
+
+OsStatus_t
+LookupHandleByPath(
+    _In_  const char* Path,
+    _Out_ UUId_t*     HandleOut)
+{
+    size_t i;
+    
+    for (i = 0; i < SystemHandles->Capacity; i++) {
+        SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
+        if (Instance->Path && !strcmp(Instance->Path, Path)) {
+            return OsSuccess;
+        }
+    }
+    return OsDoesNotExist;
+}
+
 void*
 LookupHandle(
     _In_ UUId_t Handle)
@@ -153,6 +189,9 @@ HandleJanitorThread(
                 ArrayRemove(SystemHandles, i);
                 if (Instance->Destructor) {
                     Instance->Destructor(Instance->Resource);
+                }
+                if (Instance->Path) {
+                    kfree((void*)Instance->Path);
                 }
                 kfree(Instance);
             }

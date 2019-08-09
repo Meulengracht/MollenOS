@@ -83,6 +83,22 @@ ScInstallSignalHandler(
 }
 
 OsStatus_t
+ScRegisterHandlePath(
+    _In_ UUId_t      Handle,
+    _In_ const char* Path)
+{
+    return RegisterHandlePath(Handle, Path);
+}
+
+OsStatus_t
+ScLookupHandle(
+    _In_  const char* Path,
+    _Out_ UUId_t*     HandleOut)
+{
+    return LookupHandleByPath(Path, HandleOut);
+}
+
+OsStatus_t
 ScDestroyHandle(
     _In_ UUId_t Handle)
 {

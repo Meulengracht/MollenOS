@@ -30,6 +30,7 @@
 #include <arch/utils.h>
 #include <threading.h>
 #include <handle.h>
+#include <machine.h>
 #include <memory.h>
 #include <assert.h>
 #include <debug.h>

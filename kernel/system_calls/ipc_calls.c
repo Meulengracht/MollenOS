@@ -25,11 +25,11 @@
 #define __TRACE
 
 #include <arch/utils.h>
-#include <ddk/ipc/ipc.h>
 #include <debug.h>
 #include <futex.h>
 #include <handle.h>
 #include <os/input.h>
+#include <os/ipc.h>
 #include <machine.h>
 #include <modules/manager.h>
 #include <modules/module.h>
@@ -46,7 +46,7 @@ CleanupMessage(
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
             OsStatus_t Status = RemoveMemorySpaceMapping(Target->MemorySpace,
-                Message->UntypedArguments[i].Buffer,
+                (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
                 Message->UntypedArguments[i].Length);
             if (Status != OsSuccess) {
                 // TODO: Ehm what
@@ -58,21 +58,21 @@ CleanupMessage(
 
 OsStatus_t
 ScIpcReply(
-    _In_  void*  Buffer,
-    _In_  size_t Length)
+    _In_  IpcMessage_t* Message,
+    _In_  void*         Buffer,
+    _In_  size_t        Length)
 {
-    MCoreThread_t* Current         = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    IpcArena_t*    CurrentIpcArena = Current->IpcArena;
-    MCoreThread_t* Target          = LookupHandle(CurrentIpcArena->SenderHandle);
-    IpcArena_t*    TargetIpcArena  = Target->IpcArena;
+    MCoreThread_t* Current   = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    MCoreThread_t* Target    = LookupHandle((UUId_t)Message->Sender);
+    IpcArena_t*    IpcArena  = Target->IpcArena;
 
-    memcpy(&TargetIpcArena->Buffer[IPC_RESPONSE_LOCATION], 
+    memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
         Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
 
-    atomic_store(&TargetIpcArena->ResponseSyncObject, 1);
-    (void)FutexWake(&TargetIpcArena->ResponseSyncObject, 1, 0);
+    atomic_store(&IpcArena->ResponseSyncObject, 1);
+    (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
     
-    CleanupMessage(Current, &CurrentIpcArena->Message);
+    CleanupMessage(Current, Message);
     return OsSuccess;
 }
 
@@ -104,12 +104,13 @@ ScIpcListen(
 
 OsStatus_t
 ScIpcReplyAndListen(
+    _In_  IpcMessage_t*  Message,
     _In_  void*          Buffer,
     _In_  size_t         Length,
     _In_  size_t         Timeout,
     _Out_ IpcMessage_t** MessageOut)
 {
-    OsStatus_t Status = ScIpcReply(Buffer, Length);
+    OsStatus_t Status = ScIpcReply(Message, Buffer, Length);
     if (Status != OsSuccess) {
         return Status;
     }
@@ -143,11 +144,11 @@ ScIpcInvoke(
     _In_  UUId_t        TargetHandle,
     _In_  IpcMessage_t* Message,
     _In_  unsigned int  Flags,
-    _In_  size_t        Timeout)
+    _In_  size_t        Timeout,
+    _Out_ void**        BufferOut)
 {
     MCoreThread_t* Target      = LookupHandle(TargetHandle);
     size_t         BufferIndex = 0;
-    IpcArena_t*    ResponseIpcArena;
     IpcArena_t*    IpcArena;
     int            SyncValue;
     int            i;
@@ -155,7 +156,7 @@ ScIpcInvoke(
         return OsDoesNotExist;
     }
     
-    IpcArena  = Target->IpcArena
+    IpcArena  = Target->IpcArena;
     SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     while (SyncValue) {
         if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
@@ -164,7 +165,8 @@ ScIpcInvoke(
         SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     }
     
-    IpcArena->SenderHandle = GetCurrentThreadId();
+    IpcArena->Message.MetaLength = sizeof(IpcMessage_t); 
+    IpcArena->Message.Sender     = (thrd_t)GetCurrentThreadId();
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         // Handle typed argument
         IpcArena->Message.TypedArguments[i]          = Message->TypedArguments[i];
@@ -178,7 +180,7 @@ ScIpcInvoke(
                 !(Flags & IPC_NO_RESPONSE)) {
                 OsStatus_t Status = CloneMemorySpaceMapping(
                     GetCurrentMemorySpace(), Target->MemorySpace,
-                    Message->UntypedArguments[i].Buffer, 
+                    (VirtualAddress_t)Message->UntypedArguments[i].Buffer, 
                     (VirtualAddress_t*)&IpcArena->Message.UntypedArguments[i].Buffer,
                     Message->UntypedArguments[i].Length,
                     MAPPING_USERSPACE | MAPPING_READONLY,
@@ -198,6 +200,7 @@ ScIpcInvoke(
                     MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length));
                 IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
                 BufferIndex += MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length);
+                IpcArena->Message.MetaLength += MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length);
             }
         }
     }

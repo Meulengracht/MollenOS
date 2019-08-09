@@ -30,6 +30,7 @@
 #include <log.h>
 #include <os/context.h>
 #include <memory.h>
+#include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
 #include <threading.h>

@@ -22,6 +22,7 @@
 #define __MODULE "XTIF"
 //#define __TRACE
 
+#include <component/cpu.h>
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>

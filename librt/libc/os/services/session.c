@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,22 +24,9 @@
 
 #include <ddk/services/session.h>
 #include <os/services/session.h>
-#include <os/services/targets.h>
-
-OsStatus_t
-GetServiceObjectsWithCapabilities(
-	_In_ ServiceCapabilities_t Capabilities,
-	_In_ ServiceObject_t*      ObjectBuffer,
-	_In_ size_t                MaxObjects)
-{
-	MRemoteCall_t Request;
-
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOOKUP);
-	RPCSetArgument(&Request, 0, (const void*)&Capabilities, sizeof(ServiceCapabilities_t));
-    RPCSetArgument(&Request, 1, (const void*)&MaxObjects, sizeof(size_t));
-    RPCSetResult(&Request, (const void*)ObjectBuffer, sizeof(ServiceObject_t) * MaxObjects);
-	return RPCExecute(&Request);
-}
+#include <os/services/process.h>
+#include <os/ipc.h>
+#include <string.h>
 
 OsStatus_t
 SessionLoginRequest(
@@ -46,27 +34,51 @@ SessionLoginRequest(
     _In_ const char*      Password,
     _In_ SessionObject_t* Result)
 {
-	MRemoteCall_t Request;
-
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOGIN);
-	RPCSetArgument(&Request, 0, (const void*)User, strlen(User) + 1);
-    RPCSetArgument(&Request, 1, (const void*)Password, strlen(Password) + 1);
-    RPCSetResult(&Request, (const void*)Result, sizeof(SessionObject_t));
-	return RPCExecute(&Request);
+	thrd_t       ServiceTarget = GetSessionService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Buffer;
+	
+	if (!User || !Password || !Result) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __SESSIONMANAGER_LOGIN);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, User);
+	IPC_SET_UNTYPED_STRING(&Request, 1, Password);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Buffer);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Result, Buffer, sizeof(SessionObject_t));
+	return OsSuccess;
 }
 
 OsStatus_t
 SessionLogoutRequest(
 	_In_ const char* SessionId)
 {
-	MRemoteCall_t Request;
-    OsStatus_t    Result = OsError;
-
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOGOUT);
-	RPCSetArgument(&Request, 0, (const void*)SessionId, strlen(SessionId) + 1);
-    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-	if (RPCExecute(&Request) != OsSuccess) {
-        return OsError;
-    }
-    return Result;
+	thrd_t       ServiceTarget = GetSessionService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Buffer;
+	
+	if (!SessionId) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __SESSIONMANAGER_LOGOUT);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, SessionId);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Buffer);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Buffer, OsStatus_t);
 }

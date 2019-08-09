@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -22,17 +23,20 @@
  */
 
 #include <ddk/services/session.h>
-#include <os/services/session.h>
-#include <os/services/targets.h>
+#include <os/ipc.h>
 
 OsStatus_t
 SessionCheckDisk(
 	_In_ const char* DiskIdentifier)
 {
+	thrd_t       ServiceTarget = GetSessionService();
 	IpcMessage_t Request;
 
 	IpcInitialize(&Request);
-	IpcSetUntypedArgumnet(&Request, 0, 
-		(const void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
-	return IpcInvoke(__SESSIONMANAGER_TARGET, &Request, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE);
+	IpcSetTypedArgument(&Request, 0, __SESSIONMANAGER_NEWDEVICE);
+	IpcSetUntypedArgument(&Request, 0, 
+		(void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
+	
+	return IpcInvoke(ServiceTarget, &Request,
+		IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }

@@ -22,21 +22,37 @@
  */
 
 #include <ddk/services/file.h>
-#include <os/services/targets.h>
 #include <os/services/storage.h>
+#include <os/services/process.h>
+#include <os/ipc.h>
+#include <string.h>
 
 OsStatus_t
 QueryStorageByPath(
     _In_ const char*            Path,
     _In_ OsStorageDescriptor_t* StorageDescriptor)
 {
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYSTORAGEBYPATH);
-    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
-    RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(OsStorageDescriptor_t));
-    return RPCExecute(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	if (!Path || !StorageDescriptor) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_QUERYSTORAGEBYPATH);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, Path);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+    memcpy(StorageDescriptor, Result, sizeof(OsStorageDescriptor_t));
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -44,11 +60,25 @@ QueryStorageByHandle(
     _In_ UUId_t                 Handle,
     _In_ OsStorageDescriptor_t* StorageDescriptor)
 {
-    MRemoteCall_t Request;
-    
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYSTORAGEBYHANDLE);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(OsStorageDescriptor_t));
-    return RPCExecute(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	if (!StorageDescriptor) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_QUERYSTORAGEBYPATH);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+    memcpy(StorageDescriptor, Result, sizeof(OsStorageDescriptor_t));
+    return OsSuccess;
 }

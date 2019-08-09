@@ -34,9 +34,10 @@
 static UUId_t ServiceHandleGenerator = 0;
 
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-	return RegisterService(__NETMANAGER_TARGET);
+    *ServicePathOut = "na";
 }
 
 OsStatus_t

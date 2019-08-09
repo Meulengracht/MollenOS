@@ -80,20 +80,4 @@ DmRegisterContract(
     _In_  MContract_t*          Contract,
     _Out_ UUId_t*               Id);
 
-/* DmQueryContract 
- * Handles the generic query function, by resolving the correct driver and asking for data */
-__EXTERN
-OsStatus_t 
-DmQueryContract(
-    _In_     MContractType_t    Type, 
-    _In_     int                Function,
-    _In_Opt_ const void*        Arg0,
-    _In_Opt_ size_t             Length0,
-    _In_Opt_ const void*        Arg1,
-    _In_Opt_ size_t             Length1,
-    _In_Opt_ const void*        Arg2,
-    _In_Opt_ size_t             Length2,
-    _In_Opt_ const void*        ResultBuffer,
-    _In_Opt_ size_t             ResultLength);
-
 #endif //! __DEVICEMANAGER_INTERFACE__

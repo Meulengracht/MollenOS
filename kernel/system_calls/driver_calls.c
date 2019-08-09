@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,8 +17,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System Calls
  */
+
 #define __MODULE "SCIF"
 //#define __TRACE
 
@@ -34,7 +36,7 @@
 #include <debug.h>
 #include <heap.h>
 
-extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
+extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
 
 OsStatus_t
 ScAcpiQueryStatus(
@@ -177,9 +179,9 @@ ScLoadDriver(
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)
 {
-    MRemoteCall_t   RemoteCall    = { UUID_INVALID, { 0 }, 0 };
     SystemModule_t* CurrentModule = GetCurrentModule();
     SystemModule_t* Module;
+    IpcMessage_t    Message;
     OsStatus_t      Status;
 
     TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
@@ -220,10 +222,10 @@ ScLoadDriver(
         }
     }
 
-    // Initialize the base of a new message, always protocol version 1
-    RPCInitialize(&RemoteCall, Module->Handle, 1, __DRIVER_REGISTERINSTANCE);
-    RPCSetArgument(&RemoteCall, 0, Device, LengthOfDeviceStructure);
-    return ScRpcExecute(&RemoteCall, 1);
+    IpcInitialize(&Message);
+    IpcSetTypedArgument(&Message, 0, __DRIVER_REGISTERINSTANCE);
+    IpcSetUntypedArgument(&Message, 0, Device, LengthOfDeviceStructure);
+    return ScIpcInvoke(Module->Handle, &Message, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
 
 UUId_t

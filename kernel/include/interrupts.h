@@ -26,7 +26,6 @@
 
 #include <ddk/interrupt.h>
 #include <ddk/driver.h>
-#include <ddk/ipc/ipc.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 
