@@ -25,7 +25,6 @@
 #include <ddk/services/session.h>
 #include <ddk/services/file.h>
 #include <ddk/utils.h>
-#include <os/services/targets.h>
 
 #include "include/vfs.h"
 #include <stdlib.h>
@@ -33,14 +32,6 @@
 #include <ctype.h>
 
 static int GlbInitHasRun = 0;
-
-OsStatus_t
-VfsResolveQueueEvent(void)
-{
-    MRemoteCall_t Rpc;
-    RPCInitialize(&Rpc, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_RESOLVEQUEUE);
-    return RPCEvent(&Rpc);
-}
 
 OsStatus_t
 VfsResolveQueueExecute(void)
@@ -153,17 +144,13 @@ DiskRegisterFileSystem(
         // Start init?
         if (!GlbInitHasRun) {
             Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
-            VfsResolveQueueEvent();
             GlbInitHasRun = 1;
+            VfsResolveQueueExecute();
         }
     }
     return OsSuccess;
 }
 
-/* VfsRegisterDisk
- * Registers a disk with the file-manager and it will
- * automatically be parsed (MBR, GPT, etc), and all filesystems
- * on the disk will be brought online */
 OsStatus_t
 VfsRegisterDisk(
     _In_ UUId_t  Driver,
@@ -201,9 +188,6 @@ VfsRegisterDisk(
     return DiskDetectLayout(Disk);
 }
 
-/* VfsUnregisterDisk
- * Unregisters a disk from the system, and brings any filesystems
- * registered on this disk offline */
 OsStatus_t
 VfsUnregisterDisk(
     _In_ UUId_t  Device,

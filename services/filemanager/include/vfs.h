@@ -34,7 +34,6 @@
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */
-#define __FILEMANAGER_RESOLVEQUEUE      IPC_DECL_FUNCTION(10000)
 #define __FILEMANAGER_MAXDISKS          64
 
 #define __FILE_OPERATION_NONE           0x00000000
@@ -115,16 +114,6 @@ __EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
  * Tries to resolve the given filesystem by locating
  * the appropriate driver library for the given type */
 __EXTERN FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem);
-
-/* VfsResolveQueueExecute
- * Resolves all remaining filesystems that have been
- * waiting in the resolver-queue */
-__EXTERN OsStatus_t VfsResolveQueueExecute(void);
-
-/* VfsResolveQueueEvent
- * Sends the event to ourself that we are ready to
- * execute the resolver queue */
-__EXTERN OsStatus_t VfsResolveQueueEvent(void);
 
 /* VfsGetResolverQueue
  * Retrieves a list of all the current filesystems

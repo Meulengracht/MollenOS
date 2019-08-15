@@ -127,7 +127,7 @@ TransferFile(
 	IPC_SET_TYPED(&Request, 2, Handle);
 	IPC_SET_TYPED(&Request, 3, BufferHandle);
 	IPC_SET_TYPED(&Request, 4, Offset);
-	IPC_SET_TYPED(&Request, 5, Length);
+	IpcSetUntypedArgument(&Request, 5, &Length, sizeof(size_t));
 	
 	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, (void**)&Package);
 	if (Status != OsSuccess) {
