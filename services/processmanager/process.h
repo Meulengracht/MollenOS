@@ -28,7 +28,7 @@
 #include <os/services/process.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
-#include <ddk/ipc/ipc.h>
+#include <threads.h>
 #include <time.h>
 
 // Forward declarations
@@ -61,10 +61,10 @@ typedef struct _Process {
 } Process_t;
 
 typedef struct _ProcessJoiner {
-    CollectionItem_t     Header;
-    MRemoteCallAddress_t Address;
-    Process_t*           Process;
-    UUId_t               EventHandle;
+    CollectionItem_t Header;
+    thrd_t           Address;
+    Process_t*       Process;
+    UUId_t           EventHandle;
 } ProcessJoiner_t;
 
 /* InitializeProcessManager
@@ -89,9 +89,9 @@ CreateProcess(
  * Waits for the process to exit and returns the exit code. A timeout can optionally be specified. */
 __EXTERN OsStatus_t
 JoinProcess(
-    _In_  Process_t*            Process,
-    _In_  MRemoteCallAddress_t* Address,
-    _In_  size_t                Timeout);
+    _In_  Process_t* Process,
+    _In_  thrd_t     Address,
+    _In_  size_t     Timeout);
 
 /* KillProcess
  * Request to kill a process. If security checks pass the processmanager will shutdown the process. */

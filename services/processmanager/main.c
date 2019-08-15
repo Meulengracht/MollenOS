@@ -131,7 +131,7 @@ OnEvent(
                 Handled = IpcReply(Message, &NullPtr, sizeof(void*));
             }
             else {
-                Handled = IpcReply(Message, Process->Arguments, Process->ArgumentsLength);
+                Handled = IpcReply(Message, (void*)Process->Arguments, Process->ArgumentsLength);
                 ReleaseProcess(Process);
             }
         } break;
