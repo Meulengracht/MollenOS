@@ -30,6 +30,7 @@
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
 #include <os/context.h>
+#include <os/ipc.h>
 #include "process.h"
 #include <ds/mstring.h>
 #include <ddk/eventqueue.h>
@@ -114,6 +115,7 @@ static void
 HandleJoinProcess(
     _In_ void* Context)
 {
+    IpcMessage_t         Message = { 0 };
     ProcessJoiner_t*     Join    = (ProcessJoiner_t*)Context;
     JoinProcessPackage_t Package = { .Status = OsTimeout };
     CollectionRemoveByNode(&Joiners, &Join->Header);
@@ -123,7 +125,9 @@ HandleJoinProcess(
         Package.Status   = OsSuccess;
         Package.ExitCode = Join->Process->ExitCode;
     }
-    RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
+    
+    Message.Sender = Join->Address;
+    IpcReply(&Message, &Package, sizeof(JoinProcessPackage_t));
     DestroyProcess(Join->Process);
     free(Join);
 }
@@ -414,9 +418,9 @@ CreateProcess(
 
 OsStatus_t
 JoinProcess(
-    _In_  Process_t*            Process,
-    _In_  MRemoteCallAddress_t* Address,
-    _In_  size_t                Timeout)
+    _In_  Process_t* Process,
+    _In_  thrd_t     Address,
+    _In_  size_t     Timeout)
 {
     ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
     if (!Join) {
@@ -427,7 +431,7 @@ JoinProcess(
     TRACE("JoinProcess(%u, %u)", Process->Header.Key.Value.Id, Timeout);
     
     Join->Header.Key.Value.Id = Process->Header.Key.Value.Id;
-    memcpy(&Join->Address, Address, sizeof(MRemoteCallAddress_t));
+    Join->Address = Address;
     Join->Process = Process;
     if (Timeout != 0) {
         Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, Timeout);
