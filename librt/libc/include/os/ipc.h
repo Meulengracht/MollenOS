@@ -42,6 +42,7 @@
 
 #define IPC_GET_TYPED(Message, Index)                  Message->TypedArguments[Index]
 #define IPC_GET_UNTYPED(Message, Index)                Message->UntypedArguments[Index].Buffer
+#define IPC_GET_LENGTH(Message, Index)                 Message->UntypedArguments[Index].Length
 #define IPC_GET_STRING(Message, Index)                 (char*)Message->UntypedArguments[Index].Buffer
 
 #define IPC_CAST_AND_DEREF(Pointer, Type)              (Type)*((size_t*)Pointer)
