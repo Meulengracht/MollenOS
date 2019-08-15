@@ -28,7 +28,6 @@
 #include <ctype.h>
 #include "devicemanager.h"
 #include <ddk/driver.h>
-#include <ddk/services/device.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <stdlib.h>
@@ -110,7 +109,7 @@ OnEvent(
             Device = CollectionGetDataByKey(&Devices, Key, 0);
             if (Device != NULL) {
                 if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
-                    Result = DmIoctlDevice(Device, Message->Arguments[2].Data.Value);
+                    Result = DmIoctlDevice(Device, IPC_GET_TYPED(Message, 3));
                 }
                 else if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
                     Result = DmIoctlDeviceEx(Device, IPC_GET_TYPED(Message, 2),

@@ -24,8 +24,8 @@
 
 #include <ds/mstring.h>
 #include <ddk/services/process.h>
-#include <ddk/service.h>
 #include <ddk/utils.h>
+#include <os/ipc.h>
 #include <string.h>
 #include <stdio.h>
 #include "process.h"
@@ -46,12 +46,12 @@ OnUnload(void)
 
 OsStatus_t
 OnEvent(
-	_In_ MRemoteCall_t* RPC)
+    _In_ IpcMessage_t* Message)
 {
     OsStatus_t Handled = OsInvalidParameters;
     TRACE("Processmanager.OnEvent(%i)", RPC->Function);
 
-    switch (RPC->Function) {
+    switch (IPC_GET_TYPED(Message, 0)) {
         case __PROCESSMANAGER_CREATE_PROCESS: {
             const char*                  Path               = RPCGetStringArgument(RPC, 0);
             ProcessStartupInformation_t* StartupInformation = RPCGetPointerArgument(RPC, 1);

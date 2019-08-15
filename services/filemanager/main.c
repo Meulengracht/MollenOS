@@ -23,7 +23,6 @@
 
 #include "include/vfs.h"
 #include <os/services/storage.h>
-#include <ddk/service.h>
 #include <ddk/utils.h>
 
 #include <ds/collection.h>
@@ -198,18 +197,11 @@ OnEvent(
     _In_ IpcMessage_t* Message)
 {
     OsStatus_t Result = OsSuccess;
-    if (IPC_GET_TYPED(Message, 0) != __FILEMANAGER_RESOLVEQUEUE) {
-        TRACE("Filemanager.OnEvent(%i) %s", IPC_GET_TYPED(Message, 0), 
-            FunctionNames[IPC_GET_TYPED(Message, 0)]);
-    }
+    
+    TRACE("Filemanager.OnEvent(%i) %s", IPC_GET_TYPED(Message, 0), 
+        FunctionNames[IPC_GET_TYPED(Message, 0)]);
     
     switch (IPC_GET_TYPED(Message, 0)) {
-        // Resolves all stored filesystems that
-        // has been waiting for boot-partition to be loaded
-        case __FILEMANAGER_RESOLVEQUEUE: {
-            Result = VfsResolveQueueExecute();
-        } break;
-
         // Handles registration of a new disk 
         // and and parses the disk-system for a MBR
         // or a GPT table 
@@ -247,64 +239,74 @@ OnEvent(
         // the given <Access> and <Options> flags.
         case __FILEMANAGER_OPEN: {
             OpenFilePackage_t Package = { 0 };
-            Package.Code    = VfsOpenEntry(IPC_GET_TYPED(Message, 1), 
-                RPCGetStringArgument(Message, 0),
-                (Flags_t)Message->Arguments[1].Data.Value, (Flags_t)Message->Arguments[2].Data.Value,
-                &Package.Handle);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(OpenFilePackage_t));
+            
+            Package.Code = VfsOpenEntry(IPC_GET_TYPED(Message, 1), 
+                IPC_GET_STRING(Message, 0), (Flags_t)IPC_GET_TYPED(Message, 2), 
+                (Flags_t)IPC_GET_TYPED(Message, 3), &Package.Handle);
+            
+            Result = IpcReply(Message, &Package, sizeof(OpenFilePackage_t));
         } break;
 
-        // Closes the given file-handle, but does not necessarily
+        // Closes the given file-handle, bust does not necessarily
         // close the link to the file.
         case __FILEMANAGER_CLOSE: {
-            FileSystemCode_t Code = FsOk;
-            Code   = VfsCloseEntry(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+            FileSystemCode_t Code = VfsCloseEntry(IPC_GET_TYPED(Message, 1), 
+                (UUId_t)IPC_GET_TYPED(Message, 2));
+            
+            Result = IpcReply(Message, &Code, sizeof(FileSystemCode_t));
         } break;
 
         // Reads the requested number of bytes into the given buffer
         // from the current position in the file-handle
         case __FILEMANAGER_READ: {
             RWFilePackage_t Package = { 0 };
-            Package.Code = VfsReadEntry(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
-                (UUId_t)Message->Arguments[1].Data.Value, Message->Arguments[2].Data.Value,
-                Message->Arguments[3].Data.Value, &Package.ActualSize);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
+            
+            Package.Code = VfsReadEntry(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
+                (UUId_t)IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
+                (size_t)IPC_GET_UNTYPED(Message, 0), &Package.ActualSize);
+            
+            Result = IpcReply(Message, &Package, sizeof(RWFilePackage_t));
         } break;
 
         // Writes the requested number of bytes from the given buffer
         // into the current position in the file-handle
         case __FILEMANAGER_WRITE: {
             RWFilePackage_t Package = { 0 };
-            Package.Code = VsfWriteEntry(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
-                (UUId_t)Message->Arguments[1].Data.Value, Message->Arguments[2].Data.Value,
-                Message->Arguments[3].Data.Value, &Package.ActualSize);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
+            
+            Package.Code = VsfWriteEntry(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
+                (UUId_t)IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
+                (size_t)IPC_GET_UNTYPED(Message, 0), &Package.ActualSize);
+            
+            Result = IpcReply(Message, &Package, sizeof(RWFilePackage_t));
         } break;
 
         // Sets the file-pointer for the given handle to the
         // values given, the position is absolute and must
         // be within range of the file size
         case __FILEMANAGER_SEEK: {
-            FileSystemCode_t Code = VfsSeekInEntry(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
-                (uint32_t)Message->Arguments[1].Data.Value, (uint32_t)Message->Arguments[2].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+            FileSystemCode_t Code = VfsSeekInEntry(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
+                (uint32_t)IPC_GET_TYPED(Message, 3), (uint32_t)IPC_GET_TYPED(Message, 4));
+            
+            Result = IpcReply(Message, &Code, sizeof(FileSystemCode_t));
         } break;
 
         // Flushes the internal file buffers and ensures there are
         // no pending file operations for the given file handle
         case __FILEMANAGER_FLUSH: {
-            FileSystemCode_t Code = VfsFlushFile(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+            FileSystemCode_t Code = VfsFlushFile(IPC_GET_TYPED(Message, 1), 
+                (UUId_t)IPC_GET_TYPED(Message, 2));
+            
+            Result = IpcReply(Message, &Code, sizeof(FileSystemCode_t));
         } break;
 
         // Moves or copies a given file path to the destination path
         // this can also be used for renamining if the dest/source paths
         // match (except for filename/directoryname)
         case __FILEMANAGER_MOVE: {
-            FileSystemCode_t Code = VfsMoveEntry(IPC_GET_TYPED(Message, 1), RPCGetStringArgument(Message, 0),
-                RPCGetStringArgument(Message, 1), (int)Message->Arguments[2].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+            FileSystemCode_t Code = VfsMoveEntry(IPC_GET_TYPED(Message, 1), IPC_GET_STRING(Message, 0),
+                IPC_GET_STRING(Message, 1), (int)IPC_GET_TYPED(Message, 2));
+            
+            Result = IpcReply(Message, &Code, sizeof(FileSystemCode_t));
         } break;
 
         // Queries the current file position that the given handle
@@ -312,26 +314,31 @@ OnEvent(
         // value is optional and should only be checked for large files
         case __FILEMANAGER_GETPOSITION: {
             QueryFileValuePackage_t Package = { 0 };
-            Result = VfsGetEntryPosition(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
+            
+            Result = VfsGetEntryPosition(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
                 &Package);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));
+            
+            Result = IpcReply(Message, &Package, sizeof(QueryFileValuePackage_t));
         } break;
 
         // Queries the current file options and file access flags
         // for the given file handle
         case __FILEMANAGER_GETOPTIONS: {
             QueryFileOptionsPackage_t Package = { 0 };
-            Result = VfsGetEntryOptions(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
+            
+            Result = VfsGetEntryOptions(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
                 &Package);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
+            
+            Result = IpcReply(Message, &Package, sizeof(QueryFileOptionsPackage_t));
         } break;
 
         // Attempts to modify the current option and or access flags
         // for the given file handle as specified by <Options> and <Access>
         case __FILEMANAGER_SETOPTIONS: {
-            Result = VfsSetEntryOptions(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
-                (Flags_t)Message->Arguments[1].Data.Value, (Flags_t)Message->Arguments[2].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Result, sizeof(OsStatus_t));
+            Result = VfsSetEntryOptions(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
+                (Flags_t)IPC_GET_TYPED(Message, 3), (Flags_t)IPC_GET_TYPED(Message, 4));
+            
+            Result = IpcReply(Message, &Result, sizeof(OsStatus_t));
         } break;
 
         // Queries the current file size that the given handle
@@ -339,71 +346,81 @@ OnEvent(
         // value is optional and should only be checked for large files
         case __FILEMANAGER_GETSIZE: {
             QueryFileValuePackage_t Package;
-            Result = VfsGetEntrySize(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value,
+            
+            Result = VfsGetEntrySize(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
                 &Package);
-            Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));
+            
+            Result = IpcReply(Message, &Package, sizeof(QueryFileValuePackage_t));
         } break;
 
         // Retrieve the full canonical path of the given file-handle.
         case __FILEMANAGER_GETPATH: {
             MString_t *FilePath = NULL;
-            Result = VfsGetEntryPath(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value, 
+            
+            Result = VfsGetEntryPath(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2), 
                 &FilePath);
             if (Result != OsSuccess) {
-                Result = RPCRespond(&Message->From, FilePath, sizeof(MString_t*));
+                Result = IpcReply(Message, FilePath, sizeof(MString_t*));
             }
             else {
-                Result = RPCRespond(&Message->From, MStringRaw(FilePath), MStringSize(FilePath) + 1);
+                Result = IpcReply(Message, (void*)MStringRaw(FilePath), MStringSize(FilePath) + 1);
             }
         } break;
 
         // Queries information about a file-system entry through its full path
         case __FILEMANAGER_GETSTATSBYPATH: {
             QueryFileStatsPackage_t StatsPackage = { 0 };
-            StatsPackage.Code = VfsQueryEntryPath(IPC_GET_TYPED(Message, 1), RPCGetStringArgument(Message, 0), 
+            
+            StatsPackage.Code = VfsQueryEntryPath(IPC_GET_TYPED(Message, 1), IPC_GET_STRING(Message, 0), 
                 &StatsPackage.Descriptor);
-            Result = RPCRespond(&Message->From, &StatsPackage, sizeof(QueryFileStatsPackage_t));
+            
+            Result = IpcReply(Message, &StatsPackage, sizeof(QueryFileStatsPackage_t));
         } break;
         
         // Queries information about a file-system entry through its handle
         case __FILEMANAGER_GETSTATSBYHANDLE: {
             QueryFileStatsPackage_t StatsPackage = { 0 };
-            StatsPackage.Code = VfsQueryEntryHandle(IPC_GET_TYPED(Message, 1), (UUId_t)Message->Arguments[0].Data.Value, 
+            
+            StatsPackage.Code = VfsQueryEntryHandle(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2), 
                 &StatsPackage.Descriptor);
-            Result = RPCRespond(&Message->From, &StatsPackage, sizeof(QueryFileStatsPackage_t));
+            
+            Result = IpcReply(Message, &StatsPackage, sizeof(QueryFileStatsPackage_t));
         } break;
 
         // Deletes the given path, the path can both be file or directory.
         case __FILEMANAGER_DELETEPATH: {
             FileSystemCode_t Code = VfsDeletePath(IPC_GET_TYPED(Message, 1),
-                RPCGetStringArgument(Message, 0), (Flags_t)Message->Arguments[1].Data.Value);
-            Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+                IPC_GET_STRING(Message, 0), (Flags_t)IPC_GET_TYPED(Message, 2));
+            
+            Result = IpcReply(Message, &Code, sizeof(FileSystemCode_t));
         } break;
 
         // Resolves a special environment path for the given the process and it returns it
         // as a buffer in the pipe
         case __FILEMANAGER_PATHRESOLVE: {
-            MString_t *Resolved = VfsPathResolveEnvironment((EnvironmentPath_t)Message->Arguments[0].Data.Value);
+            MString_t *Resolved = VfsPathResolveEnvironment((EnvironmentPath_t)IPC_GET_TYPED(Message, 2));
             char Null           = '\0';
+            
             if (Resolved != NULL) {
-                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved) + 1);
+                Result = IpcReply(Message, (void*)MStringRaw(Resolved), MStringSize(Resolved) + 1);
                 MStringDestroy(Resolved);
             }
             else {
-                Result = RPCRespond(&Message->From, &Null, 1);
+                Result = IpcReply(Message, &Null, 1);
             }
         } break;
 
         // Resolves and combines the environment path together and returns the newly concenated string
         case __FILEMANAGER_PATHCANONICALIZE: {
-            MString_t* Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
+            MString_t* Resolved = VfsPathCanonicalize(IPC_GET_STRING(Message, 0));
             char       Null     = '\0';
+            
             if (Resolved != NULL) {
-                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved) + 1);
+                Result = IpcReply(Message, (void*)MStringRaw(Resolved), MStringSize(Resolved) + 1);
                 MStringDestroy(Resolved);
             }
             else {
-                Result = RPCRespond(&Message->From, &Null, 1);
+                Result = IpcReply(Message, &Null, 1);
             }
         } break;
 
