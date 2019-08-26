@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +17,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Driver Entry 
+ * C Library - Driver Entry 
  */
 
 #include "../libc/threads/tls.h"
-#include <os/mollenos.h>
 #include <ddk/driver.h>
+#include <ddk/device.h>
+#include <os/ipc.h>
+#include <os/mollenos.h>
 #include <stdlib.h>
 
 // Module Interface
@@ -62,7 +65,7 @@ void __CrtModuleEntry(void)
                 case __DRIVER_UNREGISTERINSTANCE: {
                     OnUnregister((MCoreDevice_t*)Message->UntypedArguments[0].Buffer);
                 } break;
-                case __DRIVER_QUERY: {
+                case __DRIVER_QUERYCONTRACT: {
                     OnQuery(Message);
                 } break;
                 case __DRIVER_UNLOAD: {

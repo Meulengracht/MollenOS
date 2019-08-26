@@ -23,18 +23,20 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <modules/manager.h>
-#include <arch/utils.h>
 #include <acpiinterface.h>
-#include <interrupts.h>
-#include <deviceio.h>
-#include <os/input.h>
+#include <arch/utils.h>
 #include <ddk/acpi.h>
-#include <machine.h>
-#include <handle.h>
-#include <timers.h>
+#include <ddk/device.h>
 #include <debug.h>
+#include <deviceio.h>
+#include <handle.h>
 #include <heap.h>
+#include <os/input.h>
+#include <os/ipc.h>
+#include <modules/manager.h>
+#include <interrupts.h>
+#include <machine.h>
+#include <timers.h>
 
 extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
 

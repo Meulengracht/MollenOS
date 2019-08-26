@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Service - Usb Manager
+ * Service - Usb Manager
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
@@ -30,8 +31,6 @@
 #include <threads.h>
 #include <stdlib.h>
 
-/* String Table
- * Usb class string table for basic device identification. */
 static const struct {
     uint8_t      Class;
     const char  *IdentificationString;
@@ -60,9 +59,6 @@ static const struct {
     { 0xFF, "Vendor Specific (Usb)" }
 };
 
-/* UsbDeviceDestroy 
- * Unregisters an usb device on a given port, and cleans up all resources
- * that has been allocated, and notifies the driver of unload. */
 OsStatus_t
 UsbDeviceDestroy(
     _In_ UsbController_t *Controller,
@@ -484,20 +480,17 @@ UsbDeviceLoadDrivers(
     return OsSuccess;
 }
 
-/* UsbDeviceSetup 
- * Initializes and enumerates a device if present on the given port */
 OsStatus_t
 UsbDeviceSetup(
-    _In_ UsbController_t*       Controller,
-    _In_ UsbHub_t*              Hub, 
-    _In_ UsbPort_t*             Port)
+    _In_ UsbController_t* Controller,
+    _In_ UsbHub_t*        Hub, 
+    _In_ UsbPort_t*       Port)
 {
-    // Variables
-    UsbDeviceDescriptor_t DeviceDescriptor;
-    UsbHcPortDescriptor_t PortDescriptor;
-    UsbTransferStatus_t tStatus;
-    UsbDevice_t *Device = NULL;
-    int ReservedAddress = 0;
+    UsbHcPortDescriptor_t* PortDescriptor;
+    UsbDeviceDescriptor_t  DeviceDescriptor;
+    UsbTransferStatus_t    tStatus;
+    UsbDevice_t*           Device;
+    int                    ReservedAddress = 0;
 
     // Debug
     TRACE("UsbDeviceSetup()");
@@ -531,14 +524,14 @@ UsbDeviceSetup(
     }
 
     // Sanitize device is still present after reset
-    if (PortDescriptor.Connected != 1 && PortDescriptor.Enabled != 1) {
+    if (PortDescriptor->Connected != 1 && PortDescriptor->Enabled != 1) {
         goto DevError;
     }
 
     // Update port
     Port->Connected = 1;
     Port->Enabled   = 1;
-    Port->Speed     = PortDescriptor.Speed;
+    Port->Speed     = PortDescriptor->Speed;
 
     // Determine the MPS of the control endpoint
     if (Port->Speed == FullSpeed || Port->Speed == HighSpeed) {
@@ -665,8 +658,8 @@ DevError:
  * that has been allocated, and notifies the driver of unload. */
 OsStatus_t
 UsbDeviceDestroy(
-    _In_ UsbController_t*       Controller,
-    _In_ UsbPort_t*             Port)
+    _In_ UsbController_t* Controller,
+    _In_ UsbPort_t*       Port)
 {
     // Variables
     UsbDevice_t *Device = NULL;
@@ -721,8 +714,6 @@ UsbPortCreate(
     return Port;
 }
 
-/* UsbCoreGetController 
- * Looks up the controller that matches the device-identifier */
 UsbController_t*
 UsbCoreGetController(
     _In_ UUId_t                 DeviceId)
@@ -738,10 +729,6 @@ UsbCoreGetController(
     return NULL;
 }
 
-/* UsbCoreEventPort 
- * Fired by a usbhost controller driver whenever there is a change
- * in port-status. The port-status is then queried automatically by
- * the usbmanager. */
 OsStatus_t
 UsbCoreEventPort(
     _In_ UUId_t  DriverId,
@@ -749,12 +736,11 @@ UsbCoreEventPort(
     _In_ uint8_t HubAddress,
     _In_ uint8_t PortAddress)
 {
-    // Variables
-    UsbController_t *Controller = NULL;
-    UsbHcPortDescriptor_t       Descriptor;
-    OsStatus_t Result           = OsSuccess;
-    UsbHub_t *Hub               = NULL;
-    UsbPort_t *Port             = NULL;
+    UsbController_t*       Controller = NULL;
+    UsbHcPortDescriptor_t* Descriptor;
+    OsStatus_t             Result = OsSuccess;
+    UsbHub_t*              Hub    = NULL;
+    UsbPort_t*             Port   = NULL;
 
     // Debug
     TRACE("UsbCoreEventPort(DeviceId %u, Hub %u, Port %u)", DeviceId, HubAddress, PortAddress);
@@ -785,41 +771,37 @@ UsbCoreEventPort(
         Hub->Ports[PortAddress] = UsbPortCreate(PortAddress);
     }
 
-    // Shorthand the port
     Port = Hub->Ports[PortAddress];
 
     // Now handle connection events
-    if (Descriptor.Connected == 1 && Port->Connected == 0) {
+    if (Descriptor->Connected == 1 && Port->Connected == 0) {
         // Connected event
         // This function updates port-status after reset
         Result = UsbDeviceSetup(Controller, Hub, Port);
     }
-    else if (Descriptor.Connected == 0 && Port->Connected == 1) {
-        // Disconnected event
+    else if (Descriptor->Connected == 0 && Port->Connected == 1) {
+        // Disconnected event, remember that the descriptor pointer
+        // becomes unavailable the moment we call the destroy device
         Result          = UsbDeviceDestroy(Controller, Port);
-        Port->Speed     = Descriptor.Speed;
-        Port->Enabled   = Descriptor.Enabled;
-        Port->Connected = Descriptor.Connected;
+        Port->Speed     = Descriptor->Speed;              // TODO: invalid
+        Port->Enabled   = Descriptor->Enabled;            // TODO: invalid
+        Port->Connected = Descriptor->Connected;          // TODO: invalid
     }
     else {
         // Ignore
-        Port->Speed     = Descriptor.Speed;
-        Port->Enabled   = Descriptor.Enabled;
-        Port->Connected = Descriptor.Connected;
+        Port->Speed     = Descriptor->Speed;
+        Port->Enabled   = Descriptor->Enabled;
+        Port->Connected = Descriptor->Connected;
     }
     return Result;
 }
 
-/* UsbCoreGetControllerCount
- * Retrieves the number of registered controllers. */
 int
 UsbCoreGetControllerCount(void)
 {
     return CollectionLength(GlbUsbControllers);
 }
 
-/* UsbCoreGetControllerIndex
- * Looks up the controller that matches the list-index */
 UsbController_t*
 UsbCoreGetControllerIndex(
     _In_ int                    Index)

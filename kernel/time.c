@@ -35,6 +35,7 @@
 #include <machine.h>
 #include <timers.h>
 #include <stdlib.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 

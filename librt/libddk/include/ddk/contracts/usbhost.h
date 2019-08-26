@@ -25,6 +25,8 @@
 #ifndef _CONTRACT_USBHOST_INTERFACE_H_
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
+#include <ddk/contracts/base.h>
+
 /* Usb host controller query functions that must be implemented
  * by the usb host driver - those can then be used by this interface */
 #define __USBHOST_QUEUETRANSFER   (int)0

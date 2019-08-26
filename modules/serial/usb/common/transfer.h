@@ -30,6 +30,7 @@
 #include <os/spinlock.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
+#include <threads.h>
 
 typedef enum _UsbManagerTransferFlags {
     TransferFlagNone        = 0,
@@ -44,7 +45,7 @@ typedef enum _UsbManagerTransferFlags {
 
 typedef struct {
     UsbTransfer_t             Transfer;
-    MRemoteCallAddress_t      ResponseAddress;
+    thrd_t                    Address;
 
     // Transfer Metadata
     UUId_t                    Id;
@@ -72,9 +73,9 @@ typedef struct {
  */
 __EXTERN UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t*        Transfer,
-    _In_ MRemoteCallAddress_t* Address,
-    _In_ UUId_t                Device);
+    _In_ UsbTransfer_t* Transfer,
+    _In_ thrd_t         Address,
+    _In_ UUId_t         Device);
 
 /**
  * UsbManagerDestroyTransfer

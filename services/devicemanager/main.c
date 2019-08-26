@@ -30,6 +30,7 @@
 #include <ddk/driver.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
+#include <os/ipc.h>
 #include <stdlib.h>
 #include <string.h>
 

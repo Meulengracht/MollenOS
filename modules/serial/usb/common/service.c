@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +23,10 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "hci.h"
+#include <os/mollenos.h>
+#include <os/ipc.h>
 #include <stdlib.h>
 #include <signal.h>
 
@@ -69,12 +71,7 @@ OnUnregister(
 
 OsStatus_t
 OnQuery(
-	_In_     MContractType_t        QueryType, 
-	_In_     int                    QueryFunction, 
-	_In_Opt_ MRemoteCallArgument_t* Arg0,
-	_In_Opt_ MRemoteCallArgument_t* Arg1,
-	_In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
     UsbManagerController_t* Controller;
     UsbManagerTransfer_t*   Transfer;
@@ -82,30 +79,30 @@ OnQuery(
     UUId_t                  Device = UUID_INVALID;
 
     // Debug
-    TRACE("Hci.OnQuery(Type %i, Function %i)", (int)QueryType, QueryFunction);
+    TRACE("Hci.OnQuery(Function %i)", IPC_GET_TYPED(Message, 1));
 
     // Instantiate some variables
-    Device      = (UUId_t)Arg0->Data.Value;
+    Device      = (UUId_t)IPC_GET_TYPED(Message, 3);
     Controller  = UsbManagerGetController(Device);
     if (Controller == NULL) {
-        return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
+        return IpcReply(Message, &Result, sizeof(OsStatus_t));
     }
 
-    switch (QueryFunction) {
+    switch (IPC_GET_TYPED(Message, 1)) {
         // Generic Queue
         case __USBHOST_QUEUETRANSFER: {
             UsbTransferResult_t ResPackage;
 
             // Create and setup new transfer
-            Transfer = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
+            Transfer = UsbManagerCreateTransfer(IPC_GET_UNTYPED(Message, 0),
+                Message->Sender, Device);
             
             // Queue the periodic transfer
             ResPackage.Status           = HciQueueTransferGeneric(Transfer);
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
             if (ResPackage.Status != TransferQueued) {
-                return RPCRespond(Address, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+                return IpcReply(Message, &ResPackage, sizeof(UsbTransferResult_t));
             }
             else {
                 return OsSuccess;
@@ -117,8 +114,8 @@ OnQuery(
             UsbTransferResult_t ResPackage;
 
             // Create and setup new transfer
-            Transfer = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
+            Transfer = UsbManagerCreateTransfer(IPC_GET_UNTYPED(Message, 0),
+                Message->Sender, Device);
 
             // Queue the periodic transfer
             if (Transfer->Transfer.Type == IsochronousTransfer) {
@@ -129,12 +126,12 @@ OnQuery(
             }
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
-            return RPCRespond(Address, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+            return IpcReply(Message, &ResPackage, sizeof(UsbTransferResult_t));
         } break;
 
         // Dequeue Transfer
         case __USBHOST_DEQUEUEPERIODIC: {
-            UUId_t              Id     = (UUId_t)Arg1->Data.Value;
+            UUId_t              Id     = (UUId_t)IPC_GET_TYPED(Message, 4);
             UsbTransferStatus_t Status = TransferInvalid;
             Transfer = NULL;
 
@@ -151,32 +148,30 @@ OnQuery(
             if (Transfer != NULL) {
                 Status = HciDequeueTransfer(Transfer);
             }
-            return RPCRespond(Address, (void*)&Status, sizeof(UsbTransferStatus_t));
+            return IpcReply(Message, &Status, sizeof(UsbTransferStatus_t));
         } break;
 
         // Reset port
         case __USBHOST_RESETPORT: {
             // Call reset procedure, then let it fall through to QueryPort
-            HciPortReset(Controller, (int)Arg1->Data.Value);
+            HciPortReset(Controller, (int)IPC_GET_TYPED(Message, 4));
         };
         // Query port
         case __USBHOST_QUERYPORT: {
             UsbHcPortDescriptor_t Descriptor;
-            HciPortGetStatus(Controller, (int)Arg1->Data.Value, &Descriptor);
-            return RPCRespond(Address, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+            HciPortGetStatus(Controller, (int)IPC_GET_TYPED(Message, 4), &Descriptor);
+            return IpcReply(Message, &Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;
         
         // Reset endpoint toggles
         case __USBHOST_RESETENDPOINT: {
-            UsbHcAddress_t *Address = NULL;
-            if (RPCCastArgumentToPointer(Arg1, (void**)&Address) == OsSuccess) {
-                Result = UsbManagerSetToggle(Device, Address, 0);
-            }
+            UsbHcAddress_t* Address = IPC_GET_UNTYPED(Message, 0);
+            Result = UsbManagerSetToggle(Device, Address, 0);
         } break;
 
         // Fall-through, error
         default:
             break;
     }
-    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
+    return IpcReply(Message, &Result, sizeof(OsStatus_t));
 }

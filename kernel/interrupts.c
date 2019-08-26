@@ -24,19 +24,21 @@
 #define __MODULE        "INIF"
 //#define __TRACE
 
-#include <component/cpu.h>
-#include <modules/manager.h>
-#include <ddk/interrupt.h>
+#include <arch.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
+#include <assert.h>
+#include <component/cpu.h>
+#include <ddk/interrupt.h>
+#include <deviceio.h>
+#include <debug.h>
 #include <ds/ds.h>
+#include <heap.h>
+#include <modules/manager.h>
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <threading.h>
-#include <deviceio.h>
-#include <debug.h>
-#include <heap.h>
-#include <arch.h>
+#include <string.h>
 
 typedef struct _InterruptTableEntry {
     SystemInterrupt_t* Descriptor;

@@ -30,6 +30,7 @@
 #include <ds/collection.h>
 #include <commands.h>
 #include "ahci.h"
+#include <threads.h>
 
 typedef enum {
     TransactionCreated,
@@ -75,7 +76,7 @@ typedef struct _AhciDevice {
 
 typedef struct {
     CollectionItem_t      Header;
-    MRemoteCallAddress_t  ResponseAddress;
+    thrd_t                Address;
     
     TransactionState_t    State;
     TransactionType_t     Type;
@@ -144,9 +145,9 @@ AhciTransactionControlCreate(
  */
 __EXTERN OsStatus_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*         Device,
-    _In_ MRemoteCallAddress_t* Address,
-    _In_ StorageOperation_t*   Operation);
+    _In_ AhciDevice_t*       Device,
+    _In_ thrd_t              Address,
+    _In_ StorageOperation_t* Operation);
 
 /** 
  * AhciDeviceCancelTransaction
