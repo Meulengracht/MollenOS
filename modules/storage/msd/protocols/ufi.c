@@ -28,8 +28,8 @@
 
 void
 UfiConstructCommand(
-    _InOut_ MsdCommandBlockUFI_t *CmdBlock,
-    _In_ uint8_t ScsiCommand, 
+    _In_ MsdCommandBlockUFI_t *CmdBlock,
+    _In_ uint8_t  ScsiCommand, 
     _In_ uint64_t SectorLBA, 
     _In_ uint32_t DataLen, 
     _In_ uint16_t SectorSize)
@@ -172,9 +172,8 @@ UfiReadData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesRead)
 {
-    // Variables
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
@@ -184,14 +183,14 @@ UfiReadData(
         &DataStage, &Result);
     
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result.Status);
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result->Status);
         // @todo handle
     }
 
     // Return state and update out
-    *BytesRead = Result.BytesTransferred;
-    return Result.Status;
+    *BytesRead = Result->BytesTransferred;
+    return Result->Status;
 }
 
 UsbTransferStatus_t 
@@ -202,9 +201,8 @@ UfiWriteData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesWritten)
 {
-    // Variables
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
@@ -214,14 +212,14 @@ UfiWriteData(
         &DataStage, &Result);
 
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result.Status);
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result->Status);
         // @todo handle
     }
 
     // Return state and update out
-    *BytesWritten = Result.BytesTransferred;
-    return Result.Status;
+    *BytesWritten = Result->BytesTransferred;
+    return Result->Status;
 }
 
 /* UfiGetStatus

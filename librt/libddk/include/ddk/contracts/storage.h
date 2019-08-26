@@ -22,11 +22,13 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_STORAGE_INTERFACE_H_
-#define _CONTRACT_STORAGE_INTERFACE_H_
+#ifndef __DDK_CONTRACT_STORAGE_H__
+#define __DDK_CONTRACT_STORAGE_H__
 
+#include <ddk/contracts/base.h>
 #include <ddk/driver.h>
 #include <ddk/ddkdefs.h>
+#include <os/ipc.h>
 
 /* Storage device query functions that must be implemented
  * by the storage driver - those can then be used by this interface */
@@ -69,19 +71,20 @@ SERVICEAPI OsStatus_t SERVICEABI
 StorageQuery(
     _In_  UUId_t                StorageDeviceId,
     _In_  UUId_t                InterfaceId,
-    _Out_ StorageDescriptor_t*  Descriptor)
+    _Out_ StorageDescriptor_t** Descriptor)
 {
-    MContract_t Contract;
-
-    // Initialise contract details
-    Contract.DriverId   = InterfaceId;
-    Contract.Type       = ContractStorage;
-    Contract.Version    = 1;
+    IpcMessage_t Message;
+    OsStatus_t   Status;
     
-    // Perform the device query
-    return QueryDriver(&Contract, __STORAGE_QUERY_STAT,
-        &StorageDeviceId, sizeof(UUId_t), NULL, 0, NULL, 0, 
-        Descriptor, sizeof(StorageDescriptor_t));
+    IpcInitialize(&Message);
+    
+    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
+    IPC_SET_TYPED(&Message, 1, __STORAGE_QUERY_STAT);
+    IPC_SET_TYPED(&Message, 2, ContractStorage);
+    IPC_SET_TYPED(&Message, 3, StorageDeviceId);
+    
+    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)Descriptor);
+    return Status;
 }
 
 /**
@@ -101,16 +104,11 @@ StorageTransfer(
     _In_  size_t    SectorCount,
     _Out_ size_t*   SectorsTransferred)
 {
-    MContract_t              Contract;
-    StorageOperation_t       Operation;
-    StorageOperationResult_t Result;
-    OsStatus_t               Status;
-
-    // Initialise contract details
-    Contract.DriverId       = InterfaceId;
-    Contract.Type           = ContractStorage;
-    Contract.Version        = 1;
-
+    IpcMessage_t              Message;
+    StorageOperation_t        Operation;
+    StorageOperationResult_t* Result;
+    OsStatus_t                Status;
+    
     // Initialize operation details
     Operation.Direction      = Direction;
     Operation.AbsoluteSector = Sector;
@@ -118,17 +116,22 @@ StorageTransfer(
     Operation.BufferOffset   = BufferOffset;
     Operation.SectorCount    = SectorCount;
     
-    // Perform the query
-    Status = QueryDriver(&Contract, __STORAGE_TRANSFER,
-        &StorageDeviceId, sizeof(UUId_t), 
-        &Operation, sizeof(StorageOperation_t), NULL, 0, 
-        &Result, sizeof(StorageOperationResult_t));
+    IpcInitialize(&Message);
+    
+    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
+    IPC_SET_TYPED(&Message, 1, __STORAGE_TRANSFER);
+    IPC_SET_TYPED(&Message, 2, ContractStorage);
+    IPC_SET_TYPED(&Message, 3, StorageDeviceId);
+    
+    IpcSetUntypedArgument(&Message, 0, &Operation, sizeof(StorageOperation_t));
+    
+    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)&Result);
     if (Status != OsSuccess) {
         return Status;
     }
     
-    *SectorsTransferred = Result.SectorsTransferred;
-    return Result.Status;
+    *SectorsTransferred = Result->SectorsTransferred;
+    return Result->Status;
 }
 
-#endif //!_CONTRACT_STORAGE_INTERFACE_H_
+#endif //!__DDK_CONTRACT_STORAGE_H__

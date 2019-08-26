@@ -22,11 +22,13 @@
  */
 #define __MODULE "irqs"
 
-#include <component/cpu.h>
 #include <arch/utils.h>
-#include <interrupts.h>
+#include <assert.h>
+#include <component/cpu.h>
 #include <debug.h>
 #include <heap.h>
+#include <interrupts.h>
+#include <string.h>
 
 static UUId_t        InterruptHandlers[CpuFunctionCount] = { 0 };
 static MemoryCache_t IpiItemCache                        = { 0 };

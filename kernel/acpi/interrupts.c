@@ -24,9 +24,10 @@
 //#define __TRACE
 
 #include <acpiinterface.h>
-#include <interrupts.h>
 #include <assert.h>
 #include <debug.h>
+#include <ddk/device.h>
+#include <interrupts.h>
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.

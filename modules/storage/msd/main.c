@@ -22,29 +22,15 @@
 //#define __TRACE
 
 #include <ddk/contracts/storage.h>
-#include <os/mollenos.h>
 #include <ddk/utils.h>
-#include "msd.h"
 #include <ds/collection.h>
+#include <os/mollenos.h>
+#include <os/ipc.h>
+#include "msd.h"
 #include <string.h>
 #include <stdlib.h>
 
 static Collection_t *GlbMsdDevices = NULL;
-
-InterruptStatus_t
-OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
-{
-    // Unused
-    _CRT_UNUSED(InterruptData);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-    return InterruptHandled;
-}
 
 OsStatus_t
 OnLoad(void)
@@ -108,50 +94,43 @@ OnUnregister(
 
 OsStatus_t 
 OnQuery(
-	_In_     MContractType_t        QueryType, 
-	_In_     int                    QueryFunction, 
-	_In_Opt_ MRemoteCallArgument_t* Arg0,
-	_In_Opt_ MRemoteCallArgument_t* Arg1,
-	_In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
-    _CRT_UNUSED(Arg2);
-    
-    TRACE("MSD.OnQuery(Function %i)", QueryFunction);
-    if (QueryType != ContractStorage) {
+    TRACE("MSD.OnQuery(Function %i)", IPC_GET_TYPED(Message, 2));
+    if (IPC_GET_TYPED(Message, 1) != ContractStorage) {
         return OsError;
     }
 
-    switch (QueryFunction) {
+    switch (IPC_GET_TYPED(Message, 2)) {
         case __STORAGE_QUERY_STAT: {
             StorageDescriptor_t NullDescriptor = { 0 };
             MsdDevice_t*        Device         = NULL;
-            DataKey_t           Key            = { .Value.Id = Arg0->Data.Value };
+            DataKey_t           Key            = { .Value.Id = IPC_GET_TYPED(Message, 3) };
             
             Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
             if (Device != NULL) {
-                return RPCRespond(Address, (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
-                return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
 
         // Read or write sectors from a disk identifier
         // They have same parameters with different direction
         case __STORAGE_TRANSFER: {
-            StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-            DataKey_t                Key       = { .Value.Id = Arg0->Data.Value };
+            StorageOperation_t*      Operation = (StorageOperation_t*)IPC_GET_UNTYPED(Message, 0);
+            DataKey_t                Key       = { .Value.Id = IPC_GET_TYPED(Message, 3) };
             StorageOperationResult_t Result    = { .Status = OsInvalidParameters, 0 };
             MsdDevice_t*             Device;
             
             Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
             if (Device == NULL) {
-                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
             }
 
             Result.Status = MsdTransferSectors(Device, Operation, &Result.SectorsTransferred);
-            return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+            return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
         } break;
 
         // Other cases not supported

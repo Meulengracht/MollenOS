@@ -127,8 +127,8 @@ AhciTransactionControlCreate(
     memset(Transaction, 0, sizeof(AhciTransaction_t));
     dma_attach(Device->Port->InternalBuffer.handle, &Transaction->DmaAttachment);
     dma_get_sg_table(&Transaction->DmaAttachment, &Transaction->DmaTable, -1);
-    Transaction->Header.Key.Value.Id     = TransactionId++;
-    Transaction->ResponseAddress.Process = UUID_INVALID;
+    Transaction->Header.Key.Value.Id = TransactionId++;
+    Transaction->Address             = UUID_INVALID;
 
     Transaction->Type      = TransactionRegisterFISH2D;
     Transaction->State     = TransactionCreated;
@@ -151,9 +151,9 @@ AhciTransactionControlCreate(
 
 OsStatus_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*         Device,
-    _In_ MRemoteCallAddress_t* Address,
-    _In_ StorageOperation_t*   Operation)
+    _In_ AhciDevice_t*       Device,
+    _In_ thrd_t              Address,
+    _In_ StorageOperation_t* Operation)
 {
     struct dma_attachment DmaAttachment;
     AhciTransaction_t*    Transaction;
@@ -177,9 +177,9 @@ AhciTransactionStorageCreate(
     
     // Do not bother about zeroing the array
     memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
     memcpy(&Transaction->DmaAttachment, &DmaAttachment, sizeof(struct dma_attachment));
     Transaction->Header.Key.Value.Id = TransactionId++;
+    Transaction->Address             = Address;
 
     Transaction->Type    = TransactionRegisterFISH2D;
     Transaction->Sector  = Operation->AbsoluteSector;
@@ -273,6 +273,7 @@ AhciTransactionHandleResponse(
     _In_ AhciTransaction_t* Transaction)
 {
     StorageOperationResult_t Result = { 0 };
+    IpcMessage_t             Message = { 0 };
     TRACE("AhciCommandFinish()");
     
     // Verify the command execution
@@ -285,12 +286,13 @@ AhciTransactionHandleResponse(
 
     // Is the transaction finished? (Or did it error?)
     if (Result.Status != OsSuccess || Transaction->BytesLeft == 0) {
-        if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
+        if (Transaction->Address == UUID_INVALID) {
             AhciManagerHandleControlResponse(Port, Transaction);
         }
         else {
+            Message.Sender            = Transaction->Address;
             Result.SectorsTransferred = Transaction->SectorsTransferred;
-            RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
+            IpcReply(&Message, &Result, sizeof(StorageOperationResult_t));
         }
         return AhciTransactionDestroy(Transaction);
     }

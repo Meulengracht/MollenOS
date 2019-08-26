@@ -430,8 +430,8 @@ BulkSendCommand(
     _In_ size_t       BufferOffset,
     _In_ size_t       DataLength)
 {
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t CommandStage  = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        CommandStage = { 0 };
 
     // Debug
     TRACE("BulkSendCommand(Command %u, Start %u, Length %u)",
@@ -449,16 +449,16 @@ BulkSendCommand(
         &CommandStage, &Result);
 
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Result.Status);
-        if (Result.Status == TransferStalled) {
+    if (Result->Status != TransferFinished) {
+        ERROR("Failed to send the CBW command, transfer-code %u", Result->Status);
+        if (Result->Status == TransferStalled) {
             ERROR("Performing a recovery-reset on device.");
             if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsSuccess) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }
     }
-    return Result.Status;
+    return Result->Status;
 }
 
 /* BulkReadData
@@ -471,8 +471,8 @@ BulkReadData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesRead)
 {
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
@@ -484,9 +484,9 @@ BulkReadData(
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result.Status);
-        if (Result.Status == TransferStalled) {
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result->Status);
+        if (Result->Status == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_IN);
         }
         else {
@@ -496,8 +496,8 @@ BulkReadData(
     }
 
     // Return state and update out
-    *BytesRead = Result.BytesTransferred;
-    return Result.Status;
+    *BytesRead = Result->BytesTransferred;
+    return Result->Status;
 }
 
 UsbTransferStatus_t 
@@ -508,8 +508,8 @@ BulkWriteData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesWritten)
 {
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
@@ -521,9 +521,9 @@ BulkWriteData(
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result.Status);
-        if (Result.Status == TransferStalled) {
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result->Status);
+        if (Result->Status == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_OUT);
         }
         else {
@@ -533,16 +533,16 @@ BulkWriteData(
     }
 
     // Return state
-    *BytesWritten = Result.BytesTransferred;
-    return Result.Status;
+    *BytesWritten = Result->BytesTransferred;
+    return Result->Status;
 }
 
 UsbTransferStatus_t 
 BulkGetStatus(
     _In_ MsdDevice_t* Device)
 {
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t StatusStage   = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        StatusStage = { 0 };
 
     // Debug
     TRACE("BulkGetStatus()");
@@ -559,22 +559,22 @@ BulkGetStatus(
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    if (Result.Status != TransferFinished) {
-        if (Result.Status == TransferStalled) {
+    if (Result->Status != TransferFinished) {
+        if (Result->Status == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_IN);
             return BulkGetStatus(Device);
         }
         else {
-            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result.Status);
+            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result->Status);
         }
     }
     else {        
         // If the host receives a CSW which is not valid, 
         // then the host shall perform a Reset Recovery. If the host receives
         // a CSW which is not meaningful, then the host may perform a Reset Recovery.
-        Result.Status = MsdSanitizeResponse(Device, Device->StatusBlock);
+        Result->Status = MsdSanitizeResponse(Device, Device->StatusBlock);
     }
-    return Result.Status;
+    return Result->Status;
 }
 
 MsdOperations_t BulkOperations = {

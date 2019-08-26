@@ -25,6 +25,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/services/service.h>
 #include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -40,7 +41,7 @@ UsbManagerInitialize(void)
 {
     // Create the event queue and wait for usb services, give it
     // up to 5 seconds before appearing
-    if (WaitForService(__USBMANAGER_TARGET, 5000) != OsSuccess) {
+    if (WaitForUsbService(5000) != OsSuccess) {
         ERROR(" => Failed to start usb manager, as usb service never became available.");
         return OsTimeout;
     }

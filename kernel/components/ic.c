@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -15,19 +16,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- * MollenOS System Component Infrastructure 
+ * System Component Infrastructure 
  * - The Interrupt Controller component. This component has the task
  *   of mapping and managing interrupts in the domain
  */
 
-#include <interrupts.h>
-#include <machine.h>
 #include <assert.h>
 #include <heap.h>
+#include <interrupts.h>
+#include <machine.h>
+#include <string.h>
 
-/* CreateInterruptController
- * Creates a new interrupt controller with the given configuration and registers
- * with the system. */
 OsStatus_t
 CreateInterruptController(
     _In_ UUId_t     Id,
@@ -59,8 +58,6 @@ CreateInterruptController(
     return OsSuccess;
 }
 
-/* CreateInterruptOverrides
- * Initializes the overrides with the given number of entries. */
 OsStatus_t
 CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides)
@@ -82,8 +79,6 @@ CreateInterruptOverrides(
     return OsSuccess;
 }
 
-/* RegisterInterruptOverride
- * Registers a new override in a free entry. If the entries are filled it returns OsError. */
 OsStatus_t
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
@@ -106,8 +101,6 @@ RegisterInterruptOverride(
     return OsError;
 }
 
-/* GetPinOffsetByLine
- * Retrieves the correct physical pin used by the given interrupt line. */
 int
 GetPinOffsetByLine(
     _In_ int        InterruptLine)
@@ -123,8 +116,6 @@ GetPinOffsetByLine(
     return INTERRUPT_NONE;
 }
 
-/* GetInterruptControllerByLine
- * Retrieves the correct interrupt controller by identifying which line belongs to it. */
 SystemInterruptController_t*
 GetInterruptControllerByLine(
     _In_ int        InterruptLine)

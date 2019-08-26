@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -22,15 +23,17 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
+#include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <assert.h>
+#include <debug.h>
+#include <heap.h>
 #include "../../librt/libc/include/internal/_io.h"
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
-#include <arch/interrupts.h>
-#include <arch/utils.h>
 #include <ds/mstring.h>
 #include <threading.h>
-#include <debug.h>
-#include <heap.h>
+#include <string.h>
 
 static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
 static int          ModuleIdGenerator = 1;

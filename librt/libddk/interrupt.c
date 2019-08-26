@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +17,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Interrupt Support Definitions & Structures
+ * Interrupt Support Definitions & Structures
  * - This header describes the base interrupt-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
-#include <ddk/driver.h>
+#include <ddk/interrupt.h>
 
 void
 RegisterFastInterruptHandler(

@@ -25,6 +25,7 @@
 
 #include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
+#include <os/ipc.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
@@ -148,37 +149,30 @@ OnUnregister(
 
 OsStatus_t 
 OnQuery(
-    _In_     MContractType_t        InterfaceType, 
-    _In_     int                    Function, 
-    _In_Opt_ MRemoteCallArgument_t* Arg0,
-    _In_Opt_ MRemoteCallArgument_t* Arg1,
-    _In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
-    _CRT_UNUSED(Arg2);
-    
-    if (InterfaceType != ContractStorage) {
+    if (IPC_GET_TYPED(Message, 1) != ContractStorage) {
         return OsError;
     }
 
-    TRACE("Ahci.OnQuery(%i)", Function);
+    TRACE("Ahci.OnQuery(%i)", IPC_GET_TYPED(Message, 2));
 
     // Which kind of function has been invoked?
-    switch (Function) {
+    switch (IPC_GET_TYPED(Message, 2)) {
         // Query stats about a disk identifier in the form of
         // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
             AhciDevice_t*       Device;
             StorageDescriptor_t NullDescriptor;
-            UUId_t              DiskId = (UUId_t)Arg0->Data.Value;
+            UUId_t              DiskId = (UUId_t)IPC_GET_TYPED(Message, 1);
 
             Device = AhciManagerGetDevice(DiskId);
             if (Device != NULL) {
-                return RPCRespond(Address, (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
 
@@ -186,19 +180,19 @@ OnQuery(
             // They have same parameters with different direction
         case __STORAGE_TRANSFER: {
             // Get parameters
-            StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-            UUId_t                   DiskId    = (UUId_t)Arg0->Data.Value;
+            StorageOperation_t*      Operation = (StorageOperation_t*)IPC_GET_UNTYPED(Message, 0);
+            UUId_t                   DiskId    = (UUId_t)IPC_GET_TYPED(Message, 1);
             AhciDevice_t*            Device    = AhciManagerGetDevice(DiskId);
             StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
             
             if (Device == NULL) {
-                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
             }
             
             // Create the requested transaction
-            Result.Status = AhciTransactionStorageCreate(Device, Address, Operation);
+            Result.Status = AhciTransactionStorageCreate(Device, Message->Sender, Operation);
             if (Result.Status != OsSuccess) {
-                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
             }
             
             return OsSuccess;

@@ -25,19 +25,20 @@
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-#include <os/mollenos.h>
-#include <ddk/utils.h>
-#include "transfer.h"
 #include <assert.h>
+#include <ddk/utils.h>
+#include <os/mollenos.h>
+#include <os/ipc.h>
 #include <stdlib.h>
+#include "transfer.h"
 
 static UUId_t __GlbTransferId = 0;
 
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t*        Transfer,
-    _In_ MRemoteCallAddress_t* Address,
-    _In_ UUId_t                DeviceId)
+    _In_ UsbTransfer_t* Transfer,
+    _In_ thrd_t         Address,
+    _In_ UUId_t         DeviceId)
 {
     UsbManagerTransfer_t* UsbTransfer;
     int                   i;
@@ -46,12 +47,11 @@ UsbManagerCreateTransfer(
     if (!UsbTransfer) {
         return NULL;
     }
-    memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
-
-    // Copy information over
-    memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
-    memcpy(&UsbTransfer->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
     
+    memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
+    memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
+    
+    UsbTransfer->Address  = Address;
     UsbTransfer->DeviceId = DeviceId;
     UsbTransfer->Id       = __GlbTransferId++;
     UsbTransfer->Status   = TransferNotProcessed;
@@ -126,6 +126,8 @@ UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     UsbTransferResult_t Result;
+    IpcMessage_t        Message = { 0 };
+    
     TRACE("UsbManagerSendNotification()");
     
     // If user doesn't want, ignore
@@ -144,8 +146,9 @@ UsbManagerSendNotification(
         Result.BytesTransferred += Transfer->Transactions[1].BytesTransferred;
         Result.BytesTransferred += Transfer->Transactions[2].BytesTransferred;
 
-        Result.Status = Transfer->Status;
-        RPCRespond(&Transfer->ResponseAddress, (void*)&Result, sizeof(UsbTransferResult_t));
+        Result.Status  = Transfer->Status;
+        Message.Sender = Transfer->Address;
+        IpcReply(&Message, &Result, sizeof(UsbTransferResult_t));
     }
     else {
         // Forward data to the driver

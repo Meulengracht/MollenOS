@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,21 +17,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  */
 //#define __TRACE
 
 #include <ddk/contracts/storage.h>
-#include <os/mollenos.h>
 #include <ddk/utils.h>
-#include "hid.h"
-
 #include <ds/collection.h>
+#include <os/mollenos.h>
+#include <os/ipc.h>
+#include "hid.h"
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * State-tracking variables */
 static Collection_t *GlbHidDevices = NULL;
 
 /* OnInterrupt
@@ -125,25 +124,10 @@ OnUnregister(
 	return HidDeviceDestroy(HidDevice);
 }
 
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-	_In_     MContractType_t        QueryType, 
-	_In_     int                    QueryFunction, 
-	_In_Opt_ MRemoteCallArgument_t* Arg0,
-	_In_Opt_ MRemoteCallArgument_t* Arg1,
-	_In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
-    // Unused params
-    _CRT_UNUSED(QueryType);
-    _CRT_UNUSED(QueryFunction);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-    _CRT_UNUSED(Address);
+    _CRT_UNUSED(Message);
     return OsError;
 }

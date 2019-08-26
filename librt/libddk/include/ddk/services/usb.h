@@ -328,10 +328,10 @@ UsbTransferOut(
 __EXTERN
 OsStatus_t
 UsbTransferQueue(
-	_In_  UUId_t                    Driver,
-	_In_  UUId_t                    Device,
-	_In_  UsbTransfer_t*            Transfer,
-	_Out_ UsbTransferResult_t*      Result);
+	_In_  UUId_t                InterfaceId,
+	_In_  UUId_t                DeviceId,
+	_In_  UsbTransfer_t*        Transfer,
+	_Out_ UsbTransferResult_t** Result);
 
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
@@ -340,10 +340,10 @@ UsbTransferQueue(
 __EXTERN
 UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-	_In_  UUId_t                    Driver,
-	_In_  UUId_t                    Device,
-	_In_  UsbTransfer_t*            Transfer,
-	_Out_ UUId_t*                   TransferId);
+	_In_  UUId_t         InterfaceId,
+	_In_  UUId_t         DeviceId,
+	_In_  UsbTransfer_t* Transfer,
+	_Out_ UUId_t*        TransferId);
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
@@ -351,9 +351,9 @@ UsbTransferQueuePeriodic(
 __EXTERN
 UsbTransferStatus_t
 UsbTransferDequeuePeriodic(
-	_In_ UUId_t                     Driver,
-	_In_ UUId_t                     Device,
-	_In_ UUId_t                     TransferId);
+	_In_ UUId_t InterfaceId,
+	_In_ UUId_t DeviceId,
+	_In_ UUId_t TransferId);
 
 /* UsbHubResetPort
  * Resets the given port on the given hub and queries it's
@@ -362,20 +362,20 @@ UsbTransferDequeuePeriodic(
 __EXTERN
 OsStatus_t
 UsbHubResetPort(
-	_In_  UUId_t                    DriverId,
-	_In_  UUId_t                    DeviceId,
-	_In_  uint8_t                   PortAddress,
-	_Out_ UsbHcPortDescriptor_t*    Descriptor);
+	_In_  UUId_t                  InterfaceId,
+	_In_  UUId_t                  DeviceId,
+	_In_  uint8_t                 PortAddress,
+	_Out_ UsbHcPortDescriptor_t** Descriptor);
 
 /* UsbHubQueryPort 
  * Queries the port-descriptor of host-controller port. */
 __EXTERN
 OsStatus_t
 UsbHubQueryPort(
-	_In_  UUId_t                    DriverId,
-	_In_  UUId_t                    DeviceId,
-	_In_  uint8_t                   PortAddress,
-	_Out_ UsbHcPortDescriptor_t*    Descriptor);
+	_In_  UUId_t                  InterfaceId,
+	_In_  UUId_t                  DeviceId,
+	_In_  uint8_t                 PortAddress,
+	_Out_ UsbHcPortDescriptor_t** Descriptor);
 
 /* UsbSetAddress
  * Changes the address of the usb-device. This permanently updates the address. 

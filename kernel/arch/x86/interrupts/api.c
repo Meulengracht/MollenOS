@@ -25,11 +25,13 @@
 #define __MODULE        "IRQS"
 //#define __TRACE
 
-#include <arch/interrupts.h>
-#include <machine.h>
-#include <debug.h>
-#include <arch.h>
 #include <apic.h>
+#include <arch.h>
+#include <arch/interrupts.h>
+#include <assert.h>
+#include <ddk/device.h>
+#include <debug.h>
+#include <machine.h>
 #include <pic.h>
 
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)

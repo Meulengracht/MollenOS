@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -34,6 +35,7 @@
 #include <gdt.h>
 #include <idt.h>
 #include <pic.h>
+#include <string.h>
 #include <vbe.h>
 
 #if defined(_MSC_VER) && !defined(__clang__)

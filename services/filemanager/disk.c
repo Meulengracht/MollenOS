@@ -157,11 +157,10 @@ VfsRegisterDisk(
     _In_ UUId_t  Device,
     _In_ Flags_t Flags)
 {
-    // Variables
-    FileSystemDisk_t *Disk = NULL;
-    DataKey_t Key = { .Value.Id = Device };
+    StorageDescriptor_t* Descriptor;
+    FileSystemDisk_t*    Disk;
+    DataKey_t            Key = { .Value.Id = Device };
 
-    // Trace 
     TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)",
         Driver, Device, Flags);
 
@@ -172,13 +171,15 @@ VfsRegisterDisk(
         return OsOutOfMemory;
     }
     
-    Disk->Driver    = Driver;
-    Disk->Device    = Device;
-    Disk->Flags     = Flags;
-    if (StorageQuery(Device, Driver, &Disk->Descriptor) != OsSuccess) {
+    Disk->Driver = Driver;
+    Disk->Device = Device;
+    Disk->Flags  = Flags;
+    if (StorageQuery(Device, Driver, &Descriptor) != OsSuccess) {
         free(Disk);
         return OsError;
     }
+    
+    memcpy(&Disk->Descriptor, Descriptor, sizeof(StorageDescriptor_t));
 
     // Add the registered disk to the list of disks
     CollectionAppend(VfsGetDisks(), CollectionCreateNode(Key, Disk));
