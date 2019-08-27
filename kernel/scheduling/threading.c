@@ -167,6 +167,7 @@ InitializeDefaultThread(
         (VirtualAddress_t*)&Thread->IpcArena, NULL,
         IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
         MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
+    WARNING("%u => ARENA => 0x%x => 0x%x", Thread->Handle, Thread, Thread->IpcArena);
     
     // Register the thread with arch
     if (ThreadingRegister(Thread) != OsSuccess) {
@@ -211,9 +212,9 @@ CreateThread(
     _In_  UUId_t         MemorySpaceHandle,
     _Out_ UUId_t*        Handle)
 {
-    MCoreThread_t*       Thread;
-    MCoreThread_t*       Parent;
-    UUId_t               CoreId;
+    MCoreThread_t* Thread;
+    MCoreThread_t* Parent;
+    UUId_t         CoreId;
 
     TRACE("CreateThread(%s, 0x%" PRIxIN ")", Name, Flags);
 

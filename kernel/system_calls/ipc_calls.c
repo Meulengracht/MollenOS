@@ -153,6 +153,7 @@ ScIpcInvoke(
         return OsDoesNotExist;
     }
     
+    WARNING("1 => %u => 0x%x => 0x%x", TargetHandle, Target, Target->IpcArena);
     IpcArena  = Target->IpcArena;
     SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     while (SyncValue) {
@@ -162,6 +163,7 @@ ScIpcInvoke(
         SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     }
     
+    WARNING("2");
     IpcArena->Message.MetaLength = sizeof(IpcMessage_t); 
     IpcArena->Message.Sender     = (thrd_t)GetCurrentThreadId();
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
@@ -172,9 +174,11 @@ ScIpcInvoke(
         // Handle the untyped, a bit more tricky. If the argument is larger than 512
         // bytes, we will do a mapping clone instead of just copying data into sender.
         if (Message->UntypedArguments[i].Length) {
+            WARNING("2.1");
             // Events that don't have a response do not support longer arguments than 512 bytes.
             if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && 
                 !(Flags & IPC_NO_RESPONSE)) {
+                WARNING("2.2");
                 OsStatus_t Status = CloneMemorySpaceMapping(
                     GetCurrentMemorySpace(), Target->MemorySpace,
                     (VirtualAddress_t)Message->UntypedArguments[i].Buffer, 
@@ -191,6 +195,7 @@ ScIpcInvoke(
                 }
             }
             else {
+                WARNING("2.3");
                 size_t BytesAvailable = ((IPC_MAX_ARGUMENTS * IPC_UNTYPED_THRESHOLD) 
                     + sizeof(IpcMessage_t)) - IpcArena->Message.MetaLength;
                 assert(BytesAvailable != 0);
@@ -208,6 +213,7 @@ ScIpcInvoke(
             }
         }
     }
+    WARNING("3");
     
     atomic_store(&IpcArena->ResponseSyncObject, 0);
     atomic_store(&IpcArena->ReadSyncObject, 1);
@@ -215,5 +221,6 @@ ScIpcInvoke(
     if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {
         return OsSuccess;
     }
+    WARNING("4");
     return ScIpcGetResponse(Timeout, BufferOut);
 }

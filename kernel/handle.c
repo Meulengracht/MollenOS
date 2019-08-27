@@ -52,6 +52,7 @@ CreateHandle(
     Handle->Flags      = Flags;
     Handle->Resource   = Resource;
     Handle->Destructor = Destructor;
+    Handle->Path       = NULL;
     atomic_store_explicit(&Handle->References, 1, memory_order_relaxed);
     Id = ArrayAppend(SystemHandles, Handle);
     if (Id == UUID_INVALID) {
@@ -84,9 +85,14 @@ RegisterHandlePath(
     _In_ UUId_t      Handle,
     _In_ const char* Path)
 {
-    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    SystemHandle_t* Instance;
     UUId_t          ExistingHandle;
     
+    if (!Path) {
+        return OsInvalidParameters;
+    }
+    
+    Instance = ARRAY_GET(SystemHandles, Handle);
     if (!Instance) {
         return OsDoesNotExist;
     }
@@ -108,7 +114,7 @@ LookupHandleByPath(
     
     for (i = 0; i < SystemHandles->Capacity; i++) {
         SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
-        if (Instance->Path && !strcmp(Instance->Path, Path)) {
+        if (Instance && Instance->Path && !strcmp(Instance->Path, Path)) {
             return OsSuccess;
         }
     }
