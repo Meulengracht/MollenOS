@@ -45,14 +45,11 @@ CleanupMessage(
     // Flush all the mappings granted in the argument phase
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
-            OsStatus_t Status = RemoveMemorySpaceMapping(Target->MemorySpace,
+            (void)RemoveMemorySpaceMapping(Target->MemorySpace,
                 (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
                 Message->UntypedArguments[i].Length);
-            if (Status != OsSuccess) {
-                // TODO: Ehm what
-                ERROR("Failed to clone ipc argument that was longer than 512 bytes");
-            }
         }
+        Message->UntypedArguments[i].Length = 0;
     }
 }
 
@@ -186,21 +183,28 @@ ScIpcInvoke(
                     MAPPING_USERSPACE | MAPPING_READONLY,
                     MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
                 if (Status != OsSuccess) {
-                    // TODO: Ehm what
                     ERROR("Failed to clone ipc argument that was longer than 512 bytes");
+                    CleanupMessage(Target, &IpcArena->Message);
+                    atomic_store(&IpcArena->WriteSyncObject, 0);
+                    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+                    return Status;
                 }
             }
             else {
-                // TODO: support longer but untill we run out of space?
+                size_t BytesAvailable = ((IPC_MAX_ARGUMENTS * IPC_UNTYPED_THRESHOLD) 
+                    + sizeof(IpcMessage_t)) - IpcArena->Message.MetaLength;
+                assert(BytesAvailable != 0);
+                
                 if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
-                    WARNING("Event with more than IPC_UNTYPED_THRESHOLD bytes of data for an argument, argument was truncated");
+                    WARNING("Event with more than IPC_UNTYPED_THRESHOLD bytes of data for an argument");
                 }
                 memcpy(&IpcArena->Buffer[BufferIndex], 
                     Message->UntypedArguments[i].Buffer,
-                    MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length));
+                    MIN(BytesAvailable, Message->UntypedArguments[i].Length));
                 IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
-                BufferIndex += MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length);
-                IpcArena->Message.MetaLength += MIN(IPC_UNTYPED_THRESHOLD, Message->UntypedArguments[i].Length);
+                
+                BufferIndex                  += MIN(BytesAvailable, Message->UntypedArguments[i].Length);
+                IpcArena->Message.MetaLength += MIN(BytesAvailable, Message->UntypedArguments[i].Length);
             }
         }
     }
