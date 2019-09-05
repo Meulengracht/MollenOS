@@ -193,8 +193,6 @@ InitializeDefaultThread(
     if (CreateThreadIpcArena(Thread) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to create the ipc arena for the thread.");
     }
-    WARNING("%s => %u => ARENA => 0x%x => 0x%x", Thread->Name, 
-        Thread->Handle, Thread, Thread->ArenaKernelPointer);
     
     if (ThreadingRegister(Thread) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");

@@ -41,7 +41,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
 
     // We must set IsModule before anything
     __CrtIsModule  = IsModule;
-    __CrtProcessId = ProcessGetCurrentId() ^ Syscall_ThreadCookie();
+    __CrtProcessId = ProcessGetCurrentId();
 
     // Get startup information
     if (IsModule) {

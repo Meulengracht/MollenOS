@@ -206,7 +206,7 @@ OnEvent(
         // and and parses the disk-system for a MBR
         // or a GPT table 
         case __FILEMANAGER_REGISTERSTORAGE: {
-            Result = VfsRegisterDisk(IPC_GET_TYPED(Message, 1),
+            Result = VfsRegisterDisk(Message->Sender, //IPC_GET_TYPED(Message, 1), <-- ProcessId
                 (UUId_t)IPC_GET_TYPED(Message, 2),
                 (Flags_t)IPC_GET_TYPED(Message, 3));
         } break;

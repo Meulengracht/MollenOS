@@ -96,12 +96,12 @@ OsStatus_t
 OnQuery(
     _In_ IpcMessage_t* Message)
 {
-    TRACE("MSD.OnQuery(Function %i)", IPC_GET_TYPED(Message, 2));
-    if (IPC_GET_TYPED(Message, 1) != ContractStorage) {
+    TRACE("MSD.OnQuery(Function %i)", IPC_GET_TYPED(Message, 1));
+    if (IPC_GET_TYPED(Message, 2) != ContractStorage) {
         return OsError;
     }
 
-    switch (IPC_GET_TYPED(Message, 2)) {
+    switch (IPC_GET_TYPED(Message, 1)) {
         case __STORAGE_QUERY_STAT: {
             StorageDescriptor_t NullDescriptor = { 0 };
             MsdDevice_t*        Device         = NULL;

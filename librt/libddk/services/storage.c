@@ -31,7 +31,6 @@ RegisterStorage(
     _In_ UUId_t  DeviceId, 
     _In_ Flags_t Flags)
 {
-	thrd_t       ServiceTarget = GetFileService();
 	IpcMessage_t Request;
 	
 	IpcInitialize(&Request);
@@ -40,7 +39,7 @@ RegisterStorage(
 	IPC_SET_TYPED(&Request, 2, DeviceId);
 	IPC_SET_TYPED(&Request, 3, Flags);
 	
-	return IpcInvoke(ServiceTarget, &Request, 
+	return IpcInvoke(GetFileService(), &Request, 
 	    IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
 
@@ -49,7 +48,6 @@ UnregisterStorage(
     _In_ UUId_t  DeviceId,
     _In_ Flags_t Flags)
 {
-	thrd_t       ServiceTarget = GetFileService();
 	IpcMessage_t Request;
 	
 	IpcInitialize(&Request);
@@ -58,6 +56,6 @@ UnregisterStorage(
 	IPC_SET_TYPED(&Request, 2, DeviceId);
 	IPC_SET_TYPED(&Request, 3, Flags);
 	
-	return IpcInvoke(ServiceTarget, &Request, 
+	return IpcInvoke(GetFileService(), &Request, 
 	    IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
