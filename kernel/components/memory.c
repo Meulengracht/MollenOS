@@ -22,9 +22,6 @@
 
 #include <machine.h>
 
-/* AllocateSystemMemory 
- * Allocates a block of system memory with the given parameters. It's possible
- * to allocate low memory, local memory, global memory or standard memory. */
 uintptr_t
 AllocateSystemMemory(
     _In_ size_t     Size,
@@ -38,9 +35,6 @@ AllocateSystemMemory(
     return AllocateBlocksInBlockmap(&GetMachine()->PhysicalMemory, Mask, Size);
 }
 
-/* FreeSystemMemory
- * Releases the given memory address of the given size. This can return OsError
- * if the memory was not already allocated or address is invalid. */
 OsStatus_t
 FreeSystemMemory(
     _In_ uintptr_t  Address,

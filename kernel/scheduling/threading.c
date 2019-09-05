@@ -22,7 +22,7 @@
  *   a flexible and generic threading platfrom
  */
 
-#define __MODULE "MTIF"
+#define __MODULE "THRD"
 //#define __TRACE
 
 #include <component/cpu.h>
@@ -80,6 +80,7 @@ DestroyThread(
 
     assert(Thread != NULL);
     assert(atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 1);
+    TRACE("DestroyThread(%s)", Thread->Name);
 
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
@@ -103,12 +104,14 @@ DestroyThread(
         }
     }
 
-    // Remove a reference to the memory space if not root
+    // Remove a reference to the memory space if not root, and remove the
+    // kernel mapping of the threads' ipc area
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
         DestroyHandle(Thread->MemorySpaceHandle);
     }
     (void)RemoveMemorySpaceMapping(GetCurrentMemorySpace(), 
-        (VirtualAddress_t)Thread->IpcArena, IPC_ARENA_SIZE);
+        (VirtualAddress_t)Thread->ArenaKernelPointer, IPC_ARENA_SIZE);
+    
     kfree((void*)Thread->Name);
     kfree(Thread);
 }
@@ -124,6 +127,32 @@ CreateDefaultThreadContexts(
     // TODO: Should we create user stacks immediately?
 }
 
+static OsStatus_t
+CreateThreadIpcArena(
+    _In_ MCoreThread_t* Thread)
+{
+    IpcArena_t* Arena;
+    OsStatus_t  Status;
+    
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Thread->ArenaKernelPointer, &Thread->ArenaPhysicalAddress,
+        IPC_ARENA_SIZE, MAPPING_COMMIT,
+        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
+    if (Status != OsSuccess) {
+        ERROR("... failed to create ipc arena for thread: %u", Status);
+        return Status;
+    }
+    
+    Arena = Thread->ArenaKernelPointer;
+    memset(Arena, 0, IPC_ARENA_SIZE);
+    
+    // Set default state to ipc blocked, which means the thread won't accept
+    // any ipcs before IpcListen is called
+    atomic_store(&Arena->WriteSyncObject, 1);
+    
+    return Status;
+}
+
 // Setup defaults for a new thread and creates appropriate resources
 static void
 InitializeDefaultThread(
@@ -133,25 +162,24 @@ InitializeDefaultThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-    OsStatus_t Status;
-    char       NameBuffer[16];
+    char NameBuffer[16];
 
     // Reset thread structure
     memset(Thread, 0, sizeof(MCoreThread_t));
     MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
     SemaphoreConstruct(&Thread->EventObject, 0, 1);
     
-    Thread->Handle         = CreateHandle(HandleTypeThread, 0, DestroyThread, Thread);
-    Thread->References     = ATOMIC_VAR_INIT(0);
-    Thread->Function       = Function;
-    Thread->Arguments      = Arguments;
-    Thread->Flags          = Flags;
-    Thread->ParentThreadId = UUID_INVALID;
+    Thread->Handle       = CreateHandle(HandleTypeThread, 0, DestroyThread, Thread);
+    Thread->References   = ATOMIC_VAR_INIT(0);
+    Thread->Function     = Function;
+    Thread->Arguments    = Arguments;
+    Thread->Flags        = Flags;
+    Thread->ParentHandle = UUID_INVALID;
     
     // Get the startup time
     TimersGetSystemTick(&Thread->StartedAt);
     
-    // Sanitize name, if NULL generate a new thread name of format 'Thread X'
+    // Sanitize name, if NULL generate a new thread name of format 'thread x'
     if (Name == NULL) {
         memset(&NameBuffer[0], 0, sizeof(NameBuffer));
         sprintf(&NameBuffer[0], "thread %" PRIuIN, Thread->Handle);
@@ -161,15 +189,13 @@ InitializeDefaultThread(
         Thread->Name = strdup(Name);
     }
     
-    // Create communication members
     Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
-    Status                  = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Thread->IpcArena, NULL,
-        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
-        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
-    WARNING("%u => ARENA => 0x%x => 0x%x", Thread->Handle, Thread, Thread->IpcArena);
+    if (CreateThreadIpcArena(Thread) != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to create the ipc arena for the thread.");
+    }
+    WARNING("%s => %u => ARENA => 0x%x => 0x%x", Thread->Name, 
+        Thread->Handle, Thread, Thread->ArenaKernelPointer);
     
-    // Register the thread with arch
     if (ThreadingRegister(Thread) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
     }
@@ -225,7 +251,7 @@ CreateThread(
     InitializeDefaultThread(Thread, Name, Function, Arguments, Flags);
     
     // Setup parent and cookie information
-    Thread->ParentThreadId = Parent->Handle;
+    Thread->ParentHandle = Parent->Handle;
     if (Flags & THREADING_INHERIT) {
         Thread->Cookie = Parent->Cookie;
     }
@@ -299,9 +325,9 @@ ThreadingDetachThread(
     // is in same process
     if (Target != NULL) {
         Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
-        if (Target->ParentThreadId == Thread->Handle || Status == OsSuccess) {
-            Target->ParentThreadId = UUID_INVALID;
-            Status                 = OsSuccess;
+        if (Target->ParentHandle == Thread->Handle || Status == OsSuccess) {
+            Target->ParentHandle = UUID_INVALID;
+            Status               = OsSuccess;
         }
     }
     return Status;
@@ -318,7 +344,7 @@ TerminateChildOfThread(
         int    ExitCode;
     } *TerminateContext = Context;
     
-    if (Thread->ParentThreadId == TerminateContext->Handle) {
+    if (Thread->ParentHandle == TerminateContext->Handle) {
         TerminateThread(Thread->Handle, TerminateContext->ExitCode, 1);
     }
 }
@@ -362,7 +388,7 @@ ThreadingJoinThread(
     _In_ UUId_t ThreadId)
 {
     MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
-    if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
+    if (Target != NULL && Target->ParentHandle != UUID_INVALID) {
         MutexLock(&Target->SyncObject);
         if (atomic_load(&Target->Cleanup) != 1) {
             atomic_fetch_add(&Target->References, 1);
@@ -379,6 +405,7 @@ void
 EnterProtectedThreadLevel(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    OsStatus_t     Status;
 
     // Create the userspace stack now that we need it 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
@@ -387,6 +414,15 @@ EnterProtectedThreadLevel(void)
         
     // Create the signal stack in preparation.
     Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
+    
+    // Create the ipc arena pointer that will be user accessible
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Thread->ArenaUserPointer, &Thread->ArenaPhysicalAddress,
+        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
+    if (Status != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "... failed to create user ipc arena for thread: %u", Status);
+    }
     
     // Initiate switch to userspace
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
@@ -448,7 +484,7 @@ DumpActiceThread(
     MCoreThread_t* Thread = Resource;
     if (!atomic_load(&Thread->Cleanup)) {
         WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
-            Thread->Handle, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
+            Thread->Handle, Thread->Name, Thread->ParentHandle, CONTEXT_IP(Thread->ContextActive));
     }
 }
 

@@ -31,8 +31,10 @@
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <os/ipc.h>
+#include <os/mollenos.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 
 static Collection_t Contracts           = COLLECTION_INIT(KeyId);
 static Collection_t Devices             = COLLECTION_INIT(KeyId);
@@ -46,8 +48,16 @@ OsStatus_t
 OnLoad(
     _In_ char** ServicePathOut)
 {
+    thrd_t thr;
+    
     *ServicePathOut = SERVICE_DEVICE_PATH;
-    return BusEnumerate();
+    
+    // Start the enumeration process in a new thread so we can quickly return
+    // and be ready for requests.
+    if (thrd_create(&thr, BusEnumerate, NULL) != thrd_success) {
+        return OsError;
+    }
+    return OsSuccess;
 }
 
 /* OnUnload
@@ -148,50 +158,57 @@ OnEvent(
     return OsSuccess;
 }
 
-/* DmRegisterDevice
- * Allows registering of a new device in the
- * device-manager, and automatically queries for a driver for the new device */
+int
+DmLoadDeviceDriver(void* Context)
+{
+    MCoreDevice_t* Device = Context;
+    OsStatus_t     Status = InstallDriver(Device, Device->Length, NULL, 0);
+    
+    if (Status != OsSuccess) {
+        return OsStatusToErrno(Status);
+    }
+    return 0;
+}
+
 OsStatus_t
 DmRegisterDevice(
-    _In_  UUId_t                Parent,
-    _In_  MCoreDevice_t*        Device, 
-    _In_  const char*           Name,
-    _In_  Flags_t               Flags,
-    _Out_ UUId_t*               Id)
+    _In_  UUId_t         Parent,
+    _In_  MCoreDevice_t* Device, 
+    _In_  const char*    Name,
+    _In_  Flags_t        Flags,
+    _Out_ UUId_t*        Id)
 {
     MCoreDevice_t* CopyDevice;
     DataKey_t      Key = { 0 };
 
-    // Argument checks
     _CRT_UNUSED(Parent);
     assert(Device != NULL);
     assert(Id != NULL);
     assert(Device->Length >= sizeof(MCoreDevice_t));
 
-    // Update name 
-    if (Name != NULL) {
-        memcpy(&Device->Name[0], Name, strlen(Name)); // skip null term
-    }
-    TRACE("%u, Registered device %s, struct length %u", 
-        DeviceIdGenerator, &Device->Name[0], Device->Length);
-
-    // Generate id and update out
-    *Id = Device->Id = DeviceIdGenerator++;
-    Key.Value.Id     = Device->Id;
-
-    // Allocate our own copy of the device
     CopyDevice = (MCoreDevice_t*)malloc(Device->Length);
     if (!CopyDevice) {
         return OsOutOfMemory;
     }
     
     memcpy(CopyDevice, Device, Device->Length);
+    CopyDevice->Id = Key.Value.Id = DeviceIdGenerator++;
+    if (Name != NULL) {
+        memcpy(&CopyDevice->Name[0], Name, strlen(Name));
+    }
+    
     CollectionAppend(&Devices, CollectionCreateNode(Key, CopyDevice));
-
+    TRACE("%u, Registered device %s, struct length %u", 
+        DeviceIdGenerator, &CopyDevice->Name[0], CopyDevice->Length);
+    *Id = CopyDevice->Id;
+    
     // Now, we want to try to find a driver for the new device
 #ifndef __OSCONFIG_NODRIVERS
     if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
-        return InstallDriver(CopyDevice, Device->Length, NULL, 0);
+        thrd_t thr;
+        if (thrd_create(&thr, DmLoadDeviceDriver, CopyDevice) != thrd_success) {
+            return OsError;
+        }
     }
 #endif
     return OsSuccess;
@@ -202,7 +219,7 @@ DmRegisterContract(
     _In_  MContract_t* Contract,
     _Out_ UUId_t*      Id)
 {
-    MContract_t* CopyContract = NULL;
+    MContract_t* CopyContract;
     DataKey_t    Key;
 
     assert(Contract != NULL);
@@ -218,16 +235,15 @@ DmRegisterContract(
         return OsError;
     }
 
-    // Update contract id
-    *Id                  = ContractIdGenerator++;
-    Contract->ContractId = *Id;
-    Key.Value.Id         = *Id;
-
-    // Allocate our own copy of the contract
     CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
     if (!CopyContract) {
         return OsOutOfMemory;
     }
+    
     memcpy(CopyContract, Contract, sizeof(MContract_t));
+    CopyContract->ContractId = ContractIdGenerator++;
+    Key.Value.Id             = *Id;
+    
+    *Id = CopyContract->ContractId;
     return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
 }

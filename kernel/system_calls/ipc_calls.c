@@ -21,7 +21,7 @@
  *
  */
 
-#define __MODULE "SCIF"
+#define __MODULE "IPC0"
 #define __TRACE
 
 #include <arch/utils.h>
@@ -44,7 +44,7 @@ CleanupMessage(
 
     // Flush all the mappings granted in the argument phase
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-        if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
+        if (Message->UntypedArguments[i].Length & IPC_ARGUMENT_MAPPED) {
             (void)RemoveMemorySpaceMapping(Target->MemorySpace,
                 (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
                 Message->UntypedArguments[i].Length);
@@ -60,15 +60,19 @@ ScIpcReply(
     _In_  size_t        Length)
 {
     MCoreThread_t* Current   = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    MCoreThread_t* Target    = LookupHandle((UUId_t)Message->Sender);
-    IpcArena_t*    IpcArena  = Target->IpcArena;
-
-    memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
-        Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
-
-    atomic_store(&IpcArena->ResponseSyncObject, 1);
-    (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
+    MCoreThread_t* Target    = LookupHandleOfType((UUId_t)Message->Sender, HandleTypeThread);
+    IpcArena_t*    IpcArena;
+    TRACE("%s => ScIpcReply()", Current->Name);
     
+    if (Target) {
+        IpcArena = Target->ArenaKernelPointer;
+        memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
+            Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
+        
+        atomic_store(&IpcArena->ResponseSyncObject, 1);
+        (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
+    }
+
     CleanupMessage(Current, Message);
     return OsSuccess;
 }
@@ -79,8 +83,9 @@ ScIpcListen(
     _Out_ IpcMessage_t** MessageOut)
 {
     MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    IpcArena_t*    IpcArena = Current->IpcArena;
+    IpcArena_t*    IpcArena = Current->ArenaUserPointer; // Use the user pointer here
     int            SyncValue;
+    TRACE("%s => ScIpcListen()", Current->Name);
 
     // Clear the WriteSyncObject
     atomic_store(&IpcArena->WriteSyncObject, 0);
@@ -95,6 +100,7 @@ ScIpcListen(
         SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
     }
 
+    TRACE("... received ipc");
     *MessageOut = &IpcArena->Message;
     return OsSuccess;
 }
@@ -120,8 +126,9 @@ ScIpcGetResponse(
     _In_ void** BufferOut)
 {
     MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    IpcArena_t*    IpcArena = Current->IpcArena;
+    IpcArena_t*    IpcArena = Current->ArenaUserPointer; // Use the user pointer here
     int            SyncValue;
+    TRACE("%s => ScIpcGetResponse()", Current->Name);
     
     // Wait for response by 'polling' the value
     SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
@@ -144,17 +151,20 @@ ScIpcInvoke(
     _In_  size_t        Timeout,
     _Out_ void**        BufferOut)
 {
-    MCoreThread_t* Target      = LookupHandle(TargetHandle);
+    MCoreThread_t* Target      = LookupHandleOfType(TargetHandle, HandleTypeThread);
     size_t         BufferIndex = 0;
     IpcArena_t*    IpcArena;
     int            SyncValue;
     int            i;
+    
     if (!Target) {
         return OsDoesNotExist;
     }
+    TRACE("ScIpcInvoke() => %s", Target->Name);
     
-    WARNING("1 => %u => 0x%x => 0x%x", TargetHandle, Target, Target->IpcArena);
-    IpcArena  = Target->IpcArena;
+    TRACE("%u => %u => 0x%x => 0x%x", GetCurrentThreadId(), 
+        TargetHandle, Target, Target->ArenaKernelPointer);
+    IpcArena  = Target->ArenaKernelPointer;
     SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     while (SyncValue) {
         if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
@@ -163,11 +173,9 @@ ScIpcInvoke(
         SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     }
     
-    WARNING("2");
     IpcArena->Message.MetaLength = sizeof(IpcMessage_t); 
     IpcArena->Message.Sender     = (thrd_t)GetCurrentThreadId();
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-        // Handle typed argument
         IpcArena->Message.TypedArguments[i]          = Message->TypedArguments[i];
         IpcArena->Message.UntypedArguments[i].Length = Message->UntypedArguments[i].Length;
         
@@ -178,12 +186,11 @@ ScIpcInvoke(
             // Events that don't have a response do not support longer arguments than 512 bytes.
             if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && 
                 !(Flags & IPC_NO_RESPONSE)) {
-                WARNING("2.2");
-                OsStatus_t Status = CloneMemorySpaceMapping(
+                VirtualAddress_t CopyAddress;
+                OsStatus_t       Status = CloneMemorySpaceMapping(
                     GetCurrentMemorySpace(), Target->MemorySpace,
                     (VirtualAddress_t)Message->UntypedArguments[i].Buffer, 
-                    (VirtualAddress_t*)&IpcArena->Message.UntypedArguments[i].Buffer,
-                    Message->UntypedArguments[i].Length,
+                    &CopyAddress, Message->UntypedArguments[i].Length,
                     MAPPING_USERSPACE | MAPPING_READONLY,
                     MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
                 if (Status != OsSuccess) {
@@ -193,9 +200,10 @@ ScIpcInvoke(
                     (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
                     return Status;
                 }
+                IpcArena->Message.UntypedArguments[i].Buffer = (void*)(CopyAddress + ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize()));
+                IpcArena->Message.UntypedArguments[i].Length |= IPC_ARGUMENT_MAPPED;
             }
             else {
-                WARNING("2.3");
                 size_t BytesAvailable = ((IPC_MAX_ARGUMENTS * IPC_UNTYPED_THRESHOLD) 
                     + sizeof(IpcMessage_t)) - IpcArena->Message.MetaLength;
                 assert(BytesAvailable != 0);
@@ -213,14 +221,13 @@ ScIpcInvoke(
             }
         }
     }
-    WARNING("3");
     
-    atomic_store(&IpcArena->ResponseSyncObject, 0);
+    // TODO: determine the consequences of not clearing our own response
+    // flag here to prepare for ipc reply
     atomic_store(&IpcArena->ReadSyncObject, 1);
     (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
     if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {
         return OsSuccess;
     }
-    WARNING("4");
     return ScIpcGetResponse(Timeout, BufferOut);
 }

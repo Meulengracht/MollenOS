@@ -28,6 +28,7 @@
 #include <ddk/acpi.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
+#include <errno.h>
 
 /* PCI-Express Support
  * This is the acpi-mcfg entry structure that represents an pci-express controller */
@@ -516,18 +517,20 @@ BusRegisterPS2Controller(void)
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-OsStatus_t
-BusEnumerate(void)
+int
+BusEnumerate(void* Context)
 {
-    ACPI_TABLE_MCFG *McfgTable  = NULL;
-    ACPI_TABLE_HEADER *Header   = NULL;
-    AcpiDescriptor_t Acpi       = { 0 };
-    OsStatus_t Status;
-    int Function;
+    ACPI_TABLE_MCFG*   McfgTable = NULL;
+    ACPI_TABLE_HEADER* Header    = NULL;
+    AcpiDescriptor_t   Acpi      = { 0 };
+    OsStatus_t         Status;
+    int                Function;
+
+    _CRT_UNUSED(Context);
 
     __GlbRoot = (PciDevice_t*)malloc(sizeof(PciDevice_t));
     if (!__GlbRoot) {
-        return OsOutOfMemory;
+        return ENOMEM;
     }
     memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
@@ -575,7 +578,7 @@ BusEnumerate(void)
 
             if (CreateDeviceMemoryIo(&Bus->IoSpace, (uintptr_t)Entry->BaseAddress, (1024 * 1024 * 256)) != OsSuccess) {
                 ERROR(" > failed to create pcie address space");
-                return OsError;
+                return ENODEV;
             }
 
             // PCIe memory spaces spand up to 256 mb
@@ -596,7 +599,7 @@ BusEnumerate(void)
         // Otherwise we have traditional PCI buses
         PciBus_t *Bus = (PciBus_t*)malloc(sizeof(PciBus_t));
         if (!Bus) {
-            return OsOutOfMemory;
+            return ENOMEM;
         }
         memset(Bus, 0, sizeof(PciBus_t));
 
@@ -607,13 +610,13 @@ BusEnumerate(void)
         Status = CreateDevicePortIo(&Bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
         if (Status != OsSuccess) {
             ERROR(" > failed to initialize pci io space");
-            return OsError;
+            return ENODEV;
         }
 
         Status = AcquireDeviceIo(&Bus->IoSpace);
         if (Status != OsSuccess) {
             ERROR(" > failed to acquire pci io space");
-            return OsError;
+            return ENODEV;
         }
 
         // We can check whether or not it's a multi-function
@@ -630,7 +633,7 @@ BusEnumerate(void)
         }
     }
     CollectionExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
-    return OsSuccess;
+    return EOK;
 }
 
 /* DmIoctlDevice

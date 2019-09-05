@@ -145,24 +145,60 @@ ExceptionEntry(
     }
     else if (Registers->Irq == 14) {    // Page Fault
         Address = (uintptr_t)__getcr2();
+        Core    = GetCurrentProcessorCore();
 
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
             SignalReturn(Registers);
         }
-
-        // Final step is to see if kernel can handle the unallocated address
-        if (DebugPageFault(Registers, Address) == OsSuccess) {
-            IssueFixed = 1;
+        
+        // Debug the error code
+        if (Registers->ErrorCode & 0x1) {
+            // Page access violation for a page that was present
+            Flags_t Attributes = GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address);
+            
+            if (Registers->ErrorCode & 0x2) {
+                // Write access, so lets verify that write attributes are set, if they
+                // are not, then the thread tried to write to read-only memory
+                if (Attributes & MAPPING_READONLY) {
+                    // If it was a user-process, kill it, otherwise fall through to kernel crash
+                    ERROR("%s: WRITE_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
+                        Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                        Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+                    if (Registers->ErrorCode & 0x4) {
+                        SignalExecute(Registers, SIGSEGV, NULL);
+                    }
+                }
+                else {
+                    // Invalidate the address and return
+                    CpuInvalidateMemoryCache((void*)Address, GetMemorySpacePageSize());
+                    IssueFixed = 1;
+                }
+            }
+            else {
+                // Read access violation, but this kernel does not map pages without
+                // read access, so something terrible has happened. Fall through to kernel crash
+                ERROR("%s: READ_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
+                    Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                    Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+            }
         }
         else {
-            Core = GetCurrentProcessorCore();
-            ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
-                Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
-                Address, Registers->ErrorCode, CONTEXT_IP(Registers));
-            SignalExecute(Registers, SIGSEGV, NULL);
+            // Page was not present, this could be because of lazy-comitting, lets try
+            // to fix it by comitting the address. 
+            if (DebugPageFault(Registers, Address) == OsSuccess) {
+                IssueFixed = 1;
+            }
+            else {
+                ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
+                    Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                    Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+                SignalExecute(Registers, SIGSEGV, NULL);
+            }
         }
+
+
     }
     else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
         SignalExecute(Registers, SIGFPE, NULL);

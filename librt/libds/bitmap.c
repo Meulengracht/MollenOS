@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Generic Bitmap Implementation
+ * Generic Bitmap Implementation
  */
 
 #include <os/osdefs.h>
@@ -256,7 +257,7 @@ BitmapFindBits(
     int j = 0;
     int k;
     assert(Bitmap != NULL);
-
+    
     // Get maximum number of iterations
     NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
     

@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "SCIF"
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/memory.h>
 

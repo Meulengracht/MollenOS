@@ -109,7 +109,7 @@ void ArrayRemove(Array_t* Array, UUId_t Index)
 {
     void** Elements;
     
-    if (!Array || Index < Array->Capacity) {
+    if (!Array || Index >= Array->Capacity) {
         return;
     }
     

@@ -87,6 +87,7 @@ RegisterHandlePath(
 {
     SystemHandle_t* Instance;
     UUId_t          ExistingHandle;
+    TRACE("RegisterHandlePath(%u, %s)", Handle, Path);
     
     if (!Path) {
         return OsInvalidParameters;
@@ -102,6 +103,7 @@ RegisterHandlePath(
     }
     
     Instance->Path = strdup(Path);
+    TRACE("... registered");
     return OsSuccess;
 }
 
@@ -111,13 +113,17 @@ LookupHandleByPath(
     _Out_ UUId_t*     HandleOut)
 {
     size_t i;
+    TRACE("LookupHandleByPath(%s)", Path);
     
     for (i = 0; i < SystemHandles->Capacity; i++) {
         SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
         if (Instance && Instance->Path && !strcmp(Instance->Path, Path)) {
+            TRACE("... found");
+            *HandleOut = (UUId_t)i;
             return OsSuccess;
         }
     }
+    TRACE("... not found");
     return OsDoesNotExist;
 }
 
@@ -154,7 +160,7 @@ EnumerateHandlesOfType(
     
     for (i = 0; i < SystemHandles->Capacity; i++) {
         SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
-        if (Instance->Type == Type) {
+        if (Instance && Instance->Type == Type) {
             Fn(Instance->Resource, Context);
         }
     }
@@ -191,7 +197,7 @@ HandleJanitorThread(
         SemaphoreWait(&EventHandle, 0);
         for (i = 0; i < SystemHandles->Capacity; i++) {
             Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
-            if (Instance->Flags & HandleCleanup) {
+            if (Instance && (Instance->Flags & HandleCleanup)) {
                 ArrayRemove(SystemHandles, i);
                 if (Instance->Destructor) {
                     Instance->Destructor(Instance->Resource);

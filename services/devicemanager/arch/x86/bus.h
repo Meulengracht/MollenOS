@@ -146,8 +146,8 @@ typedef struct _PciDevice {
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-__EXTERN OsStatus_t
-BusEnumerate(void);
+__EXTERN int
+BusEnumerate(void*);
 
 /* PciRead32
  * Reads a 32 bit value from the pci-bus

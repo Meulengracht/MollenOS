@@ -23,6 +23,7 @@
 #include "../libc/threads/tls.h"
 #include <ddk/driver.h>
 #include <ddk/device.h>
+#include <ddk/utils.h>
 #include <os/ipc.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
@@ -49,6 +50,12 @@ void __CrtModuleEntry(void)
     // Initialize environment
     __CrtInitialize(&Tls, 1, NULL);
 
+    // Wait for the device-manager service, as all modules require the device-manager
+    // service to perform requests.
+    if (WaitForDeviceService(2000) != OsSuccess) {
+        exit(-1);
+    }
+
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
@@ -58,12 +65,13 @@ void __CrtModuleEntry(void)
     // Initialize the driver event loop
     while (IsRunning) {
         if (IpcListen(0, &Message) == OsSuccess) {
-            switch (Message->TypedArguments[0]) {
+            WARNING("IPC %u", IPC_GET_TYPED(Message, 0));
+            switch (IPC_GET_TYPED(Message, 0)) {
                 case __DRIVER_REGISTERINSTANCE: {
-                    OnRegister((MCoreDevice_t*)Message->UntypedArguments[0].Buffer);
+                    OnRegister(IPC_GET_UNTYPED(Message, 0));
                 } break;
                 case __DRIVER_UNREGISTERINSTANCE: {
-                    OnUnregister((MCoreDevice_t*)Message->UntypedArguments[0].Buffer);
+                    OnUnregister(IPC_GET_UNTYPED(Message, 0));
                 } break;
                 case __DRIVER_QUERYCONTRACT: {
                     OnQuery(Message);

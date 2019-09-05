@@ -450,7 +450,7 @@ SyncTable:
         }
         return OsSuccess;
     }
-    return OsError;
+    return OsDoesNotExist;
 }
 
 uintptr_t

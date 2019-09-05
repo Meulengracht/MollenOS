@@ -79,31 +79,34 @@ typedef struct {
 #define SIGNAL_PENDING   2
 
 typedef struct _MCoreThread {
+    SystemMemorySpace_t*    MemorySpace;
+    UUId_t                  MemorySpaceHandle;
+    SchedulerObject_t*      SchedulerObject;
+    Context_t*              ContextActive;
+    
     UUId_t                  Handle;
+    UUId_t                  ParentHandle;
+    void*                   ArenaKernelPointer;
+    void*                   ArenaUserPointer;
+    
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
     clock_t                 StartedAt;
 
     const char*             Name;
-    UUId_t                  ParentThreadId;
     Flags_t                 Flags;
     _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
-    SchedulerObject_t*      SchedulerObject;
 
     ThreadEntry_t           Function;
     void*                   Arguments;
     int                     RetCode;
     
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
-    Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
+    uintptr_t               ArenaPhysicalAddress;
 
-    void*                   IpcArena;
-    SystemMemorySpace_t*    MemorySpace;
-    UUId_t                  MemorySpaceHandle;
-    
     _Atomic(int)            PendingSignals;
     int                     HandlingSignals;
     Context_t*              OriginalContext;

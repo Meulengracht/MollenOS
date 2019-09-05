@@ -227,7 +227,7 @@ ScLoadDriver(
     IpcInitialize(&Message);
     IpcSetTypedArgument(&Message, 0, __DRIVER_REGISTERINSTANCE);
     IpcSetUntypedArgument(&Message, 0, Device, LengthOfDeviceStructure);
-    return ScIpcInvoke(Module->Handle, &Message, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
+    return ScIpcInvoke(Module->PrimaryThreadId, &Message, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
 
 UUId_t

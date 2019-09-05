@@ -34,7 +34,6 @@ RegisterDevice(
     _InOut_ MCoreDevice_t*  Device, 
     _In_    Flags_t         Flags)
 {
-	thrd_t       ServiceTarget = GetDeviceService();
 	IpcMessage_t Request;
 	OsStatus_t   Status;
 	void*        Result;
@@ -50,7 +49,7 @@ RegisterDevice(
 	IpcSetTypedArgument(&Request, 2, Flags);
 	IpcSetUntypedArgument(&Request, 0, Device, Device->Length);
 	
-	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	Status = IpcInvoke(GetDeviceService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {
 	    return UUID_INVALID;
 	}
@@ -64,7 +63,6 @@ OsStatus_t
 UnregisterDevice(
     _In_ UUId_t DeviceId)
 {
-	thrd_t       ServiceTarget = GetDeviceService();
 	IpcMessage_t Request;
 	OsStatus_t   Status;
 	void*        Result;
@@ -73,7 +71,7 @@ UnregisterDevice(
 	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_UNREGISTERDEVICE);
 	IpcSetTypedArgument(&Request, 1, DeviceId);
 	
-	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	Status = IpcInvoke(GetDeviceService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {
 	    return Status;
 	}
@@ -86,7 +84,6 @@ IoctlDevice(
     _In_ Flags_t Command,
     _In_ Flags_t Flags)
 {
-	thrd_t       ServiceTarget = GetDeviceService();
 	IpcMessage_t Request;
 	OsStatus_t   Status;
 	void*        Result;
@@ -97,7 +94,7 @@ IoctlDevice(
 	IpcSetTypedArgument(&Request, 2, Command);
 	IpcSetTypedArgument(&Request, 3, Flags);
 	
-	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	Status = IpcInvoke(GetDeviceService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {
 	    return Status;
 	}
@@ -112,7 +109,6 @@ IoctlDeviceEx(
     _InOut_ Flags_t* Value,
     _In_    size_t   Width)
 {
-	thrd_t       ServiceTarget = GetDeviceService();
 	IpcMessage_t Request;
 	OsStatus_t   Status;
 	void*        Result;
@@ -131,7 +127,7 @@ IoctlDeviceEx(
     IpcSetTypedArgument(&Request, 4, (Value != NULL) ? *Value : 0);
     IpcSetUntypedArgument(&Request, 0, &Width, sizeof(size_t));
 	
-	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	Status = IpcInvoke(GetDeviceService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {
 	    return Status;
 	}
@@ -146,7 +142,6 @@ OsStatus_t
 RegisterContract(
     _In_ MContract_t* Contract)
 {
-	thrd_t       ServiceTarget = GetDeviceService();
 	IpcMessage_t Request;
 	OsStatus_t   Status;
 	void*        Result;
@@ -157,7 +152,7 @@ RegisterContract(
 	IpcSetTypedArgument(&Request, 0, __DEVICEMANAGER_REGISTERCONTRACT);
 	IpcSetUntypedArgument(&Request, 0, Contract, sizeof(MContract_t));
 	
-	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, &Result);
+	Status = IpcInvoke(GetDeviceService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {
 	    return Status;
 	}
