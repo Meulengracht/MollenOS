@@ -361,9 +361,10 @@ TerminateThread(
         int    ExitCode;
     } TerminateContext = { .Handle = ThreadId, .ExitCode = ExitCode };
 
-    if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
+    if (!Target || (Target->Flags & THREADING_IDLE)) {
         return OsError; // Never, ever kill system idle threads
     }
+    TRACE("TerminateThread(%s, %i, %i)", Target->Name, ExitCode, TerminateChildren);
     
     MutexLock(&Target->SyncObject);
     if (atomic_load(&Target->Cleanup) == 0) {

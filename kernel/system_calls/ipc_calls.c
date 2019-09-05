@@ -41,13 +41,16 @@ CleanupMessage(
     _In_  IpcMessage_t*  Message)
 {
     int i;
+    TRACE("CleanupMessage(%s, 0x%llx)", Target->Name, Message);
 
     // Flush all the mappings granted in the argument phase
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+        TRACE("... arg 0x%llx, 0x%llx", 
+            Message->UntypedArguments[i].Buffer, Message->UntypedArguments[i].Length);
         if (Message->UntypedArguments[i].Length & IPC_ARGUMENT_MAPPED) {
             (void)RemoveMemorySpaceMapping(Target->MemorySpace,
                 (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
-                Message->UntypedArguments[i].Length);
+                IPC_GET_LENGTH(Message, i));
         }
         Message->UntypedArguments[i].Length = 0;
     }
@@ -182,7 +185,6 @@ ScIpcInvoke(
         // Handle the untyped, a bit more tricky. If the argument is larger than 512
         // bytes, we will do a mapping clone instead of just copying data into sender.
         if (Message->UntypedArguments[i].Length) {
-            WARNING("2.1");
             // Events that don't have a response do not support longer arguments than 512 bytes.
             if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && 
                 !(Flags & IPC_NO_RESPONSE)) {

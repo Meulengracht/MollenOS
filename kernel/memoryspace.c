@@ -739,6 +739,8 @@ RemoveMemorySpaceMapping(
         Status                = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
         if (Status != OsSuccess) {
             WARNING("Failed to unmap address 0x%" PRIxIN "", VirtualPage);
+            __asm { xchg bx, bx };
+            return Status;
         }
     }
     SynchronizeMemoryRegion(SystemMemorySpace, Address, Size);

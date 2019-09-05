@@ -65,7 +65,6 @@ void __CrtModuleEntry(void)
     // Initialize the driver event loop
     while (IsRunning) {
         if (IpcListen(0, &Message) == OsSuccess) {
-            WARNING("IPC %u", IPC_GET_TYPED(Message, 0));
             switch (IPC_GET_TYPED(Message, 0)) {
                 case __DRIVER_REGISTERINSTANCE: {
                     OnRegister(IPC_GET_UNTYPED(Message, 0));

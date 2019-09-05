@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <errno.h>
 

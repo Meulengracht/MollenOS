@@ -202,13 +202,15 @@ DmRegisterDevice(
         DeviceIdGenerator, &CopyDevice->Name[0], CopyDevice->Length);
     *Id = CopyDevice->Id;
     
-    // Now, we want to try to find a driver for the new device
+    // Now, we want to try to find a driver for the new device, spawn a new thread
+    // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
     if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
         thrd_t thr;
         if (thrd_create(&thr, DmLoadDeviceDriver, CopyDevice) != thrd_success) {
             return OsError;
         }
+        thrd_detach(thr);
     }
 #endif
     return OsSuccess;
