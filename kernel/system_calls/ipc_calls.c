@@ -22,7 +22,7 @@
  */
 
 #define __MODULE "IPC0"
-#define __TRACE
+//#define __TRACE
 
 #include <arch/utils.h>
 #include <debug.h>
@@ -215,11 +215,11 @@ ScIpcInvoke(
                 }
                 memcpy(&IpcArena->Buffer[BufferIndex], 
                     Message->UntypedArguments[i].Buffer,
-                    MIN(BytesAvailable, Message->UntypedArguments[i].Length));
+                    MIN(BytesAvailable, IPC_GET_LENGTH(Message, i)));
                 IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
                 
-                BufferIndex                  += MIN(BytesAvailable, Message->UntypedArguments[i].Length);
-                IpcArena->Message.MetaLength += MIN(BytesAvailable, Message->UntypedArguments[i].Length);
+                BufferIndex                  += MIN(BytesAvailable, IPC_GET_LENGTH(Message, i));
+                IpcArena->Message.MetaLength += MIN(BytesAvailable, IPC_GET_LENGTH(Message, i));
             }
         }
     }
