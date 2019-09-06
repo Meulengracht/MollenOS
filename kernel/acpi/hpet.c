@@ -50,7 +50,7 @@ HpReadCounter(
     HP_READ_64(Offset, ValueOut);
 #else
     *ValueOut = 0;
-    HP_READ_32(Offset, ValueOut);
+    HP_READ_32(Offset, (reg32_t*)ValueOut);
 #endif
 }
 

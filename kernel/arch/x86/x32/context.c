@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -18,6 +19,7 @@
  *
  * X86-32 Thread Contexts
  */
+
 #define __MODULE "CTXT"
 //#define __TRACE
 
@@ -30,6 +32,7 @@
 #include <log.h>
 #include <os/context.h>
 #include <memory.h>
+#include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
 #include <threading.h>
