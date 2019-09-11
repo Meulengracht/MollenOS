@@ -3,6 +3,7 @@
 #################
 bochsout.txt
 serial.txt
+*.ko
 
 #################
 ## Eclipse
