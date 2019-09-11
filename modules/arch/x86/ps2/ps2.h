@@ -25,6 +25,8 @@
 
 #include <ddk/contracts/base.h>
 #include <ddk/interrupt.h>
+#include <inet/local.h>
+#include <inet/socket.h>
 #include <os/osdefs.h>
 #include <ddk/io.h>
 
@@ -97,6 +99,8 @@ typedef struct _PS2Command {
     uint8_t                     Command;
     uint8_t                     Buffer[2];
     uint8_t*                    Response;
+    int                         IoSocket;
+    struct sockaddr_storage     InputAddress;
 } PS2Command_t;
 
 typedef enum _PS2PortState {

@@ -81,12 +81,6 @@ _CODE_END
 #define Syscall_IpcListen(Timeout, MessageOut)                                  (OsStatus_t)syscall2(48, SCPARAM(Timeout), SCPARAM(MessageOut))
 #define Syscall_IpcReplyAndListen(Message, Buffer, Length, Timeout, MessageOut) (OsStatus_t)syscall5(49, SCPARAM(Message), SCPARAM(Buffer), SCPARAM(Length), SCPARAM(Timeout), SCPARAM(MessageOut))
 
-#define Syscall_CreateSocket(Flags, HandleOut, RecieveQueueOut)            (OsStatus_t)syscall3(00, SCPARAM(Flags), SCPARAM(HandleOut), SCPARAM(RecieveQueueOut))
-#define Syscall_InheritSocket(Handle, RecieveQueueOut)                     (OsStatus_t)syscall2(00, SCPARAM(Handle), SCPARAM(RecieveQueueOut))
-#define Syscall_BindSocket(Handle, Address)                                (OsStatus_t)syscall2(00, SCPARAM(Handle), SCPARAM(Address))
-#define Syscall_WriteSocket(Address, Buffer, Length, BytesWrittenOut)      (OsStatus_t)syscall4(00, SCPARAM(Address), SCPARAM(Buffer), SCPARAM(Length), SCPARAM(BytesWrittenOut))
-#define Syscall_GetSocketAddress(Handle, AddressOut, AddressLengthOut)     (OsStatus_t)syscall3(00, SCPARAM(Handle), SCPARAM(AddressOut), SCPARAM(AddressLengthOut))
-
 #define Syscall_MemoryAllocate(Hint, Size, Flags, MemoryOut)               (OsStatus_t)syscall4(50, SCPARAM(Hint), SCPARAM(Size), SCPARAM(Flags), SCPARAM(MemoryOut))
 #define Syscall_MemoryFree(Pointer, Size)                                  (OsStatus_t)syscall2(51, SCPARAM(Pointer), SCPARAM(Size))
 #define Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags) (OsStatus_t)syscall4(52, SCPARAM(MemoryPointer), SCPARAM(Length), SCPARAM(Flags), SCPARAM(PreviousFlags))

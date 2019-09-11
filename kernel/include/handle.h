@@ -27,22 +27,52 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
+#include <ds/rbtree.h>
+
+struct io_event;
 
 enum SystemHandleFlags {
     HandleCleanup = 0x1
 };
 
 typedef enum _SystemHandleType {
-    HandleGeneric = 0,
+    HandleTypeGeneric = 0,
+    HandleTypeSet,
     HandleTypeMemorySpace,
     HandleTypeMemoryRegion,
     HandleTypeThread,
-    HandleTypePipe,
-
-    HandleTypeCount
+    HandleTypePipe
 } SystemHandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);
+typedef struct _SystemHandleEvent SystemHandleEvent_t;
+
+typedef struct _SystemHandleSet {
+    _Atomic(int) Pending;
+    Collection_t Events;
+    RBTree_t     Handles;
+    Flags_t      Flags;
+} SystemHandleSet_t;
+
+typedef struct _SystemHandleEvent {
+    CollectionItem_t           Header;
+    _Atomic(int)               ActiveEvents;
+    struct _SystemHandleEvent* Link;
+    UUId_t                     Handle;
+    int                        Context;
+} SystemHandleEvent_t;
+
+typedef struct _SystemHandleSetElement {
+    SystemHandleSet_t*              Set;
+    struct _SystemHandleSetElement* Link;
+    SystemHandleEvent_t             Event;
+    Flags_t                         EventMask;
+} SystemHandleSetElement_t;
+
+typedef struct _SystemHandleItem {
+    RBTreeItem_t              Header;
+    SystemHandleSetElement_t* Element;
+} SystemHandleItem_t;
 
 typedef struct _SystemHandle {
     SystemHandleType_t Type;
@@ -51,6 +81,8 @@ typedef struct _SystemHandle {
     atomic_int         References;
     HandleDestructorFn Destructor;
     void*              Resource;
+    
+    SystemHandleSetElement_t* Set;
 } SystemHandle_t;
 
 KERNELAPI OsStatus_t KERNELABI
@@ -75,12 +107,58 @@ KERNELAPI void KERNELABI
 DestroyHandle(
     _In_ UUId_t Handle);
 
-/* AcquireHandle
- * Acquires the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
-KERNELAPI void* KERNELABI
-AcquireHandle(
-    _In_ UUId_t Handle);
+/**
+ * CreateHandleSet
+ * * Creates a new handle set that can be used for asynchronus events.
+ * @param Flags [In] Creation flags that configure the new handle set behaviour. 
+ */
+KERNELAPI UUId_t KERNELABI
+CreateHandleSet(
+    _In_  Flags_t Flags);
+
+/**
+ * ControlHandleSet
+ * * Add, remove or modify a handle in the set.
+ * @param SetHandle [In] The handle of the handle set.
+ * @param Operation [In] The operation that should be performed.
+ * @param Handle    [In] The handle that should be operated on.
+ * @param Flags     [In] The flags that should be configured with the handle.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ControlHandleSet(
+    _In_ UUId_t  SetHandle,
+    _In_ int     Operation,
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags,
+    _In_ int     Context);
+
+/**
+ * WaitForHandleSet
+ * * Waits for the given handle set and stores the events that occurred in the
+ * * provided array.
+ * @param Handle    [In]
+ * @param Events    [In]
+ * @param MaxEvents [In]
+ * @param Timeout   [In]
+ */
+OsStatus_t
+WaitForHandleSet(
+    _In_ UUId_t           Handle,
+    _In_ struct io_event* Events,
+    _In_ int              MaxEvents,
+    _In_ size_t           Timeout);
+
+/** 
+ * MarkHandle
+ * * Marks a handle that an event has been completed. If the handle has any
+ * * sets registered they will be notified.
+ * @param Handle [In] The handle upon which an event has taken place
+ * @param Flags  [In] The event flags which denote which kind of event.
+ */
+KERNELAPI OsStatus_t KERNELABI
+MarkHandle(
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags);
 
 /**
  * RegisterHandlePath
@@ -103,6 +181,16 @@ KERNELAPI OsStatus_t KERNELABI
 LookupHandleByPath(
     _In_  const char* Path,
     _Out_ UUId_t*     HandleOut);
+
+/**
+ * AcquireHandle
+ * * Acquires the handle given for the calling process. This can fail if the handle
+ * * turns out to be invalid, otherwise the resource will be returned. 
+ * @param Handle [In] The handle that should be acquired.
+ */
+KERNELAPI void* KERNELABI
+AcquireHandle(
+    _In_ UUId_t Handle);
 
 /* LookupHandle
  * Retrieves the handle given. This can fail if the handle
@@ -131,6 +219,5 @@ EnumerateHandlesOfType(
     _In_ SystemHandleType_t Type,
     _In_ void               (*Fn)(void*, void*),
     _In_ void*              Context);
-
 
 #endif //! __HANDLE_INTERFACE__

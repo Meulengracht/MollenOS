@@ -35,6 +35,7 @@ _CODE_BEGIN
 #define SERVICE_USB_PATH "/service/usb"
 #define SERVICE_PROCESS_PATH "/service/process"
 #define SERVICE_FILE_PATH "/service/file"
+#define SERVICE_NET_PATH "/service/net"
 
 // The ability to associate the current thread handle 
 // with a global path to access services without knowing the thread
@@ -48,6 +49,7 @@ DDKDECL(thrd_t, GetDeviceService(void));
 DDKDECL(thrd_t, GetUsbService(void));
 DDKDECL(thrd_t, GetProcessService(void));
 DDKDECL(thrd_t, GetFileService(void));
+DDKDECL(thrd_t, GetNetService(void));
 
 // When a service is required for a module it is
 // possible to wait for it to be available. Be careful
@@ -66,6 +68,9 @@ WaitForProcessService(
     _In_ size_t Timeout));
 DDKDECL(OsStatus_t,
 WaitForFileService(
+    _In_ size_t Timeout));
+DDKDECL(OsStatus_t,
+WaitForNetService(
     _In_ size_t Timeout));
 
 _CODE_END

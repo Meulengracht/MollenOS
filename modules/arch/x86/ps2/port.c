@@ -276,7 +276,8 @@ OsStatus_t
 PS2PortInitialize(
     _In_ PS2Port_t* Port)
 {
-    uint8_t Temp;
+    struct sockaddr_lc* LcAddress;
+    uint8_t             Temp;
 
     TRACE(" > initializing ps2 port %i", Port->Index);
 
@@ -294,6 +295,13 @@ PS2PortInitialize(
     // Initialize interrupt resources
     RegisterFastInterruptMemoryResource(&Port->Interrupt, (uintptr_t)Port, sizeof(PS2Port_t), 0);
     RegisterInterruptContext(&Port->Interrupt, Port);
+
+    // Open up the input socket so we can send input data to the OS.
+    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
+    LcAddress->slc_len = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
 
     // Start out by doing an interface
     // test on the given port

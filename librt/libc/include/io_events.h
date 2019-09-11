@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,9 +44,9 @@ struct io_event {
 
 _CODE_BEGIN
 
-CRTDECL(int, io_event_create(int flags));
-CRTDECL(int, io_event_ctrl(int evt_iod, int op, int iod, struct io_event*));
-CRTDECL(int, io_event_wait(int evt_iod, struct io_event*, int max_events, int timeout));
+CRTDECL(int, io_set_create(int flags));
+CRTDECL(int, io_set_ctrl(int evt_iod, int op, int iod, struct io_event*));
+CRTDECL(int, io_set_wait(int evt_iod, struct io_event*, int max_events, int timeout));
 
 _CODE_END
 

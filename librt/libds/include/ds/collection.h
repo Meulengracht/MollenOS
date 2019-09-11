@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -98,6 +99,18 @@ CollectionBegin(
 CRTDECL(CollectionIterator_t*,
 CollectionNext(
     _In_ CollectionIterator_t*  It));
+
+/**
+ * CollectionSplice
+ * * Returns a spliced node list that can be appended to a new list. The list will
+ * * at maximum have the requested count or the length of the list
+ * @param Collection [In] The collection that will be spliced.
+ * @param Count      [In] The maximum number of list nodes that will be extracted.
+ */
+CRTDECL(CollectionItem_t*,
+CollectionSplice(
+    _In_ Collection_t* Collection,
+    _In_ int           Count));
 
 /* CollectionCreateNode
  * Instantiates a new Collection node that can be appended to the Collection 

@@ -34,6 +34,7 @@ static UUId_t DeviceServiceId  = UUID_INVALID;
 static UUId_t UsbServiceId     = UUID_INVALID;
 static UUId_t ProcessServiceId = UUID_INVALID;
 static UUId_t FileServiceId    = UUID_INVALID;
+static UUId_t NetServiceId     = UUID_INVALID;
 
 static UUId_t
 GetHandleFromPath(
@@ -119,6 +120,14 @@ thrd_t GetFileService(void)
     return (thrd_t)FileServiceId;
 }
 
+thrd_t GetNetService(void)
+{
+    if (NetServiceId == UUID_INVALID) {
+        NetServiceId = GetHandleFromPath(SERVICE_NET_PATH);
+    }
+    return (thrd_t)NetServiceId;
+}
+
 OsStatus_t
 WaitForSessionService(
     _In_ size_t Timeout)
@@ -152,6 +161,13 @@ WaitForFileService(
     _In_ size_t Timeout)
 {
     return WaitForService(GetFileService, Timeout);
+}
+
+OsStatus_t
+WaitForNetService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetNetService, Timeout);
 }
 
 OsStatus_t

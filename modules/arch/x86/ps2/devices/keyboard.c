@@ -167,8 +167,8 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
-        // TODO:
-        // Implement the LCADDR_INPUT pipe
+        sendto(Port->IoSocket, &Key, sizeof(SystemKey_t), MSG_DONTWAIT, 
+            &Port->InputAddress, sizeof(sockaddr_lc));
     }
 }
 
@@ -256,7 +256,7 @@ PS2KeyboardInitialize(
     _In_ int              Port,
     _In_ int              Translation)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    PS2Port_t* Instance = &Controller->Ports[Port];
 
     // Initialize keyboard defaults
     PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
@@ -304,7 +304,7 @@ PS2KeyboardCleanup(
     _In_ PS2Controller_t* Controller,
     _In_ int              Port)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    PS2Port_t* Instance = &Controller->Ports[Port];
 
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);

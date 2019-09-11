@@ -551,7 +551,7 @@ MemoryCacheAllocate(
         }
     }
 
-    // Otherwise allocate from global cache  0x407018
+    // Otherwise allocate from global cache
     dslock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects != 0) {
         if (CollectionLength(&Cache->PartialSlabs) != 0) {
