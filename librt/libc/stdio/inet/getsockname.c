@@ -21,9 +21,9 @@
  * - Standard Socket IO Implementation
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include <ddk/services/net.h>
 #include <errno.h>
+#include <internal/_io.h>
 #include <os/mollenos.h>
 
 int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
@@ -51,7 +51,7 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    status = Syscall_GetSocketAddress(handle->object.handle, address_out, address_length_out);
+    status = GetSocketAddress(handle->object.handle, address_out, address_length_out);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

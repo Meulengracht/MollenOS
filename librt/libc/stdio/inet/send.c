@@ -21,11 +21,33 @@
  * - Standard Socket IO Implementation
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
-#include <inet/local.h>
 #include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
 #include <os/mollenos.h>
+
+static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
+{
+    intmax_t numbytes = 0;
+    int      i;
+    
+    for (i = 0; i < msg->msg_iovlen; i++) {
+        struct iovec* iov = &msg->msg_iov[i];
+        size_t        byte_count;
+        OsStatus_t    status;
+        
+        byte_count = ringbuffer_write(handle->object.data.socket.send_queue, 
+            iov->iov_base, iov->iov_len);
+        status = WriteSocket((struct sockaddr_lc*)msg->msg_name, 
+            iov->iov_base, iov->iov_len, &byte_count);
+        if (status != OsSuccess) {
+            OsStatusToErrno(status);
+            break;
+        }
+        numbytes += byte_count;
+    }
+    return numbytes;
+}
 
 intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
 {
@@ -61,7 +83,7 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
         msg_ptr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
     }
     
-    return handle->object.data.socket.domain_ops.send(handle, msg_hdr, flags);
+    return perform_send(handle, msg_hdr, flags);
 }
 
 intmax_t sendto(int iod, const void* buffer, size_t length, int flags, const struct sockaddr* address, socklen_t address_length)

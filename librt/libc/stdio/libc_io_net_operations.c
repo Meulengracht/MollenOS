@@ -20,9 +20,9 @@
  * - Standard IO socket operation implementations.
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include <ddk/services/net.h>
 #include <errno.h>
+#include <internal/_io.h>
 #include <os/mollenos.h>
 
 OsStatus_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
@@ -59,35 +59,15 @@ OsStatus_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    // Reuse existing system calls as the socket structure is a combination
-    // of different services. What we should do here is actually query the size
-    // of the queues before calling free, but currently all queues are 4k
-    MemoryFree(handle->object.data.socket.recv_queue, 0x1000);
-    return Syscall_DestroyHandle(handle->object.handle);
+    // TODO: Implement cleanup of sockets
+    return OsNotSupported;
 }
 
 OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
 {
-    OsStatus_t status = Syscall_InheritSocket(handle->object.handle, 
-        &handle->object.data.socket.recv_queue);
-    if (status != OsSuccess) {
-        return status;
-    }
-    
-    switch (handle->object.data.socket.domain) {
-        case AF_LOCAL: {
-            get_socket_ops_local(&handle->object.data.socket.domain_ops);
-        } break;
-        
-        case AF_INET:
-        case AF_INET6: {
-            get_socket_ops_inet(&handle->object.data.socket.domain_ops);
-        } break;
-        
-        default: {
-            get_socket_ops_null(&handle->object.data.socket.domain_ops);
-        } break;
-    }
+    OsStatus_t status = InheritSocket(handle->object.handle, 
+        &handle->object.data.socket.recv_queue,
+        &handle->object.data.socket.send_queue);
     return status;
 }
 

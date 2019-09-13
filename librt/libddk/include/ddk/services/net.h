@@ -76,8 +76,8 @@ InheritSocket(
  */
 DDKDECL(OsStatus_t,
 BindSocket(
-    _In_ UUId_t                   Handle,
-    _In_ struct sockaddr_storage* Address));
+    _In_ UUId_t                         Handle,
+    _In_ const struct sockaddr_storage* Address));
 
 /**
  * GetSocketAddress

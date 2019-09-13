@@ -45,12 +45,25 @@
  * of the full amount requested.
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
-#include <inet/local.h>
 #include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
 #include <os/mollenos.h>
 #include <string.h>
+
+static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int flags)
+{
+    intmax_t numbytes = 0;
+    int      i;
+    
+    for (i = 0; i < msg->msg_iovlen; i++) {
+        struct iovec* iov = &msg->msg_iov[i];
+        
+        numbytes += ringbuffer_read(handle->object.data.socket.recv_queue, 
+            iov->iov_base, iov->iov_len);
+    }
+    return numbytes;
+}
 
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
@@ -77,7 +90,7 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
-    numbytes = handle->object.data.socket.domain_ops.recv(handle, msg_hdr, flags);
+    numbytes = perform_recv(handle, msg_hdr, flags);
     
     // Fill in the souce address if one was provided already, and overwrite
     // the one provided by the packet.

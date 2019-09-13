@@ -45,45 +45,6 @@ typedef enum _SystemHandleType {
 } SystemHandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);
-typedef struct _SystemHandleEvent SystemHandleEvent_t;
-
-typedef struct _SystemHandleSet {
-    _Atomic(int) Pending;
-    Collection_t Events;
-    RBTree_t     Handles;
-    Flags_t      Flags;
-} SystemHandleSet_t;
-
-typedef struct _SystemHandleEvent {
-    CollectionItem_t           Header;
-    _Atomic(int)               ActiveEvents;
-    struct _SystemHandleEvent* Link;
-    UUId_t                     Handle;
-    int                        Context;
-} SystemHandleEvent_t;
-
-typedef struct _SystemHandleSetElement {
-    SystemHandleSet_t*              Set;
-    struct _SystemHandleSetElement* Link;
-    SystemHandleEvent_t             Event;
-    Flags_t                         EventMask;
-} SystemHandleSetElement_t;
-
-typedef struct _SystemHandleItem {
-    RBTreeItem_t              Header;
-    SystemHandleSetElement_t* Element;
-} SystemHandleItem_t;
-
-typedef struct _SystemHandle {
-    SystemHandleType_t Type;
-    const char*        Path;
-    Flags_t            Flags;
-    atomic_int         References;
-    HandleDestructorFn Destructor;
-    void*              Resource;
-    
-    SystemHandleSetElement_t* Set;
-} SystemHandle_t;
 
 KERNELAPI OsStatus_t KERNELABI
 InitializeHandles(void);

@@ -27,10 +27,10 @@
  * It is normally necessary to assign a local address using bind() before a SOCK_STREAM socket may receive connections (see accept(2)).
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
-#include <inet/local.h>
+#include <ddk/services/net.h>
 #include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
 #include <os/mollenos.h>
 
 int bind(int iod, const struct sockaddr* address, socklen_t address_length)
@@ -65,7 +65,7 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
                 return -1;
             }
             
-            status = Syscall_BindSocket(handle->object.handle, address);
+            status = BindSocket(handle->object.handle, address);
             if (status != OsSuccess) {
                 OsStatusToErrno(status);
                 return -1;

@@ -75,6 +75,15 @@ RBTreeLookupKey(
     _In_ DataKey_t Key));
 
 /** 
+ * RBTreeGetMinimum
+ * * Retrieves the item with the lowest value.
+ * @param RBTree [In] The red-black tree to perform the lookup in.
+ */
+CRTDECL(RBTreeItem_t*,
+RBTreeGetMinimum(
+	_In_ RBTree_t* Tree));
+
+/** 
  * RBTreeRemove
  * * Removes and returns the item by the key provided.
  * @param RBTree [In] The red-black tree to perform the lookup in.

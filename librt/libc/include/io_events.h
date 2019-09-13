@@ -28,9 +28,11 @@
 
 enum io_events
 {
-    IOEVTIN,  // Receieved data
-    IOEVTOUT, // Sent data
-    IOEVTET,  // Edge triggered
+    IOEVTIN  = 0x1,  // Receieved data
+    IOEVTOUT = 0x2,  // Sent data
+    IOEVTET  = 0x4,  // Edge triggered
+    
+    IOEVTFRT = 0x8   // Initial event 
 };
 
 #define IO_EVT_DESCRIPTOR_ADD 1
