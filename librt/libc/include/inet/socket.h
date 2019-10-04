@@ -40,9 +40,9 @@ typedef	uint16_t sa_family_t;
 // Socket types
 #define	SOCK_STREAM	    1   /* stream socket */
 #define	SOCK_DGRAM      2   /* datagram socket */
-#define	SOCK_RAW        3   /* raw-protocol interface */
+#define	SOCK_RAW        3   /* datagram like raw-protocol interface */
 #define	SOCK_RDM	    4   /* reliably-delivered message */
-#define	SOCK_SEQPACKET	5	/* sequenced packet stream */
+#define	SOCK_SEQPACKET	5	/* Connection based sequenced packet stream */
 
 // Option flags per-socket.
 #define	SO_DEBUG        0x0001  /* turn on debugging info recording */

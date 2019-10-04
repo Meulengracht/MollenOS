@@ -168,7 +168,7 @@ PS2KeyboardInterrupt(
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
         sendto(Port->IoSocket, &Key, sizeof(SystemKey_t), MSG_DONTWAIT, 
-            &Port->InputAddress, sizeof(sockaddr_lc));
+            &Port->InputAddress, sizeof(struct sockaddr_lc));
     }
 }
 

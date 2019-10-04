@@ -27,13 +27,13 @@
 
 #include <ddk/ddkdefs.h>
 #include <ddk/services/service.h>
-#include <ddk/ringbuffer.h>
+#include <ddk/streambuffer.h>
 #include <inet/socket.h>
 
 #define __NETMANAGER_CREATE_SOCKET      (int)0
 #define __NETMANAGER_INHERIT_SOCKET     (int)1
 #define __NETMANAGER_BIND_SOCKET        (int)2
-#define __NETMANAGER_WRITE_SOCKET       (int)3
+#define __NETMANAGER_CONNECT_SOCKET     (int)3
 #define __NETMANAGER_GET_SOCKET_ADDRESS (int)4
 
 _CODE_BEGIN
@@ -49,12 +49,12 @@ _CODE_BEGIN
  */
 DDKDECL(OsStatus_t,
 CreateSocket(
-    _In_  int            Domain,
-    _In_  int            Type,
-    _In_  int            Protocol,
-    _Out_ UUId_t*        HandleOut,
-    _Out_ ringbuffer_t** RecvQueueOut,
-    _Out_ ringbuffer_t** SendQueueOut));
+    _In_  int              Domain,
+    _In_  int              Type,
+    _In_  int              Protocol,
+    _Out_ UUId_t*          HandleOut,
+    _Out_ streambuffer_t** RecvQueueOut,
+    _Out_ streambuffer_t** SendQueueOut));
 
 /**
  * InheritSockets
@@ -64,9 +64,9 @@ CreateSocket(
  */
 DDKDECL(OsStatus_t,
 InheritSocket(
-    _In_  UUId_t         Handle,
-    _Out_ ringbuffer_t** RecvQueueOut,
-    _Out_ ringbuffer_t** SendQueueOut));
+    _In_  UUId_t           Handle,
+    _Out_ streambuffer_t** RecvQueueOut,
+    _Out_ streambuffer_t** SendQueueOut));
 
 /**
  * BindSocket
@@ -76,8 +76,19 @@ InheritSocket(
  */
 DDKDECL(OsStatus_t,
 BindSocket(
-    _In_ UUId_t                         Handle,
-    _In_ const struct sockaddr_storage* Address));
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address));
+
+/**
+ * ConnectSocket
+ * 
+ * @param Handle
+ * @param Address
+ */
+DDKDECL(OsStatus_t,
+ConnectSocket(
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address));
 
 /**
  * GetSocketAddress
@@ -88,9 +99,9 @@ BindSocket(
  */
 DDKDECL(OsStatus_t,
 GetSocketAddress(
-    _In_  UUId_t                   Handle,
-    _Out_ struct sockaddr_storage* AddressOut,
-    _Out_ socklen_t*               AddressLengthOut));
+    _In_    UUId_t                 Handle,
+    _Out_   const struct sockaddr* AddressOut,
+    _InOut_ socklen_t*             AddressLengthOut));
 
 _CODE_END
 

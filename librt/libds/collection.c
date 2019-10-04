@@ -374,6 +374,38 @@ CollectionExecuteAll(
         Function(Node->Data, i++, UserData);
     }
 }
+/**
+ * CollectionSplice
+ * * Returns a spliced node list that can be appended to a new list. The list will
+ * * at maximum have the requested count or the length of the list
+ * @param Collection [In] The collection that will be spliced.
+ * @param Count      [In] The maximum number of list nodes that will be extracted.
+ */
+CollectionItem_t*
+CollectionSplice(
+    _In_ Collection_t* Collection,
+    _In_ int           Count)
+{
+    CollectionItem_t* InitialNode;
+    int               NumberOfNodes;
+    
+    assert(Collection != NULL);
+    
+    dslock(&Collection->SyncObject);
+    InitialNode   = Collection->Head;
+    NumberOfNodes = MIN(atomic_load(&Collection->Length), Count);
+    
+    while (Collection->Head && NumberOfNodes--) {
+        Collection->Head = Collection->Head->Link;
+        atomic_fetch_sub(&Collection->Length, 1);
+    }
+    
+    if (Collection->Head == NULL) {
+        Collection->Tail = NULL;
+    }
+    dsunlock(&Collection->SyncObject);
+    return InitialNode;
+}
 
 static void
 __collection_remove_node(

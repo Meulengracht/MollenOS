@@ -28,9 +28,10 @@
 #include <assert.h>
 #include <debug.h>
 #include <ds/array.h>
+#include <futex.h>
 #include <handle.h>
 #include <heap.h>
-#include <os/io_events.h>
+#include <io_events.h>
 #include <scheduler.h>
 #include <string.h>
 #include <threading.h>
@@ -302,11 +303,11 @@ DestroyHandleSet(
         if (!Item) {
             break;
         }
-        (void)RBTreeRemove(&Set->Handles, Item->Header->Key);
+        (void)RBTreeRemove(&Set->Handles, Item->Header.Key);
         
         Instance = LookupHandleInstance(Item->Element->Event.Handle);
         if (Instance) {
-            CollectionRemoveByNode(&Instance->Sets, &Item->Element->Header)
+            CollectionRemoveByNode(&Instance->Sets, &Item->Element->Header);
         }
         kfree(Item->Element);
         kfree(Item);
@@ -346,7 +347,7 @@ ControlHandleSet(
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
     SystemHandleItem_t*       Item;
-    KeyType_t                 Key = { .Value.Id = Handle };
+    DataKey_t                 Key = { .Value.Id = Handle };
     
     if (!Set) {
         return OsDoesNotExist;
@@ -412,7 +413,7 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
-        Instance = LookupHandleInstance(Handle)
+        Instance = LookupHandleInstance(Handle);
         if (!Instance) {
             return OsDoesNotExist;
         }
@@ -446,15 +447,15 @@ WaitForHandleSet(
     
     // Wait for response by 'polling' the value
     NumberOfEvents = atomic_exchange(&Set->Pending, 0);
-    while (!SyncValue) {
-        if (FutexWait(&Set->Pending, SyncValue, 0, Timeout) == OsTimeout) {
+    while (!NumberOfEvents) {
+        if (FutexWait(&Set->Pending, NumberOfEvents, 0, Timeout) == OsTimeout) {
             return OsTimeout;
         }
-        SyncValue = atomic_exchange(&Set->Pending, 0);
+        NumberOfEvents = atomic_exchange(&Set->Pending, 0);
     }
     
     NumberOfEvents = MIN(NumberOfEvents, MaxEvents);
-    Head = (SystemHandleEvent_t*)CollectionSplice(Set->Events, NumberOfEvents);
+    Head = (SystemHandleEvent_t*)CollectionSplice(&Set->Events, NumberOfEvents);
     
     while (Head) {
         Event->iod    = Head->Context;
@@ -466,7 +467,7 @@ WaitForHandleSet(
             
         }
         
-        Head = CollectionNext(&Head->Header);
+        Head = (SystemHandleEvent_t*)CollectionNext(&Head->Header);
         Event++;
     }
     return OsSuccess;
@@ -483,9 +484,9 @@ MarkHandle(
         return OsDoesNotExist;
     }
     
-    SetElement = Instance->Set;
+    SetElement = (SystemHandleSetElement_t*)CollectionBegin(&Instance->Sets);
     while (SetElement) {
-        if (SetElement->Configuration & Flags) {
+        if (SetElement->Event.Configuration & Flags) {
             if (!atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags)) {
                 CollectionAppend(&SetElement->Set->Events, &SetElement->Event.Header);
                 if (!atomic_fetch_add(&SetElement->Set->Pending, 1)) {
@@ -493,7 +494,7 @@ MarkHandle(
                 }
             }
         }
-        SetElement = SetElement->Link;
+        SetElement = (SystemHandleSetElement_t*)CollectionNext(&SetElement->Header);
     }
     return OsSuccess;
 }

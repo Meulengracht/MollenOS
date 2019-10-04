@@ -25,27 +25,94 @@
 #include <internal/_io.h>
 #include <inet/local.h>
 #include <os/mollenos.h>
+#include <string.h>
 
+// Valid flags for send are
+// MSG_OOB          (No OOB support)
+// MSG_DONTROUTE    (Dunno what this is)
+// MSG_WAITALL      (Supported)
+// MSG_DONTWAIT     (Supported)
+// MSG_NOSIGNAL     (Ignored on Vali)
+// MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
 {
-    intmax_t numbytes = 0;
-    int      i;
+    unsigned int     sb_options = 0;
+    intmax_t         numbytes   = 0;
+    size_t           total_len  = msg->msg_namelen + msg->msg_controllen;
+    streambuffer_t*  stream     = handle->object.data.socket.send_queue;
+    struct packethdr packet;
+    size_t           avail_len;
+    unsigned int     base, state;
+    int              i;
     
+    if (flags & MSG_OOB) {
+        sb_options |= STREAMBUFFER_PRIORITY;
+    }
+    
+    if (!(flags & MSG_WAITALL)) {
+        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
+    }
+    
+    if (flags & MSG_DONTWAIT) {
+        sb_options |= STREAMBUFFER_NO_BLOCK;
+    }
+    
+    // For stream sockets we don't need to build the packet header. Simply just
+    // write all the bytes possible to the send socket and return
+    if (handle->object.data.socket.type == SOCK_STREAM) {
+        total_len = 0;
+        for (i = 0; i < msg->msg_iovlen; i++) {
+            struct iovec* iov            = &msg->msg_iov[i];
+            size_t        bytes_streamed = streambuffer_stream_out(stream, 
+                iov->iov_base, iov->iov_len, sb_options);
+            if (!bytes_streamed) {
+                break;
+            }
+            total_len += bytes_streamed;
+        }
+        return total_len;
+    }
+    
+    // Otherwise we must build a packet, to do this we need to know the entire
+    // length of the message before committing.
+    for (i = 0; i < msg->msg_iovlen; i++) {
+        total_len += msg->msg_iov[i].iov_len;
+    }
+    
+    packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
+    packet.controllen = msg->msg_controllen;
+    packet.addresslen = msg->msg_namelen;
+    packet.payloadlen = total_len - msg->msg_namelen - msg->msg_controllen;
+    
+    avail_len = streambuffer_write_packet_start(stream, 
+        total_len, sb_options, &base, &state);
+    if (avail_len < total_len) {
+        if (!(flags & MSG_DONTWAIT)) {
+            _set_errno(EPIPE);
+            return -1;
+        }
+        return 0;
+    }
+    
+    streambuffer_write_packet_data(stream, &packet, sizeof(struct packethdr), &state);
+    streambuffer_write_packet_data(stream, msg->msg_name, msg->msg_namelen, &state);
+    if (msg->msg_controllen) {
+        streambuffer_write_packet_data(stream, msg->msg_control, msg->msg_controllen, &state);
+    }
+    total_len = sizeof(struct packethdr) + packet.controllen + packet.addresslen;
     for (i = 0; i < msg->msg_iovlen; i++) {
         struct iovec* iov = &msg->msg_iov[i];
-        size_t        byte_count;
-        OsStatus_t    status;
-        
-        byte_count = ringbuffer_write(handle->object.data.socket.send_queue, 
-            iov->iov_base, iov->iov_len);
-        status = WriteSocket((struct sockaddr_lc*)msg->msg_name, 
-            iov->iov_base, iov->iov_len, &byte_count);
-        if (status != OsSuccess) {
-            OsStatusToErrno(status);
+        size_t        byte_count = MIN(avail_len - total_len, iov->iov_len);
+        if (!byte_count) {
             break;
         }
-        numbytes += byte_count;
+        
+        streambuffer_write_packet_data(stream, iov->iov_base, iov->iov_len, &state);
+        
+        total_len += byte_count;
+        numbytes  += byte_count;
     }
+    streambuffer_write_packet_end(stream, base, avail_len);
     return numbytes;
 }
 
@@ -68,11 +135,31 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
+    // We must return ESHUTDOWN if the sending socket has been requested shut
+    // on this socket handle.
     if (handle->object.data.socket.flags & SOCKET_WRITE_DISABLED) {
         _set_errno(ESHUTDOWN);
         return -1;
     }
     
+    // Stream sockets must always be in a connected state, and thus ignore the
+    // destination address parameter. If one is provided we are allowed to return
+    // EISCONN.
+    if (handle->object.data.socket.type == SOCK_STREAM) {
+        if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
+            _set_errno(ENOTCONN);
+            return -1;
+        }
+        
+        if (msg_hdr->msg_name != NULL) {
+            _set_errno(EISCONN);
+            return -1;
+        }
+    }
+    
+    // Lastly, make sure we actually have a destination address. For the rest of 
+    // the socket types, we use the stored address ('connected address'), or the
+    // one provided.
     if (msg_hdr->msg_name == NULL) {
         if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
             _set_errno(EDESTADDRREQ);
@@ -82,7 +169,6 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
         msg_ptr->msg_name    = &handle->object.data.socket.default_address;
         msg_ptr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
     }
-    
     return perform_send(handle, msg_hdr, flags);
 }
 

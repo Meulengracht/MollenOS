@@ -51,18 +51,151 @@
 #include <os/mollenos.h>
 #include <string.h>
 
+static inline unsigned int
+get_streambuffer_flags(int flags)
+{
+    unsigned int sb_options = 0;
+    
+    if (flags & MSG_OOB) {
+        sb_options |= STREAMBUFFER_PRIORITY;
+    }
+    
+    if (flags & MSG_DONTWAIT) {
+        sb_options |= STREAMBUFFER_NO_BLOCK;
+    }
+    
+    if (!(flags & MSG_WAITALL)) {
+        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
+    }
+    
+    if (flags & MSG_PEEK) {
+        sb_options |= STREAMBUFFER_PEEK;
+    }
+    
+    return sb_options;
+}
+
+// Valid flags for recv are
+// MSG_OOB          (No OOB support)
+// MSG_PEEK         (No peek support)
+// MSG_WAITALL      (Supported)
+// MSG_DONTWAIT     (Supported)
+// MSG_NOSIGNAL     (Ignored on Vali)
+// MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int flags)
 {
-    intmax_t numbytes = 0;
-    int      i;
-    
-    for (i = 0; i < msg->msg_iovlen; i++) {
-        struct iovec* iov = &msg->msg_iov[i];
-        
-        numbytes += ringbuffer_read(handle->object.data.socket.recv_queue, 
-            iov->iov_base, iov->iov_len);
+    streambuffer_t*   stream     = handle->object.data.socket.recv_queue;
+    intmax_t          numbytes   = 0;
+    unsigned int      sb_options = get_streambuffer_flags(flags);
+    struct packethdr  packet;
+    int               i;
+    unsigned int      base, state;
+
+    // In case of stream sockets we simply just read as many bytes as requested
+    // or available and return, unless WAITALL has been specified.
+    if (handle->object.data.socket.type == SOCK_STREAM) {
+        for (i = 0; i < msg->msg_iovlen; i++) {
+            struct iovec* iov = &msg->msg_iov[i];
+            numbytes += streambuffer_stream_in(stream, 
+                iov->iov_base, iov->iov_len, sb_options);
+            if (numbytes < iov->iov_len) {
+                if (!(flags & MSG_DONTWAIT)) {
+                    _set_errno(EPIPE);
+                    numbytes = -1;
+                }
+                break;
+            }
+        }
+        return numbytes;
     }
-    return numbytes;
+    
+    numbytes = streambuffer_read_packet_start(stream, sb_options, &base, &state);
+    if (numbytes < sizeof(struct packethdr)) {
+        // Should not be possible
+        streambuffer_read_packet_end(stream, base, numbytes);
+        _set_errno(EPIPE);
+        return -1;
+    }
+    
+    // Reset the message flag so we can properly report status of message.
+    streambuffer_read_packet_data(stream, &packet, sizeof(struct packethdr), &state);
+    msg->msg_flags = packet.flags;
+    
+    // Handle the source address that is given in the packet
+    if (packet.addresslen && msg->msg_name && msg->msg_namelen) {
+        size_t bytes_to_copy    = MIN(msg->msg_namelen, packet.addresslen);
+        size_t bytes_to_discard = packet.addresslen - bytes_to_copy;
+        
+        streambuffer_read_packet_data(stream, msg->msg_name, bytes_to_copy, &state);
+        state += bytes_to_discard; // hack
+    }
+    else {
+        state += packet.addresslen; // discard, hack
+        msg->msg_namelen = 0;
+    }
+    
+    // Handle control data, and set the appropriate flags and update the actual
+    // length read of control data if it is shorter than the buffer provided.
+    if (packet.controllen && msg->msg_control && msg->msg_controllen) {
+        size_t bytes_to_copy    = MIN(msg->msg_controllen, packet.controllen);
+        size_t bytes_to_discard = packet.controllen - bytes_to_copy;
+        
+        streambuffer_read_packet_data(stream, msg->msg_control, bytes_to_copy, &state);
+        state += bytes_to_discard; // hack
+    }
+    else {
+        state += packet.controllen; // discard, hack
+        msg->msg_controllen = 0;
+    }
+    
+    if (packet.controllen > msg->msg_controllen) {
+        msg->msg_flags |= MSG_CTRUNC;
+    }
+    
+    // Finally read the payload data
+    if (packet.payloadlen) {
+        size_t bytes_remaining = packet.payloadlen;
+        int    iov_not_filled  = 0;
+        
+        for (i = 0; i < msg->msg_iovlen && bytes_remaining; i++) {
+            struct iovec* iov = &msg->msg_iov[i];
+            if (!iov->iov_len) {
+                break;
+            }
+            
+            size_t bytes_to_copy = MIN(iov->iov_len, bytes_remaining);
+            if (iov->iov_len > bytes_to_copy) {
+                iov_not_filled = 1;
+            }
+            
+            streambuffer_read_packet_data(stream, iov->iov_base, bytes_to_copy, &state);
+            bytes_remaining -= bytes_to_copy;
+        }
+        streambuffer_read_packet_end(stream, base, numbytes);
+        
+        // The first special case is when there is more data available than we
+        // requested, that means we simply trunc the data.
+        if (bytes_remaining) {
+            msg->msg_flags |= MSG_TRUNC;
+        }
+        
+        // The second case is a lot more complex, that means we are missing data
+        // though we requested more, if WAITALL is set, then we need to keep reading
+        // untill we read all the data
+        else if (!bytes_remaining && iov_not_filled && (flags & MSG_WAITALL)) {
+            // However on message-based sockets, we must read datagrams as atomic
+            // operations, and thus MSG_WAITALL has no effect as this is effectively
+            // the standard mode of operation.
+        }
+    }
+    else {
+        streambuffer_read_packet_end(stream, base, numbytes);
+        for (i = 0; i < msg->msg_iovlen; i++) {
+            struct iovec* iov = &msg->msg_iov[i];
+            iov->iov_len = 0;
+        }
+    }
+    return packet.payloadlen;
 }
 
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
@@ -87,7 +220,7 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
     
     if (handle->object.data.socket.flags & SOCKET_READ_DISABLED) {
         _set_errno(ESHUTDOWN);
-        return -1;
+        return 0; // Should return 0
     }
     
     numbytes = perform_recv(handle, msg_hdr, flags);
@@ -109,7 +242,7 @@ intmax_t recvfrom(int iod, void* buffer, size_t length, int flags, struct sockad
     struct iovec  iov = { .iov_base = buffer, .iov_len = length };
     struct msghdr msg = {
         .msg_name       = address_out,
-        .msg_namelen    = *address_length_out,
+        .msg_namelen    = (address_length_out != NULL) ? *address_length_out : 0,
         .msg_iov        = &iov,
         .msg_iovlen     = 1,
         .msg_control    = NULL,
@@ -117,7 +250,7 @@ intmax_t recvfrom(int iod, void* buffer, size_t length, int flags, struct sockad
         .msg_flags      = flags
     };
     intmax_t bytes_recv = recvmsg(iod, &msg, flags);
-    if (msg.msg_namelen != *address_length_out) {
+    if (address_length_out && msg.msg_namelen != *address_length_out) {
         *address_length_out = msg.msg_namelen;
     }
     return bytes_recv;
@@ -125,5 +258,6 @@ intmax_t recvfrom(int iod, void* buffer, size_t length, int flags, struct sockad
 
 intmax_t recv(int iod, void* buffer, size_t length, int flags)
 {
-    return recvfrom(iod, buffer, length, flags, NULL, 0);
+    socklen_t addr_len = 0;
+    return recvfrom(iod, buffer, length, flags, NULL, &addr_len);
 }

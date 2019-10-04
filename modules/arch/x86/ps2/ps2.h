@@ -99,8 +99,6 @@ typedef struct _PS2Command {
     uint8_t                     Command;
     uint8_t                     Buffer[2];
     uint8_t*                    Response;
-    int                         IoSocket;
-    struct sockaddr_storage     InputAddress;
 } PS2Command_t;
 
 typedef enum _PS2PortState {
@@ -118,6 +116,9 @@ typedef struct _PS2Port {
     PS2Command_t        ActiveCommand;
     PS2PortState_t      State;
     DevInfo_t           Signature;
+    
+    int                     IoSocket;
+    struct sockaddr_storage InputAddress;
 
     // Device state information
     uint8_t             DeviceData[6];

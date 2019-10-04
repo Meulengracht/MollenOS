@@ -1,7 +1,7 @@
 #ifndef __INTERNAL_SOCKET_H__
 #define __INTERNAL_SOCKET_H__
 
-#include <ddk/ringbuffer.h>
+#include <ddk/streambuffer.h>
 #include <inet/socket.h>
 
 struct socket {
@@ -13,8 +13,15 @@ struct socket {
     
     // Queues must be mapped into process space once they
     // are inherited. 
-    ringbuffer_t* recv_queue;
-    ringbuffer_t* send_queue;
+    streambuffer_t* recv_queue;
+    streambuffer_t* send_queue;
+};
+
+struct packethdr {
+    int      flags;
+    intmax_t controllen;
+    intmax_t addresslen;
+    intmax_t payloadlen;
 };
 
 #define SOCKET_BOUND          0x00000001

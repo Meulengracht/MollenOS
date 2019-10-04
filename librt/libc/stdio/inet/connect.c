@@ -34,16 +34,17 @@
  * sa_family member of sockaddr set to AF_UNSPEC.
  */
 
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
-#include <inet/local.h>
+#include <ddk/services/net.h>
 #include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
 #include <os/mollenos.h>
 #include <string.h>
 
 int connect(int iod, const struct sockaddr* address, socklen_t address_length)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    OsStatus_t      status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -55,14 +56,10 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    if (!(handle->object.data.socket.flags & SOCKET_BOUND)) {
-        // bind us to a random address / port
-        // TODO:
-    }
-    
-    // Per the specification, if the type is DGRAM, then we simply provide a default
+    // Per the specification, if the type is DGRAM/RAW, then we simply provide a default
     // address for the send calls
-    if (handle->object.data.socket.type == SOCK_DGRAM) {
+    if (handle->object.data.socket.type == SOCK_DGRAM
+        || handle->object.data.socket.type == SOCK_RAW) {
         if (address->sa_family == AF_UNSPEC) {
             handle->object.data.socket.flags &= ~(SOCKET_CONNECTED);
         }
@@ -76,27 +73,12 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
             _set_errno(EISCONN);
             return -1;
         }
-    
-        switch (handle->object.data.socket.domain) {
-            case AF_LOCAL: {
-                // Local sockets on the pc does not support connection-oriented mode yet.
-                // TODO: Implement connected sockets locally. This is only to provide transparency
-                // to userspace application, the functionality is not required.
-                _set_errno(ENOTSUP);
-                return -1;
-            } break;
-            
-            case AF_INET:
-            case AF_INET6: {
-                _set_errno(ENOTSUP);
-                return -1;
-            } break;
-            
-            default: {
-                _set_errno(ENOTSUP);
-                return -1;
-            }
-        };
+        
+        status = ConnectSocket(handle->object.handle, address);
+        if (status != OsSuccess) {
+            OsStatusToErrno(status);
+            return -1;
+        }
         
         // So if we reach here we can continue the connection process, update
         // the socket state to reflect the new state

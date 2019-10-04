@@ -42,7 +42,7 @@ int socket(int domain, int type, int protocol)
     // kernel assisted functionality to support a centralized storage of
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
-    status = CreateSocket(0, &handle, 
+    status = CreateSocket(domain, type, protocol, &handle, 
         &io_object->object.data.socket.recv_queue,
         &io_object->object.data.socket.send_queue);
     if (status != OsSuccess) {
