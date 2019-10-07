@@ -21,12 +21,13 @@
  * http://wiki.osdev.org/PS2
  */
 
-#include <os/input.h>
 #include <ddk/utils.h>
+#include <io.h>
+#include "mouse.h"
+#include <os/input.h>
+#include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
-#include "../ps2.h"
-#include "mouse.h"
 
 InterruptStatus_t
 PS2MouseFastInterrupt(
@@ -94,8 +95,8 @@ PS2MouseInterrupt(
         Port->ResponseReadIndex = 0;
     }
     
-    // TODO:
-    // Implement the LCADDR_INPUT pipe
+    sendto(Port->IoSocket, &Input, sizeof(SystemInput_t), MSG_DONTWAIT, 
+        (const struct sockaddr*)&Port->InputAddress, sizeof(struct sockaddr_lc));
 }
 
 OsStatus_t
@@ -163,7 +164,8 @@ PS2MouseInitialize(
     _In_ PS2Controller_t* Controller,
     _In_ int              Port)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    struct sockaddr_lc* LcAddress;
+    PS2Port_t*          Instance = &Controller->Ports[Port];
 
     // Set initial mouse sampling
     PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
@@ -178,6 +180,13 @@ PS2MouseInitialize(
         ERROR("PS2-Mouse: failed to install contract");
         return OsError;
     }
+
+    // Open up the input socket so we can send input data to the OS.
+    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
+    LcAddress->slc_len = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
 
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
@@ -215,5 +224,6 @@ PS2MouseCleanup(
 
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
+    close(Instance->IoSocket);
     return OsSuccess;
 }

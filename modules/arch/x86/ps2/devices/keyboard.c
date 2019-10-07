@@ -22,12 +22,13 @@
  */
 //#define __TRACE
 
-#include <os/input.h>
 #include <ddk/utils.h>
+#include <io.h>
+#include "keyboard.h"
+#include <os/input.h>
+#include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
-#include "keyboard.h"
-#include "../ps2.h"
 
 // Scancode sets
 OsStatus_t ScancodeSet2ToVKey(SystemKey_t* KeyState, uint8_t Scancode);
@@ -168,7 +169,7 @@ PS2KeyboardInterrupt(
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
         sendto(Port->IoSocket, &Key, sizeof(SystemKey_t), MSG_DONTWAIT, 
-            &Port->InputAddress, sizeof(struct sockaddr_lc));
+            (const struct sockaddr*)&Port->InputAddress, sizeof(struct sockaddr_lc));
     }
 }
 
@@ -256,7 +257,8 @@ PS2KeyboardInitialize(
     _In_ int              Port,
     _In_ int              Translation)
 {
-    PS2Port_t* Instance = &Controller->Ports[Port];
+    struct sockaddr_lc* LcAddress;
+    PS2Port_t*          Instance = &Controller->Ports[Port];
 
     // Initialize keyboard defaults
     PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
@@ -274,6 +276,13 @@ PS2KeyboardInitialize(
         return OsError;
     }
     
+    // Open up the input socket so we can send input data to the OS.
+    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
+    LcAddress->slc_len = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
+
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
@@ -309,8 +318,9 @@ PS2KeyboardCleanup(
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
-
+    
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
+    close(Instance->IoSocket);
     return OsSuccess;
 }
