@@ -63,16 +63,6 @@ SocketCreateImpl(
     _Out_ UUId_t* SendBufferHandleOut,
     _Out_ UUId_t* RecvBufferHandleOut);
 
-/* SocketInheritImpl
- * Inherits a socket by another application than the owner, this will increase refcount
- * and pass on the resource handles. */
-OsStatus_t
-SocketInheritImpl(
-    _In_  UUId_t  ProcessHandle,
-    _In_  UUId_t  Handle,
-    _Out_ UUId_t* SendBufferHandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut);
-
 /* SocketShutdownImpl
  * Shutsdown or closes certain aspects (or all) of a socket. This will also
  * close down any active connections, and notify of disconnect. */
@@ -119,12 +109,37 @@ SocketListenImpl(
     _In_ UUId_t Handle,
     _In_ int    ConnectionCount);
 
+/* SetSocketOptionImpl
+ * Sets the option given for the protocol given. The option data and length must
+ * be specified. */
+OsStatus_t
+SetSocketOptionImpl(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ int              Protocol,
+    _In_ unsigned int     Option,
+    _In_ const void*      Data,
+    _In_ socklen_t        DataLength);
+
+/* GetSocketOptionImpl
+ * Retrieves the option of the specified protocol for the socket handle given. The
+ * data will be returned in the provided buffer, and the length specified. */
+OsStatus_t
+GetSocketOptionImpl(
+    _In_  UUId_t           ProcessHandle,
+    _In_  UUId_t           Handle,
+    _In_  int              Protocol,
+    _In_  unsigned int     Option,
+    _In_  void*            Data,
+    _Out_ socklen_t*       DataLengthOut);
+
 /* GetSocketAddressImpl
  * Retrieves the address of the given socket handle. */
 OsStatus_t
 GetSocketAddressImpl(
     _In_ UUId_t           ProcessHandle,
     _In_ UUId_t           Handle,
+    _In_ int              Source,
     _In_ struct sockaddr* Address);
 
 #endif //!__NETMANAGER_SOCKET_H__

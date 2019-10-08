@@ -51,7 +51,8 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    status = GetSocketAddress(handle->object.handle, address_out, address_length_out);
+    status = GetSocketAddress(handle->object.handle, SOCKET_GET_ADDRESS_SOURCE_THIS, 
+        address_out, address_length_out);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

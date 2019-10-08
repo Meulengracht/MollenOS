@@ -36,6 +36,7 @@
 int bind(int iod, const struct sockaddr* address, socklen_t address_length)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    OsStatus_t      status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -57,32 +58,12 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    switch (handle->object.data.socket.domain) {
-        case AF_LOCAL: {
-            OsStatus_t status;
-            if (address_length != sizeof(struct sockaddr_lc)) {
-                _set_errno(EINVAL);
-                return -1;
-            }
-            
-            status = BindSocket(handle->object.handle, address);
-            if (status != OsSuccess) {
-                OsStatusToErrno(status);
-                return -1;
-            }
-        } break;
-        
-        case AF_INET:
-        case AF_INET6: {
-            _set_errno(ENOTSUP);
-            return -1;
-        } break;
-        
-        default: {
-            _set_errno(ENOTSUP);
-            return -1;
-        }
-    };
+
+    status = BindSocket(handle->object.handle, address);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
+        return -1;
+    }
     
     // So if we reach here we can continue the binding process, update
     // the socket state to reflect the new state

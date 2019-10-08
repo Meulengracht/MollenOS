@@ -87,6 +87,25 @@ ScInstallSignalHandler(
 }
 
 OsStatus_t
+ScCreateHandle(
+    _Out_ UUId_t* HandleOut)
+{
+    *HandleOut = CreateHandle(HandleTypeGeneric, 0, NULL, NULL);
+    if (*HandleOut != UUID_INVALID) {
+        return OsSuccess;
+    }
+    return OsOutOfMemory;
+}
+
+OsStatus_t
+ScSetHandleActivity(
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags)
+{
+    return MarkHandle(Handle, Flags);
+}
+
+OsStatus_t
 ScRegisterHandlePath(
     _In_ UUId_t      Handle,
     _In_ const char* Path)
@@ -111,4 +130,44 @@ ScDestroyHandle(
     }
     DestroyHandle(Handle);
     return OsSuccess;
+}
+
+OsStatus_t
+ScCreateHandleSet(
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* HandleOut)
+{
+    if (!HandleOut) {
+        return OsInvalidParameters;
+    }
+    
+    *HandleOut = CreateHandleSet(Flags);
+    if (*HandleOut != UUID_INVALID) {
+        return OsSuccess;
+    }
+    return OsOutOfMemory;
+}
+
+OsStatus_t
+ScControlHandleSet(
+    _In_ UUId_t  SetHandle,
+    _In_ int     Operation,
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags,
+    _In_ int     Context)
+{
+    return ControlHandleSet(SetHandle, Operation, Handle, Flags, Context);
+}
+
+OsStatus_t
+ScListenHandleSet(
+    _In_ UUId_t           Handle,
+    _In_ struct io_event* Events,
+    _In_ int              MaxEvents,
+    _In_ size_t           Timeout)
+{
+    if (!Events) {
+        return OsInvalidParameters;
+    }
+    return WaitForHandleSet(Handle, Events, MaxEvents, Timeout);
 }

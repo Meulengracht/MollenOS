@@ -83,6 +83,7 @@ thrd_t thrd_current(void) {
 #else
 //#define __TRACE
 #include <assert.h>
+#include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <errno.h>
@@ -90,6 +91,7 @@ thrd_t thrd_current(void) {
 #include <internal/_io.h>
 #include <io.h>
 #include <os/input.h>
+#include <os/mollenos.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -437,6 +439,16 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
     stdio_bitmap_free(handle->fd);
     free(handle);
     return EOK;
+}
+
+int stdio_handle_activity(stdio_handle_t* handle , int activity)
+{
+    OsStatus_t status = HandleSetActivity(handle->object.handle, activity);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
+        return -1;
+    }
+    return 0;
 }
 
 stdio_handle_t* stdio_handle_get(int fd)

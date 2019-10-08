@@ -3,6 +3,7 @@
 
 #include <ddk/streambuffer.h>
 #include <inet/socket.h>
+#include <os/dmabuf.h>
 
 struct socket {
     int                     domain;
@@ -11,10 +12,8 @@ struct socket {
     unsigned int            flags;
     struct sockaddr_storage default_address;
     
-    // Queues must be mapped into process space once they
-    // are inherited. 
-    streambuffer_t* recv_queue;
-    streambuffer_t* send_queue;
+    struct dma_attachment send_buffer;
+    struct dma_attachment recv_buffer;
 };
 
 struct packethdr {

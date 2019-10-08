@@ -39,7 +39,7 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
     unsigned int     sb_options = 0;
     intmax_t         numbytes   = 0;
     size_t           total_len  = msg->msg_namelen + msg->msg_controllen;
-    streambuffer_t*  stream     = handle->object.data.socket.send_queue;
+    streambuffer_t*  stream     = handle->object.data.socket.send_buffer.buffer;
     struct packethdr packet;
     size_t           avail_len;
     unsigned int     base, state;
@@ -113,6 +113,7 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
         numbytes  += byte_count;
     }
     streambuffer_write_packet_end(stream, base, avail_len);
+    stdio_handle_activity(handle, IOEVTIN);
     return numbytes;
 }
 

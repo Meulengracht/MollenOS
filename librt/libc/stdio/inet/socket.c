@@ -42,9 +42,9 @@ int socket(int domain, int type, int protocol)
     // kernel assisted functionality to support a centralized storage of
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
-    status = CreateSocket(domain, type, protocol, &handle, 
-        &io_object->object.data.socket.recv_queue,
-        &io_object->object.data.socket.send_queue);
+    status = CreateSocket(domain, type, protocol, &handle,
+        &io_object->object.data.socket.send_buffer.handle, 
+        &io_object->object.data.socket.recv_buffer.handle);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
         stdio_handle_destroy(io_object, 0);
@@ -59,5 +59,16 @@ int socket(int domain, int type, int protocol)
     io_object->object.data.socket.domain   = domain;
     io_object->object.data.socket.type     = type;
     io_object->object.data.socket.protocol = protocol;
+    
+    // Setup the dma buffers that we have to inherit, just reuse the inherit
+    // stdio method, since the actions are identical.
+    status = io_object->ops.inherit(io_object);
+    if (status != OsSuccess) {
+        (void)OsStatusToErrno(status);
+        io_object->ops.close(io_object, 0);
+        stdio_handle_destroy(io_object, 0);
+        return -1;
+    }
+    
     return fd;
 }

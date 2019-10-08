@@ -1,9 +1,10 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <internal/_socket.h>
-#include <os/osdefs.h>
 #include <ds/collection.h>
+#include <internal/_socket.h>
+#include <io_events.h>        // for activity definitions
+#include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/types/process.h>
 #include <stdio.h>
@@ -83,6 +84,7 @@ extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
+extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern stdio_handle_t* stdio_handle_get(int fd);
 extern Collection_t*   stdio_get_handles(void);
 

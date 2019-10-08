@@ -84,7 +84,7 @@ get_streambuffer_flags(int flags)
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int flags)
 {
-    streambuffer_t*   stream     = handle->object.data.socket.recv_queue;
+    streambuffer_t*   stream     = handle->object.data.socket.recv_buffer.buffer;
     intmax_t          numbytes   = 0;
     unsigned int      sb_options = get_streambuffer_flags(flags);
     struct packethdr  packet;

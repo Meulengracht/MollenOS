@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -23,6 +24,7 @@
 #include <ddk/services/net.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <os/dmabuf.h>
 #include <os/mollenos.h>
 
 OsStatus_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
@@ -59,16 +61,47 @@ OsStatus_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    // TODO: Implement cleanup of sockets
-    return OsNotSupported;
+    OsStatus_t status;
+    
+    status = CloseSocket(handle->object.handle, options);
+    if (status == OsSuccess) {
+        if (handle->object.data.socket.send_buffer.buffer) {
+            (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
+            (void)dma_detach(&handle->object.data.socket.send_buffer);
+        }
+        
+        if (handle->object.data.socket.recv_buffer.buffer) {
+            (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
+            (void)dma_detach(&handle->object.data.socket.send_buffer);
+        }
+    }
+    return status;
 }
 
 OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
 {
-    OsStatus_t status = InheritSocket(handle->object.handle, 
-        &handle->object.data.socket.recv_queue,
-        &handle->object.data.socket.send_queue);
-    return status;
+    OsStatus_t status1, status2;
+    UUId_t     send_buffer_handle = handle->object.data.socket.send_buffer.handle;
+    UUId_t     recv_buffer_handle = handle->object.data.socket.recv_buffer.handle;
+    
+    // When we inherit a socket from another application, we must reattach
+    // the handle that is stored in dma_attachment.
+    status1 = dma_attach(send_buffer_handle, &handle->object.data.socket.send_buffer);
+    status2 = dma_attach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
+    if (status1 != OsSuccess || status2 != OsSuccess) {
+        return status1 != OsSuccess ? status1 : status2;
+    }
+    
+    status1 = dma_attachment_map(&handle->object.data.socket.send_buffer);
+    if (status1 != OsSuccess) {
+        return status1;
+    }
+    
+    status1 = dma_attachment_map(&handle->object.data.socket.recv_buffer);
+    if (status1 != OsSuccess) {
+        return status1;
+    }
+    return status1;
 }
 
 void stdio_get_net_operations(stdio_ops_t* ops)

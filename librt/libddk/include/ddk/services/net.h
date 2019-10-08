@@ -31,21 +31,29 @@
 #include <inet/socket.h>
 
 #define __NETMANAGER_CREATE_SOCKET      (int)0
-#define __NETMANAGER_INHERIT_SOCKET     (int)1
-#define __NETMANAGER_CLOSE_SOCKET       (int)2
-#define __NETMANAGER_BIND_SOCKET        (int)3
-#define __NETMANAGER_CONNECT_SOCKET     (int)4
-#define __NETMANAGER_ACCEPT_SOCKET      (int)5
-#define __NETMANAGER_LISTEN_SOCKET      (int)6
-#define __NETMANAGER_SET_SOCKET_OPTION  (int)7
-#define __NETMANAGER_GET_SOCKET_OPTION  (int)8
-#define __NETMANAGER_GET_SOCKET_ADDRESS (int)9
+#define __NETMANAGER_CLOSE_SOCKET       (int)1
+#define __NETMANAGER_BIND_SOCKET        (int)2
+#define __NETMANAGER_CONNECT_SOCKET     (int)3
+#define __NETMANAGER_ACCEPT_SOCKET      (int)4
+#define __NETMANAGER_LISTEN_SOCKET      (int)5
+#define __NETMANAGER_SET_SOCKET_OPTION  (int)6
+#define __NETMANAGER_GET_SOCKET_OPTION  (int)7
+#define __NETMANAGER_GET_SOCKET_ADDRESS (int)8
+
+#define SOCKET_GET_ADDRESS_SOURCE_THIS 0
+#define SOCKET_GET_ADDRESS_SOURCE_PEER 1
 
 PACKED_TYPESTRUCT(SocketDescriptorPackage, {
     OsStatus_t Status;
     UUId_t     SocketHandle;
     UUId_t     SendBufferHandle;
     UUId_t     RecvBufferHandle;
+});
+
+PACKED_TYPESTRUCT(GetSocketOptionPackage, {
+    OsStatus_t Status;
+    socklen_t  Length;
+    uint8_t    Data[1];
 });
 
 PACKED_TYPESTRUCT(GetSocketAddressPackage, {
@@ -64,33 +72,23 @@ _CODE_BEGIN
  * @param Protocol
  * @param HandleOut
  * @param RecvQueueOut
+ * @param SendQueueOut
  */
 DDKDECL(OsStatus_t,
 CreateSocket(
-    _In_  int              Domain,
-    _In_  int              Type,
-    _In_  int              Protocol,
-    _Out_ UUId_t*          HandleOut,
-    _Out_ streambuffer_t** RecvQueueOut,
-    _Out_ streambuffer_t** SendQueueOut));
-
-/**
- * InheritSocket
- * 
- * @param Handle
- * @param RecvQueueOut
- */
-DDKDECL(OsStatus_t,
-InheritSocket(
-    _In_  UUId_t           Handle,
-    _Out_ streambuffer_t** RecvQueueOut,
-    _Out_ streambuffer_t** SendQueueOut));
+    _In_  int     Domain,
+    _In_  int     Type,
+    _In_  int     Protocol,
+    _Out_ UUId_t* HandleOut,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut));
 
 /**
  * CloseSocket
- * 
- * @param Handle
- * @param RecvQueueOut
+ * * Closes the specified socket operations. If a full shutdown has been requested
+ * * then all resources are released as well.
+ * @param Handle  [In] The socket handle, on which the operation is done.
+ * @param Options [In] The supplied shutdown options.
  */
 DDKDECL(OsStatus_t,
 CloseSocket(
@@ -99,9 +97,10 @@ CloseSocket(
 
 /**
  * BindSocket
- * 
- * @param Handle
- * @param Address
+ * * Binds the socket to the requested address, this fails if the address is currently
+ * * already allocated by another socket.
+ * @param Handle  [In] The socket handle, on which the operation is done.
+ * @param Address [In] The requested address that the socket should be bound by.
  */
 DDKDECL(OsStatus_t,
 BindSocket(
@@ -110,9 +109,10 @@ BindSocket(
 
 /**
  * ConnectSocket
- * 
- * @param Handle
- * @param Address
+ * * Tries to establish a connection to the supplied address. This is only supported
+ * * on socket protocols that support connection-modes.
+ * @param Handle  [In] The socket handle, on which the operation is done.
+ * @param Address [In] The requested address that the socket should connect to.
  */
 DDKDECL(OsStatus_t,
 ConnectSocket(
@@ -121,9 +121,10 @@ ConnectSocket(
 
 /**
  * AcceptSocket
- * 
- * @param Handle
- * @param Address
+ * * Accepts a new socket-client on the given handle, the socket given must be
+ * * enabled for this operation by using ListenSocket first.
+ * @param Handle  [In] The socket handle, on which the operation is done.
+ * @param Address [In] The address of the accepted socket client.
  */
 DDKDECL(OsStatus_t,
 AcceptSocket(
@@ -132,9 +133,10 @@ AcceptSocket(
 
 /**
  * ListenSocket
- * 
- * @param Handle
- * @param ConnectionQueueSize
+ * * Enables the socket for listening mode, this will prevent the socket from being
+ * * able to connect explicitly to other sockets.
+ * @param Handle              [In] The socket handle, on which the operation is done.
+ * @param ConnectionQueueSize [In] The number of connections that can be queued up.
  */
 DDKDECL(OsStatus_t,
 ListenSocket(
@@ -142,15 +144,51 @@ ListenSocket(
     _In_ int    ConnectionQueueSize));
 
 /**
+ * SetSocketOption
+ * * Sets a socket option for either the socket or a specific protocol.
+ * @param Handle     [In] The socket handle, on which the operation is done.
+ * @param Protocol   [In] The protocol which the option is relevant for.
+ * @param Option     [In] The option identifier.
+ * @param Data       [In] The option data.
+ * @param DataLength [In] Length of the option data passed.
+ */
+DDKDECL(OsStatus_t,
+SetSocketOption(
+    _In_ UUId_t       Handle,
+    _In_ int          Protocol,
+    _In_ unsigned int Option,
+    _In_ const void*  Data,
+    _In_ socklen_t    DataLength));
+
+/**
+ * GetSocketOption
+ * * Gets a socket option for either the socket or a specific protocol.
+ * @param Handle     [In]  The socket handle, on which the operation is done.
+ * @param Protocol   [In]  The protocol which the option is relevant for.
+ * @param Option     [In]  The option identifier.
+ * @param Data       [In]  A buffer to store the option data.
+ * @param DataLength [Out] Where the length of the data will be stored.
+ */
+DDKDECL(OsStatus_t,
+GetSocketOption(
+    _In_ UUId_t       Handle,
+    _In_ int          Protocol,
+    _In_ unsigned int Option,
+    _In_ void*        Data,
+    _In_ socklen_t*   DataLength));
+
+/**
  * GetSocketAddress
- * 
- * @param Handle
- * @param AddressOut
- * @param AddressLengthOut
+ * * Retrieves the socket address specified by @Source.
+ * @param Handle           [In]  The socket handle, on which the operation is done.
+ * @param Source           [In]  The address source, this specified which kind of address that needs to be retrieved.
+ * @param Address          [In]  Storage for the address that is retrieved.
+ * @param AddressLengthOut [Out] Length of the address retrieved.
  */
 DDKDECL(OsStatus_t,
 GetSocketAddress(
     _In_    UUId_t           Handle,
+    _In_    int              Source,
     _In_    struct sockaddr* Address,
     _InOut_ socklen_t*       AddressLengthOut));
 

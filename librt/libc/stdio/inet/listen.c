@@ -30,8 +30,8 @@
  * a later reattempt at connection succeeds.
  */
 
+#include <ddk/services/net.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
 #include <inet/local.h>
 #include <errno.h>
 #include <os/mollenos.h>
@@ -39,6 +39,7 @@
 int listen(int iod, int backlog)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    OsStatus_t      status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -66,26 +67,11 @@ int listen(int iod, int backlog)
         return -1;
     }
     
-    switch (handle->object.data.socket.domain) {
-        case AF_LOCAL: {
-            // Local sockets on the pc does not support connection-oriented mode yet.
-            // TODO: Implement connected sockets locally. This is only to provide transparency
-            // to userspace application, the functionality is not required.
-            _set_errno(ENOTSUP);
-            return -1;
-        } break;
-        
-        case AF_INET:
-        case AF_INET6: {
-            _set_errno(ENOTSUP);
-            return -1;
-        } break;
-        
-        default: {
-            _set_errno(ENOTSUP);
-            return -1;
-        }
-    };
+    status = ListenSocket(handle->object.handle, backlog);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
+        return -1;
+    }
     
     // So if we reach here we can continue the listener process, update
     // the socket state to reflect the new state

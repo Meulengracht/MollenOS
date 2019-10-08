@@ -66,17 +66,6 @@ OnEvent(
                 &Package.RecvBufferHandle);
             Handled = IpcReply(Message, &Package, sizeof(SocketDescriptorPackage_t));
         } break;
-        case __NETMANAGER_INHERIT_SOCKET: {
-            SocketDescriptorPackage_t Package;
-            
-            UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
-            UUId_t SocketHandle  = IPC_GET_TYPED(Message, 2);
-            
-            Package.SocketHandle = SocketHandle;
-            Package.Status       = SocketInheritImpl(ProcessHandle, SocketHandle,
-                &Package.SendBufferHandle, &Package.RecvBufferHandle);
-            Handled = IpcReply(Message, &Package, sizeof(SocketDescriptorPackage_t));
-        } break;
         case __NETMANAGER_CLOSE_SOCKET: {
             OsStatus_t Result;
             
@@ -127,14 +116,45 @@ OnEvent(
             Result  = SocketListenImpl(ProcessHandle, SocketHandle, ConnectionCount);
             Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
         } break;
+        case __NETMANAGER_SET_SOCKET_OPTION: {
+            OsStatus_t Result;
+            
+            UUId_t      ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t      SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int         Protocol      = IPC_GET_TYPED(Message, 3);
+            int         Option        = IPC_GET_TYPED(Message, 4);
+            const void* Data          = (const void*)IPC_GET_UNTYPED(Message, 0);
+            socklen_t   DataLength    = IPC_GET_LENGTH(Message, 0);
+            
+            Result = SetSocketOptionImpl(ProcessHandle, SocketHandle, Protocol,
+                Option, Data, DataLength);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+            
+        } break;
+        case __NETMANAGER_GET_SOCKET_OPTION: {
+            uint8_t                   Storage[256] = { 0 };
+            GetSocketOptionPackage_t* Package      = (GetSocketOptionPackage_t*)&Storage[0];
+            
+            UUId_t       ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t       SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int          Protocol      = IPC_GET_TYPED(Message, 3);
+            unsigned int Option        = IPC_GET_TYPED(Message, 4);
+            
+            Package->Status = GetSocketOptionImpl(ProcessHandle, SocketHandle, 
+                Protocol, Option, &Package->Data[0], &Package->Length);
+            Handled = IpcReply(Message, Package, 
+                (sizeof(GetSocketOptionPackage_t) - sizeof(uint8_t)) + Package->Length);
+            
+        } break;
         case __NETMANAGER_GET_SOCKET_ADDRESS: {
             GetSocketAddressPackage_t Package;
             
             UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
             UUId_t SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int    Source        = IPC_GET_TYPED(Message, 3);
             
             Package.Status = GetSocketAddressImpl(ProcessHandle, SocketHandle, 
-                (struct sockaddr*)&Package.Address);
+                Source, (struct sockaddr*)&Package.Address);
             Handled = IpcReply(Message, &Package, sizeof(GetSocketAddressPackage_t));
         } break;
         

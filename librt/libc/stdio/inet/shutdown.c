@@ -46,22 +46,6 @@ int shutdown(int iod, int how)
         return -1;
     }
     
-    switch (handle->object.data.socket.domain) {
-        case AF_LOCAL: {
-            // do nothing
-        } break;
-        
-        case AF_INET:
-        case AF_INET6: {
-            // do nothing
-        } break;
-        
-        default: {
-            _set_errno(ENOTSUP);
-            return -1;
-        }
-    };
-    
     if (how & SHUT_WR) {
         handle->object.data.socket.flags |= SOCKET_WRITE_DISABLED;
     }

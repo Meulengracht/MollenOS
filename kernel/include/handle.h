@@ -52,8 +52,10 @@ InitializeHandles(void);
 KERNELAPI OsStatus_t KERNELABI
 InitializeHandleJanitor(void);
 
-/* CreateHandle
- * Allocates a new handle for a system resource with a reference of 1. */
+/**
+ * CreateHandle
+ * * Allocates a new handle for a system resource with a reference of 1.
+ */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
     _In_ SystemHandleType_t Type,
@@ -61,9 +63,11 @@ CreateHandle(
     _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource);
 
-/* DestroyHandle
- * Reduces the reference count of the given handle, and cleans up the handle on
- * reaching 0 references. */
+/**
+ * DestroyHandle
+ * * Reduces the reference count of the given handle, and cleans up the handle on
+ * * reaching 0 references.
+ */
 KERNELAPI void KERNELABI
 DestroyHandle(
     _In_ UUId_t Handle);
@@ -102,7 +106,7 @@ ControlHandleSet(
  * @param MaxEvents [In]
  * @param Timeout   [In]
  */
-OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 WaitForHandleSet(
     _In_ UUId_t           Handle,
     _In_ struct io_event* Events,
