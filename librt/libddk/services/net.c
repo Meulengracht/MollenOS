@@ -23,6 +23,10 @@
  */
 
 #include <ddk/services/net.h>
+#include <ddk/services/service.h>
+#include <os/services/process.h>
+#include <os/ipc.h>
+#include <string.h>
 
 /////////////////////////////////////////////////////
 // APPLICATIONS => NetworkService
@@ -53,7 +57,25 @@ CreateSocket(
     _Out_ streambuffer_t** RecvQueueOut,
     _Out_ streambuffer_t** SendQueueOut)
 {
-    return OsNotSupported;
+	IpcMessage_t               Request;
+	SocketDescriptorPackage_t* Package;
+	OsStatus_t                 Status;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_CREATE_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Domain);
+	IPC_SET_TYPED(&Request, 3, Type);
+	IPC_SET_TYPED(&Request, 4, Protocol);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, (void**)&Package);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	// TODO: Handle the return values
+	
+    return Package->Status;
 }
 
 OsStatus_t
@@ -62,7 +84,45 @@ InheritSocket(
     _Out_ streambuffer_t** RecvQueueOut,
     _Out_ streambuffer_t** SendQueueOut)
 {
-    return OsNotSupported;
+	IpcMessage_t               Request;
+	SocketDescriptorPackage_t* Package;
+	OsStatus_t                 Status;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_INHERIT_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, (void**)&Package);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	// TODO: Handle the return values
+	
+    return Package->Status;
+}
+
+OsStatus_t
+CloseSocket(
+    _In_ UUId_t       Handle,
+    _In_ unsigned int Options)
+{
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_CLOSE_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	IPC_SET_TYPED(&Request, 3, Options);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
 }
 
 OsStatus_t
@@ -70,7 +130,21 @@ BindSocket(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
-    return OsNotSupported;
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_BIND_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	IpcSetUntypedArgument(&Request, 0, (void*)Address, Address->sa_len);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
 }
 
 OsStatus_t
@@ -78,14 +152,95 @@ ConnectSocket(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
-    return OsNotSupported;
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_CONNECT_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	IpcSetUntypedArgument(&Request, 0, (void*)Address, Address->sa_len);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
+}
+
+OsStatus_t
+AcceptSocket(
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address)
+{
+	IpcMessage_t               Request;
+	GetSocketAddressPackage_t* Package;
+	OsStatus_t                 Status;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_ACCEPT_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, (void**)&Package);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	if (Package->Status == OsSuccess && Address) {
+	    memcpy(Address, &Package->Address, Package->Address.__ss_len);
+	}
+	return Package->Status;
+}
+
+OsStatus_t
+ListenSocket(
+    _In_ UUId_t Handle,
+    _In_ int    ConnectionQueueSize)
+{
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_LISTEN_SOCKET);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	IPC_SET_TYPED(&Request, 3, ConnectionQueueSize);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
 }
 
 OsStatus_t
 GetSocketAddress(
-    _In_    UUId_t                 Handle,
-    _Out_   const struct sockaddr* AddressOut,
-    _InOut_ socklen_t*             AddressLengthOut)
+    _In_    UUId_t           Handle,
+    _In_    struct sockaddr* Address,
+    _InOut_ socklen_t*       AddressLengthOut)
 {
-    return OsNotSupported;
+	IpcMessage_t               Request;
+	GetSocketAddressPackage_t* Package;
+	OsStatus_t                 Status;
+	size_t                     BytesToCopy;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_GET_SOCKET_ADDRESS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, (void**)&Package);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	BytesToCopy = MIN(*AddressLengthOut, Package->Address.__ss_len);
+	if (Package->Status == OsSuccess && Address) {
+	    memcpy(Address, &Package->Address, BytesToCopy);
+	}
+	*AddressLengthOut = Package->Address.__ss_len;
+	return Package->Status;
 }

@@ -49,7 +49,7 @@ OnEvent(
     _In_ IpcMessage_t* Message)
 {
     OsStatus_t Handled = OsInvalidParameters;
-    TRACE("Processmanager.OnEvent(%i)", RPC->Function);
+    TRACE("Processmanager.OnEvent(%i)", IPC_GET_TYPED(Message, 0));
 
     switch (IPC_GET_TYPED(Message, 0)) {
         case __PROCESSMANAGER_CREATE_PROCESS: {

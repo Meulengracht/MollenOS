@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,3 +24,81 @@
  */
 
 #include "socket.h"
+
+OsStatus_t
+SocketCreateImpl(
+    _In_  UUId_t  ProcessHandle,
+    _In_  int     Domain,
+    _In_  int     Type,
+    _In_  int     Protocol,
+    _Out_ UUId_t* HandleOut,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut)
+{
+    return OsNotSupported;
+}
+
+OsStatus_t
+SocketInheritImpl(
+    _In_  UUId_t  ProcessHandle,
+    _In_  UUId_t  Handle,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut)
+{
+    return OsNotSupported;
+}
+
+OsStatus_t
+SocketShutdownImpl(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle,
+    _In_ int    Options)
+{
+    return OsNotSupported;
+}
+    
+OsStatus_t
+SocketBindImpl(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address)
+{
+    return OsNotSupported;
+}
+
+OsStatus_t
+SocketConnectImpl(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address)
+{
+    return OsNotSupported;
+}
+
+OsStatus_t
+SocketAcceptImpl(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address)
+{
+    return OsNotSupported;
+}
+
+
+OsStatus_t
+SocketListenImpl(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle,
+    _In_ int    ConnectionCount)
+{
+    return OsNotSupported;
+}
+
+OsStatus_t
+GetSocketAddressImpl(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address)
+{
+    return OsNotSupported;
+}

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -25,78 +26,105 @@
 #ifndef __NETMANAGER_SOCKET_H__
 #define __NETMANAGER_SOCKET_H__
 
-#include <os/osdefs.h>
-#include <ddk/buffer.h>
-#include <ddk/ringbuffer.h>
+#include <ddk/streambuffer.h>
 #include <inet/socket.h>
+#include <os/dmabuf.h>
+#include <os/osdefs.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
 
-typedef enum {
-    SocketCreated,
-    SocketOpen,
-    SocketConnected
-} SocketState_t;
-
 typedef struct {
-    buffer_t*     Buffer;
-    ringbuffer_t* Pipe;
+    struct dma_attachment DmaAttachment;
+    streambuffer_t*       Stream;
 } SocketPipe_t;
 
-typedef struct {
+typedef struct Socket {
     UUId_t           Handle;
     int              Domain;
-    int              Options;
+    int              Type;
+    int              Protocol;
     Flags_t          Flags;
-    SocketState_t    State;
     
-    sockaddr_storage Address;
-    SocketPipe_t     Receive;
-    SocketPipe_t     Send;
+    struct sockaddr_storage Address;
+    SocketPipe_t            Receive;
+    SocketPipe_t            Send;
 } Socket_t;
 
-/* SocketCreate
+/* SocketCreateImpl
  * Creates and initializes a new socket of default options. The socket
- * will not be assigned any address, nor any resources before a bind or
- * connect operation is performed. */
+ * will be assigned an temporary address, and resource will be allocated. */
 OsStatus_t
-SocketCreate(
+SocketCreateImpl(
+    _In_  UUId_t  ProcessHandle,
     _In_  int     Domain,
-    _In_  int     Options,
-    _Out_ UUId_t* HandleOut);
+    _In_  int     Type,
+    _In_  int     Protocol,
+    _Out_ UUId_t* HandleOut,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut);
 
-/* SocketShutdown
+/* SocketInheritImpl
+ * Inherits a socket by another application than the owner, this will increase refcount
+ * and pass on the resource handles. */
+OsStatus_t
+SocketInheritImpl(
+    _In_  UUId_t  ProcessHandle,
+    _In_  UUId_t  Handle,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut);
+
+/* SocketShutdownImpl
  * Shutsdown or closes certain aspects (or all) of a socket. This will also
  * close down any active connections, and notify of disconnect. */
 OsStatus_t
-SocketShutdown(
+SocketShutdownImpl(
+    _In_ UUId_t ProcessHandle,
     _In_ UUId_t Handle,
     _In_ int    Options);
 
-/* SocketBind
+/* SocketBindImpl
  * Binds a socket to an address and allow others to 'look it up' for 
  * communication. This must be performed before certain other operations. */
 OsStatus_t
-SocketBind(
-    _In_ UUId_t            Handle,
-    _In_ sockaddr_storage* Address,
-    _In_ int               Options);
+SocketBindImpl(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address);
 
-/* SocketConnect
+/* SocketConnectImpl
  * Connect the socket to an address. If any socket is listening on the address
  * the socket will be passed on to the listening party. */
 OsStatus_t
-SocketConnect(
-    _In_ UUId_t            Handle,
-    _In_ sockaddr_storage* Address,
-    _In_ int               Options);
+SocketConnectImpl(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address);
 
-/* SocketWaitForConnection
- * Waits for a new connection on the socket. The socket will return the client
- * socket that can be used by both parties to communicate. */
+/* SocketAcceptImpl
+ * Accepts an incoming connection on the socket. If none are available it will
+ * block the request untill one arrives (If configured to do so). */
 OsStatus_t
-SocketWaitForConnection(
-    _In_  UUId_t    Handle,
-    _Out_ Socket_t* SocketOut);
+SocketAcceptImpl(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address);
+
+/* SocketListenImpl
+ * Marks the socket as passive, and enables the use of accept operation. The
+ * ConnectionCount parameter controls the number of connection requests that can
+ * be queued up. */
+OsStatus_t
+SocketListenImpl(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle,
+    _In_ int    ConnectionCount);
+
+/* GetSocketAddressImpl
+ * Retrieves the address of the given socket handle. */
+OsStatus_t
+GetSocketAddressImpl(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address);
 
 #endif //!__NETMANAGER_SOCKET_H__

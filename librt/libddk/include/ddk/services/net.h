@@ -32,15 +32,33 @@
 
 #define __NETMANAGER_CREATE_SOCKET      (int)0
 #define __NETMANAGER_INHERIT_SOCKET     (int)1
-#define __NETMANAGER_BIND_SOCKET        (int)2
-#define __NETMANAGER_CONNECT_SOCKET     (int)3
-#define __NETMANAGER_GET_SOCKET_ADDRESS (int)4
+#define __NETMANAGER_CLOSE_SOCKET       (int)2
+#define __NETMANAGER_BIND_SOCKET        (int)3
+#define __NETMANAGER_CONNECT_SOCKET     (int)4
+#define __NETMANAGER_ACCEPT_SOCKET      (int)5
+#define __NETMANAGER_LISTEN_SOCKET      (int)6
+#define __NETMANAGER_SET_SOCKET_OPTION  (int)7
+#define __NETMANAGER_GET_SOCKET_OPTION  (int)8
+#define __NETMANAGER_GET_SOCKET_ADDRESS (int)9
+
+PACKED_TYPESTRUCT(SocketDescriptorPackage, {
+    OsStatus_t Status;
+    UUId_t     SocketHandle;
+    UUId_t     SendBufferHandle;
+    UUId_t     RecvBufferHandle;
+});
+
+PACKED_TYPESTRUCT(GetSocketAddressPackage, {
+    OsStatus_t              Status;
+    struct sockaddr_storage Address;
+});
 
 _CODE_BEGIN
 
 /**
  * CreateSocket
- * 
+ * * Creates and initializes a new socket of default options, the socket will have
+ * * a temporary address that can be changed using the Bind operation.
  * @param Domain
  * @param Type
  * @param Protocol
@@ -57,7 +75,7 @@ CreateSocket(
     _Out_ streambuffer_t** SendQueueOut));
 
 /**
- * InheritSockets
+ * InheritSocket
  * 
  * @param Handle
  * @param RecvQueueOut
@@ -67,6 +85,17 @@ InheritSocket(
     _In_  UUId_t           Handle,
     _Out_ streambuffer_t** RecvQueueOut,
     _Out_ streambuffer_t** SendQueueOut));
+
+/**
+ * CloseSocket
+ * 
+ * @param Handle
+ * @param RecvQueueOut
+ */
+DDKDECL(OsStatus_t,
+CloseSocket(
+    _In_ UUId_t       Handle,
+    _In_ unsigned int Options));
 
 /**
  * BindSocket
@@ -91,6 +120,28 @@ ConnectSocket(
     _In_ const struct sockaddr* Address));
 
 /**
+ * AcceptSocket
+ * 
+ * @param Handle
+ * @param Address
+ */
+DDKDECL(OsStatus_t,
+AcceptSocket(
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address));
+
+/**
+ * ListenSocket
+ * 
+ * @param Handle
+ * @param ConnectionQueueSize
+ */
+DDKDECL(OsStatus_t,
+ListenSocket(
+    _In_ UUId_t Handle,
+    _In_ int    ConnectionQueueSize));
+
+/**
  * GetSocketAddress
  * 
  * @param Handle
@@ -99,9 +150,9 @@ ConnectSocket(
  */
 DDKDECL(OsStatus_t,
 GetSocketAddress(
-    _In_    UUId_t                 Handle,
-    _Out_   const struct sockaddr* AddressOut,
-    _InOut_ socklen_t*             AddressLengthOut));
+    _In_    UUId_t           Handle,
+    _In_    struct sockaddr* Address,
+    _InOut_ socklen_t*       AddressLengthOut));
 
 _CODE_END
 
