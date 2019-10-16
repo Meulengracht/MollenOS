@@ -103,7 +103,7 @@ _CODE_END
 
 #define Syscall_CreateHandleSet(Flags, HandleOut)                          (OsStatus_t)syscall2(67, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_ControlHandleSet(SetHandle, Operation, Handle, Flags, Ctx) (OsStatus_t)syscall5(68, SCPARAM(SetHandle), SCPARAM(Operation), SCPARAM(Handle), SCPARAM(Flags), SCPARAM(Ctx))
-#define Syscall_ListenHandleSet(Handle, Events, MaxEvents, Timeout)        (OsStatus_t)syscall4(69, SCPARAM(Handle), SCPARAM(Events), SCPARAM(MaxEvents), SCPARAM(Timeout))
+#define Syscall_ListenHandleSet(Handle, Events, MaxEvents, Timeout, Count) (OsStatus_t)syscall5(69, SCPARAM(Handle), SCPARAM(Events), SCPARAM(MaxEvents), SCPARAM(Timeout), SCPARAM(Count))
 
 #define Syscall_InstallSignalHandler(HandlerAddress)                       (OsStatus_t)syscall1(70, SCPARAM(HandlerAddress))
 #define Syscall_GetSignalOriginalContext(Context)                          (OsStatus_t)syscall1(71, SCPARAM(Context))

@@ -27,77 +27,62 @@
 #define __NETMANAGER_SOCKET_H__
 
 #include <ddk/streambuffer.h>
+#include <ds/collection.h>
+#include <ds/rbtree.h>
 #include <inet/socket.h>
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
+#define SOCKET_SYSMAX_BUFFER_SIZE  (256 * 4096)
 
-typedef struct {
+typedef struct QueuedPacket {
+    size_t Length;
+    void*  Data;
+} QueuedPacket_t;
+
+typedef struct SocketPipe {
     struct dma_attachment DmaAttachment;
     streambuffer_t*       Stream;
 } SocketPipe_t;
 
 typedef struct Socket {
-    UUId_t           Handle;
-    int              Domain;
-    int              Type;
-    int              Protocol;
-    Flags_t          Flags;
+    RBTreeItem_t      Header;
+    _Atomic(int)      PendingPackets;
+    int               DomainType;
+    int               Type;
+    int               Protocol;
+    Flags_t           Flags;
     
-    struct sockaddr_storage Address;
-    SocketPipe_t            Receive;
-    SocketPipe_t            Send;
+    //NetworkAdapter_t* Adapter;
+    SocketDomain_t*   Domain;
+    SocketPipe_t      Send;
+    SocketPipe_t      Receive;
+    QueuedPacket_t    QueuedPacket;
+    Collection_t      ConnectionRequests;
 } Socket_t;
+
+typedef struct ConnectionRequest {
+    struct sockaddr_storage SourceAddress;
+} ConnectionRequest_t;
 
 /* SocketCreateImpl
  * Creates and initializes a new socket of default options. The socket
  * will be assigned an temporary address, and resource will be allocated. */
 OsStatus_t
 SocketCreateImpl(
-    _In_  UUId_t  ProcessHandle,
-    _In_  int     Domain,
-    _In_  int     Type,
-    _In_  int     Protocol,
-    _Out_ UUId_t* HandleOut,
-    _Out_ UUId_t* SendBufferHandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut);
+    _In_  int              Domain,
+    _In_  int              Type,
+    _In_  int              Protocol,
+    _Out_ Socket_t**       SocketOut);
 
 /* SocketShutdownImpl
  * Shutsdown or closes certain aspects (or all) of a socket. This will also
  * close down any active connections, and notify of disconnect. */
 OsStatus_t
 SocketShutdownImpl(
-    _In_ UUId_t ProcessHandle,
-    _In_ UUId_t Handle,
-    _In_ int    Options);
-
-/* SocketBindImpl
- * Binds a socket to an address and allow others to 'look it up' for 
- * communication. This must be performed before certain other operations. */
-OsStatus_t
-SocketBindImpl(
-    _In_ UUId_t                 ProcessHandle,
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address);
-
-/* SocketConnectImpl
- * Connect the socket to an address. If any socket is listening on the address
- * the socket will be passed on to the listening party. */
-OsStatus_t
-SocketConnectImpl(
-    _In_ UUId_t                 ProcessHandle,
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address);
-
-/* SocketAcceptImpl
- * Accepts an incoming connection on the socket. If none are available it will
- * block the request untill one arrives (If configured to do so). */
-OsStatus_t
-SocketAcceptImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address);
+    _In_ Socket_t* Socket,
+    _In_ int       Options);
 
 /* SocketListenImpl
  * Marks the socket as passive, and enables the use of accept operation. The
@@ -105,17 +90,15 @@ SocketAcceptImpl(
  * be queued up. */
 OsStatus_t
 SocketListenImpl(
-    _In_ UUId_t ProcessHandle,
-    _In_ UUId_t Handle,
-    _In_ int    ConnectionCount);
+    _In_ Socket_t* Socket,
+    _In_ int       ConnectionCount);
 
 /* SetSocketOptionImpl
  * Sets the option given for the protocol given. The option data and length must
  * be specified. */
 OsStatus_t
 SetSocketOptionImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
+    _In_ Socket_t*        Socket,
     _In_ int              Protocol,
     _In_ unsigned int     Option,
     _In_ const void*      Data,
@@ -126,8 +109,7 @@ SetSocketOptionImpl(
  * data will be returned in the provided buffer, and the length specified. */
 OsStatus_t
 GetSocketOptionImpl(
-    _In_  UUId_t           ProcessHandle,
-    _In_  UUId_t           Handle,
+    _In_ Socket_t*         Socket,
     _In_  int              Protocol,
     _In_  unsigned int     Option,
     _In_  void*            Data,
@@ -137,9 +119,28 @@ GetSocketOptionImpl(
  * Retrieves the address of the given socket handle. */
 OsStatus_t
 GetSocketAddressImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
+    _In_ Socket_t*        Socket,
     _In_ int              Source,
     _In_ struct sockaddr* Address);
+
+streambuffer_t*
+GetSocketSendStream(
+    _In_ Socket_t* Socket);
+
+streambuffer_t*
+GetSocketRecvStream(
+    _In_ Socket_t* Socket);
+
+OsStatus_t
+SocketSetQueuedPacket(
+    _In_ Socket_t*   Socket,
+    _In_ const void* Payload,
+    _In_ size_t      Length);
+
+size_t
+SocketGetQueuedPacket(
+    _In_ Socket_t* Socket,
+    _In_ void*     Buffer,
+    _In_ size_t    MaxLength);
 
 #endif //!__NETMANAGER_SOCKET_H__

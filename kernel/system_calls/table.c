@@ -32,11 +32,12 @@
 #include <threading.h>
 #include <threads.h>
 
+typedef struct handle_event handle_event_t;
+
 struct MemoryMappingParameters;
 struct dma_sg;
 struct dma_buffer_info;
 struct dma_attachment;
-struct io_event;
 
 ///////////////////////////////////////////////
 // Operating System Interface
@@ -133,8 +134,8 @@ extern OsStatus_t ScLookupHandle(const char*, UUId_t*);
 extern OsStatus_t ScSetHandleActivity(UUId_t, Flags_t);
 
 extern OsStatus_t ScCreateHandleSet(Flags_t, UUId_t*);
-extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, Flags_t, int);
-extern OsStatus_t ScListenHandleSet(UUId_t, struct io_event*, int, size_t);
+extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, Flags_t, void*);
+extern OsStatus_t ScListenHandleSet(UUId_t, handle_event_t*, int, size_t, int*);
 
 // Support system calls
 extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);

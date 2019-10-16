@@ -154,20 +154,21 @@ ScControlHandleSet(
     _In_ int     Operation,
     _In_ UUId_t  Handle,
     _In_ Flags_t Flags,
-    _In_ int     Context)
+    _In_ void*   Context)
 {
     return ControlHandleSet(SetHandle, Operation, Handle, Flags, Context);
 }
 
 OsStatus_t
 ScListenHandleSet(
-    _In_ UUId_t           Handle,
-    _In_ struct io_event* Events,
-    _In_ int              MaxEvents,
-    _In_ size_t           Timeout)
+    _In_  UUId_t          Handle,
+    _In_  handle_event_t* Events,
+    _In_  int             MaxEvents,
+    _In_  size_t          Timeout,
+    _Out_ int*            NumberOfEventsOut)
 {
-    if (!Events) {
+    if (!Events || !NumberOfEventsOut) {
         return OsInvalidParameters;
     }
-    return WaitForHandleSet(Handle, Events, MaxEvents, Timeout);
+    return WaitForHandleSet(Handle, Events, MaxEvents, Timeout, NumberOfEventsOut);
 }

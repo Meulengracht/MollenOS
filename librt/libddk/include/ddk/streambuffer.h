@@ -109,7 +109,7 @@ streambuffer_stream_in(
     _In_ streambuffer_t* stream,
     _In_ void*           buffer,
     _In_ size_t          length,
-    _In_  unsigned int   options));
+    _In_ unsigned int    options));
 
 DDKDECL(size_t,
 streambuffer_read_packet_start(

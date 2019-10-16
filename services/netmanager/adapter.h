@@ -17,33 +17,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Standard C Support
- * - Standard Socket IO Implementation
+ * Network Manager (Adapter interface)
+ * - Contains the implementation of the adapter infrastructure in the network
+ *   manager. There a lot of different types of sockets, like internet, ipc
+ *   and bluetooth to name the popular ones.
  */
+ 
+#ifndef __NETMANAGER_ADAPTER_H__
+#define __NETMANAGER_ADAPTER_H__
 
-#include <ddk/services/net.h>
-#include <errno.h>
-#include <internal/_io.h>
-#include <io.h>
+typedef struct NetworkAdapter NetworkAdapter_t;
 
-int socketpair(int domain, int type, int protocol, int* iods)
-{
-    if (!iods) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-    
-    iods[0] = socket(domain, type, protocol);
-    if (iods[0] == -1) {
-        return -1;
-    }
-    
-    iods[1] = socket(domain, type, protocol);
-    if (iods[1] == -1) {
-        close(iods[1]);
-        return -1;
-    }
-    
-    // PairSockets(iods[0], iods[1]);
-    return 0;
-}
+#endif //!__NETMANAGER_ADAPTER_H__

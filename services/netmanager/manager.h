@@ -17,18 +17,92 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager (Socket interface)
- * - Contains the implementation of the socket infrastructure in the network
+ * Network Manager
+ * - Contains the implementation of the infrastructure in the network
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
 
-#ifndef __SOCKET_MANAGER_H__
-#define __SOCKET_MANAGER_H__
+#ifndef __NET_MANAGER_H__
+#define __NET_MANAGER_H__
 
 #include <os/osdefs.h>
 
-OsStatus_t
-SocketManagerInitialize(void);
+typedef struct Socket Socket_t;
+typedef struct SocketDescriptor SocketDescriptor_t;
 
-#endif //!__SOCKET_MANAGER_H__
+#define NETWORK_MANAGER_MONITOR_MAX_EVENTS 32
+
+OsStatus_t
+NetworkManagerInitialize(void);
+
+OsStatus_t
+NetworkManagerSocketCreate(
+    _In_  UUId_t  ProcessHandle,
+    _In_  int     Domain,
+    _In_  int     Type,
+    _In_  int     Protocol,
+    _Out_ UUId_t* HandleOut,
+    _Out_ UUId_t* SendBufferHandleOut,
+    _Out_ UUId_t* RecvBufferHandleOut);
+
+OsStatus_t
+NetworkManagerSocketShutdown(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle,
+    _In_ int    Options);
+
+OsStatus_t
+NetworkManagerSocketBind(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address);
+
+OsStatus_t
+NetworkManagerSocketConnect(
+    _In_ UUId_t                 ProcessHandle,
+    _In_ UUId_t                 Handle,
+    _In_ const struct sockaddr* Address);
+
+OsStatus_t
+NetworkManagerSocketAccept(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ struct sockaddr* Address);
+
+OsStatus_t
+NetworkManagerSocketListen(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle,
+    _In_ int    ConnectionCount);
+
+OsStatus_t
+NetworkManagerSocketSetOption(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ int              Protocol,
+    _In_ unsigned int     Option,
+    _In_ const void*      Data,
+    _In_ socklen_t        DataLength);
+
+OsStatus_t
+NetworkManagerSocketGetOption(
+    _In_  UUId_t           ProcessHandle,
+    _In_  UUId_t           Handle,
+    _In_  int              Protocol,
+    _In_  unsigned int     Option,
+    _In_  void*            Data,
+    _Out_ socklen_t*       DataLengthOut);
+
+OsStatus_t
+NetworkManagerSocketGetAddress(
+    _In_ UUId_t           ProcessHandle,
+    _In_ UUId_t           Handle,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address);
+
+Socket_t*
+NetworkManagerSocketGet(
+    _In_ UUId_t Handle);
+
+#endif //!__NET_MANAGER_H__

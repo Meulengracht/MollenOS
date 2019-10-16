@@ -26,6 +26,7 @@
 
 #include <arch/thread.h>
 #include <assert.h>
+#include <ddk/handle.h>
 #include <debug.h>
 #include <ds/array.h>
 #include <futex.h>
@@ -275,7 +276,7 @@ typedef struct _SystemHandleEvent {
     _Atomic(int)               ActiveEvents;
     struct _SystemHandleEvent* Link;
     UUId_t                     Handle;
-    int                        Context;
+    void*                      Context;
     Flags_t                    Configuration;
 } SystemHandleEvent_t;
 
@@ -341,7 +342,7 @@ ControlHandleSet(
     _In_ int     Operation,
     _In_ UUId_t  Handle,
     _In_ Flags_t Flags,
-    _In_ int     Context)
+    _In_ void*   Context)
 {
     SystemHandle_t*           Instance;
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
@@ -431,15 +432,16 @@ ControlHandleSet(
 
 OsStatus_t
 WaitForHandleSet(
-    _In_ UUId_t           Handle,
-    _In_ struct io_event* Events,
-    _In_ int              MaxEvents,
-    _In_ size_t           Timeout)
+    _In_  UUId_t          Handle,
+    _In_  handle_event_t* Events,
+    _In_  int             MaxEvents,
+    _In_  size_t          Timeout,
+    _Out_ int*            NumberOfEventsOut)
 {
-    SystemHandleSet_t*    Set = LookupHandle(Handle);
-    struct io_event*      Event = Events;
-    SystemHandleEvent_t*  Head;
-    int                   NumberOfEvents;
+    SystemHandleSet_t*   Set = LookupHandle(Handle);
+    handle_event_t*      Event = Events;
+    SystemHandleEvent_t* Head;
+    int                  NumberOfEvents;
     
     if (!Set) {
         return OsDoesNotExist;
@@ -458,8 +460,9 @@ WaitForHandleSet(
     Head = (SystemHandleEvent_t*)CollectionSplice(&Set->Events, NumberOfEvents);
     
     while (Head) {
-        Event->iod    = Head->Context;
-        Event->events = atomic_exchange(&Head->ActiveEvents, 0);
+        Event->handle  = Head->Handle;
+        Event->events  = atomic_exchange(&Head->ActiveEvents, 0);
+        Event->context = Head->Context;
         
         // Handle level triggered here, by adding them back to ready list
         // TODO: is this behaviour correct?
@@ -470,6 +473,7 @@ WaitForHandleSet(
         Head = (SystemHandleEvent_t*)CollectionNext(&Head->Header);
         Event++;
     }
+    *NumberOfEventsOut = NumberOfEvents;
     return OsSuccess;
 }
 

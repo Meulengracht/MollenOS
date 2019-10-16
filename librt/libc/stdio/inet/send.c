@@ -113,7 +113,7 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
         numbytes  += byte_count;
     }
     streambuffer_write_packet_end(stream, base, avail_len);
-    stdio_handle_activity(handle, IOEVTIN);
+    stdio_handle_activity(handle, IOEVTOUT);
     return numbytes;
 }
 

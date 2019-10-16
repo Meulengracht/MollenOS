@@ -26,54 +26,62 @@
 #include <ddk/handle.h>
 
 OsStatus_t
-HandleCreate(
-    _Out_ UUId_t* HandleOut)
+handle_create(
+    _Out_ UUId_t* handle_out)
 {
-    if (!HandleOut) {
+    if (!handle_out) {
         return OsInvalidParameters;
     }
-    return Syscall_CreateHandle(HandleOut);
+    return Syscall_CreateHandle(handle_out);
 }
 
 OsStatus_t
-HandleSetCreate(
-    _In_  Flags_t Flags,
-    _Out_ UUId_t* HandleOut)
+handle_destroy(
+    _In_ UUId_t handle)
 {
-    if (!HandleOut) {
+    return Syscall_DestroyHandle(handle);
+}
+
+OsStatus_t
+handle_set_create(
+    _In_  Flags_t flags,
+    _Out_ UUId_t* handle_out)
+{
+    if (!handle_out) {
         return OsInvalidParameters;
     }
-    return Syscall_CreateHandleSet(Flags, HandleOut);
+    return Syscall_CreateHandleSet(flags, handle_out);
 }
 
 OsStatus_t
-HandleSetControl(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags,
-    _In_ int     Context)
+handle_set_ctrl(
+    _In_ UUId_t  set_handle,
+    _In_ int     operation,
+    _In_ UUId_t  handle,
+    _In_ Flags_t flags,
+    _In_ void*   context)
 {
-    return Syscall_ControlHandleSet(SetHandle, Operation, Handle, Flags, Context);
+    return Syscall_ControlHandleSet(set_handle, operation, handle, flags, context);
 }
 
 OsStatus_t
-HandleSetListen(
-    _In_ UUId_t           Handle,
-    _In_ struct io_event* Events,
-    _In_ int              MaxEvents,
-    _In_ size_t           Timeout)
+handle_set_wait(
+    _In_  UUId_t          handle,
+    _In_  handle_event_t* events,
+    _In_  int             max_events,
+    _In_  size_t          timeout,
+    _Out_ int*            num_events)
 {
-    if (!Events) {
+    if (!events || !num_events) {
         return OsInvalidParameters;
     }
-    return Syscall_ListenHandleSet(Handle, Events, MaxEvents, Timeout);
+    return Syscall_ListenHandleSet(handle, events, max_events, timeout, num_events);
 }
 
 OsStatus_t
-HandleSetActivity(
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags)
+handle_set_activity(
+    _In_ UUId_t  handle,
+    _In_ Flags_t flags)
 {
-    return Syscall_HandleSetActivity(Handle, Flags);
+    return Syscall_HandleSetActivity(handle, flags);
 }

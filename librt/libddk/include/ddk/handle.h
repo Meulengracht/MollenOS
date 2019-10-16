@@ -27,68 +27,81 @@
 
 #include <ddk/ddkdefs.h>
 
-struct io_event;
+typedef struct handle_event {
+    UUId_t  handle;
+    Flags_t events;
+    void*   context;
+} handle_event_t;
 
 /**
- * HandleCreate
+ * handle_create
  * * Allocates a new handle for a system resource with a reference of 1.
  */
 DDKDECL(OsStatus_t,
-HandleCreate(
-    _Out_ UUId_t* HandleOut));
+handle_create(
+    _Out_ UUId_t* handle_out));
 
 /**
- * HandleSetCreate
+ * handle_destroy
+ * * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
+ */
+DDKDECL(OsStatus_t,
+handle_destroy(
+    _In_ UUId_t handle));
+
+/**
+ * handle_set_create
  * * Creates a new handle set that can be used for asynchronus events.
- * @param Flags [In] Creation flags that configure the new handle set behaviour. 
+ * @param flags [In] Creation flags that configure the new handle set behaviour. 
  */
 DDKDECL(OsStatus_t,
-HandleSetCreate(
-    _In_  Flags_t Flags,
-    _Out_ UUId_t* HandleOut));
+handle_set_create(
+    _In_  Flags_t flags,
+    _Out_ UUId_t* handle_out));
 
 /**
- * HandleSetControl
+ * handle_set_ctrl
  * * Add, remove or modify a handle in the set.
- * @param SetHandle [In] The handle of the handle set.
- * @param Operation [In] The operation that should be performed.
- * @param Handle    [In] The handle that should be operated on.
- * @param Flags     [In] The flags that should be configured with the handle.
+ * @param set_handle [In] The handle of the handle set.
+ * @param operation  [In] The operation that should be performed.
+ * @param handle     [In] The handle that should be operated on.
+ * @param flags      [In] The flags that should be configured with the handle.
  */
 DDKDECL(OsStatus_t,
-HandleSetControl(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags,
-    _In_ int     Context));
+handle_set_ctrl(
+    _In_ UUId_t  set_handle,
+    _In_ int     operation,
+    _In_ UUId_t  handle,
+    _In_ Flags_t flags,
+    _In_ void*   context));
 
 /**
- * HandleSetListen
+ * handle_set_wait
  * * Waits for the given handle set and stores the events that occurred in the
  * * provided array.
- * @param Handle    [In]
- * @param Events    [In]
- * @param MaxEvents [In]
- * @param Timeout   [In]
+ * @param handle     [In]
+ * @param events     [In]
+ * @param max_events [In]
+ * @param timeout    [In]
  */
 DDKDECL(OsStatus_t,
-HandleSetListen(
-    _In_ UUId_t           Handle,
-    _In_ struct io_event* Events,
-    _In_ int              MaxEvents,
-    _In_ size_t           Timeout));
+handle_set_wait(
+    _In_  UUId_t          handle,
+    _In_  handle_event_t* events,
+    _In_  int             max_events,
+    _In_  size_t          timeout,
+    _Out_ int*            num_events));
 
 /** 
- * HandleSetActivity
+ * handle_set_activity
  * * Marks a handle that an event has been completed. If the handle has any
  * * sets registered they will be notified.
- * @param Handle [In] The handle upon which an event has taken place
- * @param Flags  [In] The event flags which denote which kind of event.
+ * @param handle [In] The handle upon which an event has taken place
+ * @param flags  [In] The event flags which denote which kind of event.
  */
 DDKDECL(OsStatus_t,
-HandleSetActivity(
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags));
+handle_set_activity(
+    _In_ UUId_t  handle,
+    _In_ Flags_t flags));
 
 #endif //!__DDK_HANDLE_H__

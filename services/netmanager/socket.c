@@ -23,91 +23,124 @@
  *   and bluetooth to name the popular ones.
  */
 
+#include <ddk/handle.h>
+#include "domains/domains.h"
 #include "socket.h"
+#include <stdlib.h>
 
-/////////////////////////////////////////////////////
-// APPLICATIONS => NetworkService
-// The communication between applications and the network service
-// consists of the use of streambuffers that are essentially a little more
-// complex ringbuffers. They support some advanced use cases to fit the 
-// inet/socket.h interface. This also means they are pretty useless for anything
-// else than socket communication. Applications both read and write from/to the
-// streambuffers, which are read and written by the network service.
+static OsStatus_t
+CreateSocketPipe(
+    _In_ SocketPipe_t* Pipe)
+{
+    struct dma_buffer_info Buffer;
+    OsStatus_t             Status;
+    
+    Buffer.name     = "socket_buffer";
+    Buffer.length   = SOCKET_DEFAULT_BUFFER_SIZE;
+    Buffer.capacity = SOCKET_SYSMAX_BUFFER_SIZE; // Should be from global settings
+    Buffer.flags    = 0;
+    
+    Status = dma_create(&Buffer, &Pipe->DmaAttachment);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    Pipe->Stream = Pipe->DmaAttachment.buffer;
+    return OsSuccess;
+}
 
-/////////////////////////////////////////////////////
-// NetworkService => DRIVERS
-// The communication between the drivers and the network service are a little more
-// dump. The NetworkService allocates two memory pools per driver as shared buffers.
-// The first one, the send buffer, is then filled with data received from applications.
-// The send buffer is split up into frames of N size (determined by max-packet
-// from the driver), and then queued up by the NetworkService.
-// The second one, the recv buffer, is filled with data received from the driver.
-// The recv buffer is split up into frames of N size (determined by max-packet 
-// from the driver), and queued up for listening.
+static void
+DestroySocketPipe(
+    _In_ SocketPipe_t* Pipe)
+{
+    (void)dma_attachment_unmap(&Pipe->DmaAttachment);
+    (void)dma_detach(&Pipe->DmaAttachment);
+}
 
 OsStatus_t
 SocketCreateImpl(
-    _In_  UUId_t  ProcessHandle,
-    _In_  int     Domain,
-    _In_  int     Type,
-    _In_  int     Protocol,
-    _Out_ UUId_t* HandleOut,
-    _Out_ UUId_t* SendBufferHandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut)
+    _In_  int        Domain,
+    _In_  int        Type,
+    _In_  int        Protocol,
+    _Out_ Socket_t** SocketOut)
 {
-    return OsNotSupported;
+    struct sockaddr_storage Address;
+    Socket_t*               Socket;
+    OsStatus_t              Status;
+    
+    Socket = malloc(sizeof(Socket_t));
+    if (!Socket) {
+        return OsOutOfMemory;
+    }
+    
+    memset(Socket, 0, sizeof(Socket_t));
+    Socket->PendingPackets      = ATOMIC_VAR_INIT(0);
+    Socket->Domain              = Domain;
+    Socket->Type                = Type;
+    Socket->Protocol            = Protocol;
+    
+    Status = handle_create(&Socket->Header.Key.Value.Id);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    Status = DomainCreate(Domain, &Socket->Domain);
+    
+    Status = DomainAllocateAddress(Socket);
+    
+    Status = CreateSocketPipe(&Socket->Receive);
+    if (Status != OsSuccess) {
+        free(Socket);
+        return Status;
+    }
+    
+    Status = CreateSocketPipe(&Socket->Send);
+    if (Status != OsSuccess) {
+        DestroySocketPipe(&Socket->Receive);
+        free(Socket);
+        return Status;
+    }
+    
+    *SocketOut = Socket;
+    return OsSuccess;
 }
 
 OsStatus_t
 SocketShutdownImpl(
-    _In_ UUId_t ProcessHandle,
-    _In_ UUId_t Handle,
-    _In_ int    Options)
+    _In_ Socket_t* Socket,
+    _In_ int       Options)
 {
+    if (Options & SOCKET_SHUTDOWN_DESTROY) {
+        DestroySocketPipe(&Socket->Receive);
+        DestroySocketPipe(&Socket->Send);
+        free(Socket);
+        return OsSuccess;
+    }
+    else {
+        if (Options & SOCKET_SHUTDOWN_SEND) {
+            // Disable pipe
+            // TODO
+        }
+        
+        if (Options & SOCKET_SHUTDOWN_RECV) {
+            // Disable pipe
+            // TODO
+        }
+    }
     return OsNotSupported;
 }
-    
-OsStatus_t
-SocketBindImpl(
-    _In_ UUId_t                 ProcessHandle,
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address)
-{
-    return OsNotSupported;
-}
-
-OsStatus_t
-SocketConnectImpl(
-    _In_ UUId_t                 ProcessHandle,
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address)
-{
-    return OsNotSupported;
-}
-
-OsStatus_t
-SocketAcceptImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address)
-{
-    return OsNotSupported;
-}
-
 
 OsStatus_t
 SocketListenImpl(
-    _In_ UUId_t ProcessHandle,
-    _In_ UUId_t Handle,
-    _In_ int    ConnectionCount)
+    _In_ Socket_t* Socket,
+    _In_ int       ConnectionCount)
 {
     return OsNotSupported;
 }
 
 OsStatus_t
 SetSocketOptionImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
+    _In_ Socket_t*        Socket,
     _In_ int              Protocol,
     _In_ unsigned int     Option,
     _In_ const void*      Data,
@@ -118,8 +151,7 @@ SetSocketOptionImpl(
     
 OsStatus_t
 GetSocketOptionImpl(
-    _In_  UUId_t           ProcessHandle,
-    _In_  UUId_t           Handle,
+    _In_ Socket_t*         Socket,
     _In_  int              Protocol,
     _In_  unsigned int     Option,
     _In_  void*            Data,
@@ -130,10 +162,63 @@ GetSocketOptionImpl(
 
 OsStatus_t
 GetSocketAddressImpl(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
+    _In_ Socket_t*        Socket,
     _In_ int              Source,
     _In_ struct sockaddr* Address)
 {
     return OsNotSupported;
+}
+
+int GetSocketDomain(
+    _In_ Socket_t* Socket)
+{
+    
+}
+
+int GetSocketType(
+    _In_ Socket_t* Socket)
+{
+    
+}
+
+streambuffer_t*
+GetSocketSendStream(
+    _In_ Socket_t* Socket)
+{
+    
+}
+
+streambuffer_t*
+GetSocketRecvStream(
+    _In_ Socket_t* Socket)
+{
+    
+}
+
+OsStatus_t
+SocketSetQueuedPacket(
+    _In_ Socket_t*   Socket,
+    _In_ const void* Payload,
+    _In_ size_t      Length)
+{
+    Socket->QueuedPacket.Length = Length;
+    Socket->QueuedPacket.Data   = malloc();
+    if (Length) {
+        memcpy(Socket->QueuedPacket.Data, Payload, Length);
+    }
+    return OsSuccess;
+}
+
+size_t
+SocketGetQueuedPacket(
+    _In_ Socket_t* Socket,
+    _In_ void*     Buffer,
+    _In_ size_t    MaxLength)
+{
+    if (Socket && Socket->QueuedPacket.Length) {
+        memcpy(Buffer, Socket->QueuedPacket.Buffer, 
+            MIN(MaxLength, Socket->QueuedPacket.Length));
+        return Socket->QueuedPacket.Length;
+    }
+    return 0;
 }

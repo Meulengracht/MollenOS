@@ -29,7 +29,7 @@
 #include <ds/collection.h>
 #include <ds/rbtree.h>
 
-struct io_event;
+typedef struct handle_event handle_event_t;
 
 enum SystemHandleFlags {
     HandleCleanup = 0x1
@@ -95,23 +95,25 @@ ControlHandleSet(
     _In_ int     Operation,
     _In_ UUId_t  Handle,
     _In_ Flags_t Flags,
-    _In_ int     Context);
+    _In_ void*   Context);
 
 /**
  * WaitForHandleSet
  * * Waits for the given handle set and stores the events that occurred in the
  * * provided array.
- * @param Handle    [In]
- * @param Events    [In]
- * @param MaxEvents [In]
- * @param Timeout   [In]
+ * @param Handle            [In]
+ * @param Events            [In]
+ * @param MaxEvents         [In]
+ * @param Timeout           [In]
+ * @param NumberOfEventsOut [Out]
  */
 KERNELAPI OsStatus_t KERNELABI
 WaitForHandleSet(
-    _In_ UUId_t           Handle,
-    _In_ struct io_event* Events,
-    _In_ int              MaxEvents,
-    _In_ size_t           Timeout);
+    _In_  UUId_t          Handle,
+    _In_  handle_event_t* Events,
+    _In_  int             MaxEvents,
+    _In_  size_t          Timeout,
+    _Out_ int*            NumberOfEventsOut);
 
 /** 
  * MarkHandle
