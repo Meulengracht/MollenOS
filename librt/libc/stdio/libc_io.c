@@ -344,7 +344,7 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     }
 
     handle = (stdio_handle_t*)malloc(sizeof(stdio_handle_t));
-    if (handle) {
+    if (!handle) {
         _set_errno(ENOMEM);
         return -1;
     }
@@ -364,6 +364,8 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     key.Value.Integer = fd;
     CollectionAppend(&stdio_objects, CollectionCreateNode(key, handle));
     TRACE(" >> success %i", fd);
+    
+    *handle_out = handle;
     return EOK;
 }
 

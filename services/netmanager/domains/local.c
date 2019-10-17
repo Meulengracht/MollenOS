@@ -378,6 +378,10 @@ DomainLocalConnect(
         return OsDoesNotExist;
     }
     
+    if (!Target->Configuration.Passive) {
+        return OsInvalidPermissions;
+    }
+    
     // Create a connection request on the socket
     mtx_lock(&Socket->Domain->SyncObject);
     Request = (AcceptRequest_t*)CollectionPopFront(&Socket->Domain->AcceptRequests);

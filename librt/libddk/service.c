@@ -21,11 +21,13 @@
  * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <ddk/services/service.h>
 #include <ddk/device.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <assert.h>
 
@@ -74,6 +76,7 @@ OsStatus_t
 RegisterPath(
     _In_ const char* Path)
 {
+    TRACE("RegisterPath(%s) => %u", Path, thrd_current());
     if (!Path) {
         return OsInvalidParameters;
     }

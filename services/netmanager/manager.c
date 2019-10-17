@@ -24,6 +24,7 @@
  */
 #define __TRACE
 
+#include <assert.h>
 #include <ddk/handle.h>
 #include <ddk/services/net.h>
 #include <ddk/utils.h>
@@ -142,51 +143,19 @@ NetworkMonitor(
     return 0;
 }
 
-static OsStatus_t
-CreateLocalSocket(const char* Address)
-{
-    struct sockaddr_lc LcAddress;
-    OsStatus_t         Status;
-    UUId_t             Handle;
-    
-    LcAddress.slc_len    = sizeof(struct sockaddr_lc);
-    LcAddress.slc_family = AF_LOCAL;
-    memcpy(&LcAddress.slc_addr[0], Address, strlen(Address) + 1);
-    
-    Status = NetworkManagerSocketCreate(UUID_INVALID, AF_LOCAL, 
-        SOCK_DGRAM, 0, &Handle, NULL, NULL);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    
-    Status = NetworkManagerSocketBind(UUID_INVALID, Handle, 
-        (const struct sockaddr*)&LcAddress);
-    // Any options we should set?
-    return Status;
-}
-
 OsStatus_t
 NetworkManagerInitialize(void)
 {
     OsStatus_t Status;
     int        Code;
+    TRACE("NetworkManagerInitialize()");
     
     // Initialize the socket resources before creating the default
     // system sockets.
     RBTreeConstruct(&Sockets, KeyId);
     Status = handle_set_create(0, &SocketSet);
     if (Status != OsSuccess) {
-        return Status;
-    }
-    
-    // Create the default local sockets, which are system mandatory
-    Status = CreateLocalSocket(LCADDR_INPUT);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    
-    Status = CreateLocalSocket(LCADDR_WM);
-    if (Status != OsSuccess) {
+        ERROR("Failed to create socket handle set");
         return Status;
     }
     
@@ -211,13 +180,16 @@ NetworkManagerSocketCreate(
 {
     Socket_t*  Socket;
     OsStatus_t Status;
+    TRACE("NetworkManagerSocketCreate()");
     
     if (Domain >= AF_MAX || Domain < 0) {
+        WARNING("Invalid Domain type specified %i", Domain);
         return OsInvalidParameters;
     }
     
     Status = SocketCreateImpl(Domain, Type, Protocol, &Socket);
     if (Status != OsSuccess) {
+        WARNING("SocketCreateImpl failed with %u", Status);
         return Status;
     }
     
@@ -226,6 +198,7 @@ NetworkManagerSocketCreate(
         Socket->Header.Key.Value.Id, IOEVTIN | IOEVTOUT | IOEVTET, NULL);
     if (Status != OsSuccess) {
         // what the fuck TODO
+        assert(0);
     }
     
     RBTreeAppend(&Sockets, &Socket->Header);
@@ -256,6 +229,7 @@ NetworkManagerSocketShutdown(
             Socket->Header.Key.Value.Id, 0, NULL);
         if (Status != OsSuccess) {
             // what the fuck TODO
+            assert(0);
         }
     }
     return SocketShutdownImpl(Socket, Options);

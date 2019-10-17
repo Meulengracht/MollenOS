@@ -20,8 +20,10 @@
  * Standard C Support
  * - Standard Socket IO Implementation
  */
+//#define __TRACE
 
 #include <ddk/services/net.h>
+#include <ddk/utils.h>
 #include <internal/_io.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
@@ -32,6 +34,7 @@ int socket(int domain, int type, int protocol)
     OsStatus_t      status;
     UUId_t          handle;
     int             fd;
+    TRACE("... [socket] creating");
     
     fd = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &io_object);
     if (fd == -1) {
@@ -42,6 +45,7 @@ int socket(int domain, int type, int protocol)
     // kernel assisted functionality to support a centralized storage of
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
+    TRACE("... [socket] remote create");
     status = CreateSocket(domain, type, protocol, &handle,
         &io_object->object.data.socket.send_buffer.handle, 
         &io_object->object.data.socket.recv_buffer.handle);
@@ -53,6 +57,7 @@ int socket(int domain, int type, int protocol)
     
     // We have been given a recieve queue that has been mapped into our
     // own address space for quick reading when bytes available.
+    TRACE("... [socket] initializing libc structures");
     stdio_handle_set_handle(io_object, handle);
     stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
     
@@ -62,6 +67,7 @@ int socket(int domain, int type, int protocol)
     
     // Setup the dma buffers that we have to inherit, just reuse the inherit
     // stdio method, since the actions are identical.
+    TRACE("... [socket] mapping pipes");
     status = io_object->ops.inherit(io_object);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
@@ -69,6 +75,6 @@ int socket(int domain, int type, int protocol)
         stdio_handle_destroy(io_object, 0);
         return -1;
     }
-    
+    TRACE("... [socket] done");
     return fd;
 }

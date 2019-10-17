@@ -38,6 +38,7 @@ CreateSocketPipe(
 {
     struct dma_buffer_info Buffer;
     OsStatus_t             Status;
+    TRACE("CreateSocketPipe()");
     
     Buffer.name     = "socket_buffer";
     Buffer.length   = SOCKET_DEFAULT_BUFFER_SIZE;
@@ -78,6 +79,7 @@ SocketCreateImpl(
 {
     Socket_t*  Socket;
     OsStatus_t Status;
+    TRACE("SocketCreateImpl()");
     
     Socket = malloc(sizeof(Socket_t));
     if (!Socket) {
@@ -93,11 +95,13 @@ SocketCreateImpl(
     
     Status = handle_create(&Socket->Header.Key.Value.Id);
     if (Status != OsSuccess) {
+        ERROR("Failed to create socket handle");
         return Status;
     }
     
     Status = DomainCreate(Domain, &Socket->Domain);
     if (Status != OsSuccess) {
+        ERROR("Failed to initialize the socket domain");
         (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
         return Status;
@@ -105,6 +109,7 @@ SocketCreateImpl(
     
     Status = DomainAllocateAddress(Socket);
     if (Status != OsSuccess) {
+        ERROR("Failed to initialize the socket domain address");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
@@ -112,6 +117,7 @@ SocketCreateImpl(
     
     Status = CreateSocketPipe(&Socket->Receive);
     if (Status != OsSuccess) {
+        ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
@@ -120,6 +126,7 @@ SocketCreateImpl(
     
     Status = CreateSocketPipe(&Socket->Send);
     if (Status != OsSuccess) {
+        ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
         (void)handle_destroy(Socket->Header.Key.Value.Id);

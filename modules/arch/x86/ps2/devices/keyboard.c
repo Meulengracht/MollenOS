@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <errno.h>
 #include <io.h>
 #include "keyboard.h"
 #include <os/input.h>
@@ -259,6 +260,7 @@ PS2KeyboardInitialize(
 {
     struct sockaddr_lc* LcAddress;
     PS2Port_t*          Instance = &Controller->Ports[Port];
+    TRACE("... [ps2] [keyboard] initialize");
 
     // Initialize keyboard defaults
     PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
@@ -277,7 +279,11 @@ PS2KeyboardInitialize(
     }
     
     // Open up the input socket so we can send input data to the OS.
+    TRACE("... [ps2] [keyboard] [initialize] create_socket");
     Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    if (Instance->IoSocket == -1) {
+        ERROR("... [ps2] [keyboardd] [initialize] create_socket failed %i", errno);
+    }
     LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
     LcAddress->slc_len = sizeof(struct sockaddr_lc);
     LcAddress->slc_family = AF_LOCAL;

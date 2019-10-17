@@ -24,6 +24,7 @@
 #include <ds/array.h>
 #include <string.h>
 
+// TODO: this is not working i think
 static OsStatus_t
 GrowCapacity(Array_t* Array)
 {
@@ -57,6 +58,7 @@ OsStatus_t ArrayCreate(Flags_t Flags, size_t Capacity, Array_t** ArrayOut)
     }
     
     memset(Array, 0, sizeof(Array_t));
+    memset(ArrayElements, 0, Capacity * sizeof(void*));
     atomic_store(&Array->Elements, (void**)ArrayElements);
     Array->Flags    = Flags;
     Array->Capacity = Capacity;
@@ -117,6 +119,8 @@ void ArrayRemove(Array_t* Array, UUId_t Index)
     Elements = atomic_load(&Array->Elements);
     
     Elements[Index] = NULL;
-    Array->LookAt   = Index;
+    if (Index < Array->LookAt) {
+        Array->LookAt = Index;
+    }
     dsunlock(&Array->SyncObject);
 }

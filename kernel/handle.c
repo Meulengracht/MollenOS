@@ -87,6 +87,7 @@ CreateHandle(
 {
     SystemHandle_t* Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
     UUId_t          Id;
+    TRACE("CreateHandle()");
     
     if (!Handle) {
         return UUID_INVALID;
@@ -103,6 +104,7 @@ CreateHandle(
     if (Id == UUID_INVALID) {
         kfree(Handle);
     }
+    TRACE("... id %u", Id);
     return Id;
 }
 

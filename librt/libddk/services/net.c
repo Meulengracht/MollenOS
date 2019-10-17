@@ -21,32 +21,14 @@
  * - This header describes the base networking-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 #include <ddk/services/net.h>
 #include <ddk/services/service.h>
+#include <ddk/utils.h>
 #include <os/ipc.h>
 #include <os/services/process.h>
 #include <string.h>
-
-/////////////////////////////////////////////////////
-// APPLICATIONS => NetworkService
-// The communication between applications and the network service
-// consists of the use of streambuffers that are essentially a little more
-// complex ringbuffers. They support some advanced use cases to fit the 
-// inet/socket.h interface. This also means they are pretty useless for anything
-// else than socket communication. Applications both read and write from/to the
-// streambuffers, which are read and written by the network service.
-
-/////////////////////////////////////////////////////
-// NetworkService => DRIVERS
-// The communication between the drivers and the network service are a little more
-// dump. The NetworkService allocates two memory pools per driver as shared buffers.
-// The first one, the send buffer, is then filled with data received from applications.
-// The send buffer is split up into frames of N size (determined by max-packet
-// from the driver), and then queued up by the NetworkService.
-// The second one, the recv buffer, is filled with data received from the driver.
-// The recv buffer is split up into frames of N size (determined by max-packet 
-// from the driver), and queued up for listening.
 
 OsStatus_t
 CreateSocket(
@@ -60,6 +42,7 @@ CreateSocket(
 	IpcMessage_t               Request;
 	SocketDescriptorPackage_t* Package;
 	OsStatus_t                 Status;
+	TRACE("... [service] create_socket");
 	
 	IpcInitialize(&Request);
 	IPC_SET_TYPED(&Request, 0, __NETMANAGER_CREATE_SOCKET);
@@ -70,6 +53,7 @@ CreateSocket(
 	
 	Status = IpcInvoke(GetNetService(), &Request, 0, 0, (void**)&Package);
 	if (Status != OsSuccess) {
+	    TRACE("... [service] [create_socket] failed");
 	    return Status;
 	}
 	

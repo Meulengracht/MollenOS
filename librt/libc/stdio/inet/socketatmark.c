@@ -28,5 +28,6 @@
 
 int sockatmark(int what)
 {
+    _set_errno(ENOSYS);
     return -1;
 }
