@@ -75,13 +75,12 @@ DomainDestroy(
 
 OsStatus_t
 DomainAllocateAddress(
-    _In_ Socket_t*        Socket, 
-    _In_ struct sockaddr* Address)
+    _In_ Socket_t* Socket)
 {
     if (!Socket->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.AddressAllocate(Socket, Address);
+    return Socket->Domain->Ops.AddressAllocate(Socket);
 }
 
 OsStatus_t
@@ -107,24 +106,31 @@ DomainFreeAddress(
     
 OsStatus_t
 DomainConnect(
+    _In_ thrd_t                 Waiter,
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
 {
     if (!Socket->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.Connect(Socket, Address);
+    
+    // If the socket is passive, then we don't allow active actions
+    // like connecting to other sockets.
+    if (Socket->Configuration.Passive) {
+        return OsNotSupported;
+    }
+    return Socket->Domain->Ops.Connect(Waiter, Socket, Address);
 }
 
 OsStatus_t
 DomainAcceptConnection(
-    _In_ Socket_t*        Socket, 
-    _In_ struct sockaddr* Address)
+    _In_ thrd_t           Waiter,
+    _In_ Socket_t*        Socket)
 {
     if (!Socket->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.Accept(Socket, Address);
+    return Socket->Domain->Ops.Accept(Waiter, Socket);
 }
 
 OsStatus_t
@@ -145,4 +151,16 @@ DomainReceive(
         return OsInvalidParameters;
     }
     return Socket->Domain->Ops.Receive(Socket);
+}
+
+OsStatus_t
+DomainGetAddress(
+    _In_ Socket_t*        Socket,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address)
+{
+    if (!Socket->Domain) {
+        return OsInvalidParameters;
+    }
+    return Socket->Domain->Ops.GetAddress(Socket, Source, Address);
 }

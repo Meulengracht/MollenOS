@@ -36,6 +36,13 @@
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
 #define SOCKET_SYSMAX_BUFFER_SIZE  (256 * 4096)
 
+typedef struct SocketConfiguration {
+    unsigned int Blocking : 1;
+    unsigned int Passive  : 1;
+    unsigned int Unused   : 31;
+    int          Backlog;
+} SocketConfiguration_t;
+
 typedef struct QueuedPacket {
     size_t Length;
     void*  Data;
@@ -47,24 +54,19 @@ typedef struct SocketPipe {
 } SocketPipe_t;
 
 typedef struct Socket {
-    RBTreeItem_t      Header;
-    _Atomic(int)      PendingPackets;
-    int               DomainType;
-    int               Type;
-    int               Protocol;
-    Flags_t           Flags;
+    RBTreeItem_t          Header;
+    _Atomic(int)          PendingPackets;
+    int                   DomainType;
+    int                   Type;
+    int                   Protocol;
+    SocketConfiguration_t Configuration;
     
-    //NetworkAdapter_t* Adapter;
-    SocketDomain_t*   Domain;
-    SocketPipe_t      Send;
-    SocketPipe_t      Receive;
-    QueuedPacket_t    QueuedPacket;
-    Collection_t      ConnectionRequests;
+    //NetworkAdapter_t*     Adapter;
+    SocketDomain_t*       Domain;
+    SocketPipe_t          Send;
+    SocketPipe_t          Receive;
+    QueuedPacket_t        QueuedPacket;
 } Socket_t;
-
-typedef struct ConnectionRequest {
-    struct sockaddr_storage SourceAddress;
-} ConnectionRequest_t;
 
 /* SocketCreateImpl
  * Creates and initializes a new socket of default options. The socket
@@ -115,14 +117,6 @@ GetSocketOptionImpl(
     _In_  void*            Data,
     _Out_ socklen_t*       DataLengthOut);
 
-/* GetSocketAddressImpl
- * Retrieves the address of the given socket handle. */
-OsStatus_t
-GetSocketAddressImpl(
-    _In_ Socket_t*        Socket,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address);
-
 streambuffer_t*
 GetSocketSendStream(
     _In_ Socket_t* Socket);
@@ -140,7 +134,6 @@ SocketSetQueuedPacket(
 size_t
 SocketGetQueuedPacket(
     _In_ Socket_t* Socket,
-    _In_ void*     Buffer,
-    _In_ size_t    MaxLength);
+    _In_ void**    Buffer);
 
 #endif //!__NETMANAGER_SOCKET_H__

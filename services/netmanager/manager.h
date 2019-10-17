@@ -61,14 +61,15 @@ NetworkManagerSocketBind(
 OsStatus_t
 NetworkManagerSocketConnect(
     _In_ UUId_t                 ProcessHandle,
+    _In_ thrd_t                 Waiter,
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address);
 
 OsStatus_t
 NetworkManagerSocketAccept(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address);
+    _In_ UUId_t ProcessHandle,
+    _In_ thrd_t Waiter,
+    _In_ UUId_t Handle);
 
 OsStatus_t
 NetworkManagerSocketListen(

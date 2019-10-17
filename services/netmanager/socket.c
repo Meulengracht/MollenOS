@@ -22,11 +22,15 @@
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
+#define __TRACE
 
 #include <ddk/handle.h>
+#include <ddk/services/net.h>
+#include <ddk/utils.h>
 #include "domains/domains.h"
 #include "socket.h"
 #include <stdlib.h>
+#include <string.h>
 
 static OsStatus_t
 CreateSocketPipe(
@@ -57,6 +61,14 @@ DestroySocketPipe(
     (void)dma_detach(&Pipe->DmaAttachment);
 }
 
+static void
+SetDefaultConfiguration(
+    _In_ SocketConfiguration_t* Configuration)
+{
+    // Only set non-zero members
+    Configuration->Blocking = 1;
+}
+
 OsStatus_t
 SocketCreateImpl(
     _In_  int        Domain,
@@ -64,9 +76,8 @@ SocketCreateImpl(
     _In_  int        Protocol,
     _Out_ Socket_t** SocketOut)
 {
-    struct sockaddr_storage Address;
-    Socket_t*               Socket;
-    OsStatus_t              Status;
+    Socket_t*  Socket;
+    OsStatus_t Status;
     
     Socket = malloc(sizeof(Socket_t));
     if (!Socket) {
@@ -75,9 +86,10 @@ SocketCreateImpl(
     
     memset(Socket, 0, sizeof(Socket_t));
     Socket->PendingPackets      = ATOMIC_VAR_INIT(0);
-    Socket->Domain              = Domain;
+    Socket->DomainType          = Domain;
     Socket->Type                = Type;
     Socket->Protocol            = Protocol;
+    SetDefaultConfiguration(&Socket->Configuration);
     
     Status = handle_create(&Socket->Header.Key.Value.Id);
     if (Status != OsSuccess) {
@@ -85,18 +97,32 @@ SocketCreateImpl(
     }
     
     Status = DomainCreate(Domain, &Socket->Domain);
+    if (Status != OsSuccess) {
+        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        free(Socket);
+        return Status;
+    }
     
     Status = DomainAllocateAddress(Socket);
+    if (Status != OsSuccess) {
+        DomainDestroy(Socket->Domain);
+        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        free(Socket);
+    }
     
     Status = CreateSocketPipe(&Socket->Receive);
     if (Status != OsSuccess) {
+        DomainDestroy(Socket->Domain);
+        (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
         return Status;
     }
     
     Status = CreateSocketPipe(&Socket->Send);
     if (Status != OsSuccess) {
+        DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
+        (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
         return Status;
     }
@@ -111,8 +137,10 @@ SocketShutdownImpl(
     _In_ int       Options)
 {
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
+        DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
         DestroySocketPipe(&Socket->Send);
+        (void)handle_destroy(Socket->Header.Key.Value.Id);
         free(Socket);
         return OsSuccess;
     }
@@ -135,7 +163,13 @@ SocketListenImpl(
     _In_ Socket_t* Socket,
     _In_ int       ConnectionCount)
 {
-    return OsNotSupported;
+    if (ConnectionCount < 0) {
+        return OsInvalidParameters;
+    }
+    
+    Socket->Configuration.Passive = 1;
+    Socket->Configuration.Backlog = ConnectionCount;
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -160,39 +194,18 @@ GetSocketOptionImpl(
     return OsNotSupported;
 }
 
-OsStatus_t
-GetSocketAddressImpl(
-    _In_ Socket_t*        Socket,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address)
-{
-    return OsNotSupported;
-}
-
-int GetSocketDomain(
-    _In_ Socket_t* Socket)
-{
-    
-}
-
-int GetSocketType(
-    _In_ Socket_t* Socket)
-{
-    
-}
-
 streambuffer_t*
 GetSocketSendStream(
     _In_ Socket_t* Socket)
 {
-    
+    return (streambuffer_t*)Socket->Send.Stream;
 }
 
 streambuffer_t*
 GetSocketRecvStream(
     _In_ Socket_t* Socket)
 {
-    
+    return (streambuffer_t*)Socket->Receive.Stream;
 }
 
 OsStatus_t
@@ -202,23 +215,20 @@ SocketSetQueuedPacket(
     _In_ size_t      Length)
 {
     Socket->QueuedPacket.Length = Length;
-    Socket->QueuedPacket.Data   = malloc();
-    if (Length) {
-        memcpy(Socket->QueuedPacket.Data, Payload, Length);
-    }
+    Socket->QueuedPacket.Data   = (void*)Payload;
     return OsSuccess;
 }
 
 size_t
 SocketGetQueuedPacket(
     _In_ Socket_t* Socket,
-    _In_ void*     Buffer,
-    _In_ size_t    MaxLength)
+    _In_ void**    Buffer)
 {
-    if (Socket && Socket->QueuedPacket.Length) {
-        memcpy(Buffer, Socket->QueuedPacket.Buffer, 
-            MIN(MaxLength, Socket->QueuedPacket.Length));
-        return Socket->QueuedPacket.Length;
+    size_t Length = Socket->QueuedPacket.Length;
+    if (Length) {
+        *Buffer = (void*)Socket->QueuedPacket.Data;
+        Socket->QueuedPacket.Data   = NULL;
+        Socket->QueuedPacket.Length = 0;
     }
-    return 0;
+    return Length;
 }

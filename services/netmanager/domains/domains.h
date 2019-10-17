@@ -27,18 +27,20 @@
 #define __NETMANAGER_DOMAINS_H__
 
 #include <os/osdefs.h>
+#include <threads.h>
 
 struct sockaddr;
 typedef struct Socket Socket_t;
 typedef struct SocketDomain SocketDomain_t;
 
-typedef OsStatus_t (*DomainAllocateAddressFn)(Socket_t*, struct sockaddr*);
+typedef OsStatus_t (*DomainAllocateAddressFn)(Socket_t*);
 typedef void       (*DomainFreeAddressFn)(Socket_t*);
 typedef OsStatus_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainConnectFn)(Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainAcceptConnectionFn)(Socket_t*, struct sockaddr*);
+typedef OsStatus_t (*DomainConnectFn)(thrd_t, Socket_t*, const struct sockaddr*);
+typedef OsStatus_t (*DomainAcceptConnectionFn)(thrd_t, Socket_t*);
 typedef OsStatus_t (*DomainSendFn)(Socket_t*);
 typedef OsStatus_t (*DomainReceiveFn)(Socket_t*);
+typedef OsStatus_t (*DomainGetAddressFn)(Socket_t*, int, struct sockaddr*);
 typedef void       (*DomainDestroyFn)(SocketDomain_t*);
 
 typedef struct SocketDomainOps {
@@ -49,6 +51,7 @@ typedef struct SocketDomainOps {
     DomainAcceptConnectionFn Accept;
     DomainSendFn             Send;
     DomainReceiveFn          Receive;
+    DomainGetAddressFn       GetAddress;
     DomainDestroyFn          Destroy;
 } SocketDomainOps_t;
 
@@ -63,8 +66,7 @@ DomainDestroy(
 
 OsStatus_t
 DomainAllocateAddress(
-    _In_ Socket_t*        Socket, 
-    _In_ struct sockaddr* Address);
+    _In_ Socket_t* Socket);
 
 OsStatus_t
 DomainUpdateAddress(
@@ -77,13 +79,14 @@ DomainFreeAddress(
     
 OsStatus_t
 DomainConnect(
+    _In_ thrd_t                 Waiter,
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address);
 
 OsStatus_t
 DomainAcceptConnection(
-    _In_ Socket_t*        Socket, 
-    _In_ struct sockaddr* Address);
+    _In_ thrd_t           Waiter,
+    _In_ Socket_t*        Socket);
 
 OsStatus_t
 DomainSend(
@@ -92,5 +95,11 @@ DomainSend(
 OsStatus_t
 DomainReceive(
     _In_ Socket_t* Socket);
+
+OsStatus_t
+DomainGetAddress(
+    _In_ Socket_t*        Socket,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address);
 
 #endif //!__NETMANAGER_DOMAINS_H__

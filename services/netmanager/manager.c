@@ -37,6 +37,8 @@
 #include <threads.h>
 
 static RBTree_t Sockets;
+static UUId_t   SocketSet;
+static thrd_t   SocketMonitorHandle;
 
 /////////////////////////////////////////////////////
 // APPLICATIONS => NetworkService
@@ -85,8 +87,8 @@ static int
 SocketMonitor(
     _In_ void* Context)
 {
-    handle_event_t* Events;
     int             RunForever = 1;
+    handle_event_t* Events;
     int             EventCount;
     int             i;
     OsStatus_t      Status;
@@ -100,7 +102,7 @@ SocketMonitor(
     }
     
     while (RunForever) {
-        Status = handle_set_wait(UUID_INVALID, Events,  // TODO create handle set
+        Status = handle_set_wait(SocketSet, Events,
             NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, &EventCount);
         if (Status != OsSuccess) {
             ERROR("... [socket_monitor] WaitForHandleSet FAILED: %u", Status);
@@ -167,9 +169,15 @@ OsStatus_t
 NetworkManagerInitialize(void)
 {
     OsStatus_t Status;
+    int        Code;
     
-    // Initialize the tree of sockets
+    // Initialize the socket resources before creating the default
+    // system sockets.
     RBTreeConstruct(&Sockets, KeyId);
+    Status = handle_set_create(0, &SocketSet);
+    if (Status != OsSuccess) {
+        return Status;
+    }
     
     // Create the default local sockets, which are system mandatory
     Status = CreateLocalSocket(LCADDR_INPUT);
@@ -184,7 +192,10 @@ NetworkManagerInitialize(void)
     
     // Spawn the socket monitor thread, the network monitor threads are
     // only spawned once a network card is registered.
-    
+    Code = thrd_create(&SocketMonitorHandle, SocketMonitor, NULL);
+    if (Code != thrd_success) {
+        return OsError;
+    }
     return Status;
 }
 
@@ -210,6 +221,13 @@ NetworkManagerSocketCreate(
         return Status;
     }
     
+    // Add it to the handle set
+    Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_ADD,
+        Socket->Header.Key.Value.Id, IOEVTIN | IOEVTOUT | IOEVTET, NULL);
+    if (Status != OsSuccess) {
+        // what the fuck TODO
+    }
+    
     RBTreeAppend(&Sockets, &Socket->Header);
     *HandleOut           = Socket->Header.Key.Value.Id;
     *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
@@ -224,6 +242,7 @@ NetworkManagerSocketShutdown(
     _In_ int    Options)
 {
     Socket_t*  Socket;
+    OsStatus_t Status;
     DataKey_t  Key = { .Value.Id = Handle };
     
     Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
@@ -233,6 +252,11 @@ NetworkManagerSocketShutdown(
     
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
         (void)RBTreeRemove(&Sockets, Key);
+        Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL,
+            Socket->Header.Key.Value.Id, 0, NULL);
+        if (Status != OsSuccess) {
+            // what the fuck TODO
+        }
     }
     return SocketShutdownImpl(Socket, Options);
 }
@@ -256,6 +280,7 @@ NetworkManagerSocketBind(
 OsStatus_t
 NetworkManagerSocketConnect(
     _In_ UUId_t                 ProcessHandle,
+    _In_ thrd_t                 Waiter,
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
@@ -266,14 +291,14 @@ NetworkManagerSocketConnect(
     if (!Socket) {
         return OsDoesNotExist;
     }
-    return DomainConnect(Socket, Address);
+    return DomainConnect(Waiter, Socket, Address);
 }
 
 OsStatus_t
 NetworkManagerSocketAccept(
-    _In_ UUId_t           ProcessHandle,
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address)
+    _In_ UUId_t ProcessHandle,
+    _In_ thrd_t Waiter,
+    _In_ UUId_t Handle)
 {
     Socket_t* Socket;
     DataKey_t Key = { .Value.Id = Handle };
@@ -283,7 +308,7 @@ NetworkManagerSocketAccept(
         return OsDoesNotExist;
     }
     
-    return DomainAcceptConnection(Socket, Address);
+    return DomainAcceptConnection(Waiter, Socket);
 }
 
 OsStatus_t
@@ -358,7 +383,7 @@ NetworkManagerSocketGetAddress(
         return OsDoesNotExist;
     }
     
-    return GetSocketAddressImpl(Socket, Source, Address);
+    return DomainGetAddress(Socket, Source, Address);
 }
 
 Socket_t*

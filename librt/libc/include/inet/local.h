@@ -37,7 +37,7 @@ struct sockaddr_lc {
     char        slc_addr[32]; // see defines above
 };
 
-static inline struct sockaddr_lc *
+static inline struct sockaddr_lc*
 sstolc(struct sockaddr_storage *ss)
 {
     return ((struct sockaddr_lc *)(ss));

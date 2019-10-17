@@ -94,7 +94,8 @@ OnEvent(
             UUId_t                 ProcessHandle = IPC_GET_TYPED(Message, 1);
             UUId_t                 SocketHandle  = IPC_GET_TYPED(Message, 2);
             
-            Result = NetworkManagerSocketConnect(ProcessHandle, SocketHandle, Address);
+            Result = NetworkManagerSocketConnect(ProcessHandle, 
+                Message->Sender, SocketHandle, Address);
             if (Result != OsSuccess) {
                 Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
             }
@@ -107,8 +108,8 @@ OnEvent(
             UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
             UUId_t SocketHandle  = IPC_GET_TYPED(Message, 2);
             
-            Package.Status = NetworkManagerSocketAccept(ProcessHandle, SocketHandle, 
-                (struct sockaddr*)&Package.Address);
+            Package.Status = NetworkManagerSocketAccept(ProcessHandle,
+                Message->Sender, SocketHandle);
             if (Package.Status != OsSuccess) {
                 Handled = IpcReply(Message, &Package, sizeof(GetSocketAddressPackage_t));
             }
