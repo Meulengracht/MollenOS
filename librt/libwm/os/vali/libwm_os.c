@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -22,7 +23,7 @@
  */
 
 #include <os/mollenos.h>
-#include "../../libwm_os.h"
+#include "../../include/libwm_os.h"
 #include <inet/socket.h>
 #include <inet/local.h>
 #include <string.h>

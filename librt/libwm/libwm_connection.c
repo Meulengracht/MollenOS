@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,7 +24,8 @@
 
 #include <assert.h>
 #include <inet/socket.h>
-#include "libwm_connection.h"
+#include <io.h>
+#include "include/libwm_connection.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,13 +36,11 @@ typedef struct __wm_connection {
     struct sockaddr_storage address;
     int                     address_length;
     int                     alive;
-    int                     ping_attemps;
     struct __wm_connection* link;
 } wm_connection_t;
 
-static wm_connection_message_handler_t connection_event_handler;
-static wm_connection_t*                connections;
-static mtx_t                           connections_sync;
+static wm_connection_t* connections;
+static mtx_t            connections_sync;
 
 static wm_connection_t* wm_connection_to_struct(int sock)
 {
@@ -91,129 +91,79 @@ static void wm_connection_remove(wm_connection_t* connection)
     mtx_unlock(&connections_sync);
 }
 
-static int wm_connection_ping(wm_connection_t* connection)
+int wm_connection_recv_message(int socket, wm_message_t* message, void* argument_buffer)
 {
-    connection->ping_attemps++;
+    intmax_t bytes_read;
+    size_t   message_length;
     
-    // was this the fourth ? then mark as unresponsive
-    if (connection->ping_attemps > 3) {
-        
+    bytes_read = recv(socket, message, sizeof(wm_message_t), 0);
+    if (bytes_read != sizeof(wm_message_t)) {
+        // no bytes available, why??
+        // TODO error code / handling
+        return -1;
     }
-    else {
-        // send ping
+    
+    message_length = WM_MESSAGE_GET_LENGTH(message->length);
+    
+    // Verify the data read in the header
+    if (message->magic != WM_HEADER_MAGIC ||
+        message_length < sizeof(wm_message_t)) {
+        // TODO error code / handling
+        return -1;
+    }
+    
+    // Read rest of message
+    if (message_length > sizeof(wm_message_t)) {
+        assert(message_length < WM_MAX_MESSAGE_SIZE);
+        bytes_read = recv(socket, argument_buffer, 
+            message_length - sizeof(wm_message_t), 0);
+        if (bytes_read != message_length - sizeof(wm_message_t)) {
+            // do not process incomplete requests
+            // TODO error code / handling
+            return -1; 
+        }
     }
     return 0;
 }
 
-static int wm_connection_pong(wm_connection_t* connection)
-{
-    // update the last response time
-    connection->ping_attemps = 0;
-    
-    // if we were in a non-responsive state before then send a control
-    // event to the server
-    return 0;
-}
-
-static int wm_connection_handler(void* param)
-{
-    wm_connection_t*     connection = (wm_connection_t*)param;
-    int                  ping_ms    = 1000;
-    int                  status;
-    
-    char                 buffer[256];
-    wm_request_header_t* header = (wm_request_header_t*)&buffer[0];
-    void*                body   = (void*)&buffer[sizeof(wm_request_header_t)];
-    
-    // Set a timeout on recv so we can use ping the client at regular intervals
-    status = setsockopt(connection->c_socket, SOL_SOCKET, SO_RCVTIMEO, 
-        &ping_ms, sizeof(ping_ms));
-    assert(status >= 0);
-    
-    // listen for messages
-    while (connection->alive) {
-        intmax_t bytes_read = recv(connection->c_socket, header, 
-            sizeof(wm_request_header_t), MSG_WAITALL);
-        if (bytes_read != sizeof(wm_request_header_t)) {
-            wm_connection_ping(connection);
-            continue;
-        }
-        
-        // Verify the data read in the header
-        if (header->magic != WM_HEADER_MAGIC ||
-            header->length < sizeof(wm_request_header_t)) {
-            continue;
-        }
-        
-        // Read rest of message
-        if (header->length > sizeof(wm_request_header_t)) {
-            assert(header->length < 256);
-            bytes_read = recv(connection->c_socket, body, 
-                header->length - sizeof(wm_request_header_t), MSG_WAITALL);
-            if (bytes_read != header->length - sizeof(wm_request_header_t)) {
-                continue; // do not process incomplete requests
-            }
-        }
-
-        // handle ping/pong messages at connection level, otherwise
-        // elevate message to handler
-        if (header->event == wm_request_pong) {
-            wm_connection_pong(connection);
-        }
-        else {
-            connection_event_handler(connection->c_socket, header);
-        }
-    }
-    
-    // Cleanup connection
-    wm_connection_remove(connection);
-    shutdown(connection->c_socket, SHUT_RDWR);
-    free(connection);
-    return 0;
-}
-
-int wm_connection_initialize(wm_connection_message_handler_t handler)
+int wm_connection_initialize(void)
 {
     mtx_init(&connections_sync, mtx_plain);
-    connection_event_handler = handler;
-    connections              = NULL;
+    connections = NULL;
     return 0;
 }
 
-int wm_connection_create(int client_socket, struct sockaddr_storage* address, int address_length)
+int wm_connection_create(int socket, struct sockaddr_storage* address, int address_length)
 {
     wm_connection_t* connection;
-    thrd_t           thread_id;
     
-    // Create a new connection object
     connection = (wm_connection_t*)malloc(sizeof(wm_connection_t));
     if (!connection) {
-        return ENOMEM;
+        _set_errno(ENOMEM);
+        return -1;
     }
+    
     memset(connection, 0, sizeof(wm_connection_t));
     memcpy(&connection->address, address, address_length);
-    connection->c_socket       = client_socket;
+    connection->c_socket       = socket;
     connection->address_length = address_length;
     connection->alive          = 1;
-    connection->ping_attemps   = 0;
     connection->link           = NULL;
     wm_connection_add(connection);
-    
-    // Spawn a new thread to handle the connection
-    thrd_create(&thread_id, wm_connection_handler, connection);
-    return EOK;
+    return 0;
 }
 
-int wm_connection_shutdown(int sock)
+int wm_connection_shutdown(int socket)
 {
     // get connetion from int
-    wm_connection_t* connection = wm_connection_to_struct(sock);
+    wm_connection_t* connection = wm_connection_to_struct(socket);
     if (!connection) {
         _set_errno(EBADF);
         return -1;
     }
     
-    // set alive to 0, and then let the timeout trigger
-    connection->alive = 0;
+    wm_connection_remove(connection);
+    close(connection->c_socket);
+    free(connection);
     return EOK;
 }

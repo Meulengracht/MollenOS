@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -21,14 +22,10 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_TYPES_H__
-#define __LIBWM_TYPES_H__
+#ifndef __LIBWM_PROTOCOL_H__
+#define __LIBWM_PROTOCOL_H__
 
-#define WM_HEADER_MAGIC 0xDEAE5A9A
-
-typedef void* wm_handle_t;
-
-typedef enum {
+typedef enum wm_event_type {
     // connection messages
     wm_event_ping,
     wm_request_pong,
@@ -47,42 +44,28 @@ typedef enum {
     wm_event_initiate_resize
 } wm_event_type_t;
 
-typedef struct {
+typedef struct wm_rect {
     int x;
     int y;
     int w;
     int h;
 } wm_rect_t;
 
-typedef enum {
+typedef enum wm_surface_format {
     surface_8r8g8b8a,
 } wm_surface_format_t;
 
-typedef struct {
-    uint8_t  type;
-    uint8_t  flags;
-    int16_t  rel_x;
-    int16_t  rel_y;
-    int16_t  rel_z;
-    uint32_t buttons_set;
-} wm_input_event_t; 
-
-typedef struct {
+typedef struct wm_surface_descriptor {
     wm_rect_t           dimensions;
     wm_surface_format_t format;
 } wm_surface_descriptor_t;
 
 // length field contains total length including header
-typedef struct {
+typedef struct wm_request_header {
     unsigned int    magic;
     wm_event_type_t event;
     unsigned int    length;
 } wm_request_header_t;
-
-typedef struct {
-    wm_request_header_t header;
-    unsigned int        sequence;
-} wm_request_pong_t;
 
 typedef struct {
     wm_request_header_t header;
@@ -131,4 +114,4 @@ typedef struct {
     wm_handle_t         surface_handle;
 } wm_request_surface_set_active_t;
 
-#endif // !__LIBWM_TYPES_H__
+#endif // !__LIBWM_PROTOCOL_H__

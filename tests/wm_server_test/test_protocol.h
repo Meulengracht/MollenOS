@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -16,23 +17,25 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Server Type Definitions & Structures
- * - This header describes the base server-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * WM Protocol Test
+ *  - Spawns a minimal implementation of a wm server to test libwm and the
+ *    communication protocols in the os
  */
 
-#ifndef __LIBWM_SERVER_H__
-#define __LIBWM_SERVER_H__
+#ifndef __PROTOCOL_TEST_H__
+#define __PROTOCOL_TEST_H__
 
-#include "libwm_types.h"
+#define PROTOCOL_TEST_ID             0x0D
+#define PROTOCOL_TEST_FUNCTION_COUNT 1
 
-typedef void(*wm_server_message_handler_t)(int, wm_request_header_t*);
-typedef void(*wm_server_input_handler_t)(wm_input_event_t*);
+#define PROTOCOL_TEST_PRINT_ID 0x0
 
-// Server API
-// This should be called for the compositor that wants to manage
-// wm-clients. This will initiate data structures and setup handler threads
-int wm_server_initialize(wm_server_message_handler_t, wm_server_input_handler_t);
-int wm_server_shutdown(void);
+struct test_print_arg {
+    char message[128];
+};
 
-#endif // !__LIBWM_SERVER_H__
+struct test_print_ret {
+    int status;
+};
+
+#endif //!__PROTOCOL_TEST_H__

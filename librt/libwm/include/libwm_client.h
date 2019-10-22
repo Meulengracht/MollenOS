@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -26,21 +27,13 @@
 
 #include "libwm_types.h"
 
-typedef void(*wm_client_message_handler_t)(wm_request_header_t*);
+typedef struct wm_client wm_client_t;
 
 // Client API
-// Clients can have multiple windows, and multiple buffers per window, which can be
-// manipulated by the client. The client is responsible for drawing and informing
-// the server when to redraw
-int wm_client_initialize(wm_client_message_handler_t);
-int wm_client_create_window(const char*, int, int, int, int, unsigned int);
-int wm_client_destroy_window(int);
-int wm_client_redraw_window(int, wm_rect_t*);
-int wm_client_resize_window(int, wm_rect_t*);
-int wm_client_window_set_title(int, const char*);
-int wm_client_register_buffer(wm_handle_t, wm_surface_descriptor_t*);
-int wm_client_unregister_buffer(wm_handle_t);
-int wm_client_set_active_buffer(wm_handle_t);
-int wm_client_shutdown(void);
+// An application can utilize multiple clients, that connect to different
+// servers. When invoking a protocol the specific client can be specified.
+int wm_client_initialize(wm_client_t**);
+int wm_client_invoke(wm_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
+int wm_client_shutdown(wm_client_t*);
 
 #endif // !__LIBWM_CLIENT_H__

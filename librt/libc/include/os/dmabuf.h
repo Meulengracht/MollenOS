@@ -1,4 +1,6 @@
-/* MollenOS
+
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -16,25 +17,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Connection Type Definitions & Structures
- * - This header describes the base connection-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * WM Protocol Test
+ *  - Spawns a minimal implementation of a wm server to test libwm and the
+ *    communication protocols in the os
  */
 
-#ifndef __LIBWM_CONNECTION_H__
-#define __LIBWM_CONNECTION_H__
+#ifndef __PROTOCOL_TEST_CLIENT_H__
+#define __PROTOCOL_TEST_CLIENT_H__
 
-#include "libwm_types.h"
+typedef struct wm_client wm_client_t;
 
-// Prototypes
-struct sockaddr_storage;
+int test_print(wm_client_t* client, char* message, int* status);
 
-typedef void(*wm_connection_message_handler_t)(int, wm_request_header_t*);
-
-// Connection API
-// Used to manage all the connections to the window manager.
-int wm_connection_initialize(wm_connection_message_handler_t);
-int wm_connection_create(int, struct sockaddr_storage*, int);
-int wm_connection_shutdown(int);
-
-#endif // !__LIBWM_CONNECTION_H__
+#endif //!__PROTOCOL_TEST_CLIENT_H__
