@@ -33,7 +33,9 @@ static wm_protocol_function test_functions[] = {
 };
 
 static wm_protocol_t test_protocol = {
-    PROTOCOL_TEST_ID, PROTOCOL_TEST_FUNCTION_COUNT, test_functions
+    PROTOCOL_TEST_ID,
+    PROTOCOL_TEST_FUNCTION_COUNT,
+    test_functions
 };
 
 static void print(struct test_print_arg* args, struct test_print_ret* ret)

@@ -27,12 +27,17 @@
 
 #include "libwm_types.h"
 
+typedef struct wm_client_configuration {
+    struct sockaddr_storage address;
+    socklen_t               address_length;
+} wm_client_configuration_t;
+
 typedef struct wm_client wm_client_t;
 
 // Client API
 // An application can utilize multiple clients, that connect to different
 // servers. When invoking a protocol the specific client can be specified.
-int wm_client_initialize(wm_client_t**);
+int wm_client_initialize(wm_client_configuration_t*, wm_client_t**);
 int wm_client_invoke(wm_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
 int wm_client_shutdown(wm_client_t*);
 

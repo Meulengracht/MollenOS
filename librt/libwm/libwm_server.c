@@ -46,7 +46,7 @@ struct wm_server {
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
 } wm_server_context = { { 0 } };
 
-static int create_server_socket()
+static int create_server_socket(void)
 {
     struct sockaddr_storage wm_address;
     socklen_t               wm_address_length;
@@ -69,7 +69,7 @@ static int create_server_socket()
     return listen(wm_server_context.server_socket, 2);
 }
 
-static int handle_server_socket()
+static int handle_server_socket(void)
 {
     struct sockaddr_storage client_address;
     socklen_t               client_address_length;
@@ -92,7 +92,7 @@ static int handle_server_socket()
         client_socket, &client_event);
 }
 
-static int create_input_socket()
+static int create_input_socket(void)
 {
     struct sockaddr_storage input_address;
     socklen_t               input_address_length;
@@ -100,7 +100,7 @@ static int create_input_socket()
     
     // Create a new socket for listening to input events. They are all
     // delivered to fixed sockets on the local system.
-    wm_server_context.input_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
+    wm_server_context.input_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
     if (wm_server_context.input_socket < 0) {
         // todo: set error
         return -1;
@@ -112,7 +112,7 @@ static int create_input_socket()
     return status;
 }
 
-static int handle_input_socket()
+static int handle_input_socket(void)
 {
     wm_input_event_t input_data;
     intmax_t         bytes_read;
@@ -196,19 +196,30 @@ static int handle_client_event(int socket, void* argument_buffer)
 
 int wm_server_initialize(wm_server_configuration_t* configuration)
 {
-    // store handler
+    int status;
+    
     assert(wm_server_context.initialized == 0);
+    
+    // store handler
     wm_server_context.initialized = 1;
     memcpy(&wm_server_context.configuration, configuration, 
         sizeof(wm_server_configuration_t));
     
     // initialize connection library
-    wm_connection_initialize();
+    status = wm_connection_initialize();
+    if (status) {
+        return status;
+    }
+    
+    // create the io event set, for async io
+    wm_server_context.socket_set = io_set_create(0);
+    if (wm_server_context.socket_set == -1) {
+        return -1;
+    }
     
     // initialize default sockets
     create_server_socket();
     create_input_socket();
-    wm_server_context.socket_set = io_set_create(0);
     
     // register control protocol
 
@@ -217,6 +228,8 @@ int wm_server_initialize(wm_server_configuration_t* configuration)
 
 static int wm_server_shutdown(void)
 {
+    assert(wm_server_context.initialized == 1);
+    
     close(wm_server_context.server_socket);
     close(wm_server_context.input_socket);
     close(wm_server_context.socket_set);

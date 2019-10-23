@@ -24,31 +24,41 @@
 
 #include <assert.h>
 #include <inet/socket.h>
+#include <io.h>
 #include "include/libwm_client.h"
 #include "include/libwm_os.h"
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct wm_client {
     int initialized;
     int socket;
 } wm_client_t;
 
-static int wm_execute_command(wm_request_header_t* command)
+static int send_message(wm_client_t* client, wm_message_t* message)
 {
-    intmax_t bytes_written;
-    assert(wm_initialized == 1);
-    
-    bytes_written = send(wm_socket, (const void*)command, 
-        command->length, MSG_WAITALL);
-    return bytes_written != command->length;
+    intmax_t bytes_written = send(client->socket, (const void*)message, 
+        message->length + 1, MSG_WAITALL);
+    return bytes_written != (message->length + 1);
+}
+
+static int get_message_reply(wm_client_t* client, void* return_buffer, 
+    size_t return_length)
+{
+    intmax_t bytes_read = recv(client->socket, return_buffer, 
+        return_length, MSG_WAITALL);
+    return bytes_read != return_length;
 }
 
 int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action, 
-    void* arguments, size_t argument_length, void* returns, size_t return_length)
+    void* arguments, size_t argument_length, void* return_buffer, 
+    size_t return_length)
 {
+    int          status;
     wm_message_t message = { 
         .magic    = WM_HEADER_MAGIC,
         .length   = (sizeof(wm_message_t) + argument_length) - 1,
+        .ret_length = return_length - 1,
         .has_arg  = (argument_length != 0) ? 1 : 0,
         .has_ret  = (return_length != 0) ? 1 : 0,
         .unused   = 0,
@@ -57,30 +67,37 @@ int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action,
         .action   = action
     };
     
-    // send_message
-    
-    if (message.has_ret) {
-        // get_reply
+    status = send_message(client, &message);
+    if (!status && message.has_ret) {
+        status = get_message_reply(client, return_buffer, return_length);
     }
-    return 0;
+    return status;
 }
 
-int wm_client_initialize(wm_client_t** client_out)
+int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client_out)
 {
-    struct sockaddr_storage wm_address;
-    socklen_t               wm_address_length;
-    int                     status;
+    wm_client_t* client;
+    int          status;
     
-    // Create a new socket for listening to wm events. They are all
-    // delivered to fixed sockets on the local system.
-    wm_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
-    assert(wm_socket >= 0);
+    client = (wm_client_t*)malloc(sizeof(wm_client_t));
+    if (!client) {
+        _set_errno(ENOMEM);
+        return -1;
+    }
     
-    // Connect to the compositor
-    wm_os_get_server_address(&wm_address, &wm_address_length);
-    status = connect(wm_socket, sstosa(&wm_address), wm_address_length);
-    assert(status >= 0);
+    client->socket = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (client->socket == -1) {
+        free(client);
+        return -1;
+    }
     
+    status = connect(client->socket, 
+        sstosa(&config->address), config->address_length);
+    if (status) {
+        close(client->socket);
+        free(client);
+        return status;
+    }
     return status;
 }
 
