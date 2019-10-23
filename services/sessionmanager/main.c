@@ -66,11 +66,7 @@ OnEvent(
 
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
-#ifdef __OSCONFIG_RUN_CPPTESTS
-                sprintf(&PathBuffer[0], "%s:/shared/bin/stest.app", DiskIdentifier);
-#else
-                sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
-#endif
+                sprintf(&PathBuffer[0], "%s:/shared/bin/" __OSCONFIG_INIT_APP, DiskIdentifier);
                 TRACE("Spawning %s", &PathBuffer[0]);
                 InitializeStartupInformation(&StartupInformation);
                 StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
