@@ -393,6 +393,7 @@ DomainLocalConnect(
         ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
         ConnectionRequest->SourceWaiter = Waiter;
         CollectionAppend(&Socket->Domain->ConnectionRequests, &ConnectionRequest->Header);
+        handle_set_activity(Socket->Header.Key.Value.Id, IOEVTCTL);
     }
     mtx_unlock(&Socket->Domain->SyncObject);
     return OsSuccess;
