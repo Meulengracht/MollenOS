@@ -30,9 +30,10 @@ enum io_events
 {
     IOEVTIN  = 0x1,  // Receieved data
     IOEVTOUT = 0x2,  // Sent data
-    IOEVTET  = 0x4,  // Edge triggered
+    IOEVTCTL = 0x4,  // Control event
     
-    IOEVTFRT = 0x8   // Initial event 
+    IOEVTET  = 0x1000,  // Edge triggered
+    IOEVTFRT = 0x2000   // Initial event 
 };
 
 #define IO_EVT_DESCRIPTOR_ADD 1
@@ -47,7 +48,7 @@ struct io_event {
 _CODE_BEGIN
 
 CRTDECL(int, io_set_create(int flags));
-CRTDECL(int, io_set_ctrl(int evt_iod, int op, int iod, struct io_event*));
+CRTDECL(int, io_set_ctrl(int evt_iod, int op, int iod, int events));
 CRTDECL(int, io_set_wait(int evt_iod, struct io_event*, int max_events, int timeout));
 
 _CODE_END

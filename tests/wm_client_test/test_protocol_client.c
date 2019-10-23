@@ -17,45 +17,29 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * WM Server test
+ * WM Protocol Test
  *  - Spawns a minimal implementation of a wm server to test libwm and the
  *    communication protocols in the os
  */
 
-#include <libwm_server.h>
 #include "test_protocol.h"
-#include <stdio.h>
+#include "libwm_client.h"
+#include <string.h>
 
-static void print(struct test_print_arg*, struct test_print_ret*);
-
-static wm_protocol_function_t test_functions[] = {
-    { PROTOCOL_TEST_PRINT_ID, print }
-};
-
-static wm_protocol_t test_protocol = {
-    PROTOCOL_TEST_ID,
-    PROTOCOL_TEST_FUNCTION_COUNT,
-    test_functions
-};
-
-static void print(struct test_print_arg* args, struct test_print_ret* ret)
+int test_print(wm_client_t* client, char* message, int* status)
 {
-    printf("received message: %s\n", &args->message[0]);
-    ret->status = 0;
-}
-
-int main(int argc, char **argv)
-{
-    wm_server_configuration_t configuration;
-    int                       code;
+    struct test_print_arg args;
+    struct test_print_ret rets;
+    int                   wm_status;
     
-    configuration.input_handler = 0;
-    
-    code = wm_server_initialize(&configuration);
-    if (code) {
-        return code;
+    memcpy(&args.message[0], message, strlen(message) + 1);
+    wm_status = wm_client_invoke(client, /* config, */
+        PROTOCOL_TEST_ID, PROTOCOL_TEST_PRINT_ID,
+        &args, sizeof(struct test_print_arg),  // arguments
+        &rets, sizeof(struct test_print_ret)); // return
+    if (!wm_status) {
+        *status = rets.status;
     }
-    
-    wm_server_register_protocol(&test_protocol);
-    return wm_server_main_loop();
+    return wm_status;
 }
+

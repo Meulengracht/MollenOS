@@ -31,12 +31,12 @@
 #include <string.h>
 #include <threads.h>
 
-typedef struct __wm_connection {
+typedef struct wm_connection {
     int                     c_socket;
     struct sockaddr_storage address;
     int                     address_length;
     int                     alive;
-    struct __wm_connection* link;
+    struct wm_connection*   link;
 } wm_connection_t;
 
 static wm_connection_t* connections;
@@ -96,7 +96,7 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
     intmax_t bytes_read;
     size_t   message_length;
     
-    bytes_read = recv(socket, message, sizeof(wm_message_t), 0);
+    bytes_read = recv(socket, message, sizeof(wm_message_t), MSG_WAITALL);
     if (bytes_read != sizeof(wm_message_t)) {
         // no bytes available, why??
         // TODO error code / handling
@@ -114,9 +114,9 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
     
     // Read rest of message
     if (message_length > sizeof(wm_message_t)) {
-        assert(message_length < WM_MAX_MESSAGE_SIZE);
+        assert(message_length <= WM_MAX_MESSAGE_SIZE);
         bytes_read = recv(socket, argument_buffer, 
-            message_length - sizeof(wm_message_t), 0);
+            message_length - sizeof(wm_message_t), MSG_WAITALL);
         if (bytes_read != message_length - sizeof(wm_message_t)) {
             // do not process incomplete requests
             // TODO error code / handling
@@ -124,6 +124,12 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
         }
     }
     return 0;
+}
+
+int wm_connection_send_reply(int socket, void* argument_buffer, size_t length)
+{
+    intmax_t bytes_written = send(socket, argument_buffer, length, MSG_WAITALL);
+    return (bytes_written != length); // return 0 on ok
 }
 
 int wm_connection_initialize(void)

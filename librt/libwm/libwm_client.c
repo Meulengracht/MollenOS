@@ -35,10 +35,15 @@ typedef struct wm_client {
     int socket;
 } wm_client_t;
 
-static int send_message(wm_client_t* client, wm_message_t* message)
+static int send_message(wm_client_t* client, wm_message_t* message, 
+    void* arguments, size_t argument_length)
 {
     intmax_t bytes_written = send(client->socket, (const void*)message, 
-        message->length + 1, MSG_WAITALL);
+        sizeof(wm_message_t), MSG_WAITALL);
+    if (bytes_written == sizeof(wm_message_t) && message->has_arg) {
+        bytes_written += send(client->socket, (const void*)arguments,
+            argument_length, MSG_WAITALL);
+    }
     return bytes_written != (message->length + 1);
 }
 
@@ -67,7 +72,9 @@ int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action,
         .action   = action
     };
     
-    status = send_message(client, &message);
+    // TODO calc crc
+    
+    status = send_message(client, &message, arguments, argument_length);
     if (!status && message.has_ret) {
         status = get_message_reply(client, return_buffer, return_length);
     }

@@ -25,6 +25,8 @@
 #ifndef __LIBWM_TYPES_H__
 #define __LIBWM_TYPES_H__
 
+#include <stdint.h>
+
 #define WM_HEADER_MAGIC              0xDEAE5A9A
 #define WM_MAX_PROTOCOLS             8
 #define WM_MAX_ARGUMENTS             5

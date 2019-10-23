@@ -26,6 +26,7 @@
 #define __LIBWM_CLIENT_H__
 
 #include "libwm_types.h"
+#include <inet/socket.h>
 
 typedef struct wm_client_configuration {
     struct sockaddr_storage address;

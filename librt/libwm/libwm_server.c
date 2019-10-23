@@ -89,7 +89,7 @@ static int handle_server_socket(void)
         return -1;
     }
     return io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
-        client_socket, &client_event);
+        client_socket, IOEVTIN | IOEVTOUT | IOEVTCTL);
 }
 
 static int create_input_socket(void)
@@ -154,20 +154,23 @@ static wm_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t 
     return NULL;
 }
 
-static int invoke_action(wm_message_t* message, void* argument_buffer, wm_protocol_function_t* function)
+static int invoke_action(int socket, wm_message_t* message, 
+    void* argument_buffer, wm_protocol_function_t* function)
 {
     uint8_t return_buffer[WM_MESSAGE_GET_LENGTH(message->ret_length)];
     
     if (message->has_arg && message->has_ret) {
         ((wm_invokeAR_t)function->address)(argument_buffer, &return_buffer[0]);
-        // wm_connection_reply(socket, &return_buffer[0], WM_MESSAGE_GET_LENGTH(message->ret_length));
+        return wm_connection_send_reply(socket, &return_buffer[0], 
+            WM_MESSAGE_GET_LENGTH(message->ret_length));
     }
     else if (message->has_arg) {
         ((wm_invokeA0_t)function->address)(argument_buffer);
     }
     else if (message->has_ret) {
         ((wm_invoke0R_t)function->address)(&return_buffer[0]);
-        // wm_connection_reply(socket, &return_buffer[0], WM_MESSAGE_GET_LENGTH(message->ret_length));
+        return wm_connection_send_reply(socket, &return_buffer[0], 
+            WM_MESSAGE_GET_LENGTH(message->ret_length));
     }
     else {
         ((wm_invoke00_t)function->address)();
@@ -191,7 +194,7 @@ static int handle_client_event(int socket, void* argument_buffer)
         _set_errno(ENOENT);
         return -1;
     }
-    return invoke_action(&message, argument_buffer, function);
+    return invoke_action(socket, &message, argument_buffer, function);
 }
 
 int wm_server_initialize(wm_server_configuration_t* configuration)

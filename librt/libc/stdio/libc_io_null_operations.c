@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -22,6 +23,7 @@
 
 #include <errno.h>
 #include <internal/_io.h>
+#include <ddk/handle.h>
 
 OsStatus_t stdio_null_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
@@ -45,6 +47,9 @@ OsStatus_t stdio_null_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_null_op_close(stdio_handle_t* handle, int options)
 {
+    if (handle->object.handle != UUID_INVALID) {
+        return handle_destroy(handle->object.handle);
+    }
     return OsNotSupported;
 }
 

@@ -17,28 +17,27 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * WM Protocol Test
+ * WM Server test
  *  - Spawns a minimal implementation of a wm server to test libwm and the
  *    communication protocols in the os
  */
 
-#include "test_protocol.h"
-#include "libwm_client.h"
+#include <libwm_client.h>
+#include "../wm_server_test/test_protocol.h"
+#include <stdio.h>
+#include "test_protocol_client.h"
 
-int test_print(wm_client_t* client, char* message, int* status)
+int main(int argc, char **argv)
 {
-    struct test_print_arg args;
-    struct test_print_ret rets;
-    int                   wm_status;
+    wm_client_configuration_t configuration;
+    wm_client_t*              client;
+    int                       code, status;
     
-    memcpy(&args.message[0], message, strlen(message) + 1);
-    wm_status = wm_client_invoke(client, /* config, */
-        PROTOCOL_TEST_ID, PROTOCOL_TEST_PRINT_ID,
-        &args, sizeof(struct test_print_arg),  // arguments
-        &rets, sizeof(struct test_print_ret)); // return
-    if (!wm_status) {
-        *status = rets.status;
+    code = wm_client_initialize(&configuration, &client);
+    if (code) {
+        return code;
     }
-    return wm_status;
+    
+    code = test_print(client, "hello from wm_client!", &status);
+    return wm_client_shutdown(client);
 }
-

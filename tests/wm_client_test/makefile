@@ -10,11 +10,11 @@ CXXFLAGS = $(GUCXXFLAGS) -static -I../../librt/libcxx/libcxx/include $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy libwm.lib
 
 .PHONY: all
-all: ../bin/wmsrv.app
+all: ../bin/wmclient.app
 
-../bin/wmsrv.app: main.o
+../bin/wmclient.app: main.o test_protocol_client.o
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"
-	@$(LD) /entry:__CrtConsoleEntry $(LFLAGS) $(GUCXXLIBRARIES) main.o /out:$@
+	@$(LD) /entry:__CrtConsoleEntry $(LFLAGS) $(GUCXXLIBRARIES) main.o test_protocol_client.o /out:$@
 	
 %.o : %.cpp
 	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
@@ -26,5 +26,5 @@ all: ../bin/wmsrv.app
 
 .PHONY: clean
 clean:
-	@rm -f main.o
-	@rm -f ../bin/wmsrv.app
+	@rm -f *.o
+	@rm -f ../bin/wmclient.app
