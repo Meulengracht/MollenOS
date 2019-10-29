@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,15 +61,19 @@ MutexTryLock(
     _In_ Mutex_t* Mutex)
 {
     int Zero = 0;
+    int Count;
+    
     assert(Mutex != NULL);
     
     // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
+    // increase ref count, but only if we're recursive
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            int Count = atomic_load(&Mutex->References);
+            BARRIER_LOAD;
+            Count = atomic_load(&Mutex->References);
             if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
                 if (atomic_compare_exchange_weak(&Mutex->References, &Count, Count + 1)) {
+                    BARRIER_FULL;
                     return OsSuccess;
                 }
                 continue;
@@ -77,9 +82,12 @@ MutexTryLock(
         }
     }
     
+    BARRIER_LOAD;
     if (atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1)) {
-        Mutex->Owner = GetCurrentThreadId();
+        BARRIER_FULL;
         atomic_store(&Mutex->References, 1);
+        Mutex->Owner = GetCurrentThreadId();
+        BARRIER_STORE;
         return OsSuccess;
     }
     return OsError;
@@ -91,15 +99,18 @@ __MutexPerformLock(
     _In_ size_t   Timeout)
 {
     int Zero = 0;
+    int Count;
     int i;
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive 
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            int Count = atomic_load(&Mutex->References);
+            BARRIER_LOAD;
+            Count = atomic_load(&Mutex->References);
             if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
                 if (atomic_compare_exchange_weak(&Mutex->References, &Count, Count + 1)) {
+                    BARRIER_FULL;
                     return OsSuccess;
                 }
                 continue;
@@ -111,7 +122,9 @@ __MutexPerformLock(
     // On multicore systems the lock might be released rather quickly
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
+    BARRIER_LOAD;
     if (!atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1)) {
+        BARRIER_FULL;
         if (GetMachine()->NumberOfActiveCores > 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (MutexTryLock(Mutex) == OsSuccess) {
@@ -123,18 +136,23 @@ __MutexPerformLock(
         // Loop untill we get the lock
         if (Zero != 0) {
             if (Zero != 2) {
+                BARRIER_FULL;
                 Zero = atomic_exchange(&Mutex->Value, 2);
+                BARRIER_FULL;
             }
             while (Zero != 0) {
                 if (FutexWait(&Mutex->Value, 2, FUTEX_WAIT_PRIVATE, Timeout) == OsTimeout) {
                     return OsTimeout;
                 }
+                BARRIER_FULL;
                 Zero = atomic_exchange(&Mutex->Value, 2);
+                BARRIER_FULL;
             }
         }
     }
     Mutex->Owner = GetCurrentThreadId();
     atomic_store(&Mutex->References, 1);
+    BARRIER_STORE;
     return OsSuccess;
 }
 
@@ -170,16 +188,23 @@ MutexUnlock(
     assert(Mutex != NULL);
 
     // Sanitize state of the mutex, are we even able to unlock it?
+    BARRIER_LOAD;
     Count = atomic_load(&Mutex->References);
     assert(Count != 0);
     assert(Mutex->Owner == GetCurrentThreadId());
     
+    BARRIER_LOAD;
     Count = atomic_fetch_sub(&Mutex->References, 1) - 1;
+    BARRIER_FULL;
     if (Count == 0) {
         Mutex->Owner = UUID_INVALID;
+        
+        BARRIER_FULL;
         if (atomic_fetch_sub(&Mutex->Value, 1) != 1) {
+            BARRIER_FULL;
             atomic_store(&Mutex->Value, 0);
             FutexWake(&Mutex->Value, 1, FUTEX_WAKE_PRIVATE);
         }
+        BARRIER_STORE;
     }
 }

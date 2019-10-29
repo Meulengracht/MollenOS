@@ -31,16 +31,16 @@
 
 /* ThreadPoolJob (Private)
  * Describes a linked list of jobs for threads to execute */
-typedef struct _ThreadPoolJob {
-    struct _ThreadPoolJob*  Previous;
-    thrd_start_t            Function;
-    void*                   Argument;
+typedef struct ThreadPoolJob {
+    struct ThreadPoolJob* Previous;
+    thrd_start_t          Function;
+    void*                 Argument;
 } ThreadPoolJob_t;
 
 /* ThreadPoolJobQueue (Private)
  * Contains a list of job entries (ThreadPoolJob), and keeps
  * the synchronization between retrieving and adding */
-typedef struct _ThreadPoolJobQueue {
+typedef struct ThreadPoolJobQueue {
     mtx_t               Lock;
     ThreadPoolJob_t*    Head;
     ThreadPoolJob_t*    Tail;
@@ -50,7 +50,7 @@ typedef struct _ThreadPoolJobQueue {
 
 /* ThreadPoolThread (Private) 
  * Contains the thread information and some extra information */
-typedef struct _ThreadPoolThread {
+typedef struct ThreadPoolThread {
     int                 Id;
     thrd_t              Thread;
     ThreadPool_t*       Pool;
@@ -59,7 +59,7 @@ typedef struct _ThreadPoolThread {
 /* ThreadPool (Private) 
  * Contains all the neccessary information about the threadpool
  * and it's locks/threads/jobs */
-typedef struct _ThreadPool {
+typedef struct ThreadPool {
     volatile int            ThreadsAlive;
     volatile int            ThreadsWorking;
     volatile int            ThreadsKeepAlive;

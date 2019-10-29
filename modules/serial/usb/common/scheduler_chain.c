@@ -79,7 +79,7 @@ UsbSchedulerChainElement(
     if (Direction == USB_CHAIN_BREATH)  Object->BreathIndex = RootObject->BreathIndex;
     else                                Object->DepthIndex  = RootObject->DepthIndex;
     USB_ELEMENT_LINK(Pool, Element, Direction) = USB_ELEMENT_LINK(RootPool, ElementRoot, Direction);
-    MemoryBarrier();
+    BARRIER_STORE;
     if (Direction == USB_CHAIN_BREATH)  RootObject->BreathIndex = Object->Index;
     else                                RootObject->DepthIndex = Object->Index;
     USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(Object->Flags);
@@ -135,7 +135,7 @@ UsbSchedulerUnchainElement(
         if (Direction == USB_CHAIN_BREATH) RootObject->BreathIndex = sObject->BreathIndex;
         else                               RootObject->DepthIndex  = sObject->DepthIndex;
         USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = USB_ELEMENT_LINK(sPool, Element, Direction);
-        MemoryBarrier();
+        BARRIER_STORE;
         return OsSuccess;
     }
     return OsError;

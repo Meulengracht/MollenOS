@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <threads.h>
 
-typedef struct _ThreadPool ThreadPool_t;
+typedef struct ThreadPool ThreadPool_t;
 #define THREADPOOL_DEFAULT_WORKERS -1 // Call this to initialize with default number of workers
 
 _CODE_BEGIN

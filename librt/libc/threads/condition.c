@@ -35,7 +35,7 @@ cnd_init(
     if (cond == NULL) {
         return thrd_error;
     }
-    atomic_store(&cond->_syncobject, 0);
+    atomic_store(&cond->syncobject, 0);
     return thrd_success;
 }
 
@@ -60,7 +60,7 @@ cnd_signal(
 		return thrd_error;
 	}
 	
-    parameters._futex0  = &cond->_syncobject;
+    parameters._futex0  = &cond->syncobject;
     parameters._val0    = 1;
     parameters._flags   = FUTEX_WAKE_PRIVATE;
 	status = Syscall_FutexWake(&parameters);
@@ -80,8 +80,8 @@ cnd_broadcast(
 		return thrd_error;
 	}
 	
-    parameters._futex0  = &cond->_syncobject;
-    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._futex0  = &cond->syncobject;
+    parameters._val0    = atomic_load(&cond->syncobject);
     parameters._flags   = FUTEX_WAKE_PRIVATE;
 	(void)Syscall_FutexWake(&parameters);
     return thrd_success;
@@ -98,9 +98,9 @@ cnd_wait(
 		return thrd_error;
 	}
 
-    parameters._futex0  = &cond->_syncobject;
-    parameters._futex1  = &mutex->_val;
-    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._futex0  = &cond->syncobject;
+    parameters._futex1  = &mutex->value;
+    parameters._val0    = atomic_load(&cond->syncobject);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
@@ -138,9 +138,9 @@ cnd_timedwait(
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
     
-    parameters._futex0  = &cond->_syncobject;
-    parameters._futex1  = &mutex->_val;
-    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._futex0  = &cond->syncobject;
+    parameters._futex1  = &mutex->value;
+    parameters._val0    = atomic_load(&cond->syncobject);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;

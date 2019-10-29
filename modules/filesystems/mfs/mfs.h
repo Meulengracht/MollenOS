@@ -211,7 +211,7 @@ PACKED_TYPESTRUCT(MfsEntryHandle, {
     uint64_t                BucketByteBoundary;  // Support variadic bucket sizes
 });
 
-typedef struct _MfsInstance {
+typedef struct MfsInstance {
     Flags_t    Flags;
     int        Version;
     size_t     SectorsPerBucket;

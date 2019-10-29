@@ -85,7 +85,7 @@ SignalQueue(
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandle(ThreadId);
+    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
     int            Expected = SIGNAL_FREE;
     TRACE("SignalQueue(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 

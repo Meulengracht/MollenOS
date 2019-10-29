@@ -38,13 +38,13 @@ typedef enum _SystemLogType {
     LogError   = 0xFF392B
 } SystemLogType_t;
 
-typedef struct _SystemLogLine {
+typedef struct SystemLogLine {
     SystemLogType_t Type;
     char            System[10]; // [TYPE  ]
     char            Data[118]; // Message
 } SystemLogLine_t;
 
-typedef struct _SystemLog {
+typedef struct SystemLog {
     uintptr_t*       StartOfData;
     size_t           DataSize;
     int              NumberOfLines;

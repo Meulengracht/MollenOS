@@ -29,7 +29,7 @@
 #include <modules/module.h>
 #include <memoryspace.h>
 
-typedef struct _SystemFileMapping {
+typedef struct SystemFileMapping {
     CollectionItem_t Header;
     UUId_t           BufferHandle;
     UUId_t           FileHandle;
@@ -39,7 +39,7 @@ typedef struct _SystemFileMapping {
     Flags_t          Flags;
 } SystemFileMapping_t;
 
-typedef struct _SystemFileMappingEvent {
+typedef struct SystemFileMappingEvent {
     SystemMemorySpace_t* MemorySpace;
     uintptr_t            Address;
     OsStatus_t           Result;

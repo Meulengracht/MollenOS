@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +31,7 @@ extern int _spinlock_acquire(spinlock_t* lock);
 extern int _spinlock_test(spinlock_t* lock);
 extern void _spinlock_release(spinlock_t* lock);
 
-#define IS_RECURSIVE(lock) (lock->_type & spinlock_recursive)
+#define IS_RECURSIVE(lock) (lock->type & spinlock_recursive)
 
 void 
 spinlock_init(
@@ -39,21 +40,25 @@ spinlock_init(
 {
     assert(lock != NULL);
 
-	lock->_val   = 0;
-    lock->_owner = UUID_INVALID;
-    lock->_type  = type;
-    atomic_store(&lock->_refs, 0);
+	lock->value = 0;
+    lock->owner = UUID_INVALID;
+    lock->type  = type;
+    atomic_store(&lock->references, 0);
 }
 
 int
 spinlock_try_acquire(
 	_In_ spinlock_t* lock)
 {
+    int references;
+    
     assert(lock != NULL);
 
-    if (IS_RECURSIVE(lock) && lock->_owner == thrd_current()) {
-        int References = atomic_fetch_add(&lock->_refs, 1);
-        assert(References != 0);
+    BARRIER_FULL;
+    if (IS_RECURSIVE(lock) && lock->owner == thrd_current()) {
+        references = atomic_fetch_add(&lock->references, 1);
+        BARRIER_FULL;
+        assert(references != 0);
         return spinlock_acquired;
     }
 
@@ -62,8 +67,9 @@ spinlock_try_acquire(
         return spinlock_busy;
     }
     
-    atomic_store(&lock->_refs, 1);
-    lock->_owner = thrd_current();
+    atomic_store(&lock->references, 1);
+    lock->owner = thrd_current();
+    BARRIER_STORE;
     return spinlock_acquired;
 }
 
@@ -78,14 +84,16 @@ int
 spinlock_release(
 	_In_ spinlock_t* lock)
 {
-    int References;
+    int references;
     assert(lock != NULL);
 
-    // Reduce the number of references
-    References = atomic_fetch_sub(&lock->_refs, 1);
-    if (References == 1) {
-        lock->_owner = UUID_INVALID;
+    BARRIER_LOAD;
+    references = atomic_fetch_sub(&lock->references, 1);
+    BARRIER_FULL;
+    if (references == 1) {
+        lock->owner = UUID_INVALID;
         _spinlock_release(lock);
+        BARRIER_STORE;
         return spinlock_released;
     }
     return spinlock_acquired;

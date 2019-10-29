@@ -44,14 +44,14 @@ typedef void* MemoryMapHandle_t;
 #error "Unhandled PE architecture used"
 #endif
 
-typedef struct _PeExportedFunction {
+typedef struct PeExportedFunction {
     const char* Name;
     const char* ForwardName; //Library.Function
     int         Ordinal;
     uintptr_t   Address;
 } PeExportedFunction_t;
 
-typedef struct _PeExecutable {
+typedef struct PeExecutable {
     UUId_t                Owner;
     MString_t*            Name;
     MString_t*            FullPath;

@@ -33,7 +33,7 @@
 #define dstrace(...)
 #endif
 
-typedef struct _SectionMapping {
+typedef struct SectionMapping {
     MemoryMapHandle_t Handle;
     uint8_t*          BasePointer;
     uintptr_t         RVA;

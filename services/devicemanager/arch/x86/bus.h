@@ -118,7 +118,7 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
 /* The PCI bus header, this is used
  * by the bus code, and is not related to any hardware structure. 
  * This keeps track of the bus's in the system and their io space */
-typedef struct _PciBus {
+typedef struct PciBus {
     DeviceIo_t      IoSpace;
     int             IsExtended;
     int             Segment;
@@ -129,8 +129,8 @@ typedef struct _PciBus {
 /* PCI Device header
  * Represents a device on the pci-bus, keeps information
  * about location, children, and a parent device/controller */
-typedef struct _PciDevice {
-    struct _PciDevice*  Parent;
+typedef struct PciDevice {
+    struct PciDevice*   Parent;
     PciBus_t*           BusIo;
     int                 IsBridge;
 

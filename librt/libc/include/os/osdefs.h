@@ -38,7 +38,7 @@
 #endif // __STDC_VERSION__ >= 201112L
 #endif // !__cplusplus
 
-#define DECL_STRUCT(Type) typedef struct _##Type Type##_t
+#define DECL_STRUCT(Type) typedef struct Type Type##_t
 
 #ifdef _UNICODE
 # define TCHAR wchar_t

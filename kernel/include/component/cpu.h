@@ -53,10 +53,6 @@ typedef struct {
 } SystemCoreFunctionItem_t;
 
 typedef struct {
-    Collection_t     Queue;
-} SystemCoreFunctionQueue_t;
-
-typedef struct {
     UUId_t            Id;
     SystemCpuState_t  State;
     int               External;
@@ -73,7 +69,7 @@ typedef struct {
     uint32_t          InterruptPriority;
 } SystemCpuCore_t;
 
-typedef struct _SystemCpu {
+typedef struct SystemCpu {
     char                Vendor[16];     // zero terminated string
     char                Brand[64];      // zero terminated string
     uintptr_t           Data[4];        // data available for usage

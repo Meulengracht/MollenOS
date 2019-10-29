@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -17,15 +18,16 @@
  *
  * System Memory Allocator (Based on SLAB design)
  */
+
 #define __MODULE "HEAP"
 //#define __TRACE
 
 #include <arch/utils.h>
-#include <memoryspace.h>
-#include <machine.h>
+#include <assert.h>
 #include <debug.h>
 #include <heap.h>
-#include <assert.h>
+#include <memoryspace.h>
+#include <machine.h>
 #include <string.h>
 
 #define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5
@@ -33,6 +35,22 @@
 #define MEMORY_ATOMIC_CACHE(Cache, Core)            (MemoryAtomicCache_t*)(Cache->AtomicCaches + (Core * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*)))))
 #define MEMORY_ATOMIC_ELEMENT(AtomicCache, Element) ((uintptr_t**)((uintptr_t)AtomicCache + sizeof(MemoryAtomicCache_t) + (Element * sizeof(void*))))
 #define MEMORY_SLAB_ELEMENT(Cache, Slab, Element)   (void*)((uintptr_t)Slab->Address + (Element * (Cache->ObjectSize + Cache->ObjectPadding)))
+
+// Slab size is equal to a page size, and memory layout of a slab is as below
+// FreeBitmap | Object | Object | Object |
+typedef struct MemorySlab {
+    CollectionItem_t Header;
+    volatile size_t  NumberOfFreeObjects;
+    uintptr_t*       Address;  // Points to first object
+    uint8_t*         FreeBitmap;
+} MemorySlab_t;
+
+// Memory Atomic Cache is followed directly by the buffer area for pointers
+// MemoryAtomicCache_t | Pointer | Pointer | Pointer | Pointer | MemoryAtomicCache_t ...
+typedef struct MemoryAtomicCache {
+    _Atomic(int) Available;
+    int          Limit;
+} MemoryAtomicCache_t;
 
 // All the standard caches DO not use contigious memory
 static MemoryCache_t InitialCache = { 0 };
@@ -293,7 +311,7 @@ cache_contains_address(
 
     // Check partials first, we have to lock the cache as slabs can 
     // get rearranged as we go, which is not ideal
-    dslock(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
     _foreach(Node, &Cache->PartialSlabs) {
         int Index = slab_contains_address(Cache, (MemorySlab_t*)Node, Address);
         if (Index != -1) {
@@ -312,7 +330,7 @@ cache_contains_address(
             }
         }
     }
-    dsunlock(&Cache->SyncObject);
+    MutexUnlock(&Cache->SyncObject);
     return Found;
 }
 
@@ -356,7 +374,7 @@ cache_initialize_atomic_cache(
         memset((void*)Cache->AtomicCaches, 0, AtomicCacheSize);
         for (i = 0; i < GetMachine()->NumberOfCores; i++) {
             MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, i);
-            AtomicCache->Available           = 0;
+            AtomicCache->Available           = ATOMIC_VAR_INIT(0);
             AtomicCache->Limit               = Cache->ObjectCount;
         }
     }
@@ -473,6 +491,7 @@ MemoryCacheConstruct(
     }
     memset(Cache, 0, sizeof(MemoryCache_t));
 
+    MutexConstruct(&Cache->SyncObject, MUTEX_RECURSIVE);
     Cache->Name              = Name;
     Cache->Flags             = Flags;
     Cache->ObjectSize        = ObjectSize;
@@ -538,21 +557,25 @@ MemoryCacheAllocate(
     _In_ MemoryCache_t* Cache)
 {
     MemorySlab_t* Slab;
-    void*         Allocated = NULL;
+    void*         Allocated;
     int           Index;
     TRACE("MemoryCacheAllocate(%s)", Cache->Name);
 
     // Can we allocate from cpu cache?
     if (Cache->AtomicCaches != 0) {
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
-        if (AtomicCache->Available > 0) {
-            Allocated = MEMORY_ATOMIC_ELEMENT(AtomicCache, (--AtomicCache->Available))[0];
-            return Allocated;
+        int Available = atomic_load(&AtomicCache->Available);
+        while (Available) {
+            if (atomic_compare_exchange_weak(&AtomicCache->Available, &Available, Available - 1)) {
+                Allocated = MEMORY_ATOMIC_ELEMENT(AtomicCache, (Available - 1))[0];
+                TRACE(" => ATOMIC 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Available);
+                return Allocated;
+            }
         }
     }
 
     // Otherwise allocate from global cache
-    dslock(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects != 0) {
         if (CollectionLength(&Cache->PartialSlabs) != 0) {
             Slab = (MemorySlab_t*)CollectionBegin(&Cache->PartialSlabs);
@@ -573,7 +596,6 @@ MemoryCacheAllocate(
         Cache->NumberOfFreeObjects--;
     }
     else {
-        dsunlock(&Cache->SyncObject);
         // allocate and build new slab, put it into partial list right away
         // as we are allocating a new object immediately
         Slab = slab_create(Cache);
@@ -581,7 +603,6 @@ MemoryCacheAllocate(
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         
-        dslock(&Cache->SyncObject);
         if (!Slab->NumberOfFreeObjects) {
             CollectionAppend(&Cache->FullSlabs, &Slab->Header);
         }
@@ -590,7 +611,7 @@ MemoryCacheAllocate(
             CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
         }
     }
-    dsunlock(&Cache->SyncObject);
+    MutexUnlock(&Cache->SyncObject);
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
@@ -613,14 +634,18 @@ MemoryCacheFree(
 
     // Can we push to cpu cache?
     if (Cache->AtomicCaches != 0) {
+        TRACE("[heap] [%s] atomics at 0x%llx [0x%llx]", Cache->Name, Cache->AtomicCaches, &Cache->AtomicCaches);
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
-        if (AtomicCache->Available < AtomicCache->Limit) {
-            MEMORY_ATOMIC_ELEMENT(AtomicCache, (AtomicCache->Available++))[0] = Object;
-            return;
+        int Available = atomic_load(&AtomicCache->Available);
+        while (Available < AtomicCache->Limit) {
+            if (atomic_compare_exchange_weak(&AtomicCache->Available, &Available, Available + 1)) {
+                MEMORY_ATOMIC_ELEMENT(AtomicCache, Available)[0] = Object;
+                return;
+            }
         }
     }
 
-    dslock(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
 
     // Check partials first, and move to free if neccessary
     _foreach(Node, &Cache->PartialSlabs) {
@@ -659,7 +684,7 @@ MemoryCacheFree(
             }
         }
     }
-    dsunlock(&Cache->SyncObject);
+    MutexUnlock(&Cache->SyncObject);
 }
 
 int MemoryCacheReap(void)
@@ -683,10 +708,6 @@ void* kmalloc(size_t Size)
     if (Selected->Cache == NULL) {
         Selected->Cache = MemoryCacheCreate(Selected->Name, Selected->ObjectSize,
             Selected->ObjectSize, Selected->InitializationFlags, NULL, NULL);
-        
-        // We must initialize this after updating the cache variable to ensure
-        // we don't end up in an enternal loop
-        cache_initialize_atomic_cache(Selected->Cache);
     }
     return MemoryCacheAllocate(Selected->Cache);
 }
@@ -757,5 +778,7 @@ MemoryCacheDump(
 void
 MemoryCacheInitialize(void)
 {
-    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 16, 0, NULL, NULL);
+    // Initialize the default cache and disable atomics for this one
+    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 
+        16, HEAP_CACHE_DEFAULT, NULL, NULL);
 }

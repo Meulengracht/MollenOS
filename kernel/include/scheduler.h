@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2016, Philip Meulengracht
  *
@@ -55,14 +56,14 @@ typedef enum {
     SchedulerObjectStateZombie
 } SchedulerObjectState_t;
 
-typedef struct _SchedulerObject {
+typedef struct SchedulerObject {
     CollectionItem_t                Header;
     volatile SchedulerObjectState_t State;
     volatile Flags_t                Flags;
     UUId_t                          CoreId;
     size_t                          TimeSlice;
     int                             Queue;
-    struct _SchedulerObject*        Link;
+    struct SchedulerObject*         Link;
     void*                           Object;
     
     Collection_t*                   WaitQueueHandle;

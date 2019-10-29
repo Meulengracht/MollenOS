@@ -21,7 +21,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-//#define __TRACE
+#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
@@ -249,6 +249,7 @@ LoadFile(
     FileSystemCode_t FsCode;
     UUId_t           Handle;
     size_t           Size;
+    TRACE("[load_file] %s", MStringRaw(FullPath));
 
     // We have to make sure here that the path is fully resolved before loading. If not
     // then the filemanager will try to use our working directory and that is wrong
@@ -256,13 +257,13 @@ LoadFile(
     // Open the file as read-only
     FsCode = OpenFile(MStringRaw(FullPath), 0, __FILE_READ_ACCESS, &Handle);
     if (FsCode != FsOk) {
-        ERROR("Invalid path given: %s", MStringRaw(FullPath));
+        ERROR("[load_file] [open_file] failed: %u", FsCode);
         return OsError;
     }
 
     Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
     if (Status != OsSuccess) {
-        ERROR("Failed to retrieve the file size");
+        ERROR("[load_file] [get_file_size] failed: %u", Status);
         CloseFile(Handle);
         return Status;
     }
@@ -274,26 +275,31 @@ LoadFile(
         
         Buffer = dsalloc(Size);
         if (!Buffer) {
+            ERROR("[load_file] [dsalloc] null");
             return OsOutOfMemory;
         }
         
+        DmaInfo.name     = "file_buffer";
         DmaInfo.length   = Size;
         DmaInfo.capacity = Size;
         DmaInfo.flags    = DMA_PERSISTANT;
 
         Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
+        TRACE("[load_file] [dma_export] buffer_handle = %u", DmaAttachment.handle);
         if (Status == OsSuccess) {
             size_t Read = 0;
             FsCode = TransferFile(Handle, DmaAttachment.handle, 0, 0, Size, &Read);
-            TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
+            TRACE("[load_file] [transfer_file] read %" PRIuIN " bytes from file", Read);
             if (FsCode != FsOk) {
+                ERROR("[load_file] [transfer_file] failed: %u", FsCode);
                 Status = OsError;
+                dsfree(Buffer);
                 Buffer = NULL;
             }
             dma_detach(&DmaAttachment);
         }
         else {
-            ERROR("Failed to export a transfer buffer");
+            ERROR("[load_file] [dma_export] failed: %u", Status);
             Status = OsError;
         }
     }

@@ -34,9 +34,9 @@
 #include <time.h>
 
 // Forward some structures we need
-typedef struct _SystemMemorySpace SystemMemorySpace_t;
-typedef struct _SystemProcess     SystemProcess_t;
-typedef struct _SchedulerObject   SchedulerObject_t;
+typedef struct SystemMemorySpace SystemMemorySpace_t;
+typedef struct SystemProcess     SystemProcess_t;
+typedef struct SchedulerObject   SchedulerObject_t;
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -69,7 +69,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-typedef struct {
+typedef struct SystemSignal {
     _Atomic(int)   Status;
     _Atomic(void*) Information;
 } SystemSignal_t;
@@ -78,7 +78,7 @@ typedef struct {
 #define SIGNAL_ALLOCATED 1
 #define SIGNAL_PENDING   2
 
-typedef struct _MCoreThread {
+typedef struct SystemThread {
     SystemMemorySpace_t*    MemorySpace;
     UUId_t                  MemorySpaceHandle;
     SchedulerObject_t*      SchedulerObject;
@@ -93,6 +93,8 @@ typedef struct _MCoreThread {
     Semaphore_t             EventObject;
     _Atomic(int)            References;
     clock_t                 StartedAt;
+    struct SystemThread*    Children;
+    struct SystemThread*    Sibling;
 
     const char*             Name;
     Flags_t                 Flags;

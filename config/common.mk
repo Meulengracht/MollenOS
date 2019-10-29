@@ -61,8 +61,8 @@ config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 #config_flags += -D__OSCONFIG_ENABLE_DEBUG_SHORTCUTS
 #config_flags += -D__OSCONFIG_TEST_KERNEL  # Enable kernel-mode testing suites of the operating system
 
-# the init program that should be loaded [vioarr, stest, wmsrv].app
-config_flags += -D__OSCONFIG_INIT_APP="vioarr.app"
+# the init program that should be loaded [vioarr, cpptest, stest, wmsrv].app
+config_flags += -D__OSCONFIG_INIT_APP=\"wmsrv.app\"
 
 #########################
 # Driver Configuration

@@ -37,7 +37,7 @@
 #include <component/cpu.h>
 #include <component/ic.h>
 
-typedef struct _SystemMachine {
+typedef struct SystemMachine {
     // System Information
     char                        Architecture[32];
     char                        Bootloader[32];

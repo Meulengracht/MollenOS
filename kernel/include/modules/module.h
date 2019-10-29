@@ -28,9 +28,9 @@
 #include <ds/collection.h>
 #include <time.h>
 
-typedef struct _PeExecutable PeExecutable_t;
-typedef struct _SystemPipe SystemPipe_t;
-typedef struct _MString MString_t;
+typedef struct PeExecutable PeExecutable_t;
+typedef struct SystemPipe SystemPipe_t;
+typedef struct MString MString_t;
 
 #define MODULE_FILESYSTEM       0x01010101
 #define MODULE_BUS              0x02020202

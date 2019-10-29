@@ -39,7 +39,7 @@
 #define __FSDECL(Function)          Function
 #endif
 
-typedef struct _MString MString_t;
+typedef struct MString MString_t;
 
 /* FileSystem definitions 
  * Used the describe the various possible flags for the given filesystem */

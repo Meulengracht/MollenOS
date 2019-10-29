@@ -35,7 +35,7 @@ typedef enum _DeviceIoType {
 
 // Represents a device io communcation space
 // that can be used by a driver to communcate with its physical device.
-typedef struct _DeviceIo {
+typedef struct DeviceIo {
     UUId_t              Id;
     DeviceIoType_t      Type;
     union {
@@ -64,8 +64,8 @@ DDKDECL(void,    __IoWriteMemory32(volatile reg32_t*, reg32_t));
 static inline reg32_t
 ReadVolatile32(volatile reg32_t* Register)
 {
+    BARRIER_LOAD;
     reg32_t Value = __IoReadMemory32(Register);
-    MemoryBarrier();
     return Value;
 }
 
@@ -73,7 +73,7 @@ static inline void
 WriteVolatile32(volatile reg32_t* Register, reg32_t Value)
 {
     __IoWriteMemory32(Register, Value);
-    MemoryBarrier();
+    BARRIER_STORE;
 }
 
 /* CreateDeviceMemoryIo

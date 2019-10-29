@@ -124,7 +124,8 @@ MmVirtualGetMasterTable(
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
     if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
-            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(MemorySpace->ParentHandle);
+            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandleOfType(
+                MemorySpace->ParentHandle, HandleTypeMemorySpace);
             Parent = (PageDirectory_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }

@@ -31,7 +31,7 @@
 // Operating system version of the DeviceIo
 // Contains extra information as current owner of a space to increase
 // security
-typedef struct _SystemDeviceIo {
+typedef struct SystemDeviceIo {
     CollectionItem_t    Header;
     DeviceIo_t          Io;
     UUId_t              Owner;

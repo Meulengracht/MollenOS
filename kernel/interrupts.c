@@ -40,7 +40,7 @@
 #include <threading.h>
 #include <string.h>
 
-typedef struct _InterruptTableEntry {
+typedef struct InterruptTableEntry {
     SystemInterrupt_t* Descriptor;
     int                Penalty;
     int                Sharable;

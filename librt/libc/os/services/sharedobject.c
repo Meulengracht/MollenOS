@@ -34,7 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct _LibraryItem {
+typedef struct LibraryItem {
     CollectionItem_t Header;
     Handle_t         Handle;
     int              References;

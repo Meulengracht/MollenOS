@@ -74,7 +74,6 @@ static int handle_server_socket(void)
     struct sockaddr_storage client_address;
     socklen_t               client_address_length;
     int                     client_socket;
-    struct io_event         client_event;
     int                     status;
     
     client_socket = accept(wm_server_context.server_socket, sstosa(&client_address), &client_address_length);

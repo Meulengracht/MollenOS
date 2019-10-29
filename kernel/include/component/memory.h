@@ -26,19 +26,19 @@
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 
-typedef struct _SystemMemoryRange {
+typedef struct SystemMemoryRange {
     uintptr_t Start;
     size_t    Length;
 } SystemMemoryRange_t;
 
-typedef struct _SystemMemoryMap {
+typedef struct SystemMemoryMap {
     SystemMemoryRange_t KernelRegion;
     SystemMemoryRange_t UserCode;
     SystemMemoryRange_t UserHeap;
     SystemMemoryRange_t ThreadRegion;
 } SystemMemoryMap_t;
 
-typedef struct _SystemMemory {
+typedef struct SystemMemory {
     // Memory Information
     uintptr_t            Start;
     uintptr_t            Length;

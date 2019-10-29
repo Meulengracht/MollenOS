@@ -169,7 +169,8 @@ CreateMemorySpace(
                 if (Parent->ParentHandle != UUID_INVALID) {
                     MemorySpace->ParentHandle = Parent->ParentHandle;
                     MemorySpace->Context      = Parent->Context;
-                    Parent                    = (SystemMemorySpace_t*)LookupHandle(Parent->ParentHandle);
+                    Parent                    = (SystemMemorySpace_t*)LookupHandleOfType(
+                        Parent->ParentHandle, HandleTypeMemorySpace);
                 }
                 else {
                     MemorySpace->ParentHandle = GetCurrentMemorySpaceHandle();
@@ -192,7 +193,7 @@ CreateMemorySpace(
             CreateMemorySpaceContext(MemorySpace);
         }
         CloneVirtualSpace(Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        *Handle = CreateHandle(HandleTypeMemorySpace, 0, DestroyMemorySpace, MemorySpace);
+        *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, MemorySpace);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
@@ -312,7 +313,7 @@ MemoryCreateSharedRegion(
     Region->Capacity  = Capacity;
     Region->PageCount = PageCount;
     
-    *Handle = CreateHandle(HandleTypeMemoryRegion, 0, MemoryDestroySharedRegion, Region);
+    *Handle = CreateHandle(HandleTypeMemoryRegion, MemoryDestroySharedRegion, Region);
     return Status;
 }
 
@@ -354,7 +355,7 @@ MemoryExportSharedRegion(
     Region->Capacity  = Length;
     Region->PageCount = PageCount;
     
-    *HandleOut = CreateHandle(HandleTypeMemoryRegion, 0, MemoryDestroySharedRegion, Region);
+    *HandleOut = CreateHandle(HandleTypeMemoryRegion, MemoryDestroySharedRegion, Region);
     return Status;
 }
 

@@ -26,8 +26,8 @@
 
 #include <os/osdefs.h>
 
-typedef struct _Context Context_t;
-typedef struct _SystemCpu SystemCpu_t;
+typedef struct Context Context_t;
+typedef struct SystemCpu SystemCpu_t;
 
 /* ArchDumpThreadContext 
  * Dumps the contents of the given thread context for debugging. */

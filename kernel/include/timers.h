@@ -28,12 +28,12 @@
 #include <ds/collection.h>
 #include <time.h>
 
-typedef struct _SystemPerformanceTimerOps {
+typedef struct SystemPerformanceTimerOps {
     void (*ReadFrequency)(LargeInteger_t*);
     void (*ReadTimer)(LargeInteger_t*);
 } SystemPerformanceTimerOps_t;
 
-typedef struct _SystemTimer {
+typedef struct SystemTimer {
     CollectionItem_t Header;
     UUId_t           Source;
     size_t           TickInNs;

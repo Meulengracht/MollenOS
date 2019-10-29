@@ -69,20 +69,25 @@ SemaphoreWait(
     int        Value;
     
     while (1) {
+        BARRIER_LOAD;
         Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
             if (Status == OsTimeout) {
                 break;
             }
+            BARRIER_LOAD;
             Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
         }
         
+        BARRIER_LOAD;
         Value = atomic_fetch_add_explicit(&(Semaphore->Value), -1, memory_order_acq_rel);
         if (Value >= 1) {
             break;
         }
+        BARRIER_FULL;
         atomic_fetch_add_explicit(&(Semaphore->Value), 1, memory_order_release);
+        BARRIER_FULL;
     }
     return Status;
 }
@@ -99,12 +104,15 @@ SemaphoreSignal(
     TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
     // assert not max
+    BARRIER_LOAD;
     CurrentValue = atomic_load(&Semaphore->Value);
     __STRICT_ASSERT((CurrentValue + Value) <= Semaphore->MaxValue);
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {
+                BARRIER_FULL;
                 if (atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
+                    BARRIER_STORE;
                     break;
                 }
             }

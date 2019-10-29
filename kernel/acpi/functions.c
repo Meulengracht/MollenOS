@@ -30,8 +30,7 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Internal Use */
-typedef struct _IrqResource {
+typedef struct IrqResource {
     int                     Gathering;
     Collection_t*           IrqList;
     PciRoutingEntry_t*      IrqActive;

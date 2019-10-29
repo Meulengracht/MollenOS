@@ -42,23 +42,23 @@ typedef unsigned int tss_t;
 typedef UUId_t       thrd_t;
 
 // Condition Synchronization Object
-typedef struct {
-    _Atomic(int) _syncobject;
+typedef struct cnd {
+    _Atomic(int) syncobject;
 } cnd_t;
 
 // Mutex Synchronization Object
-typedef struct {
-    int          _flags;
-    UUId_t       _owner;
-    _Atomic(int) _refs;
-    _Atomic(int) _val;
+typedef struct mtx {
+    int          flags;
+    UUId_t       owner;
+    _Atomic(int) references;
+    _Atomic(int) value;
 } mtx_t;
 // _MTX_INITIALIZER_NP
 
 // Once-Flag Synchronization Object
-typedef struct {
-    mtx_t _syncobject;
-    int   _value;
+typedef struct once_flag {
+    mtx_t syncobject;
+    int   value;
 } once_flag;
 
 enum {

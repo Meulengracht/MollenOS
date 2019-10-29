@@ -51,7 +51,7 @@
 /* TlsThreadInstance (Private)
  * Contains a thread-specific storage for a given process-key and a 
  * thread-specific destructor. */
-typedef struct _TlsThreadInstance {
+typedef struct TlsThreadInstance {
     CollectionItem_t    ListHeader;
     tss_t               Key;
     void*               Value;
@@ -61,7 +61,7 @@ typedef struct _TlsThreadInstance {
 /* _TlsAtExit (Private)
  * Implements both per-process and per-thread at-exit functionality. Can be
  * invoked either by a thread closing down or by either abort()/exit()/quickexit() */
-typedef struct _TlsAtExit {
+typedef struct TlsAtExit {
     CollectionItem_t    ListHeader;
     int                 Type;
     void*               DsoHandle;
@@ -76,7 +76,7 @@ typedef struct _TlsAtExit {
  * Per-process TLS data that stores the
  * allocated keys and their desctructors. 
  * Also keeps a list of tls-entries for threads */
-typedef struct _TlsProcessInstance {
+typedef struct TlsProcessInstance {
     int             Keys[TLS_MAX_KEYS];
     tss_dtor_t      Dss[TLS_MAX_KEYS];
     Collection_t    Tls;                // List of TlsThreadInstance

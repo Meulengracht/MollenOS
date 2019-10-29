@@ -52,7 +52,7 @@ void ApicWriteLocal(size_t Register, uint32_t Value) {
  * registers must always be 32 bit */
 void ApicSetIoRegister(SystemInterruptController_t *IoApic, uint32_t Register) {
 	(*(volatile uint32_t*)(IoApic->MemoryAddress)) = Register;
-	MemoryBarrier();
+	BARRIER_STORE;
 }
 
 /* Read from io-apic registers

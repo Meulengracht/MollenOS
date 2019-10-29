@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -20,7 +21,9 @@
  * - Contains the shared kernel interrupt interface
  *   that is generic and can be shared/used by all systems
  */
+
 #define __MODULE "irqs"
+//#define __TRACE
 
 #include <arch/utils.h>
 #include <assert.h>
@@ -110,14 +113,20 @@ ExecuteProcessorCoreFunction(
     SystemCpuCore_t*          Core = GetProcessorCore(CoreId);
     SystemCoreFunctionItem_t* Item;
     assert(InterruptHandlers[Type] != UUID_INVALID);
-    TRACE("ExecuteProcessorCoreFunction(%u => %u, %u): 0x%x", 
+    TRACE("[execute_irq] %u => %u, %u: 0x%x", 
         ArchGetProcessorCoreId(), CoreId, Type, InterruptHandlers[Type]);
 
     Item = (SystemCoreFunctionItem_t*)MemoryCacheAllocate(&IpiItemCache);
+    if (!Item) {
+        ERROR("[execute_irq] memory_cache_allocate returned NULL");
+        assert(0);
+    }
+    
     memset(Item, 0, sizeof(SystemCoreFunctionItem_t));
     Item->Handler  = Function;
     Item->Argument = Argument;
     
+    TRACE("[execute_irq] add node 0x%llx to 0x%llx", &Core->FunctionQueue[Type], &Item->Header);
     CollectionAppend(&Core->FunctionQueue[Type], &Item->Header);
     ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

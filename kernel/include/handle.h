@@ -31,11 +31,7 @@
 
 typedef struct handle_event handle_event_t;
 
-enum SystemHandleFlags {
-    HandleCleanup = 0x1
-};
-
-typedef enum _SystemHandleType {
+typedef enum SystemHandleType {
     HandleTypeGeneric = 0,
     HandleTypeSet,
     HandleTypeMemorySpace,
@@ -59,7 +55,6 @@ InitializeHandleJanitor(void);
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
     _In_ SystemHandleType_t Type,
-    _In_ Flags_t            Flags,
     _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource);
 
@@ -173,18 +168,5 @@ KERNELAPI void* KERNELABI
 LookupHandleOfType(
     _In_ UUId_t             Handle,
     _In_ SystemHandleType_t Type);
-
-/**
- * EnumerateHandlesOfType
- * * Enumerates all system handles of the given type, and executes the callback function
- * @param Type    [In] The type of handle to perform the callback on
- * @param Fn      [In] A function pointer that takes two parameters, 1. Resource pointer, 2. Context pointer
- * @param Context [In] A context pointer that is passed to the callback
- */
-KERNELAPI void KERNELABI
-EnumerateHandlesOfType(
-    _In_ SystemHandleType_t Type,
-    _In_ void               (*Fn)(void*, void*),
-    _In_ void*              Context);
 
 #endif //! __HANDLE_INTERFACE__

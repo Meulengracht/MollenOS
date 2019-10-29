@@ -42,7 +42,7 @@ ScCreateMemoryHandler(
 
     if (Space->Context->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
-        Handler->Handle  = CreateHandle(HandleTypeGeneric, 0, NULL, Handler);
+        Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
         Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
         if (!Handler->Address) {
             kfree(Handler);
@@ -90,7 +90,7 @@ OsStatus_t
 ScCreateHandle(
     _Out_ UUId_t* HandleOut)
 {
-    *HandleOut = CreateHandle(HandleTypeGeneric, 0, NULL, NULL);
+    *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
         return OsSuccess;
     }

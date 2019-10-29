@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,26 +24,11 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-
- // Slab size is equal to a page size, and memory layout of a slab is as below
- // FreeBitmap | Object | Object | Object |
-typedef struct {
-    CollectionItem_t Header;
-    volatile size_t  NumberOfFreeObjects;
-    uintptr_t*       Address;  // Points to first object
-    uint8_t*         FreeBitmap;
-} MemorySlab_t;
-
-// Memory Atomic Cache is followed directly by the buffer area for pointers
-// MemoryAtomicCache_t | Pointer | Pointer | Pointer | Pointer | MemoryAtomicCache_t ...
-typedef struct {
-    int Available;
-    int Limit;
-} MemoryAtomicCache_t;
+#include <mutex.h>
 
 typedef struct MemoryCache {
     const char*      Name;
-    SafeMemoryLock_t SyncObject;
+    Mutex_t          SyncObject;
     Flags_t          Flags;
 
     size_t           ObjectSize;

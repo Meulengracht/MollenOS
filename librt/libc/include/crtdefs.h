@@ -179,20 +179,20 @@
 
 #if (defined (__clang__))
 #define PACKED_STRUCT(name, body) struct __attribute__((packed)) name body 
-#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
-#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct __attribute__((packed)) _##name body name##_t
+#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) name body name##_t
+#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct __attribute__((packed)) name body name##_t
 #elif (defined (__GNUC__))
 #define PACKED_STRUCT(name, body) struct name body __attribute__((packed))
-#define PACKED_TYPESTRUCT(name, body) typedef struct _##name body name##_t __attribute__((packed))
-#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct _##name body name##_t __attribute__((packed))
+#define PACKED_TYPESTRUCT(name, body) typedef struct name body name##_t __attribute__((packed))
+#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct name body name##_t __attribute__((packed))
 #elif (defined (__arm__))
 #define PACKED_STRUCT(name, body) __packed struct name body
-#define PACKED_TYPESTRUCT(name, body) __packed typedef struct _##name body name##_t
-#define PACKED_ATYPESTRUCT(opts, name, body) __packed typedef opts struct _##name body name##_t
+#define PACKED_TYPESTRUCT(name, body) __packed typedef struct name body name##_t
+#define PACKED_ATYPESTRUCT(opts, name, body) __packed typedef opts struct name body name##_t
 #elif (defined (_MSC_VER))
 #define PACKED_STRUCT(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
-#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
-#define PACKED_ATYPESTRUCT(opts, name, body) __pragma(pack(push, 1)) typedef opts struct _##name body name##_t __pragma(pack(pop))
+#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct name body name##_t __pragma(pack(pop))
+#define PACKED_ATYPESTRUCT(opts, name, body) __pragma(pack(push, 1)) typedef opts struct name body name##_t __pragma(pack(pop))
 #else
 #error Please define packed struct for the used compiler
 #endif
@@ -315,29 +315,86 @@
 #endif
 
 #if defined(_MSC_VER)
-#ifdef _AMD64_
-#define MemoryBarrier __faststorefence
+#define MB_LOAD  _ReadBarrier()
+#define MB_STORE _WriteBarrier()
+#define MB_FULL  _ReadWriteBarrier()
+
+#if defined(_M_ARM)
+#define CPU_LOAD  __dmb( _ARM_BARRIER_ISH )
+#define CPU_STORE __dmb( _ARM_BARRIER_ISHST )
+#define CPU_FULL  __dmb( _ARM_BARRIER_ISH )
 #endif
 
-#ifdef _IA64_
-#define MemoryBarrier __mf
+// Itanium
+#if defined(_IA64_)
+#define CPU_LOAD  __mf()
+#define CPU_STORE __mf()
+#define CPU_FULL  __mf()
 #endif
 
-// x86
+#if defined(_M_X64) || defined(_M_AMD64 )
+#define CPU_LOAD  _mm_lfence()
+#define CPU_STORE _mm_sfence()
+#define CPU_FULL  _mm_mfence()
+#endif
+
+#if defined(_M_IX86 )
 __forceinline void
-MemoryBarrier (void)
+crt_i386_force_store (void)
 {
-    long Barrier;
+    long barrier;
     __asm {
-        xchg Barrier, eax
+        xchg barrier, eax
     }
 }
-#elif defined(__clang__)
-#if defined(i386)
-#define MemoryBarrier __sync_synchronize
-#elif defined(amd64)
-#define MemoryBarrier __sync_synchronize
+
+#define CPU_LOAD  crt_i386_force_store()
+#define CPU_STORE crt_i386_force_store()
+#define CPU_FULL  crt_i386_force_store()
 #endif
+
+#elif defined(__clang__)
+static inline void crt_barrier_mb( void ) {
+    __asm__ __volatile__ ( "" : : : "memory" );
+}
+
+#define MB_LOAD  crt_barrier_mb()
+#define MB_STORE crt_barrier_mb()
+#define MB_FULL  crt_barrier_mb()
+
+#define CPU_LOAD  __sync_synchronize()
+#define CPU_STORE __sync_synchronize()
+#define CPU_FULL  __sync_synchronize()
+#endif
+
+#if defined(MB_LOAD) && defined(CPU_LOAD)
+#define BARRIER_LOAD MB_LOAD; CPU_LOAD; MB_LOAD
+#elif defined(CPU_LOAD)
+#define BARRIER_LOAD CPU_LOAD
+#elif defined(MB_LOAD)
+#define BARRIER_LOAD MB_LOAD
+#else
+#define BARRIER_LOAD
+#endif
+
+#if defined(MB_STORE) && defined(CPU_STORE)
+#define BARRIER_STORE MB_STORE; CPU_STORE; MB_STORE
+#elif defined(CPU_STORE)
+#define BARRIER_STORE CPU_STORE
+#elif defined(MB_STORE)
+#define BARRIER_STORE MB_STORE
+#else
+#define BARRIER_STORE
+#endif
+
+#if defined(MB_FULL) && defined(CPU_FULL)
+#define BARRIER_FULL MB_STORE; CPU_FULL; MB_FULL
+#elif defined(CPU_FULL)
+#define BARRIER_FULL CPU_FULL
+#elif defined(MB_FULL)
+#define BARRIER_FULL MB_FULL
+#else
+#define BARRIER_FULL
 #endif
 
 /** Deprecated ***************************************************************/

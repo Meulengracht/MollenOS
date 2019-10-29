@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,41 +38,51 @@ enum {
     spinlock_released = 2   // lock has been released
 };
 
-typedef struct {
-    int          _val;
-    int          _type;
-    UUId_t       _owner;
-    _Atomic(int) _refs;
+typedef struct spinlock {
+    int          value;
+    int          type;
+    UUId_t       owner;
+    _Atomic(int) references;
 } spinlock_t;
 
 #define _SPN_INITIALIZER_NP(Flags) { 0, Flags, UUID_INVALID, 0 }
 
 _CODE_BEGIN
-/* spinlock_init
- * This initializes a spinlock handle and sets it to default value (unlocked) */
+
+/**
+ * * spinlock_init
+ * This initializes a spinlock handle and sets it to default value (unlocked)
+ */
 CRTDECL(void,
 spinlock_init(
 	_In_ spinlock_t* lock,
     _In_ int         type));
 
-/* spinlock_acquire
- * Acquires the spinlock while busy-waiting for it to be ready if neccessary */
+/**
+ * * spinlock_acquire
+ * Acquires the spinlock while busy-waiting for it to be ready if neccessary
+ */
 CRTDECL(void,
 spinlock_acquire(
 	_In_ spinlock_t* lock));
 
-/* spinlock_try_acquire
- * Makes an attempt to acquire the spinlock without blocking */
+/**
+ * spinlock_try_acquire
+ * Makes an attempt to acquire the spinlock without blocking 
+ */
 CRTDECL(int,
 spinlock_try_acquire(
 	_In_ spinlock_t* lock));
 
-/* spinlock_release
+/**
+ * * spinlock_release
  * Either releases the lock, or releases a reference to the lock. If the lock is still
- * hold due to nesting, the returned value is spinlock_acquired */
+ * hold due to nesting, the returned value is spinlock_acquired
+ */
 CRTDECL(int,
 spinlock_release(
 	_In_ spinlock_t* lock));
+
 _CODE_END
 
 #endif //!__SPINLOCK_H__

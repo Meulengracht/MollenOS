@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2016, Philip Meulengracht
  *
@@ -20,6 +21,7 @@
  *    where each queue has a different timeslice, the longer a thread is running
  *    the less priority it gets, however longer timeslices it gets.
  */
+
 #define __MODULE "SCHE"
 //#define __TRACE
 
@@ -215,8 +217,6 @@ SchedulerCreateObject(
     SchedulerObject_t* Object = kmalloc(sizeof(SchedulerObject_t));
     memset(Object, 0, sizeof(SchedulerObject_t));
     
-    Object->Link   = NULL;
-    Object->Flags  = 0;
     Object->State  = SchedulerObjectStateIdle;
     Object->Object = Payload;
 
@@ -373,6 +373,7 @@ SchedulerUpdateSleepQueue(
     SchedulerObject_t* t;
     OsStatus_t         Status;
     
+    //if ((uintptr_t)i == 0x406) { __asm { xchg bx, bx }; }
     while (i) {
         if (i != IgnoreObject) {
             i->TimeLeft -= MIN(i->TimeLeft, MillisecondsPassed);
@@ -500,5 +501,6 @@ SchedulerAdvance(
         *NextDeadlineOut = (NextDeadline == __MASK) ? 0 : NextDeadline;
         TRACE("...no next object, deadline in %llu", *NextDeadlineOut);
     }
+    
     return (NextObject == NULL) ? NULL : NextObject->Object;
 }

@@ -59,7 +59,7 @@
 /* The CMOS driver structure
  * Contains information about the driver, the
  * current chip status, the current RTC status etc */
-typedef struct _Cmos {
+typedef struct Cmos {
     size_t  AlarmTicks;
     uint8_t AcpiCentury;
     int     RtcAvailable;

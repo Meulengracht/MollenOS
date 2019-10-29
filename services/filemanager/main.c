@@ -261,10 +261,14 @@ OnEvent(
         case __FILEMANAGER_READ: {
             RWFilePackage_t Package = { 0 };
             
-            Package.Code = VfsReadEntry(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
-                (UUId_t)IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
-                (size_t)IPC_GET_UNTYPED(Message, 0), &Package.ActualSize);
+            UUId_t Requester    = (UUId_t)IPC_GET_TYPED(Message, 1);
+            UUId_t Handle       = (UUId_t)IPC_GET_TYPED(Message, 2);
+            UUId_t BufferHandle = (UUId_t)IPC_GET_TYPED(Message, 3);
+            size_t Offset       = IPC_GET_TYPED(Message, 4);
+            size_t Length       = (size_t)IPC_GET_UNTYPED(Message, 0);
             
+            Package.Code = VfsReadEntry(Requester, Handle, BufferHandle, 
+                Offset, Length, &Package.ActualSize);
             Result = IpcReply(Message, &Package, sizeof(RWFilePackage_t));
         } break;
 
@@ -273,10 +277,14 @@ OnEvent(
         case __FILEMANAGER_WRITE: {
             RWFilePackage_t Package = { 0 };
             
-            Package.Code = VsfWriteEntry(IPC_GET_TYPED(Message, 1), (UUId_t)IPC_GET_TYPED(Message, 2),
-                (UUId_t)IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
-                (size_t)IPC_GET_UNTYPED(Message, 0), &Package.ActualSize);
+            UUId_t Requester    = (UUId_t)IPC_GET_TYPED(Message, 1);
+            UUId_t Handle       = (UUId_t)IPC_GET_TYPED(Message, 2);
+            UUId_t BufferHandle = (UUId_t)IPC_GET_TYPED(Message, 3);
+            size_t Offset       = IPC_GET_TYPED(Message, 4);
+            size_t Length       = (size_t)IPC_GET_UNTYPED(Message, 0);
             
+            Package.Code = VsfWriteEntry(Requester, Handle, BufferHandle, 
+                Offset, Length, &Package.ActualSize);
             Result = IpcReply(Message, &Package, sizeof(RWFilePackage_t));
         } break;
 

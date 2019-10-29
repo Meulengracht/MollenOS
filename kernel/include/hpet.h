@@ -95,7 +95,7 @@
 #define HPET_TIMER_COMPARATOR(Index)		((0x108 + (0x20 * Index)))
 #define HPET_TIMER_FSB(Index)				((0x110 + (0x20 * Index)))
 
-typedef struct _HpTimer {
+typedef struct HpTimer {
 	UUId_t					 Interrupt;
 
 	int						 Present;
@@ -115,7 +115,7 @@ typedef struct _HpTimer {
 	int						 PeriodicSupport;
 } HpTimer_t;
 
-typedef struct _HpController {
+typedef struct HpController {
     uintptr_t                BaseAddress;
 	HpTimer_t				 Timers[HPET_MAXTIMERCOUNT];
 

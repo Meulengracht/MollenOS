@@ -162,14 +162,16 @@ InitializeDefaultThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-    char NameBuffer[16];
+    UUId_t Handle;
+    char   NameBuffer[16];
 
     // Reset thread structure
     memset(Thread, 0, sizeof(MCoreThread_t));
     MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
     SemaphoreConstruct(&Thread->EventObject, 0, 1);
     
-    Thread->Handle       = CreateHandle(HandleTypeThread, 0, DestroyThread, Thread);
+    Handle = CreateHandle(HandleTypeThread, DestroyThread, Thread);
+    Thread->Handle       = Handle;
     Thread->References   = ATOMIC_VAR_INIT(0);
     Thread->Function     = Function;
     Thread->Arguments    = Arguments;
@@ -212,6 +214,56 @@ CreateThreadCookie(
         Cookie *= Parent->StartedAt;
     }
     return Cookie;
+}
+
+static void AddChild(
+    _In_ MCoreThread_t* Parent,
+    _In_ MCoreThread_t* Child)
+{
+    MCoreThread_t* Previous;
+    MCoreThread_t* Link;
+    
+    MutexLock(&Parent->SyncObject);
+    Link = Parent->Children;
+    if (!Link) {
+        Parent->Children = Child;
+    }
+    else {
+        while (Link) {
+            Previous = Link;
+            Link     = Link->Sibling;
+        }
+        
+        Previous->Sibling = Child;
+        Child->Sibling    = NULL;
+    }
+    MutexUnlock(&Parent->SyncObject);
+}
+
+static void RemoveChild(
+    _In_ MCoreThread_t* Parent,
+    _In_ MCoreThread_t* Child)
+{
+    MCoreThread_t* Previous = NULL;
+    MCoreThread_t* Link;
+    
+    MutexLock(&Parent->SyncObject);
+    Link = Parent->Children;
+
+    while (Link) {
+        if (Link == Child) {
+            if (!Previous) {
+                Parent->Children = Child->Sibling;
+            }
+            else {
+                Previous->Sibling = Child->Sibling;
+            }
+            break;
+        }
+        Previous = Link;
+        Link     = Link->Sibling;
+    }
+    MutexUnlock(&Parent->SyncObject);
 }
 
 void
@@ -259,7 +311,8 @@ CreateThread(
 
     // Is a memory space given to us that we should run in? Determine run mode automatically
     if (MemorySpaceHandle != UUID_INVALID) {
-        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)LookupHandle(MemorySpaceHandle);
+        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)LookupHandleOfType(
+            MemorySpaceHandle, HandleTypeMemorySpace);
         if (MemorySpace == NULL) {
             // TODO: cleanup
             return OsDoesNotExist;
@@ -291,7 +344,8 @@ CreateThread(
                 // TODO: cleanup
                 return OsError;
             }
-            Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
+            Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandleOfType(
+                Thread->MemorySpaceHandle, HandleTypeMemorySpace);
         }
     }
     
@@ -305,6 +359,8 @@ CreateThread(
             MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
         // TODO: check return code and cleanup
     }
+    
+    AddChild(Parent, Thread);
 
     SchedulerQueueObject(Thread->SchedulerObject);
     *Handle = Thread->Handle;
@@ -316,35 +372,22 @@ ThreadingDetachThread(
     _In_ UUId_t ThreadId)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
+    MCoreThread_t* Target = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
     OsStatus_t     Status = OsDoesNotExist;
     
-    // Detach is allowed if the caller is the spawner or the caller
-    // is in same process
+    // Detach is allowed if the caller is the spawner or the caller is in same process
     if (Target != NULL) {
         Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
         if (Target->ParentHandle == Thread->Handle || Status == OsSuccess) {
+            MCoreThread_t* Parent = LookupHandleOfType(Target->ParentHandle, HandleTypeThread);
+            if (Parent) {
+                RemoveChild(Parent, Target);
+            }
             Target->ParentHandle = UUID_INVALID;
             Status               = OsSuccess;
         }
     }
     return Status;
-}
-
-static void
-TerminateChildOfThread(
-    _In_ void* Resource,
-    _In_ void* Context)
-{
-    MCoreThread_t* Thread = Resource;
-    struct {
-        UUId_t Handle;
-        int    ExitCode;
-    } *TerminateContext = Context;
-    
-    if (Thread->ParentHandle == TerminateContext->Handle) {
-        TerminateThread(Thread->Handle, TerminateContext->ExitCode, 1);
-    }
 }
 
 OsStatus_t
@@ -353,32 +396,52 @@ TerminateThread(
     _In_ int    ExitCode,
     _In_ int    TerminateChildren)
 {
-    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
-    struct {
-        UUId_t Handle;
-        int    ExitCode;
-    } TerminateContext = { .Handle = ThreadId, .ExitCode = ExitCode };
-
-    if (!Target || (Target->Flags & THREADING_IDLE)) {
-        return OsError; // Never, ever kill system idle threads
+    MCoreThread_t* Thread = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    if (!Thread) {
+        return OsDoesNotExist;
     }
-    TRACE("TerminateThread(%s, %i, %i)", Target->Name, ExitCode, TerminateChildren);
     
-    MutexLock(&Target->SyncObject);
-    if (atomic_load(&Target->Cleanup) == 0) {
-        if (TerminateChildren) {
-            EnumerateHandlesOfType(HandleTypeThread, TerminateChildOfThread, &TerminateContext);
+    // Never, ever kill system idle threads
+    if (Thread->Flags & THREADING_IDLE) {
+        return OsInvalidPermissions;
+    }
+    
+    TRACE("TerminateThread(%s, %i, %i)", Thread->Name, ExitCode, TerminateChildren);
+    
+    MutexLock(&Thread->SyncObject);
+    if (atomic_load(&Thread->Cleanup) == 0) {
+        if (Thread->ParentHandle != UUID_INVALID) {
+            MCoreThread_t* Parent = LookupHandleOfType(Thread->ParentHandle, HandleTypeThread);
+            if (!Parent) {
+                // Parent does not exist anymore, it was terminated without terminating children
+                // which is very unusal. Log this. 
+                WARNING("[terminate_thread] orphaned child terminating %s", Thread->Name);
+            }
+            else {
+                RemoveChild(Parent, Thread);
+            }
         }
-        Target->RetCode = ExitCode;
-        atomic_store(&Target->Cleanup, 1);
+        
+        if (TerminateChildren) {
+            MCoreThread_t* ChildItr = Thread->Children;
+            while (ChildItr) {
+                OsStatus_t Status = TerminateThread(ChildItr->Handle, ExitCode, TerminateChildren);
+                if (Status != OsSuccess) {
+                    ERROR("[terminate_thread] failed to terminate child %s of %s", ChildItr->Name, Thread->Name);
+                }
+                ChildItr = ChildItr->Sibling;
+            }
+        }
+        Thread->RetCode = ExitCode;
+        atomic_store(&Thread->Cleanup, 1);
     
         // If the thread we are trying to kill is not this one, and is sleeping
         // we must wake it up, it will be cleaned on next schedule
         if (ThreadId != GetCurrentThreadId()) {
-            SchedulerExpediteObject(Target->SchedulerObject);
+            SchedulerExpediteObject(Thread->SchedulerObject);
         }
     }
-    MutexUnlock(&Target->SyncObject);
+    MutexUnlock(&Thread->SyncObject);
     return OsSuccess;
 }
 
@@ -386,7 +449,7 @@ int
 ThreadingJoinThread(
     _In_ UUId_t ThreadId)
 {
-    MCoreThread_t* Target = (MCoreThread_t*)LookupHandle(ThreadId);
+    MCoreThread_t* Target = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
     if (Target != NULL && Target->ParentHandle != UUID_INVALID) {
         MutexLock(&Target->SyncObject);
         if (atomic_load(&Target->Cleanup) != 1) {
@@ -450,8 +513,8 @@ AreThreadsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2)
 {
-    MCoreThread_t* First  = (MCoreThread_t*)LookupHandle(Thread1);
-    MCoreThread_t* Second = (MCoreThread_t*)LookupHandle(Thread2);
+    MCoreThread_t* First  = (MCoreThread_t*)LookupHandleOfType(Thread1, HandleTypeThread);
+    MCoreThread_t* Second = (MCoreThread_t*)LookupHandleOfType(Thread2, HandleTypeThread);
     if (First == NULL || Second == NULL) {
         return OsDoesNotExist;
     }
@@ -490,7 +553,7 @@ DumpActiceThread(
 void
 DisplayActiveThreads(void)
 {
-    EnumerateHandlesOfType(HandleTypeThread, DumpActiceThread, NULL);
+    // TODO
 }
 
 OsStatus_t
@@ -541,7 +604,7 @@ GetNextThread:
     NextThread = (MCoreThread_t*)SchedulerAdvance((Current != NULL) ? 
         Current->SchedulerObject : NULL, Preemptive, 
         MillisecondsPassed, NextDeadlineOut);
-
+    
     // Sanitize if we need to active our idle thread, otherwise
     // do a final check that we haven't just gotten ahold of a thread
     // marked for finish

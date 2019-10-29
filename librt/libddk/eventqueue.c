@@ -33,7 +33,7 @@
 #define EVENT_EXECUTED  1
 #define EVENT_CANCELLED 2
 
-typedef struct _EventQueueEvent {
+typedef struct EventQueueEvent {
     CollectionItem_t   Header;
     EventQueueFunction Function;
     void*              Context;
@@ -42,7 +42,7 @@ typedef struct _EventQueueEvent {
     int                State;
 } EventQueueEvent_t;
 
-typedef struct _EventQueue {
+typedef struct EventQueue {
     int           IsRunning;
     UUId_t        NextEventId;
     thrd_t        EventThread;

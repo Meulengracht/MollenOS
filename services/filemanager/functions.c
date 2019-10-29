@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -19,7 +20,7 @@
  * File Manager Service
  * - Handles all file related services and disk services
  */
-//#define __TRACE
+#define __TRACE
 
 #include "include/vfs.h"
 #include <os/mollenos.h>
@@ -521,9 +522,10 @@ VfsReadEntry(
     FileSystem_t*            Fs;
     OsStatus_t               Status;
     struct dma_attachment    DmaAttachment;
+    TRACE("[vfs_read] pid => %u, id => %u, b_id => %u", Requester, Handle, BufferHandle);
     
     if (BufferHandle == UUID_INVALID || Length == 0) {
-        ERROR("Buffer/length is invalid.");
+        ERROR("[vfs_read] error invalid parameters, length 0 or invalid b_id");
         return FsInvalidParameters;
     }
 
@@ -539,13 +541,13 @@ VfsReadEntry(
 
     Status = dma_attach(BufferHandle, &DmaAttachment);
     if (Status != OsSuccess) {
-        ERROR("User specified buffer was invalid");
+        ERROR("[vfs_read] [dma_attach] failed: %u", Status);
         return FsInvalidParameters;
     }
     
     Status = dma_attachment_map(&DmaAttachment);
     if (Status != OsSuccess) {
-        ERROR("Failed to map the user buffer");
+        ERROR("[vfs_read] [dma_attachment_map] failed: %u", Status);
         dma_detach(&DmaAttachment);
         return FsInvalidParameters;
     }
@@ -579,10 +581,10 @@ VsfWriteEntry(
     OsStatus_t               Status;
     struct dma_attachment    DmaAttachment;
 
-    TRACE("VsfWriteEntry(Length %u)", Length);
+    TRACE("[vfs_write] pid => %u, id => %u, b_id => %u", Requester, Handle, BufferHandle);
 
     if (BufferHandle == UUID_INVALID || Length == 0) {
-        ERROR("Buffer/length is invalid.");
+        ERROR("[vfs_write] error invalid parameters, length 0 or invalid b_id");
         return FsInvalidParameters;
     }
 
@@ -598,19 +600,19 @@ VsfWriteEntry(
 
     Status = dma_attach(BufferHandle, &DmaAttachment);
     if (Status != OsSuccess) {
-        ERROR("User specified buffer was invalid");
+        ERROR("[vfs_write] [dma_attach] failed: %u", Status);
         return FsInvalidParameters;
     }
     
     Status = dma_attachment_map(&DmaAttachment);
     if (Status != OsSuccess) {
-        ERROR("Failed to map the user buffer");
+        ERROR("[vfs_write] [dma_attachment_map] failed: %u", Status);
         dma_detach(&DmaAttachment);
         return FsInvalidParameters;
     }
 
-    Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle,
+    Fs   = (FileSystem_t*)EntryHandle->Entry->System;
+    Code = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle,
         DmaAttachment.buffer, Offset, Length, BytesWritten);
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_WRITE;

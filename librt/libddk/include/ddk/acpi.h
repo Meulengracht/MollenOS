@@ -42,7 +42,7 @@
  * It contains basic information about the
  * acpi-availability on the current system
  * together with a small subset of frequently used data */
-typedef struct _AcpiDescriptor {
+typedef struct AcpiDescriptor {
 	uint8_t			Version;		/* Version of the ACPI on the current platform */
 	uint8_t			Century;		/* Index to century in RTC CMOS RAM */
 	uint16_t		BootFlags;		/* IA-PC Boot Architecture Flags */

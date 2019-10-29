@@ -32,7 +32,7 @@
 // their own memory region. They can access all memory but
 // there is penalty to not accessing local memory instead of 
 // accessing foreign memory.
-typedef struct _SystemDomain {
+typedef struct SystemDomain {
     CollectionItem_t            Header;
     UUId_t                      Id;
     SystemCpu_t                 CoreGroup;

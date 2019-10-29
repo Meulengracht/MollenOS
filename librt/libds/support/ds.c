@@ -50,7 +50,7 @@ static SystemDescriptor_t __SystemInformation = { 0 };
 static uintptr_t          __SystemBaseAddress = 0;
 #endif
 
-typedef struct _MemoryMappingState {
+typedef struct MemoryMappingState {
     MemorySpaceHandle_t Handle;
     uintptr_t           Address;
     size_t              Length;

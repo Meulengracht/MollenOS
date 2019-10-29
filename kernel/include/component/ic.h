@@ -25,20 +25,20 @@
 
 #include <os/osdefs.h>
 
-typedef struct _SystemInterruptOverride {
+typedef struct SystemInterruptOverride {
     Flags_t     OverrideFlags;
     int         SourceLine;
     int         DestinationLine;
 } SystemInterruptOverride_t;
 
-typedef struct _SystemInterruptController {
+typedef struct SystemInterruptController {
     UUId_t      Id;
     int         InterruptLineBase;
     int         NumberOfInterruptLines;
     uintptr_t   MemoryAddress;
     uintptr_t   Data[4];
 
-    struct _SystemInterruptController* Link;
+    struct SystemInterruptController* Link;
 } SystemInterruptController_t;
 
 /* CreateInterruptController

@@ -39,7 +39,7 @@ static HpController_t HpetController = { 0 };
 #define HP_READ_64(Offset, ValueOut) ReadVolatileMemory(HpetController.BaseAddress + Offset, 8, ValueOut)
 
 #define HP_WRITE_32(Offset, Value)   WriteVolatileMemory(HpetController.BaseAddress + Offset, 4, Value)
-#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory(HpetController.BaseAddress + Offset, 4, Value)
+#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory(HpetController.BaseAddress + Offset, 8, Value)
 
 void
 HpReadCounter(

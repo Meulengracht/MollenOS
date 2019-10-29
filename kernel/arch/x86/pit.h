@@ -62,10 +62,7 @@
 /* The IRQ line the PIT uses, it's an ISA line so it's fixed */
 #define PIT_IRQ						0x0
 
-/* The PIT driver structure
- * contains all driver information and chip
- * current status information */
-typedef struct _Pit {
+typedef struct Pit {
 	UUId_t				Irq;
 	size_t				NsTick;
 	size_t				NsCounter;

@@ -192,11 +192,13 @@ ScDmaAttach(
     SystemSharedRegion_t* Region;
     
     if (!attachment) {
+        ERROR("[sc_dma_attach] null attachment pointer");
         return OsInvalidParameters;
     }
     
     Region = (SystemSharedRegion_t*)AcquireHandle(handle);
     if (!Region) {
+        ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", handle);
         return OsDoesNotExist;
     }
     
@@ -383,7 +385,7 @@ ScGetThreadMemorySpaceHandle(
         }
         return OsError;
     }
-    Thread = (MCoreThread_t*)LookupHandle(ThreadHandle);
+    Thread = (MCoreThread_t*)LookupHandleOfType(ThreadHandle, HandleTypeThread);
     if (Thread != NULL) {
         *Handle = Thread->MemorySpaceHandle;
         return OsSuccess;
@@ -398,7 +400,7 @@ ScCreateMemorySpaceMapping(
     _Out_ void**                          AddressOut)
 {
     SystemModule_t*      Module         = GetCurrentModule();
-    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandle(Handle);
+    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
     Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
     VirtualAddress_t     CopyPlacement  = 0;

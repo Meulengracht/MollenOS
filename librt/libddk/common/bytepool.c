@@ -106,7 +106,7 @@ struct bfhead {
 /* BytePool
  * This is the structure containing all neccessary state-variables
  * to keep track of memory pools. */
-typedef struct _BytePool {
+typedef struct BytePool {
 	struct bfhead freelist;
 #ifdef BufStats
 	long totalloc;	      /* Total space currently allocated */

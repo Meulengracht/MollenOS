@@ -29,7 +29,7 @@
 #include <ds/collection.h>
 #include <mutex.h>
 
-typedef struct _BlockBitmap BlockBitmap_t;
+typedef struct BlockBitmap BlockBitmap_t;
 
 /* SystemMemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -62,7 +62,7 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_VIRTUAL_FIXED           0x00000020  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x00000038
 
-typedef struct _SystemMemoryMappingHandler {
+typedef struct SystemMemoryMappingHandler {
     CollectionItem_t Header;
     UUId_t           Handle;
     uintptr_t        Address;
@@ -78,13 +78,13 @@ typedef struct {
     uintptr_t Pages[1];
 } SystemSharedRegion_t;
 
-typedef struct _SystemMemorySpaceContext {
+typedef struct SystemMemorySpaceContext {
     Collection_t*  MemoryHandlers;
     BlockBitmap_t* HeapSpace;
     uintptr_t      SignalHandler;
 } SystemMemorySpaceContext_t;
 
-typedef struct _SystemMemorySpace {
+typedef struct SystemMemorySpace {
     UUId_t                      ParentHandle;
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];

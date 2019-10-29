@@ -37,7 +37,8 @@
 #include <string.h>
 #include <threading.h>
 
-typedef struct _SystemHandle {
+typedef struct SystemHandle {
+    CollectionItem_t   Header;
     SystemHandleType_t Type;
     const char*        Path;
     Flags_t            Flags;
@@ -48,17 +49,39 @@ typedef struct _SystemHandle {
     Collection_t       Sets;
 } SystemHandle_t;
 
-static Semaphore_t EventHandle   = SEMAPHORE_INIT(0, 1);
-static Array_t*    SystemHandles = NULL;
-static UUId_t      JanitorHandle = UUID_INVALID;
+static Semaphore_t     EventHandle    = SEMAPHORE_INIT(0, 1);
+static Collection_t    CleanupHandles = COLLECTION_INIT(KeyId);
+static Collection_t    SystemHandles  = COLLECTION_INIT(KeyId);
+static UUId_t          JanitorHandle  = UUID_INVALID;
+static _Atomic(UUId_t) HandleIdGen    = ATOMIC_VAR_INIT(0);
+
+static inline SystemHandle_t*
+LookupHandleInstance(
+    _In_ UUId_t Handle)
+{
+    DataKey_t Key = { .Value.Id = Handle };
+    return (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+}
+
+static inline SystemHandle_t*
+LookupSafeHandleInstance(
+    _In_ UUId_t Handle)
+{
+    SystemHandle_t* Instance = LookupHandleInstance(Handle);
+    if (!Instance || atomic_load(&Instance->References) <= 0) {
+        return NULL;
+    }
+    return Instance;
+}
 
 static SystemHandle_t*
 AcquireHandleInstance(
     _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    SystemHandle_t* Instance = LookupHandleInstance(Handle);
     int             PreviousReferences;
     if (!Instance) {
+        WARNING("[acquire_handle] failed to find %u");
         return NULL;
     }
 
@@ -66,46 +89,37 @@ AcquireHandleInstance(
     if (PreviousReferences <= 0) {
         // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
+        WARNING("[acquire_handle] handle was destroyed %u: %i",
+            Handle, PreviousReferences);
         return NULL;
     }
     return Instance;
 }
 
-static SystemHandle_t*
-LookupHandleInstance(
-    _In_ UUId_t Handle)
-{
-    return ARRAY_GET(SystemHandles, Handle);
-}
-
 UUId_t
 CreateHandle(
     _In_ SystemHandleType_t Type,
-    _In_ Flags_t            Flags,
     _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource)
 {
-    SystemHandle_t* Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
-    UUId_t          Id;
-    TRACE("CreateHandle()");
+    SystemHandle_t* Handle;
     
+    Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
     if (!Handle) {
         return UUID_INVALID;
     }
     
+    memset(Handle, 0, sizeof(SystemHandle_t));
     CollectionConstruct(&Handle->Sets, KeyId);
-    Handle->Type       = Type;
-    Handle->Flags      = Flags;
-    Handle->Resource   = Resource;
-    Handle->Destructor = Destructor;
-    Handle->Path       = NULL;
-    atomic_store_explicit(&Handle->References, 1, memory_order_relaxed);
-    Id = ArrayAppend(SystemHandles, Handle);
-    if (Id == UUID_INVALID) {
-        kfree(Handle);
-    }
-    TRACE("... id %u", Id);
-    return Id;
+    Handle->Header.Key.Value.Id = atomic_fetch_add(&HandleIdGen, 1);
+    Handle->Type                = Type;
+    Handle->Resource            = Resource;
+    Handle->Destructor          = Destructor;
+    Handle->References          = ATOMIC_VAR_INIT(1);
+    CollectionAppend(&SystemHandles, &Handle->Header);
+    
+    WARNING("[create_handle] => id %u", Handle->Header.Key.Value.Id);
+    return Handle->Header.Key.Value.Id;
 }
 
 void*
@@ -132,7 +146,7 @@ RegisterHandlePath(
         return OsInvalidParameters;
     }
     
-    Instance = ARRAY_GET(SystemHandles, Handle);
+    Instance = LookupSafeHandleInstance(Handle);
     if (!Instance) {
         return OsDoesNotExist;
     }
@@ -146,19 +160,20 @@ RegisterHandlePath(
     return OsSuccess;
 }
 
+// This function iterates the array, not good... TODO find solution
+// I want to avoid using a hashtable for this tho, or try to atleast
 OsStatus_t
 LookupHandleByPath(
     _In_  const char* Path,
     _Out_ UUId_t*     HandleOut)
 {
-    size_t i;
     TRACE("LookupHandleByPath(%s)", Path);
     
-    for (i = 0; i < SystemHandles->Capacity; i++) {
-        SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
+    foreach(Node, &SystemHandles) {
+        SystemHandle_t* Instance = (SystemHandle_t*)Node;
         if (Instance && Instance->Path && !strcmp(Instance->Path, Path)) {
             TRACE("... found");
-            *HandleOut = (UUId_t)i;
+            *HandleOut = Instance->Header.Key.Value.Id;
             return OsSuccess;
         }
     }
@@ -170,7 +185,7 @@ void*
 LookupHandle(
     _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    SystemHandle_t* Instance = LookupSafeHandleInstance(Handle);
     if (!Instance) {
         return NULL;
     }
@@ -182,7 +197,7 @@ LookupHandleOfType(
     _In_ UUId_t             Handle,
     _In_ SystemHandleType_t Type)
 {
-    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    SystemHandle_t* Instance = LookupSafeHandleInstance(Handle);
     if (!Instance || Instance->Type != Type) {
         return NULL;
     }
@@ -190,62 +205,45 @@ LookupHandleOfType(
 }
 
 void
-EnumerateHandlesOfType(
-    _In_ SystemHandleType_t Type,
-    _In_ void               (*Fn)(void*, void*),
-    _In_ void*              Context)
-{
-    size_t i;
-    
-    for (i = 0; i < SystemHandles->Capacity; i++) {
-        SystemHandle_t* Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
-        if (Instance && Instance->Type == Type) {
-            Fn(Instance->Resource, Context);
-        }
-    }
-}
-
-void
 DestroyHandle(
     _In_ UUId_t Handle)
 {
-    SystemHandle_t* Instance = ARRAY_GET(SystemHandles, Handle);
+    SystemHandle_t* Instance = LookupSafeHandleInstance(Handle);
     int             References;
-
     if (!Instance) {
         return;
     }
+    WARNING("[destroy_handle] => %u", Handle);
 
     References = atomic_fetch_sub(&Instance->References, 1) - 1;
     if (References == 0) {
-        Instance->Flags |= HandleCleanup;
+        WARNING("[destroy_handle] cleaning up %u", Handle);
+        CollectionRemoveByNode(&SystemHandles, &Instance->Header);
+        CollectionAppend(&CleanupHandles, &Instance->Header);
         SemaphoreSignal(&EventHandle, 1);
     }
 }
 
-static void 
+static void
 HandleJanitorThread(
     _In_Opt_ void* Args)
 {
     SystemHandle_t* Instance;
     int             Run = 1;
-    size_t          i;
     _CRT_UNUSED(Args);
     
     while (Run) {
         SemaphoreWait(&EventHandle, 0);
-        for (i = 0; i < SystemHandles->Capacity; i++) {
-            Instance = (SystemHandle_t*)ARRAY_GET(SystemHandles, i);
-            if (Instance && (Instance->Flags & HandleCleanup)) {
-                ArrayRemove(SystemHandles, i);
-                if (Instance->Destructor) {
-                    Instance->Destructor(Instance->Resource);
-                }
-                if (Instance->Path) {
-                    kfree((void*)Instance->Path);
-                }
-                kfree(Instance);
+        Instance = (SystemHandle_t*)CollectionPopFront(&CleanupHandles);
+        while (Instance) {
+            if (Instance->Destructor) {
+                Instance->Destructor(Instance->Resource);
             }
+            if (Instance->Path) {
+                kfree((void*)Instance->Path);
+            }
+            kfree(Instance);
+            Instance = (SystemHandle_t*)CollectionPopFront(&CleanupHandles);
         }
     }
 }
@@ -253,7 +251,7 @@ HandleJanitorThread(
 OsStatus_t
 InitializeHandles(void)
 {
-    return ArrayCreate(ARRAY_CAN_EXPAND, 128, &SystemHandles);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -266,14 +264,14 @@ InitializeHandleJanitor(void)
 /// Handle Sets implementation, a bit coupled to io_events.h as it implements
 /// the neccessary functionality to listen to multiple handles
 ///////////////////////////////////////////////////////////////////////////////
-typedef struct _SystemHandleSet {
+typedef struct SystemHandleSet {
     _Atomic(int) Pending;
     Collection_t Events;
     RBTree_t     Handles;
     Flags_t      Flags;
 } SystemHandleSet_t;
 
-typedef struct _SystemHandleEvent {
+typedef struct SystemHandleEvent {
     CollectionItem_t           Header;
     _Atomic(int)               ActiveEvents;
     struct _SystemHandleEvent* Link;
@@ -282,13 +280,13 @@ typedef struct _SystemHandleEvent {
     Flags_t                    Configuration;
 } SystemHandleEvent_t;
 
-typedef struct _SystemHandleSetElement {
+typedef struct SystemHandleSetElement {
     CollectionItem_t    Header;
     SystemHandleSet_t*  Set;
     SystemHandleEvent_t Event;
 } SystemHandleSetElement_t;
 
-typedef struct _SystemHandleItem {
+typedef struct SystemHandleItem {
     RBTreeItem_t              Header;
     SystemHandleSetElement_t* Element;
 } SystemHandleItem_t;
@@ -326,12 +324,16 @@ CreateHandleSet(
     UUId_t             Handle;
     
     Set = (SystemHandleSet_t*)kmalloc(sizeof(SystemHandleSet_t));
+    if (!Set) {
+        return UUID_INVALID;
+    }
+    
     CollectionConstruct(&Set->Events, KeyId);
     RBTreeConstruct(&Set->Handles, KeyId);
     Set->Pending = ATOMIC_VAR_INIT(0);
-    Set->Flags = Flags;
+    Set->Flags   = Flags;
     
-    Handle = CreateHandle(HandleTypeSet, 0, DestroyHandleSet, Set);
+    Handle = CreateHandle(HandleTypeSet, DestroyHandleSet, Set);
     if (Handle == UUID_INVALID) {
         kfree(Set);
     }
@@ -440,7 +442,7 @@ WaitForHandleSet(
     _In_  size_t          Timeout,
     _Out_ int*            NumberOfEventsOut)
 {
-    SystemHandleSet_t*   Set = LookupHandle(Handle);
+    SystemHandleSet_t*   Set = LookupHandleOfType(Handle, HandleTypeSet);
     handle_event_t*      Event = Events;
     SystemHandleEvent_t* Head;
     int                  NumberOfEvents;

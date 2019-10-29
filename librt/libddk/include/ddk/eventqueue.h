@@ -26,7 +26,7 @@
 
 #include <os/osdefs.h>
 
-typedef struct _EventQueue EventQueue_t;
+typedef struct EventQueue EventQueue_t;
 typedef void(*EventQueueFunction)(void*);
 
 /* CreateEventQueue

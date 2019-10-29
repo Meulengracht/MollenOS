@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 
-typedef struct _MCoreThread MCoreThread_t;
+typedef struct SystemThread MCoreThread_t;
 
 /* ThreadingRegister
  * Initializes a new arch-specific thread context

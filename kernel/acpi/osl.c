@@ -48,7 +48,7 @@ struct _acpi_osc {
 #define OSI_STRING_LENGTH_MAX 64        /* arbitrary */
 #define OSI_STRING_ENTRIES_MAX 16       /* arbitrary */
 
-typedef struct _OsiSetupEntry {
+typedef struct OsiSetupEntry {
 	char String[OSI_STRING_LENGTH_MAX];
 	uint8_t Enable;
 } OsiSetupEntry_t;
