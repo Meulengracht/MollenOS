@@ -373,7 +373,6 @@ SchedulerUpdateSleepQueue(
     SchedulerObject_t* t;
     OsStatus_t         Status;
     
-    //if ((uintptr_t)i == 0x406) { __asm { xchg bx, bx }; }
     while (i) {
         if (i != IgnoreObject) {
             i->TimeLeft -= MIN(i->TimeLeft, MillisecondsPassed);
