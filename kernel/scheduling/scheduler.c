@@ -154,9 +154,9 @@ QueueObjectImmediately(
     // If the object is running on our core, just append it
     Core = GetCurrentProcessorCore();
     if (Core->Id == Object->CoreId) {
-        dslock(&Core->Scheduler.SyncObject);
+        IrqSpinlockAcquire(&Core->Scheduler.SyncObject);
         QueueForScheduler(&Core->Scheduler, Object, 1);
-        dsunlock(&Core->Scheduler.SyncObject);
+        IrqSpinlockRelease(&Core->Scheduler.SyncObject);
         if (ThreadingIsCurrentTaskIdle(Core->Id)) {
             ThreadingYield();
         }

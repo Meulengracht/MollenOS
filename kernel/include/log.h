@@ -24,7 +24,7 @@
 #define __LOGGING_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ds/ds.h>
+#include <irq_spinlock.h>
 
 #define LOG_INITIAL_SIZE        (1024 * 4)
 #define LOG_PREFFERED_SIZE      (1024 * 65)
@@ -49,7 +49,7 @@ typedef struct SystemLog {
     size_t           DataSize;
     int              NumberOfLines;
     SystemLogLine_t* Lines;
-    SafeMemoryLock_t SyncObject;
+    IrqSpinlock_t    SyncObject;
     
     int LineIndex;
     int RenderIndex;

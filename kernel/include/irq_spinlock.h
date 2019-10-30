@@ -24,7 +24,6 @@
 #ifndef __VALI_IRQ_SPINLOCK_H__
 #define __VALI_IRQ_SPINLOCK_H__
 
-#include <arch/interrupts.h>
 #include <os/spinlock.h>
 
 typedef struct IrqSpinlock {

@@ -21,6 +21,7 @@
  * - Spinlock implementation that also disables interrupts.
  */
 
+#include <arch/interrupts.h>
 #include <assert.h>
 #include <irq_spinlock.h>
 

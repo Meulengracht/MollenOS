@@ -32,10 +32,10 @@
 #include <ddk/interrupt.h>
 #include <deviceio.h>
 #include <debug.h>
-#include <ds/ds.h>
 #include <heap.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
+#include <irq_spinlock.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <string.h>
@@ -47,7 +47,7 @@ typedef struct InterruptTableEntry {
 } InterruptTableEntry_t;
 
 static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
-static SafeMemoryLock_t      InterruptTableSyncObject = { 0 };
+static IrqSpinlock_t         InterruptTableSyncObject = OS_IRQ_SPINLOCK_INIT;
 static _Atomic(UUId_t)       InterruptIdGenerator     = ATOMIC_VAR_INIT(0);
 
 OsStatus_t
@@ -402,7 +402,7 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-    dslock(&InterruptTableSyncObject);
+    IrqSpinlockAcquire(&InterruptTableSyncObject);
     if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty    = 1;
@@ -421,7 +421,7 @@ InterruptRegister(
     if (InterruptConfigure(Entry, 1) != OsSuccess) {
         ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
     }
-    dsunlock(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&InterruptTableSyncObject);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
         Entry->Id, Entry->Interrupt.FastInterrupt.Handler, Entry->Interrupt.Context);
     return Entry->Id;
@@ -443,7 +443,7 @@ InterruptUnregister(
     }
     
     // Iterate handlers in that table index and unlink the given entry
-    dslock(&InterruptTableSyncObject);
+    IrqSpinlockAcquire(&InterruptTableSyncObject);
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Id == Source) {
@@ -468,7 +468,7 @@ InterruptUnregister(
         Previous = Entry;
         Entry    = Entry->Link;
     }
-    dsunlock(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&InterruptTableSyncObject);
 
     // Sanitize if we were successfull
     if (Found == 0) {

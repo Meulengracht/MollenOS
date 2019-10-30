@@ -54,13 +54,13 @@ LogInitializeFull(void)
     UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
     memset(UpgradeBuffer, 0, LOG_PREFFERED_SIZE);
 
-	dslock(&LogObject.SyncObject);
+	IrqSpinlockAcquire(&LogObject.SyncObject);
     memcpy(UpgradeBuffer, (const void*)LogObject.StartOfData, LogObject.DataSize);
     LogObject.StartOfData   = (uintptr_t*)UpgradeBuffer;
     LogObject.DataSize      = LOG_PREFFERED_SIZE;
     LogObject.Lines         = (SystemLogLine_t*)UpgradeBuffer;
     LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
-	dsunlock(&LogObject.SyncObject);
+	IrqSpinlockRelease(&LogObject.SyncObject);
 }
 
 void
@@ -68,7 +68,7 @@ LogRenderMessages(void)
 {
     SystemLogLine_t* Line;
 
-	dslock(&LogObject.SyncObject);
+	IrqSpinlockAcquire(&LogObject.SyncObject);
     while (LogObject.RenderIndex != LogObject.LineIndex) {
 
         // Get next line to be rendered
@@ -91,7 +91,7 @@ LogRenderMessages(void)
             printf("%s\n", &Line->Data[0]);
         }
     }
-	dsunlock(&LogObject.SyncObject);
+	IrqSpinlockRelease(&LogObject.SyncObject);
 }
 
 void
@@ -119,12 +119,12 @@ LogAppendMessage(
     assert(Message != NULL);
 
     // Get a new line object
-	dslock(&LogObject.SyncObject);
+	IrqSpinlockAcquire(&LogObject.SyncObject);
     Line = &LogObject.Lines[LogObject.LineIndex++];
     if (LogObject.LineIndex == LogObject.NumberOfLines) {
         LogObject.LineIndex = 0;
     }
-	dsunlock(&LogObject.SyncObject);
+	IrqSpinlockRelease(&LogObject.SyncObject);
     memset((void*)Line, 0, sizeof(SystemLogLine_t));
     Line->Type = Type;
     snprintf(&Line->System[0], sizeof(Line->System), "[%s] ", Header);

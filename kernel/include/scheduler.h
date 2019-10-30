@@ -26,8 +26,8 @@
 #define __VALI_SCHEDULER_H__
 
 #include <os/osdefs.h>
-#include <ds/ds.h>
 #include <os/spinlock.h>
+#include <irq_spinlock.h>
 #include <ds/collection.h>
 #include <time.h>
 
@@ -80,7 +80,7 @@ typedef struct {
 } SchedulerQueue_t;
 
 typedef struct {
-    SafeMemoryLock_t       SyncObject;
+    IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
     _Atomic(int)           ObjectCount;
