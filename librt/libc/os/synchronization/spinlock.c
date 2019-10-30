@@ -43,7 +43,7 @@ spinlock_init(
 	lock->value = 0;
     lock->owner = UUID_INVALID;
     lock->type  = type;
-    atomic_store(&lock->references, 0);
+    OS_ATOMIC_STORE(&lock->references, 0);
 }
 
 int
@@ -54,10 +54,9 @@ spinlock_try_acquire(
     
     assert(lock != NULL);
 
-    BARRIER_FULL;
+    BARRIER_LOAD;
     if (IS_RECURSIVE(lock) && lock->owner == thrd_current()) {
-        references = atomic_fetch_add(&lock->references, 1);
-        BARRIER_FULL;
+        OS_ATOMIC_ADD(&lock->references, 1, references);
         assert(references != 0);
         return spinlock_acquired;
     }
@@ -67,9 +66,8 @@ spinlock_try_acquire(
         return spinlock_busy;
     }
     
-    atomic_store(&lock->references, 1);
     lock->owner = thrd_current();
-    BARRIER_STORE;
+    OS_ATOMIC_STORE(&lock->references, 1);
     return spinlock_acquired;
 }
 
@@ -87,9 +85,7 @@ spinlock_release(
     int references;
     assert(lock != NULL);
 
-    BARRIER_LOAD;
-    references = atomic_fetch_sub(&lock->references, 1);
-    BARRIER_FULL;
+    OS_ATOMIC_SUB(&lock->references, 1, references);
     if (references == 1) {
         lock->owner = UUID_INVALID;
         _spinlock_release(lock);

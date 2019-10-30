@@ -339,9 +339,7 @@
 #endif
 
 #if defined(_M_IX86 )
-__forceinline void
-crt_i386_force_store (void)
-{
+__forceinline void crt_i386_force_store (void) {
     long barrier;
     __asm {
         xchg barrier, eax
@@ -354,7 +352,7 @@ crt_i386_force_store (void)
 #endif
 
 #elif defined(__clang__)
-static inline void crt_barrier_mb( void ) {
+static inline void crt_barrier_mb(void) {
     __asm__ __volatile__ ( "" : : : "memory" );
 }
 

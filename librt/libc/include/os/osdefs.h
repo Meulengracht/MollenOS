@@ -48,8 +48,10 @@
 # define _T(x) x
 #endif
 
-/* Memory / Addressing types below 
- * these will switch in size based upon target-arch */
+/**
+ * Memory / Addressing types below 
+ * these will switch in size based upon target-arch 
+ */
 typedef uint32_t                    reg32_t;
 typedef uint64_t                    reg64_t;
 
@@ -67,21 +69,19 @@ typedef unsigned long long          VirtualAddress_t;
 typedef reg64_t                     reg_t;
 #endif
 
-/* Operation System types below 
+/**
+ * Operation System Types 
  * these are usually fixed no matter arch and include stuff
- * as threading, processing etc */
-typedef unsigned int                IntStatus_t;
-typedef size_t                      UUId_t; 
-typedef unsigned int                Flags_t;
-typedef unsigned                    DevInfo_t;
-typedef void*                       Handle_t;
+ * as threading, processing etc 
+ */
+typedef unsigned int IntStatus_t;
+typedef size_t       UUId_t; 
+typedef unsigned int Flags_t;
+typedef unsigned     DevInfo_t;
+typedef void*        Handle_t;
 
-/* Define some special UUId_t constants 
- * Especially a constant for invalid */
 #define UUID_INVALID                (UUId_t)-1
 
-/* Define some special UUId_t constants 
- * Especially a constant for invalid */
 #define HANDLE_INVALID              (Handle_t)0
 #define HANDLE_GLOBAL               (Handle_t)1
 
@@ -106,39 +106,36 @@ typedef enum {
     InterruptHandledStop,   // Handled, do not notify process
 } InterruptStatus_t;
 
-typedef union _LargeInteger {
+typedef union LargeInteger {
     struct {
-        uint32_t        LowPart;
-        int32_t         HighPart;
+        uint32_t LowPart;
+        int32_t  HighPart;
     } s;
     struct {
-        uint32_t        LowPart;
-        uint32_t        HighPart;
+        uint32_t LowPart;
+        uint32_t HighPart;
     } u;
-    int64_t             QuadPart;
+    int64_t QuadPart;
 } LargeInteger_t;
 
-typedef union _LargeUInteger {
+typedef union LargeUInteger {
     struct {
-        uint32_t        LowPart;
-        int32_t         HighPart;
+        uint32_t LowPart;
+        int32_t  HighPart;
     } s;
     struct {
-        uint32_t        LowPart;
-        uint32_t        HighPart;
+        uint32_t LowPart;
+        uint32_t HighPart;
     } u;
-    uint64_t            QuadPart;
+    uint64_t QuadPart;
 } LargeUInteger_t;
 
-/* Helper function, retrieves the first 
- * set bit in a set of bits */
-static inline int FirstSetBit(size_t Value)
+static inline int
+FirstSetBit(size_t Value)
 {
-    // Variables
     int bCount = 0;
     size_t Cc = Value;
 
-    // Keep bit-shifting
     for (; Cc != 0;) {
         bCount++;
         Cc >>= 1;
@@ -146,16 +143,12 @@ static inline int FirstSetBit(size_t Value)
     return bCount;
 }
 
-/* Helper function, retrieves the last 
- * set bit in a set of bits */
-static inline int LastSetBit(size_t Value)
+static inline int
+LastSetBit(size_t Value)
 {
-    // Variables
     size_t _Val = Value;
     int bIndex = 0;
 
-    // Keep shifting untill we 
-    // reach a zero value 
     while (_Val >>= 1) {
         bIndex++;
     }
@@ -180,15 +173,12 @@ static inline int LastSetBit(size_t Value)
 #define COMPILE_TIME_ASSERT(X)                  COMPILE_TIME_ASSERT2(X,__LINE__)
 #endif
 
-/* Time definitions that can help with 
- * conversion of the different time-units */
 #define FSEC_PER_NSEC                           1000000L
 #define NSEC_PER_MSEC                           1000L
 #define MSEC_PER_SEC                            1000L
 #define NSEC_PER_SEC                            1000000000L
 #define FSEC_PER_SEC                            1000000000000000LL
 
-/* Data manipulation macros */
 #ifndef LOWORD
 #define LOWORD(l)                               ((uint16_t)(uint32_t)(l))
 #endif
@@ -235,6 +225,16 @@ static inline int LastSetBit(size_t Value)
 #define HIDWORD(l)                              (((*(LargeInteger_t*)(&l))).u.HighPart)
 #endif
 #endif
+#endif
+
+#if defined(__CLANG_STDATOMIC_H)
+#define OS_ATOMIC_LOAD(object, out)                         MB_LOAD; out = atomic_load(object)
+#define OS_ATOMIC_STORE(object, desired)                    atomic_store(object, desired); MB_STORE
+#define OS_ATOMIC_ADD(object, operand, old)                 MB_FULL; old = atomic_fetch_add(object, operand); MB_FULL
+#define OS_ATOMIC_SUB(object, operand, old)                 MB_FULL; old = atomic_fetch_sub(object, operand); MB_FULL
+#define OS_ATOMIC_EXCHANGE(object, new, old)                MB_FULL; old = atomic_exchange(object, new); MB_FULL
+#define OS_ATOMIC_CAS_WEAK(object, expected, new, result)   MB_FULL; result = atomic_compare_exchange_weak(object, expected, new); MB_FULL
+#define OS_ATOMIC_CAS_STRONG(object, expected, new, result) MB_FULL; result = atomic_compare_exchange_strong(object, expected, new); MB_FULL
 #endif
 
 #endif //!__OS_DEFINITIONS__

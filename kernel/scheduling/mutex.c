@@ -60,6 +60,7 @@ OsStatus_t
 MutexTryLock(
     _In_ Mutex_t* Mutex)
 {
+    int Status;
     int Zero = 0;
     int Count;
     
@@ -69,11 +70,10 @@ MutexTryLock(
     // increase ref count, but only if we're recursive
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            BARRIER_LOAD;
-            Count = atomic_load(&Mutex->References);
+            OS_ATOMIC_LOAD(&Mutex->References, Count);
             if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
-                if (atomic_compare_exchange_weak(&Mutex->References, &Count, Count + 1)) {
-                    BARRIER_FULL;
+                OS_ATOMIC_CAS_WEAK(&Mutex->References, &Count, Count + 1, Status);
+                if (Status) {
                     return OsSuccess;
                 }
                 continue;
@@ -82,12 +82,10 @@ MutexTryLock(
         }
     }
     
-    BARRIER_LOAD;
-    if (atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1)) {
-        BARRIER_FULL;
-        atomic_store(&Mutex->References, 1);
+    OS_ATOMIC_CAS_STRONG(&Mutex->Value, &Zero, 1, Status);
+    if (Status) {
         Mutex->Owner = GetCurrentThreadId();
-        BARRIER_STORE;
+        OS_ATOMIC_STORE(&Mutex->References, 1);
         return OsSuccess;
     }
     return OsError;
@@ -98,6 +96,7 @@ __MutexPerformLock(
     _In_ Mutex_t* Mutex,
     _In_ size_t   Timeout)
 {
+    int Status;
     int Zero = 0;
     int Count;
     int i;
@@ -106,11 +105,10 @@ __MutexPerformLock(
     // increase ref count, but only if we're recursive 
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            BARRIER_LOAD;
-            Count = atomic_load(&Mutex->References);
+            OS_ATOMIC_LOAD(&Mutex->References, Count);
             if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
-                if (atomic_compare_exchange_weak(&Mutex->References, &Count, Count + 1)) {
-                    BARRIER_FULL;
+                OS_ATOMIC_CAS_WEAK(&Mutex->References, &Count, Count + 1, Status);
+                if (Status) {
                     return OsSuccess;
                 }
                 continue;
@@ -122,9 +120,8 @@ __MutexPerformLock(
     // On multicore systems the lock might be released rather quickly
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
-    BARRIER_LOAD;
-    if (!atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1)) {
-        BARRIER_FULL;
+    OS_ATOMIC_CAS_STRONG(&Mutex->Value, &Zero, 1, Status);
+    if (!Status) {
         if (GetMachine()->NumberOfActiveCores > 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (MutexTryLock(Mutex) == OsSuccess) {
@@ -136,23 +133,19 @@ __MutexPerformLock(
         // Loop untill we get the lock
         if (Zero != 0) {
             if (Zero != 2) {
-                BARRIER_FULL;
-                Zero = atomic_exchange(&Mutex->Value, 2);
-                BARRIER_FULL;
+                OS_ATOMIC_EXCHANGE(&Mutex->Value, 2, Zero);
             }
             while (Zero != 0) {
                 if (FutexWait(&Mutex->Value, 2, FUTEX_WAIT_PRIVATE, Timeout) == OsTimeout) {
                     return OsTimeout;
                 }
-                BARRIER_FULL;
-                Zero = atomic_exchange(&Mutex->Value, 2);
-                BARRIER_FULL;
+                OS_ATOMIC_EXCHANGE(&Mutex->Value, 2, Zero);
             }
         }
     }
+    
     Mutex->Owner = GetCurrentThreadId();
-    atomic_store(&Mutex->References, 1);
-    BARRIER_STORE;
+    OS_ATOMIC_STORE(&Mutex->References, 1);
     return OsSuccess;
 }
 
@@ -188,23 +181,18 @@ MutexUnlock(
     assert(Mutex != NULL);
 
     // Sanitize state of the mutex, are we even able to unlock it?
-    BARRIER_LOAD;
-    Count = atomic_load(&Mutex->References);
+    OS_ATOMIC_LOAD(&Mutex->References, Count);
     assert(Count != 0);
     assert(Mutex->Owner == GetCurrentThreadId());
     
-    BARRIER_LOAD;
-    Count = atomic_fetch_sub(&Mutex->References, 1) - 1;
-    BARRIER_FULL;
-    if (Count == 0) {
+    OS_ATOMIC_SUB(&Mutex->References, 1, Count);
+    if ((Count - 1) == 0) {
         Mutex->Owner = UUID_INVALID;
         
-        BARRIER_FULL;
-        if (atomic_fetch_sub(&Mutex->Value, 1) != 1) {
-            BARRIER_FULL;
-            atomic_store(&Mutex->Value, 0);
+        OS_ATOMIC_SUB(&Mutex->Value, 1, Count);
+        if (Count != 1) {
+            OS_ATOMIC_STORE(&Mutex->Value, 0);
             FutexWake(&Mutex->Value, 1, FUTEX_WAKE_PRIVATE);
         }
-        BARRIER_STORE;
     }
 }

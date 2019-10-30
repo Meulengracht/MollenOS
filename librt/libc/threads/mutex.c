@@ -74,6 +74,7 @@ mtx_trylock(
 {
     int initialcount;
     int z = 0;
+    int status;
     
     if (mutex == NULL) {
         return thrd_error;
@@ -83,11 +84,10 @@ mtx_trylock(
     // increase ref count, but only if we're recursive
     if (mutex->flags & mtx_recursive) {
         while (1) {
-            BARRIER_LOAD;
-            initialcount = atomic_load(&mutex->references);
+            OS_ATOMIC_LOAD(&mutex->references, initialcount);
             if (initialcount != 0 && mutex->owner == thrd_current()) {
-                if (atomic_compare_exchange_weak(&mutex->references, &initialcount, initialcount + 1)) {
-                    BARRIER_FULL;
+                OS_ATOMIC_CAS_WEAK(&mutex->references, &initialcount, initialcount + 1, status);
+                if (status) {
                     return thrd_success;
                 }
                 continue;
@@ -96,12 +96,10 @@ mtx_trylock(
         }
     }
     
-    BARRIER_LOAD;
-    if (atomic_compare_exchange_strong(&mutex->value, &z, 1)) {
-        BARRIER_FULL;
+    OS_ATOMIC_CAS_STRONG(&mutex->value, &z, 1, status);
+    if (status) {
         mutex->owner = thrd_current();
-        atomic_store(&mutex->references, 1);
-        BARRIER_STORE;
+        OS_ATOMIC_STORE(&mutex->references, 1);
         return thrd_success;
     }
     return thrd_busy;
@@ -114,6 +112,7 @@ __perform_lock(
 {
     FutexParameters_t parameters;
     int initialcount;
+    int status;
     int z = 0;
     int i;
     
@@ -121,11 +120,10 @@ __perform_lock(
     // increase ref count, but only if we're recursive 
     if (mutex->flags & mtx_recursive) {
         while (1) {
-            BARRIER_LOAD;
-            initialcount = atomic_load(&mutex->references);
+            OS_ATOMIC_LOAD(&mutex->references, initialcount);
             if (initialcount != 0 && mutex->owner == thrd_current()) {
-                if (atomic_compare_exchange_weak(&mutex->references, &initialcount, initialcount + 1)) {
-                    BARRIER_FULL;
+                OS_ATOMIC_CAS_WEAK(&mutex->references, &initialcount, initialcount + 1, status);
+                if (status) {
                     return thrd_success;
                 }
                 continue;
@@ -142,9 +140,8 @@ __perform_lock(
     // On multicore systems the lock might be released rather quickly
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
-    BARRIER_LOAD;
-    if (!atomic_compare_exchange_strong(&mutex->value, &z, 1)) {
-        BARRIER_FULL;
+    OS_ATOMIC_CAS_STRONG(&mutex->value, &z, 1, status);
+    if (!status) {
         if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (mtx_trylock(mutex) == thrd_success) {
@@ -156,24 +153,19 @@ __perform_lock(
         // Loop untill we get the lock
         if (z != 0) {
             if (z != 2) {
-                BARRIER_FULL;
-                z = atomic_exchange(&mutex->value, 2);
-                BARRIER_FULL;
+                OS_ATOMIC_EXCHANGE(&mutex->value, 2, z);
             }
             while (z != 0) {
                 if (Syscall_FutexWait(&parameters) == OsTimeout) {
                     return thrd_timedout;
                 }
-                BARRIER_FULL;
-                z = atomic_exchange(&mutex->value, 2);
-                BARRIER_FULL;
+                OS_ATOMIC_EXCHANGE(&mutex->value, 2, z);
             }
         }
     }
 
     mutex->owner = thrd_current();
-    atomic_store(&mutex->references, 1);
-    BARRIER_STORE;
+    OS_ATOMIC_STORE(&mutex->references, 1);
     return thrd_success;
 }
 
@@ -220,29 +212,24 @@ mtx_unlock(
     }
 
     // Sanitize state of the mutex, are we even able to unlock it?
-    BARRIER_LOAD;
-    initialcount = atomic_load(&mutex->references);
+    OS_ATOMIC_LOAD(&mutex->references, initialcount);
     if (initialcount == 0 || mutex->owner != thrd_current()) {
         return thrd_error;
     }
     
-    BARRIER_LOAD;
-    initialcount = atomic_fetch_sub(&mutex->references, 1) - 1;
-    BARRIER_FULL;
-    if (initialcount == 0) {
+    OS_ATOMIC_SUB(&mutex->references, 1, initialcount);
+    if ((initialcount - 1) == 0) {
         parameters._futex0  = &mutex->value;
         parameters._val0    = 1;
         parameters._flags   = FUTEX_WAKE_PRIVATE;
 
         mutex->owner = UUID_INVALID;
         
-        BARRIER_FULL;
-        if (atomic_fetch_sub(&mutex->value, 1) != 1) {
-            BARRIER_FULL;
-            atomic_store(&mutex->value, 0);
+        OS_ATOMIC_SUB(&mutex->value, 1, initialcount);
+        if (initialcount != 1) {
+            OS_ATOMIC_STORE(&mutex->value, 0);
             Syscall_FutexWake(&parameters);
         }
-        BARRIER_STORE;
     }
     return thrd_success;
 }

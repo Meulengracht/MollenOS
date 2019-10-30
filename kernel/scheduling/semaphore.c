@@ -100,19 +100,18 @@ SemaphoreSignal(
     OsStatus_t Status = OsError;
     int        CurrentValue;
     int        i;
+    int        Result;
 
     TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
     // assert not max
-    BARRIER_LOAD;
-    CurrentValue = atomic_load(&Semaphore->Value);
+    OS_ATOMIC_LOAD(&Semaphore->Value, CurrentValue);
     __STRICT_ASSERT((CurrentValue + Value) <= Semaphore->MaxValue);
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {
-                BARRIER_FULL;
-                if (atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
-                    BARRIER_STORE;
+                OS_ATOMIC_CAS_WEAK(&Semaphore->Value, &CurrentValue, CurrentValue + 1, Result);
+                if (Result) {
                     break;
                 }
             }
