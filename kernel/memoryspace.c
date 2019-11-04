@@ -106,10 +106,26 @@ CreateMemorySpaceContext(
     CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
         GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
         GetMachine()->MemoryGranularity, &Context->HeapSpace);
-    Context->MemoryHandlers = CollectionCreate(KeyId);
     Context->SignalHandler  = 0;
+    Context->MemoryHandlers = kmalloc(sizeof(list_t));
+    if (!Context->MemoryHandlers) {
+        // assert
+    }
+    list_construct(Context->MemoryHandlers);
 
     MemorySpace->Context = Context;
+}
+
+static void
+CleanupMemoryHandler(
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    SystemMemoryMappingHandler_t* Handler = Element->value;
+    SystemMemorySpace_t*          MemorySpace = Context;
+    
+    ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Handler->Address, Handler->Length);
+    DestroyHandle(Handler->Handle);
 }
 
 static void
@@ -119,14 +135,9 @@ DestroyMemorySpaceContext(
     assert(MemorySpace != NULL);
     assert(MemorySpace->Context != NULL);
     
-    // Destroy all memory handlers
-    foreach(Node, MemorySpace->Context->MemoryHandlers) {
-        SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
-        ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Handler->Address, Handler->Length);
-        DestroyHandle(Handler->Handle);
-    }
-    CollectionDestroy(MemorySpace->Context->MemoryHandlers);
+    list_clear(MemorySpace->Context->MemoryHandlers, CleanupMemoryHandler, MemorySpace);
     DestroyBlockmap(MemorySpace->Context->HeapSpace);
+    kfree(MemorySpace->Context->MemoryHandlers);
     kfree(MemorySpace->Context);
 }
 

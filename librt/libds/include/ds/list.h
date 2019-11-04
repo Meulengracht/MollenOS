@@ -38,7 +38,12 @@ typedef struct list {
     syncobject_t    lock;
 } list_t;
 
-#define LIST_INIT { NULL, NULL, NULL, 0, SYNC_INIT }
+#define LIST_INIT          { NULL, NULL, list_cmp_default, 0, SYNC_INIT }
+#define LIST_INIT_CMP(cmp) { NULL, NULL, cmp, 0, SYNC_INIT }
+
+// Default provided comparators
+CRTDECL(int, list_cmp_default(void*,void*));
+CRTDECL(int, list_cmp_string(void*,void*));
 
 CRTDECL(void,
 list_construct(
@@ -52,7 +57,12 @@ list_construct_cmp(
 CRTDECL(void,
 list_clear(
     _In_ list_t*,
-    _In_ void(*)(element_t*)));
+    _In_ void(*)(element_t*, void*),
+    _In_ void*));
+
+CRTDECL(int,
+list_count(
+    _In_ list_t*));
 
 CRTDECL(int,
 list_append(
@@ -64,15 +74,38 @@ list_remove(
     _In_ list_t*,
     _In_ element_t*));
 
+/**
+ * list_splice
+ * * Returns a spliced node list that can be appended to a new list. The list will
+ * * at maximum have the requested count or the length of the list
+ * @param list_in  [In] The list that will be spliced.
+ * @param count    [In] The maximum number of list nodes that will be extracted.
+ * @param list_out [In] The list which the number of elements will be spliced into.
+ */
+CRTDECL(void,
+list_splice(
+    _In_ list_t*,
+    _In_ int,
+    _In_ list_t*));
+
+CRTDECL(element_t*,
+list_front(
+    _In_ list_t*));
+
+CRTDECL(element_t*,
+list_find(
+    _In_ list_t*,
+    _In_ void*));
+
 CRTDECL(void*,
-list_get_value(
+list_find_value(
     _In_ list_t*,
     _In_ void*));
 
 CRTDECL(void,
 list_enumerate(
     _In_ list_t*,
-    _In_ void(*)(int, element_t*, void*),
+    _In_ int(*)(int, element_t*, void*),
     _In_ void*));
 
 #endif //!__LIBDS_LIST_H__

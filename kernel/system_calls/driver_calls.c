@@ -161,9 +161,10 @@ ScIoSpaceDestroy(
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
-        return OsError;
+        return OsInvalidParameters;
     }
-    return DestroySystemDeviceIo(IoSpace);
+    DestroyHandle(IoSpace->Id);
+    return OsSuccess;
 }
 
 OsStatus_t

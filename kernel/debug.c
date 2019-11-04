@@ -139,7 +139,7 @@ DebugPanic(
     // Disable all other cores in system if the fault is kernel scope
     CoreId = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
-        if (CollectionLength(&GetMachine()->SystemDomains) != 0) {
+        if (list_count(&GetMachine()->SystemDomains) != 0) {
             foreach(NumaNode, &GetMachine()->SystemDomains) {
                 SystemDomain_t* Domain = (SystemDomain_t*)NumaNode;
                 DebugHaltAllProcessorCores(CoreId, &Domain->CoreGroup);
@@ -209,7 +209,7 @@ DebugGetModuleByAddress(
                 // Iterate libraries to find the sinner
                 if (Module->Executable->Libraries != NULL) {
                     foreach(lNode, Module->Executable->Libraries) {
-                        PeExecutable_t* Lib = (PeExecutable_t*)lNode->Data;
+                        PeExecutable_t* Lib = lNode->value;
                         if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
                             PmName = (char*)MStringRaw(Lib->Name);
                             PmBase = Lib->VirtualAddress;

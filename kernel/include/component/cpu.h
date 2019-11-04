@@ -24,14 +24,14 @@
 #define __COMPONENT_CPU__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/queue.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
 
 typedef void(*SystemCpuFunction_t)(void*);
 
-typedef enum {
+typedef enum SystemCpuState {
     CpuStateUnavailable     = 0x0,
     CpuStateShutdown        = 0x1,
     CpuStateRunning         = 0x2,
@@ -39,20 +39,20 @@ typedef enum {
     CpuStateInterruptActive = 0x10000
 } SystemCpuState_t;
 
-typedef enum {
+typedef enum SystemCpuFunctionType {
     CpuFunctionHalt,
     CpuFunctionCustom,
 
     CpuFunctionCount
 } SystemCpuFunctionType_t;
 
-typedef struct {
-    CollectionItem_t    Header;
+typedef struct SystemCoreFunctionItem {
+    element_t           Header;
     SystemCpuFunction_t Handler;
     void*               Argument;
 } SystemCoreFunctionItem_t;
 
-typedef struct {
+typedef struct SystemCpuCore {
     UUId_t            Id;
     SystemCpuState_t  State;
     int               External;
@@ -62,7 +62,7 @@ typedef struct {
     SystemScheduler_t Scheduler;
 
     // State resources
-    Collection_t      FunctionQueue[CpuFunctionCount];
+    queue_t           FunctionQueue[CpuFunctionCount];
     MCoreThread_t*    CurrentThread;
     Context_t*        InterruptRegisters;
     int               InterruptNesting;
@@ -81,7 +81,7 @@ typedef struct SystemCpu {
     struct _SystemCpu*  Link;
 } SystemCpu_t;
 
-#define SYSTEM_CORE_FN_STATE_INIT { COLLECTION_INIT(KeyInteger) }
+#define SYSTEM_CORE_FN_STATE_INIT { QUEUE_INIT, QUEUE_INIT }
 #define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL, NULL, 0, 0 }
 #define SYSTEM_CPU_INIT           { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
 

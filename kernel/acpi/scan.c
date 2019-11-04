@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2015, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) Device Scan Interface
+ * ACPI(CA) Device Scan Interface
  */
 
 #define __MODULE "DSIF"
@@ -30,38 +31,42 @@
 extern ACPI_STATUS AcpiHwDerivePciId(ACPI_PCI_ID *PciId, ACPI_HANDLE RootPciDevice, ACPI_HANDLE PciRegion);
 
 // Static storage for the pci-acpi mappings
-static Collection_t PciToAcpiDevices    = COLLECTION_INIT(KeyInteger);
-static int          BusCounter          = 0;
+static list_t PciToAcpiDevices = LIST_INIT;
+static int    BusCounter       = 0;
 
-/* AcpiDeviceLookupBusRoutings
- * lookup a bridge device for the given bus that contains pci routings */
+struct FindBusRoutings {
+    int           Bus;
+    AcpiDevice_t* Device;
+};
+
+static int
+BusRoutingLookupCallback(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    AcpiDevice_t*           Device = Element->value;
+    struct FindBusRoutings* Result = Context;
+    
+    if (Device->Type == ACPI_BUS_ROOT_BRIDGE &&
+        Device->GlobalBus == Result->Bus && 
+        Device->Routings != NULL)
+    {
+        Result->Device = Device;
+        return -1;
+    }
+    return 0;
+}
+
 AcpiDevice_t*
 AcpiDeviceLookupBusRoutings(
     _In_ int Bus)
 {
-    AcpiDevice_t*   Dev;
-    DataKey_t       Key = { .Value.Integer = ACPI_BUS_ROOT_BRIDGE };
-    int             Index = 0;
-
-    // Loop through buses
-    while (1) {
-        Dev = (AcpiDevice_t*)CollectionGetNodeByKey(&PciToAcpiDevices, Key, Index);
-        if (Dev == NULL) {
-            break;
-        }
-
-        // Match the bus 
-        if (Dev->GlobalBus == Bus && Dev->Routings != NULL) {
-            return Dev;
-        }
-        Index++;
-    }
-    return NULL;
+    struct FindBusRoutings Context = { 0 };
+    list_enumerate(&PciToAcpiDevices, BusRoutingLookupCallback, &Context);
+    return Context.Device;
 }
 
-/* AcpiDeviceCreate
- * Retrieve all available information about the handle
- * and create a new device proxy for it. */
 OsStatus_t
 AcpiDeviceCreate(
     _In_ ACPI_HANDLE Handle,
@@ -81,6 +86,7 @@ AcpiDeviceCreate(
     Device->Handle  = Handle;
     Device->Parent  = Parent;
     Device->Type    = Type; 
+    ELEMENT_INIT(&Device->Header, Handle, Device);
 
     // Lookup identifiers, supported features and the bus-numbers
     Status = AcpiDeviceGetBusId(Device, Type);
@@ -211,9 +217,7 @@ AcpiDeviceCreate(
         }
     }
 
-    // Add the device to device-list
-    Device->Header.Key.Value.Integer = Device->Type;
-    return CollectionAppend(&PciToAcpiDevices, &Device->Header);
+    return list_append(&PciToAcpiDevices, &Device->Header);
 }
 
 /* AcpiDeviceInstallFixed 

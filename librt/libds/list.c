@@ -24,15 +24,22 @@
 
 #include <assert.h>
 #include <ds/list.h>
+#include <string.h>
 
 #define LIST_LOCK   SYNC_LOCK(list)
 #define LIST_UNLOCK SYNC_UNLOCK(list)
 
 // return 0 on equal
-static int
-list_compare_default(void* element_key, void* key)
+int
+list_cmp_default(void* element_key, void* key)
 {
     return element_key != key;
+}
+
+int
+list_cmp_string(void* element_key, void* key)
+{
+    return strcmp((const char*)element_key, (const char*)key);
 }
 
 void
@@ -43,7 +50,7 @@ list_construct(
     
     list->head  = NULL;
     list->tail  = NULL;
-    list->cmp   = list_compare_default;
+    list->cmp   = list_cmp_default;
     list->count = 0;
     SYNC_INIT_FN(list);
 }
@@ -60,17 +67,31 @@ list_construct_cmp(
 void
 list_clear(
     _In_ list_t* list,
-    _In_ void   (*cleanup)(element_t*))
+    _In_ void   (*cleanup)(element_t*, void*),
+    _In_ void*   context)
 {
     element_t* i;
     assert(list != NULL);
     
     LIST_LOCK;
     _foreach(i, list) {
-        cleanup(i);
+        cleanup(i, context);
     }
     list_construct_cmp(list, list->cmp);
     LIST_UNLOCK;
+}
+
+int
+list_count(
+    _In_ list_t* list)
+{
+    int count;
+    assert(list != NULL);
+    
+    LIST_LOCK;
+    count = list->count;
+    LIST_UNLOCK;
+    return count;
 }
 
 int
@@ -168,8 +189,54 @@ list_remove(
     return status;
 }
 
-void*
-list_get_value(
+void
+list_splice(
+    _In_ list_t* list_in,
+    _In_ int     count,
+    _In_ list_t* list_out)
+{
+    element_t* head;
+    element_t* tail;
+    list_t*    list;
+    int        element_count;
+    
+    assert(list_in != NULL);
+    assert(list_out != NULL);
+    
+    list = list_in;
+    LIST_LOCK;
+    head          = list->head;
+    element_count = MIN(list->count, count);
+    if (!element_count) {
+        LIST_UNLOCK;
+        return;
+    }
+    
+    list->count  -= element_count;
+    while (element_count--) {
+        tail       = list->head;
+        list->head = list->head->next;
+    }
+    
+    if (!list->head) {
+        list->tail = NULL;
+    }
+    LIST_UNLOCK;
+    
+    list = list_out;
+    LIST_LOCK;
+    if (!list->head) {
+        list->head = head;
+    }
+    else {
+        list->tail->next = head;
+    }
+    list->tail = tail;
+    LIST_UNLOCK;
+}
+
+element_t*
+list_find(
     _In_ list_t* list,
     _In_ void*   key)
 {
@@ -179,17 +246,42 @@ list_get_value(
     LIST_LOCK;
     _foreach(i, list) {
         if (!list->cmp(i->key, key)) {
-            return i->value;
+            return i;
         }
     }
     LIST_UNLOCK;
     return NULL;
 }
 
+element_t*
+list_front(
+    _In_ list_t* list)
+{
+    element_t* front;
+    assert(list != NULL);
+    
+    LIST_LOCK;
+    front = list->head;
+    LIST_UNLOCK;
+    return front;
+}
+
+void*
+list_find_value(
+    _In_ list_t* list,
+    _In_ void*   key)
+{
+    element_t* element = list_find(list, key);
+    if (!element) {
+        return NULL;
+    }
+    return element->value;
+}
+
 void
 list_enumerate(
     _In_ list_t* list,
-    _In_ void   (*callback)(int, element_t*, void*),
+    _In_ int   (*callback)(int, element_t*, void*),
     _In_ void*   context)
 {
     element_t* i;
@@ -199,7 +291,9 @@ list_enumerate(
     
     LIST_LOCK;
     _foreach(i, list) {
-        callback(idx, i, context);
+        if (callback(idx, i, context)) {
+            break;
+        }
         idx++;
     }
     LIST_UNLOCK;

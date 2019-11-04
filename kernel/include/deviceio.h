@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,69 +17,51 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS IO Space Interface
+ * IO Space Interface
  * - Contains the shared kernel io space interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_IOSPACE_H_
-#define _MCORE_IOSPACE_H_
+#ifndef __VALI_IOSPACE_H__
+#define __VALI_IOSPACE_H__
 
-#include <os/osdefs.h>
-#include <ds/collection.h>
 #include <ddk/io.h>
-
-// Operating system version of the DeviceIo
-// Contains extra information as current owner of a space to increase
-// security
-typedef struct SystemDeviceIo {
-    CollectionItem_t    Header;
-    DeviceIo_t          Io;
-    UUId_t              Owner;
-    uintptr_t           MappedAddress;
-} SystemDeviceIo_t;
+#include <os/osdefs.h>
 
 /* RegisterSystemDeviceIo
  * Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system. */
 KERNELAPI OsStatus_t KERNELABI
 RegisterSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace);
-
-/* DestroySystemDeviceIo
- * Unregisters a device-io with the operating system, releasing all resources
- * associated and disabling the io range for use. */
-KERNELAPI OsStatus_t KERNELABI
-DestroySystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace);
+    _In_ DeviceIo_t* IoSpace);
 
 /* AcquireSystemDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
 KERNELAPI OsStatus_t KERNELABI
 AcquireSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace);
+    _In_ DeviceIo_t* IoSpace);
 
 /* ReleaseSystemDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
 KERNELAPI OsStatus_t KERNELABI
 ReleaseSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace);
+    _In_ DeviceIo_t* IoSpace);
 
 /* AcquireKernelSystemDeviceIo
  * Creates a kernel mapped copy of the passed device-io. This can then be released
  * and cleaned up by the opposite call. */
 KERNELAPI OsStatus_t KERNELABI
 CreateKernelSystemDeviceIo(
-    _In_  DeviceIo_t*   SourceIoSpace,
-    _Out_ DeviceIo_t**  SystemIoSpace);
+    _In_  DeviceIo_t*  SourceIoSpace,
+    _Out_ DeviceIo_t** SystemIoSpace);
 
 /* ReleaseKernelSystemDeviceIo 
  * Releases the kernel mapped copy of the passed device-io. */
 KERNELAPI OsStatus_t KERNELABI
 ReleaseKernelSystemDeviceIo(
-    _In_ DeviceIo_t*    SystemIoSpace);
+    _In_ DeviceIo_t* SystemIoSpace);
 
 /* ValidateDeviceIoMemoryAddress (@interrupt_context)
  * Tries to validate the given virtual address by 
@@ -86,6 +69,6 @@ ReleaseKernelSystemDeviceIo(
  * that involves that virtual address */
 KERNELAPI uintptr_t KERNELABI
 ValidateDeviceIoMemoryAddress(
-    _In_ uintptr_t      Address);
+    _In_ uintptr_t Address);
 
-#endif //!_MCORE_IOSPACE_H_
+#endif //!__VALI_IOSPACE_H__

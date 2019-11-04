@@ -23,8 +23,6 @@
 #include <arch/utils.h>
 #include <machine.h>
 
-/* CreateNumaDomain
- * Creates a new domain with the given parameters and configuration. */
 OsStatus_t
 CreateNumaDomain(
     _In_  UUId_t            DomainId,
@@ -36,39 +34,41 @@ CreateNumaDomain(
     return OsSuccess;
 }
 
-/* GetCurrentDomain
- * Retrieves a pointer for the current domain. The current domain
- * is the domain that the calling cpu is bound to. */
 SystemDomain_t*
 GetCurrentDomain(void)
 {
     return NULL;
 }
 
-/* GetDomains
- * Retrieves the collection that contains all current domains. */
-Collection_t*
+list_t*
 GetDomains(void)
 {
     return &GetMachine()->SystemDomains;
 }
 
+static int
+BootDomainCores(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    SystemDomain_t* ExcludeDomain = Context;
+    SystemDomain_t* Domain        = Element->value;
+    if (Domain != ExcludeDomain) {
+        StartApplicationCore(&Domain->CoreGroup.PrimaryCore);
+    }
+    return 0;
+}
+
 void
 EnableMultiProcessoringMode(void)
 {
-    SystemDomain_t *CurrentDomain = GetCurrentDomain();
-    SystemDomain_t *Domain;
-    int i;
+    SystemDomain_t* CurrentDomain = GetCurrentDomain();
+    int             i;
 
     // Boot all cores in our own domain, then boot the initial core
     // for all the other domains, they will boot up their own domains.
-    foreach (DomainNode, GetDomains()) {
-        Domain = (SystemDomain_t*)DomainNode->Data;
-        if (Domain != CurrentDomain) {
-            StartApplicationCore(&Domain->CoreGroup.PrimaryCore);
-        }
-    }
-
+    list_enumerate(GetDomains(), BootDomainCores, CurrentDomain);
     if (CurrentDomain != NULL) {
         // Don't ever include ourself
         for (i = 0; i < (CurrentDomain->CoreGroup.NumberOfCores - 1); i++) {

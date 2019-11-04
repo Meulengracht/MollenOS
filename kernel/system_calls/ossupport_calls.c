@@ -42,9 +42,15 @@ ScCreateMemoryHandler(
 
     if (Space->Context->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
+        if (!Handler) {
+            return OsOutOfMemory;
+        }
+        
+        ELEMENT_INIT(&Handler->Header, 0, Handler);
         Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
         Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
         if (!Handler->Address) {
+            DestroyHandle(Handler->Handle);
             kfree(Handler);
             return OsOutOfMemory;
         }
@@ -52,7 +58,7 @@ ScCreateMemoryHandler(
         
         *HandleOut       = Handler->Handle;
         *AddressBaseOut  = Handler->Address;
-        return CollectionAppend(Space->Context->MemoryHandlers, &Handler->Header);
+        return list_append(Space->Context->MemoryHandlers, &Handler->Header);
     }
     return OsInvalidPermissions;
 }
@@ -66,7 +72,7 @@ ScDestroyMemoryHandler(
     assert(Space->Context != NULL);
 
     if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
-        CollectionRemoveByNode(Space->Context->MemoryHandlers, &Handler->Header);
+        list_remove(Space->Context->MemoryHandlers, &Handler->Header);
         ReleaseBlockmapRegion(Space->Context->HeapSpace, Handler->Address, Handler->Length);
         DestroyHandle(Handle);
         kfree(Handler);

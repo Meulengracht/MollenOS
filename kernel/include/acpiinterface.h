@@ -23,7 +23,7 @@
 #define __ACPI_INTERFACE_H__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <acpi.h>
 
 /* ACPICA Definitions 
@@ -95,26 +95,26 @@ PACKED_TYPESTRUCT(AcpiEcdt, {
 });
 
 PACKED_TYPESTRUCT(PciRoutingEntry, {
-    CollectionItem_t Header;
-    int              Irq;
-    uint8_t          AcType;
-    uint8_t          Trigger;
-    uint8_t          Shareable;
-    uint8_t          Polarity;
-    uint8_t          Fixed;
+    element_t Header;
+    int       Irq;
+    uint8_t   AcType;
+    uint8_t   Trigger;
+    uint8_t   Shareable;
+    uint8_t   Polarity;
+    uint8_t   Fixed;
 });
 
 PACKED_TYPESTRUCT(PciRoutingSource, {
-    CollectionItem_t   Header;
+    element_t          Header;
     ACPI_HANDLE        Handle;
-    Collection_t*      Entries;
+    list_t*            Entries;
     PciRoutingEntry_t* ActiveEntry;
 });
 
 PACKED_TYPESTRUCT(PciRoutings, {
-    Collection_t* Sources; // List of lists of irqs
-    Collection_t* InterruptEntries[128];
-    int           ActiveIrqs[128];
+    list_t* Sources; // List of lists of irqs
+    list_t* InterruptEntries[128];
+    int     ActiveIrqs[128];
 });
 
 /* AcpiDevicePower
@@ -133,7 +133,7 @@ PACKED_TYPESTRUCT(AcpiDevicePower, {
  * Generic ACPI device representation in MCore.
  * Contains all information neccessary to use the device. */
 PACKED_TYPESTRUCT(AcpiDevice, {
-    CollectionItem_t            Header;
+    element_t                   Header;
     ACPI_HANDLE                 Handle;
     ACPI_HANDLE                 Parent;
     char                        Name[128];

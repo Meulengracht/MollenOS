@@ -37,9 +37,9 @@
 #include <string.h>
 #include <threads.h>
 
-static RBTree_t Sockets;
-static UUId_t   SocketSet;
-static thrd_t   SocketMonitorHandle;
+static rb_tree_t Sockets;
+static UUId_t    SocketSet;
+static thrd_t    SocketMonitorHandle;
 
 /////////////////////////////////////////////////////
 // APPLICATIONS => NetworkService
@@ -54,10 +54,9 @@ HandleSocketEvent(
     _In_ handle_event_t* Event)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Event->handle };
-    TRACE("... [socket monitor] data from %u", Key.Value.Id);
+    TRACE("... [socket monitor] data from %u", Event->handle);
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)Event->handle);
     if (!Socket) {
         // Process is probably in the process of removing this, ignore this
         return;
@@ -150,9 +149,7 @@ NetworkManagerInitialize(void)
     int        Code;
     TRACE("NetworkManagerInitialize()");
     
-    // Initialize the socket resources before creating the default
-    // system sockets.
-    RBTreeConstruct(&Sockets, KeyId);
+    rb_tree_construct(&Sockets);
     Status = handle_set_create(0, &SocketSet);
     if (Status != OsSuccess) {
         ERROR("Failed to create socket handle set");
@@ -195,14 +192,14 @@ NetworkManagerSocketCreate(
     
     // Add it to the handle set
     Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_ADD,
-        Socket->Header.Key.Value.Id, IOEVTIN | IOEVTOUT | IOEVTET, NULL);
+        (UUId_t)(uintptr_t)Socket->Header.key, IOEVTIN | IOEVTOUT | IOEVTET, NULL);
     if (Status != OsSuccess) {
         // what the fuck TODO
         assert(0);
     }
     
-    RBTreeAppend(&Sockets, &Socket->Header);
-    *HandleOut           = Socket->Header.Key.Value.Id;
+    rb_tree_append(&Sockets, &Socket->Header);
+    *HandleOut           = (UUId_t)(uintptr_t)Socket->Header.key;
     *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
     *RecvBufferHandleOut = Socket->Receive.DmaAttachment.handle;
     return Status;
@@ -216,17 +213,15 @@ NetworkManagerSocketShutdown(
 {
     Socket_t*  Socket;
     OsStatus_t Status;
-    DataKey_t  Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
     
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
-        (void)RBTreeRemove(&Sockets, Key);
-        Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL,
-            Socket->Header.Key.Value.Id, 0, NULL);
+        (void)rb_tree_remove(&Sockets, (void*)Handle);
+        Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL, Handle, 0, NULL);
         if (Status != OsSuccess) {
             // what the fuck TODO
             assert(0);
@@ -242,9 +237,8 @@ NetworkManagerSocketBind(
     _In_ const struct sockaddr* Address)
 {
     Socket_t*  Socket;
-    DataKey_t  Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -259,9 +253,8 @@ NetworkManagerSocketConnect(
     _In_ const struct sockaddr* Address)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -275,9 +268,8 @@ NetworkManagerSocketAccept(
     _In_ UUId_t Handle)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -292,9 +284,8 @@ NetworkManagerSocketListen(
     _In_ int    ConnectionCount)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -312,9 +303,8 @@ NetworkManagerSocketSetOption(
     _In_ socklen_t        DataLength)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -332,9 +322,8 @@ NetworkManagerSocketGetOption(
     _Out_ socklen_t*       DataLengthOut)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -350,9 +339,8 @@ NetworkManagerSocketGetAddress(
     _In_ struct sockaddr* Address)
 {
     Socket_t* Socket;
-    DataKey_t Key = { .Value.Id = Handle };
     
-    Socket = (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
@@ -364,6 +352,5 @@ Socket_t*
 NetworkManagerSocketGet(
     _In_ UUId_t Handle)
 {
-    DataKey_t Key = { .Value.Id = Handle };
-    return (Socket_t*)RBTreeLookupKey(&Sockets, Key);
+    return (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)(uintptr_t)Handle);
 }

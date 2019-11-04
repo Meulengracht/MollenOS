@@ -17,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Red-Black Tree Implementation
+ * Red-Black tree Implementation
  *  - Implements a binary tree with the red-black distribution
  */
 
@@ -28,402 +28,453 @@
 #define COLOR_BLACK 0
 #define COLOR_RED   1
 
-#define ITEM_NIL(Tree)          &Tree->NilItem
-#define IS_ITEM_NIL(Tree, Item) (Item == ITEM_NIL(Tree))
+#define ITEM_NIL(tree)          &tree->nil
+#define IS_ITEM_NIL(tree, leaf) (leaf == ITEM_NIL(tree))
+
+#define TREE_LOCK   SYNC_LOCK(tree)
+#define TREE_UNLOCK SYNC_UNLOCK(tree)
+
+// return 0 on equal
+int
+rb_tree_cmp_default(void* leaf_key, void* key)
+{
+    uintptr_t lh = (uintptr_t)leaf_key;
+    uintptr_t rh = (uintptr_t)key;
+    if (lh > rh) {
+        return 1;
+    }
+    else if (lh < rh) {
+        return -1;
+    }
+    else {
+        return 0;
+    }
+}
+
+int
+rb_tree_cmp_string(void* leaf_key, void* key)
+{
+    return strcmp((const char*)leaf_key, (const char*)key);
+}
 
 void
-RBTreeConstruct(
-    _In_ RBTree_t* Tree,
-    _In_ KeyType_t KeyType)
+rb_tree_construct(
+    _In_ rb_tree_t* tree)
 {
-    assert(Tree != NULL);
+    assert(tree != NULL);
     
-    memset(Tree, 0, sizeof(RBTree_t));
-    Tree->KeyType = KeyType;
-    Tree->Root    = &Tree->NilItem;
+    tree->root = NULL;
+    tree->cmp  = rb_tree_cmp_default;
+    SYNC_INIT_FN(tree);
+    RB_LEAF_INIT(&tree->nil, 0, NULL);
+}
+
+void
+rb_tree_construct_cmp(
+    _In_ rb_tree_t*     tree,
+    _In_ rb_tree_cmp_fn cmp)
+{
+    rb_tree_construct(tree);
+    tree->cmp = cmp;
 }
 
 static void
-RotateLeft(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* TreeItem)
+rotate_left(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
 {
-    if (!IS_ITEM_NIL(Tree, TreeItem->Parent)) {
-        if (TreeItem == TreeItem->Parent->Left) {
-            TreeItem->Parent->Left = TreeItem->Right;
+    if (!IS_ITEM_NIL(tree, leaf->parent)) {
+        if (leaf == leaf->parent->left) {
+            leaf->parent->left = leaf->right;
         }
         else {
-            TreeItem->Parent->Right = TreeItem->Right;
+            leaf->parent->right = leaf->right;
         }
         
-        TreeItem->Right->Parent = TreeItem->Parent;
-        TreeItem->Parent = TreeItem->Right;
-        if (!IS_ITEM_NIL(Tree, TreeItem->Right->Left)) {
-            TreeItem->Right->Left->Parent = TreeItem;
+        leaf->right->parent = leaf->parent;
+        leaf->parent = leaf->right;
+        if (!IS_ITEM_NIL(tree, leaf->right->left)) {
+            leaf->right->left->parent = leaf;
         }
         
-        TreeItem->Right = TreeItem->Right->Left;
-        TreeItem->Parent->Left = TreeItem;
+        leaf->right = leaf->right->left;
+        leaf->parent->left = leaf;
     }
     else {
-        RBTreeItem_t* Right = Tree->Root->Right;
+        rb_leaf_t* right = tree->root->right;
         
-        Tree->Root->Right   = Right->Left;
-        Right->Left->Parent = Tree->Root;
-        Tree->Root->Parent  = Right;
-        Right->Left         = Tree->Root;
-        Right->Parent       = ITEM_NIL(Tree);
-        Tree->Root          = Right;
+        tree->root->right   = right->left;
+        right->left->parent = tree->root;
+        tree->root->parent  = right;
+        right->left         = tree->root;
+        right->parent       = ITEM_NIL(tree);
+        tree->root          = right;
     }
 }
 
 static void
-RotateRight(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* TreeItem)
+rotate_right(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
 {
-    if (!IS_ITEM_NIL(Tree, TreeItem->Parent)) {
-        if (TreeItem == TreeItem->Parent->Left) {
-            TreeItem->Parent->Left = TreeItem->Left;
+    if (!IS_ITEM_NIL(tree, leaf->parent)) {
+        if (leaf == leaf->parent->left) {
+            leaf->parent->left = leaf->left;
         }
         else {
-            TreeItem->Parent->Right = TreeItem->Left;
+            leaf->parent->right = leaf->left;
         }
         
-        TreeItem->Left->Parent = TreeItem->Parent;
-        TreeItem->Parent = TreeItem->Left;
-        if (!IS_ITEM_NIL(Tree, TreeItem->Left->Right)) {
-            TreeItem->Left->Right->Parent = TreeItem;
+        leaf->left->parent = leaf->parent;
+        leaf->parent = leaf->left;
+        if (!IS_ITEM_NIL(tree, leaf->left->right)) {
+            leaf->left->right->parent = leaf;
         }
         
-        TreeItem->Left          = TreeItem->Left->Right;
-        TreeItem->Parent->Right = TreeItem;
+        leaf->left          = leaf->left->right;
+        leaf->parent->right = leaf;
     }
     else {
-        RBTreeItem_t* Left = Tree->Root->Left;
+        rb_leaf_t* left = tree->root->left;
         
-        Tree->Root->Left    = Tree->Root->Left->Right;
-        Left->Right->Parent = Tree->Root;
-        Tree->Root->Parent  = Left;
-        Left->Right         = Tree->Root;
-        Left->Parent        = ITEM_NIL(Tree);
-        Tree->Root          = Left;
+        tree->root->left    = tree->root->left->right;
+        left->right->parent = tree->root;
+        tree->root->parent  = left;
+        left->right         = tree->root;
+        left->parent        = ITEM_NIL(tree);
+        tree->root          = left;
     }
 }
 
 static void
-FixupTree(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* TreeItem)
+fixup_tree(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
 {
-    RBTreeItem_t* Itr = TreeItem;
+    rb_leaf_t* i = leaf;
     
-    while (Itr->Parent->Color == COLOR_RED) {
-        RBTreeItem_t* Uncle;
-        if (Itr->Parent == Itr->Parent->Parent->Left) {
-            Uncle = Itr->Parent->Parent->Right;
-            if (!IS_ITEM_NIL(Tree, Uncle) && Uncle->Color == COLOR_RED) {
-                Itr->Parent->Color = COLOR_BLACK;
-                Uncle->Color = COLOR_BLACK;
-                Itr->Parent->Parent->Color = COLOR_RED;
-                Itr = Itr->Parent->Parent;
+    while (i->parent->color == COLOR_RED) {
+        rb_leaf_t* uncle;
+        if (i->parent == i->parent->parent->left) {
+            uncle = i->parent->parent->right;
+            if (!IS_ITEM_NIL(tree, uncle) && uncle->color == COLOR_RED) {
+                i->parent->color = COLOR_BLACK;
+                uncle->color = COLOR_BLACK;
+                i->parent->parent->color = COLOR_RED;
+                i = i->parent->parent;
                 continue;
             }
             
             // Check if double rotation is required
-            if (Itr == Itr->Parent->Right) {
-                Itr = Itr->Parent;
-                RotateLeft(Tree, Itr);
+            if (i == i->parent->right) {
+                i = i->parent;
+                rotate_left(tree, i);
             }
             
-            Itr->Parent->Color = COLOR_BLACK;
-            Itr->Parent->Parent->Color = COLOR_RED;
-            RotateRight(Tree, Itr->Parent->Parent);
+            i->parent->color = COLOR_BLACK;
+            i->parent->parent->color = COLOR_RED;
+            rotate_right(tree, i->parent->parent);
         }
         else {
-            Uncle = Itr->Parent->Parent->Left;
-            if (!IS_ITEM_NIL(Tree, Uncle) && Uncle->Color == COLOR_RED) {
-                Itr->Parent->Color = COLOR_BLACK;
-                Uncle->Color = COLOR_BLACK;
-                Itr->Parent->Parent->Color = COLOR_RED;
-                Itr = Itr->Parent->Parent;
+            uncle = i->parent->parent->left;
+            if (!IS_ITEM_NIL(tree, uncle) && uncle->color == COLOR_RED) {
+                i->parent->color = COLOR_BLACK;
+                uncle->color = COLOR_BLACK;
+                i->parent->parent->color = COLOR_RED;
+                i = i->parent->parent;
                 continue;
             }
             
             // Check if double rotation is required
-            if (Itr == Itr->Parent->Left) {
-                Itr = Itr->Parent;
-                RotateRight(Tree, Itr);
+            if (i == i->parent->left) {
+                i = i->parent;
+                rotate_right(tree, i);
             }
             
-            Itr->Parent->Color         = COLOR_BLACK;
-            Itr->Parent->Parent->Color = COLOR_RED;
-            RotateLeft(Tree, Itr->Parent->Parent);
+            i->parent->color         = COLOR_BLACK;
+            i->parent->parent->color = COLOR_RED;
+            rotate_left(tree, i->parent->parent);
         }
     }
-    Tree->Root->Color = COLOR_BLACK;
+    tree->root->color = COLOR_BLACK;
 }
 
 OsStatus_t
-RBTreeAppend(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* TreeItem)
+rb_tree_append(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
 {
-    RBTreeItem_t* Itr;
+    rb_leaf_t* i;
     
-    if (!Tree || !TreeItem) {
+    if (!tree || !leaf) {
         return OsInvalidParameters;
     }
     
-    TreeItem->Left  = ITEM_NIL(Tree);
-    TreeItem->Right = ITEM_NIL(Tree);
+    leaf->left  = ITEM_NIL(tree);
+    leaf->right = ITEM_NIL(tree);
     
-    dslock(&Tree->SyncObject);
-    if (IS_ITEM_NIL(Tree, Tree->Root)) {
-        Tree->Root = TreeItem;
+    TREE_LOCK;
+    if (IS_ITEM_NIL(tree, tree->root)) {
+        tree->root = leaf;
         
-        TreeItem->Color  = COLOR_BLACK;
-        TreeItem->Parent = ITEM_NIL(Tree);
+        leaf->color  = COLOR_BLACK;
+        leaf->parent = ITEM_NIL(tree);
     }
     else {
-        Itr = Tree->Root;
+        i = tree->root;
         
-        TreeItem->Color = COLOR_RED;
+        leaf->color = COLOR_RED;
         while (1) {
-            int Comparison = dssortkey(Tree->KeyType, TreeItem->Key, Itr->Key);
-            if (Comparison == 1) {
-                if (IS_ITEM_NIL(Tree, Itr->Left)) {
-                    Itr->Left = TreeItem;
-                    TreeItem->Parent = Itr;
+            int result = tree->cmp(leaf->key, i->key);
+            if (result == 1) {
+                if (IS_ITEM_NIL(tree, i->left)) {
+                    i->left = leaf;
+                    leaf->parent = i;
                     break;
                 }
                 else {
-                    Itr = Itr->Left;
+                    i = i->left;
                 }
             }
-            else if (Comparison == -1) {
-                if (IS_ITEM_NIL(Tree, Itr->Right)) {
-                    Itr->Right = TreeItem;
-                    TreeItem->Parent = Itr;
+            else if (result == -1) {
+                if (IS_ITEM_NIL(tree, i->right)) {
+                    i->right = leaf;
+                    leaf->parent = i;
                     break;
                 }
                 else {
-                    Itr = Itr->Right;
+                    i = i->right;
                 }
             }
             else {
-                dsunlock(&Tree->SyncObject);
+                TREE_UNLOCK;
                 return OsExists;
             }
         }
-        FixupTree(Tree, TreeItem);
+        fixup_tree(tree, leaf);
     }
-    dsunlock(&Tree->SyncObject);
+    TREE_UNLOCK;
     return OsSuccess;
 }
 
-static RBTreeItem_t*
-LookupRecursive(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* Item,
-    _In_ DataKey_t     Key)
+static rb_leaf_t*
+lookup_recursive(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf,
+    _In_ void*      key)
 {
-    int Comparison = dssortkey(Tree->KeyType, Item->Key, Key);
-    if (!Comparison) {
-        return Item;
+    int result = tree->cmp(leaf->key, key);
+    if (!result) {
+        return leaf;
     }
     
-    if (Comparison == 1) {
-        if (!IS_ITEM_NIL(Tree, Item->Left)) {
-            return LookupRecursive(Tree, Item->Left, Key);
+    if (result == 1) {
+        if (!IS_ITEM_NIL(tree, leaf->left)) {
+            return lookup_recursive(tree, leaf->left, key);
         }
     }
     else {
-        if (!IS_ITEM_NIL(Tree, Item->Right)) {
-            return LookupRecursive(Tree, Item->Right, Key);
+        if (!IS_ITEM_NIL(tree, leaf->right)) {
+            return lookup_recursive(tree, leaf->right, key);
         }
     }
     return NULL;
 }
 
-RBTreeItem_t*
-RBTreeLookupKey(
-    _In_ RBTree_t* Tree,
-    _In_ DataKey_t Key)
+rb_leaf_t*
+rb_tree_lookup(
+    _In_ rb_tree_t* tree,
+    _In_ void*      key)
 {
-    if (!Tree) {
+    rb_leaf_t* leaf;
+    assert(tree != NULL);
+    assert(key != NULL);
+    
+    TREE_LOCK;
+    if (IS_ITEM_NIL(tree, tree->root)) {
+        TREE_UNLOCK;
         return NULL;
     }
     
-    if (IS_ITEM_NIL(Tree, Tree->Root)) {
-        return NULL;
-    }
-    
-    return LookupRecursive(Tree, Tree->Root, Key);
+    leaf = lookup_recursive(tree, tree->root, key);
+    TREE_UNLOCK;
+    return leaf;
 }
 
-static RBTreeItem_t*
-GetMinimumItem(
-	_In_ RBTree_t*     Tree,
-	_In_ RBTreeItem_t* Item)
+void*
+rb_tree_lookup_value(
+    _In_ rb_tree_t* tree,
+    _In_ void*      key)
 {
-	RBTreeItem_t* Itr = Item;
-	while (!IS_ITEM_NIL(Tree, Itr->Left)) {
-		Itr = Itr->Left;
+    rb_leaf_t* leaf = rb_tree_lookup(tree, key);
+    return (leaf != NULL) ? leaf->value : NULL;
+}
+
+static rb_leaf_t*
+get_minimum_leaf(
+	_In_ rb_tree_t* tree,
+	_In_ rb_leaf_t* leaf)
+{
+	rb_leaf_t* i = leaf;
+	while (!IS_ITEM_NIL(tree, i->left)) {
+		i = i->left;
 	}
-	return Itr;
+	return i;
 }
 
-RBTreeItem_t*
-RBTreeGetMinimum(
-	_In_ RBTree_t* Tree)
+rb_leaf_t*
+rb_tree_minimum(
+	_In_ rb_tree_t* tree)
 {
-    if (!Tree) {
-        return NULL;
-    }
+    rb_leaf_t* leaf;
+    assert(tree != NULL);
     
-	if (IS_ITEM_NIL(Tree, Tree->Root)) {
+    TREE_LOCK;
+	if (IS_ITEM_NIL(tree, tree->root)) {
+	    TREE_UNLOCK;
 	    return NULL;
 	}
 	
-	return GetMinimumItem(Tree, Tree->Root);
+	leaf = get_minimum_leaf(tree, tree->root);
+	TREE_UNLOCK;
+	return leaf;
 }
 
 static void
-TransplantNodes(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* Target,
-    _In_ RBTreeItem_t* With)
+transplant_nodes(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* target,
+    _In_ rb_leaf_t* with)
 {
-    if (IS_ITEM_NIL(Tree, Target->Parent)) {
-        Tree->Root = With;
+    if (IS_ITEM_NIL(tree, target->parent)) {
+        tree->root = with;
     }
-    else if (Target == Target->Parent->Left) {
-        Target->Parent->Left = With;
+    else if (target == target->parent->left) {
+        target->parent->left = with;
     }
     else {
-        Target->Parent->Right = With;
+        target->parent->right = with;
     }
     
-    With->Parent = Target->Parent;
+    with->parent = target->parent;
 }
 
 static void
-FixupTreeAfterDelete(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* Item)
+fixup_tree_after_delete(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
 {
-    RBTreeItem_t* Itr = Item;
-    while (Itr != Tree->Root && Itr->Color == COLOR_BLACK) {
-        if (Itr == Itr->Parent->Left) {
-            RBTreeItem_t* Temp = Itr->Parent->Right;
-            if (Temp->Color == COLOR_RED) {
-                Temp->Color = COLOR_BLACK;
-                Itr->Parent->Color = COLOR_RED;
-                RotateLeft(Tree, Itr->Parent);
-                Temp = Itr->Parent->Right;
+    rb_leaf_t* i = leaf;
+    while (i != tree->root && i->color == COLOR_BLACK) {
+        if (i == i->parent->left) {
+            rb_leaf_t* temp = i->parent->right;
+            if (temp->color == COLOR_RED) {
+                temp->color = COLOR_BLACK;
+                i->parent->color = COLOR_RED;
+                rotate_left(tree, i->parent);
+                temp = i->parent->right;
             }
             
-            if (Temp->Left->Color == COLOR_BLACK && Temp->Right->Color == COLOR_BLACK) {
-                Temp->Color = COLOR_RED;
-                Itr = Itr->Parent;
+            if (temp->left->color == COLOR_BLACK && temp->right->color == COLOR_BLACK) {
+                temp->color = COLOR_RED;
+                i = i->parent;
                 continue;
             }
-            else if (Temp->Right->Color == COLOR_BLACK) {
-                Temp->Left->Color = COLOR_BLACK;
-                Temp->Color = COLOR_RED;
-                RotateRight(Tree, Temp);
-                Temp = Itr->Parent->Right;
+            else if (temp->right->color == COLOR_BLACK) {
+                temp->left->color = COLOR_BLACK;
+                temp->color = COLOR_RED;
+                rotate_right(tree, temp);
+                temp = i->parent->right;
             }
             
-            if (Temp->Right->Color == COLOR_RED) {
-                Temp->Color = Itr->Parent->Color;
-                Itr->Parent->Color = COLOR_BLACK;
-                Temp->Right->Color = COLOR_BLACK;
-                RotateLeft(Tree, Itr->Parent);
-                Itr = Tree->Root;
+            if (temp->right->color == COLOR_RED) {
+                temp->color = i->parent->color;
+                i->parent->color = COLOR_BLACK;
+                temp->right->color = COLOR_BLACK;
+                rotate_left(tree, i->parent);
+                i = tree->root;
             }
         }
         else {
-            RBTreeItem_t* Temp = Itr->Parent->Left;
-            if (Temp->Color == COLOR_RED) {
-                Temp->Color = COLOR_BLACK;
-                Itr->Parent->Color = COLOR_RED;
-                RotateRight(Tree, Itr->Parent);
-                Temp = Itr->Parent->Left;
+            rb_leaf_t* temp = i->parent->left;
+            if (temp->color == COLOR_RED) {
+                temp->color = COLOR_BLACK;
+                i->parent->color = COLOR_RED;
+                rotate_right(tree, i->parent);
+                temp = i->parent->left;
             }
             
-            if (Temp->Right->Color == COLOR_BLACK && Temp->Left->Color == COLOR_BLACK) {
-                Temp->Color = COLOR_RED;
-                Itr = Itr->Parent;
+            if (temp->right->color == COLOR_BLACK && temp->left->color == COLOR_BLACK) {
+                temp->color = COLOR_RED;
+                i = i->parent;
                 continue;
             }
-            else if (Temp->Left->Color == COLOR_BLACK) {
-                Temp->Right->Color = COLOR_BLACK;
-                Temp->Color = COLOR_RED;
-                RotateLeft(Tree, Temp);
-                Temp = Itr->Parent->Left;
+            else if (temp->left->color == COLOR_BLACK) {
+                temp->right->color = COLOR_BLACK;
+                temp->color = COLOR_RED;
+                rotate_left(tree, temp);
+                temp = i->parent->left;
             }
             
-            if (Temp->Left->Color == COLOR_RED) {
-                Temp->Color = Itr->Parent->Color;
-                Itr->Parent->Color = COLOR_BLACK;
-                Temp->Left->Color = COLOR_BLACK;
-                RotateRight(Tree, Itr->Parent);
-                Itr = Tree->Root;
+            if (temp->left->color == COLOR_RED) {
+                temp->color = i->parent->color;
+                i->parent->color = COLOR_BLACK;
+                temp->left->color = COLOR_BLACK;
+                rotate_right(tree, i->parent);
+                i = tree->root;
             }
         }
     }
-    Itr->Color = COLOR_BLACK;
+    i->color = COLOR_BLACK;
 }
 
-RBTreeItem_t*
-RBTreeRemove(
-    _In_ RBTree_t* Tree,
-    _In_ DataKey_t Key)
+rb_leaf_t*
+rb_tree_remove(
+    _In_ rb_tree_t* tree,
+    _In_ void*      key)
 {
-    RBTreeItem_t* Item = RBTreeLookupKey(Tree, Key);
-    RBTreeItem_t* Temp;
-    RBTreeItem_t* Itr;
-    int           TempColor;
+    rb_leaf_t* leaf = rb_tree_lookup(tree, key);
+    rb_leaf_t* temp;
+    rb_leaf_t* i;
+    int        temp_color;
     
-    if (!Item) {
+    if (!leaf) {
         return NULL;
     }
     
-    dslock(&Tree->SyncObject);
-    Temp = Item;
-    TempColor = Temp->Color;
-    if (IS_ITEM_NIL(Tree, Item->Left)) {
-        Itr = Item->Right;
-        TransplantNodes(Tree, Item, Item->Right);
+    TREE_LOCK;
+    temp = leaf;
+    temp_color = temp->color;
+    if (IS_ITEM_NIL(tree, leaf->left)) {
+        i = leaf->right;
+        transplant_nodes(tree, leaf, leaf->right);
     }
-    else if (IS_ITEM_NIL(Tree, Item->Right)) {
-        Itr = Item->Left;
-        TransplantNodes(Tree, Item, Item->Left);
+    else if (IS_ITEM_NIL(tree, leaf->right)) {
+        i = leaf->left;
+        transplant_nodes(tree, leaf, leaf->left);
     }
     else {
-        Temp = GetMinimumItem(Tree, Item->Right);
-        TempColor = Temp->Color;
-        Itr = Temp->Right;
-        if (Temp->Parent == Item) {
-            Itr->Parent = Temp;
+        temp = get_minimum_leaf(tree, leaf->right);
+        temp_color = temp->color;
+        i = temp->right;
+        if (temp->parent == leaf) {
+            i->parent = temp;
         }
         else {
-            TransplantNodes(Tree, Temp, Temp->Right);
-            Temp->Right = Item->Right;
-            Temp->Right->Parent = Temp;
+            transplant_nodes(tree, temp, temp->right);
+            temp->right = leaf->right;
+            temp->right->parent = temp;
         }
         
-        TransplantNodes(Tree, Item, Temp);
-        Temp->Left = Item->Left;
-        Temp->Left->Parent = Temp;
-        Temp->Color = Item->Color;
+        transplant_nodes(tree, leaf, temp);
+        temp->left = leaf->left;
+        temp->left->parent = temp;
+        temp->color = leaf->color;
     }
     
-    if (TempColor == COLOR_BLACK) {
-        FixupTreeAfterDelete(Tree, Itr);
+    if (temp_color == COLOR_BLACK) {
+        fixup_tree_after_delete(tree, i);
     }
-    dsunlock(&Tree->SyncObject);
-    return Item;
+    TREE_UNLOCK;
+    return leaf;
 }

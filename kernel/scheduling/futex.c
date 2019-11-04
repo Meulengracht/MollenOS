@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -25,7 +26,7 @@
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <component/cpu.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <debug.h>
 #include <futex.h>
 #include <heap.h>
@@ -37,18 +38,18 @@
 #define FUTEX_HASHTABLE_CAPACITY 64
 
 // One per memory context
-typedef struct {
-    CollectionItem_t            Header;
+typedef struct FutexItem {
+    element_t                   Header;
     SystemMemorySpaceContext_t* Context;
     uintptr_t                   FutexAddress;
-    Collection_t                WaitQueue;
+    list_t                      WaitQueue;
 } FutexItem_t;
 
 // One per futex key
-typedef struct {
+typedef struct FutexBucket {
     spinlock_t   SyncObject;
     _Atomic(int) Waiters;
-    Collection_t FutexQueue;
+    list_t       FutexQueue;
 } FutexBucket_t;
 
 static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { { { 0 } } };
@@ -109,12 +110,16 @@ FutexCreateNode(
     _In_ SystemMemorySpaceContext_t* Context)
 {
     FutexItem_t* Item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
-    memset(Item, 0, sizeof(FutexItem_t));
-    CollectionConstruct(&Item->WaitQueue, KeyId);
+    if (!Item) {
+        return NULL;
+    }
     
+    memset(Item, 0, sizeof(FutexItem_t));
+    ELEMENT_INIT(&Item->Header, 0, Item);
+    list_construct(&Item->WaitQueue);
     Item->FutexAddress = FutexAddress;
     Item->Context      = Context;
-    CollectionAppend(&Bucket->FutexQueue, &Item->Header);
+    list_append(&Bucket->FutexQueue, &Item->Header);
     return Item;
 }
 
@@ -251,9 +256,9 @@ FutexWait(
     spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
-    CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
+    list_append(&FutexItem->WaitQueue, &Object->Header);
     if (atomic_load(Futex) != ExpectedValue) {
-        (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
+        (void)list_remove(&FutexItem->WaitQueue, &Object->Header);
         InterruptRestoreState(CpuState);
         return OsError;
     }
@@ -326,9 +331,9 @@ FutexWaitOperation(
     spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
-    CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
+    list_append(&FutexItem->WaitQueue, &Object->Header);
     if (atomic_load(Futex) != ExpectedValue) {
-        (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
+        (void)list_remove(&FutexItem->WaitQueue, &Object->Header);
         InterruptRestoreState(CpuState);
         return OsError;
     }
@@ -385,12 +390,13 @@ FutexWake(
     }
     
     for (i = 0; i < Count; i++) {
-        SchedulerObject_t* Object = (SchedulerObject_t*)CollectionPopFront(&FutexItem->WaitQueue);
-        if (!Object) {
+        element_t* Front = list_front(&FutexItem->WaitQueue);
+        if (!Front) {
             break;
         }
         
-        Status = SchedulerQueueObject(Object);
+        list_remove(&FutexItem->WaitQueue, Front);
+        Status = SchedulerQueueObject(Front->value);
         if (Status != OsSuccess) {
             break;
         }

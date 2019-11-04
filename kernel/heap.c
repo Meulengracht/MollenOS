@@ -39,10 +39,10 @@
 // Slab size is equal to a page size, and memory layout of a slab is as below
 // FreeBitmap | Object | Object | Object |
 typedef struct MemorySlab {
-    CollectionItem_t Header;
-    volatile size_t  NumberOfFreeObjects;
-    uintptr_t*       Address;  // Points to first object
-    uint8_t*         FreeBitmap;
+    element_t       Header;
+    volatile size_t NumberOfFreeObjects;
+    uintptr_t*      Address;  // Points to first object
+    uint8_t*        FreeBitmap;
 } MemorySlab_t;
 
 // Memory Atomic Cache is followed directly by the buffer area for pointers
@@ -239,7 +239,7 @@ slab_create(
     }
     memset(Slab, 0, Cache->SlabStructureSize);
 
-    // Initialize slab
+    ELEMENT_INIT(&Slab->Header, 0, Slab);
     Slab->NumberOfFreeObjects = Cache->ObjectCount;
     Slab->FreeBitmap          = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address             = (uintptr_t*)ObjectAddress;
@@ -275,7 +275,7 @@ static void
 cache_dump_information(
     _In_ MemoryCache_t* Cache)
 {
-    CollectionItem_t* Node;
+    element_t* Node;
     
     // Write cache information
     WRITELINE("%s: Object Size %" PRIuIN ", Alignment %" PRIuIN ", Padding %" PRIuIN ", Count %" PRIuIN ", FreeObjects %" PRIuIN "",
@@ -305,8 +305,8 @@ cache_contains_address(
     _In_ MemoryCache_t* Cache,
     _In_ uintptr_t      Address)
 {
-    CollectionItem_t* Node;
-    int               Found = 0;
+    element_t* Node;
+    int        Found = 0;
     TRACE("cache_contains_address(%s, 0x%" PRIxIN ")", Cache->Name, Address);
 
     // Check partials first, we have to lock the cache as slabs can 
@@ -522,19 +522,21 @@ MemoryCacheCreate(
 }
 
 static void
+cache_destroy_callback(
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    MemoryCache_t* Cache = Context;
+    MemorySlab_t*  Slab  = Element->value;
+    slab_destroy(Cache, Slab);
+}
+
+static void
 cache_destroy_list(
     _In_ MemoryCache_t* Cache,
-    _In_ Collection_t*  List)
+    _In_ list_t*        List)
 {
-    MemorySlab_t* Slab;
-    DataKey_t Key = { 0 };
-
-    // Iterate all the slab lists, unlink the slab and then destroy it
-    Slab = (MemorySlab_t*)CollectionGetNodeByKey(List, Key, 0);
-    while (Slab != NULL) {
-        CollectionRemoveByNode(List, &Slab->Header);
-        slab_destroy(Cache, Slab);
-    }
+    list_clear(List, cache_destroy_callback, Cache);
 }
 
 void
@@ -577,21 +579,24 @@ MemoryCacheAllocate(
     // Otherwise allocate from global cache
     MutexLock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects != 0) {
-        if (CollectionLength(&Cache->PartialSlabs) != 0) {
-            Slab = (MemorySlab_t*)CollectionBegin(&Cache->PartialSlabs);
+        if (list_count(&Cache->PartialSlabs) != 0) {
+            element_t* Element = list_front(&Cache->PartialSlabs);
+            Slab = Element->value;
             assert(Slab->NumberOfFreeObjects != 0);
         }
         else {
-            Slab = (MemorySlab_t*)CollectionPopFront(&Cache->FreeSlabs);
-            CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+            element_t* Element = list_front(&Cache->FreeSlabs);
+            list_remove(&Cache->FreeSlabs, Element);
+            list_append(&Cache->PartialSlabs, Element);
+            Slab = Element->value;
         }
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         if (!Slab->NumberOfFreeObjects) {
             // Last index, push to full
-            CollectionRemoveByNode(&Cache->PartialSlabs, &Slab->Header);
-            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+            list_remove(&Cache->PartialSlabs, &Slab->Header);
+            list_append(&Cache->FullSlabs, &Slab->Header);
         }
         Cache->NumberOfFreeObjects--;
     }
@@ -604,11 +609,11 @@ MemoryCacheAllocate(
         assert(Index != -1);
         
         if (!Slab->NumberOfFreeObjects) {
-            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+            list_append(&Cache->FullSlabs, &Slab->Header);
         }
         else {
             Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
-            CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+            list_append(&Cache->PartialSlabs, &Slab->Header);
         }
     }
     MutexUnlock(&Cache->SyncObject);
@@ -623,8 +628,8 @@ MemoryCacheFree(
     _In_ MemoryCache_t* Cache,
     _In_ void*          Object)
 {
-    CollectionItem_t* Node;
-    int CheckFull = 1;
+    element_t* Element;
+    int        CheckFull = 1;
     TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
 
     // Handle debug flags
@@ -648,14 +653,14 @@ MemoryCacheFree(
     MutexLock(&Cache->SyncObject);
 
     // Check partials first, and move to free if neccessary
-    _foreach(Node, &Cache->PartialSlabs) {
-        MemorySlab_t* Slab  = (MemorySlab_t*)Node;
+    _foreach(Element, &Cache->PartialSlabs) {
+        MemorySlab_t* Slab  = Element->value;
         int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);
         if (Index != -1) {
             slab_free_index(Cache, Slab, Index);
             if (Slab->NumberOfFreeObjects == Cache->ObjectCount) {
-                CollectionRemoveByNode(&Cache->PartialSlabs, Node);
-                CollectionAppend(&Cache->FreeSlabs, Node);
+                list_remove(&Cache->PartialSlabs, Element);
+                list_append(&Cache->FreeSlabs, Element);
             }
             CheckFull = 0;
             Cache->NumberOfFreeObjects++;
@@ -665,19 +670,19 @@ MemoryCacheFree(
 
     // Otherwise move on to the full slabs, and move to partial if neccessary
     if (CheckFull) {
-        _foreach(Node, &Cache->FullSlabs) {
-            MemorySlab_t* Slab = (MemorySlab_t*)Node;
+        _foreach(Element, &Cache->FullSlabs) {
+            MemorySlab_t* Slab = Element->value;
             int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);
             if (Index != -1) {
                 slab_free_index(Cache, Slab, Index);
-                CollectionRemoveByNode(&Cache->FullSlabs, Node);
+                list_remove(&Cache->FullSlabs, Element);
                 
                 // A slab can go directly from full to free if the count is 1
                 if (Cache->ObjectCount == 1) {
-                    CollectionAppend(&Cache->FreeSlabs, Node);
+                    list_append(&Cache->FreeSlabs, Element);
                 }
                 else {
-                    CollectionAppend(&Cache->PartialSlabs, Node);
+                    list_append(&Cache->PartialSlabs, Element);
                 }
                 Cache->NumberOfFreeObjects++;
                 break;

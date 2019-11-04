@@ -54,7 +54,7 @@ typedef struct SystemMachine {
     BlockBitmap_t               PhysicalMemory;
     BlockBitmap_t               GlobalAccessMemory;
     SystemMemoryMap_t           MemoryMap;
-    Collection_t                SystemDomains;
+    list_t                      SystemDomains;
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;

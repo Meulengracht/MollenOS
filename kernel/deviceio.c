@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,27 +17,61 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS IO Space Interface
+ * IO Space Interface
  * - Contains the shared kernel io space interface
  *   that all sub-layers / architectures must conform to
  */
 #define __MODULE        "DVIO"
 //#define __TRACE
 
-#include <ds/collection.h>
-#include <modules/manager.h>
 #include <arch/utils.h>
 #include <arch/io.h>
-#include <memoryspace.h>
-#include <threading.h>
-#include <deviceio.h>
-#include <string.h>
 #include <assert.h>
 #include <debug.h>
+#include <deviceio.h>
+#include <ds/list.h>
+#include <handle.h>
 #include <heap.h>
+#include <memoryspace.h>
+#include <modules/manager.h>
+#include <threading.h>
+#include <string.h>
 
-static Collection_t IoSpaces              = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t) IoSpaceIdGenerator = 1;
+typedef struct SystemDeviceIo {
+    element_t  Header;
+    DeviceIo_t Io;
+    UUId_t     Owner;
+    uintptr_t  MappedAddress;
+} SystemDeviceIo_t;
+
+static list_t IoSpaces = LIST_INIT;
+
+static void
+DetectOverlaps(int Index, element_t* Element, void* Context)
+{
+    //SystemDeviceIo_t* SystemIo = Element->value;
+    //DeviceIo_t*       Io       = Context;
+    
+    // check overlap
+}
+
+static void
+DestroySystemDeviceIo(
+    _In_ void* Resource)
+{
+    DeviceIo_t*       IoSpace = Resource;
+    SystemDeviceIo_t* SystemIo;
+    
+    TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
+
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
+    if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
+        return;
+    }
+    
+    list_remove(&IoSpaces, list_find(&IoSpaces, (void*)IoSpace->Id));
+    kfree(SystemIo);
+}
 
 OsStatus_t
 RegisterSystemDeviceIo(
@@ -47,38 +82,22 @@ RegisterSystemDeviceIo(
 
     // Before doing anything, we should do a over-lap
     // check before trying to register this
+    // list_enumerate(&IoSpaces, DetectOverlaps);
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
     SystemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
+    if (!SystemIo) {
+        return OsOutOfMemory;
+    }
+    
     memset(SystemIo, 0, sizeof(SystemDeviceIo_t));
     SystemIo->Owner = UUID_INVALID;
-
-    IoSpace->Id = atomic_fetch_add(&IoSpaceIdGenerator, 1);
+    IoSpace->Id = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, SystemIo);
+    ELEMENT_INIT(&SystemIo->Header, IoSpace->Id, SystemIo);
     memcpy(&SystemIo->Io, IoSpace, sizeof(DeviceIo_t));
-    SystemIo->Header.Key.Value.Id = IoSpace->Id;
-    return CollectionAppend(&IoSpaces, &SystemIo->Header);
-}
-
-OsStatus_t
-DestroySystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace)
-{
-    SystemDeviceIo_t* SystemIo;
-    DataKey_t Key;
-
-    // Debugging
-    TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
-
-    // Lookup the system copy to validate
-    Key.Value.Id    = IoSpace->Id;
-    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
-    if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
-        return OsError;
-    }
-    CollectionRemoveByNode(&IoSpaces, &SystemIo->Header);
-    kfree(SystemIo);
-    return OsSuccess;
+    
+    return list_append(&IoSpaces, &SystemIo->Header);
 }
 
 OsStatus_t
@@ -89,14 +108,12 @@ AcquireSystemDeviceIo(
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     SystemModule_t*      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
-    DataKey_t            Key;
     assert(IoSpace != NULL);
 
     TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
-    Key.Value.Id    = IoSpace->Id;
-    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
 
     // Sanitize the system copy
     if (Module == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
@@ -154,15 +171,11 @@ ReleaseSystemDeviceIo(
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     SystemModule_t*      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
-    DataKey_t            Key;
+    
     assert(IoSpace != NULL);
-
-    // Debugging
     TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
-    // Lookup the system copy to validate this requested operation
-    Key.Value.Id    = IoSpace->Id;
-    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
 
     // Sanitize the system copy and do some security checks
     if (Module == NULL || SystemIo == NULL || 
@@ -205,11 +218,9 @@ CreateKernelSystemDeviceIo(
     _Out_ DeviceIo_t** SystemIoSpace)
 {
     SystemDeviceIo_t* SystemIo;
-    DataKey_t Key;
     
-    Key.Value.Id    = SourceIoSpace->Id;
-    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
-    if (SystemIo == NULL) {
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)SourceIoSpace->Id);
+    if (!SystemIo) {
         return OsError;
     }
 
@@ -241,11 +252,9 @@ ReleaseKernelSystemDeviceIo(
     _In_ DeviceIo_t* SystemIoSpace)
 {
     SystemDeviceIo_t* SystemIo;
-    DataKey_t Key;
     
-    Key.Value.Id    = SystemIoSpace->Id;
-    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
-    if (SystemIo == NULL) {
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)SystemIoSpace->Id);
+    if (!SystemIo) {
         return OsError;
     }
 
@@ -279,7 +288,7 @@ ValidateDeviceIoMemoryAddress(
     
     // Iterate and check each io-space if the process has this mapped in
     foreach(ioNode, &IoSpaces) {
-        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)ioNode;
+        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)ioNode->value;
         uintptr_t         VirtualBase = IoSpace->MappedAddress;
 
         // Two things has to be true before the io-space

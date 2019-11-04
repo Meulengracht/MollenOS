@@ -51,13 +51,13 @@ typedef struct element {
     void* value;
 } element_t;
 
-#define ELEMENT_INIT(elem, key, val) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = key; (elem)->value = val
+#define ELEMENT_INIT(elem, _key, _value) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = (void*)_key; (elem)->value = (void*)_value
 
 // These are for unlocked access and destroy the purpose of synchronization
 // if used out of library.
-#define foreach(i, collection) element_t *i; for (i = collection->head; i != NULL; i = i->next)
-#define foreach_nolink(i, collection) element_t *i; for (i = collection->head; i != NULL; )
-#define _foreach(i, collection) for (i = collection->head; i != NULL; i = i->next)
-#define _foreach_nolink(i, collection) for (i = collection->head; i != NULL; )
+#define foreach(i, collection) element_t *i; for (i = (collection)->head; i != NULL; i = i->next)
+#define foreach_nolink(i, collection) element_t *i; for (i = (collection)->head; i != NULL; )
+#define _foreach(i, collection) for (i = (collection)->head; i != NULL; i = i->next)
+#define _foreach_nolink(i, collection) for (i = (collection)->head; i != NULL; )
 
 #endif //!__LIBDS_H__

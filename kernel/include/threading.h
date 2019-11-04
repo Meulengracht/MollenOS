@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 #include <os/context.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <semaphore.h>
 #include <mutex.h>
 #include <signal.h>

@@ -27,8 +27,8 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <ds/list.h>
 #include <irq_spinlock.h>
-#include <ds/collection.h>
 #include <time.h>
 
 /* Scheduler Definitions
@@ -57,7 +57,7 @@ typedef enum {
 } SchedulerObjectState_t;
 
 typedef struct SchedulerObject {
-    CollectionItem_t                Header;
+    element_t                       Header;
     volatile SchedulerObjectState_t State;
     volatile Flags_t                Flags;
     UUId_t                          CoreId;
@@ -66,7 +66,7 @@ typedef struct SchedulerObject {
     struct SchedulerObject*         Link;
     void*                           Object;
     
-    Collection_t*                   WaitQueueHandle;
+    list_t*                         WaitQueueHandle;
     int                             Timeout;
     size_t                          TimeLeft;
     clock_t                         InterruptedAt;

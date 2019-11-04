@@ -52,19 +52,19 @@ FunctionExecutionInterruptHandler(
     _In_ FastInterruptResources_t* NotUsed,
     _In_ void*                     NotUsedEither)
 {
-    SystemCpuCore_t*  Core = GetCurrentProcessorCore();
-    CollectionItem_t* Node;
+    SystemCpuCore_t* Core = GetCurrentProcessorCore();
+    element_t*       Node;
     TRACE("FunctionExecutionInterruptHandler(%u)", Core->Id);
 
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
 
-    Node = CollectionPopFront(&Core->FunctionQueue[CpuFunctionCustom]);
+    Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Node != NULL) {
-        SystemCoreFunctionItem_t* Item = (SystemCoreFunctionItem_t*)Node;
+        SystemCoreFunctionItem_t* Item = Node->value;
         Item->Handler(Item->Argument);
         MemoryCacheFree(&IpiItemCache, Item);
-        Node = CollectionPopFront(&Core->FunctionQueue[CpuFunctionCustom]);
+        Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     }
     return InterruptHandled;
 }
@@ -123,10 +123,11 @@ ExecuteProcessorCoreFunction(
     }
     
     memset(Item, 0, sizeof(SystemCoreFunctionItem_t));
+    ELEMENT_INIT(&Item->Header, 0, Item);
     Item->Handler  = Function;
     Item->Argument = Argument;
     
     TRACE("[execute_irq] add node 0x%llx to 0x%llx", &Core->FunctionQueue[Type], &Item->Header);
-    CollectionAppend(&Core->FunctionQueue[Type], &Item->Header);
+    queue_push(&Core->FunctionQueue[Type], &Item->Header);
     ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

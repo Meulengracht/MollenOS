@@ -25,11 +25,10 @@
 
 #include <os/osdefs.h>
 #include <os/types/process.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <time.h>
 
 typedef struct PeExecutable PeExecutable_t;
-typedef struct SystemPipe SystemPipe_t;
 typedef struct MString MString_t;
 
 #define MODULE_FILESYSTEM       0x01010101
@@ -37,18 +36,18 @@ typedef struct MString MString_t;
 #define MODULE_INITIAL_STACK    0x1000
 #define MODULE_MAX_STACK        (4 << 20)
 
-typedef enum _SystemModuleType {
+typedef enum SystemModuleType {
     FileResource = 0,
     ModuleResource,
     ServiceResource
 } SystemModuleType_t;
 
-typedef struct {
-    CollectionItem_t ListHeader;
-    UUId_t           Handle;
-    MString_t*       Path;
-    const void*      Data;
-    size_t           Length;
+typedef struct SystemModule {
+    element_t   ListHeader;
+    UUId_t      Handle;
+    MString_t*  Path;
+    const void* Data;
+    size_t      Length;
 
     // Used by Module/Service type
     void*           InheritanceBlock;
@@ -65,7 +64,6 @@ typedef struct {
     DevInfo_t       DeviceClass;
     DevInfo_t       DeviceSubclass;
     PeExecutable_t* Executable;
-    SystemPipe_t*   Rpc;
 } SystemModule_t;
 
 /* SpawnModule 

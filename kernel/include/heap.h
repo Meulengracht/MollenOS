@@ -23,7 +23,7 @@
 #define __VALI_HEAP_H__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <mutex.h>
 
 typedef struct MemoryCache {
@@ -42,9 +42,9 @@ typedef struct MemoryCache {
 
     int              SlabOnSite;
     size_t           SlabStructureSize;
-    Collection_t     FreeSlabs;
-    Collection_t     PartialSlabs;
-    Collection_t     FullSlabs;
+    list_t           FreeSlabs;
+    list_t           PartialSlabs;
+    list_t           FullSlabs;
 
     uintptr_t        AtomicCaches;
 } MemoryCache_t;

@@ -25,7 +25,7 @@
 #define __VALI_TIMERS_H__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <time.h>
 
 typedef struct SystemPerformanceTimerOps {
@@ -34,12 +34,12 @@ typedef struct SystemPerformanceTimerOps {
 } SystemPerformanceTimerOps_t;
 
 typedef struct SystemTimer {
-    CollectionItem_t Header;
-    UUId_t           Source;
-    size_t           TickInNs;
-    size_t           Ticks;
-    clock_t          (*GetTick)(void);
-    void             (*ResetTick)(void);
+    element_t Header;
+    UUId_t   Source;
+    size_t   TickInNs;
+    size_t   Ticks;
+    clock_t  (*GetTick)(void);
+    void     (*ResetTick)(void);
 } SystemTimer_t;
 
 /* TimersSynchronizeTime

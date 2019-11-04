@@ -79,6 +79,7 @@ SocketCreateImpl(
 {
     Socket_t*  Socket;
     OsStatus_t Status;
+    UUId_t     Handle;
     TRACE("SocketCreateImpl()");
     
     Socket = malloc(sizeof(Socket_t));
@@ -93,7 +94,7 @@ SocketCreateImpl(
     Socket->Protocol            = Protocol;
     SetDefaultConfiguration(&Socket->Configuration);
     
-    Status = handle_create(&Socket->Header.Key.Value.Id);
+    Status = handle_create(&Handle);
     if (Status != OsSuccess) {
         ERROR("Failed to create socket handle");
         return Status;
@@ -102,7 +103,7 @@ SocketCreateImpl(
     Status = DomainCreate(Domain, &Socket->Domain);
     if (Status != OsSuccess) {
         ERROR("Failed to initialize the socket domain");
-        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        (void)handle_destroy(Handle);
         free(Socket);
         return Status;
     }
@@ -111,7 +112,7 @@ SocketCreateImpl(
     if (Status != OsSuccess) {
         ERROR("Failed to initialize the socket domain address");
         DomainDestroy(Socket->Domain);
-        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        (void)handle_destroy(Handle);
         free(Socket);
     }
     
@@ -119,7 +120,7 @@ SocketCreateImpl(
     if (Status != OsSuccess) {
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(Socket->Domain);
-        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        (void)handle_destroy(Handle);
         free(Socket);
         return Status;
     }
@@ -129,11 +130,12 @@ SocketCreateImpl(
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
-        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        (void)handle_destroy(Handle);
         free(Socket);
         return Status;
     }
     
+    RB_LEAF_INIT(&Socket->Header, Handle, Socket);
     *SocketOut = Socket;
     return OsSuccess;
 }
@@ -147,7 +149,7 @@ SocketShutdownImpl(
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
         DestroySocketPipe(&Socket->Send);
-        (void)handle_destroy(Socket->Header.Key.Value.Id);
+        (void)handle_destroy((UUId_t)(uintptr_t)Socket->Header.key);
         free(Socket);
         return OsSuccess;
     }

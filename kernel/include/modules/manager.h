@@ -25,18 +25,18 @@
 
 #include <os/osdefs.h>
 #include <ds/mstring.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <modules/module.h>
 #include <memoryspace.h>
 
 typedef struct SystemFileMapping {
-    CollectionItem_t Header;
-    UUId_t           BufferHandle;
-    UUId_t           FileHandle;
-    uint64_t         FileBlock;
-    uint64_t         BlockOffset;
-    size_t           Length;
-    Flags_t          Flags;
+    element_t Header;
+    UUId_t    BufferHandle;
+    UUId_t    FileHandle;
+    uint64_t  FileBlock;
+    uint64_t  BlockOffset;
+    size_t    Length;
+    Flags_t   Flags;
 } SystemFileMapping_t;
 
 typedef struct SystemFileMappingEvent {

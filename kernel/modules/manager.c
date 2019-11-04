@@ -28,15 +28,14 @@
 #include <assert.h>
 #include <debug.h>
 #include <heap.h>
-#include "../../librt/libc/include/internal/_io.h"
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
 #include <ds/mstring.h>
 #include <threading.h>
 #include <string.h>
 
-static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
-static int          ModuleIdGenerator = 1;
+static list_t Modules           = LIST_INIT;
+static int    ModuleIdGenerator = 1;
 
 OsStatus_t
 RegisterModule(
@@ -51,10 +50,13 @@ RegisterModule(
 {
     SystemModule_t* Module;
 
-    // Allocate a new module header and copy some values 
     Module = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
+    if (!Module) {
+        return OsOutOfMemory;
+    }
+    
     memset(Module, 0, sizeof(SystemModule_t));
-    Module->ListHeader.Key.Value.Integer = (int)Type;
+    ELEMENT_INIT(&Module->ListHeader, Type, Module);
 
     Module->Handle = ModuleIdGenerator++;
     Module->Data   = Data;
@@ -67,11 +69,9 @@ RegisterModule(
     Module->DeviceClass     = DeviceClass;
     Module->DeviceSubclass  = DeviceSubclass;
     Module->PrimaryThreadId = UUID_INVALID;
-    return CollectionAppend(&Modules, &Module->ListHeader);
+    return list_append(&Modules, &Module->ListHeader);
 }
 
-/* SpawnServices
- * Loads all system services present in the initial ramdisk. */
 void
 SpawnServices(void)
 {
@@ -85,7 +85,7 @@ SpawnServices(void)
     // Iterate module list and spawn all servers
     // then they will "run" the system for us
     foreach(Node, &Modules) {
-        if (Node->Key.Value.Integer == (int)ServiceResource) {
+        if ((int)(uintptr_t)Node->key == (int)ServiceResource) {
             SystemModule_t* Module = (SystemModule_t*)Node;
             OsStatus_t      Status = SpawnModule((SystemModule_t*)Node);
             if (Status != OsSuccess) {

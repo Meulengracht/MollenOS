@@ -27,7 +27,6 @@
 #define __NETMANAGER_SOCKET_H__
 
 #include <ddk/streambuffer.h>
-#include <ds/collection.h>
 #include <ds/rbtree.h>
 #include <inet/socket.h>
 #include <os/dmabuf.h>
@@ -54,7 +53,7 @@ typedef struct SocketPipe {
 } SocketPipe_t;
 
 typedef struct Socket {
-    RBTreeItem_t          Header;
+    rb_leaf_t             Header;
     _Atomic(int)          PendingPackets;
     int                   DomainType;
     int                   Type;

@@ -26,7 +26,7 @@
 #define __MEMORY_SPACE_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <mutex.h>
 
 typedef struct BlockBitmap BlockBitmap_t;
@@ -63,10 +63,10 @@ typedef struct BlockBitmap BlockBitmap_t;
 #define MAPPING_VIRTUAL_MASK            0x00000038
 
 typedef struct SystemMemoryMappingHandler {
-    CollectionItem_t Header;
-    UUId_t           Handle;
-    uintptr_t        Address;
-    size_t           Length;
+    element_t Header;
+    UUId_t    Handle;
+    uintptr_t Address;
+    size_t    Length;
 } SystemMemoryMappingHandler_t;
 
 typedef struct {
@@ -79,7 +79,7 @@ typedef struct {
 } SystemSharedRegion_t;
 
 typedef struct SystemMemorySpaceContext {
-    Collection_t*  MemoryHandlers;
+    list_t*        MemoryHandlers;
     BlockBitmap_t* HeapSpace;
     uintptr_t      SignalHandler;
 } SystemMemorySpaceContext_t;

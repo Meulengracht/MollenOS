@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -21,7 +22,8 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
-#include <ds/collection.h>
+#include <ds/ds.h>
+#include <ds/list.h>
 #include <os/mollenos.h>
 #include <ds/mstring.h>
 #include <string.h>
@@ -53,8 +55,8 @@ PeResolveLibrary(
 
     // Before actually loading the file, we want to
     // try to locate the library in the parent first.
-    foreach(Node, ExportParent->Libraries) {
-        PeExecutable_t *Library = (PeExecutable_t*)Node->Data;
+    foreach(i, ExportParent->Libraries) {
+        PeExecutable_t *Library = i->value;
         if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
             dstrace("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
             Library->References++;
@@ -113,8 +115,8 @@ PeGetModuleHandles(
     // Copy base over
     ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
     if (Executable->Libraries != NULL) {
-        foreach(Node, Executable->Libraries) {
-            PeExecutable_t *Library = (PeExecutable_t*)Node->Data;
+        foreach(i, Executable->Libraries) {
+            PeExecutable_t *Library = i->value;
             ModuleList[Index++]     = (Handle_t)Library->VirtualAddress;
         }
     }
@@ -137,8 +139,8 @@ PeGetModuleEntryPoints(
 
     // Copy base over
     if (Executable->Libraries != NULL) {
-        foreach(Node, Executable->Libraries) {
-            PeExecutable_t *Library = (PeExecutable_t*)Node->Data;
+        foreach(i, Executable->Libraries) {
+            PeExecutable_t *Library = i->value;
             if (Library->EntryAddress != 0) {
                 ModuleList[Index++] = (Handle_t)Library->EntryAddress;
             }

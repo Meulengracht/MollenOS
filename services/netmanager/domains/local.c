@@ -30,7 +30,8 @@
 #include <ddk/handle.h>
 #include <ddk/services/net.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/list.h>
+#include <ds/queue.h>
 #include <internal/_socket.h>
 #include <inet/local.h>
 #include <io_events.h>
@@ -40,8 +41,8 @@
 #include <string.h>
 
 typedef struct AddressRecord {
-    CollectionItem_t Header;
-    Socket_t*        Socket;
+    element_t Header;
+    Socket_t* Socket;
 } AddressRecord_t;
 
 typedef struct SocketDomain {
@@ -49,23 +50,23 @@ typedef struct SocketDomain {
     mtx_t             SyncObject;
     UUId_t            ConnectedSocket;
     AddressRecord_t*  Record;
-    Collection_t      ConnectionRequests; // TODO: queue
-    Collection_t      AcceptRequests;     // TODO: queue
+    queue_t           ConnectionRequests; // TODO: queue
+    queue_t           AcceptRequests;     // TODO: queue
 } SocketDomain_t;
 
 typedef struct ConnectionRequest {
-    CollectionItem_t        Header;
+    element_t               Header;
     thrd_t                  SourceWaiter;
     struct sockaddr_storage SourceAddress;
 } ConnectionRequest_t;
 
 typedef struct AcceptRequest {
-    CollectionItem_t Header;
-    thrd_t           SourceWaiter;
+    element_t Header;
+    thrd_t    SourceWaiter;
 } AcceptRequest_t;
 
 // TODO: should be hashtable
-static Collection_t AddressRegister = COLLECTION_INIT(KeyString);
+static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
 
 static OsStatus_t HandleInvalidType(Socket_t*);
 static OsStatus_t HandleSocketStreamData(Socket_t*);
@@ -85,11 +86,7 @@ static Socket_t*
 GetSocketFromAddress(
     _In_ const struct sockaddr* Address)
 {
-    DataKey_t Key = { 
-        .Value.String.Pointer = &Address->sa_data[0],
-        .Value.String.Length = strlen(&Address->sa_data[0])
-    };
-    return (Socket_t*)CollectionGetNodeByKey(&AddressRegister, Key, 0);
+    return (Socket_t*)list_find_value(&AddressRegister, (void*)&Address->sa_data[0]);
 }
 
 static OsStatus_t
@@ -147,7 +144,7 @@ HandleSocketStreamData(
         DoRead++;
     }
     
-    handle_set_activity(Socket->Header.Key.Value.Id, IOEVTIN);
+    handle_set_activity((UUId_t)Socket->Header.key, IOEVTIN);
     return OsSuccess;
 }
 
@@ -234,7 +231,7 @@ HandleSocketPacketData(
         free(Buffer);
     }
     
-    handle_set_activity(Socket->Header.Key.Value.Id, IOEVTIN);
+    handle_set_activity((UUId_t)Socket->Header.key, IOEVTIN);
     return OsSuccess;
 }
 
@@ -272,19 +269,16 @@ DomainLocalAllocateAddress(
     }
     
     // Create a new address of the form /lc/{id}
-    sprintf(&AddressBuffer[0], "/lc/%u", Socket->Header.Key.Value.Id);
-    Record->Header.Key.Value.String.Pointer = &AddressBuffer[0];
-    Record->Header.Key.Value.String.Length = strlen(&AddressBuffer[0]);
-    if (CollectionGetNodeByKey(&AddressRegister, Record->Header.Key, 0) != NULL) {
+    sprintf(&AddressBuffer[0], "/lc/%u", (UUId_t)Socket->Header.key);
+    if (list_find(&AddressRegister, &AddressBuffer[0]) != NULL) {
         free(Record);
         return OsExists;
     }
     
-    Record->Header.Key.Value.String.Pointer = strdup(&AddressBuffer[0]);
+    ELEMENT_INIT(&Record->Header, strdup(&AddressBuffer[0]), Record);
     Record->Socket = Socket;
-    
     Socket->Domain->Record = Record;
-    return CollectionAppend(&AddressRegister, &Record->Header);
+    return list_append(&AddressRegister, &Record->Header);
 }
 
 static void
@@ -292,8 +286,8 @@ DestroyAddressRecord(
     _In_ AddressRecord_t* Record)
 {
     TRACE("DestroyAddressRecord()");
-    CollectionRemoveByNode(&AddressRegister, &Record->Header);
-    free((void*)Record->Header.Key.Value.String.Pointer);
+    list_remove(&AddressRegister, &Record->Header);
+    free(Record->Header.key);
     free(Record);
 }
 
@@ -313,25 +307,20 @@ DomainLocalBind(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
 {
-    char*     PreviousBuffer;
-    DataKey_t Key = { 
-        .Value.String.Pointer = &Address->sa_data[0],
-        .Value.String.Length = strlen(&Address->sa_data[0])
-    };
+    char* PreviousBuffer;
     TRACE("DomainLocalBind()");
     
     if (!Socket->Domain->Record) {
         return OsError; // Should not happen tho
     }
     
-    if (CollectionGetNodeByKey(&AddressRegister, Key, 0) != NULL) {
+    if (list_find(&AddressRegister, (void*)&Address->sa_data[0]) != NULL) {
         return OsExists;
     }
     
     // Update key
-    PreviousBuffer = (char*)Socket->Domain->Record->Header.Key.Value.String.Pointer;
-    Socket->Domain->Record->Header.Key.Value.String.Pointer = strdup(&Address->sa_data[0]);
-    Socket->Domain->Record->Header.Key.Value.String.Length = Key.Value.String.Length;
+    PreviousBuffer = (char*)Socket->Domain->Record->Header.key;
+    Socket->Domain->Record->Header.key = strdup(&Address->sa_data[0]);
     free(PreviousBuffer);
     return OsSuccess;
 }
@@ -350,9 +339,7 @@ SignalAcceptRequest(
     
     Address->slc_len    = sizeof(struct sockaddr_lc);
     Address->slc_family = AF_LOCAL;
-    memcpy(&Address->slc_addr[0], 
-        ConnectorAddress->Header.Key.Value.String.Pointer,
-        ConnectorAddress->Header.Key.Value.String.Length);
+    strcpy(&Address->slc_addr[0], (const char*)ConnectorAddress->Header.key);
     
     // Reply to the connector
     Message.Sender = Connector;
@@ -369,8 +356,8 @@ DomainLocalConnect(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
 {
-    AcceptRequest_t*     Request;
     ConnectionRequest_t* ConnectionRequest;
+    element_t*           Element;
     Socket_t*            Target = GetSocketFromAddress(Address);
     TRACE("DomainLocalConnect()");
     
@@ -384,16 +371,22 @@ DomainLocalConnect(
     
     // Create a connection request on the socket
     mtx_lock(&Socket->Domain->SyncObject);
-    Request = (AcceptRequest_t*)CollectionPopFront(&Socket->Domain->AcceptRequests);
-    if (Request) {
-        SignalAcceptRequest(Waiter, Socket->Domain->Record, Request);
-        free(Request);
+    Element = queue_pop(&Socket->Domain->AcceptRequests);
+    if (Element) {
+        SignalAcceptRequest(Waiter, Socket->Domain->Record, Element->value);
+        free(Element->value);
     }
     else {
         ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
+        if (!ConnectionRequest) {
+            mtx_unlock(&Socket->Domain->SyncObject);
+            return OsOutOfMemory;
+        }
+        
+        ELEMENT_INIT(&ConnectionRequest->Header, 0, ConnectionRequest);
         ConnectionRequest->SourceWaiter = Waiter;
-        CollectionAppend(&Socket->Domain->ConnectionRequests, &ConnectionRequest->Header);
-        handle_set_activity(Socket->Header.Key.Value.Id, IOEVTCTL);
+        queue_push(&Socket->Domain->ConnectionRequests, &ConnectionRequest->Header);
+        handle_set_activity((UUId_t)(uintptr_t)Socket->Header.key, IOEVTCTL);
     }
     mtx_unlock(&Socket->Domain->SyncObject);
     return OsSuccess;
@@ -426,24 +419,30 @@ DomainLocalAccept(
     _In_ thrd_t    Waiter,
     _In_ Socket_t* Socket)
 {
-    ConnectionRequest_t* Request;
-    AcceptRequest_t*     AcceptRequest;
-    OsStatus_t           Status = OsSuccess;
+    AcceptRequest_t* AcceptRequest;
+    element_t*       Element;
+    OsStatus_t       Status = OsSuccess;
     TRACE("DomainLocalAccept()");
     
     // Check if there is any requests available
     mtx_lock(&Socket->Domain->SyncObject);
-    Request = (ConnectionRequest_t*)CollectionPopFront(&Socket->Domain->ConnectionRequests);
-    if (Request) {
-        AcceptConnectionRequest(Waiter, Request);
-        free(Request);
+    Element = queue_pop(&Socket->Domain->ConnectionRequests);
+    if (Element) {
+        AcceptConnectionRequest(Waiter, Element->value);
+        free(Element->value);
     }
     else {
         // Only wait if configured to blocking, otherwise return OsBusy ish
         if (Socket->Configuration.Blocking) {
             AcceptRequest = malloc(sizeof(AcceptRequest_t));
+            if (!AcceptRequest) {
+                mtx_unlock(&Socket->Domain->SyncObject);
+                return OsOutOfMemory;
+            }
+            
+            ELEMENT_INIT(&AcceptRequest->Header, 0, AcceptRequest);
             AcceptRequest->SourceWaiter = Waiter;
-            CollectionAppend(&Socket->Domain->AcceptRequests, &AcceptRequest->Header);
+            queue_push(&Socket->Domain->AcceptRequests, &AcceptRequest->Header);
         }
         else {
             Status = OsBusy; // TODO: OsTryAgain
@@ -470,9 +469,7 @@ DomainLocalGetAddress(
             if (!Record) {
                 return OsDoesNotExist;
             }
-            memcpy(&LcAddress->slc_addr[0], 
-                Record->Header.Key.Value.String.Pointer,
-                Record->Header.Key.Value.String.Length);
+            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
             return OsSuccess;
         } break;
         
@@ -527,8 +524,8 @@ DomainLocalCreate(
     Domain->Ops.Destroy         = DomainLocalDestroy;
     mtx_init(&Domain->SyncObject, mtx_plain);
     
-    CollectionConstruct(&Domain->ConnectionRequests, KeyInteger);
-    CollectionConstruct(&Domain->AcceptRequests, KeyInteger);
+    queue_construct(&Domain->ConnectionRequests);
+    queue_construct(&Domain->AcceptRequests);
     Domain->ConnectedSocket = UUID_INVALID;
     Domain->Record          = NULL;
     

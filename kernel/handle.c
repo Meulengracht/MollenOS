@@ -27,8 +27,10 @@
 #include <arch/thread.h>
 #include <assert.h>
 #include <ddk/handle.h>
+#include <ds/list.h>
+#include <ds/queue.h>
+#include <ds/rbtree.h>
 #include <debug.h>
-#include <ds/array.h>
 #include <futex.h>
 #include <handle.h>
 #include <heap.h>
@@ -38,20 +40,20 @@
 #include <threading.h>
 
 typedef struct SystemHandle {
-    CollectionItem_t   Header;
-    SystemHandleType_t Type;
     const char*        Path;
-    Flags_t            Flags;
-    atomic_int         References;
-    HandleDestructorFn Destructor;
     void*              Resource;
+    atomic_int         References;
+    SystemHandleType_t Type;
+    Flags_t            Flags;
+    HandleDestructorFn Destructor;
     
-    Collection_t       Sets;
+    element_t          Header;
+    list_t             Sets;
 } SystemHandle_t;
 
 static Semaphore_t     EventHandle    = SEMAPHORE_INIT(0, 1);
-static Collection_t    CleanupHandles = COLLECTION_INIT(KeyId);
-static Collection_t    SystemHandles  = COLLECTION_INIT(KeyId);
+static queue_t         CleanQueue     = QUEUE_INIT;
+static list_t          SystemHandles  = LIST_INIT;
 static UUId_t          JanitorHandle  = UUID_INVALID;
 static _Atomic(UUId_t) HandleIdGen    = ATOMIC_VAR_INIT(0);
 
@@ -59,8 +61,7 @@ static inline SystemHandle_t*
 LookupHandleInstance(
     _In_ UUId_t Handle)
 {
-    DataKey_t Key = { .Value.Id = Handle };
-    return (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    return (SystemHandle_t*)list_find_value(&SystemHandles, (void*)Handle);
 }
 
 static inline SystemHandle_t*
@@ -68,7 +69,13 @@ LookupSafeHandleInstance(
     _In_ UUId_t Handle)
 {
     SystemHandle_t* Instance = LookupHandleInstance(Handle);
-    if (!Instance || atomic_load(&Instance->References) <= 0) {
+    int             References;
+    if (!Instance) {
+        return NULL;
+    }
+    
+    OS_ATOMIC_LOAD(&Instance->References, References);
+    if (References <= 0) {
         return NULL;
     }
     return Instance;
@@ -85,7 +92,7 @@ AcquireHandleInstance(
         return NULL;
     }
 
-    PreviousReferences = atomic_fetch_add(&Instance->References, 1);
+    OS_ATOMIC_ADD(&Instance->References, 1, PreviousReferences);
     if (PreviousReferences <= 0) {
         // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
@@ -103,23 +110,26 @@ CreateHandle(
     _In_ void*              Resource)
 {
     SystemHandle_t* Handle;
+    UUId_t          HandleId;
     
     Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
     if (!Handle) {
         return UUID_INVALID;
     }
     
+    OS_ATOMIC_ADD(&HandleIdGen, 1, HandleId);
     memset(Handle, 0, sizeof(SystemHandle_t));
-    CollectionConstruct(&Handle->Sets, KeyId);
-    Handle->Header.Key.Value.Id = atomic_fetch_add(&HandleIdGen, 1);
-    Handle->Type                = Type;
-    Handle->Resource            = Resource;
-    Handle->Destructor          = Destructor;
-    Handle->References          = ATOMIC_VAR_INIT(1);
-    CollectionAppend(&SystemHandles, &Handle->Header);
     
-    WARNING("[create_handle] => id %u", Handle->Header.Key.Value.Id);
-    return Handle->Header.Key.Value.Id;
+    list_construct(&Handle->Sets);
+    ELEMENT_INIT(&Handle->Header, HandleId, Handle);
+    Handle->Type       = Type;
+    Handle->Resource   = Resource;
+    Handle->Destructor = Destructor;
+    Handle->References = ATOMIC_VAR_INIT(1);
+    list_append(&SystemHandles, &Handle->Header);
+    
+    WARNING("[create_handle] => id %u", HandleId);
+    return HandleId;
 }
 
 void*
@@ -173,7 +183,7 @@ LookupHandleByPath(
         SystemHandle_t* Instance = (SystemHandle_t*)Node;
         if (Instance && Instance->Path && !strcmp(Instance->Path, Path)) {
             TRACE("... found");
-            *HandleOut = Instance->Header.Key.Value.Id;
+            *HandleOut = (UUId_t)Instance->Header.key;
             return OsSuccess;
         }
     }
@@ -215,11 +225,11 @@ DestroyHandle(
     }
     WARNING("[destroy_handle] => %u", Handle);
 
-    References = atomic_fetch_sub(&Instance->References, 1) - 1;
-    if (References == 0) {
+    OS_ATOMIC_SUB(&Instance->References, 1, References);
+    if ((References - 1) == 0) {
         WARNING("[destroy_handle] cleaning up %u", Handle);
-        CollectionRemoveByNode(&SystemHandles, &Instance->Header);
-        CollectionAppend(&CleanupHandles, &Instance->Header);
+        list_remove(&SystemHandles, &Instance->Header);
+        queue_push(&CleanQueue, &Instance->Header);
         SemaphoreSignal(&EventHandle, 1);
     }
 }
@@ -228,14 +238,17 @@ static void
 HandleJanitorThread(
     _In_Opt_ void* Args)
 {
+    element_t*      Element;
     SystemHandle_t* Instance;
     int             Run = 1;
     _CRT_UNUSED(Args);
     
     while (Run) {
         SemaphoreWait(&EventHandle, 0);
-        Instance = (SystemHandle_t*)CollectionPopFront(&CleanupHandles);
-        while (Instance) {
+        
+        Element = queue_pop(&CleanQueue);
+        while (Element) {
+            Instance = (SystemHandle_t*)Element->value;
             if (Instance->Destructor) {
                 Instance->Destructor(Instance->Resource);
             }
@@ -243,7 +256,8 @@ HandleJanitorThread(
                 kfree((void*)Instance->Path);
             }
             kfree(Instance);
-            Instance = (SystemHandle_t*)CollectionPopFront(&CleanupHandles);
+            
+            Element = queue_pop(&CleanQueue);
         }
     }
 }
@@ -266,13 +280,13 @@ InitializeHandleJanitor(void)
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct SystemHandleSet {
     _Atomic(int) Pending;
-    Collection_t Events;
-    RBTree_t     Handles;
+    list_t       Events;
+    rb_tree_t    Handles;
     Flags_t      Flags;
 } SystemHandleSet_t;
 
 typedef struct SystemHandleEvent {
-    CollectionItem_t           Header;
+    element_t                  Header;
     _Atomic(int)               ActiveEvents;
     struct _SystemHandleEvent* Link;
     UUId_t                     Handle;
@@ -281,13 +295,13 @@ typedef struct SystemHandleEvent {
 } SystemHandleEvent_t;
 
 typedef struct SystemHandleSetElement {
-    CollectionItem_t    Header;
+    element_t           Header;
     SystemHandleSet_t*  Set;
     SystemHandleEvent_t Event;
 } SystemHandleSetElement_t;
 
 typedef struct SystemHandleItem {
-    RBTreeItem_t              Header;
+    rb_leaf_t                 Header;
     SystemHandleSetElement_t* Element;
 } SystemHandleItem_t;
 
@@ -298,21 +312,24 @@ DestroyHandleSet(
     SystemHandleSet_t*  Set = Resource;
     SystemHandle_t*     Instance;
     SystemHandleItem_t* Item;
+    rb_leaf_t*          Leaf;
     
     do {
-        Item = (SystemHandleItem_t*)RBTreeGetMinimum(&Set->Handles);
-        if (!Item) {
+        Leaf = rb_tree_minimum(&Set->Handles);
+        if (!Leaf) {
             break;
         }
-        (void)RBTreeRemove(&Set->Handles, Item->Header.Key);
         
+        rb_tree_remove(&Set->Handles, Leaf->key);
+        
+        Item = Leaf->value;
         Instance = LookupHandleInstance(Item->Element->Event.Handle);
         if (Instance) {
-            CollectionRemoveByNode(&Instance->Sets, &Item->Element->Header);
+            list_remove(&Instance->Sets, &Item->Element->Header);
         }
         kfree(Item->Element);
         kfree(Item);
-    } while (Item);
+    } while (Leaf);
     kfree(Set);
 }
 
@@ -328,8 +345,8 @@ CreateHandleSet(
         return UUID_INVALID;
     }
     
-    CollectionConstruct(&Set->Events, KeyId);
-    RBTreeConstruct(&Set->Handles, KeyId);
+    list_construct(&Set->Events);
+    rb_tree_construct(&Set->Handles);
     Set->Pending = ATOMIC_VAR_INIT(0);
     Set->Flags   = Flags;
     
@@ -352,7 +369,6 @@ ControlHandleSet(
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
     SystemHandleItem_t*       Item;
-    DataKey_t                 Key = { .Value.Id = Handle };
     
     if (!Set) {
         return OsDoesNotExist;
@@ -376,27 +392,31 @@ ControlHandleSet(
         }
         
         memset(SetElement, 0, sizeof(SystemHandleSetElement_t));
-        //SetElement->Header
+        ELEMENT_INIT(&SetElement->Header, 0, SetElement);
         SetElement->Set = Set;
-        //SetElement->Event.Header
+        ELEMENT_INIT(&SetElement->Event.Header, 0, &SetElement->Event);
         SetElement->Event.Handle = Handle;
         SetElement->Event.Context = Context;
         SetElement->Event.Configuration = Flags;
         
-        CollectionAppend(&Instance->Sets, &SetElement->Header);
+        list_append(&Instance->Sets, &SetElement->Header);
         if (Flags & IOEVTFRT) {
-            CollectionAppend(&Set->Events, &SetElement->Event.Header);
+            list_append(&Set->Events, &SetElement->Event.Header);
             atomic_fetch_add(&Set->Pending, 1);
         }
         
         // For each handle added we must allocate a handle-wrapper and add it to
         // the handles tree
         Item = (SystemHandleItem_t*)kmalloc(sizeof(SystemHandleItem_t));
-        Item->Header.Key = Key;
-        Item->Element    = SetElement;
-        if (RBTreeAppend(&Set->Handles, &Item->Header) != OsSuccess) {
+        if (!Item) {
+            return OsOutOfMemory;
+        }
+        
+        RB_LEAF_INIT(&Item->Header, Handle, Item);
+        Item->Element = SetElement;
+        if (rb_tree_append(&Set->Handles, &Item->Header) != OsSuccess) {
             ERROR("... failed to append handle to list of handles, it exists?");
-            CollectionRemoveByNode(&Instance->Sets, &SetElement->Header);
+            list_remove(&Instance->Sets, &SetElement->Header);
             DestroyHandle(Handle);
             kfree(SetElement);
             kfree(Item);
@@ -404,17 +424,18 @@ ControlHandleSet(
         }
     }
     else if (Operation == IO_EVT_DESCRIPTOR_MOD) {
-        Item = (SystemHandleItem_t*)RBTreeLookupKey(&Set->Handles, Key);
-        if (!Item) {
+        rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, (void*)Handle);
+        if (!Leaf) {
             return OsDoesNotExist;
         }
         
+        Item = Leaf->value;
         Item->Element->Event.Configuration = Flags;
         Item->Element->Event.Context       = Context;
     }
     else if (Operation == IO_EVT_DESCRIPTOR_DEL) {
-        Item = (SystemHandleItem_t*)RBTreeRemove(&Set->Handles, Key);
-        if (!Item) {
+        rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, (void*)Handle);
+        if (!Leaf) {
             return OsDoesNotExist;
         }
         
@@ -423,7 +444,8 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
-        CollectionRemoveByNode(&Instance->Sets, &Item->Element->Header);
+        Item = Leaf->value;
+        list_remove(&Instance->Sets, &Item->Element->Header);
         DestroyHandle(Handle);
         kfree(Item->Element);
         kfree(Item);
@@ -444,8 +466,9 @@ WaitForHandleSet(
 {
     SystemHandleSet_t*   Set = LookupHandleOfType(Handle, HandleTypeSet);
     handle_event_t*      Event = Events;
-    SystemHandleEvent_t* Head;
     int                  NumberOfEvents;
+    list_t               Spliced;
+    element_t*           i;
     
     if (!Set) {
         return OsDoesNotExist;
@@ -460,10 +483,13 @@ WaitForHandleSet(
         NumberOfEvents = atomic_exchange(&Set->Pending, 0);
     }
     
+    list_construct(&Spliced);
     NumberOfEvents = MIN(NumberOfEvents, MaxEvents);
-    Head = (SystemHandleEvent_t*)CollectionSplice(&Set->Events, NumberOfEvents);
+    list_splice(&Set->Events, NumberOfEvents, &Spliced);
     
-    while (Head) {
+    _foreach(i, &Spliced) {
+        SystemHandleEvent_t* Head = i->value;
+        
         Event->handle  = Head->Handle;
         Event->events  = atomic_exchange(&Head->ActiveEvents, 0);
         Event->context = Head->Context;
@@ -473,12 +499,30 @@ WaitForHandleSet(
         if (!(Head->Configuration & IOEVTET)) {
             
         }
-        
-        Head = (SystemHandleEvent_t*)CollectionNext(&Head->Header);
         Event++;
     }
     *NumberOfEventsOut = NumberOfEvents;
     return OsSuccess;
+}
+
+static int
+MarkHandleCallback(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    SystemHandleSetElement_t* SetElement = Element->value;
+    Flags_t                   Flags      = (Flags_t)Context;
+    
+    if (SetElement->Event.Configuration & Flags) {
+        if (!atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags)) {
+            list_append(&SetElement->Set->Events, &SetElement->Event.Header);
+            if (!atomic_fetch_add(&SetElement->Set->Pending, 1)) {
+                (void)FutexWake(&SetElement->Set->Pending, 1, 0);
+            }
+        }
+    }
+    return 0;
 }
 
 OsStatus_t
@@ -486,23 +530,11 @@ MarkHandle(
     _In_ UUId_t  Handle,
     _In_ Flags_t Flags)
 {
-    SystemHandle_t*           Instance = LookupHandleInstance(Handle);
-    SystemHandleSetElement_t* SetElement;
+    SystemHandle_t* Instance = LookupHandleInstance(Handle);
     if (!Instance) {
         return OsDoesNotExist;
     }
     
-    SetElement = (SystemHandleSetElement_t*)CollectionBegin(&Instance->Sets);
-    while (SetElement) {
-        if (SetElement->Event.Configuration & Flags) {
-            if (!atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags)) {
-                CollectionAppend(&SetElement->Set->Events, &SetElement->Event.Header);
-                if (!atomic_fetch_add(&SetElement->Set->Pending, 1)) {
-                    (void)FutexWake(&SetElement->Set->Pending, 1, 0);
-                }
-            }
-        }
-        SetElement = (SystemHandleSetElement_t*)CollectionNext(&SetElement->Header);
-    }
+    list_enumerate(&Instance->Sets, MarkHandleCallback, (void*)(uintptr_t)Flags);
     return OsSuccess;
 }

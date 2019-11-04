@@ -250,14 +250,12 @@ void
 SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object)
 {
-    OsStatus_t Status;
-    
     if (Object->State == SchedulerObjectStateBlocked) {
         // Either sleeping, which means we'll interrupt it immediately
         // or it's waiting for in a block queue
         if (Object->WaitQueueHandle != NULL) {
-            Status = CollectionRemoveByNode(Object->WaitQueueHandle, &Object->Header);
-            if (Status != OsSuccess) {
+            int Result = list_remove(Object->WaitQueueHandle, &Object->Header);
+            if (Result) {
                 // we are too late, it's going into queue anyway, back off
                 return;
             }
@@ -265,7 +263,6 @@ SchedulerExpediteObject(
         
         // We removed it, activate its timeout
         TimersGetSystemTick(&Object->InterruptedAt);
-        
         QueueObjectImmediately(Object);
     }
 }
@@ -299,14 +296,12 @@ void
 SchedulerUnblockObject(
     _In_ SchedulerObject_t* Object)
 {
-    OsStatus_t Status;
-    
     if (Object->State == SchedulerObjectStateBlocked) {
         // Either sleeping, which means we'll interrupt it immediately
         // or it's waiting for in a block queue
         if (Object->WaitQueueHandle != NULL) {
-            Status = CollectionRemoveByNode(Object->WaitQueueHandle, &Object->Header);
-            if (Status != OsSuccess) {
+            int Result = list_remove(Object->WaitQueueHandle, &Object->Header);
+            if (Result) {
                 // we are too late, it's going into queue anyway, back off
                 return;
             }
@@ -371,7 +366,6 @@ SchedulerUpdateSleepQueue(
     size_t             NextUpdate = __MASK;
     SchedulerObject_t* i          = Scheduler->SleepQueue.Head;
     SchedulerObject_t* t;
-    OsStatus_t         Status;
     
     while (i) {
         if (i != IgnoreObject) {
@@ -383,12 +377,12 @@ SchedulerUpdateSleepQueue(
             
             // Synchronize with the locked list
             if (i->WaitQueueHandle != NULL) {
-                Status = CollectionRemoveByNode(i->WaitQueueHandle, &i->Header);
+                int Result = list_remove(i->WaitQueueHandle, &i->Header);
                 
                 // If it was already removed, then a we're experiencing a race condition
                 // by another core trying to destroy the order. Prevent this by expecting an 
                 // IPI for the requeue
-                if (Status != OsSuccess) {
+                if (Result) {
                     RemoveFromQueue(&Scheduler->SleepQueue, i);
                     i->State = SchedulerObjectStateZombie;
                     i = t;

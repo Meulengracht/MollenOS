@@ -26,8 +26,6 @@
 #define __HANDLE_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
-#include <ds/rbtree.h>
 
 typedef struct handle_event handle_event_t;
 

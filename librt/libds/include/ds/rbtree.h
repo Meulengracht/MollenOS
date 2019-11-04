@@ -24,74 +24,95 @@
 #ifndef __LIBDS_RBTREE_H__
 #define __LIBDS_RBTREE_H__
 
-#include <ds/ds.h>
+#include <ds/shared.h>
 
-typedef struct _RBTreeItem {
-    DataKey_t           Key;
-    int                 Color;
-    struct _RBTreeItem* Parent;
-    struct _RBTreeItem* Left;
-    struct _RBTreeItem* Right;
-} RBTreeItem_t;
+typedef int (*rb_tree_cmp_fn)(void*, void*);
 
-typedef struct _RBTree {
-    SafeMemoryLock_t    SyncObject;
-    KeyType_t           KeyType;
-    RBTreeItem_t*       Root;
-    RBTreeItem_t        NilItem;
-} RBTree_t;
+typedef struct rb_leaf {
+    struct rb_leaf* parent;
+    struct rb_leaf* left;
+    struct rb_leaf* right;
+    int             color;
+    
+    void*           key;
+    void*           value;
+} rb_leaf_t;
+
+#define RB_LEAF_INIT(leaf, _key, _value) (leaf)->left = NULL; (leaf)->right = NULL; (leaf)->parent = NULL; (leaf)->color = 0; (leaf)->key = (void*)_key; (leaf)->value = _value
+
+typedef struct rb_tree {
+    rb_leaf_t*     root;
+    rb_tree_cmp_fn cmp;
+    syncobject_t   lock;
+    rb_leaf_t      nil;
+} rb_tree_t;
+
+#define RB_TREE_INIT { NULL, rb_tree_cmp_default, SYNC_INIT, { NULL, NULL, NULL, 0, NULL, NULL } }
+
+// Default provided comparators
+CRTDECL(int, rb_tree_cmp_default(void*,void*));
+CRTDECL(int, rb_tree_cmp_string(void*,void*));
 
 /** 
- * RBTreeConstruct
+ * rb_tree_construct
  * * Constructs and initializes a new red-black tree.
  * @param RBTree  [In] The red-black tree to initialize, must be allocated.
  * @param KeyType [In] The type of index key that will be used.
  */
 CRTDECL(void,
-RBTreeConstruct(
-    _In_ RBTree_t* Tree,
-    _In_ KeyType_t KeyType));
+rb_tree_construct(
+    _In_ rb_tree_t*));
+
+CRTDECL(void,
+rb_tree_construct_cmp(
+    _In_ rb_tree_t*,
+    _In_ rb_tree_cmp_fn));
 
 /** 
- * RBTreeAppend
+ * rb_tree_append
  * * Appends a new item to the tree, the key of the item must not exist already.
  * @param RBTree     [In] The red-black tree to append the item to.
  * @param RBTreeItem [In] The item to append to the tree, the key must not exist.
  */
 CRTDECL(OsStatus_t,
-RBTreeAppend(
-    _In_ RBTree_t*     Tree,
-    _In_ RBTreeItem_t* TreeItem));
+rb_tree_append(
+    _In_ rb_tree_t*,
+    _In_ rb_leaf_t*));
 
 /** 
- * RBTreeLookupKey
+ * rb_tree_lookup
  * * Looks up an item in the tree based on the provided key.
  * @param RBTree [In] The red-black tree to perform the lookup in.
  * @param Key    [In] The key to lookup.
  */
-CRTDECL(RBTreeItem_t*,
-RBTreeLookupKey(
-    _In_ RBTree_t* Tree,
-    _In_ DataKey_t Key));
+CRTDECL(rb_leaf_t*,
+rb_tree_lookup(
+    _In_ rb_tree_t*,
+    _In_ void*));
+    
+CRTDECL(void*,
+rb_tree_lookup_value(
+    _In_ rb_tree_t*,
+    _In_ void*));
 
 /** 
- * RBTreeGetMinimum
+ * rb_tree_minimum
  * * Retrieves the item with the lowest value.
  * @param RBTree [In] The red-black tree to perform the lookup in.
  */
-CRTDECL(RBTreeItem_t*,
-RBTreeGetMinimum(
-	_In_ RBTree_t* Tree));
+CRTDECL(rb_leaf_t*,
+rb_tree_minimum(
+	_In_ rb_tree_t*));
 
 /** 
- * RBTreeRemove
+ * rb_tree_remove
  * * Removes and returns the item by the key provided.
  * @param RBTree [In] The red-black tree to perform the lookup in.
  * @param Key    [In] The key to lookup.
  */
-CRTDECL(RBTreeItem_t*,
-RBTreeRemove(
-    _In_ RBTree_t* Tree,
-    _In_ DataKey_t Key));
+CRTDECL(rb_leaf_t*,
+rb_tree_remove(
+    _In_ rb_tree_t*,
+    _In_ void*));
 
 #endif //!__LIBDS_RBTREE_H__

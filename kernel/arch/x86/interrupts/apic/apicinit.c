@@ -22,7 +22,6 @@
 #define __MODULE "APIC"
 #define __TRACE
 
-#include <ds/collection.h>
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <arch/interrupts.h>
