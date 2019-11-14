@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -20,25 +21,27 @@
  * - Contains the implementation of virtual memory management
  *   for the X86-64 Architecture 
  */
+
 #define __MODULE "MEM1"
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-#include <component/cpu.h>
-#include <memoryspace.h>
+#include <assert.h>
+#include <apic.h>
+#include <arch.h>
 #include <arch/output.h>
 #include <arch/utils.h>
-#include <threading.h>
+#include <cpu.h>
+#include <component/cpu.h>
+#include <ddk/barrier.h>
+#include <debug.h>
+#include <gdt.h>
 #include <handle.h>
+#include <heap.h>
+#include <memoryspace.h>
 #include <machine.h>
 #include <memory.h>
-#include <assert.h>
-#include <debug.h>
-#include <heap.h>
-#include <arch.h>
-#include <apic.h>
-#include <cpu.h>
-#include <gdt.h>
+#include <threading.h>
 
 extern uintptr_t LastReservedAddress;
 
@@ -228,18 +231,20 @@ MmVirtualGetTable(
 	uintptr_t             Physical       = 0;
     Flags_t               CreateFlags    = PAGE_PRESENT | PAGE_WRITE;
     uint64_t              ParentMapping;
+    int                   Result;
     
     // Initialize indices and variables
     int PmIndex     = PAGE_LEVEL_4_INDEX(VirtualAddress);
     int PdpIndex    = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress);
     int PdIndex     = PAGE_DIRECTORY_INDEX(VirtualAddress);
-    ParentMapping   = atomic_load(&PageMasterTable->pTables[PmIndex]);
     *Update         = 0;
-
+    
     if (VirtualAddress > MEMORY_LOCATION_KERNEL_END) {
         CreateFlags |= PAGE_USER;
     }
 
+    ParentMapping = atomic_load(&PageMasterTable->pTables[PmIndex]);
+    
 	/////////////////////////////////////////////////
     // Check and synchronize the page-directory table as that is the 
     // only level that needs to be sync between parent and child
@@ -252,29 +257,36 @@ MmVirtualGetTable(
 SyncPmlWithParent:
         ParentMapping = 0;
         if (ParentPageMasterTable != NULL) {
-            ParentMapping = atomic_load(&ParentPageMasterTable->pTables[PmIndex]);
+            ParentMapping = atomic_load_explicit(&ParentPageMasterTable->pTables[PmIndex], 
+                memory_order_acquire);
         }
 
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping | PAGETABLE_INHERITED);
+            atomic_store_explicit(&PageMasterTable->pTables[PmIndex], 
+                ParentMapping | PAGETABLE_INHERITED, memory_order_release);
             PageMasterTable->vTables[PmIndex] = ParentPageMasterTable->vTables[PmIndex];
-            DirectoryTable                    = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
+            
+            DirectoryTable = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
             assert(DirectoryTable != NULL);
             *Update = IsCurrent;
         }
         else if (CreateIfMissing) {
             // Allocate, do a CAS and see if it works, if it fails retry our operation
             DirectoryTable = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &Physical);
-            assert(DirectoryTable != NULL);
+            if (!DirectoryTable) {
+                return NULL;
+            }
+            
             memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
             Physical |= CreateFlags;
 
             // Now perform the synchronization
             if (ParentPageMasterTable != NULL) {
-                if (!atomic_compare_exchange_strong(
-                    &ParentPageMasterTable->pTables[PmIndex], &ParentMapping, Physical)) {
+                Result = atomic_compare_exchange_strong(&ParentPageMasterTable->pTables[PmIndex], 
+                    &ParentMapping, Physical);
+                if (!Result) {
                     // Start over as someone else beat us to the punch
                     kfree((void*)DirectoryTable);
                     goto SyncPmlWithParent;
@@ -293,7 +305,7 @@ SyncPmlWithParent:
     }
 
     // Sanitize the status of the allocation/synchronization
-    if (DirectoryTable == NULL) {
+    if (!DirectoryTable) {
         return NULL;
     }
 
@@ -315,8 +327,9 @@ SyncPdp:
 
         // Adjust the physical pointer to include flags
         Physical |= CreateFlags;
-        if (!atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], 
-                &ParentMapping, Physical)) {
+        Result = atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], 
+                &ParentMapping, Physical);
+        if (!Result) {
             // Start over as someone else beat us to the punch
             kfree((void*)Directory);
             goto SyncPdp;
@@ -345,8 +358,9 @@ SyncPd:
 
         // Adjust the physical pointer to include flags
         Physical |= CreateFlags;
-        if (!atomic_compare_exchange_strong(&Directory->pTables[PdIndex], 
-            &ParentMapping, Physical)) {
+        Result = atomic_compare_exchange_strong(&Directory->pTables[PdIndex], 
+            &ParentMapping, Physical);
+        if (!Result) {
             // Start over as someone else beat us to the punch
             kfree((void*)Table);
             goto SyncPd;
@@ -410,7 +424,7 @@ CloneVirtualSpace(
     // Set PD[ThreadRegion] => NEW [NON-INHERITABLE]
     DirectoryTable->vTables[ThreadRegion] = (uint64_t)kmalloc_p(sizeof(PageDirectory_t), &PhysicalAddress);
     atomic_store(&DirectoryTable->pTables[ThreadRegion], PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
-    Directory                             = (PageDirectory_t*)DirectoryTable->vTables[ThreadRegion];
+    Directory = (PageDirectory_t*)DirectoryTable->vTables[ThreadRegion];
     memset((void*)Directory, 0, sizeof(PageDirectory_t));
     
     // Then iterate all rest PD[0..511] and copy if Inherit
@@ -455,8 +469,6 @@ CloneVirtualSpace(
     return OsSuccess;
 }
 
-/* MmVirtualDestroyPageTable
- * Iterates entries in a page-directory and cleans up structures and entries. */
 OsStatus_t
 MmVirtualDestroyPageTable(
 	_In_ PageTable_t* PageTable)
@@ -480,8 +492,6 @@ MmVirtualDestroyPageTable(
     return OsSuccess;
 }
 
-/* MmVirtualDestroyPageDirectory
- * Iterates entries in a page-directory and cleans up structures and entries. */
 OsStatus_t
 MmVirtualDestroyPageDirectory(
 	_In_ PageDirectory_t* PageDirectory)
@@ -500,8 +510,6 @@ MmVirtualDestroyPageDirectory(
     return OsSuccess;
 }
 
-/* MmVirtualDestroyPageDirectoryTable
- * Iterates entries in a page-directory-table and cleans up structures and entries. */
 OsStatus_t
 MmVirtualDestroyPageDirectoryTable(
 	_In_ PageDirectoryTable_t* PageDirectoryTable)
@@ -520,8 +528,6 @@ MmVirtualDestroyPageDirectoryTable(
     return OsSuccess;
 }
 
-/* DestroyVirtualSpace
- * Destroys and cleans up any resources used by the virtual address space. */
 OsStatus_t
 DestroyVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
@@ -545,9 +551,6 @@ DestroyVirtualSpace(
     return OsSuccess;
 }
 
-/* InitializeVirtualSpace
- * Initializes the virtual memory space for the kernel. This creates a new kernel page-directory
- * or reuses the existing one if it's not the primary core that creates it. */
 OsStatus_t
 InitializeVirtualSpace(
     _In_ SystemMemorySpace_t* SystemMemorySpace)

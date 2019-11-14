@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011 - 2017, Philip Meulengracht
  *
@@ -16,9 +17,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) Table Enumeration Interface
+ * ACPI(CA) Table Enumeration Interface
  */
-#define __MODULE "TBIF"
+#define __MODULE "ACPI"
 #define __TRACE
 
 #include <component/domain.h>

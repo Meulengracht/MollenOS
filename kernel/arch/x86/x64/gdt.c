@@ -60,9 +60,6 @@ GdtInstallDescriptor(
     return GdtIndex;
 }
 
-/* GdtInitialize
- * Initialize the gdt table with the 5 default
- * descriptors for kernel/user mode data/code segments */
 void
 GdtInitialize(void)
 {

@@ -25,6 +25,7 @@
 //#define __TRACE
 
 #include <arch/utils.h>
+#include <ddk/barrier.h>
 #include <debug.h>
 #include <futex.h>
 #include <handle.h>
@@ -71,6 +72,7 @@ ScIpcReply(
         IpcArena = Target->ArenaKernelPointer;
         memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
             Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
+        smp_mb();
         
         atomic_store(&IpcArena->ResponseSyncObject, 1);
         (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
@@ -142,6 +144,7 @@ ScIpcGetResponse(
         SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
     }
     
+    smp_mb();
     *BufferOut = &IpcArena->Buffer[IPC_RESPONSE_LOCATION];
     return OsSuccess;
 }
@@ -226,6 +229,7 @@ ScIpcInvoke(
     
     // TODO: determine the consequences of not clearing our own response
     // flag here to prepare for ipc reply
+    smp_mb();
     atomic_store(&IpcArena->ReadSyncObject, 1);
     (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
     if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {

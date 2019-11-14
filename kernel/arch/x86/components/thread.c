@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,6 +57,10 @@ ThreadingRegister(
 {
     Thread->Data[THREAD_DATA_FLAGS]      = 0;
     Thread->Data[THREAD_DATA_MATHBUFFER] = (uintptr_t)kmalloc(0x1000);
+    if (!Thread->Data[THREAD_DATA_MATHBUFFER]) {
+        return OsOutOfMemory;
+    }
+    
     memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
     return OsSuccess;
 }
@@ -64,6 +69,9 @@ OsStatus_t
 ThreadingUnregister(
     _In_ MCoreThread_t* Thread)
 {
+    assert(Thread != NULL);
+    assert(Thread->Data[THREAD_DATA_MATHBUFFER] != 0);
+    
     kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
@@ -150,7 +158,7 @@ RestoreThreadState(
         Core->InterruptPriority = 0;
     }
     else {
-        Core->InterruptPriority = 61 - Thread->SchedulerObject->Queue;
+        Core->InterruptPriority = 61 - SchedulerObjectGetQueue(Thread->SchedulerObject);
     }
 }
 
@@ -160,13 +168,15 @@ UpdateThreadContext(
     _In_ int            ContextType,
     _In_ int            Load)
 {
+    UUId_t Affinity = SchedulerObjectGetAffinity(Thread->SchedulerObject);
+    
     // If we switch into signal stack then make sure we don't overwrite the original
     // interrupt stack for the thread. Otherwise restore the original interrupt stack.
     if (ContextType == THREADING_CONTEXT_SIGNAL) {
-        TssUpdateThreadStack(Thread->SchedulerObject->CoreId, (uintptr_t)Thread->OriginalContext);
+        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->OriginalContext);
     }
     else {
-        TssUpdateThreadStack(Thread->SchedulerObject->CoreId, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     }
     
     if (Load) {

@@ -46,7 +46,7 @@ GdtInstallDescriptor(
     _In_ uint8_t  Grandularity)
 {
     int GdtIndex = atomic_fetch_add(&GdtIndicer, 1);
-
+	
 	// Fill descriptor
 	Descriptors[GdtIndex].BaseLow  = (uint16_t)(Base & 0xFFFF);
 	Descriptors[GdtIndex].BaseMid  = (uint8_t)((Base >> 16) & 0xFF);
@@ -58,9 +58,6 @@ GdtInstallDescriptor(
     return GdtIndex;
 }
 
-/* GdtInitialize
- * Initialize the gdt table with the 5 default
- * descriptors for kernel/user mode data/code segments */
 void
 GdtInitialize(void)
 {
@@ -107,10 +104,6 @@ GdtInitialize(void)
 	TssInitialize(1);
 }
 
-/* TssInitialize
- * Helper for setting up a new task state segment for
- * the given cpu core, this should be done once per
- * core, and it will set default params for the TSS */
 void
 TssInitialize(
     _In_ int PrimaryCore)

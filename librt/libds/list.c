@@ -121,8 +121,8 @@ list_append(
 
 static int
 __list_remove(
-    _In_ list_t*    list, 
-    _In_ element_t* element)
+    _In_  list_t*    list, 
+    _In_  element_t* element)
 {
     if (!element->previous) {
         // Ok, so this means we are the
@@ -149,7 +149,7 @@ __list_remove(
         // We have a previous,
         // Special case 1: we are last element
         // which means we should update pointer
-        if (element->next == NULL) {
+        if (!element->next) {
             // Ok, we are last element 
             // Update tail pointer to previous
             if (list->tail == element) {
@@ -246,11 +246,11 @@ list_find(
     LIST_LOCK;
     _foreach(i, list) {
         if (!list->cmp(i->key, key)) {
-            return i;
+            break;
         }
     }
     LIST_UNLOCK;
-    return NULL;
+    return i;
 }
 
 element_t*
@@ -290,9 +290,18 @@ list_enumerate(
     assert(list != NULL);
     
     LIST_LOCK;
-    _foreach(i, list) {
-        if (callback(idx, i, context)) {
+    _foreach_nolink(i, list) {
+        int action = callback(idx, i, context);
+        if (action == LIST_ENUMERATE_STOP) {
             break;
+        }
+        else if (action == LIST_ENUMERATE_REMOVE) {
+            element_t* j = i->next;
+            __list_remove(list, i);
+            i = j;
+        }
+        else {
+            i = i->next;
         }
         idx++;
     }

@@ -118,7 +118,7 @@ OnEvent(
             UUId_t     ProcessId = UUID_INVALID;
             
             if (Process != NULL) {
-                ProcessId = Process->Header.Key.Value.Id;
+                ProcessId = (UUId_t)(uintptr_t)Process->Header.key;
             }
             Handled = IpcReply(Message, &ProcessId, sizeof(UUId_t));
         } break;

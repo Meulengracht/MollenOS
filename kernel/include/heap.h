@@ -23,31 +23,8 @@
 #define __VALI_HEAP_H__
 
 #include <os/osdefs.h>
-#include <ds/list.h>
-#include <mutex.h>
 
-typedef struct MemoryCache {
-    const char*      Name;
-    Mutex_t          SyncObject;
-    Flags_t          Flags;
-
-    size_t           ObjectSize;
-    size_t           ObjectAlignment;
-    size_t           ObjectPadding;
-    size_t           ObjectCount;      // Count per slab
-    size_t           PageCount;
-    volatile size_t  NumberOfFreeObjects;
-    void           (*ObjectConstructor)(struct MemoryCache*, void*);
-    void           (*ObjectDestructor)(struct MemoryCache*, void*);
-
-    int              SlabOnSite;
-    size_t           SlabStructureSize;
-    list_t           FreeSlabs;
-    list_t           PartialSlabs;
-    list_t           FullSlabs;
-
-    uintptr_t        AtomicCaches;
-} MemoryCache_t;
+typedef struct MemoryCache MemoryCache_t;
 
 // Debug options for caches
 #define HEAP_DEBUG_USE_AFTER_FREE   0x1
@@ -61,18 +38,17 @@ typedef struct MemoryCache {
 // Initialize the default cache that is required for allocating new caches.
 void MemoryCacheInitialize(void);
 
-// MemoryCacheConstruct
+// MemoryCacheCreate
 // Create a new custom memory cache that can be used to allocate objects for. Can be customized
 // both with alignment, flags and constructor/destructor functionality upon creation of objects.
-KERNELAPI void KERNELABI
-MemoryCacheConstruct(
-    _In_ MemoryCache_t* Cache,
-    _In_ const char*    Name,
-    _In_ size_t         ObjectSize,
-    _In_ size_t         ObjectAlignment,
-    _In_ Flags_t        Flags,
-    _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
-    _In_ void(*ObjectDestructor)(struct MemoryCache*, void*));
+KERNELAPI MemoryCache_t* KERNELABI
+MemoryCacheCreate(
+    _In_ const char* Name,
+    _In_ size_t      ObjectSize,
+    _In_ size_t      ObjectAlignment,
+    _In_ Flags_t     Flags,
+    _In_ void       (*ObjectConstructor)(struct MemoryCache*, void*),
+    _In_ void       (*ObjectDestructor)(struct MemoryCache*, void*));
 
 // MemoryCacheAllocate
 // Allocates a new object from the cache.

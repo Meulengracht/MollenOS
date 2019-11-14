@@ -34,10 +34,10 @@ EhciPortClearBits(
     _In_ int               Index,
     _In_ reg32_t           Bits)
 {
-    reg32_t PortBits = ReadVolatile32(&Controller->OpRegisters->Ports[Index]);
+    reg32_t PortBits = READ_VOLATILE(Controller->OpRegisters->Ports[Index]);
     PortBits        &= ~(EHCI_PORT_RWC);
     PortBits        &= ~(Bits);
-    WriteVolatile32(&Controller->OpRegisters->Ports[Index], PortBits);
+    WRITE_VOLATILE(Controller->OpRegisters->Ports[Index], PortBits);
 }
 
 void
@@ -46,10 +46,10 @@ EhciPortSetBits(
     _In_ int               Index,
     _In_ reg32_t           Bits)
 {
-    reg32_t PortBits = ReadVolatile32(&Controller->OpRegisters->Ports[Index]);
+    reg32_t PortBits = READ_VOLATILE(Controller->OpRegisters->Ports[Index]);
     PortBits        &= ~(EHCI_PORT_RWC);
     PortBits        |= Bits;
-    WriteVolatile32(&Controller->OpRegisters->Ports[Index], PortBits);
+    WRITE_VOLATILE(Controller->OpRegisters->Ports[Index], PortBits);
 }
 
 OsStatus_t
@@ -58,7 +58,7 @@ HciPortReset(
     _In_ int                     Index)
 {
     EhciController_t* EhciHci = (EhciController_t*)Controller;
-    reg32_t Temp              = ReadVolatile32(&EhciHci->OpRegisters->Ports[Index]);
+    reg32_t Temp              = READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]);
 
     // If we are per-port handled, and power is not enabled
     // then switch it on, and give it some time to recover
@@ -68,7 +68,7 @@ HciPortReset(
     }
 
     // The USBSTS:HcHalted bit must be zero, hence, the schedule must be running
-    assert((ReadVolatile32(&EhciHci->OpRegisters->UsbStatus) & EHCI_STATUS_HALTED) == 0);
+    assert((READ_VOLATILE(EhciHci->OpRegisters->UsbStatus) & EHCI_STATUS_HALTED) == 0);
     
     // We must set the port-reset and keep the signal asserted for atleast 50 ms
     // now, we are going to keep the signal alive for (much) longer due to 
@@ -76,10 +76,10 @@ HciPortReset(
     
     // The EHCI documentation says we should 
     // disable enabled and assert reset together
-    Temp = ReadVolatile32(&EhciHci->OpRegisters->Ports[Index]);
+    Temp = READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]);
     Temp &= ~(EHCI_PORT_RWC | EHCI_PORT_ENABLED);
     Temp |= EHCI_PORT_RESET;
-    WriteVolatile32(&EhciHci->OpRegisters->Ports[Index], Temp);
+    WRITE_VOLATILE(EhciHci->OpRegisters->Ports[Index], Temp);
 
     // Wait 200 ms for reset
     thrd_sleepex(200);
@@ -89,7 +89,7 @@ HciPortReset(
     // The reset process is actually complete when software reads a 
     // zero in the PortReset bit
     Temp = 0;
-    WaitForConditionWithFault(Temp, (ReadVolatile32(&EhciHci->OpRegisters->Ports[Index]) & EHCI_PORT_RESET) == 0, 250, 10);
+    WaitForConditionWithFault(Temp, (READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]) & EHCI_PORT_RESET) == 0, 250, 10);
     if (Temp != 0) {
         ERROR("EHCI::Host controller failed to reset the port in time.");
         return OsError;
@@ -98,7 +98,7 @@ HciPortReset(
 
     // Now, if the port has a high-speed 
     // device, the enabled port is set
-    if (!(ReadVolatile32(&EhciHci->OpRegisters->Ports[Index]) & EHCI_PORT_ENABLED)) {
+    if (!(READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]) & EHCI_PORT_ENABLED)) {
         if (EHCI_SPARAM_CCCOUNT(EhciHci->SParameters) != 0) {
             EhciPortSetBits(EhciHci, Index, EHCI_PORT_COMPANION_HC);
         }
@@ -114,7 +114,7 @@ HciPortGetStatus(
     _Out_ UsbHcPortDescriptor_t*  Port)
 {
     EhciController_t* EhciHci = (EhciController_t*)Controller;
-    reg32_t           Status  = ReadVolatile32(&EhciHci->OpRegisters->Ports[Index]);
+    reg32_t           Status  = READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]);
 
     // Is port connected?
     Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
@@ -127,7 +127,7 @@ EhciPortCheck(
     _In_ EhciController_t*          Controller,
     _In_ size_t                     Index)
 {
-    reg32_t Status = ReadVolatile32(&Controller->OpRegisters->Ports[Index]);
+    reg32_t Status = READ_VOLATILE(Controller->OpRegisters->Ports[Index]);
 
     // Clear all event bits
     EhciPortSetBits(Controller, Index, EHCI_PORT_RWC);

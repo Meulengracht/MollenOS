@@ -102,12 +102,12 @@ AhciPortInitiateSetup(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    reg32_t Status = ReadVolatile32(&Port->Registers->CommandAndStatus);
+    reg32_t Status = READ_VOLATILE(Port->Registers->CommandAndStatus);
     
     // Make sure the port has stopped
-    WriteVolatile32(&Port->Registers->InterruptEnable, 0);
+    WRITE_VOLATILE(Port->Registers->InterruptEnable, 0);
     if (Status & (AHCI_PORT_ST | AHCI_PORT_FRE | AHCI_PORT_CR | AHCI_PORT_FR)) {
-        WriteVolatile32(&Port->Registers->CommandAndStatus, Status & ~AHCI_PORT_ST);
+        WRITE_VOLATILE(Port->Registers->CommandAndStatus, Status & ~AHCI_PORT_ST);
     }
 }
 
@@ -120,16 +120,16 @@ AhciPortFinishSetup(
     int     Hung = 0;
 
     // Step 1 -> wait for the command engine to stop by waiting for AHCI_PORT_CR to clear
-    WaitForConditionWithFault(Hung, (ReadVolatile32(&Port->Registers->CommandAndStatus) & AHCI_PORT_CR) == 0, 6, 100);
+    WaitForConditionWithFault(Hung, (READ_VOLATILE(Port->Registers->CommandAndStatus) & AHCI_PORT_CR) == 0, 6, 100);
     if (Hung) {
         ERROR(" > failed to stop command engine: 0x%x", Port->Registers->CommandAndStatus);
         return OsError;
     }
 
     // Step 2 -> wait for the fis receive engine to stop by waiting for AHCI_PORT_FR to clear
-    Status = ReadVolatile32(&Port->Registers->CommandAndStatus);
-    WriteVolatile32(&Port->Registers->CommandAndStatus, Status & ~AHCI_PORT_FRE);
-    WaitForConditionWithFault(Hung, (ReadVolatile32(&Port->Registers->CommandAndStatus) & AHCI_PORT_FR) == 0, 6, 100);
+    Status = READ_VOLATILE(Port->Registers->CommandAndStatus);
+    WRITE_VOLATILE(Port->Registers->CommandAndStatus, Status & ~AHCI_PORT_FRE);
+    WaitForConditionWithFault(Hung, (READ_VOLATILE(Port->Registers->CommandAndStatus) & AHCI_PORT_FR) == 0, 6, 100);
     if (Hung) {
         ERROR(" > failed to stop fis receive engine: 0x%x", Port->Registers->CommandAndStatus);
         return OsError;
@@ -147,7 +147,7 @@ AhciPortFinishSetup(
 
     // Software causes a port reset (COMRESET) by writing 1h to the PxSCTL.DET
     // Also disable slumber and partial state
-    WriteVolatile32(&Port->Registers->AtaControl, 
+    WRITE_VOLATILE(Port->Registers->AtaControl, 
         AHCI_PORT_SCTL_DISABLE_PARTIAL_STATE | 
         AHCI_PORT_SCTL_DISABLE_SLUMBER_STATE | 
         AHCI_PORT_SCTL_RESET);
@@ -155,12 +155,12 @@ AhciPortFinishSetup(
 
     // After clearing PxSCTL.DET to 0h, software should wait for 
     // communication to be re-established as indicated by PxSSTS.DET being set to 3h.
-    WriteVolatile32(&Port->Registers->AtaControl, 
+    WRITE_VOLATILE(Port->Registers->AtaControl, 
         AHCI_PORT_SCTL_DISABLE_PARTIAL_STATE | 
         AHCI_PORT_SCTL_DISABLE_SLUMBER_STATE);
     WaitForConditionWithFault(Hung, 
-        AHCI_PORT_STSS_DET(ReadVolatile32(&Port->Registers->AtaStatus)) == AHCI_PORT_SSTS_DET_ENABLED, 5, 10);
-    Status = ReadVolatile32(&Port->Registers->AtaStatus);
+        AHCI_PORT_STSS_DET(READ_VOLATILE(Port->Registers->AtaStatus)) == AHCI_PORT_SSTS_DET_ENABLED, 5, 10);
+    Status = READ_VOLATILE(Port->Registers->AtaStatus);
     if (Hung && Status != 0) {
         // When PxSCTL.DET is set to 1h, the HBA shall reset PxTFD.STS to 7Fh and 
         // shall reset PxSSTS.DET to 0h. When PxSCTL.DET is set to 0h, upon receiving a 
@@ -174,18 +174,18 @@ AhciPortFinishSetup(
 
     if (AHCI_PORT_STSS_DET(Status) == AHCI_PORT_SSTS_DET_ENABLED) {
         // Handle staggered spin up support
-        Status = ReadVolatile32(&Controller->Registers->Capabilities);
+        Status = READ_VOLATILE(Controller->Registers->Capabilities);
         if (Status & AHCI_CAPABILITIES_SSS) {
-            Status = ReadVolatile32(&Port->Registers->CommandAndStatus);
+            Status = READ_VOLATILE(Port->Registers->CommandAndStatus);
             Status |= AHCI_PORT_SUD | AHCI_PORT_POD | AHCI_PORT_ICC_ACTIVE;
-            WriteVolatile32(&Port->Registers->CommandAndStatus, Status);
+            WRITE_VOLATILE(Port->Registers->CommandAndStatus, Status);
         }
     }
 
     // Then software should write all 1s to the PxSERR register to clear 
     // any bits that were set as part of the port reset.
-    WriteVolatile32(&Port->Registers->AtaError, 0xFFFFFFFF);
-    WriteVolatile32(&Port->Registers->InterruptStatus, 0xFFFFFFFF);
+    WRITE_VOLATILE(Port->Registers->AtaError, 0xFFFFFFFF);
+    WRITE_VOLATILE(Port->Registers->InterruptStatus, 0xFFFFFFFF);
     return OsSuccess;
 }
 
@@ -245,7 +245,7 @@ AhciPortRebase(
     _In_ AhciController_t* Controller,
     _In_ AhciPort_t*       Port)
 {
-    reg32_t             Caps = ReadVolatile32(&Controller->Registers->Capabilities);
+    reg32_t             Caps = READ_VOLATILE(Controller->Registers->Capabilities);
     AHCICommandList_t*  CommandList;
     OsStatus_t          Status;
     struct dma_sg_table SgTable;
@@ -294,18 +294,18 @@ AhciPortEnable(
     int     Hung = 0;
 
     // Set FRE before ST
-    Status = ReadVolatile32(&Port->Registers->CommandAndStatus);
-    WriteVolatile32(&Port->Registers->CommandAndStatus, Status | AHCI_PORT_FRE);
-    WaitForConditionWithFault(Hung, ReadVolatile32(&Port->Registers->CommandAndStatus) & AHCI_PORT_FR, 6, 100);
+    Status = READ_VOLATILE(Port->Registers->CommandAndStatus);
+    WRITE_VOLATILE(Port->Registers->CommandAndStatus, Status | AHCI_PORT_FRE);
+    WaitForConditionWithFault(Hung, READ_VOLATILE(Port->Registers->CommandAndStatus) & AHCI_PORT_FR, 6, 100);
     if (Hung) {
         ERROR(" > fis receive engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
         return OsTimeout;
     }
 
     // Wait for BSYDRQ to clear
-    if (ReadVolatile32(&Port->Registers->TaskFileData) & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) {
-        WriteVolatile32(&Port->Registers->AtaError, (1 << 26)); // Exchanged bit.
-        WaitForConditionWithFault(Hung, (ReadVolatile32(&Port->Registers->TaskFileData) & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) == 0, 30, 100);
+    if (READ_VOLATILE(Port->Registers->TaskFileData) & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) {
+        WRITE_VOLATILE(Port->Registers->AtaError, (1 << 26)); // Exchanged bit.
+        WaitForConditionWithFault(Hung, (READ_VOLATILE(Port->Registers->TaskFileData) & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) == 0, 30, 100);
         if (Hung) {
             ERROR(" > failed to clear BSY and DRQ: 0x%x", Port->Registers->TaskFileData);
             return OsTimeout;
@@ -313,9 +313,9 @@ AhciPortEnable(
     }
 
     // Finally start
-    Status = ReadVolatile32(&Port->Registers->CommandAndStatus);
-    WriteVolatile32(&Port->Registers->CommandAndStatus, Status | AHCI_PORT_ST);
-    WaitForConditionWithFault(Hung, ReadVolatile32(&Port->Registers->CommandAndStatus) & AHCI_PORT_CR, 6, 100);
+    Status = READ_VOLATILE(Port->Registers->CommandAndStatus);
+    WRITE_VOLATILE(Port->Registers->CommandAndStatus, Status | AHCI_PORT_ST);
+    WaitForConditionWithFault(Hung, READ_VOLATILE(Port->Registers->CommandAndStatus) & AHCI_PORT_CR, 6, 100);
     if (Hung) {
         ERROR(" > command engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
         return OsTimeout;
@@ -331,39 +331,39 @@ AhciPortStart(
     _In_ AhciPort_t*       Port)
 {
     struct dma_sg_table DmaTable;
-    reg32_t       Caps       = ReadVolatile32(&Controller->Registers->Capabilities);
+    reg32_t       Caps       = READ_VOLATILE(Controller->Registers->Capabilities);
     int           Hung       = 0;
 
     // Setup the physical data addresses
     dma_get_sg_table(&Port->RecievedFisDMA, &DmaTable, -1);
-    WriteVolatile32(&Port->Registers->FISBaseAddress, LOWORD(DmaTable.entries[0].address));
+    WRITE_VOLATILE(Port->Registers->FISBaseAddress, LOWORD(DmaTable.entries[0].address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
-        WriteVolatile32(&Port->Registers->FISBaseAdressUpper,
+        WRITE_VOLATILE(Port->Registers->FISBaseAdressUpper,
             (sizeof(void*) > 4) ? HIDWORD(DmaTable.entries[0].address) : 0);
     }
     else {
-        WriteVolatile32(&Port->Registers->FISBaseAdressUpper, 0);
+        WRITE_VOLATILE(Port->Registers->FISBaseAdressUpper, 0);
     }
     free(DmaTable.entries);
 
     dma_get_sg_table(&Port->CommandListDMA, &DmaTable, -1);
-    WriteVolatile32(&Port->Registers->CmdListBaseAddress, LODWORD(DmaTable.entries[0].address));
+    WRITE_VOLATILE(Port->Registers->CmdListBaseAddress, LODWORD(DmaTable.entries[0].address));
     if (Caps & AHCI_CAPABILITIES_S64A) {
-        WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper,
+        WRITE_VOLATILE(Port->Registers->CmdListBaseAddressUpper,
             (sizeof(void*) > 4) ? HIDWORD(DmaTable.entries[0].address) : 0);
     }
     else {
-        WriteVolatile32(&Port->Registers->CmdListBaseAddressUpper, 0);
+        WRITE_VOLATILE(Port->Registers->CmdListBaseAddressUpper, 0);
     }
     free(DmaTable.entries);
 
     // Setup the interesting interrupts we want
-    WriteVolatile32(&Port->Registers->InterruptEnable, (reg32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE
+    WRITE_VOLATILE(Port->Registers->InterruptEnable, (reg32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE
         | AHCI_PORT_IE_PCE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE));
 
     // Make sure AHCI_PORT_CR and AHCI_PORT_FR is not set
     WaitForConditionWithFault(Hung, (
-        ReadVolatile32(&Port->Registers->CommandAndStatus) & 
+        READ_VOLATILE(Port->Registers->CommandAndStatus) & 
             (AHCI_PORT_CR | AHCI_PORT_FR)) == 0, 10, 25);
     if (Hung) {
         // In this case we should reset the entire controller @todo
@@ -372,7 +372,7 @@ AhciPortStart(
     }
     
     // Wait for FRE and BSYDRQ. This assumes a device present
-    if (AHCI_PORT_STSS_DET(ReadVolatile32(&Port->Registers->AtaStatus)) != AHCI_PORT_SSTS_DET_ENABLED) {
+    if (AHCI_PORT_STSS_DET(READ_VOLATILE(Port->Registers->AtaStatus)) != AHCI_PORT_SSTS_DET_ENABLED) {
         WARNING(" > port has nothing present: 0x%x", Port->Registers->AtaStatus);
         return OsSuccess;
     }
@@ -384,7 +384,7 @@ AhciPortStartCommandSlot(
     _In_ AhciPort_t* Port, 
     _In_ int         Slot)
 {
-    WriteVolatile32(&Port->Registers->CommandIssue, (1 << Slot));
+    WRITE_VOLATILE(Port->Registers->CommandIssue, (1 << Slot));
 }
 
 OsStatus_t
@@ -461,8 +461,8 @@ HandleInterrupt:
         // Determine whether or not there is a device connected
         // Detect present ports using
         // PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3
-        reg32_t TFD    = ReadVolatile32(&Port->Registers->TaskFileData);
-        reg32_t Status = ReadVolatile32(&Port->Registers->AtaStatus);
+        reg32_t TFD    = READ_VOLATILE(Port->Registers->TaskFileData);
+        reg32_t Status = READ_VOLATILE(Port->Registers->AtaStatus);
         if (TFD & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
             || (AHCI_PORT_STSS_DET(Status) != AHCI_PORT_SSTS_DET_ENABLED)) {
             AhciManagerUnregisterDevice(Controller, Port);
@@ -475,7 +475,7 @@ HandleInterrupt:
     }
 
     // Get completed commands, by using our own slot-status
-    DoneCommands = atomic_load(&Port->Slots) ^ ReadVolatile32(&Port->Registers->AtaActive);
+    DoneCommands = atomic_load(&Port->Slots) ^ READ_VOLATILE(Port->Registers->AtaActive);
     TRACE("DoneCommands(0x%x) <= SlotStatus(0x%x) ^ AtaActive(0x%x)", 
         DoneCommands, atomic_load(&Port->Slots), Port->Registers->AtaActive);
 

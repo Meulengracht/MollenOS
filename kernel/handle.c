@@ -40,20 +40,21 @@
 #include <threading.h>
 
 typedef struct SystemHandle {
-    const char*        Path;
     void*              Resource;
     atomic_int         References;
     SystemHandleType_t Type;
     Flags_t            Flags;
     HandleDestructorFn Destructor;
     
+    element_t*         PathHeader;
     element_t          Header;
     list_t             Sets;
 } SystemHandle_t;
 
 static Semaphore_t     EventHandle    = SEMAPHORE_INIT(0, 1);
 static queue_t         CleanQueue     = QUEUE_INIT;
-static list_t          SystemHandles  = LIST_INIT;
+static list_t          SystemHandles  = LIST_INIT;                      // TODO: hashtable
+static list_t          PathRegister   = LIST_INIT_CMP(list_cmp_string); // TODO: hashtable
 static UUId_t          JanitorHandle  = UUID_INVALID;
 static _Atomic(UUId_t) HandleIdGen    = ATOMIC_VAR_INIT(0);
 
@@ -61,7 +62,7 @@ static inline SystemHandle_t*
 LookupHandleInstance(
     _In_ UUId_t Handle)
 {
-    return (SystemHandle_t*)list_find_value(&SystemHandles, (void*)Handle);
+    return (SystemHandle_t*)list_find_value(&SystemHandles, (void*)(uintptr_t)Handle);
 }
 
 static inline SystemHandle_t*
@@ -74,7 +75,7 @@ LookupSafeHandleInstance(
         return NULL;
     }
     
-    OS_ATOMIC_LOAD(&Instance->References, References);
+    References = atomic_load(&Instance->References);
     if (References <= 0) {
         return NULL;
     }
@@ -92,7 +93,7 @@ AcquireHandleInstance(
         return NULL;
     }
 
-    OS_ATOMIC_ADD(&Instance->References, 1, PreviousReferences);
+    PreviousReferences = atomic_fetch_add(&Instance->References, 1);
     if (PreviousReferences <= 0) {
         // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
@@ -109,24 +110,24 @@ CreateHandle(
     _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource)
 {
-    SystemHandle_t* Handle;
+    SystemHandle_t* Instance;
     UUId_t          HandleId;
     
-    Handle = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
-    if (!Handle) {
+    Instance = (SystemHandle_t*)kmalloc(sizeof(SystemHandle_t));
+    if (!Instance) {
         return UUID_INVALID;
     }
     
-    OS_ATOMIC_ADD(&HandleIdGen, 1, HandleId);
-    memset(Handle, 0, sizeof(SystemHandle_t));
+    HandleId = atomic_fetch_add(&HandleIdGen, 1);
+    memset(Instance, 0, sizeof(SystemHandle_t));
     
-    list_construct(&Handle->Sets);
-    ELEMENT_INIT(&Handle->Header, HandleId, Handle);
-    Handle->Type       = Type;
-    Handle->Resource   = Resource;
-    Handle->Destructor = Destructor;
-    Handle->References = ATOMIC_VAR_INIT(1);
-    list_append(&SystemHandles, &Handle->Header);
+    list_construct(&Instance->Sets);
+    ELEMENT_INIT(&Instance->Header, HandleId, Instance);
+    Instance->Type       = Type;
+    Instance->Resource   = Resource;
+    Instance->Destructor = Destructor;
+    Instance->References = ATOMIC_VAR_INIT(1);
+    list_append(&SystemHandles, &Instance->Header);
     
     WARNING("[create_handle] => id %u", HandleId);
     return HandleId;
@@ -150,7 +151,8 @@ RegisterHandlePath(
 {
     SystemHandle_t* Instance;
     UUId_t          ExistingHandle;
-    TRACE("RegisterHandlePath(%u, %s)", Handle, Path);
+    char*           PathKey;
+    WARNING("[handle_register_path] %u => %s", Handle, Path);
     
     if (!Path) {
         return OsInvalidParameters;
@@ -161,34 +163,47 @@ RegisterHandlePath(
         return OsDoesNotExist;
     }
     
-    if (LookupHandleByPath(Path, &ExistingHandle) != OsDoesNotExist) {
+    if (Instance->PathHeader ||
+        LookupHandleByPath(Path, &ExistingHandle) != OsDoesNotExist) {
         return OsExists;
     }
     
-    Instance->Path = strdup(Path);
-    TRACE("... registered");
+    Instance->PathHeader = kmalloc(sizeof(element_t));
+    if (!Instance->PathHeader) {
+        return OsOutOfMemory;
+    }
+    
+    PathKey = strdup(Path);
+    if (!PathKey) {
+        kfree(Instance->PathHeader);
+        Instance->PathHeader = NULL;
+        return OsOutOfMemory;
+    }
+    
+    ELEMENT_INIT(Instance->PathHeader, PathKey, Instance);
+    list_append(&PathRegister, Instance->PathHeader);
+    WARNING("[handle_register_path] registered");
     return OsSuccess;
 }
 
-// This function iterates the array, not good... TODO find solution
-// I want to avoid using a hashtable for this tho, or try to atleast
 OsStatus_t
 LookupHandleByPath(
     _In_  const char* Path,
     _Out_ UUId_t*     HandleOut)
 {
-    TRACE("LookupHandleByPath(%s)", Path);
+    SystemHandle_t* Instance;
+    element_t*      Element;
+    WARNING("[handle_lookup_by_path] %s", Path);
     
-    foreach(Node, &SystemHandles) {
-        SystemHandle_t* Instance = (SystemHandle_t*)Node;
-        if (Instance && Instance->Path && !strcmp(Instance->Path, Path)) {
-            TRACE("... found");
-            *HandleOut = (UUId_t)Instance->Header.key;
-            return OsSuccess;
-        }
+    Element = list_find_value(&PathRegister, (void*)Path);
+    if (!Element) {
+        WARNING("[handle_lookup_by_path] not found");
+        return OsDoesNotExist;
     }
-    TRACE("... not found");
-    return OsDoesNotExist;
+    
+    Instance = Element->value;
+    *HandleOut = (UUId_t)(uintptr_t)Instance->Header.key;
+    return OsSuccess;
 }
 
 void*
@@ -225,9 +240,12 @@ DestroyHandle(
     }
     WARNING("[destroy_handle] => %u", Handle);
 
-    OS_ATOMIC_SUB(&Instance->References, 1, References);
+    References = atomic_fetch_sub(&Instance->References, 1);
     if ((References - 1) == 0) {
         WARNING("[destroy_handle] cleaning up %u", Handle);
+        if (Instance->PathHeader) {
+            list_remove(&PathRegister, Instance->PathHeader);
+        }
         list_remove(&SystemHandles, &Instance->Header);
         queue_push(&CleanQueue, &Instance->Header);
         SemaphoreSignal(&EventHandle, 1);
@@ -252,8 +270,9 @@ HandleJanitorThread(
             if (Instance->Destructor) {
                 Instance->Destructor(Instance->Resource);
             }
-            if (Instance->Path) {
-                kfree((void*)Instance->Path);
+            if (Instance->PathHeader) {
+                kfree((void*)Instance->PathHeader->key);
+                kfree((void*)Instance->PathHeader);
             }
             kfree(Instance);
             
@@ -401,8 +420,9 @@ ControlHandleSet(
         
         list_append(&Instance->Sets, &SetElement->Header);
         if (Flags & IOEVTFRT) {
+            int PreviousPending;
             list_append(&Set->Events, &SetElement->Event.Header);
-            atomic_fetch_add(&Set->Pending, 1);
+            PreviousPending = atomic_fetch_add(&Set->Pending, 1);
         }
         
         // For each handle added we must allocate a handle-wrapper and add it to
@@ -490,8 +510,8 @@ WaitForHandleSet(
     _foreach(i, &Spliced) {
         SystemHandleEvent_t* Head = i->value;
         
-        Event->handle  = Head->Handle;
         Event->events  = atomic_exchange(&Head->ActiveEvents, 0);
+        Event->handle  = Head->Handle;
         Event->context = Head->Context;
         
         // Handle level triggered here, by adding them back to ready list
@@ -515,14 +535,18 @@ MarkHandleCallback(
     Flags_t                   Flags      = (Flags_t)Context;
     
     if (SetElement->Event.Configuration & Flags) {
-        if (!atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags)) {
+        int Previous;
+        Previous = atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags);
+        if (!Previous) {
             list_append(&SetElement->Set->Events, &SetElement->Event.Header);
-            if (!atomic_fetch_add(&SetElement->Set->Pending, 1)) {
+            
+            Previous = atomic_fetch_add(&SetElement->Set->Pending, 1);
+            if (!Previous) {
                 (void)FutexWake(&SetElement->Set->Pending, 1, 0);
             }
         }
     }
-    return 0;
+    return LIST_ENUMERATE_CONTINUE;
 }
 
 OsStatus_t

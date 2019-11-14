@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Device I/O Definitions & Structures
+ * I/O Definitions & Structures
  * - This header describes the base io-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -236,15 +237,4 @@ WriteDeviceIo(
             break;
     }
     return Status;
-}
-
-reg32_t __IoReadMemory32(volatile reg32_t* Register)
-{
-    reg32_t Value = *Register;
-    return Value;
-}
-
-void __IoWriteMemory32(volatile reg32_t* Register, reg32_t Value)
-{
-    *Register = Value;
 }

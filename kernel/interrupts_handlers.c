@@ -33,8 +33,8 @@
 #include <interrupts.h>
 #include <string.h>
 
-static UUId_t        InterruptHandlers[CpuFunctionCount] = { 0 };
-static MemoryCache_t IpiItemCache                        = { 0 };
+static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
+static MemoryCache_t* IpiItemCache                        = NULL;
 
 InterruptStatus_t
 ProcessorHaltHandler(
@@ -52,18 +52,22 @@ FunctionExecutionInterruptHandler(
     _In_ FastInterruptResources_t* NotUsed,
     _In_ void*                     NotUsedEither)
 {
-    SystemCpuCore_t* Core = GetCurrentProcessorCore();
-    element_t*       Node;
+    SystemCpuCore_t*          Core = GetCurrentProcessorCore();
+    SystemCoreFunctionItem_t* Item;
+    element_t*                Node;
     TRACE("FunctionExecutionInterruptHandler(%u)", Core->Id);
 
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
 
+    smp_mb();
     Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Node != NULL) {
-        SystemCoreFunctionItem_t* Item = Node->value;
+        Item = Node->value;
         Item->Handler(Item->Argument);
-        MemoryCacheFree(&IpiItemCache, Item);
+        MemoryCacheFree(IpiItemCache, Item);
+        
+        smp_mb();
         Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     }
     return InterruptHandled;
@@ -76,9 +80,9 @@ InitializeInterruptHandlers(void)
     int               i;
 
     // Initialize the ipi cache
-    MemoryCacheConstruct(&IpiItemCache, "ipi_cache", 
+    IpiItemCache = MemoryCacheCreate("ipi_cache", 
         sizeof(SystemCoreFunctionItem_t), 0, 0, NULL, NULL);
-        
+    
     // Initialize the interrupt handlers array
     for (i = 0; i < CpuFunctionCount; i++) {
         InterruptHandlers[i] = UUID_INVALID;
@@ -116,18 +120,19 @@ ExecuteProcessorCoreFunction(
     TRACE("[execute_irq] %u => %u, %u: 0x%x", 
         ArchGetProcessorCoreId(), CoreId, Type, InterruptHandlers[Type]);
 
-    Item = (SystemCoreFunctionItem_t*)MemoryCacheAllocate(&IpiItemCache);
+    Item = (SystemCoreFunctionItem_t*)MemoryCacheAllocate(IpiItemCache);
     if (!Item) {
         ERROR("[execute_irq] memory_cache_allocate returned NULL");
         assert(0);
     }
     
-    memset(Item, 0, sizeof(SystemCoreFunctionItem_t));
     ELEMENT_INIT(&Item->Header, 0, Item);
     Item->Handler  = Function;
     Item->Argument = Argument;
     
     TRACE("[execute_irq] add node 0x%llx to 0x%llx", &Core->FunctionQueue[Type], &Item->Header);
     queue_push(&Core->FunctionQueue[Type], &Item->Header);
+    smp_mb();
+    
     ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

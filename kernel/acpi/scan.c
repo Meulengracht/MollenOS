@@ -20,8 +20,8 @@
  * ACPI(CA) Device Scan Interface
  */
 
-#define __MODULE "DSIF"
-#define __TRACE
+#define __MODULE "ACPI"
+//#define __TRACE
 
 #include <acpiinterface.h>
 #include <debug.h>
@@ -53,9 +53,9 @@ BusRoutingLookupCallback(
         Device->Routings != NULL)
     {
         Result->Device = Device;
-        return -1;
+        return LIST_ENUMERATE_STOP;
     }
-    return 0;
+    return LIST_ENUMERATE_CONTINUE;
 }
 
 AcpiDevice_t*
@@ -73,13 +73,17 @@ AcpiDeviceCreate(
     _In_ ACPI_HANDLE Parent,
     _In_ int Type)
 {
-    // Variables
     AcpiDevice_t *Device = NULL;
     ACPI_BUFFER Buffer = { 0 };
     ACPI_STATUS Status;
+    
+    TRACE("[acpi_device_create] creating new device of type %i", Type);
 
-    // Allocate a new instance
     Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
+    if (!Device) {
+        return OsOutOfMemory;
+    }
+    
     memset(Device, 0, sizeof(AcpiDevice_t));
 
     // Store initial members
@@ -208,7 +212,7 @@ AcpiDeviceCreate(
     if (Device->Features & ACPI_FEATURE_PRW) {
         Status = AcpiDeviceParsePower(Device);
         if (ACPI_FAILURE(Status)) {
-            ERROR("Failed to parse power resources from device %s (%" PRIuIN ")", 
+            ERROR("[acpi_device_create] parse_power_package failed for device %s (%" PRIuIN ")", 
                 Device->BusId, Status);
         }
         else {
@@ -217,7 +221,10 @@ AcpiDeviceCreate(
         }
     }
 
-    return list_append(&PciToAcpiDevices, &Device->Header);
+    TRACE("[acpi_device_create] adding device to list");
+    list_append(&PciToAcpiDevices, &Device->Header);
+    TRACE("[acpi_device_create] done");
+    return OsSuccess;
 }
 
 /* AcpiDeviceInstallFixed 

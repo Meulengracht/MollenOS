@@ -111,25 +111,14 @@ __spinlock_test:
 ; void spinlock_release(spinlock_t *spinlock)
 ; We set the spinlock to value 0
 __spinlock_release:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
 	push ebx
-
-	; Get address of lock
-	mov ebx, dword [ebp + 8]
+	mov ebx, dword [esp + 8]
 	
-	; Sanity
 	test ebx, ebx
 	je .done
-
-	; Ok, we assume valid pointer, set it to 0
-	mov byte [ebx], 0
-
-	; Release stack frame
+	xor eax, eax
+	xchg byte [ebx], al
+	
 	.done:
 	pop ebx
-	pop ebp
 	ret

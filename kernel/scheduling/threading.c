@@ -77,6 +77,8 @@ DestroyThread(
 {
     MCoreThread_t* Thread = Resource;
     int            i;
+    int            References;
+    clock_t        Unused;
 
     assert(Thread != NULL);
     assert(atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 1);
@@ -85,12 +87,18 @@ DestroyThread(
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
-    if (atomic_load(&Thread->References) != 0) {
+    References = atomic_load(&Thread->References);
+    if (References != 0) {
         int Timeout = 200;
-        SemaphoreSignal(&Thread->EventObject, atomic_load(&Thread->References) + 1);
-        while (atomic_load(&Thread->References) != 0 && Timeout > 0) {
-            SchedulerSleep(10);
+        SemaphoreSignal(&Thread->EventObject, References + 1);
+        while (Timeout > 0) {
+            SchedulerSleep(10, &Unused);
             Timeout -= 10;
+            
+            References = atomic_load(&Thread->References);
+            if (!References) {
+                break;
+            }
         }
     }
     
@@ -149,7 +157,6 @@ CreateThreadIpcArena(
     // Set default state to ipc blocked, which means the thread won't accept
     // any ipcs before IpcListen is called
     atomic_store(&Arena->WriteSyncObject, 1);
-    
     return Status;
 }
 
@@ -397,6 +404,8 @@ TerminateThread(
     _In_ int    TerminateChildren)
 {
     MCoreThread_t* Thread = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    int            Value;
+    
     if (!Thread) {
         return OsDoesNotExist;
     }
@@ -409,7 +418,8 @@ TerminateThread(
     TRACE("TerminateThread(%s, %i, %i)", Thread->Name, ExitCode, TerminateChildren);
     
     MutexLock(&Thread->SyncObject);
-    if (atomic_load(&Thread->Cleanup) == 0) {
+    Value = atomic_load(&Thread->Cleanup);
+    if (Value == 0) {
         if (Thread->ParentHandle != UUID_INVALID) {
             MCoreThread_t* Parent = LookupHandleOfType(Thread->ParentHandle, HandleTypeThread);
             if (!Parent) {
@@ -450,13 +460,16 @@ ThreadingJoinThread(
     _In_ UUId_t ThreadId)
 {
     MCoreThread_t* Target = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    int            Value;
+    
     if (Target != NULL && Target->ParentHandle != UUID_INVALID) {
         MutexLock(&Target->SyncObject);
-        if (atomic_load(&Target->Cleanup) != 1) {
-            atomic_fetch_add(&Target->References, 1);
+        Value = atomic_load(&Target->Cleanup);
+        if (Value != 1) {
+            Value = atomic_fetch_add(&Target->References, 1);
             MutexUnlock(&Target->SyncObject);
             SemaphoreWait(&Target->EventObject, 0);
-            atomic_fetch_sub(&Target->References, 1);
+            Value = atomic_fetch_sub(&Target->References, 1);
         }
         return Target->RetCode;
     }
@@ -544,7 +557,10 @@ DumpActiceThread(
     _In_ void* Context)
 {
     MCoreThread_t* Thread = Resource;
-    if (!atomic_load(&Thread->Cleanup)) {
+    int            Value;
+    
+    Value = atomic_load(&Thread->Cleanup);
+    if (!Value) {
         WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
             Thread->Handle, Thread->Name, Thread->ParentHandle, CONTEXT_IP(Thread->ContextActive));
     }
@@ -566,6 +582,7 @@ ThreadingAdvance(
     MCoreThread_t*   Current = Core->CurrentThread;
     MCoreThread_t*   NextThread;
     int              Cleanup;
+    int              SignalsPending;
 
     // Is threading disabled?
     if (!Current) {
@@ -583,7 +600,8 @@ ThreadingAdvance(
         // Handle any received signals during runtime, they will happen in
         // the threads next allocated timeslot only. However if the thread
         // is currently blocked we must unblock it
-        if (!Current->HandlingSignals && atomic_load(&Current->PendingSignals)) {
+        SignalsPending = atomic_load(&Current->PendingSignals);
+        if (!Current->HandlingSignals && SignalsPending) {
             SchedulerUnblockObject(Current->SchedulerObject);
         }
     }
@@ -642,8 +660,8 @@ GetNextThread:
     // Handle any signals pending for thread, as this might change the
     // active context set for the thread, before we set the new global
     // return registers
-    if (!NextThread->HandlingSignals &&
-        atomic_load(&NextThread->PendingSignals) != 0) {
+    SignalsPending = atomic_load(&NextThread->PendingSignals);
+    if (!NextThread->HandlingSignals && SignalsPending != 0) {
         SignalProcess(NextThread);
     }
     Core->InterruptRegisters = NextThread->ContextActive;

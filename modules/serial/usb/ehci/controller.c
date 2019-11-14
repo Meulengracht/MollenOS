@@ -172,7 +172,7 @@ void
 EhciDisableLegacySupport(
     _In_ EhciController_t* Controller)
 {
-    reg32_t Cparams = ReadVolatile32(&Controller->CapRegisters->CParams);
+    reg32_t Cparams = READ_VOLATILE(Controller->CapRegisters->CParams);
     reg32_t Eecp    = 0;
 
     // Debug
@@ -291,29 +291,29 @@ EhciHalt(
     TRACE("EhciHalt()");
 
     // Try to stop the scheduler
-    TemporaryValue = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    TemporaryValue = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     TemporaryValue &= ~(EHCI_COMMAND_PERIODIC_ENABLE | EHCI_COMMAND_ASYNC_ENABLE);
-    WriteVolatile32(&Controller->OpRegisters->UsbCommand, TemporaryValue);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
     // Wait for the active-bits to clear
-    WaitForConditionWithFault(Fault, (ReadVolatile32(&Controller->OpRegisters->UsbStatus) & 0xC000) == 0, 250, 10);
+    WaitForConditionWithFault(Fault, (READ_VOLATILE(Controller->OpRegisters->UsbStatus) & 0xC000) == 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Failed to stop scheduler, Command Register: 0x%x - Status: 0x%x",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
     }
 
     // Clear remaining interrupts
-    WriteVolatile32(&Controller->OpRegisters->UsbIntr, 0);
-    WriteVolatile32(&Controller->OpRegisters->UsbStatus, 0x3F);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbIntr, 0);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbStatus, 0x3F);
 
     // Now stop the controller, this should succeed
-    TemporaryValue = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    TemporaryValue = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     TemporaryValue &= ~(EHCI_COMMAND_RUN);
-    WriteVolatile32(&Controller->OpRegisters->UsbCommand, TemporaryValue);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
     // Wait for the active-bit to clear
     Fault = 0;
-    WaitForConditionWithFault(Fault, (ReadVolatile32(&Controller->OpRegisters->UsbStatus) & EHCI_STATUS_HALTED) != 0, 250, 10);
+    WaitForConditionWithFault(Fault, (READ_VOLATILE(Controller->OpRegisters->UsbStatus) & EHCI_STATUS_HALTED) != 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Failed to stop controller, Command Register: 0x%x - Status: 0x%x",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
@@ -334,7 +334,7 @@ EhciSilence(
     // Halt controller and mark it unconfigured, it won't be used
     // when the configure flag is 0
     EhciHalt(Controller);
-    WriteVolatile32(&Controller->OpRegisters->ConfigFlag, 0);
+    WRITE_VOLATILE(Controller->OpRegisters->ConfigFlag, 0);
 }
 
 OsStatus_t
@@ -348,17 +348,17 @@ EhciReset(
     TRACE("EhciReset()");
 
     // Reset controller
-    TemporaryValue = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    TemporaryValue = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     TemporaryValue |= EHCI_COMMAND_HCRESET;
-    WriteVolatile32(&Controller->OpRegisters->UsbCommand, TemporaryValue);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
     // Wait for signal to deassert
-    WaitForConditionWithFault(Fault, (ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0, 250, 10);
+    WaitForConditionWithFault(Fault, (READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
         thrd_sleepex(250);
-        return ((ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0) ? OsSuccess : OsError;
+        return ((READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0) ? OsSuccess : OsError;
     }
     else {
         return OsSuccess;
@@ -385,21 +385,21 @@ EhciRestart(
 
     // Reset certain indices
     if (Controller->CParameters & EHCI_CPARAM_64BIT) {
-        WriteVolatile32(&Controller->OpRegisters->SegmentSelector, 0);
+        WRITE_VOLATILE(Controller->OpRegisters->SegmentSelector, 0);
 #ifdef __OSCONFIG_EHCI_ALLOW_64BIT
-        WriteVolatile32(&Controller->OpRegisters->SegmentSelector,
+        WRITE_VOLATILE(Controller->OpRegisters->SegmentSelector,
             HIDWORD(Controller->Base.Scheduler->Settings.FrameListPhysical));
 #endif
     }
-    WriteVolatile32(&Controller->OpRegisters->FrameIndex, 0);
-    WriteVolatile32(&Controller->OpRegisters->UsbIntr,    0);
-    WriteVolatile32(&Controller->OpRegisters->UsbStatus,  Controller->OpRegisters->UsbStatus);
+    WRITE_VOLATILE(Controller->OpRegisters->FrameIndex, 0);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbIntr,    0);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbStatus,  Controller->OpRegisters->UsbStatus);
 
     // Update the hardware registers to point to the newly allocated addresses
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, NULL, &AsyncListHead);
-    WriteVolatile32(&Controller->OpRegisters->PeriodicListAddress, 
+    WRITE_VOLATILE(Controller->OpRegisters->PeriodicListAddress, 
         LODWORD(Controller->Base.Scheduler->Settings.FrameListPhysical));
-    WriteVolatile32(&Controller->OpRegisters->AsyncListAddress, 
+    WRITE_VOLATILE(Controller->OpRegisters->AsyncListAddress, 
         LODWORD(AsyncListHead) | EHCI_LINK_QH);
 
     // Next step is to build the command configuring the controller
@@ -431,12 +431,12 @@ EhciRestart(
 
     // Start the controller by enabling it
     TemporaryValue |= EHCI_COMMAND_RUN;
-    WriteVolatile32(&Controller->OpRegisters->UsbCommand, TemporaryValue);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
     // Mark as configured, this will enable the controller
-    WriteVolatile32(&Controller->OpRegisters->UsbIntr, (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+    WRITE_VOLATILE(Controller->OpRegisters->UsbIntr, (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
         | EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL));
-    WriteVolatile32(&Controller->OpRegisters->ConfigFlag, 1);
+    WRITE_VOLATILE(Controller->OpRegisters->ConfigFlag, 1);
     return OsSuccess;
 }
 
@@ -536,7 +536,7 @@ EhciSetup(
     // devices and release them to companion hc's for bandwidth.
     TRACE(" > Initializing ports");
     for (i = 0; i < Controller->Base.PortCount; i++) {
-        reg32_t PortStatus = ReadVolatile32(&Controller->OpRegisters->Ports[i]);
+        reg32_t PortStatus = READ_VOLATILE(Controller->OpRegisters->Ports[i]);
         if (PortStatus & EHCI_PORT_CONNECTED) {
             // Is the port destined for other controllers?
             // Port must be in K-State + low-speed
@@ -546,13 +546,13 @@ EhciSetup(
                         PortStatus |= EHCI_PORT_COLOR_GREEN;
                     }
                     PortStatus |= EHCI_PORT_COMPANION_HC;
-                    WriteVolatile32(&Controller->OpRegisters->Ports[i], PortStatus);
+                    WRITE_VOLATILE(Controller->OpRegisters->Ports[i], PortStatus);
                 }
             }
             else {
                 if (Controller->SParameters & EHCI_SPARAM_PORTINDICATORS) {
                     PortStatus |= EHCI_PORT_COLOR_AMBER;
-                    WriteVolatile32(&Controller->OpRegisters->Ports[i], PortStatus);
+                    WRITE_VOLATILE(Controller->OpRegisters->Ports[i], PortStatus);
                 }
                 UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(i & 0xFF));
             }

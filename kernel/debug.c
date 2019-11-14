@@ -44,8 +44,8 @@ DebugPageMemorySpaceHandlers(
     OsStatus_t           Status = OsError;
 
     if (Space->Context != NULL) {
-        foreach(Node, Space->Context->MemoryHandlers) {
-            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
+        foreach(i, Space->Context->MemoryHandlers) {
+            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)i->value;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
                 ERROR("Implement support for MemorySpaceHandlers");
                 for(;;);
@@ -140,8 +140,8 @@ DebugPanic(
     CoreId = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
         if (list_count(&GetMachine()->SystemDomains) != 0) {
-            foreach(NumaNode, &GetMachine()->SystemDomains) {
-                SystemDomain_t* Domain = (SystemDomain_t*)NumaNode;
+            foreach(i, &GetMachine()->SystemDomains) {
+                SystemDomain_t* Domain = (SystemDomain_t*)i->value;
                 DebugHaltAllProcessorCores(CoreId, &Domain->CoreGroup);
             }
         }
@@ -208,8 +208,8 @@ DebugGetModuleByAddress(
             if (Address > (Module->Executable->CodeBase + Module->Executable->CodeSize)) {
                 // Iterate libraries to find the sinner
                 if (Module->Executable->Libraries != NULL) {
-                    foreach(lNode, Module->Executable->Libraries) {
-                        PeExecutable_t* Lib = lNode->value;
+                    foreach(i, Module->Executable->Libraries) {
+                        PeExecutable_t* Lib = i->value;
                         if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
                             PmName = (char*)MStringRaw(Lib->Name);
                             PmBase = Lib->VirtualAddress;

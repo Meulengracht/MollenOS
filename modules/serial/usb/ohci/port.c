@@ -33,31 +33,31 @@ ClearPortEventBits(
     _In_ OhciController_t* Controller, 
     _In_ int               Index)
 {
-    reg32_t PortStatus = ReadVolatile32(&Controller->Registers->HcRhPortStatus[Index]);
+    reg32_t PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     
     // Clear connection event
     if (PortStatus & OHCI_PORT_CONNECT_EVENT) {
-        WriteVolatile32(&Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_CONNECT_EVENT);
+        WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_CONNECT_EVENT);
     }
 
     // Clear enable event
     if (PortStatus & OHCI_PORT_ENABLE_EVENT) {
-        WriteVolatile32(&Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLE_EVENT);
+        WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLE_EVENT);
     }
 
     // Clear suspend event
     if (PortStatus & OHCI_PORT_SUSPEND_EVENT) {
-        WriteVolatile32(&Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_SUSPEND_EVENT);
+        WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_SUSPEND_EVENT);
     }
 
     // Clear over-current event
     if (PortStatus & OHCI_PORT_OVERCURRENT_EVENT) {
-        WriteVolatile32(&Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_OVERCURRENT_EVENT);
+        WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_OVERCURRENT_EVENT);
     }
 
     // Clear reset event
     if (PortStatus & OHCI_PORT_RESET_EVENT) {
-        WriteVolatile32(&Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET_EVENT);
+        WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET_EVENT);
     }
 }
 
@@ -73,20 +73,20 @@ HciPortReset(
     thrd_sleepex(OhciCtrl->PowerOnDelayMs);
 
     // Set reset bit to initialize reset-procedure
-    WriteVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);
+    WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);
 
     // Wait for it to clear, with timeout
     WaitForCondition(
-        (ReadVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index]) & OHCI_PORT_RESET) == 0,
+        (READ_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index]) & OHCI_PORT_RESET) == 0,
         200, 10, "Failed to reset device on port %i\n", Index);
 
     // Don't matter if timeout, try to enable it
     // If power-mode is port-power, also power it
     if (OhciCtrl->PowerMode == PortControl) {
-        WriteVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED | OHCI_PORT_POWER);
+        WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED | OHCI_PORT_POWER);
     }
     else {
-        WriteVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
+        WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
     }
     return OsSuccess;
 }
@@ -101,7 +101,7 @@ HciPortGetStatus(
     reg32_t           Status;
 
     // Now we can get current port status
-    Status = ReadVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index]);
+    Status = READ_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index]);
 
     // Update metrics
     Port->Connected = (Status & OHCI_PORT_CONNECTED) == 0 ? 0 : 1;
@@ -116,7 +116,7 @@ OhciPortCheck(
     _In_ int               IgnorePowerOn)
 {
     OsStatus_t Result     = OsSuccess;
-    reg32_t    PortStatus = ReadVolatile32(&Controller->Registers->HcRhPortStatus[Index]);
+    reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
 
     // Clear bits now we have a copy

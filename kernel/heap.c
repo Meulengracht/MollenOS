@@ -25,9 +25,11 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <debug.h>
+#include <ds/list.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <machine.h>
+#include <mutex.h>
 #include <string.h>
 
 #define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5
@@ -51,6 +53,29 @@ typedef struct MemoryAtomicCache {
     _Atomic(int) Available;
     int          Limit;
 } MemoryAtomicCache_t;
+
+typedef struct MemoryCache {
+    const char*      Name;
+    Mutex_t          SyncObject;
+    Flags_t          Flags;
+
+    size_t           ObjectSize;
+    size_t           ObjectAlignment;
+    size_t           ObjectPadding;
+    size_t           ObjectCount;      // Count per slab
+    size_t           PageCount;
+    volatile size_t  NumberOfFreeObjects;
+    void           (*ObjectConstructor)(struct MemoryCache*, void*);
+    void           (*ObjectDestructor)(struct MemoryCache*, void*);
+
+    int              SlabOnSite;
+    size_t           SlabStructureSize;
+    list_t           FreeSlabs;
+    list_t           PartialSlabs;
+    list_t           FullSlabs;
+
+    uintptr_t        AtomicCaches;
+} MemoryCache_t;
 
 // All the standard caches DO not use contigious memory
 static MemoryCache_t InitialCache = { 0 };
@@ -275,7 +300,7 @@ static void
 cache_dump_information(
     _In_ MemoryCache_t* Cache)
 {
-    element_t* Node;
+    element_t* i;
     
     // Write cache information
     WRITELINE("%s: Object Size %" PRIuIN ", Alignment %" PRIuIN ", Padding %" PRIuIN ", Count %" PRIuIN ", FreeObjects %" PRIuIN "",
@@ -284,18 +309,18 @@ cache_dump_information(
         
     // Dump slabs
     WRITELINE("* full slabs");
-    _foreach(Node, &Cache->FullSlabs) {
-        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    _foreach(i, &Cache->FullSlabs) {
+        slab_dump_information(Cache, i->value);
     }
     
     WRITELINE("* partial slabs");
-    _foreach(Node, &Cache->PartialSlabs) {
-        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    _foreach(i, &Cache->PartialSlabs) {
+        slab_dump_information(Cache, i->value);
     }
     
     WRITELINE("* free slabs");
-    _foreach(Node, &Cache->FreeSlabs) {
-        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    _foreach(i, &Cache->FreeSlabs) {
+        slab_dump_information(Cache, i->value);
     }
     WRITELINE("");
 }
@@ -305,15 +330,15 @@ cache_contains_address(
     _In_ MemoryCache_t* Cache,
     _In_ uintptr_t      Address)
 {
-    element_t* Node;
+    element_t* i;
     int        Found = 0;
     TRACE("cache_contains_address(%s, 0x%" PRIxIN ")", Cache->Name, Address);
 
     // Check partials first, we have to lock the cache as slabs can 
     // get rearranged as we go, which is not ideal
     MutexLock(&Cache->SyncObject);
-    _foreach(Node, &Cache->PartialSlabs) {
-        int Index = slab_contains_address(Cache, (MemorySlab_t*)Node, Address);
+    _foreach(i, &Cache->PartialSlabs) {
+        int Index = slab_contains_address(Cache, (MemorySlab_t*)i->value, Address);
         if (Index != -1) {
             Found = 1;
             break;
@@ -322,8 +347,8 @@ cache_contains_address(
 
     // Otherwise move on to the full slabs
     if (!Found) {
-        _foreach(Node, &Cache->FullSlabs) {
-            int Index = slab_contains_address(Cache, (MemorySlab_t*)Node, Address);
+        _foreach(i, &Cache->FullSlabs) {
+            int Index = slab_contains_address(Cache, (MemorySlab_t*)i->value, Address);
             if (Index != -1) {
                 Found = 1;
                 break;
@@ -499,6 +524,11 @@ MemoryCacheConstruct(
     Cache->ObjectPadding     = ObjectPadding;
     Cache->ObjectConstructor = ObjectConstructor;
     Cache->ObjectDestructor  = ObjectDestructor;
+    
+    list_construct(&Cache->FreeSlabs);
+    list_construct(&Cache->PartialSlabs);
+    list_construct(&Cache->FullSlabs);
+    
     cache_calculate_slab_size(Cache, ObjectSize, ObjectAlignment, ObjectPadding);
     
     // We only perform this if it has been requested and is not a default cache
@@ -517,6 +547,25 @@ MemoryCacheCreate(
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
     MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
+    if (!Cache) {
+        ERROR("[MemoryCacheCreate] failed to allocate a new cache object");
+        return NULL;
+    }
+    
+    // Verify the object alignement, the alignment must be atleast the width of the
+    // platform pointer, and must end on a boundary of such. We allow zero to be
+    // provided so callers don't have to know this already
+    if (ObjectAlignment == 0) {
+        ObjectAlignment = sizeof(void*);
+    }
+    
+    // Automatically fixup this, but log a warning
+    if ((ObjectAlignment % sizeof(void*)) != 0) {
+        WARNING("[MemoryCacheCreate] invalid object alignment %" PRIuIN " provided, changing to nearest legal.",
+            ObjectAlignment);
+        ObjectAlignment += sizeof(void*) - (ObjectAlignment % sizeof(void*));
+    }
+    
     MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
     return Cache;
 }
@@ -563,14 +612,16 @@ MemoryCacheAllocate(
     int           Index;
     TRACE("MemoryCacheAllocate(%s)", Cache->Name);
 
-    // Can we allocate from cpu cache?
+    // Can we allocate from cpu cache? No need to use explicit macros with memory
+    // barriers here as there is no risc of other cpus changing the atomic caches
     if (Cache->AtomicCaches != 0) {
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
         int Available = atomic_load(&AtomicCache->Available);
         while (Available) {
             if (atomic_compare_exchange_weak(&AtomicCache->Available, &Available, Available - 1)) {
                 Allocated = MEMORY_ATOMIC_ELEMENT(AtomicCache, (Available - 1))[0];
-                TRACE(" => ATOMIC 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Available);
+                TRACE("[heap] [%s] ATOMIC ALLOC 0x%" PRIxIN " (%u, %u, %u)", 
+                    Cache->Name, Allocated, Cache->ObjectSize, Cache->ObjectPadding, Available);
                 return Allocated;
             }
         }
@@ -578,14 +629,17 @@ MemoryCacheAllocate(
 
     // Otherwise allocate from global cache
     MutexLock(&Cache->SyncObject);
-    if (Cache->NumberOfFreeObjects != 0) {
-        if (list_count(&Cache->PartialSlabs) != 0) {
-            element_t* Element = list_front(&Cache->PartialSlabs);
+    if (Cache->NumberOfFreeObjects) {
+        element_t* Element = list_front(&Cache->PartialSlabs);
+        
+        if (Element) {
             Slab = Element->value;
             assert(Slab->NumberOfFreeObjects != 0);
         }
         else {
-            element_t* Element = list_front(&Cache->FreeSlabs);
+            Element = list_front(&Cache->FreeSlabs);
+            assert(Element != NULL);
+            
             list_remove(&Cache->FreeSlabs, Element);
             list_append(&Cache->PartialSlabs, Element);
             Slab = Element->value;
@@ -594,7 +648,6 @@ MemoryCacheAllocate(
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         if (!Slab->NumberOfFreeObjects) {
-            // Last index, push to full
             list_remove(&Cache->PartialSlabs, &Slab->Header);
             list_append(&Cache->FullSlabs, &Slab->Header);
         }
@@ -619,7 +672,8 @@ MemoryCacheAllocate(
     MutexUnlock(&Cache->SyncObject);
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
+    TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, 
+        LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
     return Allocated;
 }
 
@@ -639,7 +693,7 @@ MemoryCacheFree(
 
     // Can we push to cpu cache?
     if (Cache->AtomicCaches != 0) {
-        TRACE("[heap] [%s] atomics at 0x%llx [0x%llx]", Cache->Name, Cache->AtomicCaches, &Cache->AtomicCaches);
+        TRACE("[heap] [%s] ATOMIC FREE 0x%" PRIxIN, Cache->Name, Object);
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
         int Available = atomic_load(&AtomicCache->Available);
         while (Available < AtomicCache->Limit) {

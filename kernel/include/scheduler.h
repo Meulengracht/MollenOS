@@ -27,9 +27,10 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <ds/list.h>
 #include <irq_spinlock.h>
 #include <time.h>
+
+typedef struct list list_t;
 
 /* Scheduler Definitions
  * Contains magic constants, bit definitions and settings. */
@@ -48,7 +49,7 @@
 
 #define SCHEDULER_FLAG_BOUND            0x1
 
-typedef enum {
+typedef enum SchedulerObjectState {
     SchedulerObjectStateIdle,
     SchedulerObjectStateQueued,
     SchedulerObjectStateBlocked,
@@ -56,30 +57,16 @@ typedef enum {
     SchedulerObjectStateZombie
 } SchedulerObjectState_t;
 
-typedef struct SchedulerObject {
-    element_t                       Header;
-    volatile SchedulerObjectState_t State;
-    volatile Flags_t                Flags;
-    UUId_t                          CoreId;
-    size_t                          TimeSlice;
-    int                             Queue;
-    struct SchedulerObject*         Link;
-    void*                           Object;
-    
-    list_t*                         WaitQueueHandle;
-    int                             Timeout;
-    size_t                          TimeLeft;
-    clock_t                         InterruptedAt;
-} SchedulerObject_t;
+typedef struct SchedulerObject SchedulerObject_t;
 
 // Low overhead queues that are used by the scheduler, only in
 // it's own core context, so no per list locking needed
-typedef struct {
+typedef struct SchedulerQueue {
     SchedulerObject_t* Head;
     SchedulerObject_t* Tail;
 } SchedulerQueue_t;
 
-typedef struct {
+typedef struct SystemScheduler {
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
@@ -117,19 +104,40 @@ KERNELAPI void KERNELABI
 SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object);
 
-/* SchedulerSleep
- * Blocks the currently running thread for <milliseconds>. Can return different
- * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. */
-KERNELAPI int KERNELABI
-SchedulerSleep(
-    _In_ size_t Milliseconds);
-
-/* SchedulerUnblockObject
- * If the given object is currently blocked it will be removed from any blocked
- * queue and reset to running state. This can only be called on the same thread. */
+/**
+ * SchedulerUnblockObject
+ * * If the given object is currently blocked it will be removed from any blocked
+ * * queue and reset to running state. This can only be called on the same thread. 
+ */
 KERNELAPI void KERNELABI
 SchedulerUnblockObject(
     _In_ SchedulerObject_t* Object);
+
+/**
+ * SchedulerSleep
+ * * Blocks the currently running thread for @Milliseconds. Can return different
+ * * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. 
+ */
+KERNELAPI int KERNELABI
+SchedulerSleep(
+    _In_  size_t   Milliseconds,
+    _Out_ clock_t* InterruptedAt);
+
+/**
+ * SchedulerBlock
+ * * Blocks the current scheduler object, and adds it to the given blocking queue.
+ * 
+ */
+KERNELAPI void KERNELABI
+SchedulerBlock(
+    _In_ list_t* BlockQueue,
+    _In_ size_t  Timeout);
+
+/**
+ * SchedulerIsTimeout
+ */
+KERNELAPI int KERNELABI
+SchedulerIsTimeout(void);
 
 /* SchedulerAdvance 
  * This should be called by the underlying archteicture code
@@ -140,5 +148,13 @@ SchedulerAdvance(
     _In_  int                Preemptive,
     _In_  size_t             MillisecondsPassed,
     _Out_ size_t*            NextDeadlineOut);
+
+KERNELAPI int KERNELABI
+SchedulerObjectGetQueue(
+    _In_ SchedulerObject_t*);
+
+KERNELAPI UUId_t KERNELABI
+SchedulerObjectGetAffinity(
+    _In_ SchedulerObject_t*);
 
 #endif // !__VALI_SCHEDULER_H__

@@ -56,9 +56,6 @@ VesaDrawPixel(
     return OsSuccess;
 }
 
-/* VesaDrawCharacter
- * Renders a ASCII/UTF16 character at the given pixel-position
- * on the screen */
 static OsStatus_t 
 VesaDrawCharacter(
     _In_ unsigned CursorX,

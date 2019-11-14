@@ -22,6 +22,7 @@
  */
 
 #include <ds/collection.h>
+#include <ddk/io.h>
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
@@ -183,7 +184,7 @@ CollectionAppend(
 
     // In case of empty Collection just update head/tail
     dslock(&Collection->SyncObject);
-    BARRIER_LOAD;
+    smp_rmb();
     if (Collection->Head == NULL) {
         Node->Prev       = NULL;
         Collection->Tail = Node;
@@ -196,7 +197,7 @@ CollectionAppend(
         Collection->Tail        = Node;
     }
     atomic_fetch_add(&Collection->Length, 1);
-    BARRIER_STORE;
+    smp_wmb();
     dsunlock(&Collection->SyncObject);
     return OsSuccess;
 }
@@ -212,7 +213,7 @@ CollectionPopFront(
     // Manipulate the Collection to find the next pointer of the
     // node that comes before the one to be removed.
     dslock(&Collection->SyncObject);
-    BARRIER_LOAD;
+    smp_rmb();
     if (!Collection->Head) {
         dsunlock(&Collection->SyncObject);
         return NULL;
@@ -231,7 +232,7 @@ CollectionPopFront(
         Collection->Tail = NULL;
     }
     atomic_fetch_sub(&Collection->Length, 1);
-    BARRIER_STORE;
+    smp_wmb();
     dsunlock(&Collection->SyncObject);
 
     // Reset its link (remove any Collection traces!)

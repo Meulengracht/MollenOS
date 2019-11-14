@@ -124,8 +124,8 @@ ProcessInterrupt:
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
         UsbManagerScheduleTransfers(&Controller->Base);
-        WriteVolatile32(&Controller->Registers->HcControl, 
-            ReadVolatile32(&Controller->Registers->HcControl) | Controller->QueuesActive);
+        WRITE_VOLATILE(Controller->Registers->HcControl, 
+            READ_VOLATILE(Controller->Registers->HcControl) | Controller->QueuesActive);
     }
 
     // Frame Overflow

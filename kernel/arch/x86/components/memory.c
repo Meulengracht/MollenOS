@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -15,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- * MollenOS Memory Utility Functions
+ * Memory Utility Functions
  *   - Implements helpers and utility functions with the MemoryInitialize.
  */
 #define __MODULE "MEM0"
@@ -63,9 +64,6 @@ PrintPhysicalMemoryUsage(void) {
     TRACE("Reserved memory: 0x%" PRIxIN " (%" PRIuIN " blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
 }
 
-/* InitializeSystemMemory (@arch)
- * Initializes the entire system memory range, selecting ranges that should
- * be reserved and those that are free for system use. */
 OsStatus_t
 InitializeSystemMemory(
     _In_ Multiboot_t*       BootInformation,
@@ -75,12 +73,11 @@ InitializeSystemMemory(
     _In_ size_t*            MemoryGranularity,
     _In_ size_t*            NumberOfMemoryBlocks)
 {
-    BIOSMemoryRegion_t* RegionPointer = NULL;
+    BIOSMemoryRegion_t* RegionPointer;
     uintptr_t           MemorySize;
     size_t              BytesOccupied = 0;
     int                 i;
 
-    // Initialize
     RegionPointer = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
 
     // The memory-high part is 64kb blocks 
@@ -146,10 +143,9 @@ InitializeSystemMemory(
     return OsSuccess;
 }
 
-/* ConvertSystemSpaceToPaging
- * Converts system memory-space generic flags to native x86 paging flags */
 Flags_t
-ConvertSystemSpaceToPaging(Flags_t Flags)
+ConvertSystemSpaceToPaging(
+    _In_ Flags_t Flags)
 {
     Flags_t NativeFlags = 0;
 
@@ -177,10 +173,9 @@ ConvertSystemSpaceToPaging(Flags_t Flags)
     return NativeFlags;
 }
 
-/* ConvertPagingToSystemSpace
- * Converts native x86 paging flags to system memory-space generic flags */
 Flags_t
-ConvertPagingToSystemSpace(Flags_t Flags)
+ConvertPagingToSystemSpace(
+    _In_ Flags_t Flags)
 {
     Flags_t GenericFlags = 0;
 
@@ -208,29 +203,22 @@ ConvertPagingToSystemSpace(Flags_t Flags)
     return GenericFlags;
 }
 
-/* SwitchVirtualSpace
- * Updates the currently active memory space for the calling core. */
 OsStatus_t
 SwitchVirtualSpace(
     SystemMemorySpace_t* SystemMemorySpace)
 {
-    // Variables
     assert(SystemMemorySpace != NULL);
     assert(SystemMemorySpace->Data[MEMORY_SPACE_CR3] != 0);
     assert(SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
-
-    // Update current page-directory
     memory_load_cr3(SystemMemorySpace->Data[MEMORY_SPACE_CR3]);
     return OsSuccess;
 }
 
-/* SetVirtualPageAttributes
- * Changes memory protection flags for the given virtual address */
 OsStatus_t
 SetVirtualPageAttributes(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ VirtualAddress_t       Address,
-    _In_ Flags_t                Flags)
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ VirtualAddress_t     Address,
+    _In_ Flags_t              Flags)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -255,16 +243,16 @@ SetVirtualPageAttributes(
     }
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
-    Mapping = (atomic_load(&Table->Pages[Index])) & PAGE_MASK;
-    atomic_store(&Table->Pages[Index], Mapping | ConvertedFlags);
+    Mapping = atomic_load_explicit(&Table->Pages[Index], memory_order_acquire);
+    Mapping &= PAGE_MASK;
+    Mapping |= ConvertedFlags;
+    atomic_store_explicit(&Table->Pages[Index], Mapping, memory_order_release);
     if (IsCurrent) {
         memory_invalidate_addr(Address);
     }
     return OsSuccess;
 }
 
-/* GetVirtualPageAttributes
- * Retrieves memory protection flags for the given virtual address */
 OsStatus_t
 GetVirtualPageAttributes(
     _In_  SystemMemorySpace_t* MemorySpace,
@@ -277,18 +265,18 @@ GetVirtualPageAttributes(
     int                IsCurrent, Update;
     Flags_t            OriginalFlags;
     int                Index = PAGE_TABLE_INDEX(Address);
+    
+    assert(Flags != NULL);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
-        return OsError;
+        return OsDoesNotExist;
     }
-
+    
     // Map it, make sure we mask the page address so we don't accidently set any flags
-    if (Flags != NULL) {
-        OriginalFlags = atomic_load(&Table->Pages[Index]) & ATTRIBUTE_MASK;
-        *Flags        = ConvertPagingToSystemSpace(OriginalFlags);
-    }
+    OriginalFlags = atomic_load(&Table->Pages[Index]);
+    *Flags        = ConvertPagingToSystemSpace(OriginalFlags & ATTRIBUTE_MASK);
     return OsSuccess;
 }
 
@@ -306,6 +294,7 @@ CommitVirtualPageMapping(
     int                IsCurrent;
     int                Index  = PAGE_TABLE_INDEX(vAddress);
     OsStatus_t         Status = OsSuccess;
+    int                Result;
 
     vAddress &= PAGE_MASK;
     Directory = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
@@ -335,8 +324,9 @@ SyncTable:
     }
     pAddress &= ~(PAGE_RESERVED);
 
-    // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress)) {
+    // Perform the mapping in a weak context, fast operation.
+    Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress);
+    if (!Result) {
         goto SyncTable;
     }
 
@@ -367,6 +357,7 @@ SetVirtualPageMapping(
     int                IsCurrent;
     int                Index  = PAGE_TABLE_INDEX(vAddress);
     OsStatus_t         Status = OsSuccess;
+    int                Result;
 
     vAddress      &= PAGE_MASK;
     ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
@@ -393,7 +384,8 @@ SyncTable:
     }
 
     // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress)) {
+    Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress);
+    if (!Result) {
         goto SyncTable;
     }
 
@@ -420,6 +412,7 @@ ClearVirtualPageMapping(
     int                Update;
     int                IsCurrent;
     int                Index = PAGE_TABLE_INDEX(Address);
+    int                Result;
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
@@ -433,7 +426,8 @@ SyncTable:
     if (Mapping != 0) {
         // Maybe present, not system map
         // Perform the clearing in a weak context, fast operation
-        if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0)) {
+        Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0);
+        if (!Result) {
             goto SyncTable;
         }
 
@@ -473,8 +467,6 @@ GetVirtualPageMapping(
 
     // Get the address and return with proper offset
     Mapping = atomic_load(&Table->Pages[Index]);
-
-    // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
         return 0;
     }

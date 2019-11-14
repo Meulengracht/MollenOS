@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 MP-Tables Parser
+ * MP-Tables Parser
  * https://wiki.osdev.org/Symmetric_Multiprocessing#Finding_information_using_MP_Table
  */
 
@@ -45,9 +46,6 @@
 static MpHeader_t MpHeader                          = { 0 };
 static MpConfigurationTable_t MpConfigurationTable  = { 0 };
 
-/* MpInitialize
- * Searches known memory places where the mp-tables can exist, returns 
- * OsSuccess if they exist - otherwise OsError */
 OsStatus_t
 MpInitialize(void)
 {
@@ -59,12 +57,7 @@ MpInitialize(void)
    return OsError;
 }
 
-/* MpGetLocalApicAddress
- * Retrieve the local apic address from the mp tables. The mp tables must be initialized
- * with MpInitialize */
-KERNELAPI
 OsStatus_t
-KERNELABI
 MpGetLocalApicAddress(
     _Out_ uintptr_t*    Address)
 {

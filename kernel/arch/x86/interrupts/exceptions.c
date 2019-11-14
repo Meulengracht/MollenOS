@@ -141,6 +141,10 @@ ExceptionEntry(
         ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
                 Registers->ErrorCode, CONTEXT_IP(Registers));
+        if (Core) {
+            __asm { xchg bx, bx };
+            return;
+        }
         SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 14) {    // Page Fault

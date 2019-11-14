@@ -160,14 +160,14 @@ AhciReset(
     TRACE("AhciReset()");
 
     // Software may perform an HBA reset prior to initializing the controller by setting GHC.AE to 1 and then setting GHC.HR to 1 if desired
-    Ghc = ReadVolatile32(&Controller->Registers->GlobalHostControl);
-    WriteVolatile32(&Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_HR);
+    Ghc = READ_VOLATILE(Controller->Registers->GlobalHostControl);
+    WRITE_VOLATILE(Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_HR);
 
     // The bit shall be cleared to 0 by the HBA when the reset is complete. 
     // If the HBA has not cleared GHC.HR to 0 within 1 second of 
     // software setting GHC.HR to 1, the HBA is in a hung or locked state.
     WaitForConditionWithFault(Hung, 
-        ((ReadVolatile32(&Controller->Registers->GlobalHostControl) & AHCI_HOSTCONTROL_HR) == 0),
+        ((READ_VOLATILE(Controller->Registers->GlobalHostControl) & AHCI_HOSTCONTROL_HR) == 0),
         10, 200);
     if (Hung) {
         return OsError;
@@ -180,9 +180,9 @@ AhciReset(
     // a COMRESET to be sent on the port.
 
     // Indicate that system software is AHCI aware by setting GHC.AE to 1.
-    if (!(ReadVolatile32(&Controller->Registers->Capabilities) & AHCI_CAPABILITIES_SAM)) {
-        Ghc = ReadVolatile32(&Controller->Registers->GlobalHostControl);
-        WriteVolatile32(&Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_AE);
+    if (!(READ_VOLATILE(Controller->Registers->Capabilities) & AHCI_CAPABILITIES_SAM)) {
+        Ghc = READ_VOLATILE(Controller->Registers->GlobalHostControl);
+        WRITE_VOLATILE(Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_AE);
     }
 
     // Ensure that the controller is not in the running state by reading and
@@ -205,8 +205,8 @@ AhciTakeOwnership(
     TRACE("AhciTakeOwnership()");
 
     // Step 1. Sets the OS Ownership (BOHC.OOS) bit to 1.
-    OsCtrl = ReadVolatile32(&Controller->Registers->OSControlAndStatus);
-    WriteVolatile32(&Controller->Registers->OSControlAndStatus, OsCtrl | AHCI_CONTROLSTATUS_OOS);
+    OsCtrl = READ_VOLATILE(Controller->Registers->OSControlAndStatus);
+    WRITE_VOLATILE(Controller->Registers->OSControlAndStatus, OsCtrl | AHCI_CONTROLSTATUS_OOS);
 
     // Wait 25 ms, to determine how long time BIOS needs to release
     thrd_sleepex(25);
@@ -214,13 +214,13 @@ AhciTakeOwnership(
     // If the BIOS Busy (BOHC.BB) has been set to 1 within 25 milliseconds, 
     // then the OS driver shall provide the BIOS a minimum of two seconds 
     // for finishing outstanding commands on the HBA.
-    if (ReadVolatile32(&Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BB) {
+    if (READ_VOLATILE(Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BB) {
         thrd_sleepex(2000);
     }
 
     // Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to 0.
     WaitForConditionWithFault(Hung, 
-        ((ReadVolatile32(&Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BOS) == 0),
+        ((READ_VOLATILE(Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BOS) == 0),
         10, 25);
 
     // Sanitize if we got the ownership 
@@ -250,16 +250,16 @@ AhciSetup(
     }
 
     // Indicate that system software is AHCI aware by setting GHC.AE to 1.
-    Caps = ReadVolatile32(&Controller->Registers->Capabilities);
+    Caps = READ_VOLATILE(Controller->Registers->Capabilities);
     if (!(Caps & AHCI_CAPABILITIES_SAM)) {
-        Ghc = ReadVolatile32(&Controller->Registers->GlobalHostControl);
-        WriteVolatile32(&Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_AE);
+        Ghc = READ_VOLATILE(Controller->Registers->GlobalHostControl);
+        WRITE_VOLATILE(Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_AE);
     }
 
     // Determine which ports are implemented by the HBA, by reading the PI register. 
     // This bit map value will aid software in determining how many ports are 
     // available and which port registers need to be initialized.
-    Controller->ValidPorts       = ReadVolatile32(&Controller->Registers->PortsImplemented);
+    Controller->ValidPorts       = READ_VOLATILE(Controller->Registers->PortsImplemented);
     Controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(Caps);
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
@@ -302,9 +302,9 @@ AhciSetup(
 
     // To enable the HBA to generate interrupts, 
     // system software must also set GHC.IE to a 1
-    Ghc = ReadVolatile32(&Controller->Registers->GlobalHostControl);
-    WriteVolatile32(&Controller->Registers->InterruptStatus, 0xFFFFFFFF);
-    WriteVolatile32(&Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_IE);
+    Ghc = READ_VOLATILE(Controller->Registers->GlobalHostControl);
+    WRITE_VOLATILE(Controller->Registers->InterruptStatus, 0xFFFFFFFF);
+    WRITE_VOLATILE(Controller->Registers->GlobalHostControl, Ghc | AHCI_HOSTCONTROL_IE);
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (Controller->Ports[i] != NULL) {
             if (AhciPortStart(Controller, Controller->Ports[i]) != OsSuccess) {

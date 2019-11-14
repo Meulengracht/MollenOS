@@ -26,7 +26,7 @@
 #ifdef __LIBDS_KERNEL__
 #include <irq_spinlock.h>
 typedef IrqSpinlock_t syncobject_t;
-#define SYNC_INIT                OS_IRQ_LOCK_INIT
+#define SYNC_INIT                OS_IRQ_SPINLOCK_INIT
 #define SYNC_INIT_FN(collection) IrqSpinlockConstruct(&collection->lock)
 #define SYNC_LOCK(collection)    IrqSpinlockAcquire(&collection->lock)
 #define SYNC_UNLOCK(collection)  IrqSpinlockRelease(&collection->lock)

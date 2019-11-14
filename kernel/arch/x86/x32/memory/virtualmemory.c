@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -20,6 +21,7 @@
  * - Contains the implementation of virtual memory management
  *   for the X86-32 Architecture 
  */
+
 #define __MODULE "MEM1"
 //#define __TRACE
 #define __COMPILE_ASSERT
@@ -147,6 +149,7 @@ MmVirtualGetTable(
     int          PageTableIndex = PAGE_DIRECTORY_INDEX(Address);
     uint32_t     ParentMapping;
     uint32_t     Mapping;
+    int          Result;
 
     // Load the entry from the table
     Mapping = atomic_load(&PageDirectory->pTables[PageTableIndex]);
@@ -161,23 +164,30 @@ MmVirtualGetTable(
         // Table not present, before attemping to create, sanitize parent
         ParentMapping = 0;
         if (ParentPageDirectory != NULL) {
-            ParentMapping = atomic_load(&ParentPageDirectory->pTables[PageTableIndex]);
+            ParentMapping = atomic_load_explicit(&ParentPageDirectory->pTables[PageTableIndex],
+                memory_order_acquire);
         }
 
 SyncWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping | PAGETABLE_INHERITED);
+            atomic_store_explicit(&PageDirectory->pTables[PageTableIndex], 
+                ParentMapping | PAGETABLE_INHERITED, memory_order_release);
             PageDirectory->vTables[PageTableIndex] = ParentPageDirectory->vTables[PageTableIndex];
-            Table                                  = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
+            
+            // By performing an immediate readback we ensure changes
+            Table = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
             assert(Table != NULL);
         }
         else if (CreateIfMissing) {
             // Allocate, do a CAS and see if it works, if it fails retry our operation
             uintptr_t TablePhysical;
             Table = (PageTable_t*)kmalloc_p(PAGE_SIZE, &TablePhysical);
-		    assert(Table != NULL);
+            if (!Table) {
+                return NULL;
+            }
+            
             memset((void*)Table, 0, sizeof(PageTable_t));
             TablePhysical |= PAGE_PRESENT | PAGE_WRITE;
             if (Address > MEMORY_LOCATION_KERNEL_END) {
@@ -186,8 +196,9 @@ SyncWithParent:
 
             // Now perform the synchronization
             if (ParentPageDirectory != NULL) {
-                if (!atomic_compare_exchange_strong(
-                    &ParentPageDirectory->pTables[PageTableIndex], &ParentMapping, TablePhysical)) {
+                Result = atomic_compare_exchange_strong(&ParentPageDirectory->pTables[PageTableIndex], 
+                    &ParentMapping, TablePhysical);
+                if (!Result) {
                     // Start over as someone else beat us to the punch
                     kfree((void*)Table);
                     goto SyncWithParent;
@@ -228,6 +239,10 @@ CloneVirtualSpace(
     int ThreadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
     PageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &PhysicalAddress);
+    if (!PageDirectory) {
+        return OsOutOfMemory;
+    }
+    
     memset(PageDirectory, 0, sizeof(PageDirectory_t));
 
     // Determine parent
@@ -247,8 +262,9 @@ CloneVirtualSpace(
         // Sanitize if it's inside kernel region
         if (SystemDirectory->vTables[i] != 0) {
             // Update the physical table
-            KernelMapping = atomic_load(&SystemDirectory->pTables[i]);
-            atomic_store(&PageDirectory->pTables[i], KernelMapping | PAGETABLE_INHERITED);
+            KernelMapping = atomic_load_explicit(&SystemDirectory->pTables[i], memory_order_acquire);
+            atomic_store_explicit(&PageDirectory->pTables[i], KernelMapping | PAGETABLE_INHERITED,
+                memory_order_release);
 
             // Copy virtual
             PageDirectory->vTables[i] = SystemDirectory->vTables[i];

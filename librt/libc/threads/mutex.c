@@ -84,9 +84,11 @@ mtx_trylock(
     // increase ref count, but only if we're recursive
     if (mutex->flags & mtx_recursive) {
         while (1) {
-            OS_ATOMIC_LOAD(&mutex->references, initialcount);
+            initialcount = atomic_load(&mutex->references);
             if (initialcount != 0 && mutex->owner == thrd_current()) {
-                OS_ATOMIC_CAS_WEAK(&mutex->references, &initialcount, initialcount + 1, status);
+                status = atomic_compare_exchange_weak_explicit(&mutex->references, 
+                    &initialcount, initialcount + 1, memory_order_release,
+                    memory_order_acquire);
                 if (status) {
                     return thrd_success;
                 }
@@ -96,10 +98,10 @@ mtx_trylock(
         }
     }
     
-    OS_ATOMIC_CAS_STRONG(&mutex->value, &z, 1, status);
+    status = atomic_compare_exchange_strong(&mutex->value, &z, 1);
     if (status) {
         mutex->owner = thrd_current();
-        OS_ATOMIC_STORE(&mutex->references, 1);
+        atomic_store(&mutex->references, 1);
         return thrd_success;
     }
     return thrd_busy;
@@ -120,9 +122,11 @@ __perform_lock(
     // increase ref count, but only if we're recursive 
     if (mutex->flags & mtx_recursive) {
         while (1) {
-            OS_ATOMIC_LOAD(&mutex->references, initialcount);
+            initialcount = atomic_load(&mutex->references);
             if (initialcount != 0 && mutex->owner == thrd_current()) {
-                OS_ATOMIC_CAS_WEAK(&mutex->references, &initialcount, initialcount + 1, status);
+                status = atomic_compare_exchange_weak_explicit(&mutex->references, 
+                    &initialcount, initialcount + 1, memory_order_release,
+                    memory_order_acquire);
                 if (status) {
                     return thrd_success;
                 }
@@ -140,7 +144,7 @@ __perform_lock(
     // On multicore systems the lock might be released rather quickly
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
-    OS_ATOMIC_CAS_STRONG(&mutex->value, &z, 1, status);
+    status = atomic_compare_exchange_strong(&mutex->value, &z, 1);
     if (!status) {
         if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
@@ -153,19 +157,19 @@ __perform_lock(
         // Loop untill we get the lock
         if (z != 0) {
             if (z != 2) {
-                OS_ATOMIC_EXCHANGE(&mutex->value, 2, z);
+                z = atomic_exchange(&mutex->value, 2);
             }
             while (z != 0) {
                 if (Syscall_FutexWait(&parameters) == OsTimeout) {
                     return thrd_timedout;
                 }
-                OS_ATOMIC_EXCHANGE(&mutex->value, 2, z);
+                z = atomic_exchange(&mutex->value, 2);
             }
         }
     }
 
     mutex->owner = thrd_current();
-    OS_ATOMIC_STORE(&mutex->references, 1);
+    atomic_store(&mutex->references, 1);
     return thrd_success;
 }
 
@@ -212,12 +216,12 @@ mtx_unlock(
     }
 
     // Sanitize state of the mutex, are we even able to unlock it?
-    OS_ATOMIC_LOAD(&mutex->references, initialcount);
+    initialcount = atomic_load(&mutex->references);
     if (initialcount == 0 || mutex->owner != thrd_current()) {
         return thrd_error;
     }
     
-    OS_ATOMIC_SUB(&mutex->references, 1, initialcount);
+    initialcount = atomic_fetch_sub(&mutex->references, 1);
     if ((initialcount - 1) == 0) {
         parameters._futex0  = &mutex->value;
         parameters._val0    = 1;
@@ -225,9 +229,9 @@ mtx_unlock(
 
         mutex->owner = UUID_INVALID;
         
-        OS_ATOMIC_SUB(&mutex->value, 1, initialcount);
+        initialcount = atomic_fetch_sub(&mutex->value, 1);
         if (initialcount != 1) {
-            OS_ATOMIC_STORE(&mutex->value, 0);
+            atomic_store(&mutex->value, 0);
             Syscall_FutexWake(&parameters);
         }
     }

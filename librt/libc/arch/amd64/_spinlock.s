@@ -85,6 +85,7 @@ _spinlock_test:
 _spinlock_release:
 	test rcx, rcx
 	je .done
-	mov byte [rcx], 0
+	xor rax, rax
+	xchg byte [rcx], al
 	.done:
 	ret

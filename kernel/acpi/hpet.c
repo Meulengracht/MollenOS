@@ -35,11 +35,11 @@
 
 static HpController_t HpetController = { 0 };
 
-#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory(HpetController.BaseAddress + Offset, 4, ValueOut)
-#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory(HpetController.BaseAddress + Offset, 8, ValueOut)
+#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + Offset), (void*)ValueOut, 4)
+#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + Offset), (void*)ValueOut, 8)
 
-#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory(HpetController.BaseAddress + Offset, 4, Value)
-#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory(HpetController.BaseAddress + Offset, 8, Value)
+#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + Offset), (void*)&Value, 4)
+#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + Offset), (void*)&Value, 8)
 
 void
 HpReadCounter(
@@ -62,7 +62,7 @@ HpWriteCounter(
 #if __BITS == 64
     HP_WRITE_64(Offset, Value);
 #else
-    HP_WRITE_32(Offset, LODWORD(Value));
+    HP_WRITE_32(Offset, Value);
 #endif
 }
 
@@ -301,6 +301,7 @@ HpComparatorStart(
     LargeInteger_t    Now;
     uint64_t          Delta;
     size_t            TempValue;
+    size_t            TempValue2;
     HpTimer_t *Timer = &HpetController.Timers[Index];
 
     TRACE("HpComparatorStart(%" PRIiIN ", %" PRIuIN ", %" PRIiIN ")", Index, LODWORD(Frequency), Periodic);
@@ -356,7 +357,8 @@ HpComparatorStart(
     }
 
     // Update configuration and comparator
-    HP_WRITE_32(HPET_REGISTER_INTSTATUS, (1 << Index));
+    TempValue2 = (1 << Index);
+    HP_WRITE_32(HPET_REGISTER_INTSTATUS, TempValue2);
     TRACE(" > Writing config value 0x%" PRIxIN "", TempValue);
     HP_WRITE_32(HPET_TIMER_CONFIG(Index), TempValue);
     HpWriteCounter(HPET_TIMER_COMPARATOR(Index), (reg64_t)Now.QuadPart);
@@ -428,8 +430,9 @@ HpInitialize(
 
     // Stop timer, zero out counter
     HpStop();
-    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER, 0);
-    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER + 4, 0);
+    TempValue = 0;
+    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER, TempValue);
+    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER + 4, TempValue);
 
     // Calculate the frequency
     HpetController.Frequency.QuadPart = (int64_t)DIVUP(FSEC_PER_SEC, (uint64_t)HpetController.Period);

@@ -84,10 +84,10 @@ SpawnServices(void)
 
     // Iterate module list and spawn all servers
     // then they will "run" the system for us
-    foreach(Node, &Modules) {
-        if ((int)(uintptr_t)Node->key == (int)ServiceResource) {
-            SystemModule_t* Module = (SystemModule_t*)Node;
-            OsStatus_t      Status = SpawnModule((SystemModule_t*)Node);
+    foreach(i, &Modules) {
+        if ((int)(uintptr_t)i->key == (int)ServiceResource) {
+            SystemModule_t* Module = (SystemModule_t*)i->value;
+            OsStatus_t      Status = SpawnModule((SystemModule_t*)i->value);
             if (Status != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %" PRIuIN "", MStringRaw(Module->Path), Status);
             }
@@ -108,8 +108,8 @@ GetModuleDataByPath(
     OsStatus_t Result = OsError;
     TRACE("GetModuleDataByPath(%s)", MStringRaw(Path));
 
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Path != NULL) {
             TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
             if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
@@ -132,8 +132,8 @@ GetGenericDeviceModule(
     _In_ DevInfo_t DeviceClass, 
     _In_ DevInfo_t DeviceSubclass)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->DeviceClass       == DeviceClass
             && Module->DeviceSubclass == DeviceSubclass) {
             return Module;
@@ -152,8 +152,8 @@ GetSpecificDeviceModule(
     if (VendorId == 0) {
         return NULL;
     }
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
             return Module;
         }
@@ -170,8 +170,8 @@ GetModule(
     _In_  DevInfo_t DeviceClass,
     _In_  DevInfo_t DeviceSubclass)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->PrimaryThreadId != UUID_INVALID) {
             // Should we check vendor-id && device-id?
             if (VendorId != 0 && DeviceId != 0) {
@@ -195,8 +195,8 @@ SystemModule_t*
 GetCurrentModule(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Executable != NULL && 
             AreMemorySpacesRelated(Module->Executable->MemorySpace, 
                 (MemorySpaceHandle_t)Thread->MemorySpace) == OsSuccess) {
@@ -228,8 +228,8 @@ SystemModule_t*
 GetModuleByHandle(
     _In_ UUId_t Handle)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Handle == Handle || Module->Alias == Handle) {
             return Module;
         }

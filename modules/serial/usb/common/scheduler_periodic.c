@@ -102,18 +102,18 @@ UsbSchedulerLinkPeriodicElement(
                     sObject->FrameInterval > ExistingObject->FrameInterval) {
                     USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH) = Scheduler->Settings.FrameList[i];
                     sObject->BreathIndex                               = ExistingObject->Index;
-                    BARRIER_STORE;
+                    dma_mb();
                     Scheduler->VirtualFrameList[i]   = (uintptr_t)Element;
                     Scheduler->Settings.FrameList[i] = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags); //@todo if 64 bit support in xhci
-                    BARRIER_STORE;
+                    dma_wmb();
                 }
                 else {
                     USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH) = USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH);
                     sObject->BreathIndex                               = ExistingObject->BreathIndex;
-                    BARRIER_STORE;
+                    dma_mb();
                     USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH) = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags);
                     ExistingObject->BreathIndex                                       = sObject->Index;
-                    BARRIER_STORE;
+                    dma_wmb();
                 }
             }
         }

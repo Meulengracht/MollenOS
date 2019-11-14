@@ -116,8 +116,8 @@ HciControllerCreate(
 
     // Instantiate the register-access and disable interrupts on device
     Controller->Registers = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
-    WriteVolatile32(&Controller->Registers->HcInterruptEnable, 0);
-    WriteVolatile32(&Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, 0);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
@@ -196,10 +196,10 @@ OhciSetMode(
     _In_ reg32_t           Mode)
 {
     // Read in value, mask it off, then update
-    reg32_t Value = ReadVolatile32(&Controller->Registers->HcControl);
+    reg32_t Value = READ_VOLATILE(Controller->Registers->HcControl);
     Value                            &= ~(OHCI_CONTROL_SUSPEND);
     Value                            |= Mode;
-    WriteVolatile32(&Controller->Registers->HcControl, Value);
+    WRITE_VOLATILE(Controller->Registers->HcControl, Value);
 }
 
 OsStatus_t
@@ -214,21 +214,21 @@ OhciTakeControl(
     TRACE("OhciTakeControl()");
 
     // Does SMM hold control of chip? Then ask for it back
-    HcControl = ReadVolatile32(&Controller->Registers->HcControl);
+    HcControl = READ_VOLATILE(Controller->Registers->HcControl);
     if (HcControl & OHCI_CONTROL_IR) {
-        Temp = ReadVolatile32(&Controller->Registers->HcCommandStatus);
+        Temp = READ_VOLATILE(Controller->Registers->HcCommandStatus);
         Temp |= OHCI_COMMAND_OWNERSHIP;
-        WriteVolatile32(&Controller->Registers->HcCommandStatus, Temp);
+        WRITE_VOLATILE(Controller->Registers->HcCommandStatus, Temp);
 
         // Now we wait for the bit to clear
-        WaitForConditionWithFault(i, (ReadVolatile32(&Controller->Registers->HcControl) & OHCI_CONTROL_IR) == 0, 250, 10);
+        WaitForConditionWithFault(i, (READ_VOLATILE(Controller->Registers->HcControl) & OHCI_CONTROL_IR) == 0, 250, 10);
 
         if (i != 0) {
             // Didn't work, we try to clear the IR bit
-            Temp = ReadVolatile32(&Controller->Registers->HcControl);
+            Temp = READ_VOLATILE(Controller->Registers->HcControl);
             Temp &= ~OHCI_CONTROL_IR;
-            WriteVolatile32(&Controller->Registers->HcControl, Temp);
-            WaitForConditionWithFault(i, (ReadVolatile32(&Controller->Registers->HcControl) & OHCI_CONTROL_IR) == 0, 250, 10);
+            WRITE_VOLATILE(Controller->Registers->HcControl, Temp);
+            WaitForConditionWithFault(i, (READ_VOLATILE(Controller->Registers->HcControl) & OHCI_CONTROL_IR) == 0, 250, 10);
             if (i != 0) {
                 ERROR("failed to clear routing bit");
                 ERROR("SMM Won't give us the Controller, we're backing down >(");
@@ -262,7 +262,7 @@ OhciReset(
     TRACE("OhciReset()");
 
     // Verify HcFmInterval and store the original value
-    FmInt = ReadVolatile32(&Controller->Registers->HcFmInterval);
+    FmInt = READ_VOLATILE(Controller->Registers->HcFmInterval);
 
     // What the hell? You are supposed to be able 
     // to set this yourself!
@@ -280,7 +280,7 @@ OhciReset(
     // and then set device to remote wake capable
     // Disable interrupts during this reset
     TRACE(" > Suspending controller");
-    WriteVolatile32(&Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Suspend the controller just in case it's running
     // and wait for it to suspend
@@ -288,14 +288,14 @@ OhciReset(
     thrd_sleepex(10);
 
     // Toggle bit 0 to initiate a reset
-    Temporary = ReadVolatile32(&Controller->Registers->HcCommandStatus);
+    Temporary = READ_VOLATILE(Controller->Registers->HcCommandStatus);
     Temporary |= OHCI_COMMAND_RESET;
-    WriteVolatile32(&Controller->Registers->HcCommandStatus, Temporary);
+    WRITE_VOLATILE(Controller->Registers->HcCommandStatus, Temporary);
 
     // Wait for reboot (takes maximum of 10 ms)
     // But the world is not perfect, given it up to 50
     TRACE(" > Resetting controller");
-    WaitForConditionWithFault(i, (ReadVolatile32(&Controller->Registers->HcCommandStatus) & OHCI_COMMAND_RESET) == 0, 50, 1);
+    WaitForConditionWithFault(i, (READ_VOLATILE(Controller->Registers->HcCommandStatus) & OHCI_COMMAND_RESET) == 0, 50, 1);
 
     // Sanitize the fault variable
     if (i != 0) {
@@ -311,38 +311,38 @@ OhciReset(
 
     // Restore the FmInt and toggle the FIT
     FmInt ^= 0x80000000;
-    WriteVolatile32(&Controller->Registers->HcFmInterval, FmInt);
+    WRITE_VOLATILE(Controller->Registers->HcFmInterval, FmInt);
 
     // Setup the Hcca Address and initiate some members of the HCCA
     TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.entries[0].address);
-    WriteVolatile32(&Controller->Registers->HcHCCA, Controller->HccaDMATable.entries[0].address);
+    WRITE_VOLATILE(Controller->Registers->HcHCCA, Controller->HccaDMATable.entries[0].address);
     Controller->Hcca->CurrentFrame = 0;
     Controller->Hcca->HeadDone     = 0;
 
     // Setup initial ED queues
-    WriteVolatile32(&Controller->Registers->HcControlHeadED, 0);
-    WriteVolatile32(&Controller->Registers->HcControlCurrentED, 0);
-    WriteVolatile32(&Controller->Registers->HcBulkHeadED, 0);
-    WriteVolatile32(&Controller->Registers->HcBulkCurrentED, 0);
+    WRITE_VOLATILE(Controller->Registers->HcControlHeadED, 0);
+    WRITE_VOLATILE(Controller->Registers->HcControlCurrentED, 0);
+    WRITE_VOLATILE(Controller->Registers->HcBulkHeadED, 0);
+    WRITE_VOLATILE(Controller->Registers->HcBulkCurrentED, 0);
 
     // Set HcEnableInterrupt to all except SOF and OC
-    WriteVolatile32(&Controller->Registers->HcInterruptDisable, OHCI_SOF_EVENT | 
+    WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_SOF_EVENT | 
         OHCI_ROOTHUB_EVENT | OHCI_OWNERSHIP_EVENT);
 
     // Clear out INTR state and initialize the interrupt enable
-    WriteVolatile32(&Controller->Registers->HcInterruptStatus, 
-        ReadVolatile32(&Controller->Registers->HcInterruptStatus));
-    WriteVolatile32(&Controller->Registers->HcInterruptEnable, OHCI_OVERRUN_EVENT 
+    WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, 
+        READ_VOLATILE(Controller->Registers->HcInterruptStatus));
+    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_OVERRUN_EVENT 
         | OHCI_PROCESS_EVENT | OHCI_RESUMEDETECT_EVENT | OHCI_FATAL_EVENT
         | OHCI_OVERFLOW_EVENT | OHCI_MASTER_INTERRUPT);
 
     // Set HcPeriodicStart to a value that is 90% of 
     // FrameInterval in HcFmInterval
     Temporary = (FmInt & OHCI_FMINTERVAL_FIMASK);
-    WriteVolatile32(&Controller->Registers->HcPeriodicStart, (Temporary / 10U) * 9U);
+    WRITE_VOLATILE(Controller->Registers->HcPeriodicStart, (Temporary / 10U) * 9U);
 
     // Clear Lists, Mode, Ratio and IR
-    Temporary = ReadVolatile32(&Controller->Registers->HcControl);
+    Temporary = READ_VOLATILE(Controller->Registers->HcControl);
     Temporary &= ~(OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_SUSPEND | OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_IR);
 
     // Set Ratio (4:1) and Mode (Operational)
@@ -350,7 +350,7 @@ OhciReset(
     Temporary |= OHCI_CONTROL_PERIODIC_ACTIVE;
     Temporary |= OHCI_CONTROL_ISOC_ACTIVE;
     Temporary |= OHCI_CONTROL_REMOTEWAKE;
-    WriteVolatile32(&Controller->Registers->HcControl, Temporary);
+    WRITE_VOLATILE(Controller->Registers->HcControl, Temporary);
     
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control 0x%x to controller", Temporary);
@@ -368,7 +368,7 @@ OhciSetup(
     TRACE("OhciSetup()");
 
     // Retrieve the revision of the controller, we support 0x10 && 0x11
-    Temporary = ReadVolatile32(&Controller->Registers->HcRevision) & 0xFF;
+    Temporary = READ_VOLATILE(Controller->Registers->HcRevision) & 0xFF;
     if (Temporary != OHCI_REVISION1 && Temporary != OHCI_REVISION11) {
         ERROR("Invalid OHCI Revision (0x%x)", Temporary);
         return OsError;
@@ -391,37 +391,37 @@ OhciSetup(
 
     // We are not completely done yet, we need to figure out the
     // power-mode of the controller, and we need the port-count
-    if (ReadVolatile32(&Controller->Registers->HcRhDescriptorA) & (1 << 9)) {
+    if (READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & (1 << 9)) {
         // Power is always on
-        WriteVolatile32(&Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
-        WriteVolatile32(&Controller->Registers->HcRhDescriptorB, 0);
+        WRITE_VOLATILE(Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
+        WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0);
         Controller->PowerMode = AlwaysOn;
     }
     else {
         // Ports have individual power
-        if (ReadVolatile32(&Controller->Registers->HcRhDescriptorA) & (1 << 8)) {
+        if (READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & (1 << 8)) {
             // We prefer this, we can control each port's power
-            WriteVolatile32(&Controller->Registers->HcRhDescriptorB, 0xFFFF0000);
+            WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0xFFFF0000);
             Controller->PowerMode = PortControl;
         }
         else {
             // Oh well, it's either all on or all off
-            WriteVolatile32(&Controller->Registers->HcRhDescriptorB, 0);
-            WriteVolatile32(&Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
+            WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0);
+            WRITE_VOLATILE(Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
             Controller->PowerMode = GlobalControl;
         }
     }
 
     // Get Port count from (DescriptorA & 0x7F)
-    Controller->Base.PortCount = ReadVolatile32(&Controller->Registers->HcRhDescriptorA) & 0x7F;
+    Controller->Base.PortCount = READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & 0x7F;
     if (Controller->Base.PortCount > OHCI_MAXPORTS) {
         Controller->Base.PortCount = OHCI_MAXPORTS;
     }
 
     // Clear RhA
-    Temporary = ReadVolatile32(&Controller->Registers->HcRhDescriptorA);
+    Temporary = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
     Temporary &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
-    WriteVolatile32(&Controller->Registers->HcRhDescriptorA, Temporary);
+    WRITE_VOLATILE(Controller->Registers->HcRhDescriptorA, Temporary);
 
     // Get Power On Delay
     // PowerOnToPowerGoodTime (24 - 31)
@@ -429,7 +429,7 @@ OhciSetup(
     // accessing a powered-on Port of the Root Hub.
     // It is implementation-specific.  The unit of time is 2 ms.
     // The duration is calculated as POTPGT * 2 ms.
-    Temporary = ReadVolatile32(&Controller->Registers->HcRhDescriptorA);
+    Temporary = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
     Temporary >>= 24;
     Temporary &= 0x000000FF;
     Temporary *= 2;
@@ -449,17 +449,17 @@ OhciSetup(
     }
 
     // Now we can enable hub events (and clear interrupts)
-    WriteVolatile32(&Controller->Registers->HcInterruptStatus, 
-        ReadVolatile32(&Controller->Registers->HcInterruptStatus));
-    WriteVolatile32(&Controller->Registers->HcInterruptEnable, 
-        ReadVolatile32(&Controller->Registers->HcInterruptEnable) | OHCI_ROOTHUB_EVENT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, 
+        READ_VOLATILE(Controller->Registers->HcInterruptStatus));
+    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, 
+        READ_VOLATILE(Controller->Registers->HcInterruptEnable) | OHCI_ROOTHUB_EVENT);
     
     // If it's individual port power, iterate through port and power up
     if (Controller->PowerMode == PortControl) {
         for (i = 0; i < (int)Controller->Base.PortCount; i++) {
-            reg32_t PortStatus = ReadVolatile32(&Controller->Registers->HcRhPortStatus[i]);
+            reg32_t PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[i]);
             if (!(PortStatus & OHCI_PORT_POWER)) {
-                WriteVolatile32(&Controller->Registers->HcRhPortStatus[i], OHCI_PORT_POWER);
+                WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[i], OHCI_PORT_POWER);
             }
         }
     }

@@ -23,6 +23,7 @@
 #define __MODULE "IOLL"
 
 #include <arch/io.h>
+#include <ddk/barrier.h>
 #include <debug.h>
 #include <arch.h>
 #include <pci.h>
@@ -117,58 +118,6 @@ void PciWrite8(
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outw(X86_PCI_DATA + (Register & 0x03), Value);
-}
-
-OsStatus_t
-ReadVolatileMemory(
-    _In_  uintptr_t Address,
-    _In_  size_t    Width,
-    _Out_ size_t*   Value)
-{
-    if (Width == 1) {
-        *Value = (size_t)(*(uint8_t*)Address) & 0xFF;
-    }
-    else if (Width == 2) {
-        *Value = (size_t)(*(uint16_t*)Address) & 0xFFFF;
-    }
-    else if (Width == 4) {
-        *Value = (size_t)(*(uint32_t*)Address) & 0xFFFFFFFF;
-    }
-#if __BITS == 64
-    else if (Width == 8) {
-        *Value = (size_t)(*(uint64_t*)Address);
-    }
-#endif
-    else {
-        FATAL(FATAL_SCOPE_KERNEL, " > invalid volatile memory read width %" PRIuIN "", Width);
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-WriteVolatileMemory(
-    _In_ uintptr_t Address,
-    _In_ size_t    Width,
-    _In_ size_t    Value)
-{
-    if (Width == 1) {
-        *((uint8_t*)Address) = LOBYTE(Value);
-    }
-    else if (Width == 2) {
-        *((uint16_t*)Address) = LOWORD(Value);
-    }
-    else if (Width == 4) {
-        *((uint32_t*)Address) = LODWORD(Value);
-    }
-#if __BITS == 64
-    else if (Width == 8) {
-        *((uint64_t*)Address) = Value;
-    }
-#endif
-    else {
-        FATAL(FATAL_SCOPE_KERNEL, " > invalid volatile memory write width %" PRIuIN "", Width);
-    }
-    return OsSuccess;
 }
 
 OsStatus_t

@@ -227,14 +227,4 @@ LastSetBit(size_t Value)
 #endif
 #endif
 
-#if defined(__CLANG_STDATOMIC_H)
-#define OS_ATOMIC_LOAD(object, out)                         MB_LOAD; out = atomic_load(object)
-#define OS_ATOMIC_STORE(object, desired)                    atomic_store(object, desired); MB_STORE
-#define OS_ATOMIC_ADD(object, operand, old)                 MB_FULL; old = atomic_fetch_add(object, operand); MB_FULL
-#define OS_ATOMIC_SUB(object, operand, old)                 MB_FULL; old = atomic_fetch_sub(object, operand); MB_FULL
-#define OS_ATOMIC_EXCHANGE(object, new, old)                MB_FULL; old = atomic_exchange(object, new); MB_FULL
-#define OS_ATOMIC_CAS_WEAK(object, expected, new, result)   MB_FULL; result = atomic_compare_exchange_weak(object, expected, new); MB_FULL
-#define OS_ATOMIC_CAS_STRONG(object, expected, new, result) MB_FULL; result = atomic_compare_exchange_strong(object, expected, new); MB_FULL
-#endif
-
 #endif //!__OS_DEFINITIONS__

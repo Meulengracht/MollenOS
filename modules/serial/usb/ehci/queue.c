@@ -237,7 +237,7 @@ EhciSetPrefetching(
     _In_ UsbTransferType_t  Type,
     _In_ int                Set)
 {
-    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     if (!(Controller->CParameters & EHCI_CPARAM_HWPREFETCH)) {
         return OsError;
     }
@@ -246,23 +246,23 @@ EhciSetPrefetching(
     if (Type == ControlTransfer || Type == BulkTransfer) {
         if (!Set) {
             Command &= ~(EHCI_COMMAND_ASYNC_PREFETCH);
-            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
-            while (ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_ASYNC_PREFETCH);
+            WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
+            while (READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_ASYNC_PREFETCH);
         }
         else {
             Command |= EHCI_COMMAND_ASYNC_PREFETCH;
-            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+            WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
         }
     }
     else {
         if (!Set) {
             Command &= ~(EHCI_COMMAND_PERIOD_PREFECTCH);
-            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
-            while (ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_PERIOD_PREFECTCH);
+            WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
+            while (READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_PERIOD_PREFECTCH);
         }
         else {
             Command |= EHCI_COMMAND_PERIOD_PREFECTCH;
-            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+            WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
         }
     }
     return OsSuccess;
@@ -273,8 +273,8 @@ EhciEnableScheduler(
     _In_ EhciController_t*  Controller,
     _In_ UsbTransferType_t  Type)
 {
-    reg32_t Status  = ReadVolatile32(&Controller->OpRegisters->UsbStatus);
-    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    reg32_t Status  = READ_VOLATILE(Controller->OpRegisters->UsbStatus);
+    reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
 
     // Sanitize the current status
     if (Type == ControlTransfer || Type == BulkTransfer) {
@@ -284,14 +284,14 @@ EhciEnableScheduler(
             return;
         }
         Command |= EHCI_COMMAND_ASYNC_ENABLE;
-        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
     }
     else {
         if (Status & EHCI_STATUS_PERIODIC_ACTIVE) {
             return;
         }
         Command |= EHCI_COMMAND_PERIODIC_ENABLE;
-        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
     }
 }
 
@@ -300,8 +300,8 @@ EhciDisableScheduler(
     _In_ EhciController_t*  Controller,
     _In_ UsbTransferType_t  Type)
 {
-    reg32_t Status  = ReadVolatile32(&Controller->OpRegisters->UsbStatus);
-    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+    reg32_t Status  = READ_VOLATILE(Controller->OpRegisters->UsbStatus);
+    reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
 
     // Sanitize its current status
     if (Type == ControlTransfer || Type == BulkTransfer) {
@@ -309,14 +309,14 @@ EhciDisableScheduler(
             return;
         }
         Command &= ~(EHCI_COMMAND_ASYNC_ENABLE);
-        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
     }
     else {
         if (!(Status & EHCI_STATUS_PERIODIC_ACTIVE)) {
             return;
         }
         Command &= ~(EHCI_COMMAND_PERIODIC_ENABLE);
-        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
     }
 }
 
@@ -325,9 +325,9 @@ EhciRingDoorbell(
     _In_ EhciController_t*  Controller)
 {
     // Do not ring the doorbell if the schedule is not running
-    if (ReadVolatile32(&Controller->OpRegisters->UsbStatus) & EHCI_STATUS_ASYNC_ACTIVE) {
-        reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
-        WriteVolatile32(&Controller->OpRegisters->UsbCommand, 
+    if (READ_VOLATILE(Controller->OpRegisters->UsbStatus) & EHCI_STATUS_ASYNC_ACTIVE) {
+        reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
+        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, 
             Command | EHCI_COMMAND_IOC_ASYNC_DOORBELL);
     }
 }

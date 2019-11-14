@@ -485,7 +485,7 @@ WakeupAllWaiters(
     Process_t*       Process = Context;
     ProcessJoiner_t* Join    = Element->value;
     if (Process->Header.key != Element->key) {
-        return 0; // LIST_CONTINUE
+        return LIST_ENUMERATE_CONTINUE;
     }
     
     if (Join->EventHandle != UUID_INVALID) {
@@ -496,7 +496,7 @@ WakeupAllWaiters(
     else {
         HandleJoinProcess((void*)Join);
     }
-    return 0; // LIST_REMOVE_CONTINUE
+    return LIST_ENUMERATE_REMOVE;
 }
 
 OsStatus_t

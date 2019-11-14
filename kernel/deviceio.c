@@ -46,13 +46,18 @@ typedef struct SystemDeviceIo {
 
 static list_t IoSpaces = LIST_INIT;
 
-static void
-DetectOverlaps(int Index, element_t* Element, void* Context)
+static int
+DetectOverlaps(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
 {
     //SystemDeviceIo_t* SystemIo = Element->value;
     //DeviceIo_t*       Io       = Context;
     
     // check overlap
+    
+    return LIST_ENUMERATE_CONTINUE;
 }
 
 static void
@@ -287,8 +292,8 @@ ValidateDeviceIoMemoryAddress(
     }
     
     // Iterate and check each io-space if the process has this mapped in
-    foreach(ioNode, &IoSpaces) {
-        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)ioNode->value;
+    foreach(i, &IoSpaces) {
+        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)i->value;
         uintptr_t         VirtualBase = IoSpace->MappedAddress;
 
         // Two things has to be true before the io-space

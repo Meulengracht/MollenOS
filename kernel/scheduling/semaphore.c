@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -20,6 +21,7 @@
  * - Counting semaphores implementation, using safe passages known as
  *   atomic sections in the operating system to synchronize in a kernel env
  */
+
 #define __MODULE "SEM1"
 //#define __TRACE
 #ifdef __TRACE
@@ -69,25 +71,20 @@ SemaphoreWait(
     int        Value;
     
     while (1) {
-        BARRIER_LOAD;
-        Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+        Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
             if (Status == OsTimeout) {
                 break;
             }
-            BARRIER_LOAD;
-            Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+            Value = atomic_load(&(Semaphore->Value));
         }
         
-        BARRIER_LOAD;
-        Value = atomic_fetch_add_explicit(&(Semaphore->Value), -1, memory_order_acq_rel);
+        Value = atomic_fetch_add(&(Semaphore->Value), -1);
         if (Value >= 1) {
             break;
         }
-        BARRIER_FULL;
-        atomic_fetch_add_explicit(&(Semaphore->Value), 1, memory_order_release);
-        BARRIER_FULL;
+        atomic_fetch_add(&(Semaphore->Value), 1);
     }
     return Status;
 }
@@ -105,12 +102,13 @@ SemaphoreSignal(
     TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
     // assert not max
-    OS_ATOMIC_LOAD(&Semaphore->Value, CurrentValue);
+    CurrentValue = atomic_load(&Semaphore->Value);
     __STRICT_ASSERT((CurrentValue + Value) <= Semaphore->MaxValue);
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {
-                OS_ATOMIC_CAS_WEAK(&Semaphore->Value, &CurrentValue, CurrentValue + 1, Result);
+                Result = atomic_compare_exchange_weak(&Semaphore->Value, 
+                    &CurrentValue, CurrentValue + 1);
                 if (Result) {
                     break;
                 }

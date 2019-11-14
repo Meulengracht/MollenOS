@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) System Interface
+ * ACPI(CA) System Interface
  *  - Implementation for acpi event handlers like power events.
  */
 #define __MODULE "ACPI"
@@ -26,7 +27,6 @@
 #include <assert.h>
 #include <debug.h>
 
-/* Fixed Event Handlers */
 UINT32 AcpiShutdownHandler(void *Context)
 {
 	ACPI_EVENT_STATUS eStatus;

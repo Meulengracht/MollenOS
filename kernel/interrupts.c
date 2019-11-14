@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -21,7 +22,7 @@
  *   that is generic and can be shared/used by all systems
  */
 
-#define __MODULE        "INIF"
+#define __MODULE "INIF"
 //#define __TRACE
 
 #include <arch.h>
@@ -339,13 +340,16 @@ InterruptRegister(
     UUId_t             TableIndex;
     UUId_t             Id;
 
-    // Trace
     TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
         Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
-    // Allocate a new entry for the table
     Entry = (SystemInterrupt_t*)kmalloc(sizeof(SystemInterrupt_t));
-    Id    = atomic_fetch_add(&InterruptIdGenerator, 1);
+    if (!Entry) {
+        return UUID_INVALID;
+    }
+    
+    // TODO: change this to use handle system
+    Id = atomic_fetch_add(&InterruptIdGenerator, 1);
     memset((void*)Entry, 0, sizeof(SystemInterrupt_t));
 
     Entry->Id           = (Id << 16);    

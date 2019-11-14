@@ -28,22 +28,6 @@
 #include <memoryspace.h>
 #include <deviceio.h>
 
-/* ReadVolatileMemory 
- * Reads a value from memory with optimizations disabled. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
-ReadVolatileMemory(
-    _In_  uintptr_t Address,
-    _In_  size_t    Width,
-    _Out_ size_t*   Value);
-
-/* WriteVolatileMemory 
- * Writes a value to memory with optimizations disabled. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
-WriteVolatileMemory(
-    _In_ uintptr_t Address,
-    _In_ size_t    Width,
-    _In_ size_t    Value);
-
 /* ReadDirectIo 
  * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 KERNELAPI OsStatus_t KERNELABI

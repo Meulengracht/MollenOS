@@ -69,8 +69,8 @@ ScSharedObjectGetFunction(
         if (Module != NULL) {
             Address = PeResolveFunction(Module->Executable, Function);
             if (!Address) {
-                foreach(Node, Module->Executable->Libraries) {
-                    Address = PeResolveFunction(Node->value, Function);
+                foreach(i, Module->Executable->Libraries) {
+                    Address = PeResolveFunction(i->value, Function);
                     if (Address != 0) {
                         break;
                     }

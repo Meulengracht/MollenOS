@@ -87,6 +87,7 @@ SignalQueue(
 {
     MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
     int            Expected = SIGNAL_FREE;
+    int            Result;
     TRACE("SignalQueue(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
@@ -95,8 +96,9 @@ SignalQueue(
         return OsInvalidParameters; // Invalid
     }
     
-    if (!atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
-            &Expected, SIGNAL_ALLOCATED)) {
+    Result = atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
+        &Expected, SIGNAL_ALLOCATED);
+    if (!Result) {
         TRACE("Signal was already pending");
         return OsExists; // Ignored, already pending
     }
@@ -193,7 +195,9 @@ SignalProcess(
     
     // Process all the signals
     for (i = 0; i < NUMSIGNALS; i++) {
-        int Status = atomic_load(&Thread->Signals[i].Status);
+        int Status;
+        
+        Status = atomic_load(&Thread->Signals[i].Status);
         if (Status == SIGNAL_PENDING) {
             void* Argument = atomic_load(&Thread->Signals[i].Information);
             // Prepare initial stack state
