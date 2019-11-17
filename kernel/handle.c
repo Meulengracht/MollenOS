@@ -327,30 +327,28 @@ typedef struct SystemHandleSet {
     Flags_t      Flags;
 } SystemHandleSet_t;
 
-typedef struct SystemHandleEvent {
-    element_t                  Header;
-    _Atomic(int)               ActiveEvents;
-    struct _SystemHandleEvent* Link;
-    UUId_t                     Handle;
-    void*                      Context;
-    Flags_t                    Configuration;
-} SystemHandleEvent_t;
-
 typedef struct SystemHandleSetElement {
-    element_t           Header;
+    element_t           SetHeader;
     rb_leaf_t           HandleHeader;
+    element_t           EventHeader;
     SystemHandleSet_t*  Set;
-    SystemHandleEvent_t Event;
+    
+    // Event data
+    _Atomic(int)                   ActiveEvents;
+    struct SystemHandleSetElement* Link;
+    UUId_t                         Handle;
+    void*                          Context;
+    Flags_t                        Configuration;
 } SystemHandleSetElement_t;
 
 static void
 DestroyHandleSet(
     _In_ void* Resource)
 {
-    SystemHandleSet_t*  Set = Resource;
-    SystemHandle_t*     Instance;
-    SystemHandleItem_t* Item;
-    rb_leaf_t*          Leaf;
+    SystemHandleSet_t*        Set = Resource;
+    SystemHandleSetElement_t* Element;
+    SystemHandle_t*           Instance;
+    rb_leaf_t*                Leaf;
     
     do {
         Leaf = rb_tree_minimum(&Set->Handles);
@@ -358,15 +356,15 @@ DestroyHandleSet(
             break;
         }
         
+        smp_rmb();
         rb_tree_remove(&Set->Handles, Leaf->key);
         
-        Item = Leaf->value;
-        Instance = LookupHandleInstance(Item->Element->Event.Handle);
+        Element  = Leaf->value;
+        Instance = LookupHandleInstance(Element->Handle);
         if (Instance) {
-            list_remove(&Instance->Sets, &Item->Element->Header);
+            list_remove(&Instance->Sets, &Element->SetHeader);
         }
-        kfree(Item->Element);
-        kfree(Item);
+        kfree(Element);
     } while (Leaf);
     kfree(Set);
 }
@@ -430,25 +428,31 @@ ControlHandleSet(
         }
         
         memset(SetElement, 0, sizeof(SystemHandleSetElement_t));
-        ELEMENT_INIT(&SetElement->Header, 0, SetElement);
+        ELEMENT_INIT(&SetElement->SetHeader, 0, SetElement);
         RB_LEAF_INIT(&SetElement->HandleHeader, Handle, SetElement);
+        ELEMENT_INIT(&SetElement->EventHeader, 0, SetElement);
+        
         SetElement->Set = Set;
         
-        ELEMENT_INIT(&SetElement->Event.Header, 0, &SetElement->Event);
-        SetElement->Event.Handle = Handle;
-        SetElement->Event.Context = Context;
-        SetElement->Event.Configuration = Flags;
+        SetElement->Handle = Handle;
+        SetElement->Context = Context;
+        SetElement->Configuration = Flags;
+        smp_wmb();
         
-        list_append(&Instance->Sets, &SetElement->Header);
+        // Append to the list of sets on the target handle we are going to listen
+        // too. 
+        list_append(&Instance->Sets, &SetElement->SetHeader);
         if (Flags & IOEVTFRT) {
+            // Should we register an initial event?
             int PreviousPending;
-            list_append(&Set->Events, &SetElement->Event.Header);
+            list_append(&Set->Events, &SetElement->EventHeader);
             PreviousPending = atomic_fetch_add(&Set->Pending, 1);
         }
         
+        // Register the target handle in the current set, so we can clean up again
         if (rb_tree_append(&Set->Handles, &SetElement->HandleHeader) != OsSuccess) {
             ERROR("... failed to append handle to list of handles, it exists?");
-            list_remove(&Instance->Sets, &SetElement->Header);
+            list_remove(&Instance->Sets, &SetElement->SetHeader);
             DestroyHandle(Handle);
             kfree(SetElement);
             return OsError;
@@ -460,9 +464,10 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
+        smp_rmb();
         SetElement = Leaf->value;
-        SetElement->Event.Configuration = Flags;
-        SetElement->Event.Context       = Context;
+        SetElement->Configuration = Flags;
+        SetElement->Context       = Context;
     }
     else if (Operation == IO_EVT_DESCRIPTOR_DEL) {
         rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, (void*)Handle);
@@ -475,8 +480,9 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
+        smp_rmb();
         SetElement = Leaf->value;
-        list_remove(&Instance->Sets, &SetElement->Header);
+        list_remove(&Instance->Sets, &SetElement->SetHeader);
         DestroyHandle(Handle);
         kfree(SetElement);
     }
@@ -517,16 +523,17 @@ WaitForHandleSet(
     NumberOfEvents = MIN(NumberOfEvents, MaxEvents);
     list_splice(&Set->Events, NumberOfEvents, &Spliced);
     
+    smp_rmb();
     _foreach(i, &Spliced) {
-        SystemHandleEvent_t* Head = i->value;
+        SystemHandleSetElement_t* Element = i->value;
         
-        Event->events  = atomic_exchange(&Head->ActiveEvents, 0);
-        Event->handle  = Head->Handle;
-        Event->context = Head->Context;
+        Event->events  = atomic_exchange(&Element->ActiveEvents, 0);
+        Event->handle  = Element->Handle;
+        Event->context = Element->Context;
         
         // Handle level triggered here, by adding them back to ready list
         // TODO: is this behaviour correct?
-        if (!(Head->Configuration & IOEVTET)) {
+        if (!(Element->Configuration & IOEVTET)) {
             
         }
         Event++;
@@ -544,11 +551,11 @@ MarkHandleCallback(
     SystemHandleSetElement_t* SetElement = Element->value;
     Flags_t                   Flags      = (Flags_t)Context;
     
-    if (SetElement->Event.Configuration & Flags) {
+    if (SetElement->Configuration & Flags) {
         int Previous;
-        Previous = atomic_fetch_or(&SetElement->Event.ActiveEvents, (int)Flags);
+        Previous = atomic_fetch_or(&SetElement->ActiveEvents, (int)Flags);
         if (!Previous) {
-            list_append(&SetElement->Set->Events, &SetElement->Event.Header);
+            list_append(&SetElement->Set->Events, &SetElement->EventHeader);
             
             Previous = atomic_fetch_add(&SetElement->Set->Pending, 1);
             if (!Previous) {
