@@ -93,7 +93,6 @@ HpStart(void)
 OsStatus_t
 HpHasLegacyController(void)
 {
-    
     size_t Config;
     if (HpetController.BaseAddress != 0) {
        HP_READ_32(HPET_REGISTER_CONFIG, &Config);

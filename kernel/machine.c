@@ -21,26 +21,27 @@
 #define __MODULE "MACH"
 #define __TRACE
 
+#include <arch.h>
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <revision.h>
 #include <machine.h>
 
-#include <modules/ramdisk.h>
-#include <modules/manager.h>
 #include <acpiinterface.h>
-#include <handle.h>
-#include <interrupts.h>
-#include <scheduler.h>
-#include <threading.h>
 #include <console.h>
-#include <timers.h>
-#include <stdio.h>
 #include <crc32.h>
 #include <debug.h>
-#include <arch.h>
+#include <futex.h>
+#include <modules/ramdisk.h>
+#include <modules/manager.h>
+#include <handle.h>
 #include <heap.h>
+#include <interrupts.h>
+#include <scheduler.h>
+#include <stdio.h>
+#include <threading.h>
+#include <timers.h>
 
 #ifdef __OSCONFIG_TEST_KERNEL
 extern void StartTestingPhase(void);
@@ -88,6 +89,7 @@ InitializeMachine(
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     LogInitialize();
+    FutexInitialize();
 
     // Setup strings
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);

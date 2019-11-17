@@ -24,6 +24,7 @@
 
 #include <arch/utils.h>
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <debug.h>
 #include <ds/list.h>
 #include <heap.h>
@@ -148,9 +149,12 @@ cache_find_fixed_size(
 }
 
 static int
-slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
+slab_allocate_index(
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab)
 {
     int i;
+    
     assert(Slab->NumberOfFreeObjects <= Cache->ObjectCount);
     for (i = 0; i < (int)Cache->ObjectCount; i++) {
         unsigned Block  = i / 8;
@@ -166,7 +170,10 @@ slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 }
 
 static void
-slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
+slab_free_index(
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab,
+    _In_ int            Index)
 {
     unsigned Block  = Index / 8;
     unsigned Offset = Index % 8;
@@ -235,6 +242,10 @@ slab_create(
     uintptr_t     ObjectAddress;
     uintptr_t     DataAddress = allocate_virtual_memory(Cache->PageCount);
     TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
+    
+    if (!DataAddress) {
+        return NULL;
+    }
 
     if (Cache->SlabOnSite) {
         Slab          = (MemorySlab_t*)DataAddress;
@@ -254,7 +265,11 @@ slab_create(
             }
         }
         
-        Slab          = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
+        Slab = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
+        if (!Slab) {
+            return NULL;
+        }
+        
         ObjectAddress = DataAddress;
     }
     
@@ -269,6 +284,7 @@ slab_create(
     Slab->FreeBitmap          = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address             = (uintptr_t*)ObjectAddress;
     slab_initalize_objects(Cache, Slab);
+    smp_wmb();
     return Slab;
 }
 
@@ -614,6 +630,7 @@ MemoryCacheAllocate(
 
     // Can we allocate from cpu cache? No need to use explicit macros with memory
     // barriers here as there is no risc of other cpus changing the atomic caches
+    smp_rmb();
     if (Cache->AtomicCaches != 0) {
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
         int Available = atomic_load(&AtomicCache->Available);
@@ -627,12 +644,12 @@ MemoryCacheAllocate(
         }
     }
 
-    // Otherwise allocate from global cache
     MutexLock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
         
         if (Element) {
+            smp_rmb();
             Slab = Element->value;
             assert(Slab->NumberOfFreeObjects != 0);
         }
@@ -642,6 +659,8 @@ MemoryCacheAllocate(
             
             list_remove(&Cache->FreeSlabs, Element);
             list_append(&Cache->PartialSlabs, Element);
+            
+            smp_rmb();
             Slab = Element->value;
         }
         
@@ -652,15 +671,22 @@ MemoryCacheAllocate(
             list_append(&Cache->FullSlabs, &Slab->Header);
         }
         Cache->NumberOfFreeObjects--;
+        smp_wmb();
     }
     else {
         // allocate and build new slab, put it into partial list right away
-        // as we are allocating a new object immediately
+        // as we are allocating a new object immediately, and push the updates
+        // immediately to other cpus
         Slab = slab_create(Cache);
-        assert(Slab != NULL);
+        if (!Slab) {
+            MutexUnlock(&Cache->SyncObject);
+            return NULL;
+        }
+        
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         
+        // Flush writes to other cpus
         if (!Slab->NumberOfFreeObjects) {
             list_append(&Cache->FullSlabs, &Slab->Header);
         }
@@ -668,6 +694,7 @@ MemoryCacheAllocate(
             Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
             list_append(&Cache->PartialSlabs, &Slab->Header);
         }
+        smp_wmb();
     }
     MutexUnlock(&Cache->SyncObject);
     
@@ -687,6 +714,7 @@ MemoryCacheFree(
     TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
 
     // Handle debug flags
+    smp_rmb();
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset(Object, MEMORY_OVERRUN_PATTERN, Cache->ObjectSize);
     }
@@ -705,8 +733,6 @@ MemoryCacheFree(
     }
 
     MutexLock(&Cache->SyncObject);
-
-    // Check partials first, and move to free if neccessary
     _foreach(Element, &Cache->PartialSlabs) {
         MemorySlab_t* Slab  = Element->value;
         int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);
@@ -718,6 +744,7 @@ MemoryCacheFree(
             }
             CheckFull = 0;
             Cache->NumberOfFreeObjects++;
+            smp_wmb();
             break;
         }
     }
@@ -739,6 +766,7 @@ MemoryCacheFree(
                     list_append(&Cache->PartialSlabs, Element);
                 }
                 Cache->NumberOfFreeObjects++;
+                smp_wmb();
                 break;
             }
         }

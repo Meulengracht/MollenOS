@@ -60,14 +60,12 @@ FunctionExecutionInterruptHandler(
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
 
-    smp_mb();
     Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Node != NULL) {
+        smp_rmb();
         Item = Node->value;
         Item->Handler(Item->Argument);
         MemoryCacheFree(IpiItemCache, Item);
-        
-        smp_mb();
         Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     }
     return InterruptHandled;
@@ -112,11 +110,13 @@ ExecuteProcessorCoreFunction(
     _In_Opt_ SystemCpuFunction_t     Function,
     _In_Opt_ void*                   Argument)
 {
-    // Get the function queue state object for the
-    // target core, not the running one
     SystemCpuCore_t*          Core = GetProcessorCore(CoreId);
     SystemCoreFunctionItem_t* Item;
+    
+    assert(Type < CpuFunctionCount);
     assert(InterruptHandlers[Type] != UUID_INVALID);
+    assert(Function != NULL);
+    
     TRACE("[execute_irq] %u => %u, %u: 0x%x", 
         ArchGetProcessorCoreId(), CoreId, Type, InterruptHandlers[Type]);
 
@@ -129,10 +129,9 @@ ExecuteProcessorCoreFunction(
     ELEMENT_INIT(&Item->Header, 0, Item);
     Item->Handler  = Function;
     Item->Argument = Argument;
+    smp_wmb();
     
     TRACE("[execute_irq] add node 0x%llx to 0x%llx", &Core->FunctionQueue[Type], &Item->Header);
     queue_push(&Core->FunctionQueue[Type], &Item->Header);
-    smp_mb();
-    
     ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

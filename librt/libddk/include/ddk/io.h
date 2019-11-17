@@ -73,55 +73,15 @@ typedef struct DeviceIo {
 
 _CODE_BEGIN
 
-void inline
-ReadVolatileMemory(
+void ReadVolatileMemory(
     _In_ const volatile void* Pointer,
-    _In_ void*                Out,
-    _In_ size_t               Length)
-{
-    if (Length == 1) {
-        *(uint8_t*)Out = *(volatile uint8_t*)Pointer;
-    }
-    else if (Length == 2) {
-        *(uint16_t*)Out = *(volatile uint16_t*)Pointer;
-    }
-    else if (Length == 4) {
-        *(uint32_t*)Out = *(volatile uint32_t*)Pointer;
-    }
-    else if (Length == 8) {
-        *(uint64_t*)Out = *(volatile uint64_t*)Pointer;
-    }
-    else {
-        sw_mb();
-        memcpy(Out, (const void*)Pointer, Length);
-        sw_mb();
-    }
-}
+    _In_ volatile void*       Out,
+    _In_ size_t               Length);
 
-void inline
-WriteVolatileMemory(
+void WriteVolatileMemory(
     _In_ volatile void* Pointer,
     _In_ void*          Data,
-    _In_ size_t         Length)
-{
-    if (Length == 1) {
-        *((volatile uint8_t*)Pointer) = *(uint8_t*)Data;
-    }
-    else if (Length == 2) {
-        *((volatile uint16_t*)Pointer) = *(uint16_t*)Data;
-    }
-    else if (Length == 4) {
-        *((volatile uint32_t*)Pointer) = *(uint32_t*)Data;
-    }
-    else if (Length == 8) {
-        *((volatile uint64_t*)Pointer) = *(uint64_t*)Data;
-    }
-    else {
-        sw_mb();
-        memcpy((void*)Pointer, (const void*)Data, Length);
-        sw_mb();
-    }
-}
+    _In_ size_t         Length);
 
 /* CreateDeviceMemoryIo
  * Registers a new device memory io with the operating system. If this memory range

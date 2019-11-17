@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -25,10 +26,13 @@
 #include <os/osdefs.h>
 #include <os/futex.h>
 
+KERNELAPI void KERNELABI
+FutexInitialize(void);
+
 /* FutexWait
  * Performs an atomic check-and-wait operation on the given atomic variable. It must match
  * the expected value otherwise the wait is ignored. */
-OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 FutexWait(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -38,7 +42,7 @@ FutexWait(
 /* FutexWaitOperation
  * Performs an atomic check-and-wait operation on the given atomic variable. It must match
  * the expected value otherwise the wait is ignored. */    
-OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -50,7 +54,7 @@ FutexWaitOperation(
 
 /* FutexWake
  * Wakes up a blocked thread on the given atomic variable. */
-OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 FutexWake(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -58,7 +62,7 @@ FutexWake(
 
 /* FutexWakeOperation
  * Wakes up a blocked thread on the given atomic variable. */
-OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,

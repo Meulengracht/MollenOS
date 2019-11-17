@@ -22,7 +22,7 @@
  */
 
 #define __MODULE "IPC0"
-//#define __TRACE
+#define __TRACE
 
 #include <arch/utils.h>
 #include <ddk/barrier.h>
@@ -164,9 +164,10 @@ ScIpcInvoke(
     int            i;
     
     if (!Target) {
+        ERROR("[ipc_invoke] Target %u did not exist", TargetHandle);
         return OsDoesNotExist;
     }
-    TRACE("ScIpcInvoke() => %s", Target->Name);
+    TRACE("[ipc_invoke] => %s", Target->Name);
     
     TRACE("%u => %u => 0x%x => 0x%x", GetCurrentThreadId(), 
         TargetHandle, Target, Target->ArenaKernelPointer);
@@ -174,6 +175,7 @@ ScIpcInvoke(
     SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     while (SyncValue) {
         if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            ERROR("[ipc_invoke] timeout reached");
             return OsTimeout;
         }
         SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);

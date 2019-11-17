@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -20,22 +21,24 @@
  * - Implementation of virtual memory address spaces. This underlying
  *   hardware must support the __OSCONFIG_HAS_MMIO define to use this.
  */
+
 #define __MODULE "MEM2"
 
-#include <component/cpu.h>
 #include <arch/mmu.h>
 #include <arch/utils.h>
-#include <memoryspace.h>
-#include <threading.h>
-#include <machine.h>
-#include <handle.h>
 #include <assert.h>
-#include <string.h>
+#include <component/cpu.h>
+#include <ddk/barrier.h>
 #include <debug.h>
+#include <handle.h>
 #include <heap.h>
+#include <memoryspace.h>
+#include <machine.h>
+#include <string.h>
+#include <threading.h>
 
 typedef struct {
-    volatile int CallsCompleted;
+    _Atomic(int) CallsCompleted;
     UUId_t       MemorySpaceHandle;
     uintptr_t    Address;
     size_t       Length;
@@ -53,12 +56,13 @@ MemorySynchronizationHandler(
     // If NULL => everyone must update
     // If it matches our parent, we must update
     // If it matches us, we must update
+    smp_rmb();
     if (Object->MemorySpaceHandle  == UUID_INVALID ||
         Current->ParentHandle      == Object->MemorySpaceHandle || 
         CurrentHandle              == Object->MemorySpaceHandle) {
         CpuInvalidateMemoryCache((void*)Object->Address, Object->Length);
     }
-    Object->CallsCompleted++;
+    atomic_fetch_add(&Object->CallsCompleted, 1);
 }
 
 static void
@@ -92,10 +96,13 @@ SynchronizeMemoryRegion(
     Object.Address        = Address;
     Object.Length         = Length;
     Object.CallsCompleted = 0;
+    smp_wmb();
 
     NumberOfCores = ExecuteProcessorFunction(1, CpuFunctionCustom,
         MemorySynchronizationHandler, (void*)&Object);
-    while (Object.CallsCompleted != NumberOfCores);
+    while (atomic_load(&Object.CallsCompleted) != NumberOfCores) {
+        
+    }
 }
 
 static void
@@ -209,6 +216,8 @@ CreateMemorySpace(
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
     }
+    
+    smp_wmb();
     return OsSuccess;
 }
 

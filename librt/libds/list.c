@@ -23,6 +23,7 @@
  */
 
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <ds/list.h>
 #include <string.h>
 
@@ -275,6 +276,7 @@ list_find_value(
     if (!element) {
         return NULL;
     }
+    smp_rmb();
     return element->value;
 }
 

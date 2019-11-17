@@ -27,6 +27,7 @@
 #include <arch/thread.h>
 #include <assert.h>
 #include <ddk/handle.h>
+#include <ddk/barrier.h>
 #include <ds/list.h>
 #include <ds/queue.h>
 #include <ds/rbtree.h>
@@ -127,6 +128,8 @@ CreateHandle(
     Instance->Resource   = Resource;
     Instance->Destructor = Destructor;
     Instance->References = ATOMIC_VAR_INIT(1);
+    smp_wmb();
+    
     list_append(&SystemHandles, &Instance->Header);
     
     WARNING("[create_handle] => id %u", HandleId);
@@ -141,6 +144,8 @@ AcquireHandle(
     if (!Instance) {
         return NULL;
     }
+    
+    smp_rmb();
     return Instance->Resource;
 }
 
@@ -152,19 +157,23 @@ RegisterHandlePath(
     SystemHandle_t* Instance;
     UUId_t          ExistingHandle;
     char*           PathKey;
+    OsStatus_t      Status;
     WARNING("[handle_register_path] %u => %s", Handle, Path);
     
     if (!Path) {
+        ERROR("[handle_register_path] path invalid");
         return OsInvalidParameters;
     }
     
     Instance = LookupSafeHandleInstance(Handle);
     if (!Instance) {
+        ERROR("[handle_register_path] handle did not exist");
         return OsDoesNotExist;
     }
     
-    if (Instance->PathHeader ||
-        LookupHandleByPath(Path, &ExistingHandle) != OsDoesNotExist) {
+    Status = LookupHandleByPath(Path, &ExistingHandle);
+    if (Instance->PathHeader || Status != OsDoesNotExist) {
+        ERROR("[handle_register_path] path already registered [%u]", Status);
         return OsExists;
     }
     
@@ -181,7 +190,10 @@ RegisterHandlePath(
     }
     
     ELEMENT_INIT(Instance->PathHeader, PathKey, Instance);
+    smp_wmb();
+    
     list_append(&PathRegister, Instance->PathHeader);
+
     WARNING("[handle_register_path] registered");
     return OsSuccess;
 }
@@ -192,16 +204,15 @@ LookupHandleByPath(
     _Out_ UUId_t*     HandleOut)
 {
     SystemHandle_t* Instance;
-    element_t*      Element;
     WARNING("[handle_lookup_by_path] %s", Path);
     
-    Element = list_find_value(&PathRegister, (void*)Path);
-    if (!Element) {
+    Instance = list_find_value(&PathRegister, (void*)Path);
+    if (!Instance) {
         WARNING("[handle_lookup_by_path] not found");
         return OsDoesNotExist;
     }
     
-    Instance = Element->value;
+    smp_rmb();
     *HandleOut = (UUId_t)(uintptr_t)Instance->Header.key;
     return OsSuccess;
 }
@@ -214,6 +225,8 @@ LookupHandle(
     if (!Instance) {
         return NULL;
     }
+    
+    smp_rmb();
     return Instance->Resource;
 }
 
@@ -223,7 +236,12 @@ LookupHandleOfType(
     _In_ SystemHandleType_t Type)
 {
     SystemHandle_t* Instance = LookupSafeHandleInstance(Handle);
-    if (!Instance || Instance->Type != Type) {
+    if (!Instance) {
+        return NULL;
+    }
+    
+    smp_rmb();
+    if (Instance->Type != Type) {
         return NULL;
     }
     return Instance->Resource;
@@ -246,6 +264,7 @@ DestroyHandle(
         if (Instance->PathHeader) {
             list_remove(&PathRegister, Instance->PathHeader);
         }
+        
         list_remove(&SystemHandles, &Instance->Header);
         queue_push(&CleanQueue, &Instance->Header);
         SemaphoreSignal(&EventHandle, 1);
@@ -266,6 +285,7 @@ HandleJanitorThread(
         
         Element = queue_pop(&CleanQueue);
         while (Element) {
+            smp_rmb();
             Instance = (SystemHandle_t*)Element->value;
             if (Instance->Destructor) {
                 Instance->Destructor(Instance->Resource);
@@ -297,6 +317,9 @@ InitializeHandleJanitor(void)
 /// Handle Sets implementation, a bit coupled to io_events.h as it implements
 /// the neccessary functionality to listen to multiple handles
 ///////////////////////////////////////////////////////////////////////////////
+
+// The HandleSet is the set that is created and contains a list of handles registered
+// with the set (HandleItems), and also contains a list of registered events
 typedef struct SystemHandleSet {
     _Atomic(int) Pending;
     list_t       Events;
@@ -315,14 +338,10 @@ typedef struct SystemHandleEvent {
 
 typedef struct SystemHandleSetElement {
     element_t           Header;
+    rb_leaf_t           HandleHeader;
     SystemHandleSet_t*  Set;
     SystemHandleEvent_t Event;
 } SystemHandleSetElement_t;
-
-typedef struct SystemHandleItem {
-    rb_leaf_t                 Header;
-    SystemHandleSetElement_t* Element;
-} SystemHandleItem_t;
 
 static void
 DestroyHandleSet(
@@ -369,6 +388,7 @@ CreateHandleSet(
     Set->Pending = ATOMIC_VAR_INIT(0);
     Set->Flags   = Flags;
     
+    // CreateHandle implies a write memory barrier
     Handle = CreateHandle(HandleTypeSet, DestroyHandleSet, Set);
     if (Handle == UUID_INVALID) {
         kfree(Set);
@@ -387,7 +407,6 @@ ControlHandleSet(
     SystemHandle_t*           Instance;
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
-    SystemHandleItem_t*       Item;
     
     if (!Set) {
         return OsDoesNotExist;
@@ -412,7 +431,9 @@ ControlHandleSet(
         
         memset(SetElement, 0, sizeof(SystemHandleSetElement_t));
         ELEMENT_INIT(&SetElement->Header, 0, SetElement);
+        RB_LEAF_INIT(&SetElement->HandleHeader, Handle, SetElement);
         SetElement->Set = Set;
+        
         ELEMENT_INIT(&SetElement->Event.Header, 0, &SetElement->Event);
         SetElement->Event.Handle = Handle;
         SetElement->Event.Context = Context;
@@ -425,21 +446,11 @@ ControlHandleSet(
             PreviousPending = atomic_fetch_add(&Set->Pending, 1);
         }
         
-        // For each handle added we must allocate a handle-wrapper and add it to
-        // the handles tree
-        Item = (SystemHandleItem_t*)kmalloc(sizeof(SystemHandleItem_t));
-        if (!Item) {
-            return OsOutOfMemory;
-        }
-        
-        RB_LEAF_INIT(&Item->Header, Handle, Item);
-        Item->Element = SetElement;
-        if (rb_tree_append(&Set->Handles, &Item->Header) != OsSuccess) {
+        if (rb_tree_append(&Set->Handles, &SetElement->HandleHeader) != OsSuccess) {
             ERROR("... failed to append handle to list of handles, it exists?");
             list_remove(&Instance->Sets, &SetElement->Header);
             DestroyHandle(Handle);
             kfree(SetElement);
-            kfree(Item);
             return OsError;
         }
     }
@@ -449,9 +460,9 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
-        Item = Leaf->value;
-        Item->Element->Event.Configuration = Flags;
-        Item->Element->Event.Context       = Context;
+        SetElement = Leaf->value;
+        SetElement->Event.Configuration = Flags;
+        SetElement->Event.Context       = Context;
     }
     else if (Operation == IO_EVT_DESCRIPTOR_DEL) {
         rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, (void*)Handle);
@@ -464,11 +475,10 @@ ControlHandleSet(
             return OsDoesNotExist;
         }
         
-        Item = Leaf->value;
-        list_remove(&Instance->Sets, &Item->Element->Header);
+        SetElement = Leaf->value;
+        list_remove(&Instance->Sets, &SetElement->Header);
         DestroyHandle(Handle);
-        kfree(Item->Element);
-        kfree(Item);
+        kfree(SetElement);
     }
     else {
         return OsInvalidParameters;

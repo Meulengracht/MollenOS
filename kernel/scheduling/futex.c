@@ -53,9 +53,7 @@ typedef struct FutexBucket {
     list_t       Futexes;
 } FutexBucket_t;
 
-static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 
-    { _SPN_INITIALIZER_NP(spinlock_plain), LIST_INIT }
-};
+static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 0 };
 
 static size_t
 GetIntegerHash(size_t x)
@@ -95,6 +93,7 @@ FutexGetNode(
     _In_ uintptr_t                   FutexAddress,
     _In_ SystemMemorySpaceContext_t* Context)
 {
+    smp_rmb();
     foreach(i, &Bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
         if (Item->FutexAddress == FutexAddress &&
@@ -122,6 +121,7 @@ FutexCreateNode(
     list_construct(&Item->BlockQueue);
     Item->FutexAddress = FutexAddress;
     Item->Context      = Context;
+    smp_wmb();
     
     list_append(&Bucket->Futexes, &Item->Header);
     return Item;
@@ -202,6 +202,17 @@ FutexCompareOperation(
             break;
     }
     return 0;
+}
+
+void
+FutexInitialize(void)
+{
+    int i;
+    for (i = 0; i < FUTEX_HASHTABLE_CAPACITY; i++) {
+        spinlock_init(&FutexBuckets[i].SyncObject, spinlock_plain);
+        list_construct(&FutexBuckets[i].Futexes);
+    }
+    smp_wmb();
 }
 
 OsStatus_t

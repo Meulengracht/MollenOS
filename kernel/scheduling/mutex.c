@@ -24,6 +24,7 @@
 #define __MODULE "MUTX"
 
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <debug.h>
 #include <futex.h>
 #include <limits.h>
@@ -44,6 +45,7 @@ MutexConstruct(
     Mutex->Flags      = Configuration;
     Mutex->References = ATOMIC_VAR_INIT(0);
     Mutex->Value      = ATOMIC_VAR_INIT(0);
+    smp_wmb();
 }
 
 OsStatus_t
