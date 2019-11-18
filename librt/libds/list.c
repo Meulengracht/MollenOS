@@ -23,7 +23,6 @@
  */
 
 #include <assert.h>
-#include <ddk/barrier.h>
 #include <ds/list.h>
 #include <string.h>
 
@@ -47,13 +46,7 @@ void
 list_construct(
     _In_ list_t* list)
 {
-    assert(list != NULL);
-    
-    list->head  = NULL;
-    list->tail  = NULL;
-    list->cmp   = list_cmp_default;
-    list->count = 0;
-    SYNC_INIT_FN(list);
+    list_construct_cmp(list, list_cmp_default);
 }
 
 void
@@ -61,8 +54,14 @@ list_construct_cmp(
     _In_ list_t*     list,
     _In_ list_cmp_fn cmp_fn)
 {
-    list_construct(list);
-    list->cmp = cmp_fn;
+    assert(list != NULL);
+    assert(cmp_fn != NULL);
+    
+    list->head  = NULL;
+    list->tail  = NULL;
+    list->cmp   = cmp_fn;
+    list->count = 0;
+    SYNC_INIT_FN(list);
 }
 
 void
@@ -276,7 +275,6 @@ list_find_value(
     if (!element) {
         return NULL;
     }
-    smp_rmb();
     return element->value;
 }
 
@@ -294,16 +292,17 @@ list_enumerate(
     LIST_LOCK;
     _foreach_nolink(i, list) {
         int action = callback(idx, i, context);
-        if (action == LIST_ENUMERATE_STOP) {
-            break;
-        }
-        else if (action == LIST_ENUMERATE_REMOVE) {
+        if (action & LIST_ENUMERATE_REMOVE) {
             element_t* j = i->next;
             __list_remove(list, i);
             i = j;
         }
         else {
             i = i->next;
+        }
+        
+        if (action & LIST_ENUMERATE_STOP) {
+            break;
         }
         idx++;
     }

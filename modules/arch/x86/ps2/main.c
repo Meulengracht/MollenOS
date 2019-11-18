@@ -241,6 +241,11 @@ OnLoad(void)
     
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
     Ps2Controller->Device.Id = UUID_INVALID;
+    
+    if (WaitForNetService(1000) != OsSuccess) {
+        ERROR(" => Failed to start ps2 driver, as net service never became available.");
+        return OsTimeout;
+    }
     return OsSuccess;
 }
 

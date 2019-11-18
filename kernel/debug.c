@@ -99,29 +99,35 @@ DebugPageFault(
     return Status;
 }
 
-/* DebugHaltAllProcessorCores
- * Halts all processor cores present in the processor. */
 OsStatus_t
 DebugHaltAllProcessorCores(
     _In_ UUId_t         ExcludeId,
     _In_ SystemCpu_t*   Processor)
 {
     if (ExcludeId != Processor->PrimaryCore.Id) {
-        ExecuteProcessorCoreFunction(Processor->PrimaryCore.Id, CpuFunctionHalt, NULL, NULL);
+        TxuMessage_t* Message = TxuMessageAllocate();
+        if (!Message) {
+            return OsOutOfMemory;
+        }
+        
+        TXU_MESSAGE_INIT(Message, NULL, NULL);
+        TxuMessageSend(Processor->PrimaryCore.Id, CpuFunctionHalt, Message);
     }
 
     for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
         if (ExcludeId != Processor->ApplicationCores[i].Id) {
-            ExecuteProcessorCoreFunction(Processor->ApplicationCores[i].Id, CpuFunctionHalt, NULL, NULL);
+            TxuMessage_t* Message = TxuMessageAllocate();
+            if (!Message) {
+                return OsOutOfMemory;
+            }
+            
+            TXU_MESSAGE_INIT(Message, NULL, NULL);
+            TxuMessageSend(Processor->ApplicationCores[i].Id, CpuFunctionHalt, Message);
         }
     }
     return OsSuccess;
 }
 
-/* DebugPanic
- * Kernel panic function - Call this to enter panic mode
- * and disrupt normal functioning. This function does not
- * return again */
 OsStatus_t
 DebugPanic(
     _In_ int         FatalityScope,

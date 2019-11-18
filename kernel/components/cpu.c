@@ -33,24 +33,24 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Static per-cpu data
- * We do not need to support more than 256 cpus because of APIC id's on the x86 arch. 
- * How about on the x2apic? */
-static SystemCpuCore_t* CpuStorageTable[256] = { 0 };
+// 256 is a temporary number, once we start getting processors with more than
+// 256 TXU's then we are fucked
+static SystemCpuCore_t* TxuTable[256]   = { 0 };
+static MemoryCache_t*   TxuMessageCache = NULL;
 
 SystemCpuCore_t*
 GetProcessorCore(
     _In_ UUId_t CoreId)
 {
-    assert(CpuStorageTable[CoreId] != NULL);
-    return CpuStorageTable[CoreId];
+    assert(TxuTable[CoreId] != NULL);
+    return TxuTable[CoreId];
 }
 
 SystemCpuCore_t*
 GetCurrentProcessorCore(void)
 {
-    assert(CpuStorageTable[ArchGetProcessorCoreId()] != NULL);
-    return CpuStorageTable[ArchGetProcessorCoreId()];
+    assert(TxuTable[ArchGetProcessorCoreId()] != NULL);
+    return TxuTable[ArchGetProcessorCoreId()];
 }
 
 static void
@@ -58,7 +58,7 @@ RegisterStaticCore(
     _In_ SystemCpuCore_t* Core)
 {
     assert(Core->Id < 256);
-    CpuStorageTable[Core->Id] = Core;
+    TxuTable[Core->Id] = Core;
 }
 
 void
@@ -101,7 +101,7 @@ RegisterApplicationCore(
             Cpu->ApplicationCores[i].Id       = CoreId;
             Cpu->ApplicationCores[i].State    = InitialState;
             Cpu->ApplicationCores[i].External = External;
-            CpuStorageTable[CoreId]           = &Cpu->ApplicationCores[i];
+            TxuTable[CoreId]                  = &Cpu->ApplicationCores[i];
             break;
         }
     }
@@ -137,17 +137,40 @@ ActivateApplicationCore(
     }
 }
 
+void
+TxuMessageCacheInitialize(void)
+{
+    TxuMessageCache = MemoryCacheCreate("txu_message_cache", 
+        sizeof(TxuMessage_t), 0, 0 /* HEAP_SLAB_NO_ATOMIC_CACHE */, 
+        NULL, NULL);
+    assert(TxuMessageCache != NULL);
+}
+
+TxuMessage_t*
+TxuMessageAllocate(void)
+{
+    return MemoryCacheAllocate(TxuMessageCache);
+}
+
+void
+TxuMessageFree(
+    _In_ TxuMessage_t* Message)
+{
+    return MemoryCacheFree(TxuMessageCache, Message);
+}
+
 int
-ExecuteProcessorFunction(
-    _In_     int                     ExcludeSelf,
-    _In_     SystemCpuFunctionType_t Type,
-    _In_Opt_ SystemCpuFunction_t     Function,
-    _In_Opt_ void*                   Argument)
+ProcessorMessageSend(
+    _In_ int                     ExcludeSelf,
+    _In_ SystemCpuFunctionType_t Type,
+    _In_ TxuMessage_t*           Message)
 {
     SystemDomain_t*  Domain;
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
     int              Executions = 0;
+    
+    assert(Message != NULL);
     
     Domain = GetCurrentDomain();
     if (Domain != NULL) {
@@ -159,7 +182,7 @@ ExecuteProcessorFunction(
     
     if (!ExcludeSelf || (ExcludeSelf && Processor->PrimaryCore.Id != CurrentCore->Id)) {
         if (Processor->PrimaryCore.State == CpuStateRunning) {
-            ExecuteProcessorCoreFunction(Processor->PrimaryCore.Id, Type, Function, Argument);
+            TxuMessageSend(Processor->PrimaryCore.Id, Type, Message);
             Executions++;
         }
     }
@@ -167,7 +190,7 @@ ExecuteProcessorFunction(
     for (int i = 0; i < (Processor->NumberOfCores - 1); i++) {
         if (!ExcludeSelf || (ExcludeSelf && Processor->ApplicationCores[i].Id != CurrentCore->Id)) {
             if (Processor->ApplicationCores[i].State == CpuStateRunning) {
-                ExecuteProcessorCoreFunction(Processor->ApplicationCores[i].Id, Type, Function, Argument);
+                TxuMessageSend(Processor->ApplicationCores[i].Id, Type, Message);
                 Executions++;
             }
         }

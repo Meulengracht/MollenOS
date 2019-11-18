@@ -147,21 +147,24 @@ NetworkManagerInitialize(void)
 {
     OsStatus_t Status;
     int        Code;
-    TRACE("NetworkManagerInitialize()");
+    TRACE("[net_manager] initialize");
     
     rb_tree_construct(&Sockets);
     Status = handle_set_create(0, &SocketSet);
     if (Status != OsSuccess) {
-        ERROR("Failed to create socket handle set");
+        ERROR("[net_manager] failed to create socket handle set");
         return Status;
     }
     
     // Spawn the socket monitor thread, the network monitor threads are
     // only spawned once a network card is registered.
+    TRACE("[net_manager] creating thread");
     Code = thrd_create(&SocketMonitorHandle, SocketMonitor, NULL);
     if (Code != thrd_success) {
+        ERROR("[net_manager] thrd_create failed %i", Code);
         return OsError;
     }
+    TRACE("[net_manager] done");
     return Status;
 }
 

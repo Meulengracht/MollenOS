@@ -22,10 +22,11 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <assert.h>
+#include <ddk/barrier.h>
 #include <internal/_syscalls.h>
 #include <os/spinlock.h>
 #include <threads.h>
-#include <assert.h>
 
 extern int _spinlock_acquire(spinlock_t* lock);
 extern int _spinlock_test(spinlock_t* lock);
@@ -43,7 +44,8 @@ spinlock_init(
 	lock->value = 0;
     lock->owner = UUID_INVALID;
     lock->type  = type;
-    atomic_store(&lock->references, 0);
+    lock->references = ATOMIC_VAR_INIT(0);
+    smp_wmb();
 }
 
 int

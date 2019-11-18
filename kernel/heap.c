@@ -28,9 +28,9 @@
 #include <debug.h>
 #include <ds/list.h>
 #include <heap.h>
+#include <irq_spinlock.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <mutex.h>
 #include <string.h>
 
 #define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5
@@ -57,7 +57,7 @@ typedef struct MemoryAtomicCache {
 
 typedef struct MemoryCache {
     const char*      Name;
-    Mutex_t          SyncObject;
+    IrqSpinlock_t    SyncObject;
     Flags_t          Flags;
 
     size_t           ObjectSize;
@@ -284,7 +284,7 @@ slab_create(
     Slab->FreeBitmap          = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address             = (uintptr_t*)ObjectAddress;
     slab_initalize_objects(Cache, Slab);
-    smp_wmb();
+    smp_mb();
     return Slab;
 }
 
@@ -341,38 +341,52 @@ cache_dump_information(
     WRITELINE("");
 }
 
+struct FindSlabContext {
+    MemoryCache_t* Cache;
+    uintptr_t      Address;
+    int            Found;
+};
+
+static int
+SlabContainsAddress(
+    _In_ int        Unused,
+    _In_ element_t* Element,
+    _In_ void*      ContextPointer)
+{
+    struct FindSlabContext* Context = ContextPointer;
+    int                     Index   = slab_contains_address(
+        Context->Cache, Element->value, Context->Address);
+    
+    if (Index == -1) {
+        return LIST_ENUMERATE_CONTINUE;
+    }
+    
+    Context->Found = 1;
+    return LIST_ENUMERATE_STOP;
+}
+
 static int
 cache_contains_address(
     _In_ MemoryCache_t* Cache,
     _In_ uintptr_t      Address)
 {
-    element_t* i;
-    int        Found = 0;
+    struct FindSlabContext Context = {
+        .Cache   = Cache,
+        .Address = Address,
+        .Found   = 0
+    };
+    
     TRACE("cache_contains_address(%s, 0x%" PRIxIN ")", Cache->Name, Address);
 
     // Check partials first, we have to lock the cache as slabs can 
     // get rearranged as we go, which is not ideal
-    MutexLock(&Cache->SyncObject);
-    _foreach(i, &Cache->PartialSlabs) {
-        int Index = slab_contains_address(Cache, (MemorySlab_t*)i->value, Address);
-        if (Index != -1) {
-            Found = 1;
-            break;
-        }
+    IrqSpinlockAcquire(&Cache->SyncObject);
+    list_enumerate(&Cache->PartialSlabs, SlabContainsAddress, &Context);
+    if (!Context.Found) {
+        list_enumerate(&Cache->FullSlabs, SlabContainsAddress, &Context);
     }
-
-    // Otherwise move on to the full slabs
-    if (!Found) {
-        _foreach(i, &Cache->FullSlabs) {
-            int Index = slab_contains_address(Cache, (MemorySlab_t*)i->value, Address);
-            if (Index != -1) {
-                Found = 1;
-                break;
-            }
-        }
-    }
-    MutexUnlock(&Cache->SyncObject);
-    return Found;
+    IrqSpinlockRelease(&Cache->SyncObject);
+    return Context.Found;
 }
 
 static inline size_t
@@ -532,7 +546,7 @@ MemoryCacheConstruct(
     }
     memset(Cache, 0, sizeof(MemoryCache_t));
 
-    MutexConstruct(&Cache->SyncObject, MUTEX_RECURSIVE);
+    IrqSpinlockConstruct(&Cache->SyncObject);
     Cache->Name              = Name;
     Cache->Flags             = Flags;
     Cache->ObjectSize        = ObjectSize;
@@ -630,7 +644,6 @@ MemoryCacheAllocate(
 
     // Can we allocate from cpu cache? No need to use explicit macros with memory
     // barriers here as there is no risc of other cpus changing the atomic caches
-    smp_rmb();
     if (Cache->AtomicCaches != 0) {
         MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
         int Available = atomic_load(&AtomicCache->Available);
@@ -644,12 +657,10 @@ MemoryCacheAllocate(
         }
     }
 
-    MutexLock(&Cache->SyncObject);
+    IrqSpinlockAcquire(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
-        
         if (Element) {
-            smp_rmb();
             Slab = Element->value;
             assert(Slab->NumberOfFreeObjects != 0);
         }
@@ -660,7 +671,6 @@ MemoryCacheAllocate(
             list_remove(&Cache->FreeSlabs, Element);
             list_append(&Cache->PartialSlabs, Element);
             
-            smp_rmb();
             Slab = Element->value;
         }
         
@@ -672,21 +682,22 @@ MemoryCacheAllocate(
         }
         Cache->NumberOfFreeObjects--;
         smp_wmb();
+        
+        IrqSpinlockRelease(&Cache->SyncObject);
     }
     else {
-        // allocate and build new slab, put it into partial list right away
-        // as we are allocating a new object immediately, and push the updates
-        // immediately to other cpus
+        // So by releasing the lock at this stage we could potentially reach
+        // a point where multiple new slabs would be built and added instead of a single
+        // slab only. This is a known and (for now) accepted race condition
+        IrqSpinlockRelease(&Cache->SyncObject);
         Slab = slab_create(Cache);
         if (!Slab) {
-            MutexUnlock(&Cache->SyncObject);
             return NULL;
         }
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         
-        // Flush writes to other cpus
         if (!Slab->NumberOfFreeObjects) {
             list_append(&Cache->FullSlabs, &Slab->Header);
         }
@@ -696,7 +707,6 @@ MemoryCacheAllocate(
         }
         smp_wmb();
     }
-    MutexUnlock(&Cache->SyncObject);
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, 
@@ -704,17 +714,56 @@ MemoryCacheAllocate(
     return Allocated;
 }
 
+struct FreeContext {
+    MemoryCache_t* Cache;
+    uintptr_t      Object;
+    element_t*     Element;
+    int            AddToFree;
+};
+
+static int
+FreeInSlab(
+    _In_ int        Unused,
+    _In_ element_t* Element,
+    _In_ void*      ContextPointer)
+{
+    struct FreeContext* Context = ContextPointer;
+    MemorySlab_t*       Slab    = Element->value;
+    int                 Index   = slab_contains_address(Context->Cache, Slab, Context->Object);
+    int                 Result  = LIST_ENUMERATE_STOP;
+    
+    if (Index == -1) {
+        return LIST_ENUMERATE_CONTINUE;
+    }
+    
+    slab_free_index(Context->Cache, Slab, Index);
+    if (Slab->NumberOfFreeObjects == Context->Cache->ObjectCount) {
+        Context->AddToFree = 1;
+        Result |= LIST_ENUMERATE_REMOVE;
+    }
+    
+    Context->Element = Element;
+    Context->Cache->NumberOfFreeObjects++;
+    smp_wmb();
+    
+    return Result;
+}
+
 void
 MemoryCacheFree(
     _In_ MemoryCache_t* Cache,
     _In_ void*          Object)
 {
-    element_t* Element;
-    int        CheckFull = 1;
+    struct FreeContext Context = { 
+        .Cache     = Cache, 
+        .Object    = (uintptr_t)Object, 
+        .Element   = NULL, 
+        .AddToFree = 0
+    };
+    
     TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
 
     // Handle debug flags
-    smp_rmb();
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset(Object, MEMORY_OVERRUN_PATTERN, Cache->ObjectSize);
     }
@@ -730,48 +779,35 @@ MemoryCacheFree(
                 return;
             }
         }
+        
+        // If the atomic cache is full then drain it
     }
 
-    MutexLock(&Cache->SyncObject);
-    _foreach(Element, &Cache->PartialSlabs) {
-        MemorySlab_t* Slab  = Element->value;
-        int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);
-        if (Index != -1) {
-            slab_free_index(Cache, Slab, Index);
-            if (Slab->NumberOfFreeObjects == Cache->ObjectCount) {
-                list_remove(&Cache->PartialSlabs, Element);
-                list_append(&Cache->FreeSlabs, Element);
+    IrqSpinlockAcquire(&Cache->SyncObject);
+    list_enumerate(&Cache->PartialSlabs, FreeInSlab, &Context);
+    if (Context.AddToFree) {
+        list_append(&Cache->FreeSlabs, Context.Element);
+    }
+    
+    // Element was not present in partial slabs, check the full slabs now
+    if (!Context.Element) {
+        list_enumerate(&Cache->FullSlabs, FreeInSlab, &Context);
+        if (Context.Element) {
+            // AddToFree is set if the object was removed already
+            if (!Context.AddToFree) {
+                list_remove(&Cache->FullSlabs, Context.Element);
             }
-            CheckFull = 0;
-            Cache->NumberOfFreeObjects++;
-            smp_wmb();
-            break;
-        }
-    }
-
-    // Otherwise move on to the full slabs, and move to partial if neccessary
-    if (CheckFull) {
-        _foreach(Element, &Cache->FullSlabs) {
-            MemorySlab_t* Slab = Element->value;
-            int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);
-            if (Index != -1) {
-                slab_free_index(Cache, Slab, Index);
-                list_remove(&Cache->FullSlabs, Element);
-                
-                // A slab can go directly from full to free if the count is 1
-                if (Cache->ObjectCount == 1) {
-                    list_append(&Cache->FreeSlabs, Element);
-                }
-                else {
-                    list_append(&Cache->PartialSlabs, Element);
-                }
-                Cache->NumberOfFreeObjects++;
-                smp_wmb();
-                break;
+            
+            // A slab can go directly from full to free if the count is 1
+            if (Cache->ObjectCount == 1) {
+                list_append(&Cache->FreeSlabs, Context.Element);
+            }
+            else {
+                list_append(&Cache->PartialSlabs, Context.Element);
             }
         }
     }
-    MutexUnlock(&Cache->SyncObject);
+    IrqSpinlockRelease(&Cache->SyncObject);
 }
 
 int MemoryCacheReap(void)

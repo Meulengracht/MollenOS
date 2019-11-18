@@ -41,9 +41,9 @@ typedef struct list {
 #define LIST_INIT          { NULL, NULL, list_cmp_default, 0, SYNC_INIT }
 #define LIST_INIT_CMP(cmp) { NULL, NULL, cmp, 0, SYNC_INIT }
 
-#define LIST_ENUMERATE_CONTINUE (int)0
-#define LIST_ENUMERATE_STOP     (int)-1
-#define LIST_ENUMERATE_REMOVE   (int)-2
+#define LIST_ENUMERATE_CONTINUE (int)0x0
+#define LIST_ENUMERATE_STOP     (int)0x1
+#define LIST_ENUMERATE_REMOVE   (int)0x2
 
 // Default provided comparators
 CRTDECL(int, list_cmp_default(void*,void*));

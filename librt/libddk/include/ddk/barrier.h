@@ -48,8 +48,12 @@
 #define rmb() __asm volatile { lock add dword ptr [esp - 4], 0 }
 #define wmb() __asm volatile { lock add dword ptr [esp - 4], 0 }
 
+#define dma_mb()  sw_mb()
+#define dma_rmb() sw_rmb()
+#define dma_wmb() sw_wmb()
+
 #define __smp_mb()  __asm volatile { lock add dword ptr [esp - 4], 0 }
-#define __smp_rmb() sw_mb()
+#define __smp_rmb() dma_rmb()
 #define __smp_wmb() sw_mb()
 
 #define smp_before_atomic() do { } while(0)
@@ -59,8 +63,12 @@
 #define rmb() _mm_lfence()
 #define wmb() _mm_sfence()
 
+#define dma_mb()  sw_mb()
+#define dma_rmb() sw_rmb()
+#define dma_wmb() sw_wmb()
+
 #define __smp_mb()  __asm volatile { lock add qword ptr [rsp - 4], 0 }
-#define __smp_rmb() sw_mb()
+#define __smp_rmb() dma_rmb()
 #define __smp_wmb() sw_mb()
 
 #define smp_before_atomic() do { } while(0)
@@ -93,7 +101,7 @@
 #define dma_wmb() sw_wmb()
 
 #define __smp_mb()  __asm__ __volatile__ ( "lock; addl $0,-4(%%esp)" ::: "memory", "cc" )
-#define __smp_rmb() rmb()
+#define __smp_rmb() dma_rmb()
 #define __smp_wmb() wmb()
 
 #define smp_before_atomic() do { } while(0)
@@ -108,7 +116,7 @@
 #define dma_wmb() sw_wmb()
 
 #define __smp_mb()  __asm__ __volatile__ ( "lock; addl $0,-4(%%rsp)" ::: "memory", "cc" )
-#define __smp_rmb() rmb()
+#define __smp_rmb() dma_rmb()
 #define __smp_wmb() wmb()
 
 #define smp_before_atomic() do { } while(0)

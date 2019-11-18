@@ -29,12 +29,10 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
-#include <heap.h>
 #include <interrupts.h>
 #include <string.h>
 
-static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
-static MemoryCache_t* IpiItemCache                        = NULL;
+static UUId_t InterruptHandlers[CpuFunctionCount] = { 0 };
 
 InterruptStatus_t
 ProcessorHaltHandler(
@@ -52,21 +50,19 @@ FunctionExecutionInterruptHandler(
     _In_ FastInterruptResources_t* NotUsed,
     _In_ void*                     NotUsedEither)
 {
-    SystemCpuCore_t*          Core = GetCurrentProcessorCore();
-    SystemCoreFunctionItem_t* Item;
-    element_t*                Node;
+    SystemCpuCore_t* Core = GetCurrentProcessorCore();
+    TxuMessage_t*    Message;
+    element_t*       Element;
     TRACE("FunctionExecutionInterruptHandler(%u)", Core->Id);
 
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
 
-    Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
-    while (Node != NULL) {
-        smp_rmb();
-        Item = Node->value;
-        Item->Handler(Item->Argument);
-        MemoryCacheFree(IpiItemCache, Item);
-        Node = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
+    Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
+    while (Element != NULL) {
+        Message = Element->value;
+        Message->Handler(Message, Message->Argument);
+        Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     }
     return InterruptHandled;
 }
@@ -77,10 +73,6 @@ InitializeInterruptHandlers(void)
     DeviceInterrupt_t Interrupt = { { 0 } };
     int               i;
 
-    // Initialize the ipi cache
-    IpiItemCache = MemoryCacheCreate("ipi_cache", 
-        sizeof(SystemCoreFunctionItem_t), 0, 0, NULL, NULL);
-    
     // Initialize the interrupt handlers array
     for (i = 0; i < CpuFunctionCount; i++) {
         InterruptHandlers[i] = UUID_INVALID;
@@ -104,34 +96,18 @@ InitializeInterruptHandlers(void)
 }
 
 void
-ExecuteProcessorCoreFunction(
-    _In_     UUId_t                  CoreId,
-    _In_     SystemCpuFunctionType_t Type,
-    _In_Opt_ SystemCpuFunction_t     Function,
-    _In_Opt_ void*                   Argument)
+TxuMessageSend(
+    _In_ UUId_t                  CoreId,
+    _In_ SystemCpuFunctionType_t Type,
+    _In_ TxuMessage_t*           Message)
 {
-    SystemCpuCore_t*          Core = GetProcessorCore(CoreId);
-    SystemCoreFunctionItem_t* Item;
+    SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     
+    assert(Core != NULL);
     assert(Type < CpuFunctionCount);
     assert(InterruptHandlers[Type] != UUID_INVALID);
-    assert(Function != NULL);
+    assert(Message != NULL);
     
-    TRACE("[execute_irq] %u => %u, %u: 0x%x", 
-        ArchGetProcessorCoreId(), CoreId, Type, InterruptHandlers[Type]);
-
-    Item = (SystemCoreFunctionItem_t*)MemoryCacheAllocate(IpiItemCache);
-    if (!Item) {
-        ERROR("[execute_irq] memory_cache_allocate returned NULL");
-        assert(0);
-    }
-    
-    ELEMENT_INIT(&Item->Header, 0, Item);
-    Item->Handler  = Function;
-    Item->Argument = Argument;
-    smp_wmb();
-    
-    TRACE("[execute_irq] add node 0x%llx to 0x%llx", &Core->FunctionQueue[Type], &Item->Header);
-    queue_push(&Core->FunctionQueue[Type], &Item->Header);
+    queue_push(&Core->FunctionQueue[Type], &Message->Header);
     ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

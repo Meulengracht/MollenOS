@@ -22,6 +22,7 @@
  */
 
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <ds/rbtree.h>
 #include <string.h>
 
@@ -61,21 +62,21 @@ void
 rb_tree_construct(
     _In_ rb_tree_t* tree)
 {
-    assert(tree != NULL);
-    
-    tree->root = NULL;
-    tree->cmp  = rb_tree_cmp_default;
-    SYNC_INIT_FN(tree);
-    RB_LEAF_INIT(&tree->nil, 0, NULL);
+    rb_tree_construct_cmp(tree, rb_tree_cmp_default);
 }
 
 void
 rb_tree_construct_cmp(
     _In_ rb_tree_t*     tree,
-    _In_ rb_tree_cmp_fn cmp)
+    _In_ rb_tree_cmp_fn cmp_fn)
 {
-    rb_tree_construct(tree);
-    tree->cmp = cmp;
+    assert(tree != NULL);
+    assert(cmp_fn != NULL);
+    
+    RB_LEAF_INIT(ITEM_NIL(tree), 0, NULL);
+    tree->root = ITEM_NIL(tree);
+    tree->cmp  = cmp_fn;
+    SYNC_INIT_FN(tree);
 }
 
 static void
@@ -205,6 +206,7 @@ rb_tree_append(
     _In_ rb_leaf_t* leaf)
 {
     rb_leaf_t* i;
+    int        result;
     
     if (!tree || !leaf) {
         return OsInvalidParameters;
@@ -221,11 +223,11 @@ rb_tree_append(
         leaf->parent = ITEM_NIL(tree);
     }
     else {
-        i = tree->root;
-        
         leaf->color = COLOR_RED;
+        smp_mb();
+        i = tree->root;
         while (1) {
-            int result = tree->cmp(leaf->key, i->key);
+            result = tree->cmp(leaf->key, i->key);
             if (result == 1) {
                 if (IS_ITEM_NIL(tree, i->left)) {
                     i->left = leaf;

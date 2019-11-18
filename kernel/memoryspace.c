@@ -37,7 +37,8 @@
 #include <string.h>
 #include <threading.h>
 
-typedef struct {
+typedef struct MemorySynchronizationObject {
+    TxuMessage_t Header;
     _Atomic(int) CallsCompleted;
     UUId_t       MemorySpaceHandle;
     uintptr_t    Address;
@@ -46,7 +47,8 @@ typedef struct {
 
 static void
 MemorySynchronizationHandler(
-    _In_ void* Context)
+    _In_ TxuMessage_t* Unused,
+    _In_ void*         Context)
 {
     MemorySynchronizationObject_t* Object        = (MemorySynchronizationObject_t*)Context;
     SystemMemorySpace_t*           Current       = GetCurrentMemorySpace();
@@ -56,7 +58,7 @@ MemorySynchronizationHandler(
     // If NULL => everyone must update
     // If it matches our parent, we must update
     // If it matches us, we must update
-    smp_rmb();
+    smp_mb();
     if (Object->MemorySpaceHandle  == UUID_INVALID ||
         Current->ParentHandle      == Object->MemorySpaceHandle || 
         CurrentHandle              == Object->MemorySpaceHandle) {
@@ -73,7 +75,7 @@ SynchronizeMemoryRegion(
 {
     // We can easily allocate this object on the stack as the stack is globally
     // visible to all kernel code. This spares us allocation on heap
-    MemorySynchronizationObject_t Object = { 0 };
+    MemorySynchronizationObject_t Object = { { { 0 } } };
     int                           NumberOfCores;
 
     // Skip this entire step if there is no multiple cores active
@@ -93,13 +95,14 @@ SynchronizeMemoryRegion(
             Object.MemorySpaceHandle = SystemMemorySpace->ParentHandle; // Parent and siblings!
         }
     }
+    
+    TXU_MESSAGE_INIT(&Object.Header, MemorySynchronizationHandler, &Object);
     Object.Address        = Address;
     Object.Length         = Length;
     Object.CallsCompleted = 0;
     smp_wmb();
 
-    NumberOfCores = ExecuteProcessorFunction(1, CpuFunctionCustom,
-        MemorySynchronizationHandler, (void*)&Object);
+    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, &Object.Header);
     while (atomic_load(&Object.CallsCompleted) != NumberOfCores) {
         
     }

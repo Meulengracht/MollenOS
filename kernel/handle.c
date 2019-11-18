@@ -405,6 +405,7 @@ ControlHandleSet(
     SystemHandle_t*           Instance;
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
+    TRACE("[handle_set_ctrl] %llu, %i, %llu", SetHandle, Operation, Handle);
     
     if (!Set) {
         return OsDoesNotExist;
@@ -429,15 +430,15 @@ ControlHandleSet(
         
         memset(SetElement, 0, sizeof(SystemHandleSetElement_t));
         ELEMENT_INIT(&SetElement->SetHeader, 0, SetElement);
-        RB_LEAF_INIT(&SetElement->HandleHeader, Handle, SetElement);
         ELEMENT_INIT(&SetElement->EventHeader, 0, SetElement);
+        RB_LEAF_INIT(&SetElement->HandleHeader, Handle, SetElement);
         
         SetElement->Set = Set;
         
         SetElement->Handle = Handle;
         SetElement->Context = Context;
         SetElement->Configuration = Flags;
-        smp_wmb();
+        smp_mb();
         
         // Append to the list of sets on the target handle we are going to listen
         // too. 

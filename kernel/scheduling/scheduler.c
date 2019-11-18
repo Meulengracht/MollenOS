@@ -152,10 +152,13 @@ QueueForScheduler(
 
 static void
 QueueOnCoreFunction(
-    _In_ void* Context)
+    _In_ TxuMessage_t* Message,
+    _In_ void*         Context)
 {
     SystemScheduler_t* Scheduler = &GetCurrentProcessorCore()->Scheduler;
     SchedulerObject_t* Object    = (SchedulerObject_t*)Context;
+    
+    TxuMessageFree(Message);
     QueueForScheduler(Scheduler, Object, 1);
     if (ThreadingIsCurrentTaskIdle(Object->CoreId)) {
         ThreadingYield();
@@ -179,9 +182,13 @@ QueueObjectImmediately(
         }
     }
     else {
-        // Send a message to the correct core
-        ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
-            QueueOnCoreFunction, Object);
+        TxuMessage_t* Message = TxuMessageAllocate();
+        if (!Message) {
+            assert(0);
+        }
+        
+        TXU_MESSAGE_INIT(Message, QueueOnCoreFunction, Object);
+        TxuMessageSend(Object->CoreId, CpuFunctionCustom, Message);
     }
 }
 
