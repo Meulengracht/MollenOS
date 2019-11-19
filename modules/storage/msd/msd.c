@@ -136,27 +136,27 @@ MsdDeviceCreate(
         goto Error;
     }
 
-    // Perform setup
     if (MsdDeviceStart(Device) != OsSuccess) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
 
-    // Start out by initializing the contract
     InitializeContract(&Device->Contract, Device->Base.Base.Id, 1,
         ContractStorage, "MSD Storage Interface");
-
-    // Register contract before interrupt
     if (RegisterContract(&Device->Contract) != OsSuccess) {
         ERROR("Failed to register storage contract for device");
     }
 
-    // Notify diskmanager
+    // Wait for the disk service to finish loading
+    if (WaitForFileService(1000) != OsSuccess) {
+        ERROR("[msd] disk ready but storage service did not start");
+        // TODO: what do
+        return Device;
+    }
+
     if (RegisterStorage(Device->Base.Base.Id, __STORAGE_REMOVABLE) != OsSuccess) {
         ERROR("Failed to register storage with storagemanager");
     }
-
-    // Done
     return Device;
 
 Error:

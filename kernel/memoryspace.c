@@ -76,6 +76,7 @@ SynchronizeMemoryRegion(
     // We can easily allocate this object on the stack as the stack is globally
     // visible to all kernel code. This spares us allocation on heap
     MemorySynchronizationObject_t Object = { { { 0 } } };
+    TxuMessage_t*                 Message = &Object.Header;
     int                           NumberOfCores;
 
     // Skip this entire step if there is no multiple cores active
@@ -96,7 +97,7 @@ SynchronizeMemoryRegion(
         }
     }
     
-    TXU_MESSAGE_INIT(&Object.Header, MemorySynchronizationHandler, &Object);
+    TXU_MESSAGE_INIT(Message, MemorySynchronizationHandler, &Object);
     Object.Address        = Address;
     Object.Length         = Length;
     Object.CallsCompleted = 0;

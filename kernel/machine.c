@@ -130,6 +130,9 @@ InitializeMachine(
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }
+    
+    // Initialize all those who need the heap system in place
+    TxuMessageCacheInitialize();
 
     // Build system topology by enumerating the SRAT table if present.
     // If ACPI is not present or the SRAT is missing the system is running in UMA

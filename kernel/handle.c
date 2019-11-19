@@ -21,6 +21,7 @@
  * - Implementation of the resource handle interface. This provides system-wide
  *   resource handles and maintience of resources. 
  */
+
 #define __MODULE "HNDL"
 //#define __TRACE
 

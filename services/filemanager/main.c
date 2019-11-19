@@ -169,9 +169,6 @@ VfsIdentifierFree(
     }
 }
 
-/* OnLoad
- * The entry-point of a server, this is called
- * as soon as the server is loaded in the system */
 OsStatus_t
 OnLoad(
     _In_ char** ServicePathOut)
@@ -180,9 +177,6 @@ OnLoad(
     return OsSuccess;
 }
 
-/* OnUnload
- * This is called when the server is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
 OnUnload(void)
 {

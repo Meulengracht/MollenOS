@@ -676,6 +676,7 @@ MemoryCacheAllocate(
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
+        
         if (!Slab->NumberOfFreeObjects) {
             list_remove(&Cache->PartialSlabs, &Slab->Header);
             list_append(&Cache->FullSlabs, &Slab->Header);
@@ -702,10 +703,10 @@ MemoryCacheAllocate(
             list_append(&Cache->FullSlabs, &Slab->Header);
         }
         else {
-            Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
             list_append(&Cache->PartialSlabs, &Slab->Header);
+            smp_wmb();
+            Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
         }
-        smp_wmb();
     }
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
@@ -766,6 +767,7 @@ MemoryCacheFree(
     // Handle debug flags
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset(Object, MEMORY_OVERRUN_PATTERN, Cache->ObjectSize);
+        smp_wmb();
     }
 
     // Can we push to cpu cache?

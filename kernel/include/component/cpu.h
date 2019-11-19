@@ -62,7 +62,7 @@ typedef struct TxuMessage {
     void*         Argument;
 } TxuMessage_t;
 
-#define TXU_MESSAGE_INIT(Msg, Fn, Arg)  ELEMENT_INIT(&(Msg)->Header, 0, Msg); (Msg)->Handler = Fn; (Msg)->Argument = Arg
+#define TXU_MESSAGE_INIT(Msg, Fn, Arg)  ELEMENT_INIT(&Msg->Header, 0, Msg); Msg->Handler = Fn; Msg->Argument = Arg
 
 typedef struct SystemCpuCore {
     UUId_t            Id;
