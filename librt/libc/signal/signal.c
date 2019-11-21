@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -94,13 +95,17 @@ static void
 DefaultCrashHandler(
     _In_ sig_element* Signal)
 {
-    Context_t Context;
+    Context_t  Context;
+    OsStatus_t Status;
     
-    if (Syscall_GetSignalOriginalContext(&Context) == OsSuccess) {
-        // Not supported by modules
-        if (!IsProcessModule()) {
-            ProcessReportCrash(&Context, Signal->signal);
-        }
+    Status = Syscall_GetSignalOriginalContext(&Context);
+    if (Status != OsSuccess) {
+        GetContext(&Context);
+    }
+    
+    // Not supported by modules
+    if (!IsProcessModule()) {
+        ProcessReportCrash(&Context, Signal->signal);
     }
     
     // Last thing is to exit application

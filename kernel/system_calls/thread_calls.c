@@ -21,9 +21,10 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <assert.h>
+#include <os/mollenos.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <timers.h>
@@ -186,10 +187,21 @@ OsStatus_t
 ScGetSignalOriginalContext(
     _In_ Context_t* Context)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    if (Thread == NULL || Context == NULL) {
-        return OsError;
+    MCoreThread_t* Thread;
+    
+    if (Context == NULL) {
+        return OsInvalidParameters;
     }
+    
+    Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    assert(Thread != NULL);
+    
+    // Either we have the original context stored because we are currently
+    // handling a signal, or the userspace should locally get its context
+    if (!Thread->OriginalContext) {
+        return OsDoesNotExist;
+    }
+    
     memcpy(Context, Thread->OriginalContext, sizeof(Context_t));
     return OsSuccess;
 }

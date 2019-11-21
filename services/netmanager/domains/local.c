@@ -50,8 +50,8 @@ typedef struct SocketDomain {
     mtx_t             SyncObject;
     UUId_t            ConnectedSocket;
     AddressRecord_t*  Record;
-    queue_t           ConnectionRequests; // TODO: queue
-    queue_t           AcceptRequests;     // TODO: queue
+    queue_t           ConnectionRequests;
+    queue_t           AcceptRequests;
 } SocketDomain_t;
 
 typedef struct ConnectionRequest {
@@ -257,9 +257,12 @@ DomainLocalAllocateAddress(
 {
     AddressRecord_t* Record;
     char             AddressBuffer[16];
-    TRACE("DomainLocalAllocateAddress()");
+    TRACE("[socket] [local] allocate address 0x%" PRIxIN " [%u]", 
+        Socket, (UUId_t)Socket->Header.key);
     
     if (Socket->Domain->Record) {
+        ERROR("[socket] [local] domain address 0x%" PRIxIN " already registered",
+            Socket->Domain->Record);
         return OsExists;
     }
     
@@ -270,7 +273,9 @@ DomainLocalAllocateAddress(
     
     // Create a new address of the form /lc/{id}
     sprintf(&AddressBuffer[0], "/lc/%u", (UUId_t)Socket->Header.key);
+    TRACE("[socket] [local] address created %s", &AddressBuffer[0]);
     if (list_find(&AddressRegister, &AddressBuffer[0]) != NULL) {
+        ERROR("[socket] [local] address %s exists in register", &AddressBuffer[0]);
         free(Record);
         return OsExists;
     }
@@ -278,7 +283,8 @@ DomainLocalAllocateAddress(
     ELEMENT_INIT(&Record->Header, strdup(&AddressBuffer[0]), Record);
     Record->Socket = Socket;
     Socket->Domain->Record = Record;
-    return list_append(&AddressRegister, &Record->Header);
+    list_append(&AddressRegister, &Record->Header);
+    return OsSuccess;
 }
 
 static void

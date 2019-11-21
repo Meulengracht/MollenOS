@@ -100,6 +100,8 @@ SocketCreateImpl(
         return Status;
     }
     
+    // Initialize the header so the Handle is stored
+    RB_LEAF_INIT(&Socket->Header, Handle, Socket);
     Status = DomainCreate(Domain, &Socket->Domain);
     if (Status != OsSuccess) {
         ERROR("Failed to initialize the socket domain");
@@ -114,6 +116,7 @@ SocketCreateImpl(
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Handle);
         free(Socket);
+        return Status;
     }
     
     Status = CreateSocketPipe(&Socket->Receive);
@@ -135,7 +138,6 @@ SocketCreateImpl(
         return Status;
     }
     
-    RB_LEAF_INIT(&Socket->Header, Handle, Socket);
     *SocketOut = Socket;
     return OsSuccess;
 }

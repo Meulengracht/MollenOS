@@ -27,6 +27,7 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <debug.h>
+#include <handle.h>
 #include <heap.h>
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
@@ -34,8 +35,7 @@
 #include <threading.h>
 #include <string.h>
 
-static list_t Modules           = LIST_INIT;
-static int    ModuleIdGenerator = 1;
+static list_t Modules = LIST_INIT;
 
 OsStatus_t
 RegisterModule(
@@ -58,7 +58,7 @@ RegisterModule(
     memset(Module, 0, sizeof(SystemModule_t));
     ELEMENT_INIT(&Module->ListHeader, Type, Module);
 
-    Module->Handle = ModuleIdGenerator++;
+    Module->Handle = CreateHandle(HandleTypeGeneric, NULL, Module);
     Module->Data   = Data;
     Module->Length = Length;
     Module->Path   = MStringCreate("rd:/", StrUTF8);
@@ -69,7 +69,8 @@ RegisterModule(
     Module->DeviceClass     = DeviceClass;
     Module->DeviceSubclass  = DeviceSubclass;
     Module->PrimaryThreadId = UUID_INVALID;
-    return list_append(&Modules, &Module->ListHeader);
+    list_append(&Modules, &Module->ListHeader);
+    return OsSuccess;
 }
 
 void
@@ -96,9 +97,6 @@ SpawnServices(void)
     InterruptRestoreState(IrqState);
 }
 
-/* GetModuleDataByPath
- * Retrieve a pointer to the file-buffer and its length based on 
- * the given <rd:/> path */
 OsStatus_t
 GetModuleDataByPath(
     _In_  MString_t* Path, 
@@ -124,9 +122,6 @@ GetModuleDataByPath(
     return Result;
 }
 
-/* GetGenericDeviceModule
- * Resolves a device module by it's generic class and subclass instead of a device specific
- * module that is resolved by vendor id and product id. */
 SystemModule_t*
 GetGenericDeviceModule(
     _In_ DevInfo_t DeviceClass, 
@@ -142,8 +137,6 @@ GetGenericDeviceModule(
     return NULL;
 }
 
-/* GetSpecificDeviceModule
- * Resolves a specific device module that is specified by both vendor id and product id. */
 SystemModule_t*
 GetSpecificDeviceModule(
     _In_ DevInfo_t VendorId,
@@ -161,8 +154,6 @@ GetSpecificDeviceModule(
     return NULL;
 }
 
-/* GetModule
- * Retrieves an existing module instance based on the identification markers. */
 SystemModule_t*
 GetModule(
     _In_  DevInfo_t VendorId,
@@ -187,7 +178,7 @@ GetModule(
                 }
             }
         }
-    }
+    }   
     return NULL;
 }
 
@@ -206,9 +197,6 @@ GetCurrentModule(void)
     return NULL;
 }
 
-/* SetModuleAlias
- * Sets the alias for the currently running module. Only the primary thread is allowed to perform
- * this call. */
 OsStatus_t
 SetModuleAlias(
     _In_ UUId_t Alias)
@@ -221,9 +209,6 @@ SetModuleAlias(
     return OsInvalidPermissions;
 }
 
-/* GetModuleByHandle
- * Retrieves a running service/module by it's registered handle. This is usually done
- * by system services to be contactable by applications. */
 SystemModule_t*
 GetModuleByHandle(
     _In_ UUId_t Handle)

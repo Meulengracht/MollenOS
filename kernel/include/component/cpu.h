@@ -38,8 +38,7 @@
 #include <threading.h>
 #include <scheduler.h>
 
-typedef struct TxuMessage TxuMessage_t;
-typedef void(*TxuFunction_t)(TxuMessage_t*, void*);
+typedef void(*TxuFunction_t)(void*);
 
 typedef enum SystemCpuState {
     CpuStateUnavailable     = 0x0,
@@ -61,8 +60,6 @@ typedef struct TxuMessage {
     TxuFunction_t Handler;
     void*         Argument;
 } TxuMessage_t;
-
-#define TXU_MESSAGE_INIT(Msg, Fn, Arg)  ELEMENT_INIT(&Msg->Header, 0, Msg); Msg->Handler = Fn; Msg->Argument = Arg
 
 typedef struct SystemCpuCore {
     UUId_t            Id;
@@ -138,32 +135,6 @@ ActivateApplicationCore(
 KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t* Core);
-    
-/**
- * TxuMessageCacheInitialize
- * * Initializes the global TXU function item cache. This cache can be used to
- * * allocate IPI messages that can be sent between TXU's. 
- */
-KERNELAPI void KERNELABI
-TxuMessageCacheInitialize(void);
-
-/**
- * TxuMessageAllocate
- * * Allocates a new TXU message item.
- * 
- * @return Status of the allocation operation
- */
-KERNELAPI TxuMessage_t* KERNELABI
-TxuMessageAllocate(void);
-
-/**
- * TxuMessageAllocate
- * * Frees an previously allocated TXU message item.
- * @param TxuMessage_t [In] A pointer to the message that should be freed.
- */
-KERNELAPI void KERNELABI
-TxuMessageFree(
-    _In_ TxuMessage_t*);
 
 /**
  * TxuMessageSend
@@ -173,7 +144,8 @@ KERNELAPI void KERNELABI
 TxuMessageSend(
     _In_ UUId_t                  CoreId,
     _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuMessage_t*           Message);
+    _In_ TxuFunction_t           Function,
+    _In_ void*                   Argument);
 
 /**
  * ProcessorMessageSend 
@@ -187,7 +159,8 @@ KERNELAPI int KERNELABI
 ProcessorMessageSend(
     _In_ int                     ExcludeSelf,
     _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuMessage_t*           Message);
+    _In_ TxuFunction_t           Function,
+    _In_ void*                   Argument);
 
 /* GetProcessorCore
  * Retrieves the cpu core from the given core-id. */

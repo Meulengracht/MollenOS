@@ -29,10 +29,12 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
+#include <heap.h>
 #include <interrupts.h>
 #include <string.h>
 
-static UUId_t InterruptHandlers[CpuFunctionCount] = { 0 };
+static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
+static MemoryCache_t* TxuMessageCache = NULL;
 
 InterruptStatus_t
 ProcessorHaltHandler(
@@ -60,11 +62,41 @@ FunctionExecutionInterruptHandler(
 
     Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Element != NULL) {
+        smp_mb();
         Message = Element->value;
-        Message->Handler(Message, Message->Argument);
+        Message->Handler(Message->Argument);
+        
+        MemoryCacheFree(TxuMessageCache, Message);
         Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     }
     return InterruptHandled;
+}
+
+void
+TxuMessageSend(
+    _In_ UUId_t                  CoreId,
+    _In_ SystemCpuFunctionType_t Type,
+    _In_ TxuFunction_t           Function,
+    _In_ void*                   Argument)
+{
+    SystemCpuCore_t* Core = GetProcessorCore(CoreId);
+    TxuMessage_t*    Message;
+    
+    assert(Core != NULL);
+    assert(Type < CpuFunctionCount);
+    assert(InterruptHandlers[Type] != UUID_INVALID);
+    assert(Function != NULL);
+    
+    Message = MemoryCacheAllocate(TxuMessageCache);
+    assert(Message != NULL);
+    
+    ELEMENT_INIT(&Message->Header, 0, Message);
+    Message->Handler = Function;
+    Message->Argument = Argument;
+    smp_wmb();
+
+    queue_push(&Core->FunctionQueue[Type], &Message->Header);
+    ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }
 
 void
@@ -73,6 +105,11 @@ InitializeInterruptHandlers(void)
     DeviceInterrupt_t Interrupt = { { 0 } };
     int               i;
 
+    TxuMessageCache = MemoryCacheCreate("txu_message_cache", 
+        sizeof(TxuMessage_t), 0, 0 /* HEAP_SLAB_NO_ATOMIC_CACHE */, 
+        NULL, NULL);
+    assert(TxuMessageCache != NULL);
+    
     // Initialize the interrupt handlers array
     for (i = 0; i < CpuFunctionCount; i++) {
         InterruptHandlers[i] = UUID_INVALID;
@@ -93,21 +130,4 @@ InitializeInterruptHandlers(void)
     Interrupt.FastInterrupt.Handler      = FunctionExecutionInterruptHandler;
     InterruptHandlers[CpuFunctionCustom] = InterruptRegister(&Interrupt,
         INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
-}
-
-void
-TxuMessageSend(
-    _In_ UUId_t                  CoreId,
-    _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuMessage_t*           Message)
-{
-    SystemCpuCore_t* Core = GetProcessorCore(CoreId);
-    
-    assert(Core != NULL);
-    assert(Type < CpuFunctionCount);
-    assert(InterruptHandlers[Type] != UUID_INVALID);
-    assert(Message != NULL);
-    
-    queue_push(&Core->FunctionQueue[Type], &Message->Header);
-    ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }

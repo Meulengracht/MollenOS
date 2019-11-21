@@ -22,7 +22,7 @@
  */
 
 #define __MODULE "IPC0"
-#define __TRACE
+//#define __TRACE
 
 #include <arch/utils.h>
 #include <ddk/barrier.h>

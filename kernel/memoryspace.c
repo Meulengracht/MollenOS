@@ -38,7 +38,6 @@
 #include <threading.h>
 
 typedef struct MemorySynchronizationObject {
-    TxuMessage_t Header;
     _Atomic(int) CallsCompleted;
     UUId_t       MemorySpaceHandle;
     uintptr_t    Address;
@@ -47,8 +46,7 @@ typedef struct MemorySynchronizationObject {
 
 static void
 MemorySynchronizationHandler(
-    _In_ TxuMessage_t* Unused,
-    _In_ void*         Context)
+    _In_ void* Context)
 {
     MemorySynchronizationObject_t* Object        = (MemorySynchronizationObject_t*)Context;
     SystemMemorySpace_t*           Current       = GetCurrentMemorySpace();
@@ -75,9 +73,15 @@ SynchronizeMemoryRegion(
 {
     // We can easily allocate this object on the stack as the stack is globally
     // visible to all kernel code. This spares us allocation on heap
-    MemorySynchronizationObject_t Object = { { { 0 } } };
-    TxuMessage_t*                 Message = &Object.Header;
-    int                           NumberOfCores;
+    MemorySynchronizationObject_t Object = { 
+        .Address        = Address,
+        .Length         = Length,
+        .CallsCompleted = 0
+    };
+    
+    int     NumberOfCores;
+    clock_t InterruptedAt;
+    size_t  Timeout = 1000;
 
     // Skip this entire step if there is no multiple cores active
     if (GetMachine()->NumberOfActiveCores <= 1) {
@@ -97,15 +101,15 @@ SynchronizeMemoryRegion(
         }
     }
     
-    TXU_MESSAGE_INIT(Message, MemorySynchronizationHandler, &Object);
-    Object.Address        = Address;
-    Object.Length         = Length;
-    Object.CallsCompleted = 0;
-    smp_wmb();
-
-    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, &Object.Header);
-    while (atomic_load(&Object.CallsCompleted) != NumberOfCores) {
-        
+    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, MemorySynchronizationHandler, &Object);
+    while (atomic_load(&Object.CallsCompleted) != NumberOfCores && Timeout > 0) {
+        SchedulerSleep(5, &InterruptedAt);
+        Timeout -= 5;
+    }
+    
+    if (!Timeout) {
+        ERROR("[memory] [sync] timeout trying to synchronize with cores actual %i != target %i",
+            atomic_load(&Object.CallsCompleted), NumberOfCores);
     }
 }
 

@@ -259,7 +259,7 @@ OnEvent(
             UUId_t Handle       = (UUId_t)IPC_GET_TYPED(Message, 2);
             UUId_t BufferHandle = (UUId_t)IPC_GET_TYPED(Message, 3);
             size_t Offset       = IPC_GET_TYPED(Message, 4);
-            size_t Length       = (size_t)IPC_GET_UNTYPED(Message, 0);
+            size_t Length       = *((size_t*)IPC_GET_UNTYPED(Message, 0));
             
             Package.Code = VfsReadEntry(Requester, Handle, BufferHandle, 
                 Offset, Length, &Package.ActualSize);
@@ -275,7 +275,7 @@ OnEvent(
             UUId_t Handle       = (UUId_t)IPC_GET_TYPED(Message, 2);
             UUId_t BufferHandle = (UUId_t)IPC_GET_TYPED(Message, 3);
             size_t Offset       = IPC_GET_TYPED(Message, 4);
-            size_t Length       = (size_t)IPC_GET_UNTYPED(Message, 0);
+            size_t Length       = *((size_t*)IPC_GET_UNTYPED(Message, 0));
             
             Package.Code = VsfWriteEntry(Requester, Handle, BufferHandle, 
                 Offset, Length, &Package.ActualSize);

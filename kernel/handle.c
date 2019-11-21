@@ -133,7 +133,7 @@ CreateHandle(
     
     list_append(&SystemHandles, &Instance->Header);
     
-    WARNING("[create_handle] => id %u", HandleId);
+    TRACE("[create_handle] => id %u", HandleId);
     return HandleId;
 }
 
@@ -257,11 +257,11 @@ DestroyHandle(
     if (!Instance) {
         return;
     }
-    WARNING("[destroy_handle] => %u", Handle);
+    TRACE("[destroy_handle] => %u", Handle);
 
     References = atomic_fetch_sub(&Instance->References, 1);
     if ((References - 1) == 0) {
-        WARNING("[destroy_handle] cleaning up %u", Handle);
+        TRACE("[destroy_handle] cleaning up %u", Handle);
         if (Instance->PathHeader) {
             list_remove(&PathRegister, Instance->PathHeader);
         }

@@ -35,8 +35,7 @@
 
 // 256 is a temporary number, once we start getting processors with more than
 // 256 TXU's then we are fucked
-static SystemCpuCore_t* TxuTable[256]   = { 0 };
-static MemoryCache_t*   TxuMessageCache = NULL;
+static SystemCpuCore_t* TxuTable[256] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
@@ -91,6 +90,17 @@ RegisterApplicationCore(
             for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
                 Cpu->ApplicationCores[i].Id     = UUID_INVALID;
                 Cpu->ApplicationCores[i].State  = CpuStateUnavailable;
+                // External = 0
+                
+                // IdleThread = { 0 }
+                // Scheduler  = { 0 } TODO SchedulerConstruct
+                queue_construct(&Cpu->ApplicationCores[i].FunctionQueue[0]);
+                queue_construct(&Cpu->ApplicationCores[i].FunctionQueue[1]);
+                
+                // CurrentThread      = NULL
+                // InterruptRegisters = NULL
+                // InterruptNesting   = 0
+                // InterruptPriority  = 0
             }
         }
     }
@@ -137,40 +147,19 @@ ActivateApplicationCore(
     }
 }
 
-void
-TxuMessageCacheInitialize(void)
-{
-    TxuMessageCache = MemoryCacheCreate("txu_message_cache", 
-        sizeof(TxuMessage_t), 0, 0 /* HEAP_SLAB_NO_ATOMIC_CACHE */, 
-        NULL, NULL);
-    assert(TxuMessageCache != NULL);
-}
-
-TxuMessage_t*
-TxuMessageAllocate(void)
-{
-    return MemoryCacheAllocate(TxuMessageCache);
-}
-
-void
-TxuMessageFree(
-    _In_ TxuMessage_t* Message)
-{
-    return MemoryCacheFree(TxuMessageCache, Message);
-}
-
 int
 ProcessorMessageSend(
     _In_ int                     ExcludeSelf,
     _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuMessage_t*           Message)
+    _In_ TxuFunction_t           Function,
+    _In_ void*                   Argument)
 {
     SystemDomain_t*  Domain;
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
     int              Executions = 0;
     
-    assert(Message != NULL);
+    assert(Function != NULL);
     
     Domain = GetCurrentDomain();
     if (Domain != NULL) {
@@ -182,7 +171,7 @@ ProcessorMessageSend(
     
     if (!ExcludeSelf || (ExcludeSelf && Processor->PrimaryCore.Id != CurrentCore->Id)) {
         if (Processor->PrimaryCore.State == CpuStateRunning) {
-            TxuMessageSend(Processor->PrimaryCore.Id, Type, Message);
+            TxuMessageSend(Processor->PrimaryCore.Id, Type, Function, Argument);
             Executions++;
         }
     }
@@ -190,7 +179,7 @@ ProcessorMessageSend(
     for (int i = 0; i < (Processor->NumberOfCores - 1); i++) {
         if (!ExcludeSelf || (ExcludeSelf && Processor->ApplicationCores[i].Id != CurrentCore->Id)) {
             if (Processor->ApplicationCores[i].State == CpuStateRunning) {
-                TxuMessageSend(Processor->ApplicationCores[i].Id, Type, Message);
+                TxuMessageSend(Processor->ApplicationCores[i].Id, Type, Function, Argument);
                 Executions++;
             }
         }

@@ -23,6 +23,7 @@
  */
 
 #include <assert.h>
+#include <ddk/io.h>
 #include <ds/queue.h>
 
 #define QUEUE_LOCK   SYNC_LOCK(queue)
@@ -49,7 +50,7 @@ queue_clear(
     assert(queue != NULL);
     
     QUEUE_LOCK;
-    _foreach(i, queue) {
+    _foreach_volatile(i, queue) {
         cleanup(i);
     }
     queue_construct(queue);
@@ -67,14 +68,21 @@ queue_push(
     QUEUE_LOCK;
     element->next = NULL;
     element->previous = queue->tail;
+    smp_wmb();
 
-    if (!queue->head) {
-        queue->tail = element;
-        queue->head = element;
+    // To avoid compiler optimizations here, we need to enforce the control
+    // dependencies that can be optimized away by certian compilers. Because
+    // we also do identical writes in the if/else, we also enforce a memory
+    // barrier
+    if (!READ_VOLATILE(queue->head)) {
+        sw_mb();
+        WRITE_VOLATILE(queue->tail, element);
+        WRITE_VOLATILE(queue->head, element);
     }
     else {
-        queue->tail->next = element;
-        queue->tail       = element;
+        WRITE_VOLATILE(queue->tail->next, element);
+        sw_mb();
+        WRITE_VOLATILE(queue->tail, element);
     }
     queue->count++;
     QUEUE_UNLOCK;
@@ -89,7 +97,7 @@ queue_pop(
     assert(queue != NULL);
     
     QUEUE_LOCK;
-    element = queue->head;
+    element = READ_VOLATILE(queue->head);
     if (element) {
         queue->head = element->next;
         if (!queue->head) {
@@ -107,8 +115,9 @@ queue_peek(
 {
     element_t* element;
     assert(queue != NULL);
+    
     QUEUE_LOCK;
-    element = queue->head;
+    element = READ_VOLATILE(queue->head);
     QUEUE_UNLOCK;
     return element;
 }

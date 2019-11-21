@@ -285,7 +285,8 @@ LoadFile(
         DmaInfo.flags    = DMA_PERSISTANT;
 
         Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
-        TRACE("[load_file] [dma_export] buffer_handle = %u", DmaAttachment.handle);
+        TRACE("[load_file] [dma_export] buffer_handle = %u, length = %u", 
+            DmaAttachment.handle, DmaInfo.length);
         if (Status == OsSuccess) {
             size_t Read = 0;
             FsCode = TransferFile(Handle, DmaAttachment.handle, 0, 0, Size, &Read);

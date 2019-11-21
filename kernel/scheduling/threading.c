@@ -366,9 +366,10 @@ CreateThread(
             MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
         // TODO: check return code and cleanup
     }
-    
     AddChild(Parent, Thread);
 
+    WARNING("[thread_create] new thread %s on core %u", 
+        Thread->Name, SchedulerObjectGetAffinity(Thread->SchedulerObject));
     SchedulerQueueObject(Thread->SchedulerObject);
     *Handle = Thread->Handle;
     return OsSuccess;

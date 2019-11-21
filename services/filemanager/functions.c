@@ -522,7 +522,8 @@ VfsReadEntry(
     FileSystem_t*            Fs;
     OsStatus_t               Status;
     struct dma_attachment    DmaAttachment;
-    TRACE("[vfs_read] pid => %u, id => %u, b_id => %u", Requester, Handle, BufferHandle);
+    TRACE("[vfs_read] pid => %u, id => %u, b_id => %u, len => %u", 
+        Requester, Handle, BufferHandle, LODWORD(Length));
     
     if (BufferHandle == UUID_INVALID || Length == 0) {
         ERROR("[vfs_read] error invalid parameters, length 0 or invalid b_id");
@@ -552,6 +553,7 @@ VfsReadEntry(
         return FsInvalidParameters;
     }
 
+    TRACE("[vfs_read] [module_read]");
     Fs   = (FileSystem_t*)EntryHandle->Entry->System;
     Code = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, BufferHandle, 
         DmaAttachment.buffer, Offset, Length, BytesRead);

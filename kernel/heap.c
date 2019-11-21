@@ -17,6 +17,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  * System Memory Allocator (Based on SLAB design)
+ * 
+ * 
+ * 0xa450c8
+
+core0:
+WRITE @ 0x11545b    [memset] [ContextReset] [ThreadEnterProtectedLevel]
+WRITE @ 0x11d699    [ContextReset]
+WRITE @ 0x20003dfb0 (thread 69) [userspace_entry]
+WRITE @ 0x11d699    [ContextReset]
+WRITE @ 0x20003dfb0 (thread 69) [userspace_entry]
+WRITE @ 0x10eb2c    [TxuMessageSend]
+
+core3:
+DEAD before read of 0xa450c8 
  */
 
 #define __MODULE "HEAP"
@@ -24,7 +38,7 @@
 
 #include <arch/utils.h>
 #include <assert.h>
-#include <ddk/barrier.h>
+#include <ddk/io.h>
 #include <debug.h>
 #include <ds/list.h>
 #include <heap.h>
@@ -104,7 +118,8 @@ static struct FixedCache {
 };
 
 static uintptr_t
-allocate_virtual_memory(size_t PageCount)
+allocate_virtual_memory(
+    _In_ size_t PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
     uintptr_t  Address;
@@ -117,14 +132,18 @@ allocate_virtual_memory(size_t PageCount)
         ERROR("Ran out of memory for allocation in the heap");
         return 0;
     }
+    WARNING("[heap] [allocate_vmem] 0x%llx [%u]", Address, PageCount);
     return Address;
 }
 
 static void
-free_virtual_memory(uintptr_t Address, size_t PageCount)
+free_virtual_memory(
+    _In_ uintptr_t Address, 
+    _In_ size_t    PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
-    OsStatus_t Status   = RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, PageSize * PageCount);
+    OsStatus_t Status   = RemoveMemorySpaceMapping(
+        GetCurrentMemorySpace(), Address, PageSize * PageCount);
     if (Status != OsSuccess) {
         ERROR("Failed to free allocation 0x%" PRIxIN " of size 0x%" PRIxIN "", Address, PageSize * PageCount);
     }
@@ -241,9 +260,9 @@ slab_create(
     MemorySlab_t* Slab;
     uintptr_t     ObjectAddress;
     uintptr_t     DataAddress = allocate_virtual_memory(Cache->PageCount);
-    TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
     
     if (!DataAddress) {
+        ERROR("[heap] [slab_create] failed to allocate virtual memory for slab");
         return NULL;
     }
 
@@ -267,11 +286,13 @@ slab_create(
         
         Slab = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
         if (!Slab) {
+            ERROR("[heap] [slab_create] failed to allocate a new slab structure");
             return NULL;
         }
         
         ObjectAddress = DataAddress;
     }
+    TRACE("[heap] [slab_create] objects at 0x%" PRIxIN "", ObjectAddress);
     
     // Handle debug flags
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
@@ -280,11 +301,11 @@ slab_create(
     memset(Slab, 0, Cache->SlabStructureSize);
 
     ELEMENT_INIT(&Slab->Header, 0, Slab);
+    smp_mb();
     Slab->NumberOfFreeObjects = Cache->ObjectCount;
     Slab->FreeBitmap          = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address             = (uintptr_t*)ObjectAddress;
     slab_initalize_objects(Cache, Slab);
-    smp_mb();
     return Slab;
 }
 
@@ -661,25 +682,28 @@ MemoryCacheAllocate(
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
         if (Element) {
-            Slab = Element->value;
+            Slab = READ_VOLATILE(Element->value);
             assert(Slab->NumberOfFreeObjects != 0);
+            if (Slab->NumberOfFreeObjects == 1) {
+                list_remove(&Cache->PartialSlabs, Element);
+            }
         }
         else {
             Element = list_front(&Cache->FreeSlabs);
             assert(Element != NULL);
             
+            Slab = READ_VOLATILE(Element->value);
             list_remove(&Cache->FreeSlabs, Element);
-            list_append(&Cache->PartialSlabs, Element);
-            
-            Slab = Element->value;
+            if (Slab->NumberOfFreeObjects > 1) {
+                list_append(&Cache->PartialSlabs, Element);
+            }
         }
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
         
         if (!Slab->NumberOfFreeObjects) {
-            list_remove(&Cache->PartialSlabs, &Slab->Header);
-            list_append(&Cache->FullSlabs, &Slab->Header);
+            list_append(&Cache->FullSlabs, Element);
         }
         Cache->NumberOfFreeObjects--;
         smp_wmb();
@@ -767,7 +791,6 @@ MemoryCacheFree(
     // Handle debug flags
     if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset(Object, MEMORY_OVERRUN_PATTERN, Cache->ObjectSize);
-        smp_wmb();
     }
 
     // Can we push to cpu cache?

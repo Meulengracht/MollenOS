@@ -105,24 +105,12 @@ DebugHaltAllProcessorCores(
     _In_ SystemCpu_t*   Processor)
 {
     if (ExcludeId != Processor->PrimaryCore.Id) {
-        TxuMessage_t* Message = TxuMessageAllocate();
-        if (!Message) {
-            return OsOutOfMemory;
-        }
-        
-        TXU_MESSAGE_INIT(Message, NULL, NULL);
-        TxuMessageSend(Processor->PrimaryCore.Id, CpuFunctionHalt, Message);
+        TxuMessageSend(Processor->PrimaryCore.Id, CpuFunctionHalt, NULL, NULL);
     }
 
     for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
         if (ExcludeId != Processor->ApplicationCores[i].Id) {
-            TxuMessage_t* Message = TxuMessageAllocate();
-            if (!Message) {
-                return OsOutOfMemory;
-            }
-            
-            TXU_MESSAGE_INIT(Message, NULL, NULL);
-            TxuMessageSend(Processor->ApplicationCores[i].Id, CpuFunctionHalt, Message);
+            TxuMessageSend(Processor->ApplicationCores[i].Id, CpuFunctionHalt, NULL, NULL);
         }
     }
     return OsSuccess;

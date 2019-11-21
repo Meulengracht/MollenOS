@@ -45,8 +45,8 @@ FsReadFromFile(
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
     size_t           BytesToRead     = UnitCount;
 
-    TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Handle->Base.Position), UnitCount);
+    WARNING("[mfs] [read_file] id 0x%x, position %u, length %u",
+        Handle->Base.Id, LODWORD(Handle->Base.Position), LODWORD(UnitCount));
 
     // Zero this first to indicate no bytes read
     *UnitsRead = 0;

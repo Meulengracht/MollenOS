@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <arch/time.h>
 #include <arch/thread.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
@@ -152,13 +153,10 @@ QueueForScheduler(
 
 static void
 QueueOnCoreFunction(
-    _In_ TxuMessage_t* Message,
-    _In_ void*         Context)
+    _In_ void* Context)
 {
     SystemScheduler_t* Scheduler = &GetCurrentProcessorCore()->Scheduler;
     SchedulerObject_t* Object    = (SchedulerObject_t*)Context;
-    
-    TxuMessageFree(Message);
     QueueForScheduler(Scheduler, Object, 1);
     if (ThreadingIsCurrentTaskIdle(Object->CoreId)) {
         ThreadingYield();
@@ -182,13 +180,7 @@ QueueObjectImmediately(
         }
     }
     else {
-        TxuMessage_t* Message = TxuMessageAllocate();
-        if (!Message) {
-            assert(0);
-        }
-        
-        TXU_MESSAGE_INIT(Message, QueueOnCoreFunction, Object);
-        TxuMessageSend(Object->CoreId, CpuFunctionCustom, Message);
+        TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object);
     }
 }
 
@@ -332,7 +324,11 @@ SchedulerSleep(
     SchedulerObject_t* Object;
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    assert(Object != NULL);
+    if (!Object) {
+        // Called by the idle threads
+        ArchStallProcessorCore(Milliseconds);
+        return SCHEDULER_SLEEP_OK;
+    }
     
     Object->TimeLeft        = Milliseconds;
     Object->Timeout         = 0;
