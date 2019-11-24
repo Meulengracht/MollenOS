@@ -62,7 +62,6 @@ FunctionExecutionInterruptHandler(
 
     Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Element != NULL) {
-        smp_mb();
         Message = Element->value;
         Message->Handler(Message->Argument);
         

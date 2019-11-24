@@ -80,23 +80,47 @@ TrimWhitespaces(char *str)
     return str;
 }
 
+static void
+ExtractCoreTopology(
+    _In_  void* Brand,
+    _Out_ int*  CoreBits,
+    _Out_ int*  LogicalBits)
+{
+	uint32_t CpuRegisters[4] = { 0 };
+	
+    if (!strncmp(Brand, CPUID_VENDOR_OLDAMD, 12) ||
+        !strncmp(Brand, CPUID_VENDOR_AMD, 12)) {
+        __get_cpuid(0x80000008, CpuRegisters);
+    }
+    else if (!strncmp(Brand, CPUID_VENDOR_INTEL, 12)) {
+        __get_cpuid(0xB, CpuRegisters);
+        *LogicalBits = 0;
+    }
+    // https://wiki.osdev.org/Detecting_CPU_Topology_(80x86)
+}
+
 void
 ArchProcessorInitialize(
     _In_ SystemCpu_t* Processor)
 {
-	// Variables
+    SystemCpuCore_t* PrimaryCore = Processor->Cores;
+    
 	uint32_t CpuRegisters[4]    = { 0 };
-    char TemporaryBrand[64]     = { 0 };
-    char *BrandPointer          = &TemporaryBrand[0];
+    char     TemporaryBrand[64] = { 0 };
+    char*    BrandPointer       = &TemporaryBrand[0];
+    int      CoreBits;
+    int      LogicalBits;
     __get_cpuid(0, CpuRegisters);
     
     // Set default number of cores params
-    Processor->NumberOfCores          = 1;
-
-    // Initialize the default params of primary core
-    Processor->PrimaryCore.Id         = 0;
-    Processor->PrimaryCore.State      = CpuStateRunning;
-    Processor->PrimaryCore.External   = 0;
+    Processor->NumberOfCores = 1;
+    PrimaryCore->Id          = 0;
+    PrimaryCore->State       = CpuStateRunning;
+    PrimaryCore->External    = 0;
+    
+    //logical_CPU_number_within_core = APIC_ID & ( (1 << logical_CPU_bits) -1)
+    //core_number_within_chip = (APIC_ID >> logical_CPU_bits) & ( (1 << core_bits) -1)
+    //chip_ID = APIC_ID & ~( (1 << (logical_CPU_bits+core_bits) ) -1)
 
     // Store cpu-id level and store the cpu vendor
     Processor->Data[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
@@ -109,13 +133,20 @@ ArchProcessorInitialize(
         __get_cpuid(1, CpuRegisters);
         Processor->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
         Processor->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
-        Processor->NumberOfCores                  = (CpuRegisters[1] >> 16) & 0xFF;
-        Processor->PrimaryCore.Id                 = (CpuRegisters[1] >> 24) & 0xFF;
-
+        if (CpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
+            Processor->NumberOfCores = (CpuRegisters[1] >> 16) & 0xFF;
+            PrimaryCore->Id          = (CpuRegisters[1] >> 24) & 0xFF;
+        }
+        
         // This can be reported as 0, which means we assume a single cpu
         if (Processor->NumberOfCores == 0) {
             Processor->NumberOfCores = 1;
         }
+    }
+    
+    // Get core bits and logical bits
+    if (Processor->NumberOfCores != 1) {
+        //ExtractCoreTopology(&Processor->Vendor[0], &CoreBits, &LogicalBits);
     }
 
     // Get extensions supported
@@ -224,7 +255,7 @@ ArchGetProcessorCoreId(void)
 
     // If the local apic is not initialized this is single-core old system
     // OR we are still in startup phase and thus we just return the boot-core
-    return GetMachine()->Processor.PrimaryCore.Id;
+    return GetMachine()->Processor.Cores->Id;
 }
 
 void

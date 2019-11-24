@@ -61,9 +61,9 @@ typedef struct SystemMachine {
     SystemTime_t                SystemTime;
 
     // Total information across domains
-    size_t                      NumberOfProcessors;
-    size_t                      NumberOfCores;
-    size_t                      NumberOfActiveCores;
+    _Atomic(int)                NumberOfProcessors;
+    _Atomic(int)                NumberOfCores;
+    _Atomic(int)                NumberOfActiveCores;
     size_t                      NumberOfMemoryBlocks;
     size_t                      MemoryGranularity;
 } SystemMachine_t;

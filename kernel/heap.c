@@ -56,10 +56,10 @@ DEAD before read of 0xa450c8
 // Slab size is equal to a page size, and memory layout of a slab is as below
 // FreeBitmap | Object | Object | Object |
 typedef struct MemorySlab {
-    element_t       Header;
-    volatile size_t NumberOfFreeObjects;
-    uintptr_t*      Address;  // Points to first object
-    uint8_t*        FreeBitmap;
+    element_t  Header;
+    int        NumberOfFreeObjects;
+    uintptr_t* Address;  // Points to first object
+    uint8_t*   FreeBitmap;
 } MemorySlab_t;
 
 // Memory Atomic Cache is followed directly by the buffer area for pointers
@@ -77,9 +77,9 @@ typedef struct MemoryCache {
     size_t           ObjectSize;
     size_t           ObjectAlignment;
     size_t           ObjectPadding;
-    size_t           ObjectCount;      // Count per slab
-    size_t           PageCount;
-    volatile size_t  NumberOfFreeObjects;
+    int              ObjectCount;      // Count per slab
+    int              PageCount;
+    int              NumberOfFreeObjects;
     void           (*ObjectConstructor)(struct MemoryCache*, void*);
     void           (*ObjectDestructor)(struct MemoryCache*, void*);
 
@@ -119,7 +119,7 @@ static struct FixedCache {
 
 static uintptr_t
 allocate_virtual_memory(
-    _In_ size_t PageCount)
+    _In_ int PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
     uintptr_t  Address;
@@ -132,14 +132,13 @@ allocate_virtual_memory(
         ERROR("Ran out of memory for allocation in the heap");
         return 0;
     }
-    WARNING("[heap] [allocate_vmem] 0x%llx [%u]", Address, PageCount);
     return Address;
 }
 
 static void
 free_virtual_memory(
     _In_ uintptr_t Address, 
-    _In_ size_t    PageCount)
+    _In_ int       PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
     OsStatus_t Status   = RemoveMemorySpaceMapping(
@@ -205,7 +204,10 @@ slab_free_index(
 }
 
 static int
-slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
+slab_contains_address(
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab,
+    _In_ uintptr_t      Address)
 {
     size_t    ObjectSize = Cache->ObjectSize + Cache->ObjectPadding;
     uintptr_t Base       = (uintptr_t)Slab->Address;
@@ -223,7 +225,7 @@ static void
 slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     uintptr_t Address = (uintptr_t)Slab->Address;
-    size_t    i;
+    int       i;
 
     for (i = 0; i < Cache->ObjectCount; i++) {
         if (Cache->ObjectConstructor) {
@@ -240,10 +242,11 @@ slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
 
 static void 
 slab_destroy_objects(
-    MemoryCache_t* Cache, MemorySlab_t* Slab)
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab)
 {
     uintptr_t Address = (uintptr_t)Slab->Address;
-    size_t    i;
+    int       i;
 
     for (i = 0; i < Cache->ObjectCount; i++) {
         if (Cache->ObjectDestructor) {
@@ -301,7 +304,6 @@ slab_create(
     memset(Slab, 0, Cache->SlabStructureSize);
 
     ELEMENT_INIT(&Slab->Header, 0, Slab);
-    smp_mb();
     Slab->NumberOfFreeObjects = Cache->ObjectCount;
     Slab->FreeBitmap          = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address             = (uintptr_t*)ObjectAddress;
@@ -309,7 +311,9 @@ slab_create(
     return Slab;
 }
 
-static void slab_destroy(MemoryCache_t* Cache, MemorySlab_t* Slab)
+static void slab_destroy(
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab)
 {
     slab_destroy_objects(Cache, Slab);
     if (!Cache->SlabOnSite) {
@@ -429,8 +433,10 @@ cache_calculate_atomic_cache(
 {
     // number of cpu * cpu_cache_objects + number of cpu * objects per slab * pointer size
     size_t BytesRequired = 0;
-    if (GetMachine()->NumberOfCores > 1) {
-        BytesRequired = (GetMachine()->NumberOfCores * 
+    int    NumberOfCores = atomic_load(&GetMachine()->NumberOfCores);
+    
+    if (NumberOfCores > 1) {
+        BytesRequired = (NumberOfCores * 
             (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
         if (cache_find_fixed_size(BytesRequired) == NULL) {
             BytesRequired = 0;
@@ -444,11 +450,16 @@ cache_initialize_atomic_cache(
     _In_ MemoryCache_t* Cache)
 {
     size_t AtomicCacheSize = cache_calculate_atomic_cache(Cache);
+    int    NumberOfCores = atomic_load(&GetMachine()->NumberOfCores);
     int    i;
     if (AtomicCacheSize) {
         Cache->AtomicCaches = (uintptr_t)kmalloc(AtomicCacheSize);
+        if (!Cache->AtomicCaches) {
+            return;
+        }
+        
         memset((void*)Cache->AtomicCaches, 0, AtomicCacheSize);
-        for (i = 0; i < GetMachine()->NumberOfCores; i++) {
+        for (i = 0; i < NumberOfCores; i++) {
             MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, i);
             AtomicCache->Available           = ATOMIC_VAR_INIT(0);
             AtomicCache->Limit               = Cache->ObjectCount;
@@ -457,7 +468,8 @@ cache_initialize_atomic_cache(
 }
 
 static void
-cache_drain_atomic_cache(MemoryCache_t* Cache)
+cache_drain_atomic_cache(
+    _In_ MemoryCache_t* Cache)
 {
     // Send out IPI to all cores to empty their caches and put them into the gloal
     // cache, this should be done when attempting to free up memory.
@@ -537,10 +549,10 @@ cache_calculate_slab_size(
     }
 
     if (Cache != NULL) {
-        Cache->ObjectCount       = ObjectsPerSlab;
+        Cache->ObjectCount       = (int)ObjectsPerSlab;
         Cache->SlabOnSite        = SlabOnSite;
         Cache->SlabStructureSize = ReservedSpace;
-        Cache->PageCount         = PageCount;
+        Cache->PageCount         = (int)PageCount;
     }
     TRACE(" => %" PRIuIN " Objects (%" PRIiIN "), On %" PRIuIN " Pages", ObjectsPerSlab, SlabOnSite, PageCount);
 }
@@ -565,16 +577,17 @@ MemoryCacheConstruct(
     if (ObjectAlignment != 0 && ((ObjectSize + ObjectPadding) % ObjectAlignment)) {
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
-    memset(Cache, 0, sizeof(MemoryCache_t));
 
     IrqSpinlockConstruct(&Cache->SyncObject);
-    Cache->Name              = Name;
-    Cache->Flags             = Flags;
-    Cache->ObjectSize        = ObjectSize;
-    Cache->ObjectAlignment   = ObjectAlignment;
-    Cache->ObjectPadding     = ObjectPadding;
-    Cache->ObjectConstructor = ObjectConstructor;
-    Cache->ObjectDestructor  = ObjectDestructor;
+    Cache->Name                = Name;
+    Cache->Flags               = Flags;
+    Cache->ObjectSize          = ObjectSize;
+    Cache->ObjectAlignment     = ObjectAlignment;
+    Cache->ObjectPadding       = ObjectPadding;
+    Cache->ObjectConstructor   = ObjectConstructor;
+    Cache->ObjectDestructor    = ObjectDestructor;
+    Cache->AtomicCaches        = 0;
+    Cache->NumberOfFreeObjects = 0;
     
     list_construct(&Cache->FreeSlabs);
     list_construct(&Cache->PartialSlabs);
@@ -586,6 +599,9 @@ MemoryCacheConstruct(
     if (!(Cache->Flags & (HEAP_CACHE_DEFAULT | HEAP_SLAB_NO_ATOMIC_CACHE))) {
         cache_initialize_atomic_cache(Cache);
     }
+    
+    // Flush writes to other cpus
+    smp_wmb();
 }
 
 MemoryCache_t*
@@ -682,7 +698,7 @@ MemoryCacheAllocate(
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
         if (Element) {
-            Slab = READ_VOLATILE(Element->value);
+            Slab = Element->value;
             assert(Slab->NumberOfFreeObjects != 0);
             if (Slab->NumberOfFreeObjects == 1) {
                 list_remove(&Cache->PartialSlabs, Element);
@@ -692,7 +708,7 @@ MemoryCacheAllocate(
             Element = list_front(&Cache->FreeSlabs);
             assert(Element != NULL);
             
-            Slab = READ_VOLATILE(Element->value);
+            Slab = Element->value;
             list_remove(&Cache->FreeSlabs, Element);
             if (Slab->NumberOfFreeObjects > 1) {
                 list_append(&Cache->PartialSlabs, Element);
@@ -706,19 +722,14 @@ MemoryCacheAllocate(
             list_append(&Cache->FullSlabs, Element);
         }
         Cache->NumberOfFreeObjects--;
-        smp_wmb();
-        
-        IrqSpinlockRelease(&Cache->SyncObject);
     }
     else {
-        // So by releasing the lock at this stage we could potentially reach
-        // a point where multiple new slabs would be built and added instead of a single
-        // slab only. This is a known and (for now) accepted race condition
         IrqSpinlockRelease(&Cache->SyncObject);
         Slab = slab_create(Cache);
         if (!Slab) {
             return NULL;
         }
+        IrqSpinlockAcquire(&Cache->SyncObject);
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
@@ -728,10 +739,10 @@ MemoryCacheAllocate(
         }
         else {
             list_append(&Cache->PartialSlabs, &Slab->Header);
-            smp_wmb();
             Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
         }
     }
+    IrqSpinlockRelease(&Cache->SyncObject);
     
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, 

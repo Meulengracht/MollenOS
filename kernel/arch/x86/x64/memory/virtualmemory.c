@@ -413,7 +413,7 @@ CloneVirtualSpace(
     // Create PML4[0] and PDP[0]
     PageMasterTable->vTables[0] = (uint64_t)kmalloc_p(sizeof(PageDirectoryTable_t), &PhysicalAddress);
     atomic_store(&PageMasterTable->pTables[0], PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
-    DirectoryTable      = (PageDirectoryTable_t*)PageMasterTable->vTables[0];
+    DirectoryTable = (PageDirectoryTable_t*)PageMasterTable->vTables[0];
     memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
 
     // Set PD[0] => KERNEL PD[0] and mark as inherited
@@ -569,7 +569,7 @@ InitializeVirtualSpace(
 
 	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
-    if (GetCurrentProcessorCore() == &GetMachine()->Processor.PrimaryCore) {
+    if (GetCurrentProcessorCore() == GetMachine()->Processor.Cores) {
         size_t BytesToMap               = 0;
         PhysicalAddress_t PhysicalBase  = 0;
         VirtualAddress_t VirtualBase    = 0;

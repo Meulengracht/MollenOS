@@ -55,7 +55,7 @@ BootDomainCores(
     SystemDomain_t* ExcludeDomain = Context;
     SystemDomain_t* Domain        = Element->value;
     if (Domain != ExcludeDomain) {
-        StartApplicationCore(&Domain->CoreGroup.PrimaryCore);
+        StartApplicationCore(Domain->CoreGroup.Cores);
     }
     return 0;
 }
@@ -63,22 +63,23 @@ BootDomainCores(
 void
 EnableMultiProcessoringMode(void)
 {
-    SystemDomain_t* CurrentDomain = GetCurrentDomain();
-    int             i;
+    SystemDomain_t*  CurrentDomain = GetCurrentDomain();
+    SystemCpuCore_t* Iter;
 
     // Boot all cores in our own domain, then boot the initial core
     // for all the other domains, they will boot up their own domains.
     list_enumerate(GetDomains(), BootDomainCores, CurrentDomain);
     if (CurrentDomain != NULL) {
         // Don't ever include ourself
-        for (i = 0; i < (CurrentDomain->CoreGroup.NumberOfCores - 1); i++) {
-            StartApplicationCore(&CurrentDomain->CoreGroup.ApplicationCores[i]);
-        }
+        Iter = CurrentDomain->CoreGroup.Cores->Link;
     }
     else {
         // No domains in system - boot all cores except ourself
-        for (i = 0; i < (GetMachine()->Processor.NumberOfCores - 1); i++) {
-            StartApplicationCore(&GetMachine()->Processor.ApplicationCores[i]);
-        }
+        Iter = GetMachine()->Processor.Cores->Link;
+    }
+    
+    while (Iter) {
+        StartApplicationCore(Iter);
+        Iter = Iter->Link;
     }
 }

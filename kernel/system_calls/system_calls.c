@@ -66,8 +66,8 @@ OsStatus_t
 ScSystemQuery(
     _In_ SystemDescriptor_t* Descriptor)
 {
-    Descriptor->NumberOfProcessors  = GetMachine()->NumberOfProcessors;
-    Descriptor->NumberOfActiveCores = GetMachine()->NumberOfActiveCores;
+    Descriptor->NumberOfProcessors  = atomic_load(&GetMachine()->NumberOfProcessors);
+    Descriptor->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
 
     Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
     Descriptor->PageSizeBytes              = GetMemorySpacePageSize();

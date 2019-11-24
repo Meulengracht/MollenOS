@@ -86,10 +86,11 @@ SmpApplicationCoreEntry(void)
 static void
 InitializeApplicationJumpSpace(void)
 {
-    uint32_t* CodePointer = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
-    uint32_t  EntryCode   = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
-    void*     StackSpace  = kmalloc((GetMachine()->NumberOfCores - 1) * 0x1000);
-    TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (GetMachine()->NumberOfCores - 1));
+    uint32_t* CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
+    uint32_t  EntryCode     = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
+    int       NumberOfCores = atomic_load(&GetMachine()->NumberOfCores);
+    void*     StackSpace    = kmalloc((NumberOfCores - 1) * 0x1000);
+    TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (NumberOfCores - 1));
 
     *(CodePointer - 1) = EntryCode;
     *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
@@ -129,12 +130,12 @@ StartApplicationCore(
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     Timeout = 10;
-    while (READ_VOLATILE(Core->State) != CpuStateRunning && Timeout) {
+    while (!(READ_VOLATILE(Core->State) & CpuStateRunning) && Timeout) {
         PollTimerForMilliseconds(1);
         Timeout--;
     }
     
-    if (READ_VOLATILE(Core->State) != CpuStateRunning) {
+    if (!(READ_VOLATILE(Core->State) & CpuStateRunning)) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
             return;

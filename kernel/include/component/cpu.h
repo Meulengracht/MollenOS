@@ -76,6 +76,8 @@ typedef struct SystemCpuCore {
     Context_t*        InterruptRegisters;
     int               InterruptNesting;
     uint32_t          InterruptPriority;
+    
+    struct SystemCpuCore* Link;
 } SystemCpuCore_t;
 
 typedef struct SystemCpu {
@@ -83,16 +85,14 @@ typedef struct SystemCpu {
     char                Brand[64];      // zero terminated string
     uintptr_t           Data[4];        // data available for usage
     int                 NumberOfCores;  // always minimum 1
-
-    SystemCpuCore_t     PrimaryCore;
-    SystemCpuCore_t*    ApplicationCores;
+    SystemCpuCore_t*    Cores;
     
-    struct _SystemCpu*  Link;
+    struct SystemCpu*   Link;
 } SystemCpu_t;
 
 #define SYSTEM_CORE_FN_STATE_INIT { QUEUE_INIT, QUEUE_INIT }
-#define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL, NULL, 0, 0 }
-#define SYSTEM_CPU_INIT           { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
+#define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL, NULL, 0, 0, NULL }
+#define SYSTEM_CPU_INIT           { { 0 }, { 0 }, { 0 }, 0, NULL, NULL }
 
 /**
  * EnableMultiProcessoringMode
@@ -103,12 +103,12 @@ KERNELAPI void KERNELABI
 EnableMultiProcessoringMode(void);
 
 /**
- * InitializeProcessor
+ * InitializePrimaryProcessor
  * * Initializes the processor environment for the calling processor, this also
  * * sets the calling TXU as the boot-TXU and initializes static data for this.
  */
 KERNELAPI void KERNELABI
-InitializeProcessor(
+InitializePrimaryProcessor(
     _In_ SystemCpu_t* Cpu);
 
 /* RegisterApplicationCore

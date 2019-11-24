@@ -368,7 +368,7 @@ InitializeVirtualSpace(
     
     // Is this the primary core that is getting initialized? Then
     // we should create the core mappings first instead of reusing
-    if (GetCurrentProcessorCore() == &GetMachine()->Processor.PrimaryCore) {
+    if (GetCurrentProcessorCore() == GetMachine()->Processor.Cores) {
         size_t            BytesToMap   = 0;
         PhysicalAddress_t PhysicalBase = 0;
         VirtualAddress_t  VirtualBase  = 0;

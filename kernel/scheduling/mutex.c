@@ -128,7 +128,7 @@ __MutexPerformLock(
     // and only in the case that there are no sleepers && locked
     Status = atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1);
     if (!Status) {
-        if (GetMachine()->NumberOfActiveCores > 1) {
+        if (atomic_load(&GetMachine()->NumberOfActiveCores) > 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (MutexTryLock(Mutex) == OsSuccess) {
                     return OsSuccess;

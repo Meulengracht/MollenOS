@@ -36,6 +36,7 @@
 // 256 is a temporary number, once we start getting processors with more than
 // 256 TXU's then we are fucked
 static SystemCpuCore_t* TxuTable[256] = { 0 };
+static SystemCpuCore_t  PrimaryCore   = SYSTEM_CPU_CORE_INIT;
 
 SystemCpuCore_t*
 GetProcessorCore(
@@ -52,20 +53,17 @@ GetCurrentProcessorCore(void)
     return TxuTable[ArchGetProcessorCoreId()];
 }
 
-static void
-RegisterStaticCore(
-    _In_ SystemCpuCore_t* Core)
-{
-    assert(Core->Id < 256);
-    TxuTable[Core->Id] = Core;
-}
-
 void
-InitializeProcessor(
+InitializePrimaryProcessor(
     _In_ SystemCpu_t* Cpu)
 {
+    // Initialize the boot cpu's primary core pointer immediately before
+    // passing it down to the arch layer - so it can use the storage.
+    Cpu->Cores = &PrimaryCore;
     ArchProcessorInitialize(Cpu);
-    RegisterStaticCore(&Cpu->PrimaryCore);
+    
+    // Register the primary core that has been registered
+    TxuTable[Cpu->Cores->Id] = Cpu->Cores;
 }
 
 void
@@ -75,73 +73,72 @@ RegisterApplicationCore(
     _In_ SystemCpuState_t   InitialState,
     _In_ int                External)
 {
-    int i;
+    SystemCpuCore_t* Core;
+    SystemCpuCore_t* Iter;
 
-    // Sanitize params
     assert(Cpu != NULL);
     assert(Cpu->NumberOfCores > 1);
 
-    // Make sure the array is allocated and initialized
-    if(Cpu->ApplicationCores == NULL) {
-        if (Cpu->NumberOfCores > 1) {
-            Cpu->ApplicationCores = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t) * (Cpu->NumberOfCores - 1));
-            memset((void*)Cpu->ApplicationCores, 0, sizeof(SystemCpuCore_t) * (Cpu->NumberOfCores - 1));
-            
-            for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
-                Cpu->ApplicationCores[i].Id     = UUID_INVALID;
-                Cpu->ApplicationCores[i].State  = CpuStateUnavailable;
-                // External = 0
-                
-                // IdleThread = { 0 }
-                // Scheduler  = { 0 } TODO SchedulerConstruct
-                queue_construct(&Cpu->ApplicationCores[i].FunctionQueue[0]);
-                queue_construct(&Cpu->ApplicationCores[i].FunctionQueue[1]);
-                
-                // CurrentThread      = NULL
-                // InterruptRegisters = NULL
-                // InterruptNesting   = 0
-                // InterruptPriority  = 0
-            }
-        }
-    }
+    Core = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t));
+    assert(Core != NULL);
+    memset(Core, 0, sizeof(SystemCpuCore_t));
 
-    // Find it and update parameters for it
-    for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
-        if (Cpu->ApplicationCores[i].Id == UUID_INVALID) {
-            Cpu->ApplicationCores[i].Id       = CoreId;
-            Cpu->ApplicationCores[i].State    = InitialState;
-            Cpu->ApplicationCores[i].External = External;
-            TxuTable[CoreId]                  = &Cpu->ApplicationCores[i];
-            break;
-        }
+    Core->Id       = CoreId;
+    Core->State    = InitialState;
+    Core->External = External;
+    
+    // IdleThread = { 0 }
+    // Scheduler  = { 0 } TODO SchedulerConstruct
+    queue_construct(&Core->FunctionQueue[0]);
+    queue_construct(&Core->FunctionQueue[1]);
+    
+    // CurrentThread      = NULL
+    // InterruptRegisters = NULL
+    // InterruptNesting   = 0
+    // InterruptPriority  = 0
+    // Link = NULL;
+    
+    // Add the core to the list of cores in this cpu
+    Iter = Cpu->Cores;
+    while (Iter->Link) {
+        Iter = Iter->Link;
     }
+    Iter->Link = Core;
+    
+    // Register the TXU in the table for quick access
+    TxuTable[CoreId] = Core;
 }
 
 void
 ActivateApplicationCore(
     _In_ SystemCpuCore_t* Core)
 {
-    SystemDomain_t* Domain;
+    SystemDomain_t*  Domain;
+    SystemCpuCore_t* Iter;
+    TRACE("[activate_core] %u", Core->Id);
 
     // Create the idle-thread and scheduler for the core
     ThreadingEnable();
     
-    // Notify everyone that we are running beore switching on interrupts
-    GetMachine()->NumberOfActiveCores++;
-    Core->State = CpuStateRunning;
+    // Notify everyone that we are running beore switching on interrupts, don't
+    // add this flag, overwrite and set only this flag
+    WRITE_VOLATILE(Core->State, CpuStateRunning);
+    atomic_fetch_add(&GetMachine()->NumberOfActiveCores, 1);
     InterruptEnable();
 
     // Bootup rest of cores in this domain if we are the primary core of
     // this domain. Then our job is simple
     Domain = GetCurrentDomain();
-    if (Domain != NULL && GetCurrentProcessorCore() == &Domain->CoreGroup.PrimaryCore) {
-        for (int i = 0; i < (Domain->CoreGroup.NumberOfCores - 1); i++) {
-            StartApplicationCore(&Domain->CoreGroup.ApplicationCores[i]);
+    if (Domain != NULL && Core == Domain->CoreGroup.Cores) {
+        Iter = Domain->CoreGroup.Cores->Link;
+        while (Iter) {
+            StartApplicationCore(Iter);
+            Iter = Iter->Link;
         }
     }
 
     // Enter idle loop
-    WARNING("Core %" PRIuIN " is online", Core->Id);
+    WARNING("[activate_core] %" PRIuIN " is online", Core->Id);
 	while (1) {
 		ArchProcessorIdle();
     }
@@ -157,6 +154,7 @@ ProcessorMessageSend(
     SystemDomain_t*  Domain;
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
+    SystemCpuCore_t* Iter;
     int              Executions = 0;
     
     assert(Function != NULL);
@@ -169,20 +167,18 @@ ProcessorMessageSend(
         Processor = &GetMachine()->Processor;
     }
     
-    if (!ExcludeSelf || (ExcludeSelf && Processor->PrimaryCore.Id != CurrentCore->Id)) {
-        if (Processor->PrimaryCore.State == CpuStateRunning) {
-            TxuMessageSend(Processor->PrimaryCore.Id, Type, Function, Argument);
+    Iter = Processor->Cores;
+    while (Iter) {
+        if (ExcludeSelf && Iter == CurrentCore) {
+            Iter = Iter->Link;
+            continue;
+        }
+        
+        if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
+            TxuMessageSend(Iter->Id, Type, Function, Argument);
             Executions++;
         }
-    }
-    
-    for (int i = 0; i < (Processor->NumberOfCores - 1); i++) {
-        if (!ExcludeSelf || (ExcludeSelf && Processor->ApplicationCores[i].Id != CurrentCore->Id)) {
-            if (Processor->ApplicationCores[i].State == CpuStateRunning) {
-                TxuMessageSend(Processor->ApplicationCores[i].Id, Type, Function, Argument);
-                Executions++;
-            }
-        }
+        Iter = Iter->Link;
     }
     return Executions;
 }

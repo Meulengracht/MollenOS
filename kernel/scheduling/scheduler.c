@@ -190,34 +190,38 @@ AllocateScheduler(
 {
     SystemDomain_t*    Domain    = GetCurrentDomain();
     SystemCpu_t*       CoreGroup = &GetMachine()->Processor;
+    SystemCpuCore_t*   Iter;
     SystemScheduler_t* Scheduler;
     UUId_t             CoreId;
-    int                i;
     
     // Select the default core range
     if (Domain != NULL) {
         // Use the core range from our domain
         CoreGroup = &Domain->CoreGroup;
     }
-    Scheduler = &CoreGroup->PrimaryCore.Scheduler;
-    CoreId    = CoreGroup->PrimaryCore.Id;
+    Scheduler = &CoreGroup->Cores->Scheduler;
+    CoreId    = CoreGroup->Cores->Id;
+    Iter      = CoreGroup->Cores->Link;
     
     // Allocate a processor core for this object
-    for (i = 0; i < (CoreGroup->NumberOfCores - 1); i++) {
+    while (Iter) {
         unsigned long Bw1;
         unsigned long Bw2;
         
         // Skip cores not booted yet, their scheduler is not initialized
-        if (CoreGroup->ApplicationCores[i].State != CpuStateRunning) {
+        if (!(READ_VOLATILE(Iter->State) & CpuStateRunning)) {
+            Iter = Iter->Link;
             continue;
         }
         
-        Bw1 = atomic_load(&CoreGroup->ApplicationCores[i].Scheduler.Bandwidth);
+        Bw1 = atomic_load(&Iter->Scheduler.Bandwidth);
         Bw2 = atomic_load(&Scheduler->Bandwidth);
         if (Bw1 < Bw2) {
-            Scheduler = &CoreGroup->ApplicationCores[i].Scheduler;
-            CoreId    = CoreGroup->ApplicationCores[i].Id;
+            Scheduler = &Iter->Scheduler;
+            CoreId    = Iter->Id;
         }
+        
+        Iter = Iter->Link;
     }
     
     // Select whatever we end up with

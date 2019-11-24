@@ -41,9 +41,9 @@ spinlock_init(
 {
     assert(lock != NULL);
 
-	lock->value = 0;
-    lock->owner = UUID_INVALID;
-    lock->type  = type;
+	lock->value      = 0;
+    lock->owner      = UUID_INVALID;
+    lock->type       = type;
     lock->references = ATOMIC_VAR_INIT(0);
     smp_wmb();
 }
@@ -75,7 +75,19 @@ void
 spinlock_acquire(
 	_In_ spinlock_t* lock)
 {
-    while (spinlock_try_acquire(lock) != spinlock_acquired);
+    int references;
+    
+    assert(lock != NULL);
+
+    if (IS_RECURSIVE(lock) && lock->owner == thrd_current()) {
+        references = atomic_fetch_add(&lock->references, 1);
+        assert(references != 0);
+        return;
+    }
+    
+    _spinlock_acquire(lock);
+    lock->owner = thrd_current();
+    atomic_store(&lock->references, 1);
 }
 
 int

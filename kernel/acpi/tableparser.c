@@ -31,19 +31,16 @@
 #include <assert.h>
 
 // Static storage for acpi states
-static int AcpiStatus           = ACPI_NOT_AVAILABLE;
-AcpiEcdt_t EmbeddedController   = { 0 };
+static int AcpiStatus         = ACPI_NOT_AVAILABLE;
+AcpiEcdt_t EmbeddedController = { 0 };
 
-/* RegisterDomainCore
- * Registers a new core with the system for the given domain. Provides an override 
- * to support X2 entries that probably will appear. */
 OsStatus_t
 RegisterDomainCore(
-    _In_ SystemDomain_t*    Domain,
-    _In_ UUId_t             CoreId,
-    _In_ int                Override)
+    _In_ SystemDomain_t* Domain,
+    _In_ UUId_t          CoreId,
+    _In_ int             Override)
 {
-    if (CoreId != Domain->CoreGroup.PrimaryCore.Id) {
+    if (CoreId != Domain->CoreGroup.Cores->Id) {
         //RegisterApplicationCore(Domain, CoreId, CpuStateShutdown, 0);
     }
     else {
@@ -236,7 +233,7 @@ EnumerateSystemCoresMADT(
                         uint8_t ApicId      = AcpiCpu->Id;
                         uint8_t ProcessorId = AcpiCpu->ProcessorId;
                         TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
-                        if (ApicId != GetMachine()->Processor.PrimaryCore.Id) {
+                        if (ApicId != GetMachine()->Processor.Cores->Id) {
                             RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }
@@ -407,7 +404,7 @@ AcpiInitializeEarly(void)
             NumberOfDomains = GetSystemDomainCountFromSRAT(SratTableStart, SratTableEnd);
             if (NumberOfDomains > 1) {
                 TRACE(" > number of domains %" PRIiIN "", NumberOfDomains);
-                GetMachine()->NumberOfCores = 0;
+                atomic_store(&GetMachine()->NumberOfCores, 0);
 
                 for (int i = 0; i < NumberOfDomains; i++) {
                     SystemDomain_t *Domain;
@@ -417,7 +414,7 @@ AcpiInitializeEarly(void)
                     GetSystemDomainMetricsFromSRAT(SratTableStart, SratTableEnd,
                         (uint32_t)i, &NumberOfCores, &MemoryStart, &MemoryLength);
                     WARNING("end for now");
-                    GetMachine()->NumberOfCores += (size_t)NumberOfCores;
+                    atomic_fetch_add(&GetMachine()->NumberOfCores, NumberOfCores);
                     for(;;);
 
                     // Validate not empty domain
@@ -448,7 +445,7 @@ AcpiInitializeEarly(void)
             EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd, 1, NULL);
 
             // Update the total number of cores
-            GetMachine()->NumberOfCores = GetMachine()->Processor.NumberOfCores;
+            atomic_store(&GetMachine()->NumberOfCores, GetMachine()->Processor.NumberOfCores);
         }
 
         // Handle system interrupt overrides

@@ -80,11 +80,13 @@ SynchronizeMemoryRegion(
     };
     
     int     NumberOfCores;
+    int     NumberOfActiveCores;
     clock_t InterruptedAt;
     size_t  Timeout = 1000;
 
     // Skip this entire step if there is no multiple cores active
-    if (GetMachine()->NumberOfActiveCores <= 1) {
+    NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
+    if (NumberOfActiveCores <= 1) {
         return;
     }
 
@@ -124,7 +126,7 @@ CreateMemorySpaceContext(
     Context->SignalHandler  = 0;
     Context->MemoryHandlers = kmalloc(sizeof(list_t));
     if (!Context->MemoryHandlers) {
-        // assert
+        assert(0);
     }
     list_construct(Context->MemoryHandlers);
 

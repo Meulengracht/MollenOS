@@ -99,19 +99,24 @@ DebugPageFault(
     return Status;
 }
 
-OsStatus_t
+static OsStatus_t
 DebugHaltAllProcessorCores(
     _In_ UUId_t         ExcludeId,
     _In_ SystemCpu_t*   Processor)
 {
-    if (ExcludeId != Processor->PrimaryCore.Id) {
-        TxuMessageSend(Processor->PrimaryCore.Id, CpuFunctionHalt, NULL, NULL);
-    }
-
-    for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
-        if (ExcludeId != Processor->ApplicationCores[i].Id) {
-            TxuMessageSend(Processor->ApplicationCores[i].Id, CpuFunctionHalt, NULL, NULL);
+    SystemCpuCore_t* Iter;
+    
+    Iter = Processor->Cores;
+    while (Iter) {
+        if (Iter->Id == ExcludeId) {
+            Iter = Iter->Link;
+            continue;
         }
+        
+        if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
+            TxuMessageSend(Iter->Id, CpuFunctionHalt, NULL, NULL);
+        }
+        Iter = Iter->Link;
     }
     return OsSuccess;
 }

@@ -527,16 +527,19 @@ void
 InterruptSetActiveStatus(
     _In_ int Active)
 {
-    GetCurrentProcessorCore()->State &= ~(CpuStateInterruptActive);
+    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
+    State &= ~(CpuStateInterruptActive);
     if (Active) {
-        GetCurrentProcessorCore()->State |= CpuStateInterruptActive;
+        State |= CpuStateInterruptActive;
     }
+    WRITE_VOLATILE(GetCurrentProcessorCore()->State, State);
 }
 
 int
 InterruptGetActiveStatus(void)
 {
-    return (GetCurrentProcessorCore()->State & CpuStateInterruptActive) == 0 ? 0 : 1;
+    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
+    return (State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
 Context_t*
