@@ -67,7 +67,7 @@ MemorySynchronizationHandler(
 
 static void
 SynchronizeMemoryRegion(
-    _In_ SystemMemorySpace_t* SystemMemorySpace,
+    _In_ SystemMemorySpace_t* MemorySpace,
     _In_ uintptr_t            Address,
     _In_ size_t               Length)
 {
@@ -95,11 +95,11 @@ SynchronizeMemoryRegion(
         Object.MemorySpaceHandle = UUID_INVALID; // Everyone must update
     }
     else {
-        if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
+        if (MemorySpace->ParentHandle == UUID_INVALID) {
             Object.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
         }
         else {
-            Object.MemorySpaceHandle = SystemMemorySpace->ParentHandle; // Parent and siblings!
+            Object.MemorySpaceHandle = MemorySpace->ParentHandle; // Parent and siblings!
         }
     }
     
@@ -248,11 +248,11 @@ DestroyMemorySpace(
     kfree(MemorySpace);
 }
 
-OsStatus_t
+void
 SwitchMemorySpace(
-    _In_ SystemMemorySpace_t* SystemMemorySpace)
+    _In_ SystemMemorySpace_t* MemorySpace)
 {
-    return SwitchVirtualSpace(SystemMemorySpace);
+    ArchMmuSwitchMemorySpace(MemorySpace);
 }
 
 SystemMemorySpace_t*
@@ -546,7 +546,9 @@ InstallMemoryMapping(
     _In_ Flags_t              MemoryFlags,
     _In_ Flags_t              PlacementFlags)
 {
-    OsStatus_t Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalAddress, VirtualAddress, MemoryFlags);
+    int        PageCount;
+    OsStatus_t Status = ArchMmuSetVirtualPages(SystemMemorySpace, VirtualAddress, 
+        &PhysicalAddress, 1, MemoryFlags, &PageCount);
     if (Status != OsSuccess) {
         if (Status == OsExists) {
             ERROR("Memory mapping at 0x%" PRIxIN " already existed", VirtualAddress);
@@ -568,6 +570,7 @@ CreateMemorySpaceMapping(
 {
     int               PageCount      = DIVUP(Length, GetMemorySpacePageSize());
     int               CleanupOnError = 0;
+    int               PageCleared;
     VirtualAddress_t  VirtualBase;
     OsStatus_t        Status;
     int               i;
@@ -642,7 +645,7 @@ CreateMemorySpaceMapping(
         if (i != PageCount) {
             for (i -= 1; i >= 0; i--) {
                 uintptr_t VirtualPage  = (VirtualBase + (i * GetMemorySpacePageSize()));
-                ClearVirtualPageMapping(MemorySpace, VirtualPage);
+                ArchMmuClearVirtualPages(MemorySpace, VirtualPage, 1, &PageCleared);
             }
         }
     }
@@ -694,7 +697,7 @@ CommitMemorySpaceMapping(
             }
         }
         
-        Status = CommitVirtualPageMapping(MemorySpace, Dma, Virtual);
+        Status = ArchMmuCommitVirtualPage(MemorySpace, Virtual, Dma);
         if (Status != OsSuccess) {
             if (Placement & MAPPING_PHYSICAL_DEFAULT) {
                 FreeSystemMemory(Dma, GetMemorySpacePageSize());
@@ -717,14 +720,18 @@ CloneMemorySpaceMapping(
 {
     VirtualAddress_t VirtualBase;
     int              PageCount = DIVUP(Size, GetMemorySpacePageSize());
+    int              PagesRetrieved;
+    int              PagesUpdated;
     uintptr_t        DmaVector[PageCount];
-    int              i;
     OsStatus_t       Status;
+    
     assert(SourceSpace != NULL);
     assert(DestinationSpace != NULL);
     
     // Allocate a temporary array to store physical mappings
-    Status = GetMemorySpaceMapping(SourceSpace, SourceAddress, PageCount, &DmaVector[0]);
+    Status = ArchMmuVirtualToPhysical(SourceSpace, SourceAddress, PageCount, 
+        &DmaVector[0], &PagesRetrieved);
+    // Ignore status?!
 
     // Get the virtual address space, this however may not end up as 0 if it the mapping
     // is not provided already.
@@ -736,48 +743,36 @@ CloneMemorySpaceMapping(
 
     // Add required memory flags
     MemoryFlags |= (MAPPING_PERSISTENT | MAPPING_COMMIT);
-
-    for (i = 0; i < PageCount; i++) {
-        uintptr_t VirtualPage  = (VirtualBase + (i * GetMemorySpacePageSize()));
-        uintptr_t PhysicalPage = DmaVector[i];
-        assert(PhysicalPage != 0);
-        
-        Status = SetVirtualPageMapping(DestinationSpace, PhysicalPage, VirtualPage, MemoryFlags);
-        // The only reason this ever turns error if the mapping exists, in this case free the allocated
-        // resources if they are our allocations, and ignore
-        if (Status != OsSuccess) {
-            ERROR(" > failed to create virtual mapping for a clone mapping");
-            break;
-        }
+    
+    Status = ArchMmuSetVirtualPages(DestinationSpace, VirtualBase, &DmaVector[0], 
+        PagesRetrieved, MemoryFlags, &PagesUpdated);
+    if (Status == OsSuccess && PagesUpdated != PageCount) {
+        Status = OsIncomplete;
     }
     return Status;
 }
 
 OsStatus_t
 RemoveMemorySpaceMapping(
-    _In_ SystemMemorySpace_t* SystemMemorySpace, 
+    _In_ SystemMemorySpace_t* MemorySpace, 
     _In_ VirtualAddress_t     Address, 
     _In_ size_t               Size)
 {
     OsStatus_t Status;
     int        PageCount = DIVUP(Size, GetMemorySpacePageSize());
-    int        i;
-    assert(SystemMemorySpace != NULL);
+    int        PagesCleared;
+    assert(MemorySpace != NULL);
 
     // Free the underlying resources first, before freeing the upper resources
-    for (i = 0; i < PageCount; i++) {
-        uintptr_t VirtualPage = Address + (i * GetMemorySpacePageSize());
-        Status                = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
-        if (Status != OsSuccess) {
-            WARNING("Failed to unmap address 0x%" PRIxIN "", VirtualPage);
-        }
+    Status = ArchMmuClearVirtualPages(MemorySpace, Address, PageCount, &PagesCleared);
+    if (Status == OsSuccess || Status == OsIncomplete) {
+        SynchronizeMemoryRegion(MemorySpace, Address, Size);
     }
-    SynchronizeMemoryRegion(SystemMemorySpace, Address, Size);
 
     // Free the range in either GAM or Process memory
-    if (SystemMemorySpace->Context != NULL &&
-        BlockBitmapValidateState(SystemMemorySpace->Context->HeapSpace, Address, 1) == OsSuccess) {
-        ReleaseBlockmapRegion(SystemMemorySpace->Context->HeapSpace, Address, Size);
+    if (MemorySpace->Context != NULL &&
+        BlockBitmapValidateState(MemorySpace->Context->HeapSpace, Address, 1) == OsSuccess) {
+        ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Address, Size);
     }
     else if (BlockBitmapValidateState(&GetMachine()->GlobalAccessMemory, Address, 1) == OsSuccess) {
         ReleaseBlockmapRegion(&GetMachine()->GlobalAccessMemory, Address, Size);
@@ -796,30 +791,18 @@ ChangeMemorySpaceProtection(
     _In_        Flags_t                 Flags,
     _Out_       Flags_t*                PreviousFlags)
 {
-    OsStatus_t Status = OsSuccess;
-    int        PageCount;
-    int        i;
+    int        PageCount = DIVUP((Size + (VirtualAddress % GetMemorySpacePageSize())), GetMemorySpacePageSize());
+    int        PagesUpdated;
+    OsStatus_t Status;
+
     assert(SystemMemorySpace != NULL);
 
-    // Update the given pointer with previous flags, only flags from
-    // the first page will be returned, so if flags vary this will be hidden.
-    if (PreviousFlags != NULL) {
-        Status = GetVirtualPageAttributes(SystemMemorySpace, VirtualAddress, PreviousFlags);
-        if (Size == 0) {
-            return OsSuccess;
-        }
+    Status = ArchMmuUpdatePageAttributes(SystemMemorySpace, VirtualAddress, PageCount, &Flags, &PagesUpdated);
+    if (Status != OsSuccess && Status != OsIncomplete) {
+        return Status;
     }
-
-    // Calculate the number of pages of this allocation
-    PageCount = DIVUP((Size + (VirtualAddress % GetMemorySpacePageSize())), GetMemorySpacePageSize());
-    for (i = 0; i < PageCount; i++) {
-        uintptr_t Block = VirtualAddress + (i * GetMemorySpacePageSize());
-        
-        Status = SetVirtualPageAttributes(SystemMemorySpace, Block, Flags);
-        if (Status != OsSuccess) {
-            break;
-        }
-    }
+    
+    *PreviousFlags = Flags;
     SynchronizeMemoryRegion(SystemMemorySpace, VirtualAddress, Size);
     return Status;
 }
@@ -831,22 +814,14 @@ GetMemorySpaceMapping(
     _In_  int                  PageCount,
     _Out_ uintptr_t*           DmaVectorOut)
 {
-    OsStatus_t Status   = OsSuccess;
-    size_t     PageMask = GetMemorySpacePageSize() - 1; // only valid for 2^n
-    int        i;
+    OsStatus_t Status;
+    int        PagesRetrieved;
     
     assert(MemorySpace != NULL);
     assert(DmaVectorOut != NULL);
     
-    // Behaviour we want here is only the first mapping to keep the offset
-    for (i = 0; i < PageCount; i++, Address += GetMemorySpacePageSize()) {
-        DmaVectorOut[i] = GetVirtualPageMapping(MemorySpace, Address);
-        if (!i) {
-            // The pagemask will be 0xFFF if the page size is 0x1000
-            // so make sure we invert the bits
-            Address &= ~(PageMask);
-        }
-    }
+    Status = ArchMmuVirtualToPhysical(MemorySpace, Address, PageCount, 
+        DmaVectorOut, &PagesRetrieved);
     return Status;
 }
 
@@ -856,8 +831,12 @@ GetMemorySpaceAttributes(
     _In_ VirtualAddress_t     VirtualAddress)
 {
     Flags_t Attributes;
+    int     PagesRetrieved;
+    
     assert(SystemMemorySpace != NULL);
-    if (GetVirtualPageAttributes(SystemMemorySpace, VirtualAddress, &Attributes) != OsSuccess) {
+    
+    if (ArchMmuGetPageAttributes(SystemMemorySpace, VirtualAddress, 1, 
+            &Attributes, &PagesRetrieved) != OsSuccess) {
         return 0;
     }
     return Attributes;
@@ -870,10 +849,11 @@ IsMemorySpacePageDirty(
 {
     OsStatus_t Status = OsSuccess;
     Flags_t    Flags  = 0;
+    int        PagesRetrieved;
     
     // Sanitize address space
     assert(SystemMemorySpace != NULL);
-    Status = GetVirtualPageAttributes(SystemMemorySpace, Address, &Flags);
+    Status = ArchMmuGetPageAttributes(SystemMemorySpace, Address, 1, &Flags, &PagesRetrieved);
 
     // Check the flags if status was ok
     if (Status == OsSuccess && !(Flags & MAPPING_ISDIRTY)) {
@@ -889,10 +869,11 @@ IsMemorySpacePagePresent(
 {
     OsStatus_t Status = OsSuccess;
     Flags_t    Flags  = 0;
+    int        PagesRetrieved;
     
     // Sanitize address space
     assert(SystemMemorySpace != NULL);
-    Status = GetVirtualPageAttributes(SystemMemorySpace, Address, &Flags);
+    Status = ArchMmuGetPageAttributes(SystemMemorySpace, Address, 1, &Flags, &PagesRetrieved);
 
     // Check the flags if status was ok
     if (Status == OsSuccess && !(Flags & MAPPING_COMMIT)) {

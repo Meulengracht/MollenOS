@@ -35,7 +35,9 @@ const int ErrorCodeTable[OsErrorCodeCount] = {
     EACCES,     //OsInvalidPermissions Error - Bad permissions
     ETIME,      //OsTimeout            Error - Timeout
     ENOTSUP,    //OsNotSupported       Error - Feature not supported
-    ENOMEM      //OsOutOfMemory        Error - Out of memory
+    ENOMEM,     //OsOutOfMemory        Error - Out of memory
+    EBUSY,      //OsBusy               Error - Resource is busy or contended
+    ECANCELED   //OsIncomplete         Error - Operation only completed partially
 };
 
 int

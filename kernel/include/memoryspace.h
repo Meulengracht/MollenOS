@@ -115,9 +115,9 @@ DestroyMemorySpace(
 /* SwitchMemorySpace
  * Switches the current address space out with the the address space provided 
  * for the current cpu */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 SwitchMemorySpace(
-    _In_ SystemMemorySpace_t* SystemMemorySpace);
+    _In_ SystemMemorySpace_t*);
 
 /* GetCurrentMemorySpace
  * Returns the current address space if there is no active threads or threading

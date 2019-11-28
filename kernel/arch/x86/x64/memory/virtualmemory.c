@@ -30,6 +30,7 @@
 #include <apic.h>
 #include <arch.h>
 #include <arch/output.h>
+#include <arch/mmu.h>
 #include <arch/utils.h>
 #include <cpu.h>
 #include <component/cpu.h>
@@ -44,8 +45,6 @@
 #include <threading.h>
 
 extern uintptr_t LastReservedAddress;
-
-extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
 
 STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
 STATIC_ASSERT(sizeof(PageDirectoryTable_t) == 8192, Invalid_PageDirectoryTable_Alignment);
@@ -626,7 +625,7 @@ InitializeVirtualSpace(
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
         SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
-        SwitchVirtualSpace(SystemMemorySpace);
+        ArchMmuSwitchMemorySpace(SystemMemorySpace);
         
         // Release the memory reserved for the boot paging region
         ReleaseBlockmapRegion(&GetMachine()->PhysicalMemory, MEMORY_LOCATION_BOOTPAGING, 0x5000);

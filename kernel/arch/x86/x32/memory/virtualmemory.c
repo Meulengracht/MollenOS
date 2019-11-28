@@ -29,6 +29,7 @@
 #include <component/cpu.h>
 #include <memoryspace.h>
 #include <arch/output.h>
+#include <arch/mmu.h>
 #include <arch/utils.h>
 #include <threading.h>
 #include <machine.h>
@@ -43,7 +44,6 @@
 
 extern uintptr_t LastReservedAddress;
 
-extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
 extern void memory_set_paging(int enable);
 extern void memory_reload_cr3(void);
 
@@ -425,7 +425,7 @@ InitializeVirtualSpace(
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
         SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
-        SwitchVirtualSpace(SystemMemorySpace);
+        ArchMmuSwitchMemorySpace(SystemMemorySpace);
         memory_set_paging(1);
     }
     else {

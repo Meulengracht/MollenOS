@@ -96,6 +96,7 @@ typedef enum {
     OsNotSupported,      // Error - Feature not supported
     OsOutOfMemory,       // Error - Out of memory
     OsBusy,              // Error - Resource is busy or contended
+    OsIncomplete,        // Error - Operation only completed partially
     
     OsErrorCodeCount
 } OsStatus_t;

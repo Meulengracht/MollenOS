@@ -42,7 +42,7 @@ DEAD before read of 0xa450c8
 #include <debug.h>
 #include <ds/list.h>
 #include <heap.h>
-#include <irq_spinlock.h>
+#include <mutex.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <string.h>
@@ -71,7 +71,7 @@ typedef struct MemoryAtomicCache {
 
 typedef struct MemoryCache {
     const char*      Name;
-    IrqSpinlock_t    SyncObject;
+    Mutex_t          SyncObject;
     Flags_t          Flags;
 
     size_t           ObjectSize;
@@ -405,12 +405,12 @@ cache_contains_address(
 
     // Check partials first, we have to lock the cache as slabs can 
     // get rearranged as we go, which is not ideal
-    IrqSpinlockAcquire(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
     list_enumerate(&Cache->PartialSlabs, SlabContainsAddress, &Context);
     if (!Context.Found) {
         list_enumerate(&Cache->FullSlabs, SlabContainsAddress, &Context);
     }
-    IrqSpinlockRelease(&Cache->SyncObject);
+    MutexUnlock(&Cache->SyncObject);
     return Context.Found;
 }
 
@@ -484,7 +484,8 @@ cache_calculate_slab_size(
     _In_ MemoryCache_t* Cache,
     _In_ size_t         ObjectSize,
     _In_ size_t         ObjectAlignment,
-    _In_ size_t         ObjectPadding)
+    _In_ size_t         ObjectPadding,
+    _In_ int            ObjectMinCount)
 {
     // We only ever accept 1/8th of a page of wasted bytes
     size_t PageSize        = GetMemorySpacePageSize();
@@ -509,7 +510,7 @@ cache_calculate_slab_size(
         ObjectsPerSlab, SlabOnSite, PageCount, Wastage, ReservedSpace);
     
     // Make sure we always have atleast 1 element
-    while (ObjectsPerSlab == 0 || Wastage > AcceptedWastage) {
+    while (ObjectsPerSlab == 0 || Wastage > AcceptedWastage || ObjectsPerSlab < (size_t)ObjectMinCount) {
         assert(i != 9); // 8 = 256 pages, allow for no more
         i++;
         PageCount      = (1 << i);
@@ -563,6 +564,7 @@ MemoryCacheConstruct(
     _In_ const char*    Name,
     _In_ size_t         ObjectSize,
     _In_ size_t         ObjectAlignment,
+    _In_ int            ObjectMinCount,
     _In_ Flags_t        Flags,
     _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
@@ -578,7 +580,7 @@ MemoryCacheConstruct(
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
 
-    IrqSpinlockConstruct(&Cache->SyncObject);
+    MutexConstruct(&Cache->SyncObject, MUTEX_RECURSIVE);
     Cache->Name                = Name;
     Cache->Flags               = Flags;
     Cache->ObjectSize          = ObjectSize;
@@ -593,11 +595,19 @@ MemoryCacheConstruct(
     list_construct(&Cache->PartialSlabs);
     list_construct(&Cache->FullSlabs);
     
-    cache_calculate_slab_size(Cache, ObjectSize, ObjectAlignment, ObjectPadding);
+    cache_calculate_slab_size(Cache, ObjectSize, ObjectAlignment, ObjectPadding, ObjectMinCount);
     
     // We only perform this if it has been requested and is not a default cache
     if (!(Cache->Flags & (HEAP_CACHE_DEFAULT | HEAP_SLAB_NO_ATOMIC_CACHE))) {
         cache_initialize_atomic_cache(Cache);
+    }
+    
+    // Should we create the initial slab?
+    if (Flags & HEAP_INITIAL_SLAB) {
+        MemorySlab_t* Slab = slab_create(Cache);
+        assert(Slab != NULL);
+        Cache->NumberOfFreeObjects = Cache->ObjectCount;
+        list_append(&Cache->FreeSlabs, &Slab->Header);
     }
     
     // Flush writes to other cpus
@@ -609,6 +619,7 @@ MemoryCacheCreate(
     _In_ const char* Name,
     _In_ size_t      ObjectSize,
     _In_ size_t      ObjectAlignment,
+    _In_ int         ObjectMinCount,
     _In_ Flags_t     Flags,
     _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
@@ -633,7 +644,8 @@ MemoryCacheCreate(
         ObjectAlignment += sizeof(void*) - (ObjectAlignment % sizeof(void*));
     }
     
-    MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
+    MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, ObjectMinCount, 
+        Flags, ObjectConstructor, ObjectDestructor);
     return Cache;
 }
 
@@ -694,7 +706,7 @@ MemoryCacheAllocate(
         }
     }
 
-    IrqSpinlockAcquire(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
         if (Element) {
@@ -722,14 +734,14 @@ MemoryCacheAllocate(
             list_append(&Cache->FullSlabs, Element);
         }
         Cache->NumberOfFreeObjects--;
+        
+        Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     }
-    else {
-        IrqSpinlockRelease(&Cache->SyncObject);
+    else if (!(Cache->Flags & HEAP_SINGLE_SLAB)) {
         Slab = slab_create(Cache);
         if (!Slab) {
             return NULL;
         }
-        IrqSpinlockAcquire(&Cache->SyncObject);
         
         Index = slab_allocate_index(Cache, Slab);
         assert(Index != -1);
@@ -741,11 +753,16 @@ MemoryCacheAllocate(
             list_append(&Cache->PartialSlabs, &Slab->Header);
             Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
         }
+        
+        Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     }
-    IrqSpinlockRelease(&Cache->SyncObject);
-    
-    Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %u)", Allocated, Cache->ObjectSize, 
+    else {
+        Allocated = NULL;
+        Index     = -1;
+    }
+    MutexUnlock(&Cache->SyncObject);
+
+    TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %i)", Allocated, Cache->ObjectSize, 
         LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
     return Allocated;
 }
@@ -819,7 +836,7 @@ MemoryCacheFree(
         // If the atomic cache is full then drain it
     }
 
-    IrqSpinlockAcquire(&Cache->SyncObject);
+    MutexLock(&Cache->SyncObject);
     list_enumerate(&Cache->PartialSlabs, FreeInSlab, &Context);
     if (Context.AddToFree) {
         list_append(&Cache->FreeSlabs, Context.Element);
@@ -843,7 +860,7 @@ MemoryCacheFree(
             }
         }
     }
-    IrqSpinlockRelease(&Cache->SyncObject);
+    MutexUnlock(&Cache->SyncObject);
 }
 
 int MemoryCacheReap(void)
@@ -866,7 +883,7 @@ void* kmalloc(size_t Size)
     // If the cache does not exist, we must create it
     if (Selected->Cache == NULL) {
         Selected->Cache = MemoryCacheCreate(Selected->Name, Selected->ObjectSize,
-            Selected->ObjectSize, Selected->InitializationFlags, NULL, NULL);
+            Selected->ObjectSize, 0, Selected->InitializationFlags, NULL, NULL);
     }
     return MemoryCacheAllocate(Selected->Cache);
 }
@@ -939,5 +956,5 @@ MemoryCacheInitialize(void)
 {
     // Initialize the default cache and disable atomics for this one
     MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 
-        16, HEAP_CACHE_DEFAULT, NULL, NULL);
+        16, HEAP_CACHE_DEFAULT, 0, NULL, NULL);
 }

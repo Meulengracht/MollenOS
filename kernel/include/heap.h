@@ -27,12 +27,14 @@
 typedef struct MemoryCache MemoryCache_t;
 
 // Debug options for caches
-#define HEAP_DEBUG_USE_AFTER_FREE   0x1
-#define HEAP_DEBUG_OVERRUN          0x2
+#define HEAP_DEBUG_USE_AFTER_FREE 0x01
+#define HEAP_DEBUG_OVERRUN        0x02
 
 // Configuration options for caches
-#define HEAP_CACHE_DEFAULT          0x4 // Only set for fixed size caches
-#define HEAP_SLAB_NO_ATOMIC_CACHE   0x8 // Set to disable smp optimizations
+#define HEAP_CACHE_DEFAULT        0x04 // Only set for fixed size caches
+#define HEAP_SLAB_NO_ATOMIC_CACHE 0x08 // Set to disable smp optimizations
+#define HEAP_INITIAL_SLAB         0x10 // Set to allocate the initial slab
+#define HEAP_SINGLE_SLAB          0x20 // Set to disable multiple slabs
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.
@@ -46,6 +48,7 @@ MemoryCacheCreate(
     _In_ const char* Name,
     _In_ size_t      ObjectSize,
     _In_ size_t      ObjectAlignment,
+    _In_ int         ObjectMinCount,
     _In_ Flags_t     Flags,
     _In_ void       (*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void       (*ObjectDestructor)(struct MemoryCache*, void*));

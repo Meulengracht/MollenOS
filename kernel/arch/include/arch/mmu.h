@@ -27,18 +27,144 @@
 #include <os/osdefs.h>
 #include <memoryspace.h>
 
-extern OsStatus_t InitializeVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);
-extern OsStatus_t DestroyVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
+extern OsStatus_t
+InitializeVirtualSpace(
+    _In_ SystemMemorySpace_t*);
 
-extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
-extern OsStatus_t SetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t);
+extern OsStatus_t
+CloneVirtualSpace(
+    _In_ SystemMemorySpace_t*,
+    _In_ SystemMemorySpace_t*,
+    _In_ int);
 
-extern uintptr_t  GetVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
+extern OsStatus_t
+DestroyVirtualSpace(
+    _In_ SystemMemorySpace_t*);
 
-extern OsStatus_t CommitVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t);
-extern OsStatus_t SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t, Flags_t);
-extern OsStatus_t ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
+/**
+ * ArchMmuSwitchMemorySpace
+ * * Switches the current memory space out with the given memory space. This
+ * * will cause a total TLB flush.
+ * @param MemorySpace [In]
+ */
+KERNELAPI void KERNELABI
+ArchMmuSwitchMemorySpace(
+    _In_ SystemMemorySpace_t*);
+
+/**
+ * ArchMmuGetPageAttributes
+ * * Retrieves memory attributes for the number of virtual address provided. The array
+ * * of attribute values provided must be large enough to hold the number of pages requested.
+ * @param MemorySpace     [In]
+ * @param VirtualAddress  [In]
+ * @param PageCount       [In]
+ * @param AttributeValues [In]
+ * @param PagesRetrieved  [Out]
+ * 
+ * @return Status of the page attribute lookup.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuGetPageAttributes(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  int,
+    _In_  Flags_t*,
+    _Out_ int*);
+
+/**
+ * ArchMmuUpdatePageAttributes
+ * * Changes memory attributes for the number of virtual address provided. The
+ * * attributes will be set the same for all pages requested.
+ * @param MemorySpace    [In]
+ * @param VirtualAddress [In]
+ * @param PageCount      [In]
+ * @param Attributes     [In]  Replaces the attributes here with the previous attributes 
+ * @param PagesUpdated   [Out]
+ * 
+ * @return Status of the page attribute update.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuUpdatePageAttributes(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  int,
+    _In_  Flags_t*,
+    _Out_ int*);
+
+/**
+ * ArchMmuCommitVirtualPage
+ * * Update the underlying mapping for a single page at the virtual address given.
+ * @param MemorySpace     [In]
+ * @param VirtualAddress  [In]
+ * @param PhysicalAddress [In]
+ * 
+ * @return Status of the address mapping update.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuCommitVirtualPage(
+    _In_ SystemMemorySpace_t*,
+    _In_ VirtualAddress_t,
+    _In_ PhysicalAddress_t);
+
+/**
+ * ArchMmuSetVirtualPages
+ * * Creates @PageCount number of virtual memory mappings that correspond to the
+ * * array of physical mappings given. The array provided must be large enough to
+ * * fit the requested number of mappings.
+ * @param MemorySpace           [In]
+ * @param VirtualAddress        [In]
+ * @param PhysicalAddressValues [In]
+ * @param PageCount             [In]
+ * @param Flags                 [In]
+ * @param PagesUpdated          [Out]
+ * 
+ * @return Status of the address mapping creation.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuSetVirtualPages(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  PhysicalAddress_t*,
+    _In_  int,
+    _In_  Flags_t,
+    _Out_ int*);
+
+/**
+ * ArchMmuClearVirtualPages
+ * * Removes @PageCount number of virtual memory mappings.
+ * @param MemorySpace    [In]
+ * @param VirtualAddress [In]
+ * @param PageCount      [In]
+ * @param PagesCleared   [Out]
+ * 
+ * @return Status of the address mapping removal.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuClearVirtualPages(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  int,
+    _Out_ int*);
+
+/**
+ * ArchMmuVirtualToPhysical
+ * * Converts a range of virtual addresses to physical addresses. The number of
+ * * pages requested converted must be able to fit in to the PhysicalAddress array.
+ * * Offset of the first page will be preserved in the translation.
+ * @param MemorySpace           [In]
+ * @param VirtualAddress        [In]
+ * @param PageCount             [In]
+ * @param PhysicalAddressValues [In]
+ * @param PagesRetrieved        [Out]
+ * 
+ * @return Status of the address space translation.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuVirtualToPhysical(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  int,
+    _In_  PhysicalAddress_t*,
+    _Out_ int*);
 
 #endif //!__SYSTEM_MMU_INTEFACE_H__

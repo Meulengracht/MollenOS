@@ -143,8 +143,8 @@ InitializeSystemMemory(
     return OsSuccess;
 }
 
-Flags_t
-ConvertSystemSpaceToPaging(
+static Flags_t
+ConvertGenericAttributesToX86(
     _In_ Flags_t Flags)
 {
     Flags_t NativeFlags = 0;
@@ -173,8 +173,8 @@ ConvertSystemSpaceToPaging(
     return NativeFlags;
 }
 
-Flags_t
-ConvertPagingToSystemSpace(
+static Flags_t
+ConvertX86AttributesToGeneric(
     _In_ Flags_t Flags)
 {
     Flags_t GenericFlags = 0;
@@ -203,88 +203,117 @@ ConvertPagingToSystemSpace(
     return GenericFlags;
 }
 
-OsStatus_t
-SwitchVirtualSpace(
-    SystemMemorySpace_t* SystemMemorySpace)
+void
+ArchMmuSwitchMemorySpace(
+    SystemMemorySpace_t* MemorySpace)
 {
-    assert(SystemMemorySpace != NULL);
-    assert(SystemMemorySpace->Data[MEMORY_SPACE_CR3] != 0);
-    assert(SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
-    memory_load_cr3(SystemMemorySpace->Data[MEMORY_SPACE_CR3]);
-    return OsSuccess;
+    assert(MemorySpace != NULL);
+    assert(MemorySpace->Data[MEMORY_SPACE_CR3] != 0);
+    assert(MemorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
+    memory_load_cr3(MemorySpace->Data[MEMORY_SPACE_CR3]);
 }
 
 OsStatus_t
-SetVirtualPageAttributes(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     Address,
-    _In_ Flags_t              Flags)
+ArchMmuGetPageAttributes(
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     StartAddress,
+    _In_  int                  PageCount,
+    _In_  Flags_t*             AttributeValues,
+    _Out_ int*                 PagesCleared)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    uint32_t           Mapping;
-    Flags_t            ConvertedFlags;
     int                IsCurrent, Update;
-    int                Index = PAGE_TABLE_INDEX(Address);
+    Flags_t            X86Attributes;
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
+    
+    assert(AttributeValues != NULL);
 
-    ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
-    Directory      = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table          = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
-    if (Table == NULL) {
-        return OsError;
-    }
- 
-    // For kernel mappings we would like to mark the mappings global
-    if (Address < MEMORY_LOCATION_KERNEL_END) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
-            ConvertedFlags |= PAGE_GLOBAL;
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
+        if (Table == NULL) {
+            Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+            break;
+        }
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            X86Attributes = atomic_load(&Table->Pages[Index]);
+            AttributeValues[i] = ConvertX86AttributesToGeneric(X86Attributes & ATTRIBUTE_MASK);
         }
     }
-
-    // Map it, make sure we mask the page address so we don't accidently set any flags
-    Mapping = atomic_load_explicit(&Table->Pages[Index], memory_order_acquire);
-    Mapping &= PAGE_MASK;
-    Mapping |= ConvertedFlags;
-    atomic_store_explicit(&Table->Pages[Index], Mapping, memory_order_release);
-    if (IsCurrent) {
-        memory_invalidate_addr(Address);
-    }
+    *PagesCleared = i;
     return OsSuccess;
 }
 
 OsStatus_t
-GetVirtualPageAttributes(
+ArchMmuUpdatePageAttributes(
     _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     Address,
-    _Out_ Flags_t*             Flags)
+    _In_  VirtualAddress_t     StartAddress,
+    _In_  int                  PageCount,
+    _In_  Flags_t*             Attributes,
+    _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
+    Flags_t            X86Attributes;
     int                IsCurrent, Update;
-    Flags_t            OriginalFlags;
-    int                Index = PAGE_TABLE_INDEX(Address);
-    
-    assert(Flags != NULL);
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
 
-    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
-    if (Table == NULL) {
-        return OsDoesNotExist;
+    X86Attributes = ConvertGenericAttributesToX86(*Attributes);
+    
+    // For kernel mappings we would like to mark the mappings global
+    if (StartAddress < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            X86Attributes |= PAGE_GLOBAL;
+        }
     }
     
-    // Map it, make sure we mask the page address so we don't accidently set any flags
-    OriginalFlags = atomic_load(&Table->Pages[Index]);
-    *Flags        = ConvertPagingToSystemSpace(OriginalFlags & ATTRIBUTE_MASK);
-    return OsSuccess;
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
+        if (Table == NULL) {
+            Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+            break;
+        }
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            uintptr_t Mapping        = atomic_load(&Table->Pages[Index]);
+            uintptr_t UpdatedMapping = (Mapping & PAGE_MASK) | X86Attributes;
+            if (!i) {
+                *Attributes = ConvertX86AttributesToGeneric(Mapping & ATTRIBUTE_MASK);
+            }
+            
+            if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Mapping, UpdatedMapping)) {
+                if (IsCurrent) {
+                    memory_invalidate_addr(StartAddress);
+                }
+                Status = (i == 0) ? OsBusy : OsIncomplete;
+                break;
+            }
+            
+            if (IsCurrent) {
+                memory_invalidate_addr(StartAddress);
+            }
+        }
+    }
+    *PagesUpdated = i;
+    return Status;
 }
 
 OsStatus_t
-CommitVirtualPageMapping(
+ArchMmuCommitVirtualPage(
     _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ PhysicalAddress_t    pAddress,
-    _In_ VirtualAddress_t     vAddress)
+    _In_ VirtualAddress_t     Address,
+    _In_ PhysicalAddress_t    PhysicalAddress)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -292,24 +321,22 @@ CommitVirtualPageMapping(
     uintptr_t          Mapping;
     int                Update;
     int                IsCurrent;
-    int                Index  = PAGE_TABLE_INDEX(vAddress);
+    int                Index  = PAGE_TABLE_INDEX(Address);
     OsStatus_t         Status = OsSuccess;
-    int                Result;
 
-    vAddress &= PAGE_MASK;
-    Directory = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, &Update);
+    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return OsDoesNotExist;
     }
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
     Mapping = atomic_load(&Table->Pages[Index]);
-SyncTable:
     if (Mapping & PAGE_PRESENT) {
         Status = OsExists;
         goto LeaveFunction;
     }
+    
     if (!(Mapping & PAGE_RESERVED)) {
         Status = OsDoesNotExist;
         goto LeaveFunction;
@@ -317,93 +344,85 @@ SyncTable:
     
     // Build the mapping, reuse existing attached physical if it exists
     if ((Mapping & PAGE_MASK) != 0) {
-        pAddress = Mapping | PAGE_PRESENT;
+        PhysicalAddress = Mapping | PAGE_PRESENT;
     }
     else {
-        pAddress = (pAddress & PAGE_MASK) | (Mapping & ATTRIBUTE_MASK) | PAGE_PRESENT;
+        PhysicalAddress = (PhysicalAddress & PAGE_MASK) | (Mapping & ATTRIBUTE_MASK) | PAGE_PRESENT;
     }
-    pAddress &= ~(PAGE_RESERVED);
+    PhysicalAddress &= ~(PAGE_RESERVED);
 
     // Perform the mapping in a weak context, fast operation.
-    Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress);
-    if (!Result) {
-        goto SyncTable;
-    }
-
-    // Last step is to invalidate the address in the MMIO
-LeaveFunction:
-    if (IsCurrent || Update) {
-        if (Update) {
-            memory_reload_cr3();
-        }
-        memory_invalidate_addr(vAddress);
-    }
-    return Status;
-}
-
-OsStatus_t
-SetVirtualPageMapping(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ PhysicalAddress_t    pAddress,
-    _In_ VirtualAddress_t     vAddress,
-    _In_ Flags_t              Flags)
-{
-    PAGE_MASTER_LEVEL* ParentDirectory;
-    PAGE_MASTER_LEVEL* Directory;
-    PageTable_t*       Table;
-    uintptr_t          Mapping;
-    Flags_t            ConvertedFlags;
-    int                Update;
-    int                IsCurrent;
-    int                Index  = PAGE_TABLE_INDEX(vAddress);
-    OsStatus_t         Status = OsSuccess;
-    int                Result;
-
-    vAddress      &= PAGE_MASK;
-    ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
-    Directory      = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
-    Table          = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 1, &Update);
-
-    // For kernel mappings we would like to mark the mappings global
-    if (vAddress < MEMORY_LOCATION_KERNEL_END) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
-            ConvertedFlags |= PAGE_GLOBAL;
-        }
-    }
-
-    // If table is null creation failed
-    assert(Table != NULL);
-
-    // Make sure value is not mapped already, NEVER overwrite a mapping
-    pAddress = (pAddress & PAGE_MASK) | ConvertedFlags;
-    Mapping  = atomic_load(&Table->Pages[Index]);
-SyncTable:
-    if (Mapping != 0) {
+    if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Mapping, PhysicalAddress)) {
         Status = OsExists;
-        goto LeaveFunction;
     }
-
-    // Perform the mapping in a weak context, fast operation
-    Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress);
-    if (!Result) {
-        goto SyncTable;
-    }
-
-    // Last step is to invalidate the address in the MMIO
+    
 LeaveFunction:
-    if (IsCurrent || Update) {
-        if (Update) {
-            memory_reload_cr3();
-        }
-        memory_invalidate_addr(vAddress);
+    if (IsCurrent) {
+        memory_invalidate_addr(Address);
     }
     return Status;
 }
 
 OsStatus_t
-ClearVirtualPageMapping(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     Address)
+ArchMmuSetVirtualPages(
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     StartAddress,
+    _In_  PhysicalAddress_t*   PhysicalAddressValues,
+    _In_  int                  PageCount,
+    _In_  Flags_t              Attributes,
+    _Out_ int*                 PagesUpdated)
+{
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    PageTable_t*       Table;
+    Flags_t            X86Attributes;
+    int                Update;
+    int                IsCurrent;
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
+    uintptr_t          Zero   = 0;
+
+    X86Attributes = ConvertGenericAttributesToX86(Attributes);
+    
+    // For kernel mappings we would like to mark the mappings global
+    if (StartAddress < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            X86Attributes |= PAGE_GLOBAL;
+        }
+    }
+
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
+        assert(Table != NULL);
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            uintptr_t Mapping = (PhysicalAddressValues[i] & PAGE_MASK) | X86Attributes;
+            if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Zero, Mapping)) {
+                // Tried to replace a value that was not 0
+                ERROR("[arch_update_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                    StartAddress, Zero);
+                Status = OsIncomplete;
+                break;
+            }
+            
+            if (IsCurrent) {
+                memory_invalidate_addr(StartAddress);
+            }
+        }
+    }
+    *PagesUpdated = i;
+    return Status;
+}
+
+OsStatus_t
+ArchMmuClearVirtualPages(
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     StartAddress,
+    _In_  int                  PageCount,
+    _Out_ int*                 PagesCleared)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -411,66 +430,74 @@ ClearVirtualPageMapping(
     uintptr_t          Mapping;
     int                Update;
     int                IsCurrent;
-    int                Index = PAGE_TABLE_INDEX(Address);
-    int                Result;
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
 
-    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
-    if (Table == NULL) {
-        return OsError;
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
+        if (Table == NULL) {
+            Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+            break;
+        }
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            Mapping = atomic_exchange(&Table->Pages[Index], 0);
+            if (IsCurrent) {
+                memory_invalidate_addr(StartAddress);
+            }
+            
+            // Release memory, but don't if it is a virtual mapping, that means we 
+            // should not free the physical page. We only do this if the memory
+            // is marked as present, otherwise we don't
+            if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
+                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
+            }
+        }
     }
-
-    // Load the mapping
-    Mapping = atomic_load(&Table->Pages[Index]);
-SyncTable:
-    if (Mapping != 0) {
-        // Maybe present, not system map
-        // Perform the clearing in a weak context, fast operation
-        Result = atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0);
-        if (!Result) {
-            goto SyncTable;
-        }
-
-        // Invalidate page if it was present
-        if ((Mapping & PAGE_PRESENT) && IsCurrent) {
-            memory_invalidate_addr(Address);
-        }
-
-        // Release memory, but don't if it is a virtual mapping, that means we 
-        // should not free the physical page. We only do this if the memory
-        // is marked as present, otherwise we don't
-        if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
-            FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
-        }
-        return OsSuccess;
-    }
-    return OsDoesNotExist;
+    *PagesCleared = i;
+    return Status;
 }
 
-uintptr_t
-GetVirtualPageMapping(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     Address)
+OsStatus_t
+ArchMmuVirtualToPhysical(
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     StartAddress,
+    _In_  int                  PageCount,
+    _In_  PhysicalAddress_t*   PhysicalAddressValues,
+    _Out_ int*                 PagesRetrieved)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
     uint32_t           Mapping;
     int                IsCurrent, Update;
-    int                Index = PAGE_TABLE_INDEX(Address);
-
-    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
-    if (Table == NULL) {
-        return 0;
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
+    
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
+        if (Table == NULL) {
+            Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+            break;
+        }
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            Mapping = atomic_load(&Table->Pages[Index]);
+            Mapping &= PAGE_MASK;
+            if (!i) {
+                Mapping |= StartAddress & ATTRIBUTE_MASK;
+            }
+            PhysicalAddressValues[i] = Mapping;
+        }
     }
-
-    // Get the address and return with proper offset
-    Mapping = atomic_load(&Table->Pages[Index]);
-    if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
-        return 0;
-    }
-    return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
+    *PagesRetrieved = i;
+    return Status;
 }
 
 OsStatus_t
