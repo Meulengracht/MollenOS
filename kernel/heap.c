@@ -122,12 +122,13 @@ allocate_virtual_memory(
     _In_ int PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
+    uintptr_t  Pages[PageCount];
     uintptr_t  Address;
     OsStatus_t Status;
     
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Address, NULL, 
+    Status = MemorySpaceMap(GetCurrentMemorySpace(), &Address, &Pages[0], 
         PageSize * PageCount, MAPPING_COMMIT | MAPPING_DOMAIN, 
-        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
+        MAPPING_VIRTUAL_GLOBAL);
     if (Status != OsSuccess) {
         ERROR("Ran out of memory for allocation in the heap");
         return 0;
@@ -141,7 +142,7 @@ free_virtual_memory(
     _In_ int       PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
-    OsStatus_t Status   = RemoveMemorySpaceMapping(
+    OsStatus_t Status   = MemorySpaceUnmap(
         GetCurrentMemorySpace(), Address, PageSize * PageCount);
     if (Status != OsSuccess) {
         ERROR("Failed to free allocation 0x%" PRIxIN " of size 0x%" PRIxIN "", Address, PageSize * PageCount);

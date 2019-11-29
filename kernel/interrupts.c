@@ -191,7 +191,7 @@ InterruptCleanupMemoryResources(
             uintptr_t Offset    = Resources->MemoryResources[i].Address % GetMemorySpacePageSize();
             size_t Length       = Resources->MemoryResources[i].Length + Offset;
 
-            Status = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
+            Status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 Resources->MemoryResources[i].Address, Length);
             if (Status != OsSuccess) {
                 ERROR(" > failed to remove interrupt resource mapping");
@@ -267,7 +267,7 @@ InterruptResolveResources(
     Offset         = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
     Length         = GetMemorySpacePageSize() + Offset;
     PageFlags      = MAPPING_COMMIT | MAPPING_EXECUTABLE | MAPPING_READONLY;
-    PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_DEFAULT;
+    PlacementFlags = MAPPING_VIRTUAL_GLOBAL;
     Status         = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
         (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
     if (Status != OsSuccess) {
@@ -312,7 +312,7 @@ InterruptReleaseResources(
     // Unmap and release the fast-handler that we had mapped in.
     Offset      = ((uintptr_t)Resources->Handler) % GetMemorySpacePageSize();
     Length      = GetMemorySpacePageSize() + Offset;
-    Status      = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
+    Status      = MemorySpaceUnmap(GetCurrentMemorySpace(),
         (uintptr_t)Resources->Handler, Length);
     if (Status != OsSuccess) {
         ERROR(" > failed to cleanup interrupt handler mapping");

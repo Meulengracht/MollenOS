@@ -85,14 +85,17 @@ DebugPageFault(
 {
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     OsStatus_t           Status;
-    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", CONTEXT_IP(Context), Address);
+    
+    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", 
+        CONTEXT_IP(Context), Address);
 
     if (Space->Context != NULL) {
         if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
     }
-    Status = CommitMemorySpaceMapping(Space, Address, NULL, GetMemorySpacePageSize(), MAPPING_PHYSICAL_DEFAULT, __MASK);
+    
+    Status = MemorySpaceCommit(Space, Address, NULL, GetMemorySpacePageSize(), 0);
     if (Status == OsExists) {
         Status = OsSuccess;
     }

@@ -136,10 +136,10 @@ AcquireSystemDeviceIo(
             uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-                &MappedAddress, &BaseAddress, Length, 
+            OsStatus_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
+                &MappedAddress, BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
+                MAPPING_VIRTUAL_PROCESS);
             if (Status != OsSuccess) {
                 ERROR(" > Failed to allocate memory for device io memory");
                 SystemIo->Owner = UUID_INVALID;
@@ -198,7 +198,7 @@ ReleaseSystemDeviceIo(
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             assert(Space->Context != NULL);
-            RemoveMemorySpaceMapping(Space, SystemIo->MappedAddress, Length);
+            MemorySpaceUnmap(Space, SystemIo->MappedAddress, Length);
         } break;
 
         case DeviceIoPortBased: {
@@ -234,10 +234,10 @@ CreateKernelSystemDeviceIo(
             uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t PageSize       = GetMemorySpacePageSize();
             size_t Length         = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-                &SystemIo->Io.Access.Memory.VirtualBase, &BaseAddress, Length, 
+            OsStatus_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
+                &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_GLOBAL, __MASK);
+                MAPPING_VIRTUAL_GLOBAL);
             if (Status != OsSuccess) {
                 ERROR(" > failed to create mapping");
                 return OsError;
@@ -268,7 +268,7 @@ ReleaseKernelSystemDeviceIo(
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            RemoveMemorySpaceMapping(GetCurrentMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
+            MemorySpaceUnmap(GetCurrentMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
             SystemIo->Io.Access.Memory.VirtualBase = 0;
         } break;
 

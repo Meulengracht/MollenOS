@@ -107,6 +107,47 @@ ArchMmuCommitVirtualPage(
     _In_ PhysicalAddress_t);
 
 /**
+ * ArchMmuSetContiguousVirtualPages
+ * * Creates @PageCount number of virtual memory mappings that correspond to the
+ * * physical address given.
+ * @param MemorySpace          [In]
+ * @param VirtualAddress       [In]
+ * @param PhysicalStartAddress [In]
+ * @param PageCount            [In]
+ * @param Flags                [In]
+ * @param PagesUpdated         [Out]
+ * 
+ * @return Status of the address mapping creation.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuSetContiguousVirtualPages(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  PhysicalAddress_t,
+    _In_  int,
+    _In_  Flags_t,
+    _Out_ int*);
+
+/**
+ * ArchMmuReserveVirtualPages
+ * * Reserves @PageCount number of virtual memory mappings.
+ * @param MemorySpace          [In]
+ * @param VirtualAddress       [In]
+ * @param PageCount            [In]
+ * @param Flags                [In]
+ * @param PagesUpdated         [Out]
+ * 
+ * @return Status of the address mapping reservation.
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchMmuReserveVirtualPages(
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  int,
+    _In_  Flags_t,
+    _Out_ int*);
+
+/**
  * ArchMmuSetVirtualPages
  * * Creates @PageCount number of virtual memory mappings that correspond to the
  * * array of physical mappings given. The array provided must be large enough to

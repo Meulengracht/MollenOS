@@ -52,15 +52,12 @@ typedef struct BlockBitmap BlockBitmap_t;
 #define MAPPING_COMMIT                  0x00000080  // Memory should be comitted immediately
 #define MAPPING_LOWFIRST                0x00000100  // Memory resources should be allocated by low-addresses first
 
-#define MAPPING_PHYSICAL_DEFAULT        0x00000001  // (Physical) Mappings are default allocated
-#define MAPPING_PHYSICAL_FIXED          0x00000002  // (Physical) Mappings are supplied
-#define MAPPING_PHYSICAL_CONTIGIOUS    (MAPPING_PHYSICAL_FIXED | 0x00000004)  // (Physical) Single mapping that is contigious
-#define MAPPING_PHYSICAL_MASK           0x00000007
+#define MAPPING_PHYSICAL_FIXED          0x00000001  // (Physical) Mappings are supplied
 
-#define MAPPING_VIRTUAL_GLOBAL          0x00000008  // (Virtual) Mapping is done in global access memory
-#define MAPPING_VIRTUAL_PROCESS         0x00000010  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_FIXED           0x00000020  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x00000038
+#define MAPPING_VIRTUAL_GLOBAL          0x00000002  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000004  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_FIXED           0x00000008  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x0000000E
 
 typedef struct SystemMemoryMappingHandler {
     element_t Header;
@@ -204,58 +201,91 @@ KERNELAPI void KERNELABI
 MemoryDestroySharedRegion(
     _In_  void* Resource);
 
-/* ChangeMemorySpaceProtection
- * Changes the protection parameters for the given memory region.
- * The region must already be mapped and the size will be rounded up
- * to a multiple of the page-size. */
+/**
+ * MemorySpaceMap
+ * * Creates a new virtual to physical memory mapping.
+ * @param MemorySpace           [In]      The memory space where the mapping should be created.
+ * @param Address               [In, Out] The virtual address that should be mapped. 
+ *                                        Can also be auto assigned if not provided.
+ * @param PhysicalAddressValues [In]      Contains physical addresses for the mappings done.
+ * @param MemoryFlags           [In]      Memory mapping configuration flags.
+ * @param PlacementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ */
 KERNELAPI OsStatus_t KERNELABI
-ChangeMemorySpaceProtection(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ VirtualAddress_t     VirtualAddress, 
-    _In_        size_t               Size, 
-    _In_        Flags_t              Flags,
-    _Out_       Flags_t*             PreviousFlags);
+MemorySpaceMap(
+    _In_    SystemMemorySpace_t* MemorySpace,
+    _InOut_ VirtualAddress_t*    Address,
+    _InOut_ uintptr_t*           PhysicalAddressValues,
+    _In_    size_t               Length,
+    _In_    Flags_t              MemoryFlags,
+    _In_    Flags_t              PlacementFlags);
 
 /**
- * CreateMemorySpaceMapping
- * * Creates a new virtual to physical memory mapping.
- * @param MemorySpace    [In]      The memory space where the mapping should be created.
- * @param Address        [In, Out] The virtual address that should be mapped. 
- *                                 Can also be auto assigned if not provided.
- * @param DmaVector      [In, Out] Contains physical addresses for the mappings done.
- * @param MemoryFlags    [In]      Memory mapping configuration flags.
- * @param PlacementFlags [In]      The physical mappings that are allocated are only allowed in this memory mask.
- * @param Mask           [In]      Memory mask for physical allocations.
+ * MemorySpaceMapContiguous
+ * * Creates a new virtual to contiguous physical memory mapping.
+ * @param MemorySpace          [In]      The memory space where the mapping should be created.
+ * @param Address              [In, Out] The virtual address that should be mapped. 
+ *                                       Can also be auto assigned if not provided.
+ * @param PhysicalStartAddress [In]      Contains physical addresses for the mappings done.
+ * @param MemoryFlags          [In]      Memory mapping configuration flags.
+ * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
 KERNELAPI OsStatus_t KERNELABI
-CreateMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* MemorySpace,
-    _InOut_     VirtualAddress_t*    Address,
-    _InOut_Opt_ uintptr_t*           DmaVector,
-    _In_        size_t               Length,
-    _In_        Flags_t              MemoryFlags,
-    _In_        Flags_t              PlacementFlags,
-    _In_        uintptr_t            PhysicalMask);
+MemorySpaceMapContiguous(
+    _In_    SystemMemorySpace_t* MemorySpace,
+    _InOut_ VirtualAddress_t*    Address,
+    _In_    uintptr_t            PhysicalStartAddress,
+    _In_    size_t               Length,
+    _In_    Flags_t              MemoryFlags,
+    _In_    Flags_t              PlacementFlags);
+
+/**
+ * MemorySpaceMapReserved
+ * * Marks a virtual region of memory as reserved
+ * @param MemorySpace          [In]      The memory space where the mapping should be created.
+ * @param Address              [In, Out] The virtual address that should be mapped. 
+ *                                       Can also be auto assigned if not provided.
+ * @param MemoryFlags          [In]      Memory mapping configuration flags.
+ * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ */
+KERNELAPI OsStatus_t KERNELABI
+MemorySpaceMapReserved(
+    _In_    SystemMemorySpace_t* MemorySpace,
+    _InOut_ VirtualAddress_t*    Address,
+    _In_    size_t               Length,
+    _In_    Flags_t              MemoryFlags,
+    _In_    Flags_t              PlacementFlags);
+
+/**
+ * MemorySpaceUnmap
+ * * Unmaps a virtual memory region from an address space.
+ * @param MemorySpace
+ * @param Address
+ * @param Size 
+ */
+KERNELAPI OsStatus_t KERNELABI
+MemorySpaceUnmap(
+    _In_ SystemMemorySpace_t* MemorySpace, 
+    _In_ VirtualAddress_t     Address, 
+    _In_ size_t               Size);
 
 /** 
- * CommitMemorySpaceMapping
+ * MemorySpaceCommit
  * * Commits/finishes an already present memory mapping. If a physical address
  * * is not already provided one will be allocated for the mapping.
- * @param MemorySpace    [In]      The memory space where the mapping should be commited.
- * @param Address        [In]      The virtual address that should be committed.
- * @param DmaVector      [Out]     The dma vector where the physical mappings should be provided.
- * @param Length         [In]      Length that should be committed.
- * @param Placement      [In]      Supports MAPPING_PHYSICAL_* flags.
- * @param Mask           [In]      Memory mask for physical allocations.
+ * @param MemorySpace           [In] The memory space where the mapping should be commited.
+ * @param Address               [In] The virtual address that should be committed.
+ * @param PhysicalAddressValues [In] The dma vector where the physical mappings should be provided.
+ * @param Length                [In] Length that should be committed.
+ * @param Placement             [In] Supports MAPPING_PHYSICAL_* flags.
  */
 KERNELAPI OsStatus_t KERNELABI
-CommitMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* MemorySpace,
-    _In_        VirtualAddress_t     Address,
-    _In_        uintptr_t*           DmaVector,
-    _In_        size_t               Length,
-    _In_        Flags_t              Placement,
-    _In_        uintptr_t            Mask);
+MemorySpaceCommit(
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ VirtualAddress_t     Address,
+    _In_ uintptr_t*           PhysicalAddressValues,
+    _In_ size_t               Length,
+    _In_ Flags_t              Placement);
 
 /**
  * CloneMemorySpaceMapping
@@ -280,19 +310,6 @@ CloneMemorySpaceMapping(
     _In_        Flags_t              PlacementFlags);
 
 /**
- * RemoveMemorySpaceMapping
- * * Unmaps a virtual memory region from an address space.
- * @param MemorySpace
- * @param Address
- * @param Size 
- */
-KERNELAPI OsStatus_t KERNELABI
-RemoveMemorySpaceMapping(
-    _In_ SystemMemorySpace_t* MemorySpace, 
-    _In_ VirtualAddress_t     Address, 
-    _In_ size_t               Size);
-
-/**
  * GetMemorySpaceMapping
  * * Converts a virtual address range into the mapped physical range.
  * @param MemorySpace  [In]  The addressing space the lookup should take place in
@@ -306,6 +323,18 @@ GetMemorySpaceMapping(
     _In_  VirtualAddress_t     Address,
     _In_  int                  PageCount,
     _Out_ uintptr_t*           DmaVectorOut);
+
+/* ChangeMemorySpaceProtection
+ * Changes the protection parameters for the given memory region.
+ * The region must already be mapped and the size will be rounded up
+ * to a multiple of the page-size. */
+KERNELAPI OsStatus_t KERNELABI
+ChangeMemorySpaceProtection(
+    _In_        SystemMemorySpace_t* SystemMemorySpace,
+    _InOut_Opt_ VirtualAddress_t     VirtualAddress, 
+    _In_        size_t               Size, 
+    _In_        Flags_t              Flags,
+    _Out_       Flags_t*             PreviousFlags);
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */

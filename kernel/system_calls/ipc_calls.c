@@ -49,7 +49,7 @@ CleanupMessage(
         TRACE("... arg 0x%llx, 0x%llx", 
             Message->UntypedArguments[i].Buffer, Message->UntypedArguments[i].Length);
         if (Message->UntypedArguments[i].Length & IPC_ARGUMENT_MAPPED) {
-            (void)RemoveMemorySpaceMapping(Target->MemorySpace,
+            (void)MemorySpaceUnmap(Target->MemorySpace,
                 (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
                 IPC_GET_LENGTH(Message, i));
         }

@@ -117,7 +117,7 @@ DestroyThread(
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
         DestroyHandle(Thread->MemorySpaceHandle);
     }
-    (void)RemoveMemorySpaceMapping(GetCurrentMemorySpace(), 
+    (void)MemorySpaceUnmap(GetCurrentMemorySpace(), 
         (VirtualAddress_t)Thread->ArenaKernelPointer, IPC_ARENA_SIZE);
     
     kfree((void*)Thread->Name);
@@ -142,10 +142,9 @@ CreateThreadIpcArena(
     IpcArena_t* Arena;
     OsStatus_t  Status;
     
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+    Status = MemorySpaceMap(GetCurrentMemorySpace(),
         (VirtualAddress_t*)&Thread->ArenaKernelPointer, &Thread->ArenaPhysicalAddress,
-        IPC_ARENA_SIZE, MAPPING_COMMIT,
-        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
+        IPC_ARENA_SIZE, MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
     if (Status != OsSuccess) {
         ERROR("... failed to create ipc arena for thread: %u", Status);
         return Status;
@@ -356,15 +355,17 @@ CreateThread(
         }
     }
     
-    // Create pre-mapped tls region for userspace threads
+    // Create pre-mapped tls region for userspace threads, the area will be reserved
+    // but not physically allocated
     if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
         uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
         size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
-        CreateMemorySpaceMapping(Thread->MemorySpace, &ThreadRegionStart,
-            NULL, ThreadRegionSize, 
-            MAPPING_DOMAIN | MAPPING_USERSPACE, 
-            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
-        // TODO: check return code and cleanup
+        OsStatus_t Status           = MemorySpaceMapReserved(Thread->MemorySpace,
+            &ThreadRegionStart, ThreadRegionSize, 
+            MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_VIRTUAL_FIXED);
+        if (Status != OsSuccess) {
+            ERROR("[thread_create] failed to premap TLS area");
+        }
     }
     AddChild(Parent, Thread);
 
@@ -492,10 +493,10 @@ EnterProtectedThreadLevel(void)
     Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
     
     // Create the ipc arena pointer that will be user accessible
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+    Status = MemorySpaceMap(GetCurrentMemorySpace(),
         (VirtualAddress_t*)&Thread->ArenaUserPointer, &Thread->ArenaPhysicalAddress,
         IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "... failed to create user ipc arena for thread: %u", Status);
     }

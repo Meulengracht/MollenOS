@@ -392,11 +392,10 @@ HpInitialize(
     HpetController.BaseAddress = (uintptr_t)(Table->Address.Address);
     HpetController.TickMinimum = Table->MinimumTick;
 
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), 
-        &UpdatedAddress, &HpetController.BaseAddress, 
-        GetMemorySpacePageSize(),
+    Status = MemorySpaceMap(GetCurrentMemorySpace(), 
+        &UpdatedAddress, &HpetController.BaseAddress, GetMemorySpacePageSize(),
         MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE, 
-        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
+        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED);
     if (Status != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;

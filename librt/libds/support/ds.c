@@ -293,13 +293,23 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
-    Flags_t PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    Flags_t    KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    Flags_t    PlacementFlags = MAPPING_VIRTUAL_FIXED;
+    int        PageCount      = DIVUP(Length, GetMemorySpacePageSize());
+    uintptr_t* Pages;
+    
     if (Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
-    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, Address, NULL, Length, 
-        KernelFlags, PlacementFlags, __MASK);
+    
+    Pages = dsalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
+    }
+    
+    Status = MemorySpaceMap((SystemMemorySpace_t*)Handle, Address,
+        Pages, Length, KernelFlags, PlacementFlags);
+    dsfree(Pages);
 #else
     struct MemoryMappingParameters Parameters;
     Parameters.VirtualAddress = *Address;

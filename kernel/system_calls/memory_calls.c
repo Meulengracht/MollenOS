@@ -28,13 +28,14 @@
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
 
+#include <debug.h>
+#include <handle.h>
+#include <heap.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
 #include <string.h>
-#include <handle.h>
-#include <debug.h>
 
 OsStatus_t
 ScMemoryAllocate(
@@ -47,16 +48,29 @@ ScMemoryAllocate(
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
     Flags_t              MemoryFlags    = MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
+    int                  PageCount;
+    uintptr_t*           Pages; 
     
     if (!Length || !MemoryOut) {
         return OsInvalidParameters;
+    }
+
+    PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
     }
 
     // Convert flags from memory domain to memory space domain
     if (Flags & MEMORY_COMMIT) {
         MemoryFlags |= MAPPING_COMMIT;
     }
+    else {
+        // Zero page mappings to mark them reserved
+        memset(Pages, 0, sizeof(uintptr_t) * PageCount);
+    }
+    
     if (Flags & MEMORY_UNCHACHEABLE) {
         MemoryFlags |= MAPPING_NOCACHE;
     }
@@ -71,8 +85,8 @@ ScMemoryAllocate(
     }
     
     // Create the actual mappings
-    Status = CreateMemorySpaceMapping(Space, &AllocatedAddress, NULL, Length, 
-        MemoryFlags, PlacementFlags, __MASK);
+    Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, 
+        MemoryFlags, PlacementFlags);
     if (Status == OsSuccess) {
         *MemoryOut = (void*)AllocatedAddress;
         
@@ -80,6 +94,7 @@ ScMemoryAllocate(
             memset((void*)AllocatedAddress, 0, Length);
         }
     }
+    kfree(Pages);
     return Status;
 }
 
@@ -92,7 +107,7 @@ ScMemoryFree(
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
     }
-    return RemoveMemorySpaceMapping(Space, Address, Size);
+    return MemorySpaceUnmap(Space, Address, Size);
 }
 
 OsStatus_t
@@ -239,19 +254,17 @@ ScDmaAttachmentMap(
     Offset = (Region->Pages[0] % GetMemorySpacePageSize());
     
     TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Address, NULL, Region->Capacity + Offset, 
-        MAPPING_USERSPACE | MAPPING_PERSISTENT,
-        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
+    Status = MemorySpaceMapReserved(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Address, Region->Capacity + Offset, 
+        MAPPING_USERSPACE | MAPPING_PERSISTENT, MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
         return Status;
     }
     
     // Now commit <Length> in pages
     TRACE("... committing vmem mappings of length 0x%x", LODWORD(Length));
-    Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
-        Address, &Region->Pages[0], Length,
-        MAPPING_PHYSICAL_CONTIGIOUS, __MASK);
+    Status = MemorySpaceCommit(GetCurrentMemorySpace(),
+        Address, &Region->Pages[0], Length, MAPPING_PHYSICAL_FIXED);
     MutexUnlock(&Region->SyncObject);
     
     attachment->buffer = (void*)(Address + Offset);
@@ -402,17 +415,27 @@ ScCreateMemorySpaceMapping(
     SystemModule_t*      Module         = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    Flags_t              PlacementFlags = MAPPING_VIRTUAL_FIXED;
     VirtualAddress_t     CopyPlacement  = 0;
+    int                  PageCount;
+    uintptr_t*           Pages;
     OsStatus_t           Status;
+    
     if (Parameters == NULL || AddressOut == NULL || Module == NULL) {
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
         return OsInvalidParameters;
     }
+    
     if (MemorySpace == NULL) {
         return OsDoesNotExist;
+    }
+    
+    PageCount = DIVUP(Parameters->Length, GetMemorySpacePageSize());
+    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
     }
     
     if (Parameters->Flags & MEMORY_EXECUTABLE) {
@@ -424,8 +447,10 @@ ScCreateMemorySpaceMapping(
 
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
-    Status = CreateMemorySpaceMapping(MemorySpace, &Parameters->VirtualAddress, NULL,
-        Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
+    Status = MemorySpaceMap(MemorySpace, &Parameters->VirtualAddress, Pages,
+        Parameters->Length, RequiredFlags, PlacementFlags);
+    kfree(Pages);
+    
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
         return Status;
@@ -433,13 +458,14 @@ ScCreateMemorySpaceMapping(
     
     // Create a cloned copy in our own memory space, however we will set new placement and
     // access flags
-    PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
+    PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
     Status         = CloneMemorySpaceMapping(MemorySpace, GetCurrentMemorySpace(),
-        Parameters->VirtualAddress, &CopyPlacement, Parameters->Length, RequiredFlags, PlacementFlags);
+        Parameters->VirtualAddress, &CopyPlacement, Parameters->Length,
+        RequiredFlags, PlacementFlags);
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
-        RemoveMemorySpaceMapping(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
+        MemorySpaceUnmap(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
     }
     *AddressOut = (void*)CopyPlacement;
     return Status;
