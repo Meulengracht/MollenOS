@@ -288,6 +288,21 @@ MemorySpaceCommit(
     _In_ Flags_t              Placement);
 
 /**
+ * MemorySpaceChangeProtection
+ * * Changes the attributes of the given memory range.
+ * @param MemorySpace  [In] The addressing space the lookup should take place in
+ * @param Address      [In] The virtual address the lookup should start at
+ * @param Length       [In] Length of the region that should change attributes.
+ */
+KERNELAPI OsStatus_t KERNELABI
+MemorySpaceChangeProtection(
+    _In_        SystemMemorySpace_t* SystemMemorySpace,
+    _InOut_Opt_ VirtualAddress_t     Address, 
+    _In_        size_t               Length, 
+    _In_        Flags_t              Attributes,
+    _Out_       Flags_t*             PreviousAttributes);
+
+/**
  * CloneMemorySpaceMapping
  * * Clones a region of memory mappings into the address space provided. The new mapping
  * * will automatically be marked COMMIT, PERSISTANT and PROVIDED.
@@ -323,18 +338,6 @@ GetMemorySpaceMapping(
     _In_  VirtualAddress_t     Address,
     _In_  int                  PageCount,
     _Out_ uintptr_t*           DmaVectorOut);
-
-/* ChangeMemorySpaceProtection
- * Changes the protection parameters for the given memory region.
- * The region must already be mapped and the size will be rounded up
- * to a multiple of the page-size. */
-KERNELAPI OsStatus_t KERNELABI
-ChangeMemorySpaceProtection(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ VirtualAddress_t     VirtualAddress, 
-    _In_        size_t               Size, 
-    _In_        Flags_t              Flags,
-    _Out_       Flags_t*             PreviousFlags);
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */

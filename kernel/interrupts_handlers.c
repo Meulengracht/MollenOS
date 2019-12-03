@@ -121,8 +121,8 @@ InitializeInterruptHandlers(void)
     // are not allowed to expand the cache as it can cause issues with memory sync.
     // Also set a minimum slab count based on the number of cores in the system
     TxuMessageCache = MemoryCacheCreate("txu_message_cache", sizeof(TxuMessage_t), 0, 
-        HEAP_SLAB_NO_ATOMIC_CACHE | HEAP_INITIAL_SLAB | HEAP_SINGLE_SLAB, 
-        MinimumCount, NULL, NULL);
+        MinimumCount, HEAP_SLAB_NO_ATOMIC_CACHE | HEAP_INITIAL_SLAB | HEAP_SINGLE_SLAB, 
+        NULL, NULL);
     assert(TxuMessageCache != NULL);
     
     // Initialize the interrupt handlers array

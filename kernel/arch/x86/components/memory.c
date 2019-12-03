@@ -424,9 +424,46 @@ ArchMmuReserveVirtualPages(
     _In_  VirtualAddress_t     StartAddress,
     _In_  int                  PageCount,
     _In_  Flags_t              Attributes,
-    _Out_ int*                 PagesUpdated)
+    _Out_ int*                 PagesReserved)
 {
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    PageTable_t*       Table;
+    Flags_t            X86Attributes;
+    int                Update;
+    int                IsCurrent;
+    int                Index;
+    int                i      = 0;
+    OsStatus_t         Status = OsSuccess;
+    uintptr_t          Zero   = 0;
+
+    X86Attributes = ConvertGenericAttributesToX86(Attributes);
     
+    // For kernel mappings we would like to mark the mappings global
+    if (StartAddress < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            X86Attributes |= PAGE_GLOBAL;
+        }
+    }
+
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
+        assert(Table != NULL);
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Zero, X86Attributes)) {
+                // Tried to replace a value that was not 0
+                ERROR("[arch_update_virtual] failed to reserve address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                    StartAddress, Zero);
+                Status = OsIncomplete;
+                break;
+            }
+        }
+    }
+    *PagesReserved = i;
+    return Status;
 }
 
 OsStatus_t

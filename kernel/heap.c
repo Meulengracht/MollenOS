@@ -571,6 +571,8 @@ MemoryCacheConstruct(
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
     size_t ObjectPadding = 0;
+    
+    TRACE("[cache_construct] [%s] %u", Name, Flags);
 
     // Calculate padding
     if (Flags & HEAP_DEBUG_OVERRUN) {
@@ -610,6 +612,9 @@ MemoryCacheConstruct(
         Cache->NumberOfFreeObjects = Cache->ObjectCount;
         list_append(&Cache->FreeSlabs, &Slab->Header);
     }
+    
+    TRACE("[cache_construct] [%s] number of objects %i/%i", 
+        Cache->Name, Cache->NumberOfFreeObjects, Cache->ObjectCount);
     
     // Flush writes to other cpus
     smp_wmb();
@@ -741,6 +746,8 @@ MemoryCacheAllocate(
     else if (!(Cache->Flags & HEAP_SINGLE_SLAB)) {
         Slab = slab_create(Cache);
         if (!Slab) {
+            MutexUnlock(&Cache->SyncObject);
+            ERROR("[heap] [%s] slab_create returned NULL", Cache->Name);
             return NULL;
         }
         
@@ -758,6 +765,8 @@ MemoryCacheAllocate(
         Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     }
     else {
+        ERROR("[heap] [%s] ran out of objects %i/%i", Cache->Name,
+            Cache->NumberOfFreeObjects, Cache->ObjectCount);
         Allocated = NULL;
         Index     = -1;
     }

@@ -135,7 +135,7 @@ ArchMmuSetContiguousVirtualPages(
  * @param VirtualAddress       [In]
  * @param PageCount            [In]
  * @param Flags                [In]
- * @param PagesUpdated         [Out]
+ * @param PagesReserved        [Out]
  * 
  * @return Status of the address mapping reservation.
  */

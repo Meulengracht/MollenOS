@@ -121,7 +121,7 @@ ScMemoryProtect(
     if (MemoryPointer == NULL || Length == 0) {
         return OsSuccess;
     }
-    return ChangeMemorySpaceProtection(GetCurrentMemorySpace(), 
+    return MemorySpaceChangeProtection(GetCurrentMemorySpace(), 
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 

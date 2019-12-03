@@ -333,6 +333,7 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
 
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
+    Flags_t PreviousFlags;
     Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
     if (StateObject->Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
@@ -340,7 +341,7 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
     if (!(StateObject->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
         KernelFlags |= MAPPING_READONLY;
     }
-    ChangeMemorySpaceProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, NULL);
+    MemorySpaceChangeProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, &PreviousFlags);
 #else
     MemoryFree((void*)StateObject->Address, StateObject->Length);
 #endif

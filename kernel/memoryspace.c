@@ -537,44 +537,6 @@ ResolveVirtualSystemMemorySpaceAddress(
 }
 
 OsStatus_t
-MemorySpaceMapContiguous(
-    _In_    SystemMemorySpace_t* MemorySpace,
-    _InOut_ VirtualAddress_t*    Address,
-    _In_    uintptr_t            PhysicalStartAddress,
-    _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags)
-{
-    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    int              PagesUpdated;
-    VirtualAddress_t VirtualBase;
-    OsStatus_t       Status;
-    
-    TRACE("MemorySpaceMapContiguous(%u, 0x%x, 0x%x)", 
-        LODWORD(Length), MemoryFlags, PlacementFlags);
-    
-    assert(MemorySpace != NULL);
-    assert(PlacementFlags != 0);
-    
-    // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
-    // went wrong during the phase to figure out where to place
-    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(MemorySpace,
-        Address, Length, PlacementFlags);
-    if (!VirtualBase) {
-        return OsInvalidParameters;
-    }
-    
-    Status = ArchMmuSetContiguousVirtualPages(MemorySpace, VirtualBase, 
-        PhysicalStartAddress, PageCount, MemoryFlags, &PagesUpdated);
-    if (Status != OsSuccess) {
-        // Handle cleanup of the pages not mapped
-        // TODO
-        ERROR("[memory_map_contiguous] implement cleanup");
-    }
-    return Status;
-}
-
-OsStatus_t
 MemorySpaceMap(
     _In_    SystemMemorySpace_t* MemorySpace,
     _InOut_ VirtualAddress_t*    Address,
@@ -589,8 +551,14 @@ MemorySpaceMap(
     VirtualAddress_t VirtualBase;
     OsStatus_t       Status;
     
-    TRACE("MemorySpaceMap(%u, 0x%x, 0x%x)", 
+    TRACE("[memory_map] %u, 0x%x, 0x%x", 
         LODWORD(Length), MemoryFlags, PlacementFlags);
+    
+    // If we are trying to reserve memory through this call, redirect it to the
+    // dedicated reservation method. 
+    if (!(MemoryFlags & MAPPING_COMMIT)) {
+        return MemorySpaceMapReserved(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
+    }
     
     assert(MemorySpace != NULL);
     assert(PhysicalAddressValues != NULL);
@@ -634,9 +602,10 @@ MemorySpaceMap(
 }
 
 OsStatus_t
-MemorySpaceMapReserved(
+MemorySpaceMapContiguous(
     _In_    SystemMemorySpace_t* MemorySpace,
     _InOut_ VirtualAddress_t*    Address,
+    _In_    uintptr_t            PhysicalStartAddress,
     _In_    size_t               Length,
     _In_    Flags_t              MemoryFlags,
     _In_    Flags_t              PlacementFlags)
@@ -646,11 +615,54 @@ MemorySpaceMapReserved(
     VirtualAddress_t VirtualBase;
     OsStatus_t       Status;
     
-    TRACE("MemorySpaceMapReserved(%u, 0x%x, 0x%x)", 
+    TRACE("[memory_map_contiguous] %u, 0x%x, 0x%x", 
         LODWORD(Length), MemoryFlags, PlacementFlags);
     
     assert(MemorySpace != NULL);
     assert(PlacementFlags != 0);
+    
+    // COMMIT must be set when mapping contiguous physical ranges
+    MemoryFlags |= MAPPING_COMMIT;
+    
+    // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
+    // went wrong during the phase to figure out where to place
+    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(MemorySpace,
+        Address, Length, PlacementFlags);
+    if (!VirtualBase) {
+        return OsInvalidParameters;
+    }
+    
+    Status = ArchMmuSetContiguousVirtualPages(MemorySpace, VirtualBase, 
+        PhysicalStartAddress, PageCount, MemoryFlags, &PagesUpdated);
+    if (Status != OsSuccess) {
+        // Handle cleanup of the pages not mapped
+        // TODO
+        ERROR("[memory_map_contiguous] implement cleanup");
+    }
+    return Status;
+}
+
+OsStatus_t
+MemorySpaceMapReserved(
+    _In_    SystemMemorySpace_t* MemorySpace,
+    _InOut_ VirtualAddress_t*    Address,
+    _In_    size_t               Length,
+    _In_    Flags_t              MemoryFlags,
+    _In_    Flags_t              PlacementFlags)
+{
+    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    int              PagesReserved;
+    VirtualAddress_t VirtualBase;
+    OsStatus_t       Status;
+    
+    TRACE("[memory_map_reserve] %u, 0x%x, 0x%x", 
+        LODWORD(Length), MemoryFlags, PlacementFlags);
+    
+    assert(MemorySpace != NULL);
+    assert(PlacementFlags != 0);
+    
+    // Clear the COMMIT flag if provided
+    MemoryFlags &= ~(MAPPING_COMMIT);
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
@@ -661,11 +673,11 @@ MemorySpaceMapReserved(
     }
     
     Status = ArchMmuReserveVirtualPages(MemorySpace, VirtualBase, PageCount, 
-        MemoryFlags, &PagesUpdated);
+        MemoryFlags, &PagesReserved);
     if (Status != OsSuccess) {
         // Handle cleanup of the pages not mapped
         // TODO
-        ERROR("[memory_map_reservation] implement cleanup");
+        ERROR("[memory_map_reserve] implement cleanup");
     }
     return Status;
 }
@@ -681,6 +693,7 @@ MemorySpaceCommit(
     int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
     OsStatus_t Status;
     int        i;
+    
     assert(MemorySpace != NULL);
 
     // Make sure DmaVector is provided in this case
@@ -789,26 +802,25 @@ MemorySpaceUnmap(
 }
 
 OsStatus_t
-ChangeMemorySpaceProtection(
+MemorySpaceChangeProtection(
     _In_        SystemMemorySpace_t*    SystemMemorySpace,
-    _InOut_Opt_ VirtualAddress_t        VirtualAddress, 
-    _In_        size_t                  Size, 
-    _In_        Flags_t                 Flags,
-    _Out_       Flags_t*                PreviousFlags)
+    _InOut_Opt_ VirtualAddress_t        Address, 
+    _In_        size_t                  Length, 
+    _In_        Flags_t                 Attributes,
+    _Out_       Flags_t*                PreviousAttributes)
 {
-    int        PageCount = DIVUP((Size + (VirtualAddress % GetMemorySpacePageSize())), GetMemorySpacePageSize());
+    int        PageCount = DIVUP((Length + (Address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
     int        PagesUpdated;
     OsStatus_t Status;
 
     assert(SystemMemorySpace != NULL);
 
-    Status = ArchMmuUpdatePageAttributes(SystemMemorySpace, VirtualAddress, PageCount, &Flags, &PagesUpdated);
+    *PreviousAttributes = Attributes;
+    Status = ArchMmuUpdatePageAttributes(SystemMemorySpace, Address, PageCount, PreviousAttributes, &PagesUpdated);
     if (Status != OsSuccess && Status != OsIncomplete) {
         return Status;
     }
-    
-    *PreviousFlags = Flags;
-    SynchronizeMemoryRegion(SystemMemorySpace, VirtualAddress, Size);
+    SynchronizeMemoryRegion(SystemMemorySpace, Address, Length);
     return Status;
 }
 

@@ -20,7 +20,7 @@
  * Mass Storage Device Driver (Generic)
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include "msd.h"
 #include <ddk/utils.h>
@@ -355,8 +355,8 @@ MsdTransferSectors(
     uint8_t             Command;
     size_t              MaxSectorsPerCommand;
 
-    TRACE("MsdTransferSectors(Sector %u, Count %u)", 
-        LODWORD(Operation->AbsoluteSector), LODWORD(Operation->SectorCount));
+    TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN, 
+        Operation->Direction, Operation->AbsoluteSector, Operation->SectorCount);
 
     // Protect against bad start sector
     if (Operation->AbsoluteSector >= Device->Descriptor.SectorCount) {
@@ -374,6 +374,7 @@ MsdTransferSectors(
     SelectScsiTransferCommand(Device, Operation, &Command, &MaxSectorsPerCommand);
     SectorsToBeTransferred = MIN(SectorsToBeTransferred, MaxSectorsPerCommand);
 
+    TRACE("[msd_transfer] command %u, max sectors for command %u", Command, MaxSectorsPerCommand);
     Result = MsdScsiCommand(Device, Operation->Direction == __STORAGE_OPERATION_WRITE, Command, 
         Operation->AbsoluteSector, Operation->BufferHandle, Operation->BufferOffset,
         SectorsToBeTransferred * Device->Descriptor.SectorSize);
