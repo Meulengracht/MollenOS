@@ -30,10 +30,9 @@ typedef struct bounded_stack {
     int          capacity;
     int          index;
     void**       elements;
-    syncobject_t lock;
 } bounded_stack_t;
 
-#define BOUNDED_STACK_INIT(capacity, storage) { capacity, 0, storage, SYNC_INIT }
+#define BOUNDED_STACK_INIT(capacity, storage) { capacity, 0, storage }
 
 _CODE_BEGIN
 

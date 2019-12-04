@@ -94,17 +94,21 @@ ArchMmuUpdatePageAttributes(
 /**
  * ArchMmuCommitVirtualPage
  * * Update the underlying mapping for a single page at the virtual address given.
- * @param MemorySpace     [In]
- * @param VirtualAddress  [In]
- * @param PhysicalAddress [In]
+ * @param MemorySpace           [In]
+ * @param VirtualAddress        [In]
+ * @param PhysicalAddressValues [In]
+ * @param PageCount             [In]
+ * @param PagesComitted         [Out]
  * 
  * @return Status of the address mapping update.
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuCommitVirtualPage(
-    _In_ SystemMemorySpace_t*,
-    _In_ VirtualAddress_t,
-    _In_ PhysicalAddress_t);
+    _In_  SystemMemorySpace_t*,
+    _In_  VirtualAddress_t,
+    _In_  PhysicalAddress_t*,
+    _In_  int,
+    _Out_ int*);
 
 /**
  * ArchMmuSetContiguousVirtualPages

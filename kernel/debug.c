@@ -350,8 +350,10 @@ DebugHandleShortcut(
     _In_ SystemKey_t* Key)
 {
     if (Key->KeyCode == VK_1) {
-        WRITELINE("Memory in use %" PRIuIN " Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * 0x1000);
-        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+        int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
+        int FreeBlocks = GetMachine()->PhysicalMemory.index;
+        WRITELINE("Memory in use %" PRIuIN " Bytes", (MaxBlocks - FreeBlocks) * 0x1000);
+        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", (MaxBlocks - FreeBlocks), MaxBlocks);
     }
     else if (Key->KeyCode == VK_2) {
         DisplayActiveThreads();

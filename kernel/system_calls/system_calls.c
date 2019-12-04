@@ -66,13 +66,16 @@ OsStatus_t
 ScSystemQuery(
     _In_ SystemDescriptor_t* Descriptor)
 {
+    int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
+    int FreeBlocks = GetMachine()->PhysicalMemory.index;
+    
     Descriptor->NumberOfProcessors  = atomic_load(&GetMachine()->NumberOfProcessors);
     Descriptor->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
 
     Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
     Descriptor->PageSizeBytes              = GetMemorySpacePageSize();
-    Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
-    Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
+    Descriptor->PagesTotal                 = MaxBlocks;
+    Descriptor->PagesUsed                  = MaxBlocks - FreeBlocks;
     return OsSuccess;
 }
 

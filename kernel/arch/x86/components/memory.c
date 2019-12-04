@@ -58,24 +58,46 @@ uintptr_t     LastReservedAddress = 0;
 
 void
 PrintPhysicalMemoryUsage(void) {
+    int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
+    int FreeBlocks = GetMachine()->PhysicalMemory.index;
     TRACE("Bitmap size: %" PRIuIN " Bytes", BlockmapBytes);
-    TRACE("Memory in use %" PRIuIN " Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * PAGE_SIZE);
-    TRACE("Block status %" PRIuIN "/%" PRIuIN "", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+    TRACE("Memory in use %" PRIuIN " Bytes", (MaxBlocks - FreeBlocks) * PAGE_SIZE);
+    TRACE("Block status %" PRIuIN "/%" PRIuIN, (MaxBlocks - FreeBlocks), MaxBlocks);
     TRACE("Reserved memory: 0x%" PRIxIN " (%" PRIuIN " blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
+}
+
+uintptr_t
+AllocateBootMemory(
+    _In_ size_t Length)
+{
+    uintptr_t Memory = READ_VOLATILE(LastReservedAddress);
+    uintptr_t NextMemory;
+    if (!Memory) {
+        return 0;
+    }
+    
+    NextMemory = Memory + Length;
+    if (NextMemory % PAGE_SIZE) {
+        NextMemory += PAGE_SIZE - (NextMemory % PAGE_SIZE);
+    }
+    WRITE_VOLATILE(LastReservedAddress, NextMemory);
+    return Memory;
 }
 
 OsStatus_t
 InitializeSystemMemory(
-    _In_ Multiboot_t*       BootInformation,
-    _In_ BlockBitmap_t*     Memory,
-    _In_ BlockBitmap_t*     GlobalAccessMemory,
-    _In_ SystemMemoryMap_t* MemoryMap,
-    _In_ size_t*            MemoryGranularity,
-    _In_ size_t*            NumberOfMemoryBlocks)
+    _In_ Multiboot_t*        BootInformation,
+    _In_ bounded_stack_t*    Memory,
+    _In_ StaticMemoryPool_t* GlobalAccessMemory,
+    _In_ SystemMemoryMap_t*  MemoryMap,
+    _In_ size_t*             MemoryGranularity,
+    _In_ size_t*             NumberOfMemoryBlocks)
 {
     BIOSMemoryRegion_t* RegionPointer;
     uintptr_t           MemorySize;
-    size_t              BytesOccupied = 0;
+    size_t              Count;
+    size_t              GACMemorySize;
+    OsStatus_t          Status;
     int                 i;
 
     RegionPointer = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
@@ -83,46 +105,12 @@ InitializeSystemMemory(
     // The memory-high part is 64kb blocks 
     // whereas the memory-low part is bytes of memory
     MemorySize  = (BootInformation->MemoryHigh * 64 * 1024);
-    MemorySize  += BootInformation->MemoryLow; // This is in kilobytes 
-    assert((MemorySize / 1024 / 1024) >= 32);
-    ConstructBlockmap(Memory, (void*)MEMORY_LOCATION_BITMAP, 
-        BLOCKMAP_ALLRESERVED, 0, MemorySize, PAGE_SIZE);
-    BlockmapBytes = GetBytesNeccessaryForBlockmap(0, MemorySize, PAGE_SIZE);
-    BytesOccupied += BlockmapBytes + PAGE_SIZE;
-
-    // Free regions given to us by memory map
-    for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
-        if (RegionPointer->Type == 1) {
-            ReleaseBlockmapRegion(Memory, (uintptr_t)RegionPointer->Address, (size_t)RegionPointer->Size);
-        }
-        RegionPointer++;
-    }
-
-    // Initialize the kernel memory region
-    ConstructBlockmap(GlobalAccessMemory, (void*)(MEMORY_LOCATION_BITMAP + (BlockmapBytes + PAGE_SIZE)), 
-        0, MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE);
-    BytesOccupied += GetBytesNeccessaryForBlockmap(MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE) + PAGE_SIZE;
-
-    // Mark default regions in use and special regions
-    //  0x0000 - 0x1000     || Used for catching null-pointers
-    //  0x1000 - 0x7FFFF    || Free RAM (mBoot)
-    //  0x80000 - 0xFFFFF   || BIOS Area (Mostly)
-    //  0x4000 + 0x8000     || Used for memory region & Trampoline-code
-    //  0x90000 - 0x9F000   || Kernel Stack
-    //  0x100000 - KernelSize
-    //  0x200000 - RamDiskSize
-    //  0x300000 - ??       || Bitmap Space
-    ReserveBlockmapRegion(Memory, 0,                       MEMORY_LOCATION_KERNEL);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,  BootInformation->KernelSize + PAGE_SIZE);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
-#if defined(amd64) || defined(__amd64__)
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BOOTPAGING, 0x5000);
-#endif
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP, BytesOccupied);
-    BlockmapBytes       = BytesOccupied;
-    LastReservedAddress = MEMORY_LOCATION_BITMAP + BytesOccupied;
-
-    // Fill in rest of data
+    MemorySize  += BootInformation->MemoryLow; // This is in kilobytes
+    assert((MemorySize / 1024 / 1024) >= 64);
+    
+    // Initialize the reserved memory address
+    WRITE_VOLATILE(LastReservedAddress,  MEMORY_LOCATION_RESERVED);
+    
     *MemoryGranularity    = PAGE_SIZE;
     *NumberOfMemoryBlocks = DIVUP(MemorySize, PAGE_SIZE);
     
@@ -137,6 +125,37 @@ InitializeSystemMemory(
     
     MemoryMap->ThreadRegion.Start  = MEMORY_LOCATION_RING3_THREAD_START;
     MemoryMap->ThreadRegion.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
+    
+    // Create the global access memory
+    GACMemorySize = MEMORY_LOCATION_VIDEO - MEMORY_LOCATION_RESERVED;
+    StaticMemoryPoolConstruct(GlobalAccessMemory, (void*)AllocateBootMemory(StaticMemoryPoolCalculateSize(GACMemorySize, PAGE_SIZE)), 
+        MEMORY_LOCATION_RESERVED, GACMemorySize, PAGE_SIZE);
+    
+    // Create the physical memory map
+    Count = MemorySize / PAGE_SIZE;
+    bounded_stack_construct(Memory, (void*)AllocateBootMemory(Count * sizeof(void*)), Count);
+    
+    // Create the system kernel virtual memory space
+    Status = CreateKernelVirtualMemorySpace();
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    // So now we go through the memory regions provided by the system and add the physical pages
+    // we can use, that are not already pre-allocated by the system.
+    for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
+        if (RegionPointer->Type == 1) {
+            uintptr_t Address = (uintptr_t)RegionPointer->Address;
+            uintptr_t Limit   = (uintptr_t)RegionPointer->Address + (uintptr_t)RegionPointer->Size;
+            while (Address < Limit) {
+                if (Address > LastReservedAddress) {
+                    bounded_stack_push(Memory, (void*)Address);
+                }
+                Address += PAGE_SIZE;
+            }
+        }
+        RegionPointer++;
+    }
 
     // Debug initial stats
     PrintPhysicalMemoryUsage();
@@ -556,7 +575,10 @@ ArchMmuClearVirtualPages(
             // should not free the physical page. We only do this if the memory
             // is marked as present, otherwise we don't
             if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
-                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
+                Mapping &= PAGE_MASK;
+                IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+                bounded_stack_push(&GetMachine()->PhysicalMemory, (void*)Mapping);
+                IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
             }
         }
     }

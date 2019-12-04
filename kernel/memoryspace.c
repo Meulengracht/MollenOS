@@ -91,7 +91,7 @@ SynchronizeMemoryRegion(
     }
 
     // Check for global address, in that case invalidate all cores
-    if (BlockBitmapValidateState(&GetMachine()->GlobalAccessMemory, Address, 1) != OsDoesNotExist) {
+    if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, Address)) {
         Object.MemorySpaceHandle = UUID_INVALID; // Everyone must update
     }
     else {
@@ -486,9 +486,9 @@ MemoryDestroySharedRegion(
 {
     SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
     if (!(Region->Flags & MAPPING_PERSISTENT)) {
-        for (int i = 0; i < Region->PageCount; i++) {
-            FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
-        }
+        IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+        bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, (void**)&Region->Pages[0], Region->PageCount);
+        IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
     }
     kfree(Region);
 }
@@ -518,7 +518,7 @@ ResolveVirtualSystemMemorySpaceAddress(
         } break;
 
         case MAPPING_VIRTUAL_GLOBAL: {
-            VirtualBase = AllocateBlocksInBlockmap(&GetMachine()->GlobalAccessMemory, __MASK, Size);
+            VirtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, Size);
             if (VirtualBase == 0) {
                 ERROR("Ran out of memory for allocation 0x%" PRIxIN " (ga-memory)", Size);
             }
@@ -547,7 +547,6 @@ MemorySpaceMap(
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesUpdated;
-    int              i;
     VirtualAddress_t VirtualBase;
     OsStatus_t       Status;
     
@@ -569,15 +568,9 @@ MemorySpaceMap(
         MemoryFlags |= MAPPING_COMMIT;
     }
     else if (MemoryFlags & MAPPING_COMMIT) {
-        for (i = 0; i < PageCount; i++) {
-            PhysicalAddressValues[i] = AllocateSystemMemory(GetMemorySpacePageSize(), __MASK, 0);
-            if (!PhysicalAddressValues[i]) {
-                for (i -= 1; i > 0; i--) {
-                    FreeSystemMemory(PhysicalAddressValues[i], GetMemorySpacePageSize());
-                }
-                return OsOutOfMemory;
-            }
-        }
+        IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+        bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&PhysicalAddressValues[0], PageCount);
+        IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
     }
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
@@ -691,8 +684,8 @@ MemorySpaceCommit(
     _In_ Flags_t              Placement)
 {
     int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    int        PagesComitted;
     OsStatus_t Status;
-    int        i;
     
     assert(MemorySpace != NULL);
 
@@ -700,29 +693,12 @@ MemorySpaceCommit(
     if (Placement & MAPPING_PHYSICAL_FIXED) {
         assert(PhysicalAddressValues != NULL);
     }
+    
+    IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+    bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&PhysicalAddressValues[0], PageCount);
+    IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
 
-    for (i = 0; i < PageCount; i++) {
-        uintptr_t Virtual = Address + (i * GetMemorySpacePageSize());
-        uintptr_t Dma;
-        
-        if (Placement & MAPPING_PHYSICAL_FIXED) {
-            Dma = PhysicalAddressValues[i];
-        }
-        else {
-            Dma = AllocateSystemMemory(GetMemorySpacePageSize(), __MASK, 0);
-            if (PhysicalAddressValues != NULL) {
-                PhysicalAddressValues[i] = Dma;
-            }
-        }
-        
-        Status = ArchMmuCommitVirtualPage(MemorySpace, Virtual, Dma);
-        if (Status != OsSuccess) {
-            if (!(Placement & MAPPING_PHYSICAL_FIXED)) {
-                FreeSystemMemory(Dma, GetMemorySpacePageSize());
-            }
-            break;
-        }
-    }
+    Status = ArchMmuCommitVirtualPage(MemorySpace, Address, &PhysicalAddressValues[0], PageCount, &PagesComitted);
     return Status;
 }
 
@@ -792,8 +768,8 @@ MemorySpaceUnmap(
         BlockBitmapValidateState(MemorySpace->Context->HeapSpace, Address, 1) == OsSuccess) {
         ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Address, Size);
     }
-    else if (BlockBitmapValidateState(&GetMachine()->GlobalAccessMemory, Address, 1) == OsSuccess) {
-        ReleaseBlockmapRegion(&GetMachine()->GlobalAccessMemory, Address, Size);
+    else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, Address)) {
+        StaticMemoryPoolFree(&GetMachine()->GlobalAccessMemory, Address);
     }
     else {
         // Ignore

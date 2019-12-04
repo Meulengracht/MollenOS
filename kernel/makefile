@@ -24,6 +24,7 @@ SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard scheduling/*.c) \
 		  $(wildcard system_calls/*.c) \
 		  $(wildcard tests/*.c) \
+		  $(wildcard utils/*.c) \
 		  $(wildcard *.c) \
 		  $(OOT_SOURCES)
 OBJECTS = $(SOURCES:.c=.o)

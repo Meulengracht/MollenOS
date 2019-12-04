@@ -20,9 +20,12 @@
  * Datastructure (Static Memory Pool)
  * - Implementation of a static-non-allocation memory Pool as a binary-tree.
  */
+#define __MODULE "MEMP"
 
 #include <assert.h>
-#include <utils/static_memory_Pool.h>
+#include <debug.h>
+#include <utils/static_memory_pool.h>
+#include <string.h>
 
 static int
 mem_pow(
@@ -67,7 +70,7 @@ StaticMemoryPoolConstruct(
 	assert(Pool != NULL);
 	assert(Storage != NULL);
 
-	Pool->Chunks = (memory_chunk_t*)Storage;
+	Pool->Chunks = (StaticMemoryChunk_t*)Storage;
 	Pool->StartAddress = StartAddress;
 	Pool->Length = Length;
 	Pool->ChunkSize = ChunkSize;
@@ -190,4 +193,14 @@ StaticMemoryPoolFree(
 	if (Result) {
 		WARNING("[memory_pool_free] failed to free address 0x%x\n", Address);
 	}
+}
+
+// Returns 1 if contains
+int
+StaticMemoryPoolContains(
+    _In_ StaticMemoryPool_t* Pool,
+    _In_ uintptr_t           Address)
+{
+	assert(Pool != NULL);
+	return (Address >= Pool->StartAddress && Address < (Pool->StartAddress + Pool->Length));
 }

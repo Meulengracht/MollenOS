@@ -24,9 +24,6 @@
 #include <assert.h>
 #include <ds/bounded_stack.h>
 
-#define STACK_LOCK   SYNC_LOCK(stack)
-#define STACK_UNLOCK SYNC_UNLOCK(stack)
-
 void
 bounded_stack_construct(
     _In_ bounded_stack_t* stack,
@@ -38,7 +35,6 @@ bounded_stack_construct(
     stack->capacity = capacity;
     stack->elements = storage;
     stack->index    = 0;
-    SYNC_INIT_FN(stack);
 }
 
 int
@@ -49,12 +45,10 @@ bounded_stack_push(
     int result = -1;
     assert(stack != NULL);
     
-    STACK_LOCK;
     if (stack->index < stack->capacity) {
         stack->elements[stack->index++] = element;
         result = 0;
     }
-    STACK_UNLOCK;
     return result;
 }
 
@@ -67,14 +61,12 @@ bounded_stack_push_multiple(
     int i;
     assert(stack != NULL);
     
-    STACK_LOCK;
     for (i = 0; i < count; i++) {
         if (stack->index == stack->capacity) {
             break;
         }
         stack->elements[stack->index++] = elements[i];
     }
-    STACK_UNLOCK;
     return i;
 }
 
@@ -85,11 +77,9 @@ bounded_stack_pop(
     void* element = NULL;
     assert(stack != NULL);
     
-    STACK_LOCK;
     if (stack->index > 0) {
         element = stack->elements[--stack->index];
     }
-    STACK_UNLOCK;
     return element;
 }
 
@@ -102,13 +92,11 @@ bounded_stack_pop_multiple(
     int i;
     assert(stack != NULL);
     
-    STACK_LOCK;
     for (i = 0; i < count; i++) {
         if (stack->index == 0) {
             break;
         }
         elements[i] = stack->elements[--stack->index];
     }
-    STACK_UNLOCK;
     return i;
 }

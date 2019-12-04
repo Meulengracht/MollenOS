@@ -51,8 +51,6 @@
 // OS Bitfields for page tables, bits 9-11 are available
 #define PAGETABLE_INHERITED     0x200
 
-/* Memory Map Structure 
- * This is the structure passed to us by the mBoot bootloader */
 PACKED_TYPESTRUCT(BIOSMemoryRegion, {
     uint64_t Address;
     uint64_t Size;
@@ -60,6 +58,9 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
     uint32_t Nil;
     uint64_t Padding;
 });
+
+KERNELAPI OsStatus_t KERNELABI
+CreateKernelVirtualMemorySpace(void);
 
 /* ConvertSystemSpaceToPaging
  * Converts system memory-space generic flags to native x86 paging flags */

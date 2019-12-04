@@ -30,26 +30,31 @@
 ; Rest above is not reliable
 
 ; Definitions
-%define         MEMLOCATION_INITIALSTACK        0x7C00
-%define 		MEMLOCATION_BOOTCODE			0x7C00
-%define 		MEMLOCATION_FAT_GETCLUSTER		0x7E00
-%define         MEMLOCATION_TRAMPOLINE_CODE     0x8000
-%define 		MEMLOCATION_FAT_FATTABLE		0x8000
-%define 		MEMLOCATION_MEMORY_MAP			0x9000
-%define 		MEMLOCATION_VESA_INFO_BASE		0xA000
-%define 		MEMLOCATION_FLOAD_SEGMENT		0x0000
-%define 		MEMLOCATION_FLOAD_OFFSET		0xB000
-%define 		MEMLOCATION_FLOAD_LOWER			0xB000 
-%define 		MEMLOCATION_KERNEL_UPPER		0x100000
-%define         MEMLOCATION_RAMDISK_UPPER		0x200000
-%define         MEMLOCATION_KERNEL_STACK        0x9F000
+%define MEMLOCATION_INITIALSTACK        0x7C00
+%define MEMLOCATION_BOOTCODE			0x7C00
+%define MEMLOCATION_FAT_GETCLUSTER		0x7E00
+%define MEMLOCATION_TRAMPOLINE_CODE     0x8000
+%define MEMLOCATION_FAT_FATTABLE		0x8000
+%define MEMLOCATION_MEMORY_MAP			0x9000
+%define MEMLOCATION_VESA_INFO_BASE		0xA000
+%define MEMLOCATION_FLOAD_SEGMENT		0x0000
+%define MEMLOCATION_FLOAD_OFFSET		0xB000
+%define MEMLOCATION_FLOAD_LOWER			0xB000 
+%define MEMLOCATION_KERNEL_UPPER		0x100000
+%define MEMLOCATION_RAMDISK_UPPER		0x200000
+%define MEMLOCATION_KERNEL_STACK        0x9F000
 
-; Unpack area will be not used afterwards and will then be used for 
-; initial page directory in 64 bit. We will need 0x5000 space
-%define			MEMLOCATION_UNPACK_AREA			0x300000
-%define         MEMLOCATION_PML4T               0x300000
-%define         MEMLOCATION_PDPT                0x301000
-%define         MEMLOCATION_PDT                 0x302000
-%define         MEMLOCATION_PT                  0x303000
-%define         MEMLOCATION_PT2                 0x304000
+%define	MEMLOCATION_UNPACK_AREA			0x300000
+
+; The physical memory location reserved for video space is at 0x0F000000
+; but at the time we take that into use - we have abandoned this page directory.
+; We identity map the first 256 mb
+%define MEMLOCATION_PML4T               0x0F000000 ; MEMORY_LOCATION_KERNEL_END - 0x1000000 (16 mb)
+%define IDENTITY_MAP_RANGE              0x10000000 ; MEMORY_LOCATION_KERNEL_END
+%define PT_SIZE                         0x200000   ; 2 mb
+
+%define MEMLOCATION_PDPT                0x301000
+%define MEMLOCATION_PDT                 0x302000
+%define MEMLOCATION_PT                  0x303000
+%define MEMLOCATION_PT2                 0x304000
 

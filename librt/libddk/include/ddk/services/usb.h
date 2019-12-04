@@ -210,7 +210,7 @@ typedef enum _UsbTransferStatus {
 
 PACKED_TYPESTRUCT(UsbTransaction, {
 	UsbTransactionType_t Type;
-	uintptr_t            BufferHandle;
+	UUId_t               BufferHandle;
 	size_t               BufferOffset;
 	size_t               Length;
 	Flags_t              Flags;

@@ -930,7 +930,7 @@ void kfree(void* Object)
     if (Selected == NULL) {
         ERROR("Could not find a cache for object 0x%" PRIxIN "", Object);
         MemoryCacheDump(NULL);
-        assert(0);   
+        assert(0);
     }
     MemoryCacheFree(Selected->Cache, Object);
 }
@@ -939,7 +939,9 @@ void
 MemoryCacheDump(
     _In_ MemoryCache_t* Cache)
 {
-    int i = 0;
+    int MaxBlocks  = GetMachine()->PhysicalMemory.capacity;
+    int FreeBlocks = GetMachine()->PhysicalMemory.index;
+    int i          = 0;
     
     if (Cache != NULL) {
         cache_dump_information(Cache);
@@ -956,9 +958,8 @@ MemoryCacheDump(
     
     // Dump memory information
     WRITELINE("\nMemory Stats: %" PRIuIN "/%" PRIuIN " Bytes, %" PRIuIN "/%" PRIuIN " Blocks",
-        GetMachine()->PhysicalMemory.BlocksAllocated * GetMemorySpacePageSize(), 
-        GetMachine()->PhysicalMemory.BlockCount * GetMemorySpacePageSize(),
-        GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+        (MaxBlocks - FreeBlocks) * GetMemorySpacePageSize(), 
+        MaxBlocks * GetMemorySpacePageSize(), MaxBlocks - FreeBlocks, MaxBlocks);
 }
 
 void
@@ -966,5 +967,5 @@ MemoryCacheInitialize(void)
 {
     // Initialize the default cache and disable atomics for this one
     MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 
-        16, HEAP_CACHE_DEFAULT, 0, NULL, NULL);
+        16, 0, HEAP_CACHE_DEFAULT, NULL, NULL);
 }

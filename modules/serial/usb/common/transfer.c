@@ -42,7 +42,10 @@ UsbManagerCreateTransfer(
 {
     UsbManagerTransfer_t* UsbTransfer;
     int                   i;
-
+    
+    WARNING("[usb_create_transfer] transactions %i",
+        Transfer->TransactionCount);
+    
     UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
     if (!UsbTransfer) {
         return NULL;
@@ -62,10 +65,11 @@ UsbManagerCreateTransfer(
         if (UsbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
             continue;
         }
+        WARNING("[usb_create_transfer] %i: length %" PRIuIN ", b_id %u, b_offset %" PRIuIN,
+            i, Transfer->Transactions[i].Length,
+            Transfer->Transactions[i].BufferHandle,
+            Transfer->Transactions[i].BufferOffset);
         
-        TRACE("... acquiring buffer for transaction %i (handle 0x%x, offset 0x%x)",
-            i, LODWORD(UsbTransfer->Transfer.Transactions[i].BufferHandle),
-            LODWORD(UsbTransfer->Transfer.Transactions[i].BufferOffset));
         if (i != 0 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
                 UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
             TRACE("... reusing");

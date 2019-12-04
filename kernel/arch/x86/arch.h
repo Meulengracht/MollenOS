@@ -67,9 +67,8 @@
  */
 #define MEMORY_LOCATION_KERNEL              0x100000    // Kernel Image Space: 1024 kB
 #define MEMORY_LOCATION_RAMDISK             0x200000    // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_BITMAP              0x300000    // Bitmap Space: 12 mB
-#define MEMORY_LOCATION_VIDEO               0x1000000   // Video Space: 16 mB
-#define MEMORY_LOCATION_RESERVED            0x2000000   // Driver Space: 240~ mB
+#define MEMORY_LOCATION_RESERVED            0x300000    // Driver Space: 240~ mB
+#define MEMORY_LOCATION_VIDEO               0x0F000000  // Video Space: 16 mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000
 #define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFF
 
@@ -96,12 +95,10 @@
  * 0xFF000000       =>          0xFFFFFFFF  (Application Stack Space, 16mb)
  * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
  */
-#define MEMORY_LOCATION_KERNEL              0x100000     // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_RAMDISK             0x200000     // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_BOOTPAGING          0x300000     // Boot paging area, 5 pages (20 Kb)
-#define MEMORY_LOCATION_BITMAP              0x305000     // Bitmap Space: 12~ mB
-#define MEMORY_LOCATION_VIDEO               0x1000000    // Video Space: 16 mB
-#define MEMORY_LOCATION_RESERVED            0x2000000    // Driver Space: 240~ mB
+#define MEMORY_LOCATION_KERNEL              0x100000    // Kernel Image Space: 1024 kB
+#define MEMORY_LOCATION_RAMDISK             0x200000    // RamDisk Image Space: 1024 kB
+#define MEMORY_LOCATION_RESERVED            0x300000    // Driver Space: 240~ mB
+#define MEMORY_LOCATION_VIDEO               0x0F000000  // Video Space: 16 mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000
 
 #define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000

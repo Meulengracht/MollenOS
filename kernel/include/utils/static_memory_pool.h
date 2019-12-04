@@ -24,7 +24,7 @@
 #ifndef __UTILS_STATIC_MEMORY_POOL_H__
 #define __UTILS_STATIC_MEMORY_POOL_H__
 
-#include <os/spinlock.h>
+#include <os/osdefs.h>
 
 PACKED_TYPESTRUCT(StaticMemoryChunk, {
 	uint8_t Split : 1;
@@ -33,10 +33,10 @@ PACKED_TYPESTRUCT(StaticMemoryChunk, {
 });
 
 typedef struct StaticMemoryPool {
-	uintptr_t       StartAddress;
-	size_t          Length;
-	size_t          ChunkSize;
-	memory_chunk_t* Chunks;
+	uintptr_t            StartAddress;
+	size_t               Length;
+	size_t               ChunkSize;
+	StaticMemoryChunk_t* Chunks;
 } StaticMemoryPool_t;
 
 KERNELAPI size_t KERNELABI
@@ -59,6 +59,12 @@ StaticMemoryPoolAllocate(
 
 KERNELAPI void KERNELABI
 StaticMemoryPoolFree(
+    _In_ StaticMemoryPool_t* Pool,
+    _In_ uintptr_t           Address);
+
+// Returns 1 if contains
+KERNELAPI int KERNELABI
+StaticMemoryPoolContains(
     _In_ StaticMemoryPool_t* Pool,
     _In_ uintptr_t           Address);
 

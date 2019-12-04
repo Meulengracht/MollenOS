@@ -25,11 +25,13 @@
 #ifndef __VALI_MACHINE__
 #define __VALI_MACHINE__
 
+#include <ds/bounded_stack.h>
 #include <os/osdefs.h>
-#include <ds/blbitmap.h>
 #include <os/mollenos.h>
+#include <irq_spinlock.h>
 #include <multiboot.h>
 #include <time.h>
+#include <utils/static_memory_pool.h>
 
 // Components
 #include <component/domain.h>
@@ -48,11 +50,14 @@ typedef struct SystemMachine {
     unsigned                    VersionRevision;
     Multiboot_t                 BootInformation;
 
-    // Hardware information
+    // UMA Hardware Resources
     SystemCpu_t                 Processor;      // Used in UMA mode
     SystemMemorySpace_t         SystemSpace;    // Used in UMA mode
-    BlockBitmap_t               PhysicalMemory;
-    BlockBitmap_t               GlobalAccessMemory;
+    bounded_stack_t             PhysicalMemory;
+    IrqSpinlock_t               PhysicalMemoryLock;
+    
+    // Global Hardware Resources
+    StaticMemoryPool_t          GlobalAccessMemory;
     SystemMemoryMap_t           MemoryMap;
     list_t                      SystemDomains;
     SystemInterruptController_t* InterruptController;
@@ -89,31 +94,11 @@ InitializeSystemTimers(void);
  * be reserved and those that are free for system use. */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemory(
-    _In_ Multiboot_t*       BootInformation,
-    _In_ BlockBitmap_t*     Memory,
-    _In_ BlockBitmap_t*     GlobalAccessMemory,
-    _In_ SystemMemoryMap_t* MemoryMap,
-    _In_ size_t*            MemoryGranularity,
-    _In_ size_t*            NumberOfMemoryBlocks);
-
-// Flags for AllocateSystemMemory
-#define MEMORY_DOMAIN       (1 << 0)
-
-/* AllocateSystemMemory 
- * Allocates a block of system memory with the given parameters. It's possible
- * to allocate low memory, local memory, global memory or standard memory. */
-KERNELAPI uintptr_t KERNELABI
-AllocateSystemMemory(
-    _In_ size_t             Size,
-    _In_ uintptr_t          Mask,
-    _In_ Flags_t            Flags);
-
-/* FreeSystemMemory
- * Releases the given memory address of the given size. This can return OsError
- * if the memory was not already allocated or address is invalid. */
-KERNELAPI OsStatus_t KERNELABI
-FreeSystemMemory(
-    _In_ uintptr_t          Address,
-    _In_ size_t             Size);
+    _In_ Multiboot_t*        BootInformation,
+    _In_ bounded_stack_t*    Memory,
+    _In_ StaticMemoryPool_t* GlobalAccessMemory,
+    _In_ SystemMemoryMap_t*  MemoryMap,
+    _In_ size_t*             MemoryGranularity,
+    _In_ size_t*             NumberOfMemoryBlocks);
 
 #endif // !__VALI_MACHINE__
