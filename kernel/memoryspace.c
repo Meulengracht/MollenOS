@@ -549,7 +549,6 @@ MemorySpaceMap(
     int              PagesUpdated;
     VirtualAddress_t VirtualBase;
     OsStatus_t       Status;
-    
     TRACE("[memory_map] %u, 0x%x, 0x%x", 
         LODWORD(Length), MemoryFlags, PlacementFlags);
     

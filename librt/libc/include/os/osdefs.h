@@ -156,6 +156,36 @@ LastSetBit(size_t Value)
     return bIndex;
 }
 
+static inline int
+IsPowerOfTwo(size_t Value)
+{
+    if (Value == 0) {
+        return 0;
+    }
+   
+    while (Value != 1) {
+        if (Value & 0x1) {
+            return 0;
+        }
+        Value >>= 1;
+    }
+    return 1;    
+}
+
+static inline size_t
+NextPowerOfTwo(size_t Value)
+{
+    size_t Next = 1;
+    if (Value >> (__BITS - 1) == 1) {
+        return Value;
+    }
+    
+    while (Next < Value) {
+        Next <<= 1;
+    }
+    return Next;
+}
+
 #define _MAXPATH            512
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))

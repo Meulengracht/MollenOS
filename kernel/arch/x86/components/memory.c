@@ -45,9 +45,7 @@ extern void memory_invalidate_addr(uintptr_t pda);
 extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
 
-// Global static storage for the memory
-static size_t BlockmapBytes       = 0;
-uintptr_t     LastReservedAddress = 0;
+uintptr_t LastReservedAddress = 0;
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // in the arch-specific layer
@@ -58,11 +56,14 @@ uintptr_t     LastReservedAddress = 0;
 
 void
 PrintPhysicalMemoryUsage(void) {
-    int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
-    int FreeBlocks = GetMachine()->PhysicalMemory.index;
-    TRACE("Bitmap size: %" PRIuIN " Bytes", BlockmapBytes);
-    TRACE("Memory in use %" PRIuIN " Bytes", (MaxBlocks - FreeBlocks) * PAGE_SIZE);
-    TRACE("Block status %" PRIuIN "/%" PRIuIN, (MaxBlocks - FreeBlocks), MaxBlocks);
+    int    MaxBlocks       = READ_VOLATILE(GetMachine()->PhysicalMemory.capacity);
+    int    FreeBlocks      = READ_VOLATILE(GetMachine()->PhysicalMemory.index);
+    int    AllocatedBlocks = MaxBlocks - FreeBlocks;
+    size_t ReservedMemory  = READ_VOLATILE(LastReservedAddress);
+    size_t MemoryInUse     = ReservedMemory + ((size_t)AllocatedBlocks * (size_t)PAGE_SIZE);
+    
+    TRACE("Memory in use %" PRIuIN " Bytes", MemoryInUse);
+    TRACE("Block status %" PRIuIN "/%" PRIuIN, AllocatedBlocks, MaxBlocks);
     TRACE("Reserved memory: 0x%" PRIxIN " (%" PRIuIN " blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
 }
 
@@ -87,7 +88,7 @@ AllocateBootMemory(
 OsStatus_t
 InitializeSystemMemory(
     _In_ Multiboot_t*        BootInformation,
-    _In_ bounded_stack_t*    Memory,
+    _In_ bounded_stack_t*    PhysicalMemory,
     _In_ StaticMemoryPool_t* GlobalAccessMemory,
     _In_ SystemMemoryMap_t*  MemoryMap,
     _In_ size_t*             MemoryGranularity,
@@ -95,8 +96,9 @@ InitializeSystemMemory(
 {
     BIOSMemoryRegion_t* RegionPointer;
     uintptr_t           MemorySize;
+    uintptr_t           GAMemory;
     size_t              Count;
-    size_t              GACMemorySize;
+    size_t              GAMemorySize;
     OsStatus_t          Status;
     int                 i;
 
@@ -126,31 +128,51 @@ InitializeSystemMemory(
     MemoryMap->ThreadRegion.Start  = MEMORY_LOCATION_RING3_THREAD_START;
     MemoryMap->ThreadRegion.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
     
-    // Create the global access memory
-    GACMemorySize = MEMORY_LOCATION_VIDEO - MEMORY_LOCATION_RESERVED;
-    StaticMemoryPoolConstruct(GlobalAccessMemory, (void*)AllocateBootMemory(StaticMemoryPoolCalculateSize(GACMemorySize, PAGE_SIZE)), 
-        MEMORY_LOCATION_RESERVED, GACMemorySize, PAGE_SIZE);
-    
     // Create the physical memory map
     Count = MemorySize / PAGE_SIZE;
-    bounded_stack_construct(Memory, (void*)AllocateBootMemory(Count * sizeof(void*)), Count);
+    bounded_stack_construct(PhysicalMemory, (void*)AllocateBootMemory(
+        Count * sizeof(void*)), (int)Count);
     
-    // Create the system kernel virtual memory space
+    // Create the global access memory, it needs to start after the last reserved
+    // memory address, because the reserved memory is not freeable or allocatable.
+    GAMemorySize = MEMORY_LOCATION_VIDEO - READ_VOLATILE(LastReservedAddress);
+    GAMemory     = AllocateBootMemory(StaticMemoryPoolCalculateSize(GAMemorySize, PAGE_SIZE));
+    
+    // Create the system kernel virtual memory space, this call identity maps all
+    // memory allocated by AllocateBootMemory, and also allocates some itself
     Status = CreateKernelVirtualMemorySpace();
     if (Status != OsSuccess) {
         return Status;
     }
     
+    // After the AllocateBootMemory+CreateKernelVirtualMemorySpace call, the reserved address 
+    // has moved again, which means we actually have allocated too much memory right 
+    // out the box, however we accept this memory waste, as it's max a few 10's of kB.
+    GAMemorySize = MEMORY_LOCATION_VIDEO - READ_VOLATILE(LastReservedAddress);
+    TRACE("[pmem] [mem_init] initial size of ga memory to 0x%" PRIxIN, GAMemorySize);    
+    if (!IsPowerOfTwo(GAMemorySize)) {
+        GAMemorySize = NextPowerOfTwo(GAMemorySize) >> 1;
+        TRACE("[pmem] [mem_init] adjusting size of ga memory to 0x%" PRIxIN, GAMemorySize);    
+    }
+    StaticMemoryPoolConstruct(GlobalAccessMemory, (void*)GAMemory, 
+        READ_VOLATILE(LastReservedAddress), GAMemorySize, PAGE_SIZE);
+    
     // So now we go through the memory regions provided by the system and add the physical pages
     // we can use, that are not already pre-allocated by the system.
+    // ISSUE: it seems that the highest address (total number of blocks) actually
+    // exceeds the number of initial blocks available
+    TRACE("[pmem] [mem_init] region count %i, block count %u", BootInformation->MemoryMapLength, Count);
     for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
         if (RegionPointer->Type == 1) {
             uintptr_t Address = (uintptr_t)RegionPointer->Address;
             uintptr_t Limit   = (uintptr_t)RegionPointer->Address + (uintptr_t)RegionPointer->Size;
+            TRACE("[pmem] [mem_init] region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, Address, Limit);
+            if (Address < LastReservedAddress) {
+                Address = LastReservedAddress;
+            }
+            
             while (Address < Limit) {
-                if (Address > LastReservedAddress) {
-                    bounded_stack_push(Memory, (void*)Address);
-                }
+                bounded_stack_push(PhysicalMemory, (void*)Address);
                 Address += PAGE_SIZE;
             }
         }
@@ -331,54 +353,59 @@ ArchMmuUpdatePageAttributes(
 OsStatus_t
 ArchMmuCommitVirtualPage(
     _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     Address,
-    _In_ PhysicalAddress_t    PhysicalAddress)
+    _In_ VirtualAddress_t     StartAddress,
+    _In_ PhysicalAddress_t*   PhysicalAddressValues,
+    _In_  int                 PageCount,
+    _Out_ int*                PagesComitted)
 {
+    
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    uintptr_t          Mapping;
     int                Update;
     int                IsCurrent;
-    int                Index  = PAGE_TABLE_INDEX(Address);
+    int                Index;
+    int                i      = 0;
     OsStatus_t         Status = OsSuccess;
 
-    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
-    if (Table == NULL) {
-        return OsDoesNotExist;
+    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
+    while (PageCount && Status == OsSuccess) {
+        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
+        if (!Table) {
+            Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+            break;
+        }
+        
+        Index = PAGE_TABLE_INDEX(StartAddress);
+        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
+            uintptr_t Mapping = atomic_load(&Table->Pages[Index]);
+            uintptr_t NewMapping = ((Mapping & PAGE_MASK) != 0) ? 
+                (Mapping & ~(PAGE_RESERVED)) | PAGE_PRESENT : 
+                ((PhysicalAddressValues[i] & PAGE_MASK) | (Mapping & ~(PAGE_RESERVED)) | PAGE_PRESENT);
+            
+            if (Mapping & PAGE_PRESENT) { // Mapping was already comitted
+                Status = (i == 0) ? OsExists : OsIncomplete;
+                break;
+            }
+            
+            if (!(Mapping & PAGE_RESERVED)) { // Mapping was not reserved
+                Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
+                break;
+            }
+            
+            if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Mapping, NewMapping)) {
+                ERROR("[arch_commit_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                    StartAddress, Mapping);
+                Status = OsIncomplete;
+                break;
+            }
+            
+            if (IsCurrent) {
+                memory_invalidate_addr(StartAddress);
+            }
+        }
     }
-
-    // Make sure value is not mapped already, NEVER overwrite a mapping
-    Mapping = atomic_load(&Table->Pages[Index]);
-    if (Mapping & PAGE_PRESENT) {
-        Status = OsExists;
-        goto LeaveFunction;
-    }
-    
-    if (!(Mapping & PAGE_RESERVED)) {
-        Status = OsDoesNotExist;
-        goto LeaveFunction;
-    }
-    
-    // Build the mapping, reuse existing attached physical if it exists
-    if ((Mapping & PAGE_MASK) != 0) {
-        PhysicalAddress = Mapping | PAGE_PRESENT;
-    }
-    else {
-        PhysicalAddress = (PhysicalAddress & PAGE_MASK) | (Mapping & ATTRIBUTE_MASK) | PAGE_PRESENT;
-    }
-    PhysicalAddress &= ~(PAGE_RESERVED);
-
-    // Perform the mapping in a weak context, fast operation.
-    if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Mapping, PhysicalAddress)) {
-        Status = OsExists;
-    }
-    
-LeaveFunction:
-    if (IsCurrent) {
-        memory_invalidate_addr(Address);
-    }
+    *PagesComitted = i;
     return Status;
 }
 
@@ -412,7 +439,7 @@ ArchMmuSetContiguousVirtualPages(
     }
 
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount) {
+    while (PageCount && Status == OsSuccess) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
         assert(Table != NULL);
         
@@ -422,7 +449,7 @@ ArchMmuSetContiguousVirtualPages(
             uintptr_t Mapping = (PhysicalStartAddress & PAGE_MASK) | X86Attributes;
             if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Zero, Mapping)) {
                 // Tried to replace a value that was not 0
-                ERROR("[arch_update_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                ERROR("[arch_update_virtual_cont] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
                     StartAddress, Zero);
                 Status = OsIncomplete;
                 break;
@@ -466,7 +493,7 @@ ArchMmuReserveVirtualPages(
     }
 
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount) {
+    while (PageCount && Status == OsSuccess) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
         assert(Table != NULL);
         
@@ -474,7 +501,7 @@ ArchMmuReserveVirtualPages(
         for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
             if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Zero, X86Attributes)) {
                 // Tried to replace a value that was not 0
-                ERROR("[arch_update_virtual] failed to reserve address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                ERROR("[arch_reserve_virtual] failed to reserve address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
                     StartAddress, Zero);
                 Status = OsIncomplete;
                 break;
@@ -504,6 +531,8 @@ ArchMmuSetVirtualPages(
     int                i      = 0;
     OsStatus_t         Status = OsSuccess;
     uintptr_t          Zero   = 0;
+    //TRACE("[mem] [set] mapping 0x%" PRIxIN ", page count %i", 
+    //    StartAddress, PageCount);
 
     X86Attributes = ConvertGenericAttributesToX86(Attributes);
     
@@ -515,7 +544,7 @@ ArchMmuSetVirtualPages(
     }
 
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount) {
+    while (PageCount && Status == OsSuccess) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
         assert(Table != NULL);
         
@@ -557,7 +586,7 @@ ArchMmuClearVirtualPages(
     OsStatus_t         Status = OsSuccess;
 
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount) {
+    while (PageCount && Status == OsSuccess) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
         if (Table == NULL) {
             Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
@@ -604,7 +633,7 @@ ArchMmuVirtualToPhysical(
     OsStatus_t         Status = OsSuccess;
     
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount) {
+    while (PageCount && Status == OsSuccess) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
         if (Table == NULL) {
             Status = (i == 0) ? OsDoesNotExist : OsIncomplete;

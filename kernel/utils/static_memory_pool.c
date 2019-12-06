@@ -69,6 +69,10 @@ StaticMemoryPoolConstruct(
 {
 	assert(Pool != NULL);
 	assert(Storage != NULL);
+	
+	if (!IsPowerOfTwo(Length)) {
+		ERROR("[st_mem_pool] length 0x%" PRIxIN " is not a power of two");
+	}
 
 	Pool->Chunks = (StaticMemoryChunk_t*)Storage;
 	Pool->StartAddress = StartAddress;
@@ -151,8 +155,8 @@ RecursiveFree(
 	// If we are split, we can't be allocated, and thus we should immediately move on to the next node,
 	// decide if we should move on the left or right node.
 	if (Pool->Chunks[Index].Split) {
-		uintptr_t right_child_address_limit = AccumulatedAddress + (CurrentLength >> 1);
-		if (Address < right_child_address_limit) {
+		uintptr_t RightChildAddressLimit = AccumulatedAddress + (CurrentLength >> 1);
+		if (Address < RightChildAddressLimit) {
 			Result = RecursiveFree(Pool, RightChildIndex, Level + 1, AccumulatedAddress, Address);
 		}
 		else {
