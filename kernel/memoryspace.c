@@ -687,15 +687,13 @@ MemorySpaceCommit(
     OsStatus_t Status;
     
     assert(MemorySpace != NULL);
+    assert(PhysicalAddressValues != NULL);
 
-    // Make sure DmaVector is provided in this case
-    if (Placement & MAPPING_PHYSICAL_FIXED) {
-        assert(PhysicalAddressValues != NULL);
+    if (!(Placement & MAPPING_PHYSICAL_FIXED)) {
+        IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+        bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&PhysicalAddressValues[0], PageCount);
+        IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
     }
-    
-    IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
-    bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&PhysicalAddressValues[0], PageCount);
-    IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
 
     Status = ArchMmuCommitVirtualPage(MemorySpace, Address, &PhysicalAddressValues[0], PageCount, &PagesComitted);
     return Status;

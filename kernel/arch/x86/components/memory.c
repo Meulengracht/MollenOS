@@ -531,8 +531,6 @@ ArchMmuSetVirtualPages(
     int                i      = 0;
     OsStatus_t         Status = OsSuccess;
     uintptr_t          Zero   = 0;
-    //TRACE("[mem] [set] mapping 0x%" PRIxIN ", page count %i", 
-    //    StartAddress, PageCount);
 
     X86Attributes = ConvertGenericAttributesToX86(Attributes);
     

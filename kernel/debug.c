@@ -84,6 +84,7 @@ DebugPageFault(
     _In_ uintptr_t  Address)
 {
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    uintptr_t            PhysicalAddress;
     OsStatus_t           Status;
     
     TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", 
@@ -95,7 +96,8 @@ DebugPageFault(
         }
     }
     
-    Status = MemorySpaceCommit(Space, Address, NULL, GetMemorySpacePageSize(), 0);
+    Status = MemorySpaceCommit(Space, Address, &PhysicalAddress, 
+        GetMemorySpacePageSize(), 0);
     if (Status == OsExists) {
         Status = OsSuccess;
     }

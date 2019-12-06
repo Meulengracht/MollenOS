@@ -199,6 +199,7 @@ Context_t*
 ContextCreate(
     _In_ int ContextType)
 {
+	uintptr_t PhysicalContextAddress;
     uintptr_t ContextAddress = 0;
 
 	// Select proper segments based on context type and run-mode
@@ -214,8 +215,8 @@ ContextCreate(
         else {
 		    ContextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
         }
-        MemorySpaceCommit(GetCurrentMemorySpace(), ContextAddress, NULL,
-        	GetMemorySpacePageSize(), 0);
+        MemorySpaceCommit(GetCurrentMemorySpace(), ContextAddress, 
+        	&PhysicalContextAddress, GetMemorySpacePageSize(), 0);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
