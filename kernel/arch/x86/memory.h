@@ -51,6 +51,14 @@
 // OS Bitfields for page tables, bits 9-11 are available
 #define PAGETABLE_INHERITED     0x200
 
+// Function helpers for repeating functions where it pays off
+// to have them seperate
+#define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(void) { \
+                                            Type* Instance = (Type*)AllocateBootMemory(sizeof(Type)); \
+                                            assert(Instance != NULL); \
+                                            memset((void*)Instance, 0, sizeof(Type)); \
+                                            return Instance; }
+
 PACKED_TYPESTRUCT(BIOSMemoryRegion, {
     uint64_t Address;
     uint64_t Size;
