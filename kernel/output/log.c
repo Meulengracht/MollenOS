@@ -21,15 +21,36 @@
  */
 
 #include <arch/output.h>
-#include <threading.h>
-#include <machine.h>
-#include <handle.h>
+#include <arch/utils.h>
 #include <assert.h>
+#include <handle.h>
+#include <heap.h>
+#include <irq_spinlock.h>
+#include <log.h>
+#include <machine.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <heap.h>
-#include <log.h>
+#include <threading.h>
+
+typedef struct SystemLogLine {
+    SystemLogType_t Type;
+    UUId_t          CoreId;
+    UUId_t          ThreadHandle;
+    char            Data[128]; // Message
+} SystemLogLine_t;
+
+typedef struct SystemLog {
+    uintptr_t*       StartOfData;
+    size_t           DataSize;
+    int              NumberOfLines;
+    SystemLogLine_t* Lines;
+    IrqSpinlock_t    SyncObject;
+    
+    int LineIndex;
+    int RenderIndex;
+    int AllowRender;
+} SystemLog_t;
 
 static SystemLog_t LogObject                 = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
@@ -67,6 +88,11 @@ void
 LogRenderMessages(void)
 {
     SystemLogLine_t* Line;
+    MCoreThread_t*   Thread;
+    
+    if (!LogObject.AllowRender) {
+        return;
+    }
 
 	IrqSpinlockAcquire(&LogObject.SyncObject);
     while (LogObject.RenderIndex != LogObject.LineIndex) {
@@ -76,6 +102,7 @@ LogRenderMessages(void)
         if (LogObject.RenderIndex == LogObject.NumberOfLines) {
             LogObject.RenderIndex = 0;
         }
+        Thread = LookupHandleOfType(Line->ThreadHandle, HandleTypeThread);
 
         // Don't give raw any special handling
         if (Line->Type == LogRaw) {
@@ -84,7 +111,7 @@ LogRenderMessages(void)
         }
         else {
             VideoGetTerminal()->FgColor = (uint32_t)Line->Type;
-            printf("%s", &Line->System[0]);
+            printf("[%u-%s] ", Line->CoreId, Thread ? Thread->Name : "boot");
             if (Line->Type != LogError) {
                 VideoGetTerminal()->FgColor = 0;
             }
@@ -114,27 +141,32 @@ LogAppendMessage(
 {
     SystemLogLine_t* Line;
 	va_list          Arguments;
+	UUId_t           CoreId = ArchGetProcessorCoreId();
 
     assert(Header != NULL);
     assert(Message != NULL);
-
+    
     // Get a new line object
 	IrqSpinlockAcquire(&LogObject.SyncObject);
+	if ((LogObject.LineIndex + 1) % LogObject.NumberOfLines == LogObject.RenderIndex) {
+	    IrqSpinlockRelease(&LogObject.SyncObject);
+	    LogRenderMessages();
+	    IrqSpinlockAcquire(&LogObject.SyncObject);
+	}
+	
     Line = &LogObject.Lines[LogObject.LineIndex++];
     if (LogObject.LineIndex == LogObject.NumberOfLines) {
         LogObject.LineIndex = 0;
     }
-	IrqSpinlockRelease(&LogObject.SyncObject);
+    
     memset((void*)Line, 0, sizeof(SystemLogLine_t));
-    Line->Type = Type;
-    snprintf(&Line->System[0], sizeof(Line->System), "[%s] ", Header);
+    Line->Type         = Type;
+    Line->CoreId       = CoreId;
+    Line->ThreadHandle = GetCurrentThreadId();
     
 	va_start(Arguments, Message);
     vsnprintf(&Line->Data[0], sizeof(Line->Data) - 1, Message, Arguments);
     va_end(Arguments);
-
-    // Render messages
-    if (LogObject.AllowRender) {
-        LogRenderMessages();
-    }
+	IrqSpinlockRelease(&LogObject.SyncObject);
+	LogRenderMessages();
 }

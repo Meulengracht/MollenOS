@@ -304,6 +304,10 @@ CreateThread(
     Parent = GetCurrentThreadForCore(CoreId);
 
     Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+    if (!Thread) {
+        return OsOutOfMemory;
+    }
+    
     InitializeDefaultThread(Thread, Name, Function, Arguments, Flags);
     
     // Setup parent and cookie information
@@ -629,6 +633,7 @@ GetNextThread:
     // do a final check that we haven't just gotten ahold of a thread
     // marked for finish
     if (NextThread == NULL) {
+        TRACE("[threading] [switch] selecting idle");
         NextThread = &Core->IdleThread;
     }
     else {

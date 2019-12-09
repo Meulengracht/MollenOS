@@ -20,7 +20,7 @@
  * Mass Storage Device Driver (Generic)
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include "msd.h"
 #include <ddk/utils.h>

@@ -45,6 +45,7 @@ typedef struct SchedulerObject {
     volatile Flags_t                Flags;
     UUId_t                          CoreId;
     size_t                          TimeSlice;
+    size_t                          TimeSliceLeft;
     int                             Queue;
     struct SchedulerObject*         Link;
     void*                           Object;
@@ -260,6 +261,8 @@ SchedulerCreateObject(
         AllocateScheduler(Object);
         smp_mb();
     }
+    
+    Object->TimeSliceLeft = Object->TimeSlice;
     return Object;
 }
 
@@ -277,7 +280,7 @@ SchedulerDestroyObject(
     kfree(Object);
 }
 
-KERNELAPI int KERNELABI
+int
 SchedulerObjectGetQueue(
     _In_ SchedulerObject_t* Object)
 {
@@ -287,7 +290,7 @@ SchedulerObjectGetQueue(
     return Object->Queue;
 }
 
-KERNELAPI UUId_t KERNELABI
+UUId_t
 SchedulerObjectGetAffinity(
     _In_ SchedulerObject_t* Object)
 {
@@ -438,8 +441,9 @@ UpdatePressureForObject(
     if (NewPressureRank != Object->Queue) {
         atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
         
-        Object->Queue     = NewPressureRank;
-        Object->TimeSlice = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        Object->Queue         = NewPressureRank;
+        Object->TimeSlice     = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        Object->TimeSliceLeft = Object->TimeSlice;
         atomic_fetch_add(&Scheduler->Bandwidth, Object->TimeSlice);
     }
 }
@@ -519,20 +523,20 @@ SchedulerAdvance(
     clock_t            CurrentClock;
     size_t             NextDeadline;
     int                i;
-    TRACE("SchedulerAdvance(0x%llx, forced %i, %llu)", Object, Preemptive, MillisecondsPassed);
+    TRACE("[scheduler] [advance] current 0x%llx, forced %i, ms-passed %llu",
+        Object, Preemptive, MillisecondsPassed);
     
     // Allow Object to be NULL but not NextDeadlineOut
     assert(NextDeadlineOut != NULL);
     
     // In one case we can skip the whole requeue etc etc. This happens when there
     // was a sleep event before the objects time-slice is out. Adjust and continue
-    if (Object != NULL && Preemptive && MillisecondsPassed < Object->TimeSlice) {
+    if (Object != NULL && Preemptive && MillisecondsPassed < Object->TimeSliceLeft) {
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
-        atomic_fetch_sub(&Scheduler->Bandwidth, MillisecondsPassed);
-        Object->TimeSlice -= MillisecondsPassed;
-        NextDeadline       = SchedulerUpdateSleepQueue(Scheduler, NULL, MillisecondsPassed);
-        *NextDeadlineOut   = MIN(Object->TimeSlice, NextDeadline);
+        Object->TimeSliceLeft -= MillisecondsPassed;
+        NextDeadline           = SchedulerUpdateSleepQueue(Scheduler, NULL, MillisecondsPassed);
+        *NextDeadlineOut       = MIN(Object->TimeSliceLeft, NextDeadline);
         TRACE("...redeploy next deadline %llu", *NextDeadlineOut);
         return Object->Object;
     }
@@ -570,7 +574,6 @@ SchedulerAdvance(
             UpdatePressureForObject(Scheduler, NextObject, i);
             NextObject->State = SchedulerObjectStateRunning;
             NextDeadline      = MIN(NextObject->TimeSlice, NextDeadline);
-            smp_wmb();
             break;
         }
     }
@@ -592,13 +595,13 @@ SchedulerAdvance(
             }
         }
         *NextDeadlineOut = NextDeadline;
-        TRACE("...next 0x%llx, deadline in %llu", NextObject, NextDeadline);
+        TRACE("[scheduler] [advance] next 0x%llx, deadline in %llu", NextObject, NextDeadline);
     }
     else {
         // Reset boost
         Scheduler->LastBoost = 0;
         *NextDeadlineOut = (NextDeadline == __MASK) ? 0 : NextDeadline;
-        TRACE("...no next object, deadline in %llu", *NextDeadlineOut);
+        TRACE("[scheduler] [advance] no next object, deadline in %llu", *NextDeadlineOut);
     }
     
     return (NextObject == NULL) ? NULL : NextObject->Object;

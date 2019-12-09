@@ -45,7 +45,8 @@ OhciTransferFill(
     int i;
 
     // Debug
-    TRACE("OhciTransferFill()");
+    WARNING_IF(Transfer->Transfer.Transactions[0].Length == 272384,
+        "[usb] [ohci] fill transfer");
 
     // Clear out the TransferFlagPartial
     Transfer->Flags &= ~(TransferFlagPartial);
@@ -59,7 +60,8 @@ OhciTransferFill(
         int                  IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
         int                  IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
         
-        TRACE("Transaction(%i, Length %u, Type %i, ZLP %i, Handshake %i)", 
+        WARNING_IF(Transfer->Transfer.Transactions[i].Length == 272384,
+            "[usb] [ohci] xaction %i, length %u, type %i, zlp %i, handshake %i", 
             i, BytesToTransfer, Type, IsZLP, IsHandshake);
 
         BytesToTransfer -= Transfer->Transactions[i].BytesTransferred;
@@ -86,7 +88,8 @@ OhciTransferFill(
             IsZLP = 1;
         }
 
-        TRACE("... BytesToTransfer(%u)", BytesToTransfer);
+        WARNING_IF(Transfer->Transfer.Transactions[i].Length == 272384,
+            "[usb] [ohci] trimmed length %u", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
             struct dma_sg* Dma     = NULL;
             size_t         Length  = BytesToTransfer;
@@ -152,6 +155,10 @@ OhciTransferFill(
                 }
             }
         }
+        
+        
+        WARNING_IF(Transfer->Transfer.Transactions[i].Length == 272384,
+            "[usb] [ohci] bytes left %u", BytesToTransfer);
 
         // Check for partial transfers
         if (OutOfResources == 1) {

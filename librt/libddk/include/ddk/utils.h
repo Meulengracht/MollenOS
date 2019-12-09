@@ -34,6 +34,7 @@
 #define SYSTEM_DEBUG_ERROR			0x00000002
 
 #define WARNING(...)				SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+#define WARNING_IF(cond, ...)       { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
 #define ERROR(...)					SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
 
 /* Global <toggable> definitions

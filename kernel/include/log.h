@@ -24,10 +24,9 @@
 #define __LOGGING_INTERFACE__
 
 #include <os/osdefs.h>
-#include <irq_spinlock.h>
 
-#define LOG_INITIAL_SIZE        (1024 * 4)
-#define LOG_PREFFERED_SIZE      (1024 * 65)
+#define LOG_INITIAL_SIZE   (1024 * 4)
+#define LOG_PREFFERED_SIZE (1024 * 65)
 
 typedef enum _SystemLogType {
     LogTrace   = 0x99E600,
@@ -37,24 +36,6 @@ typedef enum _SystemLogType {
     LogWarning = 0x9B59B6,
     LogError   = 0xFF392B
 } SystemLogType_t;
-
-typedef struct SystemLogLine {
-    SystemLogType_t Type;
-    char            System[10]; // [TYPE  ]
-    char            Data[118]; // Message
-} SystemLogLine_t;
-
-typedef struct SystemLog {
-    uintptr_t*       StartOfData;
-    size_t           DataSize;
-    int              NumberOfLines;
-    SystemLogLine_t* Lines;
-    IrqSpinlock_t    SyncObject;
-    
-    int LineIndex;
-    int RenderIndex;
-    int AllowRender;
-} SystemLog_t;
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
