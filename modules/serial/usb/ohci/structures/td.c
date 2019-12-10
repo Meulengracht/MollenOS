@@ -126,7 +126,7 @@ OhciTdDump(
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_TD_POOL, 
         Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    WARNING("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
+    WARNING("TD(0x%x): Link 0x%x, Flags 0x%x, Buffer 0x%x - 0x%x", 
         PhysicalAddress, Td->Link, Td->Flags, Td->Cbp, Td->BufferEnd);
 }
 

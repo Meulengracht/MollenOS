@@ -94,10 +94,16 @@ UsbManagerCreateTransfer(
             UsbTransfer->Transfer.Transactions[i].BufferOffset,
             &UsbTransfer->Transactions[i].SgIndex,
             &UsbTransfer->Transactions[i].SgOffset);
-        WARNING_IF(Transfer->Transactions[i].Length == 272384,
-            "[usb_create_transfer] sg_index %i, sg_offset %u", 
+        TRACE("[usb_create_transfer] sg_count %i, sg_index %i, sg_offset %u",
+            UsbTransfer->Transactions[i].DmaTable.count,
             UsbTransfer->Transactions[i].SgIndex,
             LODWORD(UsbTransfer->Transactions[i].SgOffset));
+        if (Transfer->Transactions[i].Length == 272384) {
+            WARNING("[usb_create_transfer] sg_count %i, sg_index %i, sg_offset %u",
+                UsbTransfer->Transactions[i].DmaTable.count,
+                UsbTransfer->Transactions[i].SgIndex,
+                LODWORD(UsbTransfer->Transactions[i].SgOffset));
+        }
     }
     return UsbTransfer;
 }
