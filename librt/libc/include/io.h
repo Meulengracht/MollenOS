@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,11 +17,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Standard C Library (Legacy IO)
- *  - Contains the implementation of the io interface
+ * Generic IO Operations. These are functions that may be supported by all
+ * io descriptors. If they are not supported errno is set to ENOTSUPP
  */
-#ifndef __STANDARD_C_IO__
-#define __STANDARD_C_IO__
+
+#ifndef __IO_H__
+#define __IO_H__
 
 #include <os/osdefs.h>
 
@@ -105,4 +107,4 @@ CRTDECL(int,        unlink(const char *path));
 CRTDECL(int,        isatty(int fd));
 _CODE_END
 
-#endif // !__STANDARD_C_IO__
+#endif // !__IO_H__

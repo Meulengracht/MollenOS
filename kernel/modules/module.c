@@ -23,6 +23,7 @@
 #define __MODULE "PROC"
 //#define __TRACE
 
+#include <assert.h>
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <modules/module.h>
@@ -33,9 +34,6 @@
 #include <timers.h>
 #include <debug.h>
 
-/* ModuleThreadEntry
- * Bootstraps the module, by relocating the image correctly into the module's address
- * space and handles operatings that must be done on the same thread. */
 void
 ModuleThreadEntry(
     _In_ void* Context)
@@ -77,8 +75,6 @@ SpawnModule(
     assert(Module != NULL);
     assert(Module->Executable == NULL);
     assert(Module->Data != NULL && Module->Length != 0);
-
-    Module->Rpc = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string

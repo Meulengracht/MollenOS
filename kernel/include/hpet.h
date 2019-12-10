@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,21 +17,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - High Performance Event Timer (HPET) Driver
+ * High Performance Event Timer (HPET) Driver
  *  - Contains the implementation of the HPET driver for mollenos
  */
 #ifndef _HPET_H_
 #define _HPET_H_
 
-/* Includes 
- * - Library */
+#include <acpiinterface.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <time.h>
-
-/* Includes
- * - System */
-#include <acpiinterface.h>
 
 /* HPET Definitions
  * Magic constants and things like that which won't change */
@@ -78,6 +74,7 @@
  * Bit        6: Set Comparator Value Switch 
  * Bit        7: Reserved
  * Bit        8: 32 Bit Mode
+ * Bit     9-13: Irq
  * Bit       14: MSI Enable/Disable
  * Bit       15: MSI Support
  * Bits 32 - 63: Interrupt Map */
@@ -99,7 +96,7 @@
 #define HPET_TIMER_COMPARATOR(Index)		((0x108 + (0x20 * Index)))
 #define HPET_TIMER_FSB(Index)				((0x110 + (0x20 * Index)))
 
-typedef struct _HpTimer {
+typedef struct HpTimer {
 	UUId_t					 Interrupt;
 
 	int						 Present;
@@ -119,22 +116,36 @@ typedef struct _HpTimer {
 	int						 PeriodicSupport;
 } HpTimer_t;
 
-typedef struct _HpController {
+typedef struct HpController {
     uintptr_t                BaseAddress;
 	HpTimer_t				 Timers[HPET_MAXTIMERCOUNT];
 
 	int						 Is64Bit;
 	size_t					 TickMinimum;
-	uint32_t				 Period;
+	size_t  				 Period;
 	LargeInteger_t			 Frequency;
 	clock_t					 Clock;
 } HpController_t;
 
 /* HpInitialize
  * Initializes the ACPI hpet timer from the hpet table. */
-__EXTERN
-ACPI_STATUS
+__EXTERN ACPI_STATUS
 HpInitialize(
 	_In_ ACPI_TABLE_HPET *Table);
+
+/* HpComparatorStart
+ * Starts a new hpet timer. If a legacy irq is provided that will be used
+ * instead of allocating a new based on the supported mappings. */
+__EXTERN OsStatus_t
+HpComparatorStart(
+    _In_ int      Index,
+    _In_ uint64_t Frequency,
+    _In_ int      Periodic,
+    _In_ int      LegacyIrq);
+
+/* HpHasLegacyController
+ * Returns whether or not the hpet is available on the system. */
+__EXTERN OsStatus_t
+HpHasLegacyController(void);
 
 #endif //!_HPET_H_

@@ -31,6 +31,7 @@
 #include <handle.h>
 #include <debug.h>
 #include <heap.h>
+#include <string.h>
 
 OsStatus_t
 ScModuleGetStartupInformation(
@@ -132,8 +133,8 @@ ScModuleExit(
     if (Module != NULL) {
         WARNING("Process %s terminated with code %i", MStringRaw(Module->Executable->Name), ExitCode);
         // Are we detached? Then call only thread cleanup
-        if (Thread->ParentThreadId == UUID_INVALID) {
-            Status = TerminateThread(Thread->Header.Key.Value.Id, ExitCode, 1);
+        if (Thread->ParentHandle == UUID_INVALID) {
+            Status = TerminateThread(Thread->Handle, ExitCode, 1);
         }
         else {
             Status = TerminateThread(Module->PrimaryThreadId, ExitCode, 1);

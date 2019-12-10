@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -27,112 +28,141 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <ddk/buffer.h>
+#include <commands.h>
 #include "ahci.h"
+#include <threads.h>
 
-/* Dispatcher Flags 
- * Used to setup transfer flags for ahci-transactions */
-#define DISPATCH_MULTIPLIER(Pmp)        (Pmp & 0xF)
-#define DISPATCH_WRITE                  0x10
-#define DISPATCH_PREFETCH               0x20
-#define DISPATCH_CLEARBUSY              0x40
-#define DISPATCH_ATAPI                  0x80
+typedef enum {
+    TransactionCreated,
+    TransactionQueued,
+    TransactionInProgress
+} TransactionState_t;
 
-/* AhciTransaction 
- * Describes the ahci-transaction object and contains
- * information about the buffer and the requester */
-typedef struct _AhciTransaction {
-    CollectionItem_t     Header;
-    MRemoteCallAddress_t ResponseAddress;
-    uintptr_t            Address;
-    size_t               SectorCount;
-    AhciDevice_t*        Device;
-    int                  Slot;
+typedef enum {
+    TransactionRegisterFISH2D
+} TransactionType_t;
+
+typedef enum {
+    DeviceATA,
+    DeviceATAPI,
+    DevicePM,  // Port Multiplier
+    DeviceSEMB // Enclosure Management Bridge
+} DeviceType_t;
+
+typedef struct _AhciDevice {
+    CollectionItem_t        Header;
+    StorageDescriptor_t     Descriptor;
+
+    AhciController_t*       Controller;
+    AhciPort_t*             Port;
+    int                     Index;
+
+    DeviceType_t            Type;
+    int                     HasDMAEngine;
+    size_t                  SectorSize;
+    uint64_t                SectorCount;
+    
+    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
+    struct {
+        uint16_t CylinderCount;
+        uint8_t  TracksPerCylinder;
+        uint8_t  SectorsPerTrack;
+    } CHS;
+} AhciDevice_t;
+
+#define AHCI_DEVICE_MODE_CHS    0
+#define AHCI_DEVICE_MODE_LBA28  1
+#define AHCI_DEVICE_MODE_LBA48  2
+
+typedef struct {
+    CollectionItem_t      Header;
+    thrd_t                Address;
+    
+    TransactionState_t    State;
+    TransactionType_t     Type;
+    AtaCommand_t          Command;
+    int                   Slot;
+    int                   Direction;
+    AHCIFis_t             Response;
+    struct dma_attachment DmaAttachment;
+    struct dma_sg_table   DmaTable;
+
+    struct {
+        DeviceType_t Type;
+        size_t       SectorSize;
+        int          AddressingMode;
+    } Target;
+
+    uint64_t              Sector;
+    size_t                SectorsTransferred;
+    int                   SectorAlignment;
+    size_t                BytesLeft;
+    
+    int                   SgIndex;
+    size_t                SgOffset;
 } AhciTransaction_t;
 
-/* AhciManagerInitialize
- * Initializes the ahci manager that keeps track of
- * all controllers and all attached devices */
-__EXTERN OsStatus_t
-AhciManagerInitialize(void);
+#define AHCI_XACTION_IN     0
+#define AHCI_XACTION_OUT    1
 
-/* AhciManagerDestroy
- * Cleans up the manager and releases resources allocated */
-__EXTERN OsStatus_t
-AhciManagerDestroy(void);
+/**
+ * Ahci Manager Interface
+ * Initialization and destruction of the ahci manager. Tracks both devices and
+ * transactions
+ */
+__EXTERN OsStatus_t AhciManagerInitialize(void);
+__EXTERN OsStatus_t AhciManagerDestroy(void);
+__EXTERN size_t     AhciManagerGetFrameSize(void);
+__EXTERN OsStatus_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
+__EXTERN OsStatus_t AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
+__EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransaction_t*);
 
-/* AhciManagerCreateDevice
- * Registers a new device with the ahci-manager on the specified
- * port and controller. Identifies and registers with neccessary services */
-__EXTERN OsStatus_t
-AhciManagerCreateDevice(
-    _In_ AhciController_t*  Controller,
-    _In_ AhciPort_t*        Port);
-
-/* AhciManagerCreateDeviceCallback
- * Needs to be called once the identify command has finished executing */
-__EXTERN OsStatus_t
-AhciManagerCreateDeviceCallback(
-    _In_ AhciDevice_t*      Device);
-
-/* AhciManagerRemoveDevice
- * Removes an existing device from the ahci-manager */
-__EXTERN OsStatus_t
-AhciManagerRemoveDevice(
-    _In_ AhciController_t*  Controller,
-    _In_ AhciPort_t*        Port);
-
-/* AhciManagerGetDevice 
- * Retrieves device from the disk-id given */
+/**
+ * AhciManagerGetDevice
+ * * Convert a system device identifier to a AhciDevice_t structure.
+ */
 __EXTERN AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t             Disk);
+    _In_ UUId_t DeviceId);
 
-/* AhciCommandDispatch 
- * Dispatches a FIS command on a given port 
- * This function automatically allocates everything neccessary
- * for the transfer */
+/**
+ * AhciTransactionControlCreate
+ * @param Device  [In] The device that should handle the transaction.
+ * @param Command [In] The transaction that should get queued up.
+ */
 __EXTERN OsStatus_t
-AhciCommandDispatch(
-    _In_ AhciTransaction_t* Transaction,
-    _In_ Flags_t            Flags,
-    _In_ void*              Command,
-    _In_ size_t             CommandLength,
-    _In_ void*              AtapiCmd,
-    _In_ size_t             AtapiCmdLength);
+AhciTransactionControlCreate(
+    _In_ AhciDevice_t* Device,
+    _In_ AtaCommand_t  Command,
+    _In_ size_t        Length,
+    _In_ int           Direction);
 
-/* AhciCommandFinish
- * Verifies and cleans up a transaction made by dispatch */
+/**
+ * AhciTransactionStorageCreate
+ * @param Device    [In] The device that should handle the transaction.
+ * @param Address   [In] The transaction that should get queued up.
+ * @param Operation [In] The transaction that should get queued up.
+ */
 __EXTERN OsStatus_t
-AhciCommandFinish(
+AhciTransactionStorageCreate(
+    _In_ AhciDevice_t*       Device,
+    _In_ thrd_t              Address,
+    _In_ StorageOperation_t* Operation);
+
+/** 
+ * AhciDeviceCancelTransaction
+ */
+__EXTERN OsStatus_t
+AhciManagerCancelTransaction(
     _In_ AhciTransaction_t* Transaction);
 
-/* AhciCommandRegisterFIS 
- * Builds a new AHCI Transaction based on a register FIS */
-__EXTERN OsStatus_t
-AhciCommandRegisterFIS(
-    _In_ AhciTransaction_t* Transaction,
-    _In_ ATACommandType_t   Command,
-    _In_ uint64_t           SectorLBA,
-    _In_ int                Device,
-    _In_ int                Write);
-
-/* AhciReadSectors 
- * The wrapper function for reading data from an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
-__EXTERN OsStatus_t
-AhciReadSectors(
-    _In_ AhciTransaction_t* Transaction,
-    _In_ uint64_t           SectorLBA);
-
-/* AhciWriteSectors 
- * The wrapper function for writing data to an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
-__EXTERN OsStatus_t
-AhciWriteSectors(
-    _In_ AhciTransaction_t* Transaction,
-    _In_ uint64_t           SectorLBA);
+/**
+ * AhciTransactionHandleResponse
+ */
+OsStatus_t
+AhciTransactionHandleResponse(
+    _In_ AhciController_t*  Controller,
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction);
 
 #endif //!_AHCI_MANAGER_H_

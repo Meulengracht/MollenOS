@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,42 +41,54 @@ typedef struct {
 
 #define OS_MUTEX_INIT(Flags) { Flags, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
 
-/* MutexConstruct
- * Initializes a mutex to default values. */
+/**
+ * * MutexConstruct
+ * Initializes a mutex to default values, with the given configuration.
+ */
 KERNELAPI void KERNELABI
 MutexConstruct(
     _In_ Mutex_t* Mutex,
     _In_ Flags_t  Configuration);
 
-/* MutexDestruct 
+/**
+ * * MutexDestruct 
  * Wakes up all threads in the wait queue and attempts to clear out. This can
- * fail and is not guaranteed to work. If it fails, this need to be tried again. */
+ * fail and is not guaranteed to work. If it fails, this need to be tried again.
+ */
 KERNELAPI OsStatus_t KERNELABI
 MutexDestruct(
     _In_ Mutex_t* Mutex);
 
-/* MutexTryLock
- * Tries to acquire the lock, does not block and returns immediately. */
+/**
+ * * MutexTryLock
+ * Tries to acquire the lock, does not block and returns immediately.
+ */
 KERNELAPI OsStatus_t KERNELABI
 MutexTryLock(
     _In_ Mutex_t* Mutex);
 
-/* MutexLock
- * Locks the mutex, blocks untill the lock is acquired. */
+/**
+ * * MutexLock
+ * Locks the mutex, blocks untill the lock is acquired.
+ */
 KERNELAPI void KERNELABI
 MutexLock(
     _In_ Mutex_t* Mutex);
 
-/* MutexLockTimed
+/**
+ * * MutexLockTimed
  * Tries to acquire the mutex in the period given, if it times out it 
- * returns OsTimeout. */
+ * returns OsTimeout. 
+ */
 KERNELAPI OsStatus_t KERNELABI
 MutexLockTimed(
     _In_ Mutex_t* Mutex,
     _In_ size_t   Timeout);
 
-/* MutexUnlock
- * Release a lock on the given mutex. */
+/**
+ * * MutexUnlock
+ * Release a lock on the given mutex. 
+ */
 KERNELAPI void KERNELABI
 MutexUnlock(
     _In_ Mutex_t* Mutex);

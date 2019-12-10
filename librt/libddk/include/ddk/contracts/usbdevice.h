@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Usb-Device Contract)
+ * Contract Definitions & Structures (Usb-Device Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -30,11 +31,6 @@
 #include <ddk/device.h>
 #include <ddk/ddkdefs.h>
 
-/* MCoreUsbDevice_t
- * This is the base usb device structure definition
- * and is passed on to all usb-drivers on their initialization
- * to give them an overview and description of their device 
- * and functions to read/write directly to the device */
 PACKED_TYPESTRUCT(MCoreUsbDevice, {
     MCoreDevice_t                   Base;
     UsbHcDevice_t                   Device;

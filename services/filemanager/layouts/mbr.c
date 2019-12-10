@@ -28,8 +28,9 @@
 
 OsStatus_t
 MbrEnumeratePartitions(
-    _In_ FileSystemDisk_t* Disk, 
-    _In_ DmaBuffer_t*      Buffer,
+    _In_ FileSystemDisk_t* Disk,
+    _In_ UUId_t            BufferHandle,
+    _In_ void*             Buffer,
     _In_ uint64_t          Sector)
 {
     MasterBootRecord_t* Mbr;
@@ -42,19 +43,18 @@ MbrEnumeratePartitions(
 
     // Start out by reading the mbr to detect whether
     // or not there is a partition table
-    if (StorageRead(Disk->Driver, Disk->Device, Sector, 
-        GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
+    if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
+            BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
         return OsError;
     }
 
     // Allocate a buffer where we can store a copy of the mbr 
     // it might be overwritten by recursion here
-    SeekBuffer(Buffer, 0);
     Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
     if (!Mbr) {
         return OsOutOfMemory;
     }
-    ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t), NULL);
+    memcpy(Mbr, Buffer, sizeof(MasterBootRecord_t));
 
     // Now try to see if there is any valid data
     // in any of the partitions
@@ -70,7 +70,7 @@ MbrEnumeratePartitions(
             if (Mbr->Partitions[i].Type == 0x05) {
             }
             else if (Mbr->Partitions[i].Type == 0x0F || Mbr->Partitions[i].Type == 0xCF) {
-                MbrEnumeratePartitions(Disk, Buffer, Sector + Mbr->Partitions[i].LbaSector);
+                MbrEnumeratePartitions(Disk, BufferHandle, Buffer, Sector + Mbr->Partitions[i].LbaSector);
             }
 
             // GPT Formatted 
@@ -124,19 +124,19 @@ MbrEnumeratePartitions(
     return PartitionCount != 0 ? OsSuccess : OsError;
 }
 
-/* MbrEnumerate 
- * Enumerates a given disk with MBR data layout 
- * and automatically creates new filesystem objects */
-OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, DmaBuffer_t *Buffer)
+OsStatus_t
+MbrEnumerate(
+    _In_ FileSystemDisk_t* Disk,
+    _In_ UUId_t            BufferHandle,
+    _In_ void*             Buffer)
 {
-    // Trace
     TRACE("MbrEnumerate()");
 
     // First of all, we want to detect whether or 
     // not there is a partition table available
     // otherwise we treat the entire disk as one partition
-    if (MbrEnumeratePartitions(Disk, Buffer, 0) != OsSuccess) {
-        return DiskDetectFileSystem(Disk, Buffer, 0, Disk->Descriptor.SectorCount);
+    if (MbrEnumeratePartitions(Disk, BufferHandle, Buffer, 0) != OsSuccess) {
+        return DiskDetectFileSystem(Disk, BufferHandle, Buffer, 0, Disk->Descriptor.SectorCount);
     }
     else {
         return OsSuccess;

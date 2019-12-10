@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -310,8 +311,8 @@ UhciConditionCodeToIndex(
  * hcd flags. Afterwards the queue head is ready for use. */
 __EXTERN OsStatus_t
 UhciQhInitialize(
-    _In_ UhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer);
+    _In_ UhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer);
 
 /* UhciQhDump
  * Dumps the information contained in the queue-head by writing it to stdout */
@@ -350,29 +351,29 @@ UhciQhUnlink(
 /* UhciTdSetup
  * Creates a new setup token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 UhciTdSetup(
-    _In_ UhciTransferDescriptor_t*  Td,
-    _In_ uintptr_t                  BufferAddress,
-    _In_ size_t                     Address, 
-    _In_ size_t                     Endpoint,
-    _In_ UsbSpeed_t                 Speed);
+    _In_ UhciTransferDescriptor_t* Td,
+    _In_ size_t                    Device, 
+    _In_ size_t                    Endpoint,
+    _In_ UsbSpeed_t                Speed,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length);
 
 /* UhciTdIo
  * Creates a new io token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 UhciTdIo(
-    _In_ UhciTransferDescriptor_t*  Td,
-    _In_ UsbTransferType_t          Type,
-    _In_ uint32_t                   PId,
-    _In_ int                        Toggle,
-    _In_ size_t                     Address, 
-    _In_ size_t                     Endpoint,
-    _In_ size_t                     MaxPacketSize,
-    _In_ UsbSpeed_t                 Speed,
-    _In_ uintptr_t                  BufferAddress,
-    _In_ size_t                     Length);
+    _In_ UhciTransferDescriptor_t* Td,
+    _In_ UsbTransferType_t         Type,
+    _In_ UsbTransactionType_t      Direction,
+    _In_ size_t                    Device, 
+    _In_ size_t                    Endpoint,
+    _In_ UsbSpeed_t                Speed,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length,
+    _In_ int                       Toggle);
 
 /* UhciTdDump
  * Dumps the information contained in the descriptor by writing it. */

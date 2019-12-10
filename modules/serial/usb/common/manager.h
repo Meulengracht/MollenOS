@@ -26,7 +26,7 @@
 
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
-#include <os/eventqueue.h>
+#include <ddk/eventqueue.h>
 #include <ds/collection.h>
 #include <ddk/device.h>
 #include <ddk/driver.h>

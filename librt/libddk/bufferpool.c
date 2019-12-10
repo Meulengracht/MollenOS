@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - BufferPool Support Definitions & Structures
+ * BufferPool Support Definitions & Structures
  * - This header describes the base bufferpool-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,81 +24,109 @@
 
 #include <ddk/bufferpool.h>
 #include <ddk/utils.h>
+#include <os/dmabuf.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
 
-typedef struct _BufferPool {
-    DmaBuffer_t*    Buffer;
-    BytePool_t*     Pool;
-} BufferPool_t;
+struct dma_pool {
+    BytePool_t*            pool;
+    struct dma_attachment* attachment;
+    struct dma_sg_table    table;
+};
 
-/* BufferPoolCreate
- * Creates a new buffer-pool from the given buffer object. 
- * This allows sub-allocations from a buffer-object. */
 OsStatus_t
-BufferPoolCreate(
-    _In_  DmaBuffer_t*      Buffer,
-    _Out_ BufferPool_t**    Pool)
+dma_pool_create(
+    _In_  struct dma_attachment* attachment,
+    _Out_ struct dma_pool**      pool_out)
 {
-    // Allocate the pool
-    *Pool           = (BufferPool_t*)malloc(sizeof(BufferPool_t));
-    (*Pool)->Buffer = Buffer;
-    return bpool((void*)GetBufferDataPointer(Buffer), GetBufferSize(Buffer), &(*Pool)->Pool);
-}
-
-/* BufferPoolDestroy
- * Cleans up the buffer-pool and deallocates resources previously
- * allocated. This does not destroy the buffer-object. */
-OsStatus_t
-BufferPoolDestroy(
-    _In_ BufferPool_t*      Pool)
-{
-    // Cleanup structure
-    free(Pool->Pool);
-    free(Pool);
-    return OsSuccess;
-}
-
-/* BufferPoolAllocate
- * Allocates the requested size and outputs two addresses. The
- * virtual pointer to the accessible data, and the address of its 
- * corresponding physical address for hardware. */
-OsStatus_t
-BufferPoolAllocate(
-    _In_  BufferPool_t*     Pool,
-    _In_  size_t            Size,
-    _Out_ uintptr_t**       VirtualPointer,
-    _Out_ uintptr_t*        PhysicalAddress)
-{
-    // Variables
-    void *Allocation = NULL;
-
-    // Debug
-    TRACE("BufferPoolAllocate(Size %u)", Size);
-
-    // Perform an allocation
-    Allocation = bget(Pool->Pool, Size);
-    if (Allocation == NULL) {
-        ERROR("Failed to allocate bufferpool memory (size %u)", Size);
-        return OsError;
+    struct dma_pool* pool;
+    OsStatus_t       status;
+    
+    if (!attachment || !pool_out || !attachment->buffer) {
+        return OsInvalidParameters;
     }
+    
+    pool             = (struct dma_pool*)malloc(sizeof(struct dma_pool));
+    pool->attachment = attachment;
+    
+    status = dma_get_sg_table(attachment, &pool->table, -1);
+    status = bpool(attachment->buffer, attachment->length, &pool->pool);
+    
+    *pool_out = pool;
+    return status;
+}
 
-    // Calculate the addresses and update out's
-    *VirtualPointer     = (uintptr_t*)Allocation;
-    *PhysicalAddress    = GetBufferDma(Pool->Buffer) 
-        + ((uintptr_t)Allocation - (uintptr_t)GetBufferDataPointer(Pool->Buffer));
-    TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
+OsStatus_t
+dma_pool_destroy(
+    _In_ struct dma_pool* pool)
+{
+    free(pool->table.entries);
+    free(pool->pool);
+    free(pool);
     return OsSuccess;
 }
 
-/* BufferPoolFree
- * Frees previously allocations made by the buffer-pool. The virtual
- * address must be the one passed back. */
-OsStatus_t
-BufferPoolFree(
-    _In_ BufferPool_t*  Pool,
-    _In_ uintptr_t*     VirtualPointer)
+static uintptr_t
+dma_pool_get_dma(
+    _In_ struct dma_pool* pool,
+    _In_ size_t           offset)
 {
-    brel(Pool->Pool, (void*)VirtualPointer);
+    int        entry_index;
+    size_t     sg_offset;
+    OsStatus_t status = dma_sg_table_offset(
+        &pool->table, offset, &entry_index, &sg_offset);
+    return status != OsSuccess ? 0 : pool->table.entries[entry_index].address + sg_offset;
+}
+
+OsStatus_t
+dma_pool_allocate(
+    _In_  struct dma_pool* pool,
+    _In_  size_t           length,
+    _Out_ void**           address_out)
+{
+    ptrdiff_t difference;
+    void*     allocation;
+
+    TRACE("dma_pool_allocate(Size %u)", length);
+
+    allocation = bget(pool->pool, length);
+    if (!allocation) {
+        ERROR("Failed to allocate bufferpool memory (size %u)", length);
+        return OsOutOfMemory;
+    }
+    
+    difference   = (uintptr_t)allocation - (uintptr_t)pool->attachment->buffer;
+    *address_out = allocation;
+    TRACE(" > Virtual address 0x%x => Physical address 0x%x", allocation, *dma_address_out);
     return OsSuccess;
+}
+
+OsStatus_t
+dma_pool_free(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address)
+{
+    brel(pool->pool, address);
+    return OsSuccess;
+}
+
+UUId_t
+dma_pool_handle(
+    _In_ struct dma_pool* pool)
+{
+    if (!pool || !pool->attachment) {
+        return UUID_INVALID;
+    }
+    return pool->attachment->handle;
+}
+
+size_t
+dma_pool_offset(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address)
+{
+    if (!pool || !pool->attachment) {
+        return 0;
+    }
+    return (uintptr_t)address - (uintptr_t)pool->attachment->buffer;
 }

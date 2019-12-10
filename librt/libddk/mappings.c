@@ -24,8 +24,6 @@
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 
-/* CreateMemorySpace
- * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */
 OsStatus_t
 CreateMemorySpace(
     _In_  Flags_t Flags,
@@ -37,8 +35,6 @@ CreateMemorySpace(
     return Syscall_CreateMemorySpace(Flags, Handle);
 }
 
-/* GetMemorySpaceForThread
- * Retrieves the memory space that is currently running for the thread handle. */
 OsStatus_t
 GetMemorySpaceForThread(
     _In_  UUId_t  Thread,

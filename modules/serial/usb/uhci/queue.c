@@ -238,7 +238,8 @@ UhciQueueDestroy(
 
     // Make sure everything is unscheduled, reset and clean
     UhciQueueReset(Controller);
-    return UsbSchedulerDestroy(Controller->Base.Scheduler);
+    UsbSchedulerDestroy(Controller->Base.Scheduler);
+    return OsSuccess;
 }
 
 // This should be called regularly to keep the stored frame relevant

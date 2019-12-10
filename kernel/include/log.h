@@ -24,11 +24,9 @@
 #define __LOGGING_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ds/ds.h>
-#include <pipe.h>
 
-#define LOG_INITIAL_SIZE        (1024 * 4)
-#define LOG_PREFFERED_SIZE      (1024 * 65)
+#define LOG_INITIAL_SIZE   (1024 * 4)
+#define LOG_PREFFERED_SIZE (1024 * 65)
 
 typedef enum _SystemLogType {
     LogTrace   = 0x99E600,
@@ -38,26 +36,6 @@ typedef enum _SystemLogType {
     LogWarning = 0x9B59B6,
     LogError   = 0xFF392B
 } SystemLogType_t;
-
-typedef struct _SystemLogLine {
-    SystemLogType_t Type;
-    char            System[10]; // [TYPE  ]
-    char            Data[118]; // Message
-} SystemLogLine_t;
-
-typedef struct _SystemLog {
-    uintptr_t*       StartOfData;
-    size_t           DataSize;
-    int              NumberOfLines;
-    SystemLogLine_t* Lines;
-    SafeMemoryLock_t SyncObject;
-    
-    int    LineIndex;
-    int    RenderIndex;
-    int    AllowRender;
-    UUId_t StdOutHandle;
-    UUId_t StdErrHandle;
-} SystemLog_t;
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
@@ -75,7 +53,7 @@ LogInitializeFull(void);
  * indicate when rendering is available, and at end to disable kernel from modifying screen. */
 KERNELAPI void KERNELABI
 LogSetRenderMode(
-    _In_ int            Enable);
+    _In_ int Enable);
 
 /* LogAppendMessage
  * Appends a new message of the given parameters to the global log object. If the buffer
@@ -86,8 +64,5 @@ LogAppendMessage(
     _In_ const char*     Header,
     _In_ const char*     Message,
     ...);
-
-KERNELAPI UUId_t KERNELABI GetSystemStdOutHandle(void);
-KERNELAPI UUId_t KERNELABI GetSystemStdErrHandle(void);
 
 #endif // !__LOGGING_INTERFACE__

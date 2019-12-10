@@ -22,7 +22,6 @@
 #define __MODULE "APIC"
 #define __TRACE
 
-#include <ds/collection.h>
 #include <debug.h>
 #include <apic.h>
 #include <acpi.h>

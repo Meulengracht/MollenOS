@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -21,20 +22,19 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <assert.h>
+#include <ddk/services/process.h>
+#include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-
-#include <ddk/services/process.h>
-#include <os/services/targets.h>
+#include <internal/_io.h>
 #include <os/services/process.h>
 #include <os/context.h>
-#include <threads.h>
+#include <os/ipc.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <stdio.h>
-#include <assert.h>
-#include "../../stdio/local.h"
+#include <threads.h>
 
 void
 InitializeStartupInformation(
@@ -48,7 +48,7 @@ InitializeStartupInformation(
     StartupInformation->StdErrHandle = STDERR_FILENO;
 }
 
-UUId_t 
+UUId_t
 ProcessSpawn(
     _In_     const char* Path,
     _In_Opt_ const char* Arguments)
@@ -73,31 +73,39 @@ ProcessSpawnEx(
     _In_Opt_ const char*                  Arguments,
     _In_     ProcessStartupInformation_t* StartupInformation)
 {
-    MRemoteCall_t Request;
-    UUId_t        Handle                  = UUID_INVALID;
-    void*         InheritationBlock       = NULL;
-    size_t        InheritationBlockLength = 0;
-    OsStatus_t    Status;
+	IpcMessage_t Request;
+    UUId_t       Handle                  = UUID_INVALID;
+    void*        InheritationBlock       = NULL;
+    size_t       InheritationBlockLength = 0;
+    OsStatus_t   Status;
+	void*        Result;
+	
     assert(Path != NULL);
     assert(StartupInformation != NULL);
 
     StdioCreateInheritanceBlock(StartupInformation, &InheritationBlock, &InheritationBlockLength);
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_CREATE_PROCESS);
-    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
-    RPCSetArgument(&Request, 1, (const void*)StartupInformation, sizeof(ProcessStartupInformation_t));
-    if (InheritationBlock != NULL) {
-        RPCSetArgument(&Request, 2, (const void*)InheritationBlock, InheritationBlockLength);
-    }
-    if (Arguments != NULL) {
-        RPCSetArgument(&Request, 3, (const void*)Arguments, strlen(Arguments) + 1);
-    }
-    RPCSetResult(&Request, (const void*)&Handle, sizeof(UUId_t));
-
-    Status = RPCExecute(&Request);
+    
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_CREATE_PROCESS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, Path);
+	IpcSetUntypedArgument(&Request, 1, StartupInformation, sizeof(ProcessStartupInformation_t));
+	if (InheritationBlock != NULL) {
+	    IpcSetUntypedArgument(&Request, 2, InheritationBlock, InheritationBlockLength);
+	}
+	if (Arguments != NULL) {
+	    IPC_SET_UNTYPED_STRING(&Request, 3, Arguments);
+	}
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+	if (Status == OsSuccess) {
+	    Handle = IPC_CAST_AND_DEREF(Result, UUId_t);
+	}
+	
     if (InheritationBlock != NULL) {
         free(InheritationBlock);
     }
-    return Handle;
+	return Handle;
 }
 
 OsStatus_t 
@@ -106,69 +114,70 @@ ProcessJoin(
     _In_  size_t Timeout,
     _Out_ int*   ExitCode)
 {
-    JoinProcessPackage_t Package;
-    MRemoteCall_t        Request;
-    OsStatus_t           Status;
-
+    JoinProcessPackage_t* Package;
+	IpcMessage_t          Request;
+	OsStatus_t            Status;
+	
     if (Handle == UUID_INVALID || ExitCode == NULL) {
         _set_errno(EINVAL);
         return OsError;
     }
 
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_JOIN_PROCESS);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle));
-    RPCSetArgument(&Request, 1, (const void*)&Timeout, sizeof(size_t));
-    RPCSetResult(&Request, (const void*)&Package, sizeof(JoinProcessPackage_t));
-    Status = RPCExecute(&Request);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    *ExitCode = Package.ExitCode;
-    return Package.Status;
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_JOIN_PROCESS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	IPC_SET_TYPED(&Request, 3, Timeout);
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, (void**)&Package);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+    *ExitCode = Package->ExitCode;
+    return Package->Status;
 }
 
 OsStatus_t
 ProcessKill(
 	_In_ UUId_t Handle)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Status = OsSuccess;
-    OsStatus_t    Result = OsSuccess;
-
-    if (Handle == UUID_INVALID ) {
-        _set_errno(EINVAL);
-        return OsError;
-    }
-
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_KILL_PROCESS);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle));
-    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-    Status = RPCExecute(&Request);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    return Result;
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_KILL_PROCESS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
 }
 
 UUId_t
 ProcessGetCurrentId(void)
 {
-    MRemoteCall_t Request;
-    UUId_t        ProcessId = *GetInternalProcessId();
-    OsStatus_t    Status;
+    IpcMessage_t Request;
+    UUId_t       ProcessId = *GetInternalProcessId();
+    OsStatus_t   Status;
+	void*        Result;
     
     if (ProcessId == UUID_INVALID) {
         if (IsProcessModule()) {
             Syscall_ModuleId(&ProcessId);
         }
         else {
-            RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_PROCESS_ID);
-            RPCSetResult(&Request, (const void*)&ProcessId, sizeof(UUId_t));
-            
-            // Don't invoke the regular execute as that results in call to this function
-            // We don't need a proper set From.Process for this call to work
-            Status = Syscall_RemoteCall(&Request, 0);
-            assert(Status == OsSuccess);
+        	IpcInitialize(&Request);
+        	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_PROCESS_ID);
+        	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+        	if (Status != OsSuccess) {
+        	    return UUID_INVALID;
+        	}
+        	ProcessId = IPC_CAST_AND_DEREF(Result, UUId_t);
         }
         *GetInternalProcessId() = ProcessId;
     }
@@ -179,104 +188,206 @@ OsStatus_t
 ProcessGetTickBase(
     _Out_ clock_t* Tick)
 {
-    MRemoteCall_t Request;
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_PROCESS_TICK);
-    RPCSetResult(&Request, (const void*)Tick, sizeof(clock_t));
-    return RPCExecute(&Request);
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	if (!Tick) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_PROCESS_TICK);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	*Tick = IPC_CAST_AND_DEREF(Result, clock_t);
+	return OsSuccess;
 }
 
 OsStatus_t
 GetProcessCommandLine(
-    _In_    const char* Buffer,
-    _InOut_ size_t*     Length)
+    _In_    char*   Buffer,
+    _InOut_ size_t* Length)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Status = OsSuccess;
-
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	char*        Result;
+	
+	if (!Buffer) {
+	    return OsInvalidParameters;
+	}
+	
     if (IsProcessModule()) {
         return Syscall_ModuleGetStartupInfo(NULL, NULL, Buffer, Length);
     }
-
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_ARGUMENTS);
-    RPCSetResult(&Request, (const void*)Buffer, *Length);
-    Status = RPCExecute(&Request);
-    *Length = Request.Result.Length;
-    return Status;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_ARGUMENTS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(*Length, strlen(&Result[0])));
+	*Length = strlen(&Result[0]);
+	return OsSuccess;
 }
 
 OsStatus_t
 ProcessGetCurrentName(
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength)
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength)
 {
-    MRemoteCall_t Request;
-    
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	char*        Result;
+	
+	if (!Buffer) {
+	    return OsInvalidParameters;
+	}
+	
     if (IsProcessModule()) {
         return Syscall_ModuleName(Buffer, MaxLength);
     }
-
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_PROCESS_NAME);
-    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
-    return RPCExecute(&Request);
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_PROCESS_NAME);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(MaxLength, strlen(&Result[0])));
+	return OsSuccess;
 }
 
 OsStatus_t
 ProcessGetAssemblyDirectory(
-    _In_ UUId_t      Handle,
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength)
+    _In_ UUId_t Handle,
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength)
 {
-    MRemoteCall_t Request;
-    
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_ASSEMBLY_DIRECTORY);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
-    return RPCExecute(&Request);
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	char*        Result;
+	
+	if (!Buffer) {
+	    return OsInvalidParameters;
+	}
+	
+    if (IsProcessModule()) {
+        return OsNotSupported;
+    }
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_ASSEMBLY_DIRECTORY);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(MaxLength, strlen(&Result[0])));
+	return OsSuccess;
 }
 
 OsStatus_t
 ProcessGetWorkingDirectory(
-    _In_ UUId_t      Handle,
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength)
+    _In_ UUId_t Handle,
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength)
 {
-    MRemoteCall_t Request;
-    
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_WORKING_DIRECTORY);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
-    return RPCExecute(&Request);
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	char*        Result;
+	
+	if (!Buffer) {
+	    return OsInvalidParameters;
+	}
+	
+    if (IsProcessModule()) {
+        return OsNotSupported;
+    }
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_WORKING_DIRECTORY);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle);
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(MaxLength, strlen(&Result[0])));
+	return OsSuccess;
 }
 
 OsStatus_t
 ProcessSetWorkingDirectory(
     _In_ const char* Path)
 {
-    MRemoteCall_t Request;
-    OsStatus_t    Status = OsSuccess;
-    OsStatus_t    Result = OsSuccess;
-    
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_SET_WORKING_DIRECTORY);
-    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
-    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-    Status = RPCExecute(&Request);
-    if (Status != OsSuccess) {
-        return Status;
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	if (!Path) {
+	    return OsInvalidParameters;
+	}
+	
+    if (IsProcessModule()) {
+        return OsNotSupported;
     }
-    return Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_SET_WORKING_DIRECTORY);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, Path);
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
 }
 
 OsStatus_t
 ProcessGetLibraryEntryPoints(
-    _Out_ Handle_t LibraryList[PROCESS_MAXMODULES])
+    _In_ Handle_t LibraryList[PROCESS_MAXMODULES])
 {
-    MRemoteCall_t Request;
-    
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	if (!LibraryList) {
+	    return OsInvalidParameters;
+	}
+	
     if (IsProcessModule()) {
         return Syscall_ModuleGetModuleEntryPoints(LibraryList);
     }
 
-    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_LIBRARY_ENTRIES);
-    RPCSetResult(&Request, (const void*)&LibraryList[0], sizeof(Handle_t) * PROCESS_MAXMODULES);
-    return RPCExecute(&Request);
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __PROCESSMANAGER_GET_LIBRARY_ENTRIES);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	
+	Status = IpcInvoke(GetProcessService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(&LibraryList[0], Result, sizeof(Handle_t) * PROCESS_MAXMODULES);
+	return OsSuccess;
 }

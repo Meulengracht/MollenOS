@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,27 +17,27 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PS2 Controller (Mouse) Driver
+ * X86 PS2 Controller (Mouse) Driver
  * http://wiki.osdev.org/PS2
  */
 //#define __TRACE
 
-#include <os/input.h>
 #include <ddk/utils.h>
+#include <errno.h>
+#include <io.h>
+#include "keyboard.h"
+#include <os/input.h>
+#include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
-#include "keyboard.h"
-#include "../ps2.h"
 
 // Scancode sets
 OsStatus_t ScancodeSet2ToVKey(SystemKey_t* KeyState, uint8_t Scancode);
 
-/* PS2KeyboardHandleModifiers
- * Handles special modifiers that should be applied instead of notified. */
 OsStatus_t
 PS2KeyboardHandleModifiers(
-    _In_ PS2Port_t*                 Port,
-    _In_ SystemKey_t*               Key)
+    _In_ PS2Port_t*   Port,
+    _In_ SystemKey_t* Key)
 {
     uint16_t Flags = *((uint16_t*)&PS2_KEYBOARD_DATA_STATE_LO(Port));
 
@@ -112,12 +113,10 @@ PS2KeyboardHandleModifiers(
     return OsError;
 }
 
-/* PS2KeyboardFastInterrupt 
- * Handles the ps2-keyboard interrupt and extracts the data for processing - fast interrupt */
 InterruptStatus_t
 PS2KeyboardFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      Unused)
+    _In_ FastInterruptResources_t* InterruptTable,
+    _In_ void*                     Unused)
 {
     DeviceIo_t* IoSpace   = INTERRUPT_IOSPACE(InterruptTable, 0);
     PS2Port_t* Port       = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
@@ -170,12 +169,11 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
-        Status    = WriteSystemKey(&Key);
+        sendto(Port->IoSocket, &Key, sizeof(SystemKey_t), MSG_DONTWAIT, 
+            (const struct sockaddr*)&Port->InputAddress, sizeof(struct sockaddr_lc));
     }
 }
 
-/* PS2KeyboardGetScancode
- * Retrieves the current scancode-set for the keyboard */
 OsStatus_t
 PS2KeyboardGetScancode(
     _In_  PS2Port_t* Port,
@@ -196,14 +194,12 @@ PS2KeyboardGetScancode(
     }
 }
 
-/* PS2KeyboardSetScancode
- * Updates the current scancode-set for the keyboard */
 OsStatus_t PS2KeyboardSetScancode(
-    _In_ PS2Port_t*                 Port,
-    _In_ uint8_t                    RequestSet)
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    RequestSet)
 {
-    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, NULL)  != OsSuccess || 
-        PS2PortExecuteCommand(Port, RequestSet, NULL)             != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess || 
+        PS2PortExecuteCommand(Port, RequestSet, NULL)            != OsSuccess) {
         return OsError;
     }
     else {
@@ -212,11 +208,9 @@ OsStatus_t PS2KeyboardSetScancode(
     }
 }
 
-/* PS2KeyboardSetTypematics
- * Updates the current typematics for the keyboard */
 OsStatus_t
 PS2KeyboardSetTypematics(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* Port)
 {
     uint8_t Format = 0;
 
@@ -234,14 +228,12 @@ PS2KeyboardSetTypematics(
     }
 }
 
-/* PS2KeyboardSetLEDs
- * Updates the LED statuses for the ps2 keyboard */
 OsStatus_t
 PS2KeyboardSetLEDs(
-    _In_ PS2Port_t*                 Port,
-    _In_ int                        Scroll,
-    _In_ int                        Number,
-    _In_ int                        Caps)
+    _In_ PS2Port_t* Port,
+    _In_ int        Scroll,
+    _In_ int        Number,
+    _In_ int        Caps)
 {
     uint8_t Format = 0;
 
@@ -260,15 +252,15 @@ PS2KeyboardSetLEDs(
     }
 }
 
-/* PS2KeyboardInitialize 
- * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
 OsStatus_t
 PS2KeyboardInitialize(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port,
-    _In_ int                        Translation)
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port,
+    _In_ int              Translation)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    struct sockaddr_lc* LcAddress;
+    PS2Port_t*          Instance = &Controller->Ports[Port];
+    TRACE("... [ps2] [keyboard] initialize");
 
     // Initialize keyboard defaults
     PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
@@ -286,6 +278,17 @@ PS2KeyboardInitialize(
         return OsError;
     }
     
+    // Open up the input socket so we can send input data to the OS.
+    TRACE("... [ps2] [keyboard] [initialize] create_socket");
+    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    if (Instance->IoSocket == -1) {
+        ERROR("... [ps2] [keyboardd] [initialize] create_socket failed %i", errno);
+    }
+    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
+    LcAddress->slc_len = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
+
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
@@ -311,20 +314,19 @@ PS2KeyboardInitialize(
     return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
-/* PS2KeyboardCleanup 
- * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
 OsStatus_t
 PS2KeyboardCleanup(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port)
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    PS2Port_t* Instance = &Controller->Ports[Port];
 
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
-
+    
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
+    close(Instance->IoSocket);
     return OsSuccess;
 }

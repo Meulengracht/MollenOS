@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -20,28 +21,29 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-//#define __TRACE
+#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
 #include <os/services/file.h>
 #include <os/services/path.h>
-#include <os/eventqueue.h>
 #include <os/mollenos.h>
+#include <os/dmabuf.h>
 #include <os/context.h>
+#include <os/ipc.h>
 #include "process.h"
 #include <ds/mstring.h>
-#include <ddk/buffer.h>
+#include <ddk/eventqueue.h>
+#include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <signal.h>
 
-static Collection_t  Processes          = COLLECTION_INIT(KeyId);
-static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
-static UUId_t        ProcessIdGenerator = 1;
-static EventQueue_t* EventQueue         = NULL;
+static list_t        Processes  = LIST_INIT;
+static list_t        Joiners    = LIST_INIT;
+static EventQueue_t* EventQueue = NULL;
 
 static OsStatus_t
 DestroyProcess(
@@ -49,7 +51,8 @@ DestroyProcess(
 {
     int References = atomic_fetch_sub(&Process->References, 1);
     if (References == 1) {
-        CollectionRemoveByNode(&Processes, &Process->Header);
+        UUId_t Handle = (UUId_t)(uintptr_t)Process->Header.key;
+        list_remove(&Processes, &Process->Header);
         if (Process->Name != NULL) {
             MStringDestroy(Process->Name);
         }
@@ -65,6 +68,7 @@ DestroyProcess(
         if (Process->Executable != NULL) {
             PeUnloadImage(Process->Executable);
         }
+        handle_destroy(Handle);
         free(Process);
         return OsSuccess;
     }
@@ -84,8 +88,7 @@ Process_t*
 AcquireProcess(
     _In_ UUId_t Handle)
 {
-    DataKey_t  Key     = { .Value.Id = Handle };
-    Process_t* Process = (Process_t*)CollectionGetNodeByKey(&Processes, Key, 0);
+    Process_t* Process = (Process_t*)list_find_value(&Processes, (void*)(uintptr_t)Handle);
     if (Process != NULL) {
         int References;
         while (1) {
@@ -113,16 +116,18 @@ static void
 HandleJoinProcess(
     _In_ void* Context)
 {
+    IpcMessage_t         Message = { 0 };
     ProcessJoiner_t*     Join    = (ProcessJoiner_t*)Context;
     JoinProcessPackage_t Package = { .Status = OsTimeout };
-    CollectionRemoveByNode(&Joiners, &Join->Header);
 
     // Notify application about this
     if (Join->Process->State == PROCESS_TERMINATING) {
         Package.Status   = OsSuccess;
         Package.ExitCode = Join->Process->ExitCode;
     }
-    RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
+    
+    Message.Sender = Join->Address;
+    IpcReply(&Message, &Package, sizeof(JoinProcessPackage_t));
     DestroyProcess(Join->Process);
     free(Join);
 }
@@ -244,6 +249,7 @@ LoadFile(
     FileSystemCode_t FsCode;
     UUId_t           Handle;
     size_t           Size;
+    TRACE("[load_file] %s", MStringRaw(FullPath));
 
     // We have to make sure here that the path is fully resolved before loading. If not
     // then the filemanager will try to use our working directory and that is wrong
@@ -251,43 +257,50 @@ LoadFile(
     // Open the file as read-only
     FsCode = OpenFile(MStringRaw(FullPath), 0, __FILE_READ_ACCESS, &Handle);
     if (FsCode != FsOk) {
-        ERROR("Invalid path given: %s", MStringRaw(FullPath));
+        ERROR("[load_file] [open_file] failed: %u", FsCode);
         return OsError;
     }
 
     Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
     if (Status != OsSuccess) {
-        ERROR("Failed to retrieve the file size");
+        ERROR("[load_file] [get_file_size] failed: %u", Status);
         CloseFile(Handle);
         return Status;
     }
 
     Size = (size_t)QueriedSize.QuadPart;
     if (Size != 0) {
-        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
-        if (TransferBuffer != NULL) {
-            Buffer = dsalloc(Size);
-            if (Buffer != NULL) {
-                size_t Index, Read = 0;
-                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
-                TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
-                if (FsCode == FsOk && Read != 0) {
-                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
-                }
-                else {
-                    dsfree(Buffer);
-                    Status = OsError;
-                    Buffer = NULL;
-                }
-            }
-            else {
-                ERROR("Failed to allocate a buffer for the data");
+        struct dma_buffer_info DmaInfo;
+        struct dma_attachment  DmaAttachment;
+        
+        Buffer = dsalloc(Size);
+        if (!Buffer) {
+            ERROR("[load_file] [dsalloc] null");
+            return OsOutOfMemory;
+        }
+        
+        DmaInfo.name     = "file_buffer";
+        DmaInfo.length   = Size;
+        DmaInfo.capacity = Size;
+        DmaInfo.flags    = DMA_PERSISTANT;
+
+        Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
+        TRACE("[load_file] [dma_export] buffer_handle = %u, length = %u", 
+            DmaAttachment.handle, DmaInfo.length);
+        if (Status == OsSuccess) {
+            size_t Read = 0;
+            FsCode = TransferFile(Handle, DmaAttachment.handle, 0, 0, Size, &Read);
+            TRACE("[load_file] [transfer_file] read %" PRIuIN " bytes from file", Read);
+            if (FsCode != FsOk) {
+                ERROR("[load_file] [transfer_file] failed: %u", FsCode);
                 Status = OsError;
+                dsfree(Buffer);
+                Buffer = NULL;
             }
-            DestroyBuffer(TransferBuffer);
+            dma_detach(&DmaAttachment);
         }
         else {
-            ERROR("Failed to create a transfer buffer");
+            ERROR("[load_file] [dma_export] failed: %u", Status);
             Status = OsError;
         }
     }
@@ -324,7 +337,7 @@ CreateProcess(
     _In_  size_t                       ArgumentsLength,
     _In_  void*                        InheritationBlock,
     _In_  size_t                       InheritationBlockLength,
-    _Out_ UUId_t*                      Handle)
+    _Out_ UUId_t*                      HandleOut)
 {
     ThreadParameters_t Paramaters;
     Process_t*         Process;
@@ -332,10 +345,11 @@ CreateProcess(
     size_t             PathLength;
     char*              ArgumentsPointer;
     int                Index;
+    UUId_t             Handle;
     OsStatus_t         Status;
 
     assert(Path != NULL);
-    assert(Handle != NULL);
+    assert(HandleOut != NULL);
     TRACE("CreateProcess(%s, %u, %u)", Path, ArgumentsLength, InheritationBlockLength);
 
     Process = (Process_t*)malloc(sizeof(Process_t));
@@ -344,10 +358,16 @@ CreateProcess(
     }
     memset(Process, 0, sizeof(Process_t));
 
-    Process->Header.Key.Value.Id = ProcessIdGenerator++;
-    Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
-    Process->References          = ATOMIC_VAR_INIT(1);
-    Process->StartedAt           = clock();
+    Status = handle_create(&Handle);
+    if (Status != OsSuccess) {
+        free(Process);
+        return Status;
+    }
+    
+    ELEMENT_INIT(&Process->Header, Handle, Process);
+    Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
+    Process->References = ATOMIC_VAR_INIT(1);
+    Process->StartedAt  = clock();
     spinlock_init(&Process->SyncObject, spinlock_recursive);
 
     // Load the executable
@@ -405,16 +425,16 @@ CreateProcess(
     if (Status == OsSuccess) {
         Status = Syscall_ThreadDetach(Process->PrimaryThreadId);
     }
-    CollectionAppend(&Processes, &Process->Header);
-    *Handle = Process->Header.Key.Value.Id;
+    list_append(&Processes, &Process->Header);
+    *HandleOut = Handle;
     return Status;
 }
 
 OsStatus_t
 JoinProcess(
-    _In_  Process_t*            Process,
-    _In_  MRemoteCallAddress_t* Address,
-    _In_  size_t                Timeout)
+    _In_  Process_t* Process,
+    _In_  thrd_t     Address,
+    _In_  size_t     Timeout)
 {
     ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
     if (!Join) {
@@ -422,10 +442,10 @@ JoinProcess(
     }
     
     memset(Join, 0, sizeof(ProcessJoiner_t));
-    TRACE("JoinProcess(%u, %u)", Process->Header.Key.Value.Id, Timeout);
+    TRACE("JoinProcess(%u, %u)", (UUId_t)(uintptr_t)Process->Header.key, Timeout);
     
-    Join->Header.Key.Value.Id = Process->Header.Key.Value.Id;
-    memcpy(&Join->Address, Address, sizeof(MRemoteCallAddress_t));
+    ELEMENT_INIT(&Join->Header, Process->Header.key, Join);
+    Join->Address = Address;
     Join->Process = Process;
     if (Timeout != 0) {
         Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, Timeout);
@@ -436,7 +456,7 @@ JoinProcess(
 
     // Add a reference
     atomic_fetch_add(&Process->References, 1);
-    return CollectionAppend(&Joiners, &Join->Header);
+    return list_append(&Joiners, &Join->Header);
 }
 
 OsStatus_t
@@ -445,8 +465,8 @@ KillProcess(
     _In_ Process_t* Target)
 {
     // Verify permissions
-    TRACE("KillProcess(%u, %u)", Killer->Header.Key.Value.Id, 
-        Target->Header.Key.Value.Id);
+    TRACE("KillProcess(%u, %u)", (UUId_t)(uintptr_t)Killer->Header.key, 
+        (UUId_t)(uintptr_t)Target->Header.key);
 
     // Send a kill signal on the primary thread, if it fails, then
     // the thread has probably already shutdown, but the process instance is
@@ -457,34 +477,39 @@ KillProcess(
     return OsSuccess;
 }
 
+static int
+WakeupAllWaiters(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    Process_t*       Process = Context;
+    ProcessJoiner_t* Join    = Element->value;
+    if (Process->Header.key != Element->key) {
+        return LIST_ENUMERATE_CONTINUE;
+    }
+    
+    if (Join->EventHandle != UUID_INVALID) {
+        if (CancelEvent(EventQueue, Join->EventHandle) == OsSuccess) {
+            HandleJoinProcess((void*)Join);
+        }
+    }
+    else {
+        HandleJoinProcess((void*)Join);
+    }
+    return LIST_ENUMERATE_REMOVE;
+}
+
 OsStatus_t
 TerminateProcess(
     _In_ Process_t* Process,
     _In_ int        ExitCode)
 {
-    CollectionItem_t* Node;
-    TRACE("TerminateProcess(%u, %i)", Process->Header.Key.Value.Id, ExitCode);
+    TRACE("TerminateProcess(%llu, %i)", Process->Header.key, ExitCode);
 
-    // Mark the process as terminating
     Process->State    = PROCESS_TERMINATING;
     Process->ExitCode = ExitCode;
-    
-    // Identify all joiners, wake them or cancel their events
-    Node = CollectionGetNodeByKey(&Joiners, Process->Header.Key, 0);
-    while (Node != NULL) {
-        ProcessJoiner_t* Join = (ProcessJoiner_t*)Node;
-        if (Join->EventHandle != UUID_INVALID) {
-            if (CancelEvent(EventQueue, Join->EventHandle) == OsSuccess) {
-                HandleJoinProcess((void*)Join);
-            }
-        }
-        else {
-            HandleJoinProcess((void*)Join);
-        }
-
-        // Get next node
-        Node = CollectionGetNodeByKey(&Joiners, Process->Header.Key, 0);
-    }
+    list_enumerate(&Joiners, WakeupAllWaiters, Process);
     return OsSuccess;
 }
 
@@ -497,7 +522,7 @@ LoadProcessLibrary(
     MString_t* PathAsMString;
     OsStatus_t Status;
 
-    TRACE("LoadProcessLibrary(%u, %s)", Process->Header.Key.Value.Id, 
+    TRACE("LoadProcessLibrary(%u, %s)", (UUId_t)(uintptr_t)Process->Header.key, 
         (Path == NULL) ? "Global" : Path);
     if (Path == NULL) {
         *HandleOut = HANDLE_GLOBAL;
@@ -506,7 +531,8 @@ LoadProcessLibrary(
 
     // Create the neccessary strings
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
-    Status        = PeLoadImage(Process->Header.Key.Value.Id, Process->Executable, PathAsMString, (PeExecutable_t**)HandleOut);
+    Status        = PeLoadImage((UUId_t)(uintptr_t)Process->Header.key, 
+        Process->Executable, PathAsMString, (PeExecutable_t**)HandleOut);
     MStringDestroy(PathAsMString);
     return Status;
 }
@@ -519,7 +545,7 @@ ResolveProcessLibraryFunction(
 {
     PeExecutable_t* Image = Process->Executable;
     TRACE("ResolveProcessLibraryFunction(%u, %s)", 
-        Process->Header.Key.Value.Id, Function);
+        (UUId_t)(uintptr_t)Process->Header.key, Function);
     if (Handle != HANDLE_GLOBAL) {
         Image = (PeExecutable_t*)Handle;
     }
@@ -531,7 +557,7 @@ UnloadProcessLibrary(
     _In_ Process_t* Process,
     _In_ Handle_t   Handle)
 {
-    TRACE("UnloadProcessLibrary(%u)", Process->Header.Key.Value.Id);
+    TRACE("UnloadProcessLibrary(%u)", (UUId_t)(uintptr_t)Process->Header.key);
     if (Handle == HANDLE_GLOBAL) {
         return OsSuccess;
     }
@@ -543,7 +569,7 @@ GetProcessLibraryHandles(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
 {
-    TRACE("GetProcessLibraryHandles(%u)", Process->Header.Key.Value.Id);
+    TRACE("GetProcessLibraryHandles(%u)", (UUId_t)(uintptr_t)Process->Header.key);
     return PeGetModuleHandles(Process->Executable, LibraryList);
 }
 
@@ -552,7 +578,7 @@ GetProcessLibraryEntryPoints(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
 {
-    TRACE("GetProcessLibraryEntryPoints(%u)", Process->Header.Key.Value.Id);
+    TRACE("GetProcessLibraryEntryPoints(%u)", (UUId_t)(uintptr_t)Process->Header.key);
     return PeGetModuleEntryPoints(Process->Executable, LibraryList);
 }
 
@@ -571,8 +597,8 @@ HandleProcessCrashReport(
     if (CrashAddress > (Process->Executable->CodeBase + Process->Executable->CodeSize)) {
         // Iterate libraries to find the sinner
         if (Process->Executable->Libraries != NULL) {
-            foreach(Node, Process->Executable->Libraries) {
-                PeExecutable_t* Library = (PeExecutable_t*)Node->Data;
+            foreach(i, Process->Executable->Libraries) {
+                PeExecutable_t* Library = (PeExecutable_t*)i->value;
                 if (CrashAddress >= Library->CodeBase && 
                     CrashAddress < (Library->CodeBase + Library->CodeSize)) {
                     ImageName = Library->Name;

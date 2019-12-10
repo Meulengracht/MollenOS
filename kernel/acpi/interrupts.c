@@ -24,9 +24,10 @@
 //#define __TRACE
 
 #include <acpiinterface.h>
-#include <interrupts.h>
 #include <assert.h>
 #include <debug.h>
+#include <ddk/device.h>
+#include <interrupts.h>
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.
@@ -123,8 +124,8 @@ AcpiDeriveInterrupt(
             PciRoutingEntry_t* RoutingEntry = NULL;
 
             // Lookup entry in list
-            foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
-                RoutingEntry = (PciRoutingEntry_t*)iNode;
+            foreach(i, Dev->Routings->InterruptEntries[rIndex]) {
+                RoutingEntry = (PciRoutingEntry_t*)i->value;
                 if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
                     break;
                 }

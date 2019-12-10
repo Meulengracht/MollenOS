@@ -24,7 +24,6 @@
 //#define __TRACE
 
 #include "../librt/libds/pe/pe.h"
-#include <os/services/targets.h>
 #include <modules/manager.h>
 #include <arch/utils.h>
 #include <memoryspace.h>
@@ -45,8 +44,8 @@ DebugPageMemorySpaceHandlers(
     OsStatus_t           Status = OsError;
 
     if (Space->Context != NULL) {
-        foreach(Node, Space->Context->MemoryHandlers) {
-            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
+        foreach(i, Space->Context->MemoryHandlers) {
+            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)i->value;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
                 ERROR("Implement support for MemorySpaceHandlers");
                 for(;;);
@@ -85,44 +84,48 @@ DebugPageFault(
     _In_ uintptr_t  Address)
 {
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    uintptr_t            PhysicalAddress;
     OsStatus_t           Status;
-    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", CONTEXT_IP(Context), Address);
+    
+    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", 
+        CONTEXT_IP(Context), Address);
 
     if (Space->Context != NULL) {
         if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
     }
-    Status = CommitMemorySpaceMapping(Space, NULL, Address, __MASK);
+    
+    Status = MemorySpaceCommit(Space, Address, &PhysicalAddress, 
+        GetMemorySpacePageSize(), 0);
     if (Status == OsExists) {
         Status = OsSuccess;
     }
     return Status;
 }
 
-/* DebugHaltAllProcessorCores
- * Halts all processor cores present in the processor. */
-OsStatus_t
+static OsStatus_t
 DebugHaltAllProcessorCores(
     _In_ UUId_t         ExcludeId,
     _In_ SystemCpu_t*   Processor)
 {
-    if (ExcludeId != Processor->PrimaryCore.Id) {
-        ExecuteProcessorCoreFunction(Processor->PrimaryCore.Id, CpuFunctionHalt, NULL, NULL);
-    }
-
-    for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
-        if (ExcludeId != Processor->ApplicationCores[i].Id) {
-            ExecuteProcessorCoreFunction(Processor->ApplicationCores[i].Id, CpuFunctionHalt, NULL, NULL);
+    SystemCpuCore_t* Iter;
+    
+    Iter = Processor->Cores;
+    while (Iter) {
+        if (Iter->Id == ExcludeId) {
+            Iter = Iter->Link;
+            continue;
         }
+        
+        if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
+            TxuMessageSend(Iter->Id, CpuFunctionHalt, NULL, NULL);
+        }
+        Iter = Iter->Link;
     }
     return OsSuccess;
 }
 
-/* DebugPanic
- * Kernel panic function - Call this to enter panic mode
- * and disrupt normal functioning. This function does not
- * return again */
 OsStatus_t
 DebugPanic(
     _In_ int         FatalityScope,
@@ -135,14 +138,14 @@ DebugPanic(
     va_list Arguments;
     UUId_t CoreId;
 
-    TRACE("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
+    ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
     CoreId = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
-        if (CollectionLength(&GetMachine()->SystemDomains) != 0) {
-            foreach(NumaNode, &GetMachine()->SystemDomains) {
-                SystemDomain_t* Domain = (SystemDomain_t*)NumaNode;
+        if (list_count(&GetMachine()->SystemDomains) != 0) {
+            foreach(i, &GetMachine()->SystemDomains) {
+                SystemDomain_t* Domain = (SystemDomain_t*)i->value;
                 DebugHaltAllProcessorCores(CoreId, &Domain->CoreGroup);
             }
         }
@@ -157,14 +160,18 @@ DebugPanic(
     va_end(Arguments);
     LogSetRenderMode(1);
     LogAppendMessage(LogError, Module, &MessageBuffer[0]);
-
+    
     // Log cpu and threads
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-            CurrentThread->Name, CurrentThread->Header.Key.Value.Id, CoreId);
+            CurrentThread->Name, CurrentThread->Handle, CoreId);
     }
-    DebugStackTrace(Context, 8);
+    
+    if (Context) {
+        ArchDumpThreadContext(Context);
+        DebugStackTrace(Context, 8);
+    }
 
     // Handle based on the scope of the fatality
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
@@ -205,8 +212,8 @@ DebugGetModuleByAddress(
             if (Address > (Module->Executable->CodeBase + Module->Executable->CodeSize)) {
                 // Iterate libraries to find the sinner
                 if (Module->Executable->Libraries != NULL) {
-                    foreach(lNode, Module->Executable->Libraries) {
-                        PeExecutable_t* Lib = (PeExecutable_t*)lNode->Data;
+                    foreach(i, Module->Executable->Libraries) {
+                        PeExecutable_t* Lib = i->value;
                         if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
                             PmName = (char*)MStringRaw(Lib->Name);
                             PmBase = Lib->VirtualAddress;
@@ -224,9 +231,6 @@ DebugGetModuleByAddress(
     return OsError;
 }
 
-/* DebugStackTrace
- * Performs a verbose stack trace in the current context 
- * Goes back a maximum of <MaxFrames> in the stack */
 OsStatus_t
 DebugStackTrace(
     _In_ Context_t* Context,
@@ -348,8 +352,10 @@ DebugHandleShortcut(
     _In_ SystemKey_t* Key)
 {
     if (Key->KeyCode == VK_1) {
-        WRITELINE("Memory in use %" PRIuIN " Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * 0x1000);
-        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+        int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
+        int FreeBlocks = GetMachine()->PhysicalMemory.index;
+        WRITELINE("Memory in use %" PRIuIN " Bytes", (MaxBlocks - FreeBlocks) * 0x1000);
+        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", (MaxBlocks - FreeBlocks), MaxBlocks);
     }
     else if (Key->KeyCode == VK_2) {
         DisplayActiveThreads();

@@ -45,7 +45,7 @@ typedef struct {
     SafeMemoryLock_t SyncObject;
 } BlockmapSegment_t;
 
-typedef struct _BlockBitmap {
+typedef struct BlockBitmap {
     Bitmap_t            Base;
     SafeMemoryLock_t    SyncObject;
    

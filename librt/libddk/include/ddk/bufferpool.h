@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,52 +22,56 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _BUFFERPOOL_INTERFACE_H_
-#define _BUFFERPOOL_INTERFACE_H_
+#ifndef __DMA_POOL_H__
+#define __DMA_POOL_H__
 
-#include <ddk/buffer.h>
 #include <ddk/ddkdefs.h>
 
-typedef struct _BufferPool BufferPool_t;
+struct dma_attachment;
+struct dma_pool;
 
 _CODE_BEGIN
 /* BufferPoolCreate
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
-DDKDECL(
-OsStatus_t,
-BufferPoolCreate(
-    _In_  DmaBuffer_t*      Buffer,
-    _Out_ BufferPool_t**    Pool));
+DDKDECL(OsStatus_t,
+dma_pool_create(
+    _In_  struct dma_attachment* attachment,
+    _Out_ struct dma_pool**      pool_out));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
  * allocated. This does not destroy the buffer-object. */
-DDKDECL(
-OsStatus_t,
-BufferPoolDestroy(
-    _In_ BufferPool_t*      Pool));
+DDKDECL(OsStatus_t,
+dma_pool_destroy(
+    _In_ struct dma_pool* pool));
 
 /* BufferPoolAllocate
  * Allocates the requested size and outputs two addresses. The
  * virtual pointer to the accessible data, and the address of its 
  * corresponding physical address for hardware. */
-DDKDECL(
-OsStatus_t,
-BufferPoolAllocate(
-    _In_ BufferPool_t*      Pool,
-    _In_ size_t             Size,
-    _Out_ uintptr_t**       VirtualPointer,
-    _Out_ uintptr_t*        PhysicalAddress));
+DDKDECL(OsStatus_t,
+dma_pool_allocate(
+    _In_  struct dma_pool* pool,
+    _In_  size_t           length,
+    _Out_ void**           address_out));
 
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
-DDKDECL(
-OsStatus_t,
-BufferPoolFree(
-    _In_ BufferPool_t*      Pool,
-    _In_ uintptr_t*         VirtualPointer));
+DDKDECL(OsStatus_t,
+dma_pool_free(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address));
+
+DDKDECL(UUId_t,
+dma_pool_handle(
+    _In_ struct dma_pool* pool));    
+
+DDKDECL(size_t,
+dma_pool_offset(
+    _In_ struct dma_pool* pool,
+    _In_ void*            address));
 _CODE_END
 
-#endif //!_BUFFERPOOL_INTERFACE_H_
+#endif //!__DMA_POOL_H__

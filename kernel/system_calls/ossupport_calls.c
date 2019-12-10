@@ -42,13 +42,23 @@ ScCreateMemoryHandler(
 
     if (Space->Context->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
-        Handler->Handle  = CreateHandle(HandleGeneric, Handler);
+        if (!Handler) {
+            return OsOutOfMemory;
+        }
+        
+        ELEMENT_INIT(&Handler->Header, 0, Handler);
+        Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
         Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
+        if (!Handler->Address) {
+            DestroyHandle(Handler->Handle);
+            kfree(Handler);
+            return OsOutOfMemory;
+        }
         Handler->Length  = Length;
         
         *HandleOut       = Handler->Handle;
         *AddressBaseOut  = Handler->Address;
-        return CollectionAppend(Space->Context->MemoryHandlers, &Handler->Header);
+        return list_append(Space->Context->MemoryHandlers, &Handler->Header);
     }
     return OsInvalidPermissions;
 }
@@ -62,7 +72,7 @@ ScDestroyMemoryHandler(
     assert(Space->Context != NULL);
 
     if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
-        CollectionRemoveByNode(Space->Context->MemoryHandlers, &Handler->Header);
+        list_remove(Space->Context->MemoryHandlers, &Handler->Header);
         ReleaseBlockmapRegion(Space->Context->HeapSpace, Handler->Address, Handler->Length);
         DestroyHandle(Handle);
         kfree(Handler);
@@ -83,11 +93,88 @@ ScInstallSignalHandler(
 }
 
 OsStatus_t
+ScCreateHandle(
+    _Out_ UUId_t* HandleOut)
+{
+    *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
+    if (*HandleOut != UUID_INVALID) {
+        return OsSuccess;
+    }
+    return OsOutOfMemory;
+}
+
+OsStatus_t
+ScSetHandleActivity(
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags)
+{
+    return MarkHandle(Handle, Flags);
+}
+
+OsStatus_t
+ScRegisterHandlePath(
+    _In_ UUId_t      Handle,
+    _In_ const char* Path)
+{
+    return RegisterHandlePath(Handle, Path);
+}
+
+OsStatus_t
+ScLookupHandle(
+    _In_  const char* Path,
+    _Out_ UUId_t*     HandleOut)
+{
+    return LookupHandleByPath(Path, HandleOut);
+}
+
+OsStatus_t
 ScDestroyHandle(
     _In_ UUId_t Handle)
 {
     if (Handle == 0 || Handle == UUID_INVALID) {
-        return OsError;
+        return OsInvalidParameters;
     }
-    return DestroyHandle(Handle);
+    DestroyHandle(Handle);
+    return OsSuccess;
+}
+
+OsStatus_t
+ScCreateHandleSet(
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* HandleOut)
+{
+    if (!HandleOut) {
+        return OsInvalidParameters;
+    }
+    
+    *HandleOut = CreateHandleSet(Flags);
+    if (*HandleOut != UUID_INVALID) {
+        return OsSuccess;
+    }
+    return OsOutOfMemory;
+}
+
+OsStatus_t
+ScControlHandleSet(
+    _In_ UUId_t  SetHandle,
+    _In_ int     Operation,
+    _In_ UUId_t  Handle,
+    _In_ Flags_t Flags,
+    _In_ void*   Context)
+{
+    return ControlHandleSet(SetHandle, Operation, Handle, Flags, Context);
+}
+
+OsStatus_t
+ScListenHandleSet(
+    _In_  UUId_t          Handle,
+    _In_  handle_event_t* Events,
+    _In_  int             MaxEvents,
+    _In_  size_t          Timeout,
+    _Out_ int*            NumberOfEventsOut)
+{
+    if (!Events || !NumberOfEventsOut) {
+        return OsInvalidParameters;
+    }
+    return WaitForHandleSet(Handle, Events, MaxEvents, Timeout, NumberOfEventsOut);
 }

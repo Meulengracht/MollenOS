@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
@@ -29,14 +30,22 @@
 #include <string.h>
 #include <stdlib.h>
 
-void
+size_t
 UhciTdSetup(
     _In_ UhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 BufferAddress,
-    _In_ size_t                    Address, 
+    _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ UsbSpeed_t                Speed)
+    _In_ UsbSpeed_t                Speed,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length)
 {
+    uintptr_t CalculatedLength;
+    
+    // TODO: use frame-size for platfrom
+    // This also works for 0 length packets, as it will result in 0 - 1
+    CalculatedLength = MIN(UHCI_TD_LENGTH_MASK, 0x1000 - (Address % 0x1000));
+    CalculatedLength = MIN(CalculatedLength, Length);
+    
     // Set no link
     Td->Link = UHCI_LINK_END;
 
@@ -49,12 +58,12 @@ UhciTdSetup(
 
     // Setup td header
     Td->Header  = UHCI_TD_PID_SETUP;
-    Td->Header |= UHCI_TD_DEVICE_ADDR(Address);
+    Td->Header |= UHCI_TD_DEVICE_ADDR(Device);
     Td->Header |= UHCI_TD_EP_ADDR(Endpoint);
-    Td->Header |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
+    Td->Header |= UHCI_TD_MAX_LEN(CalculatedLength - 1);
 
     // Install the buffer
-    Td->Buffer = LODWORD(BufferAddress);
+    Td->Buffer = LODWORD(Address);
 
     // Store data
     Td->OriginalFlags  = Td->Flags;
@@ -62,21 +71,29 @@ UhciTdSetup(
     
     // Set usb scheduler link info
     Td->Object.Flags |= UHCI_LINK_DEPTH;
+    return CalculatedLength;
 }
 
-void
+size_t
 UhciTdIo(
     _In_ UhciTransferDescriptor_t* Td,
     _In_ UsbTransferType_t         Type,
-    _In_ uint32_t                  PId,
-    _In_ int                       Toggle,
-    _In_ size_t                    Address, 
+    _In_ UsbTransactionType_t      Direction,
+    _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ size_t                    MaxPacketSize,
     _In_ UsbSpeed_t                Speed,
-    _In_ uintptr_t                 BufferAddress,
-    _In_ size_t                    Length)
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length,
+    _In_ int                       Toggle)
 {
+    uintptr_t CalculatedLength;
+    uint32_t  PId = (Direction == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT);
+    
+    // TODO: use frame-size for platfrom
+    // This also works for 0 length packets, as it will result in 0 - 1
+    CalculatedLength = MIN(UHCI_TD_LENGTH_MASK, 0x1000 - (Address % 0x1000));
+    CalculatedLength = MIN(CalculatedLength, Length);
+    
     // Set no link
     Td->Link = UHCI_LINK_END;
 
@@ -102,27 +119,17 @@ UhciTdIo(
 
     // Setup td header
     Td->Header  = PId;
-    Td->Header |= UHCI_TD_DEVICE_ADDR(Address);
+    Td->Header |= UHCI_TD_DEVICE_ADDR(Device);
     Td->Header |= UHCI_TD_EP_ADDR(Endpoint);
     if (Toggle) {
         Td->Header |= UHCI_TD_DATA_TOGGLE;
     }
 
     // Setup size
-    if (Length > 0) {
-        if (Length < MaxPacketSize && Type == InterruptTransfer) {
-            Td->Header |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
-        }
-        else {
-            Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
-        }
-    }
-    else {
-        Td->Header |= UHCI_TD_MAX_LEN(0x7FF);
-    }
+    Td->Header |= UHCI_TD_MAX_LEN(CalculatedLength - 1);
 
     // Store buffer
-    Td->Buffer = LODWORD(BufferAddress);
+    Td->Buffer = LODWORD(Address);
 
     // Store data
     Td->OriginalFlags  = Td->Flags;
@@ -130,10 +137,9 @@ UhciTdIo(
 
     // Set usb scheduler link info
     Td->Object.Flags |= UHCI_LINK_DEPTH;
+    return CalculatedLength;
 }
 
-/* UhciTdDump
- * Dumps the information contained in the descriptor by writing it. */
 void
 UhciTdDump(
     _In_ UhciController_t*         Controller,
@@ -164,7 +170,6 @@ UhciTdValidate(
         }
         return;
     }
-    Transfer->TransactionsExecuted++;
 
     // Now validate the code
     if (ErrorCode != 0) {
@@ -190,8 +195,8 @@ UhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->BytesTransferred[i]) {
-                Transfer->BytesTransferred[i] += BytesTransferred;
+            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
         }

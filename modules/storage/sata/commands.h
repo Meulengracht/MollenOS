@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - ATA Command Header
+ * ATA Command Header
  * - Contains shared definitions for ATA commands that can
  *   be used by all storage drivers that implement the ATA protocol
  */
@@ -48,7 +48,7 @@
 /* The ATA Command Set 
  * As specified by the ATA8 Specification 
  * - It's incomplete as there are a lot */
-typedef enum _ATACommandType
+typedef enum
 {
 	AtaCFAEraseSectors				= 0xC0,
 	AtaCFARequestErrorCodeExt		= 0x03,
@@ -127,12 +127,8 @@ typedef enum _ATACommandType
 	AtaSleep						= 0xE6,
 	AtaStandby						= 0xE2,
 	AtaStandbyImmediate				= 0xE0,
+} AtaCommand_t;
 
-} ATACommandType_t;
-
-/* This is the ATA Identify Command 
- * Structure data, as described in the
- * ATA specs. */
 PACKED_TYPESTRUCT(ATAIdentify, {
 	/* Flags 
 	 * Nothing is ok excpet:

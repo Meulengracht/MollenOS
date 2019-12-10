@@ -25,22 +25,23 @@
 
 #include "../librt/libc/time/local.h"
 #include <modules/manager.h>
-#include <ds/collection.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
+#include <ds/list.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
 #include <machine.h>
 #include <timers.h>
 #include <stdlib.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 
 static SystemPerformanceTimerOps_t PerformanceTimer  = { 0 };
 static SystemTimer_t*              ActiveSystemTimer = NULL;
-static Collection_t                SystemTimers      = COLLECTION_INIT(KeyInteger);
+static list_t                      SystemTimers      = LIST_INIT;
 static long                        AccumulatedDrift  = 0;
 
 void
@@ -79,14 +80,18 @@ TimersRegisterSystemTimer(
 
     // Create a new instance of a system timer
     SystemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
+    if (!SystemTimer) {
+        return OsOutOfMemory;
+    }
+    
     memset(SystemTimer, 0, sizeof(SystemTimer_t));
-
+    ELEMENT_INIT(&SystemTimer->Header, 0, SystemTimer);
     SystemTimer->Source    = Source;
     SystemTimer->TickInNs  = TickNs;
     SystemTimer->Ticks     = 0;
     SystemTimer->GetTick   = GetTickFn;
     SystemTimer->ResetTick = ResetTickFn;
-    CollectionAppend(&SystemTimers, &SystemTimer->Header);
+    list_append(&SystemTimers, &SystemTimer->Header);
 
     // Ok, for a system timer we want something optimum of 1 ms per interrupt
     if (ActiveSystemTimer != NULL) {

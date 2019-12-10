@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +17,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Driver Entry 
+ * C Library - Driver Entry 
  */
 
 #include "../libc/threads/tls.h"
-#include <os/mollenos.h>
 #include <ddk/driver.h>
+#include <ddk/device.h>
+#include <ddk/utils.h>
+#include <os/ipc.h>
+#include <os/mollenos.h>
 #include <stdlib.h>
 
 // Module Interface
@@ -29,7 +33,7 @@ extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 extern OsStatus_t OnRegister(MCoreDevice_t*);
 extern OsStatus_t OnUnregister(MCoreDevice_t*);
-extern OsStatus_t OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
+extern OsStatus_t OnQuery(IpcMessage_t*);
 
 extern char**
 __CrtInitialize(
@@ -40,35 +44,36 @@ __CrtInitialize(
 void __CrtModuleEntry(void)
 {
     thread_storage_t Tls;
-    MRemoteCall_t    Message;
-    char*            ArgumentBuffer;
+    IpcMessage_t*    Message;
     int              IsRunning = 1;
 
     // Initialize environment
     __CrtInitialize(&Tls, 1, NULL);
+
+    // Wait for the device-manager service, as all modules require the device-manager
+    // service to perform requests.
+    if (WaitForDeviceService(2000) != OsSuccess) {
+        exit(-1);
+    }
 
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
         exit(-1);
     }
-
+    
     // Initialize the driver event loop
-    ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
-        if (RPCListen(UUID_INVALID, &Message, ArgumentBuffer) == OsSuccess) {
-            switch (Message.Function) {
+        if (IpcListen(0, &Message) == OsSuccess) {
+            switch (IPC_GET_TYPED(Message, 0)) {
                 case __DRIVER_REGISTERINSTANCE: {
-                    OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                    OnRegister(IPC_GET_UNTYPED(Message, 0));
                 } break;
                 case __DRIVER_UNREGISTERINSTANCE: {
-                    OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                    OnUnregister(IPC_GET_UNTYPED(Message, 0));
                 } break;
-                case __DRIVER_QUERY: {
-                    OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
-                        (int)Message.Arguments[1].Data.Value, 
-                        &Message.Arguments[2], &Message.Arguments[3], 
-                        &Message.Arguments[4], &Message.From);
+                case __DRIVER_QUERYCONTRACT: {
+                    OnQuery(Message);
                 } break;
                 case __DRIVER_UNLOAD: {
                     IsRunning = 0;

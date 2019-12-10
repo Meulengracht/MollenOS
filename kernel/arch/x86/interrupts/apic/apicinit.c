@@ -22,7 +22,6 @@
 #define __MODULE "APIC"
 #define __TRACE
 
-#include <ds/collection.h>
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <arch/interrupts.h>
@@ -48,8 +47,6 @@ static SystemInterruptMode_t        InterruptMode   = InterruptModePic;
 size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
 uintptr_t GlbLocalApicBase = 0;
 
-/* GetSystemLvtByAcpi
- * Retrieves lvt setup for the calling cpu and the given Lvt index. */
 static Flags_t
 GetSystemLvtByAcpi(
     _In_ uint8_t Lvt)
@@ -121,7 +118,7 @@ InitializeApicLvt(
     }
 
     // Disable the lvt entry for all other than the boot processor
-    if (ArchGetProcessorCoreId() != GetMachine()->Processor.PrimaryCore.Id) {
+    if (ArchGetProcessorCoreId() != GetMachine()->Processor.Cores->Id) {
         Temp |= APIC_MASKED;
     }
     ApicWriteLocal(APIC_LINT0_REGISTER + (Lvt * 0x10), Temp);
@@ -142,9 +139,9 @@ ParseIoApic(
 
     // Relocate the io-apic
     Original = Controller->MemoryAddress;
-    CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Original, &Updated, GetMemorySpacePageSize(), 
+    MemorySpaceMap(GetCurrentMemorySpace(), &Updated, &Original, GetMemorySpacePageSize(), 
         MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK);
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL);
     Controller->MemoryAddress = Updated + (Original & 0xFFF);
 
     /* Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
@@ -440,10 +437,10 @@ ApicInitialize(void)
 
     // Perform the remap
     TRACE(" > local apic at 0x%" PRIxIN "", OriginalApAddress);
-    CreateMemorySpaceMapping(GetCurrentMemorySpace(), &OriginalApAddress, 
-        &UpdatedApAddress, GetMemorySpacePageSize(), 
+    MemorySpaceMap(GetCurrentMemorySpace(), &UpdatedApAddress, &OriginalApAddress, 
+        GetMemorySpacePageSize(), 
         MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
+        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED);
     GlbLocalApicBase = UpdatedApAddress + (OriginalApAddress & 0xFFF);
     BspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     TRACE(" > local bsp id %u", BspApicId);

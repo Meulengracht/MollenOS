@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -21,31 +22,33 @@
  *   that is generic and can be shared/used by all systems
  */
 
-#define __MODULE        "INIF"
+#define __MODULE "INIF"
 //#define __TRACE
 
-#include <component/cpu.h>
-#include <modules/manager.h>
-#include <ddk/interrupt.h>
+#include <arch.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <ds/ds.h>
-#include <memoryspace.h>
-#include <interrupts.h>
-#include <threading.h>
+#include <assert.h>
+#include <component/cpu.h>
+#include <ddk/interrupt.h>
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>
-#include <arch.h>
+#include <modules/manager.h>
+#include <memoryspace.h>
+#include <irq_spinlock.h>
+#include <interrupts.h>
+#include <threading.h>
+#include <string.h>
 
-typedef struct _InterruptTableEntry {
+typedef struct InterruptTableEntry {
     SystemInterrupt_t* Descriptor;
     int                Penalty;
     int                Sharable;
 } InterruptTableEntry_t;
 
 static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
-static SafeMemoryLock_t      InterruptTableSyncObject = { 0 };
+static IrqSpinlock_t         InterruptTableSyncObject = OS_IRQ_SPINLOCK_INIT;
 static _Atomic(UUId_t)       InterruptIdGenerator     = ATOMIC_VAR_INIT(0);
 
 OsStatus_t
@@ -188,7 +191,7 @@ InterruptCleanupMemoryResources(
             uintptr_t Offset    = Resources->MemoryResources[i].Address % GetMemorySpacePageSize();
             size_t Length       = Resources->MemoryResources[i].Length + Offset;
 
-            Status = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
+            Status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 Resources->MemoryResources[i].Address, Length);
             if (Status != OsSuccess) {
                 ERROR(" > failed to remove interrupt resource mapping");
@@ -264,7 +267,7 @@ InterruptResolveResources(
     Offset         = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
     Length         = GetMemorySpacePageSize() + Offset;
     PageFlags      = MAPPING_COMMIT | MAPPING_EXECUTABLE | MAPPING_READONLY;
-    PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_DEFAULT;
+    PlacementFlags = MAPPING_VIRTUAL_GLOBAL;
     Status         = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
         (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
     if (Status != OsSuccess) {
@@ -309,7 +312,7 @@ InterruptReleaseResources(
     // Unmap and release the fast-handler that we had mapped in.
     Offset      = ((uintptr_t)Resources->Handler) % GetMemorySpacePageSize();
     Length      = GetMemorySpacePageSize() + Offset;
-    Status      = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
+    Status      = MemorySpaceUnmap(GetCurrentMemorySpace(),
         (uintptr_t)Resources->Handler, Length);
     if (Status != OsSuccess) {
         ERROR(" > failed to cleanup interrupt handler mapping");
@@ -337,13 +340,16 @@ InterruptRegister(
     UUId_t             TableIndex;
     UUId_t             Id;
 
-    // Trace
     TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
         Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
-    // Allocate a new entry for the table
     Entry = (SystemInterrupt_t*)kmalloc(sizeof(SystemInterrupt_t));
-    Id    = atomic_fetch_add(&InterruptIdGenerator, 1);
+    if (!Entry) {
+        return UUID_INVALID;
+    }
+    
+    // TODO: change this to use handle system
+    Id = atomic_fetch_add(&InterruptIdGenerator, 1);
     memset((void*)Entry, 0, sizeof(SystemInterrupt_t));
 
     Entry->Id           = (Id << 16);    
@@ -400,7 +406,7 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-    dslock(&InterruptTableSyncObject);
+    IrqSpinlockAcquire(&InterruptTableSyncObject);
     if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty    = 1;
@@ -419,7 +425,7 @@ InterruptRegister(
     if (InterruptConfigure(Entry, 1) != OsSuccess) {
         ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
     }
-    dsunlock(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&InterruptTableSyncObject);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
         Entry->Id, Entry->Interrupt.FastInterrupt.Handler, Entry->Interrupt.Context);
     return Entry->Id;
@@ -441,7 +447,7 @@ InterruptUnregister(
     }
     
     // Iterate handlers in that table index and unlink the given entry
-    dslock(&InterruptTableSyncObject);
+    IrqSpinlockAcquire(&InterruptTableSyncObject);
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Id == Source) {
@@ -466,7 +472,7 @@ InterruptUnregister(
         Previous = Entry;
         Entry    = Entry->Link;
     }
-    dsunlock(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&InterruptTableSyncObject);
 
     // Sanitize if we were successfull
     if (Found == 0) {
@@ -521,16 +527,19 @@ void
 InterruptSetActiveStatus(
     _In_ int Active)
 {
-    GetCurrentProcessorCore()->State &= ~(CpuStateInterruptActive);
+    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
+    State &= ~(CpuStateInterruptActive);
     if (Active) {
-        GetCurrentProcessorCore()->State |= CpuStateInterruptActive;
+        State |= CpuStateInterruptActive;
     }
+    WRITE_VOLATILE(GetCurrentProcessorCore()->State, State);
 }
 
 int
 InterruptGetActiveStatus(void)
 {
-    return (GetCurrentProcessorCore()->State & CpuStateInterruptActive) == 0 ? 0 : 1;
+    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
+    return (State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
 Context_t*

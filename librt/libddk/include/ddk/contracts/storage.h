@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -21,17 +22,18 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_STORAGE_INTERFACE_H_
-#define _CONTRACT_STORAGE_INTERFACE_H_
+#ifndef __DDK_CONTRACT_STORAGE_H__
+#define __DDK_CONTRACT_STORAGE_H__
 
+#include <ddk/contracts/base.h>
 #include <ddk/driver.h>
 #include <ddk/ddkdefs.h>
+#include <os/ipc.h>
 
 /* Storage device query functions that must be implemented
  * by the storage driver - those can then be used by this interface */
-#define __STORAGE_QUERY_STAT                IPC_DECL_FUNCTION(0)
-#define __STORAGE_QUERY_READ                IPC_DECL_FUNCTION(1)
-#define __STORAGE_QUERY_WRITE               IPC_DECL_FUNCTION(2)
+#define __STORAGE_QUERY_STAT                (int)0
+#define __STORAGE_TRANSFER                  (int)1
 
 #define __STORAGE_OPERATION_READ            0x00000001
 #define __STORAGE_OPERATION_WRITE           0x00000002
@@ -49,10 +51,11 @@ PACKED_TYPESTRUCT(StorageDescriptor, {
 });
 
 PACKED_TYPESTRUCT(StorageOperation, {
-    int       Direction;
-    uint64_t  AbsoluteSector;
-    uintptr_t PhysicalBuffer;
-    size_t    SectorCount;
+    int      Direction;
+    uint64_t AbsoluteSector;
+    UUId_t   BufferHandle;
+    size_t   BufferOffset;
+    size_t   SectorCount;
 });
 
 PACKED_TYPESTRUCT(StorageOperationResult, {
@@ -60,113 +63,75 @@ PACKED_TYPESTRUCT(StorageOperationResult, {
     size_t     SectorsTransferred;
 });
 
-/* StorageQuery
- * This queries the storage contract for data and must be implemented by all contracts that
- * implement the storage interface */
+/**
+ * StorageQuery
+ * * This queries the storage device interface for information and geometry stats
+ */
 SERVICEAPI OsStatus_t SERVICEABI
 StorageQuery(
-    _In_  UUId_t                Driver, 
-    _In_  UUId_t                StorageDevice,
-    _Out_ StorageDescriptor_t*  Descriptor)
+    _In_  UUId_t                StorageDeviceId,
+    _In_  UUId_t                InterfaceId,
+    _Out_ StorageDescriptor_t** Descriptor)
 {
-    MContract_t Contract;
-
-    // Initialise contract details
-    Contract.DriverId   = Driver;
-    Contract.Type       = ContractStorage;
-    Contract.Version    = 1;
+    IpcMessage_t Message;
+    OsStatus_t   Status;
     
-    // Perform the device query
-    return QueryDriver(&Contract, __STORAGE_QUERY_STAT,
-        &StorageDevice, sizeof(UUId_t), NULL, 0, NULL, 0, 
-        Descriptor, sizeof(StorageDescriptor_t));
+    IpcInitialize(&Message);
+    
+    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
+    IPC_SET_TYPED(&Message, 1, __STORAGE_QUERY_STAT);
+    IPC_SET_TYPED(&Message, 2, ContractStorage);
+    IPC_SET_TYPED(&Message, 3, StorageDeviceId);
+    
+    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)Descriptor);
+    return Status;
 }
 
-/* StorageRead 
- * Sends a read request to the given storage-medium, and attempts to
- * read the number of bytes requested into the given buffer 
- * at the absolute sector given 
- * @PhysicalAddress - Must be the contigious physical address
- *                    buffer to read data into */
+/**
+ * StorageTransfer 
+ * * Sends a transfer request to the given storage-medium, and attempts to
+ * * transfer the number of bytes requested into the given buffer at the absolute sector given 
+ * @param Direction [In] __STORAGE_OPERATION_READ or __STORAGE_OPERATION_WRITE
+ */
 SERVICEAPI OsStatus_t SERVICEABI
-StorageRead(
-    _In_  UUId_t    DriverId, 
+StorageTransfer(
     _In_  UUId_t    StorageDeviceId,
-    _In_  uint64_t  Sector, 
-    _In_  uintptr_t PhysicalAddress, 
+    _In_  UUId_t    InterfaceId,
+    _In_  int       Direction,
+    _In_  uint64_t  Sector,
+    _In_  UUId_t    BufferHandle,
+    _In_  size_t    BufferOffset,
     _In_  size_t    SectorCount,
-    _Out_ size_t*   SectorsRead)
+    _Out_ size_t*   SectorsTransferred)
 {
-    MContract_t              Contract;
-    StorageOperation_t       Operation;
-    StorageOperationResult_t Result;
-    OsStatus_t               Status;
-
-    // Initialise contract details
-    Contract.DriverId       = DriverId;
-    Contract.Type           = ContractStorage;
-    Contract.Version        = 1;
-
+    IpcMessage_t              Message;
+    StorageOperation_t        Operation;
+    StorageOperationResult_t* Result;
+    OsStatus_t                Status;
+    
     // Initialize operation details
-    Operation.Direction      = __STORAGE_OPERATION_READ;
+    Operation.Direction      = Direction;
     Operation.AbsoluteSector = Sector;
-    Operation.PhysicalBuffer = PhysicalAddress;
+    Operation.BufferHandle   = BufferHandle;
+    Operation.BufferOffset   = BufferOffset;
     Operation.SectorCount    = SectorCount;
     
-    // Perform the query
-    Status = QueryDriver(&Contract, __STORAGE_QUERY_READ,
-        &StorageDeviceId, sizeof(UUId_t), 
-        &Operation, sizeof(StorageOperation_t), NULL, 0, 
-        &Result, sizeof(StorageOperationResult_t));
+    IpcInitialize(&Message);
+    
+    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
+    IPC_SET_TYPED(&Message, 1, __STORAGE_TRANSFER);
+    IPC_SET_TYPED(&Message, 2, ContractStorage);
+    IPC_SET_TYPED(&Message, 3, StorageDeviceId);
+    
+    IpcSetUntypedArgument(&Message, 0, &Operation, sizeof(StorageOperation_t));
+    
+    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)&Result);
     if (Status != OsSuccess) {
         return Status;
     }
     
-    *SectorsRead = Result.SectorsTransferred;
-    return Result.Status;
+    *SectorsTransferred = Result->SectorsTransferred;
+    return Result->Status;
 }
 
-/* StorageWrite
- * Sends a write request to the given storage-medium, and attempts to
- * write the number of bytes requested from the given buffer
- * at the absolute sector given. 
- * @PhysicalAddress - Must be the contigious physical address
- *                    buffer that contains the data to write */
-SERVICEAPI OsStatus_t SERVICEABI
-StorageWrite(
-    _In_  UUId_t    Driver,
-    _In_  UUId_t    StorageDevice,
-    _In_  uint64_t  Sector, 
-    _In_  uintptr_t PhysicalAddress,
-    _In_  size_t    SectorCount,
-    _Out_ size_t*   SectorsWritten)
-{
-    MContract_t              Contract;
-    StorageOperation_t       Operation;
-    StorageOperationResult_t Result;
-    OsStatus_t               Status;
-
-    // Initialise contract details
-    Contract.DriverId       = Driver;
-    Contract.Type           = ContractStorage;
-    Contract.Version        = 1;
-
-    // Initialize operation details
-    Operation.Direction      = __STORAGE_OPERATION_WRITE;
-    Operation.AbsoluteSector = Sector;
-    Operation.PhysicalBuffer = PhysicalAddress;
-    Operation.SectorCount    = SectorCount;
-
-    Status = QueryDriver(&Contract, __STORAGE_QUERY_WRITE,
-        &StorageDevice, sizeof(UUId_t), 
-        &Operation, sizeof(StorageOperation_t), NULL, 0, 
-        &Result, sizeof(StorageOperationResult_t));
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    
-    *SectorsWritten = Result.SectorsTransferred;
-    return Result.Status;
-}
-
-#endif //!_CONTRACT_STORAGE_INTERFACE_H_
+#endif //!__DDK_CONTRACT_STORAGE_H__

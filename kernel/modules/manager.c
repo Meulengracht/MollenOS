@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -22,35 +23,19 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
-#include "../../librt/libc/stdio/local.h"
-#include "../../librt/libds/pe/pe.h"
-#include <memoryspace.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
+#include <assert.h>
+#include <debug.h>
+#include <handle.h>
+#include <heap.h>
+#include "../../librt/libds/pe/pe.h"
+#include <memoryspace.h>
 #include <ds/mstring.h>
 #include <threading.h>
-#include <debug.h>
-#include <heap.h>
+#include <string.h>
 
-static Collection_t  Modules               = COLLECTION_INIT(KeyInteger);
-static StdioObject_t ModuleInheriations[2] = { 0 };
-static int           ModuleIdGenerator     = 1;
-
-void
-InitializeModuleInheritationBlock(void)
-{
-    // STDOUT_FILENO
-    ModuleInheriations[0].fd                       = STDOUT_FILENO;
-    ModuleInheriations[0].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
-    ModuleInheriations[0].handle.InheritationType  = STDIO_HANDLE_PIPE;
-    ModuleInheriations[0].handle.InheritationHandle = GetSystemStdOutHandle();
-
-    // STDERR_FILENO
-    ModuleInheriations[1].fd                       = STDERR_FILENO;
-    ModuleInheriations[1].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
-    ModuleInheriations[1].handle.InheritationType  = STDIO_HANDLE_PIPE;
-    ModuleInheriations[1].handle.InheritationHandle = GetSystemStdErrHandle();
-}
+static list_t Modules = LIST_INIT;
 
 OsStatus_t
 RegisterModule(
@@ -65,30 +50,29 @@ RegisterModule(
 {
     SystemModule_t* Module;
 
-    // Allocate a new module header and copy some values 
     Module = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
+    if (!Module) {
+        return OsOutOfMemory;
+    }
+    
     memset(Module, 0, sizeof(SystemModule_t));
-    Module->ListHeader.Key.Value.Integer = (int)Type;
+    ELEMENT_INIT(&Module->ListHeader, Type, Module);
 
-    Module->Handle = ModuleIdGenerator++;
+    Module->Handle = CreateHandle(HandleTypeGeneric, NULL, Module);
     Module->Data   = Data;
     Module->Length = Length;
     Module->Path   = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(Module->Path, Path, StrUTF8);
-
-    Module->InheritanceBlock       = (void*)&ModuleInheriations[0];
-    Module->InheritanceBlockLength = sizeof(ModuleInheriations);
 
     Module->VendorId        = VendorId;
     Module->DeviceId        = DeviceId;
     Module->DeviceClass     = DeviceClass;
     Module->DeviceSubclass  = DeviceSubclass;
     Module->PrimaryThreadId = UUID_INVALID;
-    return CollectionAppend(&Modules, &Module->ListHeader);
+    list_append(&Modules, &Module->ListHeader);
+    return OsSuccess;
 }
 
-/* SpawnServices
- * Loads all system services present in the initial ramdisk. */
 void
 SpawnServices(void)
 {
@@ -101,10 +85,10 @@ SpawnServices(void)
 
     // Iterate module list and spawn all servers
     // then they will "run" the system for us
-    foreach(Node, &Modules) {
-        if (Node->Key.Value.Integer == (int)ServiceResource) {
-            SystemModule_t* Module = (SystemModule_t*)Node;
-            OsStatus_t      Status = SpawnModule((SystemModule_t*)Node);
+    foreach(i, &Modules) {
+        if ((int)(uintptr_t)i->key == (int)ServiceResource) {
+            SystemModule_t* Module = (SystemModule_t*)i->value;
+            OsStatus_t      Status = SpawnModule((SystemModule_t*)i->value);
             if (Status != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %" PRIuIN "", MStringRaw(Module->Path), Status);
             }
@@ -113,9 +97,6 @@ SpawnServices(void)
     InterruptRestoreState(IrqState);
 }
 
-/* GetModuleDataByPath
- * Retrieve a pointer to the file-buffer and its length based on 
- * the given <rd:/> path */
 OsStatus_t
 GetModuleDataByPath(
     _In_  MString_t* Path, 
@@ -125,8 +106,8 @@ GetModuleDataByPath(
     OsStatus_t Result = OsError;
     TRACE("GetModuleDataByPath(%s)", MStringRaw(Path));
 
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Path != NULL) {
             TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
             if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
@@ -141,16 +122,13 @@ GetModuleDataByPath(
     return Result;
 }
 
-/* GetGenericDeviceModule
- * Resolves a device module by it's generic class and subclass instead of a device specific
- * module that is resolved by vendor id and product id. */
 SystemModule_t*
 GetGenericDeviceModule(
     _In_ DevInfo_t DeviceClass, 
     _In_ DevInfo_t DeviceSubclass)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->DeviceClass       == DeviceClass
             && Module->DeviceSubclass == DeviceSubclass) {
             return Module;
@@ -159,8 +137,6 @@ GetGenericDeviceModule(
     return NULL;
 }
 
-/* GetSpecificDeviceModule
- * Resolves a specific device module that is specified by both vendor id and product id. */
 SystemModule_t*
 GetSpecificDeviceModule(
     _In_ DevInfo_t VendorId,
@@ -169,8 +145,8 @@ GetSpecificDeviceModule(
     if (VendorId == 0) {
         return NULL;
     }
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
             return Module;
         }
@@ -178,8 +154,6 @@ GetSpecificDeviceModule(
     return NULL;
 }
 
-/* GetModule
- * Retrieves an existing module instance based on the identification markers. */
 SystemModule_t*
 GetModule(
     _In_  DevInfo_t VendorId,
@@ -187,8 +161,8 @@ GetModule(
     _In_  DevInfo_t DeviceClass,
     _In_  DevInfo_t DeviceSubclass)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->PrimaryThreadId != UUID_INVALID) {
             // Should we check vendor-id && device-id?
             if (VendorId != 0 && DeviceId != 0) {
@@ -204,7 +178,7 @@ GetModule(
                 }
             }
         }
-    }
+    }   
     return NULL;
 }
 
@@ -212,8 +186,8 @@ SystemModule_t*
 GetCurrentModule(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Executable != NULL && 
             AreMemorySpacesRelated(Module->Executable->MemorySpace, 
                 (MemorySpaceHandle_t)Thread->MemorySpace) == OsSuccess) {
@@ -223,9 +197,6 @@ GetCurrentModule(void)
     return NULL;
 }
 
-/* SetModuleAlias
- * Sets the alias for the currently running module. Only the primary thread is allowed to perform
- * this call. */
 OsStatus_t
 SetModuleAlias(
     _In_ UUId_t Alias)
@@ -238,15 +209,12 @@ SetModuleAlias(
     return OsInvalidPermissions;
 }
 
-/* GetModuleByHandle
- * Retrieves a running service/module by it's registered handle. This is usually done
- * by system services to be contactable by applications. */
 SystemModule_t*
 GetModuleByHandle(
     _In_ UUId_t Handle)
 {
-    foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node;
+    foreach(i, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Handle == Handle || Module->Alias == Handle) {
             return Module;
         }

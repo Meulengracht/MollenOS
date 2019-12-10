@@ -25,9 +25,6 @@
 #include <ddk/acpi.h>
 #include <stdlib.h>
 
-/* AcpiQueryStatus
- * Queries basic acpi information and returns either OsSuccess
- * or OsError if Acpi is not supported on the running platform */
 OsStatus_t
 AcpiQueryStatus(
     _In_ AcpiDescriptor_t* AcpiDescriptor)
@@ -35,10 +32,6 @@ AcpiQueryStatus(
     return Syscall_AcpiQuery(AcpiDescriptor);
 }
 
-/* AcpiQueryTable
- * Queries the full table information of the table that matches
- * the given signature, and copies the information to the supplied pointer
- * the buffer is automatically allocated, and should be cleaned up afterwards  */
 OsStatus_t
 AcpiQueryTable(
     _In_  const char*         Signature, 
@@ -56,10 +49,6 @@ AcpiQueryTable(
     return Syscall_AcpiGetTable(Signature, *Table);
 }
 
-/* AcpiQueryInterrupt
- * Queries the interrupt-line for the given bus, device and
- * pin combination. The pin must be zero indexed. Conform flags
- * are returned in the <AcpiConform> */
 OsStatus_t AcpiQueryInterrupt(
     _In_  DevInfo_t Bus,
     _In_  DevInfo_t Device,

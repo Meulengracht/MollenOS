@@ -25,7 +25,6 @@
 #define _CONTRACT_FILESYSTEM_INTERFACE_H_
 
 #include <ddk/contracts/storage.h>
-#include <ddk/buffer.h>
 #include <ddk/driver.h>
 #include <os/mollenos.h>
 
@@ -40,7 +39,7 @@
 #define __FSDECL(Function)          Function
 #endif
 
-typedef struct _MString MString_t;
+typedef struct MString MString_t;
 
 /* FileSystem definitions 
  * Used the describe the various possible flags for the given filesystem */
@@ -172,9 +171,10 @@ __FSAPI FileSystemCode_t
 __FSDECL(FsReadEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  DmaBuffer_t*              BufferObject,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
     _In_  size_t                    UnitCount,
-    _Out_ size_t*                   UnitsAt,
     _Out_ size_t*                   UnitsRead);
 
 /* FsWriteEntry
@@ -184,9 +184,11 @@ __FSAPI FileSystemCode_t
 __FSDECL(FsWriteEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesWritten);
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsWritten);
 
 /* FsSeekInEntry 
  * Seeks in the given entry-handle to the absolute position

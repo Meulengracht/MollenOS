@@ -23,15 +23,9 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ehci.h"
-
-/* Includes
- * - Library */
-#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 

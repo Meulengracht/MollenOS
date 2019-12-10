@@ -407,7 +407,7 @@
 
 #include <ddk/ddkdefs.h>
 
-typedef struct _BytePool BytePool_t;
+typedef struct BytePool BytePool_t;
 
 /* bpool
  * Add a region of memory to the buffer pool. If the pointer to the bytepool is passed as

@@ -29,7 +29,7 @@
 
 /* Binary Semaphore
  * Provides a synchronization method between threads and jobs */
-typedef struct _BinarySemaphore {
+typedef struct BinarySemaphore {
     mtx_t           Mutex;
     cnd_t           Condition;
     int             Value;

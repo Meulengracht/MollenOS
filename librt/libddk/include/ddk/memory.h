@@ -25,7 +25,6 @@
 #define __MEMORY_INTERFACE__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/buffer.h>
 
 struct MemoryMappingParameters {
     uintptr_t VirtualAddress;

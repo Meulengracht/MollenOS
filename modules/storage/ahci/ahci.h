@@ -27,15 +27,14 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/dmabuf.h>
 #include <ds/collection.h>
 #include <ddk/contracts/base.h>
 #include <ddk/contracts/storage.h>
 #include <ddk/interrupt.h>
 #include <ddk/device.h>
-#include <ddk/buffer.h>
 
-/* Includes
- * - Sata */
+// SATA includes
 #include <commands.h>
 #include <sata.h>
 
@@ -45,11 +44,6 @@
 #define AHCI_REGISTER_PORTBASE(Port)    (0x100 + (Port * 0x80))
 #define AHCI_MAX_PORTS                  32
 #define AHCI_RECIEVED_FIS_SIZE          256
-
-/* How much we should allocate for each port */
-#define AHCI_COMMAND_TABLE_PRDT_COUNT   32
-#define AHCI_COMMAND_TABLE_SIZE         (128 + (16 * AHCI_COMMAND_TABLE_PRDT_COUNT))
-#define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024)
 
 PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                Capabilities;
@@ -69,7 +63,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
 });
 
 PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
-    reg32_t                CmdListBaseAddress;
+    reg32_t                CmdListBaseAddress;       // 1K Aligned
     reg32_t                CmdListBaseAddressUpper;
     reg32_t                FISBaseAddress;
     reg32_t                FISBaseAdressUpper;
@@ -98,7 +92,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
 /* The Physical Region Descriptor Table 
  * Describes a scatter/gather list for data transfers. */
 PACKED_TYPESTRUCT(AHCIPrdtEntry, {
-    reg32_t DataBaseAddress;
+    reg32_t DataBaseAddress;       // Must be word aligned, bit 0 MUST be clear
     reg32_t DataBaseAddressUpper;
     reg32_t Reserved;
 
@@ -107,7 +101,10 @@ PACKED_TYPESTRUCT(AHCIPrdtEntry, {
      * Bit 31: Interrupt on Completion */
     reg32_t Descriptor;
 });
-#define AHCI_PRDT_IOC            (1 << 31)  // Interrupt on Completion
+#define AHCI_PRDT_IOC (1 << 31)  // Interrupt on Completion
+
+#define AHCI_COMMAND_TABLE_PRDT_SIZE    16 // == sizeof(AHCIPrdtEntry_t)
+#define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024) // Max number of bytes per PRDT
 
 /* The command table which is pointed to by a Command list header, 
  * and this table contains a given number of FIS, 128 bytes */
@@ -117,6 +114,10 @@ PACKED_TYPESTRUCT(AHCICommandTable, {
     uint8_t         Reserved[48];
     AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries of PRDT
 });
+
+#define AHCI_COMMAND_TABLE_HEADER_SIZE  128 // == sizeof(AHCICommandTable_t)
+#define AHCI_COMMAND_TABLE_PRDT_COUNT   ((4096 - AHCI_COMMAND_TABLE_HEADER_SIZE) / AHCI_COMMAND_TABLE_PRDT_SIZE)
+#define AHCI_COMMAND_TABLE_SIZE         4096 // Use an entire page of memory on 4kb systems
 
 /* The command list entry structure 
  * Contains a command for the port to execute */
@@ -135,8 +136,8 @@ PACKED_TYPESTRUCT(AHCICommandHeader, {
     uint16_t TableLength;    // (PRDT) Physical Region Descriptor Table Length
     uint32_t PRDByteCount;   // PRDBC: PRD Byte Count
 
-    uint32_t CmdTableBaseAddress;
-    uint32_t CmdTableBaseAddressUpper;
+    uint32_t CmdTableBaseAddress;      // 128 Bytes Alignment
+    uint32_t CmdTableBaseAddressUpper;            
     uint32_t Reserved[4];
 });
 
@@ -311,27 +312,20 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 #define AHCI_PORT_SSTS_DET_ENABLED          0x3
 #define AHCI_PORT_SSTS_DET_DISABLED         0x4
 
-/* The AHCI Controller Port 
- * Contains all memory structures neccessary for port transactions */
 typedef struct _AhciPort {
     int                     Id;
     int                     Index;
     int                     MultiplierIndex;
-
     int                     Connected;
-
     AHCIPortRegisters_t*    Registers;
-    AHCICommandList_t*      CommandList;
-    AHCIFis_t*              RecievedFisTable;
-    AHCIFis_t*              RecievedFis;
-    void*                   CommandTable;
+    
+    struct dma_attachment   InternalBuffer;
+    struct dma_attachment   CommandListDMA;
+    struct dma_attachment   CommandTableDMA;
+    struct dma_attachment   RecievedFisDMA;
 
-    // Status of command slots
-    // There can be max 32 slots, so we use a 32 bit unsigned
-    uint32_t                SlotStatus;
-
-    // Transactions for this port 
-    // Keeps track of active transfers. Key -> Slot, SubKey -> Multiplier
+    _Atomic(int)            Slots;
+    int                     SlotCount;
     Collection_t*           Transactions;
 } AhciPort_t;
 
@@ -343,9 +337,6 @@ typedef struct _AhciInterruptResource {
     reg32_t                 PortInterruptStatus[AHCI_MAX_PORTS];
 } AhciInterruptResource_t;
 
-/* The AHCI Controller 
- * It contains all information neccessary 
- * for us to use it for our functions */
 typedef struct _AhciController {
     MCoreDevice_t           Device;
     MContract_t             Contract;
@@ -359,33 +350,8 @@ typedef struct _AhciController {
     AhciPort_t*             Ports[AHCI_MAX_PORTS];
     uint32_t                ValidPorts;
     int                     PortCount;
-
     size_t                  CommandSlotCount;
-    void*                   CommandListBase;
-    uintptr_t               CommandListBasePhysical;
-    void*                   CommandTableBase;
-    uintptr_t               CommandTableBasePhysical;
-    void*                   FisBase;
-    uintptr_t               FisBasePhysical;
 } AhciController_t;
-
-/* The AHCI Device Structure 
- * This describes an attached ahci device 
- * and the information neccessary to deal with it */
-typedef struct _AhciDevice {
-    StorageDescriptor_t     Descriptor;
-
-    AhciController_t*       Controller;
-    AhciPort_t*             Port;
-    DmaBuffer_t*            Buffer;
-    int                     Index;
-
-    int                     Type;                // 0 -> ATA, 1 -> ATAPI
-    int                     UseDMA;
-    uint64_t                SectorsLBA;
-    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
-    size_t                  SectorSize;
-} AhciDevice_t;
 
 /* AhciControllerCreate
  * Registers a new controller with the AHCI driver */
@@ -432,7 +398,7 @@ AhciPortFinishSetup(
 /* AhciPortRebase
  * Rebases the port by setting up allocated memory tables and command memory. This can only be done
  * when the port is in a disabled state. */
-__EXTERN void
+__EXTERN OsStatus_t
 AhciPortRebase(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
@@ -444,20 +410,15 @@ AhciPortStart(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
-/* AhciPortAcquireCommandSlot
- * Allocates an available command slot on a port returns index on success, OsError */
-__EXTERN OsStatus_t
-AhciPortAcquireCommandSlot(
-    _In_  AhciController_t* Controller, 
-    _In_  AhciPort_t*       Port,
-    _Out_ int*              Index);
+OsStatus_t
+AhciPortAllocateCommandSlot(
+    _In_  AhciPort_t* Port,
+    _Out_ int*        SlotOut);
 
-/* AhciPortReleaseCommandSlot
- * Deallocates a previously allocated command slot */
-__EXTERN void
-AhciPortReleaseCommandSlot(
-    _In_ AhciPort_t*        Port, 
-    _In_ int                Slot);
+void
+AhciPortFreeCommandSlot(
+    _In_ AhciPort_t* Port,
+    _In_ int         Slot);
 
 /* AhciPortStartCommandSlot
  * Starts a command slot on the given port */

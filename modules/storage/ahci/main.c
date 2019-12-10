@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -25,6 +25,7 @@
 
 #include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
+#include <os/ipc.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
@@ -41,10 +42,10 @@ OnFastInterrupt(
     _In_ FastInterruptResources_t*  InterruptTable,
     _In_ void*                      Reserved)
 {
-    AhciInterruptResource_t* Resource = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    AHCIGenericRegisters_t* Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
-    reg32_t InterruptStatus;
-    int i;
+    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    reg32_t                  InterruptStatus;
+    int                      i;
     _CRT_UNUSED(Reserved);
 
     // Skip processing immediately if the interrupt was not for us
@@ -95,18 +96,15 @@ HandleInterrupt:
     }
 }
 
-/* OnLoad
- * The entry-point of a driver, this is called as soon as the driver is loaded in the system */
 OsStatus_t
 OnLoad(void)
 {
+    // If AhciManagerInitialize should fail, then the OnUnload will
+    // be called automatically
     sigprocess(SIGINT, OnInterrupt);
     return AhciManagerInitialize();
 }
 
-/* OnUnload
- * This is called when the driver is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
 OnUnload(void)
 {
@@ -119,9 +117,6 @@ OnUnload(void)
     return AhciManagerDestroy();
 }
 
-/* OnRegister
- * Is called when the device-manager registers a new
- * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t* Device)
@@ -129,7 +124,6 @@ OnRegister(
     AhciController_t* Controller;
     DataKey_t         Key = { .Value.Id = Device->Id };
     
-    // Register the new controller
     Controller = AhciControllerCreate(Device);
     if (Controller == NULL) {
         return OsError;
@@ -137,111 +131,76 @@ OnRegister(
     return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
-/* OnUnregister
- * Is called when the device-manager wants to unload
- * an instance of this driver from the system */
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t*                 Device)
+    _In_ MCoreDevice_t* Device)
 {
-    // Variables
-    AhciController_t *Controller = NULL;
-    DataKey_t Key = { .Value.Id = Device->Id };
+    AhciController_t* Controller;
+    DataKey_t         Key = { .Value.Id = Device->Id };
+    
     Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
     if (Controller == NULL) {
-        return OsError;
+        return OsDoesNotExist;
     }
+    
     CollectionRemoveByKey(&Controllers, Key);
     return AhciControllerDestroy(Controller);
 }
 
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-    _In_     MContractType_t        QueryType, 
-    _In_     int                    QueryFunction, 
-    _In_Opt_ MRemoteCallArgument_t* Arg0,
-    _In_Opt_ MRemoteCallArgument_t* Arg1,
-    _In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
-    // Unused params
-    _CRT_UNUSED(Arg2);
-
-    // Sanitize the QueryType
-    if (QueryType != ContractStorage) {
+    if (IPC_GET_TYPED(Message, 1) != ContractStorage) {
         return OsError;
     }
 
-    TRACE("Ahci.OnQuery(%i)", QueryFunction);
+    TRACE("Ahci.OnQuery(%i)", IPC_GET_TYPED(Message, 2));
 
     // Which kind of function has been invoked?
-    switch (QueryFunction) {
+    switch (IPC_GET_TYPED(Message, 2)) {
         // Query stats about a disk identifier in the form of
         // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
             AhciDevice_t*       Device;
             StorageDescriptor_t NullDescriptor;
-            UUId_t              DiskId = (UUId_t)Arg0->Data.Value;
+            UUId_t              DiskId = (UUId_t)IPC_GET_TYPED(Message, 1);
 
-            // Lookup device
             Device = AhciManagerGetDevice(DiskId);
             if (Device != NULL) {
-                return RPCRespond(Address, (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
+                return IpcReply(Message, &NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
 
             // Read or write sectors from a disk identifier
             // They have same parameters with different direction
-        case __STORAGE_QUERY_WRITE:
-        case __STORAGE_QUERY_READ: {
+        case __STORAGE_TRANSFER: {
             // Get parameters
-            StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-            UUId_t                   DiskId    = (UUId_t)Arg0->Data.Value;
+            StorageOperation_t*      Operation = (StorageOperation_t*)IPC_GET_UNTYPED(Message, 0);
+            UUId_t                   DiskId    = (UUId_t)IPC_GET_TYPED(Message, 1);
             AhciDevice_t*            Device    = AhciManagerGetDevice(DiskId);
             StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
-            AhciTransaction_t*       Transaction;
             
             if (Device == NULL) {
-                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
             }
-
-            // Create a new transaction
-            Transaction  = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-            memset((void*)Transaction, 0, sizeof(AhciTransaction_t));
-            memcpy((void*)&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
-            Transaction->Address     = Operation->PhysicalBuffer;
-            Transaction->SectorCount = Operation->SectorCount;
-            Transaction->Device      = Device;
-
-            // Determine the kind of operation
-            if (Operation->Direction == __STORAGE_OPERATION_READ) {
-                Result.Status = AhciReadSectors(Transaction, Operation->AbsoluteSector);
-            }
-            else if (Operation->Direction == __STORAGE_OPERATION_WRITE) {
-                Result.Status = AhciWriteSectors(Transaction, Operation->AbsoluteSector);
-            }
-
-            // Only return immediately if there was an error
+            
+            // Create the requested transaction
+            Result.Status = AhciTransactionStorageCreate(Device, Message->Sender, Operation);
             if (Result.Status != OsSuccess) {
-                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
             }
-            else {
-                return OsSuccess;
-            }
-
+            
+            return OsSuccess;
         } break;
 
         // Other cases not supported
         default: {
-            return OsError;
+            return OsNotSupported;
         }
     }
 }

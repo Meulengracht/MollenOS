@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,28 +17,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
  */
 //#define __TRACE
 //#define __DIAGNOSE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include "ehci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* EhciTransactionDispatch
- * Queues the transfer up in the controller hardware, after finalizing the
- * transactions and preparing them. */
 UsbTransferStatus_t
 EhciTransactionDispatch(
     _In_ EhciController_t*      Controller,
@@ -56,9 +48,6 @@ EhciTransactionDispatch(
     return TransferQueued;
 }
 
-/* HciTransactionFinalize
- * Finalizes a transfer by cleaning up resources allocated. This should free
- * all elements and unschedule elements. */
 OsStatus_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t*    Controller,
@@ -86,8 +75,6 @@ HciTransactionFinalize(
     return OsSuccess;
 }
 
-/* HciDequeueTransfer
- * Removes a queued transfer from the controller's transfer list */
 UsbTransferStatus_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t*      Transfer)

@@ -134,7 +134,7 @@ OhciQhLink(
     _In_ OhciQueueHead_t*  Qh)
 {
     OhciQueueHead_t* RootQh        = NULL;
-    reg32_t          CommandStatus = ReadVolatile32(&Controller->Registers->HcCommandStatus);
+    reg32_t          CommandStatus = READ_VOLATILE(Controller->Registers->HcCommandStatus);
 
     // Switch based on type of transfer
     if (Type == ControlTransfer) {

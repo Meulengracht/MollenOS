@@ -52,8 +52,15 @@ CpuDetect64:
         xor     eax, eax
         ret
 
+; edi - location of page-table
+; ebx - physical address start
 CpuIdentityMapPageTable:
+    push edi
+    push ebx
+    push ecx
+    
     ; Mark the pages for PAGE_PRESENT | PAGE_WRITE
+    and     edi, 0xFFFFF000 ; PAGE_MASK
     or      ebx, 0x00000003
     mov     ecx, 512
     .SetPageTableEntry:
@@ -61,6 +68,27 @@ CpuIdentityMapPageTable:
         add     ebx, 0x00001000
         add     edi, 8
         loop    .SetPageTableEntry
+        
+    pop ecx
+    pop ebx
+    pop edi
+    ret
+
+; edi - location of page-directory
+; ebx - physical address start
+; ecx - length
+CpuIdentityMapPageDirectory:
+    mov esi, edi        ; esi points to page directory
+    add edi, 0x1000     ; next physical address for page-table
+    or  edi, 0x00000003 ; set PAGE_PRESENT | PAGE_WRITE
+    .SetPageDirectoryEntry:
+        mov dword [esi], edi
+        call CpuIdentityMapPageTable
+        
+        add edi, 0x1000  ; edi points to next page table
+        add esi, 8       ; esi points to next entry in page directory
+        add ebx, PT_SIZE ; ebx points to next physical address start
+        loop .SetPageDirectoryEntry
     ret
 
 ; **************************
@@ -76,37 +104,38 @@ CpuSetupLongMode:
 
     ; Initialize the PM4LT and set CR3 to it
     ; This zeroes out all memory needed for paging 
-    mov     edi, MEMLOCATION_PML4T
+    mov     ebx, MEMLOCATION_PML4T
+    
+    mov     edi, ebx
     mov     cr3, edi
     xor     eax, eax
     mov     ecx, 0x1400
     rep     stosd
-    mov     edi, cr3
 
     ; Make PM4LT[0] => PDPT and set PAGE_PRESENT | PAGE_WRITE
-    mov     dword [edi], MEMLOCATION_PDPT
+    mov     edi, ebx
+    add     ebx, 0x1000
+    mov     dword [edi], ebx
     or      dword [edi], 0x00000003
 
     ; Make PDPT[0] => PDT and set PAGE_PRESENT | PAGE_WRITE
-    mov     edi, MEMLOCATION_PDPT
-    mov     dword [edi], MEMLOCATION_PDT
+    mov     edi, ebx
+    add     ebx, 0x1000
+    mov     dword [edi], ebx
     or      dword [edi], 0x00000003
 
-    ; Make PDT[0] => PT and set PAGE_PRESENT | PAGE_WRITE
-    mov     edi, MEMLOCATION_PDT
-    mov     dword [edi], MEMLOCATION_PT
-    or      dword [edi], 0x00000003
-    mov     dword [edi + 8], MEMLOCATION_PT2
-    or      dword [edi + 8], 0x00000003
+    ; ebx - initial physical address
+    ; edi - location of page-directory
+    ; ecx - count
+    xor    edx, edx
+    mov    eax, IDENTITY_MAP_RANGE
+    mov    edi, ebx
+    mov    ecx, PT_SIZE
+    div    ecx
+    mov    ecx, eax
+    xor    ebx, ebx
+    call   CpuIdentityMapPageDirectory
 
-    ; Setup the page-table to be identity mapped to the first 4mb
-    mov     edi, MEMLOCATION_PT
-    mov     ebx, 0x00000000
-    call    CpuIdentityMapPageTable
-    mov     edi, MEMLOCATION_PT2
-    mov     ebx, 0x00200000
-    call    CpuIdentityMapPageTable
-    
     ; Enable PAE paging
     mov     eax, cr4
     or      eax, 0x20

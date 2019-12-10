@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -16,71 +17,31 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "ohci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* OhciTransactionCount
- * Returns the number of transactions neccessary for the transfer. */
-static OsStatus_t
-OhciTransactionCount(
-    _In_  OhciController_t*     Controller,
-    _In_  UsbManagerTransfer_t* Transfer,
-    _Out_ int*                  TransactionsTotal)
-{
-    // Variables
-    uintptr_t BufferIterator    = Transfer->Transfer.Transactions[0].BufferAddress;
-    size_t BytesToTransfer      = Transfer->Transfer.Transactions[0].Length;
-    int Count                   = 0;
-
-    while (BytesToTransfer) {
-        // Calculate how many bytes this td can transfer for us
-        // it can at max span 2 pages = 8K. 8x1023. BUT only if the page
-        // is starting at 0.
-        size_t BytesStep    = 0x2000 - (BufferIterator & 0xFFF); // Maximum
-        BytesStep           = MIN(BytesStep, (8 * Transfer->Transfer.Endpoint.MaxPacketSize)); // Adjust
-        BytesStep           = MIN(BytesStep, BytesToTransfer); // Adjust again
-        Count++;
-
-        // Update iterators
-        BytesToTransfer -= BytesStep;
-        BufferIterator  += BytesStep;
-    }
-
-    *TransactionsTotal = Count;
-    return OsSuccess;
-}
-
-/* OhciTransferFill 
- * Fills the transfer with as many transfer-descriptors as possible/needed. */
 static OsStatus_t
 OhciTransferFill(
-    _In_ OhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ OhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    OhciIsocTransferDescriptor_t *PreviousTd    = NULL;
-    OhciIsocTransferDescriptor_t *ZeroTd        = NULL;
-    OhciIsocTransferDescriptor_t *Td            = NULL;
-    UsbTransactionType_t Type                   = Transfer->Transfer.Transactions[0].Type;
-    uintptr_t BufferIterator                    = Transfer->Transfer.Transactions[0].BufferAddress;
-    size_t BytesToTransfer                      = Transfer->Transfer.Transactions[0].Length;
-    OhciQueueHead_t *Qh                         = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
+    OhciIsocTransferDescriptor_t* PreviousTd = NULL;
+    OhciIsocTransferDescriptor_t* ZeroTd     = NULL;
+    OhciQueueHead_t*              Qh         = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
+    
+    UsbTransactionType_t Type            = Transfer->Transfer.Transactions[0].Type;
+    size_t               BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
+    size_t               MaxBytesPerDescriptor;
 
     // Debug
     TRACE("OhciTransferFill()");
@@ -88,35 +49,51 @@ OhciTransferFill(
     // Start out by retrieving the zero td
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_iTD_POOL,
         OHCI_iTD_NULL, (uint8_t**)&ZeroTd, NULL);
+    
+    // Calculate mpd
+    MaxBytesPerDescriptor = Transfer->Transfer.Endpoint.MaxPacketSize * 8;
 
     while (BytesToTransfer) {
-        // Calculate how many bytes this td can transfer for us
-        // it can at max span 2 pages = 8K. 8x1024. BUT only if the page
-        // is starting at 0.
-        size_t BytesStep    = 0x2000 - (BufferIterator & 0xFFF); // Maximum
-        BytesStep           = MIN(BytesStep, (8 * Transfer->Transfer.Endpoint.MaxPacketSize)); // Adjust
-        BytesStep           = MIN(BytesStep, BytesToTransfer); // Adjust again
-
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
-            OhciTdIsochronous(Td, Transfer->Transfer.Endpoint.MaxPacketSize, 
-                (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), BufferIterator, BytesStep);
+        OhciIsocTransferDescriptor_t* iTd;
+        uintptr_t                     AddressPointer;
+        size_t                        BytesStep;
+        
+        // Out of three different limiters we must select the lowest one. Either
+        // we must transfer lower bytes because of the requested amount, or the limit
+        // of a descriptor, or the limit of the DMA table
+        BytesStep = MIN(BytesToTransfer, MaxBytesPerDescriptor);
+        BytesStep = MIN(BytesStep, Transfer->Transactions[0].DmaTable.entries[
+            Transfer->Transactions[0].SgIndex].length - Transfer->Transactions[0].SgOffset);
+        
+        AddressPointer = Transfer->Transactions[0].DmaTable.entries[
+            Transfer->Transactions[0].SgIndex].address + Transfer->Transactions[0].SgOffset;
+        
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OsSuccess) {
+            OhciTdIsochronous(iTd, Transfer->Transfer.Endpoint.MaxPacketSize, 
+                (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
         }
 
         // If we didn't allocate a td, we ran out of 
         // resources, and have to wait for more. Queue up what we have
-        if (Td == NULL) {
+        if (iTd == NULL) {
             TRACE(" > Failed to allocate descriptor");
             break;
         }
         else {
             UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
-                (uint8_t*)Qh, OHCI_iTD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
-            PreviousTd = Td;
+                (uint8_t*)Qh, OHCI_iTD_POOL, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+            PreviousTd = iTd;
         }
 
-        // Update iterators
+        // Increase the DmaTable metrics
+        Transfer->Transactions[0].SgOffset += BytesStep;
+        if (Transfer->Transactions[0].SgOffset == 
+                Transfer->Transactions[0].DmaTable.entries[
+                    Transfer->Transactions[0].SgIndex].length) {
+            Transfer->Transactions[0].SgIndex++;
+            Transfer->Transactions[0].SgOffset = 0;
+        }
         BytesToTransfer -= BytesStep;
-        BufferIterator  += BytesStep;
     }
 
     // If we ran out of resources it can be pretty serious
@@ -126,28 +103,23 @@ OhciTransferFill(
             (uint8_t*)Qh, OHCI_iTD_POOL, (uint8_t*)ZeroTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
         
         // Enable ioc
-        PreviousTd->Flags           &= ~OHCI_TD_IOC_NONE;
-        PreviousTd->OriginalFlags   = PreviousTd->Flags;
+        PreviousTd->Flags         &= ~OHCI_TD_IOC_NONE;
+        PreviousTd->OriginalFlags = PreviousTd->Flags;
         return OsSuccess;
     }
-    else {
-        return OsError; // Queue up for later
-    }
+    
+    // Queue up for later
+    return OsError;
 }
 
-/* HciQueueTransferIsochronous 
- * Queues a new isochronous transfer for the given driver and pipe. 
- * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    OhciQueueHead_t *EndpointDescriptor     = NULL;
-    OhciController_t *Controller            = NULL;
-    DataKey_t Key;
+    OhciQueueHead_t*  EndpointDescriptor = NULL;
+    OhciController_t* Controller;
+    DataKey_t         Key;
 
-    // Get Controller
     Controller          = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status    = TransferNotProcessed;
 
@@ -174,7 +146,6 @@ HciQueueTransferIsochronous(
     Key.Value.Integer = (int)Transfer->Id;
     if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
         CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
-        OhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
     }
 
     // If it fails to queue up => restore toggle

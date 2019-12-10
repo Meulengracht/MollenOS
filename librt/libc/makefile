@@ -26,13 +26,14 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard mem/*.c) \
        		  $(wildcard string/*.c) \
        		  $(wildcard ctype/common/*.c) \
-       		  $(wildcard stdio/common/*.c) \
+       		  $(wildcard stdio/stream/*.c) \
        		  $(wildcard time/common/*.c)
 
 COMMON_INCS = -I../include -Iinclude -I../libm/include -I../libds/include -I../libddk/include
 
 LIBK_SRCS = os/synchronization/spinlock.c \
 			locale/locale.c \
+       		stdio/libc_io.c \
 			stdlib/itoa.c \
 			stdlib/strtoul.c \
 			stdlib/abs.c \
@@ -43,6 +44,10 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 			$(wildcard getopt/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \
+			$(wildcard stdio/file/*.c) \
+			$(wildcard stdio/inet/*.c) \
+			$(wildcard stdio/inet/domains/*.c) \
+			$(wildcard stdio/io/*.c) \
 			$(wildcard stdio/keymaps/*.c) \
 			$(wildcard stdio/*.c) \
 			$(wildcard stdlib/*.c) \
@@ -62,7 +67,7 @@ LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 LIBC_DEPENDENCIES = ../build/crt.lib ../build/compiler-rt.lib ../build/m.lib ../build/libds.lib ../build/ddk.lib
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
-LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
+LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
 LIBK_LFLAGS = /lib
 
 LIBC_CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(COMMON_INCS)

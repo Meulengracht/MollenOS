@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../include -I../libc/include -Iinclude
+INCLUDES = -I../include -I../libc/include -I../libds/include -Iinclude
 
 # Setup architecture specific flags and paths
 ifeq ($(VALI_ARCH), i386)

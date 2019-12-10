@@ -23,17 +23,13 @@
 #ifndef _X86_PCI_H_
 #define _X86_PCI_H_
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 #include <ddk/io.h>
 
-/* Definitions */
 #define X86_PCI_SELECT		0xCF8
 #define X86_PCI_DATA		0xCFC
 
-/* Structures */
-typedef struct _PciNativeHeader
+typedef struct PciNativeHeader
 {
 	/* 0x00 */
 	uint16_t VendorId;
@@ -91,8 +87,7 @@ typedef struct _PciNativeHeader
 
 } PciNativeHeader_t;
 
-/* The Bus Header */
-typedef struct _PciBus {
+typedef struct PciBus {
 	DeviceIo_t* IoSpace;
 	uint32_t    IsExtended;
 
@@ -101,33 +96,19 @@ typedef struct _PciBus {
 	uint32_t    BusEnd;
 } PciBus_t;
 
-/* The Driver Header */
-typedef struct _PciDevice
-{
-	/* Pointer to our parent
-	* which is a bridge */
-	struct _PciDevice *Parent;
-
-	/* Type */
-	uint32_t Type;
-
-	/* Bus Io */
-	PciBus_t *PciBus;
+typedef struct PciDevice {
+	struct PciDevice* Parent;
+	uint32_t          Type;
+	PciBus_t*         PciBus;
 
 	/* Location */
 	uint32_t Bus;
 	uint32_t Slot;
 	uint32_t Function;
-
-	/* Information (Header) */
 	PciNativeHeader_t *Header;
-
-	/* Children (list.h) */
-	void *Children;
-
+	void *Children;  /* Children (list.h) */
 } PciDevice_t;
 
-/* Types */
 #define X86_PCI_TYPE_BRIDGE		0x1
 #define X86_PCI_TYPE_DEVICE		0x2
 

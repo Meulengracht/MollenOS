@@ -665,23 +665,26 @@ EhciQhRestart(
  * This allocates & initializes a TD for a setup transaction 
  * this is only used for control transactions */
 __EXTERN
-void
+size_t
 EhciTdSetup(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td,
-    _In_ UsbTransaction_t*          Transaction);
+    _In_ EhciController_t*         Controller,
+    _In_ EhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length);
 
 /* EhciTdIo
  * This allocates & initializes a TD for an i/o transaction 
  * and is used for control, bulk and interrupt */
 __EXTERN
-void
+size_t
 EhciTdIo(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td,
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ UsbTransaction_t*          Transaction,
-    _In_ int                        Toggle);
+    _In_ EhciController_t*         Controller,
+    _In_ EhciTransferDescriptor_t* Td,
+    _In_ size_t                    MaxPacketSize,
+    _In_ UsbTransactionType_t      Direction,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length,
+    _In_ int                       Toggle);
 
 /* EhciTdDump
  * Dumps the information contained in the descriptor by writing it. */

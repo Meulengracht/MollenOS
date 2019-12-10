@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011 - 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
@@ -24,6 +25,7 @@
 #ifndef __USB_OHCI__
 #define __USB_OHCI__
 
+#include <os/dmabuf.h>
 #include <os/osdefs.h>
 #include <ddk/contracts/usbhost.h>
 #include <ds/collection.h>
@@ -285,8 +287,9 @@ typedef struct {
 
     // Registers and resources
     OhciRegisters_t*        Registers;
+    struct dma_attachment   HccaDMA;
+    struct dma_sg_table     HccaDMATable;
     OhciHCCA_t*             Hcca;
-    reg32_t                 HccaPhysical;
 
     // State information
     size_t                  PowerOnDelayMs;
@@ -380,15 +383,16 @@ OhciQhLink(
 /* OhciTdSetup 
  * Creates a new setup token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 OhciTdSetup(
-    _In_ UsbTransaction_t*          Transaction,
-    _In_ OhciTransferDescriptor_t*  Td);
+    _In_ OhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 Address,
+    _In_ size_t                    Length);
 
 /* OhciTdIo 
  * Creates a new io token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN void
+__EXTERN size_t
 OhciTdIo(
     _In_ OhciTransferDescriptor_t*  Td,
     _In_ UsbTransferType_t          Type,

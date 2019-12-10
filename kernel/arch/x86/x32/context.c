@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -18,6 +19,7 @@
  *
  * X86-32 Thread Contexts
  */
+
 #define __MODULE "CTXT"
 //#define __TRACE
 
@@ -30,6 +32,7 @@
 #include <log.h>
 #include <os/context.h>
 #include <memory.h>
+#include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
 #include <threading.h>
@@ -194,6 +197,7 @@ Context_t*
 ContextCreate(
     _In_ int ContextType)
 {
+    uintptr_t PhysicalContextAddress;
     uintptr_t ContextAddress = 0;
 
 	// Select proper segments based on context type and run-mode
@@ -209,7 +213,8 @@ ContextCreate(
         else {
 		    ContextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
         }
-        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
+        MemorySpaceCommit(GetCurrentMemorySpace(), ContextAddress, 
+            &PhysicalContextAddress, GetMemorySpacePageSize(), 0);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -18,6 +19,7 @@
  *
  * Threading Signal Implementation
  */
+
 #define __MODULE "SIG0"
 //#define __TRACE
 
@@ -83,8 +85,9 @@ SignalQueue(
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    MCoreThread_t* Target   = GetThread(ThreadId);
+    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
     int            Expected = SIGNAL_FREE;
+    int            Result;
     TRACE("SignalQueue(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
@@ -93,8 +96,10 @@ SignalQueue(
         return OsInvalidParameters; // Invalid
     }
     
-    if (!atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
-            &Expected, SIGNAL_ALLOCATED)) {
+    Result = atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
+        &Expected, SIGNAL_ALLOCATED);
+    if (!Result) {
+        TRACE("Signal was already pending");
         return OsExists; // Ignored, already pending
     }
     
@@ -105,6 +110,7 @@ SignalQueue(
     
     // Wake up thread if neccessary
     if (!Target->HandlingSignals) {
+        TRACE("Waking up object");
         SchedulerExpediteObject(Target->SchedulerObject);
     }
     return OsSuccess;
@@ -189,7 +195,9 @@ SignalProcess(
     
     // Process all the signals
     for (i = 0; i < NUMSIGNALS; i++) {
-        int Status = atomic_load(&Thread->Signals[i].Status);
+        int Status;
+        
+        Status = atomic_load(&Thread->Signals[i].Status);
         if (Status == SIGNAL_PENDING) {
             void* Argument = atomic_load(&Thread->Signals[i].Information);
             // Prepare initial stack state

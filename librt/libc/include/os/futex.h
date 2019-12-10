@@ -33,4 +33,7 @@
 #define FUTEX_WAKE_PRIVATE      0x4
 #define FUTEX_WAKE_OP           0x8
 
+//int futex(int *uaddr, int op, int val, const struct timespec *timeout,
+//          int *uaddr2, int val3);
+
 #endif //!__OS_FUTEX_H__

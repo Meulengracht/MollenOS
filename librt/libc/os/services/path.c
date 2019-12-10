@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,34 +24,63 @@
 
 #include <ddk/services/file.h>
 #include <os/services/path.h>
-#include <os/services/targets.h>
+#include <os/services/process.h>
+#include <os/ipc.h>
 
 OsStatus_t
 PathResolveEnvironment(
-    _In_  EnvironmentPath_t Base,
-    _Out_ char*             Buffer,
-    _In_  size_t            MaxLength)
+    _In_ EnvironmentPath_t Base,
+    _In_ char*             Buffer,
+    _In_ size_t            MaxLength)
 {
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHRESOLVE);
-    RPCSetArgument(&Request, 0, (const void*)&Base, sizeof(EnvironmentPath_t));
-    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
-    return RPCExecute(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+    char*        Result;
+	
+	if (!Buffer) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_PATHRESOLVE);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Base);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(MaxLength, strlen(&Result[0])));
+	return OsSuccess;
 }
 
 OsStatus_t
 PathCanonicalize(
-    _In_  const char* Path,
-    _Out_ char*       Buffer,
-    _In_  size_t      MaxLength)
+    _In_ const char* Path,
+    _In_ char*       Buffer,
+    _In_ size_t      MaxLength)
 {
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHCANONICALIZE);
-    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
-    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
-    return RPCExecute(&Request);
+	thrd_t       ServiceTarget = GetFileService();
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+    char*        Result;
+	
+	if (!Path || !Buffer) {
+	    return OsInvalidParameters;
+	}
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __FILEMANAGER_PATHCANONICALIZE);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_UNTYPED_STRING(&Request, 0, Path);
+	
+	Status = IpcInvoke(ServiceTarget, &Request, 0, 0, (void**)&Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	
+	memcpy(Buffer, Result, MIN(MaxLength, strlen(&Result[0])));
+	return OsSuccess;
 }

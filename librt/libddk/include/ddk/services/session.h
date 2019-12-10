@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -25,39 +26,22 @@
 #define __DDK_SERVICES_SESSION_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/ipc/ipc.h>
-#include <os/types/session.h>
+#include <ddk/services/service.h>
 
-// IPC Function Declarations
-#define __SESSIONMANAGER_REGISTER          IPC_DECL_FUNCTION(0)
-#define __SESSIONMANAGER_UNREGISTER        IPC_DECL_FUNCTION(1)
-#define __SESSIONMANAGER_LOOKUP			   IPC_DECL_FUNCTION(2)
-#define __SESSIONMANAGER_NEWDEVICE         IPC_DECL_FUNCTION(3)
-#define __SESSIONMANAGER_LOGIN             IPC_DECL_FUNCTION(4)
-#define __SESSIONMANAGER_LOGOUT            IPC_DECL_FUNCTION(5)
+#define __SESSIONMANAGER_NEWDEVICE         (int)0
+#define __SESSIONMANAGER_LOGIN             (int)1
+#define __SESSIONMANAGER_LOGOUT            (int)2
 
 _CODE_BEGIN
-/* RegisterServiceObject
- * Registers a new service object with the session manager, which is then accessible
- * to the rest of the system for RPC activity. */
-DDKDECL(OsStatus_t,
-RegisterServiceObject(
-	_In_  const char*           Name,
-	_In_  ServiceCapabilities_t Capabilities,
-	_In_  UUId_t                ChannelHandle,
-	_Out_ UUId_t*               ServiceHandle));
 
-/* UnregisterServiceObject
- * Registers a previously registered service handle from the system. */
-DDKDECL(OsStatus_t,
-UnregisterServiceObject(
-	_In_ UUId_t ServiceHandle));
-
-/* SessionCheckDisk
- * Notifies the sessionmanager if a new accessible system disk. */
+/**
+ * SessionCheckDisk
+ * * Notifies the sessionmanager if a new accessible system disk. 
+ */
 DDKDECL(OsStatus_t,
 SessionCheckDisk(
 	_In_ const char* DiskIdentifier));
+
 _CODE_END
 
 #endif //!__SDK_SESSIONS_H__

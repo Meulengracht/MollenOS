@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011 - 2017, Philip Meulengracht
  *
@@ -16,15 +17,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Generic Block Bitmap Implementation
+ * Generic Block Bitmap Implementation
  */
 
 #include <ds/blbitmap.h>
 #include <string.h>
 #include <assert.h>
 
-/* GetBytesNeccessaryForBlockmap
- * Calculates the number of bytes neccessary for the allocation parameters. */
 size_t
 GetBytesNeccessaryForBlockmap(
     _In_ uintptr_t          BlockStart, 
@@ -35,9 +34,6 @@ GetBytesNeccessaryForBlockmap(
     return DIVUP((BlockCount + 1), 8); // We can have 8 blocks per byte
 }
 
-/* CreateBlockmap
- * Creates a new blockmap of with the given configuration and returns a pointer to a newly
- * allocated blockmap. Also returns an error code. */
 OsStatus_t
 CreateBlockmap(
     _In_  Flags_t           Configuration,
@@ -60,9 +56,6 @@ CreateBlockmap(
     return OsSuccess;;
 }
 
-/* ConstructBlockmap
- * Instantiates a static instance of a block bitmap. The buffer used for the bit storage
- * must also be provided and should be of at-least GetBytesNeccessaryForBlockmap(<Params>). */
 OsStatus_t
 ConstructBlockmap(
     _In_ BlockBitmap_t*     Blockmap,
@@ -91,8 +84,6 @@ ConstructBlockmap(
     return OsSuccess;
 }
 
-/* DestroyBlockmap
- * Destroys a block bitmap, and releases all resources associated with the bitmap */
 OsStatus_t
 DestroyBlockmap(
     _In_ BlockBitmap_t* Blockmap)
@@ -101,19 +92,15 @@ DestroyBlockmap(
     return BitmapDestroy(&Blockmap->Base);
 }
 
-/* AllocateBlocksInBlockmap
- * Allocates a number of bytes in the bitmap (rounded up in blocks)
- * and returns the calculated block of the start of block allocated (continously) */
 uintptr_t
 AllocateBlocksInBlockmap(
     _In_ BlockBitmap_t* Blockmap,
     _In_ size_t         AllocationMask,
     _In_ size_t         Size)
 {
-    // Variables
     uintptr_t Block = 0;
-    size_t BitCount;
-    int Index;
+    size_t    BitCount;
+    int       Index;
     
     assert(Blockmap != NULL);
     assert(Size > 0);
@@ -134,9 +121,6 @@ AllocateBlocksInBlockmap(
     return Block;
 }
 
-/* ReserveBlockmapRegion
- * Reserves a region of the blockmap. This sets the given region to allocated. The
- * region and size must be within boundaries of the blockmap. */
 OsStatus_t
 ReserveBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
@@ -169,9 +153,6 @@ ReserveBlockmapRegion(
     return OsSuccess;
 }
 
-/* ReleaseBlockmapRegion
- * Deallocates a given block translated into offsets 
- * into the given bitmap, and frees them in the bitmap */
 OsStatus_t
 ReleaseBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
@@ -205,9 +186,6 @@ ReleaseBlockmapRegion(
     return OsSuccess;
 }
 
-/* BlockBitmapValidate
- * Validates the given block that it's within
- * range of our bitmap and that it is either set or clear */
 OsStatus_t
 BlockBitmapValidateState(
     _In_ BlockBitmap_t* Blockmap,

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -20,6 +21,7 @@
  * - Counting semaphores implementation, using safe passages known as
  *   atomic sections in the operating system to synchronize in a kernel env
  */
+
 #define __MODULE "SEM1"
 //#define __TRACE
 #ifdef __TRACE
@@ -57,7 +59,7 @@ SemaphoreDestruct(
     if (!Semaphore) {
         return OsInvalidParameters;
     }
-    return FutexWake(&Semaphore->Value, INT_MAX, FUTEX_WAKE_PRIVATE);
+    return FutexWake(&Semaphore->Value, INT_MAX, 0);
 }
 
 OsStatus_t
@@ -69,20 +71,20 @@ SemaphoreWait(
     int        Value;
     
     while (1) {
-        Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+        Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
-            Status = FutexWait(&(Semaphore->Value), Value, FUTEX_WAIT_PRIVATE, Timeout);
+            Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
             if (Status == OsTimeout) {
                 break;
             }
-            Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+            Value = atomic_load(&(Semaphore->Value));
         }
         
-        Value = atomic_fetch_add_explicit(&(Semaphore->Value), -1, memory_order_acq_rel);
+        Value = atomic_fetch_add(&(Semaphore->Value), -1);
         if (Value >= 1) {
             break;
         }
-        atomic_fetch_add_explicit(&(Semaphore->Value), 1, memory_order_release);
+        atomic_fetch_add(&(Semaphore->Value), 1);
     }
     return Status;
 }
@@ -95,6 +97,7 @@ SemaphoreSignal(
     OsStatus_t Status = OsError;
     int        CurrentValue;
     int        i;
+    int        Result;
 
     TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
@@ -104,11 +107,13 @@ SemaphoreSignal(
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {
-                if (atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
+                Result = atomic_compare_exchange_weak(&Semaphore->Value, 
+                    &CurrentValue, CurrentValue + 1);
+                if (Result) {
                     break;
                 }
             }
-            FutexWake(&Semaphore->Value, 1, FUTEX_WAKE_PRIVATE);
+            FutexWake(&Semaphore->Value, 1, 0);
         }
         Status = OsSuccess;
     }

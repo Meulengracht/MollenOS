@@ -39,7 +39,7 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(ASSEMBLY:.s=.o) $(SOURCES:.c=.o)
-CFLAGS = $(GCFLAGS) -mno-sse -DLIBC_KERNEL -DUNICODE -Wno-address-of-packed-member $(INCLUDES)
+CFLAGS = $(GCFLAGS) -mno-sse -DLIBC_KERNEL -D__LIBDS_KERNEL__ -DUNICODE -Wno-address-of-packed-member $(INCLUDES)
 LFLAGS = /lib
 
 .PHONY: all

@@ -16,22 +16,21 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
 #define __TRACE
 
+#include <os/dmabuf.h>
 #include <ddk/utils.h>
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 #include "../include/mbr.h"
 
-/* DiskDetectFileSystem
- * Detectes the kind of filesystem at the given absolute sector 
- * with the given sector count. It then loads the correct driver
- * and installs it */
-OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-	DmaBuffer_t *Buffer, uint64_t Sector, uint64_t SectorCount)
+OsStatus_t
+DiskDetectFileSystem(FileSystemDisk_t *Disk,
+	UUId_t BufferHandle, void* Buffer, 
+	uint64_t Sector, uint64_t SectorCount)
 {
 	MasterBootRecord_t* Mbr;
 	FileSystemType_t    Type = FSUnknown;
@@ -42,8 +41,8 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 		LODWORD(Sector), LODWORD(SectorCount));
 
 	// Make sure the MBR is loaded
-	if (StorageRead(Disk->Driver, Disk->Device, Sector, 
-		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
+	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
+			BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
 		return OsError;
 	}
 
@@ -52,7 +51,7 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	// NTFS - "NTFS" 
 	// exFAT - "EXFAT" 
 	// FAT - "FATXX"
-	Mbr = (MasterBootRecord_t*)GetBufferDataPointer(Buffer);
+	Mbr = (MasterBootRecord_t*)Buffer;
 	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
 		Type = FSMFS;
 	}
@@ -85,48 +84,50 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	}
 }
 
-/* DiskDetectLayout
- * Detects the kind of layout on the disk, be it
- * MBR or GPT layout, if there is no layout it returns
- * OsError to indicate the entire disk is a FS */
-OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
+OsStatus_t
+DiskDetectLayout(
+	_In_ FileSystemDisk_t* Disk)
 {
-	DmaBuffer_t* Buffer;
 	GptHeader_t* Gpt;
 	OsStatus_t   Result;
 	size_t       SectorsRead;
+	OsStatus_t   Status;
+	
+	struct dma_buffer_info DmaInfo;
+	struct dma_attachment  DmaAttachment;
 
-	// Trace
-	TRACE("DiskDetectLayout(SectorSize %u)",
-        Disk->Descriptor.SectorSize);
+	TRACE("DiskDetectLayout(SectorSize %u)", Disk->Descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
-	Buffer = CreateBuffer(UUID_INVALID, Disk->Descriptor.SectorSize);
-
+	DmaInfo.length = DmaInfo.capacity = Disk->Descriptor.SectorSize;
+	DmaInfo.flags  = 0;
+	Status = dma_create(&DmaInfo, &DmaAttachment);
+	if (Status != OsSuccess) {
+		return Status;
+	}
+	
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (StorageRead(Disk->Driver, Disk->Device, 1, 
-		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
-		DestroyBuffer(Buffer);
+	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, 1, 
+			DmaAttachment.handle, 0, 1, &SectorsRead) != OsSuccess) {
+		dma_attachment_unmap(&DmaAttachment);
+		dma_detach(&DmaAttachment);
 		return OsError;
 	}
-
-	// Initiate the gpt pointer directly from the buffer-object
-	// to avoid doing double allocates when its not needed
-	Gpt = (GptHeader_t*)GetBufferDataPointer(Buffer);
-
+	
 	// Check the GPT signature if it matches 
 	// - If it doesn't match, it can only be a MBR disk
+	Gpt = (GptHeader_t*)DmaAttachment.buffer;
 	if (!strncmp((const char*)&Gpt->Signature[0], GPT_SIGNATURE, 8)) {
-		Result = GptEnumerate(Disk, Buffer);
+		Result = GptEnumerate(Disk, DmaAttachment.handle, DmaAttachment.buffer);
 	}
 	else {
-		Result = MbrEnumerate(Disk, Buffer);
+		Result = MbrEnumerate(Disk, DmaAttachment.handle, DmaAttachment.buffer);
 	}
 
-	// Cleanup buffer
-	DestroyBuffer(Buffer);
+	dma_attachment_unmap(&DmaAttachment);
+	dma_detach(&DmaAttachment);
 	return Result;
 }

@@ -29,20 +29,16 @@
 #include <os/types/storage.h>
 #include <time.h>
 
-// System Event Types
-#define OS_EVENT_STDIN  0x1
-#define OS_EVENT_WM     0x2
+// Memory Allocation Definitions
+// Flags that can be used when requesting virtual memory
+#define MEMORY_COMMIT        0x00000001                   // If commit is not passed, memory will only be reserved.
+#define MEMORY_LOWFIRST      0x00000002                   // Allocate from low memory
+#define MEMORY_CLEAN         0x00000004                   // Memory should be cleaned
+#define MEMORY_UNCHACHEABLE  0x00000008                   // Memory must not be cached
 
-/* Memory Allocation Definitions
- * Flags that can be used when requesting virtual memory */
-#define MEMORY_COMMIT       0x00000001 // If commit is not passed, memory will only be reserved.
-#define MEMORY_CONTIGIOUS   0x00000002 // Physical memory must be contigous
-#define MEMORY_LOWFIRST     0x00000004 // Allocate from low memory
-#define MEMORY_CLEAN        0x00000008 // Memory should be cleaned
-#define MEMORY_UNCHACHEABLE 0x00000010 // Memory must not be cached
-#define MEMORY_READ         0x00000020 // Memory is readable
-#define MEMORY_WRITE        0x00000040 // Memory is writable
-#define MEMORY_EXECUTABLE   0x00000080 // Memory is executable
+#define MEMORY_READ          0x00000010                   // Memory is readable
+#define MEMORY_WRITE         0x00000020                   // Memory is writable
+#define MEMORY_EXECUTABLE    0x00000040                   // Memory is executable
 
 PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t NumberOfProcessors;
@@ -70,63 +66,23 @@ PACKED_TYPESTRUCT(SystemTime, {
 #define CACHE_MEMORY        2
 
 _CODE_BEGIN
-/* MemoryAllocate
- * Allocates a chunk of memory, controlled by the requested size of memory. 
- * The returned memory will always be rounded up to nearest page-size */
-CRTDECL(OsStatus_t,
-MemoryAllocate(
-    _In_      void*      NearAddress,
-    _In_      size_t     Length,
-    _In_      Flags_t    Flags,
-    _Out_     void**     MemoryPointer,
-    _Out_Opt_ uintptr_t* PhysicalPointer));
+/*******************************************************************************
+ * Memory Extensions
+ *******************************************************************************/
+CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, Flags_t Flags, void** MemoryOut));
+CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
+CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, Flags_t Flags, Flags_t* PreviousFlags));
 
-/* MemoryFree
- * Frees previously allocated memory and releases the system resources associated. */
-CRTDECL(OsStatus_t,
-MemoryFree(
-    _In_ void*  MemoryPointer,
-    _In_ size_t Length));
-
-/* MemoryProtect
- * Changes the protection flags of a previous memory allocation made by MemoryAllocate */
-CRTDECL(OsStatus_t,
-MemoryProtect(
-    _In_  void*    MemoryPointer,
-    _In_  size_t   Length,
-    _In_  Flags_t  Flags,
-    _Out_ Flags_t* PreviousFlags));
-
-/* SystemQuery
- * Queries the underlying system for hardware information */
-CRTDECL(OsStatus_t,
-SystemQuery(
-    _In_ SystemDescriptor_t* Descriptor));
-
-/* GetSystemTime
- * Retrieves the system time. This is only ticking if a system clock has been initialized. */
-CRTDECL(OsStatus_t,
-GetSystemTime(
-    _In_ SystemTime_t* Time));
-
-/* GetSystemTick
- * Retrieves the system tick counter. This is only ticking if a system timer has been initialized. */
-CRTDECL(OsStatus_t,
-GetSystemTick(
-    _In_ int              TickBase,
-    _In_ LargeUInteger_t* Tick));
-
+/*******************************************************************************
+ * System Extensions
+ *******************************************************************************/
+CRTDECL(int,        OsStatusToErrno(OsStatus_t Status));
+CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* Descriptor));
+CRTDECL(OsStatus_t, GetSystemTime(SystemTime_t* Time));
+CRTDECL(OsStatus_t, GetSystemTick(int TickBase, LargeUInteger_t* Tick));
 CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* Frequency));
 CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* Value));
 CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
-
-/* ListenForSystemEvents
- * Provides the opportunity to listen for different kinds of system events. The
- * STDIN events are key presses. The WM events are cursor input. */
-CRTDECL(OsStatus_t,
-ListenForSystemEvents(
-    _In_ int    Types,
-    _In_ UUId_t WmListener));
 
 /*******************************************************************************
  * Threading Extensions

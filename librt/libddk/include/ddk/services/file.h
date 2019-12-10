@@ -25,17 +25,16 @@
 #define __DDK_SERVICES_FILE_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/ipc/ipc.h>
+#include <ddk/services/service.h>
 #include <os/types/file.h>
 
 PACKED_TYPESTRUCT(OpenFilePackage, {
-    FileSystemCode_t    Code;
-    UUId_t              Handle;
+    FileSystemCode_t Code;
+    UUId_t           Handle;
 });
 PACKED_TYPESTRUCT(RWFilePackage, {
-    FileSystemCode_t    Code;
-    size_t              Index;
-    size_t              ActualSize;
+    FileSystemCode_t Code;
+    size_t           ActualSize;
 });
 PACKED_TYPESTRUCT(QueryFileValuePackage, {
     FileSystemCode_t    Code;
@@ -69,39 +68,39 @@ PACKED_TYPESTRUCT(QueryFileSystemStatsPackage, {
 /* These are the different IPC functions supported
  * by the filemanager, note that some of them might
  * be changed in the different versions, and/or new functions will be added */
-#define __FILEMANAGER_REGISTERSTORAGE            IPC_DECL_FUNCTION(0)
-#define __FILEMANAGER_UNREGISTERSTORAGE          IPC_DECL_FUNCTION(1)
-#define __FILEMANAGER_QUERYSTORAGES              IPC_DECL_FUNCTION(2)
-#define __FILEMANAGER_QUERYSTORAGE               IPC_DECL_FUNCTION(3)
-#define __FILEMANAGER_QUERYSTORAGEBYPATH         IPC_DECL_FUNCTION(4)
-#define __FILEMANAGER_QUERYSTORAGEBYHANDLE       IPC_DECL_FUNCTION(5)
+#define __FILEMANAGER_REGISTERSTORAGE            (int)0
+#define __FILEMANAGER_UNREGISTERSTORAGE          (int)1
+#define __FILEMANAGER_QUERYSTORAGES              (int)2
+#define __FILEMANAGER_QUERYSTORAGE               (int)3
+#define __FILEMANAGER_QUERYSTORAGEBYPATH         (int)4
+#define __FILEMANAGER_QUERYSTORAGEBYHANDLE       (int)5
 
-#define __FILEMANAGER_QUERY_STORAGE_FILESYSTEMS  IPC_DECL_FUNCTION(6)
-#define __FILEMANAGER_QUERY_FILESYSTEM_BY_PATH   IPC_DECL_FUNCTION(7)
-#define __FILEMANAGER_QUERY_FILESYSTEM_BY_HANDLE IPC_DECL_FUNCTION(8)
+#define __FILEMANAGER_QUERY_STORAGE_FILESYSTEMS  (int)6
+#define __FILEMANAGER_QUERY_FILESYSTEM_BY_PATH   (int)7
+#define __FILEMANAGER_QUERY_FILESYSTEM_BY_HANDLE (int)8
 
-#define __FILEMANAGER_OPEN                       IPC_DECL_FUNCTION(9)
-#define __FILEMANAGER_CLOSE                      IPC_DECL_FUNCTION(10)
-#define __FILEMANAGER_READ                       IPC_DECL_FUNCTION(11)
-#define __FILEMANAGER_WRITE                      IPC_DECL_FUNCTION(12)
-#define __FILEMANAGER_SEEK                       IPC_DECL_FUNCTION(13)
-#define __FILEMANAGER_FLUSH                      IPC_DECL_FUNCTION(14)
-#define __FILEMANAGER_MOVE                       IPC_DECL_FUNCTION(15)
+#define __FILEMANAGER_OPEN                       (int)9
+#define __FILEMANAGER_CLOSE                      (int)10
+#define __FILEMANAGER_READ                       (int)11
+#define __FILEMANAGER_WRITE                      (int)12
+#define __FILEMANAGER_SEEK                       (int)13
+#define __FILEMANAGER_FLUSH                      (int)14
+#define __FILEMANAGER_MOVE                       (int)15
 
-#define __FILEMANAGER_GETPOSITION                IPC_DECL_FUNCTION(16)
-#define __FILEMANAGER_GETOPTIONS                 IPC_DECL_FUNCTION(17)
-#define __FILEMANAGER_SETOPTIONS                 IPC_DECL_FUNCTION(18)
-#define __FILEMANAGER_GETSIZE                    IPC_DECL_FUNCTION(19)
-#define __FILEMANAGER_GETPATH                    IPC_DECL_FUNCTION(20)
-#define __FILEMANAGER_GETSTATSBYPATH             IPC_DECL_FUNCTION(21)
-#define __FILEMANAGER_GETSTATSBYHANDLE           IPC_DECL_FUNCTION(22)
-#define __FILEMANAGER_DELETEPATH                 IPC_DECL_FUNCTION(23)
+#define __FILEMANAGER_GETPOSITION                (int)16
+#define __FILEMANAGER_GETOPTIONS                 (int)17
+#define __FILEMANAGER_SETOPTIONS                 (int)18
+#define __FILEMANAGER_GETSIZE                    (int)19
+#define __FILEMANAGER_GETPATH                    (int)20
+#define __FILEMANAGER_GETSTATSBYPATH             (int)21
+#define __FILEMANAGER_GETSTATSBYHANDLE           (int)22
+#define __FILEMANAGER_DELETEPATH                 (int)23
 
-#define __FILEMANAGER_PATHRESOLVE                IPC_DECL_FUNCTION(24)
-#define __FILEMANAGER_PATHCANONICALIZE           IPC_DECL_FUNCTION(25)
+#define __FILEMANAGER_PATHRESOLVE                (int)24
+#define __FILEMANAGER_PATHCANONICALIZE           (int)25
 
-#define __FILEMANAGER_REGISTERMAPPING            IPC_DECL_FUNCTION(26)
-#define __FILEMANAGER_UNREGISTERMAPPING          IPC_DECL_FUNCTION(27)
+#define __FILEMANAGER_REGISTERMAPPING            (int)26
+#define __FILEMANAGER_UNREGISTERMAPPING          (int)27
 
 // RegisterStorage::Flags
 #define __STORAGE_REMOVABLE     0x00000001

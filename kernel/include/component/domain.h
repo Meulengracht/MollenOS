@@ -24,7 +24,7 @@
 #define __COMPONENT_DOMAIN__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include "cpu.h"
 #include "memory.h"
 
@@ -32,12 +32,12 @@
 // their own memory region. They can access all memory but
 // there is penalty to not accessing local memory instead of 
 // accessing foreign memory.
-typedef struct _SystemDomain {
-    CollectionItem_t            Header;
-    UUId_t                      Id;
-    SystemCpu_t                 CoreGroup;
-    SystemMemory_t              Memory;
-    SystemMemorySpace_t         SystemSpace;
+typedef struct SystemDomain {
+    element_t           Header;
+    UUId_t              Id;
+    SystemCpu_t         CoreGroup;
+    SystemMemory_t      Memory;
+    SystemMemorySpace_t SystemSpace;
 } SystemDomain_t;
 
 /* CreateNumaDomain
@@ -58,7 +58,7 @@ GetCurrentDomain(void);
 
 /* GetDomains
  * Retrieves the collection that contains all current domains. */
-KERNELAPI Collection_t* KERNELABI
+KERNELAPI list_t* KERNELABI
 GetDomains(void);
 
 #endif // !__COMPONENT_DOMAIN__

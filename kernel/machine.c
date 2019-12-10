@@ -21,39 +21,41 @@
 #define __MODULE "MACH"
 #define __TRACE
 
+#include <arch.h>
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <revision.h>
 #include <machine.h>
 
-#include <garbagecollector.h>
-#include <modules/ramdisk.h>
-#include <modules/manager.h>
 #include <acpiinterface.h>
-#include <interrupts.h>
-#include <scheduler.h>
-#include <threading.h>
 #include <console.h>
-#include <timers.h>
-#include <stdio.h>
 #include <crc32.h>
 #include <debug.h>
-#include <arch.h>
+#include <futex.h>
+#include <modules/ramdisk.h>
+#include <modules/manager.h>
+#include <handle.h>
 #include <heap.h>
+#include <interrupts.h>
+#include <scheduler.h>
+#include <stdio.h>
+#include <threading.h>
+#include <timers.h>
 
 #ifdef __OSCONFIG_TEST_KERNEL
 extern void StartTestingPhase(void);
 #endif
 
 static SystemMachine_t Machine = { 
-    { 0 }, { 0 }, { 0 }, { 0 },                      // Strings
+    { 0 }, { 0 }, { 0 }, { 0 },                        // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
-    { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },            // BootInformation, Processor, MemorySpace, PhysicalMemory
-    { 0 }, { { 0 } }, COLLECTION_INIT(KeyInteger),   // GAMemory, Memory Map, SystemDomains
-    NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
-    { { { 0 } } },                                   // SystemTime
-    0, 0, 0, 0, 0                                    // Total Information
+    { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
+    OS_IRQ_SPINLOCK_INIT, { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
+    NULL, 0, NULL,                                     // InterruptControllers
+    { { { 0 } } },                                     // SystemTime
+    ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
+    ATOMIC_VAR_INIT(1), 0, 0                           // Total Information
 };
 
 SystemMachine_t*
@@ -88,18 +90,14 @@ InitializeMachine(
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     LogInitialize();
+    FutexInitialize();
 
-    // Setup strings
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Bootloader[0],   "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
     
-    // Set initial stats for this machine and then initialize cpu
-    InitializeProcessor(&Machine.Processor);
-    Machine.NumberOfActiveCores = 1;
-    Machine.NumberOfProcessors  = 1;
-    Machine.NumberOfCores       = 1;
+    InitializePrimaryProcessor(&Machine.Processor);
     
     // Print build/info-header
     PrintHeader(&Machine.BootInformation);
@@ -128,7 +126,7 @@ InitializeMachine(
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }
-
+    
     // Build system topology by enumerating the SRAT table if present.
     // If ACPI is not present or the SRAT is missing the system is running in UMA
     // mode and there is no hardware seperation
@@ -143,18 +141,13 @@ InitializeMachine(
 #endif
 
     // Create the rest of the OS systems
-    Status = ThreadingInitialize();
+    Status = InitializeHandles();
     if (Status != OsSuccess) {
-        ERROR("Failed to initialize threading for boot core.");
+        ERROR("Failed to initialize the handle subsystem.");
         ArchProcessorIdle();
     }
-
-    Status = ThreadingEnable();
-    if (Status != OsSuccess) {
-        ERROR("Failed to enable threading for boot core.");
-        ArchProcessorIdle();
-    }
-
+    
+    ThreadingEnable();
     InitializeInterruptTable();
     InitializeInterruptHandlers();
     Status = InterruptInitialize();
@@ -163,6 +156,12 @@ InitializeMachine(
         ArchProcessorIdle();
     }
     LogInitializeFull();
+    
+    Status = InitializeHandleJanitor();
+    if (Status != OsSuccess) {
+        ERROR("Failed to initialize system janitor.");
+        ArchProcessorIdle();
+    }
 
     // Perform the full acpi initialization sequence
 #ifdef __OSCONFIG_ACPI_SUPPORT
@@ -176,7 +175,6 @@ InitializeMachine(
 #endif
 
     // Last step is to enable timers that kickstart all other threads
-    GcInitialize();
     Status = InitializeSystemTimers();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
@@ -192,7 +190,6 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    InitializeModuleInheritationBlock();
     Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -20,7 +21,8 @@
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <ds/collection.h>
 #include <os/mollenos.h>
@@ -32,9 +34,6 @@
 #include "../common/manager.h"
 #include "ohci.h"
 
-/* OnFastInterrupt
- * Is called for the sole purpose to determine if this source
- * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
     _In_ FastInterruptResources_t*  InterruptTable,
@@ -65,7 +64,7 @@ OnFastInterrupt(
     if (!InterruptStatus) {
         return InterruptNotHandled;
     }
-
+    
     // Process Checks first
     // This happens if a transaction has completed
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
@@ -124,9 +123,9 @@ ProcessInterrupt:
 
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
+        reg32_t HcControl = READ_VOLATILE(Controller->Registers->HcControl);
         UsbManagerScheduleTransfers(&Controller->Base);
-        WriteVolatile32(&Controller->Registers->HcControl, 
-            ReadVolatile32(&Controller->Registers->HcControl) | Controller->QueuesActive);
+        WRITE_VOLATILE(Controller->Registers->HcControl, HcControl | Controller->QueuesActive);
     }
 
     // Frame Overflow

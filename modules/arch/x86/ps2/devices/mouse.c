@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,23 +17,22 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PS2 Controller (Mouse) Driver
+ * X86 PS2 Controller (Mouse) Driver
  * http://wiki.osdev.org/PS2
  */
 
-#include <os/input.h>
 #include <ddk/utils.h>
+#include <io.h>
+#include "mouse.h"
+#include <os/input.h>
+#include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
-#include "../ps2.h"
-#include "mouse.h"
 
-/* PS2MouseFastInterrupt 
- * Handles the ps2-mouse interrupt and extracts the data for processing - fast interrupt */
 InterruptStatus_t
 PS2MouseFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      NotUsed)
+    _In_ FastInterruptResources_t* InterruptTable,
+    _In_ void*                     NotUsed)
 {
     DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
     PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
@@ -94,15 +94,15 @@ PS2MouseInterrupt(
     if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
         Port->ResponseReadIndex = 0;
     }
-    WriteSystemInput(&Input);
+    
+    sendto(Port->IoSocket, &Input, sizeof(SystemInput_t), MSG_DONTWAIT, 
+        (const struct sockaddr*)&Port->InputAddress, sizeof(struct sockaddr_lc));
 }
 
-/* PS2SetSampling
- * Updates the sampling rate for the mouse driver */
 OsStatus_t
 PS2SetSampling(
-    _In_ PS2Port_t*                 Port,
-    _In_ uint8_t                    Sampling)
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    Sampling)
 {
     if (PS2PortExecuteCommand(Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess || 
         PS2PortExecuteCommand(Port, Sampling, NULL)            != OsSuccess) {
@@ -111,18 +111,15 @@ PS2SetSampling(
     return OsSuccess;
 }
 
-/* PS2EnableExtensions
- * Tries to enable the 4/5 mouse button, the mouse must
- * pass the EnableScroll wheel before calling this */
 OsStatus_t
 PS2EnableExtensions(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Port, 200)  != OsSuccess || 
-        PS2SetSampling(Port, 200)  != OsSuccess || 
-        PS2SetSampling(Port, 80)   != OsSuccess) {
+    if (PS2SetSampling(Port, 200) != OsSuccess || 
+        PS2SetSampling(Port, 200) != OsSuccess || 
+        PS2SetSampling(Port, 80)  != OsSuccess) {
         return OsError;
     }
     if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
@@ -137,18 +134,16 @@ PS2EnableExtensions(
     }
 }
 
-/* PS2EnableScroll 
- * Tries to enable the mouse scroll wheel by performing
- * the 'unlock' sequence of 200-100-80 sample */
+// The 'unlock' sequence of 200-100-80 sample
 OsStatus_t
 PS2EnableScroll(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Port, 200)  != OsSuccess || 
-        PS2SetSampling(Port, 100)  != OsSuccess || 
-        PS2SetSampling(Port, 80)   != OsSuccess) {
+    if (PS2SetSampling(Port, 200) != OsSuccess || 
+        PS2SetSampling(Port, 100) != OsSuccess || 
+        PS2SetSampling(Port, 80)  != OsSuccess) {
         return OsError;
     }
 
@@ -164,14 +159,13 @@ PS2EnableScroll(
     }
 }
 
-/* PS2MouseInitialize 
- * Initializes an instance of an ps2-mouse on the given PS2-Controller port */
 OsStatus_t
 PS2MouseInitialize(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port)
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    struct sockaddr_lc* LcAddress;
+    PS2Port_t*          Instance = &Controller->Ports[Port];
 
     // Set initial mouse sampling
     PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
@@ -186,6 +180,13 @@ PS2MouseInitialize(
         ERROR("PS2-Mouse: failed to install contract");
         return OsError;
     }
+
+    // Open up the input socket so we can send input data to the OS.
+    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
+    LcAddress->slc_len = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
 
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
@@ -210,12 +211,10 @@ PS2MouseInitialize(
     return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
-/* PS2MouseCleanup 
- * Cleans up the ps2-mouse instance on the given PS2-Controller port */
 OsStatus_t
 PS2MouseCleanup(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port)
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port)
 {
     PS2Port_t *Instance = &Controller->Ports[Port];
 
@@ -225,5 +224,6 @@ PS2MouseCleanup(
 
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
+    close(Instance->IoSocket);
     return OsSuccess;
 }

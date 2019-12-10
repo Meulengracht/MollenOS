@@ -22,6 +22,7 @@ all: build deploy
 	@$(MAKE) -s -C libacpi/generate/vali -f Makefile
 	@$(MAKE) -s -C libusb -f makefile
 	@$(MAKE) -s -C libcxx -f makefile
+	@$(MAKE) -s -C libwm -f makefile
 
 build:
 	@mkdir -p $@
@@ -40,5 +41,6 @@ clean:
 	@$(MAKE) -s -C libclang -f makefile clean
 	@$(MAKE) -s -C libcrt -f makefile clean
 	@$(MAKE) -s -C libcxx -f makefile clean
+	@$(MAKE) -s -C libwm -f makefile clean
 	@rm -rf build
 	@rm -rf deploy

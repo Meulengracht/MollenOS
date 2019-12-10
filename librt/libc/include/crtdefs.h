@@ -179,20 +179,20 @@
 
 #if (defined (__clang__))
 #define PACKED_STRUCT(name, body) struct __attribute__((packed)) name body 
-#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
-#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct __attribute__((packed)) _##name body name##_t
+#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) name body name##_t
+#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct __attribute__((packed)) name body name##_t
 #elif (defined (__GNUC__))
 #define PACKED_STRUCT(name, body) struct name body __attribute__((packed))
-#define PACKED_TYPESTRUCT(name, body) typedef struct _##name body name##_t __attribute__((packed))
-#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct _##name body name##_t __attribute__((packed))
+#define PACKED_TYPESTRUCT(name, body) typedef struct name body name##_t __attribute__((packed))
+#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct name body name##_t __attribute__((packed))
 #elif (defined (__arm__))
 #define PACKED_STRUCT(name, body) __packed struct name body
-#define PACKED_TYPESTRUCT(name, body) __packed typedef struct _##name body name##_t
-#define PACKED_ATYPESTRUCT(opts, name, body) __packed typedef opts struct _##name body name##_t
+#define PACKED_TYPESTRUCT(name, body) __packed typedef struct name body name##_t
+#define PACKED_ATYPESTRUCT(opts, name, body) __packed typedef opts struct name body name##_t
 #elif (defined (_MSC_VER))
 #define PACKED_STRUCT(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
-#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
-#define PACKED_ATYPESTRUCT(opts, name, body) __pragma(pack(push, 1)) typedef opts struct _##name body name##_t __pragma(pack(pop))
+#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct name body name##_t __pragma(pack(pop))
+#define PACKED_ATYPESTRUCT(opts, name, body) __pragma(pack(push, 1)) typedef opts struct name body name##_t __pragma(pack(pop))
 #else
 #error Please define packed struct for the used compiler
 #endif
@@ -312,32 +312,6 @@
 
 #ifndef _CRT_UNUSED
 #define _CRT_UNUSED(x) (void)x
-#endif
-
-#if defined(_MSC_VER)
-#ifdef _AMD64_
-#define MemoryBarrier __faststorefence
-#endif
-
-#ifdef _IA64_
-#define MemoryBarrier __mf
-#endif
-
-// x86
-__forceinline void
-MemoryBarrier (void)
-{
-    long Barrier;
-    __asm {
-        xchg Barrier, eax
-    }
-}
-#elif defined(__clang__)
-#if defined(i386)
-#define MemoryBarrier __sync_synchronize
-#elif defined(amd64)
-#define MemoryBarrier __sync_synchronize
-#endif
 #endif
 
 /** Deprecated ***************************************************************/

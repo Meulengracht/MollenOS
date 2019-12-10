@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,67 +17,84 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * Memory related system call implementations
  */
+
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/mollenos.h>
-#include <ddk/buffer.h>
 #include <ddk/memory.h>
 
+#include <os/mollenos.h>
+#include <os/dmabuf.h>
+
+#include <debug.h>
+#include <handle.h>
+#include <heap.h>
 #include <modules/manager.h>
-#include <memorybuffer.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
 #include <string.h>
-#include <handle.h>
-#include <debug.h>
 
 OsStatus_t
 ScMemoryAllocate(
-    _In_  size_t        Size,
-    _In_  Flags_t       Flags,
-    _Out_ uintptr_t*    VirtualAddress,
-    _Out_ uintptr_t*    PhysicalAddress)
+    _In_      void*   Hint,
+    _In_      size_t  Length,
+    _In_      Flags_t Flags,
+    _Out_     void**  MemoryOut)
 {
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
-    Flags_t              MemoryFlags    = MAPPING_USERSPACE | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              MemoryFlags    = MAPPING_USERSPACE;
     Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
-    if (Size == 0) {
+    int                  PageCount;
+    uintptr_t*           Pages; 
+    
+    if (!Length || !MemoryOut) {
         return OsInvalidParameters;
+    }
+
+    PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
     }
 
     // Convert flags from memory domain to memory space domain
     if (Flags & MEMORY_COMMIT) {
         MemoryFlags |= MAPPING_COMMIT;
     }
+    else {
+        // Zero page mappings to mark them reserved
+        memset(Pages, 0, sizeof(uintptr_t) * PageCount);
+    }
+    
     if (Flags & MEMORY_UNCHACHEABLE) {
         MemoryFlags |= MAPPING_NOCACHE;
     }
     if (Flags & MEMORY_LOWFIRST) {
         MemoryFlags |= MAPPING_LOWFIRST;
     }
+    if (!(Flags & MEMORY_WRITE)) {
+        //MemoryFlags |= MAPPING_READONLY;
+    }
+    if (Flags & MEMORY_EXECUTABLE) {
+        MemoryFlags |= MAPPING_EXECUTABLE;
+    }
     
-    // Handle the physical placement flag
-    if (Flags & MEMORY_CONTIGIOUS) {
-        PlacementFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
-    }
-    else {
-        PlacementFlags |= MAPPING_PHYSICAL_DEFAULT;
-    }
-
-    Status = CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
-        MemoryFlags, PlacementFlags, __MASK);
+    // Create the actual mappings
+    Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, 
+        MemoryFlags, PlacementFlags);
     if (Status == OsSuccess) {
+        *MemoryOut = (void*)AllocatedAddress;
+        
         if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
-            memset((void*)AllocatedAddress, 0, Size);
+            memset((void*)AllocatedAddress, 0, Length);
         }
-        *VirtualAddress = (uintptr_t)AllocatedAddress;
     }
+    kfree(Pages);
     return Status;
 }
 
@@ -89,7 +107,7 @@ ScMemoryFree(
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
     }
-    return RemoveMemorySpaceMapping(Space, Address, Size);
+    return MemorySpaceUnmap(Space, Address, Size);
 }
 
 OsStatus_t
@@ -103,45 +121,253 @@ ScMemoryProtect(
     if (MemoryPointer == NULL || Length == 0) {
         return OsSuccess;
     }
-
-    // We must force the application flag as it will remove
-    // the user-accessibility if we allow it to change
-    return ChangeMemorySpaceProtection(GetCurrentMemorySpace(), 
+    return MemorySpaceChangeProtection(GetCurrentMemorySpace(), 
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 
 OsStatus_t
-ScCreateBuffer(
-    _In_  size_t        Size,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
+ScDmaCreate(
+    _In_ struct dma_buffer_info* info,
+    _In_ struct dma_attachment*  attachment)
 {
-    if (MemoryBuffer == NULL || Size == 0) {
-        return OsError;
+    OsStatus_t Status;
+    Flags_t    Flags = 0;
+
+    if (!info || !attachment) {
+        return OsInvalidParameters;
     }
-    return CreateMemoryBuffer(Size, MemoryBuffer);
+    
+    TRACE("ScDmaCreate(%u, 0x%x)", LODWORD(info->length), info->flags);
+
+    if (info->flags & DMA_PERSISTANT) {
+        Flags |= MAPPING_PERSISTENT;
+    }
+    
+    if (info->flags & DMA_UNCACHEABLE) {
+        Flags |= MAPPING_NOCACHE;
+    }
+    
+    Status = MemoryCreateSharedRegion(info->length, info->capacity, 
+        Flags, &attachment->buffer, &attachment->handle);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    if (info->flags & DMA_CLEAN) {
+        memset(attachment->buffer, 0, info->length);
+    }
+
+    attachment->length = info->length;
+    return Status;
 }
 
 OsStatus_t
-ScAcquireBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
+ScDmaExport(
+    _In_ void*                   buffer,
+    _In_ struct dma_buffer_info* info,
+    _In_ struct dma_attachment*  attachment)
 {
-    if (MemoryBuffer == NULL || Handle == UUID_INVALID) {
-        return OsError;
+    OsStatus_t Status;
+    Flags_t    Flags = 0;
+
+    if (!buffer || !info || !attachment) {
+        return OsInvalidParameters;
     }
-    return AcquireMemoryBuffer(Handle, MemoryBuffer);
+    
+    if (info->flags & DMA_PERSISTANT) {
+        Flags |= MAPPING_PERSISTENT;
+    }
+    
+    if (info->flags & DMA_UNCACHEABLE) {
+        Flags |= MAPPING_NOCACHE;
+    }
+    
+    TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
+    
+    Status = MemoryExportSharedRegion(buffer, info->length,
+        Flags, &attachment->handle);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+
+    if (info->flags & DMA_CLEAN) {
+        memset(buffer, 0, info->length);
+    }
+    
+    attachment->buffer = buffer;
+    attachment->length = info->length;
+    return Status;
 }
 
 OsStatus_t
-ScQueryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ uintptr_t*    Dma,
-    _Out_ size_t*       Capacity)
+ScDmaAttach(
+    _In_ UUId_t                 handle,
+    _In_ struct dma_attachment* attachment)
 {
-    if (Capacity == NULL || Dma == NULL || Handle == UUID_INVALID) {
-        return OsError;
+    SystemSharedRegion_t* Region;
+    
+    if (!attachment) {
+        ERROR("[sc_dma_attach] null attachment pointer");
+        return OsInvalidParameters;
     }
-    return QueryMemoryBuffer(Handle, Dma, Capacity);
+    
+    Region = (SystemSharedRegion_t*)AcquireHandle(handle);
+    if (!Region) {
+        ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", handle);
+        return OsDoesNotExist;
+    }
+    
+    // Update the attachment with info as it were correct
+    attachment->handle = handle;
+    attachment->length = Region->Length;
+    attachment->buffer = NULL;
+    return OsSuccess;
+}
+
+OsStatus_t
+ScDmaAttachmentMap(
+    _In_ struct dma_attachment* attachment)
+{
+    SystemSharedRegion_t* Region;
+    OsStatus_t            Status;
+    uintptr_t             Offset;
+    uintptr_t             Address;
+    size_t                Length;
+    
+    if (!attachment || (attachment->buffer != NULL)) {
+        return OsInvalidParameters;
+    }
+    TRACE("ScDmaAttachmentMap(0x%x)", LODWORD(attachment->handle));
+    
+    Region = (SystemSharedRegion_t*)LookupHandleOfType(
+        attachment->handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    MutexLock(&Region->SyncObject);
+    
+    // This is more tricky, for the calling process we must make a new
+    // mapping that spans the entire Capacity, but is uncommitted, and then commit
+    // the Length of it.
+    Length = MIN(attachment->length, Region->Length);
+    Offset = (Region->Pages[0] % GetMemorySpacePageSize());
+    
+    TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
+    Status = MemorySpaceMapReserved(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Address, Region->Capacity + Offset, 
+        MAPPING_USERSPACE | MAPPING_PERSISTENT, MAPPING_VIRTUAL_PROCESS);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    // Now commit <Length> in pages
+    TRACE("... committing vmem mappings of length 0x%x", LODWORD(Length));
+    Status = MemorySpaceCommit(GetCurrentMemorySpace(),
+        Address, &Region->Pages[0], Length, MAPPING_PHYSICAL_FIXED);
+    MutexUnlock(&Region->SyncObject);
+    
+    attachment->buffer = (void*)(Address + Offset);
+    attachment->length = Length;
+    return Status;
+}
+
+OsStatus_t
+ScDmaAttachmentResize(
+    _In_ struct dma_attachment* attachment,
+    _In_ size_t                 length)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return MemoryResizeSharedRegion(attachment->handle, attachment->buffer, length);
+}
+
+OsStatus_t
+ScDmaAttachmentRefresh(
+    _In_ struct dma_attachment* attachment)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return MemoryRefreshSharedRegion(attachment->handle, attachment->buffer, 
+        attachment->length, &attachment->length);
+}
+
+OsStatus_t
+ScDmaAttachmentUnmap(
+    _In_ struct dma_attachment* attachment)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return ScMemoryFree((uintptr_t)attachment->buffer, attachment->length);
+}
+
+OsStatus_t
+ScDmaDetach(
+    _In_ struct dma_attachment* attachment)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    DestroyHandle(attachment->handle);
+    return OsSuccess;
+}
+
+OsStatus_t
+ScDmaGetMetrics(
+    _In_  struct dma_attachment* attachment,
+    _Out_ int*                   sg_count_out,
+    _Out_ struct dma_sg*         sg_list_out)
+{
+    SystemSharedRegion_t* Region;
+    size_t                PageSize = GetMemorySpacePageSize();
+    
+    if (!attachment || !sg_count_out) {
+        return OsInvalidParameters;
+    }
+    
+    Region = (SystemSharedRegion_t*)LookupHandleOfType(
+        attachment->handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    // Requested count of the scatter-gather units, so count
+    // how many entries it would take to fill a list
+    // Assume that if both pointers are supplied we are trying to fill
+    // the list with the requested amount, and thus skip this step.
+    if (sg_count_out && !sg_list_out) {
+        int sg_count = 0;
+        for (int i = 0; i < Region->PageCount; i++) {
+            if (i == 0 || (Region->Pages[i - 1] + PageSize) != Region->Pages[i]) {
+                sg_count++;
+            }
+        }
+        *sg_count_out = sg_count;
+    }
+    
+    // In order to get the list both counters must be filled
+    if (sg_count_out && sg_list_out) {
+        int sg_count = *sg_count_out;
+        for (int i = 0, j = 0; (i < sg_count) && (j < Region->PageCount); i++) {
+            struct dma_sg* sg = &sg_list_out[i];
+            
+            sg->address = Region->Pages[j++];
+            sg->length  = PageSize;
+            
+            while ((j < Region->PageCount) &&
+                   (Region->Pages[j - 1] + PageSize) == Region->Pages[j]) {
+                sg->length += PageSize;
+                j++;
+            }
+        }
+        
+        // Adjust the initial sg entry for offset
+        sg_list_out[0].length -= sg_list_out[0].address % PageSize;
+    }
+    return OsSuccess;
 }
 
 OsStatus_t 
@@ -172,7 +398,7 @@ ScGetThreadMemorySpaceHandle(
         }
         return OsError;
     }
-    Thread = GetThread(ThreadHandle);
+    Thread = (MCoreThread_t*)LookupHandleOfType(ThreadHandle, HandleTypeThread);
     if (Thread != NULL) {
         *Handle = Thread->MemorySpaceHandle;
         return OsSuccess;
@@ -187,19 +413,29 @@ ScCreateMemorySpaceMapping(
     _Out_ void**                          AddressOut)
 {
     SystemModule_t*      Module         = GetCurrentModule();
-    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandle(Handle);
+    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    Flags_t              PlacementFlags = MAPPING_VIRTUAL_FIXED;
     VirtualAddress_t     CopyPlacement  = 0;
+    int                  PageCount;
+    uintptr_t*           Pages;
     OsStatus_t           Status;
+    
     if (Parameters == NULL || AddressOut == NULL || Module == NULL) {
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
         return OsInvalidParameters;
     }
+    
     if (MemorySpace == NULL) {
         return OsDoesNotExist;
+    }
+    
+    PageCount = DIVUP(Parameters->Length, GetMemorySpacePageSize());
+    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
     }
     
     if (Parameters->Flags & MEMORY_EXECUTABLE) {
@@ -211,8 +447,10 @@ ScCreateMemorySpaceMapping(
 
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
-    Status = CreateMemorySpaceMapping(MemorySpace, NULL, &Parameters->VirtualAddress,
-        Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
+    Status = MemorySpaceMap(MemorySpace, &Parameters->VirtualAddress, Pages,
+        Parameters->Length, RequiredFlags, PlacementFlags);
+    kfree(Pages);
+    
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
         return Status;
@@ -220,13 +458,14 @@ ScCreateMemorySpaceMapping(
     
     // Create a cloned copy in our own memory space, however we will set new placement and
     // access flags
-    PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
+    PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
     Status         = CloneMemorySpaceMapping(MemorySpace, GetCurrentMemorySpace(),
-        Parameters->VirtualAddress, &CopyPlacement, Parameters->Length, RequiredFlags, PlacementFlags);
+        Parameters->VirtualAddress, &CopyPlacement, Parameters->Length,
+        RequiredFlags, PlacementFlags);
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
-        RemoveMemorySpaceMapping(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
+        MemorySpaceUnmap(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
     }
     *AddressOut = (void*)CopyPlacement;
     return Status;

@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,25 +19,22 @@
  *
  * Network Manager
  * - Contains the implementation of the network-manager which keeps track
- *   of all users and their running applications.
+ *   of sockets, network interfaces and connectivity status
  */
 #define __TRACE
 
-#include <ds/collection.h>
-#include <os/services/process.h>
-#include <ddk/services/session.h>
-#include <ddk/service.h>
+#include <ddk/services/net.h>
+#include <ddk/services/service.h>
 #include <ddk/utils.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-static UUId_t ServiceHandleGenerator = 0;
+#include "manager.h"
+#include <os/ipc.h>
 
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-	return RegisterService(__NETMANAGER_TARGET);
+    *ServicePathOut = SERVICE_NET_PATH;
+    return NetworkManagerInitialize();
 }
 
 OsStatus_t
@@ -47,17 +45,130 @@ OnUnload(void)
 
 OsStatus_t
 OnEvent(
-	_In_ MRemoteCall_t* Message)
+	_In_ IpcMessage_t* Message)
 {
-    OsStatus_t Result = OsSuccess;
+    OsStatus_t Handled = OsSuccess;
     
-    TRACE("Networkmanager.OnEvent(%i)", Message->Function);
+    TRACE("Networkmanager.OnEvent(%i)", IPC_GET_TYPED(Message, 0));
 
-    switch (Message->Function) {
+    switch (IPC_GET_TYPED(Message, 0)) {
+        case __NETMANAGER_CREATE_SOCKET: {
+            SocketDescriptorPackage_t Package;
+            
+            UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
+            int    Domain        = IPC_GET_TYPED(Message, 2);
+            int    Type          = IPC_GET_TYPED(Message, 3);
+            int    Protocol      = IPC_GET_TYPED(Message, 4);
+            
+            Package.Status = NetworkManagerSocketCreate(ProcessHandle, Domain, Type, Protocol, 
+                &Package.SocketHandle, &Package.SendBufferHandle,
+                &Package.RecvBufferHandle);
+            Handled = IpcReply(Message, &Package, sizeof(SocketDescriptorPackage_t));
+        } break;
+        case __NETMANAGER_CLOSE_SOCKET: {
+            OsStatus_t Result;
+            
+            UUId_t       ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t       SocketHandle  = IPC_GET_TYPED(Message, 2);
+            unsigned int CloseOptions  = IPC_GET_TYPED(Message, 3);
+            
+            Result  = NetworkManagerSocketShutdown(ProcessHandle, SocketHandle, CloseOptions);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+        } break;
+        case __NETMANAGER_BIND_SOCKET: {
+            OsStatus_t Result;
+            
+            const struct sockaddr* Address       = IPC_GET_UNTYPED(Message, 0);
+            UUId_t                 ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t                 SocketHandle  = IPC_GET_TYPED(Message, 2);
+            
+            Result  = NetworkManagerSocketBind(ProcessHandle, SocketHandle, Address);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+        } break;
+        
+        // ASYNC
+        case __NETMANAGER_CONNECT_SOCKET: {
+            OsStatus_t Result;
+            
+            const struct sockaddr* Address       = IPC_GET_UNTYPED(Message, 0);
+            UUId_t                 ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t                 SocketHandle  = IPC_GET_TYPED(Message, 2);
+            
+            Result = NetworkManagerSocketConnect(ProcessHandle, 
+                Message->Sender, SocketHandle, Address);
+            if (Result != OsSuccess) {
+                Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+            }
+        } break;
+        
+        // ASYNC
+        case __NETMANAGER_ACCEPT_SOCKET: {
+            GetSocketAddressPackage_t Package;
+            
+            UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t SocketHandle  = IPC_GET_TYPED(Message, 2);
+            
+            Package.Status = NetworkManagerSocketAccept(ProcessHandle,
+                Message->Sender, SocketHandle);
+            if (Package.Status != OsSuccess) {
+                Handled = IpcReply(Message, &Package, sizeof(GetSocketAddressPackage_t));
+            }
+        } break;
+        case __NETMANAGER_LISTEN_SOCKET: {
+            OsStatus_t Result;
+            
+            UUId_t ProcessHandle   = IPC_GET_TYPED(Message, 1);
+            UUId_t SocketHandle    = IPC_GET_TYPED(Message, 2);
+            int    ConnectionCount = IPC_GET_TYPED(Message, 3);
+            
+            Result  = NetworkManagerSocketListen(ProcessHandle, SocketHandle, ConnectionCount);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+        } break;
+        case __NETMANAGER_SET_SOCKET_OPTION: {
+            OsStatus_t Result;
+            
+            UUId_t      ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t      SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int         Protocol      = IPC_GET_TYPED(Message, 3);
+            int         Option        = IPC_GET_TYPED(Message, 4);
+            const void* Data          = (const void*)IPC_GET_UNTYPED(Message, 0);
+            socklen_t   DataLength    = IPC_GET_LENGTH(Message, 0);
+            
+            Result = NetworkManagerSocketSetOption(ProcessHandle, SocketHandle, Protocol,
+                Option, Data, DataLength);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+            
+        } break;
+        case __NETMANAGER_GET_SOCKET_OPTION: {
+            uint8_t                   Storage[256] = { 0 };
+            GetSocketOptionPackage_t* Package      = (GetSocketOptionPackage_t*)&Storage[0];
+            
+            UUId_t       ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t       SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int          Protocol      = IPC_GET_TYPED(Message, 3);
+            unsigned int Option        = IPC_GET_TYPED(Message, 4);
+            
+            Package->Status = NetworkManagerSocketGetOption(ProcessHandle, SocketHandle, 
+                Protocol, Option, &Package->Data[0], &Package->Length);
+            Handled = IpcReply(Message, Package, 
+                (sizeof(GetSocketOptionPackage_t) - sizeof(uint8_t)) + Package->Length);
+            
+        } break;
+        case __NETMANAGER_GET_SOCKET_ADDRESS: {
+            GetSocketAddressPackage_t Package;
+            
+            UUId_t ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t SocketHandle  = IPC_GET_TYPED(Message, 2);
+            int    Source        = IPC_GET_TYPED(Message, 3);
+            
+            Package.Status = NetworkManagerSocketGetAddress(ProcessHandle, SocketHandle, 
+                Source, (struct sockaddr*)&Package.Address);
+            Handled = IpcReply(Message, &Package, sizeof(GetSocketAddressPackage_t));
+        } break;
         
         default: {
             break;
         }
     }
-    return Result;
+    return Handled;
 }

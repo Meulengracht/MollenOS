@@ -32,9 +32,7 @@
 #define LCMESSAGES_SIZE_MIN \
 		(offsetof(struct lc_messages_T, yesstr) / sizeof(char *))
 
-#ifndef __CYGWIN__
 //static char empty[] = "";
-#endif
 
 const struct lc_messages_T _C_messages_locale = {
 	"^[yY]" ,	/* yesexpr */
@@ -50,61 +48,23 @@ const struct lc_messages_T _C_messages_locale = {
 #endif
 };
 
-#ifndef __CYGWIN__
 //static struct lc_messages_T _messages_locale;
 //static int	_messages_using_locale;
 //static char	*_messages_locale_buf;
-#endif
 
 int __messages_load_locale (struct __locale_t *locale, const char *name,
 			void *f_wctomb, const char *charset)
 {
-  int ret = 0;
-  struct lc_messages_T me;
-  char *bufp = NULL;
+	int ret = 0;
+	struct lc_messages_T me;
+	char *bufp = NULL;
 
-#ifdef __CYGWIN__
-  extern int __set_lc_messages_from_win (const char *,
-					 const struct lc_messages_T *,
-					 struct lc_messages_T *, char **,
-					 void *, const char *);
-
-  ret = __set_lc_messages_from_win (name, &_C_messages_locale, &me, &bufp,
-				    f_wctomb, charset);
-  /* ret == -1: error, ret == 0: C/POSIX, ret > 0: valid */
-  if (ret >= 0)
-    {
-      struct lc_messages_T *mep = NULL;
-
-      if (ret > 0)
-	{
-	  mep = (struct lc_messages_T *) calloc (1, sizeof *mep);
-	  if (!mep)
-	    {
-	      free (bufp);
-	      return -1;
-	    }
-	  *mep = me;
-	}
-      struct __lc_cats tmp = locale->lc_cat[LC_MESSAGES];
-      locale->lc_cat[LC_MESSAGES].ptr = ret == 0 ? &_C_messages_locale : mep;
-      locale->lc_cat[LC_MESSAGES].buf = bufp;
-      /* If buf is not NULL, both pointers have been alloc'ed */
-      if (tmp.buf)
-	{
-	  free ((void *) tmp.ptr);
-	  free (tmp.buf);
-	}
-      ret = 0;
-    }
-#else
-	/* TODO */
+	// @todo
 	_CRT_UNUSED(bufp);
 	_CRT_UNUSED(me);
 	_CRT_UNUSED(locale);
 	_CRT_UNUSED(name);
 	_CRT_UNUSED(f_wctomb);
 	_CRT_UNUSED(charset);
-#endif
   return ret;
 }

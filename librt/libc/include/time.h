@@ -123,8 +123,8 @@ time(
 _CRTIMP
 int
 timespec_get(
-    _In_ struct timespec *ts,
-    _In_ int base);
+    _In_ struct timespec* ts,
+    _In_ int              base);
 
 /* timespec_diff
  * The difference between two timespec with the same base. Result
@@ -132,9 +132,9 @@ timespec_get(
 _CRTIMP
 void
 timespec_diff(
-    _In_ __CONST struct timespec *start,
-    _In_ __CONST struct timespec *stop,
-    _In_ struct timespec *result);
+    _In_ const struct timespec* start,
+    _In_ const struct timespec* stop,
+    _In_ struct timespec*       result);
 
 /* mktime
  * Renormalizes local calendar time expressed as a struct tm object and also 

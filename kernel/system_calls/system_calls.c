@@ -66,13 +66,16 @@ OsStatus_t
 ScSystemQuery(
     _In_ SystemDescriptor_t* Descriptor)
 {
-    Descriptor->NumberOfProcessors  = GetMachine()->NumberOfProcessors;
-    Descriptor->NumberOfActiveCores = GetMachine()->NumberOfActiveCores;
+    int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
+    int FreeBlocks = GetMachine()->PhysicalMemory.index;
+    
+    Descriptor->NumberOfProcessors  = atomic_load(&GetMachine()->NumberOfProcessors);
+    Descriptor->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
 
     Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
     Descriptor->PageSizeBytes              = GetMemorySpacePageSize();
-    Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
-    Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
+    Descriptor->PagesTotal                 = MaxBlocks;
+    Descriptor->PagesUsed                  = MaxBlocks - FreeBlocks;
     return OsSuccess;
 }
 
@@ -172,21 +175,11 @@ ScCreateDisplayFramebuffer(void)
     uintptr_t            FbVirtual  = 0;
     size_t               FbSize     = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
 
-    if (CreateMemorySpaceMapping(Space, &FbPhysical, &FbVirtual, FbSize, 
+    if (MemorySpaceMapContiguous(Space, &FbVirtual, FbPhysical, FbSize, 
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-        MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_FIXED, __MASK) != OsSuccess) {
+        MAPPING_VIRTUAL_PROCESS) != OsSuccess) {
         // What? @todo
         ERROR("Failed to map the display buffer");
     }
     return (void*)FbVirtual;
-}
-
-OsStatus_t
-ScIsServiceAvailable(
-    _In_ UUId_t ServiceId)
-{
-    if (GetModuleByHandle(ServiceId) != NULL) {
-        return OsSuccess;
-    }
-    return OsDoesNotExist;
 }

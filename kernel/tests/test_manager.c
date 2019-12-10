@@ -27,15 +27,11 @@
 
 // Registered tests in the OS
 extern void TestDataStructures(void *Unused);
-extern void TestSynchronization(void *Unused);
 
-/* StartTestingPhase
- * Performs tests with systems used in the OS to verify stability and
- * robustness of their implementations. */
 void
 StartTestingPhase(void)
 {
-    UUId_t CurrentTest;
+    //UUId_t CurrentTest;
     TRACE("StartTestingPhase()");
 
     // Run data-structure tests
@@ -44,10 +40,10 @@ StartTestingPhase(void)
     //ThreadingJoinThread(CurrentTest);
 
     // Run synchronization tests
-    TRACE(" > Running synchronization tests");
-    if (CreateThread("TestSynchronization", TestSynchronization, NULL, 0, UUID_INVALID, &CurrentTest) != OsSuccess) {
-        ERROR(" > Failed to spawn test thread");
-        return;
-    }
-    ThreadingJoinThread(CurrentTest);
+    //TRACE(" > Running synchronization tests");
+    //if (CreateThread("TestSynchronization", TestSynchronization, NULL, 0, UUID_INVALID, &CurrentTest) != OsSuccess) {
+    //    ERROR(" > Failed to spawn test thread");
+    //    return;
+    //}
+    //ThreadingJoinThread(CurrentTest);
 }

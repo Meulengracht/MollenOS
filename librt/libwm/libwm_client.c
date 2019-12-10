@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -23,133 +24,98 @@
 
 #include <assert.h>
 #include <inet/socket.h>
-#include "libwm_client.h"
-#include "libwm_os.h"
+#include <io.h>
+#include "include/libwm_client.h"
+#include "include/libwm_os.h"
+#include <string.h>
+#include <stdlib.h>
 
-static int wm_initialized = 0;
-static int wm_socket      = -1;
+typedef struct wm_client {
+    int initialized;
+    int socket;
+} wm_client_t;
 
-static int wm_execute_command(wm_request_header_t* command)
+static int send_message(wm_client_t* client, wm_message_t* message, 
+    void* arguments, size_t argument_length)
 {
-    assert(wm_initialized == 1);
-}
-
-static int wm_listener(void* param)
-{
-    char                 buffer[256];
-    wm_request_header_t* header = &buffer[0];
-    void*                body   = &buffer[sizeof(wm_request_header_t)];
-    wm_os_thread_set_name("wm_client");
-
-    while (wm_initialized) {
-        ssize_t bytes_read = recv(wm_socket, header, 
-            sizeof(wm_request_header_t), MSG_WAITALL);
-        if (bytes_read != sizeof(wm_request_header_t)) {
-            continue;
-        }
-        
-        // Verify the data read in the header
-        if (header->magic != WM_HEADER_MAGIC ||
-            header->length < sizeof(wm_request_header_t)) {
-            continue;
-        }
-        
-        // Read rest of message
-        if (header->length > sizeof(wm_request_header_t)) {
-            assert(header->length < 256);
-            bytes_read = recv(wm_socket, body, 
-                header->length - sizeof(wm_request_header_t), MSG_WAITALL);
-            if (bytes_read != header->length - sizeof(wm_request_header_t)) {
-                continue; // do not process incomplete requests
-            }
-        }
-        
-        // elevate message to handler
-        wm_event_handler(header);
+    intmax_t bytes_written = send(client->socket, (const void*)message, 
+        sizeof(wm_message_t), MSG_WAITALL);
+    if (bytes_written == sizeof(wm_message_t) && message->has_arg) {
+        bytes_written += send(client->socket, (const void*)arguments,
+            argument_length, MSG_WAITALL);
     }
-    return shutdown(wm_socket, SHUT_RDWR);
+    return bytes_written != (message->length + 1);
 }
 
-int wm_client_initialize(wm_client_message_handler_t handler)
+static int get_message_reply(wm_client_t* client, void* return_buffer, 
+    size_t return_length)
 {
-    struct sockaddr wm_address;
-    int             status;
+    intmax_t bytes_read = recv(client->socket, return_buffer, 
+        return_length, MSG_WAITALL);
+    return bytes_read != return_length;
+}
+
+int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action, 
+    void* arguments, size_t argument_length, void* return_buffer, 
+    size_t return_length)
+{
+    int          status;
+    wm_message_t message = { 
+        .magic    = WM_HEADER_MAGIC,
+        .length   = (sizeof(wm_message_t) + argument_length) - 1,
+        .ret_length = return_length - 1,
+        .has_arg  = (argument_length != 0) ? 1 : 0,
+        .has_ret  = (return_length != 0) ? 1 : 0,
+        .unused   = 0,
+        .crc      = 0,
+        .protocol = protocol,
+        .action   = action
+    };
     
-    // Create a new socket for listening to wm events. They are all
-    // delivered to fixed sockets on the local system.
-    wm_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
-    assert(wm_socket >= 0);
+    // TODO calc crc
     
-    // Prepare the server address. 
-    memset(&wm_address, 0, sizeof(struct sockaddr));
-    wm_address.sin_family      = AF_LOCAL;
-    wm_address.sin_addr.s_addr = INADDR_ANY;
-    wm_address.sin_port        = htons(wm_port);
+    status = send_message(client, &message, arguments, argument_length);
+    if (!status && message.has_ret) {
+        status = get_message_reply(client, return_buffer, return_length);
+    }
+    return status;
+}
+
+int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client_out)
+{
+    wm_client_t* client;
+    int          status;
     
-    // Connect to the compositor
-    status = connect(wm_socket, &wm_address, sizeof(wm_address));
-    assert(status >= 0);
+    client = (wm_client_t*)malloc(sizeof(wm_client_t));
+    if (!client) {
+        _set_errno(ENOMEM);
+        return -1;
+    }
+    
+    client->socket = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (client->socket == -1) {
+        free(client);
+        return -1;
+    }
+    
+    status = connect(client->socket, 
+        sstosa(&config->address), config->address_length);
+    if (status) {
+        close(client->socket);
+        free(client);
+        return status;
+    }
+    return status;
 }
 
-int wm_client_create_window(void)
+int wm_client_shutdown(wm_client_t* client)
 {
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
+    if (!client) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    close(client->socket);
+    free(client);
+    return 0;
 }
 
-int wm_client_destroy_Window(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_redraw_window(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_window_set_title(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_request_buffer(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_release_buffer(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_resize_buffer(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_set_active_buffer(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}
-
-int wm_client_shutdown(void)
-{
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-}

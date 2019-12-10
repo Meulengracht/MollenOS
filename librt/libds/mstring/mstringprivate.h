@@ -118,17 +118,12 @@
 
 /* This is the block size that mstring allocates with
  * this can be tweaked by the user */
-#define MSTRING_BLOCK_SIZE		64
+#define MSTRING_BLOCK_SIZE 64
 
-/* Structures 
- * The MString structure, it keeps 
- * track of data, length and max length 
- * before next string expansion */
-typedef struct _MString
-{
-	void*       Data;
-	size_t      Length;
-	size_t      MaxLength;
+typedef struct MString {
+    void*  Data;
+    size_t Length;
+    size_t MaxLength;
 } MString_t;
 
 /* Converts a single char (ASCII, UTF16, UTF32) to UTF8 

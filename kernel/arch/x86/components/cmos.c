@@ -123,6 +123,7 @@ ArchGetSystemTime(
     }
 
     // Wait while update is in progress
+    // TODO: ArchSynchronizeSystemTime()
     while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG);
 
     // Fill in variables

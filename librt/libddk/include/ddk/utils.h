@@ -34,6 +34,7 @@
 #define SYSTEM_DEBUG_ERROR			0x00000002
 
 #define WARNING(...)				SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+#define WARNING_IF(cond, ...)       { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
 #define ERROR(...)					SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
 
 /* Global <toggable> definitions
@@ -112,20 +113,6 @@ DDKDECL(void,
 SystemDebug(
 	_In_ int         Type,
 	_In_ const char* Format, ...));
-
-/* WriteSystemInput
- * Notifies the operating system of new input, this input is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-DDKDECL(OsStatus_t,
-WriteSystemInput(
-    _In_ SystemInput_t* Input));
-
-/* WriteSystemKey
- * Notifies the operating system of new key-event, this key is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-DDKDECL(OsStatus_t,
-WriteSystemKey(
-    _In_ SystemKey_t* Key));
 
 _CODE_END
 

@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,60 +17,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Kernel Driver Inteface
+ * Driver Base Inteface
  * - Describes the base driver interface, which calls should be implemented and
  *   which calls are available for communicating with drivers
  */
 
-#ifndef __DRIVER_SDK_H__
-#define __DRIVER_SDK_H__
+#ifndef __DDK_DRIVER_H__
+#define __DDK_DRIVER_H__
 
-#include <ddk/contracts/base.h>
-#include <ddk/ipc/ipc.h>
+#define __DRIVER_REGISTERINSTANCE   (int)0
+#define __DRIVER_UNREGISTERINSTANCE	(int)1
+#define __DRIVER_QUERYCONTRACT      (int)2
+#define __DRIVER_UNLOAD             (int)3
 
-/* These are the different IPC functions supported
- * by the driver, note that some of them might
- * be changed in the different versions, and/or new
- * functions will be added */
-#define __DRIVER_REGISTERINSTANCE		IPC_DECL_FUNCTION(0)
-#define __DRIVER_UNREGISTERINSTANCE		IPC_DECL_FUNCTION(1)
-#define __DRIVER_QUERY					IPC_DECL_FUNCTION(2)
-#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(3)
-
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
-SERVICEAPI OsStatus_t SERVICEABI
-QueryDriver(
-	_In_      MContract_t*  Contract, 
-	_In_      int           Function, 
-	_In_Opt_  const void*   Arg0,
-	_In_Opt_  size_t        Length0,
-	_In_Opt_  const void*   Arg1,
-	_In_Opt_  size_t        Length1,
-	_In_Opt_  const void*   Arg2,
-	_In_Opt_  size_t        Length2,
-	_Out_Opt_ const void*   ResultBuffer,
-	_In_Opt_  size_t        ResultLength)
-{
-	MRemoteCall_t Request;
-
-	RPCInitialize(&Request, Contract->DriverId, Contract->Version, __DRIVER_QUERY);
-	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
-	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
-	RPCSetResult(&Request, ResultBuffer, ResultLength);
-	// Setup arguments if given
-	if (Arg0 != NULL && Length0 != 0) {
-		RPCSetArgument(&Request, 2, Arg0, Length0);
-	}
-	if (Arg1 != NULL && Length1 != 0) {
-		RPCSetArgument(&Request, 3, Arg1, Length1);
-	}
-	if (Arg2 != NULL && Length2 != 0) {
-		RPCSetArgument(&Request, 4, Arg2, Length2);
-	}
-	return RPCExecute(&Request);
-}
-
-#endif //!__DRIVER_SDK_H__
+#endif //!__DDK_DRIVER_H__

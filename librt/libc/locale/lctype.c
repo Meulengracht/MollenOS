@@ -43,53 +43,18 @@ const struct lc_ctype_T _C_ctype_locale = {
 int __ctype_load_locale (struct __locale_t *locale, const char *name,
 		     void *f_wctomb, const char *charset, int mb_cur_max)
 {
-  int ret = 0;
-  struct lc_ctype_T ct;
-  char *bufp = NULL;
-
-#ifdef __CYGWIN__
-  extern int __set_lc_ctype_from_win (const char *, const struct lc_ctype_T *,
-				      struct lc_ctype_T *, char **, void *,
-				      const char *, int);
-  ret = __set_lc_ctype_from_win (name, &_C_ctype_locale, &ct, &bufp,
-				 f_wctomb, charset, mb_cur_max);
-  /* ret == -1: error, ret == 0: C/POSIX, ret > 0: valid */
-  if (ret >= 0)
-    {
-      struct lc_ctype_T *ctp = NULL;
-
-      if (ret > 0)
-	{
-	  ctp = (struct lc_ctype_T *) calloc (1, sizeof *ctp);
-	  if (!ctp)
-	    {
-	      free (bufp);
-	      return -1;
-	    }
-	  *ctp = ct;
-	}
-      struct __lc_cats tmp = locale->lc_cat[LC_CTYPE];
-      locale->lc_cat[LC_CTYPE].ptr = ret == 0 ? &_C_ctype_locale : ctp;
-      locale->lc_cat[LC_CTYPE].buf = bufp;
-      /* If buf is not NULL, both pointers have been alloc'ed */
-      if (tmp.buf)
-	{
-	  free ((void *) tmp.ptr);
-	  free (tmp.buf);
-	}
-      ret = 0;
-    }
-#else
-	/* TODO */
+	int ret = 0;
+	struct lc_ctype_T ct;
+	char *bufp = NULL;
+	
+	// @todo
 	_CRT_UNUSED(bufp);
 	_CRT_UNUSED(ct);
 	
-	/* Silence warnings */
 	_CRT_UNUSED(locale);
 	_CRT_UNUSED(name);
 	_CRT_UNUSED(f_wctomb);
 	_CRT_UNUSED(mb_cur_max);
 	_CRT_UNUSED(charset);
-#endif
-  return ret;
+	return ret;
 }

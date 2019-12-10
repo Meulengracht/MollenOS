@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2015, Philip Meulengracht
  *
@@ -16,11 +17,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) Device Scan Interface
+ * ACPI(CA) Device Scan Interface
  */
 
-#define __MODULE "DSIF"
-#define __TRACE
+#define __MODULE "ACPI"
+//#define __TRACE
 
 #include <acpiinterface.h>
 #include <debug.h>
@@ -30,57 +31,66 @@
 extern ACPI_STATUS AcpiHwDerivePciId(ACPI_PCI_ID *PciId, ACPI_HANDLE RootPciDevice, ACPI_HANDLE PciRegion);
 
 // Static storage for the pci-acpi mappings
-static Collection_t PciToAcpiDevices    = COLLECTION_INIT(KeyInteger);
-static int          BusCounter          = 0;
+static list_t PciToAcpiDevices = LIST_INIT;
+static int    BusCounter       = 0;
 
-/* AcpiDeviceLookupBusRoutings
- * lookup a bridge device for the given bus that contains pci routings */
+struct FindBusRoutings {
+    int           Bus;
+    AcpiDevice_t* Device;
+};
+
+static int
+BusRoutingLookupCallback(
+    _In_ int        Index,
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    AcpiDevice_t*           Device = Element->value;
+    struct FindBusRoutings* Result = Context;
+    
+    if (Device->Type == ACPI_BUS_ROOT_BRIDGE &&
+        Device->GlobalBus == Result->Bus && 
+        Device->Routings != NULL)
+    {
+        Result->Device = Device;
+        return LIST_ENUMERATE_STOP;
+    }
+    return LIST_ENUMERATE_CONTINUE;
+}
+
 AcpiDevice_t*
 AcpiDeviceLookupBusRoutings(
     _In_ int Bus)
 {
-    AcpiDevice_t*   Dev;
-    DataKey_t       Key = { .Value.Integer = ACPI_BUS_ROOT_BRIDGE };
-    int             Index = 0;
-
-    // Loop through buses
-    while (1) {
-        Dev = (AcpiDevice_t*)CollectionGetNodeByKey(&PciToAcpiDevices, Key, Index);
-        if (Dev == NULL) {
-            break;
-        }
-
-        // Match the bus 
-        if (Dev->GlobalBus == Bus && Dev->Routings != NULL) {
-            return Dev;
-        }
-        Index++;
-    }
-    return NULL;
+    struct FindBusRoutings Context = { 0 };
+    list_enumerate(&PciToAcpiDevices, BusRoutingLookupCallback, &Context);
+    return Context.Device;
 }
 
-/* AcpiDeviceCreate
- * Retrieve all available information about the handle
- * and create a new device proxy for it. */
 OsStatus_t
 AcpiDeviceCreate(
     _In_ ACPI_HANDLE Handle,
     _In_ ACPI_HANDLE Parent,
     _In_ int Type)
 {
-    // Variables
     AcpiDevice_t *Device = NULL;
     ACPI_BUFFER Buffer = { 0 };
     ACPI_STATUS Status;
+    
+    TRACE("[acpi_device_create] creating new device of type %i", Type);
 
-    // Allocate a new instance
     Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
+    if (!Device) {
+        return OsOutOfMemory;
+    }
+    
     memset(Device, 0, sizeof(AcpiDevice_t));
 
     // Store initial members
     Device->Handle  = Handle;
     Device->Parent  = Parent;
     Device->Type    = Type; 
+    ELEMENT_INIT(&Device->Header, Handle, Device);
 
     // Lookup identifiers, supported features and the bus-numbers
     Status = AcpiDeviceGetBusId(Device, Type);
@@ -202,7 +212,7 @@ AcpiDeviceCreate(
     if (Device->Features & ACPI_FEATURE_PRW) {
         Status = AcpiDeviceParsePower(Device);
         if (ACPI_FAILURE(Status)) {
-            ERROR("Failed to parse power resources from device %s (%" PRIuIN ")", 
+            ERROR("[acpi_device_create] parse_power_package failed for device %s (%" PRIuIN ")", 
                 Device->BusId, Status);
         }
         else {
@@ -211,9 +221,10 @@ AcpiDeviceCreate(
         }
     }
 
-    // Add the device to device-list
-    Device->Header.Key.Value.Integer = Device->Type;
-    return CollectionAppend(&PciToAcpiDevices, &Device->Header);
+    TRACE("[acpi_device_create] adding device to list");
+    list_append(&PciToAcpiDevices, &Device->Header);
+    TRACE("[acpi_device_create] done");
+    return OsSuccess;
 }
 
 /* AcpiDeviceInstallFixed 

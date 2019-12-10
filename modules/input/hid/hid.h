@@ -237,7 +237,6 @@ typedef struct _HidDevice {
     // Buffers
     UsbHidReportCollection_t    *Collection;
     uintptr_t                   *Buffer;
-    uintptr_t                    BufferAddress;
     size_t                       PreviousDataIndex;
     size_t                       ReportLength;
     

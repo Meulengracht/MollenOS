@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2015, Philip Meulengracht
  *
@@ -19,9 +20,6 @@
  * Threading Interface
  * - Handles all common threading across architectures
  *   and implements systems like signaling, synchronization and rpc
- * 
- * - Threads are only ever cleaned up if they are in the Cleanup State, to reach this state
- *   someone must have either called Join or Detach (+ reach exit) on the thread
  */
 
 #ifndef __THREADING_H__
@@ -29,17 +27,16 @@
 
 #include <os/osdefs.h>
 #include <os/context.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <semaphore.h>
 #include <mutex.h>
 #include <signal.h>
 #include <time.h>
 
 // Forward some structures we need
-typedef struct _SystemMemorySpace SystemMemorySpace_t;
-typedef struct _SystemProcess     SystemProcess_t;
-typedef struct _SystemPipe        SystemPipe_t;
-typedef struct _SchedulerObject   SchedulerObject_t;
+typedef struct SystemMemorySpace SystemMemorySpace_t;
+typedef struct SystemProcess     SystemProcess_t;
+typedef struct SchedulerObject   SchedulerObject_t;
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -72,7 +69,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-typedef struct {
+typedef struct SystemSignal {
     _Atomic(int)   Status;
     _Atomic(void*) Information;
 } SystemSignal_t;
@@ -81,46 +78,46 @@ typedef struct {
 #define SIGNAL_ALLOCATED 1
 #define SIGNAL_PENDING   2
 
-typedef struct _MCoreThread {
-    CollectionItem_t        Header;
+typedef struct SystemThread {
+    SystemMemorySpace_t*    MemorySpace;
+    UUId_t                  MemorySpaceHandle;
+    SchedulerObject_t*      SchedulerObject;
+    Context_t*              ContextActive;
+    
+    UUId_t                  Handle;
+    UUId_t                  ParentHandle;
+    void*                   ArenaKernelPointer;
+    void*                   ArenaUserPointer;
+    
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
     clock_t                 StartedAt;
+    struct SystemThread*    Children;
+    struct SystemThread*    Sibling;
 
     const char*             Name;
-    UUId_t                  ParentThreadId;
     Flags_t                 Flags;
     _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
-    SchedulerObject_t*      SchedulerObject;
 
     ThreadEntry_t           Function;
     void*                   Arguments;
     int                     RetCode;
     
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
-    Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
+    uintptr_t               ArenaPhysicalAddress;
 
-    SystemPipe_t*           Pipe;
-    SystemMemorySpace_t*    MemorySpace;
-    UUId_t                  MemorySpaceHandle;
-    
     _Atomic(int)            PendingSignals;
     int                     HandlingSignals;
     Context_t*              OriginalContext;
     SystemSignal_t          Signals[NUMSIGNALS];
 } MCoreThread_t;
 
-/* ThreadingInitialize
- * Initializes static data and allocates resources. */
-KERNELAPI OsStatus_t KERNELABI
-ThreadingInitialize(void);
-
 /* ThreadingEnable
  * Enables the threading system for the given cpu calling the function. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 ThreadingEnable(void);
 
 /* CreateThread
@@ -192,12 +189,6 @@ KERNELAPI OsStatus_t KERNELABI
 AreThreadsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2);
-
-/* GetThread
- * Lookup thread by the given thread-id, returns NULL if invalid */
-KERNELAPI MCoreThread_t* KERNELABI
-GetThread(
-    _In_ UUId_t ThreadId);
 
 /* ThreadingAdvance
  * This is the thread-switch function and must be be called from the below architecture 

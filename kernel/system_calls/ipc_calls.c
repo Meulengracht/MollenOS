@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ *  MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -19,238 +20,222 @@
  * System call interface - IPC implementation
  *
  */
-#define __MODULE "SCIF"
-#define __TRACE
 
-#include <ddk/ipc/ipc.h>
+#define __MODULE "IPC0"
+//#define __TRACE
+
+#include <arch/utils.h>
+#include <ddk/barrier.h>
+#include <debug.h>
+#include <futex.h>
+#include <handle.h>
+#include <os/input.h>
+#include <os/ipc.h>
+#include <machine.h>
 #include <modules/manager.h>
 #include <modules/module.h>
-#include <arch/utils.h>
 #include <threading.h>
-#include <os/input.h>
-#include <machine.h>
-#include <handle.h>
-#include <debug.h>
-#include <pipe.h>
 
-OsStatus_t
-ScCreatePipe( 
-    _In_  int     Type,
-    _Out_ UUId_t* Handle)
+static inline void
+CleanupMessage(
+    _In_  MCoreThread_t* Target,
+    _In_  IpcMessage_t*  Message)
 {
-    SystemPipe_t* Pipe;
+    int i;
+    TRACE("CleanupMessage(%s, 0x%llx)", Target->Name, Message);
 
-    if (Type == PIPE_RAW) {
-        Pipe = CreateSystemPipe(0, PIPE_DEFAULT_ENTRYCOUNT);
-    }
-    else if (Type == PIPE_STRUCTURED) {
-        Pipe = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
-    }
-    else {
-        return OsInvalidParameters;
-    }
-    *Handle = CreateHandle(HandleTypePipe, Pipe);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScDestroyPipe(
-    _In_ UUId_t Handle)
-{
-    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
-    OsStatus_t    Status = OsInvalidParameters;
-
-    if (Pipe != NULL) {
-        Status = DestroyHandle(Handle);
-        
-        // Disable the window manager input event pipe
-        if (Status == OsSuccess && GetMachine()->StdInput == Pipe) {
-            GetMachine()->StdInput = NULL;
+    // Flush all the mappings granted in the argument phase
+    for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+        TRACE("... arg 0x%llx, 0x%llx", 
+            Message->UntypedArguments[i].Buffer, Message->UntypedArguments[i].Length);
+        if (Message->UntypedArguments[i].Length & IPC_ARGUMENT_MAPPED) {
+            (void)MemorySpaceUnmap(Target->MemorySpace,
+                (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
+                IPC_GET_LENGTH(Message, i));
         }
-
-        // Disable the window manager wm event pipe
-        if (Status == OsSuccess && GetMachine()->WmInput == Pipe) {
-            GetMachine()->WmInput = NULL;
-        }
+        Message->UntypedArguments[i].Length = 0;
     }
-    return Status;
 }
 
 OsStatus_t
-ScReadPipe(
-    _In_ UUId_t   Handle,
-    _In_ uint8_t* Message,
-    _In_ size_t   Length)
+ScIpcReply(
+    _In_  IpcMessage_t* Message,
+    _In_  void*         Buffer,
+    _In_  size_t        Length)
 {
-    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
-    if (Pipe == NULL) {
-        ERROR("Thread %s trying to read from non-existing pipe handle %" PRIuIN "", 
-            GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
-        return OsDoesNotExist;
-    }
-
-    if (Length != 0) {
-        ReadSystemPipe(Pipe, Message, Length);
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-ScWritePipe(
-    _In_ UUId_t   Handle,
-    _In_ uint8_t* Message,
-    _In_ size_t   Length)
-{
-    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
-    if (Message == NULL || Length == 0) {
-        return OsInvalidParameters;
-    }
-
-    if (Pipe == NULL) {
-        ERROR("%s: ScPipeWrite::Invalid pipe %" PRIuIN "", 
-            GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
-        return OsDoesNotExist;
-    }
-    WriteSystemPipe(Pipe, Message, Length);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScRpcResponse(
-    _In_ MRemoteCall_t* RemoteCall)
-{
-    SystemPipe_t* Pipe = GetCurrentThreadForCore(ArchGetProcessorCoreId())->Pipe;
-    assert(Pipe != NULL);
-    assert(RemoteCall != NULL);
-    assert(RemoteCall->Result.Length > 0);
-    //TRACE("ScRpcResponse(Message %" PRIiIN ", %" PRIuIN ")", RemoteCall->Function, RemoteCall->Result.Length);
-
-    // Read up to <Length> bytes, this results in the next 1 .. Length
-    // being read from the raw-pipe.
-    RemoteCall->Result.Length = ReadSystemPipe(Pipe, 
-        (uint8_t*)RemoteCall->Result.Data.Buffer, RemoteCall->Result.Length);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScRpcExecute(
-    _In_ MRemoteCall_t* RemoteCall,
-    _In_ int            Async)
-{
-    SystemPipeUserState_t State;
-    size_t                TotalLength = sizeof(MRemoteCall_t);
-    MCoreThread_t*        Thread;
-    SystemModule_t*       Module;
-    SystemPipe_t*         Pipe;
-    int                   i;
-    assert(RemoteCall != NULL);
+    MCoreThread_t* Current   = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    MCoreThread_t* Target    = LookupHandleOfType((UUId_t)Message->Sender, HandleTypeThread);
+    IpcArena_t*    IpcArena;
+    TRACE("%s => ScIpcReply()", Current->Name);
     
-    Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
-    if (Module == NULL) {
-        Pipe = (SystemPipe_t*)LookupHandle(RemoteCall->Target);
-        if (Pipe == NULL) {
-            return OsDoesNotExist;
-        }
-        if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
-            return OsInvalidParameters;
-        }
-    }
-    else {
-        if (Module->Rpc == NULL) {
-            ERROR("RPC-Target %" PRIuIN " did exist, but was not running", RemoteCall->Target);
-            return OsInvalidParameters;
-        }
-        Pipe = Module->Rpc;
+    if (Target) {
+        IpcArena = Target->ArenaKernelPointer;
+        memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
+            Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
+        smp_mb();
+        
+        atomic_store(&IpcArena->ResponseSyncObject, 1);
+        (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
     }
 
-    // Calculate how much data to be comitted
+    CleanupMessage(Current, Message);
+    return OsSuccess;
+}
+
+OsStatus_t
+ScIpcListen(
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
+{
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->ArenaUserPointer; // Use the user pointer here
+    int            SyncValue;
+    TRACE("%s => ScIpcListen()", Current->Name);
+
+    // Clear the WriteSyncObject
+    atomic_store(&IpcArena->WriteSyncObject, 0);
+    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
+    }
+
+    TRACE("... received ipc");
+    *MessageOut = &IpcArena->Message;
+    return OsSuccess;
+}
+
+OsStatus_t
+ScIpcReplyAndListen(
+    _In_  IpcMessage_t*  Message,
+    _In_  void*          Buffer,
+    _In_  size_t         Length,
+    _In_  size_t         Timeout,
+    _Out_ IpcMessage_t** MessageOut)
+{
+    OsStatus_t Status = ScIpcReply(Message, Buffer, Length);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    return ScIpcListen(Timeout, MessageOut);
+}
+
+OsStatus_t
+ScIpcGetResponse(
+    _In_ size_t Timeout,
+    _In_ void** BufferOut)
+{
+    MCoreThread_t* Current  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    IpcArena_t*    IpcArena = Current->ArenaUserPointer; // Use the user pointer here
+    int            SyncValue;
+    TRACE("%s => ScIpcGetResponse()", Current->Name);
+    
+    // Wait for response by 'polling' the value
+    SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    while (!SyncValue) {
+        if (FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
+    }
+    
+    smp_mb();
+    *BufferOut = &IpcArena->Buffer[IPC_RESPONSE_LOCATION];
+    return OsSuccess;
+}
+
+OsStatus_t
+ScIpcInvoke(
+    _In_  UUId_t        TargetHandle,
+    _In_  IpcMessage_t* Message,
+    _In_  unsigned int  Flags,
+    _In_  size_t        Timeout,
+    _Out_ void**        BufferOut)
+{
+    MCoreThread_t* Target      = LookupHandleOfType(TargetHandle, HandleTypeThread);
+    size_t         BufferIndex = 0;
+    IpcArena_t*    IpcArena;
+    int            SyncValue;
+    int            i;
+    
+    if (!Target) {
+        ERROR("[ipc_invoke] Target %u did not exist", TargetHandle);
+        return OsDoesNotExist;
+    }
+    TRACE("[ipc_invoke] => %s", Target->Name);
+    
+    TRACE("%u => %u => 0x%x => 0x%x", GetCurrentThreadId(), 
+        TargetHandle, Target, Target->ArenaKernelPointer);
+    IpcArena  = Target->ArenaKernelPointer;
+    SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
+    while (SyncValue) {
+        if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
+            ERROR("[ipc_invoke] timeout reached");
+            return OsTimeout;
+        }
+        SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
+    }
+    
+    IpcArena->Message.MetaLength = sizeof(IpcMessage_t); 
+    IpcArena->Message.Sender     = (thrd_t)GetCurrentThreadId();
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-        if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
-            TotalLength += RemoteCall->Arguments[i].Length;
+        IpcArena->Message.TypedArguments[i]          = Message->TypedArguments[i];
+        IpcArena->Message.UntypedArguments[i].Length = Message->UntypedArguments[i].Length;
+        
+        // Handle the untyped, a bit more tricky. If the argument is larger than 512
+        // bytes, we will do a mapping clone instead of just copying data into sender.
+        if (Message->UntypedArguments[i].Length) {
+            // Events that don't have a response do not support longer arguments than 512 bytes.
+            if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && 
+                !(Flags & IPC_NO_RESPONSE)) {
+                VirtualAddress_t CopyAddress;
+                OsStatus_t       Status = CloneMemorySpaceMapping(
+                    GetCurrentMemorySpace(), Target->MemorySpace,
+                    (VirtualAddress_t)Message->UntypedArguments[i].Buffer, 
+                    &CopyAddress, Message->UntypedArguments[i].Length,
+                    MAPPING_USERSPACE | MAPPING_READONLY,
+                    MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
+                if (Status != OsSuccess) {
+                    ERROR("Failed to clone ipc argument that was longer than 512 bytes");
+                    CleanupMessage(Target, &IpcArena->Message);
+                    atomic_store(&IpcArena->WriteSyncObject, 0);
+                    (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
+                    return Status;
+                }
+                IpcArena->Message.UntypedArguments[i].Buffer = (void*)(CopyAddress + ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize()));
+                IpcArena->Message.UntypedArguments[i].Length |= IPC_ARGUMENT_MAPPED;
+            }
+            else {
+                size_t BytesAvailable = ((IPC_MAX_ARGUMENTS * IPC_UNTYPED_THRESHOLD) 
+                    + sizeof(IpcMessage_t)) - IpcArena->Message.MetaLength;
+                assert(BytesAvailable != 0);
+                
+                if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
+                    WARNING("Event with more than IPC_UNTYPED_THRESHOLD bytes of data for an argument");
+                }
+                memcpy(&IpcArena->Buffer[BufferIndex], 
+                    Message->UntypedArguments[i].Buffer,
+                    MIN(BytesAvailable, IPC_GET_LENGTH(Message, i)));
+                IpcArena->Message.UntypedArguments[i].Buffer = (void*)BufferIndex;
+                
+                BufferIndex                  += MIN(BytesAvailable, IPC_GET_LENGTH(Message, i));
+                IpcArena->Message.MetaLength += MIN(BytesAvailable, IPC_GET_LENGTH(Message, i));
+            }
         }
     }
-
-    // Decrypt the sender for the receiver
-    Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    RemoteCall->From.Process ^= Thread->Cookie;
-    RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
-
-    // Setup producer access
-    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
-    WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
-    for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-        if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
-            WriteSystemPipeProduction(&State, 
-                (const uint8_t*)RemoteCall->Arguments[i].Data.Buffer,
-                RemoteCall->Arguments[i].Length);
-        }
-    }
-    if (Async) {
+    
+    // TODO: determine the consequences of not clearing our own response
+    // flag here to prepare for ipc reply
+    smp_mb();
+    atomic_store(&IpcArena->ReadSyncObject, 1);
+    (void)FutexWake(&IpcArena->ReadSyncObject, 1, 0);
+    if (Flags & (IPC_ASYNCHRONOUS | IPC_NO_RESPONSE)) {
         return OsSuccess;
     }
-    return ScRpcResponse(RemoteCall);
-}
-
-OsStatus_t
-ScRpcListen(
-    _In_ UUId_t         Handle,
-    _In_ MRemoteCall_t* RemoteCall,
-    _In_ uint8_t*       ArgumentBuffer)
-{
-    SystemPipeUserState_t State;
-    uint8_t*              BufferPointer = ArgumentBuffer;
-    SystemModule_t*       Module;
-    SystemPipe_t*         Pipe;
-    size_t                Length;
-    int                   i;
-    
-    assert(RemoteCall != NULL);
-    
-    // Start out by resolving both the process and pipe
-    if (Handle == UUID_INVALID) {
-        Module = GetCurrentModule();
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
-        Pipe = Module->Rpc;
-    }
-    else {
-        Pipe = (SystemPipe_t*)LookupHandle(Handle);
-        if (Pipe == NULL) {
-            return OsDoesNotExist;
-        }
-        if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
-            return OsInvalidParameters;
-        }
-    }
-
-    // Get in queue for pipe entry
-    AcquireSystemPipeConsumption(Pipe, &Length, &State);
-    ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
-    for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-        if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
-            RemoteCall->Arguments[i].Data.Buffer = (const void*)BufferPointer;
-            ReadSystemPipeConsumption(&State, BufferPointer, RemoteCall->Arguments[i].Length);
-            BufferPointer += RemoteCall->Arguments[i].Length;
-        }
-    }
-    FinalizeSystemPipeConsumption(Pipe, &State);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScRpcRespond(
-    _In_ MRemoteCallAddress_t* RemoteAddress,
-    _In_ const uint8_t*        Buffer, 
-    _In_ size_t                Length)
-{
-    MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
-    if (Thread) {
-        if (Thread->Pipe) {
-            WriteSystemPipe(Thread->Pipe, Buffer, Length);
-            return OsSuccess;
-        }
-    }
-    ERROR("Thread %" PRIuIN " did not exist", RemoteAddress->Thread);
-    return OsDoesNotExist;
+    return ScIpcGetResponse(Timeout, BufferOut);
 }

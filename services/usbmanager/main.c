@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,29 +17,25 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Service - Usb Manager
+ * Usb Manager
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
 
 #include <ddk/services/usb.h>
 #include <ddk/utils.h>
+#include <os/ipc.h>
 #include "manager.h"
 
 /* OnLoad
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
 OsStatus_t
-OnLoad(void)
+OnLoad(
+    _In_ char** ServicePathOut)
 {
-    // Initialize core-systems
-    if (UsbCoreInitialize() != OsSuccess) {
-        ERROR("Failed to initialize usb-core systems.");
-        return OsError;
-    }
-
-    // Register us with server manager
-	return RegisterService(__USBMANAGER_TARGET);
+	*ServicePathOut = SERVICE_USB_PATH;
+	return UsbCoreInitialize();
 }
 
 /* OnUnload
@@ -47,7 +44,6 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-	// Destroy core-systems and let them cleanup
 	return UsbCoreDestroy();
 }
 
@@ -56,56 +52,52 @@ OnUnload(void)
  * and should handle the given event*/
 OsStatus_t
 OnEvent(
-	_In_ MRemoteCall_t *Message)
+    _In_ IpcMessage_t* Message)
 {
-	// Variables
 	OsStatus_t Result = OsSuccess;
 
 	// Which function is called?
-	switch (Message->Function) {
+	switch (IPC_GET_TYPED(Message, 0)) {
 		case __USBMANAGER_REGISTERCONTROLLER: {
 			// Register controller
-			return UsbCoreControllerRegister(Message->From.Process, 
-				(MCoreDevice_t*)Message->Arguments[0].Data.Buffer, 
-				(UsbControllerType_t)Message->Arguments[1].Data.Value,
-				Message->Arguments[2].Data.Value);
+			return UsbCoreControllerRegister(Message->Sender, 
+				(MCoreDevice_t*)IPC_GET_UNTYPED(Message, 0), 
+				(UsbControllerType_t)IPC_GET_TYPED(Message, 1),
+				IPC_GET_TYPED(Message, 2));
 		} break;
 
 		case __USBMANAGER_UNREGISTERCONTROLLER: {
 			// Unregister controller
-			return UsbCoreControllerUnregister(Message->From.Process, 
-				(UUId_t)Message->Arguments[0].Data.Value);
+			return UsbCoreControllerUnregister(Message->Sender, 
+				(UUId_t)IPC_GET_TYPED(Message, 1));
 		} break;
 
 		case __USBMANAGER_QUERYCONTROLLERCOUNT: {
             int ControllerCount = UsbCoreGetControllerCount();
-            return RPCRespond(&Message->From, &ControllerCount, sizeof(int));
+            return IpcReply(Message, &ControllerCount, sizeof(int));
 		} break;
 
         case __USBMANAGER_QUERYCONTROLLER: {
-            UsbHcController_t HcController  = { { 0 }, 0 };
-            UsbController_t *Controller     = NULL;
-            Controller                      = UsbCoreGetControllerIndex((int)Message->Arguments[0].Data.Value);
+            UsbHcController_t HcController = { { 0 }, 0 };
+            UsbController_t*  Controller   = NULL;
+            Controller                     = UsbCoreGetControllerIndex((int)IPC_GET_TYPED(Message, 1));
+            
             if (Controller != NULL) {
                 memcpy(&HcController.Device, &Controller->Device, sizeof(MCoreDevice_t));
                 HcController.Type = Controller->Type;
             }
-            return RPCRespond(&Message->From, &HcController, sizeof(UsbHcController_t));
+            return IpcReply(Message, &HcController, sizeof(UsbHcController_t));
         } break;
 
 		case __USBMANAGER_PORTEVENT: {
-			// Handle port event
-			return UsbCoreEventPort(Message->From.Process, 
-				(UUId_t)Message->Arguments[0].Data.Value, 
-				LOBYTE(Message->Arguments[1].Data.Value), 
-				LOBYTE(Message->Arguments[2].Data.Value));
+			return UsbCoreEventPort(Message->Sender, 
+				(UUId_t)IPC_GET_TYPED(Message, 1), 
+				LOBYTE(IPC_GET_TYPED(Message, 2)), 
+				LOBYTE(IPC_GET_TYPED(Message, 3)));
 		} break;
 
-		// Don't handle anything else tbh
 		default:
 			break;
 	}
-
-	// Done
 	return Result;
 }

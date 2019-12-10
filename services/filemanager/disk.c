@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,31 +17,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
 #define __TRACE
 
+#include <ctype.h>
 #include <ddk/contracts/filesystem.h>
 #include <ddk/services/session.h>
 #include <ddk/services/file.h>
 #include <ddk/utils.h>
-#include <os/services/targets.h>
-
 #include "include/vfs.h"
+#include <os/mollenos.h>
+
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+#include <threads.h>
 
 static int GlbInitHasRun = 0;
-
-OsStatus_t
-VfsResolveQueueEvent(void)
-{
-    MRemoteCall_t Rpc;
-    RPCInitialize(&Rpc, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_RESOLVEQUEUE);
-    return RPCEvent(&Rpc);
-}
 
 OsStatus_t
 VfsResolveQueueExecute(void)
@@ -153,29 +147,46 @@ DiskRegisterFileSystem(
         // Start init?
         if (!GlbInitHasRun) {
             Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
-            VfsResolveQueueEvent();
             GlbInitHasRun = 1;
+            VfsResolveQueueExecute();
         }
     }
     return OsSuccess;
 }
 
-/* VfsRegisterDisk
- * Registers a disk with the file-manager and it will
- * automatically be parsed (MBR, GPT, etc), and all filesystems
- * on the disk will be brought online */
+static int
+InitializeDisk(void* Context)
+{
+    FileSystemDisk_t*    Disk = Context;
+    StorageDescriptor_t* Descriptor;
+    OsStatus_t           Status;
+    
+    Status = StorageQuery(Disk->Device, Disk->Driver, &Descriptor);
+    if (Status != OsSuccess) {
+        // TODO: disk states
+        // Disk->State = Crashed
+        free(Disk);
+        return OsStatusToErrno(Status);
+    }
+    
+    memcpy(&Disk->Descriptor, Descriptor, sizeof(StorageDescriptor_t));
+
+    // Detect the disk layout, and if it fails
+    // try to detect which kind of filesystem is present
+    return OsStatusToErrno(DiskDetectLayout(Disk));
+}
+
 OsStatus_t
 VfsRegisterDisk(
     _In_ UUId_t  Driver,
     _In_ UUId_t  Device,
     _In_ Flags_t Flags)
 {
-    // Variables
-    FileSystemDisk_t *Disk = NULL;
-    DataKey_t Key = { .Value.Id = Device };
+    FileSystemDisk_t* Disk;
+    DataKey_t         Key = { .Value.Id = Device };
+    thrd_t            Thread;
 
-    // Trace 
-    TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)",
+    TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)", 
         Driver, Device, Flags);
 
     // Allocate a new instance of a disk descriptor 
@@ -185,25 +196,19 @@ VfsRegisterDisk(
         return OsOutOfMemory;
     }
     
-    Disk->Driver    = Driver;
-    Disk->Device    = Device;
-    Disk->Flags     = Flags;
-    if (StorageQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
-        free(Disk);
+    Disk->Driver = Driver;
+    Disk->Device = Device;
+    Disk->Flags  = Flags;
+    // TODO: disk states
+    //Disk->State = Initializing
+    CollectionAppend(VfsGetDisks(), CollectionCreateNode(Key, Disk));
+    
+    if (thrd_create(&Thread, InitializeDisk, Disk) != thrd_success) {
         return OsError;
     }
-
-    // Add the registered disk to the list of disks
-    CollectionAppend(VfsGetDisks(), CollectionCreateNode(Key, Disk));
-
-    // Detect the disk layout, and if it fails
-    // try to detect which kind of filesystem is present
-    return DiskDetectLayout(Disk);
+    return OsSuccess;
 }
 
-/* VfsUnregisterDisk
- * Unregisters a disk from the system, and brings any filesystems
- * registered on this disk offline */
 OsStatus_t
 VfsUnregisterDisk(
     _In_ UUId_t  Device,

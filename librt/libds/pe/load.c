@@ -21,9 +21,10 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
-#include <ds/collection.h>
-#include <os/mollenos.h>
+#include <ds/ds.h>
+#include <ds/list.h>
 #include <ds/mstring.h>
+#include <os/mollenos.h>
 #include <string.h>
 #include <assert.h>
 #include "pe.h"
@@ -33,7 +34,7 @@
 #define dstrace(...)
 #endif
 
-typedef struct _SectionMapping {
+typedef struct SectionMapping {
     MemoryMapHandle_t Handle;
     uint8_t*          BasePointer;
     uintptr_t         RVA;
@@ -631,8 +632,8 @@ PeParseAndMapImage(
 
     // Add us to parent before handling data-directories
     if (Parent != NULL) {
-        DataKey_t Key = { 0 };
-        CollectionAppend(Parent->Libraries, CollectionCreateNode(Key, Image));
+        ELEMENT_INIT(&Image->Header, 0, Image);
+        list_append(Parent->Libraries, &Image->Header);
     }
 
     // Handle all the data directories, if they are present
@@ -784,9 +785,10 @@ PeLoadImage(
     Image->FullPath          = FullPath;
     Image->Architecture      = OptHeader->Architecture;
     Image->VirtualAddress    = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
-    Image->Libraries         = CollectionCreate(KeyInteger);
+    Image->Libraries         = dsalloc(sizeof(list_t));
     Image->References        = 1;
     Image->OriginalImageBase = ImageBase;
+    list_construct(Image->Libraries);
     dstrace("library (%s) => 0x%x", MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Set the entry point if there is any
@@ -798,9 +800,9 @@ PeLoadImage(
         Status = CreateImageSpace(&Image->MemorySpace);
         if (Status != OsSuccess) {
             dserror("Failed to create pe's memory space");
-            CollectionDestroy(Image->Libraries);
             MStringDestroy(Image->Name);
             MStringDestroy(Image->FullPath);
+            dsfree(Image->Libraries);
             dsfree(Image);
             return OsError;
         }
@@ -825,7 +827,7 @@ OsStatus_t
 PeUnloadImage(
     _In_ PeExecutable_t* Image)
 {
-    CollectionItem_t* Node;
+    element_t* Element;
     if (Image != NULL) {
         MStringDestroy(Image->Name);
         MStringDestroy(Image->FullPath);
@@ -833,8 +835,8 @@ PeUnloadImage(
             dsfree(Image->ExportedFunctions);
         }
         if (Image->Libraries != NULL) {
-            _foreach(Node, Image->Libraries) {
-                PeUnloadImage((PeExecutable_t*)Node->Data);
+            _foreach(Element, Image->Libraries) {
+                PeUnloadImage(Element->value);
             }
         }
         dsfree(Image);
@@ -854,11 +856,10 @@ PeUnloadLibrary(
     // we might have to unload it if there are no more references
     if (Library->References <= 0)  {
         if (Parent != NULL) {
-            foreach(lNode, Parent->Libraries) {
-                PeExecutable_t* lLib = (PeExecutable_t*)lNode->Data;
+            foreach(i, Parent->Libraries) {
+                PeExecutable_t* lLib = i->value;
                 if (lLib == Library) {
-                    CollectionRemoveByNode(Parent->Libraries, lNode);
-                    dsfree(lNode);
+                    list_remove(Parent->Libraries, i);
                     break;
                 }
             }

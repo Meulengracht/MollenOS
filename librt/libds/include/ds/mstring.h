@@ -34,15 +34,15 @@ typedef uint32_t mchar_t;
 #define MSTRING_FULL_MATCH		1           // A full match was found
 #define MSTRING_PARTIAL_MATCH	2           // Partial match, means it contains the match
 
-typedef enum _MStringType {
+typedef enum MStringType {
 	StrASCII,
 	StrUTF8,
 	StrUTF16,
 	StrUTF32,
 	Latin1
 } MStringType_t;
-struct _MString;
-typedef struct _MString MString_t;
+struct MString;
+typedef struct MString MString_t;
 
 _CODE_BEGIN
 CRTDECL(MString_t*, MStringCreate(const char* Data, MStringType_t DataType));

@@ -180,13 +180,6 @@ No supporting OS subroutines are required.
 #include "../ctype/common/ctype_.h"
 #include "../stdlib/local.h"
 
-#ifdef __CYGWIN__ /* Has to be kept available as exported symbol for
-		     backward compatibility.  Set it in setlocale, but
-		     otherwise ignore it.  Applications compiled after
-		     2010 don't use it anymore. */
-int __EXPORT __mb_cur_max = 6;
-#endif
-
 char *_PathLocale = NULL;
 
 #ifdef _MB_CAPABLE
@@ -239,11 +232,7 @@ const struct __locale_t __C_locale =
 #else /* __HAVE_LOCALE_INFO__ */
   {
     { NULL, NULL },			/* LC_ALL */
-#ifdef __CYGWIN__
-    { &_C_collate_locale, NULL },	/* LC_COLLATE */
-#else
     { NULL, NULL },			/* LC_COLLATE */
-#endif
     { &_C_ctype_locale, NULL },		/* LC_CTYPE */
     { &_C_monetary_locale, NULL },	/* LC_MONETARY */
     { &_C_numeric_locale, NULL },	/* LC_NUMERIC */
@@ -257,17 +246,12 @@ const struct __locale_t __C_locale =
 CRTDECL_DATA(struct __locale_t, __global_locale) =
 {
   { "C", "C", DEFAULT_LOCALE, "C", "C", "C", "C", },
-#ifdef __CYGWIN__
-  __utf8_wctomb,
-  __utf8_mbtowc,
-#else
 #ifdef LIBC_KERNEL
   NULL,
   NULL,
 #else
   __ascii_wctomb,
   __ascii_mbtowc,
-#endif
 #endif
   0,
   DEFAULT_CTYPE_PTR,
@@ -285,11 +269,7 @@ CRTDECL_DATA(struct __locale_t, __global_locale) =
 #else /* __HAVE_LOCALE_INFO__ */
   {
     { NULL, NULL },			/* LC_ALL */
-#ifdef __CYGWIN__
-    { &_C_collate_locale, NULL },	/* LC_COLLATE */
-#else
     { NULL, NULL },			/* LC_COLLATE */
-#endif
     { &_C_ctype_locale, NULL },		/* LC_CTYPE */
     { &_C_monetary_locale, NULL },	/* LC_MONETARY */
     { &_C_numeric_locale, NULL },	/* LC_NUMERIC */
@@ -591,17 +571,7 @@ restart:
 	}
       else if (c[0] == '\0' || c[0] == '@')
 	/* End of string or just a modifier */
-#ifdef __CYGWIN__
-	/* The Cygwin-only function __set_charset_from_locale checks
-	   for the default charset which is connected to the given locale.
-	   The function uses Windows functions in turn so it can't be easily
-	   adapted to other targets.  However, if any other target provides
-	   equivalent functionality, preferrably using the same function name
-	   it would be sufficient to change the guarding #ifdef. */
-	__set_charset_from_locale (locale, charset);
-#else
 	strcpy (charset, "ISO-8859-1");
-#endif
       else
 	/* Invalid string */
       	FAIL;
@@ -627,7 +597,6 @@ restart:
       l_wctomb = __utf8_wctomb;
       l_mbtowc = __utf8_mbtowc;
     break;
-#ifndef __CYGWIN__
     /* Cygwin does not support JIS at all. */
     case 'J':
     case 'j':
@@ -638,7 +607,6 @@ restart:
       l_wctomb = __jis_wctomb;
       l_mbtowc = __jis_mbtowc;
     break;
-#endif /* !__CYGWIN__ */
     case 'E':
     case 'e':
       if (strncasecmp (charset, "EUC", 3))
@@ -653,24 +621,6 @@ restart:
 	  l_wctomb = __eucjp_wctomb;
 	  l_mbtowc = __eucjp_mbtowc;
 	}
-#ifdef __CYGWIN__
-      /* Newlib does neither provide EUC-KR nor EUC-CN, and Cygwin's
-      	 implementation requires Windows support. */
-      else if (!strcasecmp (c, "KR"))
-	{
-	  strcpy (charset, "EUCKR");
-	  mbc_max = 2;
-	  l_wctomb = __kr_wctomb;
-	  l_mbtowc = __kr_mbtowc;
-	}
-      else if (!strcasecmp (c, "CN"))
-	{
-	  strcpy (charset, "EUCCN");
-	  mbc_max = 2;
-	  l_wctomb = __gbk_wctomb;
-	  l_mbtowc = __gbk_mbtowc;
-	}
-#endif /* __CYGWIN__ */
       else
 	FAIL;
     break;
@@ -805,19 +755,6 @@ restart:
       break;
     case 'G':
     case 'g':
-#ifdef __CYGWIN__
-      /* Newlib does not provide GBK/GB2312 and Cygwin's implementation
-	 requires Windows support. */
-      if (!strcasecmp (charset, "GBK")
-	  || !strcasecmp (charset, "GB2312"))
-      	{
-	  strcpy (charset, charset[2] == '2' ? "GB2312" : "GBK");
-	  mbc_max = 2;
-	  l_wctomb = __gbk_wctomb;
-	  l_mbtowc = __gbk_mbtowc;
-	}
-      else
-#endif /* __CYGWIN__ */
       /* GEORGIAN-PS and the alias without dash */
       if (!strncasecmp (charset, "GEORGIAN", 8))
 	{
@@ -876,19 +813,6 @@ restart:
       l_mbtowc = __ascii_mbtowc;
 #endif /* _MB_EXTENDED_CHARSETS_WINDOWS */
       break;
-#ifdef __CYGWIN__
-    /* Newlib does not provide Big5 and Cygwin's implementation
-       requires Windows support. */
-    case 'B':
-    case 'b':
-      if (strcasecmp (charset, "BIG5"))
-      	FAIL;
-      strcpy (charset, "BIG5");
-      mbc_max = 2;
-      l_wctomb = __big5_wctomb;
-      l_mbtowc = __big5_mbtowc;
-      break;
-#endif /* __CYGWIN__ */
     default:
       FAIL;
     }
@@ -898,9 +822,6 @@ restart:
 #ifndef __HAVE_LOCALE_INFO__
       strcpy (loc->ctype_codeset, charset);
       loc->mb_cur_max[0] = mbc_max;
-#endif
-#ifdef __CYGWIN__
-      __mb_cur_max = mbc_max;	/* Only for backward compat */
 #endif
       loc->wctomb = l_wctomb;
       loc->mbtowc = l_mbtowc;
@@ -930,12 +851,6 @@ restart:
 #endif /* __HAVE_LOCALE_INFO__ */
       break;
 #ifdef __HAVE_LOCALE_INFO__
-#ifdef __CYGWIN__
-  /* Right now only Cygwin supports a __collate_load_locale function at all. */
-    case LC_COLLATE:
-      ret = __collate_load_locale (loc, locale, (void *) l_mbtowc, charset);
-      break;
-#endif
     case LC_MONETARY:
       ret = __monetary_load_locale (loc, locale, (void *) l_wctomb, charset);
       break;

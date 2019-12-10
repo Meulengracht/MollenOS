@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -32,7 +33,7 @@
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
-typedef struct _ThreadPackage {
+typedef struct ThreadPackage {
     thrd_start_t Entry;
     void*        Data;
 } ThreadPackage_t;
@@ -62,12 +63,12 @@ call_once(
 {
     assert(flag != NULL);
     
-    mtx_lock(&flag->_syncobject);
-    if (!flag->_value) {
-        flag->_value = 1;
+    mtx_lock(&flag->syncobject);
+    if (!flag->value) {
+        flag->value = 1;
         func();
     }
-    mtx_unlock(&flag->_syncobject);
+    mtx_unlock(&flag->syncobject);
 }
 
 /* thrd_create

@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Standard C Library (Endian)
- *  - Contains the implementation of the stdlib interface
+ * Standard C Library (Endian)
+ *  - Contains definitions for the machine endianess
  */
 #ifndef __STDC_ENDIAN__
 #define __STDC_ENDIAN__
@@ -48,10 +48,10 @@
 #endif
 
 #if _BYTE_ORDER == _LITTLE_ENDIAN
-#define    _QUAD_HIGHWORD    1
+#define    _QUAD_HIGHWORD   1
 #define    _QUAD_LOWWORD    0
 #else
-#define    _QUAD_HIGHWORD    0
+#define    _QUAD_HIGHWORD   0
 #define    _QUAD_LOWWORD    1
 #endif
 
@@ -63,14 +63,12 @@
 static __inline __uint16_t
 __bswap16(__uint16_t _x)
 {
-
     return ((__uint16_t)((_x >> 8) | ((_x << 8) & 0xff00)));
 }
 
 static __inline __uint32_t
 __bswap32(__uint32_t _x)
 {
-
     return ((__uint32_t)((_x >> 24) | ((_x >> 8) & 0xff00) |
         ((_x << 8) & 0xff0000) | ((_x << 24) & 0xff000000)));
 }
@@ -78,7 +76,6 @@ __bswap32(__uint32_t _x)
 static __inline __uint64_t
 __bswap64(__uint64_t _x)
 {
-
     return ((__uint64_t)((_x >> 56) | ((_x >> 40) & 0xff00) |
         ((_x >> 24) & 0xff0000) | ((_x >> 8) & 0xff000000) |
         ((_x << 8) & ((__uint64_t)0xff << 32)) |

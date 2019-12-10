@@ -39,7 +39,6 @@
 #else
 #define __TRACE
 #include <internal/_syscalls.h>
-#include <ddk/buffer.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
 #include <ddk/services/file.h>
@@ -51,7 +50,7 @@ static SystemDescriptor_t __SystemInformation = { 0 };
 static uintptr_t          __SystemBaseAddress = 0;
 #endif
 
-typedef struct _MemoryMappingState {
+typedef struct MemoryMappingState {
     MemorySpaceHandle_t Handle;
     uintptr_t           Address;
     size_t              Length;
@@ -294,13 +293,23 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
-    Flags_t PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    Flags_t    KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    Flags_t    PlacementFlags = MAPPING_VIRTUAL_FIXED;
+    int        PageCount      = DIVUP(Length, GetMemorySpacePageSize());
+    uintptr_t* Pages;
+    
     if (Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
-    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, 
-        KernelFlags, PlacementFlags, __MASK);
+    
+    Pages = dsalloc(sizeof(uintptr_t) * PageCount);
+    if (!Pages) {
+        return OsOutOfMemory;
+    }
+    
+    Status = MemorySpaceMap((SystemMemorySpace_t*)Handle, Address,
+        Pages, Length, KernelFlags, PlacementFlags);
+    dsfree(Pages);
 #else
     struct MemoryMappingParameters Parameters;
     Parameters.VirtualAddress = *Address;
@@ -324,6 +333,7 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
 
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
+    Flags_t PreviousFlags;
     Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
     if (StateObject->Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
@@ -331,7 +341,7 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
     if (!(StateObject->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
         KernelFlags |= MAPPING_READONLY;
     }
-    ChangeMemorySpaceProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, NULL);
+    MemorySpaceChangeProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, &PreviousFlags);
 #else
     MemoryFree((void*)StateObject->Address, StateObject->Length);
 #endif

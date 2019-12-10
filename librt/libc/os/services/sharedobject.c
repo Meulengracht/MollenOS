@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -21,20 +22,19 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
-
-#include <os/services/targets.h>
-#include <os/services/sharedobject.h>
+#include <ctype.h>
 #include <ddk/services/process.h>
-
 #include <ds/collection.h>
 #include <ds/mstring.h>
-#include <stdlib.h>
 #include <errno.h>
-#include <ctype.h>
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
+#include <os/mollenos.h>
+#include <os/services/sharedobject.h>
+#include <stdlib.h>
+#include <string.h>
 
-typedef struct _LibraryItem {
+typedef struct LibraryItem {
     CollectionItem_t Header;
     Handle_t         Handle;
     int              References;
@@ -53,41 +53,6 @@ static size_t SharedObjectHash(const char *String) {
 	while ((Character = tolower(*Pointer++)) != 0)
 		Hash = ((Hash << 5) + Hash) + Character; /* hash * 33 + c */
 	return Hash;
-}
-
-static void
-SetErrnoFromOsStatus(
-    _In_ OsStatus_t Status)
-{
-    switch (Status) {
-        case OsSuccess:
-            _set_errno(EOK);
-            break;
-        case OsError:
-            _set_errno(ELIBACC);
-            break;
-        case OsExists:
-            _set_errno(EEXIST);
-            break;
-        case OsDoesNotExist:
-            _set_errno(ENOENT);
-            break;
-        case OsInvalidParameters:
-            _set_errno(EINVAL);
-            break;
-        case OsInvalidPermissions:
-            _set_errno(EACCES);
-            break;
-        case OsTimeout:
-            _set_errno(ETIME);
-            break;
-        case OsNotSupported:
-            _set_errno(ENOSYS);
-            break;
-        case OsOutOfMemory:
-            _set_errno(ENOMEM);
-            break;
-    }
 }
 
 Handle_t 
@@ -138,7 +103,7 @@ SharedObjectLoad(
         }
         Result = Library->Handle;
     }
-    SetErrnoFromOsStatus(Status);
+    OsStatusToErrno(Status);
     return Result;
 }
 
@@ -159,7 +124,7 @@ SharedObjectGetFunction(
 	else {
         uintptr_t AddressOfFunction;
         Status = ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction);
-        SetErrnoFromOsStatus(Status);
+        OsStatusToErrno(Status);
         if (Status != OsSuccess) {
             return NULL;
         }
@@ -203,7 +168,7 @@ SharedObjectUnload(
 	        else {
                 Status = ProcessUnloadLibrary(Handle);
             }
-            SetErrnoFromOsStatus(Status);
+            OsStatusToErrno(Status);
             return Status;
         }
     }

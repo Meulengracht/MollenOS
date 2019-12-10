@@ -16,36 +16,29 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
  * - Transaction Translator Support
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ehci.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 
-/* EhciTdIsochronous
- * This initiates any periodic scheduling information that might be needed */
 OsStatus_t
 EhciTdIsochronous(
-    _In_ EhciController_t*              Controller,
-    _In_ UsbTransfer_t*                 Transfer,
-    _In_ EhciIsochronousDescriptor_t*   iTd,
-    _In_ uintptr_t                      BufferAddress,
-    _In_ size_t                         ByteCount,
-    _In_ size_t                         Address,
-    _In_ size_t                         Endpoint)
+    _In_ EhciController_t*            Controller,
+    _In_ UsbTransfer_t*               Transfer,
+    _In_ EhciIsochronousDescriptor_t* iTd,
+    _In_ uintptr_t                    BufferAddress,
+    _In_ size_t                       ByteCount,
+    _In_ size_t                       Address,
+    _In_ size_t                       Endpoint)
 {
     // Variables
     uintptr_t BufferIterator    = BufferAddress;
@@ -151,12 +144,11 @@ EhciiTdDump(
  * with the bytes transferred and error status. */
 void
 EhciiTdValidate(
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ EhciIsochronousDescriptor_t*   Td)
+    _In_ UsbManagerTransfer_t*        Transfer,
+    _In_ EhciIsochronousDescriptor_t* Td)
 {
-    // Variables
+    int ConditionCode = 0;
     int i;
-    int ConditionCode                   = 0;
 
     // Don't check more if there is an error condition
     if (Transfer->Status != TransferFinished && Transfer->Status != TransferQueued) {
@@ -168,18 +160,18 @@ EhciiTdValidate(
         if (Td->Transactions[i] & EHCI_iTD_ACTIVE) {
             break;
         }
-        Transfer->Status            = TransferFinished;
-        Transfer->TransactionsExecuted++;
-        ConditionCode               = EhciConditionCodeToIndex(EHCI_iTD_CC(Td->Transactions[i]));
+        Transfer->Status = TransferFinished;
+        
+        ConditionCode = EhciConditionCodeToIndex(EHCI_iTD_CC(Td->Transactions[i]));
         switch (ConditionCode) {
             case 1:
-                Transfer->Status    = TransferStalled;
+                Transfer->Status = TransferStalled;
                 break;
             case 2:
-                Transfer->Status    = TransferBabble;
+                Transfer->Status = TransferBabble;
                 break;
             case 3:
-                Transfer->Status    = TransferBufferError;
+                Transfer->Status = TransferBufferError;
                 break;
             default:
                 break;
@@ -192,16 +184,12 @@ EhciiTdValidate(
     }
 }
 
-/* EhciiTdRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 void
 EhciiTdRestart(
-    _In_ EhciController_t*              Controller,
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ EhciIsochronousDescriptor_t*   Td)
+    _In_ EhciController_t*            Controller,
+    _In_ UsbManagerTransfer_t*        Transfer,
+    _In_ EhciIsochronousDescriptor_t* Td)
 {
-    // Restore transactions
     for (int i = 0; i < 8; i++) {
         Td->Transactions[i] = Td->TransactionsCopy[i];
     }

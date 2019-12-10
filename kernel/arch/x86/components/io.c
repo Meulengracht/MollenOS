@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +17,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 Bus Driver (IO)
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
+ * MollenOS X86 IO Driver
  */
+ 
 #define __MODULE "IOLL"
 
 #include <arch/io.h>
+#include <ddk/barrier.h>
 #include <debug.h>
 #include <arch.h>
 #include <pci.h>
@@ -34,15 +35,13 @@ extern void     outb(uint16_t port, uint8_t data);
 extern void     outw(uint16_t port, uint16_t data);
 extern void     outl(uint16_t port, uint32_t data);
 
-/* PCI I/O Helper
- * This function calculates the correct offset based upon the pci bus type */
 size_t
 PciCalculateOffset(
-    _In_ int                IsExtended,
-	_In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device,
-    _In_ DevInfo_t          Function,
-    _In_ size_t             Register)
+    _In_ int       IsExtended,
+	_In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device,
+    _In_ DevInfo_t Function,
+    _In_ size_t    Register)
 {
 	if (IsExtended) {
 		return (size_t)((Bus << 20) | (Device << 15) | (Function << 12) | Register);
@@ -53,100 +52,80 @@ PciCalculateOffset(
 	}
 }
 
-/* PciRead32
- * Reads a 32 bit value from the pci-bus at the specified location bus, device, 
- * function and register */
 uint32_t
 PciRead32(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device,
-    _In_ DevInfo_t          Function,
-    _In_ size_t             Register)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device,
+    _In_ DevInfo_t Function,
+    _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inl(X86_PCI_DATA);
 }
 
-/* PciRead16
- * Reads a 16 bit value from the pci-bus
- * at the specified location bus, device, function and register */
 uint16_t
 PciRead16(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device,
-    _In_ DevInfo_t          Function,
-    _In_ size_t             Register)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device,
+    _In_ DevInfo_t Function,
+    _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inw(X86_PCI_DATA + (Register & 0x02));
 }
 
-/* PciRead8
- * Reads a 8 bit value from the pci-bus
- * at the specified location bus, device, function and register */
 uint8_t
 PciRead8(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device,
-    _In_ DevInfo_t          Function,
-    _In_ size_t             Register)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device,
+    _In_ DevInfo_t Function,
+    _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inb(X86_PCI_DATA + (Register & 0x03));
 }
 
-/* PciWrite32
- * Writes a 32 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void
 PciWrite32(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device,
-	_In_ DevInfo_t          Function,
-    _In_ size_t             Register,
-    _In_ uint32_t           Value)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device,
+	_In_ DevInfo_t Function,
+    _In_ size_t    Register,
+    _In_ uint32_t  Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outl(X86_PCI_DATA, Value);
 }
 
-/* PciWrite16
- * Writes a 16 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void
 PciWrite16(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device, 
-	_In_ DevInfo_t          Function,
-    _In_ size_t             Register,
-    _In_ uint16_t           Value)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device, 
+	_In_ DevInfo_t Function,
+    _In_ size_t    Register,
+    _In_ uint16_t  Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outw(X86_PCI_DATA + (Register & 0x02), Value);
 }
 
-/* PciWrite8
- * Writes a 8 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void PciWrite8(
-    _In_ DevInfo_t          Bus,
-    _In_ DevInfo_t          Device, 
-	_In_ DevInfo_t          Function,
-    _In_ size_t             Register,
-    _In_ uint8_t            Value)
+    _In_ DevInfo_t Bus,
+    _In_ DevInfo_t Device, 
+	_In_ DevInfo_t Function,
+    _In_ size_t    Register,
+    _In_ uint8_t   Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outw(X86_PCI_DATA + (Register & 0x03), Value);
 }
 
-/* ReadDirectIo 
- * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
 ReadDirectIo(
-    _In_  DeviceIoType_t    Type,
-    _In_  uintptr_t         Address,
-    _In_  size_t            Width,
-    _Out_ size_t*           Value)
+    _In_  DeviceIoType_t Type,
+    _In_  uintptr_t      Address,
+    _In_  size_t         Width,
+    _Out_ size_t*        Value)
 {
     switch (Type) {
         case DeviceIoPortBased: {
@@ -180,14 +159,12 @@ ReadDirectIo(
     return OsSuccess;
 }
 
-/* WriteDirectIo 
- * Writes a value to the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
 WriteDirectIo(
-    _In_ DeviceIoType_t     Type,
-    _In_ uintptr_t          Address,
-    _In_ size_t             Width,
-    _In_ size_t             Value)
+    _In_ DeviceIoType_t Type,
+    _In_ uintptr_t      Address,
+    _In_ size_t         Width,
+    _In_ size_t         Value)
 {
     switch (Type) {
         case DeviceIoPortBased: {
@@ -219,16 +196,14 @@ WriteDirectIo(
     return OsSuccess;
 }
 
-/* ReadDirectPci
- * Reads a value from the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
 ReadDirectPci(
-    _In_  unsigned          Bus,
-    _In_  unsigned          Slot,
-    _In_  unsigned          Function,
-    _In_  unsigned          Register,
-    _In_  size_t            Width,
-    _Out_ size_t*           Value)
+    _In_  unsigned Bus,
+    _In_  unsigned Slot,
+    _In_  unsigned Function,
+    _In_  unsigned Register,
+    _In_  size_t   Width,
+    _Out_ size_t*  Value)
 {
     // Make sure width is of correct values
     if (Width == 1) {
@@ -247,16 +222,14 @@ ReadDirectPci(
     return OsSuccess;
 }
 
-/* WriteDirectPci
- * Writes a value to the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
 WriteDirectPci(
-    _In_ unsigned   Bus,
-    _In_ unsigned   Slot,
-    _In_ unsigned   Function,
-    _In_ unsigned   Register,
-    _In_ size_t     Width,
-    _In_ size_t     Value)
+    _In_ unsigned Bus,
+    _In_ unsigned Slot,
+    _In_ unsigned Function,
+    _In_ unsigned Register,
+    _In_ size_t   Width,
+    _In_ size_t   Value)
 {
     // Make sure width is of correct values
     if (Width == 1) {

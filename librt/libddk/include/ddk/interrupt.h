@@ -40,12 +40,12 @@
 // however they are not allowed to do any waiting, functions calls or any lengthy operations.
 #ifndef __INTERRUPTHANDLER
 #define __INTERRUPTHANDLER
-typedef struct _FastInterruptResources FastInterruptResources_t;
+typedef struct FastInterruptResources FastInterruptResources_t;
 typedef InterruptStatus_t(*InterruptHandler_t)(FastInterruptResources_t*, void*);
 #endif
 
 // Fast-Interrupt Memory Resource
-typedef struct _FastInterruptMemoryResource {
+typedef struct FastInterruptMemoryResource {
     uintptr_t Address;
     size_t    Length;
     Flags_t   Flags;
@@ -55,7 +55,7 @@ typedef struct _FastInterruptMemoryResource {
 // Table that descripes the executable region of the fast interrupt handler, and the
 // memory resources the fast interrupt handler needs access too. Validation and security
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
-typedef struct _FastInterruptResourceTable {
+typedef struct FastInterruptResourceTable {
     InterruptHandler_t            Handler;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
@@ -65,7 +65,7 @@ typedef struct _FastInterruptResourceTable {
 // Fast-interrupts are severely limited in what they can access, the interrupt table provides access
 // to pre-mapped regions that was requested when the interrupt was registed. The table can provide access
 // to some memory regions, io-regions and some system-functions (like the standard input pipe).
-typedef struct _FastInterruptResources {
+typedef struct FastInterruptResources {
     // Resource Table
     FastInterruptResourceTable_t* ResourceTable;
 
@@ -84,7 +84,7 @@ typedef struct _FastInterruptResources {
 #define INTERRUPT_NOTSHARABLE           0x00000008  // Interrupt line can not be shared
 #define INTERRUPT_USERSPACE             0x00000010  // Send interrupt notification to process
 
-typedef struct _DeviceInterrupt {
+typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
     // FastHandler is called to determine whether or not this source
     // has produced the interrupt.

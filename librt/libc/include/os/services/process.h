@@ -83,33 +83,33 @@ ProcessGetTickBase(
  * Data buffers must be supplied with a max length. */
 CRTDECL(OsStatus_t,
 GetProcessCommandLine(
-    _In_    const char* Buffer,
-    _InOut_ size_t*     Length));
+    _In_    char*   Buffer,
+    _InOut_ size_t* Length));
 
 /* ProcessGetCurrentName
  * Retrieves the current process identifier. */
 CRTDECL(OsStatus_t, 
 ProcessGetCurrentName(
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength));
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength));
 
 /* ProcessGetAssemblyDirectory
  * Retrieves the current assembly directory of a process handle. Use UUID_INVALID for the
  * current process. */
 CRTDECL(OsStatus_t, 
 ProcessGetAssemblyDirectory(
-    _In_ UUId_t      Handle,
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength));
+    _In_ UUId_t Handle,
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength));
 
 /* ProcessGetWorkingDirectory
  * Retrieves the current working directory of a process handle. Use UUID_INVALID for the
  * current process. */
 CRTDECL(OsStatus_t, 
 ProcessGetWorkingDirectory(
-    _In_ UUId_t      Handle,
-    _In_ const char* Buffer,
-    _In_ size_t      MaxLength));
+    _In_ UUId_t Handle,
+    _In_ char*  Buffer,
+    _In_ size_t MaxLength));
 
 /* ProcessSetWorkingDirectory
  * Sets the working directory of the current process. */

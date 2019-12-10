@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,15 +19,16 @@
  * MollenOS C Library - Server Entry 
  */
 
-#include <os/threadpool.h>
+#include <ddk/services/service.h>
+#include <ddk/threadpool.h>
+#include <os/ipc.h>
 #include <os/mollenos.h>
-#include <ddk/service.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
-extern OsStatus_t OnLoad(void);
+extern OsStatus_t OnLoad(char**);
 extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnEvent(MRemoteCall_t *Message);
+extern OsStatus_t OnEvent(IpcMessage_t* Message);
 
 extern char**
 __CrtInitialize(
@@ -38,7 +39,7 @@ __CrtInitialize(
 int __CrtHandleEvent(void *Argument)
 {
     // Initiate the message pointer
-    MRemoteCall_t *Message = (MRemoteCall_t*)Argument;
+    IpcMessage_t* Message = (IpcMessage_t*)Argument;
     OsStatus_t Result = OnEvent(Message);
     
     // Cleanup and return result
@@ -49,11 +50,11 @@ int __CrtHandleEvent(void *Argument)
 void __CrtServiceEntry(void)
 {
     thread_storage_t            Tls;
-    MRemoteCall_t               Message;
+    IpcMessage_t*               Message;
+    char*                       Path;
 #ifdef __SERVER_MULTITHREADED
     ThreadPool_t *ThreadPool    = NULL;
 #endif
-    char *ArgumentBuffer        = NULL;
     int IsRunning               = 1;
 
     // Initialize environment
@@ -61,8 +62,12 @@ void __CrtServiceEntry(void)
 
     // Call the driver load function 
     // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
+    if (OnLoad(&Path) != OsSuccess) {
         exit(-1);
+    }
+    
+    if (RegisterPath(Path) != OsSuccess) {
+        goto Cleanup;
     }
 
     // Initialize threadpool
@@ -73,12 +78,11 @@ void __CrtServiceEntry(void)
 
     // Initialize the server event loop
     while (IsRunning) {
-        if (RPCListen(UUID_INVALID, &Message, ArgumentBuffer) == OsSuccess) {
-            MRemoteCall_t *RpcCopy = (MRemoteCall_t*)malloc(sizeof(MRemoteCall_t));
-            memcpy(RpcCopy, &Message, sizeof(MRemoteCall_t));
-            ThreadPoolAddWork(ThreadPool, __CrtHandleEvent, RpcCopy);
+        if (IpcListen(0, &Message) == OsSuccess) {
+            IpcMessage_t* MessageItem = (IpcMessage_t*)malloc(Message->MetaLength);
+            memcpy(MessageItem, Message, Message->MetaLength);
+            ThreadPoolAddWork(ThreadPool, __CrtHandleEvent, MessageItem);
         }
-        else {}
     }
 
     // Wait for threads to finish
@@ -91,10 +95,9 @@ void __CrtServiceEntry(void)
 
 #else
     // Initialize the server event loop
-    ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
-        if (RPCListen(UUID_INVALID, &Message, ArgumentBuffer) == OsSuccess) {
-            OnEvent(&Message);
+        if (IpcListen(0, &Message) == OsSuccess) {
+            OnEvent(Message);
         }
     }
 #endif

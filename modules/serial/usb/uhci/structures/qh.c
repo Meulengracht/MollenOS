@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
@@ -86,14 +87,16 @@ UhciQhDump(
 
 void
 UhciQhRestart(
-    _In_ UhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ UhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
     UhciQueueHead_t* Qh           = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
     uintptr_t        LinkPhysical = 0;
     
     // Do some extra processing for periodics
-    Qh->BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
+    Qh->BufferBase  = Transfer->Transactions[0].DmaTable.entries[
+        Transfer->Transactions[0].SgIndex].address;
+    Qh->BufferBase += Transfer->Transactions[0].SgOffset;
 
     // Reinitialize the queue-head
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 

@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +17,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PS2 Controller (Controller) Driver
+ * X86 PS2 Controller (Controller) Driver
  * http://wiki.osdev.org/PS2
  */
 
 #include <ddk/contracts/base.h>
 #include <os/mollenos.h>
-#include <ddk/ipc/ipc.h>
+#include <os/ipc.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
@@ -32,19 +33,16 @@
 
 static PS2Controller_t* Ps2Controller = NULL;
 
-/* PS2ReadStatus
- * Reads the status byte from the controller */
 uint8_t
 PS2ReadStatus(void)
 {
-    return (uint8_t)ReadDeviceIo(Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
+    return (uint8_t)ReadDeviceIo(
+        Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
 }
 
-/* WaitForPs2StatusFlagsSet
- * Waits for the given flag to set in the ps2-controller status register */
 OsStatus_t
 WaitForPs2StatusFlagsSet(
-    _In_ uint8_t     Flags)
+    _In_ uint8_t Flags)
 {
     int Timeout = 100; // 100 ms
     while (Timeout > 0) {
@@ -57,11 +55,9 @@ WaitForPs2StatusFlagsSet(
     return OsError; // If we reach here - it never set
 }
 
-/* WaitForPs2StatusFlagsClear
- * Waits for the given flag to clear in the ps2-controller status register */
 OsStatus_t
 WaitForPs2StatusFlagsClear(
-    _In_ uint8_t     Flags)
+    _In_ uint8_t Flags)
 {
     int Timeout = 100; // 100 ms
     while (Timeout > 0) {
@@ -74,11 +70,9 @@ WaitForPs2StatusFlagsClear(
     return OsError; // If we reach here - it never set
 }
 
-/* PS2ReadData
- * Reads a byte from the PS2 controller data port */
 uint8_t
 PS2ReadData(
-    _In_ int         Dummy)
+    _In_ int Dummy)
 {
     // Only wait for input to be full in case we don't do dummy reads
     if (Dummy == 0) {
@@ -89,11 +83,9 @@ PS2ReadData(
     return (uint8_t)ReadDeviceIo(Ps2Controller->Data, PS2_REGISTER_DATA, 1);
 }
 
-/* PS2WriteData
- * Writes a data byte to the PS2 controller data port */
 OsStatus_t
 PS2WriteData(
-    _In_ uint8_t     Value)
+    _In_ uint8_t Value)
 {
     if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsSuccess) {
         return OsError;
@@ -102,11 +94,9 @@ PS2WriteData(
     return OsSuccess;
 }
 
-/* PS2SendCommand
- * Writes the command byte to the ps2-controller */
 void
 PS2SendCommand(
-    _In_ uint8_t     Command)
+    _In_ uint8_t Command)
 {
     // Wait for flag to clear, then write data
     if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsSuccess) {
@@ -115,12 +105,10 @@ PS2SendCommand(
     WriteDeviceIo(Ps2Controller->Command, PS2_REGISTER_COMMAND, Command, 1);
 }
 
-/* PS2SetScanning
- * Updates the enable/disable status of the port */
 OsStatus_t
 PS2SetScanning(
-    _In_ int         Index,
-    _In_ uint8_t     Status)
+    _In_ int     Index,
+    _In_ uint8_t Status)
 {
     // Always select port if neccessary
     if (Index != 0) {
@@ -134,13 +122,11 @@ PS2SetScanning(
     return OsSuccess;
 }
 
-/* PS2SelfTest
- * Does 5 tries to perform a self-test of the ps2 controller */
 OsStatus_t
 PS2SelfTest(void)
 {
-    uint8_t Temp     = 0;
-    int i             = 0;
+    uint8_t Temp = 0;
+    int     i    = 0;
 
     // Iterate through 5 tries
     for (; i < 5; i++) {
@@ -153,15 +139,13 @@ PS2SelfTest(void)
     return (i == 5) ? OsError : OsSuccess;
 }
 
-/* PS2Initialize 
- * Initializes the controller and initializes the attached ports */
 OsStatus_t
 PS2Initialize(
-    _In_ MCoreDevice_t*    Device)
+    _In_ MCoreDevice_t* Device)
 {
-    OsStatus_t Status = OsSuccess;
-    uint8_t Temp;
-    int i;
+    OsStatus_t Status;
+    uint8_t    Temp;
+    int        i;
 
     // Store a copy of the device
     memcpy(&Ps2Controller->Device, Device, sizeof(MCoreDevice_t));
@@ -257,6 +241,11 @@ OnLoad(void)
     
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
     Ps2Controller->Device.Id = UUID_INVALID;
+    
+    if (WaitForNetService(1000) != OsSuccess) {
+        ERROR(" => Failed to start ps2 driver, as net service never became available.");
+        return OsTimeout;
+    }
     return OsSuccess;
 }
 
@@ -369,25 +358,11 @@ OnUnregister(
     return Result;
 }
 
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-    _In_     MContractType_t        QueryType, 
-    _In_     int                    QueryFunction, 
-    _In_Opt_ MRemoteCallArgument_t* Arg0,
-    _In_Opt_ MRemoteCallArgument_t* Arg1,
-    _In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address)
+    _In_ IpcMessage_t* Message)
 {
     // You can't query the ps-2 driver
-    _CRT_UNUSED(QueryType);
-    _CRT_UNUSED(QueryFunction);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-    _CRT_UNUSED(Address);
+    _CRT_UNUSED(Message);
     return OsSuccess;
 }

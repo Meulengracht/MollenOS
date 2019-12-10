@@ -33,7 +33,7 @@
 
 class ProcessTests : public OSTest {
 public:
-    ProcessTests() : OSTest("ProcessTests") { }
+    ProcessTests() : OSTest("ProcessTests"), m_Stdout(-1) { }
 
     int TestSpawnProcess(const std::string& Path)
     {
@@ -93,7 +93,7 @@ public:
 
     int RunTests() {
         int Errors  = 0;
-        m_Stdout    = pipe();
+        //m_Stdout    = pipe();
         std::thread stdout_listener(&ProcessTests::StdoutListener, this);
         stdout_listener.detach();
 

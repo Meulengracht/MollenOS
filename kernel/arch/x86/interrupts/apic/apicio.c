@@ -24,8 +24,6 @@
 #include <apic.h>
 #include <acpi.h>
 
-/* Externs we need for functions here, all
- * the i/o functions needs the base address */
 __EXTERN uintptr_t GlbLocalApicBase;
 
 /* Reads from the local apic registers 
@@ -52,7 +50,6 @@ void ApicWriteLocal(size_t Register, uint32_t Value) {
  * registers must always be 32 bit */
 void ApicSetIoRegister(SystemInterruptController_t *IoApic, uint32_t Register) {
 	(*(volatile uint32_t*)(IoApic->MemoryAddress)) = Register;
-	MemoryBarrier();
 }
 
 /* Read from io-apic registers

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,9 +17,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
@@ -60,9 +62,6 @@ MfsExtractToken(
     return OsSuccess;
 }
 
-/* MfsLocateRecord
- * Locates a given file-record by the path given, all sub entries must be 
- * directories. File is only allocated and set if the function returns FsOk */
 FileSystemCode_t
 MfsLocateRecord(
     _In_ FileSystemDescriptor_t*    FileSystem,
@@ -112,8 +111,9 @@ MfsLocateRecord(
         TRACE("Reading bucket %u with length %u, link 0x%x", CurrentBucket, Link.Length, Link.Link);
         
         // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
-            Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
+        if (!Link.Length || 
+                MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
+                    Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
             goto Cleanup;
@@ -122,7 +122,7 @@ MfsLocateRecord(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)GetBufferDataPointer(Mfs->TransferBuffer);
+        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
         for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
             MString_t* Filename;
             int CompareResult;
@@ -235,8 +235,8 @@ MfsLocateFreeRecord(
             CurrentBucket, Link.Length, Link.Link);
         
         // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
-            Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
+        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
+                Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
             goto Cleanup;
@@ -244,7 +244,7 @@ MfsLocateFreeRecord(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)GetBufferDataPointer(Mfs->TransferBuffer);
+        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
         for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
             MString_t* Filename;
             int CompareResult;
@@ -302,8 +302,8 @@ MfsLocateFreeRecord(
                             * FileSystem->Disk.Descriptor.SectorSize;
 
                         // Write back record bucket
-                        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer,
-                            MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
+                        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket),
+                                Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
                             ERROR("Failed to update bucket %u", CurrentBucket);
                             Result = FsDiskError;
                             goto Cleanup;

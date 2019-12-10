@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,26 +17,28 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System Calls
  */
+
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <modules/manager.h>
-#include <arch/utils.h>
 #include <acpiinterface.h>
-#include <interrupts.h>
-#include <deviceio.h>
-#include <os/input.h>
+#include <arch/utils.h>
 #include <ddk/acpi.h>
-#include <machine.h>
-#include <handle.h>
-#include <timers.h>
+#include <ddk/device.h>
 #include <debug.h>
+#include <deviceio.h>
+#include <handle.h>
 #include <heap.h>
-#include <pipe.h>
+#include <os/input.h>
+#include <os/ipc.h>
+#include <modules/manager.h>
+#include <interrupts.h>
+#include <machine.h>
+#include <timers.h>
 
-extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
+extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
 
 OsStatus_t
 ScAcpiQueryStatus(
@@ -158,9 +161,10 @@ ScIoSpaceDestroy(
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
-        return OsError;
+        return OsInvalidParameters;
     }
-    return DestroySystemDeviceIo(IoSpace);
+    DestroyHandle(IoSpace->Id);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -178,9 +182,9 @@ ScLoadDriver(
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)
 {
-    MRemoteCall_t   RemoteCall    = { UUID_INVALID, { 0 }, 0 };
     SystemModule_t* CurrentModule = GetCurrentModule();
     SystemModule_t* Module;
+    IpcMessage_t    Message;
     OsStatus_t      Status;
 
     TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
@@ -221,10 +225,10 @@ ScLoadDriver(
         }
     }
 
-    // Initialize the base of a new message, always protocol version 1
-    RPCInitialize(&RemoteCall, Module->Handle, 1, __DRIVER_REGISTERINSTANCE);
-    RPCSetArgument(&RemoteCall, 0, Device, LengthOfDeviceStructure);
-    return ScRpcExecute(&RemoteCall, 1);
+    IpcInitialize(&Message);
+    IpcSetTypedArgument(&Message, 0, __DRIVER_REGISTERINSTANCE);
+    IpcSetUntypedArgument(&Message, 0, Device, LengthOfDeviceStructure);
+    return ScIpcInvoke(Module->PrimaryThreadId, &Message, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
 }
 
 UUId_t
@@ -249,43 +253,6 @@ ScUnregisterInterrupt(
         return OsInvalidPermissions;
     }
     return InterruptUnregister(Source);
-}
-
-OsStatus_t
-ScRegisterEventTarget(
-    _In_ UUId_t StdInputHandle,
-    _In_ UUId_t WmHandle)
-{
-    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(StdInputHandle);
-    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmHandle);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScKeyEvent(
-    _In_ SystemKey_t* Key)
-{
-#ifdef __OSCONFIG_ENABLE_DEBUG_SHORTCUTS
-    // Handle debug key events
-    if ((Key->Flags & (KEY_MODIFIER_LCTRL | KEY_MODIFIER_RCTRL)) && 
-        (Key->Flags & KEY_MODIFIER_RELEASED)) {
-        DebugHandleShortcut(Key);
-    }
-#endif
-    if (GetMachine()->StdInput != NULL) {
-        return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-ScInputEvent(
-    _In_ SystemInput_t* Input)
-{
-    if (GetMachine()->WmInput != NULL) {
-        return WriteSystemPipe(GetMachine()->WmInput, (const uint8_t*)Input, sizeof(SystemInput_t));
-    }
-    return OsSuccess;
 }
 
 OsStatus_t

@@ -1,4 +1,5 @@
-/* MollenOS
+/** 
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
 //#define __TRACE
@@ -29,26 +30,26 @@
 
 FileSystemCode_t
 FsReadFromFile(
-    _In_  FileSystemDescriptor_t* FileSystem,
-    _In_  MfsEntryHandle_t*       Handle,
-    _In_  DmaBuffer_t*            BufferObject,
-    _In_  size_t                  Length,
-    _Out_ size_t*                 BytesAt,
-    _Out_ size_t*                 BytesRead)
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  MfsEntryHandle_t*         Handle,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsRead)
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
     FileSystemCode_t Result          = FsOk;
-    uintptr_t        DataPointer     = GetBufferDma(BufferObject);
     uint64_t         Position        = Handle->Base.Position;
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t           BytesToRead     = Length;
+    size_t           BytesToRead     = UnitCount;
 
-    TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Handle->Base.Position), Length);
+    WARNING("[mfs] [read_file] id 0x%x, position %u, length %u",
+        Handle->Base.Id, LODWORD(Handle->Base.Position), LODWORD(UnitCount));
 
-    *BytesRead = 0;
-    *BytesAt   = Handle->Base.Position % FileSystem->Disk.Descriptor.SectorSize;
+    // Zero this first to indicate no bytes read
+    *UnitsRead = 0;
 
     // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((Position + BytesToRead) > Entry->Base.Descriptor.Size.QuadPart) {
@@ -70,64 +71,96 @@ FsReadFromFile(
     while (BytesToRead) {
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
-        uint64_t Sector         = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);        // Start-sector of current bucket
-        uint64_t SectorOffset   = Position % FileSystem->Disk.Descriptor.SectorSize;        // Byte-offset into the current sector
-        size_t SectorIndex      = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize); // The sector-index into the current bucket
-        size_t SectorsLeft      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
-        size_t SectorCount;
-        size_t SectorsFitInBuffer;
-        size_t ByteCount;
+        uint64_t Sector       = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);    // Start-sector of current bucket
+        uint64_t SectorOffset = Position % FileSystem->Disk.Descriptor.SectorSize; // Byte-offset into the current sector
+        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize); // The sector-index into the current bucket
+        size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
+        size_t   SectorCount;
+        size_t   SectorsRead;
+        size_t   ByteCount;
+        
+        // The buffer handle + offset that was selected for reading 
+        UUId_t SelectedHandle = Mfs->TransferBuffer.handle;
+        size_t SelectedOffset = 0;
         
         // Calculate the sector index into bucket
         Sector += SectorIndex;
 
-        // Calculate how many sectors we should read in
-        SectorCount         = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
-        SectorsFitInBuffer  = (GetBufferSize(BufferObject) - *BytesRead) / FileSystem->Disk.Descriptor.SectorSize;
-        if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
-            SectorCount++; // Take into account the extra sector we have to read
+        // CASE 1: DIRECT READING INTO USER BUFFER
+        // <Sector> now contains where we should start reading, and SectorOffset is
+        // the byte offset into that first sector. This means if we request any number of bytes
+        // we should also have room for that. So to read directly into user provided buffer, we MUST
+        // ensure that <SectorOffset> is 0 and that we can read atleast one entire sector to avoid
+        // any form for discarding of data.
+        if (SectorOffset == 0 && BytesToRead >= FileSystem->Disk.Descriptor.SectorSize) {
+            SectorCount    = BytesToRead / FileSystem->Disk.Descriptor.SectorSize;
+            SelectedHandle = BufferHandle;
+            SelectedOffset = BufferOffset;
+        }
+        
+        // CASE 2: SINGLE READ INTO INTERMEDIATE BUFFER
+        // We want this to happen when we can fit the entire read into our fs transfer buffer
+        // that can act as an intermediate buffer. So calculate enough space for <BytesToRead>, with
+        // room for <SectorOffset> and also the spill-over bytes thats left for the sector
+        else if ((SectorOffset + BytesToRead + (FileSystem->Disk.Descriptor.SectorSize - 
+                    ((SectorOffset + BytesToRead) % FileSystem->Disk.Descriptor.SectorSize))) <= 
+                        Mfs->TransferBuffer.length) {
+            SectorCount = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
+            if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
+                SectorCount++; // Take into account the extra sector we have to read
+            }
         }
 
-        // Adjust for bucket boundary, and adjust again for buffer size
+        // CASE 3: SINGLE READ INTO INTERMEDIATE BUFFER TO CORRECTLY ALIGN FOR CASE 1
+        // Make sure we make a single read to align the file position to a sector offset
+        // so we can directly read into the buffer
+        // CASE 4: SINGLE READ INTO INTERMEDIATE BUFFER TO FINISH TRANSFER AFTER CASE 1
+        // Read a single sector into the buffer to copy the remaining bytes
+        else {
+            // Just read a single sector, the ByteCount adjustor will automatically
+            // adjust the number of bytes to read in this iteration
+            SectorCount = 1;
+        }
+
+        // Adjust for bucket boundary
         SectorCount = MIN(SectorCount, SectorsLeft);
-        SectorCount = MIN(SectorCount, SectorsFitInBuffer);
-        if (SectorCount == 0) {
-            break;
+        if (SectorCount != 0) {
+            // Adjust for number of bytes already consumed in the active sector
+            ByteCount = MIN(BytesToRead, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
+    
+            // Ex pos 490 - length 50
+            // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
+            // Ex pos 1109 - length 450
+            // SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
+            // Ex pos 490 - length 4000
+            // SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
+            WARNING(" > sector %u (b-start %u, b-index %u), num-sectors %u, sector-byte-offset %u, bytecount %u",
+                LODWORD(Sector), LODWORD(Sector) - SectorIndex, SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
+    
+            if (MfsReadSectors(FileSystem, SelectedHandle, SelectedOffset, 
+                    Sector, SectorCount, &SectorsRead) != OsSuccess) {
+                ERROR("Failed to read sector");
+                Result = FsDiskError;
+                break;
+            }
+            
+            // Adjust for how many sectors we actually read
+            if (SectorCount != SectorsRead) {
+                ByteCount = (FileSystem->Disk.Descriptor.SectorSize * SectorsRead) - SectorOffset;
+            }
+            
+            // If we used the intermediate buffer for the transfer we now have to copy
+            // <ByteCount> amount of bytes from <TransferBuffer> + <SectorOffset> to <Buffer> + <BufferOffset>
+            if (SelectedHandle == Mfs->TransferBuffer.handle) {
+                memcpy(((uint8_t*)Buffer + BufferOffset), ((uint8_t*)Mfs->TransferBuffer.buffer + SectorOffset), ByteCount);
+            }
+            
+            // Increament all read-state variables
+            *UnitsRead   += ByteCount;
+            BufferOffset += ByteCount;
+            Position     += ByteCount;
+            BytesToRead  -= ByteCount;            
         }
-
-        // Adjust for number of bytes already consumed in the active sector
-        ByteCount = MIN(BytesToRead, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
-
-        // Ex pos 490 - length 50
-        // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
-        // Ex pos 1109 - length 450
-        // SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
-        // Ex pos 490 - length 4000
-        // SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
-        TRACE(" > sector %u (b-start %u, b-index %u), num-sectors %u, sector-byte-offset %u, bytecount %u",
-            LODWORD(Sector), LODWORD(Sector) - SectorIndex, SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
-        if ((GetBufferSize(BufferObject) - *BytesRead) < (SectorCount * FileSystem->Disk.Descriptor.SectorSize)) {
-            WARNING(" > not enough room in buffer for transfer");
-            break;
-        }
-
-        // Perform the read (Raw - as we need to pass the datapointer)
-        if (StorageRead(FileSystem->Disk.Driver, FileSystem->Disk.Device, 
-            FileSystem->SectorStart + Sector, DataPointer, SectorCount, &SectorCount) != OsSuccess) {
-            ERROR("Failed to read sector");
-            Result = FsDiskError;
-            break;
-        }
-
-        // Increase the pointers and decrease with bytes read, take into account
-        // we might not have been able to read all data in one go
-        if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
-            ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
-        }
-        DataPointer += FileSystem->Disk.Descriptor.SectorSize * SectorCount;
-        *BytesRead  += ByteCount;
-        Position    += ByteCount;
-        BytesToRead -= ByteCount;
 
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
@@ -146,7 +179,7 @@ FsReadFromFile(
     // entry->accessed = now
     // entry->action_on_close = update
 
-    TRACE(" > bytes read %u/%u", *BytesRead, Length);
+    TRACE(" > bytes read %u/%u", *UnitsRead, Length);
     return Result;
 }
 
@@ -154,22 +187,28 @@ FileSystemCode_t
 FsWriteToFile(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MfsEntryHandle_t*         Handle,
-    _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesWritten)
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsWritten)
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
     FileSystemCode_t Result          = FsOk;
     uint64_t         Position        = Handle->Base.Position;
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t           BytesToWrite    = Length;
+    size_t           BytesToWrite    = UnitCount;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Position), Length);
+        Handle->Base.Id, LODWORD(Position), UnitCount);
 
-    *BytesWritten = 0;
-    Result        = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
+    // Set 0 to start out with, in case of errors we want to indicate correctly.
+    *UnitsWritten = 0;
+    
+    // We do not have the same boundary limits here as we do when reading, when we
+    // write to a file we can do so untill we run out of space on the filesystem.
+    Result = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
     if (Result != FsOk) {
         return Result;
     }
@@ -185,82 +224,93 @@ FsWriteToFile(
     while (BytesToWrite) {
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
-        uint64_t Sector         = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
-        uint64_t SectorOffset   = (Position - Handle->BucketByteBoundary) % FileSystem->Disk.Descriptor.SectorSize;
-        size_t SectorIndex      = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize);
-        size_t SectorsLeft      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex;
-        size_t SectorCount      = 0, ByteCount = 0;
-
-        // Ok - so sectorindex contains the index in the bucket
-        // and sector offset contains the byte-offset in that sector
+        uint64_t Sector       = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
+        uint64_t SectorOffset = (Position - Handle->BucketByteBoundary) % FileSystem->Disk.Descriptor.SectorSize;
+        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize);
+        size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex;
+        size_t   SectorCount;
+        size_t   SectorsWritten;
+        size_t   ByteCount;
+        
+        // The buffer handle + offset that was selected for writing 
+        UUId_t SelectedHandle = Mfs->TransferBuffer.handle;
+        size_t SelectedOffset = 0;
 
         // Calculate the sector index into bucket
         Sector += SectorIndex;
-
-        // Calculate how many sectors we should read in
-        SectorCount = DIVUP(BytesToWrite, FileSystem->Disk.Descriptor.SectorSize);
-
-        // Do we cross a boundary?
-        if (SectorOffset + BytesToWrite > FileSystem->Disk.Descriptor.SectorSize) {
-            SectorCount++;
+        
+        // CASE 1: WE CAN WRITE DIRECTLY FROM USER-BUFFER TO DISK
+        // If <SectorOffset> is 0, this means we can write directly to the disk
+        // from <Buffer> + <BufferOffset>. We must also be able to write an entire
+        // sector to avoid writing out of bounds from the buffer
+        if (SectorOffset == 0 && BytesToWrite >= FileSystem->Disk.Descriptor.SectorSize) {
+            SectorCount    = BytesToWrite / FileSystem->Disk.Descriptor.SectorSize;
+            SelectedHandle = BufferHandle;
+            SelectedOffset = BufferOffset;
+        }
+        
+        // CASE 2: SECTOR-ALIGN BY READING-WRITE ONE SECTOR FIRST FOR CASE 1
+        // If we are not aligned to a sector boundary in the file, we should start
+        // out by writing the rest of the sector with a read-write combine. This
+        // must happen by using the intermediate buffer
+        // CASE 3: FINAL SECTOR WRITE BY USING INTERMEDIATE BUFFER
+        else {
+            SectorCount = 1;
         }
 
         // Adjust for bucket boundary
         SectorCount = MIN(SectorsLeft, SectorCount);
-
-        // Adjust for number of bytes read
-        ByteCount = (size_t)MIN(BytesToWrite, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
-
-        // Ex pos 490 - length 50
-        // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
-        // Ex pos 1109 - length 450
-        // SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
-        // Ex pos 490 - length 4000
-        // SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
-        TRACE("Write metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
-            LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
-
-        // First of all, calculate the bounds as we might need to read
-        // in existing data - Start out by clearing our combination buffer
-        ZeroBuffer(Mfs->TransferBuffer);
-
-        // Case 1 - Handle padding
-        if (SectorOffset != 0 || ByteCount != FileSystem->Disk.Descriptor.SectorSize) {
-            // Start building the sector
-            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, Sector, 
-                SectorCount, &SectorCount) != OsSuccess) {
-                ERROR("Failed to read sector %u for combination step", 
-                    LODWORD(Sector));
+        if (SectorCount != 0) {
+            ByteCount = MIN(BytesToWrite, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
+    
+            // Ex pos 490 - length 50
+            // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
+            // Ex pos 1109 - length 450
+            // SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
+            // Ex pos 490 - length 4000
+            // SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
+            TRACE("Write metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
+                LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
+    
+            // First of all, calculate the bounds as we might need to read
+            // in existing data - Start out by clearing our combination buffer
+            if (SelectedHandle == Mfs->TransferBuffer.handle) {
+                memset(Mfs->TransferBuffer.buffer, 0, Mfs->TransferBuffer.length);
+                
+                // CASE READ-WRITE: We do this to support appending to sectors and overwriting
+                // bytes in a sector. This must occur when we either have a <SectorOffset> != 0
+                // or when the <SectorOffset> == 0 and <ByteCount> is less than a sector. 
+                if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, 
+                        Sector, SectorCount, &SectorsWritten) != OsSuccess) {
+                    ERROR("Failed to read sector %u for combination step", 
+                        LODWORD(Sector));
+                    Result = FsDiskError;
+                    break;
+                }
+                
+                // Now perform the user copy operation where we overwrite some of the data
+                // Copy from <Buffer> + <BufferOffset> to <TransferBuffer> + <SectorOffset>
+                memcpy(((uint8_t*)Mfs->TransferBuffer.buffer + SectorOffset), ((uint8_t*)Buffer + BufferOffset), ByteCount);
+            }
+            
+            // Write either the intermediate buffer or directly from user
+            if (MfsWriteSectors(FileSystem, SelectedHandle, SelectedOffset,
+                    Sector, SectorCount, &SectorsWritten) != OsSuccess) {
+                ERROR("Failed to write sector %u", LODWORD(Sector));
                 Result = FsDiskError;
                 break;
             }
             
-            // Adjust the bytecount if we are not able to read all in one go
-            if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
-                ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
+            // Adjust for how many sectors we actually read
+            if (SectorCount != SectorsWritten) {
+                ByteCount = (FileSystem->Disk.Descriptor.SectorSize * SectorsWritten) - SectorOffset;
             }
+            
+            *UnitsWritten += ByteCount;
+            BufferOffset  += ByteCount;
+            Position      += ByteCount;
+            BytesToWrite  -= ByteCount;            
         }
-
-        // Now write the data to the sector
-        SeekBuffer(Mfs->TransferBuffer, (size_t)SectorOffset);
-        CombineBuffer(Mfs->TransferBuffer, BufferObject, ByteCount, NULL);
-
-        // Perform the write (Raw - as we need to pass the datapointer)
-        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Sector, 
-            SectorCount, &SectorCount) != OsSuccess) {
-            ERROR("Failed to write sector %u", LODWORD(Sector));
-            Result = FsDiskError;
-            break;
-        }
-
-        // Increase the pointers and decrease with bytes read
-        // Adjust the bytecount if we are not able to read all in one go
-        if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
-            ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
-        }
-        Position      += ByteCount;
-        *BytesWritten += ByteCount;
-        BytesToWrite  -= ByteCount;
 
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket

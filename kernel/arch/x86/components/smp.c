@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 - Symmetrical Multiprocessoring
+ * Symmetrical Multiprocessoring
  *  - Contains the implementation of booting and initializing the other
  *    cpu cores in the system if any is present
  */
@@ -28,6 +29,7 @@
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
+#include <ddk/io.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <memory.h>
@@ -49,6 +51,7 @@ PollTimerForMilliseconds(size_t Milliseconds)
 {
     volatile clock_t Current;
     clock_t End;
+    
     if (TimersGetSystemTick((clock_t*)&Current) != OsSuccess) {
         ArchStallProcessorCore(Milliseconds);
         return;
@@ -83,10 +86,11 @@ SmpApplicationCoreEntry(void)
 static void
 InitializeApplicationJumpSpace(void)
 {
-    uint32_t* CodePointer = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
-    uint32_t  EntryCode   = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
-    void*     StackSpace  = kmalloc((GetMachine()->NumberOfCores - 1) * 0x1000);
-    TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (GetMachine()->NumberOfCores - 1));
+    uint32_t* CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
+    uint32_t  EntryCode     = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
+    int       NumberOfCores = atomic_load(&GetMachine()->NumberOfCores);
+    void*     StackSpace    = kmalloc((NumberOfCores - 1) * 0x1000);
+    TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (NumberOfCores - 1));
 
     *(CodePointer - 1) = EntryCode;
     *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
@@ -126,11 +130,12 @@ StartApplicationCore(
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     Timeout = 10;
-    while (Core->State != CpuStateRunning && Timeout) {
+    while (!(READ_VOLATILE(Core->State) & CpuStateRunning) && Timeout) {
         PollTimerForMilliseconds(1);
         Timeout--;
     }
-    if (Core->State != CpuStateRunning) {
+    
+    if (!(READ_VOLATILE(Core->State) & CpuStateRunning)) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
             return;

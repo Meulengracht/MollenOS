@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011 - 2017, Philip Meulengracht
  *
@@ -16,10 +17,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) Device Scan Interface
+ * ACPI(CA) Device Scan Interface
  */
 
-#define __MODULE "DSIF"
+#define __MODULE "ACPI"
 //#define __TRACE
 
 #include <arch/utils.h>
@@ -30,42 +31,32 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Internal Use */
-typedef struct _IrqResource {
-    int                     Gathering;
-    Collection_t*           IrqList;
-    PciRoutingEntry_t*      IrqActive;
+typedef struct IrqResource {
+    int                Gathering;
+    list_t*            IrqList;
+    PciRoutingEntry_t* IrqActive;
 } IrqResource_t;
 
-/* Globals
- * - State keeping variables and static buffers */
 static char AcpiGbl_DeviceInformationBuffer[1024];
 
-/* Video Backlight Capability Callback */
 ACPI_STATUS
 AcpiVideoBacklightCapCallback(
     ACPI_HANDLE Handle,
-    UINT32 Level,
-    void *Context,
-    void **ReturnValue)
+    UINT32      Level,
+    void*       Context,
+    void**      ReturnValue)
 {
     ACPI_HANDLE NullHandle = NULL;
     uint64_t *video_features = (uint64_t*)Context;
 
     if (ACPI_SUCCESS(AcpiGetHandle(Handle, "_BCM", &NullHandle)) &&
-        ACPI_SUCCESS(AcpiGetHandle(Handle, "_BCL", &NullHandle)))
-    {
-        /* Add */
+        ACPI_SUCCESS(AcpiGetHandle(Handle, "_BCL", &NullHandle))) {
         *video_features |= ACPI_VIDEO_BACKLIGHT;
-        
-        /* Check for Brightness */
-        if (ACPI_SUCCESS(AcpiGetHandle(Handle, "_BQC", &NullHandle)))
+        if (ACPI_SUCCESS(AcpiGetHandle(Handle, "_BQC", &NullHandle))) {
             *video_features |= ACPI_VIDEO_BRIGHTNESS;
-        
-        /* We have backlight support, no need to scan further */
+        }
         return AE_CTRL_TERMINATE;
     }
-
     return AE_OK;
 }
 
@@ -474,27 +465,19 @@ AcpiDeviceIrqRoutingCallback(
     ACPI_RESOURCE *Resource, 
     void *Context)
 {
-    IrqResource_t*  IrqResource = NULL;
+    IrqResource_t* IrqResource = Context;
 
     TRACE("AcpiDeviceIrqRoutingCallback(Type %" PRIuIN ")", Resource->Type);
 
-    // Sanitize the type of resource
     if (Resource->Type == ACPI_RESOURCE_TYPE_END_TAG) {
         return AE_OK;
     }
 
-    // Initiate values
-    IrqResource = (IrqResource_t*)Context;
-
     // Right now we are just looking for Irq's
     if (Resource->Type == ACPI_RESOURCE_TYPE_IRQ) {
-        ACPI_RESOURCE_IRQ *Irq  = NULL;
-        UINT8 i;
+        ACPI_RESOURCE_IRQ* Irq = &Resource->Data.Irq;
+        UINT8              i;
         
-        // Initialize values
-        Irq = &Resource->Data.Irq;
-        
-        // Sanitize IRQ entry
         if (Irq->InterruptCount == 0) {
             if (IrqResource->Gathering == 0) {
                 WARNING("Blank _CSR IRQ resource entry. Device is disabled.");
@@ -507,14 +490,18 @@ AcpiDeviceIrqRoutingCallback(
 
         // Iterate all possible interrupts (InterruptCount)
         for (i = 0; i < Irq->InterruptCount; i++) {
-            // Set initial members
             PciRoutingEntry_t* RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+            if (!RoutingEntry) {
+                return AE_NO_MEMORY;
+            }
+            
             memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
             RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_IRQ;
             RoutingEntry->Polarity  = Irq->Polarity;
             RoutingEntry->Trigger   = Irq->Triggering;
             RoutingEntry->Shareable = Irq->Shareable;
             RoutingEntry->Irq       = Irq->Interrupts[i];
+            ELEMENT_INIT(&RoutingEntry->Header, ACPI_RESOURCE_TYPE_IRQ, RoutingEntry);
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {
@@ -527,19 +514,14 @@ AcpiDeviceIrqRoutingCallback(
                 break;
             }
             else {
-                // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, &RoutingEntry->Header);
+                list_append(IrqResource->IrqList, &RoutingEntry->Header);
             }
         }
     }
     else if (Resource->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ) {
-        ACPI_RESOURCE_EXTENDED_IRQ *Irq  = NULL;
-        UINT8 i;
+        ACPI_RESOURCE_EXTENDED_IRQ* Irq = &Resource->Data.ExtendedIrq;
+        UINT8                       i;
  
-        // Initialize values
-        Irq = &Resource->Data.ExtendedIrq;
-
-        // Sanitize IRQ entry
         if (Irq->InterruptCount == 0) {
             if (IrqResource->Gathering == 0) {
                 WARNING("Blank _CSR IRQ resource entry. Device is disabled.");
@@ -552,14 +534,18 @@ AcpiDeviceIrqRoutingCallback(
         
         // Iterate all possible interrupts (InterruptCount)
         for (i = 0; i < Irq->InterruptCount; i++) {
-            // Set initial members
             PciRoutingEntry_t *RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+            if (!RoutingEntry) {
+                return AE_NO_MEMORY;
+            }
+            
             memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
             RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
             RoutingEntry->Polarity  = Irq->Polarity;
             RoutingEntry->Trigger   = Irq->Triggering;
             RoutingEntry->Shareable = Irq->Shareable;
             RoutingEntry->Irq       = Irq->Interrupts[i];
+            ELEMENT_INIT(&RoutingEntry->Header, ACPI_RESOURCE_TYPE_IRQ, RoutingEntry);
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {
@@ -572,8 +558,7 @@ AcpiDeviceIrqRoutingCallback(
                 break;
             }
             else {
-                // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, &RoutingEntry->Header);
+                list_append(IrqResource->IrqList, &RoutingEntry->Header);
             }
         }
     }
@@ -581,22 +566,18 @@ AcpiDeviceIrqRoutingCallback(
     return AE_OK;
 }
 
-/* AcpiGetLeastLoaded 
- * Retrieves the least loaded irq-line from the possible irqs */
 PciRoutingEntry_t*
 AcpiGetLeastLoaded(
-    _In_ Collection_t *RoutingEntries)
+    _In_ list_t* RoutingEntries)
 {
-    // Variables
     int InterruptList[64];
     int Count = 0;
     
-    // Debug
     TRACE("AcpiGetLeastLoaded()");
 
     // Sum up and transfer to int array
-    foreach(iNode, RoutingEntries) {
-        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
+    foreach(i, RoutingEntries) {
+        PciRoutingEntry_t* Entry = (PciRoutingEntry_t*)i->value;
         InterruptList[Count] = Entry->Irq;
         Count++;
     }
@@ -608,15 +589,12 @@ AcpiGetLeastLoaded(
         return NULL;
     }
 
-    // Lookup selected
-    _foreach(iNode, RoutingEntries) {
-        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
+    _foreach(i, RoutingEntries) {
+        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)i->value;
         if (Entry->Irq == Count) {
             return Entry;
         }
     }
-
-    // The hell??
     ERROR("Couldn't refind interrupt %" PRIiIN "", Count);
     return NULL;
 }
@@ -626,14 +604,12 @@ AcpiGetLeastLoaded(
  * the possible irqs of the device. Selects the best possible irq */
 ACPI_STATUS
 AcpiDeviceSelectIrq(
-    _InOut_ PciRoutingSource_t* Source)
+    _In_ PciRoutingSource_t* Source)
 {
-    // Variables
-    PciRoutingEntry_t *SelectedEntry = NULL;
-    Flags_t DeviceStatus             = 0;
-    ACPI_STATUS Status                 = AE_OK;
+    PciRoutingEntry_t* SelectedEntry;
+    Flags_t            DeviceStatus = 0;
+    ACPI_STATUS        Status       = AE_OK;
 
-    // Buffers
     ACPI_BUFFER Buffer;
     struct {
         ACPI_RESOURCE Irq;
@@ -644,8 +620,8 @@ AcpiDeviceSelectIrq(
     // exists in the possible irq-list
     if (Source->ActiveEntry != NULL) {
         TRACE("Irq %" PRIuIN " is active, validating", Source->ActiveEntry->Irq);
-        foreach(iNode, Source->Entries) {
-            PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
+        foreach(i, Source->Entries) {
+            PciRoutingEntry_t* Entry = (PciRoutingEntry_t*)i->value;
             if (Entry->Irq == Source->ActiveEntry->Irq) {
                 if (Entry != Source->ActiveEntry) {
                     kfree(Source->ActiveEntry);
@@ -671,15 +647,16 @@ AcpiDeviceSelectIrq(
     // Sanitize
     if (SelectedEntry == NULL) {
         TRACE("No possible irq for device out of %" PRIuIN " entries", 
-            CollectionLength(Source->Entries));
+            list_count(Source->Entries));
         return AE_ERROR;
     }
 
-    // Debug
     TRACE("Updating device with irq %" PRIuIN "", SelectedEntry->Irq);
-
-    // Initiate objects
     Resource = kmalloc(sizeof(*Resource) + 1);
+    if (!Resource) {
+        return AE_NO_MEMORY;
+    }
+    
     memset(Resource, 0, sizeof(*Resource) + 1);
     Buffer.Length = sizeof(*Resource) + 1;
     Buffer.Pointer = (void*)Resource;
@@ -730,91 +707,103 @@ AcpiDeviceSelectIrq(
     return AE_OK;
 }
 
-/* AcpiDeviceGetIrqRoutings
- * Utilizies ACPICA to retrieve all the irq-routings from
- * the ssdt information. */
 ACPI_STATUS
 AcpiDeviceGetIrqRoutings(
-    _In_ AcpiDevice_t *Device)
+    _In_ AcpiDevice_t* Device)
 {
-    ACPI_PCI_ROUTING_TABLE* PciTable    = NULL;
-    PciRoutings_t*          Table       = NULL;
+    ACPI_PCI_ROUTING_TABLE* PciTable;
+    PciRoutings_t*          Table;
     ACPI_STATUS             Status;
     IrqResource_t           IrqResource;
     ACPI_BUFFER             aBuff;
     int                     i;
 
-    // Debug
     TRACE("AcpiDeviceGetIrqRoutings()");
 
-    // Setup a buffer for the routing table
     aBuff.Length = 0x2000;
     aBuff.Pointer = (char*)kmalloc(0x2000);
+    if (!aBuff.Pointer) {
+        return AE_NO_MEMORY;
+    }
+    
     memset(aBuff.Pointer, 0, 0x2000);
 
-    // Try to get routings
+    Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
+    if (!Table) {
+        kfree(aBuff.Pointer);
+        return AE_NO_MEMORY;
+    }
+    
+    Table->Sources = (list_t*)kmalloc(sizeof(list_t));
+    if (!Table->Sources) {
+        return AE_NO_MEMORY;
+    }
+    
+    list_construct_cmp(Table->Sources, list_cmp_string);
+    
+    for (i = 0; i < 128; i++) {
+        Table->InterruptEntries[i] = NULL;
+        Table->ActiveIrqs[i]       = INTERRUPT_NONE;
+    }
+
     Status = AcpiGetIrqRoutingTable(Device->Handle, &aBuff);
     if (ACPI_FAILURE(Status)) {
         ERROR("Failed to extract irq routings, code %" PRIuIN "", Status);
         goto done;
     }
     
-    // Allocate a new table for the device
-    Table          = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
-    Table->Sources = CollectionCreate(KeyString);
-    for (i = 0; i < 128; i++) {
-        Table->InterruptEntries[i] = NULL;
-        Table->ActiveIrqs[i]       = INTERRUPT_NONE;
-    }
     Device->Routings = Table;
-
-    // Enumerate entries
-    PciTable = (ACPI_PCI_ROUTING_TABLE *)aBuff.Pointer;
+    PciTable         = (ACPI_PCI_ROUTING_TABLE *)aBuff.Pointer;
     for (;PciTable->Length;
          PciTable = (ACPI_PCI_ROUTING_TABLE *)((char *)PciTable + PciTable->Length)) {
 
-        // Variabes
-        PciRoutingSource_t *Source  = NULL;
-        ACPI_HANDLE SourceHandle    = NULL;
-        unsigned InterruptIndex     = 0;
-        unsigned DeviceIndex        = 0;
-        DataKey_t           Key     = { 0 };
+        ACPI_HANDLE         SourceHandle = NULL;
+        PciRoutingSource_t* Source;
+        unsigned int        InterruptIndex;
+        unsigned int        DeviceIndex;
 
         // Convert the addresses 
-        DeviceIndex = (unsigned)((PciTable->Address >> 16) & 0xFFFF);
+        DeviceIndex    = (unsigned int)((PciTable->Address >> 16) & 0xFFFF);
         InterruptIndex = (DeviceIndex * 4) + PciTable->Pin;
 
         // Check if the first byte is 0, then there is no irq-resource
         // Then the SourceIndex is the actual IRQ
         if (PciTable->Source[0] == '\0') {
             PciRoutingEntry_t* RoutingEntry;
+            
             if (Table->InterruptEntries[InterruptIndex] == NULL) {
-                Table->InterruptEntries[InterruptIndex] = CollectionCreate(KeyInteger);
+                Table->InterruptEntries[InterruptIndex] = (list_t*)kmalloc(sizeof(list_t));
+                if (!Table->InterruptEntries[InterruptIndex]) {
+                    return AE_NO_MEMORY;
+                }
+                list_construct(Table->InterruptEntries[InterruptIndex]);
             }
 
             // Allocate a new entry and store information
             RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+            if (!RoutingEntry) {
+                return AE_NO_MEMORY;
+            }
+            
             memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
+            ELEMENT_INIT(&RoutingEntry->Header, ACPI_RESOURCE_TYPE_IRQ, RoutingEntry);
             RoutingEntry->AcType   = ACPI_RESOURCE_TYPE_IRQ;
             RoutingEntry->Irq      = (int)PciTable->SourceIndex;
             RoutingEntry->Polarity = ACPI_ACTIVE_LOW;
             RoutingEntry->Trigger  = ACPI_LEVEL_SENSITIVE;
             RoutingEntry->Fixed    = 1;
 
-            // Save interrupt
-            CollectionAppend(Table->InterruptEntries[InterruptIndex], &RoutingEntry->Header);
+            list_append(Table->InterruptEntries[InterruptIndex], &RoutingEntry->Header);
             Table->ActiveIrqs[InterruptIndex] = (int)PciTable->SourceIndex;
             continue;
         }
 
         // Ok, so we have a valid handle, lets see if we already have
         // the handle cached in memory
-        Key.Value.String.Pointer    = &PciTable->Source[0];
-        Key.Value.String.Length     = strlen(&PciTable->Source[0]);
-        Source                      = (PciRoutingSource_t*)CollectionGetNodeByKey(Table->Sources, Key, 0);
+        Source = (PciRoutingSource_t*)list_find_value(Table->Sources, &PciTable->Source[0]);
         if (Source != NULL) {
             Table->InterruptEntries[InterruptIndex] = Source->Entries;
-            Table->ActiveIrqs[InterruptIndex] = Source->ActiveEntry->Irq;
+            Table->ActiveIrqs[InterruptIndex]       = Source->ActiveEntry->Irq;
             continue;
         }
 
@@ -825,19 +814,26 @@ AcpiDeviceGetIrqRoutings(
             continue;
         }
 
-        // Debug
         TRACE("Enumerating possible resources for a new source");
         Source = (PciRoutingSource_t*)kmalloc(sizeof(PciRoutingSource_t));
+        if (!Source) {
+            return AE_NO_MEMORY;
+        }
+        
         memset(Source, 0, sizeof(PciRoutingSource_t));
-        Source->Header.Key  = Key;
-        Source->Handle      = SourceHandle;
-        Source->Entries     = CollectionCreate(KeyInteger);
-        Source->ActiveEntry = NULL;
-        CollectionAppend(Table->Sources, &Source->Header);
+        ELEMENT_INIT(&Source->Header, &PciTable->Source[0], Source);
+        Source->Handle  = SourceHandle;
+        Source->Entries = kmalloc(sizeof(list_t));
+        if (!Source->Entries) {
+            return AE_NO_MEMORY;
+        }
+        
+        list_construct(Source->Entries);
+        list_append(Table->Sources, &Source->Header);
 
         // Store the information for the callback
         IrqResource.Gathering = 1;
-        IrqResource.IrqList = Source->Entries;
+        IrqResource.IrqList   = Source->Entries;
 
         // Gather all possible irq's
         Status = AcpiWalkResources(SourceHandle, 
@@ -847,23 +843,20 @@ AcpiDeviceGetIrqRoutings(
             continue;
         }
 
-        // Debug
         TRACE("Enumerating current resources for handle");
 
         // Walk the handle and call all __CRS methods
         IrqResource.Gathering = 0;
         IrqResource.IrqActive = NULL;
-        Status = AcpiWalkResources(SourceHandle, 
-            METHOD_NAME__CRS, AcpiDeviceIrqRoutingCallback, &IrqResource);
+        Status = AcpiWalkResources(SourceHandle, METHOD_NAME__CRS, 
+            AcpiDeviceIrqRoutingCallback, &IrqResource);
         if (ACPI_FAILURE(Status)) {
             ERROR("Failed IRQ resource\n");
             continue;
         }
 
-        // Update
         Source->ActiveEntry = IrqResource.IrqActive;
-
-        // Select an irq and update the modifications
+        
         Status = AcpiDeviceSelectIrq(Source);
         Table->InterruptEntries[InterruptIndex] = Source->Entries;
         if (Source->ActiveEntry != NULL) {
@@ -872,20 +865,17 @@ AcpiDeviceGetIrqRoutings(
     }
 
 done:
+    TRACE("[enum_irq_resources] done");
     kfree(aBuff.Pointer);
     return Status;
 }
 
-/* AcpiDeviceGetHWInfo
- * Retrieves acpi-hardware information like Status, Address
- * CId's, HId, UId, CLS etc */
 ACPI_STATUS
 AcpiDeviceGetHWInfo(
     _InOut_ AcpiDevice_t *Device,
     _In_ ACPI_HANDLE ParentHandle,
     _In_ int Type)
 {
-    // Variables
     ACPI_PNP_DEVICE_ID_LIST *Cid = NULL;
     ACPI_DEVICE_INFO *DeviceInfo = NULL;
     ACPI_STATUS Status;
@@ -893,7 +883,6 @@ AcpiDeviceGetHWInfo(
     char *Hid = NULL;
     char *Uid = NULL;
     
-    // Buffers
     ACPI_BUFFER Buffer;
 
     // Zero out the static buffer and initialize buffer object
@@ -1023,8 +1012,6 @@ AcpiDeviceGetHWInfo(
     return AE_OK;
 }
 
-/* AcpiPackageUInt64
- * Extracts an 64 bit integer from an acpi package */
 ACPI_STATUS
 AcpiPackageUInt64(
     _In_ ACPI_OBJECT *Package,
@@ -1045,8 +1032,6 @@ AcpiPackageUInt64(
     return AE_OK;
 }
 
-/* AcpiPackageUInt32
- * Extracts an 32 bit integer from an acpi package */
 ACPI_STATUS
 AcpiPackageUInt32(
     _In_ ACPI_OBJECT *Package,
@@ -1065,8 +1050,6 @@ AcpiPackageUInt32(
     return Status;
 }
 
-/* AcpiPackageReference
- * Extracts an device reference from an acpi package */
 ACPI_STATUS
 AcpiPackageReference(
     _In_ ACPI_HANDLE Scope,

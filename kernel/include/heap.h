@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -22,72 +23,35 @@
 #define __VALI_HEAP_H__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
 
- // Slab size is equal to a page size, and memory layout of a slab is as below
- // FreeBitmap | Object | Object | Object |
-typedef struct {
-    CollectionItem_t Header;
-    volatile size_t  NumberOfFreeObjects;
-    uintptr_t*       Address;  // Points to first object
-    uint8_t*         FreeBitmap;
-} MemorySlab_t;
-
-// Memory Atomic Cache is followed directly by the buffer area for pointers
-// MemoryAtomicCache_t | Pointer | Pointer | Pointer | Pointer | MemoryAtomicCache_t ...
-typedef struct {
-    int Available;
-    int Limit;
-} MemoryAtomicCache_t;
-
-typedef struct MemoryCache {
-    const char*      Name;
-    SafeMemoryLock_t SyncObject;
-    Flags_t          Flags;
-
-    size_t           ObjectSize;
-    size_t           ObjectAlignment;
-    size_t           ObjectPadding;
-    size_t           ObjectCount;      // Count per slab
-    size_t           PageCount;
-    volatile size_t  NumberOfFreeObjects;
-    void           (*ObjectConstructor)(struct MemoryCache*, void*);
-    void           (*ObjectDestructor)(struct MemoryCache*, void*);
-
-    int              SlabOnSite;
-    size_t           SlabStructureSize;
-    Collection_t     FreeSlabs;
-    Collection_t     PartialSlabs;
-    Collection_t     FullSlabs;
-
-    uintptr_t        AtomicCaches;
-} MemoryCache_t;
+typedef struct MemoryCache MemoryCache_t;
 
 // Debug options for caches
-#define HEAP_DEBUG_USE_AFTER_FREE   0x1
-#define HEAP_DEBUG_OVERRUN          0x2
+#define HEAP_DEBUG_USE_AFTER_FREE 0x01
+#define HEAP_DEBUG_OVERRUN        0x02
 
 // Configuration options for caches
-#define HEAP_CACHE_DEFAULT          0x4    // Only set for fixed size caches
-#define HEAP_CONTIGIOUS             0x8    // If the memory allocated must be contigious
-#define HEAP_SLAB_NO_ATOMIC_CACHE   0x10   // Set to disable smp optimizations
+#define HEAP_CACHE_DEFAULT        0x04 // Only set for fixed size caches
+#define HEAP_SLAB_NO_ATOMIC_CACHE 0x08 // Set to disable smp optimizations
+#define HEAP_INITIAL_SLAB         0x10 // Set to allocate the initial slab
+#define HEAP_SINGLE_SLAB          0x20 // Set to disable multiple slabs
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.
 void MemoryCacheInitialize(void);
 
-// MemoryCacheConstruct
+// MemoryCacheCreate
 // Create a new custom memory cache that can be used to allocate objects for. Can be customized
 // both with alignment, flags and constructor/destructor functionality upon creation of objects.
-KERNELAPI void KERNELABI
-MemoryCacheConstruct(
-    _In_ MemoryCache_t* Cache,
-    _In_ const char*    Name,
-    _In_ size_t         ObjectSize,
-    _In_ size_t         ObjectAlignment,
-    _In_ Flags_t        Flags,
-    _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
-    _In_ void(*ObjectDestructor)(struct MemoryCache*, void*));
+KERNELAPI MemoryCache_t* KERNELABI
+MemoryCacheCreate(
+    _In_ const char* Name,
+    _In_ size_t      ObjectSize,
+    _In_ size_t      ObjectAlignment,
+    _In_ int         ObjectMinCount,
+    _In_ Flags_t     Flags,
+    _In_ void       (*ObjectConstructor)(struct MemoryCache*, void*),
+    _In_ void       (*ObjectDestructor)(struct MemoryCache*, void*));
 
 // MemoryCacheAllocate
 // Allocates a new object from the cache.

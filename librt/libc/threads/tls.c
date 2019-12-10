@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Threading Support Definitions & Structures
+ * Threading Support Definitions & Structures
  * - This header describes the base threading-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  * 
@@ -51,7 +51,7 @@
 /* TlsThreadInstance (Private)
  * Contains a thread-specific storage for a given process-key and a 
  * thread-specific destructor. */
-typedef struct _TlsThreadInstance {
+typedef struct TlsThreadInstance {
     CollectionItem_t    ListHeader;
     tss_t               Key;
     void*               Value;
@@ -61,7 +61,7 @@ typedef struct _TlsThreadInstance {
 /* _TlsAtExit (Private)
  * Implements both per-process and per-thread at-exit functionality. Can be
  * invoked either by a thread closing down or by either abort()/exit()/quickexit() */
-typedef struct _TlsAtExit {
+typedef struct TlsAtExit {
     CollectionItem_t    ListHeader;
     int                 Type;
     void*               DsoHandle;
@@ -76,7 +76,7 @@ typedef struct _TlsAtExit {
  * Per-process TLS data that stores the
  * allocated keys and their desctructors. 
  * Also keeps a list of tls-entries for threads */
-typedef struct _TlsProcessInstance {
+typedef struct TlsProcessInstance {
     int             Keys[TLS_MAX_KEYS];
     tss_dtor_t      Dss[TLS_MAX_KEYS];
     Collection_t    Tls;                // List of TlsThreadInstance
@@ -93,13 +93,13 @@ static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 },
     0
 };
 
-/* tls_create
- * Initializes a new thread-storage space for the caller thread.
- * Part of CRT initialization routines. */
 OsStatus_t 
 tls_create(
-    _In_ thread_storage_t*  Tls)
+    _In_ thread_storage_t* Tls)
 {
+    struct dma_buffer_info info;
+    void* buffer;
+    
     memset(Tls, 0, sizeof(thread_storage_t));
 
     // Store it at reserved pointer place first
@@ -114,8 +114,13 @@ tls_create(
     Tls->seed   = 1;
 
     // Setup a local transfer buffer for stdio operations
-    Tls->transfer_buffer = CreateBuffer(UUID_INVALID, BUFSIZ);
-    return OsSuccess;
+    // TODO: do on first read/write instead?
+    buffer = malloc(BUFSIZ);
+    
+    info.length   = BUFSIZ;
+    info.capacity = BUFSIZ;
+    info.flags    = DMA_PERSISTANT;
+    return dma_export(buffer, &info, &Tls->transfer_buffer);
 }
 
 /* tls_destroy
@@ -124,10 +129,10 @@ OsStatus_t
 tls_destroy(
     _In_ thread_storage_t* Tls)
 {
-    // @todo this is called twice for primary thread. Look into this
-    if (Tls->transfer_buffer != NULL) {
-        DestroyBuffer(Tls->transfer_buffer);
-        Tls->transfer_buffer = NULL;
+    // TODO: this is called twice for primary thread. Look into this
+    if (Tls->transfer_buffer.buffer != NULL) {
+        dma_detach(&Tls->transfer_buffer);
+        free(Tls->transfer_buffer.buffer);
     }
     return OsSuccess;
 }

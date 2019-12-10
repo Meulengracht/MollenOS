@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  *  - UFI Protocol Implementation
  */
 #define __TRACE
@@ -25,12 +26,10 @@
 #include <ddk/utils.h>
 #include "../msd.h"
 
-/* UfiConstructCommand
- * Constructs a new SCSI command structure from the information given. */
 void
 UfiConstructCommand(
-    _InOut_ MsdCommandBlockUFI_t *CmdBlock,
-    _In_ uint8_t ScsiCommand, 
+    _In_ MsdCommandBlockUFI_t *CmdBlock,
+    _In_ uint8_t  ScsiCommand, 
     _In_ uint64_t SectorLBA, 
     _In_ uint32_t DataLen, 
     _In_ uint16_t SectorSize)
@@ -100,8 +99,6 @@ UfiConstructCommand(
     }
 }
 
-/* UfiInitialize 
- * Validates the available endpoints and initializes the device. */
 OsStatus_t
 UfiInitialize(
     _In_ MsdDevice_t *Device)
@@ -134,15 +131,14 @@ UfiInitialize(
     return OsSuccess;
 }
 
-/* UfiSendCommand
- * Sends a new command on the ufi protocol. */
 UsbTransferStatus_t 
 UfiSendCommand(
-    _In_ MsdDevice_t *Device,
-    _In_ uint8_t ScsiCommand,
-    _In_ uint64_t SectorStart,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ MsdDevice_t* Device,
+    _In_ uint8_t      ScsiCommand,
+    _In_ uint64_t     SectorStart,
+    _In_ UUId_t       BufferHandle,
+    _In_ size_t       BufferOffset,
+    _In_ size_t       DataLength)
 {
     // Variables
     MsdCommandBlockUFI_t UfiCommandBlock;
@@ -168,71 +164,66 @@ UfiSendCommand(
     return Result.Status;
 }
 
-/* UfiReadData
- * Tries to read a ufi data response from the device. */
 UsbTransferStatus_t 
 UfiReadData(
-    _In_ MsdDevice_t *Device,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _Out_ size_t *BytesRead)
+    _In_  MsdDevice_t* Device,
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       DataLength,
+    _Out_ size_t*      BytesRead)
 {
-    // Variables
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer, 0);
-    UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
+    UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
     
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result.Status);
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result->Status);
         // @todo handle
     }
 
     // Return state and update out
-    *BytesRead = Result.BytesTransferred;
-    return Result.Status;
+    *BytesRead = Result->BytesTransferred;
+    return Result->Status;
 }
 
-/* UfiWriteData
- * Tries to write a bulk data packet to the device. */
 UsbTransferStatus_t 
 UfiWriteData(
-    _In_ MsdDevice_t *Device,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _Out_ size_t *BytesWritten)
+    _In_  MsdDevice_t* Device,
+    _In_  UUId_t       BufferHandle,
+    _In_  size_t       BufferOffset,
+    _In_  size_t       DataLength,
+    _Out_ size_t*      BytesWritten)
 {
-    // Variables
-    UsbTransferResult_t Result  = { 0 };
-    UsbTransfer_t DataStage     = { 0 };
+    UsbTransferResult_t* Result;
+    UsbTransfer_t        DataStage = { 0 };
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->Out, BulkTransfer, 0);
-    UsbTransferOut(&DataStage, DataAddress, DataLength, 0);
+    UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
 
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result.Status);
+    if (Result->Status != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result->Status);
         // @todo handle
     }
 
     // Return state and update out
-    *BytesWritten = Result.BytesTransferred;
-    return Result.Status;
+    *BytesWritten = Result->BytesTransferred;
+    return Result->Status;
 }
 
 /* UfiGetStatus
- * The status stage is not used in the ufi-protocol. Not
- * implemented. */
+ * The status stage is not used in the ufi-protocol. Not implemented. */
 UsbTransferStatus_t 
 UfiGetStatus(
     _In_ MsdDevice_t *Device)
@@ -242,8 +233,6 @@ UfiGetStatus(
     return TransferFinished;
 }
 
-/* Global 
- * - Static function table */
 MsdOperations_t UfiOperations = {
     UfiInitialize,
     UfiSendCommand,

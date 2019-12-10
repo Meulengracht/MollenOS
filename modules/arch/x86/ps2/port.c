@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PS2 Controller (Controller) Driver
+ * X86 PS2 Controller (Controller) Driver
  * http://wiki.osdev.org/PS2
  */
 //#define __TRACE
@@ -27,12 +28,10 @@
 #include <stdlib.h>
 #include "ps2.h"
 
-/* SendPS2PortCommand
- * Sends a ps2-port command and waits for the response byte to land. */
 uint8_t
 SendPS2PortCommand(
-    _In_ int        Index,
-    _In_ uint8_t    Command)
+    _In_ int     Index,
+    _In_ uint8_t Command)
 {
     // Select the correct port
     if (Index != 0) {
@@ -44,11 +43,9 @@ SendPS2PortCommand(
     return PS2ReadData(0);
 }
 
-/* PS2InterfaceTest
- * Performs an interface test on the given port*/
 OsStatus_t
 PS2InterfaceTest(
-    _In_ int        Index)
+    _In_ int Index)
 {
     uint8_t Response;
     PS2SendCommand(Index == 0 ? PS2_INTERFACETEST_PORT1 : PS2_INTERFACETEST_PORT2);
@@ -57,11 +54,9 @@ PS2InterfaceTest(
     return (Response == PS2_INTERFACETEST_OK) ? OsSuccess : OsError;
 }
 
-/* PS2ResetPort
- * Resets the given port and tests for a reset-ok */
 OsStatus_t
 PS2ResetPort(
-    _In_ int        Index)
+    _In_ int Index)
 {
     uint8_t Response = SendPS2PortCommand(Index, PS2_RESET_PORT);
 
@@ -75,12 +70,9 @@ PS2ResetPort(
     return OsError;
 }
 
-/* PS2IdentifyPort
- * Identifies the device currently connected to the
- * given port index, if fails it returns 0xFFFFFFFF */
 DevInfo_t
 PS2IdentifyPort(
-    _In_ int        Index)
+    _In_ int Index)
 {
     uint8_t ResponseExtra   = 0;
     uint8_t Response        = 0;
@@ -131,9 +123,9 @@ PS2RegisterDevice(
     Device.Subclass = 0xFF0F;
 
     // Initialize the irq structure
-    Device.Interrupt.Pin            = INTERRUPT_NONE;
-    Device.Interrupt.Vectors[0]     = INTERRUPT_NONE;
-    Device.Interrupt.AcpiConform    = 0;
+    Device.Interrupt.Pin         = INTERRUPT_NONE;
+    Device.Interrupt.Vectors[0]  = INTERRUPT_NONE;
+    Device.Interrupt.AcpiConform = 0;
 
     // Select source from port index
     if (Port->Index == 0) {

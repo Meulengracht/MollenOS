@@ -30,43 +30,27 @@ global _spinlock_release
 ; We wait for the spinlock to become free then set value to 1 to mark it in use.
 ; The size of the spinlock value is 32
 _spinlock_acquire:
-	; Sanity
-	test rcx, rcx
-	je .gotlock
-
-	; We use this to test
 	mov rax, 1
-
-	; Try to get lock
 	.trylock:
-	xchg byte [rcx], al
-	test rax, rax
-	je .gotlock
+		xchg byte [rcx], al
+		test rax, rax
+		je .gotlock
 
-	; Busy-wait loop
 	.lockloop:
-	pause
-	cmp byte [rcx], 0
-	jne .lockloop
-	jmp .trylock
+		pause
+		cmp byte [rcx], 0
+		jne .lockloop
+		jmp .trylock
 
 	.gotlock:
-	mov rax, 1
-	ret
+		mov rax, 1
+		ret
 
 ; int spinlock_test(spinlock_t *spinlock)
 ; This tests whether or not spinlock is
 ; set or not
 _spinlock_test:
-	; Get address of lock
-    mov rax, 0
-	test rcx, rcx
-	je .end
-
-	; We use this to test
 	mov rax, 1
-
-	; Try to get lock
 	xchg byte [rcx], al
 	test rax, rax
 	je .gotlock
@@ -83,8 +67,6 @@ _spinlock_test:
 ; void spinlock_release(spinlock_t *spinlock)
 ; We set the spinlock to value 0
 _spinlock_release:
-	test rcx, rcx
-	je .done
-	mov byte [rcx], 0
-	.done:
+	xor rax, rax
+	xchg byte [rcx], al
 	ret

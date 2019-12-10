@@ -26,10 +26,10 @@
 
 #include <os/osdefs.h>
 #include <ddk/services/process.h>
+#include <ds/list.h>
 #include <os/pe.h>
 #include <time.h>
 
-DECL_STRUCT(Collection);
 DECL_STRUCT(MString);
 typedef void* MemorySpaceHandle_t;
 typedef void* MemoryMapHandle_t;
@@ -44,19 +44,20 @@ typedef void* MemoryMapHandle_t;
 #error "Unhandled PE architecture used"
 #endif
 
-typedef struct _PeExportedFunction {
+typedef struct PeExportedFunction {
     const char* Name;
     const char* ForwardName; //Library.Function
     int         Ordinal;
     uintptr_t   Address;
 } PeExportedFunction_t;
 
-typedef struct _PeExecutable {
+typedef struct PeExecutable {
     UUId_t                Owner;
     MString_t*            Name;
     MString_t*            FullPath;
     atomic_int            References;
     MemorySpaceHandle_t   MemorySpace;
+    element_t             Header;
 
     uint32_t              Architecture;
 
@@ -70,7 +71,7 @@ typedef struct _PeExecutable {
     int                   NumberOfExportedFunctions;
     PeExportedFunction_t* ExportedFunctions;
     char*                 ExportedFunctionNames;
-    Collection_t*         Libraries;
+    list_t*               Libraries;
 } PeExecutable_t;
 
 /*******************************************************************************

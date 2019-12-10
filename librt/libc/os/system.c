@@ -23,25 +23,7 @@
 #include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/mollenos.h>
-#include "../stdio/local.h"
-
-OsStatus_t
-ListenForSystemEvents(
-    _In_ int    Types,
-    _In_ UUId_t WmListener)
-{
-    UUId_t StdListener = UUID_INVALID;
-    if (Types & OS_EVENT_STDIN) {
-        // if the stdin is inheritted it won't be ok, in that case close
-        // the inheritted handle and open a new
-        StdioHandle_t* Handle = StdioFdToHandle(STDIN_FILENO);
-        if (Handle == NULL) {
-            return OsDoesNotExist;
-        }
-        StdListener = Handle->InheritationHandle;
-    }
-    return Syscall_RegisterEventTarget(StdListener, WmListener);
-}
+#include <internal/_io.h>
 
 OsStatus_t
 SystemQuery(

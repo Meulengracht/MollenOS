@@ -125,38 +125,38 @@ MsdDeviceCreate(
     }
 
     // Allocate reusable buffers
-    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
-        (uintptr_t**)&Device->CommandBlock, &Device->CommandBlockAddress) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
+        (void**)&Device->CommandBlock) != OsSuccess) {
         ERROR("Failed to allocate reusable buffer (command-block)");
         goto Error;
     }
-    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
-        (uintptr_t**)&Device->StatusBlock, &Device->StatusBlockAddress) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
+        (void**)&Device->StatusBlock) != OsSuccess) {
         ERROR("Failed to allocate reusable buffer (status-block)");
         goto Error;
     }
 
-    // Perform setup
     if (MsdDeviceStart(Device) != OsSuccess) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
 
-    // Start out by initializing the contract
     InitializeContract(&Device->Contract, Device->Base.Base.Id, 1,
         ContractStorage, "MSD Storage Interface");
-
-    // Register contract before interrupt
     if (RegisterContract(&Device->Contract) != OsSuccess) {
         ERROR("Failed to register storage contract for device");
     }
 
-    // Notify diskmanager
+    // Wait for the disk service to finish loading
+    if (WaitForFileService(1000) != OsSuccess) {
+        ERROR("[msd] disk ready but storage service did not start");
+        // TODO: what do
+        return Device;
+    }
+
     if (RegisterStorage(Device->Base.Base.Id, __STORAGE_REMOVABLE) != OsSuccess) {
         ERROR("Failed to register storage with storagemanager");
     }
-
-    // Done
     return Device;
 
 Error:
@@ -167,9 +167,6 @@ Error:
     return NULL;
 }
 
-/* MsdDeviceDestroy
- * Destroys an existing msd device instance and cleans up
- * any resources related to it */
 OsStatus_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
@@ -184,10 +181,10 @@ MsdDeviceDestroy(
 
     // Free reusable buffers
     if (Device->CommandBlock != NULL) {
-        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)Device->CommandBlock);
+        dma_pool_free(UsbRetrievePool(), (void*)Device->CommandBlock);
     }
     if (Device->StatusBlock != NULL) {
-        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)Device->StatusBlock);
+        dma_pool_free(UsbRetrievePool(), (void*)Device->StatusBlock);
     }
 
     // Free data allocated

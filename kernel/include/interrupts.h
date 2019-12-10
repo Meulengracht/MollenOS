@@ -26,14 +26,13 @@
 
 #include <ddk/interrupt.h>
 #include <ddk/driver.h>
-#include <ddk/ipc/ipc.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 
 // Kernel specific interrupt models
 #define INTERRUPT_KERNEL 0x10000000
 
-typedef struct _SystemInterrupt {
+typedef struct SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
     FastInterruptResourceTable_t    KernelResources;
     UUId_t                          Id;
@@ -41,7 +40,7 @@ typedef struct _SystemInterrupt {
     UUId_t                          Thread;
     Flags_t                         Flags;
     int                             Source;
-    struct _SystemInterrupt*        Link;
+    struct SystemInterrupt*         Link;
 } SystemInterrupt_t;
 
 /* InitializeInterruptTable

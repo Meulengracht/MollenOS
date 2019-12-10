@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,21 +24,20 @@
  */
 //#define __TRACE
 
-#include <ddk/services/file.h>
 #include <os/mollenos.h>
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
-#include <stdlib.h>
 #include "manager.h"
+#include <stdlib.h>
 
-static Collection_t Disks           = COLLECTION_INIT(KeyId);
-static UUId_t       DiskIdGenerator = 0;
+static Collection_t Devices           = COLLECTION_INIT(KeyId);
+static UUId_t       DeviceIdGenerator = 0;
+static size_t       FrameSize;
 
-/* AHCIStringFlip 
- * Flips a string returned by an ahci command so it's readable */
-void
-AhciStringFlip(
-    _In_ uint8_t*           Buffer,
-    _In_ size_t             Length)
+static void
+FlipStringBuffer(
+    _In_ uint8_t* Buffer,
+    _In_ size_t   Length)
 {
     size_t StringPairs = Length / 2;
     size_t i;
@@ -61,97 +61,155 @@ AhciStringFlip(
     }
 }
 
-/* AhciManagerInitialize
- * Initializes the ahci manager that keeps track of
- * all controllers and all attached devices */
 OsStatus_t
 AhciManagerInitialize(void)
 {
+    SystemDescriptor_t Descriptor;
+    OsStatus_t         Status;
+
     TRACE("AhciManagerInitialize()");
-    return OsSuccess;
+    Status = SystemQuery(&Descriptor);
+    if (Status == OsSuccess) {
+        FrameSize = Descriptor.PageSizeBytes;
+    }
+    return Status;
 }
 
-/* AhciManagerDestroy
- * Cleans up the manager and releases resources allocated */
 OsStatus_t
 AhciManagerDestroy(void)
 {
     TRACE("AhciManagerDestroy()");
+    return CollectionClear(&Devices);
+}
 
-    foreach(dNode, &Disks) {
-        AhciDevice_t* Device = (AhciDevice_t*)dNode->Data;
-        UnregisterStorage(Device->Descriptor.Device, __STORAGE_FORCED_REMOVE);
-        DestroyBuffer(Device->Buffer);
-        free(Device);
+size_t
+AhciManagerGetFrameSize(void)
+{
+    return FrameSize;
+}
+
+AhciDevice_t*
+AhciManagerGetDevice(
+    _In_ UUId_t DeviceId)
+{
+    DataKey_t Key = { .Value.Id = DeviceId };
+    return CollectionGetDataByKey(&Devices, Key, 0);
+}
+
+static AhciDevice_t*
+CreateInitialDevice(
+    _In_ AhciController_t* Controller, 
+    _In_ AhciPort_t*       Port,
+    _In_ DeviceType_t      Type)
+{
+    AhciDevice_t* Device;
+
+    TRACE("CreateInitialDevice(Controller %i, Port %i)",
+        Controller->Device.Id, Port->Id);
+
+    Device = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
+    if (!Device) {
+        return NULL;
     }
-    return CollectionClear(&Disks);
+
+    memset(Device, 0, sizeof(AhciDevice_t));
+    Device->Controller     = Controller;
+    Device->Port           = Port;
+    Device->Type           = Type;
+    
+    // Allocate a new device id
+    Device->Descriptor.Device   = DeviceIdGenerator++;
+    Device->Header.Key.Value.Id = Device->Descriptor.Device;
+    
+    // Set initial addressing mode + initial values
+    Device->AddressingMode = 1;
+    Device->SectorSize     = 512;
+    return Device;
+}
+
+
+OsStatus_t
+AhciManagerRegisterDevice(
+    _In_ AhciController_t* Controller, 
+    _In_ AhciPort_t*       Port,
+    _In_ uint32_t          Signature)
+{
+    AhciDevice_t* Device;
+    DeviceType_t  Type;
+    OsStatus_t    Status;
+    
+    switch (Signature) {
+        case SATA_SIGNATURE_ATA: {
+            Type = DeviceATA;
+        } break;
+        case SATA_SIGNATURE_ATAPI: {
+            Type = DeviceATAPI;
+        } break;
+        
+        // We don't support these device types yet
+        case SATA_SIGNATURE_SEMB:
+        case SATA_SIGNATURE_PM:
+        default: {
+            WARNING("AHCI::Unsupported device type 0x%x on port %i",
+                Signature, Port->Id);
+            return OsNotSupported;
+        };
+    }
+    
+    Device = CreateInitialDevice(Controller, Port, Type);
+    if (!Device) {
+        return OsOutOfMemory;
+    }
+    
+    Status = AhciTransactionControlCreate(Device, AtaPIOIdentifyDevice,
+        sizeof(ATAIdentify_t), AHCI_XACTION_IN);
+    if (Status != OsSuccess) {
+        free(Device);
+        return Status;
+    }
+    return CollectionAppend(&Devices, &Device->Header);
 }
 
 OsStatus_t
-AhciManagerCreateDevice(
+AhciManagerUnregisterDevice(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
-    AhciTransaction_t* Transaction;
-    DmaBuffer_t*       Buffer;
-    AhciDevice_t*      Device;
-    reg32_t            Signature = ReadVolatile32(&Port->Registers->Signature);
-
-    // First of all, is this a port multiplier? 
-    // because then we should really enumerate it
-    if (Signature == SATA_SIGNATURE_PM || Signature == SATA_SIGNATURE_SEMB) {
-        WARNING("AHCI::Unsupported device type 0x%x on port %i",
-            Signature, Port->Id);
-        return OsError;
+    AhciDevice_t* Device = NULL;
+    OsStatus_t    Status;
+    
+    // Lookup device based on controller/port
+    foreach(Node, &Devices) {
+        AhciDevice_t* _Device = (AhciDevice_t*)Node;
+        if (_Device->Port == Port) {
+            Device = _Device;
+            break;
+        }
     }
-    TRACE("AhciManagerCreateDevice(Controller %i, Port %i)",
-        Controller->Device.Id, Port->Id);
-
-    // Allocate data-structures
-    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-    Device      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
-    Buffer      = CreateBuffer(UUID_INVALID, sizeof(ATAIdentify_t));
-    if (!Transaction || !Device) {
-        return OsOutOfMemory;
-    }
-
-    memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memset(Device, 0, sizeof(AhciDevice_t));
-
-    Device->Controller     = Controller;
-    Device->Port           = Port;
-    Device->Buffer         = Buffer;
-    Device->Index          = 0;
-    Device->AddressingMode = 1;
-    Device->SectorSize     = sizeof(ATAIdentify_t);
-    Device->Type           = (Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
-
-    Transaction->ResponseAddress.Thread = UUID_INVALID;
-    Transaction->Address        = GetBufferDma(Buffer);
-    Transaction->SectorCount    = 1;
-    Transaction->Device         = Device;
-    return AhciCommandRegisterFIS(Transaction, AtaPIOIdentifyDevice, 0, 0, 0);
+    assert(Device != NULL);
+    
+    Status = UnregisterStorage(Device->Header.Key.Value.Id, __STORAGE_FORCED_REMOVE);
+    CollectionRemoveByNode(&Devices, &Device->Header);
+    return Status;
 }
 
-OsStatus_t
-AhciManagerCreateDeviceCallback(
+static void
+HandleIdentifyCommand(
     _In_ AhciDevice_t* Device)
 {
-    ATAIdentify_t* DeviceInformation;
-    DataKey_t      Key;
-
-    DeviceInformation = (ATAIdentify_t*)GetBufferDataPointer(Device->Buffer);
+    ATAIdentify_t* DeviceInformation = 
+        (ATAIdentify_t*)Device->Port->InternalBuffer.buffer;
 
     // Flip the data in the strings as it's inverted
-    AhciStringFlip(DeviceInformation->SerialNo, 20);
-    AhciStringFlip(DeviceInformation->ModelNo, 40);
-    AhciStringFlip(DeviceInformation->FWRevision, 8);
+    FlipStringBuffer(DeviceInformation->SerialNo, 20);
+    FlipStringBuffer(DeviceInformation->ModelNo, 40);
+    FlipStringBuffer(DeviceInformation->FWRevision, 8);
 
-    TRACE("AhciManagerCreateDeviceCallback(%s)", &DeviceInformation->ModelNo[0]);
+    TRACE("HandleIdentifyCommand(%s)", &DeviceInformation->ModelNo[0]);
 
     // Set capabilities
     if (DeviceInformation->Capabilities0 & (1 << 0)) {
-        Device->UseDMA = 1;
+        Device->HasDMAEngine = 1;
     }
 
     // Check addressing mode supported
@@ -181,63 +239,50 @@ AhciManagerCreateDeviceCallback(
 
     // Now, get the number of sectors for this particular disk
     if (DeviceInformation->SectorCountLBA48 != 0) {
-        Device->SectorsLBA = DeviceInformation->SectorCountLBA48;
+        Device->SectorCount = DeviceInformation->SectorCountLBA48;
     }
     else {
-        Device->SectorsLBA = DeviceInformation->SectorCountLBA28;
+        Device->SectorCount = DeviceInformation->SectorCountLBA28;
     }
 
     // At this point the ahcidisk structure is filled
     // and we can continue to fill out the descriptor
     memset(&Device->Descriptor, 0, sizeof(StorageDescriptor_t));
     Device->Descriptor.Driver      = UUID_INVALID;
-    Device->Descriptor.Device      = DiskIdGenerator++;
     Device->Descriptor.Flags       = 0;
-    Device->Descriptor.SectorCount = Device->SectorsLBA;
+    Device->Descriptor.SectorCount = Device->SectorCount;
     Device->Descriptor.SectorSize  = Device->SectorSize;
 
     // Copy string data
     memcpy(&Device->Descriptor.Model[0], (const void*)&DeviceInformation->ModelNo[0], 40);
     memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
-
-    Key.Value.Id = Device->Descriptor.Device;
-    CollectionAppend(&Disks, CollectionCreateNode(Key, Device));
-    return RegisterStorage(Device->Descriptor.Device, Device->Descriptor.Flags);
+    (void)RegisterStorage(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
-OsStatus_t
-AhciManagerRemoveDevice(
-    _In_ AhciController_t* Controller,
-    _In_ AhciPort_t*       Port)
+void
+AhciManagerHandleControlResponse(
+    _In_ AhciPort_t*        Port,
+    _In_ AhciTransaction_t* Transaction)
 {
-    CollectionItem_t* dNode;
-    AhciDevice_t*     Device;
-    DataKey_t         Key = { .Value.Id = UUID_INVALID };
-
-    TRACE("AhciManagerRemoveDevice(Controller %i, Port %i)",
-        Controller->Device.Id, Port->Id);
-
-    _foreach(dNode, &Disks) {
-        Device = (AhciDevice_t*)dNode->Data;
-        if (Device->Port == Port && Device->Controller == Controller) {
-            Key.Value = dNode->Key.Value;
+    AhciDevice_t* Device = NULL;
+    
+    // Lookup device based on controller/port
+    foreach(Node, &Devices) {
+        AhciDevice_t* _Device = (AhciDevice_t*)Node;
+        if (_Device->Port == Port) {
+            Device = _Device;
             break;
         }
     }
-    if (Key.Value.Id == UUID_INVALID) {
-        return OsError;
+    assert(Device != NULL);
+    
+    switch (Transaction->Command) {
+        case AtaPIOIdentifyDevice: {
+            HandleIdentifyCommand(Device);
+        } break;
+        
+        default: {
+            WARNING("Unsupported ATA command 0x%x", Transaction->Command);
+        } break;
     }
-
-    CollectionRemoveByKey(&Disks, Key);
-    DestroyBuffer(Device->Buffer);
-    free(Device);
-    return UnregisterStorage(Key.Value.Id, __STORAGE_FORCED_REMOVE);
-}
-
-AhciDevice_t*
-AhciManagerGetDevice(
-    _In_ UUId_t Disk)
-{
-    DataKey_t Key = { .Value.Id = Disk };
-    return CollectionGetDataByKey(&Disks, Key, 0);
 }

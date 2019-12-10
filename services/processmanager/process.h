@@ -27,8 +27,8 @@
 #include <os/osdefs.h>
 #include <os/services/process.h>
 #include <os/spinlock.h>
-#include <ds/collection.h>
-#include <ddk/ipc/ipc.h>
+#include <ds/list.h>
+#include <threads.h>
 #include <time.h>
 
 // Forward declarations
@@ -38,8 +38,8 @@ DECL_STRUCT(MString);
 #define PROCESS_RUNNING     0
 #define PROCESS_TERMINATING 1
 
-typedef struct _Process {
-    CollectionItem_t            Header;
+typedef struct Process {
+    element_t                   Header;
     UUId_t                      PrimaryThreadId;
     clock_t                     StartedAt;
     atomic_int                  References;
@@ -60,11 +60,11 @@ typedef struct _Process {
     int                         ExitCode;
 } Process_t;
 
-typedef struct _ProcessJoiner {
-    CollectionItem_t     Header;
-    MRemoteCallAddress_t Address;
-    Process_t*           Process;
-    UUId_t               EventHandle;
+typedef struct ProcessJoiner {
+    element_t  Header;
+    thrd_t     Address;
+    Process_t* Process;
+    UUId_t     EventHandle;
 } ProcessJoiner_t;
 
 /* InitializeProcessManager
@@ -83,15 +83,15 @@ CreateProcess(
     _In_  size_t                       ArgumentsLength,
     _In_  void*                        InheritationBlock,
     _In_  size_t                       InheritationBlockLength,
-    _Out_ UUId_t*                      Handle);
+    _Out_ UUId_t*                      HandleOut);
 
 /* JoinProcess
  * Waits for the process to exit and returns the exit code. A timeout can optionally be specified. */
 __EXTERN OsStatus_t
 JoinProcess(
-    _In_  Process_t*            Process,
-    _In_  MRemoteCallAddress_t* Address,
-    _In_  size_t                Timeout);
+    _In_  Process_t* Process,
+    _In_  thrd_t     Address,
+    _In_  size_t     Timeout);
 
 /* KillProcess
  * Request to kill a process. If security checks pass the processmanager will shutdown the process. */

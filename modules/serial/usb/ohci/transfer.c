@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,19 +17,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 //#define __DIAGNOSE
 
-/* Includes 
- * - System */
+#include <assert.h>
+#include "ohci.h"
 #include <os/mollenos.h>
 #include <ddk/utils.h>
-#include "ohci.h"
-#include <assert.h>
 
 UsbTransferStatus_t
 OhciTransactionDispatch(
@@ -47,8 +47,8 @@ OhciTransactionDispatch(
     // enable SOF, ED is not scheduled before this interrupt
     Transfer->Status  = TransferQueued;
     Transfer->Flags  |= TransferFlagSchedule;
-    WriteVolatile32(&Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
-    WriteVolatile32(&Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
     return TransferQueued;
 }
 
@@ -73,18 +73,18 @@ OhciReloadAsynchronous(
 
     // Handle the different queues
     if (TransferType == ControlTransfer) {
-        WriteVolatile32(&Controller->Registers->HcControlHeadED, LODWORD(QhAddress));
-        WriteVolatile32(&Controller->Registers->HcCommandStatus, 
-            ReadVolatile32(&Controller->Registers->HcCommandStatus) | OHCI_COMMAND_CONTROL_FILLED);
+        WRITE_VOLATILE(Controller->Registers->HcControlHeadED, LODWORD(QhAddress));
+        WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
+            READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_CONTROL_FILLED);
 
         // Reset control queue
         Controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
         Controller->TransactionsWaitingControl   = 0;
     }
     else if (TransferType == BulkTransfer) {
-        WriteVolatile32(&Controller->Registers->HcBulkHeadED, LODWORD(QhAddress));
-        WriteVolatile32(&Controller->Registers->HcCommandStatus, 
-            ReadVolatile32(&Controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);
+        WRITE_VOLATILE(Controller->Registers->HcBulkHeadED, LODWORD(QhAddress));
+        WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
+            READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);
 
         // Reset bulk queue
         Controller->TransactionQueueBulkIndex = USB_ELEMENT_NO_INDEX;
@@ -107,7 +107,7 @@ HciTransactionFinalize(
     // reload the asynchronous queue
     if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         // Check if the link of the QH is eol
-        reg32_t Status  = ReadVolatile32(&OhciCtrl->Registers->HcCommandStatus);
+        reg32_t Status  = READ_VOLATILE(OhciCtrl->Registers->HcCommandStatus);
         reg32_t Control = OhciCtrl->QueuesActive;
         if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingControl != 0) {
@@ -117,7 +117,7 @@ HciTransactionFinalize(
                 Control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
             else {
-                if (ReadVolatile32(&OhciCtrl->Registers->HcControlHeadED) == 0) {
+                if (READ_VOLATILE(OhciCtrl->Registers->HcControlHeadED) == 0) {
                     Control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
                 }
             }
@@ -130,14 +130,14 @@ HciTransactionFinalize(
                 Control |= OHCI_CONTROL_BULK_ACTIVE;
             }
             else {
-                if (ReadVolatile32(&OhciCtrl->Registers->HcBulkHeadED) == 0) {
+                if (READ_VOLATILE(OhciCtrl->Registers->HcBulkHeadED) == 0) {
                     Control &= ~(OHCI_CONTROL_BULK_ACTIVE);
                 }
             }
         }
 
         // Update
-        WriteVolatile32(&OhciCtrl->Registers->HcCommandStatus, Status);
+        WRITE_VOLATILE(OhciCtrl->Registers->HcCommandStatus, Status);
         OhciCtrl->QueuesActive = Control;
     }
 
@@ -173,7 +173,7 @@ HciDequeueTransfer(
     // Mark for unscheduling and
     // enable SOF, ED is not scheduled before
     Transfer->Flags                         |= TransferFlagUnschedule;
-    WriteVolatile32(&Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
-    WriteVolatile32(&Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
+    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
     return TransferFinished;
 }

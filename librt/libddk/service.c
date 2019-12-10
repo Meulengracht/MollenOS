@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -20,50 +21,156 @@
  * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <ddk/service.h>
+#include <ddk/services/service.h>
 #include <ddk/device.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <assert.h>
 
-OsStatus_t
-RegisterService(
-    _In_ UUId_t Alias)
+static UUId_t SessionServiceId = UUID_INVALID;
+static UUId_t DeviceServiceId  = UUID_INVALID;
+static UUId_t UsbServiceId     = UUID_INVALID;
+static UUId_t ProcessServiceId = UUID_INVALID;
+static UUId_t FileServiceId    = UUID_INVALID;
+static UUId_t NetServiceId     = UUID_INVALID;
+
+static UUId_t
+GetHandleFromPath(
+    _In_ const char* Path)
 {
-	return Syscall_RegisterService(Alias);
+    UUId_t Handle;
+    if (Syscall_LookupHandle(Path, &Handle) != OsSuccess) {
+        return UUID_INVALID;
+    }
+    return Handle;
 }
 
-OsStatus_t
-IsServiceAvailable(
-    _In_ UUId_t Alias)
-{
-    return Syscall_IsServiceAvailable(Alias);
-}
-
-
-OsStatus_t
+static OsStatus_t
 WaitForService(
-    _In_ UUId_t Alias,
+    _In_ thrd_t (*Callback)(void),
     _In_ size_t Timeout)
 {
-    size_t     TimeLeft = Timeout;
-    OsStatus_t Status   = Syscall_IsServiceAvailable(Alias);
+    size_t TimeLeft = Timeout;
+    UUId_t Handle   = Callback();
     if (!Timeout) {
-        while (Status != OsSuccess) {
+        while (Handle == UUID_INVALID) {
             thrd_sleepex(100);
-            Status = Syscall_IsServiceAvailable(Alias);
+            Handle = Callback();
         }
     }
     else {
-        while (TimeLeft || Status != OsSuccess) {
+        while (TimeLeft || Handle == UUID_INVALID) {
             thrd_sleepex(100);
             TimeLeft -= 100;
-            Status    = Syscall_IsServiceAvailable(Alias);
+            Handle   = Callback();
         }
     }
-    return Status;
+    return (Handle == UUID_INVALID) ? OsTimeout : OsSuccess;
+}
+
+OsStatus_t 
+RegisterPath(
+    _In_ const char* Path)
+{
+    TRACE("RegisterPath(%s) => %u", Path, thrd_current());
+    if (!Path) {
+        return OsInvalidParameters;
+    }
+    return Syscall_RegisterHandlePath(thrd_current(), Path);
+}
+
+thrd_t GetSessionService(void)
+{
+    if (SessionServiceId == UUID_INVALID) {
+        SessionServiceId = GetHandleFromPath(SERVICE_SESSION_PATH);
+    }
+    return (thrd_t)SessionServiceId;
+}
+
+thrd_t GetDeviceService(void)
+{
+    if (DeviceServiceId == UUID_INVALID) {
+        DeviceServiceId = GetHandleFromPath(SERVICE_DEVICE_PATH);
+    }
+    return (thrd_t)DeviceServiceId;
+}
+
+thrd_t GetUsbService(void)
+{
+    if (UsbServiceId == UUID_INVALID) {
+        UsbServiceId = GetHandleFromPath(SERVICE_USB_PATH);
+    }
+    return (thrd_t)UsbServiceId;
+}
+
+thrd_t GetProcessService(void)
+{
+    if (ProcessServiceId == UUID_INVALID) {
+        ProcessServiceId = GetHandleFromPath(SERVICE_PROCESS_PATH);
+    }
+    return (thrd_t)ProcessServiceId;
+}
+
+thrd_t GetFileService(void)
+{
+    if (FileServiceId == UUID_INVALID) {
+        FileServiceId = GetHandleFromPath(SERVICE_FILE_PATH);
+    }
+    return (thrd_t)FileServiceId;
+}
+
+thrd_t GetNetService(void)
+{
+    if (NetServiceId == UUID_INVALID) {
+        NetServiceId = GetHandleFromPath(SERVICE_NET_PATH);
+    }
+    return (thrd_t)NetServiceId;
+}
+
+OsStatus_t
+WaitForSessionService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetSessionService, Timeout);
+}
+
+OsStatus_t
+WaitForDeviceService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetDeviceService, Timeout);
+}
+
+OsStatus_t
+WaitForUsbService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetUsbService, Timeout);
+}
+
+OsStatus_t
+WaitForProcessService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetProcessService, Timeout);
+}
+
+OsStatus_t
+WaitForFileService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetFileService, Timeout);
+}
+
+OsStatus_t
+WaitForNetService(
+    _In_ size_t Timeout)
+{
+    return WaitForService(GetNetService, Timeout);
 }
 
 OsStatus_t

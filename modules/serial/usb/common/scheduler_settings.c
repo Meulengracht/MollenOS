@@ -16,27 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Scheduler
+ * USB Controller Scheduler
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
 //#define __TRACE
 
-/* Includes
- * - System */
+#include <assert.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "scheduler.h"
-
-/* Includes
- * - Library */
-#include <assert.h>
-#include <stddef.h>
 #include <stdlib.h>
 
-/* UsbSchedulerSettingsCreate
- * Initializes a new instance of the settings to customize the
- * scheduler. */
 void
 UsbSchedulerSettingsCreate(
     _In_ UsbSchedulerSettings_t*    Settings,
@@ -45,37 +36,27 @@ UsbSchedulerSettingsCreate(
     _In_ size_t                     MaxBandwidthPerFrame,
     _In_ Flags_t                    Flags)
 {
-    // Sanitize
     assert(Settings != NULL);
     memset((void*)Settings, 0, sizeof(UsbSchedulerSettings_t));
 
-    // Store initial configuration
     Settings->Flags                 = Flags;
     Settings->FrameCount            = FrameCount;
     Settings->SubframeCount         = SubframeCount;
     Settings->MaxBandwidthPerFrame  = MaxBandwidthPerFrame;
 }
 
-/* UsbSchedulerSettingsConfigureFrameList
- * Configure the framelist settings for the scheduler. This is always
- * neccessary to call if the controller is supplying its own framelist. */
 void
 UsbSchedulerSettingsConfigureFrameList(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ reg32_t*                   FrameList,
     _In_ uintptr_t                  FrameListPhysical)
 {
-    // Sanitize that we haven't specified to create it ourselves
     assert((Settings->Flags & USB_SCHEDULER_FRAMELIST) == 0);
 
-    // Store configuration
     Settings->FrameList         = FrameList;
     Settings->FrameListPhysical = FrameListPhysical;
 }
 
-/* UsbSchedulerSettingsAddPool
- * Adds a new pool to the scheduler configuration that will get created
- * with the scheduler. */
 void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
@@ -87,14 +68,12 @@ UsbSchedulerSettingsAddPool(
     _In_ size_t                     LinkDepthMemberOffset,
     _In_ size_t                     ObjectMemberOffset)
 {
-    // Variables
-    UsbSchedulerPool_t *Pool = NULL;
+    UsbSchedulerPool_t* Pool;
 
     // Sanitize that we don't create more pools than maximum
     assert(Settings->PoolCount < USB_POOL_MAXCOUNT);
     Pool = &Settings->Pools[Settings->PoolCount++];
 
-    // Store configuration for pool
     Pool->ElementBaseSize           = ElementSize;
     Pool->ElementAlignedSize        = ALIGN(ElementSize, ElementAlignment, 1);
     Pool->ElementCount              = ElementCount;

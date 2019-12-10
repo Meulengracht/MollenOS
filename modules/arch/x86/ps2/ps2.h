@@ -25,6 +25,8 @@
 
 #include <ddk/contracts/base.h>
 #include <ddk/interrupt.h>
+#include <inet/local.h>
+#include <inet/socket.h>
 #include <os/osdefs.h>
 #include <ddk/io.h>
 
@@ -90,23 +92,23 @@ typedef enum _PS2CommandState {
     PS2WaitingResponse  = 2
 } PS2CommandState_t;
 
-typedef struct _PS2Command {
-    volatile PS2CommandState_t  State;
-    volatile uint8_t            SyncObject;
-    int                         RetryCount;
-    uint8_t                     Command;
-    uint8_t                     Buffer[2];
-    uint8_t*                    Response;
+typedef struct PS2Command {
+    volatile PS2CommandState_t State;
+    volatile uint8_t           SyncObject;
+    int                        RetryCount;
+    uint8_t                    Command;
+    uint8_t                    Buffer[2];
+    uint8_t*                   Response;
 } PS2Command_t;
 
-typedef enum _PS2PortState {
+typedef enum PS2PortState {
     PortStateDisabled,
     PortStateEnabled,
     PortStateConnected,
     PortStateActive
 } PS2PortState_t;
 
-typedef struct _PS2Port {
+typedef struct PS2Port {
     int                 Index;
     MContract_t         Contract;
     DeviceInterrupt_t   Interrupt;
@@ -114,6 +116,9 @@ typedef struct _PS2Port {
     PS2Command_t        ActiveCommand;
     PS2PortState_t      State;
     DevInfo_t           Signature;
+    
+    int                     IoSocket;
+    struct sockaddr_storage InputAddress;
 
     // Device state information
     uint8_t             DeviceData[6];
@@ -122,7 +127,7 @@ typedef struct _PS2Port {
     uint8_t             ResponseReadIndex;
 } PS2Port_t;
 
-typedef struct _PS2Controller {
+typedef struct PS2Controller {
     MCoreDevice_t   Device;
     MContract_t     Controller;
     DeviceIo_t*     Command;

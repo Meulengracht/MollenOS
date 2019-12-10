@@ -31,11 +31,11 @@
 extern AcpiEcdt_t EmbeddedController;
 
 // Handler prototypes
-extern UINT32     AcpiShutdownHandler(void *Context);
-extern UINT32     AcpiSleepHandler(void *Context);
-extern UINT32     AcpiRebootHandler(void);
-extern void     AcpiBusNotifyHandler(ACPI_HANDLE Device, UINT32 NotifyType, void *Context);
-extern void     AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void* Context);
+extern UINT32 AcpiShutdownHandler(void *Context);
+extern UINT32 AcpiSleepHandler(void *Context);
+extern UINT32 AcpiRebootHandler(void);
+extern void   AcpiBusNotifyHandler(ACPI_HANDLE Device, UINT32 NotifyType, void *Context);
+extern void   AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void* Context);
 
 // OSI for acpi
 extern UINT32 AcpiOsi(ACPI_STRING InterfaceName, UINT32 Supported);
@@ -45,9 +45,6 @@ extern void AcpiOsiInstall(void);
 // OSC for acpi
 extern void AcpiInitializeOsc(void);
 
-/* AcpiInstallHandlers
- * Installs default addressing space handlers for acpica to use during initialization. Acpica
- * does install its own handlers later, but not initially. */
 ACPI_STATUS
 AcpiInstallHandlers(void)
 {
@@ -83,9 +80,6 @@ AcpiInstallHandlers(void)
     return AE_OK;
 }
 
-/* AcpiInitialize
- * Initializes the full access and functionality
- * of ACPICA / ACPI and allows for scanning of ACPI devices */
 void
 AcpiInitialize(void)
 {

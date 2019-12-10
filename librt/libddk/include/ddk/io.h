@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,17 +17,32 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Device I/O Definitions & Structures
+ * I/O Definitions & Structures
  * - This header describes the base io-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __DEVICEIO_INTERFACE_H__
-#define __DEVICEIO_INTERFACE_H__
+#ifndef __DDK_IO_H__
+#define __DDK_IO_H__
 
 #include <ddk/ddkdefs.h>
+#include <ddk/barrier.h>
+#include <string.h>
 
-typedef enum _DeviceIoType {
+#define READ_VOLATILE(var) ({                                       \
+        union { typeof(var) Value; char Data[1]; } ValueRep;         \
+        ReadVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
+        ValueRep.Value;                                             \
+    })
+
+#define WRITE_VOLATILE(var, value) ({                                \
+        union { typeof(var) Value; char Data[1]; } ValueRep =         \
+            { .Value = value };                                      \
+        WriteVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
+        ValueRep.Value;                                              \
+    })
+
+typedef enum DeviceIoType {
     DeviceIoInvalid     = 0,
     DeviceIoMemoryBased,            // Usually device memory range
     DeviceIoPortBased,              // Usually a port range
@@ -35,7 +51,7 @@ typedef enum _DeviceIoType {
 
 // Represents a device io communcation space
 // that can be used by a driver to communcate with its physical device.
-typedef struct _DeviceIo {
+typedef struct DeviceIo {
     UUId_t              Id;
     DeviceIoType_t      Type;
     union {
@@ -57,24 +73,15 @@ typedef struct _DeviceIo {
 
 _CODE_BEGIN
 
-// Memory/optimization safe reading from hardware memory registers
-DDKDECL(reg32_t, __IoReadMemory32(volatile reg32_t*));
-DDKDECL(void,    __IoWriteMemory32(volatile reg32_t*, reg32_t));
+void ReadVolatileMemory(
+    _In_ const volatile void* Pointer,
+    _In_ volatile void*       Out,
+    _In_ size_t               Length);
 
-static inline reg32_t
-ReadVolatile32(volatile reg32_t* Register)
-{
-    reg32_t Value = __IoReadMemory32(Register);
-    MemoryBarrier();
-    return Value;
-}
-
-static inline void
-WriteVolatile32(volatile reg32_t* Register, reg32_t Value)
-{
-    __IoWriteMemory32(Register, Value);
-    MemoryBarrier();
-}
+void WriteVolatileMemory(
+    _In_ volatile void* Pointer,
+    _In_ void*          Data,
+    _In_ size_t         Length);
 
 /* CreateDeviceMemoryIo
  * Registers a new device memory io with the operating system. If this memory range

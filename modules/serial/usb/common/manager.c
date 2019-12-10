@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,9 +21,11 @@
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
+
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/services/service.h>
 #include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -38,7 +41,7 @@ UsbManagerInitialize(void)
 {
     // Create the event queue and wait for usb services, give it
     // up to 5 seconds before appearing
-    if (WaitForService(__USBMANAGER_TARGET, 5000) != OsSuccess) {
+    if (WaitForUsbService(5000) != OsSuccess) {
         ERROR(" => Failed to start usb manager, as usb service never became available.");
         return OsTimeout;
     }
@@ -262,10 +265,10 @@ UsbManagerFinalizeTransfer(
     int               BytesLeft = 0;
     TRACE("UsbManagerFinalizeTransfer()");
 
-    // Is the transfer done?
+    // Is the transfer only partially done?
     if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
         && Transfer->Status == TransferFinished
-        && Transfer->TransactionsExecuted != Transfer->TransactionsTotal
+        && (Transfer->Flags & TransferFlagPartial)
         && !(Transfer->Flags & TransferFlagShort)) {
         BytesLeft = 1;
     }
@@ -293,7 +296,7 @@ UsbManagerFinalizeTransfer(
                 break;
             }
         }
-        free(Transfer);
+        UsbManagerDestroyTransfer(Transfer);
         return OsSuccess;
     }
 }
@@ -305,7 +308,7 @@ UsbManagerClearTransfers(
     // Avoid requeuing by setting executed == total
     foreach(tNode, Controller->TransactionList) {
         UsbManagerTransfer_t *Transfer = (UsbManagerTransfer_t*)tNode->Data;
-        Transfer->TransactionsExecuted = Transfer->TransactionsTotal;
+        Transfer->Flags &= ~(TransferFlagPartial);
         HciTransactionFinalize(Controller, Transfer, 1);
         UsbManagerFinalizeTransfer(Controller, Transfer);
     }
@@ -355,7 +358,6 @@ UsbManagerScheduleTransfer(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ void*                   Context)
 {
-    
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
         TRACE("UNSCHEDULE(Id %u)", Transfer->Id);
