@@ -24,7 +24,6 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <ds/blbitmap.h>
 #include <multiboot.h>
 #include <machine.h>
 #include <assert.h>

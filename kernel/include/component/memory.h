@@ -24,7 +24,6 @@
 #define __COMPONENT_MEMORY__
 
 #include <os/osdefs.h>
-#include <ds/blbitmap.h>
 
 typedef struct SystemMemoryRange {
     uintptr_t Start;
@@ -45,7 +44,6 @@ typedef struct SystemMemory {
     size_t               BlockSize;
     int                  Removable;      // This memory is not fixed and should not be used for system memory
     int                  NonVolatile;    // Memory is non volatile
-    BlockmapSegment_t*   MemoryRange;
 } SystemMemory_t;
 
 #define IS_KERNEL_CODE(mmap_ptr, addr) (ISINRANGE(addr, (mmap_ptr)->KernelRegion.Start, (mmap_ptr)->KernelRegion.Start + (mmap_ptr)->KernelRegion.Length))

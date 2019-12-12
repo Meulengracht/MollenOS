@@ -66,11 +66,6 @@ ScMemoryAllocate(
     if (Flags & MEMORY_COMMIT) {
         MemoryFlags |= MAPPING_COMMIT;
     }
-    else {
-        // Zero page mappings to mark them reserved
-        memset(Pages, 0, sizeof(uintptr_t) * PageCount);
-    }
-    
     if (Flags & MEMORY_UNCHACHEABLE) {
         MemoryFlags |= MAPPING_NOCACHE;
     }

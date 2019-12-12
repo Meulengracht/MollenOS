@@ -37,30 +37,29 @@ ScCreateMemoryHandler(
     _Out_ UUId_t*    HandleOut,
     _Out_ uintptr_t* AddressBaseOut)
 {
-    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
+    SystemMemoryMappingHandler_t* Handler;
+    SystemMemorySpace_t*          Space = GetCurrentMemorySpace();
     assert(Space->Context != NULL);
 
-    if (Space->Context->HeapSpace != NULL) {
-        SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
-        if (!Handler) {
-            return OsOutOfMemory;
-        }
-        
-        ELEMENT_INIT(&Handler->Header, 0, Handler);
-        Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
-        Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
-        if (!Handler->Address) {
-            DestroyHandle(Handler->Handle);
-            kfree(Handler);
-            return OsOutOfMemory;
-        }
-        Handler->Length  = Length;
-        
-        *HandleOut       = Handler->Handle;
-        *AddressBaseOut  = Handler->Address;
-        return list_append(Space->Context->MemoryHandlers, &Handler->Header);
+    Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
+    if (!Handler) {
+        return OsOutOfMemory;
     }
-    return OsInvalidPermissions;
+    
+    ELEMENT_INIT(&Handler->Header, 0, Handler);
+    Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
+    Handler->Address = DynamicMemoryPoolAllocate(&Space->Context->Heap, Length);
+    if (!Handler->Address) {
+        DestroyHandle(Handler->Handle);
+        kfree(Handler);
+        return OsOutOfMemory;
+    }
+    Handler->Length  = Length;
+    
+    *HandleOut       = Handler->Handle;
+    *AddressBaseOut  = Handler->Address;
+    list_append(Space->Context->MemoryHandlers, &Handler->Header);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -73,7 +72,7 @@ ScDestroyMemoryHandler(
 
     if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
         list_remove(Space->Context->MemoryHandlers, &Handler->Header);
-        ReleaseBlockmapRegion(Space->Context->HeapSpace, Handler->Address, Handler->Length);
+        DynamicMemoryPoolFree(&Space->Context->Heap, Handler->Address);
         DestroyHandle(Handle);
         kfree(Handler);
         return OsSuccess;

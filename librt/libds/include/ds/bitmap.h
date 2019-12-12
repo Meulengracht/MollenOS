@@ -27,8 +27,6 @@
 
 typedef struct {
     int     Cleanup;
-    
-    // Resource information
     size_t  SizeInBytes;
     size_t  BitCount;
 	size_t* Data;

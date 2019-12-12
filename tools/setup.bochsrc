@@ -720,7 +720,7 @@ panic: action=ask
 error: action=report
 info: action=report
 debug: action=ignore, pci=report, usb_ohci=report
-# usb_uhci=ignore, ioapic=ignore, usbmsd=report, scsihd=report
+# usb_uhci=ignore, ioapic=ignore, usb_msd=report, scsihd=report
 
 #=======================================================================
 # DEBUGGER_LOG:

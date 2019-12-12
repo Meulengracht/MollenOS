@@ -115,14 +115,18 @@ SynchronizeMemoryRegion(
     }
 }
 
-static void
+static OsStatus_t
 CreateMemorySpaceContext(
     _In_ SystemMemorySpace_t* MemorySpace)
 {
     SystemMemorySpaceContext_t* Context = (SystemMemorySpaceContext_t*)kmalloc(sizeof(SystemMemorySpaceContext_t));
-    CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
+    if (!Context) {
+        return OsOutOfMemory;
+    }
+    
+    DynamicMemoryPoolConstruct(&Context->Heap, GetMachine()->MemoryMap.UserHeap.Start, 
         GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
-        GetMachine()->MemoryGranularity, &Context->HeapSpace);
+        GetMachine()->MemoryGranularity);
     Context->SignalHandler  = 0;
     Context->MemoryHandlers = kmalloc(sizeof(list_t));
     if (!Context->MemoryHandlers) {
@@ -131,6 +135,7 @@ CreateMemorySpaceContext(
     list_construct(Context->MemoryHandlers);
 
     MemorySpace->Context = Context;
+    return OsSuccess;
 }
 
 static void
@@ -141,7 +146,7 @@ CleanupMemoryHandler(
     SystemMemoryMappingHandler_t* Handler = Element->value;
     SystemMemorySpace_t*          MemorySpace = Context;
     
-    ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Handler->Address, Handler->Length);
+    DynamicMemoryPoolFree(&MemorySpace->Context->Heap, Handler->Address);
     DestroyHandle(Handler->Handle);
 }
 
@@ -153,7 +158,7 @@ DestroyMemorySpaceContext(
     assert(MemorySpace->Context != NULL);
     
     list_clear(MemorySpace->Context->MemoryHandlers, CleanupMemoryHandler, MemorySpace);
-    DestroyBlockmap(MemorySpace->Context->HeapSpace);
+    DynamicMemoryPoolDestroy(&MemorySpace->Context->Heap);
     kfree(MemorySpace->Context->MemoryHandlers);
     kfree(MemorySpace->Context);
 }
@@ -511,7 +516,7 @@ ResolveVirtualSystemMemorySpaceAddress(
 
         case MAPPING_VIRTUAL_PROCESS: {
             assert(SystemMemorySpace->Context != NULL);
-            VirtualBase = AllocateBlocksInBlockmap(SystemMemorySpace->Context->HeapSpace, __MASK, Size);
+            VirtualBase = DynamicMemoryPoolAllocate(&SystemMemorySpace->Context->Heap, Size);
             if (VirtualBase == 0) {
                 ERROR("Ran out of memory for allocation 0x%" PRIxIN " (heap)", Size);
             }
@@ -733,7 +738,7 @@ CloneMemorySpaceMapping(
     }
 
     // Add required memory flags
-    MemoryFlags |= (MAPPING_PERSISTENT | MAPPING_COMMIT);
+    MemoryFlags |= MAPPING_PERSISTENT | MAPPING_COMMIT;
     
     Status = ArchMmuSetVirtualPages(DestinationSpace, VirtualBase, &DmaVector[0], 
         PagesRetrieved, MemoryFlags, &PagesUpdated);
@@ -761,9 +766,8 @@ MemorySpaceUnmap(
     }
 
     // Free the range in either GAM or Process memory
-    if (MemorySpace->Context != NULL &&
-        BlockBitmapValidateState(MemorySpace->Context->HeapSpace, Address, 1) == OsSuccess) {
-        ReleaseBlockmapRegion(MemorySpace->Context->HeapSpace, Address, Size);
+    if (MemorySpace->Context != NULL && DynamicMemoryPoolContains(&MemorySpace->Context->Heap, Address)) {
+        DynamicMemoryPoolFree(&MemorySpace->Context->Heap, Address);
     }
     else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, Address)) {
         StaticMemoryPoolFree(&GetMachine()->GlobalAccessMemory, Address);

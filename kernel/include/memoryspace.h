@@ -28,8 +28,7 @@
 #include <os/osdefs.h>
 #include <ds/list.h>
 #include <mutex.h>
-
-typedef struct BlockBitmap BlockBitmap_t;
+#include <utils/dynamic_memory_pool.h>
 
 /* SystemMemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -76,9 +75,9 @@ typedef struct {
 } SystemSharedRegion_t;
 
 typedef struct SystemMemorySpaceContext {
-    list_t*        MemoryHandlers;
-    BlockBitmap_t* HeapSpace;
-    uintptr_t      SignalHandler;
+    DynamicMemoryPool_t Heap;
+    list_t*             MemoryHandlers;
+    uintptr_t           SignalHandler;
 } SystemMemorySpaceContext_t;
 
 typedef struct SystemMemorySpace {

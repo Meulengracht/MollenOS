@@ -43,8 +43,7 @@ UsbManagerCreateTransfer(
     UsbManagerTransfer_t* UsbTransfer;
     int                   i;
     
-    WARNING_IF(Transfer->Transactions[0].Length == 272384,
-        "[usb_create_transfer] transactions %i",
+    TRACE("[usb_create_transfer] transactions %i",
         Transfer->TransactionCount);
     
     UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
@@ -66,8 +65,7 @@ UsbManagerCreateTransfer(
         if (UsbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
             continue;
         }
-        WARNING_IF(Transfer->Transactions[i].Length == 272384,
-            "[usb_create_transfer] %i: length %" PRIuIN ", b_id %u, b_offset %" PRIuIN,
+        TRACE("[usb_create_transfer] %i: length %" PRIuIN ", b_id %u, b_offset %" PRIuIN,
             i, Transfer->Transactions[i].Length,
             Transfer->Transactions[i].BufferHandle,
             Transfer->Transactions[i].BufferOffset);
@@ -98,12 +96,6 @@ UsbManagerCreateTransfer(
             UsbTransfer->Transactions[i].DmaTable.count,
             UsbTransfer->Transactions[i].SgIndex,
             LODWORD(UsbTransfer->Transactions[i].SgOffset));
-        if (Transfer->Transactions[i].Length == 272384) {
-            WARNING("[usb_create_transfer] sg_count %i, sg_index %i, sg_offset %u",
-                UsbTransfer->Transactions[i].DmaTable.count,
-                UsbTransfer->Transactions[i].SgIndex,
-                LODWORD(UsbTransfer->Transactions[i].SgOffset));
-        }
     }
     return UsbTransfer;
 }
@@ -141,8 +133,7 @@ UsbManagerSendNotification(
     UsbTransferResult_t Result;
     IpcMessage_t        Message = { 0 };
     
-    WARNING_IF(Transfer->Transfer.Transactions[0].Length == 272384,
-        "[usb] [manager] send notification to 0x%x", Transfer->Address);
+    TRACE("[usb] [manager] send notification to 0x%x", Transfer->Address);
     
     // If user doesn't want, ignore
     if (Transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {

@@ -411,7 +411,7 @@ CreateProcess(
     Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
 
     if (InheritationBlock != NULL && InheritationBlockLength != 0) {
-        Process->InheritationBlock = malloc(InheritationBlockLength);
+        Process->InheritationBlock       = malloc(InheritationBlockLength);
         Process->InheritationBlockLength = InheritationBlockLength;
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }

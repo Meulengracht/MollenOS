@@ -25,9 +25,6 @@
 #include <threading.h>
 #include <debug.h>
 
-// Registered tests in the OS
-extern void TestDataStructures(void *Unused);
-
 void
 StartTestingPhase(void)
 {
