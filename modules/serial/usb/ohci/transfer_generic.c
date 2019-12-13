@@ -153,11 +153,6 @@ OhciTransferFill(
             }
         }
         
-        if (Transfer->Transfer.Transactions[i].Length == 272384) {
-            WARNING("[usb] [ohci] bytes left %u", BytesToTransfer);
-            UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
-        }
-
         // Check for partial transfers
         if (OutOfResources == 1) {
             Transfer->Flags |= TransferFlagPartial;

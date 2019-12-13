@@ -21,7 +21,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"

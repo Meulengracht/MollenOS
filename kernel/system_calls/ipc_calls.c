@@ -191,15 +191,15 @@ ScIpcInvoke(
         // bytes, we will do a mapping clone instead of just copying data into sender.
         if (Message->UntypedArguments[i].Length) {
             // Events that don't have a response do not support longer arguments than 512 bytes.
-            if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && 
-                !(Flags & IPC_NO_RESPONSE)) {
+            if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && !(Flags & IPC_NO_RESPONSE)) {
                 VirtualAddress_t CopyAddress;
+                size_t           OffsetInPage = ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize());
                 OsStatus_t       Status = CloneMemorySpaceMapping(
                     GetCurrentMemorySpace(), Target->MemorySpace,
-                    (VirtualAddress_t)Message->UntypedArguments[i].Buffer, 
-                    &CopyAddress, Message->UntypedArguments[i].Length,
-                    MAPPING_USERSPACE | MAPPING_READONLY,
-                    MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
+                    (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
+                    &CopyAddress, Message->UntypedArguments[i].Length + OffsetInPage,
+                    MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
+                    MAPPING_VIRTUAL_PROCESS);
                 if (Status != OsSuccess) {
                     ERROR("Failed to clone ipc argument that was longer than 512 bytes");
                     CleanupMessage(Target, &IpcArena->Message);
@@ -207,7 +207,7 @@ ScIpcInvoke(
                     (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
                     return Status;
                 }
-                IpcArena->Message.UntypedArguments[i].Buffer = (void*)(CopyAddress + ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize()));
+                IpcArena->Message.UntypedArguments[i].Buffer = (void*)(CopyAddress + OffsetInPage);
                 IpcArena->Message.UntypedArguments[i].Length |= IPC_ARGUMENT_MAPPED;
             }
             else {

@@ -90,9 +90,7 @@ ProcessSpawnEx(
 	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
 	IPC_SET_UNTYPED_STRING(&Request, 0, Path);
 	IpcSetUntypedArgument(&Request, 1, StartupInformation, sizeof(ProcessStartupInformation_t));
-	if (InheritationBlock != NULL) {
-	    IpcSetUntypedArgument(&Request, 2, InheritationBlock, InheritationBlockLength);
-	}
+	IpcSetUntypedArgument(&Request, 2, InheritationBlock, InheritationBlockLength);
 	if (Arguments != NULL) {
 	    IPC_SET_UNTYPED_STRING(&Request, 3, Arguments);
 	}

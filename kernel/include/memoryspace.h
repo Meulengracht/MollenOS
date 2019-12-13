@@ -309,7 +309,7 @@ MemorySpaceChangeProtection(
  * @param DestinationSpace
  * @param SourceAddress
  * @param DestinationAddress
- * @param Size
+ * @param Length
  * @param MemoryFlags
  * @param PlacementFlags
  */
@@ -319,7 +319,7 @@ CloneMemorySpaceMapping(
     _In_        SystemMemorySpace_t* DestinationSpace,
     _In_        VirtualAddress_t     SourceAddress,
     _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
-    _In_        size_t               Size,
+    _In_        size_t               Length,
     _In_        Flags_t              MemoryFlags,
     _In_        Flags_t              PlacementFlags);
 

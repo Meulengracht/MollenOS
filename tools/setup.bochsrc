@@ -719,7 +719,7 @@ log: bochsout.txt
 panic: action=ask
 error: action=report
 info: action=report
-debug: action=ignore, pci=report, usb_ohci=report
+debug: action=ignore, pci=report, usb_ohci=ignore
 # usb_uhci=ignore, ioapic=ignore, usb_msd=report, scsihd=report
 
 #=======================================================================

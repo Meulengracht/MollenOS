@@ -777,8 +777,11 @@ PeLoadImage(
     }
 
     Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
+    if (!Image) {
+        return OsOutOfMemory;
+    }
+    
     memset(Image, 0, sizeof(PeExecutable_t));
-
     Index                    = MStringFindReverse(FullPath, '/', 0);
     Image->Name              = MStringSubString(FullPath, Index + 1, -1);
     Image->Owner             = Owner;

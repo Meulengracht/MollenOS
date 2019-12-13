@@ -51,6 +51,7 @@ ScMemoryAllocate(
     Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     int                  PageCount;
     uintptr_t*           Pages; 
+    TRACE("[sc_allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);
     
     if (!Length || !MemoryOut) {
         return OsInvalidParameters;
@@ -83,6 +84,7 @@ ScMemoryAllocate(
     Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, 
         MemoryFlags, PlacementFlags);
     if (Status == OsSuccess) {
+        TRACE("[sc_allocate] address 0x%" PRIxIN, AllocatedAddress);
         *MemoryOut = (void*)AllocatedAddress;
         
         if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
@@ -102,6 +104,7 @@ ScMemoryFree(
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
     }
+    TRACE("[sc_unmap] address 0x%" PRIxIN ", length 0x%" PRIxIN, Address, Size);
     return MemorySpaceUnmap(Space, Address, Size);
 }
 
@@ -410,15 +413,16 @@ ScCreateMemorySpaceMapping(
     SystemModule_t*      Module         = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_VIRTUAL_FIXED;
     VirtualAddress_t     CopyPlacement  = 0;
     int                  PageCount;
     uintptr_t*           Pages;
     OsStatus_t           Status;
+    TRACE("[sc_map] target address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
+        Parameters->VirtualAddress, Parameters->Flags, Parameters->Length);
     
     if (Parameters == NULL || AddressOut == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermissions;
+            return OsDoesNotExist;
         }
         return OsInvalidParameters;
     }
@@ -443,7 +447,7 @@ ScCreateMemorySpaceMapping(
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
     Status = MemorySpaceMap(MemorySpace, &Parameters->VirtualAddress, Pages,
-        Parameters->Length, RequiredFlags, PlacementFlags);
+        Parameters->Length, RequiredFlags, MAPPING_VIRTUAL_FIXED);
     kfree(Pages);
     
     if (Status != OsSuccess) {
@@ -453,15 +457,16 @@ ScCreateMemorySpaceMapping(
     
     // Create a cloned copy in our own memory space, however we will set new placement and
     // access flags
-    PlacementFlags = MAPPING_VIRTUAL_PROCESS;
-    RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
+    RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT;
     Status         = CloneMemorySpaceMapping(MemorySpace, GetCurrentMemorySpace(),
         Parameters->VirtualAddress, &CopyPlacement, Parameters->Length,
-        RequiredFlags, PlacementFlags);
+        RequiredFlags, MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
         MemorySpaceUnmap(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
     }
+    TRACE("[sc_map] local address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
+        CopyPlacement, RequiredFlags, Parameters->Length);
     *AddressOut = (void*)CopyPlacement;
     return Status;
 }

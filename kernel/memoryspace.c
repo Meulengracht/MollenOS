@@ -710,15 +710,15 @@ CloneMemorySpaceMapping(
     _In_        SystemMemorySpace_t* DestinationSpace,
     _In_        VirtualAddress_t     SourceAddress,
     _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
-    _In_        size_t               Size,
+    _In_        size_t               Length,
     _In_        Flags_t              MemoryFlags,
     _In_        Flags_t              PlacementFlags)
 {
     VirtualAddress_t VirtualBase;
-    int              PageCount = DIVUP(Size, GetMemorySpacePageSize());
+    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesRetrieved;
     int              PagesUpdated;
-    uintptr_t        DmaVector[PageCount];
+    uintptr_t        PhysicalAddressValues[PageCount];
     OsStatus_t       Status;
     
     assert(SourceSpace != NULL);
@@ -726,12 +726,14 @@ CloneMemorySpaceMapping(
     
     // Allocate a temporary array to store physical mappings
     Status = ArchMmuVirtualToPhysical(SourceSpace, SourceAddress, PageCount, 
-        &DmaVector[0], &PagesRetrieved);
-    // Ignore status?!
+        &PhysicalAddressValues[0], &PagesRetrieved);
+    if (Status != OsSuccess) {
+        return Status; // Also if the status was OsIncomplete
+    }
 
     // Get the virtual address space, this however may not end up as 0 if it the mapping
     // is not provided already.
-    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(DestinationSpace, DestinationAddress, Size, PlacementFlags);
+    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(DestinationSpace, DestinationAddress, Length, PlacementFlags);
     if (VirtualBase == 0) {
         ERROR(" > failed to allocate virtual memory for the cloning of mappings");
         return OsError;
@@ -740,7 +742,7 @@ CloneMemorySpaceMapping(
     // Add required memory flags
     MemoryFlags |= MAPPING_PERSISTENT | MAPPING_COMMIT;
     
-    Status = ArchMmuSetVirtualPages(DestinationSpace, VirtualBase, &DmaVector[0], 
+    Status = ArchMmuSetVirtualPages(DestinationSpace, VirtualBase, &PhysicalAddressValues[0], 
         PagesRetrieved, MemoryFlags, &PagesUpdated);
     if (Status == OsSuccess && PagesUpdated != PageCount) {
         Status = OsIncomplete;

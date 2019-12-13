@@ -30,12 +30,12 @@
 
 int wm_os_get_server_address(struct sockaddr_storage* address, int* address_length_out)
 {
-    struct sockaddr_lc* local_address = (struct sockaddr_lc*)address;
+    struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
 
-    // Prepare the server address. 
-    memset(&local_address, 0, sizeof(struct sockaddr_lc));
-    memcpy(&local_address->slc_addr, LCADDR_WM, strlen(LCADDR_WM));
+    // Prepare the server address.
+    memset(local_address, 0, sizeof(struct sockaddr_lc));
+    memcpy(&local_address->slc_addr[0], LCADDR_WM, strlen(LCADDR_WM));
     local_address->slc_len    = sizeof(struct sockaddr_lc);
     local_address->slc_family = AF_LOCAL;
     return 0;
@@ -43,12 +43,12 @@ int wm_os_get_server_address(struct sockaddr_storage* address, int* address_leng
 
 int wm_os_get_input_address(struct sockaddr_storage* address, int* address_length_out)
 {
-    struct sockaddr_lc* local_address = (struct sockaddr_lc*)address;
+    struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
 
     // Prepare the server address. 
-    memset(&local_address, 0, sizeof(struct sockaddr_lc));
-    memcpy(&local_address->slc_addr, LCADDR_INPUT, strlen(LCADDR_INPUT));
+    memset(local_address, 0, sizeof(struct sockaddr_lc));
+    memcpy(&local_address->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT));
     local_address->slc_len    = sizeof(struct sockaddr_lc);
     local_address->slc_family = AF_LOCAL;
     return 0;
