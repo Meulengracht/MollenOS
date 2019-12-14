@@ -22,6 +22,7 @@
  *    communication protocols in the os
  */
 
+#include <errno.h>
 #include <libwm_server.h>
 #include "test_protocol.h"
 #include <stdio.h>
@@ -53,6 +54,7 @@ int main(int argc, char **argv)
     
     code = wm_server_initialize(&configuration);
     if (code) {
+        printf("error initializing server library %i", errno);
         return code;
     }
     

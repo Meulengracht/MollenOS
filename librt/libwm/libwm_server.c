@@ -57,7 +57,6 @@ static int create_server_socket(void)
     WARNING("1");
     wm_server_context.server_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (wm_server_context.server_socket < 0) {
-        // todo: set error
         return -1;
     }
     WARNING("2");
@@ -66,7 +65,6 @@ static int create_server_socket(void)
     WARNING("3");
     status = bind(wm_server_context.server_socket, sstosa(&wm_address), wm_address_length);
     if (status < 0) {
-        // todo: set error
         return -1;
     }
     WARNING("4");
@@ -84,13 +82,11 @@ static int handle_server_socket(void)
     
     client_socket = accept(wm_server_context.server_socket, sstosa(&client_address), &client_address_length);
     if (client_socket < 0) {
-        // todo: set error
         return -1;
     }
     
     status = wm_connection_create(client_socket, &client_address, client_address_length);
     if (status < 0) {
-        // todo: set error
         return -1;
     }
     return io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
@@ -107,7 +103,6 @@ static int create_input_socket(void)
     // delivered to fixed sockets on the local system.
     wm_server_context.input_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
     if (wm_server_context.input_socket < 0) {
-        // todo: set error
         return -1;
     }
     
@@ -226,12 +221,16 @@ int wm_server_initialize(wm_server_configuration_t* configuration)
     }
     
     // initialize default sockets
-    create_server_socket();
-    create_input_socket();
+    status = create_server_socket();
+    if (status) {
+        return status;
+    }
+    
+    status = create_input_socket();
     
     // register control protocol
 
-    return 0;
+    return status;
 }
 
 static int wm_server_shutdown(void)
