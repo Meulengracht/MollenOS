@@ -46,28 +46,22 @@ struct wm_server {
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
 } wm_server_context = { { 0 } };
 
-#include <ddk/utils.h>
-
 static int create_server_socket(void)
 {
     struct sockaddr_storage wm_address;
     socklen_t               wm_address_length;
     int                     status;
     
-    WARNING("1");
     wm_server_context.server_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (wm_server_context.server_socket < 0) {
         return -1;
     }
-    WARNING("2");
     
     wm_os_get_server_address(&wm_address, &wm_address_length);
-    WARNING("3");
     status = bind(wm_server_context.server_socket, sstosa(&wm_address), wm_address_length);
     if (status < 0) {
         return -1;
     }
-    WARNING("4");
     
     // Enable listening for connections, with a maximum of 2 on backlog
     return listen(wm_server_context.server_socket, 2);

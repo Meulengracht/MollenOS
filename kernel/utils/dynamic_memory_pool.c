@@ -20,7 +20,7 @@
  * Datastructure (Dynamic memory pool)
  * - Implementation of a memory pool as a binary-tree.
  */
-#define __MODULE "MEMP"
+#define __TRACE
 
 #include <assert.h>
 #include <debug.h>
@@ -154,6 +154,9 @@ DynamicMemoryPoolAllocate(
 	IrqSpinlockAcquire(&Pool->SyncObject);
 	Result = RecursiveAllocate(Pool, Pool->Root, 0, 0, Length);
 	IrqSpinlockRelease(&Pool->SyncObject);
+	
+	TRACE("[utils] [dyn_mem_pool] allocate length 0x%" PRIxIN " => 0x%" PRIxIN,
+		Length, Result);
 	return Result;
 }
 
@@ -208,13 +211,16 @@ DynamicMemoryPoolFree(
 	_In_ uintptr_t            Address)
 {
 	int Result;
-
 	assert(Pool != NULL);
+	
+	TRACE("[utils] [dyn_mem_pool] free 0x%" PRIxIN, Address);
+
 	IrqSpinlockAcquire(&Pool->SyncObject);
 	Result = RecursiveFree(Pool, Pool->Root, 0, Pool->StartAddress, Address);
 	IrqSpinlockRelease(&Pool->SyncObject);
 	if (Result) {
-		WARNING("[utils] [dyn_mem_pool] failed to free Address 0x%x\n", Address);
+		WARNING("[utils] [dyn_mem_pool] failed to free Address 0x%" PRIxIN, Address);
+		BOCHSBREAK;
 	}
 }
 

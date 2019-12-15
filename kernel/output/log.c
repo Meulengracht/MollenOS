@@ -135,7 +135,6 @@ LogSetRenderMode(
 void
 LogAppendMessage(
     _In_ SystemLogType_t Type,
-    _In_ const char*     Header,
     _In_ const char*     Message,
     ...)
 {
@@ -143,7 +142,6 @@ LogAppendMessage(
 	va_list          Arguments;
 	UUId_t           CoreId = ArchGetProcessorCoreId();
 
-    assert(Header != NULL);
     assert(Message != NULL);
     
     // Get a new line object

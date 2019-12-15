@@ -305,7 +305,7 @@ stdio_close_all_handles(void)
             fclose(handle->buffered_stream);
         }
         else {
-            handle->ops.close(handle, 0);
+            close(handle->fd);
         }
         files_closed++;
     }

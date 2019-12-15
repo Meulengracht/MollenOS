@@ -61,19 +61,20 @@ OsStatus_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    OsStatus_t status;
+    OsStatus_t status = OsSuccess;
     
-    status = CloseSocket(handle->object.handle, options);
-    if (status == OsSuccess) {
-        if (handle->object.data.socket.send_buffer.buffer) {
-            (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
-            (void)dma_detach(&handle->object.data.socket.send_buffer);
-        }
-        
-        if (handle->object.data.socket.recv_buffer.buffer) {
-            (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
-            (void)dma_detach(&handle->object.data.socket.send_buffer);
-        }
+    if (options & STDIO_CLOSE_FULL) {
+        status = CloseSocket(handle->object.handle, options);
+    }
+    
+    if (handle->object.data.socket.send_buffer.buffer) {
+        (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
+        (void)dma_detach(&handle->object.data.socket.send_buffer);
+    }
+    
+    if (handle->object.data.socket.recv_buffer.buffer) {
+        (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
+        (void)dma_detach(&handle->object.data.socket.send_buffer);
     }
     return status;
 }

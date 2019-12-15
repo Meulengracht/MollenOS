@@ -32,6 +32,7 @@ int close(int fd)
 {
 	stdio_handle_t* handle;
 	int             result = EOK;
+	int             options;
 
 	handle = stdio_handle_get(fd);
 	if (!handle) {
@@ -41,9 +42,11 @@ int close(int fd)
 	
 	// The cases where we close is when the handle is
 	// not inheritted and the handle is not persistant
-	if (!(handle->wxflag & (WX_INHERITTED | WX_PERSISTANT))) {
-	    result = handle->ops.close(handle, 0);
+	options = STDIO_CLOSE_FULL;
+	if (handle->wxflag & (WX_INHERITTED | WX_PERSISTANT)) {
+		options = STDIO_CLOSE_INHERIT;
 	}
+	result = handle->ops.close(handle, options);
 	stdio_handle_destroy(handle, 0);
     return result;
 }

@@ -44,13 +44,13 @@ ScSystemDebug(
 
     // Switch based on type
     if (Type == 0) {
-        LogAppendMessage(LogTrace, Module, Message);
+        LogAppendMessage(LogTrace, Message);
     }
     else if (Type == 1) {
-        LogAppendMessage(LogDebug, Module, Message);
+        LogAppendMessage(LogDebug, Message);
     }
     else {
-        LogAppendMessage(LogError, Module, Message);
+        LogAppendMessage(LogError, Message);
     }
     return OsSuccess;
 }

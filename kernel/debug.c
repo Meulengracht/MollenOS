@@ -130,7 +130,6 @@ OsStatus_t
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
-    _In_ const char* Module,
     _In_ const char* Message, ...)
 {
     MCoreThread_t *CurrentThread;
@@ -159,12 +158,12 @@ DebugPanic(
     vsprintf(&MessageBuffer[0], Message, Arguments);
     va_end(Arguments);
     LogSetRenderMode(1);
-    LogAppendMessage(LogError, Module, &MessageBuffer[0]);
+    LogAppendMessage(LogError, &MessageBuffer[0]);
     
     // Log cpu and threads
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
-        LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
+        LogAppendMessage(LogError, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
             CurrentThread->Name, CurrentThread->Handle, CoreId);
     }
     
@@ -316,15 +315,15 @@ DebugMemory(
         if ((i % 16) == 0) {
             // Just don't print ASCII for the zeroth line.
             if (i != 0) {
-                LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
+                LogAppendMessage(LogRaw, "  %s\n", Buffer);
             }
 
             // Output the offset.
-            LogAppendMessage(LogRaw, "EMPT", "  %04x ", i);
+            LogAppendMessage(LogRaw, "  %04x ", i);
         }
 
         // Now the hex code for the specific character.
-        LogAppendMessage(LogRaw, "EMPT", " %02x", pc[i]);
+        LogAppendMessage(LogRaw, " %02x", pc[i]);
 
         // And store a printable ASCII character for later.
         if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
@@ -338,12 +337,12 @@ DebugMemory(
 
     // Pad out last line if not exactly 16 characters.
     while ((i % 16) != 0) {
-        LogAppendMessage(LogRaw, "EMPT", "   ");
+        LogAppendMessage(LogRaw, "   ");
         i++;
     }
 
     // And print the final ASCII bit.
-    LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
+    LogAppendMessage(LogRaw, "  %s\n", Buffer);
     return OsSuccess;
 }
 

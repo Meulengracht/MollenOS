@@ -20,9 +20,8 @@
  * - Contains the shared kernel debugging interface and tools
  *   available for tracing and debugging
  *
- * - To use the interface, and tracing utilities a bunch of defines
+ * - To use the interface, and tracing utilities the following defines
  *   can be enabled for the various tools:
- * - __MODULE(Str4)        (4 Letter Module Identification String)
  * - __TRACE            (Enables Tracing Tools)
  */
 
@@ -36,16 +35,10 @@
 #include <os/input.h>
 #include <log.h>
 
-/* Sanitize the module definition, must be 
- * present to identify the source-code that include this */
-#ifndef __MODULE
-#error "__MODULE Must be defined before including debug.h"
-#endif
-
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
-#define TRACE(...)               	LogAppendMessage(LogTrace, __MODULE, __VA_ARGS__)
+#define TRACE(...) LogAppendMessage(LogTrace, __VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -56,10 +49,10 @@
 #define FATAL_SCOPE_PROCESS       	0x00000002
 #define FATAL_SCOPE_THREAD         	0x00000003
 
-#define WRITELINE(...)              LogAppendMessage(LogDebug, __MODULE, __VA_ARGS__)
-#define WARNING(...)                LogAppendMessage(LogWarning, __MODULE, __VA_ARGS__)
-#define ERROR(...)              	LogAppendMessage(LogError, __MODULE, __VA_ARGS__)
-#define FATAL(Scope, ...)         	DebugPanic(Scope, NULL, __MODULE, __VA_ARGS__)
+#define WRITELINE(...)              LogAppendMessage(LogDebug, __VA_ARGS__)
+#define WARNING(...)                LogAppendMessage(LogWarning, __VA_ARGS__)
+#define ERROR(...)              	LogAppendMessage(LogError, __VA_ARGS__)
+#define FATAL(Scope, ...)         	DebugPanic(Scope, NULL, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message)   	DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)
 
 /* DebugSingleStep
@@ -94,7 +87,6 @@ KERNELAPI OsStatus_t KERNELABI
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
-    _In_ const char* Module,
     _In_ const char* Message, ...);
 
 /* DebugGetModuleByAddress

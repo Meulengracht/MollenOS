@@ -187,12 +187,16 @@ OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
-	int        result    = (int)CloseFile(handle->object.handle);
 	OsStatus_t converted = OsSuccess;
-    if (_fval(result)) {
-        result    = -1;
-        converted = OsError;
-    }
+	int        result;
+	
+	if (options & STDIO_CLOSE_FULL) {
+        result = (int)CloseFile(handle->object.handle);
+        if (_fval(result)) {
+            result    = -1;
+            converted = OsError;
+        }
+	}
     return converted;
 }
 

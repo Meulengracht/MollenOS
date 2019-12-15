@@ -61,7 +61,6 @@ LogSetRenderMode(
 KERNELAPI void KERNELABI
 LogAppendMessage(
     _In_ SystemLogType_t Type,
-    _In_ const char*     Header,
     _In_ const char*     Message,
     ...);
 
