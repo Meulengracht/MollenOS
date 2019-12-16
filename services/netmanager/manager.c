@@ -239,7 +239,7 @@ NetworkManagerSocketBind(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
-    Socket_t*  Socket;
+    Socket_t* Socket;
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {

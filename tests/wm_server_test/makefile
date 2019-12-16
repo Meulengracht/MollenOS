@@ -4,10 +4,11 @@
 include ../../config/common.mk
 
 INCLUDES = -I../../librt/libwm/include -I../../librt/libm/include -I../../librt/libc/include -I../../librt/include
+LIBRARIES = libwm.lib
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) -static -I../../librt/libcxx/libcxx/include $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy libwm.lib
+LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy $(LIBRARIES)
 
 .PHONY: all
 all: ../bin/wmsrv.app

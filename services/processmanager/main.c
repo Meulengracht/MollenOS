@@ -20,7 +20,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-//#define __TRACE
+#define __TRACE
 
 #include <ds/mstring.h>
 #include <ddk/services/process.h>

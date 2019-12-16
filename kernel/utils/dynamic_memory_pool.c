@@ -220,7 +220,6 @@ DynamicMemoryPoolFree(
 	IrqSpinlockRelease(&Pool->SyncObject);
 	if (Result) {
 		WARNING("[utils] [dyn_mem_pool] failed to free Address 0x%" PRIxIN, Address);
-		BOCHSBREAK;
 	}
 }
 

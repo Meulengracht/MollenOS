@@ -28,6 +28,7 @@
  */
 
 #include <ddk/services/net.h>
+#include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>

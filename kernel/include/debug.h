@@ -35,6 +35,8 @@
 #include <os/input.h>
 #include <log.h>
 
+// __func__ 
+
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)

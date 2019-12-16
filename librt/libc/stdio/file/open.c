@@ -90,8 +90,10 @@ int open(const char* file, int flags, ...)
             CloseFile(handle);
             return -1;
         }
-        stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
         stdio_handle_set_handle(object, handle);
+        stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
+        
+        fd = object->fd;
     }
     return fd;
 }

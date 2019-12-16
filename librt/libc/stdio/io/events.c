@@ -30,24 +30,24 @@
 int io_set_create(int flags)
 {
     stdio_handle_t* io_object;
-    OsStatus_t      status;
+    OsStatus_t      os_status;
     UUId_t          handle;
-    int             fd;
+    int             status;
     
-    fd = stdio_handle_create(-1, WX_OPEN, &io_object);
-    if (fd == -1) {
+    status = stdio_handle_create(-1, WX_OPEN, &io_object);
+    if (status) {
         return -1;
     }
     
-    status = handle_set_create(0, &handle);
-    if (status != OsSuccess) {
-        (void)OsStatusToErrno(status);
+    os_status = handle_set_create(0, &handle);
+    if (os_status != OsSuccess) {
+        (void)OsStatusToErrno(os_status);
         stdio_handle_destroy(io_object, 0);
         return -1;
     }
     
     stdio_handle_set_handle(io_object, handle);
-    return fd;
+    return io_object->fd;
 }
 
 int io_set_ctrl(int evt_iod, int op, int iod, int events)

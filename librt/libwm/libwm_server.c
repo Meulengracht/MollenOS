@@ -46,6 +46,9 @@ struct wm_server {
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
 } wm_server_context = { { 0 } };
 
+#include <errno.h>
+#include <ddk/utils.h>
+
 static int create_server_socket(void)
 {
     struct sockaddr_storage wm_address;
@@ -54,17 +57,24 @@ static int create_server_socket(void)
     
     wm_server_context.server_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (wm_server_context.server_socket < 0) {
+        ERROR("[create_server_socket] socket returned %i, with code %i",
+            wm_server_context.server_socket, errno);
         return -1;
     }
     
     wm_os_get_server_address(&wm_address, &wm_address_length);
     status = bind(wm_server_context.server_socket, sstosa(&wm_address), wm_address_length);
-    if (status < 0) {
+    if (status) {
+        ERROR("[create_server_socket] bind returned %i, with code %i", status, errno);
         return -1;
     }
     
     // Enable listening for connections, with a maximum of 2 on backlog
-    return listen(wm_server_context.server_socket, 2);
+    status = listen(wm_server_context.server_socket, 2);
+    if (status) {
+        ERROR("[create_server_socket] listen returned %i, with code %i", status, errno);
+    }
+    return status;
 }
 
 static int handle_server_socket(void)

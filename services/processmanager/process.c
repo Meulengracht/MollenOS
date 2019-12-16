@@ -505,8 +505,8 @@ TerminateProcess(
     _In_ Process_t* Process,
     _In_ int        ExitCode)
 {
-    TRACE("TerminateProcess(%llu, %i)", Process->Header.key, ExitCode);
-
+    WARNING("[terminate_process] process %u exitted with code: %i", Process->Header.key, ExitCode);
+    
     Process->State    = PROCESS_TERMINATING;
     Process->ExitCode = ExitCode;
     list_enumerate(&Joiners, WakeupAllWaiters, Process);

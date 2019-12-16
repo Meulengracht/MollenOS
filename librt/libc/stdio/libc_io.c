@@ -334,13 +334,14 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
 {
     stdio_handle_t* handle;
     DataKey_t       key;
+    int             updated_fd;
 
-    if (fd == -1) {
-        fd = stdio_bitmap_allocate(fd);
-        if (fd == -1) {
-            _set_errno(EMFILE);
-            return -1;
-        }
+    // the bitmap allocator handles both cases if we want to allocate a specific
+    // or just the first free fd
+    updated_fd = stdio_bitmap_allocate(fd);
+    if (updated_fd == -1) {
+        _set_errno(EMFILE);
+        return -1;
     }
 
     handle = (stdio_handle_t*)malloc(sizeof(stdio_handle_t));
@@ -350,7 +351,7 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     }
     memset(handle, 0, sizeof(stdio_handle_t));
     
-    handle->fd            = fd;
+    handle->fd            = updated_fd;
     handle->object.handle = UUID_INVALID;
     handle->object.type   = STDIO_HANDLE_INVALID;
     
@@ -361,9 +362,9 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     spinlock_init(&handle->lock, spinlock_recursive);
     stdio_get_null_operations(&handle->ops);
 
-    key.Value.Integer = fd;
+    key.Value.Integer = updated_fd;
     CollectionAppend(&stdio_objects, CollectionCreateNode(key, handle));
-    TRACE(" >> success %i", fd);
+    TRACE("[stdio_handle_create] success %i", updated_fd);
     
     *handle_out = handle;
     return EOK;

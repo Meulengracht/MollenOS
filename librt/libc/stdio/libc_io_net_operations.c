@@ -73,8 +73,8 @@ OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
     }
     
     if (handle->object.data.socket.recv_buffer.buffer) {
-        (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
-        (void)dma_detach(&handle->object.data.socket.send_buffer);
+        (void)dma_attachment_unmap(&handle->object.data.socket.recv_buffer);
+        (void)dma_detach(&handle->object.data.socket.recv_buffer);
     }
     return status;
 }
