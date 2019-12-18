@@ -180,7 +180,9 @@ NetworkManagerSocketCreate(
 {
     Socket_t*  Socket;
     OsStatus_t Status;
-    TRACE("NetworkManagerSocketCreate()");
+    
+    TRACE("[net_manager] [create] %u, %i, %i, %i", 
+        LODWORD(ProcessHandle), Domain, Type, Protocol);
     
     if (Domain >= AF_MAX || Domain < 0) {
         WARNING("Invalid Domain type specified %i", Domain);
@@ -205,6 +207,7 @@ NetworkManagerSocketCreate(
     *HandleOut           = (UUId_t)(uintptr_t)Socket->Header.key;
     *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
     *RecvBufferHandleOut = Socket->Receive.DmaAttachment.handle;
+    TRACE("[net_manager] [create] => %u", *HandleOut);
     return Status;
 }
 
@@ -217,8 +220,12 @@ NetworkManagerSocketShutdown(
     Socket_t*  Socket;
     OsStatus_t Status;
     
+    TRACE("[net_manager] [shutdown] %u, %u, %i", 
+        LODWORD(ProcessHandle), LODWORD(Handle), Options);
+    
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
+        ERROR("[net_manager] [shutdown] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
     
@@ -241,8 +248,12 @@ NetworkManagerSocketBind(
 {
     Socket_t* Socket;
     
+    TRACE("[net_manager] [bind] %u, %u", 
+        LODWORD(ProcessHandle), LODWORD(Handle));
+    
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
+        ERROR("[net_manager] [bind] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
     return DomainUpdateAddress(Socket, Address);
@@ -288,8 +299,12 @@ NetworkManagerSocketListen(
 {
     Socket_t* Socket;
     
+    TRACE("[net_manager] [listen] %u, %u, %i", 
+        LODWORD(ProcessHandle), LODWORD(Handle), ConnectionCount);
+    
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
+        ERROR("[net_manager] [listen] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
     

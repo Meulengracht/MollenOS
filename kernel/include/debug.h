@@ -22,6 +22,7 @@
  *
  * - To use the interface, and tracing utilities the following defines
  *   can be enabled for the various tools:
+ * - __MODULE           (Sets the module information)
  * - __TRACE            (Enables Tracing Tools)
  */
 
@@ -36,11 +37,11 @@
 #include <log.h>
 
 // __func__ 
-
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
 #define TRACE(...) LogAppendMessage(LogTrace, __VA_ARGS__)
+#define TRACE2(...) LogAppendMessage(LogTrace, "[" __MODULE "] [" __func__ "] " __VA_ARGS__)
 #else
 #define TRACE(...)
 #endif

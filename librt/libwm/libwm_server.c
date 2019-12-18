@@ -46,8 +46,6 @@ struct wm_server {
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
 } wm_server_context = { { 0 } };
 
-#include <errno.h>
-#include <ddk/utils.h>
 
 static int create_server_socket(void)
 {
@@ -57,23 +55,17 @@ static int create_server_socket(void)
     
     wm_server_context.server_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (wm_server_context.server_socket < 0) {
-        ERROR("[create_server_socket] socket returned %i, with code %i",
-            wm_server_context.server_socket, errno);
         return -1;
     }
     
     wm_os_get_server_address(&wm_address, &wm_address_length);
     status = bind(wm_server_context.server_socket, sstosa(&wm_address), wm_address_length);
     if (status) {
-        ERROR("[create_server_socket] bind returned %i, with code %i", status, errno);
         return -1;
     }
     
     // Enable listening for connections, with a maximum of 2 on backlog
     status = listen(wm_server_context.server_socket, 2);
-    if (status) {
-        ERROR("[create_server_socket] listen returned %i, with code %i", status, errno);
-    }
     return status;
 }
 
@@ -231,6 +223,9 @@ int wm_server_initialize(wm_server_configuration_t* configuration)
     }
     
     status = create_input_socket();
+    if (status) {
+        return status;
+    }
     
     // register control protocol
 
@@ -241,9 +236,18 @@ static int wm_server_shutdown(void)
 {
     assert(wm_server_context.initialized == 1);
     
-    close(wm_server_context.server_socket);
-    close(wm_server_context.input_socket);
-    close(wm_server_context.socket_set);
+    if (wm_server_context.server_socket != -1) {
+        close(wm_server_context.server_socket);
+    }
+    
+    if (wm_server_context.input_socket != -1) {
+        close(wm_server_context.input_socket);
+    }
+    
+    if (wm_server_context.socket_set != -1) {
+        close(wm_server_context.socket_set);
+    }
+    
     return 0;
 }
 

@@ -227,7 +227,7 @@ rb_tree_append(
         smp_mb();
         i = tree->root;
         while (1) {
-            result = tree->cmp(leaf->key, i->key);
+            result = tree->cmp(i->key, leaf->key);
             if (result == 1) {
                 if (IS_ITEM_NIL(tree, i->left)) {
                     i->left = leaf;

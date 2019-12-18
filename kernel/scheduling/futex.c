@@ -93,7 +93,6 @@ FutexGetNode(
     _In_ uintptr_t                   FutexAddress,
     _In_ SystemMemorySpaceContext_t* Context)
 {
-    smp_rmb();
     foreach(i, &Bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
         if (Item->FutexAddress == FutexAddress &&
@@ -111,6 +110,7 @@ FutexCreateNode(
     _In_ uintptr_t                   FutexAddress,
     _In_ SystemMemorySpaceContext_t* Context)
 {
+    FutexItem_t* Existing;
     FutexItem_t* Item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
     if (!Item) {
         return NULL;
@@ -121,9 +121,18 @@ FutexCreateNode(
     list_construct(&Item->BlockQueue);
     Item->FutexAddress = FutexAddress;
     Item->Context      = Context;
-    smp_wmb();
     
-    list_append(&Bucket->Futexes, &Item->Header);
+    spinlock_acquire(&Bucket->SyncObject);
+    Existing = FutexGetNode(Bucket, FutexAddress, Context);
+    if (!Existing) {
+        list_append(&Bucket->Futexes, &Item->Header);
+    }
+    spinlock_release(&Bucket->SyncObject);
+    
+    if (Existing) {
+        kfree(Item);
+        Item = Existing;
+    }
     return Item;
 }
 
@@ -258,14 +267,19 @@ FutexWait(
     // interrupted in this 'atomic' action. However when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
     CpuState = InterruptDisable();
+    
     spinlock_acquire(&Bucket->SyncObject);
     FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    if (!FutexItem) {
-        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
-    }
-    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
     spinlock_release(&Bucket->SyncObject);
     
+    if (!FutexItem) {
+        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
+        if (!FutexItem) {
+            return OsOutOfMemory;
+        }
+    }
+    
+    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
     Result = atomic_load(Futex);
     if (Result != ExpectedValue) {
         InterruptRestoreState(CpuState);
@@ -326,14 +340,19 @@ FutexWaitOperation(
     // interrupted in this 'atomic' action. However when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
     CpuState = InterruptDisable();
+    
     spinlock_acquire(&Bucket->SyncObject);
     FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    if (!FutexItem) {
-        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
-    }
-    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
     spinlock_release(&Bucket->SyncObject);
     
+    if (!FutexItem) {
+        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
+        if (!FutexItem) {
+            return OsOutOfMemory;
+        }
+    }
+    
+    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
     Result = atomic_load(Futex);
     if (Result != ExpectedValue) {
         InterruptRestoreState(CpuState);
@@ -360,7 +379,6 @@ FutexWake(
     FutexBucket_t*     Bucket;
     FutexItem_t*       FutexItem;
     OsStatus_t         Status;
-    IntStatus_t        CpuState;
     uintptr_t          FutexAddress;
     int                WaiterCount;
     int                i;
@@ -381,18 +399,14 @@ FutexWake(
     
     Bucket = FutexGetBucket(FutexAddress);
     
-    CpuState = InterruptDisable();
     spinlock_acquire(&Bucket->SyncObject);
     FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    if (FutexItem) {
-        WaiterCount = atomic_load(&FutexItem->Waiters);
-    }
     spinlock_release(&Bucket->SyncObject);
-    InterruptRestoreState(CpuState);
-    
     if (!FutexItem) {
         return OsDoesNotExist;
     }
+    
+    WaiterCount = atomic_load(&FutexItem->Waiters);
     
 WakeWaiters:
     for (i = 0; i < Count; i++) {

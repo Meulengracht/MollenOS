@@ -205,7 +205,7 @@ LookupHandleByPath(
     _Out_ UUId_t*     HandleOut)
 {
     SystemHandle_t* Instance;
-    WARNING("[handle_lookup_by_path] %s", Path);
+    TRACE("[handle_lookup_by_path] %s", Path);
     
     Instance = list_find_value(&PathRegister, (void*)Path);
     if (!Instance) {
@@ -350,6 +350,7 @@ DestroyHandleSet(
     SystemHandleSetElement_t* Element;
     SystemHandle_t*           Instance;
     rb_leaf_t*                Leaf;
+    WARNING("[handle_set] [destroy]");
     
     do {
         Leaf = rb_tree_minimum(&Set->Handles);
@@ -376,6 +377,7 @@ CreateHandleSet(
 {
     SystemHandleSet_t* Set;
     UUId_t             Handle;
+    WARNING("[handle_set] [create] 0x%x", Flags);
     
     Set = (SystemHandleSet_t*)kmalloc(sizeof(SystemHandleSet_t));
     if (!Set) {
@@ -406,7 +408,8 @@ ControlHandleSet(
     SystemHandle_t*           Instance;
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
-    TRACE("[handle_set_ctrl] %llu, %i, %llu", SetHandle, Operation, Handle);
+    WARNING("[handle_set] [control] %u, %i, %u", 
+        LODWORD(SetHandle), Operation, LODWORD(Handle));
     
     if (!Set) {
         return OsDoesNotExist;
@@ -507,6 +510,8 @@ WaitForHandleSet(
     int                  NumberOfEvents;
     list_t               Spliced;
     element_t*           i;
+    WARNING("[handle_set] [wait] %u, %i, %" PRIuIN, 
+        LODWORD(Handle), MaxEvents, Timeout);
     
     if (!Set) {
         return OsDoesNotExist;
@@ -577,6 +582,7 @@ MarkHandle(
     if (!Instance) {
         return OsDoesNotExist;
     }
+    WARNING("[handle_set] [mark] handle %u - 0x%x", LODWORD(Handle), Flags);
     
     list_enumerate(&Instance->Sets, MarkHandleCallback, (void*)(uintptr_t)Flags);
     return OsSuccess;

@@ -66,16 +66,25 @@ ScIpcReply(
     MCoreThread_t* Current   = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     MCoreThread_t* Target    = LookupHandleOfType((UUId_t)Message->Sender, HandleTypeThread);
     IpcArena_t*    IpcArena;
-    TRACE("%s => ScIpcReply()", Current->Name);
+    size_t         BytesToReply;
+    OsStatus_t     Status;
+    TRACE("[ipc] [reply] buffer 0x%" PRIxIN, ", length 0x%" PRIxIN, Buffer, Length);
     
-    if (Target) {
-        IpcArena = Target->ArenaKernelPointer;
-        memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], 
-            Buffer, MIN(IPC_RESPONSE_MAX_SIZE, Length));
-        smp_mb();
-        
-        atomic_store(&IpcArena->ResponseSyncObject, 1);
-        (void)FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
+    if (!Target) {
+        ERROR("[ipc] [reply] failed to find thread %u", Message->Sender);
+        CleanupMessage(Current, Message);
+        return OsDoesNotExist;
+    }
+    
+    IpcArena     = Target->ArenaKernelPointer;
+    BytesToReply = MIN(IPC_RESPONSE_MAX_SIZE, Length);
+    memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], Buffer, BytesToReply);
+    smp_mb();
+    
+    atomic_store(&IpcArena->ResponseSyncObject, 1);
+    Status = FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
+    if (Status != OsSuccess) {
+        WARNING("[ipc] [reply] futex_wake returned %u", Status);
     }
 
     CleanupMessage(Current, Message);

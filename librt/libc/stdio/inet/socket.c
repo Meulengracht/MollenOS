@@ -20,7 +20,7 @@
  * Standard C Support
  * - Standard Socket IO Implementation
  */
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/services/net.h>
 #include <ddk/utils.h>

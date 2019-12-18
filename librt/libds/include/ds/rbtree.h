@@ -38,7 +38,7 @@ typedef struct rb_leaf {
     void*           value;
 } rb_leaf_t;
 
-#define RB_LEAF_INIT(leaf, _key, _value) (leaf)->left = NULL; (leaf)->right = NULL; (leaf)->parent = NULL; (leaf)->color = 0; (leaf)->key = (void*)_key; (leaf)->value = _value
+#define RB_LEAF_INIT(leaf, _key, _value) (leaf)->left = NULL; (leaf)->right = NULL; (leaf)->parent = NULL; (leaf)->color = 0; (leaf)->key = (void*)(uintptr_t)_key; (leaf)->value = _value
 
 typedef struct rb_tree {
     rb_leaf_t*     root;

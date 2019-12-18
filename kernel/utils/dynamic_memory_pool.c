@@ -20,7 +20,7 @@
  * Datastructure (Dynamic memory pool)
  * - Implementation of a memory pool as a binary-tree.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <debug.h>

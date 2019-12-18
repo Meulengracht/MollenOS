@@ -21,6 +21,7 @@
 
 #include <ddk/services/service.h>
 #include <ddk/threadpool.h>
+#include <ddk/utils.h>
 #include <os/ipc.h>
 #include <os/mollenos.h>
 #include "../libc/threads/tls.h"
@@ -97,7 +98,10 @@ void __CrtServiceEntry(void)
     // Initialize the server event loop
     while (IsRunning) {
         if (IpcListen(0, &Message) == OsSuccess) {
-            OnEvent(Message);
+            OsStatus_t Status = OnEvent(Message);
+            if (Status != OsSuccess) {
+                WARNING("[service] [on_event] returned %u", Status);
+            }
         }
     }
 #endif

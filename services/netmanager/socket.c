@@ -99,9 +99,8 @@ SocketCreateImpl(
         ERROR("Failed to create socket handle");
         return Status;
     }
-    
-    // Initialize the header so the Handle is stored
     RB_LEAF_INIT(&Socket->Header, Handle, Socket);
+    
     Status = DomainCreate(Domain, &Socket->Domain);
     if (Status != OsSuccess) {
         ERROR("Failed to initialize the socket domain");

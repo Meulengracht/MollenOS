@@ -314,13 +314,15 @@ DomainLocalBind(
     _In_ const struct sockaddr* Address)
 {
     char* PreviousBuffer;
-    TRACE("DomainLocalBind()");
+    TRACE("[domain] [local] [bind] %s", &Address->sa_data[0]);
     
     if (!Socket->Domain->Record) {
+        ERROR("[domain] [local] [bind] no record");
         return OsError; // Should not happen tho
     }
     
     if (list_find(&AddressRegister, (void*)&Address->sa_data[0]) != NULL) {
+        ERROR("[domain] [local] [bind] address already bound");
         return OsExists;
     }
     
