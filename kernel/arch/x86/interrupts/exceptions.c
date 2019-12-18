@@ -71,6 +71,12 @@ HardFault(
 
     // Enter panic handler
     ArchDumpThreadContext(Registers);
+    WRITELINE("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
+        Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
+    if (Registers) {
+        __asm { xchg bx, bx };
+        return;
+    }
     DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
         "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
         Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
