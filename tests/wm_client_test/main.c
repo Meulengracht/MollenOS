@@ -23,6 +23,7 @@
  */
 
 #include <libwm_client.h>
+#include <libwm_os.h>
 #include "../wm_server_test/test_protocol.h"
 #include <stdio.h>
 #include "test_protocol_client.h"
@@ -32,6 +33,8 @@ int main(int argc, char **argv)
     wm_client_configuration_t configuration;
     wm_client_t*              client;
     int                       code, status;
+    
+    wm_os_get_server_address(&configuration.address, &configuration.address_length);
     
     code = wm_client_initialize(&configuration, &client);
     if (code) {

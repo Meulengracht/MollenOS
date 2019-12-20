@@ -296,10 +296,28 @@ OsStatus_t
 ScDmaAttachmentUnmap(
     _In_ struct dma_attachment* attachment)
 {
+    SystemSharedRegion_t* Region;
+    uintptr_t             Address;
+    uintptr_t             Offset;
+    
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return ScMemoryFree((uintptr_t)attachment->buffer, attachment->length);
+    
+    TRACE("ScDmaAttachmentUnmap(0x%x)", LODWORD(attachment->handle));
+    
+    Region = (SystemSharedRegion_t*)LookupHandleOfType(
+        attachment->handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    Address  = (uintptr_t)attachment->buffer;
+    Offset   = Address % GetMemorySpacePageSize();
+    Address -= Offset;
+    
+    TRACE("... free vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
+    return ScMemoryFree(Address, Region->Capacity + Offset);
 }
 
 OsStatus_t

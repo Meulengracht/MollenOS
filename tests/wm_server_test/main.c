@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <libwm_server.h>
+#include <os/services/process.h>
 #include "test_protocol.h"
 #include <stdio.h>
 
@@ -59,5 +60,6 @@ int main(int argc, char **argv)
     }
     
     wm_server_register_protocol(&test_protocol);
+    ProcessSpawn("$bin/wmclient.app", NULL);
     return wm_server_main_loop();
 }

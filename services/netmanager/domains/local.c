@@ -324,17 +324,20 @@ DomainLocalConnect(
     _In_ const struct sockaddr* Address)
 {
     Socket_t* Target = GetSocketFromAddress(Address);
-    TRACE("DomainLocalConnect()");
+    TRACE("[domain] [local] [connect] %s", &Address->sa_data[0]);
     
     if (!Target) {
+        TRACE("[domain] [local] [connect] invalid address, socket not found");
         return OsDoesNotExist;
     }
     
     if (!Target->Configuration.Passive) {
+        TRACE("[domain] [local] [connect] target was not listening to connections");
         return OsInvalidPermissions;
     }
     
     if (Socket->Type != Target->Type) {
+        TRACE("[domain] [local] [connect] target is valid, but protocol was invalid");
         return OsInvalidProtocol;
     }
     

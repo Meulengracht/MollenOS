@@ -285,9 +285,12 @@ NetworkManagerSocketConnect(
     _In_ const struct sockaddr* Address)
 {
     Socket_t* Socket;
+        ERROR("[net_manager] [connect] %u, %u, %u", LODWORD(ProcessHandle),
+            LODWORD(Waiter), LODWORD(Handle));
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
+        ERROR("[net_manager] [connect] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
     return DomainConnect(Waiter, Socket, Address);
@@ -354,14 +357,19 @@ NetworkManagerHandleConnectionRequest(
     AcceptRequest_t*     AcceptRequest;
     element_t*           Element;
     
+    TRACE("[net_manager] [handle_connect] %u, %u => %u", LODWORD(SourceWaiter),
+        LODWORD(SourceSocket->Header.key), LODWORD(TargetSocket->Header.key));
+    
     // Check for active accept requests, otherwise we need to queue it up. If the backlog
     // is full, we need to reject the connection request.
     mtx_lock(&TargetSocket->SyncObject);
     Element = queue_pop(&TargetSocket->AcceptRequests);
     if (!Element) {
+        TRACE("[net_manager] [handle_connect] creating request");
         ConnectionRequest = CreateConnectionRequest(SourceSocket, SourceWaiter);
         if (!ConnectionRequest) {
             mtx_unlock(&TargetSocket->SyncObject);
+            ERROR("[net_manager] [handle_connect] failed to allocate memory for connection request");
             return OsOutOfMemory;
         }
         
@@ -412,11 +420,16 @@ NetworkManagerSocketAccept(
     AcceptRequest_t*     AcceptRequest;
     element_t*           Element;
     OsStatus_t           Status = OsSuccess;
+    TRACE("[net_manager] [accept] %u, %u, %u", LODWORD(ProcessHandle), 
+        LODWORD(Waiter), LODWORD(Handle));
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
+        ERROR("[net_manager] [accept] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
+    
+    for(;;);
     
     // Check if there is any requests available
     mtx_lock(&Socket->SyncObject);
