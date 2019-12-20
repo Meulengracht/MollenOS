@@ -98,8 +98,7 @@ int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client
         return -1;
     }
     
-    status = connect(client->socket, 
-        sstosa(&config->address), config->address_length);
+    status = connect(client->socket, sstosa(&config->address), config->address_length);
     if (status) {
         close(client->socket);
         free(client);

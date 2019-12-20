@@ -133,12 +133,15 @@ ConnectSocket(
 
 OsStatus_t
 AcceptSocket(
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address)
+    _In_  UUId_t           Handle,
+    _In_  struct sockaddr* Address,
+    _Out_ UUId_t*          HandleOut,
+    _Out_ UUId_t*          SendBufferHandleOut,
+    _Out_ UUId_t*          RecvBufferHandleOut)
 {
-	IpcMessage_t               Request;
-	GetSocketAddressPackage_t* Package;
-	OsStatus_t                 Status;
+	IpcMessage_t           Request;
+	AcceptSocketPackage_t* Package;
+	OsStatus_t             Status;
 	
 	IpcInitialize(&Request);
 	IPC_SET_TYPED(&Request, 0, __NETMANAGER_ACCEPT_SOCKET);
@@ -150,8 +153,22 @@ AcceptSocket(
 	    return Status;
 	}
 	
-	if (Package->Status == OsSuccess && Address) {
-	    memcpy(Address, &Package->Address, Package->Address.__ss_len);
+	if (Package->Status == OsSuccess) {
+	    if (HandleOut) {
+	        *HandleOut = Package->SocketHandle;
+	    }
+	    
+	    if (SendBufferHandleOut) {
+	        *SendBufferHandleOut = Package->SendBufferHandle;
+	    }
+	    
+	    if (RecvBufferHandleOut) {
+	        *RecvBufferHandleOut = Package->RecvBufferHandle;
+	    }
+	    
+	    if (Address) {
+	        memcpy(Address, &Package->Address, Package->Address.__ss_len);
+	    }
 	}
 	return Package->Status;
 }
@@ -170,6 +187,28 @@ ListenSocket(
 	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
 	IPC_SET_TYPED(&Request, 2, Handle);
 	IPC_SET_TYPED(&Request, 3, ConnectionQueueSize);
+	
+	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
+	if (Status != OsSuccess) {
+	    return Status;
+	}
+	return IPC_CAST_AND_DEREF(Result, OsStatus_t);
+}
+
+OsStatus_t
+PairSockets(
+    _In_ UUId_t Handle1,
+    _In_ UUId_t Handle2)
+{
+	IpcMessage_t Request;
+	OsStatus_t   Status;
+	void*        Result;
+	
+	IpcInitialize(&Request);
+	IPC_SET_TYPED(&Request, 0, __NETMANAGER_PAIR_SOCKETS);
+	IPC_SET_TYPED(&Request, 1, ProcessGetCurrentId());
+	IPC_SET_TYPED(&Request, 2, Handle1);
+	IPC_SET_TYPED(&Request, 3, Handle2);
 	
 	Status = IpcInvoke(GetNetService(), &Request, 0, 0, &Result);
 	if (Status != OsSuccess) {

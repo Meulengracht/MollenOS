@@ -31,11 +31,24 @@
 #include "domains/domains.h"
 #include <inet/local.h>
 #include <io_events.h>
+#include <os/ipc.h>
 #include "manager.h"
 #include "socket.h"
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
+
+typedef struct ConnectionRequest {
+    element_t Header;
+    thrd_t    SourceWaiter;
+    Socket_t* SourceSocket;
+} ConnectionRequest_t;
+
+typedef struct AcceptRequest {
+    element_t Header;
+    UUId_t    TargetProcessHandle;
+    thrd_t    TargetWaiter;
+} AcceptRequest_t;
 
 static rb_tree_t Sockets;
 static UUId_t    SocketSet;
@@ -65,6 +78,11 @@ HandleSocketEvent(
     // Sanitize the number of pending packets, it must be 0 for us to continue
     if (atomic_load(&Socket->PendingPackets)) {
         // Already packets pending, ignore the event
+        return;
+    }
+    
+    // Make sure the socket is not passive, they are not allowed to send data
+    if (Socket->Configuration.Passive) {
         return;
     }
     
@@ -275,20 +293,158 @@ NetworkManagerSocketConnect(
     return DomainConnect(Waiter, Socket, Address);
 }
 
+static void
+AcceptConnectionRequest(
+    _In_ UUId_t    ProcessHandle,
+    _In_ thrd_t    AcceptWaiter,
+    _In_ Socket_t* ConnectSocket,
+    _In_ thrd_t    ConnectWaiter)
+{
+    AcceptSocketPackage_t Package = { 0 };
+    IpcMessage_t          Message;
+    TRACE("AcceptConnectionRequest()");
+    
+    // Get address of the connector socket
+    DomainGetAddress(ConnectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&Package.Address);
+    
+    // Create a new socket for the acceptor. This socket will be paired with
+    // the connector socket.
+    Package.Status = NetworkManagerSocketCreate(ProcessHandle, ConnectSocket->DomainType,
+        ConnectSocket->Type, ConnectSocket->Protocol, &Package.SocketHandle,
+        &Package.SendBufferHandle, &Package.RecvBufferHandle);
+    if (Package.Status == OsSuccess) {
+        NetworkManagerSocketPair(ProcessHandle, Package.SocketHandle, 
+            (UUId_t)(uintptr_t)ConnectSocket->Header.key);
+    }
+    
+    // Reply to the connector (Only valid for local sockets)
+    if (ConnectWaiter != UUID_INVALID) {
+        Message.Sender = ConnectWaiter;
+        (void)IpcReply(&Message, &Package.Status, sizeof(OsStatus_t));
+    }
+    
+    // Reply to the accepter
+    Message.Sender = AcceptWaiter;
+    (void)IpcReply(&Message, &Package, sizeof(AcceptSocketPackage_t));
+}
+
+static ConnectionRequest_t*
+CreateConnectionRequest(
+    _In_ Socket_t* Socket,
+    _In_ thrd_t    Waiter)
+{
+    ConnectionRequest_t* ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
+    if (!ConnectionRequest) {
+        return NULL;
+    }
+    
+    ELEMENT_INIT(&ConnectionRequest->Header, 0, ConnectionRequest);
+    ConnectionRequest->SourceWaiter = Waiter;
+    ConnectionRequest->SourceSocket = Socket;
+    return ConnectionRequest;
+}
+
+OsStatus_t
+NetworkManagerHandleConnectionRequest(
+    _In_ thrd_t    SourceWaiter,
+    _In_ Socket_t* SourceSocket,
+    _In_ Socket_t* TargetSocket)
+{
+    ConnectionRequest_t* ConnectionRequest;
+    AcceptRequest_t*     AcceptRequest;
+    element_t*           Element;
+    
+    // Check for active accept requests, otherwise we need to queue it up. If the backlog
+    // is full, we need to reject the connection request.
+    mtx_lock(&TargetSocket->SyncObject);
+    Element = queue_pop(&TargetSocket->AcceptRequests);
+    if (!Element) {
+        ConnectionRequest = CreateConnectionRequest(SourceSocket, SourceWaiter);
+        if (!ConnectionRequest) {
+            mtx_unlock(&TargetSocket->SyncObject);
+            return OsOutOfMemory;
+        }
+        
+        // TODO If the backlog is full, reject
+        // return OsConnectionRefused
+        queue_push(&TargetSocket->ConnectionRequests, &ConnectionRequest->Header);
+        handle_set_activity((UUId_t)(uintptr_t)TargetSocket->Header.key, IOEVTCTL);
+    }
+    mtx_unlock(&TargetSocket->SyncObject);
+    
+    // Handle the accept request we popped earlier here, this means someone
+    // has called accept() on the socket and is actively waiting
+    if (Element) {
+        AcceptRequest = Element->value;
+        AcceptConnectionRequest(AcceptRequest->TargetProcessHandle,
+            AcceptRequest->TargetWaiter, SourceSocket, SourceWaiter);
+        free(AcceptRequest);
+    }
+    return OsSuccess;
+}
+
+static AcceptRequest_t*
+CreateAcceptRequest(
+    _In_ UUId_t ProcessHandle,
+    _In_ thrd_t Waiter)
+{
+    AcceptRequest_t* AcceptRequest = malloc(sizeof(AcceptRequest_t));
+    if (!AcceptRequest) {
+        return NULL;
+    }
+    
+    ELEMENT_INIT(&AcceptRequest->Header, 0, AcceptRequest);
+    AcceptRequest->TargetProcessHandle = ProcessHandle;
+    AcceptRequest->TargetWaiter        = Waiter;
+    return AcceptRequest;
+}
+
+// Asynchronous operation, does not send a reply on return, but instead a reply will
+// be sent by <AcceptConnectionRequest>. 
 OsStatus_t
 NetworkManagerSocketAccept(
     _In_ UUId_t ProcessHandle,
     _In_ thrd_t Waiter,
     _In_ UUId_t Handle)
 {
-    Socket_t* Socket;
+    Socket_t*            Socket;
+    ConnectionRequest_t* ConnectionRequest;
+    AcceptRequest_t*     AcceptRequest;
+    element_t*           Element;
+    OsStatus_t           Status = OsSuccess;
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         return OsDoesNotExist;
     }
     
-    return DomainAcceptConnection(Waiter, Socket);
+    // Check if there is any requests available
+    mtx_lock(&Socket->SyncObject);
+    Element = queue_pop(&Socket->ConnectionRequests);
+    if (Element) {
+        mtx_unlock(&Socket->SyncObject);
+        ConnectionRequest = Element->value;
+        AcceptConnectionRequest(ProcessHandle, Waiter, ConnectionRequest->SourceSocket,
+            ConnectionRequest->SourceWaiter);
+        free(ConnectionRequest);
+    }
+    else {
+        // Only wait if configured to blocking, otherwise return OsBusy ish
+        if (Socket->Configuration.Blocking) {
+            AcceptRequest = CreateAcceptRequest(ProcessHandle, Waiter);
+            if (AcceptRequest) {
+                queue_push(&Socket->AcceptRequests, &AcceptRequest->Header);
+            }
+            else {
+                Status = OsOutOfMemory;
+            }
+        }
+        else {
+            Status = OsBusy; // TODO: OsTryAgain
+        }
+        mtx_unlock(&Socket->SyncObject);
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -309,6 +465,34 @@ NetworkManagerSocketListen(
     }
     
     return SocketListenImpl(Socket, ConnectionCount);
+}
+
+OsStatus_t
+NetworkManagerSocketPair(
+    _In_ UUId_t ProcessHandle,
+    _In_ UUId_t Handle1,
+    _In_ UUId_t Handle2)
+{
+    Socket_t* Socket1;
+    Socket_t* Socket2;
+    
+    TRACE("[net_manager] [pair] %u, %u, %u", 
+        LODWORD(ProcessHandle), LODWORD(Handle1), LODWORD(Handle2));
+    
+    Socket1 = NetworkManagerSocketGet(Handle1);
+    Socket2 = NetworkManagerSocketGet(Handle2);
+    if (!Socket1 || !Socket2) {
+        if (!Socket1) {
+            ERROR("[net_manager] [pair] invalid handle1 %u", Handle1);
+        }
+        
+        if (!Socket2) {
+            ERROR("[net_manager] [pair] invalid handle2 %u", Handle2);
+        }
+        return OsDoesNotExist;
+    }
+    
+    return DomainPair(Socket1, Socket2);
 }
 
 OsStatus_t

@@ -30,17 +30,11 @@
 
 int socket(int domain, int type, int protocol)
 {
-    stdio_handle_t* io_object;
     OsStatus_t      os_status;
     UUId_t          handle;
-    int             status;
-    TRACE("[socket] creating");
-    
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &io_object);
-    if (status) {
-        ERROR("[socket] stdio_handle_create failed with code %u", status);
-        return -1;
-    }
+    UUId_t          send_handle;
+    UUId_t          recv_handle;
+    int             fd;
     
     // We need to create the socket object at kernel level, as we need
     // kernel assisted functionality to support a centralized storage of
@@ -48,36 +42,17 @@ int socket(int domain, int type, int protocol)
     // communication between processes and are needed long before anything else.
     TRACE("[socket] remote create");
     os_status = CreateSocket(domain, type, protocol, &handle,
-        &io_object->object.data.socket.send_buffer.handle, 
-        &io_object->object.data.socket.recv_buffer.handle);
+        &send_handle, &recv_handle);
     if (os_status != OsSuccess) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);
         (void)OsStatusToErrno(os_status);
-        stdio_handle_destroy(io_object, 0);
         return -1;
     }
     
-    // We have been given a recieve queue that has been mapped into our
-    // own address space for quick reading when bytes available.
-    TRACE("[socket] initializing libc structures");
-    stdio_handle_set_handle(io_object, handle);
-    stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
-    
-    io_object->object.data.socket.domain   = domain;
-    io_object->object.data.socket.type     = type;
-    io_object->object.data.socket.protocol = protocol;
-    
-    // Setup the dma buffers that we have to inherit, just reuse the inherit
-    // stdio method, since the actions are identical.
-    TRACE("[socket] mapping pipes");
-    os_status = io_object->ops.inherit(io_object);
-    if (os_status != OsSuccess) {
-        ERROR("[socket] inherit failed with code %u", os_status);
-        (void)OsStatusToErrno(os_status);
-        io_object->ops.close(io_object, 0);
-        stdio_handle_destroy(io_object, 0);
+    fd = socket_create(domain, type, protocol, handle, send_handle, recv_handle);
+    if (fd == -1) {
+        ERROR("[socket] socket_create failed");
         return -1;
     }
-    TRACE("[socket] done");
-    return io_object->fd;
+    return fd;
 }

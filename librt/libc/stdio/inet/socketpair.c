@@ -25,9 +25,14 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <io.h>
+#include <os/mollenos.h>
 
 int socketpair(int domain, int type, int protocol, int* iods)
 {
+    stdio_handle_t* io_object1;
+    stdio_handle_t* io_object2;
+    OsStatus_t      status;
+    
     if (!iods) {
         _set_errno(EINVAL);
         return -1;
@@ -44,6 +49,13 @@ int socketpair(int domain, int type, int protocol, int* iods)
         return -1;
     }
     
-    // PairSockets(iods[0], iods[1]);
+    io_object1 = stdio_handle_get(iods[0]);
+    io_object2 = stdio_handle_get(iods[1]);
+    
+    status = PairSockets(io_object1->object.handle, io_object2->object.handle);
+    if (status != OsSuccess) {
+        (void)OsStatusToErrno(status);
+        return -1;
+    }
     return 0;
 }

@@ -28,16 +28,23 @@
 
 const int ErrorCodeTable[OsErrorCodeCount] = {
     EOK,
-    EINVAL,     //OsError              Error - Generic
-    EEXIST,     //OsExists             Error - Resource already exists
-    ENOENT,     //OsDoesNotExist       Error - Resource does not exist
-    EINVAL,     //OsInvalidParameters  Error - Bad parameters given
-    EACCES,     //OsInvalidPermissions Error - Bad permissions
-    ETIME,      //OsTimeout            Error - Timeout
-    ENOTSUP,    //OsNotSupported       Error - Feature not supported
-    ENOMEM,     //OsOutOfMemory        Error - Out of memory
-    EBUSY,      //OsBusy               Error - Resource is busy or contended
-    ECANCELED   //OsIncomplete         Error - Operation only completed partially
+    EINVAL,      // OsError              Error - Generic
+    EEXIST,      // OsExists             Error - Resource already exists
+    ENOENT,      // OsDoesNotExist       Error - Resource does not exist
+    EINVAL,      // OsInvalidParameters  Error - Bad parameters given
+    EACCES,      // OsInvalidPermissions Error - Bad permissions
+    ETIME,       // OsTimeout            Error - Timeout
+    ENOTSUP,     // OsNotSupported       Error - Feature not supported
+    ENOMEM,      // OsOutOfMemory        Error - Out of memory
+    EBUSY,       // OsBusy               Error - Resource is busy or contended
+    ECANCELED,   // OsIncomplete         Error - Operation only completed partially
+    
+    ENOLINK,     // OsDeleted            Error - Resource was deleted
+    ENOTDIR,     // OsPathIsNotDirectory Error - Path is not a directory
+    ENODEV,      // OsDeviceError        Error - Device error occurred during operation
+    
+    EPROTOTYPE,  // OsInvalidProtocol    Error - Protocol was invalid
+    ECONNREFUSED // OsConnectionRefused  Error - Connection was refused
 };
 
 int

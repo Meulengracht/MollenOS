@@ -124,6 +124,16 @@ OnEvent(
             Result  = NetworkManagerSocketListen(ProcessHandle, SocketHandle, ConnectionCount);
             Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
         } break;
+        case __NETMANAGER_PAIR_SOCKETS: {
+            OsStatus_t Result;
+            
+            UUId_t      ProcessHandle = IPC_GET_TYPED(Message, 1);
+            UUId_t      SocketHandle1 = IPC_GET_TYPED(Message, 2);
+            UUId_t      SocketHandle2 = IPC_GET_TYPED(Message, 3);
+            
+            Result  = NetworkManagerSocketPair(ProcessHandle, SocketHandle1, SocketHandle2);
+            Handled = IpcReply(Message, &Result, sizeof(OsStatus_t));
+        } break;
         case __NETMANAGER_SET_SOCKET_OPTION: {
             OsStatus_t Result;
             

@@ -123,14 +123,14 @@ DomainConnect(
 }
 
 OsStatus_t
-DomainAcceptConnection(
-    _In_ thrd_t           Waiter,
-    _In_ Socket_t*        Socket)
+DomainPair(
+    _In_ Socket_t* Socket1,
+    _In_ Socket_t* Socket2)
 {
-    if (!Socket->Domain) {
+    if (!Socket1->Domain || !Socket2->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.Accept(Waiter, Socket);
+    return Socket1->Domain->Ops.Pair(Socket1, Socket2);
 }
 
 OsStatus_t

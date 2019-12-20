@@ -87,16 +87,23 @@ typedef void*        Handle_t;
 
 typedef enum {
     OsSuccess   = 0,
-    OsError,             // Error - Generic
-    OsExists,            // Error - Resource already exists
-    OsDoesNotExist,      // Error - Resource does not exist
-    OsInvalidParameters, // Error - Bad parameters given
-    OsInvalidPermissions,// Error - Bad permissions
-    OsTimeout,           // Error - Timeout
-    OsNotSupported,      // Error - Feature not supported
-    OsOutOfMemory,       // Error - Out of memory
-    OsBusy,              // Error - Resource is busy or contended
-    OsIncomplete,        // Error - Operation only completed partially
+    OsError,              // Error - Generic
+    OsExists,             // Error - Resource already exists
+    OsDoesNotExist,       // Error - Resource does not exist
+    OsInvalidParameters,  // Error - Bad parameters given
+    OsInvalidPermissions, // Error - Bad permissions
+    OsTimeout,            // Error - Timeout
+    OsNotSupported,       // Error - Feature/Operation not supported
+    OsOutOfMemory,        // Error - Out of memory
+    OsBusy,               // Error - Resource is busy or contended
+    OsIncomplete,         // Error - Operation only completed partially
+    
+    OsDeleted,            // Error - Resource was deleted
+    OsPathIsNotDirectory, // Error - Path is not a directory
+    OsDeviceError,        // Error - Device error occurred during operation
+    
+    OsInvalidProtocol,    // Error - Protocol was invalid
+    OsConnectionRefused,  // Error - Connection was refused
     
     OsErrorCodeCount
 } OsStatus_t;

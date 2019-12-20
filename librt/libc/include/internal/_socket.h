@@ -29,4 +29,6 @@ struct packethdr {
 #define SOCKET_WRITE_DISABLED 0x00000008
 #define SOCKET_READ_DISABLED  0x00000010
 
+extern int socket_create(int, int, int, UUId_t, UUId_t, UUId_t);
+
 #endif //!__INTERNAL_SOCKET_H__

@@ -28,6 +28,7 @@
 
 #include <ddk/streambuffer.h>
 #include <ds/rbtree.h>
+#include <ds/queue.h>
 #include <inet/socket.h>
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
@@ -60,11 +61,14 @@ typedef struct Socket {
     int                   Protocol;
     SocketConfiguration_t Configuration;
     
-    //NetworkAdapter_t*     Adapter;
+    mtx_t                 SyncObject;
+    //NetworkAdapter_t*   Adapter;
     SocketDomain_t*       Domain;
     SocketPipe_t          Send;
     SocketPipe_t          Receive;
     QueuedPacket_t        QueuedPacket;
+    queue_t               ConnectionRequests;
+    queue_t               AcceptRequests;
 } Socket_t;
 
 /* SocketCreateImpl

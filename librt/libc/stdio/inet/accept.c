@@ -57,14 +57,21 @@
  * the new socket. Currently only DECNet has these semantics on Linux.
  */
 
+#include <ddk/services/net.h>
+#include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>
-#include <errno.h>
 #include <os/mollenos.h>
+#include <string.h>
 
-int accept(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
+int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    UUId_t          socket_handle;
+    UUId_t          send_handle;
+    UUId_t          recv_handle;
+    OsStatus_t      status;
+    int             fd;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -95,26 +102,20 @@ int accept(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
         return -1;
     }
     
-    switch (handle->object.data.socket.domain) {
-        case AF_LOCAL: {
-            // Local sockets on the pc does not support connection-oriented mode yet.
-            // TODO: Implement connected sockets locally. This is only to provide transparency
-            // to userspace application, the functionality is not required.
-            _set_errno(ENOTSUP);
-            return -1;
-        } break;
-        
-        case AF_INET:
-        case AF_INET6: {
-            _set_errno(ENOTSUP);
-            return -1;
-        } break;
-        
-        default: {
-            _set_errno(ENOTSUP);
-            return -1;
-        }
-    };
+    status = AcceptSocket(handle->object.handle, address, 
+        &socket_handle, &send_handle, &recv_handle);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
+        return -1;
+    }
     
+    fd = socket_create(handle->object.data.socket.domain,
+        handle->object.data.socket.type, handle->object.data.socket.protocol,
+        socket_handle, send_handle, recv_handle);
+    if (fd == -1) {
+        return -1;
+    }
+    
+    *address_length = (socklen_t)(uint32_t)address->sa_len;
     return 0;
 }

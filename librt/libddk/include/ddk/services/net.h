@@ -36,9 +36,10 @@
 #define __NETMANAGER_CONNECT_SOCKET     (int)3
 #define __NETMANAGER_ACCEPT_SOCKET      (int)4
 #define __NETMANAGER_LISTEN_SOCKET      (int)5
-#define __NETMANAGER_SET_SOCKET_OPTION  (int)6
-#define __NETMANAGER_GET_SOCKET_OPTION  (int)7
-#define __NETMANAGER_GET_SOCKET_ADDRESS (int)8
+#define __NETMANAGER_PAIR_SOCKETS       (int)6
+#define __NETMANAGER_SET_SOCKET_OPTION  (int)7
+#define __NETMANAGER_GET_SOCKET_OPTION  (int)8
+#define __NETMANAGER_GET_SOCKET_ADDRESS (int)9
 
 
 #define SOCKET_SHUTDOWN_SEND    SHUT_RD
@@ -63,6 +64,14 @@ PACKED_TYPESTRUCT(GetSocketOptionPackage, {
 
 PACKED_TYPESTRUCT(GetSocketAddressPackage, {
     OsStatus_t              Status;
+    struct sockaddr_storage Address;
+});
+
+PACKED_TYPESTRUCT(AcceptSocketPackage, {
+    OsStatus_t              Status;
+    UUId_t                  SocketHandle;
+    UUId_t                  SendBufferHandle;
+    UUId_t                  RecvBufferHandle;
     struct sockaddr_storage Address;
 });
 
@@ -128,13 +137,19 @@ ConnectSocket(
  * AcceptSocket
  * * Accepts a new socket-client on the given handle, the socket given must be
  * * enabled for this operation by using ListenSocket first.
- * @param Handle  [In] The socket handle, on which the operation is done.
- * @param Address [In] The address of the accepted socket client.
+ * @param Handle       [In] The socket handle, on which the operation is done.
+ * @param Address      [In] The address of the accepted socket client.
+ * @param HandleOut    [Out]
+ * @param RecvQueueOut [Out]
+ * @param SendQueueOut [Out]
  */
 DDKDECL(OsStatus_t,
 AcceptSocket(
-    _In_ UUId_t           Handle,
-    _In_ struct sockaddr* Address));
+    _In_  UUId_t           Handle,
+    _In_  struct sockaddr* Address,
+    _Out_ UUId_t*          HandleOut,
+    _Out_ UUId_t*          SendBufferHandleOut,
+    _Out_ UUId_t*          RecvBufferHandleOut));
 
 /**
  * ListenSocket
@@ -147,6 +162,18 @@ DDKDECL(OsStatus_t,
 ListenSocket(
     _In_ UUId_t Handle,
     _In_ int    ConnectionQueueSize));
+
+/**
+ * PairSockets
+ * * Pairs two unconnected sockets, and marks them connected to each other. This
+ * * is only supported on stream sockets.
+ * @param Handle  [In] The first socket handle, on which the operation is done.
+ * @param Handle  [In] The second socket handle, on which the operation is done.
+ */
+DDKDECL(OsStatus_t,
+PairSockets(
+    _In_ UUId_t Handle1,
+    _In_ UUId_t Handle2));
 
 /**
  * SetSocketOption

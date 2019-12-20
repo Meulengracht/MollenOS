@@ -37,9 +37,9 @@ typedef OsStatus_t (*DomainAllocateAddressFn)(Socket_t*);
 typedef void       (*DomainFreeAddressFn)(Socket_t*);
 typedef OsStatus_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
 typedef OsStatus_t (*DomainConnectFn)(thrd_t, Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainAcceptConnectionFn)(thrd_t, Socket_t*);
 typedef OsStatus_t (*DomainSendFn)(Socket_t*);
 typedef OsStatus_t (*DomainReceiveFn)(Socket_t*);
+typedef OsStatus_t (*DomainPairFn)(Socket_t*, Socket_t*);
 typedef OsStatus_t (*DomainGetAddressFn)(Socket_t*, int, struct sockaddr*);
 typedef void       (*DomainDestroyFn)(SocketDomain_t*);
 
@@ -48,9 +48,9 @@ typedef struct SocketDomainOps {
     DomainFreeAddressFn      AddressFree;
     DomainBindFn             Bind;
     DomainConnectFn          Connect;
-    DomainAcceptConnectionFn Accept;
     DomainSendFn             Send;
     DomainReceiveFn          Receive;
+    DomainPairFn             Pair;
     DomainGetAddressFn       GetAddress;
     DomainDestroyFn          Destroy;
 } SocketDomainOps_t;
@@ -84,9 +84,9 @@ DomainConnect(
     _In_ const struct sockaddr* Address);
 
 OsStatus_t
-DomainAcceptConnection(
-    _In_ thrd_t           Waiter,
-    _In_ Socket_t*        Socket);
+DomainPair(
+    _In_ Socket_t* Socket1,
+    _In_ Socket_t* Socket2);
 
 OsStatus_t
 DomainSend(
