@@ -80,7 +80,8 @@ SocketCreateImpl(
     Socket_t*  Socket;
     OsStatus_t Status;
     UUId_t     Handle;
-    TRACE("SocketCreateImpl()");
+    TRACE("[net_manager] [socket_create_impl] %i, %i, %i", 
+        Domain, Type, Protocol);
     
     Socket = malloc(sizeof(Socket_t));
     if (!Socket) {

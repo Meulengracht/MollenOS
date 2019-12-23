@@ -305,7 +305,7 @@ AcceptConnectionRequest(
 {
     AcceptSocketPackage_t Package = { 0 };
     IpcMessage_t          Message;
-    TRACE("AcceptConnectionRequest()");
+    TRACE("[net_manager] [accept_request]");
     
     // Get address of the connector socket
     DomainGetAddress(ConnectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&Package.Address);

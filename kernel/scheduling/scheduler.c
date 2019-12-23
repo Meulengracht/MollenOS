@@ -483,13 +483,13 @@ SchedulerUpdateSleepQueue(
             
             // Synchronize with the locked list
             if (i->WaitQueueHandle != NULL) {
-                smp_mb();
                 Result = list_remove(i->WaitQueueHandle, &i->Header);
                 
                 // If it was already removed, then a we're experiencing a race condition
                 // by another core trying to destroy the order. Prevent this by expecting an 
                 // IPI for the requeue
                 if (Result) {
+                    WARNING("[scheduler] possible zombie thread");
                     RemoveFromQueue(&Scheduler->SleepQueue, i);
                     i->State = SchedulerObjectStateZombie;
                     smp_wmb();

@@ -40,43 +40,51 @@ typedef void (*wm_invokeAR_t)(void*, void*);
 struct wm_server {
     wm_server_configuration_t configuration;
     int                       initialized;
-    int                       server_socket;
-    int                       input_socket;
+    int                       client_socket;
+    int                       dgram_socket;
     int                       socket_set;
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
 } wm_server_context = { { 0 } };
 
 
-static int create_server_socket(void)
+static int create_client_socket(void)
 {
     struct sockaddr_storage wm_address;
     socklen_t               wm_address_length;
     int                     status;
     
-    wm_server_context.server_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
-    if (wm_server_context.server_socket < 0) {
+    wm_server_context.client_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (wm_server_context.client_socket < 0) {
         return -1;
     }
     
     wm_os_get_server_address(&wm_address, &wm_address_length);
-    status = bind(wm_server_context.server_socket, sstosa(&wm_address), wm_address_length);
+    status = bind(wm_server_context.client_socket, sstosa(&wm_address), wm_address_length);
     if (status) {
         return -1;
     }
     
     // Enable listening for connections, with a maximum of 2 on backlog
-    status = listen(wm_server_context.server_socket, 2);
+    status = listen(wm_server_context.client_socket, 2);
+    if (status) {
+        return -1;
+    }
+    
+    // Listen for control events only, there is no input/output data on the 
+    // connection socket
+    status = io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
+        wm_server_context.client_socket, IOEVTCTL);
     return status;
 }
 
-static int handle_server_socket(void)
+static int handle_client_socket(void)
 {
     struct sockaddr_storage client_address;
     socklen_t               client_address_length;
     int                     client_socket;
     int                     status;
     
-    client_socket = accept(wm_server_context.server_socket, sstosa(&client_address), &client_address_length);
+    client_socket = accept(wm_server_context.client_socket, sstosa(&client_address), &client_address_length);
     if (client_socket < 0) {
         return -1;
     }
@@ -89,7 +97,7 @@ static int handle_server_socket(void)
         client_socket, IOEVTIN | IOEVTOUT | IOEVTCTL);
 }
 
-static int create_input_socket(void)
+static int create_dgram_socket(void)
 {
     struct sockaddr_storage input_address;
     socklen_t               input_address_length;
@@ -97,32 +105,15 @@ static int create_input_socket(void)
     
     // Create a new socket for listening to input events. They are all
     // delivered to fixed sockets on the local system.
-    wm_server_context.input_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
-    if (wm_server_context.input_socket < 0) {
+    wm_server_context.dgram_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    if (wm_server_context.dgram_socket < 0) {
         return -1;
     }
     
     // Connect to the input pipe
     wm_os_get_input_address(&input_address, &input_address_length);
-    status = bind(wm_server_context.input_socket, sstosa(&input_address), input_address_length);
+    status = bind(wm_server_context.dgram_socket, sstosa(&input_address), input_address_length);
     return status;
-}
-
-static int handle_input_socket(void)
-{
-    wm_input_event_t input_data;
-    intmax_t         bytes_read;
-    
-    bytes_read = recv(wm_server_context.input_socket, &input_data, sizeof(wm_input_event_t), 0);
-    if (bytes_read != sizeof(wm_input_event_t)) {
-        // do not process incomplete requests
-        // TODO handling
-        return -1;
-    }
-    
-    // elevate key press
-    wm_server_context.configuration.input_handler(&input_data);
-    return 0;
 }
 
 static wm_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t action_id)
@@ -217,12 +208,12 @@ int wm_server_initialize(wm_server_configuration_t* configuration)
     }
     
     // initialize default sockets
-    status = create_server_socket();
+    status = create_client_socket();
     if (status) {
         return status;
     }
     
-    status = create_input_socket();
+    status = create_dgram_socket();
     if (status) {
         return status;
     }
@@ -236,12 +227,12 @@ static int wm_server_shutdown(void)
 {
     assert(wm_server_context.initialized == 1);
     
-    if (wm_server_context.server_socket != -1) {
-        close(wm_server_context.server_socket);
+    if (wm_server_context.client_socket != -1) {
+        close(wm_server_context.client_socket);
     }
     
-    if (wm_server_context.input_socket != -1) {
-        close(wm_server_context.input_socket);
+    if (wm_server_context.dgram_socket != -1) {
+        close(wm_server_context.dgram_socket);
     }
     
     if (wm_server_context.socket_set != -1) {
@@ -270,11 +261,12 @@ int wm_server_main_loop(void)
         }
         
         for (i = 0; i < num_events; i++) {
-            if (events[i].iod == wm_server_context.server_socket) {
-                handle_server_socket();
+            if (events[i].iod == wm_server_context.client_socket) {
+                handle_client_socket();
             }
-            else if (events[i].iod == wm_server_context.input_socket) {
-                handle_input_socket();
+            else if (events[i].iod == wm_server_context.dgram_socket) {
+                // TODO - we may have to handle this seperately
+                handle_client_event(wm_server_context.dgram_socket, argument_buffer);
             }
             else {
                 handle_client_event(events[i].iod, argument_buffer);

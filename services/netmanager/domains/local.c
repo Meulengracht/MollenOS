@@ -70,7 +70,14 @@ static Socket_t*
 GetSocketFromAddress(
     _In_ const struct sockaddr* Address)
 {
-    return (Socket_t*)list_find_value(&AddressRegister, (void*)&Address->sa_data[0]);
+    AddressRecord_t* Record;
+    element_t*       Element = list_find(&AddressRegister, (void*)&Address->sa_data[0]);
+    if (!Element) {
+        return NULL;
+    }
+    
+    Record = Element->value;
+    return Record->Socket;
 }
 
 static OsStatus_t
@@ -256,7 +263,7 @@ DomainLocalAllocateAddress(
     }
     
     // Create a new address of the form /lc/{id}
-    sprintf(&AddressBuffer[0], "/lc/%u", (UUId_t)Socket->Header.key);
+    sprintf(&AddressBuffer[0], "/lc/%u", (UUId_t)(uintptr_t)Socket->Header.key);
     TRACE("[socket] [local] address created %s", &AddressBuffer[0]);
     if (list_find(&AddressRegister, &AddressBuffer[0]) != NULL) {
         ERROR("[socket] [local] address %s exists in register", &AddressBuffer[0]);
@@ -337,7 +344,8 @@ DomainLocalConnect(
     }
     
     if (Socket->Type != Target->Type) {
-        TRACE("[domain] [local] [connect] target is valid, but protocol was invalid");
+        TRACE("[domain] [local] [connect] target is valid, but protocol was invalid source (%i, %i, %i) != target (%i, %i, %i)",
+            Socket->DomainType, Socket->Type, Socket->Protocol, Target->DomainType, Target->Type, Target->Protocol);
         return OsInvalidProtocol;
     }
     

@@ -28,6 +28,7 @@
 #include <irq_spinlock.h>
 
 PACKED_TYPESTRUCT(DynamicMemoryChunk, {
+	struct DynamicMemoryChunk* Parent;
 	struct DynamicMemoryChunk* Left;
 	struct DynamicMemoryChunk* Right;
 	uint8_t                    Split : 1;
