@@ -526,8 +526,6 @@ WaitForHandleSet(
         NumberOfEvents = atomic_exchange(&Set->Pending, 0);
     }
     
-    WARNING("[handle_set] [wait] wake");
-    
     list_construct(&Spliced);
     NumberOfEvents = MIN(NumberOfEvents, MaxEvents);
     list_splice(&Set->Events, NumberOfEvents, &Spliced);
@@ -565,14 +563,11 @@ MarkHandleCallback(
     if (SetElement->Configuration & Flags) {
         int Previous;
         Previous = atomic_fetch_or(&SetElement->ActiveEvents, (int)Flags);
-        WARNING("[handle_set] [mark_cb] previous %i", Previous);
         if (!Previous) {
             list_append(&SetElement->Set->Events, &SetElement->EventHeader);
             
             Previous = atomic_fetch_add(&SetElement->Set->Pending, 1);
-            WARNING("[handle_set] [mark_cb] pending %i", Previous);
             if (!Previous) {
-                WARNING("[handle_set] [mark_cb] wake");
                 (void)FutexWake(&SetElement->Set->Pending, 1, 0);
             }
         }

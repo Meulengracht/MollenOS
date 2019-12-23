@@ -124,6 +124,10 @@ HandleSocketStreamData(
             BytesRead, STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
+            if (!StoredBuffer) {
+                return OsOutOfMemory;
+            }
+            
             memcpy(StoredBuffer, &TemporaryBuffer[BytesWritten], BytesRead - BytesWritten);
             SocketSetQueuedPacket(Socket, StoredBuffer, BytesRead - BytesWritten);
             break;

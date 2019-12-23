@@ -429,8 +429,6 @@ NetworkManagerSocketAccept(
         return OsDoesNotExist;
     }
     
-    for(;;);
-    
     // Check if there is any requests available
     mtx_lock(&Socket->SyncObject);
     Element = queue_pop(&Socket->ConnectionRequests);
