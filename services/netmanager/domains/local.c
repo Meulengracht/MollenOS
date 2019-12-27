@@ -92,18 +92,20 @@ static OsStatus_t
 HandleSocketStreamData(
     _In_ Socket_t* Socket)
 {
-    int                   DoRead       = 1;
-    streambuffer_t*       SourceStream = GetSocketSendStream(Socket);
-    streambuffer_t*       TargetStream;
-    Socket_t*             TargetSocket;
-    size_t                BytesRead;
-    size_t                BytesWritten;
-    char                  TemporaryBuffer[1024];
-    void*                 StoredBuffer;
-    TRACE("HandleSocketStreamData()");
+    int             DoRead       = 1;
+    streambuffer_t* SourceStream = GetSocketSendStream(Socket);
+    streambuffer_t* TargetStream;
+    Socket_t*       TargetSocket;
+    size_t          BytesRead;
+    size_t          BytesWritten;
+    char            TemporaryBuffer[1024];
+    void*           StoredBuffer;
+    TRACE("[socket] [local] [send_stream]");
     
     TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
     if (!TargetSocket) {
+        TRACE("[socket] [local] [send_stream] target socket %u was not found",
+            LODWORD(Socket->Domain->ConnectedSocket));
         return OsDoesNotExist; // What the fuck do? TODO
     }
     
@@ -118,6 +120,12 @@ HandleSocketStreamData(
         if (DoRead) {
             BytesRead = streambuffer_stream_in(SourceStream, &TemporaryBuffer[0], 
                 sizeof(TemporaryBuffer), STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
+            if (!BytesRead) {
+                // This can happen if the first event or last event got out of sync
+                // we handle this by ignoring the event and just returning. Do not mark
+                // anything
+                return OsSuccess;
+            }
         }
         
         BytesWritten = streambuffer_stream_out(TargetStream, &TemporaryBuffer[0], 
@@ -138,20 +146,18 @@ HandleSocketStreamData(
         }
         DoRead++;
     }
-    
-    handle_set_activity((UUId_t)Socket->Header.key, IOEVTIN);
+    handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
     return OsSuccess;
 }
 
-static streambuffer_t*
+static Socket_t*
 ProcessSocketPacket(
     _In_ Socket_t* Socket,
     _In_ void*     PacketData,
     _In_ size_t    PacketLength)
 {
-    streambuffer_t*   TargetStream = NULL;
-    struct packethdr* Packet       = (struct packethdr*)PacketData;
-    uint8_t*          Pointer      = (uint8_t*)PacketData;
+    struct packethdr* Packet  = (struct packethdr*)PacketData;
+    uint8_t*          Pointer = (uint8_t*)PacketData;
     Socket_t*         TargetSocket;
     struct sockaddr*  Address;
     TRACE("ProcessSocketPacket()");
@@ -173,11 +179,7 @@ ProcessSocketPacket(
         // ProcessControlData(Pointer);
         Pointer += Packet->controllen;
     }
-    
-    if (TargetSocket) {
-        TargetStream = GetSocketRecvStream(TargetSocket);
-    }
-    return TargetStream;
+    return TargetSocket;
 }
 
 static OsStatus_t
@@ -185,12 +187,12 @@ HandleSocketPacketData(
     _In_ Socket_t* Socket)
 {
     streambuffer_t* SourceStream = GetSocketSendStream(Socket);
-    streambuffer_t* TargetStream = NULL;
+    Socket_t*       TargetSocket;
     unsigned int    Base, State;
     void*           Buffer;
     size_t          BytesRead;
     int             DoRead = 1;
-    TRACE("HandleSocketPacketData()");
+    TRACE("[socket] [local] [send_packet]");
     
     BytesRead = SocketGetQueuedPacket(Socket, &Buffer);
     if (BytesRead) {
@@ -211,22 +213,22 @@ HandleSocketPacketData(
             streambuffer_read_packet_end(SourceStream, Base, BytesRead);
         }
         
-        TargetStream = ProcessSocketPacket(Socket, Buffer, BytesRead);
-        if (TargetStream) {
-            size_t BytesWritten = streambuffer_write_packet_start(TargetStream, BytesRead, 
-                STREAMBUFFER_NO_BLOCK, &Base, &State);
+        TargetSocket = ProcessSocketPacket(Socket, Buffer, BytesRead);
+        if (TargetSocket) {
+            streambuffer_t* TargetStream = GetSocketRecvStream(TargetSocket);
+            size_t          BytesWritten = streambuffer_write_packet_start(TargetStream,
+                BytesRead, STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesWritten) {
                 SocketSetQueuedPacket(Socket, Buffer, BytesRead);
                 break;
-            }    
+            }
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
+            handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
         }
         free(Buffer);
     }
-    
-    handle_set_activity((UUId_t)Socket->Header.key, IOEVTIN);
     return OsSuccess;
 }
 
@@ -234,7 +236,7 @@ static OsStatus_t
 DomainLocalSend(
     _In_ Socket_t* Socket)
 {
-    TRACE("DomainLocalSend()");
+    TRACE("[socket] [local] [send]");
     return LocalTypeHandlers[Socket->Type](Socket);
 }
 

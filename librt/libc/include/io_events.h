@@ -32,7 +32,7 @@ enum io_events
     IOEVTOUT = 0x2,  // Sent data
     IOEVTCTL = 0x4,  // Control event
     
-    IOEVTET  = 0x1000,  // Edge triggered
+    IOEVTLVT = 0x1000,  // Level triggered
     IOEVTFRT = 0x2000   // Initial event 
 };
 

@@ -32,6 +32,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+InitializeStreambuffer(
+    _In_ streambuffer_t* Stream)
+{
+    size_t       ActualBufferSize = SOCKET_DEFAULT_BUFFER_SIZE - sizeof(streambuffer_t);
+    unsigned int BufferOptions    = STREAMBUFFER_MULTIPLE_READERS | STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL;
+    streambuffer_construct(Stream, ActualBufferSize, BufferOptions);
+}
+
 static OsStatus_t
 CreateSocketPipe(
     _In_ SocketPipe_t* Pipe)
@@ -51,6 +60,7 @@ CreateSocketPipe(
     }
     
     Pipe->Stream = Pipe->DmaAttachment.buffer;
+    InitializeStreambuffer(Pipe->Stream);
     return OsSuccess;
 }
 

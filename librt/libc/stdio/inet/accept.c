@@ -117,5 +117,5 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     }
     
     *address_length = (socklen_t)(uint32_t)address->sa_len;
-    return 0;
+    return fd;
 }

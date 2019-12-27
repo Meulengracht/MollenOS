@@ -262,7 +262,9 @@ int wm_server_main_loop(void)
         
         for (i = 0; i < num_events; i++) {
             if (events[i].iod == wm_server_context.client_socket) {
-                handle_client_socket();
+                if (handle_client_socket()) {
+                    // TODO - log
+                }
             }
             else if (events[i].iod == wm_server_context.dgram_socket) {
                 // TODO - we may have to handle this seperately

@@ -540,8 +540,7 @@ WaitForHandleSet(
         Event->context = Element->Context;
         
         // Handle level triggered here, by adding them back to ready list
-        // TODO: is this behaviour correct?
-        if (!(Element->Configuration & IOEVTET)) {
+        if (Element->Configuration & IOEVTLVT) {
             
         }
         Event++;

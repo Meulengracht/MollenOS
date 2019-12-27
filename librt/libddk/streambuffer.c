@@ -21,8 +21,10 @@
  * - This header describes the base streambuffer-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 #include <ddk/streambuffer.h>
+#include <ddk/utils.h>
 #include <limits.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
@@ -48,6 +50,20 @@
 typedef struct sb_packethdr {
     size_t packet_len;
 } sb_packethdr_t;
+
+static void
+streambuffer_dump(
+    _In_ streambuffer_t* stream)
+{
+    TRACE("[dump] capacity 0x%" PRIxIN ", options 0x%x", stream->capacity, stream->options);
+    TRACE("[dump] buffer at 0x%" PRIxIN, &stream->buffer[0]);
+    TRACE("[dump] producer_index %u, producer_comitted_index %u",
+        atomic_load(&stream->producer_index), atomic_load(&stream->producer_comitted_index));
+    TRACE("[dump] consumer_index %u, consumer_comitted_index %u",
+        atomic_load(&stream->consumer_index), atomic_load(&stream->consumer_comitted_index));
+    TRACE("[dump] producer_count %u, consumer_count %u",
+        atomic_load(&stream->producer_count), atomic_load(&stream->consumer_count));
+}
 
 void
 streambuffer_construct(
@@ -170,6 +186,7 @@ streambuffer_try_truncate(
     atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
 }
 
+
 size_t
 streambuffer_stream_out(
     _In_ streambuffer_t* stream,
@@ -180,6 +197,8 @@ streambuffer_stream_out(
     const uint8_t*    casted_ptr    = (const uint8_t*)buffer;
     size_t            bytes_written = 0;
     FutexParameters_t parameters;
+    TRACE("[streambuffer_stream_out] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
+        buffer, length, options);
 
     // Make sure we write all the bytes
     while (bytes_written < length) {

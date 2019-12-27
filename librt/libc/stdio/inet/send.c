@@ -27,16 +27,28 @@
 #include <os/mollenos.h>
 #include <string.h>
 
-// Valid flags for send are
-// MSG_OOB          (No OOB support)
-// MSG_DONTROUTE    (Dunno what this is)
-// MSG_WAITALL      (Supported)
-// MSG_DONTWAIT     (Supported)
-// MSG_NOSIGNAL     (Ignored on Vali)
-// MSG_CMSG_CLOEXEC (Ignored on Vali)
-static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
+static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, unsigned int sb_options)
 {
-    unsigned int     sb_options = 0;
+    streambuffer_t* stream    = handle->object.data.socket.send_buffer.buffer;
+    size_t          total_len = 0;
+    int             i;
+    
+    for (i = 0; i < msg->msg_iovlen; i++) {
+        struct iovec* iov            = &msg->msg_iov[i];
+        size_t        bytes_streamed = streambuffer_stream_out(stream, 
+            iov->iov_base, iov->iov_len, sb_options);
+        if (!bytes_streamed) {
+            break;
+        }
+        total_len += bytes_streamed;
+    }
+    
+    stdio_handle_activity(handle, IOEVTOUT);
+    return total_len;
+}
+
+static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* msg, int flags, unsigned int sb_options)
+{
     intmax_t         numbytes   = 0;
     size_t           total_len  = msg->msg_namelen + msg->msg_controllen;
     streambuffer_t*  stream     = handle->object.data.socket.send_buffer.buffer;
@@ -44,34 +56,6 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
     size_t           avail_len;
     unsigned int     base, state;
     int              i;
-    
-    if (flags & MSG_OOB) {
-        sb_options |= STREAMBUFFER_PRIORITY;
-    }
-    
-    if (!(flags & MSG_WAITALL)) {
-        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
-    }
-    
-    if (flags & MSG_DONTWAIT) {
-        sb_options |= STREAMBUFFER_NO_BLOCK;
-    }
-    
-    // For stream sockets we don't need to build the packet header. Simply just
-    // write all the bytes possible to the send socket and return
-    if (handle->object.data.socket.type == SOCK_STREAM) {
-        total_len = 0;
-        for (i = 0; i < msg->msg_iovlen; i++) {
-            struct iovec* iov            = &msg->msg_iov[i];
-            size_t        bytes_streamed = streambuffer_stream_out(stream, 
-                iov->iov_base, iov->iov_len, sb_options);
-            if (!bytes_streamed) {
-                break;
-            }
-            total_len += bytes_streamed;
-        }
-        return total_len;
-    }
     
     // Otherwise we must build a packet, to do this we need to know the entire
     // length of the message before committing.
@@ -115,6 +99,37 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
     streambuffer_write_packet_end(stream, base, avail_len);
     stdio_handle_activity(handle, IOEVTOUT);
     return numbytes;
+}
+
+// Valid flags for send are
+// MSG_OOB          (No OOB support)
+// MSG_DONTROUTE    (Dunno what this is)
+// MSG_WAITALL      (Supported)
+// MSG_DONTWAIT     (Supported)
+// MSG_NOSIGNAL     (Ignored on Vali)
+// MSG_CMSG_CLOEXEC (Ignored on Vali)
+static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
+{
+    unsigned int sb_options = 0;
+    
+    if (flags & MSG_OOB) {
+        sb_options |= STREAMBUFFER_PRIORITY;
+    }
+    
+    if (!(flags & MSG_WAITALL)) {
+        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
+    }
+    
+    if (flags & MSG_DONTWAIT) {
+        sb_options |= STREAMBUFFER_NO_BLOCK;
+    }
+    
+    // For stream sockets we don't need to build the packet header. Simply just
+    // write all the bytes possible to the send socket and return
+    if (handle->object.data.socket.type == SOCK_STREAM) {
+        return perform_send_stream(handle, msg, sb_options);
+    }
+    return perform_send_msg(handle, msg, flags, sb_options);
 }
 
 intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)

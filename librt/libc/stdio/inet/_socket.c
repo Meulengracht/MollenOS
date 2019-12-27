@@ -34,7 +34,7 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
     stdio_handle_t* io_object;
     int             status;
     OsStatus_t      os_status;
-    TRACE("[socket] creating");
+    TRACE("[socket] creating from handle %u", LODWORD(handle));
     
     status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &io_object);
     if (status) {
@@ -44,12 +44,12 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
     }
     
     TRACE("[socket] initializing libc structures");
+    stdio_handle_set_handle(io_object, handle);
+    stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
+    
     io_object->object.data.socket.domain   = domain;
     io_object->object.data.socket.type     = type;
     io_object->object.data.socket.protocol = protocol;
-    
-    stdio_handle_set_handle(io_object, handle);
-    stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
     
     io_object->object.data.socket.send_buffer.handle = send_handle;
     io_object->object.data.socket.recv_buffer.handle = recv_handle;
@@ -62,6 +62,6 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
         stdio_handle_destroy(io_object, 0);
         return -1;
     }
-    TRACE("[socket] done");
+    TRACE("[socket] done %i", io_object->fd);
     return io_object->fd;
 }

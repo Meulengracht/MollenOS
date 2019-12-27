@@ -67,7 +67,7 @@ HandleSocketEvent(
     _In_ handle_event_t* Event)
 {
     Socket_t* Socket;
-    TRACE("... [socket monitor] data from %u", Event->handle);
+    TRACE("[socket monitor] data from %u", Event->handle);
     
     Socket = (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)Event->handle);
     if (!Socket) {
@@ -78,11 +78,13 @@ HandleSocketEvent(
     // Sanitize the number of pending packets, it must be 0 for us to continue
     if (atomic_load(&Socket->PendingPackets)) {
         // Already packets pending, ignore the event
+        WARNING("[socket_monitor] socket already has data pending");
         return;
     }
     
     // Make sure the socket is not passive, they are not allowed to send data
     if (Socket->Configuration.Passive) {
+        ERROR("[socket_monitor] passive socket sent data, this is no-go");
         return;
     }
     
@@ -215,7 +217,7 @@ NetworkManagerSocketCreate(
     
     // Add it to the handle set
     Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_ADD,
-        (UUId_t)(uintptr_t)Socket->Header.key, IOEVTIN | IOEVTOUT | IOEVTET, NULL);
+        (UUId_t)(uintptr_t)Socket->Header.key, IOEVTIN | IOEVTOUT, NULL);
     if (Status != OsSuccess) {
         // what the fuck TODO
         assert(0);

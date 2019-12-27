@@ -104,6 +104,8 @@ int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client
         free(client);
         return status;
     }
+    
+    *client_out = client;
     return status;
 }
 
