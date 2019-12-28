@@ -84,7 +84,7 @@ static OsStatus_t
 HandleInvalidType(
     _In_ Socket_t* Socket)
 {
-    ERROR("... [local socket] HandleInvalidType() send packet");
+    ERROR("[socket] [local] HandleInvalidType() send packet");
     return OsNotSupported;
 }
 
@@ -209,6 +209,10 @@ HandleSocketPacketData(
 
             // Read the entire packet in one go, then process the data
             Buffer = malloc(BytesRead);
+            if (!Buffer) {
+                return OsOutOfMemory;
+            }
+            
             streambuffer_read_packet_data(SourceStream, Buffer, BytesRead, &State);
             streambuffer_read_packet_end(SourceStream, Base, BytesRead);
         }

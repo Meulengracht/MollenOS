@@ -31,6 +31,9 @@
 #include <string.h>
 #include <threads.h>
 
+#define __TRACE
+#include <ddk/utils.h>
+
 typedef struct wm_connection {
     int                     c_socket;
     struct sockaddr_storage address;
@@ -95,11 +98,14 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
 {
     intmax_t bytes_read;
     size_t   message_length;
+    TRACE("[wm_connection_recv_message] %i, 0x%" PRIxIN, socket, message);
     
     bytes_read = recv(socket, message, sizeof(wm_message_t), MSG_WAITALL);
     if (bytes_read != sizeof(wm_message_t)) {
         // no bytes available, why??
         // TODO error code / handling
+        ERROR("[wm_connection_recv_message] did not read full amount of bytes (%" PRIuIN ")",
+            bytes_read);
         return -1;
     }
     
@@ -109,17 +115,26 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
     if (message->magic != WM_HEADER_MAGIC ||
         message_length < sizeof(wm_message_t)) {
         // TODO error code / handling
+        ERROR("[wm_connection_recv_message] magic did not match 0x%x != 0x%x",
+            message->magic, WM_HEADER_MAGIC);
+        ERROR("[wm_connection_recv_message] or message bytes were invalid %u != %u",
+            message_length, sizeof(wm_message_t));
         return -1;
     }
     
     // Read rest of message
     if (message_length > sizeof(wm_message_t)) {
         assert(message_length <= WM_MAX_MESSAGE_SIZE);
+        assert(argument_buffer != NULL);
+        
         bytes_read = recv(socket, argument_buffer, 
             message_length - sizeof(wm_message_t), MSG_WAITALL);
         if (bytes_read != message_length - sizeof(wm_message_t)) {
             // do not process incomplete requests
             // TODO error code / handling
+            ERROR("[wm_connection_recv_message] did not read full amount of bytes (%" 
+                PRIuIN ", expected %" PRIuIN ")",
+                bytes_read, message_length - sizeof(wm_message_t));
             return -1; 
         }
     }

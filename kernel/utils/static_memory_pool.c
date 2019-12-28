@@ -90,8 +90,9 @@ RecursiveAllocate(
     _In_ size_t              AccumulatedLength,
     _In_ size_t              Length)
 {
-	size_t CurrentLength    = Level != 0 ? (Pool->Length >> Level) : Pool->Length;
-	size_t NextLength       = (Pool->Length >> (Level + 1));
+	size_t CurrentLength   = Level != 0 ? (Pool->Length >> Level) : Pool->Length;
+	size_t NextLength      = (Pool->Length >> (Level + 1));
+	//int    ParentIndex     = (Index - 1) >> 1;
 	int    LeftChildIndex  = (Index * 2) + 1;
 	int    RightChildIndex = (Index * 2) + 2;
 

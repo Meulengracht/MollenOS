@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,17 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - CRC Implementation
+ * CRC Implementation
  *  - Implemented using lookup tables for speed
  */
 
 #include <crc32.h>
 
+// Standard CRC-32 polynomial
+#define POLYNOMIAL 0x04c11db7L
+
 // Static storage for the crc-table
 static uint32_t CrcTable[256] = { 0 };
 
-/* Crc32GenerateTable
- * Generates a dynamic crc-32 table. */
 void
 Crc32GenerateTable(void)
 {
@@ -47,14 +48,11 @@ Crc32GenerateTable(void)
     }
 }
 
-/* Crc32Generate
- * Generates an crc-32 checksum from the given accumulator and
- * the given data. */
 uint32_t
 Crc32Generate(
     _In_ uint32_t CrcAccumulator, 
-    _In_ uint8_t *DataPointer, 
-    _In_ size_t DataSize)
+    _In_ uint8_t* DataPointer, 
+    _In_ size_t   DataSize)
 {
     register size_t i, j;
 

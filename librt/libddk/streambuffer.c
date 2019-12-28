@@ -199,6 +199,7 @@ streambuffer_stream_out(
     FutexParameters_t parameters;
     TRACE("[streambuffer_stream_out] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
         buffer, length, options);
+    //streambuffer_dump(stream);
 
     // Make sure we write all the bytes
     while (bytes_written < length) {
@@ -239,7 +240,8 @@ streambuffer_stream_out(
 
         // Write the data to the internal buffer
         while (bytes_available--) {
-            stream->buffer[(write_index++ & (stream->capacity - 1))] = casted_ptr[bytes_written++];
+            // (write_index++ & (stream->capacity - 1))
+            stream->buffer[(write_index++ % stream->capacity)] = casted_ptr[bytes_written++];
         }
         
         // Synchronize with other producers, we must wait for our turn to increament
@@ -330,7 +332,8 @@ streambuffer_write_packet_data(
     size_t       bytes_written = 0;
     
     while (length--) {
-        stream->buffer[(write_index++ & (stream->capacity - 1))] = casted_ptr[bytes_written++];
+        // write_index++ & (stream->capacity - 1)
+        stream->buffer[(write_index++ % stream->capacity)] = casted_ptr[bytes_written++];
     }
     
     *state = write_index;
@@ -375,6 +378,9 @@ streambuffer_stream_in(
     uint8_t*          casted_ptr = (uint8_t*)buffer;
     size_t            bytes_read = 0;
     FutexParameters_t parameters;
+    TRACE("[streambuffer_stream_in] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
+        buffer, length, options);
+    //streambuffer_dump(stream);
     
     // Make sure there are bytes to read
     while (bytes_read < length) {
@@ -409,7 +415,8 @@ streambuffer_stream_in(
         
         // Write the data to the provided buffer
         while (bytes_available--) {
-            casted_ptr[bytes_read++] = stream->buffer[(read_index++ & (stream->capacity - 1))];
+            // read_index++ & (stream->capacity - 1)
+            casted_ptr[bytes_read++] = stream->buffer[(read_index++ % stream->capacity)];
         }
         
         // Synchronize with other consumers, we must wait for our turn to increament
@@ -507,7 +514,8 @@ streambuffer_read_packet_data(
     
     // Write the data to the provided buffer
     while (length--) {
-        casted_ptr[bytes_read++] = stream->buffer[(read_index++ & (stream->capacity - 1))];
+        // read_index++ & (stream->capacity - 1)
+        casted_ptr[bytes_read++] = stream->buffer[(read_index++ % stream->capacity)];
     }
     
     *state = read_index;

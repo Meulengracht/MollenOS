@@ -32,6 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define __TRACE
+#include <ddk/utils.h>
+
 typedef void (*wm_invoke00_t)(void);
 typedef void (*wm_invokeA0_t)(void*);
 typedef void (*wm_invoke0R_t)(void*);
@@ -145,6 +148,7 @@ static int invoke_action(int socket, wm_message_t* message,
     void* argument_buffer, wm_protocol_function_t* function)
 {
     uint8_t return_buffer[WM_MESSAGE_GET_LENGTH(message->ret_length)];
+    TRACE("[invoke_action] %u, %u", message->protocol, message->action);
     
     if (message->has_arg && message->has_ret) {
         ((wm_invokeAR_t)function->address)(argument_buffer, &return_buffer[0]);
@@ -170,14 +174,17 @@ static int handle_client_event(int socket, void* argument_buffer)
     wm_protocol_function_t* function;
     wm_message_t            message;
     int                     status;
+    TRACE("[handle_client_event] %i", socket);
     
     status = wm_connection_recv_message(socket, &message, argument_buffer);
     if (status) {
+        ERROR("[handle_client_event] wm_connection_recv_message returned %i", status);
         return -1;
     }
     
     function = get_protocol_action(message.protocol, message.action);
     if (!function) {
+        ERROR("[handle_client_event] get_protocol_action returned null");
         _set_errno(ENOENT);
         return -1;
     }
