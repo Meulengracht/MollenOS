@@ -48,7 +48,7 @@ ArchProcessorInitialize(
 
 /* ArchProcessorSendInterrupt
  * Sends the given interrupt vector to the core specified. */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ArchProcessorSendInterrupt(
     _In_ UUId_t CoreId,
     _In_ UUId_t InterruptId);

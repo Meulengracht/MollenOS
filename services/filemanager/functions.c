@@ -20,7 +20,7 @@
  * File Manager Service
  * - Handles all file related services and disk services
  */
-#define __TRACE
+//#define __TRACE
 
 #include "include/vfs.h"
 #include <os/mollenos.h>

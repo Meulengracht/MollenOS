@@ -164,7 +164,7 @@ QueueOnCoreFunction(
     }
 }
 
-static inline void
+static inline OsStatus_t
 QueueObjectImmediately(
     _In_ SchedulerObject_t* Object)
 {
@@ -179,9 +179,10 @@ QueueObjectImmediately(
         if (ThreadingIsCurrentTaskIdle(Core->Id)) {
             ThreadingYield();
         }
+        return OsSuccess;
     }
     else {
-        TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object);
+        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object);
     }
 }
 
@@ -427,9 +428,7 @@ SchedulerQueueObject(
         Object->State != SchedulerObjectStateBlocked) {
         return OsInvalidParameters;    
     }
-    
-    QueueObjectImmediately(Object);
-    return OsSuccess;
+    return QueueObjectImmediately(Object);
 }
 
 static void

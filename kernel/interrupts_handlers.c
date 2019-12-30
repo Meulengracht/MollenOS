@@ -73,7 +73,7 @@ FunctionExecutionInterruptHandler(
     return InterruptHandled;
 }
 
-void
+OsStatus_t
 TxuMessageSend(
     _In_ UUId_t                  CoreId,
     _In_ SystemCpuFunctionType_t Type,
@@ -104,7 +104,7 @@ TxuMessageSend(
     smp_wmb();
 
     queue_push(&Core->FunctionQueue[Type], &Message->Header);
-    ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
+    return ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
 }
 
 void

@@ -188,7 +188,7 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-void
+OsStatus_t
 ArchProcessorSendInterrupt(
     _In_ UUId_t CoreId,
     _In_ UUId_t InterruptId)
@@ -197,6 +197,7 @@ ArchProcessorSendInterrupt(
     if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
+    return Status;
 }
 
 void

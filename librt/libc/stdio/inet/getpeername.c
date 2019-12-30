@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>
+#include <os/mollenos.h>
 #include <string.h>
 
 int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
