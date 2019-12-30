@@ -67,11 +67,12 @@
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    stdio_handle_t* accept_object;
     UUId_t          socket_handle;
     UUId_t          send_handle;
     UUId_t          recv_handle;
     OsStatus_t      status;
-    int             fd;
+    int             accept_iod;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -109,13 +110,18 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         return -1;
     }
     
-    fd = socket_create(handle->object.data.socket.domain,
+    accept_iod = socket_create(handle->object.data.socket.domain,
         handle->object.data.socket.type, handle->object.data.socket.protocol,
         socket_handle, send_handle, recv_handle);
-    if (fd == -1) {
+    if (accept_iod == -1) {
         return -1;
     }
     
+    // Set inital flags required for operation. Make the assumption that the
+    // accept object is valid.
+    accept_object = stdio_handle_get(accept_iod);
+    accept_object->object.data.socket.flags |= SOCKET_BOUND | SOCKET_CONNECTED;
+    
     *address_length = (socklen_t)(uint32_t)address->sa_len;
-    return fd;
+    return accept_iod;
 }

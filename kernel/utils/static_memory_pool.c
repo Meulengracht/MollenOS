@@ -20,12 +20,19 @@
  * Datastructure (Static Memory Pool)
  * - Implementation of a static-non-allocation memory Pool as a binary-tree.
  */
-#define __MODULE "MEMP"
+#define __MODULE "static_pool"
 
 #include <assert.h>
 #include <debug.h>
 #include <utils/static_memory_pool.h>
 #include <string.h>
+
+#define LEVEL_UP   Index = ParentIndex; Depth--
+#define GO_LEFT    Index = LeftChildIndex; Depth++
+#define GO_RIGHT   Index = RightChildIndex; Depth++
+#define CURRENT    Pool->Chunks[Index]
+#define LEFT       Pool->Chunks[LeftChildIndex]
+#define RIGHT      Pool->Chunks[RightChildIndex]
 
 static int
 mem_pow(
@@ -82,52 +89,107 @@ StaticMemoryPoolConstruct(
 	memset(Storage, 0, StaticMemoryPoolCalculateSize(Length, ChunkSize));
 }
 
-static uintptr_t
-RecursiveAllocate(
-    _In_ StaticMemoryPool_t* Pool,
-    _In_ int                 Index,
-    _In_ int                 Level,
-    _In_ size_t              AccumulatedLength,
-    _In_ size_t              Length)
+static int
+FindNextParent(
+	_In_  StaticMemoryPool_t* Pool,
+	_In_  int                 Index,
+	_Out_ int*                Depth,
+	_Out_ size_t*             AccumulatedLength)
 {
-	size_t CurrentLength   = Level != 0 ? (Pool->Length >> Level) : Pool->Length;
-	size_t NextLength      = (Pool->Length >> (Level + 1));
-	//int    ParentIndex     = (Index - 1) >> 1;
-	int    LeftChildIndex  = (Index * 2) + 1;
-	int    RightChildIndex = (Index * 2) + 2;
+	int    FinderIndex  = Index;
+	int    FinderDepth  = *Depth;
+	size_t FinderLength = *AccumulatedLength;
 
-	// If we are allocated, return immediately
-	if (Pool->Chunks[Index].Allocated) {
-		return 0;
-	}
+	while (FinderIndex != -1) {
+		int ParentIndex = FinderIndex == 0 ? -1 : (FinderIndex - 1) >> 1;
 
-	// If we are split, we can't be allocated and thus we should move on directly, unless
-	// our size is bigger than the next level, then we should go back up
-	if (Pool->Chunks[Index].Split) {
-		if (Length > NextLength) {
-			return 0;
+		if (ParentIndex != -1) {
+			int ParentLeftChildIndex = (ParentIndex * 2) + 1;
+
+			if (!Pool->Chunks[ParentLeftChildIndex].Allocated && 
+					ParentLeftChildIndex != FinderIndex) {
+				FinderLength += (Pool->Length >> FinderDepth);
+				*Depth = FinderDepth;
+				*AccumulatedLength = FinderLength;
+				return ParentLeftChildIndex;
+			}
+
+			// adjust metrics
+			if (ParentLeftChildIndex == FinderIndex) {
+				FinderLength -= (Pool->Length >> FinderDepth);
+			}
+			FinderDepth--;
 		}
+		FinderIndex = ParentIndex;
 	}
-	else {
-		// Don't move below ChunkSize, since we don't have enough node space for finer grained allocates
-		if (CurrentLength == Pool->ChunkSize || (CurrentLength >= Length && Length > NextLength)) {
-			Pool->Chunks[Index].Allocated = 1;
-			return AccumulatedLength;
+	return -1;
+}
+
+static uintptr_t
+IterativeAllocate(
+	_In_ StaticMemoryPool_t* Pool,
+	_In_ size_t              Length)
+{
+	size_t    AccumulatedLength = Pool->StartAddress;
+	uintptr_t Result = 0;
+	int       Index  = 0;
+	int       Finish = 0;
+	int       Depth  = 0;
+
+	while (Index != -1) {
+		int    ParentIndex     = Index == 0 ? -1 : (Index - 1) >> 1;
+		int    LeftChildIndex  = (Index * 2) + 1;
+		int    RightChildIndex = (Index * 2) + 2;
+		size_t CurrentLength   = Depth != 0 ? (Pool->Length >> Depth) : Pool->Length;
+		size_t NextLength      = (Pool->Length >> (Depth + 1));
+		int    GoDeeper        = (Length <= NextLength && CurrentLength != Pool->ChunkSize);
+		
+		// Have we already made the allocation? And now we are performing bookkeeping?
+		if (Finish) {
+			if (Result) {
+				// Book-keeping task to increase allocation performance (search performance)
+				// If both children are allocated, mark us as allocated
+				if (LEFT.Allocated && RIGHT.Allocated) {
+					CURRENT.Allocated = 1;
+				}
+			}
+			LEVEL_UP;
+			continue;
 		}
-		Pool->Chunks[Index].Split = 1;
-	}
 
-	uintptr_t Result = RecursiveAllocate(Pool, RightChildIndex, Level + 1, AccumulatedLength, Length);
-	if (!Result) {
-		AccumulatedLength += NextLength;
-		Result = RecursiveAllocate(Pool, LeftChildIndex, Level + 1, AccumulatedLength, Length);
-	}
+		// Go back up a level if this node is allocated
+		if (CURRENT.Allocated) {
+			LEVEL_UP;
+			continue;
+		}
 
-	// Book-keeping task to increase allocation performance (search performance)
-	// If both children are allocated, mark us as allocated
-	if (Pool->Chunks[LeftChildIndex].Allocated && 
-		Pool->Chunks[RightChildIndex].Allocated) {
-		Pool->Chunks[Index].Allocated = 1;
+		if (GoDeeper) {
+			CURRENT.Split = 1;
+			if (!RIGHT.Allocated) {
+				GO_RIGHT;
+			}
+			else {
+				AccumulatedLength += NextLength;
+				GO_LEFT;
+			}
+			continue;
+		}
+		else {
+			if (CURRENT.Split) {
+				int NewParentIndex = FindNextParent(Pool, Index, &Depth, &AccumulatedLength);
+				if (NewParentIndex != -1) {
+					Index = NewParentIndex;
+					continue;
+				}
+			}
+			else {
+				CURRENT.Allocated = 1;
+				Result = AccumulatedLength;
+			}
+
+			Finish = 1;
+			LEVEL_UP;
+		}
 	}
 	return Result;
 }
@@ -141,52 +203,68 @@ StaticMemoryPoolAllocate(
 	assert(Pool != NULL);
 	
 	IrqSpinlockAcquire(&Pool->SyncObject);
-	Result = RecursiveAllocate(Pool, 0, 0, Pool->StartAddress, Length);
+	Result = IterativeAllocate(Pool, Length);
 	IrqSpinlockRelease(&Pool->SyncObject);
 	return Result;
 }
 
 static int
-RecursiveFree(
-    _In_ StaticMemoryPool_t* Pool,
-    _In_ int                 Index,
-    _In_ int                 Level,
-    _In_ size_t              AccumulatedAddress,
-    _In_ uintptr_t           Address)
+IterativeFree(
+	_In_ StaticMemoryPool_t* Pool,
+	_In_ uintptr_t           Address)
 {
-	size_t CurrentLength    = Level != 0 ? (Pool->Length >> Level) : Pool->Length;
-	int    LeftChildIndex  = (Index * 2) + 1;
-	int    RightChildIndex = (Index * 2) + 2;
-	int    Result            = -1;
+	size_t AccumulatedAddress = Pool->StartAddress;
+	int    Index              = 0;
+	int    Depth              = 0;
+	int    Result             = -1;
+	int    Finish             = 0;
 
-	// If we are split, we can't be allocated, and thus we should immediately move on to the next node,
-	// decide if we should move on the left or right node.
-	if (Pool->Chunks[Index].Split) {
-		uintptr_t RightChildAddressLimit = AccumulatedAddress + (CurrentLength >> 1);
-		if (Address < RightChildAddressLimit) {
-			Result = RecursiveFree(Pool, RightChildIndex, Level + 1, AccumulatedAddress, Address);
+	while (Index != -1) {
+		int    ParentIndex     = Index == 0 ? -1 : (Index - 1) >> 1;
+		int    LeftChildIndex  = (Index * 2) + 1;
+		int    RightChildIndex = (Index * 2) + 2;
+		size_t CurrentLength   = Depth != 0 ? (Pool->Length >> Depth) : Pool->Length;
+
+		// Perform book-keeping and also make sure we iterate up the chain again
+		if (Finish) {
+			if (!Result) {
+				// Book-keeping task 1 - If both children are now free, mark our node as free as well.
+				if (!LEFT.Allocated && !RIGHT.Allocated) {
+					CURRENT.Allocated = 0;
+
+					// Book-keeping task 2 - If both children are free and no longer split, then we can also
+					// perform un-split on this node
+					if (!LEFT.Split && !RIGHT.Split) {
+						CURRENT.Split = 0;
+					}
+				}
+			}
+			LEVEL_UP;
+			continue;
+		}
+
+		if (CURRENT.Split) {
+			// We can safely assume both nodes are not null if the node is split
+			uintptr_t RightChildAddressLimit = AccumulatedAddress + (CurrentLength >> 1);
+			if (Address < RightChildAddressLimit) {
+				GO_RIGHT;
+			}
+			else {
+				AccumulatedAddress += CurrentLength >> 1;
+				GO_LEFT;
+			}
+			continue;
 		}
 		else {
-			AccumulatedAddress += CurrentLength >> 1;
-			Result = RecursiveFree(Pool, LeftChildIndex, Level + 1, AccumulatedAddress, Address);
-		}
-
-		// Book-keeping task 1 - If both children are now free, mark our node as free as well.
-		if (!Pool->Chunks[LeftChildIndex].Allocated && !Pool->Chunks[RightChildIndex].Allocated) {
-			Pool->Chunks[Index].Allocated = 0;
-
-			// Book-keeping task 2 - If both children are free and no longer split, then we can also
-			// perform un-split on this node
-			if (!Pool->Chunks[LeftChildIndex].Split && !Pool->Chunks[RightChildIndex].Split) {
-				Pool->Chunks[Index].Split = 0;
+			if (CURRENT.Allocated) {
+				uintptr_t NodeLimit = AccumulatedAddress + CurrentLength;
+				if (Address >= AccumulatedAddress && Address < NodeLimit) {
+					CURRENT.Allocated = 0;
+					Result = 0;
+				}
 			}
-		}
-	}
-	else if (Pool->Chunks[Index].Allocated) {
-		uintptr_t NodeLimit = AccumulatedAddress + CurrentLength;
-		if (Address >= AccumulatedAddress && Address < NodeLimit) {
-			Pool->Chunks[Index].Allocated = 0;
-			Result = 0;
+			Finish = 1;
+			LEVEL_UP;
 		}
 	}
 	return Result;
@@ -201,7 +279,7 @@ StaticMemoryPoolFree(
 	assert(Pool != NULL);
 	
 	IrqSpinlockAcquire(&Pool->SyncObject);
-	Result = RecursiveFree(Pool, 0, 0, Pool->StartAddress, Address);
+	Result = IterativeFree(Pool, Address);
 	IrqSpinlockRelease(&Pool->SyncObject);
 	if (Result) {
 		WARNING("[memory_pool_free] failed to free address 0x%x\n", Address);

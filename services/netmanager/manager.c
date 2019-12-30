@@ -437,8 +437,13 @@ NetworkManagerSocketAccept(
     if (Element) {
         mtx_unlock(&Socket->SyncObject);
         ConnectionRequest = Element->value;
-        AcceptConnectionRequest(ProcessHandle, Waiter, ConnectionRequest->SourceSocket,
+        
+        // TODO should not be a socket pointer. Should be a socket handle. Otherwise
+        // the pointer could be invalid
+        /* Status = */ AcceptConnectionRequest(ProcessHandle, Waiter, ConnectionRequest->SourceSocket,
             ConnectionRequest->SourceWaiter);
+        
+        // TODO check status of accept. Detect if socket is still valid 
         free(ConnectionRequest);
     }
     else {

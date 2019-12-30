@@ -23,6 +23,8 @@ struct packethdr {
     intmax_t payloadlen;
 };
 
+// TODO these flags should be moved to the the netmanager. Otherwise the flags
+// go out of sync when shared across processes.
 #define SOCKET_BOUND          0x00000001
 #define SOCKET_CONNECTED      0x00000002
 #define SOCKET_PASSIVE        0x00000004

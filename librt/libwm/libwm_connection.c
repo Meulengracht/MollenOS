@@ -100,12 +100,15 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
     size_t   message_length;
     TRACE("[wm_connection_recv_message] %i, 0x%" PRIxIN, socket, message);
     
-    bytes_read = recv(socket, message, sizeof(wm_message_t), MSG_WAITALL);
+    // Do not perform wait all here
+    bytes_read = recv(socket, message, sizeof(wm_message_t), 0);
     if (bytes_read != sizeof(wm_message_t)) {
-        // no bytes available, why??
-        // TODO error code / handling
-        ERROR("[wm_connection_recv_message] did not read full amount of bytes (%" PRIuIN ")",
-            bytes_read);
+        if (bytes_read == 0) {
+            _set_errno(ENODATA);
+        }
+        else {
+            _set_errno(EPIPE);
+        }
         return -1;
     }
     
@@ -143,7 +146,12 @@ int wm_connection_recv_message(int socket, wm_message_t* message, void* argument
 
 int wm_connection_send_reply(int socket, void* argument_buffer, size_t length)
 {
+    TRACE("[wm_connection_send_reply] %i, %" PRIuIN, socket, length);
     intmax_t bytes_written = send(socket, argument_buffer, length, MSG_WAITALL);
+    if (bytes_written <= 0) {
+        ERROR("[wm_connection_send_reply] send returned -1, error %i", errno);
+    }
+    TRACE("[wm_connection_send_reply] bytes sent = %i", bytes_written);
     return (bytes_written != length); // return 0 on ok
 }
 

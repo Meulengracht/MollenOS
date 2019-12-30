@@ -117,8 +117,8 @@ FindNextParent(
 				FinderLength -= (Pool->Length >> FinderDepth);
 			}
 			FinderDepth--;
-			Finder = Finder->Parent;
 		}
+		Finder = Finder->Parent;
 	}
 	return NULL;
 }
@@ -223,7 +223,7 @@ DynamicMemoryPoolAllocate(
 }
 
 
-static uintptr_t
+static int
 IterativeFree(
 	_In_ DynamicMemoryPool_t* Pool,
 	_In_ uintptr_t            Address)

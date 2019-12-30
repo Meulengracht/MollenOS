@@ -87,6 +87,7 @@ static int handle_client_socket(void)
     int                     client_socket;
     int                     status;
     
+    // TODO handle disconnects in accept in netmanager
     client_socket = accept(wm_server_context.client_socket, sstosa(&client_address), &client_address_length);
     if (client_socket < 0) {
         return -1;
@@ -96,8 +97,13 @@ static int handle_client_socket(void)
     if (status < 0) {
         return -1;
     }
-    return io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
-        client_socket, IOEVTIN | IOEVTOUT | IOEVTCTL);
+    
+    // We specifiy the IOEVTFRT due to race conditioning that is possible when
+    // accepting new sockets. If the client is quick to send data we might miss the
+    // event. So specify the INITIAL_EVENT flag to recieve an initial event
+    status = io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
+        client_socket, IOEVTIN | IOEVTCTL | IOEVTFRT);
+    return status;
 }
 
 static int create_dgram_socket(void)
@@ -169,26 +175,40 @@ static int invoke_action(int socket, wm_message_t* message,
     return 0;
 }
 
-static int handle_client_event(int socket, void* argument_buffer)
+static int handle_client_event(int socket, uint32_t events, void* argument_buffer)
 {
     wm_protocol_function_t* function;
     wm_message_t            message;
     int                     status;
-    TRACE("[handle_client_event] %i", socket);
+    TRACE("[handle_client_event] %i, 0x%x", socket, events);
     
-    status = wm_connection_recv_message(socket, &message, argument_buffer);
-    if (status) {
-        ERROR("[handle_client_event] wm_connection_recv_message returned %i", status);
-        return -1;
+    // Check for control event. On non-passive sockets, control event is the
+    // disconnect event.
+    if (events & IOEVTCTL) {
+        status = io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_DEL,
+            socket, 0);
+        if (status) {
+            // TODO log
+        }
+        
+        status = wm_connection_shutdown(socket);
     }
-    
-    function = get_protocol_action(message.protocol, message.action);
-    if (!function) {
-        ERROR("[handle_client_event] get_protocol_action returned null");
-        _set_errno(ENOENT);
-        return -1;
+    else if ((events & IOEVTIN) || !events) {
+        status = wm_connection_recv_message(socket, &message, argument_buffer);
+        if (status) {
+            ERROR("[handle_client_event] wm_connection_recv_message returned %i", errno);
+            return -1;
+        }
+        
+        function = get_protocol_action(message.protocol, message.action);
+        if (!function) {
+            ERROR("[handle_client_event] get_protocol_action returned null");
+            _set_errno(ENOENT);
+            return -1;
+        }
+        return invoke_action(socket, &message, argument_buffer, function);
     }
-    return invoke_action(socket, &message, argument_buffer, function);
+    return 0;
 }
 
 int wm_server_initialize(wm_server_configuration_t* configuration)
@@ -275,10 +295,10 @@ int wm_server_main_loop(void)
             }
             else if (events[i].iod == wm_server_context.dgram_socket) {
                 // TODO - we may have to handle this seperately
-                handle_client_event(wm_server_context.dgram_socket, argument_buffer);
+                handle_client_event(wm_server_context.dgram_socket, events[i].events, argument_buffer);
             }
             else {
-                handle_client_event(events[i].iod, argument_buffer);
+                handle_client_event(events[i].iod, events[i].events, argument_buffer);
             }
         }
     }
