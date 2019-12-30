@@ -102,6 +102,14 @@ streambuffer_set_option(
     stream->options |= option;
 }
 
+int
+streambuffer_has_option(
+    _In_ streambuffer_t* stream,
+    _In_ unsigned int    option)
+{
+    return stream->options & option;
+}
+
 void
 streambuffer_clear_option(
     _In_ streambuffer_t* stream,
@@ -186,7 +194,6 @@ streambuffer_try_truncate(
     atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
 }
 
-
 size_t
 streambuffer_stream_out(
     _In_ streambuffer_t* stream,
@@ -200,6 +207,11 @@ streambuffer_stream_out(
     TRACE("[streambuffer_stream_out] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
         buffer, length, options);
     //streambuffer_dump(stream);
+    
+    // Has the streambuffer been disabled?
+    if (stream->options & STREAMBUFFER_DISABLED) {
+        return 0;
+    }
 
     // Make sure we write all the bytes
     while (bytes_written < length) {
@@ -277,6 +289,11 @@ streambuffer_write_packet_start(
     FutexParameters_t parameters;
     sb_packethdr_t    header = { .packet_len = length };
     
+    // Has the streambuffer been disabled?
+    if (stream->options & STREAMBUFFER_DISABLED) {
+        return 0;
+    }
+
     length += sizeof(sb_packethdr_t);
     
     // Make sure we write all the bytes in one go
@@ -382,6 +399,11 @@ streambuffer_stream_in(
         buffer, length, options);
     //streambuffer_dump(stream);
     
+    // Has the streambuffer been disabled?
+    if (stream->options & STREAMBUFFER_DISABLED) {
+        return 0;
+    }
+
     // Make sure there are bytes to read
     while (bytes_read < length) {
         // when we check, we must check how many bytes are actually allocated, not currently comitted
@@ -452,6 +474,11 @@ streambuffer_read_packet_start(
     sb_packethdr_t    header;
     FutexParameters_t parameters;
     
+    // Has the streambuffer been disabled?
+    if (stream->options & STREAMBUFFER_DISABLED) {
+        return 0;
+    }
+
     // Make sure there are bytes to read
     while (!bytes_read) {
         // when we check, we must check how many bytes are actually allocated, not currently comitted

@@ -201,6 +201,7 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    streambuffer_t* stream;
     intmax_t        numbytes;
     
     if (!handle) {
@@ -218,17 +219,18 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
-    if (handle->object.data.socket.flags & SOCKET_READ_DISABLED) {
+    stream = handle->object.data.socket.recv_buffer.buffer;
+    if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
         _set_errno(ESHUTDOWN);
         return 0; // Should return 0
     }
     
     numbytes = perform_recv(handle, msg_hdr, flags);
     
-    // Fill in the souce address if one was provided already, and overwrite
+    // Fill in the source address if one was provided already, and overwrite
     // the one provided by the packet.
     if (numbytes > 0 && msg_hdr->msg_name != NULL) {
-        if (handle->object.data.socket.flags & SOCKET_CONNECTED) {
+        if (handle->object.data.socket.default_address.__ss_family != AF_UNSPEC) {
             memcpy(msg_hdr->msg_name, &handle->object.data.socket.default_address,
                 handle->object.data.socket.default_address.__ss_len);
             msg_hdr->msg_namelen = handle->object.data.socket.default_address.__ss_len;

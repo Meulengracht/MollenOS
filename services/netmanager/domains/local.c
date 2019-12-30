@@ -34,6 +34,7 @@
 #include <internal/_socket.h>
 #include <inet/local.h>
 #include <io_events.h>
+#include <os/ipc.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,6 +49,18 @@ typedef struct SocketDomain {
     UUId_t            ConnectedSocket;
     AddressRecord_t*  Record;
 } SocketDomain_t;
+
+typedef struct ConnectionRequest {
+    element_t Header;
+    thrd_t    SourceWaiter;
+    UUId_t    SourceSocketHandle;
+} ConnectionRequest_t;
+
+typedef struct AcceptRequest {
+    element_t Header;
+    UUId_t    TargetProcessHandle;
+    thrd_t    TargetWaiter;
+} AcceptRequest_t;
 
 // TODO: should be hashtable
 static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
@@ -106,7 +119,7 @@ HandleSocketStreamData(
     if (!TargetSocket) {
         TRACE("[socket] [local] [send_stream] target socket %u was not found",
             LODWORD(Socket->Domain->ConnectedSocket));
-        return OsDoesNotExist; // What the fuck do? TODO
+        return OsDoesNotExist;
     }
     
     TargetStream = GetSocketRecvStream(TargetSocket);
@@ -253,6 +266,49 @@ DomainLocalReceive(
 }
 
 static OsStatus_t
+DomainLocalPair(
+    _In_ Socket_t* Socket1,
+    _In_ Socket_t* Socket2)
+{
+    Socket1->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket2->Header.key;
+    Socket2->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket1->Header.key;
+    return OsSuccess;
+}
+
+static OsStatus_t
+DomainLocalGetAddress(
+    _In_ Socket_t*        Socket,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address)
+{
+    struct sockaddr_lc* LcAddress = (struct sockaddr_lc*)Address;
+    AddressRecord_t*    Record    = Socket->Domain->Record;
+    
+    LcAddress->slc_len    = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    
+    switch (Source) {
+        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
+            if (!Record) {
+                return OsDoesNotExist;
+            }
+            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
+            return OsSuccess;
+        } break;
+        
+        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
+            Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+            if (!PeerSocket) {
+                return OsDoesNotExist;
+            }
+            return DomainLocalGetAddress(PeerSocket, 
+                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
+        } break;
+    }
+    return OsInvalidParameters;
+}
+
+static OsStatus_t
 DomainLocalAllocateAddress(
     _In_ Socket_t* Socket)
 {
@@ -334,6 +390,115 @@ DomainLocalBind(
     return OsSuccess;
 }
 
+static ConnectionRequest_t*
+CreateConnectionRequest(
+    _In_ UUId_t SourceSocketHandle,
+    _In_ thrd_t SourceWaiter)
+{
+    ConnectionRequest_t* ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
+    if (!ConnectionRequest) {
+        return NULL;
+    }
+    
+    ELEMENT_INIT(&ConnectionRequest->Header, 0, ConnectionRequest);
+    ConnectionRequest->SourceWaiter       = SourceWaiter;
+    ConnectionRequest->SourceSocketHandle = SourceSocketHandle;
+    return ConnectionRequest;
+}
+
+static AcceptRequest_t*
+CreateAcceptRequest(
+    _In_ UUId_t ProcessHandle,
+    _In_ thrd_t Waiter)
+{
+    AcceptRequest_t* AcceptRequest = malloc(sizeof(AcceptRequest_t));
+    if (!AcceptRequest) {
+        return NULL;
+    }
+    
+    ELEMENT_INIT(&AcceptRequest->Header, 0, AcceptRequest);
+    AcceptRequest->TargetProcessHandle = ProcessHandle;
+    AcceptRequest->TargetWaiter        = Waiter;
+    return AcceptRequest;
+}
+
+static void
+AcceptConnectionRequest(
+    _In_ UUId_t    ProcessHandle,
+    _In_ thrd_t    AcceptWaiter,
+    _In_ Socket_t* ConnectSocket,
+    _In_ thrd_t    ConnectWaiter)
+{
+    AcceptSocketPackage_t Package = { 0 };
+    IpcMessage_t          Message;
+    TRACE("[net_manager] [accept_request]");
+    
+    // Get address of the connector socket
+    DomainLocalGetAddress(ConnectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&Package.Address);
+    
+    // Create a new socket for the acceptor. This socket will be paired with
+    // the connector socket.
+    Package.Status = NetworkManagerSocketCreate(ProcessHandle, ConnectSocket->DomainType,
+        ConnectSocket->Type, ConnectSocket->Protocol, &Package.SocketHandle,
+        &Package.SendBufferHandle, &Package.RecvBufferHandle);
+    if (Package.Status == OsSuccess) {
+        NetworkManagerSocketPair(ProcessHandle, Package.SocketHandle, 
+            (UUId_t)(uintptr_t)ConnectSocket->Header.key);
+    }
+    
+    // Reply to the connector (the thread that called connect())
+    Message.Sender = ConnectWaiter;
+    (void)IpcReply(&Message, &Package.Status, sizeof(OsStatus_t));
+    
+    // Reply to the accepter (the thread that called accept())
+    Message.Sender = AcceptWaiter;
+    (void)IpcReply(&Message, &Package, sizeof(AcceptSocketPackage_t));
+}
+
+static OsStatus_t
+HandleLocalConnectionRequest(
+    _In_ thrd_t    SourceWaiter,
+    _In_ Socket_t* SourceSocket,
+    _In_ Socket_t* TargetSocket)
+{
+    ConnectionRequest_t* ConnectionRequest;
+    AcceptRequest_t*     AcceptRequest;
+    element_t*           Element;
+    
+    TRACE("[domain] [local] [handle_connect] %u, %u => %u", LODWORD(SourceWaiter),
+        LODWORD(SourceSocket->Header.key), LODWORD(TargetSocket->Header.key));
+    
+    // Check for active accept requests, otherwise we need to queue it up. If the backlog
+    // is full, we need to reject the connection request.
+    mtx_lock(&TargetSocket->SyncObject);
+    Element = queue_pop(&TargetSocket->AcceptRequests);
+    if (!Element) {
+        TRACE("[domain] [local] [handle_connect] creating request");
+        ConnectionRequest = CreateConnectionRequest((UUId_t)(uintptr_t)SourceSocket->Header.key, SourceWaiter);
+        if (!ConnectionRequest) {
+            mtx_unlock(&TargetSocket->SyncObject);
+            ERROR("[domain] [local] [handle_connect] failed to allocate memory for connection request");
+            return OsOutOfMemory;
+        }
+        
+        // TODO If the backlog is full, reject
+        // return OsConnectionRefused
+        queue_push(&TargetSocket->ConnectionRequests, &ConnectionRequest->Header);
+        handle_set_activity((UUId_t)(uintptr_t)TargetSocket->Header.key, IOEVTCTL);
+    }
+    mtx_unlock(&TargetSocket->SyncObject);
+    
+    // Handle the accept request we popped earlier here, this means someone
+    // has called accept() on the socket and is actively waiting
+    if (Element) {
+        AcceptRequest = Element->value;
+        AcceptConnectionRequest(AcceptRequest->TargetProcessHandle,
+            AcceptRequest->TargetWaiter, SourceSocket, SourceWaiter);
+        free(AcceptRequest);
+    }
+    return OsSuccess;
+}
+
 static OsStatus_t
 DomainLocalConnect(
     _In_ thrd_t                 Waiter,
@@ -344,13 +509,8 @@ DomainLocalConnect(
     TRACE("[domain] [local] [connect] %s", &Address->sa_data[0]);
     
     if (!Target) {
-        TRACE("[domain] [local] [connect] invalid address, socket not found");
-        return OsDoesNotExist;
-    }
-    
-    if (!Target->Configuration.Passive) {
-        TRACE("[domain] [local] [connect] target was not listening to connections");
-        return OsInvalidPermissions;
+        TRACE("[domain] [local] [connect] %s did not exist", &Address->sa_data[0]);
+        return OsHostUnreachable;
     }
     
     if (Socket->Type != Target->Type) {
@@ -359,50 +519,99 @@ DomainLocalConnect(
         return OsInvalidProtocol;
     }
     
-    return NetworkManagerHandleConnectionRequest(Waiter, Socket, Target);
-}
-
-static OsStatus_t
-DomainLocalPair(
-    _In_ Socket_t* Socket1,
-    _In_ Socket_t* Socket2)
-{
-    Socket1->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket2->Header.key;
-    Socket2->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket1->Header.key;
-    return OsSuccess;
-}
-
-static OsStatus_t
-DomainLocalGetAddress(
-    _In_ Socket_t*        Socket,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address)
-{
-    struct sockaddr_lc* LcAddress = (struct sockaddr_lc*)Address;
-    AddressRecord_t*    Record    = Socket->Domain->Record;
-    
-    LcAddress->slc_len    = sizeof(struct sockaddr_lc);
-    LcAddress->slc_family = AF_LOCAL;
-    
-    switch (Source) {
-        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
-            if (!Record) {
-                return OsDoesNotExist;
-            }
-            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
-            return OsSuccess;
-        } break;
-        
-        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
-            Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
-            if (!PeerSocket) {
-                return OsDoesNotExist;
-            }
-            return DomainLocalGetAddress(PeerSocket, 
-                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
-        } break;
+    if (Socket->Type == SOCK_STREAM || Socket->Type == SOCK_SEQPACKET) {
+        return HandleLocalConnectionRequest(Waiter, Socket, Target);
     }
-    return OsInvalidParameters;
+    else {
+        // Don't handle this scenario. It is handled locally in libc
+        return OsSuccess;
+    }
+}
+
+static OsStatus_t
+DomainLocalDisconnect(
+    _In_ Socket_t* Socket)
+{
+    Socket_t*  PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+    OsStatus_t Status     = OsHostUnreachable;
+    TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(Socket->Header.key),
+        LODWORD(Socket->Domain->ConnectedSocket));
+    
+    // Send a disconnect request if socket was valid
+    if (PeerSocket) {
+        handle_set_activity(Socket->Domain->ConnectedSocket, IOEVTCTL);
+        Status = OsSuccess;
+    }
+    
+    Socket->Domain->ConnectedSocket = UUID_INVALID;
+    Socket->Configuration.Connected = 0;
+    return Status;
+}
+
+static OsStatus_t
+DomainLocalAccept(
+    _In_ UUId_t    ProcessHandle,
+    _In_ thrd_t    Waiter,
+    _In_ Socket_t* Socket)
+{
+    Socket_t*            ConnectSocket;
+    ConnectionRequest_t* ConnectionRequest;
+    AcceptRequest_t*     AcceptRequest;
+    element_t*           Element;
+    OsStatus_t           Status = OsSuccess;
+    TRACE("[domain] [local] [accept] %u", LODWORD(Socket->Header.key));
+    
+    // Check if there is any requests available
+    mtx_lock(&Socket->SyncObject);
+    Element = queue_pop(&Socket->ConnectionRequests);
+    if (Element) {
+        mtx_unlock(&Socket->SyncObject);
+        ConnectionRequest = Element->value;
+        
+        // Lookup the socket handle, to check if it is still valid
+        ConnectSocket = NetworkManagerSocketGet(ConnectionRequest->SourceSocketHandle);
+        if (ConnectSocket) {
+            AcceptConnectionRequest(ProcessHandle, Waiter, ConnectSocket,
+                ConnectionRequest->SourceWaiter);
+        }
+        else {
+            Status = OsConnectionAborted;
+        }
+        free(ConnectionRequest);
+    }
+    else {
+        // Only wait if configured to blocking, otherwise return OsBusy ish
+        if (Socket->Configuration.Blocking) {
+            AcceptRequest = CreateAcceptRequest(ProcessHandle, Waiter);
+            if (AcceptRequest) {
+                queue_push(&Socket->AcceptRequests, &AcceptRequest->Header);
+            }
+            else {
+                Status = OsOutOfMemory;
+            }
+        }
+        else {
+            Status = OsBusy; // TODO: OsTryAgain
+        }
+        mtx_unlock(&Socket->SyncObject);
+    }
+    return Status;
+}
+
+static void
+RejectConnectionRequest(
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    
+}
+
+static void
+RejectAcceptRequest(
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    
 }
 
 static void
@@ -410,6 +619,12 @@ DomainLocalDestroy(
     _In_ SocketDomain_t* Domain)
 {
     TRACE("DomainLocalDestroy()");
+    
+    // Go through connection requests and reject them
+    //list_clear(&Socket->ConnectionRequests, RejectConnectionRequest, NULL);
+
+    // Go through accept requests and reject them
+    //list_clear(&Socket->AcceptRequests, RejectAcceptRequest, NULL);
     
     if (Domain->Record) {
         DestroyAddressRecord(Domain->Record);
@@ -432,6 +647,8 @@ DomainLocalCreate(
     Domain->Ops.AddressFree     = DomainLocalFreeAddress;
     Domain->Ops.Bind            = DomainLocalBind;
     Domain->Ops.Connect         = DomainLocalConnect;
+    Domain->Ops.Disconnect      = DomainLocalDisconnect;
+    Domain->Ops.Accept          = DomainLocalAccept;
     Domain->Ops.Send            = DomainLocalSend;
     Domain->Ops.Receive         = DomainLocalReceive;
     Domain->Ops.Pair            = DomainLocalPair;

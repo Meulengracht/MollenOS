@@ -378,7 +378,7 @@ FutexWake(
     SystemMemorySpaceContext_t* Context = NULL;
     FutexBucket_t*     Bucket;
     FutexItem_t*       FutexItem;
-    OsStatus_t         Status;
+    OsStatus_t         Status = OsSuccess;
     uintptr_t          FutexAddress;
     int                WaiterCount;
     int                i;

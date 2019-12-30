@@ -66,12 +66,6 @@ NetworkManagerSocketConnect(
     _In_ const struct sockaddr* Address);
 
 OsStatus_t
-NetworkManagerHandleConnectionRequest(
-    _In_ thrd_t    SourceWaiter,
-    _In_ Socket_t* SourceSocket,
-    _In_ Socket_t* TargetSocket);
-
-OsStatus_t
 NetworkManagerSocketAccept(
     _In_ UUId_t ProcessHandle,
     _In_ thrd_t Waiter,

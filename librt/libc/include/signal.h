@@ -67,7 +67,8 @@
 #define SIGHATE     34 /* The sending process does not like you */
 #define SIGWINEVENT 35 /* Window server event */
 #define SIGCAT      36 /* Everybody loves cats */
-#define NUMSIGNALS  37
+#define SIGSOCK     37 /* Socket transmission error */
+#define NUMSIGNALS  38
 
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__

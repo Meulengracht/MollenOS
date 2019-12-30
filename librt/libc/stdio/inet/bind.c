@@ -49,25 +49,10 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    if (handle->object.data.socket.flags & (SOCKET_BOUND | SOCKET_PASSIVE | SOCKET_CONNECTED)) {
-        if (handle->object.data.socket.flags & (SOCKET_CONNECTED | SOCKET_PASSIVE)) {
-            _set_errno(EISCONN);
-        }
-        else if (handle->object.data.socket.flags & SOCKET_BOUND) {
-            _set_errno(EALREADY);
-        }
-        return -1;
-    }
-    
-
     status = BindSocket(handle->object.handle, address);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;
     }
-    
-    // So if we reach here we can continue the binding process, update
-    // the socket state to reflect the new state
-    handle->object.data.socket.flags |= SOCKET_BOUND;
     return 0;
 }

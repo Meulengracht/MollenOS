@@ -135,6 +135,7 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
 intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    streambuffer_t* stream;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -153,37 +154,28 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
     
     // We must return ESHUTDOWN if the sending socket has been requested shut
     // on this socket handle.
-    if (handle->object.data.socket.flags & SOCKET_WRITE_DISABLED) {
+    stream = handle->object.data.socket.send_buffer.buffer;
+    if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
         _set_errno(ESHUTDOWN);
         return -1;
-    }
-    
-    // Stream sockets must always be in a connected state, and thus ignore the
-    // destination address parameter. If one is provided we are allowed to return
-    // EISCONN.
-    if (handle->object.data.socket.type == SOCK_STREAM) {
-        if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
-            _set_errno(ENOTCONN);
-            return -1;
-        }
-        
-        if (msg_hdr->msg_name != NULL) {
-            _set_errno(EISCONN);
-            return -1;
-        }
     }
     
     // Lastly, make sure we actually have a destination address. For the rest of 
     // the socket types, we use the stored address ('connected address'), or the
     // one provided.
-    if (msg_hdr->msg_name == NULL) {
-        if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
-            _set_errno(EDESTADDRREQ);
-            return -1;
+    if (handle->object.data.socket.type == SOCK_STREAM || handle->object.data.socket.type == SOCK_SEQPACKET) {
+        // TODO return ENOTCONN / EISCONN before writing data. Lack of effecient way
+    }
+    else {
+        if (msg_hdr->msg_name == NULL) {
+            if (handle->object.data.socket.default_address.__ss_family == AF_UNSPEC) {
+                _set_errno(EDESTADDRREQ);
+                return -1;
+            }
+            struct msghdr* msg_ptr = (struct msghdr*)msg_hdr;
+            msg_ptr->msg_name    = &handle->object.data.socket.default_address;
+            msg_ptr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
         }
-        struct msghdr* msg_ptr = (struct msghdr*)msg_hdr;
-        msg_ptr->msg_name    = &handle->object.data.socket.default_address;
-        msg_ptr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
     }
     return perform_send(handle, msg_hdr, flags);
 }

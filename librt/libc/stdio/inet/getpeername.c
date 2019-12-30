@@ -21,14 +21,16 @@
  * - Standard Socket IO Implementation
  */
 
+#include <ddk/services/net.h>
+#include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>
-#include <errno.h>
 #include <string.h>
 
 int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
+    OsStatus_t      status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -45,15 +47,11 @@ int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    if (!(handle->object.data.socket.flags & SOCKET_CONNECTED)) {
-        _set_errno(ENOTCONN);
+    status = GetSocketAddress(handle->object.handle, SOCKET_GET_ADDRESS_SOURCE_PEER, 
+        address_out, address_length_out);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
         return -1;
     }
-    
-    if (*address_length_out != 0) {
-        memcpy(address_out, &handle->object.data.socket.default_address,
-            MIN(*address_length_out, handle->object.data.socket.default_address.__ss_len));
-    }
-    *address_length_out = handle->object.data.socket.default_address.__ss_len;
     return 0;
 }

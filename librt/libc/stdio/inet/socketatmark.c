@@ -26,8 +26,28 @@
 #include <internal/_io.h>
 #include <io.h>
 
-int sockatmark(int what)
+int sockatmark(int iod)
 {
-    _set_errno(ENOSYS);
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    
+    if (!handle) {
+        _set_errno(EBADF);
+        return -1;
+    }
+    
+    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+        _set_errno(ENOTSOCK);
+        return -1;
+    }
+    
+    if (handle->object.data.socket.type == SOCK_STREAM ||
+        handle->object.data.socket.type == SOCK_SEQPACKET) {
+        // Only supported on stream sockets
+        _set_errno(ENOSYS);
+    }
+    else {
+        _set_errno(ENOSYS);
+        return -1;
+    }
     return -1;
 }

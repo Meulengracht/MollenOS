@@ -75,6 +75,7 @@ char signal_fatality[] = {
 	0, /* SIGHATE    */
 	0, /* SIGWINEVENT*/
 	0, /* SIGCAT     */
+    1, /* SIGSOCK    */
 	0  /* SIGEND	 */
 };
 
@@ -87,6 +88,7 @@ static sig_element signal_list[] = {
     { SIGTERM, "Termination request", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
     { SIGABRT, "Abnormal termination", SIG_DFL },
+    { SIGSOCK, "Socket transmission error", SIG_DFL },
     { SIGUSR1, "User-defined signal-1", SIG_IGN },
     { SIGUSR2, "User-defined signal-2", SIG_IGN }
 };
@@ -201,6 +203,7 @@ is_signal_valid(
         case SIGTERM:
         case SIGQUIT:
         case SIGABRT:
+        case SIGSOCK:
         case SIGUSR1:
         case SIGUSR2:
             break;
@@ -260,6 +263,7 @@ raise(
         case SIGTERM:
         case SIGQUIT:
         case SIGABRT:
+        case SIGSOCK:
         case SIGUSR1:
         case SIGUSR2:
             break;

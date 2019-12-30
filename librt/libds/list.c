@@ -70,12 +70,14 @@ list_clear(
     _In_ void   (*cleanup)(element_t*, void*),
     _In_ void*   context)
 {
-    element_t* i;
+    element_t *i, *j;
     assert(list != NULL);
     
     LIST_LOCK;
-    _foreach(i, list) {
+    _foreach_nolink(i, list) {
+        j = i->next;
         cleanup(i, context);
+        i = j;
     }
     list_construct_cmp(list, list->cmp);
     LIST_UNLOCK;

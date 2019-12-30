@@ -162,10 +162,6 @@ SocketShutdownImpl(
     _In_ int       Options)
 {
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
-        // Go through connection requests and reject them
-    
-        // Go through accept requests and reject them
-    
         mtx_destroy(&Socket->SyncObject);
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);

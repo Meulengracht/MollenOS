@@ -64,7 +64,7 @@ OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
     OsStatus_t status = OsSuccess;
     
     if (options & STDIO_CLOSE_FULL) {
-        status = CloseSocket(handle->object.handle, options);
+        status = CloseSocket(handle->object.handle, SOCKET_SHUTDOWN_DESTROY);
     }
     
     if (handle->object.data.socket.send_buffer.buffer) {

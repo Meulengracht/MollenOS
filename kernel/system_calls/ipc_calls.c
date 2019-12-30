@@ -88,6 +88,7 @@ ScIpcReply(
     }
 
     CleanupMessage(Current, Message);
+    ERROR("[ipc] [reply] done");
     return OsSuccess;
 }
 

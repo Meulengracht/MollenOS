@@ -9,11 +9,9 @@ struct socket {
     int                     domain;
     int                     type;
     int                     protocol;
-    unsigned int            flags;
     struct sockaddr_storage default_address;
-    
-    struct dma_attachment send_buffer;
-    struct dma_attachment recv_buffer;
+    struct dma_attachment   send_buffer;
+    struct dma_attachment   recv_buffer;
 };
 
 struct packethdr {
@@ -22,14 +20,6 @@ struct packethdr {
     intmax_t addresslen;
     intmax_t payloadlen;
 };
-
-// TODO these flags should be moved to the the netmanager. Otherwise the flags
-// go out of sync when shared across processes.
-#define SOCKET_BOUND          0x00000001
-#define SOCKET_CONNECTED      0x00000002
-#define SOCKET_PASSIVE        0x00000004
-#define SOCKET_WRITE_DISABLED 0x00000008
-#define SOCKET_READ_DISABLED  0x00000010
 
 extern int socket_create(int, int, int, UUId_t, UUId_t, UUId_t);
 

@@ -31,25 +31,14 @@
 #include "domains/domains.h"
 #include <inet/local.h>
 #include <io_events.h>
-#include <os/ipc.h>
 #include "manager.h"
 #include "socket.h"
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
 
-typedef struct ConnectionRequest {
-    element_t Header;
-    thrd_t    SourceWaiter;
-    Socket_t* SourceSocket;
-} ConnectionRequest_t;
-
-typedef struct AcceptRequest {
-    element_t Header;
-    UUId_t    TargetProcessHandle;
-    thrd_t    TargetWaiter;
-} AcceptRequest_t;
-
+// This socket tree contains all the local system sockets that were created by
+// this machine. All remote sockets are maintained by the domains
 static rb_tree_t Sockets;
 static UUId_t    SocketSet;
 static thrd_t    SocketMonitorHandle;
@@ -69,7 +58,7 @@ HandleSocketEvent(
     Socket_t* Socket;
     TRACE("[socket monitor] data from %u", Event->handle);
     
-    Socket = (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)Event->handle);
+    Socket = NetworkManagerSocketGet(Event->handle);
     if (!Socket) {
         // Process is probably in the process of removing this, ignore this
         return;
@@ -92,7 +81,8 @@ HandleSocketEvent(
     if (Event->events & IOEVTOUT) {
         OsStatus_t Status = DomainSend(Socket);
         if (Status != OsSuccess) {
-            // TODO
+            // TODO deliver ESOCKPIPE signal to process
+            // proc_signal()
         }
     }
 }
@@ -250,6 +240,10 @@ NetworkManagerSocketShutdown(
     }
     
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
+        if (Socket->Configuration.Connected) {
+            DomainDisconnect(Socket);
+        }
+        
         (void)rb_tree_remove(&Sockets, (void*)Handle);
         Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL, Handle, 0, NULL);
         if (Status != OsSuccess) {
@@ -266,7 +260,8 @@ NetworkManagerSocketBind(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
-    Socket_t* Socket;
+    Socket_t*  Socket;
+    OsStatus_t Status;
     
     TRACE("[net_manager] [bind] %u, %u", 
         LODWORD(ProcessHandle), LODWORD(Handle));
@@ -276,9 +271,20 @@ NetworkManagerSocketBind(
         ERROR("[net_manager] [bind] invalid handle %u", Handle);
         return OsDoesNotExist;
     }
-    return DomainUpdateAddress(Socket, Address);
+    
+    if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
+        return OsConnectionInProgress;
+    }
+    
+    Status = DomainUpdateAddress(Socket, Address);
+    if (Status == OsSuccess) {
+        Socket->Configuration.Bound = 1;
+    }
+    return Status;
 }
 
+// Asynchronous operation, does not send a reply on success, but instead a reply will
+// be sent by Domain 
 OsStatus_t
 NetworkManagerSocketConnect(
     _In_ UUId_t                 ProcessHandle,
@@ -286,144 +292,60 @@ NetworkManagerSocketConnect(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address)
 {
-    Socket_t* Socket;
-        ERROR("[net_manager] [connect] %u, %u, %u", LODWORD(ProcessHandle),
-            LODWORD(Waiter), LODWORD(Handle));
+    Socket_t*  Socket;
+    OsStatus_t Status;
+    ERROR("[net_manager] [connect] %u, %u, %u", LODWORD(ProcessHandle),
+        LODWORD(Waiter), LODWORD(Handle));
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         ERROR("[net_manager] [connect] invalid handle %u", Handle);
-        return OsDoesNotExist;
-    }
-    return DomainConnect(Waiter, Socket, Address);
-}
-
-static void
-AcceptConnectionRequest(
-    _In_ UUId_t    ProcessHandle,
-    _In_ thrd_t    AcceptWaiter,
-    _In_ Socket_t* ConnectSocket,
-    _In_ thrd_t    ConnectWaiter)
-{
-    AcceptSocketPackage_t Package = { 0 };
-    IpcMessage_t          Message;
-    TRACE("[net_manager] [accept_request]");
-    
-    // Get address of the connector socket
-    DomainGetAddress(ConnectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&Package.Address);
-    
-    // Create a new socket for the acceptor. This socket will be paired with
-    // the connector socket.
-    Package.Status = NetworkManagerSocketCreate(ProcessHandle, ConnectSocket->DomainType,
-        ConnectSocket->Type, ConnectSocket->Protocol, &Package.SocketHandle,
-        &Package.SendBufferHandle, &Package.RecvBufferHandle);
-    if (Package.Status == OsSuccess) {
-        NetworkManagerSocketPair(ProcessHandle, Package.SocketHandle, 
-            (UUId_t)(uintptr_t)ConnectSocket->Header.key);
+        return OsHostUnreachable;
     }
     
-    // Reply to the connector (Only valid for local sockets)
-    if (ConnectWaiter != UUID_INVALID) {
-        Message.Sender = ConnectWaiter;
-        (void)IpcReply(&Message, &Package.Status, sizeof(OsStatus_t));
+    // If the socket is passive, then we don't allow active actions
+    // like connecting to other sockets.
+    if (Socket->Configuration.Passive) {
+        return OsNotSupported;
     }
     
-    // Reply to the accepter
-    Message.Sender = AcceptWaiter;
-    (void)IpcReply(&Message, &Package, sizeof(AcceptSocketPackage_t));
-}
-
-static ConnectionRequest_t*
-CreateConnectionRequest(
-    _In_ Socket_t* Socket,
-    _In_ thrd_t    Waiter)
-{
-    ConnectionRequest_t* ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
-    if (!ConnectionRequest) {
-        return NULL;
-    }
-    
-    ELEMENT_INIT(&ConnectionRequest->Header, 0, ConnectionRequest);
-    ConnectionRequest->SourceWaiter = Waiter;
-    ConnectionRequest->SourceSocket = Socket;
-    return ConnectionRequest;
-}
-
-OsStatus_t
-NetworkManagerHandleConnectionRequest(
-    _In_ thrd_t    SourceWaiter,
-    _In_ Socket_t* SourceSocket,
-    _In_ Socket_t* TargetSocket)
-{
-    ConnectionRequest_t* ConnectionRequest;
-    AcceptRequest_t*     AcceptRequest;
-    element_t*           Element;
-    
-    TRACE("[net_manager] [handle_connect] %u, %u => %u", LODWORD(SourceWaiter),
-        LODWORD(SourceSocket->Header.key), LODWORD(TargetSocket->Header.key));
-    
-    // Check for active accept requests, otherwise we need to queue it up. If the backlog
-    // is full, we need to reject the connection request.
-    mtx_lock(&TargetSocket->SyncObject);
-    Element = queue_pop(&TargetSocket->AcceptRequests);
-    if (!Element) {
-        TRACE("[net_manager] [handle_connect] creating request");
-        ConnectionRequest = CreateConnectionRequest(SourceSocket, SourceWaiter);
-        if (!ConnectionRequest) {
-            mtx_unlock(&TargetSocket->SyncObject);
-            ERROR("[net_manager] [handle_connect] failed to allocate memory for connection request");
-            return OsOutOfMemory;
+    /* Generally, connection-based protocol sockets may successfully connect() only once; 
+     * connectionless protocol sockets may use connect() multiple times to change their association. 
+     * Connectionless sockets may dissolve the association by connecting to an address with the 
+     * sa_family member of sockaddr set to AF_UNSPEC. */
+    if (Socket->Type == SOCK_STREAM || Socket->Type == SOCK_SEQPACKET) {
+        if (Socket->Configuration.Connecting) {
+            return OsConnectionInProgress;
         }
         
-        // TODO If the backlog is full, reject
-        // return OsConnectionRefused
-        queue_push(&TargetSocket->ConnectionRequests, &ConnectionRequest->Header);
-        handle_set_activity((UUId_t)(uintptr_t)TargetSocket->Header.key, IOEVTCTL);
+        if (Socket->Configuration.Connected) {
+            return OsAlreadyConnected;
+        }
     }
-    mtx_unlock(&TargetSocket->SyncObject);
-    
-    // Handle the accept request we popped earlier here, this means someone
-    // has called accept() on the socket and is actively waiting
-    if (Element) {
-        AcceptRequest = Element->value;
-        AcceptConnectionRequest(AcceptRequest->TargetProcessHandle,
-            AcceptRequest->TargetWaiter, SourceSocket, SourceWaiter);
-        free(AcceptRequest);
+    else {
+        // TODO
+        return OsSuccess;
     }
-    return OsSuccess;
+
+    Socket->Configuration.Connecting = 1;
+    Status = DomainConnect(Waiter, Socket, Address);
+    if (Status != OsSuccess) {
+        Socket->Configuration.Connecting = 0;
+    }
+    return Status;
 }
 
-static AcceptRequest_t*
-CreateAcceptRequest(
-    _In_ UUId_t ProcessHandle,
-    _In_ thrd_t Waiter)
-{
-    AcceptRequest_t* AcceptRequest = malloc(sizeof(AcceptRequest_t));
-    if (!AcceptRequest) {
-        return NULL;
-    }
-    
-    ELEMENT_INIT(&AcceptRequest->Header, 0, AcceptRequest);
-    AcceptRequest->TargetProcessHandle = ProcessHandle;
-    AcceptRequest->TargetWaiter        = Waiter;
-    return AcceptRequest;
-}
-
-// Asynchronous operation, does not send a reply on return, but instead a reply will
-// be sent by <AcceptConnectionRequest>. 
+// Asynchronous operation, does not send a reply on success, but instead a reply will
+// be sent by Domain. 
 OsStatus_t
 NetworkManagerSocketAccept(
     _In_ UUId_t ProcessHandle,
     _In_ thrd_t Waiter,
     _In_ UUId_t Handle)
 {
-    Socket_t*            Socket;
-    ConnectionRequest_t* ConnectionRequest;
-    AcceptRequest_t*     AcceptRequest;
-    element_t*           Element;
-    OsStatus_t           Status = OsSuccess;
-    TRACE("[net_manager] [accept] %u, %u, %u", LODWORD(ProcessHandle), 
-        LODWORD(Waiter), LODWORD(Handle));
+    Socket_t* Socket;
+        ERROR("[net_manager] [accept] %u, %u, %u", LODWORD(ProcessHandle),
+            LODWORD(Waiter), LODWORD(Handle));
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
@@ -431,38 +353,10 @@ NetworkManagerSocketAccept(
         return OsDoesNotExist;
     }
     
-    // Check if there is any requests available
-    mtx_lock(&Socket->SyncObject);
-    Element = queue_pop(&Socket->ConnectionRequests);
-    if (Element) {
-        mtx_unlock(&Socket->SyncObject);
-        ConnectionRequest = Element->value;
-        
-        // TODO should not be a socket pointer. Should be a socket handle. Otherwise
-        // the pointer could be invalid
-        /* Status = */ AcceptConnectionRequest(ProcessHandle, Waiter, ConnectionRequest->SourceSocket,
-            ConnectionRequest->SourceWaiter);
-        
-        // TODO check status of accept. Detect if socket is still valid 
-        free(ConnectionRequest);
+    if (!Socket->Configuration.Passive) {
+        return OsNotSupported;
     }
-    else {
-        // Only wait if configured to blocking, otherwise return OsBusy ish
-        if (Socket->Configuration.Blocking) {
-            AcceptRequest = CreateAcceptRequest(ProcessHandle, Waiter);
-            if (AcceptRequest) {
-                queue_push(&Socket->AcceptRequests, &AcceptRequest->Header);
-            }
-            else {
-                Status = OsOutOfMemory;
-            }
-        }
-        else {
-            Status = OsBusy; // TODO: OsTryAgain
-        }
-        mtx_unlock(&Socket->SyncObject);
-    }
-    return Status;
+    return DomainAccept(ProcessHandle, Waiter, Socket);
 }
 
 OsStatus_t
@@ -482,6 +376,9 @@ NetworkManagerSocketListen(
         return OsDoesNotExist;
     }
     
+    if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
+        return OsConnectionInProgress;
+    }
     return SocketListenImpl(Socket, ConnectionCount);
 }
 
@@ -491,8 +388,9 @@ NetworkManagerSocketPair(
     _In_ UUId_t Handle1,
     _In_ UUId_t Handle2)
 {
-    Socket_t* Socket1;
-    Socket_t* Socket2;
+    Socket_t*  Socket1;
+    Socket_t*  Socket2;
+    OsStatus_t Status;
     
     TRACE("[net_manager] [pair] %u, %u, %u", 
         LODWORD(ProcessHandle), LODWORD(Handle1), LODWORD(Handle2));
@@ -510,7 +408,27 @@ NetworkManagerSocketPair(
         return OsDoesNotExist;
     }
     
-    return DomainPair(Socket1, Socket2);
+    if (Socket1->Configuration.Passive || Socket2->Configuration.Passive) {
+        ERROR("[net_manager] [pair] either Socket1/2 was marked passive (%u, %u)", 
+            Socket1->Configuration.Passive, Socket2->Configuration.Passive);
+        return OsNotSupported;
+    }
+    
+    if (Socket1->Configuration.Connected || Socket2->Configuration.Connected) {
+        ERROR("[net_manager] [pair] either Socket1/2 was marked connected (%u, %u)", 
+            Socket1->Configuration.Connected, Socket2->Configuration.Connected);
+        return OsAlreadyConnected;
+    }
+    
+    Status = DomainPair(Socket1, Socket2);
+    if (Status == OsSuccess) {
+        Socket1->Configuration.Connecting = 0;
+        Socket1->Configuration.Connected  = 1;
+        
+        Socket2->Configuration.Connecting = 0;
+        Socket2->Configuration.Connected  = 1;
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -528,7 +446,6 @@ NetworkManagerSocketSetOption(
     if (!Socket) {
         return OsDoesNotExist;
     }
-    
     return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
 }
 
@@ -547,7 +464,6 @@ NetworkManagerSocketGetOption(
     if (!Socket) {
         return OsDoesNotExist;
     }
-    
     return GetSocketOptionImpl(Socket, Protocol, Option, Data, DataLengthOut);
 }
 
@@ -564,7 +480,6 @@ NetworkManagerSocketGetAddress(
     if (!Socket) {
         return OsDoesNotExist;
     }
-    
     return DomainGetAddress(Socket, Source, Address);
 }
 

@@ -33,6 +33,7 @@
 #define STREAMBUFFER_MULTIPLE_WRITERS     0x2
 #define STREAMBUFFER_GLOBAL               0x4
 #define STREAMBUFFER_OVERWRITE_ENABLED    0x8
+#define STREAMBUFFER_DISABLED             0x10
 
 // Options for reads and writes
 #define STREAMBUFFER_NO_BLOCK      0x1
@@ -68,6 +69,11 @@ streambuffer_create(
 
 DDKDECL(void,
 streambuffer_set_option(
+    _In_ streambuffer_t* stream,
+    _In_ unsigned int    option));
+
+DDKDECL(int,
+streambuffer_has_option(
     _In_ streambuffer_t* stream,
     _In_ unsigned int    option));
 

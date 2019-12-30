@@ -75,6 +75,7 @@ static char SignalFatalityTable[] = {
     0, /* SIGHATE    */
     0, /* SIGWINEVENT*/
     0, /* SIGCAT     */
+    1, /* SIGSOCK    */
     0  /* SIGEND     */
 };
 #endif

@@ -103,7 +103,7 @@ DomainFreeAddress(
     }
     Socket->Domain->Ops.AddressFree(Socket);
 }
-    
+
 OsStatus_t
 DomainConnect(
     _In_ thrd_t                 Waiter,
@@ -113,13 +113,29 @@ DomainConnect(
     if (!Socket->Domain) {
         return OsInvalidParameters;
     }
-    
-    // If the socket is passive, then we don't allow active actions
-    // like connecting to other sockets.
-    if (Socket->Configuration.Passive) {
-        return OsNotSupported;
-    }
     return Socket->Domain->Ops.Connect(Waiter, Socket, Address);
+}
+
+OsStatus_t
+DomainDisconnect(
+    _In_ Socket_t* Socket)
+{
+    if (!Socket->Domain) {
+        return OsInvalidParameters;
+    }
+    return Socket->Domain->Ops.Disconnect(Socket);
+}
+
+OsStatus_t
+DomainAccept(
+    _In_ UUId_t    ProcessHandle,
+    _In_ thrd_t    Waiter,
+    _In_ Socket_t* Socket)
+{
+    if (!Socket->Domain) {
+        return OsInvalidParameters;
+    }
+    return Socket->Domain->Ops.Accept(ProcessHandle, Waiter, Socket);
 }
 
 OsStatus_t

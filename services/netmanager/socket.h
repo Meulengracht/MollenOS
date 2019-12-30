@@ -37,9 +37,12 @@
 #define SOCKET_SYSMAX_BUFFER_SIZE  (256 * 4096)
 
 typedef struct SocketConfiguration {
-    unsigned int Blocking : 1;
-    unsigned int Passive  : 1;
-    unsigned int Unused   : 31;
+    unsigned int Blocking   : 1;
+    unsigned int Passive    : 1;
+    unsigned int Bound      : 1;
+    unsigned int Connected  : 1;
+    unsigned int Connecting : 1;
+    unsigned int Unused     : 27;
     int          Backlog;
 } SocketConfiguration_t;
 

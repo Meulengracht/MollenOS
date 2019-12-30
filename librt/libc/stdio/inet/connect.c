@@ -56,33 +56,16 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    // Per the specification, if the type is DGRAM/RAW, then we simply provide a default
-    // address for the send calls
-    if (handle->object.data.socket.type == SOCK_DGRAM
-        || handle->object.data.socket.type == SOCK_RAW) {
-        if (address->sa_family == AF_UNSPEC) {
-            handle->object.data.socket.flags &= ~(SOCKET_CONNECTED);
-        }
-        else {
-            memcpy(&handle->object.data.socket.default_address, address, address_length);
-            handle->object.data.socket.flags |= SOCKET_CONNECTED;
-        }
-    }
-    else {
-        if (handle->object.data.socket.flags & (SOCKET_CONNECTED | SOCKET_PASSIVE)) {
-            _set_errno(EISCONN);
-            return -1;
-        }
-        
+    if (handle->object.data.socket.type == SOCK_STREAM ||
+        handle->object.data.socket.type == SOCK_SEQPACKET) {
         status = ConnectSocket(handle->object.handle, address);
         if (status != OsSuccess) {
             OsStatusToErrno(status);
             return -1;
         }
-        
-        // So if we reach here we can continue the connection process, update
-        // the socket state to reflect the new state
-        handle->object.data.socket.flags |= SOCKET_CONNECTED;
+    }
+    else {
+        memcpy(&handle->object.data.socket.default_address, address, address_length);
     }
     return 0;
 }
