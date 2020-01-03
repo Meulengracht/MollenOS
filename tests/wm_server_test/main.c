@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <libwm_server.h>
+#include <libwm_os.h>
 #include <os/services/process.h>
 #include "test_protocol.h"
 #include <stdio.h>
@@ -51,8 +52,8 @@ int main(int argc, char **argv)
     wm_server_configuration_t configuration;
     int                       code;
     
-    configuration.input_handler = 0;
-    
+    wm_os_get_server_address(&configuration.server_address, &configuration.server_address_length);
+    wm_os_get_input_address(&configuration.dgram_address, &configuration.dgram_address_length);
     code = wm_server_initialize(&configuration);
     if (code) {
         printf("error initializing server library %i", errno);

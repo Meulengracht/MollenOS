@@ -57,6 +57,7 @@ typedef enum SystemCpuFunctionType {
 
 typedef struct TxuMessage {
     element_t     Header;
+    _Atomic(int)  Delivered;
     TxuFunction_t Handler;
     void*         Argument;
 } TxuMessage_t;
@@ -145,7 +146,8 @@ TxuMessageSend(
     _In_ UUId_t                  CoreId,
     _In_ SystemCpuFunctionType_t Type,
     _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument);
+    _In_ void*                   Argument,
+    _In_ int                     Asynchronous);
 
 /**
  * ProcessorMessageSend 
@@ -160,7 +162,8 @@ ProcessorMessageSend(
     _In_ int                     ExcludeSelf,
     _In_ SystemCpuFunctionType_t Type,
     _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument);
+    _In_ void*                   Argument,
+    _In_ int                     Asynchronous);
 
 /* GetProcessorCore
  * Retrieves the cpu core from the given core-id. */

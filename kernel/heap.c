@@ -18,19 +18,6 @@
  *
  * System Memory Allocator (Based on SLAB design)
  * 
- * 
- * 0xa450c8
-
-core0:
-WRITE @ 0x11545b    [memset] [ContextReset] [ThreadEnterProtectedLevel]
-WRITE @ 0x11d699    [ContextReset]
-WRITE @ 0x20003dfb0 (thread 69) [userspace_entry]
-WRITE @ 0x11d699    [ContextReset]
-WRITE @ 0x20003dfb0 (thread 69) [userspace_entry]
-WRITE @ 0x10eb2c    [TxuMessageSend]
-
-core3:
-DEAD before read of 0xa450c8 
  */
 
 #define __MODULE "HEAP"

@@ -119,7 +119,7 @@ DebugHaltAllProcessorCores(
         }
         
         if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
-            TxuMessageSend(Iter->Id, CpuFunctionHalt, NULL, NULL);
+            TxuMessageSend(Iter->Id, CpuFunctionHalt, NULL, NULL, 1);
         }
         Iter = Iter->Link;
     }

@@ -94,11 +94,61 @@ static void wm_connection_remove(wm_connection_t* connection)
     mtx_unlock(&connections_sync);
 }
 
-int wm_connection_recv_message(int socket, wm_message_t* message, void* argument_buffer)
+int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_buffer)
+{
+    TRACE("[wm_connection_recv_packet] %i, 0x%" PRIxIN, socket, message);
+    struct iovec  iov[2] = { 
+        { .iov_base = message,         .iov_len = sizeof(wm_message_t) },
+        { .iov_base = argument_buffer, .iov_len = WM_MAX_MESSAGE_SIZE }
+    };
+    struct msghdr msg = {
+        .msg_name       = NULL,
+        .msg_namelen    = 0,
+        .msg_iov        = &iov[0],
+        .msg_iovlen     = 2,
+        .msg_control    = NULL,
+        .msg_controllen = 0,
+        .msg_flags      = 0
+    };
+    size_t message_length;
+    
+    // Packets are atomic, iether the full packet is there, or none is. So avoid
+    // the use of MSG_WAITALL here.
+    intmax_t bytes_read = recvmsg(socket, &msg, 0);
+    if (bytes_read < sizeof(wm_message_t)) {
+        if (bytes_read == 0) {
+            _set_errno(ENODATA);
+        }
+        else {
+            _set_errno(EPIPE);
+        }
+        return -1;
+    }
+    
+    message_length = WM_MESSAGE_GET_LENGTH(message->length);
+    if (message_length != bytes_read) {
+        _set_errno(EPIPE);
+        ERROR("[wm_connection_recv_packet] or message bytes were invalid %u != %u",
+            message_length, bytes_read);
+        return -1;
+    }
+    
+    if (message->magic != WM_HEADER_MAGIC) {
+        _set_errno(ENOMSG);
+        ERROR("[wm_connection_recv_packet] magic did not match 0x%x != 0x%x",
+            message->magic, WM_HEADER_MAGIC);
+        return -1;
+    }
+    
+    // verify crc TODO
+    return 0;
+}
+
+int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_buffer)
 {
     intmax_t bytes_read;
     size_t   message_length;
-    TRACE("[wm_connection_recv_message] %i, 0x%" PRIxIN, socket, message);
+    TRACE("[wm_connection_recv_stream] %i, 0x%" PRIxIN, socket, message);
     
     // Do not perform wait all here
     bytes_read = recv(socket, message, sizeof(wm_message_t), 0);

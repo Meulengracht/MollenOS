@@ -26,6 +26,7 @@
 #define __LIBWM_TYPES_H__
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define WM_HEADER_MAGIC              0xDEAE5A9A
 #define WM_MAX_PROTOCOLS             8
@@ -42,7 +43,7 @@ typedef struct wm_message {
     uint32_t     has_arg    : 1;  // is there any arguments?
     uint32_t     has_ret    : 1;  // is there any return?
     uint32_t     unused     : 6;  // reserved
-    uint16_t     crc;             // all fields excluding this field
+    uint16_t     crc;             // crc of following data
     uint8_t      protocol;
     uint8_t      action;
 } wm_message_t;

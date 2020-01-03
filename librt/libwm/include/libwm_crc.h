@@ -16,26 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Connection Type Definitions & Structures
- * - This header describes the base connection-structure, prototypes
+ * Wm CRC Type Definitions & Structures
+ * - This header describes the base crc-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_CONNECTION_H__
-#define __LIBWM_CONNECTION_H__
+#ifndef __LIBWM_CRC_H__
+#define __LIBWM_CRC_H__
 
 #include "libwm_types.h"
 
-// Prototypes
-struct sockaddr_storage;
+// CRC API
+// General crc routines for providing data integrity
+uint16_t crc16_generate(const unsigned char* data, size_t length);
 
-// Connection API
-// Used to manage all the connections to the window manager.
-int wm_connection_initialize(void);
-int wm_connection_create(int, struct sockaddr_storage*, int);
-int wm_connection_recv_packet(int, wm_message_t*, void*);
-int wm_connection_recv_stream(int, wm_message_t*, void*);
-int wm_connection_send_reply(int, void*, size_t);
-int wm_connection_shutdown(int);
-
-#endif // !__LIBWM_CONNECTION_H__
+#endif // !__LIBWM_CRC_H__

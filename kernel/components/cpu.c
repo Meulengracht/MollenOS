@@ -149,12 +149,14 @@ ProcessorMessageSend(
     _In_ int                     ExcludeSelf,
     _In_ SystemCpuFunctionType_t Type,
     _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument)
+    _In_ void*                   Argument,
+    _In_ int                     Asynchronous)
 {
     SystemDomain_t*  Domain;
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
     SystemCpuCore_t* Iter;
+    OsStatus_t       Status;
     int              Executions = 0;
     
     assert(Function != NULL);
@@ -175,8 +177,10 @@ ProcessorMessageSend(
         }
         
         if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
-            TxuMessageSend(Iter->Id, Type, Function, Argument);
-            Executions++;
+            Status = TxuMessageSend(Iter->Id, Type, Function, Argument, Asynchronous);
+            if (Status == OsSuccess) {
+                Executions++;
+            }
         }
         Iter = Iter->Link;
     }

@@ -50,19 +50,17 @@ struct wm_server {
 } wm_server_context = { { 0 } };
 
 
-static int create_client_socket(void)
+static int create_client_socket(wm_server_configuration_t* configuration)
 {
-    struct sockaddr_storage wm_address;
-    socklen_t               wm_address_length;
-    int                     status;
+    int status;
     
     wm_server_context.client_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (wm_server_context.client_socket < 0) {
         return -1;
     }
     
-    wm_os_get_server_address(&wm_address, &wm_address_length);
-    status = bind(wm_server_context.client_socket, sstosa(&wm_address), wm_address_length);
+    status = bind(wm_server_context.client_socket, sstosa(&configuration->server_address),
+        configuration->server_address_length);
     if (status) {
         return -1;
     }
@@ -106,22 +104,19 @@ static int handle_client_socket(void)
     return status;
 }
 
-static int create_dgram_socket(void)
+static int create_dgram_socket(wm_server_configuration_t* configuration)
 {
-    struct sockaddr_storage input_address;
-    socklen_t               input_address_length;
-    int                     status;
+    int status;
     
-    // Create a new socket for listening to input events. They are all
+    // Create a new socket for listening to events. They are all
     // delivered to fixed sockets on the local system.
     wm_server_context.dgram_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
     if (wm_server_context.dgram_socket < 0) {
         return -1;
     }
     
-    // Connect to the input pipe
-    wm_os_get_input_address(&input_address, &input_address_length);
-    status = bind(wm_server_context.dgram_socket, sstosa(&input_address), input_address_length);
+    status = bind(wm_server_context.dgram_socket, sstosa(&configuration->dgram_address),
+        configuration->dgram_address_length);
     return status;
 }
 
@@ -194,7 +189,13 @@ static int handle_client_event(int socket, uint32_t events, void* argument_buffe
         status = wm_connection_shutdown(socket);
     }
     else if ((events & IOEVTIN) || !events) {
-        status = wm_connection_recv_message(socket, &message, argument_buffer);
+        if (wm_server_context.dgram_socket == socket) {
+            status = wm_connection_recv_packet(socket, &message, argument_buffer);
+        }
+        else {
+            status = wm_connection_recv_stream(socket, &message, argument_buffer);
+        }
+        
         if (status) {
             ERROR("[handle_client_event] wm_connection_recv_message returned %i", errno);
             return -1;
@@ -234,19 +235,16 @@ int wm_server_initialize(wm_server_configuration_t* configuration)
         return -1;
     }
     
-    // initialize default sockets
-    status = create_client_socket();
+    status = create_client_socket(configuration);
     if (status) {
         return status;
     }
     
-    status = create_dgram_socket();
+    status = create_dgram_socket(configuration);
     if (status) {
         return status;
     }
     
-    // register control protocol
-
     return status;
 }
 
@@ -294,7 +292,6 @@ int wm_server_main_loop(void)
                 }
             }
             else if (events[i].iod == wm_server_context.dgram_socket) {
-                // TODO - we may have to handle this seperately
                 handle_client_event(wm_server_context.dgram_socket, events[i].events, argument_buffer);
             }
             else {

@@ -25,11 +25,14 @@
 #define __LIBWM_SERVER_H__
 
 #include "libwm_types.h"
-
-typedef void(*wm_input_function_t)(wm_input_event_t*);
+#include <inet/socket.h>
 
 typedef struct wm_server_configuration {
-    wm_input_function_t input_handler;
+    struct sockaddr_storage server_address;
+    socklen_t               server_address_length;
+    
+    struct sockaddr_storage dgram_address;
+    socklen_t               dgram_address_length;
 } wm_server_configuration_t;
 
 // Server API

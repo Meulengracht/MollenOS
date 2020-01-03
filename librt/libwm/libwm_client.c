@@ -27,15 +27,17 @@
 #include <io.h>
 #include "include/libwm_client.h"
 #include "include/libwm_os.h"
+#include "include/libwm_crc.h"
 #include <string.h>
 #include <stdlib.h>
 
 typedef struct wm_client {
-    int initialized;
-    int socket;
+    enum wm_client_type type;
+    int                 initialized;
+    int                 socket;
 } wm_client_t;
 
-static int send_message(wm_client_t* client, wm_message_t* message, 
+static int send_stream(wm_client_t* client, wm_message_t* message, 
     void* arguments, size_t argument_length)
 {
     intmax_t bytes_written = send(client->socket, (const void*)message, 
@@ -44,6 +46,26 @@ static int send_message(wm_client_t* client, wm_message_t* message,
         bytes_written += send(client->socket, (const void*)arguments,
             argument_length, MSG_WAITALL);
     }
+    return bytes_written != (message->length + 1);
+}
+
+static int send_packet(wm_client_t* client, wm_message_t* message, 
+    void* arguments, size_t argument_length)
+{
+    struct iovec  iov[2] = { 
+        { .iov_base = message,   .iov_len = sizeof(wm_message_t) },
+        { .iov_base = arguments, .iov_len = argument_length }
+    };
+    struct msghdr msg = {
+        .msg_name       = NULL,
+        .msg_namelen    = 0,
+        .msg_iov        = &iov[0],
+        .msg_iovlen     = 2,
+        .msg_control    = NULL,
+        .msg_controllen = 0,
+        .msg_flags      = 0
+    };
+    intmax_t bytes_written = sendmsg(client->socket, &msg, MSG_WAITALL);
     return bytes_written != (message->length + 1);
 }
 
@@ -72,19 +94,58 @@ int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action,
         .action   = action
     };
     
-    // TODO calc crc
+    if (argument_length) {
+        message.crc = crc16_generate((const unsigned char*)arguments, argument_length);
+    }
     
-    status = send_message(client, &message, arguments, argument_length);
+    switch (client->type) {
+        case wm_client_stream_based: {
+            status = send_stream(client, &message, arguments, argument_length);
+        } break;
+        case wm_client_packet_based: {
+            status = send_packet(client, &message, arguments, argument_length);
+        } break;
+    }
+    
     if (!status && message.has_ret) {
         status = get_message_reply(client, return_buffer, return_length);
     }
     return status;
 }
 
+static int create_stream_socket(wm_client_configuration_t* config)
+{
+    int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (fd == -1) {
+        return -1;
+    }
+    
+    int status = connect(fd, sstosa(&config->address), config->address_length);
+    if (status) {
+        close(fd);
+        return status;
+    }
+    return fd;
+}
+
+static int create_packet_socket(wm_client_configuration_t* config)
+{
+    int fd = socket(AF_LOCAL, SOCK_DGRAM, 0);
+    if (fd == -1) {
+        return -1;
+    }
+    
+    int status = connect(fd, sstosa(&config->address), config->address_length);
+    if (status) {
+        close(fd);
+        return status;
+    }
+    return fd;
+}
+
 int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client_out)
 {
     wm_client_t* client;
-    int          status;
     
     client = (wm_client_t*)malloc(sizeof(wm_client_t));
     if (!client) {
@@ -92,21 +153,22 @@ int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client
         return -1;
     }
     
-    client->socket = socket(AF_LOCAL, SOCK_STREAM, 0);
+    client->type = config->type;
+    switch (config->type) {
+        case wm_client_stream_based: {
+            client->socket = create_stream_socket(config);
+        } break;
+        case wm_client_packet_based: {
+            client->socket = create_packet_socket(config);
+        } break;
+    }
+    
     if (client->socket == -1) {
-        free(client);
         return -1;
     }
     
-    status = connect(client->socket, sstosa(&config->address), config->address_length);
-    if (status) {
-        close(client->socket);
-        free(client);
-        return status;
-    }
-    
     *client_out = client;
-    return status;
+    return 0;
 }
 
 int wm_client_shutdown(wm_client_t* client)

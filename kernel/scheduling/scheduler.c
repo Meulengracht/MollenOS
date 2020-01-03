@@ -144,6 +144,7 @@ QueueForScheduler(
         Object == SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // If this should happen, then we should try to stop the block
         // from occurring. So we switch the state to Running and ignore this
+        WARNING("[scheduler] [queue] detected race condition. skipping queueing of object 0x%" PRIxIN, Object);
         Object->State = SchedulerObjectStateRunning;
         return;
     }
@@ -182,7 +183,7 @@ QueueObjectImmediately(
         return OsSuccess;
     }
     else {
-        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object);
+        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object, 1);
     }
 }
 
@@ -314,6 +315,7 @@ SchedulerExpediteObject(
             Result = list_remove(Object->WaitQueueHandle, &Object->Header);
             if (Result) {
                 // we are too late, it's going into queue anyway, back off
+                WARNING("[scheduler] [expedite] detected race condition, skipping queueing of object 0x%" PRIxIN, Object);
                 return;
             }
         }
@@ -393,6 +395,7 @@ SchedulerUnblockObject(
             Result = list_remove(Object->WaitQueueHandle, &Object->Header);
             if (Result) {
                 // we are too late, it's going into queue anyway, back off
+                WARNING("[scheduler] [unblock] detected race condition, skipping queueing of object 0x%" PRIxIN, Object);
                 return;
             }
             
@@ -426,6 +429,7 @@ SchedulerQueueObject(
     smp_rmb();
     if (Object->State != SchedulerObjectStateIdle &&
         Object->State != SchedulerObjectStateBlocked) {
+        ERROR("[scheduler] [queue] tried to queue an object that wasn't idle or blocked");
         return OsInvalidParameters;    
     }
     return QueueObjectImmediately(Object);
@@ -488,7 +492,7 @@ SchedulerUpdateSleepQueue(
                 // by another core trying to destroy the order. Prevent this by expecting an 
                 // IPI for the requeue
                 if (Result) {
-                    WARNING("[scheduler] possible zombie thread");
+                    WARNING("[scheduler] [update_sleep] possible zombie object 0x%" PRIxIN, i);
                     RemoveFromQueue(&Scheduler->SleepQueue, i);
                     i->State = SchedulerObjectStateZombie;
                     smp_wmb();

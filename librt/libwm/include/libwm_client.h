@@ -28,7 +28,13 @@
 #include "libwm_types.h"
 #include <inet/socket.h>
 
+enum wm_client_type {
+    wm_client_stream_based, // connection mode
+    wm_client_packet_based  // connection less mode
+};
+
 typedef struct wm_client_configuration {
+    enum wm_client_type     type;
     struct sockaddr_storage address;
     socklen_t               address_length;
 } wm_client_configuration_t;

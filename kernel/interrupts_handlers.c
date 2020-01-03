@@ -25,6 +25,7 @@
 #define __MODULE "irqs"
 //#define __TRACE
 
+#include <arch/time.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
@@ -33,6 +34,16 @@
 #include <interrupts.h>
 #include <machine.h>
 #include <string.h>
+
+#define WaitForConditionWithFault(fault, condition, runs, wait)\
+fault = OsSuccess; \
+for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+    if (timeout_ >= runs) {\
+         fault = OsTimeout; \
+         break;\
+                                            }\
+    ArchStallProcessorCore(wait);\
+                    }
 
 static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
 static MemoryCache_t* TxuMessageCache                     = NULL;
@@ -65,6 +76,8 @@ FunctionExecutionInterruptHandler(
     Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
     while (Element != NULL) {
         Message = Element->value;
+        atomic_store(&Message->Delivered, 1);
+        
         Message->Handler(Message->Argument);
         
         queue_push(&TxuReusableBin, Element);
@@ -78,11 +91,13 @@ TxuMessageSend(
     _In_ UUId_t                  CoreId,
     _In_ SystemCpuFunctionType_t Type,
     _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument)
+    _In_ void*                   Argument,
+    _In_ int                     Asynchronous)
 {
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;
     TxuMessage_t*    Message;
+    OsStatus_t       Status;
     
     assert(Core != NULL);
     assert(Type < CpuFunctionCount);
@@ -99,12 +114,27 @@ TxuMessageSend(
         Message = Element->value;
     }
     
-    Message->Handler = Function;
+    Message->Handler  = Function;
     Message->Argument = Argument;
+    atomic_store(&Message->Delivered, 0);
     smp_wmb();
 
     queue_push(&Core->FunctionQueue[Type], &Message->Header);
-    return ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
+    Status = ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
+    if (Status != OsSuccess) {
+        if (!Asynchronous) {
+            ERROR("[txu] [send] failed to execute a synchronous handler");
+        }
+        return Status;
+    }
+    
+    if (!Asynchronous) {
+        WaitForConditionWithFault(Status, atomic_load(&Message->Delivered) == 0, 100, 10)
+        if (Status != OsSuccess) {
+            ERROR("[txu] [send] timeout executing synchronous handler");
+        }
+    }
+    return Status;
 }
 
 void

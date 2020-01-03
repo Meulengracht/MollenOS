@@ -104,7 +104,7 @@ SynchronizeMemoryRegion(
         }
     }
     
-    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, MemorySynchronizationHandler, &Object);
+    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, MemorySynchronizationHandler, &Object, 1);
     while (atomic_load(&Object.CallsCompleted) != NumberOfCores && Timeout > 0) {
         SchedulerSleep(5, &InterruptedAt);
         Timeout -= 5;
