@@ -4,14 +4,23 @@
 # Include all the definitions for os
 include ../../../../config/common.mk
 
-SOURCES = $(wildcard devices/scancodes/*.c) \
+SOURCES = ../../../../protocols/hid/hid_protocol_client.c \
+		  $(wildcard devices/scancodes/*.c) \
 		  $(wildcard devices/*.c) \
 		  $(wildcard ./*.c)
 
-INCLUDES = -I../../../../librt/include -I../../../../librt/libc/include -I../../../../librt/libds/include -I../../../../librt/libddk/include
+INCLUDES = -I../../../../protocols \
+		   -I../../../../librt/include \
+		   -I../../../../librt/libc/include \
+		   -I../../../../librt/libds/include \
+		   -I../../../../librt/libddk/include \
+		   -I../../../../librt/libwm/include
 OBJECTS = $(SOURCES:.c=.o)
 
-LIBRARIES = ../../../../librt/build/ddk.lib ../../../../librt/build/c.lib ../../../../librt/build/libdrv.lib
+LIBRARIES = ../../../../librt/build/ddk.lib \
+			../../../../librt/build/c.lib \
+			../../../../librt/build/libdrv.lib \
+			../../../../librt/deploy/libwm.lib
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 

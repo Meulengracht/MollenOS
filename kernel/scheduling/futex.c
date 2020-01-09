@@ -41,6 +41,7 @@
 typedef struct FutexItem {
     element_t    Header;
     list_t       BlockQueue;
+    spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
     
     SystemMemorySpaceContext_t* Context;
@@ -119,6 +120,7 @@ FutexCreateNode(
     memset(Item, 0, sizeof(FutexItem_t));
     ELEMENT_INIT(&Item->Header, 0, Item);
     list_construct(&Item->BlockQueue);
+    spinlock_init(&Item->BlockQueueSyncObject, spinlock_plain);
     Item->FutexAddress = FutexAddress;
     Item->Context      = Context;
     
@@ -410,15 +412,25 @@ FutexWake(
     
 WakeWaiters:
     for (i = 0; i < Count; i++) {
-        element_t* Front = list_front(&FutexItem->BlockQueue);
-        if (!Front) {
-            break;
-        }
-        (void)list_remove(&FutexItem->BlockQueue, Front);
+        element_t* Front;
         
-        Status = SchedulerQueueObject(Front->value);
-        if (Status != OsSuccess) {
-            break;
+        spinlock_acquire(&FutexItem->BlockQueueSyncObject);
+        Front = list_front(&FutexItem->BlockQueue);
+        if (Front) {
+            // This is only neccessary while the list itself is thread-safe
+            // otherwise we need a new list structure that can be shared including
+            // a lock.
+            if (list_remove(&FutexItem->BlockQueue, Front)) {
+                Front = NULL;
+            }
+        }
+        spinlock_release(&FutexItem->BlockQueueSyncObject);
+        
+        if (Front) {
+            Status = SchedulerQueueObject(Front->value);
+            if (Status != OsSuccess) {
+                break;
+            }
         }
     }
     

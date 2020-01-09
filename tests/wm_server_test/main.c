@@ -26,7 +26,7 @@
 #include <libwm_server.h>
 #include <libwm_os.h>
 #include <os/services/process.h>
-#include "test_protocol.h"
+#include <test/test_protocol.h>
 #include <stdio.h>
 
 static void print(struct test_print_arg*, struct test_print_ret*);
@@ -52,8 +52,8 @@ int main(int argc, char **argv)
     wm_server_configuration_t configuration;
     int                       code;
     
-    wm_os_get_server_address(&configuration.server_address, &configuration.server_address_length);
-    wm_os_get_input_address(&configuration.dgram_address, &configuration.dgram_address_length);
+    wm_os_get_server_client_address(&configuration.server_address, &configuration.server_address_length);
+    wm_os_get_server_packet_address(&configuration.dgram_address, &configuration.dgram_address_length);
     code = wm_server_initialize(&configuration);
     if (code) {
         printf("error initializing server library %i", errno);

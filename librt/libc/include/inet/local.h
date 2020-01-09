@@ -28,8 +28,8 @@
 #include <inet/socket.h>
 
 // global paths
-#define LCADDR_INPUT "/lc/input"
-#define LCADDR_WM    "/lc/wm"
+#define LCADDR_WM0 "/lc/wm0" // Client socket (connection mode)
+#define LCADDR_WM1 "/lc/wm1" // Packet socket (connectionless mode)
 
 struct sockaddr_lc {
 	uint8_t     slc_len;

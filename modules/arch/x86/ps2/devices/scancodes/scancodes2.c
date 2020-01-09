@@ -21,6 +21,7 @@
  */
 
 #include "../keyboard.h"
+#include <os/keycodes.h>
 
 static uint8_t ScancodeSet2Table[132] = {
     VK_INVALID, VK_F9, VK_INVALID, VK_F5, VK_F3, VK_F1, VK_F2, VK_F12, VK_INVALID, VK_F10,
@@ -60,29 +61,27 @@ static uint8_t ScancodeSet2ExtendedTable[126] = {
     VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_PAGEDOWN, VK_INVALID, VK_INVALID, VK_PAGEUP
 };
 
-/* ScancodeSet2ToVKey
- * Converts a scancode 2 key to the standard-defined virtual key-layout */
 OsStatus_t
 ScancodeSet2ToVKey(
-    _In_ SystemKey_t*   KeyState,
-    _In_ uint8_t        Scancode)
+    _In_ struct hid_key_event_arg* KeyState,
+    _In_ uint8_t                   Scancode)
 {
     // Handle special cases
     if (Scancode == PS2_CODE_EXTENDED) {
-        KeyState->Flags |= KEY_MODIFIER_EXTENDED;
+        KeyState->flags |= KEY_MODIFIER_EXTENDED;
         return OsError;
     }
     else if (Scancode == PS2_CODE_RELEASED) {
-        KeyState->Flags |= KEY_MODIFIER_RELEASED;
+        KeyState->flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED;
         return OsError;
     }
 
     // Get appropriate scancode
-    if (KeyState->Flags & KEY_MODIFIER_EXTENDED) {
-        KeyState->KeyCode = ScancodeSet2ExtendedTable[Scancode];
+    if (KeyState->flags & KEY_MODIFIER_EXTENDED) {
+        KeyState->key_code = ScancodeSet2ExtendedTable[Scancode];
     }
     else {
-        KeyState->KeyCode = ScancodeSet2Table[Scancode];
+        KeyState->key_code = ScancodeSet2Table[Scancode];
     }
     return OsSuccess;
 }

@@ -23,7 +23,8 @@
 #ifndef _DRIVER_PS2_KEYBOARD_H_
 #define _DRIVER_PS2_KEYBOARD_H_
 
-#include <os/input.h>
+#include <os/osdefs.h>
+#include <hid/hid_protocol.h>
 
 // PS2 keyboard specific commands
 #define PS2_KEYBOARD_SETLEDS                0xED
@@ -50,11 +51,10 @@
 #define PS2_KEYBOARD_DATA_STATE_HI(Port)    (Port)->DeviceData[5]
 
 /* ScancodeSet2ToVKey
- * Converts a scancode 2 key to the standard-defined
- * virtual key-layout */
+ * Converts a scancode 2 key to the standard-defined virtual key-layout */
 __EXTERN OsStatus_t 
 ScancodeSet2ToVKey(
-    _In_ SystemKey_t*   KeyState,
-    _In_ uint8_t        Scancode);
+    _In_ struct hid_key_event_arg* KeyState,
+    _In_ uint8_t                   Scancode);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

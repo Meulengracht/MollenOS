@@ -47,7 +47,7 @@ struct wm_server {
     int                       dgram_socket;
     int                       socket_set;
     wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
-} wm_server_context = { { 0 } };
+} wm_server_context = { { { 0 } } };
 
 
 static int create_client_socket(wm_server_configuration_t* configuration)

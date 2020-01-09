@@ -59,13 +59,4 @@ typedef struct wm_protocol {
     wm_protocol_function_t* functions;
 } wm_protocol_t;
 
-typedef struct wm_input_event {
-    uint8_t  type;
-    uint8_t  flags;
-    int16_t  rel_x;
-    int16_t  rel_y;
-    int16_t  rel_z;
-    uint32_t buttons_set;
-} wm_input_event_t; 
-
 #endif // !__LIBWM_TYPES_H__

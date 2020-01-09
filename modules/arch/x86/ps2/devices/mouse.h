@@ -23,6 +23,8 @@
 #ifndef _DRIVER_PS2_MOUSE_H_
 #define _DRIVER_PS2_MOUSE_H_
 
+#include <hid/hid_protocol.h>
+
 // PS2 mouse specific commands
 #define PS2_MOUSE_SETRESOLUTION         0xE8
 #define PS2_MOUSE_GETID                 0xF2

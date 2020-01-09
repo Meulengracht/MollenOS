@@ -22,9 +22,10 @@
  */
 
 #include <ddk/utils.h>
+#include <hid/hid_protocol_client.h>
 #include <io.h>
 #include "mouse.h"
-#include <os/input.h>
+#include <libwm_os.h>
 #include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
@@ -61,42 +62,38 @@ void
 PS2MouseInterrupt(
     _In_ PS2Port_t* Port)
 {
-    SystemInput_t Input;
+    struct hid_pointer_event_arg Input;
     uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
 
-    // Set initial
-    Input.Type  = DeviceInputPointer;
-    Input.Flags = 0;
-
     // Update relative x and y
-    Input.RelativeX = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 1] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 4) & 0x100));
-    Input.RelativeY = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 2] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 3) & 0x100));
-    Input.Buttons   = Port->ResponseBuffer[0] & 0x7; // L-M-R buttons
+    Input.rel_x = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 1] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 4) & 0x100));
+    Input.rel_y = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 2] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 3) & 0x100));
+    Input.buttons_set = Port->ResponseBuffer[0] & 0x7; // L-M-R buttons
 
     // Check extended data modes
     if (PS2_MOUSE_DATA_MODE(Port) == 1) {
-        Input.RelativeZ = (int16_t)(char)Port->ResponseBuffer[Port->ResponseReadIndex + 3];
+        Input.rel_z = (int16_t)(char)Port->ResponseBuffer[Port->ResponseReadIndex + 3];
     }
     else if (PS2_MOUSE_DATA_MODE(Port) == 2) {
         // 4 bit signed value
-        Input.RelativeZ = (int16_t)(char)(Port->ResponseBuffer[Port->ResponseReadIndex + 3] & 0xF);
+        Input.rel_z = (int16_t)(char)(Port->ResponseBuffer[Port->ResponseReadIndex + 3] & 0xF);
         if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_4BTN) {
-            Input.Buttons |= 0x8;
+            Input.buttons_set |= 0x8;
         }
         if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_5BTN) {
-            Input.Buttons |= 0x10;
+            Input.buttons_set |= 0x10;
         }
     }
     else {
-        Input.RelativeZ = 0;
+        Input.rel_z = 0;
     }
     Port->ResponseReadIndex += BytesRequired;
     if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
         Port->ResponseReadIndex = 0;
     }
     
-    sendto(Port->IoSocket, &Input, sizeof(SystemInput_t), MSG_DONTWAIT, 
-        (const struct sockaddr*)&Port->InputAddress, sizeof(struct sockaddr_lc));
+    hid_pointer_event(Port->WmClient, 0 /* source */, 0 /* flags */, 
+        Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
 }
 
 OsStatus_t
@@ -164,8 +161,8 @@ PS2MouseInitialize(
     _In_ PS2Controller_t* Controller,
     _In_ int              Port)
 {
-    struct sockaddr_lc* LcAddress;
-    PS2Port_t*          Instance = &Controller->Ports[Port];
+    wm_client_configuration_t wm_config;
+    PS2Port_t*                Instance = &Controller->Ports[Port];
 
     // Set initial mouse sampling
     PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
@@ -180,14 +177,14 @@ PS2MouseInitialize(
         ERROR("PS2-Mouse: failed to install contract");
         return OsError;
     }
-
+    
     // Open up the input socket so we can send input data to the OS.
-    Instance->IoSocket = socket(AF_LOCAL, SOCK_DGRAM, 0);
-    LcAddress = (struct sockaddr_lc*)&Instance->InputAddress;
-    LcAddress->slc_len = sizeof(struct sockaddr_lc);
-    LcAddress->slc_family = AF_LOCAL;
-    memcpy(&LcAddress->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT) + 1);
-
+    wm_config.type = wm_client_packet_based;
+    wm_os_get_server_packet_address(&wm_config.address, &wm_config.address_length);
+    if (wm_client_initialize(&wm_config, &Instance->WmClient)) {
+        ERROR("... [ps2] [mouse] [initialize] wm_client_initialize failed %i", errno);
+    }
+    
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2MouseFastInterrupt);
@@ -222,8 +219,8 @@ PS2MouseCleanup(
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
 
+    wm_client_shutdown(Instance->WmClient);
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
-    close(Instance->IoSocket);
     return OsSuccess;
 }

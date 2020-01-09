@@ -32,8 +32,8 @@ struct sockaddr_storage;
 // OS API
 // Generally os-specific utility functions that are needed during execution
 // of the libwm operations
-int wm_os_get_server_address(struct sockaddr_storage*, int*);
-int wm_os_get_input_address(struct sockaddr_storage*, int*);
+int wm_os_get_server_client_address(struct sockaddr_storage*, int*);
+int wm_os_get_server_packet_address(struct sockaddr_storage*, int*);
 int wm_os_thread_set_name(const char*);
 
 #endif // !__LIBWM_OS_H__

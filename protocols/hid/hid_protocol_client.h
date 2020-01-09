@@ -17,25 +17,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * WM Protocol Test
- *  - Spawns a minimal implementation of a wm server to test libwm and the
- *    communication protocols in the os
+ * WM Protocol HID
+ *  - HID protocol implementation used by input devices and the window manager.
  */
 
-#ifndef __PROTOCOL_TEST_H__
-#define __PROTOCOL_TEST_H__
+#ifndef __HID_PROTOCOL_CLIENT_H__
+#define __HID_PROTOCOL_CLIENT_H__
 
-#define PROTOCOL_TEST_ID             0x0D
-#define PROTOCOL_TEST_FUNCTION_COUNT 1
+typedef struct wm_client wm_client_t;
 
-#define PROTOCOL_TEST_PRINT_ID 0x0
+int hid_key_event(wm_client_t* client, int source, uint8_t key_ascii, uint8_t key_code, uint16_t flags, uint32_t key_unicode);
+int hid_pointer_event(wm_client_t* client, int source, uint16_t flags, int16_t rel_x, int16_t rel_y, int16_t rel_z, int16_t buttons_set);
 
-struct test_print_arg {
-    char message[128];
-};
-
-struct test_print_ret {
-    int status;
-};
-
-#endif //!__PROTOCOL_TEST_H__
+#endif //!__HID_PROTOCOL_CLIENT_H__

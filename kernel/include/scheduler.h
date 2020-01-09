@@ -49,14 +49,6 @@ typedef struct list list_t;
 
 #define SCHEDULER_FLAG_BOUND            0x1
 
-typedef enum SchedulerObjectState {
-    SchedulerObjectStateIdle,
-    SchedulerObjectStateQueued,
-    SchedulerObjectStateBlocked,
-    SchedulerObjectStateRunning,
-    SchedulerObjectStateZombie
-} SchedulerObjectState_t;
-
 typedef struct SchedulerObject SchedulerObject_t;
 
 // Low overhead queues that are used by the scheduler, only in

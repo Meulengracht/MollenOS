@@ -24,9 +24,9 @@
 
 #include <libwm_client.h>
 #include <libwm_os.h>
-#include "../wm_server_test/test_protocol.h"
+#include <test/test_protocol.h>
+#include <test/test_protocol_client.h>
 #include <stdio.h>
-#include "test_protocol_client.h"
 
 int main(int argc, char **argv)
 {
@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     int                       code, status;
     
     configuration.type = wm_client_stream_based;
-    wm_os_get_server_address(&configuration.address, &configuration.address_length);
+    wm_os_get_server_client_address(&configuration.address, &configuration.address_length);
     
     code = wm_client_initialize(&configuration, &client);
     if (code) {

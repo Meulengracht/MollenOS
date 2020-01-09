@@ -3,7 +3,11 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/libwm/include -I../../librt/libm/include -I../../librt/libc/include -I../../librt/include
+INCLUDES = -I../../protocols \
+		   -I../../librt/libwm/include \
+		   -I../../librt/libm/include \
+		   -I../../librt/libc/include \
+		   -I../../librt/include
 LIBRARIES = libwm.lib
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)

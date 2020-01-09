@@ -28,27 +28,27 @@
 #include <inet/local.h>
 #include <string.h>
 
-int wm_os_get_server_address(struct sockaddr_storage* address, int* address_length_out)
+int wm_os_get_server_client_address(struct sockaddr_storage* address, int* address_length_out)
 {
     struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
 
     // Prepare the server address.
     memset(local_address, 0, sizeof(struct sockaddr_lc));
-    memcpy(&local_address->slc_addr[0], LCADDR_WM, strlen(LCADDR_WM));
+    memcpy(&local_address->slc_addr[0], LCADDR_WM0, strlen(LCADDR_WM0));
     local_address->slc_len    = sizeof(struct sockaddr_lc);
     local_address->slc_family = AF_LOCAL;
     return 0;
 }
 
-int wm_os_get_input_address(struct sockaddr_storage* address, int* address_length_out)
+int wm_os_get_server_packet_address(struct sockaddr_storage* address, int* address_length_out)
 {
     struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
 
     // Prepare the server address. 
     memset(local_address, 0, sizeof(struct sockaddr_lc));
-    memcpy(&local_address->slc_addr[0], LCADDR_INPUT, strlen(LCADDR_INPUT));
+    memcpy(&local_address->slc_addr[0], LCADDR_WM1, strlen(LCADDR_WM1));
     local_address->slc_len    = sizeof(struct sockaddr_lc);
     local_address->slc_family = AF_LOCAL;
     return 0;
