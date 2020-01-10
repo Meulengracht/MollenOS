@@ -158,12 +158,12 @@ DebugPanic(
     vsprintf(&MessageBuffer[0], Message, Arguments);
     va_end(Arguments);
     LogSetRenderMode(1);
-    LogAppendMessage(LogError, &MessageBuffer[0]);
+    LogAppendMessage(LOG_ERROR, &MessageBuffer[0]);
     
     // Log cpu and threads
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
-        LogAppendMessage(LogError, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
+        LogAppendMessage(LOG_ERROR, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
             CurrentThread->Name, CurrentThread->Handle, CoreId);
     }
     
@@ -315,15 +315,15 @@ DebugMemory(
         if ((i % 16) == 0) {
             // Just don't print ASCII for the zeroth line.
             if (i != 0) {
-                LogAppendMessage(LogRaw, "  %s\n", Buffer);
+                LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
             }
 
             // Output the offset.
-            LogAppendMessage(LogRaw, "  %04x ", i);
+            LogAppendMessage(LOG_RAW, "  %04x ", i);
         }
 
         // Now the hex code for the specific character.
-        LogAppendMessage(LogRaw, " %02x", pc[i]);
+        LogAppendMessage(LOG_RAW, " %02x", pc[i]);
 
         // And store a printable ASCII character for later.
         if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
@@ -337,12 +337,12 @@ DebugMemory(
 
     // Pad out last line if not exactly 16 characters.
     while ((i % 16) != 0) {
-        LogAppendMessage(LogRaw, "   ");
+        LogAppendMessage(LOG_RAW, "   ");
         i++;
     }
 
     // And print the final ASCII bit.
-    LogAppendMessage(LogRaw, "  %s\n", Buffer);
+    LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
     return OsSuccess;
 }
 

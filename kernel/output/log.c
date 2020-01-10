@@ -34,10 +34,10 @@
 #include <threading.h>
 
 typedef struct SystemLogLine {
-    SystemLogType_t Type;
-    UUId_t          CoreId;
-    UUId_t          ThreadHandle;
-    char            Data[128]; // Message
+    int    Type;
+    UUId_t CoreId;
+    UUId_t ThreadHandle;
+    char   Data[128]; // Message
 } SystemLogLine_t;
 
 typedef struct SystemLog {
@@ -51,6 +51,22 @@ typedef struct SystemLog {
     int RenderIndex;
     int AllowRender;
 } SystemLog_t;
+
+static char* TypeDescriptions[] = {
+    "raw",
+    "trace",
+    "debug",
+    "warn",
+    "error"
+};
+
+static uint32_t TypeColors[] = {
+    0x111111,
+    0x99E600,
+    0x2ECC71,
+    0x9B59B6,
+    0xFF392B
+};
 
 static SystemLog_t LogObject                 = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
@@ -94,7 +110,6 @@ LogRenderMessages(void)
         return;
     }
 
-	IrqSpinlockAcquire(&LogObject.SyncObject);
     while (LogObject.RenderIndex != LogObject.LineIndex) {
 
         // Get next line to be rendered
@@ -105,20 +120,20 @@ LogRenderMessages(void)
         Thread = LookupHandleOfType(Line->ThreadHandle, HandleTypeThread);
 
         // Don't give raw any special handling
-        if (Line->Type == LogRaw) {
+        if (Line->Type == LOG_RAW) {
             VideoGetTerminal()->FgColor = 0;
             printf("%s", &Line->Data[0]);
         }
         else {
-            VideoGetTerminal()->FgColor = (uint32_t)Line->Type;
-            printf("[%u-%s] ", Line->CoreId, Thread ? Thread->Name : "boot");
-            if (Line->Type != LogError) {
+            VideoGetTerminal()->FgColor = TypeColors[Line->Type];
+            printf("[%s-%u-%s] ", TypeDescriptions[Line->Type], Line->CoreId, 
+                Thread ? Thread->Name : "boot");
+            if (Line->Type != LOG_ERROR) {
                 VideoGetTerminal()->FgColor = 0;
             }
             printf("%s\n", &Line->Data[0]);
         }
     }
-	IrqSpinlockRelease(&LogObject.SyncObject);
 }
 
 void
@@ -128,14 +143,16 @@ LogSetRenderMode(
     // Update status, flush log
     LogObject.AllowRender = Enable;
     if (Enable) {
+	    IrqSpinlockAcquire(&LogObject.SyncObject);
         LogRenderMessages();
+	    IrqSpinlockRelease(&LogObject.SyncObject);
     }
 }
 
 void
 LogAppendMessage(
-    _In_ SystemLogType_t Type,
-    _In_ const char*     Message,
+    _In_ int         Type,
+    _In_ const char* Message,
     ...)
 {
     SystemLogLine_t* Line;
@@ -147,9 +164,7 @@ LogAppendMessage(
     // Get a new line object
 	IrqSpinlockAcquire(&LogObject.SyncObject);
 	if ((LogObject.LineIndex + 1) % LogObject.NumberOfLines == LogObject.RenderIndex) {
-	    IrqSpinlockRelease(&LogObject.SyncObject);
 	    LogRenderMessages();
-	    IrqSpinlockAcquire(&LogObject.SyncObject);
 	}
 	
     Line = &LogObject.Lines[LogObject.LineIndex++];
@@ -165,6 +180,6 @@ LogAppendMessage(
 	va_start(Arguments, Message);
     vsnprintf(&Line->Data[0], sizeof(Line->Data) - 1, Message, Arguments);
     va_end(Arguments);
-	IrqSpinlockRelease(&LogObject.SyncObject);
 	LogRenderMessages();
+	IrqSpinlockRelease(&LogObject.SyncObject);
 }

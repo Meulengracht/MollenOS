@@ -114,7 +114,7 @@ int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_
     
     // Packets are atomic, iether the full packet is there, or none is. So avoid
     // the use of MSG_WAITALL here.
-    intmax_t bytes_read = recvmsg(socket, &msg, 0);
+    intmax_t bytes_read = recvmsg(socket, &msg, MSG_DONTWAIT);
     if (bytes_read < sizeof(wm_message_t)) {
         if (bytes_read == 0) {
             _set_errno(ENODATA);
@@ -151,7 +151,8 @@ int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_
     TRACE("[wm_connection_recv_stream] %i, 0x%" PRIxIN, socket, message);
     
     // Do not perform wait all here
-    bytes_read = recv(socket, message, sizeof(wm_message_t), 0);
+    TRACE("[wm_connection_recv_stream] reading message header");
+    bytes_read = recv(socket, message, sizeof(wm_message_t), MSG_DONTWAIT);
     if (bytes_read != sizeof(wm_message_t)) {
         if (bytes_read == 0) {
             _set_errno(ENODATA);
@@ -180,6 +181,7 @@ int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_
         assert(message_length <= WM_MAX_MESSAGE_SIZE);
         assert(argument_buffer != NULL);
         
+        TRACE("[wm_connection_recv_stream] reading message payload");
         bytes_read = recv(socket, argument_buffer, 
             message_length - sizeof(wm_message_t), MSG_WAITALL);
         if (bytes_read != message_length - sizeof(wm_message_t)) {

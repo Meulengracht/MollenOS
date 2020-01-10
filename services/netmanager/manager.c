@@ -22,7 +22,7 @@
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/handle.h>
@@ -104,7 +104,7 @@ SocketMonitor(
     OsStatus_t      Status;
     
     _CRT_UNUSED(Context);
-    TRACE("... [socket monitor] starting");
+    TRACE("[socket monitor] starting");
     
     Events = malloc(sizeof(handle_event_t) * NETWORK_MANAGER_MONITOR_MAX_EVENTS);
     if (!Events) {
@@ -115,7 +115,7 @@ SocketMonitor(
         Status = handle_set_wait(SocketSet, Events,
             NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, &EventCount);
         if (Status != OsSuccess) {
-            ERROR("... [socket_monitor] WaitForHandleSet FAILED: %u", Status);
+            ERROR("[socket_monitor] WaitForHandleSet FAILED: %u", Status);
             continue;
         }
         

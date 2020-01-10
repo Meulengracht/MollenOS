@@ -28,14 +28,11 @@
 #define LOG_INITIAL_SIZE   (1024 * 4)
 #define LOG_PREFFERED_SIZE (1024 * 65)
 
-typedef enum _SystemLogType {
-    LogTrace   = 0x99E600,
-    LogRaw     = 0x111111,
-    LogPipe    = 0xEE2244,
-    LogDebug   = 0x2ECC71,
-    LogWarning = 0x9B59B6,
-    LogError   = 0xFF392B
-} SystemLogType_t;
+#define LOG_RAW     0
+#define LOG_TRACE   1
+#define LOG_DEBUG   2
+#define LOG_WARNING 3
+#define LOG_ERROR   4
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
@@ -60,8 +57,8 @@ LogSetRenderMode(
  * reaches the end wrap-around will happen. */
 KERNELAPI void KERNELABI
 LogAppendMessage(
-    _In_ SystemLogType_t Type,
-    _In_ const char*     Message,
+    _In_ int         Type,
+    _In_ const char* Message,
     ...);
 
 #endif // !__LOGGING_INTERFACE__

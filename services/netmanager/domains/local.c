@@ -140,6 +140,7 @@ HandleSocketStreamData(
                 return OsSuccess;
             }
         }
+        DoRead = 1;
         
         BytesWritten = streambuffer_stream_out(TargetStream, &TemporaryBuffer[0], 
             BytesRead, STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
@@ -157,7 +158,6 @@ HandleSocketStreamData(
         if (BytesRead < sizeof(TemporaryBuffer)) {
             break;
         }
-        DoRead++;
     }
     handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
     return OsSuccess;
@@ -229,6 +229,7 @@ HandleSocketPacketData(
             streambuffer_read_packet_data(SourceStream, Buffer, BytesRead, &State);
             streambuffer_read_packet_end(SourceStream, Base, BytesRead);
         }
+        DoRead = 1;
         
         TargetSocket = ProcessSocketPacket(Socket, Buffer, BytesRead);
         if (TargetSocket) {
@@ -430,7 +431,7 @@ AcceptConnectionRequest(
     _In_ thrd_t    ConnectWaiter)
 {
     AcceptSocketPackage_t Package = { 0 };
-    IpcMessage_t          Message;
+    IpcMessage_t          Message = { 0 };
     TRACE("[net_manager] [accept_request]");
     
     // Get address of the connector socket

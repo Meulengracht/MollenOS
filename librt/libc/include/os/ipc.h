@@ -56,19 +56,19 @@
 #define IPC_ASYNCHRONOUS      0x00000001
 #define IPC_NO_RESPONSE       0x00000002
 
-typedef struct {
+typedef struct IpcUntypedArgument {
     void*  Buffer;
     size_t Length;
 } IpcUntypedArgument_t;
 
-typedef struct {
+typedef struct IpcMessage {
     size_t               MetaLength;
     thrd_t               Sender;
     size_t               TypedArguments[IPC_MAX_ARGUMENTS];
     IpcUntypedArgument_t UntypedArguments[IPC_MAX_ARGUMENTS];
 } IpcMessage_t;
 
-typedef struct {
+typedef struct IpcArena {
     _Atomic(int) WriteSyncObject;
     _Atomic(int) ReadSyncObject;
     _Atomic(int) ResponseSyncObject;

@@ -159,7 +159,7 @@ RegisterHandlePath(
     UUId_t          ExistingHandle;
     char*           PathKey;
     OsStatus_t      Status;
-    WARNING("[handle_register_path] %u => %s", Handle, Path);
+    TRACE("[handle_register_path] %u => %s", Handle, Path);
     
     if (!Path) {
         ERROR("[handle_register_path] path invalid");
@@ -194,8 +194,6 @@ RegisterHandlePath(
     smp_wmb();
     
     list_append(&PathRegister, Instance->PathHeader);
-
-    WARNING("[handle_register_path] registered");
     return OsSuccess;
 }
 
@@ -209,7 +207,7 @@ LookupHandleByPath(
     
     Instance = list_find_value(&PathRegister, (void*)Path);
     if (!Instance) {
-        WARNING("[handle_lookup_by_path] not found");
+        WARNING("[handle_lookup_by_path] %s not found", Path);
         return OsDoesNotExist;
     }
     
@@ -475,7 +473,7 @@ ControlHandleSet(
         SetElement->Context       = Context;
     }
     else if (Operation == IO_EVT_DESCRIPTOR_DEL) {
-        rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, (void*)Handle);
+        rb_leaf_t* Leaf = rb_tree_remove(&Set->Handles, (void*)Handle);
         if (!Leaf) {
             return OsDoesNotExist;
         }

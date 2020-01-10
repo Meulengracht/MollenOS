@@ -22,7 +22,7 @@
  *    the less priority it gets, however longer timeslices it gets.
  */
 
-#define __MODULE "SCHE"
+#define __MODULE "[scheduler]"
 //#define __TRACE
 
 #include <assert.h>
@@ -45,13 +45,13 @@
 #define EVENT_BLOCK        3
 #define EVENT_SCHEDULE     4
 
-#define STATE_INVALID  -1
-#define STATE_INITIAL  0
-#define STATE_QUEUEING 1 // Transition State
-#define STATE_QUEUED   2
-#define STATE_BLOCKING 3 // Transition State
-#define STATE_BLOCKED  4
-#define STATE_RUNNING  5
+#define STATE_INVALID  0
+#define STATE_INITIAL  1
+#define STATE_QUEUEING 2 // Transition State
+#define STATE_QUEUED   3
+#define STATE_BLOCKING 4 // Transition State
+#define STATE_BLOCKED  5
+#define STATE_RUNNING  6
 
 typedef struct SchedulerObject {
     element_t               Header;
@@ -70,19 +70,53 @@ typedef struct SchedulerObject {
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
 
-// Initial => Queueing (EVENT_QUEUE)
+static struct Transition {
+    int SourceState;
+    int Event;
+    int TargetState;
+} StateTransitions[] = {
+    { STATE_INITIAL, EVENT_QUEUE, STATE_QUEUEING },
+    { STATE_QUEUEING, EVENT_QUEUE_FINISH, STATE_QUEUED },
+    { STATE_QUEUED, EVENT_EXECUTE, STATE_RUNNING },
+    { STATE_RUNNING, EVENT_SCHEDULE, STATE_QUEUEING },
+    { STATE_RUNNING, EVENT_BLOCK, STATE_BLOCKING },
+    { STATE_BLOCKING, EVENT_QUEUE, STATE_RUNNING },
+    { STATE_BLOCKING, EVENT_SCHEDULE, STATE_BLOCKED },
+    { STATE_BLOCKED, EVENT_QUEUE, STATE_QUEUEING }
+};
 
-// Running => Blocking (EVENT_BLOCK)
-// Running => Queueing (EVENT_SCHEDULE)
+static char* EventDescriptions[] = {
+    "EVENT_EXECUTE",
+    "EVENT_QUEUE",
+    "EVENT_QUEUE_FINISH",
+    "EVENT_BLOCK",
+    "EVENT_SCHEDULE"
+};
 
-// Queueing => Queued  (EVENT_QUEUE_FINISH)
+static char* StateDescriptions[] = {
+    "STATE_INVALID",
+    "STATE_INITIAL",
+    "STATE_QUEUEING",
+    "STATE_QUEUED",
+    "STATE_BLOCKING",
+    "STATE_BLOCKED",
+    "STATE_RUNNING"
+};
 
-// Blocking => Running (EVENT_QUEUE)
-// Blocking => Blocked (EVENT_SCHEDULE)
-
-// Blocked => Queueing (EVENT_QUEUE)
-
-// Queued => Running   (EVENT_EXECUTE)
+static int
+GetAvailableTransition(
+    _In_ int State,
+    _In_ int Event)
+{
+    int i;
+    for (i = 0; i < SIZEOF_ARRAY(StateTransitions); i++) {
+        struct Transition* Transition = &StateTransitions[i];
+        if (Transition->SourceState == State && Transition->Event == Event) {
+            return Transition->TargetState;            
+        }
+    }
+    return STATE_INVALID;
+}
 
 static int
 ExecuteEvent(
@@ -94,56 +128,7 @@ ExecuteEvent(
     int Update;
     
 TryAgain:
-    ResultState = STATE_INVALID;
-    switch (State) {
-        case STATE_INITIAL: {
-            switch (Event) {
-                case EVENT_QUEUE: ResultState = STATE_QUEUEING; break;
-                default: break;
-            }
-        } break;
-        
-        case STATE_QUEUEING: {
-            switch (Event) {
-                case EVENT_QUEUE_FINISH: ResultState = STATE_QUEUED; break;
-                default: break;
-            } break;
-        } break;
-        
-        case STATE_QUEUED: {
-            switch (Event) {
-                case EVENT_EXECUTE: ResultState = STATE_RUNNING; break;
-                default: break;
-            } break;
-        } break;
-        
-        case STATE_BLOCKING: {
-            switch (Event) {
-                case EVENT_QUEUE: ResultState = STATE_RUNNING; break;
-                case EVENT_SCHEDULE: ResultState = STATE_BLOCKED; break;
-                default: break;
-            } break;
-        } break;
-        
-        case STATE_BLOCKED: {
-            switch (Event) {
-                case EVENT_QUEUE: ResultState = STATE_QUEUEING; break;
-                default: break;
-            } break;
-        } break;
-        
-        case STATE_RUNNING: {
-            switch (Event) {
-                case EVENT_SCHEDULE: ResultState = STATE_QUEUEING; break;
-                case EVENT_BLOCK: ResultState = STATE_BLOCKING; break;
-                default: break;
-            } break;
-        } break;
-        
-        default:
-            break;
-    }
-    
+    ResultState = GetAvailableTransition(State, Event);
     if (ResultState != STATE_INVALID) {
         Update = atomic_compare_exchange_strong(&Object->State, &State, ResultState);
         if (!Update) {
@@ -151,9 +136,12 @@ TryAgain:
         }
     }
     else {
-        WARNING("[scheduler] [execute_event] invalid event %i in state %i", State, Event);
+        WARNING("[scheduler] [execute_event] invalid %s in %s", 
+            EventDescriptions[Event], StateDescriptions[State]);
     }
     
+    TRACE("[scheduler] [execute_event] %s, %s => %s",
+        EventDescriptions[Event], StateDescriptions[State], StateDescriptions[ResultState]);
     return ResultState;
 }
 
@@ -170,6 +158,14 @@ SchedulerGetCurrentObject(
 {
     return (GetProcessorCore(CoreId)->CurrentThread != NULL) ? 
         GetProcessorCore(CoreId)->CurrentThread->SchedulerObject : NULL;
+}
+
+static const char*
+GetNameOfObject(
+    _In_ SchedulerObject_t* Object)
+{
+    MCoreThread_t* Thread = Object->Object;
+    return (const char*)Thread->Name;
 }
 
 static void
@@ -228,6 +224,8 @@ QueueForScheduler(
     _In_ SchedulerObject_t* Object,
     _In_ int                OutsideAdvance)
 {
+    int ResultState;
+    
     // Verify it doesn't exist in sleep queue, and check both the case where
     // it is the end of the list and if it's not
     if (Object->Link != NULL ||
@@ -236,26 +234,13 @@ QueueForScheduler(
         RemoveFromQueue(&Scheduler->SleepQueue, Object);
     }
     
-    // Because of possible race conditions between Block/Unblock
-    // it could be possible that we reach here before we have yielded
-    // the task that has been blocked/unblocked quickly, check if the
-    // current object equals this object. This is only valid for non-regular
-    // scheduling
-    if (OutsideAdvance && 
-        Object == SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
-        // If this should happen, then we should try to stop the block
-        // from occurring. So we switch the state to Running and ignore this
-        WARNING("[scheduler] [queue] detected race condition. skipping queueing of object 0x%" PRIxIN, Object);
-        atomic_store(&Object->State, STATE_RUNNING);
-        return;
+    ResultState = ExecuteEvent(Object, EVENT_QUEUE_FINISH);
+    if (ResultState == STATE_INVALID) {
+        FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [queue] object was NOT in correct state for queueing");
     }
-    
-    ExecuteEvent(Object, EVENT_QUEUE_FINISH);
     AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
 }
 
-// Accepted Object States:
-// - Queueing
 static void
 QueueOnCoreFunction(
     _In_ void* Context)
@@ -268,8 +253,6 @@ QueueOnCoreFunction(
     }
 }
 
-// Accepted Object States:
-// - Queueing
 static inline OsStatus_t
 QueueObjectImmediately(
     _In_ SchedulerObject_t* Object)
@@ -374,8 +357,6 @@ SchedulerCreateObject(
     return Object;
 }
 
-// Accepted Object States:
-// - ALL
 void
 SchedulerDestroyObject(
     _In_ SchedulerObject_t* Object)
@@ -397,6 +378,7 @@ SchedulerSleep(
 {
     SchedulerObject_t* Object;
     int                ResultState;
+    TRACE("[scheduler] [sleep] %" PRIuIN, Milliseconds);
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!Object) {
@@ -405,14 +387,14 @@ SchedulerSleep(
         return SCHEDULER_SLEEP_OK;
     }
     
-    // We don't check return state here as we can only ever be in running
-    // state at this point
-    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
-    
     Object->TimeLeft        = Milliseconds;
     Object->Timeout         = 0;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = NULL;
+    
+    // We don't check return state here as we can only ever be in running
+    // state at this point
+    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
@@ -433,19 +415,20 @@ SchedulerBlock(
 {
     SchedulerObject_t* Object;
     int                ResultState;
+    TRACE("[scheduler] [block] %" PRIuIN, Timeout);
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(Object != NULL);
-    
-    // We don't check return state here as we can only ever be in running
-    // state at this point
-    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
     
     Object->TimeLeft        = Timeout;
     Object->Timeout         = 0;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = BlockQueue;
 
+    // We don't check return state here as we can only ever be in running
+    // state at this point
+    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
+    
     // For now the lists include a lock, which perform memory barriers
     list_append(BlockQueue, &Object->Header);
 }
@@ -455,6 +438,7 @@ SchedulerUnblockObject(
     _In_ SchedulerObject_t* Object)
 {
     int ResultState;
+    TRACE("[scheduler] [unblock]");
     
     ResultState = ExecuteEvent(Object, EVENT_QUEUE);
     if (ResultState != STATE_INVALID) {
@@ -474,18 +458,21 @@ SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object)
 {
     int ResultState;
+    TRACE("[scheduler] [expedite]");
     
     ResultState = ExecuteEvent(Object, EVENT_QUEUE);
     if (ResultState != STATE_INVALID) {
-        // Either sleeping, which means we'll interrupt it immediately
-        // or it's waiting for in a block queue
         if (Object->WaitQueueHandle != NULL) {
             (void)list_remove(Object->WaitQueueHandle, &Object->Header);
         }
-        
-        // We removed it, activate its timeout
         TimersGetSystemTick(&Object->InterruptedAt);
-        QueueObjectImmediately(Object);
+        
+        // Either the resulting state is RUNNING which means we cancelled the block,
+        // the rest is then up to the scheduler, or we update the state to QUEUEING,
+        // which means we must initiate a queue operation.
+        if (ResultState == STATE_QUEUEING) {
+            QueueObjectImmediately(Object);
+        }
     }
     else {
         WARNING("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
@@ -496,7 +483,10 @@ OsStatus_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* Object)
 {
-    int ResultState;
+    OsStatus_t Status = OsSuccess;
+    int        ResultState;
+    
+    TRACE("[scheduler] [queue]");
     
     assert(Object != NULL);
     
@@ -505,7 +495,14 @@ SchedulerQueueObject(
         WARNING("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
         return OsInvalidParameters;    
     }
-    return QueueObjectImmediately(Object);
+    
+    // Either the resulting state is RUNNING which means we cancelled the block,
+    // the rest is then up to the scheduler, or we update the state to QUEUEING,
+    // which means we must initiate a queue operation.
+    if (ResultState == STATE_QUEUEING) {
+        Status = QueueObjectImmediately(Object);
+    }
+    return Status;
 }
 
 int
@@ -627,12 +624,12 @@ HandleObjectRequeue(
     
     ResultState = ExecuteEvent(Object, EVENT_SCHEDULE);
     if (ResultState == STATE_INVALID) {
-        FATAL(FATAL_SCOPE_KERNEL, "Encounted a state in scheduler that was not running/blocking");
+        FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [advance] encounted a state that was not running/blocking");
     }
     
     // Accepted outcome states currently are QUEUEING & BLOCKED
     if (ResultState == STATE_QUEUEING) {
-        TRACE("...reschedule");
+        TRACE("[scheduler] [advance] reschedule");
         // Did it yield itself?
         if (Preemptive) {
             // Nah, we interrupted it, demote it for that unless we are at max
@@ -644,7 +641,7 @@ HandleObjectRequeue(
         QueueForScheduler(Scheduler, Object, 0);
     }
     else if (Object->TimeLeft != 0) {
-        TRACE("...sleep 0x%llx (Head 0x%llx, Tail 0x%llx)", 
+        TRACE("[scheduler] [advance] sleep 0x%llx (Head 0x%llx, Tail 0x%llx)", 
             Object->Link, Scheduler->SleepQueue.Head, Scheduler->SleepQueue.Tail);
         // OK, so the we are blocking this object which means we won't be
         // queuing the object up again, should we track the sleep?
@@ -678,7 +675,7 @@ SchedulerAdvance(
         Object->TimeSliceLeft -= MillisecondsPassed;
         NextDeadline           = SchedulerUpdateSleepQueue(Scheduler, NULL, MillisecondsPassed);
         *NextDeadlineOut       = MIN(Object->TimeSliceLeft, NextDeadline);
-        TRACE("...redeploy next deadline %llu", *NextDeadlineOut);
+        TRACE("[scheduler] [advance] redeploy next deadline %llu", *NextDeadlineOut);
         return Object->Object;
     }
 

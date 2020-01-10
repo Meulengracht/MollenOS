@@ -40,8 +40,8 @@
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
-#define TRACE(...) LogAppendMessage(LogTrace, __VA_ARGS__)
-#define TRACE2(...) LogAppendMessage(LogTrace, "[" __MODULE "] [" __func__ "] " __VA_ARGS__)
+#define TRACE(...) LogAppendMessage(LOG_TRACE, __VA_ARGS__)
+#define TRACE2(...) LogAppendMessage(LOG_TRACE, "[" __MODULE "] [" __func__ "] " __VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -52,9 +52,9 @@
 #define FATAL_SCOPE_PROCESS       	0x00000002
 #define FATAL_SCOPE_THREAD         	0x00000003
 
-#define WRITELINE(...)              LogAppendMessage(LogDebug, __VA_ARGS__)
-#define WARNING(...)                LogAppendMessage(LogWarning, __VA_ARGS__)
-#define ERROR(...)              	LogAppendMessage(LogError, __VA_ARGS__)
+#define WRITELINE(...)              LogAppendMessage(LOG_DEBUG, __VA_ARGS__)
+#define WARNING(...)                LogAppendMessage(LOG_WARNING, __VA_ARGS__)
+#define ERROR(...)              	LogAppendMessage(LOG_ERROR, __VA_ARGS__)
 #define FATAL(Scope, ...)         	DebugPanic(Scope, NULL, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message)   	DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)
 

@@ -207,6 +207,7 @@ NextPowerOfTwo(size_t Value)
 #define ADDLIMIT(Base, Current, Step, Limit)    ((Current + Step) >= Limit) ? Base : (Current + Step) 
 #define ALIGN(Val, Alignment, Roundup)          ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 #define ISALIGNED(Val, Alignment)               ((Val & (Alignment-1)) == 0)
+#define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
 #ifdef __COMPILE_ASSERT
