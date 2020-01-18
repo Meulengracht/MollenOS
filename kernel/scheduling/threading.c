@@ -499,7 +499,7 @@ EnterProtectedThreadLevel(void)
     // Create the ipc arena pointer that will be user accessible
     Status = MemorySpaceMap(GetCurrentMemorySpace(),
         (VirtualAddress_t*)&Thread->ArenaUserPointer, &Thread->ArenaPhysicalAddress,
-        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT,
+        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY | MAPPING_PERSISTENT,
         MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "... failed to create user ipc arena for thread: %u", Status);

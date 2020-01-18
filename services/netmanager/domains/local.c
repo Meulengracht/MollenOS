@@ -217,19 +217,23 @@ HandleSocketPacketData(
             size_t BytesRead = streambuffer_read_packet_start(SourceStream, 
                 STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesRead) {
+                TRACE("[socket] [local] [send_packet] no bytes to read");
                 break;
             }
 
             // Read the entire packet in one go, then process the data
             Buffer = malloc(BytesRead);
             if (!Buffer) {
+                ERROR("[socket] [local] [send_packet] out of memory, failed to allocate buffer");
                 return OsOutOfMemory;
             }
             
             streambuffer_read_packet_data(SourceStream, Buffer, BytesRead, &State);
             streambuffer_read_packet_end(SourceStream, Base, BytesRead);
         }
-        DoRead = 1;
+        else {
+            DoRead = 1;
+        }
         
         TargetSocket = ProcessSocketPacket(Socket, Buffer, BytesRead);
         if (TargetSocket) {

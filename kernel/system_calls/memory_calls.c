@@ -20,7 +20,7 @@
  * Memory related system call implementations
  */
 
-#define __MODULE "SCIF"
+#define __MODULE "sc_mem"
 //#define __TRACE
 
 #include <ddk/memory.h>
@@ -51,7 +51,7 @@ ScMemoryAllocate(
     Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     int                  PageCount;
     uintptr_t*           Pages; 
-    TRACE("[sc_allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);
+    TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);
     
     if (!Length || !MemoryOut) {
         return OsInvalidParameters;
@@ -84,9 +84,7 @@ ScMemoryAllocate(
     Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, 
         MemoryFlags, PlacementFlags);
     if (Status == OsSuccess) {
-        TRACE("[sc_allocate] address 0x%" PRIxIN, AllocatedAddress);
         *MemoryOut = (void*)AllocatedAddress;
-        
         if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
             memset((void*)AllocatedAddress, 0, Length);
         }
@@ -104,7 +102,7 @@ ScMemoryFree(
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
     }
-    TRACE("[sc_unmap] address 0x%" PRIxIN ", length 0x%" PRIxIN, Address, Size);
+    TRACE("[sc_mem] [unmap] address 0x%" PRIxIN ", length 0x%" PRIxIN, Address, Size);
     return MemorySpaceUnmap(Space, Address, Size);
 }
 
@@ -135,7 +133,7 @@ ScDmaCreate(
         return OsInvalidParameters;
     }
     
-    TRACE("ScDmaCreate(%u, 0x%x)", LODWORD(info->length), info->flags);
+    TRACE("[sc_mem] [dma_create] %u, 0x%x", LODWORD(info->length), info->flags);
 
     if (info->flags & DMA_PERSISTANT) {
         Flags |= MAPPING_PERSISTENT;
@@ -251,11 +249,12 @@ ScDmaAttachmentMap(
     Length = MIN(attachment->length, Region->Length);
     Offset = (Region->Pages[0] % GetMemorySpacePageSize());
     
-    TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
+    TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity));
     Status = MemorySpaceMapReserved(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Address, Region->Capacity + Offset, 
+        (VirtualAddress_t*)&Address, Region->Capacity, 
         MAPPING_USERSPACE | MAPPING_PERSISTENT, MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
+        MutexUnlock(&Region->SyncObject);
         return Status;
     }
     
@@ -316,8 +315,8 @@ ScDmaAttachmentUnmap(
     Offset   = Address % GetMemorySpacePageSize();
     Address -= Offset;
     
-    TRACE("... free vmem mappings of length 0x%x", LODWORD(Region->Capacity + Offset));
-    return ScMemoryFree(Address, Region->Capacity + Offset);
+    TRACE("... free vmem mappings of length 0x%x", LODWORD(Region->Capacity));
+    return ScMemoryFree(Address, Region->Capacity);
 }
 
 OsStatus_t

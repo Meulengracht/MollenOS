@@ -68,7 +68,7 @@ ScIpcReply(
     IpcArena_t*    IpcArena;
     size_t         BytesToReply;
     OsStatus_t     Status;
-    TRACE("[ipc] [reply] buffer 0x%" PRIxIN, ", length 0x%" PRIxIN, Buffer, Length);
+    TRACE("[ipc] [reply] buffer 0x%" PRIxIN ", length 0x%" PRIxIN, Buffer, Length);
     
     if (!Target) {
         ERROR("[ipc] [reply] failed to find thread %u", Message->Sender);
@@ -82,11 +82,6 @@ ScIpcReply(
     memcpy(&IpcArena->Buffer[IPC_RESPONSE_LOCATION], Buffer, BytesToReply);
     atomic_store(&IpcArena->ResponseSyncObject, 1);
     smp_mb();
-    
-    if (!strcmp(Target->Name, "wmsrv.app")) {
-        WARNING("[ipc] [reply] buffer 0x%" PRIxIN, ", length 0x%" PRIxIN, Buffer, Length);
-        WARNING("[ipc] [reply] 0x%" PRIxIN, &IpcArena->ResponseSyncObject);
-    }
     
     Status = FutexWake(&IpcArena->ResponseSyncObject, 1, 0);
     if (Status != OsSuccess) {
@@ -106,7 +101,7 @@ ScIpcListen(
     IpcArena_t*    IpcArena  = Current->ArenaKernelPointer;
     IpcArena_t*    UserArena = Current->ArenaUserPointer;
     int            SyncValue;
-    TRACE("%s => ScIpcListen()", Current->Name);
+    TRACE("[ipc] [listen]");
 
     // Clear the WriteSyncObject
     atomic_store(&IpcArena->WriteSyncObject, 0);
@@ -121,7 +116,6 @@ ScIpcListen(
         SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
     }
 
-    TRACE("... received ipc");
     *MessageOut = &UserArena->Message;
     return OsSuccess;
 }
@@ -150,18 +144,12 @@ ScIpcGetResponse(
     IpcArena_t*    IpcArena  = Current->ArenaKernelPointer;
     IpcArena_t*    UserArena = Current->ArenaUserPointer; // Use the user pointer here
     int            SyncValue;
-    TRACE("%s => ScIpcGetResponse()", Current->Name);
+    TRACE("[ipc] [get_response]");
     
     // Wait for response by 'polling' the value
     SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
     while (!SyncValue) {
         OsStatus_t Status = FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout);
-        if (!strcmp(Current->Name, "wmsrv.app")) {
-            WARNING("[ipc] [get_response] %u (%i) 0x%" PRIxIN,
-                Status, atomic_load(&IpcArena->ResponseSyncObject),
-                &IpcArena->ResponseSyncObject);
-        }
-        
         if (Status == OsTimeout) {
             return OsTimeout;
         }
@@ -216,15 +204,15 @@ ScIpcInvoke(
             // Events that don't have a response do not support longer arguments than 512 bytes.
             if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD && !(Flags & IPC_NO_RESPONSE)) {
                 VirtualAddress_t CopyAddress;
-                size_t           OffsetInPage = ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize());
-                OsStatus_t       Status = CloneMemorySpaceMapping(
+                size_t     OffsetInPage = ((uintptr_t)Message->UntypedArguments[i].Buffer % GetMemorySpacePageSize());
+                OsStatus_t Status       = CloneMemorySpaceMapping(
                     GetCurrentMemorySpace(), Target->MemorySpace,
                     (VirtualAddress_t)Message->UntypedArguments[i].Buffer,
                     &CopyAddress, Message->UntypedArguments[i].Length + OffsetInPage,
                     MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
                     MAPPING_VIRTUAL_PROCESS);
                 if (Status != OsSuccess) {
-                    ERROR("Failed to clone ipc argument that was longer than 512 bytes");
+                    ERROR("[ipc_invoke] Failed to clone ipc argument that was longer than 512 bytes");
                     CleanupMessage(Target, &IpcArena->Message);
                     atomic_store(&IpcArena->WriteSyncObject, 0);
                     (void)FutexWake(&IpcArena->WriteSyncObject, 1, 0);
@@ -241,7 +229,7 @@ ScIpcInvoke(
                 assert(BytesAvailable != 0);
                 
                 if (Message->UntypedArguments[i].Length > IPC_UNTYPED_THRESHOLD) {
-                    WARNING("Event with more than IPC_UNTYPED_THRESHOLD bytes of data for an argument");
+                    WARNING("[ipc_invoke] Event with more than IPC_UNTYPED_THRESHOLD bytes of data for an argument");
                 }
                 memcpy(&IpcArena->Buffer[BufferIndex], 
                     Message->UntypedArguments[i].Buffer, ClampedLength);

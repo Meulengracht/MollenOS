@@ -567,14 +567,14 @@ BulkGetStatus(
         else {
             ERROR("Failed to retrieve the CSW block, transfer-code %u", Result->Status);
         }
+        return Result->Status;
     }
     else {        
         // If the host receives a CSW which is not valid, 
         // then the host shall perform a Reset Recovery. If the host receives
         // a CSW which is not meaningful, then the host may perform a Reset Recovery.
-        Result->Status = MsdSanitizeResponse(Device, Device->StatusBlock);
+        return MsdSanitizeResponse(Device, Device->StatusBlock);
     }
-    return Result->Status;
 }
 
 MsdOperations_t BulkOperations = {

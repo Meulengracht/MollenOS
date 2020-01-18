@@ -291,13 +291,16 @@ CpuInvalidateMemoryCache(
     _In_Opt_ size_t Length)
 {
     if (Start == NULL) {
+        // TODO: disable PGE bit
         memory_reload_cr3();
     }
     else {
+        uintptr_t Offset       = ((uintptr_t)Start) & ATTRIBUTE_MASK;
+        size_t    AdjustLength = Offset + Length;
         uintptr_t StartAddress = ((uintptr_t)Start) & PAGE_MASK;
-        uintptr_t EndAddress   = StartAddress + Length + PAGE_MASK;
-        for (uintptr_t i = StartAddress; i < EndAddress; i += PAGE_SIZE) {
-            memory_invalidate_addr(i);
+        uintptr_t EndAddress   = ((StartAddress + AdjustLength) & PAGE_MASK) + PAGE_SIZE;
+        for (; StartAddress < EndAddress; StartAddress += PAGE_SIZE) {
+            memory_invalidate_addr(StartAddress);
         }
     }
 }

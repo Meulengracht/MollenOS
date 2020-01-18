@@ -12,7 +12,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/c.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll
+LFLAGS = /nodefaultlib /lldmap /subsystem:native /entry:__CrtModuleEntry /dll
 
 .PHONY: all
 all: ../../build/msd.dll ../../build/msd.mdrv
