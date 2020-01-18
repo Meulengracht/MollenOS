@@ -406,8 +406,8 @@ ControlHandleSet(
     SystemHandle_t*           Instance;
     SystemHandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     SystemHandleSetElement_t* SetElement;
-    WARNING("[handle_set] [control] %u, %i, %u", 
-        LODWORD(SetHandle), Operation, LODWORD(Handle));
+    WARNING("[handle_set] [control] %u, %i, %u, 0x%x", 
+        LODWORD(SetHandle), Operation, LODWORD(Handle), Flags);
     
     if (!Set) {
         return OsDoesNotExist;

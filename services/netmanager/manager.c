@@ -65,26 +65,33 @@ HandleSocketEvent(
     }
     
     // Sanitize the number of pending packets, it must be 0 for us to continue
-    if (atomic_load(&Socket->PendingPackets)) {
-        // Already packets pending, ignore the event
-        WARNING("[socket_monitor] socket already has data pending");
+    if (mtx_lock(&Socket->SyncObject) != thrd_success) {
         return;
     }
     
-    // Make sure the socket is not passive, they are not allowed to send data
-    if (Socket->Configuration.Passive) {
-        ERROR("[socket_monitor] passive socket sent data, this is no-go");
-        return;
+    if (atomic_load(&Socket->PendingPackets)) {
+        // Already packets pending, ignore the event
+        WARNING("[socket_monitor] socket already has data pending");
+        goto Exit;
     }
     
     // Data has been sent to the socket, process it and forward
     if (Event->events & IOEVTOUT) {
+        // Make sure the socket is not passive, they are not allowed to send data
+        if (Socket->Configuration.Passive) {
+            ERROR("[socket_monitor] passive socket sent data, this is no-go");
+            goto Exit;
+        }
+    
         OsStatus_t Status = DomainSend(Socket);
         if (Status != OsSuccess) {
             // TODO deliver ESOCKPIPE signal to process
             // proc_signal()
         }
     }
+    
+Exit:
+    mtx_unlock(&Socket->SyncObject);
 }
 
 // socket_monitor thread:
@@ -239,6 +246,7 @@ NetworkManagerSocketShutdown(
         return OsDoesNotExist;
     }
     
+    mtx_lock(&Socket->SyncObject);
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
         if (Socket->Configuration.Connected) {
             DomainDisconnect(Socket);
@@ -251,7 +259,12 @@ NetworkManagerSocketShutdown(
             assert(0);
         }
     }
-    return SocketShutdownImpl(Socket, Options);
+    
+    Status = SocketShutdownImpl(Socket, Options);
+    if (!(Options & SOCKET_SHUTDOWN_DESTROY)) {
+        mtx_unlock(&Socket->SyncObject);
+    }
+    return Status;
 }
 
 OsStatus_t

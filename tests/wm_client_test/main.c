@@ -35,7 +35,8 @@ int main(int argc, char **argv)
     int                       code, status;
     
     configuration.type = wm_client_packet_based;
-    wm_os_get_server_client_address(&configuration.address, &configuration.address_length);
+    wm_os_get_server_packet_address(&configuration.address, &configuration.address_length);
+    //wm_os_get_server_client_address(&configuration.address, &configuration.address_length);
     
     code = wm_client_initialize(&configuration, &client);
     if (code) {

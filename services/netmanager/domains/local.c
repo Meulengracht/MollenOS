@@ -173,16 +173,18 @@ ProcessSocketPacket(
     uint8_t*          Pointer = (uint8_t*)PacketData;
     Socket_t*         TargetSocket;
     struct sockaddr*  Address;
-    TRACE("ProcessSocketPacket()");
+    TRACE("[socket] [local] [process_packet]");
 
     // Skip header, pointer now points to the address data
     Pointer += sizeof(struct packethdr);
     if (Packet->addresslen) {
         Address      = (struct sockaddr*)Pointer;
+        TRACE("[socket] [local] [process_packet] target address %s", &Address->sa_data[0]);
         TargetSocket = GetSocketFromAddress(Address);
         Pointer     += Packet->addresslen;
     }
     else {
+        TRACE("[socket] [local] [process_packet] no target address provided");
         // Are we connected to a socket?
         TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
     }
@@ -217,7 +219,6 @@ HandleSocketPacketData(
             size_t BytesRead = streambuffer_read_packet_start(SourceStream, 
                 STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesRead) {
-                TRACE("[socket] [local] [send_packet] no bytes to read");
                 break;
             }
 
@@ -248,6 +249,9 @@ HandleSocketPacketData(
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
             handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
+        }
+        else {
+            WARNING("[socket] [local] [send_packet] target was not found");
         }
         free(Buffer);
     }

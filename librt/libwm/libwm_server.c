@@ -117,6 +117,13 @@ static int create_dgram_socket(wm_server_configuration_t* configuration)
     
     status = bind(wm_server_context.dgram_socket, sstosa(&configuration->dgram_address),
         configuration->dgram_address_length);
+    if (status) {
+        return -1;
+    }
+    
+    // Listen for input events on the dgram socket
+    status = io_set_ctrl(wm_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
+        wm_server_context.dgram_socket, IOEVTIN);
     return status;
 }
 

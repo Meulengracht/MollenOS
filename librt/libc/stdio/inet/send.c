@@ -49,28 +49,33 @@ static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr*
 
 static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* msg, int flags, unsigned int sb_options)
 {
-    intmax_t         numbytes   = 0;
-    size_t           total_len  = msg->msg_namelen + msg->msg_controllen;
-    streambuffer_t*  stream     = handle->object.data.socket.send_buffer.buffer;
+    intmax_t         numbytes    = 0;
+    size_t           payload_len = 0;
+    size_t           meta_len    = sizeof(struct packethdr) + msg->msg_namelen + msg->msg_controllen;
+    streambuffer_t*  stream      = handle->object.data.socket.send_buffer.buffer;
     struct packethdr packet;
     size_t           avail_len;
     unsigned int     base, state;
     int              i;
     
+    // Writing an packet is an atomic action and the entire packet must be written
+    // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
+    sb_options &= ~(STREAMBUFFER_ALLOW_PARTIAL);
+    
     // Otherwise we must build a packet, to do this we need to know the entire
     // length of the message before committing.
     for (i = 0; i < msg->msg_iovlen; i++) {
-        total_len += msg->msg_iov[i].iov_len;
+        payload_len += msg->msg_iov[i].iov_len;
     }
     
     packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
     packet.controllen = msg->msg_controllen;
     packet.addresslen = msg->msg_namelen;
-    packet.payloadlen = total_len - msg->msg_namelen - msg->msg_controllen;
+    packet.payloadlen = payload_len;
     
     avail_len = streambuffer_write_packet_start(stream, 
-        total_len, sb_options, &base, &state);
-    if (avail_len < total_len) {
+        meta_len + payload_len, sb_options, &base, &state);
+    if (!avail_len) {
         if (!(flags & MSG_DONTWAIT)) {
             _set_errno(EPIPE);
             return -1;
@@ -79,22 +84,24 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     }
     
     streambuffer_write_packet_data(stream, &packet, sizeof(struct packethdr), &state);
-    streambuffer_write_packet_data(stream, msg->msg_name, msg->msg_namelen, &state);
+    if (msg->msg_namelen) {
+        streambuffer_write_packet_data(stream, msg->msg_name, msg->msg_namelen, &state);
+    }
     if (msg->msg_controllen) {
         streambuffer_write_packet_data(stream, msg->msg_control, msg->msg_controllen, &state);
     }
-    total_len = sizeof(struct packethdr) + packet.controllen + packet.addresslen;
+    
     for (i = 0; i < msg->msg_iovlen; i++) {
         struct iovec* iov = &msg->msg_iov[i];
-        size_t        byte_count = MIN(avail_len - total_len, iov->iov_len);
+        size_t        byte_count = MIN(avail_len - meta_len, iov->iov_len);
         if (!byte_count) {
             break;
         }
         
         streambuffer_write_packet_data(stream, iov->iov_base, iov->iov_len, &state);
         
-        total_len += byte_count;
-        numbytes  += byte_count;
+        meta_len += byte_count;
+        numbytes += byte_count;
     }
     streambuffer_write_packet_end(stream, base, avail_len);
     stdio_handle_activity(handle, IOEVTOUT);

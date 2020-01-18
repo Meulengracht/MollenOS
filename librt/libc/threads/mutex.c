@@ -22,6 +22,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <ddk/barrier.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
@@ -29,7 +30,8 @@
 #include <threads.h>
 #include <time.h>
 
-#define MUTEX_SPINS 1000
+#define MUTEX_SPINS     1000
+#define MUTEX_DESTROYED 0x1000
 
 static SystemDescriptor_t SystemInfo = { 0 };
 
@@ -51,6 +53,8 @@ mtx_init(
     mutex->owner = UUID_INVALID;
     mutex->value = ATOMIC_VAR_INIT(0);
     mutex->references = ATOMIC_VAR_INIT(0);
+    smp_wmb();
+    
     return thrd_success;
 }
 
@@ -61,6 +65,9 @@ mtx_destroy(
     FutexParameters_t parameters;
     
     if (mutex != NULL) {
+        mutex->flags |= MUTEX_DESTROYED;
+        smp_wmb();
+        
         parameters._futex0 = &mutex->value;
         parameters._val0   = INT_MAX;
         parameters._flags  = FUTEX_WAKE_PRIVATE;
@@ -162,6 +169,9 @@ __perform_lock(
             while (z != 0) {
                 if (Syscall_FutexWait(&parameters) == OsTimeout) {
                     return thrd_timedout;
+                }
+                if (mutex->flags & MUTEX_DESTROYED) {
+                    return thrd_error;
                 }
                 z = atomic_exchange(&mutex->value, 2);
             }

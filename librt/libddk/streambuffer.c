@@ -327,10 +327,10 @@ streambuffer_write_packet_start(
             continue;
         }
         
-        // Initialize the header
+        // Store base before writing the packet header
+        *base_out = write_index;
         streambuffer_write_packet_data(stream, &header, sizeof(sb_packethdr_t), &write_index);
         
-        *base_out       = write_index;
         *state_out      = write_index;
         bytes_allocated = bytes_available;
     }
@@ -368,7 +368,7 @@ streambuffer_write_packet_end(
     // the comitted index, otherwise we could end up telling readers that the wrong
     // index is readable. This can be skipped for single writer
     if (STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream)) {
-        unsigned int write_index    = base - sizeof(sb_packethdr_t);
+        unsigned int write_index    = base;
         unsigned int current_commit = atomic_load(&stream->producer_comitted_index);
         while (current_commit < write_index) {
             current_commit = atomic_load(&stream->producer_comitted_index);
@@ -490,7 +490,8 @@ streambuffer_read_packet_start(
         size_t       length          = sizeof(sb_packethdr_t);
         
         // Validate that it is indeed a header we are looking at, and then readjust
-        // the number of bytes available
+        // the number of bytes available, since we want to block as long as the entire packet
+        // is not written into the pipe
         if (bytes_available) {
             unsigned int temp_read_index = read_index;
             streambuffer_read_packet_data(stream, &header, sizeof(sb_packethdr_t), &temp_read_index);
@@ -520,9 +521,10 @@ streambuffer_read_packet_start(
             }
         }
         
-        read_index += sizeof(sb_packethdr_t);
-        *base_out = read_index;
-        *state_out = read_index;
+        // Set the base at the actual base, but adjust the state_index so the user
+        // of this does not the read the sb_packethdr_t instance
+        *base_out  = read_index;
+        *state_out = read_index + sizeof(sb_packethdr_t);
         bytes_read = bytes_available - sizeof(sb_packethdr_t);
     }
     return bytes_read;
@@ -560,14 +562,16 @@ streambuffer_read_packet_end(
     // the comitted index, otherwise we could end up telling writers that the wrong
     // index is writable. This can be skipped for single reader
     if (STREAMBUFFER_HAS_MULTIPLE_READERS(stream)) {
-        unsigned int read_index     = base - sizeof(sb_packethdr_t);
+        unsigned int read_index     = base;
         unsigned int current_commit = atomic_load(&stream->consumer_comitted_index);
-        while (current_commit < (read_index - length)) {
+        while (current_commit < read_index) {
             current_commit = atomic_load(&stream->consumer_comitted_index);
         }
     }
 
+    // Take into account an invisible instance of sb_packethdr_t
     length += sizeof(sb_packethdr_t);
+    
     atomic_fetch_add(&stream->consumer_comitted_index, length);
     parameters._val0 = atomic_exchange(&stream->producer_count, 0);
     if (parameters._val0 != 0) {

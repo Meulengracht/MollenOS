@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO send pipe should have STREAMBUFFER_MULTIPLE_WRITERS only
+// TODO recv pipe should have STREAMBUFFER_MULTIPLE_READERS only
 static void
 InitializeStreambuffer(
     _In_ streambuffer_t* Stream)
