@@ -102,6 +102,39 @@ HandleInvalidType(
 }
 
 static OsStatus_t
+DomainLocalGetAddress(
+    _In_ Socket_t*        Socket,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address)
+{
+    struct sockaddr_lc* LcAddress = (struct sockaddr_lc*)Address;
+    AddressRecord_t*    Record    = Socket->Domain->Record;
+    
+    LcAddress->slc_len    = sizeof(struct sockaddr_lc);
+    LcAddress->slc_family = AF_LOCAL;
+    
+    switch (Source) {
+        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
+            if (!Record) {
+                return OsDoesNotExist;
+            }
+            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
+            return OsSuccess;
+        } break;
+        
+        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
+            Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+            if (!PeerSocket) {
+                return OsDoesNotExist;
+            }
+            return DomainLocalGetAddress(PeerSocket, 
+                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
+        } break;
+    }
+    return OsInvalidParameters;
+}
+
+static OsStatus_t
 HandleSocketStreamData(
     _In_ Socket_t* Socket)
 {
@@ -175,19 +208,29 @@ ProcessSocketPacket(
     struct sockaddr*  Address;
     TRACE("[socket] [local] [process_packet]");
 
-    // Skip header, pointer now points to the address data
+    // Skip header, pointer now points to the address data.
     Pointer += sizeof(struct packethdr);
     if (Packet->addresslen) {
         Address      = (struct sockaddr*)Pointer;
-        TRACE("[socket] [local] [process_packet] target address %s", &Address->sa_data[0]);
         TargetSocket = GetSocketFromAddress(Address);
-        Pointer     += Packet->addresslen;
+        TRACE("[socket] [local] [process_packet] target address %s", &Address->sa_data[0]);
     }
     else {
         TRACE("[socket] [local] [process_packet] no target address provided");
-        // Are we connected to a socket?
         TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+        
+        // Are we connected to a socket if no address was provided? If none is provided
+        // we must move all the data and make room for one in the buffer. The buffer was
+        // allocated with larger space if an address was required. The addresslen in the packet
+        // header must also be updated
+        memmove((void*)(Pointer + sizeof(struct sockaddr_lc)), (const void*)Pointer, PacketLength - sizeof(struct packethdr));
+        Packet->addresslen = sizeof(struct sockaddr_lc);
     }
+    
+    // We must set the client address at this point. Replace the target address with
+    // the source address for the reciever.
+    DomainLocalGetAddress(Socket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
+    Pointer += Packet->addresslen;
     
     if (Packet->controllen) {
         // TODO handle control data
@@ -216,14 +259,16 @@ HandleSocketPacketData(
     
     while (1) {
         if (DoRead) {
-            size_t BytesRead = streambuffer_read_packet_start(SourceStream, 
+            BytesRead = streambuffer_read_packet_start(SourceStream, 
                 STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesRead) {
                 break;
             }
 
-            // Read the entire packet in one go, then process the data
-            Buffer = malloc(BytesRead);
+            // Read the entire packet in one go, then process the data. Due to possible
+            // alterations in the data, like having to add an address that was not provided
+            // we would like to allocate extra space for the address
+            Buffer = malloc(BytesRead + sizeof(struct sockaddr_lc));
             if (!Buffer) {
                 ERROR("[socket] [local] [send_packet] out of memory, failed to allocate buffer");
                 return OsOutOfMemory;
@@ -242,6 +287,7 @@ HandleSocketPacketData(
             size_t          BytesWritten = streambuffer_write_packet_start(TargetStream,
                 BytesRead, STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesWritten) {
+                WARNING("[socket] [local] [send_packet] ran out of space in target stream, requested %" PRIuIN, BytesRead);
                 SocketSetQueuedPacket(Socket, Buffer, BytesRead);
                 break;
             }
@@ -282,39 +328,6 @@ DomainLocalPair(
     Socket1->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket2->Header.key;
     Socket2->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket1->Header.key;
     return OsSuccess;
-}
-
-static OsStatus_t
-DomainLocalGetAddress(
-    _In_ Socket_t*        Socket,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address)
-{
-    struct sockaddr_lc* LcAddress = (struct sockaddr_lc*)Address;
-    AddressRecord_t*    Record    = Socket->Domain->Record;
-    
-    LcAddress->slc_len    = sizeof(struct sockaddr_lc);
-    LcAddress->slc_family = AF_LOCAL;
-    
-    switch (Source) {
-        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
-            if (!Record) {
-                return OsDoesNotExist;
-            }
-            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
-            return OsSuccess;
-        } break;
-        
-        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
-            Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
-            if (!PeerSocket) {
-                return OsDoesNotExist;
-            }
-            return DomainLocalGetAddress(PeerSocket, 
-                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
-        } break;
-    }
-    return OsInvalidParameters;
 }
 
 static OsStatus_t

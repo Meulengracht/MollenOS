@@ -163,7 +163,12 @@ SocketShutdownImpl(
     _In_ Socket_t* Socket,
     _In_ int       Options)
 {
+    mtx_lock(&Socket->SyncObject);
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
+        if (Socket->Configuration.Connected) {
+            DomainDisconnect(Socket);
+        }
+        
         mtx_destroy(&Socket->SyncObject);
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
@@ -183,6 +188,7 @@ SocketShutdownImpl(
             // TODO
         }
     }
+    mtx_unlock(&Socket->SyncObject);
     return OsNotSupported;
 }
 

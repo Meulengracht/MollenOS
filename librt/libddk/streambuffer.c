@@ -124,14 +124,13 @@ bytes_writable(
     _In_ size_t read_index,
     _In_ size_t write_index)
 {
-    // Handle wrap-around
     if (read_index > write_index) {
-        if (read_index >= (UINT_MAX - capacity)) {
-            return (read_index & (capacity - 1)) - (write_index & (capacity - 1));
+        // If we somehow ended up in a state where read_index got ahead of write_index
+        // fix this by treating us a empty capacity
+        if ((UINT_MAX - read_index) - write_index > capacity) {
+            return capacity;
         }
-        else {
-            return 0; // Overcommitted
-        }
+        return capacity - (write_index - (read_index - UINT_MAX));
     }
     return capacity - (write_index - read_index);
 }
@@ -145,8 +144,8 @@ bytes_readable(
     // Handle wrap-around
     if (read_index > write_index) {
         if (read_index >= (UINT_MAX - capacity)) {
-            return (capacity - (read_index & (capacity- 1))) + 
-                (write_index & (capacity - 1)) - 1;
+            // (capacity - (read_index & (capacity- 1))) + (write_index & (capacity - 1)) - 1;
+            return (capacity - (read_index % capacity)) + (write_index % capacity) - 1;
         }
         else {
             return 0; // Overcommitted
@@ -287,6 +286,7 @@ streambuffer_write_packet_start(
 {
     size_t            bytes_allocated = 0;
     FutexParameters_t parameters;
+    size_t            adjusted_length;
     sb_packethdr_t    header = { .packet_len = length };
     
     // Has the streambuffer been disabled?
@@ -294,7 +294,7 @@ streambuffer_write_packet_start(
         return 0;
     }
 
-    length += sizeof(sb_packethdr_t);
+    adjusted_length = length + sizeof(sb_packethdr_t);
     
     // Make sure we write all the bytes in one go
     while (!bytes_allocated) {
@@ -305,9 +305,9 @@ streambuffer_write_packet_start(
         unsigned int read_index      = atomic_load(&stream->consumer_comitted_index);
         size_t       bytes_available = MIN(
             bytes_writable(stream->capacity, read_index, write_index),
-            length);
+            adjusted_length);
         
-        if (bytes_available < length) {
+        if (bytes_available < adjusted_length) {
             if (!STREAMBUFFER_CAN_BLOCK(options)) {
                 break;
             }
@@ -332,7 +332,7 @@ streambuffer_write_packet_start(
         streambuffer_write_packet_data(stream, &header, sizeof(sb_packethdr_t), &write_index);
         
         *state_out      = write_index;
-        bytes_allocated = bytes_available;
+        bytes_allocated = header.packet_len;
     }
     return bytes_allocated;
 }
@@ -363,6 +363,7 @@ streambuffer_write_packet_end(
     _In_ size_t          length)
 {
     FutexParameters_t parameters;
+    size_t            adjusted_length;
     
     // Synchronize with other producers, we must wait for our turn to increament
     // the comitted index, otherwise we could end up telling readers that the wrong
@@ -375,8 +376,8 @@ streambuffer_write_packet_end(
         }
     }
 
-    length += sizeof(sb_packethdr_t);
-    atomic_fetch_add(&stream->producer_comitted_index, length);
+    adjusted_length = length + sizeof(sb_packethdr_t);
+    atomic_fetch_add(&stream->producer_comitted_index, adjusted_length);
     parameters._val0 = atomic_exchange(&stream->consumer_count, 0);
     if (parameters._val0 != 0) {
         parameters._futex0 = (atomic_int*)&stream->producer_comitted_index;
@@ -473,6 +474,7 @@ streambuffer_read_packet_start(
     size_t            bytes_read = 0;
     sb_packethdr_t    header;
     FutexParameters_t parameters;
+    //streambuffer_dump(stream);
     
     // Has the streambuffer been disabled?
     if (stream->options & STREAMBUFFER_DISABLED) {
@@ -580,3 +582,27 @@ streambuffer_read_packet_end(
         Syscall_FutexWake(&parameters);
     }
 }
+
+#if 0
+int main()
+{
+    cout << "read: 0, write: 15 == " << bytes_readable(128, 0, 15) << endl; // == 15
+    cout << "read: 120, write: 130 == " << bytes_readable(128, 120, 130) << endl; // == 10
+    cout << "read: 130, write: 200 == " << bytes_readable(128, 130, 200) << endl; // == 70
+    cout << "read: 20, write: 15 == " << bytes_readable(128, 20, 15) << endl; // == 0
+
+    // test rollover
+    unsigned int almost_at_max = UINT_MAX - 15;
+    cout << "read: " << almost_at_max << ", write: 15 == " << bytes_readable(128, almost_at_max, 15) << endl << endl; // == 30
+    
+    cout << "write: 0, read: 15 == " << bytes_writable(128, 15, 0) << endl; // == 128
+    cout << "write: 120, read: 130 == " << bytes_writable(128, 130, 120) << endl; // == 128
+    cout << "write: 200, read: 130 == " << bytes_writable(128, 130, 200) << endl; // == 58
+    cout << "write: 20, read: 15 == " << bytes_writable(128, 15, 20) << endl; // == 123
+    
+    // test rollover
+    almost_at_max = UINT_MAX - 15;
+    cout << "read: " << almost_at_max << ", write: 15 == " << bytes_writable(128, almost_at_max, 15) << endl; // == 98
+    return 0;
+}
+#endif

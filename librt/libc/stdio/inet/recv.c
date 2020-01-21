@@ -45,6 +45,7 @@
  * of the full amount requested.
  */
 
+#include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>
@@ -75,6 +76,26 @@ get_streambuffer_flags(int flags)
     return sb_options;
 }
 
+static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, int flags, unsigned int sb_options)
+{
+    intmax_t numbytes = 0;
+    int      i;
+    
+    for (i = 0; i < msg->msg_iovlen; i++) {
+        struct iovec* iov = &msg->msg_iov[i];
+        numbytes += streambuffer_stream_in(stream, 
+            iov->iov_base, iov->iov_len, sb_options);
+        if (numbytes < iov->iov_len) {
+            if (!(flags & MSG_DONTWAIT)) {
+                _set_errno(EPIPE);
+                numbytes = -1;
+            }
+            break;
+        }
+    }
+    return numbytes;
+}
+
 // Valid flags for recv are
 // MSG_OOB          (No OOB support)
 // MSG_PEEK         (No peek support)
@@ -94,24 +115,24 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
     // In case of stream sockets we simply just read as many bytes as requested
     // or available and return, unless WAITALL has been specified.
     if (handle->object.data.socket.type == SOCK_STREAM) {
-        for (i = 0; i < msg->msg_iovlen; i++) {
-            struct iovec* iov = &msg->msg_iov[i];
-            numbytes += streambuffer_stream_in(stream, 
-                iov->iov_base, iov->iov_len, sb_options);
-            if (numbytes < iov->iov_len) {
-                if (!(flags & MSG_DONTWAIT)) {
-                    _set_errno(EPIPE);
-                    numbytes = -1;
-                }
-                break;
-            }
-        }
-        return numbytes;
+        return perform_recv_stream(stream, msg, flags, sb_options);
     }
+    
+    // Reading an packet is an atomic action and the entire packet must be read
+    // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
+    sb_options &= ~(STREAMBUFFER_ALLOW_PARTIAL);
     
     numbytes = streambuffer_read_packet_start(stream, sb_options, &base, &state);
     if (numbytes < sizeof(struct packethdr)) {
-        // Should not be possible
+        if (!numbytes) {
+            if (flags & MSG_WAITALL) {
+                _set_errno(EPIPE);
+                return -1;
+            }
+            return 0;
+        }
+        
+        // If we read an invalid number of bytes then something evil happened.
         streambuffer_read_packet_end(stream, base, numbytes);
         _set_errno(EPIPE);
         return -1;

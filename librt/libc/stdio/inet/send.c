@@ -69,13 +69,13 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     }
     
     packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
-    packet.controllen = msg->msg_controllen;
-    packet.addresslen = msg->msg_namelen;
+    packet.controllen = (msg->msg_control != NULL) ? msg->msg_controllen : 0;
+    packet.addresslen = (msg->msg_name != NULL) ? msg->msg_namelen : 0;
     packet.payloadlen = payload_len;
     
     avail_len = streambuffer_write_packet_start(stream, 
         meta_len + payload_len, sb_options, &base, &state);
-    if (!avail_len) {
+    if (avail_len < (meta_len + payload_len)) {
         if (!(flags & MSG_DONTWAIT)) {
             _set_errno(EPIPE);
             return -1;
@@ -84,10 +84,10 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     }
     
     streambuffer_write_packet_data(stream, &packet, sizeof(struct packethdr), &state);
-    if (msg->msg_namelen) {
+    if (msg->msg_name && msg->msg_namelen) {
         streambuffer_write_packet_data(stream, msg->msg_name, msg->msg_namelen, &state);
     }
-    if (msg->msg_controllen) {
+    if (msg->msg_control && msg->msg_controllen) {
         streambuffer_write_packet_data(stream, msg->msg_control, msg->msg_controllen, &state);
     }
     

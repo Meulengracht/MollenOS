@@ -246,25 +246,20 @@ NetworkManagerSocketShutdown(
         return OsDoesNotExist;
     }
     
-    mtx_lock(&Socket->SyncObject);
+    // Before initiating the actual destruction, remove it from our handle list.
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
-        if (Socket->Configuration.Connected) {
-            DomainDisconnect(Socket);
+        // If removing it failed, then assume that it was already destroyed, and we just
+        // encountered a race condition
+        if (!rb_tree_remove(&Sockets, (void*)Handle)) {
+            return OsDoesNotExist;
         }
         
-        (void)rb_tree_remove(&Sockets, (void*)Handle);
         Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL, Handle, 0, NULL);
         if (Status != OsSuccess) {
-            // what the fuck TODO
-            assert(0);
+            ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }
     }
-    
-    Status = SocketShutdownImpl(Socket, Options);
-    if (!(Options & SOCKET_SHUTDOWN_DESTROY)) {
-        mtx_unlock(&Socket->SyncObject);
-    }
-    return Status;
+    return SocketShutdownImpl(Socket, Options);
 }
 
 OsStatus_t

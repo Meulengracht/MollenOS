@@ -152,8 +152,8 @@ static wm_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t 
     return NULL;
 }
 
-static int invoke_action(int socket, wm_message_t* message, 
-    void* argument_buffer, wm_protocol_function_t* function)
+static int invoke_action(int socket, wm_message_t* message, void* argument_buffer,
+    wm_protocol_function_t* function, struct sockaddr_storage* client_address)
 {
     uint8_t return_buffer[WM_MESSAGE_GET_LENGTH(message->ret_length)];
     TRACE("[invoke_action] %u, %u", message->protocol, message->action);
@@ -161,7 +161,7 @@ static int invoke_action(int socket, wm_message_t* message,
     if (message->has_arg && message->has_ret) {
         ((wm_invokeAR_t)function->address)(argument_buffer, &return_buffer[0]);
         return wm_connection_send_reply(socket, &return_buffer[0], 
-            WM_MESSAGE_GET_LENGTH(message->ret_length));
+            WM_MESSAGE_GET_LENGTH(message->ret_length), client_address);
     }
     else if (message->has_arg) {
         ((wm_invokeA0_t)function->address)(argument_buffer);
@@ -169,7 +169,7 @@ static int invoke_action(int socket, wm_message_t* message,
     else if (message->has_ret) {
         ((wm_invoke0R_t)function->address)(&return_buffer[0]);
         return wm_connection_send_reply(socket, &return_buffer[0], 
-            WM_MESSAGE_GET_LENGTH(message->ret_length));
+            WM_MESSAGE_GET_LENGTH(message->ret_length), client_address);
     }
     else {
         ((wm_invoke00_t)function->address)();
@@ -179,9 +179,11 @@ static int invoke_action(int socket, wm_message_t* message,
 
 static int handle_client_event(int socket, uint32_t events, void* argument_buffer)
 {
-    wm_protocol_function_t* function;
-    wm_message_t            message;
-    int                     status;
+    wm_protocol_function_t*  function;
+    struct sockaddr_storage  client_address;
+    struct sockaddr_storage* client_address_ptr;
+    wm_message_t             message;
+    int                      status;
     TRACE("[handle_client_event] %i, 0x%x", socket, events);
     
     // Check for control event. On non-passive sockets, control event is the
@@ -197,9 +199,11 @@ static int handle_client_event(int socket, uint32_t events, void* argument_buffe
     }
     else if ((events & IOEVTIN) || !events) {
         if (wm_server_context.dgram_socket == socket) {
-            status = wm_connection_recv_packet(socket, &message, argument_buffer);
+            client_address_ptr = &client_address;
+            status = wm_connection_recv_packet(socket, &message, argument_buffer, client_address_ptr);
         }
         else {
+            client_address_ptr = NULL;
             status = wm_connection_recv_stream(socket, &message, argument_buffer);
         }
         
@@ -214,7 +218,7 @@ static int handle_client_event(int socket, uint32_t events, void* argument_buffe
             _set_errno(ENOENT);
             return -1;
         }
-        return invoke_action(socket, &message, argument_buffer, function);
+        return invoke_action(socket, &message, argument_buffer, function, client_address_ptr);
     }
     return 0;
 }

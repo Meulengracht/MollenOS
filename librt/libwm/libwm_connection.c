@@ -94,7 +94,7 @@ static void wm_connection_remove(wm_connection_t* connection)
     mtx_unlock(&connections_sync);
 }
 
-int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_buffer)
+int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_buffer, struct sockaddr_storage* client_address)
 {
     TRACE("[wm_connection_recv_packet] %i, 0x%" PRIxIN, socket, message);
     struct iovec  iov[2] = { 
@@ -102,8 +102,8 @@ int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_
         { .iov_base = argument_buffer, .iov_len = WM_MAX_MESSAGE_SIZE }
     };
     struct msghdr msg = {
-        .msg_name       = NULL,
-        .msg_namelen    = 0,
+        .msg_name       = client_address,
+        .msg_namelen    = sizeof(struct sockaddr_storage),
         .msg_iov        = &iov[0],
         .msg_iovlen     = 2,
         .msg_control    = NULL,
@@ -196,10 +196,13 @@ int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_
     return 0;
 }
 
-int wm_connection_send_reply(int socket, void* argument_buffer, size_t length)
+int wm_connection_send_reply(int socket, void* argument_buffer,
+    size_t length, struct sockaddr_storage* client_address)
 {
     TRACE("[wm_connection_send_reply] %i, %" PRIuIN, socket, length);
-    intmax_t bytes_written = send(socket, argument_buffer, length, MSG_WAITALL);
+    socklen_t address_length = client_address != NULL ? client_address->__ss_len : 0;
+    intmax_t  bytes_written  = sendto(socket, argument_buffer, length, MSG_WAITALL,
+        (const struct sockaddr*)sstosa(client_address), address_length);
     if (bytes_written <= 0) {
         ERROR("[wm_connection_send_reply] send returned -1, error %i", errno);
     }
