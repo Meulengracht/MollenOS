@@ -22,7 +22,7 @@
  *    the less priority it gets, however longer timeslices it gets.
  */
 
-#define __MODULE "[scheduler]"
+#define __MODULE "scheduler"
 //#define __TRACE
 
 #include <assert.h>
@@ -431,26 +431,6 @@ SchedulerBlock(
     
     // For now the lists include a lock, which perform memory barriers
     list_append(BlockQueue, &Object->Header);
-}
-
-void
-SchedulerUnblockObject(
-    _In_ SchedulerObject_t* Object)
-{
-    int ResultState;
-    TRACE("[scheduler] [unblock]");
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE);
-    if (ResultState != STATE_INVALID) {
-        // Either sleeping, which means we'll interrupt it immediately
-        // or it's waiting for in a block queue
-        if (Object->WaitQueueHandle != NULL) {
-            (void)list_remove(Object->WaitQueueHandle, &Object->Header);
-        }
-    }
-    else {
-        WARNING("[scheduler] [unblock] object 0x%" PRIxIN " was in invalid state", Object);
-    }
 }
 
 void

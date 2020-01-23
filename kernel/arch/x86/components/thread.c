@@ -144,9 +144,11 @@ RestoreThreadState(
     SwitchMemorySpace(Thread->MemorySpace);
     TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     
-    // Update to the correct stack due to signal handling
-    if (Thread->HandlingSignals) {
-        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->OriginalContext);
+    // If the thread is running in a seperate userspace stack, and it originated from
+    // a kernel stack, then we could be overwriting the kernel stack if we set it to
+    // the base of the stack. Rather set it where we stored the original stack
+    if (Thread->Signaling.HandlingTrapSignal) {
+        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Signaling.OriginalContext);
     }
     else {
         TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
@@ -173,7 +175,7 @@ UpdateThreadContext(
     // If we switch into signal stack then make sure we don't overwrite the original
     // interrupt stack for the thread. Otherwise restore the original interrupt stack.
     if (ContextType == THREADING_CONTEXT_SIGNAL) {
-        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->OriginalContext);
+        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Signaling.OriginalContext);
     }
     else {
         TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);

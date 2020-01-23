@@ -25,18 +25,25 @@ segment .text
 global ___signalentry
 extern _StdInvokeSignal
 
-; void __signalentry(int signal (eax), void* argument (ebx), reg_t ecx)
+; void __signalentry(int signal (eax), void* argument (ebx), reg_t flags (ecx))
 ; Fixup stack and call directly into the signal handler
 ___signalentry:
-	; Store the return address in a non-volatile 
-	; register that gets saved for us
-	pop ebx
+	; Store the return next stack we should use before calling the signal
+	; handler in a non-volatile register.
+	xchg bx, bx
+	pushad
 	
-    ; EAX => signal, EBX => void*
-	call _StdInvokeSignal ; (int, void*)
-    
-    ; Pop off the arguments, and restore the return
-    ; address so we can reenter this function
-    add esp, 12 ; skip 3 arguments
+    ; EAX => signal, EBX => void*, ECX => unsigned int
+    push eax
     push ebx
+    push ecx
+	call _StdInvokeSignal ; (int, void*, unsigned int)
+    add esp, 12
+    
+    ; Restore initial state and switch the handler stack to next one stored
+    popad
+    pop ecx
+    pop ebx
+    pop eax
+    pop esp
     ret

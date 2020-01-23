@@ -20,9 +20,10 @@
  * Threading Signal Implementation
  */
 
-#define __MODULE "SIG0"
+#define __MODULE "signal"
 //#define __TRACE
 
+#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
@@ -30,74 +31,102 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <internal/_signal.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <string.h>
 #include <threading.h>
 
-#if 0
-static char SignalFatalityTable[] = {
-    0, /* 0? */
-    1, /* SIGHUP     */
-    1, /* SIGINT     */
-    2, /* SIGQUIT    */
-    2, /* SIGILL     */
-    2, /* SIGTRAP    */
-    2, /* SIGABRT    */
-    2, /* SIGEMT     */
-    2, /* SIGFPE     */
-    1, /* SIGKILL    */
-    2, /* SIGBUS     */
-    2, /* SIGSEGV    */
-    2, /* SIGSYS     */
-    1, /* SIGPIPE    */
-    1, /* SIGALRM    */
-    1, /* SIGTERM    */
-    0, /* SIGUSR1    */
-    0, /* SIGUSR2    */
-    0, /* SIGCHLD    */
-    0, /* SIGPWR     */
-    0, /* SIGWINCH   */
-    0, /* SIGURG     */
-    0, /* SIGPOLL    */
-    3, /* SIGSTOP    */
-    3, /* SIGTSTP    */
-    0, /* SIGCONT    */
-    3, /* SIGTTIN    */
-    3, /* SIGTTOUT   */
-    1, /* SIGVTALRM  */
-    1, /* SIGPROF    */
-    2, /* SIGXCPU    */
-    2, /* SIGXFSZ    */
-    0, /* SIGWAITING */
-    1, /* SIGDIAF    */
-    0, /* SIGHATE    */
-    0, /* SIGWINEVENT*/
-    0, /* SIGCAT     */
-    1, /* SIGSOCK    */
-    0  /* SIGEND     */
-};
-#endif
+static void
+InitializeSafeTrapStack(
+    _In_ MCoreThread_t* Thread,
+    _In_ Context_t*     CurrentContext,
+    _In_ int            Signal,
+    _In_ uintptr_t      Argument,
+    _In_ unsigned int   Flags)
+{
+    Thread->Signaling.HandlingTrapSignal = 1;
+    Thread->Signaling.OriginalContext    = CurrentContext;
+    Thread->ContextActive                = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
+        THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
+        (uintptr_t)Signal, Argument, (uintptr_t)Flags);
+}
+
+static void
+ExecuteSignalOnCoreFunction(
+    _In_ void* Context)
+{
+    MCoreThread_t* Thread = Context;
+    
+    // This function has determine the course of action for the given thread.
+    // CASE 1: Thread is currently running, Modify the current context and push
+    //         the new signal handlers. The current context can be retrieved from
+    //         the current core structure
+    if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) == Thread) {
+        SystemCpuCore_t* Core = GetCurrentProcessorCore();
+        
+        // CASE 1.1: The thread is currently executing kernel code (syscall).
+        //           In this case we must leave the system call be in queue,
+        //           and handle this in the scheduler. Before scheduling we must
+        //           check if any signals are queued, and if they are, interrupt
+        //           the thread and requeue it.
+        // CASE 1.2: The thread is currently executing user code. In this case
+        //           we can simply process all the queued signals onto the current
+        //           context.
+        if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Core->InterruptRegisters))) {
+            SignalProcessQueued(Thread, Core->InterruptRegisters);
+        }
+    }
+    
+    // CASE 2: The thread is queued to run or currently blocked. So we need to
+    //         expedite the thread in case of a block.
+    else {
+        
+        // CASE 1.1: The thread is currently executing kernel code (syscall).
+        //           In this case the signal must stay queued and be handled
+        //           on exit of system call
+        if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Thread->ContextActive))) {
+            SchedulerExpediteObject(Thread->SchedulerObject);
+        }
+        
+        // CASE 1.2: The thread is currently executing user code. In this case
+        //           we can simply process all the queued signals onto the current
+        //           context. In this case we can also safely assume the thread is 
+        //           not currently blocked, as it would require a system call.
+        else {
+            SignalProcessQueued(Thread, Thread->ContextActive);
+        }
+    }
+}
 
 OsStatus_t
-SignalQueue(
+SignalSend(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
-    int            Expected = SIGNAL_FREE;
-    int            Result;
-    TRACE("SignalQueue(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
+    MCoreThread_t*  Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    int             Expected = SIGNAL_FREE;
+    SystemSignal_t* SignalInfo;
+    int             Result;
+    UUId_t          TargetCore;
+    
+    if (Target == NULL) {
+        ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
+        return OsDoesNotExist;
+    }
 
-    // Sanitize input, and then sanitize if we have a handler
-    if (Target == NULL || Signal >= NUMSIGNALS) {
-        ERROR("Signal %i was not in range");
+    if (Signal < 0 || Signal >= NUMSIGNALS) {
+        ERROR("[signal] [send] signal %i was not in range");
         return OsInvalidParameters; // Invalid
     }
     
-    Result = atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
+    TRACE("[signal] [send] thread %s, signal %i", Target->Name, Signal);
+    
+    SignalInfo = &Target->Signaling.Signals[Signal];
+    Result     = atomic_compare_exchange_strong(&SignalInfo->Status, 
         &Expected, SIGNAL_ALLOCATED);
     if (!Result) {
         TRACE("Signal was already pending");
@@ -105,120 +134,113 @@ SignalQueue(
     }
     
     // Store information and mark ready
-    atomic_store(&Target->Signals[Signal].Information, Argument);
-    atomic_store(&Target->Signals[Signal].Status, SIGNAL_PENDING);
-    atomic_fetch_add(&Target->PendingSignals, 1);
+    SignalInfo->Argument = Argument;
+    atomic_store(&SignalInfo->Status, SIGNAL_PENDING);
+    atomic_fetch_add(&Target->Signaling.SignalsPending, 1);
     
-    // Wake up thread if neccessary
-    if (!Target->HandlingSignals) {
-        TRACE("Waking up object");
-        SchedulerExpediteObject(Target->SchedulerObject);
+    // Is the thread local or foreign? We only handle signals locally on core,
+    // so if it is running on a different core, we want to send an IPI and let
+    // the local core handle this.
+    TargetCore = SchedulerObjectGetAffinity(Target->SchedulerObject);
+    if (TargetCore == ArchGetProcessorCoreId()) {
+        ExecuteSignalOnCoreFunction(Target);
+        return OsSuccess;
     }
-    return OsSuccess;
+    else {
+        return TxuMessageSend(TargetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, Target, 1);
+    }
 }
 
 void
-SignalExecute(
+SignalExecuteLocalThreadTrap(
     _In_ Context_t* Context,
     _In_ int        Signal,
     _In_ void*      Argument)
 {
-    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
-    MCoreThread_t*   Thread = Core->CurrentThread;
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     
-    TRACE("SignalExecute(Signal %i)", Signal);
+    assert(Thread != NULL);
+    
+    TRACE("[signal] [execute_trap] signal %i", Signal);
 
     // Do not support signals that occur in kernel code, those should __NOT__ occur
     // but rather we should protect against or fix why it fails.
+    // However if we wanted to support this, we could 
     if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Context))) {
         DebugPanic(FATAL_SCOPE_KERNEL, Context, "FAIL", 
             "Crash at address 0x%" PRIxIN, CONTEXT_IP(Context));
     }
 
-#ifndef __OSCONFIG_DISABLE_SIGNALLING    
-    // Must be a user process
-    assert(Thread != NULL);
+#ifdef __OSCONFIG_DISABLE_SIGNALLING
+    WARNING("[signal] [execute_trap] signals are DISABLED");
+#else
     assert(Thread->MemorySpace->Context != NULL);
     assert(Thread->MemorySpace->Context->SignalHandler != 0);
 
     // We do absolutely not care about the existing signal stack
-    // in case of internal signals
-    if (!Thread->HandlingSignals) {
-        Thread->HandlingSignals = 1;
-        Thread->OriginalContext = Context;
-    }
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
-        THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
-        (uintptr_t)Signal, (uintptr_t)Argument, 0);
-    Thread->ContextActive = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
+    // in case of local trap signals
+    InitializeSafeTrapStack(Thread, Context, Signal, (uintptr_t)Argument,
+        SIGNAL_SEPERATE_STACK);
     
     // Switch to the signal context
-    UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, 1);
+    UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, /* EnterContext: */ 1);
 #endif
 }
 
 void
-SignalReturn(
+SignalReturnFromLocalTrap(
     _In_ Context_t* Context)
 {
-    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
-    MCoreThread_t*   Thread = Core->CurrentThread;
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     
-    TRACE("SignalReturn()");
+    TRACE("[signal] [return]");
     assert(Thread != NULL);
-    assert(Thread->OriginalContext != NULL);
+    assert(Thread->Signaling.OriginalContext != NULL);
     
-    Thread->HandlingSignals = 0;
-    Thread->ContextActive   = Thread->OriginalContext;
-    Thread->OriginalContext = NULL;
-    UpdateThreadContext(Thread, THREADING_CONTEXT_LEVEL0, 1);
+    Thread->ContextActive                = Thread->Signaling.OriginalContext;
+    Thread->Signaling.OriginalContext    = NULL;
+    Thread->Signaling.HandlingTrapSignal = 0;
+    UpdateThreadContext(Thread, THREADING_CONTEXT_LEVEL0, /* EnterContext: */ 1);
 }
 
 void
-SignalProcess(
-    _In_ MCoreThread_t* Thread)
+SignalProcessQueued(
+    _In_ MCoreThread_t* Thread,
+    _In_ Context_t*     Context)
 {
-    int i;
-
+    uintptr_t SignalStack;
+    uintptr_t Handler;
+    int       i;
+    
     assert(Thread != NULL);
+    assert(Context != NULL);
     
-    // Protect against signals received
-    if (Thread->MemorySpace->Context == NULL ||
-        Thread->MemorySpace->Context->SignalHandler == 0 ||
-        Thread->Contexts[THREADING_CONTEXT_SIGNAL] == NULL) {
+    // Protect against signals received before the signal handler
+    // has been installed
+    if (!Thread->MemorySpace->Context ||
+        !Thread->MemorySpace->Context->SignalHandler) {
         return;
     }
     
-    // Are we already handling signals?
-    if (Thread->HandlingSignals) {
-        return;
-    }
-    
-    // Process all the signals
+    Handler     = Thread->MemorySpace->Context->SignalHandler;
+    SignalStack = CONTEXT_SP(Context);
     for (i = 0; i < NUMSIGNALS; i++) {
-        int Status;
+        SystemSignal_t* SignalInfo = &Thread->Signaling.Signals[i];
+        int             Status;
         
-        Status = atomic_load(&Thread->Signals[i].Status);
+        Status = atomic_load(&SignalInfo->Status);
         if (Status == SIGNAL_PENDING) {
-            void* Argument = atomic_load(&Thread->Signals[i].Information);
-            // Prepare initial stack state
-            if (!Thread->HandlingSignals) {
-                Thread->HandlingSignals = 1;
-                Thread->OriginalContext = Thread->ContextActive;
-                Thread->ContextActive   = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
-                ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
-                    THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
-                    i, (uintptr_t)Argument, 0);
+            if (SignalInfo->Flags & SIGNAL_SEPERATE_STACK) {
+                // Missing implementation
+                // SignalStack = SignalInfo->Stack;
             }
-            else {
-                // Just push the interceptor
-                ContextPushInterceptor(Thread->ContextActive,
-                    Thread->MemorySpace->Context->SignalHandler,
-                    i, (uintptr_t)Argument, 0);
-            }
-            UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, 0);
-            atomic_store(&Thread->Signals[i].Status, SIGNAL_FREE);
-            atomic_fetch_sub(&Thread->PendingSignals, 1);
+            
+            ContextPushInterceptor(Context, SignalStack, Handler, i, 
+                (uintptr_t)SignalInfo->Argument, SignalInfo->Flags);
+            SignalStack = CONTEXT_SP(Context);
+            
+            atomic_store(&SignalInfo->Status, SIGNAL_FREE);
+            atomic_fetch_sub(&Thread->Signaling.SignalsPending, 1);
         }
     }
 }

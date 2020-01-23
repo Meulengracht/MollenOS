@@ -95,13 +95,15 @@ ContextReset(
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2); 
 
-/* ContextPushInterceptor
- * Adds an interceptor function that gets executed upon return of 
- * of thread. This will then be the next thing executed. Optionally a safe
- * stack can be provided that will be used for execution. */
+/**
+ * ContextPushInterceptor
+ * * Adds an interceptor function that gets executed upon return of 
+ * * of thread. This will then be the next thing executed. Optionally a safe
+ * * stack can be provided that will be used for execution. */
 KERNELAPI void KERNELABI
 ContextPushInterceptor(
     _In_ Context_t* Context,
+    _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1,

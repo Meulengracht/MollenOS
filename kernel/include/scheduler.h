@@ -97,15 +97,6 @@ SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object);
 
 /**
- * SchedulerUnblockObject
- * * If the given object is currently blocked it will be removed from any blocked
- * * queue and reset to running state. This can only be called on the same thread. 
- */
-KERNELAPI void KERNELABI
-SchedulerUnblockObject(
-    _In_ SchedulerObject_t* Object);
-
-/**
  * SchedulerSleep
  * * Blocks the currently running thread for @Milliseconds. Can return different
  * * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. 

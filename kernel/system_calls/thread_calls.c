@@ -100,7 +100,7 @@ ScThreadSignal(
 {
     OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
     if (Result == OsSuccess) {
-        Result = SignalQueue(ThreadId, SignalCode, NULL);
+        Result = SignalSend(ThreadId, SignalCode, NULL);
     }
     return Result;
 }
@@ -198,10 +198,10 @@ ScGetSignalOriginalContext(
     
     // Either we have the original context stored because we are currently
     // handling a signal, or the userspace should locally get its context
-    if (!Thread->OriginalContext) {
+    if (!Thread->Signaling.OriginalContext) {
         return OsDoesNotExist;
     }
     
-    memcpy(Context, Thread->OriginalContext, sizeof(Context_t));
+    memcpy(Context, Thread->Signaling.OriginalContext, sizeof(Context_t));
     return OsSuccess;
 }

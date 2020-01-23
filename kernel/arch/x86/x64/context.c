@@ -18,7 +18,7 @@
  *
  * X86-64 Thread Contexts
  */
-#define __MODULE "CTXT"
+#define __MODULE "context"
 //#define __TRACE
 
 #include <arch.h>
@@ -90,29 +90,30 @@ ContextPush(
 void
 ContextPushInterceptor(
     _In_ Context_t* Context,
+    _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	// ASSUMPTIONS
-	// STACK MUST BE LEVEL1/SIGNAL
-	// STACK MUST BE RESET BEFORE FIRST CALL TO INTERCEPTOR
-	assert(Context->Rax == CONTEXT_RESET_IDENTIFIER);
-	
 	// Push in reverse fashion, and have everything on stack to be able to restore
 	// the default register states. We cannot guarantee alignment on interceptor functions
 	// as there is no way to restore the stack
+	ContextPush((uintptr_t**)&TemporaryStack, Context->UserRsp);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->Rcx);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->Rdx);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->R8);
+	
+	// On the previous stack, we would like to keep the Rip as it will be activated
+	// before jumping to the previous address
 	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rip);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rcx);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rdx);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->R8);
 	
 	// Set arguments
-	Context->Rip = Address;
-	Context->Rcx = Argument0;
-	Context->Rdx = Argument1;
-	Context->R8  = Argument2;
+	Context->Rip     = Address;
+	Context->Rcx     = Argument0;
+	Context->Rdx     = Argument1;
+	Context->R8      = Argument2;
+	Context->UserRsp = TemporaryStack;
 }
 
 void

@@ -31,9 +31,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define __TRACE
-#include <ddk/utils.h>
-
 typedef struct wm_client {
     enum wm_client_type type;
     int                 initialized;
@@ -75,10 +72,8 @@ static int send_packet(wm_client_t* client, wm_message_t* message,
 static int get_message_reply(wm_client_t* client, void* return_buffer, 
     size_t return_length)
 {
-    TRACE("[get_message_reply]");
     intmax_t bytes_read = recv(client->socket, return_buffer, 
         return_length, MSG_WAITALL);
-    TRACE("[get_message_reply] bytes read: %i == %" PRIuIN, bytes_read, return_length);
     return bytes_read != return_length;
 }
 

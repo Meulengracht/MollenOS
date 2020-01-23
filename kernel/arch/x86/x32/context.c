@@ -20,7 +20,7 @@
  * X86-32 Thread Contexts
  */
 
-#define __MODULE "CTXT"
+#define __MODULE "context"
 //#define __TRACE
 
 #include <arch.h>
@@ -90,28 +90,29 @@ ContextPush(
 void
 ContextPushInterceptor(
     _In_ Context_t* Context,
+    _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	// ASSUMPTIONS
-	// STACK MUST BE LEVEL1/SIGNAL
-	// STACK MUST BE RESET BEFORE FIRST CALL TO INTERCEPTOR
-	assert(Context->Eax == CONTEXT_RESET_IDENTIFIER);
-	
 	// Push in reverse fashion, and have everything on stack to be able to restore
-	// the default register states
+	// the default register states. Use the supplied return stack for this
+	ContextPush((uintptr_t**)&TemporaryStack, Context->UserEsp);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->Eax);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->Ebx);
+	ContextPush((uintptr_t**)&TemporaryStack, Context->Ecx);
+	
+	// On the previous stack, we would like to keep the Eip as it will be activated
+	// before jumping to the previous address
 	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eip);
-	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eax);
-	ContextPush((uintptr_t**)&Context->UserEsp, Context->Ebx);
-	ContextPush((uintptr_t**)&Context->UserEsp, Context->Ecx);
 	
 	// Set arguments
-	Context->Eip = Address;
-	Context->Eax = Argument0;
-	Context->Ebx = Argument1;
-	Context->Ecx = Argument2;
+	Context->Eip     = Address;
+	Context->Eax     = Argument0;
+	Context->Ebx     = Argument1;
+	Context->Ecx     = Argument2;
+	Context->UserEsp = TemporaryStack;
 }
 
 void

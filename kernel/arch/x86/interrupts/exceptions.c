@@ -92,7 +92,7 @@ ExceptionEntry(
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        SignalExecute(Registers, SIGFPE, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
     }
     else if (Registers->Irq == 1) { // Single Step
         if (DebugSingleStep(Registers) == OsSuccess) {
@@ -108,20 +108,20 @@ ExceptionEntry(
         IssueFixed = 1;
     }
     else if (Registers->Irq == 4) { // Overflow
-        SignalExecute(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 5) { // Bound Range Exceeded
-        SignalExecute(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 6) { // Invalid Opcode
-        SignalExecute(Registers, SIGILL, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGILL, NULL);
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
         // This might be because we need to restore fpu/sse state
         Core = GetCurrentProcessorCore();
         assert(Core->CurrentThread != NULL);
         if (ThreadingFpuException(Core->CurrentThread) != OsSuccess) {
-            SignalExecute(Registers, SIGFPE, NULL);
+            SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
         }
         else {
             IssueFixed = 1;
@@ -137,10 +137,10 @@ ExceptionEntry(
         // Fall-through to kernel fault
     }
     else if (Registers->Irq == 11) { // Segment Not Present
-        SignalExecute(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 12) { // Stack Segment Fault
-        SignalExecute(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 13) { // General Protection Fault
         Core = GetCurrentProcessorCore();
@@ -151,7 +151,7 @@ ExceptionEntry(
             __asm { xchg bx, bx };
             return;
         }
-        SignalExecute(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 14) {    // Page Fault
         Address = (uintptr_t)__getcr2();
@@ -160,7 +160,7 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            SignalReturn(Registers);
+            SignalReturnFromLocalTrap(Registers);
         }
         
         // Debug the error code
@@ -177,7 +177,7 @@ ExceptionEntry(
                         Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
                         Address, Registers->ErrorCode, CONTEXT_IP(Registers));
                     if (Registers->ErrorCode & 0x4) {
-                        SignalExecute(Registers, SIGSEGV, NULL);
+                        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
                     }
                 }
                 else {
@@ -208,14 +208,14 @@ ExceptionEntry(
                     __asm { xchg bx, bx };
                     return;
                 }
-                SignalExecute(Registers, SIGSEGV, NULL);
+                SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
             }
         }
 
 
     }
     else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        SignalExecute(Registers, SIGFPE, NULL);
+        SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
     }
     
     // Was the exception handled?

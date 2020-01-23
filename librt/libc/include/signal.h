@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,28 +30,34 @@
   typedef int sig_atomic_t;
 #endif
 
-/* Signal names (from the Unix specification on signals) */
-#define SIGHUP      1  /* Hangup */
-#define SIGINT      2  /* External interrupt, usually initiated by the user */
-#define SIGQUIT     3  /* Quit */
-#define SIGILL      4  /* Illegal instruction */
-#define SIGTRAP     5  /* A breakpoint or trace instruction has been reached */
-#define SIGABRT     6  /* Abnormal termination condition, as is e.g. initiated by abort() */
-#define SIGEMT      7  /* Emulation trap XXX */
-#define SIGFPE      8  /* Erroneous arithmetic operation such as divide by zero */
-#define SIGKILL     9  /* You have been stabbed repeated with a large knife */
-#define SIGBUS      10 /* Bus error (device error) */
-#define SIGSEGV     11 /* Invalid memory access (segmentation fault) */
-#define SIGSYS      12 /* Bad system call */
-#define SIGPIPE     13 /* Attempted to read or write from a broken pipe */
-#define SIGALRM     14 /* This is your wakeup call. */
-#define SIGTERM     15 /* Termination request, sent to the program */
-#define SIGUSR1     16 /* User Defined Signal #1 */
-#define SIGUSR2     17 /* User Defined Signal #2 */
-#define SIGCHLD     18 /* Child status report */
-#define SIGPWR      19 /* We need moar powah! */
-#define SIGWINCH    20 /* Your containing terminal has changed size */
-#define SIGURG      21 /* An URGENT! event (On a socket) */
+/* 
+ * Signal names (from the Unix specification on signals)
+ */
+
+// Supported Vali signals
+#define SIGINT      1  /* External interrupt, usually initiated by the user */
+#define SIGQUIT     2  /* Quit */
+#define SIGILL      3  /* Illegal instruction */
+#define SIGTRAP     4  /* A breakpoint or trace instruction has been reached */
+#define SIGABRT     5  /* Abnormal termination condition, as is e.g. initiated by abort() */
+#define SIGFPE      6  /* Erroneous arithmetic operation such as divide by zero */
+#define SIGKILL     7  /* You have been stabbed repeated with a large knife */
+#define SIGSEGV     8  /* Invalid memory access (segmentation fault) */
+#define SIGPIPE     9  /* Attempted to read or write from a broken pipe */
+#define SIGUSR1     10 /* User Defined Signal #1 */
+#define SIGUSR2     11 /* User Defined Signal #2 */
+#define SIGALRM     12 /* This is your wakeup call. */
+#define SIGTERM     13 /* Termination request, sent to the program */
+#define SIGURG      14 /* An URGENT! event (On a socket) */
+
+// Unsupported Vali signals
+#define SIGBUS      15 /* Bus error (device error) */
+#define SIGEMT      16 /* Emulation trap XXX */
+#define SIGHUP      17 /* Hangup */
+#define SIGSYS      18 /* Bad system call */
+#define SIGCHLD     19 /* Child status report */
+#define SIGPWR      20 /* We need moar powah! */
+#define SIGWINCH    21 /* Your containing terminal has changed size */
 #define SIGPOLL     22 /* XXX OBSOLETE; socket i/o possible */
 #define SIGSTOP     23 /* Stopped (signal) */
 #define SIGTSTP     24 /* ^Z (suspend) */

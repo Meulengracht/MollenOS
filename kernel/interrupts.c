@@ -582,7 +582,7 @@ InterruptHandle(
                 // We have the InterruptHandledStop as a marker to identify
                 // when it's not neccessary to further send an interrupt notification
                 if ((Entry->Flags & INTERRUPT_USERSPACE) != 0 && Result != InterruptHandledStop) {
-                    (void)SignalQueue(Entry->Thread, SIGINT, Entry->Interrupt.Context);
+                    (void)SignalSend(Entry->Thread, SIGINT, Entry->Interrupt.Context);
                 }
                 Source = Entry->Source;
                 break;

@@ -19,8 +19,8 @@
  * System Call Implementation
  *   - Table of calls
  */
-#define DefineSyscall(Index, Fn) ((uintptr_t)&Fn)
 
+#include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/contracts/video.h>
 #include <ddk/services/process.h>
@@ -151,8 +151,17 @@ extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
+#define SYSTEM_CALL_COUNT 81
+
+typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
+
+#define DefineSyscall(Index, Fn) { Index, ((uintptr_t)&Fn) }
+
 // The static system calls function table.
-uintptr_t SystemCallsTable[81] = {
+static struct SystemCallDescriptor {
+    int          Index;
+    uintptr_t    HandlerAddress;
+} SystemCallsTable[SYSTEM_CALL_COUNT] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -263,3 +272,30 @@ uintptr_t SystemCallsTable[81] = {
     DefineSyscall(78, ScPerformanceTick),
     DefineSyscall(79, ScSystemTime)
 };
+
+Context_t*
+SyscallHandle(
+    _In_ Context_t* Context)
+{
+    struct SystemCallDescriptor* Handler;
+    MCoreThread_t*               Thread;
+    size_t                       Index = CONTEXT_SC_FUNC(Context);
+    size_t                       ReturnValue;
+    
+    if (Index > SYSTEM_CALL_COUNT) {
+        CONTEXT_SC_RET0(Context) = (size_t)OsInvalidParameters;
+        return Context;
+    }
+    
+    Thread      = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Handler     = &SystemCallsTable[Index];
+    ReturnValue = ((SystemCallHandlerFn)Handler)((void*)CONTEXT_SC_ARG0(Context),
+        (void*)CONTEXT_SC_ARG1(Context), (void*)CONTEXT_SC_ARG2(Context),
+        (void*)CONTEXT_SC_ARG3(Context), (void*)CONTEXT_SC_ARG4(Context));
+    CONTEXT_SC_RET0(Context) = ReturnValue;
+    
+    // Before returning to userspace code, queue up any signals that might
+    // have been queued up for us.
+    SignalProcessQueued(Thread, Context);
+    return Context;
+}
