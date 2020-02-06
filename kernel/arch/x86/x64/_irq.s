@@ -179,7 +179,8 @@ irq_common:
 	add rsp, 0x10
 	iretq
 
-; Entrypoint for syscall
+; Entrypoint for syscall, this is directly refered to, and not called through
+; the wrappers below, which means we don't need to pop irq/error code from stack
 syscall_entry:
     save_state
 
@@ -191,7 +192,6 @@ syscall_entry:
 
 	; When we return, restore state
 	restore_state
-	add rsp, 0x10
 	iretq
 
 ; void ContextEnter(context_t* registers)

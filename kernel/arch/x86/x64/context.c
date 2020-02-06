@@ -78,13 +78,30 @@
 // context, for handling signals this is effective.
 
 static void
-ContextPush(
+PushRegister(
 	_In_ uintptr_t** Address,
 	_In_ uintptr_t   Value)
 {
 	uintptr_t* Stack = *Address;
 	*(--Stack) = Value;
 	*Address = Stack;
+}
+
+static void
+PushContextOntoStack(
+    _In_ Context_t* Context,
+    _In_ uintptr_t* TemporaryStack)
+{
+	memcpy((void*)TemporaryStack, Context, sizeof(Context_t));
+	*TemporaryStack += sizeof(Context_t);
+	
+	// Push in reverse fashion, and have everything on stack to be able to restore
+	// the default register states. We cannot guarantee alignment on interceptor functions
+	// as there is no way to restore the stack
+	//PushRegister((uintptr_t**)&TemporaryStack, Context->UserRsp);
+	//PushRegister((uintptr_t**)&TemporaryStack, Context->Rcx);
+	//PushRegister((uintptr_t**)&TemporaryStack, Context->Rdx);
+	//PushRegister((uintptr_t**)&TemporaryStack, Context->R8);
 }
 
 void
@@ -96,24 +113,25 @@ ContextPushInterceptor(
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	// Push in reverse fashion, and have everything on stack to be able to restore
-	// the default register states. We cannot guarantee alignment on interceptor functions
-	// as there is no way to restore the stack
-	ContextPush((uintptr_t**)&TemporaryStack, Context->UserRsp);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->Rcx);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->Rdx);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->R8);
+	uintptr_t NewStackPointer = TemporaryStack;
+	WARNING("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN,
+		TemporaryStack, Address);
+	
+	// Save entire context onto the provided stack
+	PushContextOntoStack(Context, &NewStackPointer);
 	
 	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rip);
+	PushRegister((uintptr_t**)&Context->UserRsp, Context->Rip);
 	
-	// Set arguments
+	// Store all information provided, and replace current stack with the
+	// one provided that should be used temporarily
 	Context->Rip     = Address;
-	Context->Rcx     = Argument0;
-	Context->Rdx     = Argument1;
-	Context->R8      = Argument2;
-	Context->UserRsp = TemporaryStack;
+	Context->Rcx     = NewStackPointer;
+	Context->Rdx     = Argument0;
+	Context->R8      = Argument1;
+	Context->R9      = Argument2;
+	Context->UserRsp = NewStackPointer;
 }
 
 void
@@ -121,16 +139,13 @@ ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
     _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2)
+    _In_ uintptr_t  Argument)
 {
-    uint64_t DataSegment   = 0;
-    uint64_t ExtraSegment  = 0;
-    uint64_t CodeSegment   = 0;
-    uint64_t StackSegment  = 0;
-    uint64_t RbpInitial    = 0;
-    uint64_t RspReturn     = 0;
+    uint64_t DataSegment  = 0;
+    uint64_t ExtraSegment = 0;
+    uint64_t CodeSegment  = 0;
+    uint64_t StackSegment = 0;
+    uint64_t RbpInitial   = 0;
 	
 	// Reset context
     memset(Context, 0, sizeof(Context_t));
@@ -142,34 +157,17 @@ ContextReset(
 		ExtraSegment = GDT_KDATA_SEGMENT;
 		StackSegment = GDT_KDATA_SEGMENT;
 		RbpInitial   = ((uint64_t)Context + sizeof(Context_t));
-		RspReturn    = (uint64_t)&Context->ReturnAddress;
 	}
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
-    	uintptr_t* StackTopPointer;
+    else if (ContextType == THREADING_CONTEXT_LEVEL1) {
         ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
         CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
 	    StackSegment = GDT_UDATA_SEGMENT + 0x03;
 	    DataSegment  = GDT_UDATA_SEGMENT + 0x03;
 	    
 	    // Base should point to top of stack
-	    if (ContextType == THREADING_CONTEXT_LEVEL1) {
- 			RbpInitial = MEMORY_LOCATION_RING3_STACK_START;
-	    }
-	    else {
-	    	RbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
-	    }
-	    
-	    // Initialize top part of stack, skip shadow space
-	    StackTopPointer      = (uintptr_t*)(RbpInitial - (4 * 8));
-	    *(--StackTopPointer) = MEMORY_LOCATION_SIGNAL_RET;
-	    if (ContextType == THREADING_CONTEXT_SIGNAL) {
-		    *(--StackTopPointer) = 0;
-		    *(--StackTopPointer) = 0;
-		    *(--StackTopPointer) = 0;
-	    }
-	    
+ 		RbpInitial = MEMORY_LOCATION_RING3_STACK_START;
+ 		
 		// Either initialize the ring3 stuff or zero out the values
-	    RspReturn    = (uint64_t)StackTopPointer;
 	    Context->Rax = CONTEXT_RESET_IDENTIFIER;
     }
 	else {
@@ -187,13 +185,11 @@ ContextReset(
 	Context->Rip     = Address;
 	Context->Rflags  = CPU_EFLAGS_DEFAULT;
 	Context->Cs      = CodeSegment;
-	Context->UserRsp = RspReturn;
+	Context->UserRsp = (uint64_t)&Context->ReturnAddress;
 	Context->UserSs  = StackSegment;
 
-    // Setup arguments and return
-    Context->Rcx = Argument0;
-    Context->Rdx = Argument1;
-    Context->R8  = Argument2;
+    // Setup arguments
+    Context->Rcx = Argument;
 }
 
 Context_t*

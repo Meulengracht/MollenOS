@@ -289,9 +289,10 @@ SyscallHandle(
     
     Thread      = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     Handler     = &SystemCallsTable[Index];
-    ReturnValue = ((SystemCallHandlerFn)Handler)((void*)CONTEXT_SC_ARG0(Context),
-        (void*)CONTEXT_SC_ARG1(Context), (void*)CONTEXT_SC_ARG2(Context),
-        (void*)CONTEXT_SC_ARG3(Context), (void*)CONTEXT_SC_ARG4(Context));
+    ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(
+        (void*)CONTEXT_SC_ARG0(Context), (void*)CONTEXT_SC_ARG1(Context),
+        (void*)CONTEXT_SC_ARG2(Context), (void*)CONTEXT_SC_ARG3(Context),
+        (void*)CONTEXT_SC_ARG4(Context));
     CONTEXT_SC_RET0(Context) = ReturnValue;
     
     // Before returning to userspace code, queue up any signals that might

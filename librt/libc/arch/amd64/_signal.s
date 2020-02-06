@@ -25,18 +25,10 @@ segment .text
 global __signalentry
 extern StdInvokeSignal
 
-; void __signalentry(int signal (rcx), void* argument (rdx), reg_t flags (r8))
+; void __signalentry(context_t* context (rcx), int signal (rdx), void* argument (r8), reg_t flags (r9))
 ; Fixup stack and call directly into the signal handler
 __signalentry:
-	; Check which of these are non-volatile, and skip storing state of these
-	; r12-15 are non volatile
-	; rdi, rsi, rbp, rsp, rbx are non-volatile
 	xchg bx, bx
-	push rax
-	push rbx
-	push r9
-	push r10
-	push r11
 	
     ; Prepare stack alignment
     mov rbx, 0x20 ; this register is non-volatile, so we use this
@@ -44,17 +36,29 @@ __signalentry:
     and rax, 0xF
     add rbx, rax
 	sub rsp, rbx
-	call StdInvokeSignal ; (int, void*, unsigned)
+	call StdInvokeSignal ; (context_t*, int, void*, unsigned)
 	add rsp, rbx
 	
     ; Restore initial state and switch the handler stack to next one stored
-	pop r11
-	pop r10
-	pop r9
-	pop rbx
-	pop rax
-	pop r8
-	pop rdx
-	pop rcx
-	pop rsp
+    pop rdi
+    pop rdi
+    pop rsi
+    pop rbp
+    add rsp, 8 ; skip rsp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+    
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+    
+    ; get the user-rsp from the stack, it will be offset 9
+    mov rsp, [rsp + (9 * 8)]
     ret

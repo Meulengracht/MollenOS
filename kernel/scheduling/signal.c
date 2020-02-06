@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "signal"
-//#define __TRACE
+#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/thread.h>
@@ -37,22 +37,6 @@
 #include <scheduler.h>
 #include <string.h>
 #include <threading.h>
-
-static void
-InitializeSafeTrapStack(
-    _In_ MCoreThread_t* Thread,
-    _In_ Context_t*     CurrentContext,
-    _In_ int            Signal,
-    _In_ uintptr_t      Argument,
-    _In_ unsigned int   Flags)
-{
-    Thread->Signaling.HandlingTrapSignal = 1;
-    Thread->Signaling.OriginalContext    = CurrentContext;
-    Thread->ContextActive                = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
-        THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
-        (uintptr_t)Signal, Argument, (uintptr_t)Flags);
-}
 
 static void
 ExecuteSignalOnCoreFunction(
@@ -179,11 +163,10 @@ SignalExecuteLocalThreadTrap(
 
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
-    InitializeSafeTrapStack(Thread, Context, Signal, (uintptr_t)Argument,
-        SIGNAL_SEPERATE_STACK);
-    
-    // Switch to the signal context
-    UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, /* EnterContext: */ 1);
+    ContextPushInterceptor(Context, 
+        (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL], 
+        Thread->MemorySpace->Context->SignalHandler, Signal, 
+        (uintptr_t)Argument, SIGNAL_SEPERATE_STACK | SIGNAL_HARDWARE_TRAP);
 #endif
 }
 

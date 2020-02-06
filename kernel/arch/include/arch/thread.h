@@ -91,9 +91,7 @@ ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
     _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2); 
+    _In_ uintptr_t  Argument); 
 
 /**
  * ContextPushInterceptor

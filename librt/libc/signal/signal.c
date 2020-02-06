@@ -37,46 +37,47 @@
 extern void __signalentry(void);
 
 // The consequences of recieving the different signals
-char signal_fatality[] = {
+char signal_fatality[NUMSIGNALS] = {
 	0, /* 0? */
-	1, /* SIGHUP     */
-	1, /* SIGINT     */
-	2, /* SIGQUIT    */
-	2, /* SIGILL     */
-	2, /* SIGTRAP    */
-	2, /* SIGABRT    */
-	2, /* SIGEMT     */
-	2, /* SIGFPE     */
+	
+	0, /* SIGINT     */
+	1, /* SIGQUIT    */
+	1, /* SIGILL     */
+	0, /* SIGTRAP    */
+	1, /* SIGABRT    */
+	1, /* SIGFPE     */
 	1, /* SIGKILL    */
-	2, /* SIGBUS     */
-	2, /* SIGSEGV    */
-	2, /* SIGSYS     */
+	1, /* SIGSEGV    */
 	1, /* SIGPIPE    */
-	1, /* SIGALRM    */
-	1, /* SIGTERM    */
 	0, /* SIGUSR1    */
 	0, /* SIGUSR2    */
-	0, /* SIGCHLD    */
-	0, /* SIGPWR     */
-	0, /* SIGWINCH   */
+	0, /* SIGALRM    */
+	1, /* SIGTERM    */
 	0, /* SIGURG     */
-	0, /* SIGPOLL    */
-	3, /* SIGSTOP    */
-	3, /* SIGTSTP    */
-	0, /* SIGCONT    */
-	3, /* SIGTTIN    */
-	3, /* SIGTTOUT   */
+	
+	1, /* SIGBUS     */
+	1, /* SIGEMT     */
+	1, /* SIGHUP     */
+	1, /* SIGSYS     */
+	1, /* SIGCHLD    */
+	1, /* SIGPWR     */
+	1, /* SIGWINCH   */
+	1, /* SIGPOLL    */
+	1, /* SIGSTOP    */
+	1, /* SIGTSTP    */
+	1, /* SIGCONT    */
+	1, /* SIGTTIN    */
+	1, /* SIGTTOUT   */
 	1, /* SIGVTALRM  */
 	1, /* SIGPROF    */
-	2, /* SIGXCPU    */
-	2, /* SIGXFSZ    */
-	0, /* SIGWAITING */
+	1, /* SIGXCPU    */
+	1, /* SIGXFSZ    */
+	1, /* SIGWAITING */
 	1, /* SIGDIAF    */
-	0, /* SIGHATE    */
-	0, /* SIGWINEVENT*/
-	0, /* SIGCAT     */
+	1, /* SIGHATE    */
+	1, /* SIGWINEVENT*/
+	1, /* SIGCAT     */
     1, /* SIGSOCK    */
-	0  /* SIGEND	 */
 };
 
 // Default interrupt handlers
@@ -95,19 +96,13 @@ static sig_element signal_list[] = {
 
 static void
 DefaultCrashHandler(
-    _In_ sig_element* Signal)
+    _In_ Context_t*   Context,
+    _In_ sig_element* Signal,
+    _In_ size_t       Flags)
 {
-    Context_t  Context;
-    OsStatus_t Status;
-    
-    Status = Syscall_GetSignalOriginalContext(&Context);
-    if (Status != OsSuccess) {
-        GetContext(&Context);
-    }
-    
     // Not supported by modules
     if (!IsProcessModule()) {
-        ProcessReportCrash(&Context, Signal->signal);
+        ProcessReportCrash(Context, Signal->signal);
     }
     
     // Last thing is to exit application
@@ -130,17 +125,15 @@ CreateSignalInformation(
 
 void
 StdInvokeSignal(
-    _In_ int   Signal,
-    _In_ void* Argument)
+    _In_ Context_t* Context,
+    _In_ int        Signal,
+    _In_ void*      Argument,
+    _In_ size_t     Flags)
 {
-    sig_element* sig = NULL;
-    int          fatal;
+    sig_element* sig   = NULL;
+    int          fatal = signal_fatality[Signal] || (Flags & SIGNAL_HARDWARE_TRAP);
     int          i;
     
-    // 3 of the signals are relatively harmless and we can continue after
-    fatal = Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2;
-    
-    // Find handler
     for (i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
         if (signal_list[i].signal == Signal) {
             sig = &signal_list[i];
@@ -153,11 +146,7 @@ StdInvokeSignal(
         CreateSignalInformation(Signal, Argument);
         if (sig->handler != SIG_IGN) {
             if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
-                if (sig->handler == SIG_ERR ||
-                    signal_fatality[Signal] == 1 || 
-                    signal_fatality[Signal] == 2) {
-                    DefaultCrashHandler(sig);
-                }
+                DefaultCrashHandler(Context, sig, Flags);
             }
             else {
                 __sa_process_t ext_handler = (__sa_process_t)sig->handler;
@@ -173,10 +162,10 @@ StdInvokeSignal(
             .name    = "Unknown signal",
             .handler = NULL
         };
-        DefaultCrashHandler(&_static_sig);
+        DefaultCrashHandler(Context, &_static_sig, Flags);
     }
     else if (fatal) {
-        DefaultCrashHandler(sig);
+        DefaultCrashHandler(Context, sig, Flags);
     }
 }
 
@@ -255,22 +244,13 @@ int
 raise(
     _In_ int sig)
 {
-    switch (sig) {
-        case SIGINT:
-        case SIGILL:
-        case SIGFPE:
-        case SIGSEGV:
-        case SIGTERM:
-        case SIGQUIT:
-        case SIGABRT:
-        case SIGSOCK:
-        case SIGUSR1:
-        case SIGUSR2:
-            break;
-        default:
-            return -1;
+    Context_t Context;
+    
+    if (sig >= SIGBUS) {
+        return -1;
     }
     
-    StdInvokeSignal(sig, NULL);
+    GetContext(&Context);
+    StdInvokeSignal(&Context, sig, NULL, 0);
     return 0;
 }

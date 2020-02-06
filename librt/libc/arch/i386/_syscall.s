@@ -31,7 +31,6 @@ __syscall:
 	push esi
 	push edi
 
-	; Get params
 	mov eax, [ebp + 8]
 	mov ebx, [ebp + 12]
 	mov ecx, [ebp + 16]

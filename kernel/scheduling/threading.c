@@ -130,7 +130,7 @@ CreateDefaultThreadContexts(
 {
     Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
-        (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
+        (uintptr_t)&ThreadingEntryPoint, 0);
 
     // TODO: Should we create user stacks immediately?
 }
@@ -491,7 +491,7 @@ EnterProtectedThreadLevel(void)
     // Create the userspace stack now that we need it 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-        (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments, 0, 0);
+        (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments);
         
     // Create the signal stack in preparation.
     Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);

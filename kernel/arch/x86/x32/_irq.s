@@ -60,7 +60,6 @@ extern _SyscallHandle
     pop fs
     pop es
     pop ds
-    add esp, 0x8
 %endmacro
 
 ; Exception with no error code
@@ -135,6 +134,7 @@ _exception_common:
     add esp, 0x4
     
     restore_state
+    add esp, 0x8
     iret
 
 ;Common entry point for interrupts
@@ -153,6 +153,7 @@ _irq_common:
     ; no need to restore the stack as we indirectly restore it here
 	mov esp, eax
     restore_state
+    add esp, 0x8
     iret
 
 ; Entrypoint for syscall 
