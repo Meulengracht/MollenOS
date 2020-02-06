@@ -206,7 +206,7 @@ SignalProcessQueued(
     }
     
     Handler     = Thread->MemorySpace->Context->SignalHandler;
-    SignalStack = CONTEXT_SP(Context);
+    SignalStack = CONTEXT_USERSP(Context);
     for (i = 0; i < NUMSIGNALS; i++) {
         SystemSignal_t* SignalInfo = &Thread->Signaling.Signals[i];
         int             Status;
@@ -220,7 +220,7 @@ SignalProcessQueued(
             
             ContextPushInterceptor(Context, SignalStack, Handler, i, 
                 (uintptr_t)SignalInfo->Argument, SignalInfo->Flags);
-            SignalStack = CONTEXT_SP(Context);
+            SignalStack = CONTEXT_USERSP(Context);
             
             atomic_store(&SignalInfo->Status, SIGNAL_FREE);
             atomic_fetch_sub(&Thread->Signaling.SignalsPending, 1);
