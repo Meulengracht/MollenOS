@@ -28,7 +28,6 @@ extern StdInvokeSignal
 ; void __signalentry(context_t* context (rcx), int signal (rdx), void* argument (r8), reg_t flags (r9))
 ; Fixup stack and call directly into the signal handler
 __signalentry:
-	xchg bx, bx
 	
     ; Prepare stack alignment
     mov rbx, 0x20 ; this register is non-volatile, so we use this
@@ -40,7 +39,6 @@ __signalentry:
 	add rsp, rbx
 	
     ; Restore initial state and switch the handler stack to next one stored
-    pop rdi
     pop rdi
     pop rsi
     pop rbp
@@ -61,4 +59,5 @@ __signalentry:
     
     ; get the user-rsp from the stack, it will be offset 9
     mov rsp, [rsp + (9 * 8)]
+	xchg bx, bx
     ret

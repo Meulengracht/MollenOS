@@ -117,10 +117,10 @@ SchedulerBlock(
     _In_ size_t  Timeout);
 
 /**
- * SchedulerIsTimeout
+ * SchedulerGetTimeoutReason
  */
 KERNELAPI int KERNELABI
-SchedulerIsTimeout(void);
+SchedulerGetTimeoutReason(void);
 
 /* SchedulerAdvance 
  * This should be called by the underlying archteicture code

@@ -184,24 +184,11 @@ is_signal_valid(
     _In_ void* handler)
 {
     // Validate signal, currently we do not support POSIX signal extensions
-    switch (sig) {
-        case SIGINT:
-        case SIGILL:
-        case SIGFPE:
-        case SIGSEGV:
-        case SIGTERM:
-        case SIGQUIT:
-        case SIGABRT:
-        case SIGSOCK:
-        case SIGUSR1:
-        case SIGUSR2:
-            break;
-        default: {
-            _set_errno(EINVAL);
-            return -1;
-        }
+    if (sig >= SIGBUS) {
+        _set_errno(EINVAL);
+        return -1;
     }
-
+    
     // Check specials
     if ((uintptr_t)handler < 10 && handler != (void*)SIG_DFL && handler != (void*)SIG_IGN) {
         _set_errno(EINVAL);
@@ -247,6 +234,7 @@ raise(
     Context_t Context;
     
     if (sig >= SIGBUS) {
+        _set_errno(EINVAL);
         return -1;
     }
     

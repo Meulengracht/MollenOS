@@ -142,17 +142,9 @@ RestoreThreadState(
     
     // Load thread-specific resources
     SwitchMemorySpace(Thread->MemorySpace);
-    TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     
-    // If the thread is running in a seperate userspace stack, and it originated from
-    // a kernel stack, then we could be overwriting the kernel stack if we set it to
-    // the base of the stack. Rather set it where we stored the original stack
-    if (Thread->Signaling.HandlingTrapSignal) {
-        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Signaling.OriginalContext);
-    }
-    else {
-        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    }
+    TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
     
     // If we are idle task - disable task priority

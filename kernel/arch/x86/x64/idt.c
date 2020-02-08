@@ -52,7 +52,7 @@ IdtInstallDescriptor(
 void IdtInitialize(void)
 {
 	__IdtTableObject.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTOR_COUNT) - 1;
-	__IdtTableObject.Base  = (uint32_t)&IdtDescriptors[0];
+	__IdtTableObject.Base  = (uint64_t)&IdtDescriptors[0];
 	InterruptInstallDefaultGates();
 
 	// Override ALL call gates that need on per-thread base

@@ -142,8 +142,9 @@ __MutexPerformLock(
                 Zero = atomic_exchange(&Mutex->Value, 2);
             }
             while (Zero != 0) {
-                if (FutexWait(&Mutex->Value, 2, FUTEX_WAIT_PRIVATE, Timeout) == OsTimeout) {
-                    return OsTimeout;
+                Status = FutexWait(&Mutex->Value, 2, FUTEX_WAIT_PRIVATE, Timeout);
+                if (Status != OsSuccess) {
+                    return Status;
                 }
                 Zero = atomic_exchange(&Mutex->Value, 2);
             }

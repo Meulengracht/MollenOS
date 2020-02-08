@@ -293,7 +293,7 @@ FutexWait(
 
     Result = atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", GetCurrentThreadId());
-    return (SchedulerIsTimeout() == 1) ? OsTimeout : OsSuccess;
+    return SchedulerGetTimeoutReason();
 }
 
 OsStatus_t
@@ -368,7 +368,7 @@ FutexWaitOperation(
     
     Result = atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", GetCurrentThreadId());
-    return (SchedulerIsTimeout() == 1) ? OsTimeout : OsSuccess;
+    return SchedulerGetTimeoutReason();
 }
 
 OsStatus_t

@@ -110,8 +110,9 @@ ScIpcListen(
     // Wait for response by 'polling' the value
     SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
     while (!SyncValue) {
-        if (FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
-            return OsTimeout;
+        OsStatus_t Status = FutexWait(&IpcArena->ReadSyncObject, SyncValue, 0, Timeout);
+        if (Status != OsSuccess) {
+            return Status;
         }
         SyncValue = atomic_exchange(&IpcArena->ReadSyncObject, 0);
     }
@@ -150,8 +151,8 @@ ScIpcGetResponse(
     SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
     while (!SyncValue) {
         OsStatus_t Status = FutexWait(&IpcArena->ResponseSyncObject, SyncValue, 0, Timeout);
-        if (Status == OsTimeout) {
-            return OsTimeout;
+        if (Status != OsSuccess) {
+            return Status;
         }
         SyncValue = atomic_exchange(&IpcArena->ResponseSyncObject, 0);
     }
@@ -186,9 +187,10 @@ ScIpcInvoke(
     IpcArena  = Target->ArenaKernelPointer;
     SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     while (SyncValue) {
-        if (FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout) == OsTimeout) {
-            ERROR("[ipc_invoke] timeout reached");
-            return OsTimeout;
+        OsStatus_t Status = FutexWait(&IpcArena->WriteSyncObject, SyncValue, 0, Timeout);
+        if (Status != OsSuccess) {
+            ERROR("[ipc_invoke] interrupted waiting for lock");
+            return Status;
         }
         SyncValue = atomic_exchange(&IpcArena->WriteSyncObject, 1);
     }

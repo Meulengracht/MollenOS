@@ -65,8 +65,8 @@ typedef struct SchedulerObject {
     void*                   Object;
     
     list_t*                 WaitQueueHandle;
-    int                     Timeout;
     size_t                  TimeLeft;
+    OsStatus_t              TimeoutReason;
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
 
@@ -388,7 +388,7 @@ SchedulerSleep(
     }
     
     Object->TimeLeft        = Milliseconds;
-    Object->Timeout         = 0;
+    Object->TimeoutReason   = OsSuccess;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = NULL;
     
@@ -401,7 +401,7 @@ SchedulerSleep(
     ThreadingYield();
     
     smp_rmb();
-    if (!Object->Timeout) {
+    if (Object->TimeoutReason != OsSuccess) {
         *InterruptedAt = Object->InterruptedAt;
         return SCHEDULER_SLEEP_INTERRUPTED;
     }
@@ -421,7 +421,7 @@ SchedulerBlock(
     assert(Object != NULL);
     
     Object->TimeLeft        = Timeout;
-    Object->Timeout         = 0;
+    Object->TimeoutReason   = OsSuccess;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = BlockQueue;
 
@@ -445,6 +445,8 @@ SchedulerExpediteObject(
         if (Object->WaitQueueHandle != NULL) {
             (void)list_remove(Object->WaitQueueHandle, &Object->Header);
         }
+        
+        Object->TimeoutReason = OsInterrupted;
         TimersGetSystemTick(&Object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
@@ -504,14 +506,14 @@ SchedulerObjectGetAffinity(
 }
 
 int
-SchedulerIsTimeout(void)
+SchedulerGetTimeoutReason(void)
 {
     SchedulerObject_t* Object;
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(Object != NULL);
     
-    return Object->Timeout;
+    return Object->TimeoutReason;
 }
 
 static void
@@ -557,7 +559,7 @@ PerformObjectTimeout(
             (void)list_remove(Object->WaitQueueHandle, &Object->Header);
         }
         
-        Object->Timeout = 1;
+        Object->TimeoutReason = OsTimeout;
         TimersGetSystemTick(&Object->InterruptedAt);
         QueueForScheduler(Scheduler, Object, 0);
     }

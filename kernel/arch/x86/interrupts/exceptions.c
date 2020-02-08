@@ -162,12 +162,6 @@ ExceptionEntry(
         Address = (uintptr_t)__getcr2();
         Core    = GetCurrentProcessorCore();
 
-        // The first thing we must check before propegating events
-        // is that we must check special locations
-        if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            SignalReturnFromLocalTrap(Registers);
-        }
-        
         // Debug the error code
         if (Registers->ErrorCode & 0x1) {
             // Page access violation for a page that was present

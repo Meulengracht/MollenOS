@@ -287,8 +287,11 @@ SyscallHandle(
         return Context;
     }
     
-    Thread      = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    Handler     = &SystemCallsTable[Index];
+    Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Handler = &SystemCallsTable[Index];
+    
+    Thread->Signaling.OriginalContext = Context;
+    
     ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(
         (void*)CONTEXT_SC_ARG0(Context), (void*)CONTEXT_SC_ARG1(Context),
         (void*)CONTEXT_SC_ARG2(Context), (void*)CONTEXT_SC_ARG3(Context),

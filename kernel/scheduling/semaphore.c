@@ -74,7 +74,7 @@ SemaphoreWait(
         Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
-            if (Status == OsTimeout) {
+            if (Status != OsSuccess) {
                 break;
             }
             Value = atomic_load(&(Semaphore->Value));

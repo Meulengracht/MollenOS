@@ -164,6 +164,7 @@ int wm_client_initialize(wm_client_configuration_t* config, wm_client_t** client
     }
     
     if (client->socket == -1) {
+        free(client);
         return -1;
     }
     

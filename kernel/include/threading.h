@@ -81,7 +81,6 @@ typedef struct SystemSignal {
 
 typedef struct SignalSupport {
     Context_t*     OriginalContext;
-    int            HandlingTrapSignal;
     _Atomic(int)   SignalsPending;
     SystemSignal_t Signals[NUMSIGNALS];
 } SignalSupport_t;
@@ -230,15 +229,6 @@ SignalExecuteLocalThreadTrap(
     _In_ Context_t* Context,
     _In_ int        Signal,
     _In_ void*      Argument);
-
-/**
- * SignalReturnFromLocalTrap
- * * Handles returning from a signal, reloads the original thread context.
- * * There is no return from this function.
- */
-KERNELAPI void KERNELABI
-SignalReturnFromLocalTrap(
-    _In_ Context_t* Context);
 
 /**
  * SignalProcessQueued

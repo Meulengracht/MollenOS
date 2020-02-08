@@ -79,29 +79,22 @@
 
 static void
 PushRegister(
-	_In_ uintptr_t** Address,
-	_In_ uintptr_t   Value)
+	_In_ uintptr_t* StackReference,
+	_In_ uintptr_t  Value)
 {
-	uintptr_t* Stack = *Address;
-	*(--Stack) = Value;
-	*Address = Stack;
+	*StackReference -= sizeof(uint64_t);
+	*((uintptr_t*)(*StackReference)) = Value;
 }
 
 static void
 PushContextOntoStack(
-    _In_ Context_t* Context,
-    _In_ uintptr_t* TemporaryStack)
+	_In_ uintptr_t* StackReference,
+    _In_ Context_t* Context)
 {
-	memcpy((void*)TemporaryStack, Context, sizeof(Context_t));
-	*TemporaryStack += sizeof(Context_t);
-	
-	// Push in reverse fashion, and have everything on stack to be able to restore
-	// the default register states. We cannot guarantee alignment on interceptor functions
-	// as there is no way to restore the stack
-	//PushRegister((uintptr_t**)&TemporaryStack, Context->UserRsp);
-	//PushRegister((uintptr_t**)&TemporaryStack, Context->Rcx);
-	//PushRegister((uintptr_t**)&TemporaryStack, Context->Rdx);
-	//PushRegister((uintptr_t**)&TemporaryStack, Context->R8);
+	// Create space on the stack, then copy values onto the bottom of the
+	// space subtracted.
+	*StackReference -= sizeof(Context_t);
+	memcpy((void*)(*StackReference), Context, sizeof(Context_t));
 }
 
 void
@@ -113,24 +106,35 @@ ContextPushInterceptor(
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	uintptr_t NewStackPointer = TemporaryStack;
-	WARNING("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN,
-		TemporaryStack, Address);
+	uintptr_t NewStackPointer;
 	
-	// Save entire context onto the provided stack
-	PushContextOntoStack(Context, &NewStackPointer);
+	WARNING("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
+		TemporaryStack, Address, Context->Rip);
 	
 	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
-	PushRegister((uintptr_t**)&Context->UserRsp, Context->Rip);
+	if (!TemporaryStack) {
+		PushRegister(&Context->UserRsp, Context->Rip);
+		
+		NewStackPointer = Context->UserRsp;
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+	else {
+		NewStackPointer = TemporaryStack;
+		
+		PushRegister(&Context->UserRsp, Context->Rip);
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+
+	// Store all information provided, and 
+	Context->Rip = Address;
+	Context->Rcx = NewStackPointer;
+	Context->Rdx = Argument0;
+	Context->R8  = Argument1;
+	Context->R9  = Argument2;
 	
-	// Store all information provided, and replace current stack with the
-	// one provided that should be used temporarily
-	Context->Rip     = Address;
-	Context->Rcx     = NewStackPointer;
-	Context->Rdx     = Argument0;
-	Context->R8      = Argument1;
-	Context->R9      = Argument2;
+	// Replace current stack with the one provided that has been adjusted for
+	// the copy of the context structure
 	Context->UserRsp = NewStackPointer;
 }
 
@@ -251,6 +255,7 @@ ArchDumpThreadContext(
         Context->Rsp, Context->UserRsp, Context->Rbp, Context->Rflags);
         
     // Dump copy registers
+	WRITELINE("RIP 0x%llx", Context->Rip);
 	WRITELINE("RSI 0x%llx, RDI 0x%llx", Context->Rsi, Context->Rdi);
 
 	// Dump segments

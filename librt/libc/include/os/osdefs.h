@@ -92,7 +92,8 @@ typedef enum {
     OsDoesNotExist,         // Error - Resource does not exist
     OsInvalidParameters,    // Error - Bad parameters given
     OsInvalidPermissions,   // Error - Bad permissions
-    OsTimeout,              // Error - Timeout
+    OsTimeout,              // Error - Operation timeout
+    OsInterrupted,          // Error - Operation was interrupted
     OsNotSupported,         // Error - Feature/Operation not supported
     OsOutOfMemory,          // Error - Out of memory
     OsBusy,                 // Error - Resource is busy or contended

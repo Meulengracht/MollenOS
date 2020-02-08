@@ -107,8 +107,8 @@ ScThreadSignal(
 
 OsStatus_t
 ScThreadSleep(
-    _In_  time_t    Milliseconds,
-    _Out_ time_t*   MillisecondsSlept)
+    _In_  time_t  Milliseconds,
+    _Out_ time_t* MillisecondsSlept)
 {
     clock_t Start   = 0;
     clock_t End     = 0;

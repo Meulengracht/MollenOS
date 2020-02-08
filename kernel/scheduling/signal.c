@@ -43,6 +43,7 @@ ExecuteSignalOnCoreFunction(
     _In_ void* Context)
 {
     MCoreThread_t* Thread = Context;
+    TRACE("[signal] [execute]");
     
     // This function has determine the course of action for the given thread.
     // CASE 1: Thread is currently running, Modify the current context and push
@@ -60,7 +61,8 @@ ExecuteSignalOnCoreFunction(
         //           we can simply process all the queued signals onto the current
         //           context.
         if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Core->InterruptRegisters))) {
-            SignalProcessQueued(Thread, Core->InterruptRegisters);
+            TRACE("[signal] [execute] case 1.2");
+            SignalProcessQueued(Thread, Thread->Signaling.OriginalContext);
         }
     }
     
@@ -68,18 +70,20 @@ ExecuteSignalOnCoreFunction(
     //         expedite the thread in case of a block.
     else {
         
-        // CASE 1.1: The thread is currently executing kernel code (syscall).
+        // CASE 2.1: The thread is currently executing kernel code (syscall).
         //           In this case the signal must stay queued and be handled
         //           on exit of system call
         if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Thread->ContextActive))) {
+            TRACE("[signal] [execute] case 2.1");
             SchedulerExpediteObject(Thread->SchedulerObject);
         }
         
-        // CASE 1.2: The thread is currently executing user code. In this case
+        // CASE 2.2: The thread is currently executing user code. In this case
         //           we can simply process all the queued signals onto the current
         //           context. In this case we can also safely assume the thread is 
         //           not currently blocked, as it would require a system call.
         else {
+            TRACE("[signal] [execute] case 2.2");
             SignalProcessQueued(Thread, Thread->ContextActive);
         }
     }
@@ -171,29 +175,14 @@ SignalExecuteLocalThreadTrap(
 }
 
 void
-SignalReturnFromLocalTrap(
-    _In_ Context_t* Context)
-{
-    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    
-    TRACE("[signal] [return]");
-    assert(Thread != NULL);
-    assert(Thread->Signaling.OriginalContext != NULL);
-    
-    Thread->ContextActive                = Thread->Signaling.OriginalContext;
-    Thread->Signaling.OriginalContext    = NULL;
-    Thread->Signaling.HandlingTrapSignal = 0;
-    UpdateThreadContext(Thread, THREADING_CONTEXT_LEVEL0, /* EnterContext: */ 1);
-}
-
-void
 SignalProcessQueued(
     _In_ MCoreThread_t* Thread,
     _In_ Context_t*     Context)
 {
-    uintptr_t SignalStack;
+    uintptr_t AlternativeStack;
     uintptr_t Handler;
     int       i;
+    //TRACE("[signal] [queue]");
     
     assert(Thread != NULL);
     assert(Context != NULL);
@@ -205,8 +194,7 @@ SignalProcessQueued(
         return;
     }
     
-    Handler     = Thread->MemorySpace->Context->SignalHandler;
-    SignalStack = CONTEXT_USERSP(Context);
+    Handler = Thread->MemorySpace->Context->SignalHandler;
     for (i = 0; i < NUMSIGNALS; i++) {
         SystemSignal_t* SignalInfo = &Thread->Signaling.Signals[i];
         int             Status;
@@ -215,12 +203,14 @@ SignalProcessQueued(
         if (Status == SIGNAL_PENDING) {
             if (SignalInfo->Flags & SIGNAL_SEPERATE_STACK) {
                 // Missing implementation
-                // SignalStack = SignalInfo->Stack;
+                // AlternativeStack = SignalInfo->Stack;
+            }
+            else {
+                AlternativeStack = 0;
             }
             
-            ContextPushInterceptor(Context, SignalStack, Handler, i, 
+            ContextPushInterceptor(Context, AlternativeStack, Handler, i, 
                 (uintptr_t)SignalInfo->Argument, SignalInfo->Flags);
-            SignalStack = CONTEXT_USERSP(Context);
             
             atomic_store(&SignalInfo->Status, SIGNAL_FREE);
             atomic_fetch_sub(&Thread->Signaling.SignalsPending, 1);

@@ -142,6 +142,9 @@ __getcr2:
     pop r15
 	
     restore_segments
+    
+	; Cleanup irq & error code from stack
+	add rsp, 0x10
 %endmacro
 
 ;Common entry point for exceptions
@@ -156,9 +159,6 @@ exception_common:
 
 	; _IF_ we return, restore state
 	restore_state
-
-	; Cleanup irq & error code from stack
-	add rsp, 0x10
 	iretq
 
 ;Common entry point for interrupts
@@ -176,14 +176,16 @@ irq_common:
 
 	; When we return, restore state
 	restore_state
-	add rsp, 0x10
 	iretq
 
 ; Entrypoint for syscall, this is directly refered to, and not called through
 ; the wrappers below, which means we don't need to pop irq/error code from stack
 syscall_entry:
+	; push fake error code and irq
+	push 0
+	push 0x60
     save_state
-
+    
 	; Set current stack as argument 1
     mov rcx, rsp
     sub rsp, 0x28 ; microsoft home-space + 8 to align
@@ -199,7 +201,6 @@ syscall_entry:
 ContextEnter:
     mov rsp, rcx
     restore_state
-    add rsp, 0x10
     iretq
 
 ; Macros

@@ -518,8 +518,9 @@ WaitForHandleSet(
     // Wait for response by 'polling' the value
     NumberOfEvents = atomic_exchange(&Set->Pending, 0);
     while (!NumberOfEvents) {
-        if (FutexWait(&Set->Pending, NumberOfEvents, 0, Timeout) == OsTimeout) {
-            return OsTimeout;
+        OsStatus_t Status = FutexWait(&Set->Pending, NumberOfEvents, 0, Timeout);
+        if (Status != OsSuccess) {
+            return Status;
         }
         NumberOfEvents = atomic_exchange(&Set->Pending, 0);
     }
@@ -554,7 +555,7 @@ MarkHandleCallback(
     _In_ void*      Context)
 {
     SystemHandleSetElement_t* SetElement = Element->value;
-    Flags_t                   Flags      = (Flags_t)Context;
+    Flags_t                   Flags      = (Flags_t)(uintptr_t)Context;
     WARNING("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
     
     if (SetElement->Configuration & Flags) {
