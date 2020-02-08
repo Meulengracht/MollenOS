@@ -136,7 +136,7 @@ TryAgain:
         }
     }
     else {
-        WARNING("[scheduler] [execute_event] invalid %s in %s", 
+        TRACE("[scheduler] [execute_event] unhandled %s in %s", 
             EventDescriptions[Event], StateDescriptions[State]);
     }
     
@@ -457,7 +457,7 @@ SchedulerExpediteObject(
         }
     }
     else {
-        WARNING("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
+        TRACE("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
     }
 }
 

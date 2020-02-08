@@ -78,13 +78,23 @@
 // context, for handling signals this is effective.
 
 static void
-ContextPush(
-	_In_ uintptr_t** Address,
-	_In_ uintptr_t   Value)
+PushRegister(
+	_In_ uintptr_t* StackReference,
+	_In_ uintptr_t  Value)
 {
-	uintptr_t* Stack = *Address;
-	*(--Stack) = Value;
-	*Address = Stack;
+	*StackReference -= sizeof(uint32_t);
+	*((uintptr_t*)(*StackReference)) = Value;
+}
+
+static void
+PushContextOntoStack(
+	_In_ uintptr_t* StackReference,
+    _In_ Context_t* Context)
+{
+	// Create space on the stack, then copy values onto the bottom of the
+	// space subtracted.
+	*StackReference -= sizeof(Context_t);
+	memcpy((void*)(*StackReference), Context, sizeof(Context_t));
 }
 
 void
@@ -96,23 +106,36 @@ ContextPushInterceptor(
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	// Push in reverse fashion, and have everything on stack to be able to restore
-	// the default register states. Use the supplied return stack for this
-	ContextPush((uintptr_t**)&TemporaryStack, Context->UserEsp);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->Eax);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->Ebx);
-	ContextPush((uintptr_t**)&TemporaryStack, Context->Ecx);
+	uintptr_t NewStackPointer;
 	
-	// On the previous stack, we would like to keep the Eip as it will be activated
+	TRACE("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
+		TemporaryStack, Address, Context->Eip);
+	
+	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
-	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eip);
+	if (!TemporaryStack) {
+		PushRegister(&Context->UserEsp, Context->Eip);
+		
+		NewStackPointer = Context->UserRsp;
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+	else {
+		NewStackPointer = TemporaryStack;
+		
+		PushRegister(&Context->UserEsp, Context->Eip);
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+
+	// Store all information provided, and 
+	Context->Eip = Address;
+	Context->Eax = NewStackPointer;
+	Context->Ebx = Argument0;
+	Context->Ecx = Argument1;
+	Context->Edx = Argument2;
 	
-	// Set arguments
-	Context->Eip     = Address;
-	Context->Eax     = Argument0;
-	Context->Ebx     = Argument1;
-	Context->Ecx     = Argument2;
-	Context->UserEsp = TemporaryStack;
+	// Replace current stack with the one provided that has been adjusted for
+	// the copy of the context structure
+	Context->UserEsp = NewStackPointer;
 }
 
 void
@@ -120,16 +143,13 @@ ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
     _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2)
+    _In_ uintptr_t  Argument)
 {
     uint32_t DataSegment   = 0;
     uint32_t ExtraSegment  = 0;
     uint32_t CodeSegment   = 0;
     uint32_t StackSegment  = 0;
     uint32_t EbpInitial    = 0;
-    uint32_t EspReturn     = 0;
     
 	// Reset context
     memset(Context, 0, sizeof(Context_t));
@@ -140,10 +160,8 @@ ContextReset(
 		ExtraSegment = GDT_KDATA_SEGMENT;
 		StackSegment = GDT_KDATA_SEGMENT;
 		EbpInitial   = ((uint32_t)Context + sizeof(Context_t));
-		EspReturn    = (uint32_t)&Context->Arguments[0];
     }
     else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
-    	uintptr_t* StackTopPointer;
         ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
         CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
 	    StackSegment = GDT_UDATA_SEGMENT + 0x03;
@@ -157,16 +175,7 @@ ContextReset(
 	    	EbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
 	    }
         
-	    // Initialize top part of stack, same for both signal stacks and
-	    // regular stacks
-	    StackTopPointer = (uintptr_t*)EbpInitial;
-	    *(--StackTopPointer) = Argument2;
-	    *(--StackTopPointer) = Argument1;
-	    *(--StackTopPointer) = Argument0;
-	    *(--StackTopPointer) = MEMORY_LOCATION_SIGNAL_RET;
-	    
 		// Either initialize the ring3 stuff or zero out the values
-	    EspReturn    = (uint64_t)StackTopPointer;
 	    Context->Eax = CONTEXT_RESET_IDENTIFIER;
     }
     else {
@@ -184,14 +193,12 @@ ContextReset(
     Context->Eip     = Address;
     Context->Eflags  = CPU_EFLAGS_DEFAULT;
     Context->Cs      = CodeSegment;
-    Context->UserEsp = EspReturn;
+    Context->UserEsp = (uint32_t)&Context->Arguments[0];
     Context->UserSs  = StackSegment;
 
     // Setup arguments
     Context->Arguments[0] = 0;  // Return address
-    Context->Arguments[1] = Argument0;
-    Context->Arguments[2] = Argument1;
-    Context->Arguments[3] = Argument2;
+    Context->Arguments[1] = Argument;
 }
 
 Context_t*

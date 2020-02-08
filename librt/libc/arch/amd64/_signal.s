@@ -30,13 +30,16 @@ extern StdInvokeSignal
 __signalentry:
 	
     ; Prepare stack alignment
-    mov rbx, 0x20 ; this register is non-volatile, so we use this
-    mov rax, rbx
+    mov rbx, 0x28 ; rbx register is non-volatile, so we use this for calculation
+    mov rax, rsp
     and rax, 0xF
-    add rbx, rax
-	sub rsp, rbx
-	call StdInvokeSignal ; (context_t*, int, void*, unsigned)
-	add rsp, rbx
+    jnz .skip_padding
+    add rbx, 0x08
+    
+    .skip_padding:
+    	sub rsp, rbx
+    	call StdInvokeSignal ; (context_t*, int, void*, unsigned)
+    	add rsp, rbx
 	
     ; Restore initial state and switch the handler stack to next one stored
     pop rdi
@@ -59,5 +62,4 @@ __signalentry:
     
     ; get the user-rsp from the stack, it will be offset 9
     mov rsp, [rsp + (9 * 8)]
-	xchg bx, bx
     ret

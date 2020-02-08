@@ -108,7 +108,7 @@ ContextPushInterceptor(
 {
 	uintptr_t NewStackPointer;
 	
-	WARNING("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
+	TRACE("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
 		TemporaryStack, Address, Context->Rip);
 	
 	// On the previous stack, we would like to keep the Rip as it will be activated
@@ -162,15 +162,20 @@ ContextReset(
 		StackSegment = GDT_KDATA_SEGMENT;
 		RbpInitial   = ((uint64_t)Context + sizeof(Context_t));
 	}
-    else if (ContextType == THREADING_CONTEXT_LEVEL1) {
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
         ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
         CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
 	    StackSegment = GDT_UDATA_SEGMENT + 0x03;
 	    DataSegment  = GDT_UDATA_SEGMENT + 0x03;
 	    
 	    // Base should point to top of stack
- 		RbpInitial = MEMORY_LOCATION_RING3_STACK_START;
- 		
+	    if (ContextType == THREADING_CONTEXT_LEVEL1) {
+ 			RbpInitial = MEMORY_LOCATION_RING3_STACK_START;
+	    }
+	    else {
+	    	RbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
+	    }
+	    
 		// Either initialize the ring3 stuff or zero out the values
 	    Context->Rax = CONTEXT_RESET_IDENTIFIER;
     }
