@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <ddk/contracts/video.h>
 
-PACKED_TYPESTRUCT(BootTerminal, {
+typedef struct BootTerminal {
     Flags_t						AvailableOutputs;
     VideoDescriptor_t			Info;
 
@@ -44,7 +44,7 @@ PACKED_TYPESTRUCT(BootTerminal, {
 
     uint32_t					FgColor;
     uint32_t					BgColor;
-});
+} BootTerminal_t;
 
 /* Video Type Definitions
  * Currently only two kind of video types needs
@@ -65,21 +65,21 @@ VideoClear(void);
 
 /* VideoDrawPixel
  * Draws a pixel of the given color at the specifiedpixel-position */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 VideoDrawPixel(
-    _In_ unsigned X, 
-    _In_ unsigned Y, 
-    _In_ uint32_t Color);
+    _In_ unsigned int X, 
+    _In_ unsigned int Y, 
+    _In_ uint32_t     Color);
 
 /* VideoDrawCharacter
  * Renders a character of the given color(s) at the specified pixel-position */
 KERNELAPI OsStatus_t KERNELABI
 VideoDrawCharacter(
-    _In_ unsigned X, 
-    _In_ unsigned Y, 
-    _In_ int Character, 
-    _In_ uint32_t Bg, 
-    _In_ uint32_t Fg);
+    _In_ unsigned int X, 
+    _In_ unsigned int Y, 
+    _In_ int          Character, 
+    _In_ uint32_t     Bg, 
+    _In_ uint32_t     Fg);
 
 /* VideoPutCharacter
  * Renders a character with default colors at the current terminal position */

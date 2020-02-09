@@ -44,7 +44,8 @@
                 "_LDBL_EQ_DBL",
                 "__OSCONFIG_HAS_MMIO",
                 "__OSCONFIG_HAS_VIDEO",
-                "__OSCONFIG_ACPI_SUPPORT"
+                "__OSCONFIG_ACPI_SUPPORT",
+                "__OSCONFIG_DEBUGCONSOLE"
             ],
             "browse": {
                 "path": [
@@ -103,7 +104,9 @@
                 "_HAVE_LONG_DOUBLE",
                 "__OSCONFIG_HAS_MMIO",
                 "__OSCONFIG_HAS_VIDEO",
-                "__OSCONFIG_ACPI_SUPPORT"
+                "__OSCONFIG_HAS_UART",
+                "__OSCONFIG_ACPI_SUPPORT",
+                "__OSCONFIG_DEBUGCONSOLE"
             ],
             "browse": {
                 "path": [
@@ -115,7 +118,8 @@
             },
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
-            "cppStandard": "c++17"
+            "cppStandard": "c++17",
+            "compilerPath": "/usr/local/cross/bin/clang"
         }
     ],
     "version": 4

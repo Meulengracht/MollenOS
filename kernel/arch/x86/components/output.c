@@ -38,22 +38,18 @@ extern const uint32_t MCoreFontWidth;
 extern const uint16_t MCoreFontIndex[];
 #endif
 
-/* VesaDrawPixel
- * Uses the vesa-interface to plot a single pixel */
-static OsStatus_t
+static void
 VesaDrawPixel(
     _In_ unsigned X, 
     _In_ unsigned Y, 
     _In_ uint32_t Color)
 {
-    uint32_t* VideoPtr;
-    
-    // Calculate the video-offset
-    VideoPtr = (uint32_t*)(Terminal.FrameBufferAddress 
-        + ((Y * Terminal.Info.BytesPerScanline)
-        + (X * (Terminal.Info.Depth / 8))));
-    (*VideoPtr) = (0xFF000000 | Color);
-    return OsSuccess;
+    unsigned int ClampedX  = MIN(X, (Terminal.Info.Width - 1));
+    unsigned int ClampedY  = MIN(Y, (Terminal.Info.Height - 1));
+    uint32_t* VideoPointer = (uint32_t*)(Terminal.FrameBufferAddress 
+        + ((ClampedY * Terminal.Info.BytesPerScanline)
+        + (ClampedX * (Terminal.Info.Depth / 8))));
+    (*VideoPointer) = (0xFF000000 | Color);
 }
 
 static OsStatus_t 
@@ -81,8 +77,7 @@ VesaDrawCharacter(
             break;
     }
     if (i == MCoreFontNumChars) {
-        // Not found
-        return OsError;
+        return OsDoesNotExist;
     }
 #endif
 
@@ -105,13 +100,9 @@ VesaDrawCharacter(
         vPtr = (uint32_t*)_;
     }
 
-    // Done - no errors
     return OsSuccess;
 }
 
-/* VesaScroll
- * Scrolls the terminal <n> lines up by using the
- * vesa-interface */
 static OsStatus_t 
 VesaScroll(
     _In_ int ByLines)
@@ -164,9 +155,6 @@ VesaScroll(
     return OsSuccess;
 }
 
-/* VesaPutCharacter
- * Uses the vesa-interface to print a new character
- * at the current terminal position */
 static OsStatus_t 
 VesaPutCharacter(
     _In_ int Character)
@@ -215,9 +203,6 @@ VesaPutCharacter(
     return OsSuccess;
 }
 
-/* TextDrawCharacter
- * Renders an ASCII character at the given text-position
- * on the screen by the given color combination */
 static OsStatus_t 
 TextDrawCharacter(
     _In_ int      Character,
@@ -225,9 +210,8 @@ TextDrawCharacter(
     _In_ unsigned CursorX,
     _In_ uint8_t  Color)
 {
-    // Variables
-    uint16_t *Video = NULL;
-    uint16_t Data = ((uint16_t)Color << 8) | (uint8_t)(Character & 0xFF);
+    uint16_t* Video = NULL;
+    uint16_t  Data = ((uint16_t)Color << 8) | (uint8_t)(Character & 0xFF);
 
     // Calculate video position
     Video = (uint16_t*)Terminal.FrameBufferAddress +
@@ -236,13 +220,9 @@ TextDrawCharacter(
     // Plot it on the screen
     *Video = Data;
 
-    // Done - no errors
     return OsSuccess;
 }
 
-/* TextScroll
- * Scrolls the terminal <n> lines up by using the
- * text-interface */
 static OsStatus_t 
 TextScroll(
     _In_ int ByLines)
@@ -275,9 +255,6 @@ TextScroll(
     return OsSuccess;
 }
 
-/* TextPutCharacter
- * Uses the text-interface to print a new character
- * at the current terminal position */
 static OsStatus_t 
 TextPutCharacter(
     _In_ int Character)
@@ -432,25 +409,24 @@ VideoClear(void)
     }
 }
 
-OsStatus_t
+void
 VideoDrawPixel(
-    _In_ unsigned X,
-    _In_ unsigned Y,
-    _In_ uint32_t Color)
+    _In_ unsigned int X,
+    _In_ unsigned int Y,
+    _In_ uint32_t     Color)
 {
     if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
-        return VesaDrawPixel(X, Y, Color);
+        VesaDrawPixel(X, Y, Color);
     }
-    return OsError;
 }
 
 OsStatus_t
 VideoDrawCharacter(
-    _In_ unsigned X,
-    _In_ unsigned Y,
-    _In_ int      Character,
-    _In_ uint32_t Bg,
-    _In_ uint32_t Fg)
+    _In_ unsigned int X,
+    _In_ unsigned int Y,
+    _In_ int          Character,
+    _In_ uint32_t     Bg,
+    _In_ uint32_t     Fg)
 {
     if (Terminal.AvailableOutputs & VIDEO_TEXT) {
         return TextDrawCharacter(Character, Y, X, LOBYTE(LOWORD(Terminal.FgColor)));
@@ -458,7 +434,7 @@ VideoDrawCharacter(
     else if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
         return VesaDrawCharacter(X, Y, Character, Fg, Bg);
     }
-    return OsError;
+    return OsNotSupported;
 }
 
 OsStatus_t
@@ -484,9 +460,6 @@ VideoPutCharacter(
     return OsSuccess;
 }
 
-/* InitializeSerialOutput (@arch)
- * Initializes the serial output for the operating system. This is the output that is
- * always active if a serial port is present. */
 OsStatus_t
 InitializeSerialOutput(void)
 {
@@ -497,9 +470,6 @@ InitializeSerialOutput(void)
     return OsSuccess;
 }
 
-/* InitializeFramebufferOutput (@arch)
- * Initializes the video framebuffer of the operating system. This enables visual rendering
- * of the operating system debug console. */
 OsStatus_t
 InitializeFramebufferOutput(void)
 {

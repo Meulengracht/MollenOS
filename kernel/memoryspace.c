@@ -707,6 +707,8 @@ MemorySpaceCommit(
     Status = ArchMmuCommitVirtualPage(MemorySpace, Address, &PhysicalAddressValues[0],
         PageCount, &PagesComitted);
     if (Status != OsSuccess) {
+        ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
+            Status, Address, Length);
         NOTIMPLEMENTED("[memory] [commit] implement cleanup of allocated pages");
     }
     return Status;
