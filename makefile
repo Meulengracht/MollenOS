@@ -112,11 +112,13 @@ package_sdk_headers:
 	@mkdir -p $(VALI_SDK_PATH)/include
 	@mkdir -p $(VALI_SDK_PATH)/include/ds
 	@mkdir -p $(VALI_SDK_PATH)/include/os
+	@mkdir -p $(VALI_SDK_PATH)/include/inet
 	@mkdir -p $(VALI_SDK_PATH)/include/sys
 	@mkdir -p $(VALI_SDK_PATH)/include/cxx
 	@cp librt/include/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libc/include/*.h $(VALI_SDK_PATH)/include/
 	@cp -r librt/libc/include/os/ $(VALI_SDK_PATH)/include/
+	@cp librt/libc/include/inet/*.h $(VALI_SDK_PATH)/include/inet/
 	@cp librt/libc/include/sys/*.h $(VALI_SDK_PATH)/include/sys/
 	@cp librt/libm/include/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libds/include/ds/*.h $(VALI_SDK_PATH)/include/ds/
