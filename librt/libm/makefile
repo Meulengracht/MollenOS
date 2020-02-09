@@ -23,20 +23,32 @@ else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
-OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
-CFLAGS = $(GCFLAGS) -fno-builtin -fno-strict-aliasing -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /def:$(VALI_ARCH)/libm.def /noentry /dll 
+SHARED_OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.s_o) $(SOURCES:.c=.s_o)
+SHARED_CFLAGS = $(GCFLAGS) -fno-builtin -fno-strict-aliasing -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
+SHARED_LFLAGS = $(GLFLAGS) /lldmap /def:$(VALI_ARCH)/libm.def /noentry /dll 
+
+STATIC_OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
+STATIC_CFLAGS = $(GCFLAGS) -fno-builtin -fno-strict-aliasing $(math_flags) $(INCLUDES)
+STATIC_LFLAGS = /lib
 
 .PHONY: all
-all: ../build/m.dll
+all: ../build/static_m.lib ../deploy/m.dll
 
-../build/m.dll: $(OBJECTS)
+../build/static_m.lib: $(STATIC_OBJECTS)
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(STATIC_LFLAGS) $(STATIC_OBJECTS) /out:$@
+
+../deploy/m.dll: $(SHARED_OBJECTS)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(SHARED_LFLAGS) $(SHARED_OBJECTS) /out:$@
+
+%.s_o : %.c
+	@printf "%b" "\033[0;32m[LIBM] Compiling C source object " $< "\033[m\n"
+	@$(CC) -c $(SHARED_CFLAGS) -o $@ $<
 
 %.o : %.c
 	@printf "%b" "\033[0;32m[LIBM] Compiling C source object " $< "\033[m\n"
-	@$(CC) -c $(CFLAGS) -o $@ $<
+	@$(CC) -c $(STATIC_CFLAGS) -o $@ $<
 
 %.o : %.s
 	@printf "%b" "\033[0;32m[LIBM] Assembling source object " $< "\033[m\n"
@@ -44,6 +56,7 @@ all: ../build/m.dll
 
 .PHONY: clean
 clean:
-	@rm -f ../build/m.dll
-	@rm -f ../build/m.lib
-	@rm -f $(OBJECTS)
+	@rm -f ../build/static_m.lib
+	@rm -f ../deploy/m.lib
+	@rm -f ../deploy/m.lib
+	@rm -f $(STATIC_OBJECTS) $(SHARED_OBJECTS)

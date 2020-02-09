@@ -5,7 +5,7 @@
 include ../../config/common.mk
 
 export VALI_INCLUDES := -I$(workspace_path)/librt/libddk/include -I$(workspace_path)/librt/libc/include -I$(workspace_path)/librt/include
-export VALI_LIBRARIES := -LIBPATH:$(workspace_path)/librt/build
+export VALI_LIBRARIES := -LIBPATH:$(workspace_path)/librt/build -LIBPATH:$(workspace_path)/librt/deploy
 export VALI_LFLAGS := $(GLFLAGS) /lldmap $(VALI_LIBRARIES)
 export VALI_BOOTSTRAP := true
 
