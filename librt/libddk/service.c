@@ -58,14 +58,14 @@ WaitForService(
     UUId_t Handle   = Callback();
     if (!Timeout) {
         while (Handle == UUID_INVALID) {
-            thrd_sleepex(100);
+            thrd_sleepex(10);
             Handle = Callback();
         }
     }
     else {
         while (TimeLeft || Handle == UUID_INVALID) {
-            thrd_sleepex(100);
-            TimeLeft -= 100;
+            thrd_sleepex(10);
+            TimeLeft -= 10;
             Handle   = Callback();
         }
     }

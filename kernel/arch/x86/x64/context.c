@@ -18,7 +18,7 @@
  *
  * X86-64 Thread Contexts
  */
-#define __MODULE "CTXT"
+#define __MODULE "context"
 //#define __TRACE
 
 #include <arch.h>
@@ -78,41 +78,64 @@
 // context, for handling signals this is effective.
 
 static void
-ContextPush(
-	_In_ uintptr_t** Address,
-	_In_ uintptr_t   Value)
+PushRegister(
+	_In_ uintptr_t* StackReference,
+	_In_ uintptr_t  Value)
 {
-	uintptr_t* Stack = *Address;
-	*(--Stack) = Value;
-	*Address = Stack;
+	*StackReference -= sizeof(uint64_t);
+	*((uintptr_t*)(*StackReference)) = Value;
+}
+
+static void
+PushContextOntoStack(
+	_In_ uintptr_t* StackReference,
+    _In_ Context_t* Context)
+{
+	// Create space on the stack, then copy values onto the bottom of the
+	// space subtracted.
+	*StackReference -= sizeof(Context_t);
+	memcpy((void*)(*StackReference), Context, sizeof(Context_t));
 }
 
 void
 ContextPushInterceptor(
     _In_ Context_t* Context,
+    _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2)
 {
-	// ASSUMPTIONS
-	// STACK MUST BE LEVEL1/SIGNAL
-	// STACK MUST BE RESET BEFORE FIRST CALL TO INTERCEPTOR
-	assert(Context->Rax == CONTEXT_RESET_IDENTIFIER);
+	uintptr_t NewStackPointer;
 	
-	// Push in reverse fashion, and have everything on stack to be able to restore
-	// the default register states. We cannot guarantee alignment on interceptor functions
-	// as there is no way to restore the stack
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rip);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rcx);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rdx);
-	ContextPush((uintptr_t**)&Context->UserRsp, Context->R8);
+	TRACE("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
+		TemporaryStack, Address, Context->Rip);
 	
-	// Set arguments
+	// On the previous stack, we would like to keep the Rip as it will be activated
+	// before jumping to the previous address
+	if (!TemporaryStack) {
+		PushRegister(&Context->UserRsp, Context->Rip);
+		
+		NewStackPointer = Context->UserRsp;
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+	else {
+		NewStackPointer = TemporaryStack;
+		
+		PushRegister(&Context->UserRsp, Context->Rip);
+		PushContextOntoStack(&NewStackPointer, Context);
+	}
+
+	// Store all information provided, and 
 	Context->Rip = Address;
-	Context->Rcx = Argument0;
-	Context->Rdx = Argument1;
-	Context->R8  = Argument2;
+	Context->Rcx = NewStackPointer;
+	Context->Rdx = Argument0;
+	Context->R8  = Argument1;
+	Context->R9  = Argument2;
+	
+	// Replace current stack with the one provided that has been adjusted for
+	// the copy of the context structure
+	Context->UserRsp = NewStackPointer;
 }
 
 void
@@ -120,16 +143,13 @@ ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
     _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2)
+    _In_ uintptr_t  Argument)
 {
-    uint64_t DataSegment   = 0;
-    uint64_t ExtraSegment  = 0;
-    uint64_t CodeSegment   = 0;
-    uint64_t StackSegment  = 0;
-    uint64_t RbpInitial    = 0;
-    uint64_t RspReturn     = 0;
+    uint64_t DataSegment  = 0;
+    uint64_t ExtraSegment = 0;
+    uint64_t CodeSegment  = 0;
+    uint64_t StackSegment = 0;
+    uint64_t RbpInitial   = 0;
 	
 	// Reset context
     memset(Context, 0, sizeof(Context_t));
@@ -141,10 +161,8 @@ ContextReset(
 		ExtraSegment = GDT_KDATA_SEGMENT;
 		StackSegment = GDT_KDATA_SEGMENT;
 		RbpInitial   = ((uint64_t)Context + sizeof(Context_t));
-		RspReturn    = (uint64_t)&Context->ReturnAddress;
 	}
     else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
-    	uintptr_t* StackTopPointer;
         ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
         CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
 	    StackSegment = GDT_UDATA_SEGMENT + 0x03;
@@ -158,17 +176,7 @@ ContextReset(
 	    	RbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
 	    }
 	    
-	    // Initialize top part of stack, skip shadow space
-	    StackTopPointer      = (uintptr_t*)(RbpInitial - (4 * 8));
-	    *(--StackTopPointer) = MEMORY_LOCATION_SIGNAL_RET;
-	    if (ContextType == THREADING_CONTEXT_SIGNAL) {
-		    *(--StackTopPointer) = 0;
-		    *(--StackTopPointer) = 0;
-		    *(--StackTopPointer) = 0;
-	    }
-	    
 		// Either initialize the ring3 stuff or zero out the values
-	    RspReturn    = (uint64_t)StackTopPointer;
 	    Context->Rax = CONTEXT_RESET_IDENTIFIER;
     }
 	else {
@@ -186,13 +194,11 @@ ContextReset(
 	Context->Rip     = Address;
 	Context->Rflags  = CPU_EFLAGS_DEFAULT;
 	Context->Cs      = CodeSegment;
-	Context->UserRsp = RspReturn;
+	Context->UserRsp = (uint64_t)&Context->ReturnAddress;
 	Context->UserSs  = StackSegment;
 
-    // Setup arguments and return
-    Context->Rcx = Argument0;
-    Context->Rdx = Argument1;
-    Context->R8  = Argument2;
+    // Setup arguments
+    Context->Rcx = Argument;
 }
 
 Context_t*
@@ -254,6 +260,7 @@ ArchDumpThreadContext(
         Context->Rsp, Context->UserRsp, Context->Rbp, Context->Rflags);
         
     // Dump copy registers
+	WRITELINE("RIP 0x%llx", Context->Rip);
 	WRITELINE("RSI 0x%llx, RDI 0x%llx", Context->Rsi, Context->Rdi);
 
 	// Dump segments

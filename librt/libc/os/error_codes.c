@@ -33,7 +33,8 @@ const int ErrorCodeTable[OsErrorCodeCount] = {
     ENOENT,       // OsDoesNotExist          Error - Resource does not exist
     EINVAL,       // OsInvalidParameters     Error - Bad parameters given
     EACCES,       // OsInvalidPermissions    Error - Bad permissions
-    ETIME,        // OsTimeout               Error - Timeout
+    ETIME,        // OsTimeout               Error - Operation timeout
+    EINTR,        // OsInterrupted           Error - Operation was interrupted
     ENOTSUP,      // OsNotSupported          Error - Feature not supported
     ENOMEM,       // OsOutOfMemory           Error - Out of memory
     EBUSY,        // OsBusy                  Error - Resource is busy or contended

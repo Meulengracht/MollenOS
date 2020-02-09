@@ -25,21 +25,40 @@ segment .text
 global __signalentry
 extern StdInvokeSignal
 
-; void __signalentry(int signal, void* argument, reg_t r8)
+; void __signalentry(context_t* context (rcx), int signal (rdx), void* argument (r8), reg_t flags (r9))
 ; Fixup stack and call directly into the signal handler
 __signalentry:
     ; Prepare stack alignment
-    mov rbx, 0x20 ; this register is non-volatile, so we use this
-    mov rax, rbx
+    mov rbx, 0x28 ; rbx register is non-volatile, so we use this for calculation
+    mov rax, rsp
     and rax, 0xF
-    add rbx, rax
-	sub rsp, rbx
-	call StdInvokeSignal ; (int, void*)
-	add rsp, rbx
+    jnz .skip_padding
+    add rbx, 0x08
+    
+    .skip_padding:
+    	sub rsp, rbx
+    	call StdInvokeSignal ; (context_t*, int, void*, unsigned)
+    	add rsp, rbx
 	
-	; Restore RCX/RDX/R8 for next call in case we are now
-	; entering another queued up signal handler
-	pop r8
-	pop rdx
-	pop rcx
+    ; Restore initial state and switch the handler stack to next one stored
+    pop rdi
+    pop rsi
+    pop rbp
+    add rsp, 8 ; skip rsp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+    
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+    
+    ; get the user-rsp from the stack, it will be offset 9
+    mov rsp, [rsp + (9 * 8)]
     ret

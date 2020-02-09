@@ -19,8 +19,8 @@
  * System Call Implementation
  *   - Table of calls
  */
-#define DefineSyscall(Index, Fn) ((uintptr_t)&Fn)
 
+#include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/contracts/video.h>
 #include <ddk/services/process.h>
@@ -139,7 +139,6 @@ extern OsStatus_t ScListenHandleSet(UUId_t, handle_event_t*, int, size_t, int*);
 
 // Support system calls
 extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
-extern OsStatus_t ScGetSignalOriginalContext(Context_t* Context);
 extern OsStatus_t ScRaiseSignal(UUId_t ThreadHandle, int Signal);
 extern OsStatus_t ScCreateMemoryHandler(Flags_t Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
 extern OsStatus_t ScDestroyMemoryHandler(UUId_t Handle);
@@ -151,8 +150,17 @@ extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
+#define SYSTEM_CALL_COUNT 81
+
+typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
+
+#define DefineSyscall(Index, Fn) { Index, ((uintptr_t)&Fn) }
+
 // The static system calls function table.
-uintptr_t SystemCallsTable[81] = {
+static struct SystemCallDescriptor {
+    int          Index;
+    uintptr_t    HandlerAddress;
+} SystemCallsTable[SYSTEM_CALL_COUNT] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -253,13 +261,41 @@ uintptr_t SystemCallsTable[81] = {
     
     // Support system calls
     DefineSyscall(70, ScInstallSignalHandler),
-    DefineSyscall(71, ScGetSignalOriginalContext),
-    DefineSyscall(72, ScCreateMemoryHandler),
-    DefineSyscall(73, ScDestroyMemoryHandler),
-    DefineSyscall(74, ScFlushHardwareCache),
-    DefineSyscall(75, ScSystemQuery),
-    DefineSyscall(76, ScSystemTick),
-    DefineSyscall(77, ScPerformanceFrequency),
-    DefineSyscall(78, ScPerformanceTick),
-    DefineSyscall(79, ScSystemTime)
+    DefineSyscall(71, ScCreateMemoryHandler),
+    DefineSyscall(72, ScDestroyMemoryHandler),
+    DefineSyscall(73, ScFlushHardwareCache),
+    DefineSyscall(74, ScSystemQuery),
+    DefineSyscall(75, ScSystemTick),
+    DefineSyscall(76, ScPerformanceFrequency),
+    DefineSyscall(77, ScPerformanceTick),
+    DefineSyscall(78, ScSystemTime)
 };
+
+Context_t*
+SyscallHandle(
+    _In_ Context_t* Context)
+{
+    struct SystemCallDescriptor* Handler;
+    MCoreThread_t*               Thread;
+    size_t                       Index = CONTEXT_SC_FUNC(Context);
+    size_t                       ReturnValue;
+    
+    if (Index > SYSTEM_CALL_COUNT) {
+        CONTEXT_SC_RET0(Context) = (size_t)OsInvalidParameters;
+        return Context;
+    }
+    
+    Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Handler = &SystemCallsTable[Index];
+    
+    ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(
+        (void*)CONTEXT_SC_ARG0(Context), (void*)CONTEXT_SC_ARG1(Context),
+        (void*)CONTEXT_SC_ARG2(Context), (void*)CONTEXT_SC_ARG3(Context),
+        (void*)CONTEXT_SC_ARG4(Context));
+    CONTEXT_SC_RET0(Context) = ReturnValue;
+    
+    // Before returning to userspace code, queue up any signals that might
+    // have been queued up for us.
+    SignalProcessQueued(Thread, Context);
+    return Context;
+}

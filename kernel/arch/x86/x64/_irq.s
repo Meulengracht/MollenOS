@@ -36,7 +36,7 @@ global __getcr2
 ;Externs, common entry points
 extern ExceptionEntry
 extern InterruptHandle
-extern SystemCallsTable
+extern SyscallHandle
 
 ; void __wbinvd(void)
 ; Flushes the internal cpu caches
@@ -142,6 +142,9 @@ __getcr2:
     pop r15
 	
     restore_segments
+    
+	; Cleanup irq & error code from stack
+	add rsp, 0x10
 %endmacro
 
 ;Common entry point for exceptions
@@ -156,9 +159,6 @@ exception_common:
 
 	; _IF_ we return, restore state
 	restore_state
-
-	; Cleanup irq & error code from stack
-	add rsp, 0x10
 	iretq
 
 ;Common entry point for interrupts
@@ -176,37 +176,24 @@ irq_common:
 
 	; When we return, restore state
 	restore_state
-	add rsp, 0x10
 	iretq
 
-; Entrypoint for syscall
-; rcx => arg0
-; rdx => arg1
-; r8  => arg2
-; r9  => arg3
-; r10 => arg4
-; r11 => index
+; Entrypoint for syscall, this is directly refered to, and not called through
+; the wrappers below, which means we don't need to pop irq/error code from stack
 syscall_entry:
-	save_segments
+	; push fake error code and irq
+	push 0
+	push 0x60
+    save_state
+    
+	; Set current stack as argument 1
+    mov rcx, rsp
+    sub rsp, 0x28 ; microsoft home-space + 8 to align
+	call SyscallHandle
+	mov rsp, rax
 
-	; Switch to kernel segment
-	mov ax, 0x20
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-
-	; Lookup Function (index * 8)
-	shl r11, 3
-	mov r11, qword [SystemCallsTable + r11]
-
-	; Call function
-    sub rsp, 0x28        ; microsoft home-space + 1 reg
-    mov qword [rsp + 0x20], r10 ; push last argument
-	call r11
-	add rsp, 0x28        ; cleanup microsoft home-space + 1 reg
-
-	restore_segments
+	; When we return, restore state
+	restore_state
 	iretq
 
 ; void ContextEnter(context_t* registers)
@@ -214,7 +201,6 @@ syscall_entry:
 ContextEnter:
     mov rsp, rcx
     restore_state
-    add rsp, 0x10
     iretq
 
 ; Macros

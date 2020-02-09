@@ -36,7 +36,7 @@ global ___getcr2
 ;Externs, common entry points
 extern _ExceptionEntry
 extern _InterruptHandle
-extern _SystemCallsTable
+extern _SyscallHandle
 
 ; Save segments, registers and switch to kernel land 
 %macro save_state 0
@@ -128,9 +128,12 @@ ___getcr2:
 ; Interrupts are disabled, no need to set task register
 _exception_common:
     save_state
+    
+	; Set current stack as argument 1
     push esp
-    call _ExceptionEntry
+    call _ExceptionEntry ; (context_t*)
     add esp, 0x4
+    
     restore_state
     iret
 
@@ -154,38 +157,17 @@ _irq_common:
 
 ; Entrypoint for syscall 
 _syscall_entry:
-    push ds
-    push es
-    push fs
-    push gs
+	; push fake error code and irq
+	push 0
+	push 0x60
+    save_state
 
-    ; Switch to kernel segment
-    push eax
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    pop eax
-
-    ; Push args to stack
-    push edi
-    push esi
-    push edx
-    push ecx
-    push ebx
-
-    ; Lookup Function
-    shl eax, 2
-    mov ebx, [_SystemCallsTable + eax]
-    call ebx
-    add esp, 20
-
-    ; Restore segments
-    pop gs
-    pop fs
-    pop es
-    pop ds
+	; Set current stack as argument 1
+    push esp
+    call _SyscallHandle ; (context_t*)
+    add esp, 0x4
+    
+    restore_state
     iret
 
 ; void ContextEnter(context_t* registers)

@@ -142,15 +142,9 @@ RestoreThreadState(
     
     // Load thread-specific resources
     SwitchMemorySpace(Thread->MemorySpace);
-    TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     
-    // Update to the correct stack due to signal handling
-    if (Thread->HandlingSignals) {
-        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->OriginalContext);
-    }
-    else {
-        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    }
+    TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
     
     // If we are idle task - disable task priority
@@ -159,27 +153,5 @@ RestoreThreadState(
     }
     else {
         Core->InterruptPriority = 61 - SchedulerObjectGetQueue(Thread->SchedulerObject);
-    }
-}
-
-void
-UpdateThreadContext(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            ContextType,
-    _In_ int            Load)
-{
-    UUId_t Affinity = SchedulerObjectGetAffinity(Thread->SchedulerObject);
-    
-    // If we switch into signal stack then make sure we don't overwrite the original
-    // interrupt stack for the thread. Otherwise restore the original interrupt stack.
-    if (ContextType == THREADING_CONTEXT_SIGNAL) {
-        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->OriginalContext);
-    }
-    else {
-        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    }
-    
-    if (Load) {
-        ContextEnter(Thread->ContextActive);
     }
 }

@@ -61,15 +61,6 @@ KERNELAPI void KERNELABI
 RestoreThreadState(
     _In_ MCoreThread_t* Thread);
 
-/* UpdateThreadContext
- * Updates state for thread and gives an opportunity to do any lower level
- * changes that might be affected. Can also jump to the given context immediately. */
-KERNELAPI void KERNELABI
-UpdateThreadContext(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            ContextType,
-    _In_ int            Load);
-
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which
  * the thread is been created under is passed. */
@@ -91,17 +82,17 @@ ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
     _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2); 
+    _In_ uintptr_t  Argument); 
 
-/* ContextPushInterceptor
- * Adds an interceptor function that gets executed upon return of 
- * of thread. This will then be the next thing executed. Optionally a safe
- * stack can be provided that will be used for execution. */
+/**
+ * ContextPushInterceptor
+ * * Adds an interceptor function that gets executed upon return of 
+ * * of thread. This will then be the next thing executed. Optionally a safe
+ * * stack can be provided that will be used for execution. */
 KERNELAPI void KERNELABI
 ContextPushInterceptor(
     _In_ Context_t* Context,
+    _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1,

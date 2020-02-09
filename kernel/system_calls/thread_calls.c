@@ -100,15 +100,15 @@ ScThreadSignal(
 {
     OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
     if (Result == OsSuccess) {
-        Result = SignalQueue(ThreadId, SignalCode, NULL);
+        Result = SignalSend(ThreadId, SignalCode, NULL);
     }
     return Result;
 }
 
 OsStatus_t
 ScThreadSleep(
-    _In_  time_t    Milliseconds,
-    _Out_ time_t*   MillisecondsSlept)
+    _In_  time_t  Milliseconds,
+    _Out_ time_t* MillisecondsSlept)
 {
     clock_t Start   = 0;
     clock_t End     = 0;
@@ -180,28 +180,5 @@ ScThreadGetContext(
         return OsError;
     }
     memcpy(Context, Thread->ContextActive, sizeof(Context_t));
-    return OsSuccess;
-}
-
-OsStatus_t
-ScGetSignalOriginalContext(
-    _In_ Context_t* Context)
-{
-    MCoreThread_t* Thread;
-    
-    if (Context == NULL) {
-        return OsInvalidParameters;
-    }
-    
-    Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    assert(Thread != NULL);
-    
-    // Either we have the original context stored because we are currently
-    // handling a signal, or the userspace should locally get its context
-    if (!Thread->OriginalContext) {
-        return OsDoesNotExist;
-    }
-    
-    memcpy(Context, Thread->OriginalContext, sizeof(Context_t));
     return OsSuccess;
 }

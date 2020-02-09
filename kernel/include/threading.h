@@ -69,14 +69,20 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-typedef struct SystemSignal {
-    _Atomic(int)   Status;
-    _Atomic(void*) Information;
-} SystemSignal_t;
-
 #define SIGNAL_FREE      0
 #define SIGNAL_ALLOCATED 1
 #define SIGNAL_PENDING   2
+
+typedef struct SystemSignal {
+    _Atomic(int) Status;
+    void*        Argument;
+    unsigned int Flags;
+} SystemSignal_t;
+
+typedef struct SignalSupport {
+    _Atomic(int)   SignalsPending;
+    SystemSignal_t Signals[NUMSIGNALS];
+} SignalSupport_t;
 
 typedef struct SystemThread {
     SystemMemorySpace_t*    MemorySpace;
@@ -108,11 +114,8 @@ typedef struct SystemThread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
     uintptr_t               ArenaPhysicalAddress;
-
-    _Atomic(int)            PendingSignals;
-    int                     HandlingSignals;
-    Context_t*              OriginalContext;
-    SystemSignal_t          Signals[NUMSIGNALS];
+    
+    SignalSupport_t         Signaling;
 } MCoreThread_t;
 
 /* ThreadingEnable
@@ -204,35 +207,35 @@ ThreadingAdvance(
 KERNELAPI void KERNELABI
 DisplayActiveThreads(void);
 
-/* SignalQueue
- * Dispatches a signal to a thread in the system from an external 
- * source (i.e another thread). */
+/**
+ * SignalSend
+ * * Dispatches a signal to a thread in the system from an external 
+ * * source (i.e another thread).
+ */
 KERNELAPI OsStatus_t KERNELABI
-SignalQueue(
+SignalSend(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,
     _In_ void*  Argument);
 
-/* SignalExecute
- * Dispatches a signal to the current thread. This immediately loads the signal
- * context and does not return from this function (i.e an exception). */
+/**
+ * SignalExecuteLocalThreadTrap
+ * * Dispatches a signal to the current thread. This immediately loads the signal
+ * * context and does not return from this function (i.e an exception).
+ */
 KERNELAPI void KERNELABI
-SignalExecute(
+SignalExecuteLocalThreadTrap(
     _In_ Context_t* Context,
     _In_ int        Signal,
     _In_ void*      Argument);
 
-/* SignalReturn
- * Handles returning from a signal, reloads the original thread context.
- * There is no return from this function. */
-void
-SignalReturn(
-    _In_ Context_t* Context);
-
-/* SignalProcess
- * Processes all queued signals and appends to execution list. */
+/**
+ * SignalProcessQueued
+ * * Description
+ */
 KERNELAPI void KERNELABI
-SignalProcess(
-    _In_ MCoreThread_t* Thread);
+SignalProcessQueued(
+    _In_ MCoreThread_t* Thread,
+    _In_ Context_t*     Context);
 
 #endif //!__THREADING_H__

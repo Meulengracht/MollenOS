@@ -86,15 +86,17 @@ SmpApplicationCoreEntry(void)
 static void
 InitializeApplicationJumpSpace(void)
 {
+    // Intentional use of only 32 bit pointers here as everything will reside
+    // in 32 bit space currently. TODO make this also 64 bit.
     uint32_t* CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
-    uint32_t  EntryCode     = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
+    uint32_t  EntryCode     = LODWORD(((uint32_t*)SmpApplicationCoreEntry));
     int       NumberOfCores = atomic_load(&GetMachine()->NumberOfCores);
     void*     StackSpace    = kmalloc((NumberOfCores - 1) * 0x1000);
     TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (NumberOfCores - 1));
 
     *(CodePointer - 1) = EntryCode;
     *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
-    *(CodePointer - 3) = (uint32_t)(StackSpace) + 0x1000;
+    *(CodePointer - 3) = LODWORD(StackSpace) + 0x1000;
     *(CodePointer - 4) = 0x1000;
     memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }

@@ -130,7 +130,7 @@ CreateDefaultThreadContexts(
 {
     Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
-        (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
+        (uintptr_t)&ThreadingEntryPoint, 0);
 
     // TODO: Should we create user stacks immediately?
 }
@@ -491,7 +491,7 @@ EnterProtectedThreadLevel(void)
     // Create the userspace stack now that we need it 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-        (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments, 0, 0);
+        (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments);
         
     // Create the signal stack in preparation.
     Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
@@ -587,8 +587,8 @@ ThreadingAdvance(
     SystemCpuCore_t* Core    = GetCurrentProcessorCore();
     MCoreThread_t*   Current = Core->CurrentThread;
     MCoreThread_t*   NextThread;
-    int              Cleanup;
     int              SignalsPending;
+    int              Cleanup;
 
     // Is threading disabled?
     if (!Current) {
@@ -603,12 +603,11 @@ ThreadingAdvance(
     if (!Cleanup) {
         SaveThreadState(Current);
         
-        // Handle any received signals during runtime, they will happen in
-        // the threads next allocated timeslot only. However if the thread
-        // is currently blocked we must unblock it
-        SignalsPending = atomic_load(&Current->PendingSignals);
-        if (!Current->HandlingSignals && SignalsPending) {
-            SchedulerUnblockObject(Current->SchedulerObject);
+        // Handle any received signals during runtime in system calls, this must be handled
+        // here after any blocking operations has been queued so we can cancel it.
+        SignalsPending = atomic_load(&Current->Signaling.SignalsPending);
+        if (SignalsPending) {
+            SchedulerExpediteObject(Current->SchedulerObject);
         }
     }
     
@@ -644,7 +643,7 @@ GetNextThread:
         }
     }
 
-    // Handle level switch // thread startup
+    // Handle level switch, thread startup
     if (NextThread->Flags & THREADING_TRANSITION_USERMODE) {
         NextThread->Flags        &= ~(THREADING_TRANSITION_USERMODE);
         NextThread->ContextActive = NextThread->Contexts[THREADING_CONTEXT_LEVEL1];
@@ -664,13 +663,6 @@ GetNextThread:
         RestoreThreadState(NextThread);
     }
     
-    // Handle any signals pending for thread, as this might change the
-    // active context set for the thread, before we set the new global
-    // return registers
-    SignalsPending = atomic_load(&NextThread->PendingSignals);
-    if (!NextThread->HandlingSignals && SignalsPending != 0) {
-        SignalProcess(NextThread);
-    }
     Core->InterruptRegisters = NextThread->ContextActive;
     return OsSuccess;
 }

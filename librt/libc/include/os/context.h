@@ -54,9 +54,17 @@ PACKED_TYPESTRUCT(Context, {
     
     uint32_t                Arguments[5];
 });
-#define CONTEXT_IP(Context)     Context->Eip
-#define CONTEXT_SP(Context)     Context->Esp
-#define CONTEXT_USERSP(Context) Context->UserEsp
+#define CONTEXT_IP(Context)      Context->Eip
+#define CONTEXT_SP(Context)      Context->Esp
+#define CONTEXT_USERSP(Context)  Context->UserEsp
+
+#define CONTEXT_SC_FUNC(Context) Context->Eax
+#define CONTEXT_SC_ARG0(Context) Context->Ebx
+#define CONTEXT_SC_ARG1(Context) Context->Ecx
+#define CONTEXT_SC_ARG2(Context) Context->Edx
+#define CONTEXT_SC_ARG3(Context) Context->Esi
+#define CONTEXT_SC_ARG4(Context) Context->Edi
+#define CONTEXT_SC_RET0(Context) Context->Eax
 #elif defined(__amd64__) || defined(amd64)
 PACKED_TYPESTRUCT(Context, {
 	uint64_t                Rdi;
@@ -94,9 +102,17 @@ PACKED_TYPESTRUCT(Context, {
     uint64_t                ReturnAddress;
     uint64_t                ShadowSpace[4];
 });
-#define CONTEXT_IP(Context)     Context->Rip
-#define CONTEXT_SP(Context)     Context->Rsp
-#define CONTEXT_USERSP(Context) Context->UserRsp
+#define CONTEXT_IP(Context)      Context->Rip
+#define CONTEXT_SP(Context)      Context->Rsp
+#define CONTEXT_USERSP(Context)  Context->UserRsp
+
+#define CONTEXT_SC_FUNC(Context) Context->Rax
+#define CONTEXT_SC_ARG0(Context) Context->Rbx
+#define CONTEXT_SC_ARG1(Context) Context->Rcx
+#define CONTEXT_SC_ARG2(Context) Context->Rdx
+#define CONTEXT_SC_ARG3(Context) Context->R8
+#define CONTEXT_SC_ARG4(Context) Context->R9
+#define CONTEXT_SC_RET0(Context) Context->Rax
 #else
 #error "os/context.h: Invalid architecture"
 #endif

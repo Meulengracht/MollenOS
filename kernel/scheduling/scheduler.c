@@ -22,7 +22,7 @@
  *    the less priority it gets, however longer timeslices it gets.
  */
 
-#define __MODULE "[scheduler]"
+#define __MODULE "scheduler"
 //#define __TRACE
 
 #include <assert.h>
@@ -65,8 +65,8 @@ typedef struct SchedulerObject {
     void*                   Object;
     
     list_t*                 WaitQueueHandle;
-    int                     Timeout;
     size_t                  TimeLeft;
+    OsStatus_t              TimeoutReason;
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
 
@@ -85,6 +85,7 @@ static struct Transition {
     { STATE_BLOCKED, EVENT_QUEUE, STATE_QUEUEING }
 };
 
+#ifdef __TRACE
 static char* EventDescriptions[] = {
     "EVENT_EXECUTE",
     "EVENT_QUEUE",
@@ -102,6 +103,7 @@ static char* StateDescriptions[] = {
     "STATE_BLOCKED",
     "STATE_RUNNING"
 };
+#endif
 
 static int
 GetAvailableTransition(
@@ -136,7 +138,7 @@ TryAgain:
         }
     }
     else {
-        WARNING("[scheduler] [execute_event] invalid %s in %s", 
+        TRACE("[scheduler] [execute_event] unhandled %s in %s", 
             EventDescriptions[Event], StateDescriptions[State]);
     }
     
@@ -388,7 +390,7 @@ SchedulerSleep(
     }
     
     Object->TimeLeft        = Milliseconds;
-    Object->Timeout         = 0;
+    Object->TimeoutReason   = OsSuccess;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = NULL;
     
@@ -401,7 +403,7 @@ SchedulerSleep(
     ThreadingYield();
     
     smp_rmb();
-    if (!Object->Timeout) {
+    if (Object->TimeoutReason != OsSuccess) {
         *InterruptedAt = Object->InterruptedAt;
         return SCHEDULER_SLEEP_INTERRUPTED;
     }
@@ -421,7 +423,7 @@ SchedulerBlock(
     assert(Object != NULL);
     
     Object->TimeLeft        = Timeout;
-    Object->Timeout         = 0;
+    Object->TimeoutReason   = OsSuccess;
     Object->InterruptedAt   = 0;
     Object->WaitQueueHandle = BlockQueue;
 
@@ -431,26 +433,6 @@ SchedulerBlock(
     
     // For now the lists include a lock, which perform memory barriers
     list_append(BlockQueue, &Object->Header);
-}
-
-void
-SchedulerUnblockObject(
-    _In_ SchedulerObject_t* Object)
-{
-    int ResultState;
-    TRACE("[scheduler] [unblock]");
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE);
-    if (ResultState != STATE_INVALID) {
-        // Either sleeping, which means we'll interrupt it immediately
-        // or it's waiting for in a block queue
-        if (Object->WaitQueueHandle != NULL) {
-            (void)list_remove(Object->WaitQueueHandle, &Object->Header);
-        }
-    }
-    else {
-        WARNING("[scheduler] [unblock] object 0x%" PRIxIN " was in invalid state", Object);
-    }
 }
 
 void
@@ -465,6 +447,8 @@ SchedulerExpediteObject(
         if (Object->WaitQueueHandle != NULL) {
             (void)list_remove(Object->WaitQueueHandle, &Object->Header);
         }
+        
+        Object->TimeoutReason = OsInterrupted;
         TimersGetSystemTick(&Object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
@@ -475,7 +459,7 @@ SchedulerExpediteObject(
         }
     }
     else {
-        WARNING("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
+        TRACE("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
     }
 }
 
@@ -524,14 +508,14 @@ SchedulerObjectGetAffinity(
 }
 
 int
-SchedulerIsTimeout(void)
+SchedulerGetTimeoutReason(void)
 {
     SchedulerObject_t* Object;
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(Object != NULL);
     
-    return Object->Timeout;
+    return Object->TimeoutReason;
 }
 
 static void
@@ -577,7 +561,7 @@ PerformObjectTimeout(
             (void)list_remove(Object->WaitQueueHandle, &Object->Header);
         }
         
-        Object->Timeout = 1;
+        Object->TimeoutReason = OsTimeout;
         TimersGetSystemTick(&Object->InterruptedAt);
         QueueForScheduler(Scheduler, Object, 0);
     }
