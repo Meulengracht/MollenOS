@@ -80,7 +80,6 @@ typedef struct SystemSignal {
 } SystemSignal_t;
 
 typedef struct SignalSupport {
-    Context_t*     OriginalContext;
     _Atomic(int)   SignalsPending;
     SystemSignal_t Signals[NUMSIGNALS];
 } SignalSupport_t;

@@ -85,6 +85,7 @@ static struct Transition {
     { STATE_BLOCKED, EVENT_QUEUE, STATE_QUEUEING }
 };
 
+#ifdef __TRACE
 static char* EventDescriptions[] = {
     "EVENT_EXECUTE",
     "EVENT_QUEUE",
@@ -102,6 +103,7 @@ static char* StateDescriptions[] = {
     "STATE_BLOCKED",
     "STATE_RUNNING"
 };
+#endif
 
 static int
 GetAvailableTransition(

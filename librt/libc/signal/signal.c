@@ -83,15 +83,20 @@ char signal_fatality[NUMSIGNALS] = {
 // Default interrupt handlers
 static sig_element signal_list[] = {
     { SIGINT,  "Interrupt (Ctrl-c)", SIG_DFL },
-    { SIGILL,  "Illegal instruction", SIG_DFL },
-    { SIGFPE,  "Erroneous arithmetic operation such as divide by zero", SIG_DFL },
-    { SIGSEGV, "Invalid memory access (segmentation fault)", SIG_DFL },
-    { SIGTERM, "Termination request", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
+    { SIGILL,  "Illegal instruction", SIG_DFL },
+    { SIGTRAP, "Trap instruction", SIG_DFL },
     { SIGABRT, "Abnormal termination", SIG_DFL },
-    { SIGSOCK, "Socket transmission error", SIG_DFL },
+    { SIGFPE,  "Erroneous arithmetic operation such as divide by zero", SIG_DFL },
+    { SIGKILL, "Kill signal received", SIG_DFL },
+    { SIGSEGV, "Invalid memory access (segmentation fault)", SIG_DFL },
+    { SIGPIPE, "Pipe operation failure", SIG_DFL },
     { SIGUSR1, "User-defined signal-1", SIG_IGN },
-    { SIGUSR2, "User-defined signal-2", SIG_IGN }
+    { SIGUSR2, "User-defined signal-2", SIG_IGN },
+    { SIGALRM, "Alarm has expired", SIG_DFL },
+    { SIGTERM, "Termination request", SIG_DFL },
+    { SIGURG,  "Urgent request has arrived that must be handled", SIG_DFL },
+    { SIGSOCK, "Socket transmission error", SIG_DFL }
 };
 
 static void

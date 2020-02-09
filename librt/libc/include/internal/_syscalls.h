@@ -106,14 +106,13 @@ _CODE_END
 #define Syscall_ListenHandleSet(Handle, Events, MaxEvents, Timeout, Count) (OsStatus_t)syscall5(69, SCPARAM(Handle), SCPARAM(Events), SCPARAM(MaxEvents), SCPARAM(Timeout), SCPARAM(Count))
 
 #define Syscall_InstallSignalHandler(HandlerAddress)                       (OsStatus_t)syscall1(70, SCPARAM(HandlerAddress))
-#define Syscall_GetSignalOriginalContext(Context)                          (OsStatus_t)syscall1(71, SCPARAM(Context))
-#define Syscall_CreateMemoryHandler(Flags, Length, HandleOut, AddressOut)  (OsStatus_t)syscall4(72, SCPARAM(Flags), SCPARAM(Length), SCPARAM(HandleOut), SCPARAM(AddressOut))
-#define Syscall_DestroyMemoryHandler(Handle)                               (OsStatus_t)syscall1(73, SCPARAM(Handle))
-#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (OsStatus_t)syscall3(74, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
-#define Syscall_SystemQuery(SystemInformation)                             (OsStatus_t)syscall1(75, SCPARAM(SystemInformation))
-#define Syscall_SystemTick(Base, Tick)                                     (OsStatus_t)syscall2(76, SCPARAM(Base), SCPARAM(Tick))
-#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(77, SCPARAM(Frequency))
-#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(78, SCPARAM(Value))
-#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(79, SCPARAM(Time))
+#define Syscall_CreateMemoryHandler(Flags, Length, HandleOut, AddressOut)  (OsStatus_t)syscall4(71, SCPARAM(Flags), SCPARAM(Length), SCPARAM(HandleOut), SCPARAM(AddressOut))
+#define Syscall_DestroyMemoryHandler(Handle)                               (OsStatus_t)syscall1(72, SCPARAM(Handle))
+#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (OsStatus_t)syscall3(73, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
+#define Syscall_SystemQuery(SystemInformation)                             (OsStatus_t)syscall1(74, SCPARAM(SystemInformation))
+#define Syscall_SystemTick(Base, Tick)                                     (OsStatus_t)syscall2(75, SCPARAM(Base), SCPARAM(Tick))
+#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(76, SCPARAM(Frequency))
+#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(77, SCPARAM(Value))
+#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(78, SCPARAM(Time))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

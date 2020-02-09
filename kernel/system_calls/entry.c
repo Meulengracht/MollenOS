@@ -139,7 +139,6 @@ extern OsStatus_t ScListenHandleSet(UUId_t, handle_event_t*, int, size_t, int*);
 
 // Support system calls
 extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
-extern OsStatus_t ScGetSignalOriginalContext(Context_t* Context);
 extern OsStatus_t ScRaiseSignal(UUId_t ThreadHandle, int Signal);
 extern OsStatus_t ScCreateMemoryHandler(Flags_t Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
 extern OsStatus_t ScDestroyMemoryHandler(UUId_t Handle);
@@ -262,15 +261,14 @@ static struct SystemCallDescriptor {
     
     // Support system calls
     DefineSyscall(70, ScInstallSignalHandler),
-    DefineSyscall(71, ScGetSignalOriginalContext),
-    DefineSyscall(72, ScCreateMemoryHandler),
-    DefineSyscall(73, ScDestroyMemoryHandler),
-    DefineSyscall(74, ScFlushHardwareCache),
-    DefineSyscall(75, ScSystemQuery),
-    DefineSyscall(76, ScSystemTick),
-    DefineSyscall(77, ScPerformanceFrequency),
-    DefineSyscall(78, ScPerformanceTick),
-    DefineSyscall(79, ScSystemTime)
+    DefineSyscall(71, ScCreateMemoryHandler),
+    DefineSyscall(72, ScDestroyMemoryHandler),
+    DefineSyscall(73, ScFlushHardwareCache),
+    DefineSyscall(74, ScSystemQuery),
+    DefineSyscall(75, ScSystemTick),
+    DefineSyscall(76, ScPerformanceFrequency),
+    DefineSyscall(77, ScPerformanceTick),
+    DefineSyscall(78, ScSystemTime)
 };
 
 Context_t*
@@ -289,8 +287,6 @@ SyscallHandle(
     
     Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     Handler = &SystemCallsTable[Index];
-    
-    Thread->Signaling.OriginalContext = Context;
     
     ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(
         (void*)CONTEXT_SC_ARG0(Context), (void*)CONTEXT_SC_ARG1(Context),

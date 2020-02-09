@@ -28,7 +28,6 @@ extern StdInvokeSignal
 ; void __signalentry(context_t* context (rcx), int signal (rdx), void* argument (r8), reg_t flags (r9))
 ; Fixup stack and call directly into the signal handler
 __signalentry:
-	
     ; Prepare stack alignment
     mov rbx, 0x28 ; rbx register is non-volatile, so we use this for calculation
     mov rax, rsp

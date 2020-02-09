@@ -61,15 +61,6 @@ KERNELAPI void KERNELABI
 RestoreThreadState(
     _In_ MCoreThread_t* Thread);
 
-/* UpdateThreadContext
- * Updates state for thread and gives an opportunity to do any lower level
- * changes that might be affected. Can also jump to the given context immediately. */
-KERNELAPI void KERNELABI
-UpdateThreadContext(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            ContextType,
-    _In_ int            Load);
-
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which
  * the thread is been created under is passed. */

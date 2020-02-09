@@ -116,7 +116,7 @@ ContextPushInterceptor(
 	if (!TemporaryStack) {
 		PushRegister(&Context->UserEsp, Context->Eip);
 		
-		NewStackPointer = Context->UserRsp;
+		NewStackPointer = Context->UserEsp;
 		PushContextOntoStack(&NewStackPointer, Context);
 	}
 	else {

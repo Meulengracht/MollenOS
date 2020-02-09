@@ -155,25 +155,3 @@ RestoreThreadState(
         Core->InterruptPriority = 61 - SchedulerObjectGetQueue(Thread->SchedulerObject);
     }
 }
-
-void
-UpdateThreadContext(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            ContextType,
-    _In_ int            Load)
-{
-    UUId_t Affinity = SchedulerObjectGetAffinity(Thread->SchedulerObject);
-    
-    // If we switch into signal stack then make sure we don't overwrite the original
-    // interrupt stack for the thread. Otherwise restore the original interrupt stack.
-    if (ContextType == THREADING_CONTEXT_SIGNAL) {
-        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Signaling.OriginalContext);
-    }
-    else {
-        TssUpdateThreadStack(Affinity, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    }
-    
-    if (Load) {
-        ContextEnter(Thread->ContextActive);
-    }
-}

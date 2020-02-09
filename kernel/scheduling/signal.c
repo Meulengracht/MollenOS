@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "signal"
-#define __TRACE
+//#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/thread.h>
@@ -56,13 +56,14 @@ ExecuteSignalOnCoreFunction(
         //           In this case we must leave the system call be in queue,
         //           and handle this in the scheduler. Before scheduling we must
         //           check if any signals are queued, and if they are, interrupt
-        //           the thread and requeue it.
+        //           the thread and requeue it. <Do Nothing>
+        
         // CASE 1.2: The thread is currently executing user code. In this case
         //           we can simply process all the queued signals onto the current
         //           context.
         if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Core->InterruptRegisters))) {
             TRACE("[signal] [execute] case 1.2");
-            SignalProcessQueued(Thread, Thread->Signaling.OriginalContext);
+            SignalProcessQueued(Thread, Core->InterruptRegisters);
         }
     }
     

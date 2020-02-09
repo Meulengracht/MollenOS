@@ -25,25 +25,24 @@ segment .text
 global ___signalentry
 extern _StdInvokeSignal
 
-; void __signalentry(int signal (eax), void* argument (ebx), reg_t flags (ecx))
+; void __signalentry(context_t* context (rcx), int signal (rdx), void* argument (r8), reg_t flags (r9))
 ; Fixup stack and call directly into the signal handler
 ___signalentry:
 	; Store the return next stack we should use before calling the signal
 	; handler in a non-volatile register.
 	xchg bx, bx
-	pushad
 	
-    ; EAX => signal, EBX => void*, ECX => unsigned int
+    ; EAX => context, EBX => signal, ECX => void*, EDX => unsigned int
     push eax
     push ebx
     push ecx
-	call _StdInvokeSignal ; (int, void*, unsigned int)
-    add esp, 12
+    push edx
+	call _StdInvokeSignal ; (context_t*, int, void*, unsigned int)
+    add esp, 16
     
     ; Restore initial state and switch the handler stack to next one stored
     popad
-    pop ecx
-    pop ebx
-    pop eax
-    pop esp
+    
+    ; get the user-esp from the stack, it will be offset 9
+    mov esp, [esp + (9 * 4)]
     ret
