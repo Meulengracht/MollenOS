@@ -29,19 +29,15 @@
 #include <test/test_protocol.h>
 #include <stdio.h>
 
-static void print(struct test_print_arg*, struct test_print_ret*);
+static void print(int client, struct test_print_arg*, struct test_print_ret*);
 
 static wm_protocol_function_t test_functions[] = {
     { PROTOCOL_TEST_PRINT_ID, print }
 };
 
-static wm_protocol_t test_protocol = {
-    PROTOCOL_TEST_ID,
-    PROTOCOL_TEST_FUNCTION_COUNT,
-    test_functions
-};
+static wm_protocol_t test_protocol = WM_PROTOCOL_INIT(PROTOCOL_TEST_ID, PROTOCOL_TEST_FUNCTION_COUNT, test_functions);
 
-static void print(struct test_print_arg* args, struct test_print_ret* ret)
+static void print(int client, struct test_print_arg* args, struct test_print_ret* ret)
 {
     printf("received message: %s\n", &args->message[0]);
     ret->status = 0;

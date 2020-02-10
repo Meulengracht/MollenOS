@@ -36,10 +36,9 @@ int hid_key_event(wm_client_t* client, int source, uint8_t key_ascii, uint8_t ke
     args.flags = flags;
     args.key_unicode = key_unicode;
     
-    wm_status = wm_client_invoke(client, /* config, */
-        PROTOCOL_HID_ID, PROTOCOL_HID_KEY_EVENT_ID, // config
-        &args, sizeof(struct hid_key_event_arg),    // arguments
-        NULL, 0);                               // return
+    wm_status = wm_client_invoke_async(client,
+        PROTOCOL_HID_ID, PROTOCOL_HID_KEY_EVENT_ID,  // config
+        &args, sizeof(struct hid_key_event_arg), 0); // args, return
     return wm_status;
 }
 
@@ -55,9 +54,8 @@ int hid_pointer_event(wm_client_t* client, int source, uint16_t flags, int16_t r
     args.rel_z = rel_z;
     args.buttons_set = buttons_set;
     
-    wm_status = wm_client_invoke(client, /* config, */
-        PROTOCOL_HID_ID, PROTOCOL_HID_POINTER_EVENT_ID, // config
-        &args, sizeof(struct hid_pointer_event_arg),    // arguments
-        NULL, 0);                               // return
+    wm_status = wm_client_invoke_async(client,
+        PROTOCOL_HID_ID, PROTOCOL_HID_POINTER_EVENT_ID,  // config
+        &args, sizeof(struct hid_pointer_event_arg), 0); // args, return
     return wm_status;
 }

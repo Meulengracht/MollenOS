@@ -35,6 +35,7 @@ enum wm_client_type {
 
 typedef struct wm_client_configuration {
     enum wm_client_type     type;
+    int                     async;
     struct sockaddr_storage address;
     socklen_t               address_length;
 } wm_client_configuration_t;
@@ -44,8 +45,13 @@ typedef struct wm_client wm_client_t;
 // Client API
 // An application can utilize multiple clients, that connect to different
 // servers. When invoking a protocol the specific client can be specified.
-int wm_client_initialize(wm_client_configuration_t*, wm_client_t**);
-int wm_client_invoke(wm_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
+int wm_client_create(wm_client_configuration_t*, wm_client_t**);
+int wm_client_invoke_sync(wm_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
+
+int wm_client_register_protocol(wm_client_t*, wm_protocol_t*);
+int wm_client_unregister_protocol(wm_client_t*, wm_protocol_t*);
+int wm_client_invoke_async(wm_client_t*, uint8_t, uint8_t, void*, size_t, size_t);
+
 int wm_client_shutdown(wm_client_t*);
 
 #endif // !__LIBWM_CLIENT_H__

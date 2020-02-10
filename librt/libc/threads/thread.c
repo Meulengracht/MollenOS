@@ -22,13 +22,14 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <assert.h>
+#include <errno.h>
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <threads.h>
+#include "tls.h"
 #include <stdlib.h>
 #include <signal.h>
-#include <assert.h>
-#include "tls.h"
+#include <threads.h>
 
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
@@ -71,42 +72,38 @@ call_once(
     mtx_unlock(&flag->syncobject);
 }
 
-/* thrd_create
- * Creates a new thread executing the function func. The function is invoked as func(arg).
- * If successful, the object pointed to by thr is set to the identifier of the new thread.
- * The completion of this function synchronizes-with the beginning of the thread. */
 int
 thrd_create(
-    _Out_ thrd_t*       thr,
-    _In_  thrd_start_t  func,
-    _In_  void*         arg)
+    _Out_ thrd_t*      thr,
+    _In_  thrd_start_t func,
+    _In_  void*        arg)
 {
     ThreadParameters_t Paramaters;
     ThreadPackage_t*   Package;
+    OsStatus_t         Status;
     assert(thr != NULL);
 
     // Allocate a new startup-package
     Package = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
     if (Package == NULL) {
+        _set_errno(ENOMEM);
         return thrd_nomem;
     }
+    *thr = UUID_INVALID;
     
-    // Setup package and default thread paramaters
     Package->Entry = func;
     Package->Data  = arg;
     InitializeThreadParameters(&Paramaters);
-    *thr = UUID_INVALID;
 
-    // Redirect to operating system to handle rest
-    if (Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr) != OsSuccess) {
+    Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr);
+    if (Status != OsSuccess) {
+        OsStatusToErrno(Status);
         free(Package);
         return thrd_error;
     }
     return thrd_success;
 }
 
-/* thrd_equal
- * Checks whether lhs and rhs refer to the same thread. */
 int
 thrd_equal(
     _In_ thrd_t lhs,

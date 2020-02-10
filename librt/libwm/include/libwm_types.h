@@ -28,25 +28,24 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define WM_HEADER_MAGIC              0xDEAE5A9A
-#define WM_MAX_PROTOCOLS             8
-#define WM_MAX_ARGUMENTS             5
-#define WM_MAX_MESSAGE_SIZE          4096
-#define WM_MESSAGE_GET_LENGTH(Field) ((size_t)Field + 1)
+#define WM_MAX_MESSAGE_SIZE 255
 
 typedef void* wm_handle_t;
 
 typedef struct wm_message {
-    unsigned int magic;
-    uint32_t     length     : 12; // length is this + 1, up to max 4095
-    uint32_t     ret_length : 12; // length of reply object, N + 1
-    uint32_t     has_arg    : 1;  // is there any arguments?
-    uint32_t     has_ret    : 1;  // is there any return?
-    uint32_t     unused     : 6;  // reserved
-    uint16_t     crc;             // crc of following data
-    uint8_t      protocol;
-    uint8_t      action;
+    uint32_t serial_no;
+    uint32_t length     : 8;  // length is this message including arguments
+    uint32_t ret_length : 8;  // length of reply object
+    uint32_t crc        : 16; // crc of argument data
+    uint8_t  protocol;
+    uint8_t  action;
+    uint16_t padding;
 } wm_message_t;
+
+typedef struct wm_object_header {
+    int                      id;
+    struct wm_object_header* link;
+} wm_object_header_t;
 
 typedef struct wm_protocol_function {
     uint8_t id;
@@ -54,9 +53,12 @@ typedef struct wm_protocol_function {
 } wm_protocol_function_t;
 
 typedef struct wm_protocol {
+    wm_object_header_t      header;
     uint8_t                 id;
     uint8_t                 num_functions;
     wm_protocol_function_t* functions;
 } wm_protocol_t;
+
+#define WM_PROTOCOL_INIT(id, num_functions, functions) { { id, NULL }, id, num_functions, functions }
 
 #endif // !__LIBWM_TYPES_H__

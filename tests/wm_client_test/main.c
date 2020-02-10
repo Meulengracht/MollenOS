@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     configuration.type = wm_client_stream_based;
     wm_os_get_server_client_address(&configuration.address, &configuration.address_length);
     
-    code = wm_client_initialize(&configuration, &client);
+    code = wm_client_create(&configuration, &client);
     if (code) {
         return code;
     }

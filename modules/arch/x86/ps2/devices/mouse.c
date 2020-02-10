@@ -181,7 +181,7 @@ PS2MouseInitialize(
     // Open up the input socket so we can send input data to the OS.
     wm_config.type = wm_client_packet_based;
     wm_os_get_server_packet_address(&wm_config.address, &wm_config.address_length);
-    if (wm_client_initialize(&wm_config, &Instance->WmClient)) {
+    if (wm_client_create(&wm_config, &Instance->WmClient)) {
         ERROR("... [ps2] [mouse] [initialize] wm_client_initialize failed %i", errno);
     }
     

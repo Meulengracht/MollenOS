@@ -125,18 +125,11 @@ int wm_connection_recv_packet(int socket, wm_message_t* message, void* argument_
         return -1;
     }
     
-    message_length = WM_MESSAGE_GET_LENGTH(message->length);
+    message_length = message->length;
     if (message_length != bytes_read) {
         _set_errno(EPIPE);
         ERROR("[wm_connection_recv_packet] or message bytes were invalid %u != %u",
             message_length, bytes_read);
-        return -1;
-    }
-    
-    if (message->magic != WM_HEADER_MAGIC) {
-        _set_errno(ENOMSG);
-        ERROR("[wm_connection_recv_packet] magic did not match 0x%x != 0x%x",
-            message->magic, WM_HEADER_MAGIC);
         return -1;
     }
     
@@ -163,16 +156,13 @@ int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_
         return -1;
     }
     
-    message_length = WM_MESSAGE_GET_LENGTH(message->length);
+    message_length = message->length;
     
     // Verify the data read in the header
-    if (message->magic != WM_HEADER_MAGIC ||
-        message_length < sizeof(wm_message_t)) {
-        // TODO error code / handling
-        ERROR("[wm_connection_recv_message] magic did not match 0x%x != 0x%x",
-            message->magic, WM_HEADER_MAGIC);
+    if (message_length < sizeof(wm_message_t)) {
         ERROR("[wm_connection_recv_message] or message bytes were invalid %u != %u",
             message_length, sizeof(wm_message_t));
+        _set_errno(EPIPE);
         return -1;
     }
     
@@ -190,10 +180,43 @@ int wm_connection_recv_stream(int socket, wm_message_t* message, void* argument_
             ERROR("[wm_connection_recv_message] did not read full amount of bytes (%" 
                 PRIuIN ", expected %" PRIuIN ")",
                 bytes_read, message_length - sizeof(wm_message_t));
+            _set_errno(EPIPE);
             return -1; 
         }
     }
     return 0;
+}
+
+int wm_connection_send_stream(int socket, wm_message_t* message, 
+    void* arguments, size_t argument_length)
+{
+    intmax_t bytes_written = send(socket, (const void*)message, 
+        sizeof(wm_message_t), MSG_WAITALL);
+    if (bytes_written == sizeof(wm_message_t) && message->length > sizeof(wm_message_t)) {
+        bytes_written += send(socket, (const void*)arguments,
+            argument_length, MSG_WAITALL);
+    }
+    return bytes_written != (sizeof(wm_message_t) + argument_length);
+}
+
+int wm_connection_send_packet(int socket, wm_message_t* message, 
+    void* arguments, size_t argument_length, struct sockaddr_storage* client_address)
+{
+    struct iovec  iov[2] = { 
+        { .iov_base = message,   .iov_len = sizeof(wm_message_t) },
+        { .iov_base = arguments, .iov_len = argument_length }
+    };
+    struct msghdr msg = {
+        .msg_name       = (struct sockaddr*)client_address,
+        .msg_namelen    = client_address != NULL ? client_address->__ss_len : 0,
+        .msg_iov        = &iov[0],
+        .msg_iovlen     = 2,
+        .msg_control    = NULL,
+        .msg_controllen = 0,
+        .msg_flags      = 0
+    };
+    intmax_t bytes_written = sendmsg(socket, &msg, MSG_WAITALL);
+    return bytes_written != (sizeof(wm_message_t) + argument_length);
 }
 
 int wm_connection_send_reply(int socket, void* argument_buffer,
@@ -208,6 +231,21 @@ int wm_connection_send_reply(int socket, void* argument_buffer,
     }
     TRACE("[wm_connection_send_reply] bytes sent = %i", bytes_written);
     return (bytes_written != length); // return 0 on ok
+}
+
+int wm_connection_broadcast_message(wm_message_t* message,
+    void* arguments, size_t argument_length)
+{
+    wm_connection_t* conn;
+    
+    mtx_lock(&connections_sync);
+    conn = connections;
+    while (conn) {
+        wm_connection_send_stream(conn->c_socket, message, arguments, argument_length);
+        conn = conn->link;
+    }
+    mtx_unlock(&connections_sync);
+    return 0;
 }
 
 int wm_connection_initialize(void)

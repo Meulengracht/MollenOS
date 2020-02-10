@@ -27,7 +27,7 @@
 #include <io_events.h>
 #include <io.h>
 #include "include/libwm_connection.h"
-#include "include/libwm_os.h"
+#include "include/libwm_list.h"
 #include "include/libwm_server.h"
 #include <stdlib.h>
 #include <string.h>
@@ -35,10 +35,10 @@
 #define __TRACE
 #include <ddk/utils.h>
 
-typedef void (*wm_invoke00_t)(void);
-typedef void (*wm_invokeA0_t)(void*);
-typedef void (*wm_invoke0R_t)(void*);
-typedef void (*wm_invokeAR_t)(void*, void*);
+typedef void (*wm_invoke00_t)(int);
+typedef void (*wm_invokeA0_t)(int, void*);
+typedef void (*wm_invoke0R_t)(int, void*);
+typedef void (*wm_invokeAR_t)(int, void*, void*);
 
 struct wm_server {
     wm_server_configuration_t configuration;
@@ -46,7 +46,7 @@ struct wm_server {
     int                       client_socket;
     int                       dgram_socket;
     int                       socket_set;
-    wm_protocol_t*            protocols[WM_MAX_PROTOCOLS];
+    struct wm_list            protocols;
 } wm_server_context = { { { 0 } } };
 
 
@@ -129,16 +129,9 @@ static int create_dgram_socket(wm_server_configuration_t* configuration)
 
 static wm_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t action_id)
 {
-    wm_protocol_t* protocol = NULL;
+    wm_protocol_t* protocol = (struct wm_protocol*)wm_list_lookup(
+        &wm_server_context.protocols, (int)(uint32_t)protocol_id);
     int            i;
-    
-    for (i = 0; i < WM_MAX_PROTOCOLS; i++) {
-        if (wm_server_context.protocols[i] && 
-            wm_server_context.protocols[i]->id == protocol_id) {
-            protocol = wm_server_context.protocols[i];
-            break;
-        }
-    }
     
     if (!protocol) {
         return NULL;
@@ -155,24 +148,27 @@ static wm_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t 
 static int invoke_action(int socket, wm_message_t* message, void* argument_buffer,
     wm_protocol_function_t* function, struct sockaddr_storage* client_address)
 {
-    uint8_t return_buffer[WM_MESSAGE_GET_LENGTH(message->ret_length)];
+    int has_argument = message->length > sizeof(wm_message_t);
+    int has_return   = message->ret_length > 0;
     TRACE("[invoke_action] %u, %u", message->protocol, message->action);
     
-    if (message->has_arg && message->has_ret) {
-        ((wm_invokeAR_t)function->address)(argument_buffer, &return_buffer[0]);
+    if (has_argument && has_return) {
+        uint8_t return_buffer[message->ret_length];
+        ((wm_invokeAR_t)function->address)(socket, argument_buffer, &return_buffer[0]);
         return wm_connection_send_reply(socket, &return_buffer[0], 
-            WM_MESSAGE_GET_LENGTH(message->ret_length), client_address);
+            message->ret_length, client_address);
     }
-    else if (message->has_arg) {
-        ((wm_invokeA0_t)function->address)(argument_buffer);
+    else if (has_argument) {
+        ((wm_invokeA0_t)function->address)(socket, argument_buffer);
     }
-    else if (message->has_ret) {
-        ((wm_invoke0R_t)function->address)(&return_buffer[0]);
+    else if (has_return) {
+        uint8_t return_buffer[message->ret_length];
+        ((wm_invoke0R_t)function->address)(socket, &return_buffer[0]);
         return wm_connection_send_reply(socket, &return_buffer[0], 
-            WM_MESSAGE_GET_LENGTH(message->ret_length), client_address);
+            message->ret_length, client_address);
     }
     else {
-        ((wm_invoke00_t)function->address)();
+        ((wm_invoke00_t)function->address)(socket);
     }
     return 0;
 }
@@ -292,10 +288,6 @@ int wm_server_main_loop(void)
     
     while (wm_server_context.initialized) {
         int num_events = io_set_wait(wm_server_context.socket_set, &events[0], 32, 0);
-        if (!num_events) {
-            // why tho, timeout?
-        }
-        
         for (i = 0; i < num_events; i++) {
             if (events[i].iod == wm_server_context.client_socket) {
                 if (handle_client_socket()) {
@@ -315,30 +307,50 @@ int wm_server_main_loop(void)
     return wm_server_shutdown();
 }
 
+int wm_server_send_event(int client, uint32_t object_id, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+{
+    wm_message_t message = { 
+        .serial_no  = object_id,
+        .length     = (sizeof(wm_message_t) + argument_length),
+        .ret_length = 0,
+        .crc        = 0,
+        .protocol   = protocol_id,
+        .action     = event_id
+    };
+    return wm_connection_send_stream(client, &message, argument, argument_length);
+}
+
+int wm_server_broadcast_event(uint32_t object_id, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+{
+    wm_message_t message = { 
+        .serial_no  = object_id,
+        .length     = (sizeof(wm_message_t) + argument_length),
+        .ret_length = 0,
+        .crc        = 0,
+        .protocol   = protocol_id,
+        .action     = event_id
+    };
+    return wm_connection_broadcast_message(&message, argument, argument_length);
+}
+
 int wm_server_register_protocol(wm_protocol_t* protocol)
 {
-    int i;
-    
-    for (i = 0; i < WM_MAX_PROTOCOLS; i++) {
-        if (!wm_server_context.protocols[i]) {
-            wm_server_context.protocols[i] = protocol;
-            return 0;
-        }
+    if (!protocol) {
+        _set_errno(EINVAL);
+        return -1;
     }
-    _set_errno(ENOSPC);
-    return -1;
+    
+    wm_list_append(&wm_server_context.protocols, &protocol->header);
+    return 0;
 }
 
 int wm_server_unregister_protocol(wm_protocol_t* protocol)
 {
-    int i;
-    
-    for (i = 0; i < WM_MAX_PROTOCOLS; i++) {
-        if (wm_server_context.protocols[i] == protocol) {
-            wm_server_context.protocols[i] = NULL;
-            return 0;
-        }
+    if (!protocol) {
+        _set_errno(EINVAL);
+        return -1;
     }
-    _set_errno(ENOENT);
-    return -1;
+    
+    wm_list_remove(&wm_server_context.protocols, &protocol->header);
+    return 0;
 }

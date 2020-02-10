@@ -33,7 +33,7 @@ int test_print(wm_client_t* client, char* message, int* status)
     int                   wm_status;
     
     memcpy(&args.message[0], message, strlen(message) + 1);
-    wm_status = wm_client_invoke(client, /* config, */
+    wm_status = wm_client_invoke_sync(client, /* config, */
         PROTOCOL_TEST_ID, PROTOCOL_TEST_PRINT_ID,
         &args, sizeof(struct test_print_arg),  // arguments
         &rets, sizeof(struct test_print_ret)); // return
@@ -42,4 +42,3 @@ int test_print(wm_client_t* client, char* message, int* status)
     }
     return wm_status;
 }
-
