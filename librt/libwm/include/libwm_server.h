@@ -42,7 +42,7 @@ int wm_server_initialize(wm_server_configuration_t*);
 int wm_server_register_protocol(wm_protocol_t*);
 int wm_server_unregister_protocol(wm_protocol_t*);
 int wm_server_main_loop(void);
-int wm_server_send_event(int, uint32_t, uint8_t, uint8_t, void*, size_t);
-int wm_server_broadcast_event(uint32_t, uint8_t, uint8_t, void*, size_t);
+int wm_server_send_event(int, uint8_t, uint8_t, void*, size_t);
+int wm_server_broadcast_event(uint8_t, uint8_t, void*, size_t);
 
 #endif // !__LIBWM_SERVER_H__

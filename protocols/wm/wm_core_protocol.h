@@ -29,19 +29,28 @@
 #define PROTOCOL_WM_CORE_ID             0x10
 #define PROTOCOL_WM_CORE_FUNCTION_COUNT 4
 
-#define PROTOCOL_WM_CORE_SYNC_ID           0x0
-#define PROTOCOL_WM_CORE_GET_STATE_ID      0x1
+#define PROTOCOL_WM_CORE_SYNC_ID      0x0
+#define PROTOCOL_WM_CORE_GET_STATE_ID 0x1
 
-#define PROTOCOL_WM_CORE_EVENT_SYNC_ID           0x3
-#define PROTOCOL_WM_CORE_EVENT_ERROR_ID          0x4
-#define PROTOCOL_WM_CORE_EVENT_OBJECT_DELETED_ID 0x5
+#define PROTOCOL_WM_CORE_EVENT_ERROR_ID 0x80
+#define PROTOCOL_WM_CORE_EVENT_SYNC_ID  0x81
 
-struct wm_core_sync_event {
-    uint32_t serial;
+struct wm_core_sync_arg {
+    uin32_t serial;
 };
 
-struct wm_core_state_element_event {
-    uint32_t serial;
+struct wm_core_sync_event {
+    uin32_t serial;
+};
+
+struct wm_core_error_event {
+    uint32_t object_id;
+    int      error_id;
+    char     error_description[64];
+};
+
+struct wm_core_state_event {
+    uint32_t object_id;
     int      type;
 };
 

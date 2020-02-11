@@ -33,13 +33,12 @@
 typedef void* wm_handle_t;
 
 typedef struct wm_message {
-    uint32_t serial_no;
     uint32_t length     : 8;  // length is this message including arguments
     uint32_t ret_length : 8;  // length of reply object
     uint32_t crc        : 16; // crc of argument data
-    uint8_t  protocol;
-    uint8_t  action;
-    uint16_t padding;
+    uint32_t protocol   : 8;
+    uint32_t action     : 8;
+    uint32_t padding    : 16;
 } wm_message_t;
 
 typedef struct wm_object_header {

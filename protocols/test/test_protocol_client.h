@@ -27,6 +27,6 @@
 
 typedef struct wm_client wm_client_t;
 
-int test_print(wm_client_t* client, char* message, int* status);
+int test_print_sync(wm_client_t* client, char* message, int* status);
 
 #endif //!__PROTOCOL_TEST_CLIENT_H__

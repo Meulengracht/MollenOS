@@ -26,14 +26,14 @@
 #include "libwm_client.h"
 #include <string.h>
 
-int test_print(wm_client_t* client, char* message, int* status)
+int test_print_sync(wm_client_t* client, char* message, int* status)
 {
     struct test_print_arg args;
     struct test_print_ret rets;
     int                   wm_status;
     
     memcpy(&args.message[0], message, strlen(message) + 1);
-    wm_status = wm_client_invoke_sync(client, /* config, */
+    wm_status = wm_client_invoke(client, /* config, */
         PROTOCOL_TEST_ID, PROTOCOL_TEST_PRINT_ID,
         &args, sizeof(struct test_print_arg),  // arguments
         &rets, sizeof(struct test_print_ret)); // return

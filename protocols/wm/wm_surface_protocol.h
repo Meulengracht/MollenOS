@@ -27,10 +27,28 @@
 #include <stdint.h>
 
 #define PROTOCOL_WM_SURFACE_ID             0x12
-#define PROTOCOL_WM_SURFACE_FUNCTION_COUNT 4
+#define PROTOCOL_WM_SURFACE_FUNCTION_COUNT 6
 
-#define PROTOCOL_WM_SURFACE_SET_BUFFER 0x0
-#define PROTOCOL_WM_SURFACE_COMMIT     0x1
-#define PROTOCOL_WM_SURFACE_DESTROY    0x2
+#define PROTOCOL_WM_SURFACE_GET_FORMATS_ID 0x0
+#define PROTOCOL_WM_SURFACE_SET_BUFFER_ID  0x1
+#define PROTOCOL_WM_SURFACE_COMMIT_ID      0x2
+#define PROTOCOL_WM_SURFACE_INVALIDATE_ID  0x3
+#define PROTOCOL_WM_SURFACE_DESTROY_ID     0x4
+
+#define PROTOCOL_WM_SURFACE_EVENT_FORMAT_ID 0x80
+
+enum wm_screen_format {
+    surface_a8r8g8b8,
+    surface_x8r8g8b8
+};
+
+struct wm_screen_get_format_arg {
+    uint32_t object_id;
+};
+
+struct wm_screen_format_event {
+    uint32_t              object_id;
+    enum wm_screen_format format;
+};
 
 #endif //!__WM_SURFACE_PROTOCOL_H__

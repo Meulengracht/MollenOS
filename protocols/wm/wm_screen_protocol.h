@@ -27,14 +27,11 @@
 #include <stdint.h>
 
 #define PROTOCOL_WM_SCREEN_ID             0x11
-#define PROTOCOL_WM_SCREEN_FUNCTION_COUNT 2
+#define PROTOCOL_WM_SCREEN_FUNCTION_COUNT 1
 
-#define PROTOCOL_WM_SCREEN_GET_FORMATS_ID    0x0
-#define PROTOCOL_WM_SCREEN_CREATE_SURFACE_ID 0x1
-
-struct wm_screen_format_event {
-    uint32_t serial;
-    int      format;
-};
+#define PROTOCOL_WM_SCREEN_GET_PROPERTIES_ID 0x0
+#define PROTOCOL_WM_SCREEN_GET_MODES_ID      0x1
+#define PROTOCOL_WM_SCREEN_SET_SCALE_ID      0x2
+#define PROTOCOL_WM_SCREEN_CREATE_SURFACE_ID 0x3
 
 #endif //!__WM_SCREEN_PROTOCOL_H__

@@ -173,14 +173,35 @@ static int invoke_action(int socket, wm_message_t* message, void* argument_buffe
     return 0;
 }
 
-static int handle_client_event(int socket, uint32_t events, void* argument_buffer)
+static int handle_sync_event(int socket, uint32_t events, void* argument_buffer)
 {
-    wm_protocol_function_t*  function;
-    struct sockaddr_storage  client_address;
-    struct sockaddr_storage* client_address_ptr;
-    wm_message_t             message;
-    int                      status;
-    TRACE("[handle_client_event] %i, 0x%x", socket, events);
+    wm_protocol_function_t* function;
+    struct sockaddr_storage client_address;
+    wm_message_t            message;
+    int                     status;
+    TRACE("[handle_sync_event] %i, 0x%x", socket, events);
+    
+    status = wm_connection_recv_packet(socket, &message, argument_buffer, &client_address);
+    if (status) {
+        ERROR("[handle_sync_event] wm_connection_recv_message returned %i", errno);
+        return -1;
+    }
+    
+    function = get_protocol_action(message.protocol, message.action);
+    if (!function) {
+        ERROR("[handle_sync_event] get_protocol_action returned null");
+        _set_errno(ENOENT);
+        return -1;
+    }
+    return invoke_action(socket, &message, argument_buffer, function, &client_address);
+}
+
+static int handle_async_event(int socket, uint32_t events, void* argument_buffer)
+{
+    wm_protocol_function_t* function;
+    wm_message_t            message;
+    int                     status;
+    TRACE("[handle_async_event] %i, 0x%x", socket, events);
     
     // Check for control event. On non-passive sockets, control event is the
     // disconnect event.
@@ -194,27 +215,20 @@ static int handle_client_event(int socket, uint32_t events, void* argument_buffe
         status = wm_connection_shutdown(socket);
     }
     else if ((events & IOEVTIN) || !events) {
-        if (wm_server_context.dgram_socket == socket) {
-            client_address_ptr = &client_address;
-            status = wm_connection_recv_packet(socket, &message, argument_buffer, client_address_ptr);
-        }
-        else {
-            client_address_ptr = NULL;
-            status = wm_connection_recv_stream(socket, &message, argument_buffer);
-        }
+        status = wm_connection_recv_stream(socket, &message, argument_buffer);
         
         if (status) {
-            ERROR("[handle_client_event] wm_connection_recv_message returned %i", errno);
+            ERROR("[handle_async_event] wm_connection_recv_message returned %i", errno);
             return -1;
         }
         
         function = get_protocol_action(message.protocol, message.action);
         if (!function) {
-            ERROR("[handle_client_event] get_protocol_action returned null");
+            ERROR("[handle_async_event] get_protocol_action returned null");
             _set_errno(ENOENT);
             return -1;
         }
-        return invoke_action(socket, &message, argument_buffer, function, client_address_ptr);
+        return invoke_action(socket, &message, argument_buffer, function, NULL);
     }
     return 0;
 }
@@ -295,10 +309,10 @@ int wm_server_main_loop(void)
                 }
             }
             else if (events[i].iod == wm_server_context.dgram_socket) {
-                handle_client_event(wm_server_context.dgram_socket, events[i].events, argument_buffer);
+                handle_sync_event(wm_server_context.dgram_socket, events[i].events, argument_buffer);
             }
             else {
-                handle_client_event(events[i].iod, events[i].events, argument_buffer);
+                handle_async_event(events[i].iod, events[i].events, argument_buffer);
             }
         }
     }
@@ -307,10 +321,9 @@ int wm_server_main_loop(void)
     return wm_server_shutdown();
 }
 
-int wm_server_send_event(int client, uint32_t object_id, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+int wm_server_send_event(int client, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
 {
-    wm_message_t message = { 
-        .serial_no  = object_id,
+    wm_message_t message = {
         .length     = (sizeof(wm_message_t) + argument_length),
         .ret_length = 0,
         .crc        = 0,
@@ -320,10 +333,9 @@ int wm_server_send_event(int client, uint32_t object_id, uint8_t protocol_id, ui
     return wm_connection_send_stream(client, &message, argument, argument_length);
 }
 
-int wm_server_broadcast_event(uint32_t object_id, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+int wm_server_broadcast_event(uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
 {
-    wm_message_t message = { 
-        .serial_no  = object_id,
+    wm_message_t message = {
         .length     = (sizeof(wm_message_t) + argument_length),
         .ret_length = 0,
         .crc        = 0,

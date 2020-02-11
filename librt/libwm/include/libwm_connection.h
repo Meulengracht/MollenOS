@@ -35,9 +35,9 @@ int wm_connection_initialize(void);
 int wm_connection_create(int, struct sockaddr_storage*, int);
 int wm_connection_recv_packet(int, wm_message_t*, void*, struct sockaddr_storage*);
 int wm_connection_recv_stream(int, wm_message_t*, void*);
-int wm_connection_send_reply(int, void*, size_t, struct sockaddr_storage*);
 int wm_connection_send_packet(int, wm_message_t*, void*, size_t, struct sockaddr_storage*);
 int wm_connection_send_stream(int, wm_message_t*, void*, size_t);
+int wm_connection_send_reply(int, void*, size_t, struct sockaddr_storage*);
 int wm_connection_broadcast_message(wm_message_t*, void*, size_t);
 int wm_connection_shutdown(int);
 

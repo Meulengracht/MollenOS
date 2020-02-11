@@ -32,51 +32,17 @@
 #include <signal.h>
 #include <string.h>
 #include <stdlib.h>
-#include <threads.h>
 
 typedef struct wm_client {
     uint32_t            client_id;
     enum wm_client_type type;
-    int                 initialized;
+    int                 event_loop_enabled;
     int                 socket;
-    thrd_t              event_thread;
     struct wm_list      protocols;
 } wm_client_t;
 
 typedef void (*wm_invoke00_t)(void);
 typedef void (*wm_invokeA0_t)(void*);
-
-static int send_stream(wm_client_t* client, wm_message_t* message, 
-    void* arguments, size_t argument_length)
-{
-    intmax_t bytes_written = send(client->socket, (const void*)message, 
-        sizeof(wm_message_t), MSG_WAITALL);
-    if (bytes_written == sizeof(wm_message_t) && message->length > sizeof(wm_message_t)) {
-        bytes_written += send(client->socket, (const void*)arguments,
-            argument_length, MSG_WAITALL);
-    }
-    return bytes_written != (sizeof(wm_message_t) + argument_length);
-}
-
-static int send_packet(wm_client_t* client, wm_message_t* message, 
-    void* arguments, size_t argument_length)
-{
-    struct iovec  iov[2] = { 
-        { .iov_base = message,   .iov_len = sizeof(wm_message_t) },
-        { .iov_base = arguments, .iov_len = argument_length }
-    };
-    struct msghdr msg = {
-        .msg_name       = NULL,
-        .msg_namelen    = 0,
-        .msg_iov        = &iov[0],
-        .msg_iovlen     = 2,
-        .msg_control    = NULL,
-        .msg_controllen = 0,
-        .msg_flags      = 0
-    };
-    intmax_t bytes_written = sendmsg(client->socket, &msg, MSG_WAITALL);
-    return bytes_written != (sizeof(wm_message_t) + argument_length);
-}
 
 static int get_message_reply(wm_client_t* client, void* return_buffer, 
     size_t return_length)
@@ -86,49 +52,12 @@ static int get_message_reply(wm_client_t* client, void* return_buffer,
     return bytes_read != return_length;
 }
 
-int wm_client_invoke_sync(wm_client_t* client, uint8_t protocol, uint8_t action, 
+int wm_client_invoke(wm_client_t* client, uint8_t protocol, uint8_t action, 
     void* arguments, size_t argument_length, void* return_buffer, 
     size_t return_length)
 {
     int          status;
     wm_message_t message = { 
-        .serial_no  = 0,
-        .length     = (sizeof(wm_message_t) + argument_length),
-        .ret_length = return_length,
-        .crc        = 0,
-        .protocol   = protocol,
-        .action     = action
-    };
-    
-    if (client->event_thread != UUID_INVALID) {
-        return -1;
-    }
-    
-    if (argument_length) {
-        message.crc = crc16_generate((const unsigned char*)arguments, argument_length);
-    }
-    
-    switch (client->type) {
-        case wm_client_stream_based: {
-            status = send_stream(client, &message, arguments, argument_length);
-        } break;
-        case wm_client_packet_based: {
-            status = send_packet(client, &message, arguments, argument_length);
-        } break;
-    }
-    
-    if (!status && argument_length) {
-        status = get_message_reply(client, return_buffer, return_length);
-    }
-    return status;
-}
-
-int wm_client_invoke_async(wm_client_t* client, uint8_t protocol, uint8_t action, 
-    void* arguments, size_t argument_length, size_t return_length)
-{
-    int          status;
-    wm_message_t message = { 
-        .serial_no  = 0,
         .length     = (sizeof(wm_message_t) + argument_length),
         .ret_length = return_length,
         .crc        = 0,
@@ -142,12 +71,20 @@ int wm_client_invoke_async(wm_client_t* client, uint8_t protocol, uint8_t action
     
     switch (client->type) {
         case wm_client_stream_based: {
-            status = send_stream(client, &message, arguments, argument_length);
+            if (return_buffer != NULL) {
+                _set_errno(ENOTSUP);
+                return -1;
+            }
+            status = wm_connection_send_stream(client->socket, &message, arguments, argument_length);
         } break;
         case wm_client_packet_based: {
-            status = send_packet(client, &message, arguments, argument_length);
+            status = wm_connection_send_packet(client->socket, &message, arguments, argument_length, NULL);
+            if (!status && argument_length) {
+                status = get_message_reply(client, return_buffer, return_length);
+            }
         } break;
     }
+    
     return status;
 }
 
@@ -178,20 +115,24 @@ static void invoke_action(wm_message_t* message, void* argument_buffer, wm_proto
     }
 }
 
-static int wm_client_main_loop(void* context)
+int wm_client_event_loop(wm_client_t* client)
 {
-    wm_client_t* client = context;
     void*        argument_buffer;
     wm_message_t message;
     
+    if (!client) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
     argument_buffer = malloc(WM_MAX_MESSAGE_SIZE);
     if (!argument_buffer) {
-        client->event_thread = UUID_INVALID;
         _set_errno(ENOMEM);
         return -1;
     }
     
-    while (1) {
+    client->event_loop_enabled = 1;
+    while (client->event_loop_enabled) {
         int status = -1;
         switch (client->type) {
             case wm_client_stream_based: {
@@ -211,6 +152,17 @@ static int wm_client_main_loop(void* context)
     }
     
     free(argument_buffer);
+    return 0;
+}
+
+int wm_client_stop_event_loop(wm_client_t* client)
+{
+    if (!client) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    client->event_loop_enabled = 0;
     return 0;
 }
 
@@ -270,17 +222,6 @@ int wm_client_create(wm_client_configuration_t* config, wm_client_t** client_out
         return -1;
     }
     
-    if (config->async) {
-        int status = thrd_create(&client->event_thread, wm_client_main_loop, client);
-        if (status != thrd_success) {
-            wm_client_shutdown(client);
-            return -1;
-        }
-    }
-    else {
-        client->event_thread = UUID_INVALID;
-    }
-    
     *client_out = client;
     return 0;
 }
@@ -312,12 +253,6 @@ int wm_client_shutdown(wm_client_t* client)
     if (!client) {
         _set_errno(EINVAL);
         return -1;
-    }
-    
-    if (client->event_thread != UUID_INVALID) {
-        int exit_code;
-        thrd_signal(client->event_thread, SIGKILL);
-        thrd_join(client->event_thread, &exit_code);
     }
     
     close(client->socket);
