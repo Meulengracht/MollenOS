@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <types>
+        <type name="uint8_t" header="stdint.h" />
+        <type name="uint16_t" header="stdint.h" />
+        <type name="uint32_t" header="stdint.h" />
+        <type name="int16_t" header="stdint.h" />
+    </types>
+    <protocols namespace="hid">
+        <protocol name="events">
+            <functions>
+                <function name="key_event" synchronous="false">
+                    <request>
+                        <param name="source" type="int" count="1" />
+                        <param name="flags" type="uint16_t" count="1" />
+                        <param name="key_ascii" type="uint8_t" count="1" />
+                        <param name="key_code" type="uint8_t" count="1" />
+                        <param name="key_unicode" type="uint32_t" count="1" />
+                    </request>
+                </function>
+            <functions>
+                <function name="pointer_event" synchronous="false">
+                    <request>
+                        <param name="source" type="int" count="1" />
+                        <param name="flags" type="uint16_t" count="1" />
+                        <param name="rel_x" type="int16_t" count="1" />
+                        <param name="rel_y" type="int16_t" count="1" />
+                        <param name="rel_z" type="int16_t" count="1" />
+                        <param name="buttons_set" type="uint32_t" count="1" />
+                    </request>
+                </function>
+            </functions>
+        </protocol>
+    </protocols>
+</root>

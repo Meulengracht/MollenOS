@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <protocols namespace="test">
+        <protocol name="utils">
+            <functions>
+                <function name="print" synchronous="true">
+                    <request>
+                        <param name="message" type="char" count="128" />
+                    </request>
+                    <response>
+                        <param name="status" type="int" count="1" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+    </protocols>
+</root>
