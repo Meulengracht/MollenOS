@@ -24,8 +24,7 @@
 
 #include <libwm_client.h>
 #include <libwm_os.h>
-#include <test/test_protocol.h>
-#include <test/test_protocol_client.h>
+#include "test_utils_protocol_client.h"
 #include <stdio.h>
 
 int main(int argc, char **argv)
@@ -45,6 +44,6 @@ int main(int argc, char **argv)
         return code;
     }
     
-    code = test_print_sync(client, "hello from wm_client!", &status);
+    code = test_utils_print_sync(client, "hello from wm_client!", &status);
     return wm_client_shutdown(client);
 }

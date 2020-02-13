@@ -4,7 +4,7 @@
         <type name="uint32_t" header="stdint.h" />
     </types>
     <protocols namespace="wm">
-        <protocol name="core">
+        <protocol name="core" id="0x10">
             <enums>
                 <enum name="object_type">
                     <value name="object_screen"></value>
@@ -39,7 +39,7 @@
             </events>
         </protocol>
         
-        <protocol name="screen">
+        <protocol name="screen"  id="0x11">
             <functions>
                 <function name="get_properties" synchronous="false">
                     <request>
@@ -73,7 +73,7 @@
             </events>
         </protocol>
         
-        <protocol name="shm">
+        <protocol name="shm" id="0x12">
             <functions>
                 <function name="create_buffer" synchronous="false">
                     <request>
@@ -90,7 +90,7 @@
             </events>
         </protocol>
         
-        <protocol name="surface">
+        <protocol name="surface" id="0x13">
             <enums>
                 <enum name="format">
                     <value name="surface_a8r8g8b8"></value>
@@ -118,7 +118,7 @@
             </events>
         </protocol>
         
-        <protocol name="buffer">
+        <protocol name="buffer" id="0x14">
             <functions>
                 <function name="destroy" synchronous="false">
                     <request>

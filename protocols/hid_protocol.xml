@@ -7,18 +7,32 @@
         <type name="int16_t" header="stdint.h" />
     </types>
     <protocols namespace="hid">
-        <protocol name="events">
+        <protocol name="events" id="0x1">
+            <enums>
+                <enum name="key_flags">
+                    <value name="key_flag_lshift" value="0x1"></value>
+                    <value name="key_flag_rshift" value="0x2"></value>
+                    <value name="key_flag_lalt" value="0x4"></value>
+                    <value name="key_flag_ralt" value="0x8"></value>
+                    <value name="key_flag_lctrl" value="0x10"></value>
+                    <value name="key_flag_rctrl" value="0x20"></value>
+                    <value name="key_flag_scrollock" value="0x40"></value>
+                    <value name="key_flag_numlock" value="0x80"></value>
+                    <value name="key_flag_capslock" value="0x100"></value>
+                    <value name="key_flag_released" value="0x1000"></value>
+                </enum>
+            </enums>
+            
             <functions>
                 <function name="key_event" synchronous="false">
                     <request>
                         <param name="source" type="int" count="1" />
-                        <param name="flags" type="uint16_t" count="1" />
+                        <param name="flags" type="key_flags" count="1" />
                         <param name="key_ascii" type="uint8_t" count="1" />
                         <param name="key_code" type="uint8_t" count="1" />
                         <param name="key_unicode" type="uint32_t" count="1" />
                     </request>
                 </function>
-            <functions>
                 <function name="pointer_event" synchronous="false">
                     <request>
                         <param name="source" type="int" count="1" />

@@ -24,7 +24,6 @@
 
 #include <ddk/utils.h>
 #include <errno.h>
-#include <hid/hid_protocol_client.h>
 #include <io.h>
 #include <libwm_os.h>
 #include "keyboard.h"
@@ -34,68 +33,68 @@
 
 OsStatus_t
 PS2KeyboardHandleModifiers(
-    _In_ PS2Port_t*                Port,
-    _In_ struct hid_key_event_arg* Key)
+    _In_ PS2Port_t*                        Port,
+    _In_ struct hid_events_key_event_args* Key)
 {
     uint16_t Flags = *((uint16_t*)&PS2_KEYBOARD_DATA_STATE_LO(Port));
 
     // Handle modifiers
     switch (Key->key_code) {
         case VK_LSHIFT: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_LSHIFT;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_LSHIFT);
+            Flags |= key_flag_lshift;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_lshift);
             }
         } break;
         case VK_RSHIFT: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_RSHIFT;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_RSHIFT);
+            Flags |= key_flag_rshift;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_rshift);
             }
         } break;
         
         case VK_LCONTROL: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_LCTRL;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_LCTRL);
+            Flags |= key_flag_lctrl;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_lctrl);
             }
         } break;
         case VK_RCONTROL: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_RCTRL;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_RCTRL);
+            Flags |= key_flag_rctrl;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_rctrl);
             }
         } break;
         
         case VK_LALT: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_LALT;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_LALT);
+            Flags |= key_flag_lalt;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_lalt);
             }
         } break;
         case VK_RALT: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_RALT;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_RALT);
+            Flags |= key_flag_ralt;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_ralt);
             }
         } break;
 
         case VK_SCROLL: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_SCROLLOCK;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_SCROLLOCK);
+            Flags |= key_flag_scrollock;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_scrollock);
             }
         } break;
         case VK_NUMLOCK: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_NUMLOCK;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_NUMLOCK);
+            Flags |= key_flag_numlock;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_numlock);
             }
         } break;
         case VK_CAPSLOCK: {
-            Flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_CAPSLOCK;
-            if (Key->flags & PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED) {
-                Flags &= ~(PROTOCOL_HID_KEY_EVENT_FLAGS_CAPSLOCK);
+            Flags |= key_flag_capslock;
+            if (Key->flags & key_flag_released) {
+                Flags &= ~(key_flag_capslock);
             }
         } break;
 
@@ -144,9 +143,9 @@ void
 PS2KeyboardInterrupt(
     _In_ PS2Port_t* Port)
 {
-    struct hid_key_event_arg Key         = { 0 };
-    OsStatus_t               Status      = OsError;
-    uint8_t                  ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
+    struct hid_events_key_event_args Key         = { 0 };
+    OsStatus_t                       Status      = OsError;
+    uint8_t                          ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
 
     // Perform scancode-translation
     while (Status == OsError) {
@@ -167,7 +166,7 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.flags &= ~(KEY_MODIFIER_EXTENDED);
-        hid_key_event(Port->WmClient, 0, Key.key_ascii, Key.key_code, Key.flags, Key.key_unicode);
+        hid_events_key_event(Port->WmClient, 0, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
     }
 }
 

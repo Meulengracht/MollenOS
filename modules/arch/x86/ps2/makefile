@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../../../config/common.mk
 
-SOURCES = ../../../../protocols/hid/hid_protocol_client.c \
+SOURCES = hid_events_protocol_client.c \
 		  $(wildcard devices/scancodes/*.c) \
 		  $(wildcard devices/*.c) \
 		  $(wildcard ./*.c)
@@ -27,6 +27,11 @@ LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 .PHONY: all
 all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 
+hid_events_protocol_client.c: ../../../../protocols/hid_protocol.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --client
+	
+
 ../../../build/ps2.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
@@ -44,4 +49,5 @@ clean:
 	@rm -f ../../../build/ps2.dll
 	@rm -f ../../../build/ps2.lib
 	@rm -f ../../../build/ps2.mdrv
+	@rm -f hid_events_protocol*
 	@rm -f $(OBJECTS)

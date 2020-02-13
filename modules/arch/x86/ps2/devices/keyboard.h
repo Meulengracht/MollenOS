@@ -24,7 +24,7 @@
 #define _DRIVER_PS2_KEYBOARD_H_
 
 #include <os/osdefs.h>
-#include <hid/hid_protocol.h>
+#include "../hid_events_protocol_client.h"
 
 // PS2 keyboard specific commands
 #define PS2_KEYBOARD_SETLEDS                0xED
@@ -54,7 +54,7 @@
  * Converts a scancode 2 key to the standard-defined virtual key-layout */
 __EXTERN OsStatus_t 
 ScancodeSet2ToVKey(
-    _In_ struct hid_key_event_arg* KeyState,
-    _In_ uint8_t                   Scancode);
+    _In_ struct hid_events_key_event_args* KeyState,
+    _In_ uint8_t                           Scancode);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

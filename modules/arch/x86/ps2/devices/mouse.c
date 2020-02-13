@@ -22,7 +22,6 @@
  */
 
 #include <ddk/utils.h>
-#include <hid/hid_protocol_client.h>
 #include <io.h>
 #include "mouse.h"
 #include <libwm_os.h>
@@ -62,7 +61,7 @@ void
 PS2MouseInterrupt(
     _In_ PS2Port_t* Port)
 {
-    struct hid_pointer_event_arg Input;
+    struct hid_events_pointer_event_args Input;
     uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
 
     // Update relative x and y
@@ -92,7 +91,7 @@ PS2MouseInterrupt(
         Port->ResponseReadIndex = 0;
     }
     
-    hid_pointer_event(Port->WmClient, 0 /* source */, 0 /* flags */, 
+    hid_events_pointer_event(Port->WmClient, 0 /* source */, 0 /* flags */, 
         Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
 }
 

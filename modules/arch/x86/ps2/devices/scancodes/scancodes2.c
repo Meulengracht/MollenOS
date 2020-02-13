@@ -63,8 +63,8 @@ static uint8_t ScancodeSet2ExtendedTable[126] = {
 
 OsStatus_t
 ScancodeSet2ToVKey(
-    _In_ struct hid_key_event_arg* KeyState,
-    _In_ uint8_t                   Scancode)
+    _In_ struct hid_events_key_event_args* KeyState,
+    _In_ uint8_t                           Scancode)
 {
     // Handle special cases
     if (Scancode == PS2_CODE_EXTENDED) {
@@ -72,7 +72,7 @@ ScancodeSet2ToVKey(
         return OsError;
     }
     else if (Scancode == PS2_CODE_RELEASED) {
-        KeyState->flags |= PROTOCOL_HID_KEY_EVENT_FLAGS_RELEASED;
+        KeyState->flags |= key_flag_released;
         return OsError;
     }
 

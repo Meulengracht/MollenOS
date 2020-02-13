@@ -26,18 +26,10 @@
 #include <libwm_server.h>
 #include <libwm_os.h>
 #include <os/services/process.h>
-#include <test/test_protocol.h>
 #include <stdio.h>
+#include "test_utils_protocol_server.h"
 
-static void print(int client, struct test_print_arg*, struct test_print_ret*);
-
-static wm_protocol_function_t test_functions[] = {
-    { PROTOCOL_TEST_PRINT_ID, print }
-};
-
-static wm_protocol_t test_protocol = WM_PROTOCOL_INIT(PROTOCOL_TEST_ID, PROTOCOL_TEST_FUNCTION_COUNT, test_functions);
-
-static void print(int client, struct test_print_arg* args, struct test_print_ret* ret)
+static void test_utils_print_callback(int client, struct test_utils_print_args* args, struct test_utils_print_ret* ret)
 {
     printf("received message: %s\n", &args->message[0]);
     ret->status = 0;
@@ -56,7 +48,7 @@ int main(int argc, char **argv)
         return code;
     }
     
-    wm_server_register_protocol(&test_protocol);
+    wm_server_register_protocol(&test_utils_protocol);
     ProcessSpawn("$bin/wmclient.app", NULL);
     return wm_server_main_loop();
 }

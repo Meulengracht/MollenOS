@@ -9,7 +9,7 @@ INCLUDES = -I../../protocols \
 		   -I../../librt/libc/include \
 		   -I../../librt/include
 
-SOURCES = main.c ../../protocols/test/test_protocol_client.c
+SOURCES = test_utils_protocol_client.c main.c 
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
@@ -19,6 +19,10 @@ LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/depl
 .PHONY: all
 all: ../bin/wmclient.app
 
+test_utils_protocol_client.c: ../../protocols/test_protocol.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --lang-c --client
+	
 ../bin/wmclient.app: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"
 	@$(LD) /entry:__CrtConsoleEntry $(LFLAGS) $(GUCXXLIBRARIES) $(OBJECTS) /out:$@
@@ -34,4 +38,5 @@ all: ../bin/wmclient.app
 .PHONY: clean
 clean:
 	@rm -f $(OBJECTS)
+	@rm -f test_utils_protocol*
 	@rm -f ../bin/wmclient.app
