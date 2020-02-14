@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 import os, sys
 import argparse
+import copy
 import xml.etree.ElementTree as ET
 
 class TypeDefinition:
-    def __init__(self, name, header, definition):
+    def __init__(self, name, header, definition, global_scope):
         self.name = name
         self.header = header
         self.definition = definition
+        self.global_scope = global_scope
     
     def get_name(self):
         return self.name
@@ -15,6 +17,8 @@ class TypeDefinition:
         return self.header
     def get_definition(self):
         return self.definition
+    def is_global(self):
+        return self.global_scope
 
 class ValueDefinition:
     def __init__(self, name, value):
@@ -27,25 +31,28 @@ class ValueDefinition:
         return self.value
 
 class Enumerator:
-    def __init__(self, name, values):
+    def __init__(self, name, values, global_scope):
         self.name = name
         self.values = values
+        self.global_scope = global_scope
 
     def get_name(self):
         return self.name
     def get_values(self):
         return self.values
+    def is_global(self):
+        return self.global_scope
 
 class Parameter:
     def __init__(self, name, typename, count):
         self.name = name
         self.typename = typename
         self.count = count
-        self.type_id = 0
         self.output = False
+        self.enum_ref = None
 
-    def set_enum(self):
-        self.type_id = 1
+    def set_enum(self, enum_ref):
+        self.enum_ref = enum_ref
     def set_output(self, output):
         self.output = output
 
@@ -55,8 +62,8 @@ class Parameter:
         return self.typename
     def get_count(self):
         return self.count
-    def is_enum(self):
-        return self.type_id == 1
+    def get_enum_ref(self):
+        return self.enum_ref
     def is_output(self):
         return self.output
 
@@ -106,7 +113,7 @@ class Protocol:
     def resolve_param_enum_types(self, param):
         for enum in self.enums:
             if enum.get_name().lower() == param.get_typename().lower():
-                param.set_enum()
+                param.set_enum(enum)
         return
 
     def resolve_enum_types(self):
@@ -178,7 +185,7 @@ def reset_id():
     global_id = 0
     return
 
-def create_type_from_xml(xml_type):
+def create_type_from_xml(xml_type, global_scope):
     try:
         name = xml_type.get("name")
         header = xml_type.get("header")
@@ -192,16 +199,32 @@ def create_type_from_xml(xml_type):
 
         # continue
         trace("parsed type: " + name)
-        return TypeDefinition(name, header, definition)
+        return TypeDefinition(name, header, definition, global_scope)
     except:
         error("could not parse protocol types")
     return None
 
-def parse_protocol_types(root):
-    types = []
-    for xml_type in root.findall('types/type'):
-        types.append(create_type_from_xml(xml_type))
-    return types
+def create_enum_from_xml(xml_enum, global_scope):
+    try:
+        name = xml_enum.get("name")
+        values = []
+        
+        # validation
+        if name is None:
+            raise Exception("name attribute of <enum> tag must be specified")
+
+        trace("parsing enum: " + name)
+        for xml_value in xml_enum.findall('value'):
+            values.append(parse_value(xml_value))
+        
+        # validation
+        if len(values) == 0:
+            raise Exception("enums must have atleast one value specified")
+        
+        return Enumerator(name, values, global_scope)
+    except Exception as e:
+        error("could not parse enum: " + str(e))
+    return None
 
 def parse_value(xml_value):
     try:
@@ -219,28 +242,6 @@ def parse_value(xml_value):
         return ValueDefinition(name, value)
     except Exception as e:
         error("could not parse enum value: " + str(e))
-    return None
-
-def parse_enum(xml_enum):
-    try:
-        name = xml_enum.get("name")
-        values = []
-        
-        # validation
-        if name is None:
-            raise Exception("name attribute of <enum> tag must be specified")
-
-        trace("parsing enum: " + name)
-        for xml_value in xml_enum.findall('value'):
-            values.append(parse_value(xml_value))
-        
-        # validation
-        if len(values) == 0:
-            raise Exception("enums must have atleast one value specified")
-        
-        return Enumerator(name, values)
-    except Exception as e:
-        error("could not parse enum: " + str(e))
     return None
 
 def parse_param(xml_param):
@@ -303,12 +304,13 @@ def parse_event(xml_event):
         error("could not parse event: " + str(e))
     return None
 
-def parse_protocol(namespace, types, xml_protocol):
+def parse_protocol(global_types, global_enums, namespace, xml_protocol):
     try:
         reset_id()
         name = xml_protocol.get("name")
         p_id = xml_protocol.get("id")
-        enums = []
+        enums = copy.copy(global_enums)
+        types = copy.copy(global_types)
         functions = []
         events = []
 
@@ -328,7 +330,7 @@ def parse_protocol(namespace, types, xml_protocol):
 
         trace("parsing protocol: " + name)
         for xml_enum in xml_protocol.findall('enums/enum'):
-            enums.append(parse_enum(xml_enum))
+            enums.append(create_enum_from_xml(xml_enum, False))
 
         for xml_function in xml_protocol.findall('functions/function'):
             functions.append(parse_function(xml_function))
@@ -340,7 +342,7 @@ def parse_protocol(namespace, types, xml_protocol):
         error("could not parse protocol: " + str(e))
     return None
 
-def parse_protocols(types, root):
+def parse_protocols(global_types, global_enums, root):
     protocols = []
     xml_protocols_header = root.find("protocols")
     if xml_protocols_header is None:
@@ -352,19 +354,47 @@ def parse_protocols(types, root):
     
     trace("parsed namespace: " + namespace)
     for xml_protocol in root.findall('protocols/protocol'):
-        protocols.append(parse_protocol(namespace, types, xml_protocol))
+        protocols.append(parse_protocol(global_types, global_enums, namespace, xml_protocol))
     return protocols
+
+def parse_global_types(root):
+    types = []
+    for xml_type in root.findall('types/type'):
+        types.append(create_type_from_xml(xml_type, True))
+    return types
+
+def parse_global_enums(root):
+    enums = []
+    for xml_enum in root.findall('enums/enum'):
+        enums.append(create_enum_from_xml(xml_enum, True))
+    return enums
 
 def parse_protocol_xml(protocol_xml_path):
     root = ET.parse(protocol_xml_path).getroot()
-    types = parse_protocol_types(root)
-    protocols = parse_protocols(types, root)
+    global_types = parse_global_types(root)
+    global_enums = parse_global_enums(root)
+    protocols = parse_protocols(global_types, global_enums, root)
     return protocols
 
 ##################
 # C Generator Code
 ##################
 class CGenerator:
+    def get_input_struct_name(self, protocol, func):
+        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_args"
+
+    def get_output_struct_name(self, protocol, func):
+        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_ret"
+
+    def get_event_struct_name(self, protocol, evt):
+        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + evt.get_name().lower() + "_event"
+        
+    def get_enum_name(self, protocol, enum):
+        if enum.is_global():
+            return protocol.get_namespace().lower() + "_" + enum.get_name().lower()
+        else:
+            return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + enum.get_name().lower()
+        
     def write_header(self, outfile):
         outfile.write("/**\n")
         outfile.write(" * This file was generated by the gracht protocol generator script. Any changes done here will be overwritten.\n")
@@ -377,7 +407,7 @@ class CGenerator:
         return
 
     def write_header_guard_end(self, file_name, outfile):
-        outfile.write("#endif //!__" + str.replace(file_name, ".", "_").upper() + "_PROTOCOL_H__\n")
+        outfile.write("#endif //!__" + str.replace(file_name, ".", "_").upper() + "__\n")
         return
 
     def define_shared_ids(self, protocol, outfile):
@@ -409,15 +439,20 @@ class CGenerator:
     def define_enums(self, protocol, outfile):
         for enum in protocol.get_enums():
             if len(enum.get_values()):
-                enum_name = protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + enum.get_name().lower()
+                enum_name = self.get_enum_name(protocol, enum)
+                if enum.is_global():
+                    outfile.write("#ifndef __" + enum_name.upper() + "_DEFINED__\n")
+                    outfile.write("#define __" + enum_name.upper() + "_DEFINED__\n")
                 self.write_enum(enum_name, enum.get_values(), outfile)
+                if enum.is_global():
+                    outfile.write("#endif //!__" + enum_name.upper() + "_DEFINED__\n\n")
         outfile.write("\n")
         return
 
     def get_param_typename(self, protocol, param):
         param_typename = ""
-        if param.is_enum():
-            param_typename = "enum " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + param.get_typename()
+        if param.get_enum_ref() is not None:
+            param_typename = "enum " + self.get_enum_name(protocol, param.get_enum_ref())
         else:
             param_typename = param.get_typename()
         
@@ -435,8 +470,8 @@ class CGenerator:
 
     def get_struct_member_typename(self, protocol, param):
         param_typename = ""
-        if param.is_enum():
-            param_typename = "enum " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + param.get_typename()
+        if param.get_enum_ref() is not None:
+            param_typename = "enum " + self.get_enum_name(protocol, param.get_enum_ref())
         else:
             param_typename = param.get_typename()
         
@@ -457,15 +492,6 @@ class CGenerator:
         outfile.write("};\n")
         return
 
-    def get_input_struct_name(self, protocol, func):
-        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_args"
-
-    def get_output_struct_name(self, protocol, func):
-        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_ret"
-
-    def get_event_struct_name(self, protocol, evt):
-        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + evt.get_name().lower() + "_event"
-        
     def define_structures(self, protocol, outfile):
         for func in protocol.get_functions():
             if len(func.get_request_params()):
