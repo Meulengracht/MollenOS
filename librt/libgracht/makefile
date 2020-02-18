@@ -1,5 +1,5 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
-# - libwm
+# - libgracht
 
 # Include all the definitions for os
 include ../../config/common.mk
@@ -15,9 +15,9 @@ LFLAGS = /lib
 
 # default-target
 .PHONY: all
-all: ../deploy/libwm.lib
+all: ../deploy/libgracht.lib
 
-../deploy/libwm.lib: $(OBJECTS)
+../deploy/libgracht.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
@@ -28,5 +28,5 @@ all: ../deploy/libwm.lib
 
 .PHONY: clean
 clean:
-	@rm -f ../deploy/libwm.lib
+	@rm -f ../deploy/libgracht.lib
 	@rm -f $(OBJECTS)

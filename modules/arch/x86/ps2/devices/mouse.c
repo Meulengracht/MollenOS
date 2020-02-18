@@ -24,7 +24,7 @@
 #include <ddk/utils.h>
 #include <io.h>
 #include "mouse.h"
-#include <libwm_os.h>
+#include <gracht/os.h>
 #include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>
@@ -91,7 +91,7 @@ PS2MouseInterrupt(
         Port->ResponseReadIndex = 0;
     }
     
-    hid_events_pointer_event(Port->WmClient, 0 /* source */, 0 /* flags */, 
+    hid_events_pointer_event(Port->GrachtClient, 0 /* source */, 0 /* flags */, 
         Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
 }
 
@@ -160,8 +160,8 @@ PS2MouseInitialize(
     _In_ PS2Controller_t* Controller,
     _In_ int              Port)
 {
-    wm_client_configuration_t wm_config;
-    PS2Port_t*                Instance = &Controller->Ports[Port];
+    gracht_client_configuration_t gracht_config;
+    PS2Port_t*                    Instance = &Controller->Ports[Port];
 
     // Set initial mouse sampling
     PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
@@ -178,10 +178,10 @@ PS2MouseInitialize(
     }
     
     // Open up the input socket so we can send input data to the OS.
-    wm_config.type = wm_client_packet_based;
-    wm_os_get_server_packet_address(&wm_config.address, &wm_config.address_length);
-    if (wm_client_create(&wm_config, &Instance->WmClient)) {
-        ERROR("... [ps2] [mouse] [initialize] wm_client_initialize failed %i", errno);
+    gracht_config.type = gracht_client_packet_based;
+    gracht_os_get_server_packet_address(&gracht_config.address, &gracht_config.address_length);
+    if (gracht_client_create(&gracht_config, &Instance->GrachtClient)) {
+        ERROR("... [ps2] [mouse] [initialize] gracht_client_initialize failed %i", errno);
     }
     
     // Initialize interrupt
@@ -218,7 +218,7 @@ PS2MouseCleanup(
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
 
-    wm_client_shutdown(Instance->WmClient);
+    gracht_client_shutdown(Instance->GrachtClient);
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
     return OsSuccess;

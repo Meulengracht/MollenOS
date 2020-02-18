@@ -23,8 +23,8 @@
  */
 
 #include <errno.h>
-#include <libwm_server.h>
-#include <libwm_os.h>
+#include <gracht/server.h>
+#include <gracht/os.h>
 #include <os/services/process.h>
 #include <stdio.h>
 #include "test_utils_protocol_server.h"
@@ -37,18 +37,18 @@ static void test_utils_print_callback(int client, struct test_utils_print_args* 
 
 int main(int argc, char **argv)
 {
-    wm_server_configuration_t configuration;
-    int                       code;
+    gracht_server_configuration_t configuration;
+    int                           code;
     
-    wm_os_get_server_client_address(&configuration.server_address, &configuration.server_address_length);
-    wm_os_get_server_packet_address(&configuration.dgram_address, &configuration.dgram_address_length);
-    code = wm_server_initialize(&configuration);
+    gracht_os_get_server_client_address(&configuration.server_address, &configuration.server_address_length);
+    gracht_os_get_server_packet_address(&configuration.dgram_address, &configuration.dgram_address_length);
+    code = gracht_server_initialize(&configuration);
     if (code) {
         printf("error initializing server library %i", errno);
         return code;
     }
     
-    wm_server_register_protocol(&test_utils_protocol);
+    gracht_server_register_protocol(&test_utils_protocol);
     ProcessSpawn("$bin/wmclient.app", NULL);
-    return wm_server_main_loop();
+    return gracht_server_main_loop();
 }

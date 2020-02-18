@@ -17,47 +17,47 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Type Definitions & Structures
+ * Gracht Type Definitions & Structures
  * - This header describes the base wm-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_TYPES_H__
-#define __LIBWM_TYPES_H__
+#ifndef __GRACHT_TYPES_H__
+#define __GRACHT_TYPES_H__
 
 #include <stdint.h>
 #include <stddef.h>
 
-#define WM_MAX_MESSAGE_SIZE 255
+#define GRACHT_MAX_MESSAGE_SIZE 255
 
-typedef void* wm_handle_t;
+typedef void* gracht_handle_t;
 
-typedef struct wm_message {
+typedef struct gracht_message {
     uint32_t length     : 8;  // length is this message including arguments
     uint32_t ret_length : 8;  // length of reply object
     uint32_t crc        : 16; // crc of argument data
     uint32_t protocol   : 8;
     uint32_t action     : 8;
     uint32_t padding    : 16;
-} wm_message_t;
+} gracht_message_t;
 
-typedef struct wm_object_header {
-    int                      id;
-    struct wm_object_header* link;
-} wm_object_header_t;
+typedef struct gracht_object_header {
+    int                          id;
+    struct gracht_object_header* link;
+} gracht_object_header_t;
 
-typedef struct wm_protocol_function {
+typedef struct gracht_protocol_function {
     uint8_t id;
     void*   address;
-} wm_protocol_function_t;
+} gracht_protocol_function_t;
 
-typedef struct wm_protocol {
-    wm_object_header_t      header;
-    uint8_t                 id;
-    uint8_t                 num_functions;
-    wm_protocol_function_t* functions;
-} wm_protocol_t;
+typedef struct gracht_protocol {
+    gracht_object_header_t      header;
+    uint8_t                     id;
+    uint8_t                     num_functions;
+    gracht_protocol_function_t* functions;
+} gracht_protocol_t;
 
-#define WM_PROTOCOL_INIT(id, num_functions, functions) { { id, NULL }, id, num_functions, functions }
+#define GRACHT_PROTOCOL_INIT(id, num_functions, functions) { { id, NULL }, id, num_functions, functions }
 
-#endif // !__LIBWM_TYPES_H__
+#endif // !__GRACHT_TYPES_H__

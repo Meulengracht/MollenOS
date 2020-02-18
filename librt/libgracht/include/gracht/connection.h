@@ -16,29 +16,29 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Connection Type Definitions & Structures
+ * Gracht Connection Type Definitions & Structures
  * - This header describes the base connection-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_CONNECTION_H__
-#define __LIBWM_CONNECTION_H__
+#ifndef __GRACHT_CONNECTION_H__
+#define __GRACHT_CONNECTION_H__
 
-#include "libwm_types.h"
+#include "types.h"
 
 // Prototypes
 struct sockaddr_storage;
 
 // Connection API
 // Used to manage all the connections to the window manager.
-int wm_connection_initialize(void);
-int wm_connection_create(int, struct sockaddr_storage*, int);
-int wm_connection_recv_packet(int, wm_message_t*, void*, struct sockaddr_storage*);
-int wm_connection_recv_stream(int, wm_message_t*, void*);
-int wm_connection_send_packet(int, wm_message_t*, void*, size_t, struct sockaddr_storage*);
-int wm_connection_send_stream(int, wm_message_t*, void*, size_t);
-int wm_connection_send_reply(int, void*, size_t, struct sockaddr_storage*);
-int wm_connection_broadcast_message(wm_message_t*, void*, size_t);
-int wm_connection_shutdown(int);
+int gracht_connection_initialize(void);
+int gracht_connection_create(int, struct sockaddr_storage*, int);
+int gracht_connection_recv_packet(int, gracht_message_t*, void*, struct sockaddr_storage*);
+int gracht_connection_recv_stream(int, gracht_message_t*, void*);
+int gracht_connection_send_packet(int, gracht_message_t*, void*, size_t, struct sockaddr_storage*);
+int gracht_connection_send_stream(int, gracht_message_t*, void*, size_t);
+int gracht_connection_send_reply(int, void*, size_t, struct sockaddr_storage*);
+int gracht_connection_broadcast_message(gracht_message_t*, void*, size_t);
+int gracht_connection_shutdown(int);
 
-#endif // !__LIBWM_CONNECTION_H__
+#endif // !__GRACHT_CONNECTION_H__

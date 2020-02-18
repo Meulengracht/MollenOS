@@ -546,7 +546,7 @@ class CGenerator:
         function_prototype = "int " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name()
         parameter_string = ""
         if func.is_synchronous():
-            function_prototype = function_prototype + "_sync(wm_client_t* client"
+            function_prototype = function_prototype + "_sync(gracht_client_t* client"
             input_param_string = self.get_parameter_string(protocol, func.get_request_params())
             output_param_string = self.get_parameter_string(protocol, func.get_response_params())
             if len(func.get_request_params()) > 0 or len(func.get_response_params()) > 0:
@@ -555,7 +555,7 @@ class CGenerator:
                 output_param_string = ", " + output_param_string
             parameter_string = input_param_string + output_param_string
         else:
-            function_prototype = function_prototype + "(wm_client_t* client"
+            function_prototype = function_prototype + "(gracht_client_t* client"
             parameter_string = self.get_parameter_string(protocol, func.get_request_params())
             if parameter_string != "":
                 function_prototype = function_prototype + ", "
@@ -594,7 +594,7 @@ class CGenerator:
                 outfile.write("    __input." + param.get_name() + " = " + param.get_name() + ";\n")
 
         # perform call
-        outfile.write("    __status = wm_client_invoke(client, " + protocol.get_id() + ", " + func.get_id() + ",\n")
+        outfile.write("    __status = gracht_client_invoke(client, " + protocol.get_id() + ", " + func.get_id() + ",\n")
         if len(func.get_request_params()) > 0:
             outfile.write("        &__input, sizeof(struct " + input_struct_name + "),\n")
         else:
@@ -644,12 +644,12 @@ class CGenerator:
         for func in protocol.get_functions():
             self.define_protocol_callback(protocol, func, outfile)
         outfile.write("\n")
-        outfile.write("static wm_protocol_function_t " + function_array_name + "[] = {\n")
+        outfile.write("static gracht_protocol_function_t " + function_array_name + "[] = {\n")
         for func in protocol.get_functions():
             outfile.write("    { " + func.get_id() + ", " + self.get_protocol_server_callback_name(protocol, func) + " },\n")
         outfile.write("};\n\n")
-        outfile.write("static wm_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
-        outfile.write("WM_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
+        outfile.write("static gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
+        outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
         return
 
     def generate_shared_header(self, protocol, directory):
@@ -671,7 +671,7 @@ class CGenerator:
         with open(file_path, 'w') as f:
             self.write_header(f)
             self.write_header_guard_start(file_name, f)
-            self.define_headers(["<libwm_client.h>"], f)
+            self.define_headers(["<gracht/client.h>"], f)
             self.include_shared_header(protocol, f)
             self.define_types(protocol, f)
             self.define_prototypes(protocol, f)
@@ -693,7 +693,7 @@ class CGenerator:
         with open(file_path, 'w') as f:
             self.write_header(f)
             self.write_header_guard_start(file_name, f)
-            self.define_headers(["<libwm_server.h>"], f)
+            self.define_headers(["<gracht/server.h>"], f)
             self.include_shared_header(protocol, f)
             self.define_types(protocol, f)
             self.define_protocol(protocol, f)

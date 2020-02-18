@@ -4,7 +4,7 @@
 include ../../config/common.mk
 
 INCLUDES = -I../../protocols \
-		   -I../../librt/libwm/include \
+		   -I../../librt/libgracht/include \
 		   -I../../librt/libm/include \
 		   -I../../librt/libc/include \
 		   -I../../librt/include
@@ -14,7 +14,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) -static -I../../librt/libcxx/libcxx/include $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy libwm.lib
+LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy libgracht.lib
 
 .PHONY: all
 all: ../bin/wmclient.app

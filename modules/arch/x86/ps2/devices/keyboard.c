@@ -25,7 +25,7 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <io.h>
-#include <libwm_os.h>
+#include <gracht/os.h>
 #include "keyboard.h"
 #include "../ps2.h"
 #include <string.h>
@@ -166,7 +166,7 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.flags &= ~(KEY_MODIFIER_EXTENDED);
-        hid_events_key_event(Port->WmClient, 0, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
+        hid_events_key_event(Port->GrachtClient, 0, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
     }
 }
 
@@ -254,8 +254,8 @@ PS2KeyboardInitialize(
     _In_ int              Port,
     _In_ int              Translation)
 {
-    wm_client_configuration_t wm_config;
-    PS2Port_t*                Instance = &Controller->Ports[Port];
+    gracht_client_configuration_t gracht_config;
+    PS2Port_t*                    Instance = &Controller->Ports[Port];
     TRACE("... [ps2] [keyboard] initialize");
 
     // Initialize keyboard defaults
@@ -275,10 +275,10 @@ PS2KeyboardInitialize(
     }
     
     // Open up the input socket so we can send input data to the OS.
-    wm_config.type = wm_client_packet_based;
-    wm_os_get_server_packet_address(&wm_config.address, &wm_config.address_length);
-    if (wm_client_create(&wm_config, &Instance->WmClient)) {
-        ERROR("... [ps2] [keyboard] [initialize] wm_client_initialize failed %i", errno);
+    gracht_config.type = gracht_client_packet_based;
+    gracht_os_get_server_packet_address(&gracht_config.address, &gracht_config.address_length);
+    if (gracht_client_create(&gracht_config, &Instance->GrachtClient)) {
+        ERROR("... [ps2] [keyboard] [initialize] gracht_client_initialize failed %i", errno);
     }
     
     // Initialize interrupt
@@ -317,7 +317,7 @@ PS2KeyboardCleanup(
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
     
-    wm_client_shutdown(Instance->WmClient);
+    gracht_client_shutdown(Instance->GrachtClient);
     Instance->Signature = 0xFFFFFFFF;
     Instance->State     = PortStateConnected;
     return OsSuccess;

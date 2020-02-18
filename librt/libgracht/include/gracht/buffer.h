@@ -16,35 +16,35 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Buffer Type Definitions & Structures
+ * Gracht Buffer Type Definitions & Structures
  * - This header describes the base buffer-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_BUFFER_H__
-#define __LIBWM_BUFFER_H__
+#ifndef __GRACHT_BUFFER_H__
+#define __GRACHT_BUFFER_H__
 
-#include "libwm_types.h"
+#include "types.h"
 
-struct wm_buffer;
+struct gracht_buffer;
 
 // Buffer API
 // Generally os-specific buffer functions that are needed during execution
-// of the libwm operations. The buffer handles are void* pointers since how
+// of the libgracht operations. The buffer handles are void* pointers since how
 // shm-buffers are implemented varies across os
 
 // Client
-int wm_buffer_create(size_t, size_t, void**, struct wm_buffer**);
-int wm_buffer_resize(struct wm_buffer*, size_t);
+int gracht_buffer_create(size_t, size_t, void**, struct gracht_buffer**);
+int gracht_buffer_resize(struct gracht_buffer*, size_t);
 
 // Server
-int wm_buffer_inherit(wm_handle_t, void**, struct wm_buffer**);
-int wm_buffer_refresh(struct wm_buffer*);
+int gracht_buffer_inherit(gracht_handle_t, void**, struct gracht_buffer**);
+int gracht_buffer_refresh(struct gracht_buffer*);
 
 // Common
-int wm_buffer_get_handle(struct wm_buffer*, wm_handle_t*);
-int wm_buffer_get_pointer(struct wm_buffer*, void**);
-int wm_buffer_get_length(struct wm_buffer*, size_t*);
-int wm_buffer_destroy(struct wm_buffer*);
+int gracht_buffer_get_handle(struct gracht_buffer*, gracht_handle_t*);
+int gracht_buffer_get_pointer(struct gracht_buffer*, void**);
+int gracht_buffer_get_length(struct gracht_buffer*, size_t*);
+int gracht_buffer_destroy(struct gracht_buffer*);
 
-#endif // !__LIBWM_SURFACE_H__
+#endif // !__GRACHT_BUFFER_H__

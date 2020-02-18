@@ -16,24 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm OS Type Definitions & Structures
- * - This header describes the base os-structure, prototypes
+ * Gracht CRC Type Definitions & Structures
+ * - This header describes the base crc-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_OS_H__
-#define __LIBWM_OS_H__
+#ifndef __GRACHT_CRC_H__
+#define __GRACHT_CRC_H__
 
-#include "libwm_types.h"
+#include "types.h"
 
-// Prototypes
-struct sockaddr_storage;
+// CRC API
+// General crc routines for providing data integrity
+uint16_t crc16_generate(const unsigned char* data, size_t length);
 
-// OS API
-// Generally os-specific utility functions that are needed during execution
-// of the libwm operations
-int wm_os_get_server_client_address(struct sockaddr_storage*, int*);
-int wm_os_get_server_packet_address(struct sockaddr_storage*, int*);
-int wm_os_thread_set_name(const char*);
-
-#endif // !__LIBWM_OS_H__
+#endif // !__GRACHT_CRC_H__

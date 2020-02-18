@@ -144,10 +144,10 @@ package_ddk: package_ddk_headers
 package_ddk_headers:
 	@mkdir -p $(VALI_DDK_PATH)/include
 	@mkdir -p $(VALI_DDK_PATH)/include/ddk
-	@mkdir -p $(VALI_DDK_PATH)/include/wm
+	@mkdir -p $(VALI_DDK_PATH)/include/gracht
 	@mkdir -p $(VALI_DDK_PATH)/protocols
 	@cp -r librt/libddk/include/ddk/* $(VALI_DDK_PATH)/include/ddk/
-	@cp -r librt/libwm/include/* $(VALI_DDK_PATH)/include/wm/
+	@cp -r librt/libgracht/include/gracht/* $(VALI_DDK_PATH)/include/gracht/
 	@cp -r protocols/* $(VALI_DDK_PATH)/protocols/
 
 #############################################

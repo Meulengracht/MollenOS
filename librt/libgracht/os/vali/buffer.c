@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Buffer Type Definitions & Structures
+ * Gracht Buffer Type Definitions & Structures
  * - This header describes the base buffer-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,27 +24,27 @@
 #include <errno.h>
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
-#include "../../include/libwm_buffer.h"
+#include "../../include/gracht/buffer.h"
 #include <stdlib.h>
 
-struct wm_buffer {
+struct gracht_buffer {
     struct dma_buffer_info info;
     struct dma_attachment  attachment;
 };
 
-int wm_buffer_create(size_t initial_size, size_t capacity, void** pointer_out, struct wm_buffer** buffer_out)
+int gracht_buffer_create(size_t initial_size, size_t capacity, void** pointer_out, struct gracht_buffer** buffer_out)
 {
-    struct wm_buffer* buffer;
+    struct gracht_buffer* buffer;
     int               status;
     
-    buffer = malloc(sizeof(struct wm_buffer));
+    buffer = malloc(sizeof(struct gracht_buffer));
     if (!buffer) {
         _set_errno(ENOMEM);
         return -1;
     }
     
     // initialize the info structure
-    buffer->info.name     = "libwm_dma_buffer";
+    buffer->info.name     = "libgracht_dma_buffer";
     buffer->info.length   = initial_size;
     buffer->info.capacity = capacity;
     buffer->info.flags    = 0;
@@ -60,7 +60,7 @@ int wm_buffer_create(size_t initial_size, size_t capacity, void** pointer_out, s
     return EOK;
 }
 
-int wm_buffer_resize(struct wm_buffer* buffer, size_t size)
+int gracht_buffer_resize(struct gracht_buffer* buffer, size_t size)
 {
     if (size > buffer->info.capacity) {
         _set_errno(ENOSPC);
@@ -69,12 +69,12 @@ int wm_buffer_resize(struct wm_buffer* buffer, size_t size)
     return OsStatusToErrno(dma_attachment_resize(&buffer->attachment, size));
 }
 
-int wm_buffer_inherit(wm_handle_t handle, void** memory_out, struct wm_buffer** buffer_out)
+int gracht_buffer_inherit(gracht_handle_t handle, void** memory_out, struct gracht_buffer** buffer_out)
 {
-    struct wm_buffer* buffer;
+    struct gracht_buffer* buffer;
     int               status;
     
-    buffer = malloc(sizeof(struct wm_buffer));
+    buffer = malloc(sizeof(struct gracht_buffer));
     if (!buffer) {
         _set_errno(ENOMEM);
         return -1;
@@ -98,7 +98,7 @@ int wm_buffer_inherit(wm_handle_t handle, void** memory_out, struct wm_buffer** 
     return EOK;
 }
 
-int wm_buffer_refresh(struct wm_buffer* buffer)
+int gracht_buffer_refresh(struct gracht_buffer* buffer)
 {
     if (!buffer) {
         _set_errno(EINVAL);
@@ -107,18 +107,18 @@ int wm_buffer_refresh(struct wm_buffer* buffer)
     return OsStatusToErrno(dma_attachment_refresh_map(&buffer->attachment));
 }
 
-int wm_buffer_get_handle(struct wm_buffer* buffer, wm_handle_t* handle_out)
+int gracht_buffer_get_handle(struct gracht_buffer* buffer, gracht_handle_t* handle_out)
 {
     if (!buffer || !handle_out) {
         _set_errno(EINVAL);
         return -1;
     }
     
-    *handle_out = (wm_handle_t)buffer->attachment.handle;
+    *handle_out = (gracht_handle_t)buffer->attachment.handle;
     return EOK;
 }
 
-int wm_buffer_get_pointer(struct wm_buffer* buffer, void** pointer_out)
+int gracht_buffer_get_pointer(struct gracht_buffer* buffer, void** pointer_out)
 {
     if (!buffer || !pointer_out) {
         _set_errno(EINVAL);
@@ -129,7 +129,7 @@ int wm_buffer_get_pointer(struct wm_buffer* buffer, void** pointer_out)
     return EOK;
 }
 
-int wm_buffer_get_length(struct wm_buffer* buffer, size_t* length_out)
+int gracht_buffer_get_length(struct gracht_buffer* buffer, size_t* length_out)
 {
     if (!buffer || !length_out) {
         _set_errno(EINVAL);
@@ -140,7 +140,7 @@ int wm_buffer_get_length(struct wm_buffer* buffer, size_t* length_out)
     return EOK;
 }
 
-int wm_buffer_destroy(struct wm_buffer* buffer)
+int gracht_buffer_destroy(struct gracht_buffer* buffer)
 {
     if (!buffer) {
         _set_errno(EINVAL);

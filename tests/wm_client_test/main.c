@@ -22,28 +22,28 @@
  *    communication protocols in the os
  */
 
-#include <libwm_client.h>
-#include <libwm_os.h>
+#include <gracht/client.h>
+#include <gracht/os.h>
 #include "test_utils_protocol_client.h"
 #include <stdio.h>
 
 int main(int argc, char **argv)
 {
-    wm_client_configuration_t configuration;
-    wm_client_t*              client;
-    int                       code, status;
+    gracht_client_configuration_t configuration;
+    gracht_client_t*              client;
+    int                           code, status;
     
-    configuration.type = wm_client_packet_based;
-    wm_os_get_server_packet_address(&configuration.address, &configuration.address_length);
+    configuration.type = gracht_client_packet_based;
+    gracht_os_get_server_packet_address(&configuration.address, &configuration.address_length);
     
-    //configuration.type = wm_client_stream_based;
-    //wm_os_get_server_client_address(&configuration.address, &configuration.address_length);
+    //configuration.type = gracht_client_stream_based;
+    //gracht_os_get_server_client_address(&configuration.address, &configuration.address_length);
     
-    code = wm_client_create(&configuration, &client);
+    code = gracht_client_create(&configuration, &client);
     if (code) {
         return code;
     }
     
     code = test_utils_print_sync(client, "hello from wm_client!", &status);
-    return wm_client_shutdown(client);
+    return gracht_client_shutdown(client);
 }

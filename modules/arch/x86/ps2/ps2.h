@@ -25,7 +25,7 @@
 
 #include <ddk/contracts/base.h>
 #include <ddk/interrupt.h>
-#include <libwm_client.h>
+#include <gracht/client.h>
 #include <os/osdefs.h>
 #include <ddk/io.h>
 
@@ -115,7 +115,7 @@ typedef struct PS2Port {
     PS2Command_t        ActiveCommand;
     PS2PortState_t      State;
     DevInfo_t           Signature;
-    wm_client_t*        WmClient;
+    gracht_client_t*    GrachtClient;
 
     // Device state information
     uint8_t             DeviceData[6];

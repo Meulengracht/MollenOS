@@ -71,8 +71,7 @@ typedef reg64_t                     reg_t;
 
 /**
  * Operation System Types 
- * these are usually fixed no matter arch and include stuff
- * as threading, processing etc 
+ * these are usually fixed no matter arch and include stuff as threading, processing etc 
  */
 typedef unsigned int IntStatus_t;
 typedef size_t       UUId_t; 

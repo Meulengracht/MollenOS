@@ -17,18 +17,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm OS Type Definitions & Structures
+ * Gracht OS Type Definitions & Structures
  * - This header describes the base os-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <os/mollenos.h>
-#include "../../include/libwm_os.h"
+#include "../../include/gracht/os.h"
 #include <inet/socket.h>
 #include <inet/local.h>
 #include <string.h>
 
-int wm_os_get_server_client_address(struct sockaddr_storage* address, int* address_length_out)
+int gracht_os_get_server_client_address(struct sockaddr_storage* address, int* address_length_out)
 {
     struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
@@ -41,7 +41,7 @@ int wm_os_get_server_client_address(struct sockaddr_storage* address, int* addre
     return 0;
 }
 
-int wm_os_get_server_packet_address(struct sockaddr_storage* address, int* address_length_out)
+int gracht_os_get_server_packet_address(struct sockaddr_storage* address, int* address_length_out)
 {
     struct sockaddr_lc* local_address = sstolc(address);
     *address_length_out               = sizeof(struct sockaddr_lc);
@@ -54,7 +54,7 @@ int wm_os_get_server_packet_address(struct sockaddr_storage* address, int* addre
     return 0;
 }
 
-int wm_os_thread_set_name(const char* thread_name)
+int gracht_os_thread_set_name(const char* thread_name)
 {
     if (SetCurrentThreadName(thread_name) != OsSuccess) {
         return -1;

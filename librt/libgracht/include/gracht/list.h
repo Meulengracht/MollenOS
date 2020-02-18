@@ -17,24 +17,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm List Type Definitions & Structures
+ * Gracht List Type Definitions & Structures
  * - This header describes the base list-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_LIST_H__
-#define __LIBWM_LIST_H__
+#ifndef __GRACHT_LIST_H__
+#define __GRACHT_LIST_H__
 
-#include "libwm_types.h"
+#include "types.h"
 
-typedef struct wm_list {
-    struct wm_object_header* head;
-} wm_list_t;
+typedef struct gracht_list {
+    struct gracht_object_header* head;
+} gracht_list_t;
 
-static struct wm_object_header*
-wm_list_lookup(struct wm_list* list, int id)
+static struct gracht_object_header*
+gracht_list_lookup(struct gracht_list* list, int id)
 {
-    struct wm_object_header* item;
+    struct gracht_object_header* item;
     
     item = list->head;
     while (item) {
@@ -47,13 +47,13 @@ wm_list_lookup(struct wm_list* list, int id)
 }
 
 static void
-wm_list_append(struct wm_list* list, struct wm_object_header* item)
+gracht_list_append(struct gracht_list* list, struct gracht_object_header* item)
 {
     if (!list->head) {
         list->head = item;
     }
     else {
-        struct wm_object_header* itr = list->head;
+        struct gracht_object_header* itr = list->head;
         while (itr->link) {
             itr = itr->link;
         }
@@ -62,13 +62,13 @@ wm_list_append(struct wm_list* list, struct wm_object_header* item)
 }
 
 static void
-wm_list_remove(struct wm_list* list, struct wm_object_header* item)
+gracht_list_remove(struct gracht_list* list, struct gracht_object_header* item)
 {
     if (list->head == item) {
         list->head = item->link;
     }
     else {
-        struct wm_object_header* itr = list->head;
+        struct gracht_object_header* itr = list->head;
         while (itr->link != item) {
             itr = itr->link;
         }
@@ -76,4 +76,4 @@ wm_list_remove(struct wm_list* list, struct wm_object_header* item)
     }
 }
 
-#endif // !__LIBWM_LIST_H__
+#endif // !__GRACHT_LIST_H__

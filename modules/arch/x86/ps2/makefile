@@ -14,13 +14,13 @@ INCLUDES = -I../../../../protocols \
 		   -I../../../../librt/libc/include \
 		   -I../../../../librt/libds/include \
 		   -I../../../../librt/libddk/include \
-		   -I../../../../librt/libwm/include
+		   -I../../../../librt/libgracht/include
 OBJECTS = $(SOURCES:.c=.o)
 
 LIBRARIES = ../../../../librt/build/ddk.lib \
 			../../../../librt/build/c.lib \
 			../../../../librt/build/libdrv.lib \
-			../../../../librt/deploy/libwm.lib
+			../../../../librt/deploy/libgracht.lib
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 

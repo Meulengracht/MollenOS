@@ -4,11 +4,11 @@
 include ../../config/common.mk
 
 INCLUDES = -I../../protocols \
-		   -I../../librt/libwm/include \
+		   -I../../librt/libgracht/include \
 		   -I../../librt/libm/include \
 		   -I../../librt/libc/include \
 		   -I../../librt/include
-LIBRARIES = libwm.lib
+LIBRARIES = libgracht.lib
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) -static -I../../librt/libcxx/libcxx/include $(INCLUDES)

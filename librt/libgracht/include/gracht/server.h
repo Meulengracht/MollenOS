@@ -16,33 +16,33 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Server Type Definitions & Structures
+ * Gracht Server Type Definitions & Structures
  * - This header describes the base server-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_SERVER_H__
-#define __LIBWM_SERVER_H__
+#ifndef __GRACHT_SERVER_H__
+#define __GRACHT_SERVER_H__
 
-#include "libwm_types.h"
+#include "types.h"
 #include <inet/socket.h>
 
-typedef struct wm_server_configuration {
+typedef struct gracht_server_configuration {
     struct sockaddr_storage server_address;
     socklen_t               server_address_length;
     
     struct sockaddr_storage dgram_address;
     socklen_t               dgram_address_length;
-} wm_server_configuration_t;
+} gracht_server_configuration_t;
 
 // Server API
 // This should be called for the compositor that wants to manage
 // wm-clients. This will initiate data structures and setup handler threads
-int wm_server_initialize(wm_server_configuration_t*);
-int wm_server_register_protocol(wm_protocol_t*);
-int wm_server_unregister_protocol(wm_protocol_t*);
-int wm_server_main_loop(void);
-int wm_server_send_event(int, uint8_t, uint8_t, void*, size_t);
-int wm_server_broadcast_event(uint8_t, uint8_t, void*, size_t);
+int gracht_server_initialize(gracht_server_configuration_t*);
+int gracht_server_register_protocol(gracht_protocol_t*);
+int gracht_server_unregister_protocol(gracht_protocol_t*);
+int gracht_server_main_loop(void);
+int gracht_server_send_event(int, uint8_t, uint8_t, void*, size_t);
+int gracht_server_broadcast_event(uint8_t, uint8_t, void*, size_t);
 
-#endif // !__LIBWM_SERVER_H__
+#endif // !__GRACHT_SERVER_H__
