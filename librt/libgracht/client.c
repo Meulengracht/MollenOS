@@ -34,10 +34,9 @@
 #include <stdlib.h>
 
 typedef struct gracht_client {
-    uint32_t            client_id;
+    uint32_t                client_id;
     enum gracht_client_type type;
-    int                 event_loop_enabled;
-    int                 socket;
+    int                     socket;
     struct gracht_list      protocols;
 } gracht_client_t;
 
@@ -115,54 +114,41 @@ static void invoke_action(gracht_message_t* message, void* argument_buffer, grac
     }
 }
 
-int gracht_client_event_loop(gracht_client_t* client)
+int gracht_client_wait_message(gracht_client_t* client, void* message_storage)
 {
-    void*        argument_buffer;
-    gracht_message_t message;
+    gracht_message_t* message         = message_storage;
+    void*             argument_buffer = ((char*)message_storage + sizeof(gracht_message_t));
     
     if (!client) {
         _set_errno(EINVAL);
         return -1;
     }
     
-    argument_buffer = malloc(GRACHT_MAX_MESSAGE_SIZE);
-    if (!argument_buffer) {
-        _set_errno(ENOMEM);
-        return -1;
+    int status = -1;
+    switch (client->type) {
+        case gracht_client_stream_based: {
+            status = gracht_connection_recv_stream(client->socket, message, argument_buffer);
+        } break;
+        case gracht_client_packet_based: {
+            status = gracht_connection_recv_packet(client->socket, message, argument_buffer, NULL);
+        } break;
     }
-    
-    client->event_loop_enabled = 1;
-    while (client->event_loop_enabled) {
-        int status = -1;
-        switch (client->type) {
-            case gracht_client_stream_based: {
-                status = gracht_connection_recv_stream(client->socket, &message, argument_buffer);
-            } break;
-            case gracht_client_packet_based: {
-                status = gracht_connection_recv_packet(client->socket, &message, argument_buffer, NULL);
-            } break;
-        }
-        
-        if (!status) {
-            gracht_protocol_function_t* function = get_protocol_action(client, message.protocol, message.action);
-            if (function) {
-                invoke_action(&message, argument_buffer, function);
-            }
-        }
-    }
-    
-    free(argument_buffer);
-    return 0;
+    return status;
 }
 
-int gracht_client_stop_event_loop(gracht_client_t* client)
+int gracht_client_process_message(gracht_client_t* client, void* message_storage)
 {
+    gracht_message_t* message         = message_storage;
+    void*             argument_buffer = ((char*)message_storage + sizeof(gracht_message_t));
     if (!client) {
         _set_errno(EINVAL);
         return -1;
     }
     
-    client->event_loop_enabled = 0;
+    gracht_protocol_function_t* function = get_protocol_action(client, message->protocol, message->action);
+    if (function) {
+        invoke_action(message, argument_buffer, function);
+    }
     return 0;
 }
 

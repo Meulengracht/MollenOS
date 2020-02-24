@@ -200,7 +200,7 @@ static int handle_async_event(int socket, uint32_t events, void* argument_buffer
 {
     gracht_protocol_function_t* function;
     gracht_message_t            message;
-    int                     status;
+    int                         status;
     TRACE("[handle_async_event] %i, 0x%x", socket, events);
     
     // Check for control event. On non-passive sockets, control event is the
