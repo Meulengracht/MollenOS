@@ -41,6 +41,10 @@ typedef struct gracht_client_configuration {
 
 typedef struct gracht_client gracht_client_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Client API
 // An application can utilize multiple clients, that connect to different
 // servers. When invoking a protocol the specific client can be specified.
@@ -52,4 +56,7 @@ int gracht_client_unregister_protocol(gracht_client_t*, gracht_protocol_t*);
 int gracht_client_invoke(gracht_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
 int gracht_client_shutdown(gracht_client_t*);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // !__GRACHT_CLIENT_H__

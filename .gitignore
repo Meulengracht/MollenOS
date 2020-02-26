@@ -4,6 +4,8 @@
 bochsout.txt
 serial.txt
 *.ko
+.sonar-out/
+.scannerwork/
 
 #################
 ## Eclipse

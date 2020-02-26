@@ -35,6 +35,10 @@ typedef struct gracht_server_configuration {
     socklen_t               dgram_address_length;
 } gracht_server_configuration_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Server API
 // This should be called for the compositor that wants to manage
 // wm-clients. This will initiate data structures and setup handler threads
@@ -45,4 +49,7 @@ int gracht_server_main_loop(void);
 int gracht_server_send_event(int, uint8_t, uint8_t, void*, size_t);
 int gracht_server_broadcast_event(uint8_t, uint8_t, void*, size_t);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // !__GRACHT_SERVER_H__

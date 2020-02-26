@@ -176,9 +176,9 @@ static int invoke_action(int socket, gracht_message_t* message, void* argument_b
 static int handle_sync_event(int socket, uint32_t events, void* argument_buffer)
 {
     gracht_protocol_function_t* function;
-    struct sockaddr_storage client_address;
+    struct sockaddr_storage     client_address;
     gracht_message_t            message;
-    int                     status;
+    int                         status;
     TRACE("[handle_sync_event] %i, 0x%x", socket, events);
     
     status = gracht_connection_recv_packet(socket, &message, argument_buffer, &client_address);
