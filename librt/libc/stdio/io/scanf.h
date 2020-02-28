@@ -133,9 +133,6 @@ _FUNCTION_ {
     int rd = 0, consumed = 0;
     int nch;
     if (!*format) return 0;
-    if (locale == NULL) {
-        locale = __get_locale_r();
-    }
 
     _LOCK_FILE_(file);
 
@@ -316,7 +313,7 @@ _FUNCTION_ {
                     }
 
                     /* get first digit. */
-                    if (*__get_numeric_locale(locale)->decimal_point != nch) {
+                    if (*localeconv()->decimal_point != nch) {
                         if (!_ISDIGIT_(nch)) break;
                         d = nch - '0';
                         nch = _GETC_(file);
@@ -343,7 +340,7 @@ _FUNCTION_ {
                     }
 
                     /* handle decimals */
-                    if (width!=0 && nch == *__get_numeric_locale(locale)->decimal_point) {
+                    if (width!=0 && nch == *localeconv()->decimal_point) {
                         nch = _GETC_(file);
                         if (width>0) width--;
 
@@ -394,8 +391,8 @@ _FUNCTION_ {
                     DbgBreakPoint();
 #else
                     fpcontrol = _control87(0, 0);
-                    _control87(_FPE_DENORMAL|_FPE_INVALID|_FPE_ZERODIVIDE
-                            |_FPE_OVERFLOW|_FPE_UNDERFLOW|_FPE_INEXACT, 0xffffffff);
+                    _control87(_EM_DENORMAL|_EM_INVALID|_EM_ZERODIVIDE
+                            |_EM_OVERFLOW|_EM_UNDERFLOW|_EM_INEXACT, 0xffffffff);
 #endif
                     negexp = (exp < 0);
                     if(negexp)
@@ -596,7 +593,7 @@ _FUNCTION_ {
 	    case '[': {
                     _CHAR_ *str = suppress ? NULL : va_arg(ap, _CHAR_*);
                     _CHAR_ *sptr = str;
-		    Bitmap_t *bitMask;
+        		    Bitmap_t *bitMask;
 		    int invert = 0; /* Set if we are NOT to find the chars */
 #ifdef SECURE
                     unsigned size = suppress ? UINT_MAX : va_arg(ap, unsigned)/sizeof(_CHAR_);
@@ -627,7 +624,7 @@ _FUNCTION_ {
 				BitmapSetBits(bitMask, NULL, *(format + 1)    , *(format - 1) - *(format + 1));
 			    format++;
 			} else
-                BitmapSetBits(bitMask, NULL, *format, 1);
+			    BitmapSetBits(bitMask, NULL, *format, 1);
 			format++;
 		    }
                     /* read until char is not suitable */
@@ -655,7 +652,7 @@ _FUNCTION_ {
                     }
                     /* terminate */
                     if (!suppress) *sptr = 0;
-                    BitmapDestroy(bitMask);
+		            BitmapDestroy(bitMask);
                 }
                 break;
             default:
