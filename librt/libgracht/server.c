@@ -181,7 +181,7 @@ static int handle_sync_event(int socket, uint32_t events, void* argument_buffer)
     int                         status;
     TRACE("[handle_sync_event] %i, 0x%x", socket, events);
     
-    status = gracht_connection_recv_packet(socket, &message, argument_buffer, &client_address);
+    status = gracht_connection_recv_packet(socket, &message, argument_buffer, &client_address, MSG_DONTWAIT);
     if (status) {
         ERROR("[handle_sync_event] gracht_connection_recv_message returned %i", errno);
         return -1;
@@ -215,7 +215,7 @@ static int handle_async_event(int socket, uint32_t events, void* argument_buffer
         status = gracht_connection_shutdown(socket);
     }
     else if ((events & IOEVTIN) || !events) {
-        status = gracht_connection_recv_stream(socket, &message, argument_buffer);
+        status = gracht_connection_recv_stream(socket, &message, argument_buffer, MSG_DONTWAIT);
         
         if (status) {
             ERROR("[handle_async_event] gracht_connection_recv_message returned %i", errno);

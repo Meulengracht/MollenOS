@@ -127,10 +127,10 @@ int gracht_client_wait_message(gracht_client_t* client, void* message_storage)
     int status = -1;
     switch (client->type) {
         case gracht_client_stream_based: {
-            status = gracht_connection_recv_stream(client->socket, message, argument_buffer);
+            status = gracht_connection_recv_stream(client->socket, message, argument_buffer, MSG_WAITALL);
         } break;
         case gracht_client_packet_based: {
-            status = gracht_connection_recv_packet(client->socket, message, argument_buffer, NULL);
+            status = gracht_connection_recv_packet(client->socket, message, argument_buffer, NULL, MSG_WAITALL);
         } break;
     }
     return status;
@@ -140,15 +140,18 @@ int gracht_client_process_message(gracht_client_t* client, void* message_storage
 {
     gracht_message_t* message         = message_storage;
     void*             argument_buffer = ((char*)message_storage + sizeof(gracht_message_t));
+    
     if (!client) {
         _set_errno(EINVAL);
         return -1;
     }
     
     gracht_protocol_function_t* function = get_protocol_action(client, message->protocol, message->action);
-    if (function) {
-        invoke_action(message, argument_buffer, function);
+    if (!function) {
+        _set_errno(EPROTONOSUPPORT);
+        return -1;
     }
+    invoke_action(message, argument_buffer, function);
     return 0;
 }
 

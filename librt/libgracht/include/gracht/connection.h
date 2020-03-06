@@ -33,8 +33,8 @@ struct sockaddr_storage;
 // Used to manage all the connections to the window manager.
 int gracht_connection_initialize(void);
 int gracht_connection_create(int, struct sockaddr_storage*, int);
-int gracht_connection_recv_packet(int, gracht_message_t*, void*, struct sockaddr_storage*);
-int gracht_connection_recv_stream(int, gracht_message_t*, void*);
+int gracht_connection_recv_packet(int, gracht_message_t*, void*, struct sockaddr_storage*, int);
+int gracht_connection_recv_stream(int, gracht_message_t*, void*, int);
 int gracht_connection_send_packet(int, gracht_message_t*, void*, size_t, struct sockaddr_storage*);
 int gracht_connection_send_stream(int, gracht_message_t*, void*, size_t);
 int gracht_connection_send_reply(int, void*, size_t, struct sockaddr_storage*);

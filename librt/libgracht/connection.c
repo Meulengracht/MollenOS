@@ -94,7 +94,7 @@ static void gracht_connection_remove(gracht_connection_t* connection)
     mtx_unlock(&connections_sync);
 }
 
-int gracht_connection_recv_packet(int socket, gracht_message_t* message, void* argument_buffer, struct sockaddr_storage* client_address)
+int gracht_connection_recv_packet(int socket, gracht_message_t* message, void* argument_buffer, struct sockaddr_storage* client_address, int flags)
 {
     TRACE("[gracht_connection_recv_packet] %i, 0x%" PRIxIN, socket, message);
     struct iovec  iov[2] = { 
@@ -114,7 +114,7 @@ int gracht_connection_recv_packet(int socket, gracht_message_t* message, void* a
     
     // Packets are atomic, iether the full packet is there, or none is. So avoid
     // the use of MSG_WAITALL here.
-    intmax_t bytes_read = recvmsg(socket, &msg, MSG_DONTWAIT);
+    intmax_t bytes_read = recvmsg(socket, &msg, flags);
     if (bytes_read < sizeof(gracht_message_t)) {
         if (bytes_read == 0) {
             _set_errno(ENODATA);
@@ -137,7 +137,7 @@ int gracht_connection_recv_packet(int socket, gracht_message_t* message, void* a
     return 0;
 }
 
-int gracht_connection_recv_stream(int socket, gracht_message_t* message, void* argument_buffer)
+int gracht_connection_recv_stream(int socket, gracht_message_t* message, void* argument_buffer, int flags)
 {
     intmax_t bytes_read;
     size_t   message_length;
@@ -145,7 +145,7 @@ int gracht_connection_recv_stream(int socket, gracht_message_t* message, void* a
     
     // Do not perform wait all here
     TRACE("[gracht_connection_recv_stream] reading message header");
-    bytes_read = recv(socket, message, sizeof(gracht_message_t), MSG_DONTWAIT);
+    bytes_read = recv(socket, message, sizeof(gracht_message_t), flags);
     if (bytes_read != sizeof(gracht_message_t)) {
         if (bytes_read == 0) {
             _set_errno(ENODATA);

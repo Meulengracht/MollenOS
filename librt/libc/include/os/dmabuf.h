@@ -55,6 +55,7 @@ struct dma_attachment {
     size_t length;
 };
 
+_CODE_BEGIN
 /**
  * dma_create
  * * Creates a new page aligned dma buffer and provides the initial attachment.
@@ -141,5 +142,7 @@ CRTDECL(OsStatus_t, dma_get_sg_table(struct dma_attachment* attachment, struct d
  * @param sg_offset [Out] A pointer to the variable for the offset.
  */
 CRTDECL(OsStatus_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t offset, int* sg_index, size_t* sg_offset));
+
+_CODE_END
 
 #endif //!__DMABUF_H__
