@@ -215,20 +215,23 @@ static int handle_async_event(int socket, uint32_t events, void* argument_buffer
         status = gracht_connection_shutdown(socket);
     }
     else if ((events & IOEVTIN) || !events) {
-        status = gracht_connection_recv_stream(socket, &message, argument_buffer, MSG_DONTWAIT);
-        
-        if (status) {
-            ERROR("[handle_async_event] gracht_connection_recv_message returned %i", errno);
-            return -1;
+        while (1) {
+            status = gracht_connection_recv_stream(socket, &message, argument_buffer, MSG_DONTWAIT);
+            if (status) {
+                ERROR("[handle_async_event] gracht_connection_recv_message returned %i", errno);
+                break;
+            }
+            
+            function = get_protocol_action(message.protocol, message.action);
+            if (!function) {
+                ERROR("[handle_async_event] get_protocol_action returned null");
+                _set_errno(ENOENT);
+                status = -1;
+                break;
+            }
+            
+            status = invoke_action(socket, &message, argument_buffer, function, NULL);
         }
-        
-        function = get_protocol_action(message.protocol, message.action);
-        if (!function) {
-            ERROR("[handle_async_event] get_protocol_action returned null");
-            _set_errno(ENOENT);
-            return -1;
-        }
-        return invoke_action(socket, &message, argument_buffer, function, NULL);
     }
     return 0;
 }
