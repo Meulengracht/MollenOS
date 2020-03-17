@@ -30,7 +30,6 @@ all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 hid_events_protocol_client.c: ../../../../protocols/hid_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
 	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --client
-	
 
 ../../../build/ps2.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"

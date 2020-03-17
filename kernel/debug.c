@@ -346,22 +346,6 @@ DebugMemory(
     return OsSuccess;
 }
 
-OsStatus_t
-DebugHandleShortcut(
-    _In_ SystemKey_t* Key)
-{
-    if (Key->KeyCode == VK_1) {
-        int MaxBlocks = GetMachine()->PhysicalMemory.capacity;
-        int FreeBlocks = GetMachine()->PhysicalMemory.index;
-        WRITELINE("Memory in use %" PRIuIN " Bytes", (MaxBlocks - FreeBlocks) * 0x1000);
-        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", (MaxBlocks - FreeBlocks), MaxBlocks);
-    }
-    else if (Key->KeyCode == VK_2) {
-        DisplayActiveThreads();
-    }
-    return OsSuccess;
-}
-
 /* Disassembles Memory */
 //char *get_instructions_at_mem(uintptr_t address)
 //{

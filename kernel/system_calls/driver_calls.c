@@ -31,7 +31,6 @@
 #include <deviceio.h>
 #include <handle.h>
 #include <heap.h>
-#include <os/input.h>
 #include <os/ipc.h>
 #include <modules/manager.h>
 #include <interrupts.h>

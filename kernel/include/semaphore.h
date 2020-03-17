@@ -25,7 +25,7 @@
 
 #include <os/osdefs.h>
 
-typedef struct {
+typedef struct Semaphore {
 	_Atomic(int) Value;
     int          MaxValue;
 } Semaphore_t;

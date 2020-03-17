@@ -21,7 +21,8 @@
  *   the standard en-US keyboard. Supports Ascii for now
  */
 
-#include <os/input.h>
+#include "../protocols/hid_events_protocol.h"
+#include <os/keycodes.h>
 
 // Keymap when modifier SHIFT is present
 static uint8_t AsciiShiftKeyMap[VK_KEYCOUNT] = {
@@ -51,33 +52,30 @@ static uint8_t AsciiKeyMap[VK_KEYCOUNT] = {
     0, 0, 0, 0, 0, 0
 };
 
-/* GetKeyFromSystemKeyEnUs
- * Converts system key to both a unicode and ascii character. */
-OsStatus_t
+void
 GetKeyFromSystemKeyEnUs(
-    _In_ SystemKey_t* Key)
+    struct hid_events_key_event_args* key)
 {
-    int ShouldUpperCase = Key->Flags & (KEY_MODIFIER_LSHIFT | KEY_MODIFIER_RSHIFT);
-    if (Key->Flags & KEY_MODIFIER_CAPSLOCK) {
-        if (ShouldUpperCase != 0) {
-            ShouldUpperCase = 0;
+    int shouldUpperCase = key->flags & (key_flag_lshift | key_flag_rshift);
+    if (key->flags & key_flag_capslock) {
+        if (shouldUpperCase != 0) {
+            shouldUpperCase = 0;
         }
         else {
-            ShouldUpperCase = 1;
+            shouldUpperCase = 1;
         }
     }
 
     // Handle modifiers, caps lock negates shift as seen above
-    if (ShouldUpperCase) {
-        Key->KeyAscii = AsciiShiftKeyMap[Key->KeyCode];
+    if (shouldUpperCase) {
+        key->key_ascii = AsciiShiftKeyMap[key->key_code];
     }
     else {
-        Key->KeyAscii = AsciiKeyMap[Key->KeyCode];
+        key->key_ascii = AsciiKeyMap[key->key_code];
     }
 
     // Copy if standard unicode, otherwise ignore for now
-    if (Key->KeyAscii < 128) {
-        Key->KeyUnicode = Key->KeyAscii;
+    if (key->key_ascii < 128) {
+        key->key_unicode = key->key_ascii;
     }
-    return OsSuccess;
 }

@@ -29,7 +29,6 @@
 #include <debug.h>
 #include <futex.h>
 #include <handle.h>
-#include <os/input.h>
 #include <os/ipc.h>
 #include <machine.h>
 #include <modules/manager.h>

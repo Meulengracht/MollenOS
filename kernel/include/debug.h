@@ -33,7 +33,6 @@
 #include <modules/module.h>
 #include <os/context.h>
 #include <os/osdefs.h>
-#include <os/input.h>
 #include <log.h>
 
 // __func__ 
@@ -117,11 +116,5 @@ DebugMemory(
     _In_Opt_ const char* Description,
     _In_     void*       Address,
     _In_     size_t      Length);
-
-/* DebugHandleShortcut
- * Handles system shortcuts that can be used during system debugging. */
-KERNELAPI OsStatus_t KERNELABI
-DebugHandleShortcut(
-    _In_ SystemKey_t* Key);
 
 #endif //!_DEBUG_H_

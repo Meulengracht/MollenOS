@@ -26,7 +26,6 @@
 #include <ddk/services/process.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <os/input.h>
 #include <os/ipc.h>
 #include <time.h>
 #include <threading.h>

@@ -26,7 +26,30 @@
 #include <ddk/contracts/base.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
-#include <os/input.h>
+
+typedef enum _DeviceInputType {
+    DeviceInputKeyboard     = 0,
+    DeviceInputKeypad,
+    DeviceInputPointer,
+    DeviceInputJoystick,
+    DeviceInputGamePad
+} DeviceInputType_t;
+
+PACKED_TYPESTRUCT(SystemKey, {
+    uint8_t     KeyAscii;
+    uint8_t     KeyCode;
+    uint16_t    Flags;
+    uint32_t    KeyUnicode;
+});
+
+PACKED_TYPESTRUCT(SystemInput, {
+    uint8_t     Type;
+    uint8_t     Flags;
+    int16_t     RelativeX;
+    int16_t     RelativeY;
+    int16_t     RelativeZ;
+    uint32_t    Buttons;
+});
 
 /* HID Class Definitions 
  * Contains generic magic constants and definitions */

@@ -24,8 +24,9 @@
 
 #include <ddk/utils.h>
 #include <errno.h>
-#include <io.h>
 #include <gracht/os.h>
+#include <io.h>
+#include <os/keycodes.h>
 #include "keyboard.h"
 #include "../ps2.h"
 #include <string.h>

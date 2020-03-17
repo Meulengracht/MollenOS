@@ -25,7 +25,6 @@
 #define _UTILS_INTERFACE_H_
 
 #include <ddk/ddkdefs.h>
-#include <os/input.h>
 
 /* Global <always-on> definitions
  * These are enabled no matter which kind of debugging is enabled */

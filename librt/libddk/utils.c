@@ -23,7 +23,6 @@
 
 #include <internal/_syscalls.h>
 #include <ddk/contracts/video.h>
-#include <os/input.h>
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>

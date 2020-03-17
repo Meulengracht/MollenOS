@@ -90,7 +90,8 @@ thrd_t thrd_current(void) {
 #include <internal/_syscalls.h>
 #include <internal/_io.h>
 #include <io.h>
-#include <os/input.h>
+#include "protocols/hid_events_protocol.h"
+#include <os/keycodes.h>
 #include <os/mollenos.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -495,17 +496,18 @@ Collection_t* stdio_get_handles(void)
     return &stdio_objects;
 }
 
-extern OsStatus_t GetKeyFromSystemKeyEnUs(SystemKey_t* Key);
+extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_args*);
 
 /* TranslateSystemKey
  * Performs the translation on the keycode in the system key structure. This fills
  * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
 OsStatus_t
 TranslateSystemKey(
-    _In_ SystemKey_t* Key)
+    _In_ struct hid_events_key_event_args* key)
 {
-    if (Key->KeyCode != VK_INVALID) {
-        return GetKeyFromSystemKeyEnUs(Key);
+    if (key->key_code != VK_INVALID) {
+        GetKeyFromSystemKeyEnUs(key);
+        return OsSuccess;
     }
     return OsError;
 }

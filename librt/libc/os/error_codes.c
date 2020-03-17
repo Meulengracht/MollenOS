@@ -39,6 +39,8 @@ const int ErrorCodeTable[OsErrorCodeCount] = {
     ENOMEM,       // OsOutOfMemory           Error - Out of memory
     EBUSY,        // OsBusy                  Error - Resource is busy or contended
     ECANCELED,    // OsIncomplete            Error - Operation only completed partially
+    ECANCELED,    // OsCancelled             Error - Operation was cancelled
+    EINPROGRESS,  // OsInProgress,           Error - Operation was in progress
     
     ENOLINK,      // OsDeleted               Error - Resource was deleted
     ENOTDIR,      // OsPathIsNotDirectory    Error - Path is not a directory

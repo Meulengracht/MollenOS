@@ -80,7 +80,7 @@ SemaphoreWait(
             Value = atomic_load(&(Semaphore->Value));
         }
         
-        Value = atomic_fetch_add(&(Semaphore->Value), -1);
+        Value = atomic_fetch_sub(&(Semaphore->Value), 1);
         if (Value >= 1) {
             break;
         }

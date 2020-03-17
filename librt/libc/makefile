@@ -79,7 +79,14 @@ libk: ../build/libk.lib
 
 # libc-target
 .PHONY: libc
-libc: ../build/c.dll
+libc: stdio/protocols stdio/protocols/hid_events_protocol_client.c ../build/c.dll
+
+stdio/protocols:
+	@mkdir -p $@
+
+stdio/protocols/hid_events_protocol_client.c: ../../protocols/hid_protocol.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --out $(dir $@) --protocol $< --lang-c --client
 
 ../build/libk.lib: $(LIBK_OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
@@ -110,5 +117,6 @@ clean:
 	@rm -f ../build/libk.lib
 	@rm -f ../build/c.dll
 	@rm -f ../build/c.lib
+	@rm -rf stdio/protocols
 	@rm -rf $(LIBC_OBJECTS)
 	@rm -rf $(LIBK_OBJECTS)

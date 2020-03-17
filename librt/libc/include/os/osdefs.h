@@ -97,6 +97,8 @@ typedef enum {
     OsOutOfMemory,          // Error - Out of memory
     OsBusy,                 // Error - Resource is busy or contended
     OsIncomplete,           // Error - Operation only completed partially
+    OsCancelled,            // Error - Operation was cancelled
+    OsInProgress,           // Error - Operation was in progress
     
     OsDeleted,              // Error - Resource was deleted
     OsPathIsNotDirectory,   // Error - Path is not a directory

@@ -35,7 +35,8 @@ typedef enum SystemHandleType {
     HandleTypeMemorySpace,
     HandleTypeMemoryRegion,
     HandleTypeThread,
-    HandleTypePipe
+    HandleTypePipe,
+    HandleTypeArena
 } SystemHandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);
