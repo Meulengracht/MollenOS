@@ -22,7 +22,9 @@
 #ifndef __DATASTRUCTURES__
 #define __DATASTRUCTURES__
 
-#include <os/osdefs.h>
+#include <ds/dsdefs.h>
+
+typedef struct FutexParameters FutexParameters_t;
 
 typedef struct {
     union {
@@ -46,25 +48,32 @@ typedef struct {
     unsigned     Flags;
 } SafeMemoryLock_t;
 
-CRTDECL(void*, dsalloc(size_t size));
-CRTDECL(void,  dsfree(void* pointer));
+DSDECL(void*, dsalloc(size_t size));
+DSDECL(void,  dsfree(void* pointer));
 
-CRTDECL(void, dslock(SafeMemoryLock_t* lock));
-CRTDECL(void, dsunlock(SafeMemoryLock_t* lock));
+DSDECL(void, dslock(SafeMemoryLock_t* lock));
+DSDECL(void, dsunlock(SafeMemoryLock_t* lock));
 
-CRTDECL(void, dstrace(const char* fmt, ...));
-CRTDECL(void, dswarning(const char* fmt, ...));
-CRTDECL(void, dserror(const char* fmt, ...));
+#ifdef __TRACE
+DSDECL(void, dstrace(const char* fmt, ...));
+#else
+#define dstrace(...)
+#endif
+DSDECL(void, dswarning(const char* fmt, ...));
+DSDECL(void, dserror(const char* fmt, ...));
+
+DSDECL(void, dswait(FutexParameters_t*));
+DSDECL(void, dswake(FutexParameters_t*));
 
 /* Helper Function 
  * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
-CRTDECL(int, dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
+DSDECL(int, dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
 /* Helper Function
  * Used by sorting, it compares to values and returns 
  *  - 1 if 1 > 2, 
  *  - 0 if 1 == 2 and
  *  - -1 if 2 > 1 */
-CRTDECL(int, dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
+DSDECL(int, dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
 #endif //!__DATASTRUCTURES__

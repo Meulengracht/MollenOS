@@ -33,6 +33,7 @@
 #include <heap.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
+#include <memory_region.h>
 #include <threading.h>
 #include <machine.h>
 #include <string.h>
@@ -128,6 +129,7 @@ ScDmaCreate(
 {
     OsStatus_t Status;
     Flags_t    Flags = 0;
+    void*      KernelMapping;
 
     if (!info || !attachment) {
         return OsInvalidParameters;
@@ -143,8 +145,8 @@ ScDmaCreate(
         Flags |= MAPPING_NOCACHE;
     }
     
-    Status = MemoryCreateSharedRegion(info->length, info->capacity, 
-        Flags, &attachment->buffer, &attachment->handle);
+    Status = MemoryRegionCreate(info->length, info->capacity, 
+        Flags, &KernelMapping, &attachment->buffer, &attachment->handle);
     if (Status != OsSuccess) {
         return Status;
     }
@@ -180,7 +182,7 @@ ScDmaExport(
     
     TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
     
-    Status = MemoryExportSharedRegion(buffer, info->length,
+    Status = MemoryRegionCreateExisting(buffer, info->length,
         Flags, &attachment->handle);
     if (Status != OsSuccess) {
         return Status;
@@ -200,73 +202,68 @@ ScDmaAttach(
     _In_ UUId_t                 handle,
     _In_ struct dma_attachment* attachment)
 {
-    SystemSharedRegion_t* Region;
-    
     if (!attachment) {
         ERROR("[sc_dma_attach] null attachment pointer");
         return OsInvalidParameters;
     }
     
-    Region = (SystemSharedRegion_t*)AcquireHandle(handle);
-    if (!Region) {
-        ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", handle);
-        return OsDoesNotExist;
-    }
-    
     // Update the attachment with info as it were correct
     attachment->handle = handle;
-    attachment->length = Region->Length;
+    attachment->length = 0;
     attachment->buffer = NULL;
+    return MemoryRegionAttach(handle, &attachment->length);
+}
+
+OsStatus_t
+ScDmaDetach(
+    _In_ struct dma_attachment* Attachment)
+{
+    if (!Attachment) {
+        return OsInvalidParameters;
+    }
+    DestroyHandle(Attachment->handle);
     return OsSuccess;
+}
+
+OsStatus_t
+ScDmaRead(
+    _In_  UUId_t  Handle,
+    _In_  size_t  Offset,
+    _In_  void*   Buffer,
+    _In_  size_t  Length,
+    _Out_ size_t* BytesRead)
+{
+    return MemoryRegionRead(Handle, Offset, Buffer, Length, BytesRead);
+}
+
+OsStatus_t
+ScDmaWrite(
+    _In_  UUId_t      Handle,
+    _In_  size_t      Offset,
+    _In_  const void* Buffer,
+    _In_  size_t      Length,
+    _Out_ size_t*     BytesWritten)
+{
+    return MemoryRegionWrite(Handle, Offset, Buffer, Length, BytesWritten);
+}
+
+OsStatus_t
+ScDmaGetMetrics(
+    _In_  UUId_t         Handle,
+    _Out_ int*           SgCountOut,
+    _Out_ struct dma_sg* SgListOut)
+{
+    return MemoryRegionGetSg(Handle, SgCountOut, SgListOut);
 }
 
 OsStatus_t
 ScDmaAttachmentMap(
     _In_ struct dma_attachment* attachment)
 {
-    SystemSharedRegion_t* Region;
-    OsStatus_t            Status;
-    uintptr_t             Offset;
-    uintptr_t             Address;
-    size_t                Length;
-    
-    if (!attachment || (attachment->buffer != NULL)) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
-    TRACE("ScDmaAttachmentMap(0x%x)", LODWORD(attachment->handle));
-    
-    Region = (SystemSharedRegion_t*)LookupHandleOfType(
-        attachment->handle, HandleTypeMemoryRegion);
-    if (!Region) {
-        return OsDoesNotExist;
-    }
-    
-    MutexLock(&Region->SyncObject);
-    
-    // This is more tricky, for the calling process we must make a new
-    // mapping that spans the entire Capacity, but is uncommitted, and then commit
-    // the Length of it.
-    Length = MIN(attachment->length, Region->Length);
-    Offset = (Region->Pages[0] % GetMemorySpacePageSize());
-    
-    TRACE("... create vmem mappings of length 0x%x", LODWORD(Region->Capacity));
-    Status = MemorySpaceMapReserved(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Address, Region->Capacity, 
-        MAPPING_USERSPACE | MAPPING_PERSISTENT, MAPPING_VIRTUAL_PROCESS);
-    if (Status != OsSuccess) {
-        MutexUnlock(&Region->SyncObject);
-        return Status;
-    }
-    
-    // Now commit <Length> in pages
-    TRACE("... committing vmem mappings of length 0x%x", LODWORD(Length));
-    Status = MemorySpaceCommit(GetCurrentMemorySpace(),
-        Address, &Region->Pages[0], Length, MAPPING_PHYSICAL_FIXED);
-    MutexUnlock(&Region->SyncObject);
-    
-    attachment->buffer = (void*)(Address + Offset);
-    attachment->length = Length;
-    return Status;
+    return MemoryRegionInherit(attachment->handle, &attachment->buffer, &attachment->length);
 }
 
 OsStatus_t
@@ -277,7 +274,7 @@ ScDmaAttachmentResize(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryResizeSharedRegion(attachment->handle, attachment->buffer, length);
+    return MemoryRegionResize(attachment->handle, attachment->buffer, length);
 }
 
 OsStatus_t
@@ -287,7 +284,7 @@ ScDmaAttachmentRefresh(
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryRefreshSharedRegion(attachment->handle, attachment->buffer, 
+    return MemoryRegionRefresh(attachment->handle, attachment->buffer, 
         attachment->length, &attachment->length);
 }
 
@@ -295,94 +292,10 @@ OsStatus_t
 ScDmaAttachmentUnmap(
     _In_ struct dma_attachment* attachment)
 {
-    SystemSharedRegion_t* Region;
-    uintptr_t             Address;
-    uintptr_t             Offset;
-    
     if (!attachment) {
         return OsInvalidParameters;
     }
-    
-    TRACE("ScDmaAttachmentUnmap(0x%x)", LODWORD(attachment->handle));
-    
-    Region = (SystemSharedRegion_t*)LookupHandleOfType(
-        attachment->handle, HandleTypeMemoryRegion);
-    if (!Region) {
-        return OsDoesNotExist;
-    }
-    
-    Address  = (uintptr_t)attachment->buffer;
-    Offset   = Address % GetMemorySpacePageSize();
-    Address -= Offset;
-    
-    TRACE("... free vmem mappings of length 0x%x", LODWORD(Region->Capacity));
-    return ScMemoryFree(Address, Region->Capacity);
-}
-
-OsStatus_t
-ScDmaDetach(
-    _In_ struct dma_attachment* attachment)
-{
-    if (!attachment) {
-        return OsInvalidParameters;
-    }
-    DestroyHandle(attachment->handle);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScDmaGetMetrics(
-    _In_  struct dma_attachment* attachment,
-    _Out_ int*                   sg_count_out,
-    _Out_ struct dma_sg*         sg_list_out)
-{
-    SystemSharedRegion_t* Region;
-    size_t                PageSize = GetMemorySpacePageSize();
-    
-    if (!attachment || !sg_count_out) {
-        return OsInvalidParameters;
-    }
-    
-    Region = (SystemSharedRegion_t*)LookupHandleOfType(
-        attachment->handle, HandleTypeMemoryRegion);
-    if (!Region) {
-        return OsDoesNotExist;
-    }
-    
-    // Requested count of the scatter-gather units, so count
-    // how many entries it would take to fill a list
-    // Assume that if both pointers are supplied we are trying to fill
-    // the list with the requested amount, and thus skip this step.
-    if (sg_count_out && !sg_list_out) {
-        int sg_count = 0;
-        for (int i = 0; i < Region->PageCount; i++) {
-            if (i == 0 || (Region->Pages[i - 1] + PageSize) != Region->Pages[i]) {
-                sg_count++;
-            }
-        }
-        *sg_count_out = sg_count;
-    }
-    
-    // In order to get the list both counters must be filled
-    if (sg_count_out && sg_list_out) {
-        int sg_count = *sg_count_out;
-        for (int i = 0, j = 0; (i < sg_count) && (j < Region->PageCount); i++) {
-            struct dma_sg* sg = &sg_list_out[i];
-            
-            sg->address = Region->Pages[j++];
-            sg->length  = PageSize;
-            
-            while ((j < Region->PageCount) &&
-                   (Region->Pages[j - 1] + PageSize) == Region->Pages[j]) {
-                sg->length += PageSize;
-                j++;
-            }
-        }
-        
-        // Adjust the initial sg entry for offset
-        sg_list_out[0].length -= sg_list_out[0].address % PageSize;
-    }
-    return OsSuccess;
+    return MemoryRegionUnherit(attachment->handle, attachment->buffer);
 }
 
 OsStatus_t 

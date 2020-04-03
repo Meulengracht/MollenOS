@@ -250,7 +250,7 @@ NetworkManagerSocketShutdown(
     if (Options & SOCKET_SHUTDOWN_DESTROY) {
         // If removing it failed, then assume that it was already destroyed, and we just
         // encountered a race condition
-        if (!rb_tree_remove(&Sockets, (void*)Handle)) {
+        if (!rb_tree_remove(&Sockets, (void*)(uintptr_t)Handle)) {
             return OsDoesNotExist;
         }
         

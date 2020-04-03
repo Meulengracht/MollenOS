@@ -37,6 +37,8 @@
 #include <threading.h>
 #include <string.h>
 
+#define VOID_KEY(Key) (void*)(uintptr_t)Key
+
 typedef struct SystemDeviceIo {
     element_t  Header;
     DeviceIo_t Io;
@@ -69,12 +71,12 @@ DestroySystemDeviceIo(
     
     TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
     if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         return;
     }
     
-    list_remove(&IoSpaces, list_find(&IoSpaces, (void*)IoSpace->Id));
+    list_remove(&IoSpaces, list_find(&IoSpaces, VOID_KEY(IoSpace->Id)));
     kfree(SystemIo);
 }
 
@@ -99,7 +101,7 @@ RegisterSystemDeviceIo(
     memset(SystemIo, 0, sizeof(SystemDeviceIo_t));
     SystemIo->Owner = UUID_INVALID;
     IoSpace->Id = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, SystemIo);
-    ELEMENT_INIT(&SystemIo->Header, IoSpace->Id, SystemIo);
+    ELEMENT_INIT(&SystemIo->Header, VOID_KEY(IoSpace->Id), SystemIo);
     memcpy(&SystemIo->Io, IoSpace, sizeof(DeviceIo_t));
     
     return list_append(&IoSpaces, &SystemIo->Header);
@@ -118,7 +120,7 @@ AcquireSystemDeviceIo(
     TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy
     if (Module == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
@@ -180,7 +182,7 @@ ReleaseSystemDeviceIo(
     assert(IoSpace != NULL);
     TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)IoSpace->Id);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy and do some security checks
     if (Module == NULL || SystemIo == NULL || 
@@ -224,7 +226,7 @@ CreateKernelSystemDeviceIo(
 {
     SystemDeviceIo_t* SystemIo;
     
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)SourceIoSpace->Id);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(SourceIoSpace->Id));
     if (!SystemIo) {
         return OsError;
     }
@@ -258,7 +260,7 @@ ReleaseKernelSystemDeviceIo(
 {
     SystemDeviceIo_t* SystemIo;
     
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, (void*)SystemIoSpace->Id);
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(SystemIoSpace->Id));
     if (!SystemIo) {
         return OsError;
     }

@@ -49,32 +49,33 @@
 #define SIGALRM     12 /* This is your wakeup call. */
 #define SIGTERM     13 /* Termination request, sent to the program */
 #define SIGURG      14 /* An URGENT! event (On a socket) */
+#define SIGSOCK     15 /* Socket transmission error */
+#define SIGIPC      16 /* IPC event */
+#define NUMSIGNALS  17
 
 // Unsupported Vali signals
-#define SIGBUS      15 /* Bus error (device error) */
-#define SIGEMT      16 /* Emulation trap XXX */
-#define SIGHUP      17 /* Hangup */
-#define SIGSYS      18 /* Bad system call */
-#define SIGCHLD     19 /* Child status report */
-#define SIGPWR      20 /* We need moar powah! */
-#define SIGWINCH    21 /* Your containing terminal has changed size */
-#define SIGPOLL     22 /* XXX OBSOLETE; socket i/o possible */
-#define SIGSTOP     23 /* Stopped (signal) */
-#define SIGTSTP     24 /* ^Z (suspend) */
-#define SIGCONT     25 /* Unsuspended (please, continue) */
-#define SIGTTIN     26 /* TTY input has stopped */
-#define SIGTTOUT    27 /* TTY output has stopped */
-#define SIGVTALRM   28 /* Virtual timer has expired */
-#define SIGPROF     29 /* Profiling timer expired */
-#define SIGXCPU     30 /* CPU time limit exceeded */
-#define SIGXFSZ     31 /* File size limit exceeded */
-#define SIGWAITING  32 /* Herp */
-#define SIGDIAF     33 /* Die in a fire */
-#define SIGHATE     34 /* The sending process does not like you */
-#define SIGWINEVENT 35 /* Window server event */
-#define SIGCAT      36 /* Everybody loves cats */
-#define SIGSOCK     37 /* Socket transmission error */
-#define NUMSIGNALS  38
+#define SIGBUS      -1 /* Bus error (device error) */
+#define SIGEMT      -1 /* Emulation trap XXX */
+#define SIGHUP      -1 /* Hangup */
+#define SIGSYS      -1 /* Bad system call */
+#define SIGCHLD     -1 /* Child status report */
+#define SIGPWR      -1 /* We need moar powah! */
+#define SIGWINCH    -1 /* Your containing terminal has changed size */
+#define SIGPOLL     -1 /* XXX OBSOLETE; socket i/o possible */
+#define SIGSTOP     -1 /* Stopped (signal) */
+#define SIGTSTP     -1 /* ^Z (suspend) */
+#define SIGCONT     -1 /* Unsuspended (please, continue) */
+#define SIGTTIN     -1 /* TTY input has stopped */
+#define SIGTTOUT    -1 /* TTY output has stopped */
+#define SIGVTALRM   -1 /* Virtual timer has expired */
+#define SIGPROF     -1 /* Profiling timer expired */
+#define SIGXCPU     -1 /* CPU time limit exceeded */
+#define SIGXFSZ     -1 /* File size limit exceeded */
+#define SIGWAITING  -1 /* Herp */
+#define SIGDIAF     -1 /* Die in a fire */
+#define SIGHATE     -1 /* The sending process does not like you */
+#define SIGWINEVENT -1 /* Window server event */
+#define SIGCAT      -1 /* Everybody loves cats */
 
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__

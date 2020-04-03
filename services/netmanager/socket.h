@@ -26,7 +26,7 @@
 #ifndef __NETMANAGER_SOCKET_H__
 #define __NETMANAGER_SOCKET_H__
 
-#include <ddk/streambuffer.h>
+#include <ds/streambuffer.h>
 #include <ds/rbtree.h>
 #include <ds/queue.h>
 #include <inet/socket.h>

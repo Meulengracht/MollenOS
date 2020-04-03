@@ -273,7 +273,7 @@ LoadFile(
         struct dma_buffer_info DmaInfo;
         struct dma_attachment  DmaAttachment;
         
-        Buffer = dsalloc(Size);
+        Buffer = malloc(Size);
         if (!Buffer) {
             ERROR("[load_file] [dsalloc] null");
             return OsOutOfMemory;
@@ -294,7 +294,7 @@ LoadFile(
             if (FsCode != FsOk) {
                 ERROR("[load_file] [transfer_file] failed: %u", FsCode);
                 Status = OsError;
-                dsfree(Buffer);
+                free(Buffer);
                 Buffer = NULL;
             }
             dma_detach(&DmaAttachment);
@@ -364,7 +364,7 @@ CreateProcess(
         return Status;
     }
     
-    ELEMENT_INIT(&Process->Header, Handle, Process);
+    ELEMENT_INIT(&Process->Header, (uintptr_t)Handle, Process);
     Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References = ATOMIC_VAR_INIT(1);
     Process->StartedAt  = clock();

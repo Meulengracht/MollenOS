@@ -3,6 +3,7 @@
 
 #include <ds/collection.h>
 #include <internal/_socket.h>
+#include <internal/_ipc.h>
 #include <io_events.h>        // for activity definitions
 #include <os/osdefs.h>
 #include <os/spinlock.h>
@@ -36,6 +37,7 @@
 #define STDIO_HANDLE_PIPE       1
 #define STDIO_HANDLE_FILE       2
 #define STDIO_HANDLE_SOCKET     3
+#define STDIO_HANDLE_IPCONTEXT  4
 
 typedef struct stdio_handle stdio_handle_t;
 
@@ -45,7 +47,8 @@ typedef struct {
     UUId_t handle;
     int    type;
     union {
-        struct socket socket;
+        struct socket    socket;
+        struct ipcontext ipcontext;
     } data;
 } stdio_object_t;
 
@@ -103,6 +106,7 @@ extern void stdio_get_null_operations(stdio_ops_t* ops);
 extern void stdio_get_pipe_operations(stdio_ops_t* ops);
 extern void stdio_get_file_operations(stdio_ops_t* ops);
 extern void stdio_get_net_operations(stdio_ops_t* ops);
+extern void stdio_get_ipc_operations(stdio_ops_t* ops);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);

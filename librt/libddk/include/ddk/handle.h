@@ -33,6 +33,10 @@ typedef struct handle_event {
     void*   context;
 } handle_event_t;
 
+#define HANDLE_SET_OP_ADD 1
+#define HANDLE_SET_OP_MOD 2
+#define HANDLE_SET_OP_DEL 3
+
 /**
  * handle_create
  * * Allocates a new handle for a system resource with a reference of 1.
@@ -48,6 +52,15 @@ handle_create(
 DDKDECL(OsStatus_t,
 handle_destroy(
     _In_ UUId_t handle));
+
+/**
+ * handle_set_path
+ * * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
+ */
+DDKDECL(OsStatus_t,
+handle_set_path(
+    _In_ UUId_t      handle,
+    _In_ const char* path));
 
 /**
  * handle_set_create

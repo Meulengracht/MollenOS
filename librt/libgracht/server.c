@@ -24,9 +24,8 @@
 
 #include <assert.h>
 #include <inet/socket.h>
-#include <io_events.h>
 #include <io.h>
-#include "include/gracht/connection.h"
+#include "include/gracht/aio.h"
 #include "include/gracht/list.h"
 #include "include/gracht/server.h"
 #include <stdlib.h>
@@ -35,188 +34,129 @@
 #define __TRACE
 #include <ddk/utils.h>
 
-typedef void (*gracht_invoke00_t)(int);
-typedef void (*gracht_invokeA0_t)(int, void*);
-typedef void (*gracht_invoke0R_t)(int, void*);
-typedef void (*gracht_invokeAR_t)(int, void*, void*);
+extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
+
+struct gracht_server_client {
+    struct gracht_object_header header;
+    int                         iod;
+    struct link_ops*            ops;
+};
 
 struct gracht_server {
-    gracht_server_configuration_t configuration;
-    int                       initialized;
-    int                       client_socket;
-    int                       dgram_socket;
-    int                       socket_set;
-    struct gracht_list            protocols;
-} gracht_server_context = { { { 0 } } };
+    struct server_link_ops* ops;
+    int                     initialized;
+    int                     completion_iod;
+    int                     client_iod;
+    int                     dgram_iod;
+    struct gracht_list      protocols;
+    struct gracht_list      clients;
+} server_object = { { 0 } };
 
-
-static int create_client_socket(gracht_server_configuration_t* configuration)
+int gracht_server_initialize(gracht_server_configuration_t* configuration)
 {
-    int status;
+    assert(server_object.initialized == 0);
     
-    gracht_server_context.client_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
-    if (gracht_server_context.client_socket < 0) {
+    // store handler
+    server_object.initialized = 1;
+    server_object.ops = configuration->link;
+    
+    // create the io event set, for async io
+    server_object.completion_iod = gracht_aio_create();
+    if (server_object.completion_iod < 0) {
         return -1;
     }
     
-    status = bind(gracht_server_context.client_socket, sstosa(&configuration->server_address),
-        configuration->server_address_length);
-    if (status) {
-        return -1;
+    // try to create the listening link. We do support that one of the links
+    // are not supported by the link operations.
+    server_object.client_iod = server_object.ops->listen(server_object.ops, LINK_LISTEN_SOCKET);
+    if (server_object.client_iod < 0) {
+        if (errno != ENOTSUP) {
+            return -1;
+        }
+    }
+    else {
+        gracht_aio_add(server_object.completion_iod, server_object.client_iod);
     }
     
-    // Enable listening for connections, with a maximum of 2 on backlog
-    status = listen(gracht_server_context.client_socket, 2);
-    if (status) {
-        return -1;
+    server_object.dgram_iod = server_object.ops->listen(server_object.ops, LINK_LISTEN_DGRAM);
+    if (server_object.dgram_iod < 0) {
+        if (errno != ENOTSUP) {
+            return -1;
+        }
+    }
+    else {
+        gracht_aio_add(server_object.completion_iod, server_object.dgram_iod);
     }
     
-    // Listen for control events only, there is no input/output data on the 
-    // connection socket
-    status = io_set_ctrl(gracht_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
-        gracht_server_context.client_socket, IOEVTCTL);
-    return status;
+    return 0;
 }
 
 static int handle_client_socket(void)
 {
-    struct sockaddr_storage client_address;
-    socklen_t               client_address_length;
-    int                     client_socket;
-    int                     status;
+    struct gracht_server_client* client;
+    struct link_ops*             client_ops;
+    int                          client_iod;
     
-    // TODO handle disconnects in accept in netmanager
-    client_socket = accept(gracht_server_context.client_socket, sstosa(&client_address), &client_address_length);
-    if (client_socket < 0) {
+    client_iod = server_object.ops->accept(server_object.ops, &client_ops);
+    if (client_iod < 0) {
         return -1;
     }
     
-    status = gracht_connection_create(client_socket, &client_address, client_address_length);
-    if (status < 0) {
+    client = (struct gracht_server_client*)malloc(sizeof(struct gracht_server_client));
+    if (!client) {
+        client_ops->close(client_ops);
+        _set_errno(ENOMEM);
         return -1;
     }
     
-    // We specifiy the IOEVTFRT due to race conditioning that is possible when
-    // accepting new sockets. If the client is quick to send data we might miss the
-    // event. So specify the INITIAL_EVENT flag to recieve an initial event
-    status = io_set_ctrl(gracht_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
-        client_socket, IOEVTIN | IOEVTCTL | IOEVTFRT);
-    return status;
-}
-
-static int create_dgram_socket(gracht_server_configuration_t* configuration)
-{
-    int status;
+    client->header.id = client_iod;
+    client->iod = client_iod;
+    client->ops = client_ops;
     
-    // Create a new socket for listening to events. They are all
-    // delivered to fixed sockets on the local system.
-    gracht_server_context.dgram_socket = socket(AF_LOCAL, SOCK_DGRAM, 0);
-    if (gracht_server_context.dgram_socket < 0) {
-        return -1;
-    }
-    
-    status = bind(gracht_server_context.dgram_socket, sstosa(&configuration->dgram_address),
-        configuration->dgram_address_length);
-    if (status) {
-        return -1;
-    }
-    
-    // Listen for input events on the dgram socket
-    status = io_set_ctrl(gracht_server_context.socket_set, IO_EVT_DESCRIPTOR_ADD,
-        gracht_server_context.dgram_socket, IOEVTIN);
-    return status;
-}
-
-static gracht_protocol_function_t* get_protocol_action(uint8_t protocol_id, uint8_t action_id)
-{
-    gracht_protocol_t* protocol = (struct gracht_protocol*)gracht_list_lookup(
-        &gracht_server_context.protocols, (int)(uint32_t)protocol_id);
-    int            i;
-    
-    if (!protocol) {
-        return NULL;
-    }
-    
-    for (i = 0; i < protocol->num_functions; i++) {
-        if (protocol->functions[i].id == action_id) {
-            return &protocol->functions[i];
-        }
-    }
-    return NULL;
-}
-
-static int invoke_action(int socket, gracht_message_t* message, void* argument_buffer,
-    gracht_protocol_function_t* function, struct sockaddr_storage* client_address)
-{
-    int has_argument = message->length > sizeof(gracht_message_t);
-    int has_return   = message->ret_length > 0;
-    TRACE("[invoke_action] %u, %u", message->protocol, message->action);
-    
-    if (has_argument && has_return) {
-        uint8_t return_buffer[message->ret_length];
-        ((gracht_invokeAR_t)function->address)(socket, argument_buffer, &return_buffer[0]);
-        return gracht_connection_send_reply(socket, &return_buffer[0], 
-            message->ret_length, client_address);
-    }
-    else if (has_argument) {
-        ((gracht_invokeA0_t)function->address)(socket, argument_buffer);
-    }
-    else if (has_return) {
-        uint8_t return_buffer[message->ret_length];
-        ((gracht_invoke0R_t)function->address)(socket, &return_buffer[0]);
-        return gracht_connection_send_reply(socket, &return_buffer[0], 
-            message->ret_length, client_address);
-    }
-    else {
-        ((gracht_invoke00_t)function->address)(socket);
-    }
+    // add client to list and aio
+    gracht_list_append(&server_object.clients, &client->header);
+    gracht_aio_add(server_object.completion_iod, client_iod);
     return 0;
 }
 
-static int handle_sync_event(int socket, uint32_t events, void* argument_buffer)
+static int handle_sync_event(int iod, uint32_t events, void* storage)
 {
-    gracht_protocol_function_t* function;
-    struct sockaddr_storage     client_address;
-    gracht_message_t            message;
-    int                         status;
+    struct gracht_recv_message message = { .storage = storage };
+    int                        status;
     TRACE("[handle_sync_event] %i, 0x%x", socket, events);
     
-    status = gracht_connection_recv_packet(socket, &message, argument_buffer, &client_address, MSG_DONTWAIT);
+    status = server_object.ops->recv_packet(server_object->ops, &message, MSG_DONTWAIT);
     if (status) {
         ERROR("[handle_sync_event] gracht_connection_recv_message returned %i", errno);
         return -1;
     }
-    
-    function = get_protocol_action(message.protocol, message.action);
-    if (!function) {
-        ERROR("[handle_sync_event] get_protocol_action returned null");
-        _set_errno(ENOENT);
-        return -1;
-    }
-    return invoke_action(socket, &message, argument_buffer, function, &client_address);
+    return server_invoke_action(&server_object.protocols, &message);
 }
 
-static int handle_async_event(int socket, uint32_t events, void* argument_buffer)
+static int handle_async_event(int iod, uint32_t events, void* storage)
 {
-    gracht_protocol_function_t* function;
-    gracht_message_t            message;
-    int                         status;
+    int                          status;
+    gracht_protocol_function_t*  function;
+    struct gracht_recv_message   message = { .storage = storage };
+    struct gracht_server_client* client = 
+        (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, iod);
     TRACE("[handle_async_event] %i, 0x%x", socket, events);
     
     // Check for control event. On non-passive sockets, control event is the
     // disconnect event.
     if (events & IOEVTCTL) {
-        status = io_set_ctrl(gracht_server_context.socket_set, IO_EVT_DESCRIPTOR_DEL,
-            socket, 0);
+        status = gracht_aio_remove(server_object.socket_set, iod);
         if (status) {
             // TODO log
         }
         
-        status = gracht_connection_shutdown(socket);
+        status = client->ops->close(client->ops);
+        gracht_list_remove(&server_object.clients, &client->header);
+        free(client);
     }
     else if ((events & IOEVTIN) || !events) {
         while (1) {
-            status = gracht_connection_recv_stream(socket, &message, argument_buffer, MSG_DONTWAIT);
+            status = client->ops->recv(socket, &message, MSG_DONTWAIT);
             if (status) {
                 ERROR("[handle_async_event] gracht_connection_recv_message returned %i", errno);
                 break;
@@ -230,122 +170,108 @@ static int handle_async_event(int socket, uint32_t events, void* argument_buffer
                 break;
             }
             
-            status = invoke_action(socket, &message, argument_buffer, function, NULL);
+            status = server_invoke_action(&server_object.protocols, &message);
         }
     }
     return 0;
 }
 
-int gracht_server_initialize(gracht_server_configuration_t* configuration)
-{
-    int status;
-    
-    assert(gracht_server_context.initialized == 0);
-    
-    // store handler
-    gracht_server_context.initialized = 1;
-    memcpy(&gracht_server_context.configuration, configuration, 
-        sizeof(gracht_server_configuration_t));
-    
-    // initialize connection library
-    status = gracht_connection_initialize();
-    if (status) {
-        return status;
-    }
-    
-    // create the io event set, for async io
-    gracht_server_context.socket_set = io_set_create(0);
-    if (gracht_server_context.socket_set == -1) {
-        return -1;
-    }
-    
-    status = create_client_socket(configuration);
-    if (status) {
-        return status;
-    }
-    
-    status = create_dgram_socket(configuration);
-    if (status) {
-        return status;
-    }
-    
-    return status;
-}
-
 static int gracht_server_shutdown(void)
 {
-    assert(gracht_server_context.initialized == 1);
+    struct gracht_server_client* client;
+    struct gracht_server_client* prev;
     
-    if (gracht_server_context.client_socket != -1) {
-        close(gracht_server_context.client_socket);
+    assert(server_object.initialized == 1);
+    
+    client = &server_object.clients.head;
+    while (client) {
+        client->ops->close(client->ops);
+        
+        prev   = client;
+        client = client->link;
+        free(prev);
+    }
+    server_object.clients.head = NULL;
+    
+    if (server_object.completion_iod != -1) {
+        gracht_aio_destroy(server_object.completion_iod);
     }
     
-    if (gracht_server_context.dgram_socket != -1) {
-        close(gracht_server_context.dgram_socket);
+    if (server_object.ops != NULL) {
+        server_object.ops->destroy(server_object.ops);
     }
     
-    if (gracht_server_context.socket_set != -1) {
-        close(gracht_server_context.socket_set);
-    }
-    
+    server_object.initialized = 0;
     return 0;
 }
 
 int gracht_server_main_loop(void)
 {
-    void*           argument_buffer;
-    struct io_event events[32];
-    int             i;
+    void*              storage;
+    gracht_aio_event_t events[32];
+    int                i;
     
-    argument_buffer = malloc(GRACHT_MAX_MESSAGE_SIZE);
-    if (!argument_buffer) {
+    storage = malloc(GRACHT_MAX_MESSAGE_SIZE);
+    if (!storage) {
         _set_errno(ENOMEM);
         return -1;
     }
     
-    while (gracht_server_context.initialized) {
-        int num_events = io_set_wait(gracht_server_context.socket_set, &events[0], 32, 0);
+    while (server_object.initialized) {
+        int num_events = gracht_io_wait(server_object.completion_iod, &events[0], 32);
         for (i = 0; i < num_events; i++) {
-            if (events[i].iod == gracht_server_context.client_socket) {
+            int      iod   = gracht_aio_event_iod(&events[i]);
+            uint32_t flags = gracht_aio_event_events(&events[i]);
+            if (iod == server_object.client_socket) {
                 if (handle_client_socket()) {
                     // TODO - log
                 }
             }
-            else if (events[i].iod == gracht_server_context.dgram_socket) {
-                handle_sync_event(gracht_server_context.dgram_socket, events[i].events, argument_buffer);
+            else if (iod == server_object.dgram_socket) {
+                handle_sync_event(server_object.dgram_socket, flags, storage);
             }
             else {
-                handle_async_event(events[i].iod, events[i].events, argument_buffer);
+                handle_async_event(iod, flags, storage);
             }
         }
     }
     
-    free(argument_buffer);
+    free(storage);
     return gracht_server_shutdown();
 }
 
-int gracht_server_send_event(int client, uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+int gracht_server_respond(struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
-    gracht_message_t message = {
-        .length     = (sizeof(gracht_message_t) + argument_length),
-        .ret_length = 0,
-        .crc        = 0,
-        .protocol   = protocol_id,
-        .action     = event_id
-    };
-    return gracht_connection_send_stream(client, &message, argument, argument_length);
+    if (!messageContext || !message) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    return server_object.ops->respond(server_object.ops, messageContext, &message);
 }
 
-int gracht_server_broadcast_event(uint8_t protocol_id, uint8_t event_id, void* argument, size_t argument_length)
+int gracht_server_send_event(int client, struct gracht_message* message, unsigned int flags)
 {
-    gracht_message_t message = {
-        .length     = (sizeof(gracht_message_t) + argument_length),
-        .ret_length = 0,
-        .crc        = 0,
-        .protocol   = protocol_id,
-        .action     = event_id
-    };
-    return gracht_connection_broadcast_message(&message, argument, argument_length);
+    struct gracht_server_client* clientOps = 
+        (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, client);
+    if (!clientOps) {
+        _set_errno(ENOENT);
+        return -1;
+    }
+    
+    return clientOps->ops->send(clientOps->ops, message, flags);
+}
+
+int gracht_server_broadcast_event(struct gracht_message* message, unsigned int flags)
+{
+    struct gracht_server_client* client;
+    
+    client = &server_object.clients.head;
+    while (client) {
+        client->ops->send(client->ops, message, flags);
+        client = client->link;
+    }
+    return 0;
 }
 
 int gracht_server_register_protocol(gracht_protocol_t* protocol)
@@ -355,7 +281,7 @@ int gracht_server_register_protocol(gracht_protocol_t* protocol)
         return -1;
     }
     
-    gracht_list_append(&gracht_server_context.protocols, &protocol->header);
+    gracht_list_append(&server_object.protocols, &protocol->header);
     return 0;
 }
 
@@ -366,6 +292,6 @@ int gracht_server_unregister_protocol(gracht_protocol_t* protocol)
         return -1;
     }
     
-    gracht_list_remove(&gracht_server_context.protocols, &protocol->header);
+    gracht_list_remove(&server_object.protocols, &protocol->header);
     return 0;
 }

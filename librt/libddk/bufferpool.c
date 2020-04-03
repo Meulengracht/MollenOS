@@ -23,13 +23,13 @@
 //#define __TRACE
 
 #include <ddk/bufferpool.h>
+#include <ddk/bytepool.h>
 #include <ddk/utils.h>
 #include <os/dmabuf.h>
-#include "../common/bytepool.h"
 #include <stdlib.h>
 
 struct dma_pool {
-    BytePool_t*            pool;
+    struct bytepool*       pool;
     struct dma_attachment* attachment;
     struct dma_sg_table    table;
 };

@@ -27,7 +27,7 @@
 
 #include <ddk/ddkdefs.h>
 #include <ddk/services/service.h>
-#include <ddk/streambuffer.h>
+#include <ds/streambuffer.h>
 #include <inet/socket.h>
 
 #define __NETMANAGER_CREATE_SOCKET      (int)0

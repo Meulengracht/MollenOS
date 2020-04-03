@@ -43,6 +43,17 @@ handle_destroy(
 }
 
 OsStatus_t
+handle_set_path(
+    _In_ UUId_t      handle,
+    _In_ const char* path)
+{
+    if (!path) {
+        return OsInvalidParameters;
+    }
+    return Syscall_RegisterHandlePath(handle, path);
+}
+
+OsStatus_t
 handle_set_create(
     _In_  Flags_t flags,
     _Out_ UUId_t* handle_out)

@@ -25,8 +25,8 @@
 #include <ddk/contracts/video.h>
 #include <ddk/services/process.h>
 #include <internal/_utils.h>
+#include <ipc_context.h>
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include <time.h>
 #include <threading.h>
 #include <threads.h>
@@ -104,13 +104,6 @@ extern OsStatus_t ScThreadGetContext(Context_t* ContextOut);
 extern OsStatus_t ScFutexWait(FutexParameters_t* Parameters);
 extern OsStatus_t ScFutexWake(FutexParameters_t* Parameters);
 
-// Communication system calls
-extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
-extern OsStatus_t ScIpcGetResponse(size_t, void**);
-extern OsStatus_t ScIpcListen(size_t, IpcMessage_t**);
-extern OsStatus_t ScIpcReply(IpcMessage_t*, void*, size_t);
-extern OsStatus_t ScIpcReplyAndListen(IpcMessage_t*, void*, size_t, size_t, IpcMessage_t**);
-
 // Memory system calls
 extern OsStatus_t ScMemoryAllocate(void*, size_t, Flags_t, void**);
 extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
@@ -149,7 +142,7 @@ extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
-#define SYSTEM_CALL_COUNT 81
+#define SYSTEM_CALL_COUNT 77
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -227,47 +220,45 @@ static struct SystemCallDescriptor {
     DefineSyscall(44, ScFutexWake),
 
     // Communication system calls
-    DefineSyscall(45, ScIpcInvoke),
-    DefineSyscall(46, ScIpcGetResponse),
-    DefineSyscall(47, ScIpcReply),
-    DefineSyscall(48, ScIpcListen),
-    DefineSyscall(49, ScIpcReplyAndListen),
+    DefineSyscall(45, IpcContextCreate),
+    DefineSyscall(46, IpcContextSendMultiple),
+    DefineSyscall(47, IpcContextRespondMultiple),
 
     // Memory system calls
-    DefineSyscall(50, ScMemoryAllocate),
-    DefineSyscall(51, ScMemoryFree),
-    DefineSyscall(52, ScMemoryProtect),
+    DefineSyscall(48, ScMemoryAllocate),
+    DefineSyscall(49, ScMemoryFree),
+    DefineSyscall(50, ScMemoryProtect),
     
-    DefineSyscall(53, ScDmaCreate),
-    DefineSyscall(54, ScDmaExport),
-    DefineSyscall(55, ScDmaAttach),
-    DefineSyscall(56, ScDmaAttachmentMap),
-    DefineSyscall(57, ScDmaAttachmentResize),
-    DefineSyscall(58, ScDmaAttachmentRefresh),
-    DefineSyscall(59, ScDmaAttachmentUnmap),
-    DefineSyscall(60, ScDmaDetach),
-    DefineSyscall(61, ScDmaGetMetrics),
+    DefineSyscall(51, ScDmaCreate),
+    DefineSyscall(52, ScDmaExport),
+    DefineSyscall(53, ScDmaAttach),
+    DefineSyscall(54, ScDmaAttachmentMap),
+    DefineSyscall(55, ScDmaAttachmentResize),
+    DefineSyscall(56, ScDmaAttachmentRefresh),
+    DefineSyscall(57, ScDmaAttachmentUnmap),
+    DefineSyscall(58, ScDmaDetach),
+    DefineSyscall(59, ScDmaGetMetrics),
     
-    DefineSyscall(62, ScCreateHandle),
-    DefineSyscall(63, ScDestroyHandle),
-    DefineSyscall(64, ScRegisterHandlePath),
-    DefineSyscall(65, ScLookupHandle),
-    DefineSyscall(66, ScSetHandleActivity),
+    DefineSyscall(60, ScCreateHandle),
+    DefineSyscall(61, ScDestroyHandle),
+    DefineSyscall(62, ScRegisterHandlePath),
+    DefineSyscall(63, ScLookupHandle),
+    DefineSyscall(64, ScSetHandleActivity),
     
-    DefineSyscall(67, ScCreateHandleSet),
-    DefineSyscall(68, ScControlHandleSet),
-    DefineSyscall(69, ScListenHandleSet),
+    DefineSyscall(65, ScCreateHandleSet),
+    DefineSyscall(66, ScControlHandleSet),
+    DefineSyscall(67, ScListenHandleSet),
     
     // Support system calls
-    DefineSyscall(70, ScInstallSignalHandler),
-    DefineSyscall(71, ScCreateMemoryHandler),
-    DefineSyscall(72, ScDestroyMemoryHandler),
-    DefineSyscall(73, ScFlushHardwareCache),
-    DefineSyscall(74, ScSystemQuery),
-    DefineSyscall(75, ScSystemTick),
-    DefineSyscall(76, ScPerformanceFrequency),
-    DefineSyscall(77, ScPerformanceTick),
-    DefineSyscall(78, ScSystemTime)
+    DefineSyscall(68, ScInstallSignalHandler),
+    DefineSyscall(69, ScCreateMemoryHandler),
+    DefineSyscall(70, ScDestroyMemoryHandler),
+    DefineSyscall(71, ScFlushHardwareCache),
+    DefineSyscall(72, ScSystemQuery),
+    DefineSyscall(73, ScSystemTick),
+    DefineSyscall(74, ScPerformanceFrequency),
+    DefineSyscall(75, ScPerformanceTick),
+    DefineSyscall(76, ScSystemTime)
 };
 
 Context_t*

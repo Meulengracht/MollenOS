@@ -26,17 +26,11 @@
 #define __GRACHT_CLIENT_H__
 
 #include "types.h"
+#include "link/link.h"
 #include <inet/socket.h>
 
-enum gracht_client_type {
-    gracht_client_stream_based, // connection mode
-    gracht_client_packet_based  // connection less mode
-};
-
 typedef struct gracht_client_configuration {
-    enum gracht_client_type type;
-    struct sockaddr_storage address;
-    socklen_t               address_length;
+    struct client_link_ops* link;
 } gracht_client_configuration_t;
 
 typedef struct gracht_client gracht_client_t;
@@ -49,11 +43,11 @@ extern "C" {
 // An application can utilize multiple clients, that connect to different
 // servers. When invoking a protocol the specific client can be specified.
 int gracht_client_create(gracht_client_configuration_t*, gracht_client_t**);
-int gracht_client_wait_message(gracht_client_t*, void*);
-int gracht_client_process_message(gracht_client_t*, void*);
+int gracht_client_wait_message(gracht_client_t*, struct gracht_recv_message*);
+int gracht_client_process_message(gracht_client_t*, struct gracht_recv_message*);
 int gracht_client_register_protocol(gracht_client_t*, gracht_protocol_t*);
 int gracht_client_unregister_protocol(gracht_client_t*, gracht_protocol_t*);
-int gracht_client_invoke(gracht_client_t*, uint8_t, uint8_t, void*, size_t, void*, size_t);
+int gracht_client_invoke(gracht_client_t*, struct gracht_message*, void*);
 int gracht_client_shutdown(gracht_client_t*);
 
 #ifdef __cplusplus

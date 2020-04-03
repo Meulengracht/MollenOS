@@ -40,44 +40,22 @@ extern void __signalentry(void);
 char signal_fatality[NUMSIGNALS] = {
 	0, /* 0? */
 	
-	0, /* SIGINT     */
-	1, /* SIGQUIT    */
-	1, /* SIGILL     */
-	0, /* SIGTRAP    */
-	1, /* SIGABRT    */
-	1, /* SIGFPE     */
-	1, /* SIGKILL    */
-	1, /* SIGSEGV    */
-	1, /* SIGPIPE    */
-	0, /* SIGUSR1    */
-	0, /* SIGUSR2    */
-	0, /* SIGALRM    */
-	1, /* SIGTERM    */
-	0, /* SIGURG     */
-	
-	1, /* SIGBUS     */
-	1, /* SIGEMT     */
-	1, /* SIGHUP     */
-	1, /* SIGSYS     */
-	1, /* SIGCHLD    */
-	1, /* SIGPWR     */
-	1, /* SIGWINCH   */
-	1, /* SIGPOLL    */
-	1, /* SIGSTOP    */
-	1, /* SIGTSTP    */
-	1, /* SIGCONT    */
-	1, /* SIGTTIN    */
-	1, /* SIGTTOUT   */
-	1, /* SIGVTALRM  */
-	1, /* SIGPROF    */
-	1, /* SIGXCPU    */
-	1, /* SIGXFSZ    */
-	1, /* SIGWAITING */
-	1, /* SIGDIAF    */
-	1, /* SIGHATE    */
-	1, /* SIGWINEVENT*/
-	1, /* SIGCAT     */
-    1, /* SIGSOCK    */
+	0, /* SIGINT  */
+	1, /* SIGQUIT */
+	1, /* SIGILL  */
+	0, /* SIGTRAP */
+	1, /* SIGABRT */
+	1, /* SIGFPE  */
+	1, /* SIGKILL */
+	1, /* SIGSEGV */
+	1, /* SIGPIPE */
+	0, /* SIGUSR1 */
+	0, /* SIGUSR2 */
+	0, /* SIGALRM */
+	1, /* SIGTERM */
+	0, /* SIGURG  */
+    1, /* SIGSOCK */
+    1, /* SIGIPC  */
 };
 
 // Default interrupt handlers
@@ -189,7 +167,7 @@ is_signal_valid(
     _In_ void* handler)
 {
     // Validate signal, currently we do not support POSIX signal extensions
-    if (sig >= SIGBUS) {
+    if (sig <= 0 || sig >= NUMSIGNALS) {
         _set_errno(EINVAL);
         return -1;
     }
@@ -238,7 +216,7 @@ raise(
 {
     Context_t Context;
     
-    if (sig >= SIGBUS) {
+    if (sig <= 0 || sig >= NUMSIGNALS) {
         _set_errno(EINVAL);
         return -1;
     }

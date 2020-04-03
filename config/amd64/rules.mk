@@ -18,6 +18,7 @@ shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS
 config_flags += -D__OSCONFIG_HAS_MMIO
 config_flags += -D__OSCONFIG_ACPI_SUPPORT
 config_flags += -D__OSCONFIG_HAS_UART
+config_flags += -D__OSCONFIG_HAS_DWCAS # Assume presence of CPUID_FEAT_ECX_CX16 in cpuid
 
 # Sanitize for headless environment
 ifndef VALI_HEADLESS

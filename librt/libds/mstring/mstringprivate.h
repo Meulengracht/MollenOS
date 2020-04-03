@@ -114,6 +114,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <ds/ds.h>
 #include <ds/mstring.h>
 
 /* This is the block size that mstring allocates with

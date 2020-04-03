@@ -18,6 +18,7 @@
  *
  * MollenOS - Generic Data Structures (Shared)
  */
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <ds/mstring.h>
@@ -27,7 +28,6 @@
 
 #define __MODULE "DATA"
 #ifdef LIBC_KERNEL
-#define __TRACE
 #include <arch/interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
@@ -36,8 +36,10 @@
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
+
+extern OsStatus_t ScFutexWait(FutexParameters_t*);
+extern OsStatus_t ScFutexWake(FutexParameters_t*);
 #else
-#define __TRACE
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
@@ -104,6 +106,24 @@ void dsunlock(SafeMemoryLock_t* lock)
     atomic_store(&lock->SyncObject, 0);
 #ifdef LIBC_KERNEL
     InterruptRestoreState(flags);
+#endif
+}
+
+void dswait(FutexParameters_t* params)
+{
+#ifdef LIBC_KERNEL
+    ScFutexWait(params);
+#else
+    Syscall_FutexWait(params);
+#endif
+}
+
+void dswake(FutexParameters_t* params)
+{
+#ifdef LIBC_KERNEL
+    ScFutexWake(params);
+#else
+    Syscall_FutexWake(params);
 #endif
 }
 
@@ -267,7 +287,7 @@ OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
     if (Status != OsSuccess) {
         return Status;
     }
-    *HandleOut = (MemorySpaceHandle_t)MemorySpaceHandle;
+    *HandleOut = (MemorySpaceHandle_t)(uintptr_t)MemorySpaceHandle;
 #endif
     return OsSuccess;
 }
@@ -316,7 +336,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     Parameters.Length         = Length;
     Parameters.Flags          = Flags;
     
-    Status   = CreateMemoryMapping((UUId_t)Handle, &Parameters, (void**)&StateObject->Address);
+    Status   = CreateMemoryMapping((UUId_t)(uintptr_t)Handle, &Parameters, (void**)&StateObject->Address);
     *Address = StateObject->Address;
 #endif
     if (Status != OsSuccess) {

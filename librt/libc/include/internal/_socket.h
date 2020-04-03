@@ -1,7 +1,7 @@
 #ifndef __INTERNAL_SOCKET_H__
 #define __INTERNAL_SOCKET_H__
 
-#include <ddk/streambuffer.h>
+#include <ds/streambuffer.h>
 #include <inet/socket.h>
 #include <os/dmabuf.h>
 

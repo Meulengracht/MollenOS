@@ -35,159 +35,43 @@
 
 typedef struct gracht_client {
     uint32_t                client_id;
-    enum gracht_client_type type;
-    int                     socket;
+    struct client_link_ops* ops;
     struct gracht_list      protocols;
 } gracht_client_t;
 
-typedef void (*gracht_invoke00_t)(void);
-typedef void (*gracht_invokeA0_t)(void*);
+extern int client_invoke_action(struct gracht_list*, struct gracht_recv_message*);
 
-static int get_message_reply(gracht_client_t* client, void* return_buffer, 
-    size_t return_length)
+int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message, void* context)
 {
-    intmax_t bytes_read = recv(client->socket, return_buffer, 
-        return_length, MSG_WAITALL);
-    return bytes_read != return_length;
-}
-
-int gracht_client_invoke(gracht_client_t* client, uint8_t protocol, uint8_t action, 
-    void* arguments, size_t argument_length, void* return_buffer, 
-    size_t return_length)
-{
-    int          status;
-    gracht_message_t message = { 
-        .length     = (sizeof(gracht_message_t) + argument_length),
-        .ret_length = return_length,
-        .crc        = 0,
-        .protocol   = protocol,
-        .action     = action
-    };
-    
-    if (argument_length) {
-        message.crc = crc16_generate((const unsigned char*)arguments, argument_length);
-    }
-    
-    switch (client->type) {
-        case gracht_client_stream_based: {
-            if (return_buffer != NULL) {
-                _set_errno(ENOTSUP);
-                return -1;
-            }
-            status = gracht_connection_send_stream(client->socket, &message, arguments, argument_length);
-        } break;
-        case gracht_client_packet_based: {
-            status = gracht_connection_send_packet(client->socket, &message, arguments, argument_length, NULL);
-            if (!status && argument_length) {
-                status = get_message_reply(client, return_buffer, return_length);
-            }
-        } break;
-    }
-    
-    return status;
-}
-
-static gracht_protocol_function_t* get_protocol_action(gracht_client_t* client, uint8_t protocol_id, uint8_t action_id)
-{
-    gracht_protocol_t* protocol = (struct gracht_protocol*)gracht_list_lookup(&client->protocols, (int)(uint32_t)protocol_id);
-    int            i;
-    
-    if (!protocol) {
-        return NULL;
-    }
-    
-    for (i = 0; i < protocol->num_functions; i++) {
-        if (protocol->functions[i].id == action_id) {
-            return &protocol->functions[i];
-        }
-    }
-    return NULL;
-}
-
-static void invoke_action(gracht_message_t* message, void* argument_buffer, gracht_protocol_function_t* function)
-{
-    if (message->length > sizeof(gracht_message_t)) {
-        ((gracht_invokeA0_t)function->address)(argument_buffer);
-    }
-    else {
-        ((gracht_invoke00_t)function->address)();
-    }
-}
-
-int gracht_client_wait_message(gracht_client_t* client, void* message_storage)
-{
-    gracht_message_t* message         = message_storage;
-    void*             argument_buffer = ((char*)message_storage + sizeof(gracht_message_t));
-    
     if (!client) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    int status = -1;
-    switch (client->type) {
-        case gracht_client_stream_based: {
-            status = gracht_connection_recv_stream(client->socket, message, argument_buffer, MSG_WAITALL);
-        } break;
-        case gracht_client_packet_based: {
-            status = gracht_connection_recv_packet(client->socket, message, argument_buffer, NULL, MSG_WAITALL);
-        } break;
-    }
-    return status;
+    return client->ops->send(client->ops, message, context);
 }
 
-int gracht_client_process_message(gracht_client_t* client, void* message_storage)
+int gracht_client_process_message(gracht_client_t* client, struct gracht_recv_message* message)
 {
-    gracht_message_t* message         = message_storage;
-    void*             argument_buffer = ((char*)message_storage + sizeof(gracht_message_t));
-    
+    if (!client || !message) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    return client_invoke_action(&client->protocols, message);
+}
+
+int gracht_client_wait_message(gracht_client_t* client, struct gracht_recv_message* message)
+{
     if (!client) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    gracht_protocol_function_t* function = get_protocol_action(client, message->protocol, message->action);
-    if (!function) {
-        _set_errno(EPROTONOSUPPORT);
-        return -1;
-    }
-    invoke_action(message, argument_buffer, function);
-    return 0;
-}
-
-static int create_stream_socket(gracht_client_configuration_t* config)
-{
-    int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-    if (fd == -1) {
-        return -1;
-    }
-    
-    int status = connect(fd, sstosa(&config->address), config->address_length);
-    if (status) {
-        close(fd);
-        return status;
-    }
-    return fd;
-}
-
-static int create_packet_socket(gracht_client_configuration_t* config)
-{
-    int fd = socket(AF_LOCAL, SOCK_DGRAM, 0);
-    if (fd == -1) {
-        return -1;
-    }
-    
-    int status = connect(fd, sstosa(&config->address), config->address_length);
-    if (status) {
-        close(fd);
-        return status;
-    }
-    return fd;
+    return client->ops->recv(client->ops, message, 0);
 }
 
 int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t** client_out)
 {
     gracht_client_t* client;
+    int              status;
     
     client = (gracht_client_t*)malloc(sizeof(gracht_client_t));
     if (!client) {
@@ -196,19 +80,12 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     }
     
     memset(client, 0, sizeof(gracht_client_t));
-    client->type = config->type;
-    switch (config->type) {
-        case gracht_client_stream_based: {
-            client->socket = create_stream_socket(config);
-        } break;
-        case gracht_client_packet_based: {
-            client->socket = create_packet_socket(config);
-        } break;
-    }
+    client->ops = config->link;
     
-    if (client->socket == -1) {
+    status = client->ops->connect(client->ops);
+    if (status) {
         free(client);
-        return -1;
+        return status;
     }
     
     *client_out = client;
@@ -244,8 +121,7 @@ int gracht_client_shutdown(gracht_client_t* client)
         return -1;
     }
     
-    close(client->socket);
+    client->ops->destroy(client->ops);
     free(client);
     return 0;
 }
-

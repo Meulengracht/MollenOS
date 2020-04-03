@@ -22,22 +22,19 @@
  *   resource handles and maintience of resources. 
  */
 
-#ifndef __HANDLE_INTERFACE__
-#define __HANDLE_INTERFACE__
+#ifndef __HANDLE_H__
+#define __HANDLE_H__
 
 #include <os/osdefs.h>
 
-typedef struct handle_event handle_event_t;
-
-typedef enum SystemHandleType {
+typedef enum HandleType {
     HandleTypeGeneric = 0,
     HandleTypeSet,
     HandleTypeMemorySpace,
     HandleTypeMemoryRegion,
     HandleTypeThread,
-    HandleTypePipe,
-    HandleTypeArena
-} SystemHandleType_t;
+    HandleTypeIpcContext
+} HandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);
 
@@ -53,7 +50,7 @@ InitializeHandleJanitor(void);
  */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
-    _In_ SystemHandleType_t Type,
+    _In_ HandleType_t       Type,
     _In_ HandleDestructorFn Destructor,
     _In_ void*              Resource);
 
@@ -65,61 +62,6 @@ CreateHandle(
 KERNELAPI void KERNELABI
 DestroyHandle(
     _In_ UUId_t Handle);
-
-/**
- * CreateHandleSet
- * * Creates a new handle set that can be used for asynchronus events.
- * @param Flags [In] Creation flags that configure the new handle set behaviour. 
- */
-KERNELAPI UUId_t KERNELABI
-CreateHandleSet(
-    _In_  Flags_t Flags);
-
-/**
- * ControlHandleSet
- * * Add, remove or modify a handle in the set.
- * @param SetHandle [In] The handle of the handle set.
- * @param Operation [In] The operation that should be performed.
- * @param Handle    [In] The handle that should be operated on.
- * @param Flags     [In] The flags that should be configured with the handle.
- */
-KERNELAPI OsStatus_t KERNELABI
-ControlHandleSet(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags,
-    _In_ void*   Context);
-
-/**
- * WaitForHandleSet
- * * Waits for the given handle set and stores the events that occurred in the
- * * provided array.
- * @param Handle            [In]
- * @param Events            [In]
- * @param MaxEvents         [In]
- * @param Timeout           [In]
- * @param NumberOfEventsOut [Out]
- */
-KERNELAPI OsStatus_t KERNELABI
-WaitForHandleSet(
-    _In_  UUId_t          Handle,
-    _In_  handle_event_t* Events,
-    _In_  int             MaxEvents,
-    _In_  size_t          Timeout,
-    _Out_ int*            NumberOfEventsOut);
-
-/** 
- * MarkHandle
- * * Marks a handle that an event has been completed. If the handle has any
- * * sets registered they will be notified.
- * @param Handle [In] The handle upon which an event has taken place
- * @param Flags  [In] The event flags which denote which kind of event.
- */
-KERNELAPI OsStatus_t KERNELABI
-MarkHandle(
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags);
 
 /**
  * RegisterHandlePath
@@ -165,7 +107,7 @@ LookupHandle(
  * This can fail if the handle turns out to be invalid, otherwise the resource will be returned. */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-    _In_ UUId_t             Handle,
-    _In_ SystemHandleType_t Type);
+    _In_ UUId_t       Handle,
+    _In_ HandleType_t Type);
 
-#endif //! __HANDLE_INTERFACE__
+#endif //! __HANDLE_H__

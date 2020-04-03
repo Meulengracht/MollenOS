@@ -3,7 +3,7 @@
 
 #include <os/osdefs.h>
 
-typedef struct {
+typedef struct FutexParameters {
     _Atomic(int)* _futex0;
     _Atomic(int)* _futex1;
     int           _val0;

@@ -400,6 +400,10 @@ int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
             handle->object.type = STDIO_HANDLE_SOCKET;
             stdio_get_net_operations(&handle->ops);
         } break;
+        case STDIO_HANDLE_IPCONTEXT: {
+            handle->object.type = STDIO_HANDLE_IPCONTEXT;
+            stdio_get_ipc_operations(&handle->ops);
+        } break;
         
         default: {
             stdio_get_null_operations(&handle->ops);

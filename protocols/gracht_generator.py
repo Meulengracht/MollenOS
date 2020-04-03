@@ -44,12 +44,14 @@ class Enumerator:
         return self.global_scope
 
 class Parameter:
-    def __init__(self, name, typename, count):
+    def __init__(self, name, typename, subtype="void*", count = "1", values = []):
         self.name = name
         self.typename = typename
+        self.subtype = subtype
         self.count = count
         self.output = False
         self.enum_ref = None
+        self.values = values
 
     def set_enum(self, enum_ref):
         self.enum_ref = enum_ref
@@ -64,8 +66,26 @@ class Parameter:
         return self.count
     def get_enum_ref(self):
         return self.enum_ref
+    def get_subtype(self):
+        return self.subtype
+    def get_values(self):
+        return self.values
+    def is_value(self):
+        return not self.is_string() and not self.is_buffer() and not self.is_shm()
+    def is_string(self):
+        return self.typename == "string"
+    def is_buffer(self):
+        return self.typename == "buffer"
+    def is_shm(self):
+        return self.typename == "shm"
     def is_output(self):
         return self.output
+    def has_length_component(self):
+        if self.is_buffer() or self.is_shm():
+            return self.subtype == "void*"
+        if self.is_string() and self.is_output():
+            return True
+        return False
 
 class Event:
     def __init__(self, name, id, params):
@@ -249,6 +269,8 @@ def parse_param(xml_param):
         name = xml_param.get("name")
         p_type = xml_param.get("type")
         count = xml_param.get("count")
+        subtype = xml_param.get("subtype")
+        values = []
         
         # validation
         if name is None:
@@ -256,12 +278,18 @@ def parse_param(xml_param):
         if p_type is None:
             raise Exception("type attribute of <param> tag must be specified")
         
-        # default to count 1
+        # set default parameters for optional values
         if count is None:
             count = "1"
+        if subtype is None:
+            subtype = "void*"
 
+        trace("parsing parameter values: " + name)
+        for xml_value in xml_param.findall('value'):
+            values.append(parse_value(xml_value))
+        
         trace("parsed parameter: " + name)
-        return Parameter(name, p_type, count)
+        return Parameter(name, p_type, subtype, count, values)
     except Exception as e:
         error("could not parse parameter: " + str(e))
     return None
@@ -376,15 +404,19 @@ def parse_protocol_xml(protocol_xml_path):
     protocols = parse_protocols(global_types, global_enums, root)
     return protocols
 
+class CONST(object):
+    __slots__ = ()
+    TYPENAME_CASE_SIZEOF = 0
+    TYPENAME_CASE_FUNCTION_CALL = 1
+    TYPENAME_CASE_FUNCTION_RESPONSE = 2
+    TYPENAME_CASE_MEMBER = 3
+
 ##################
 # C Generator Code
 ##################
 class CGenerator:
     def get_input_struct_name(self, protocol, func):
         return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_args"
-
-    def get_output_struct_name(self, protocol, func):
-        return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_ret"
 
     def get_event_struct_name(self, protocol, evt):
         return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + evt.get_name().lower() + "_event"
@@ -395,53 +427,72 @@ class CGenerator:
         else:
             return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + enum.get_name().lower()
         
-    def get_param_typename(self, protocol, param, omit_parameter_name):
+    def get_param_typename(self, protocol, param, case):
         param_typename = ""
+        
+        # resolve enums and structs
         if param.get_enum_ref() is not None:
             param_typename = "enum " + self.get_enum_name(protocol, param.get_enum_ref())
         else:
             param_typename = param.get_typename()
         
-        # overwrite string with char
-        if param.get_typename() == "string":
-            param_typename = "char"
+        # resolve special types
+        if not param.is_value():
+            if param.is_string():
+                param_typename = "char"
+            elif param.is_buffer():
+                param_typename = param.get_subtype()
         
-        # handle special cases
-        if param.is_output():
-            param_typename = param_typename + "*"
-        if int(param.get_count()) > 1:
-            param_typename = param_typename + "*"
-
-        if omit_parameter_name:
+        # format parameter, unfortunately there are 5 cases to do this
+        if case == CONST.TYPENAME_CASE_SIZEOF:
+            if int(param.get_count()) > 1:
+                param_typename = param_typename + " * " + param.get_count()
             return param_typename
-        else:
-            return param_typename + " "  + param.get_name()
-
-    def get_struct_member_typename(self, protocol, param):
-        param_typename = ""
-        if param.get_enum_ref() is not None:
-            param_typename = "enum " + self.get_enum_name(protocol, param.get_enum_ref())
-        else:
-            param_typename = param.get_typename()
         
-        # overwrite string with char
-        if param.get_typename() == "string":
-            param_typename = "char"
+        elif case == CONST.TYPENAME_CASE_FUNCTION_CALL:
+            param_name = param.get_name()
+            if not param.is_value() and not param_typename.endswith("*"):
+                param_typename = param_typename + "*"
+            if param.is_output():
+                if param.is_value():
+                    param_typename = param_typename + "*"
+                param_name = param_name + "_out"
+            if int(param.get_count()) > 1:
+                param_typename = param_typename + "*"
+            return param_typename + " "  + param_name
 
-        param_typename = param_typename + " "  + param.get_name()
-        if int(param.get_count()) > 1:
-            param_typename = param_typename + "[" + str(param.get_count()) + "]"
+        elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
+            if not param.is_value() and not param_typename.endswith("*"):
+                param_typename = param_typename + "*"
+            if int(param.get_count()) > 1:
+                param_typename = param_typename + "*"
+            return param_typename + " "  + param.get_name()
+        
+        elif case == CONST.TYPENAME_CASE_MEMBER:
+            if not param.is_value() and not param_typename.endswith("*"):
+                param_typename = param_typename + "*"
+            param_typename = param_typename + " "  + param.get_name()
+            if int(param.get_count()) > 1:
+                param_typename = param_typename + "[" + str(param.get_count()) + "]"
+            return param_typename
         return param_typename
 
-    def get_parameter_string(self, protocol, params, omit_parameter_names):
+    def get_parameter_string(self, protocol, params, case):
         last_index = len(params) - 1
         parameter_string = ""
         for index, param in enumerate(params):
-            parameter_string = parameter_string + self.get_param_typename(protocol, param, omit_parameter_names)
+            parameter_string = parameter_string + self.get_param_typename(protocol, param, case)
+            if param.has_length_component():
+                length_param = self.get_param_typename(protocol, Parameter(param.get_name() + "_length", "size_t"), case)
+                parameter_string = parameter_string + ", " + length_param
+
             if index < last_index:
                 parameter_string = parameter_string + ", "
         return parameter_string
 
+    def get_protocol_server_response_name(self, protocol, func):
+        return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_response"
+    
     def get_protocol_server_callback_name(self, protocol, func):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_callback"
 
@@ -451,20 +502,19 @@ class CGenerator:
     def get_protocol_client_event_callback_name(self, protocol, evt):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_callback"
 
-    def get_protocol_event_prototype_name_single(self, protocol, evt, omit_parameter_names):
-        evt_name = "int " + protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_single(int"
-        if not omit_parameter_names:
-            evt_name = evt_name + " client"
+    def get_protocol_event_prototype_name_single(self, protocol, evt, case):
+        evt_client_param = self.get_param_typename(protocol, Parameter("client", "int"), case)
+        evt_name = "int " + protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_single(" + evt_client_param
         
         if len(evt.get_params()) > 0:
-            evt_name = evt_name + ", " + self.get_parameter_string(protocol, evt.get_params(), omit_parameter_names)
+            evt_name = evt_name + ", " + self.get_parameter_string(protocol, evt.get_params(), case)
         return evt_name + ")"
         
-    def get_protocol_event_prototype_name_all(self, protocol, evt, omit_parameter_names):
+    def get_protocol_event_prototype_name_all(self, protocol, evt, case):
         evt_name = "int " + protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_all("
         
         if len(evt.get_params()) > 0:
-            evt_name = evt_name + self.get_parameter_string(protocol, evt.get_params(), omit_parameter_names)
+            evt_name = evt_name + self.get_parameter_string(protocol, evt.get_params(), case)
         else:
             evt_name = evt_name + "void"
         return evt_name + ")"
@@ -501,17 +551,35 @@ class CGenerator:
         outfile.write("#define PROTOCOL_" + prefix + "_ID " + protocol.get_id() + "\n")
         outfile.write("#define PROTOCOL_" + prefix + "_FUNCTION_COUNT " + str(len(protocol.get_functions())) + "\n\n")
 
-        for func in protocol.get_functions():
-            func_prefix = prefix + "_" + func.get_name().upper()
-            outfile.write("#define PROTOCOL_" + func_prefix + "_ID " + func.get_id() + "\n")
-        outfile.write("\n")
+        if len(protocol.get_functions()) > 0:
+            for func in protocol.get_functions():
+                func_prefix = prefix + "_" + func.get_name().upper()
+                outfile.write("#define PROTOCOL_" + func_prefix + "_ID " + func.get_id() + "\n")
+            outfile.write("\n")
 
-        for evt in protocol.get_events():
-            evt_prefix = prefix + "_EVENT_" + evt.get_name().upper()
-            outfile.write("#define PROTOCOL_" + evt_prefix + "_ID " + evt.get_id() + "\n")
-        outfile.write("\n")
+        if len(protocol.get_events()) > 0:
+            for evt in protocol.get_events():
+                evt_prefix = prefix + "_EVENT_" + evt.get_name().upper()
+                outfile.write("#define PROTOCOL_" + evt_prefix + "_ID " + evt.get_id() + "\n")
+            outfile.write("\n")
         return
 
+    def define_message_sizes(self, protocol, outfile):
+        prefix = protocol.get_namespace().upper() + "_" + protocol.get_name().upper()
+        if len(protocol.get_functions()) > 0:
+            for func in protocol.get_functions():
+                func_prefix = prefix + "_" + func.get_name().upper()
+                func_params_all = func.get_request_params() + func.get_response_params()
+                outfile.write("#define PROTOCOL_" + func_prefix + "_SIZE " + self.get_message_size_string(func_params_all) + "\n")
+            outfile.write("\n")
+
+        if len(protocol.get_events()) > 0:
+            for evt in protocol.get_events():
+                evt_prefix = prefix + "_EVENT_" + evt.get_name().upper()
+                outfile.write("#define PROTOCOL_" + evt_prefix + "_SIZE " + self.get_message_size_string(evt.get_params()) + "\n")
+            outfile.write("\n")
+        return
+    
     def write_enum(self, enum_name, values, outfile):
         outfile.write("enum " + enum_name + " {\n")
         for value in values:
@@ -523,39 +591,54 @@ class CGenerator:
         return
 
     def define_enums(self, protocol, outfile):
-        for enum in protocol.get_enums():
-            if len(enum.get_values()):
-                enum_name = self.get_enum_name(protocol, enum)
-                if enum.is_global():
-                    outfile.write("#ifndef __" + enum_name.upper() + "_DEFINED__\n")
-                    outfile.write("#define __" + enum_name.upper() + "_DEFINED__\n")
-                self.write_enum(enum_name, enum.get_values(), outfile)
-                if enum.is_global():
-                    outfile.write("#endif //!__" + enum_name.upper() + "_DEFINED__\n\n")
+        if len(protocol.get_enums()) > 0:
+            for enum in protocol.get_enums():
+                if len(enum.get_values()):
+                    enum_name = self.get_enum_name(protocol, enum)
+                    if enum.is_global():
+                        outfile.write("#ifndef __" + enum_name.upper() + "_DEFINED__\n")
+                        outfile.write("#define __" + enum_name.upper() + "_DEFINED__\n")
+                    self.write_enum(enum_name, enum.get_values(), outfile)
+                    if enum.is_global():
+                        outfile.write("#endif //!__" + enum_name.upper() + "_DEFINED__\n\n")
+            outfile.write("\n")
+        return
+
+    def write_param_values(self, protocol, func, param, outfile):
+        for value in param.get_values():
+            outfile.write("#define " + protocol.get_namespace().upper() + "_" + protocol.get_name().upper() + "_" + func.get_name().upper() + "_" + param.get_name().upper() + "_" + value.get_name() + " " + value.get_value() + "\n")
         outfile.write("\n")
         return
 
-    def write_structure(self, protocol, struct_name, params, outfile):
+    def write_structure(self, protocol, struct_name, params, case, outfile):
         outfile.write("struct " + struct_name + " {\n")
         for param in params:
-            outfile.write("    " + self.get_struct_member_typename(protocol, param) + ";\n")
+            outfile.write("    " + self.get_param_typename(protocol, param, case) + ";\n")
         outfile.write("};\n")
         return
+
+    def define_param_values(self, protocol, func, outfile):
+        for param in func.get_request_params():
+            if len(param.get_values()) > 0:
+                self.write_param_values(protocol, func, param, outfile)
+        for param in func.get_response_params():
+            if len(param.get_values()) > 0:
+                self.write_param_values(protocol, func, param, outfile)
+
+    def define_protocol_values(self, protocol, outfile):
+        for func in protocol.get_functions():
+            self.define_param_values(protocol, func, outfile)
 
     def define_structures(self, protocol, outfile):
         for func in protocol.get_functions():
             if len(func.get_request_params()):
-                self.write_structure(protocol, self.get_input_struct_name(protocol, func), func.get_request_params(), outfile)
-                outfile.write("\n")
-            if len(func.get_response_params()):
-                self.write_structure(protocol, self.get_output_struct_name(protocol, func), func.get_response_params(), outfile)
+                self.write_structure(protocol, self.get_input_struct_name(protocol, func), func.get_request_params(), CONST.TYPENAME_CASE_MEMBER, outfile)
                 outfile.write("\n")
 
         for evt in protocol.get_events():
             if len(evt.get_params()):
-                self.write_structure(protocol, self.get_event_struct_name(protocol, evt), evt.get_params(), outfile)
+                self.write_structure(protocol, self.get_event_struct_name(protocol, evt), evt.get_params(), CONST.TYPENAME_CASE_MEMBER, outfile)
                 outfile.write("\n")
-        outfile.write("\n")
         return
 
     def include_shared_header(self, protocol, outfile):
@@ -585,174 +668,190 @@ class CGenerator:
         outfile.write("\n")
         return
 
-    def get_function_prototype(self, protocol, func, omit_parameter_names):
+    def get_server_callback_prototype(self, protocol, func):
+        function_prototype = "void " + self.get_protocol_server_callback_name(protocol, func) + "("
+        function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), CONST.TYPENAME_CASE_FUNCTION_RESPONSE)
+        parameter_string = function_message_param
+        if len(func.get_request_params()) > 0:
+            parameter_string = parameter_string + ", struct " + self.get_input_struct_name(protocol, func) + "*"
+        return function_prototype + parameter_string + ")"
+
+    def get_response_prototype(self, protocol, func, case):
+        function_prototype = "void " + self.get_protocol_server_response_name(protocol, func) + "("
+        function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
+        parameter_string = function_message_param + ", "
+        parameter_string = parameter_string + self.get_parameter_string(protocol, func.get_response_params(), case)
+        return function_prototype + parameter_string + ")"
+
+    def get_function_prototype(self, protocol, func, case):
         function_prototype = "int " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name()
+        function_client_param = self.get_param_typename(protocol, Parameter("client", "gracht_client_t*"), case)
+        function_context_param = self.get_param_typename(protocol, Parameter("context", "void*"), case)
         parameter_string = ""
         if func.is_synchronous():
-            function_prototype = function_prototype + "_sync(gracht_client_t*"
-            if not omit_parameter_names:
-                function_prototype = function_prototype + " client"
-            input_param_string = self.get_parameter_string(protocol, func.get_request_params(), omit_parameter_names)
-            output_param_string = self.get_parameter_string(protocol, func.get_response_params(), omit_parameter_names)
+            function_prototype = function_prototype + "_sync(" + function_client_param + ", " + function_context_param
+
+            input_param_string = self.get_parameter_string(protocol, func.get_request_params(), case)
+            output_param_string = self.get_parameter_string(protocol, func.get_response_params(), case)
             if len(func.get_request_params()) > 0 or len(func.get_response_params()) > 0:
                 function_prototype = function_prototype + ", "
             if len(func.get_request_params()) > 0 and len(func.get_response_params()) > 0:
                 output_param_string = ", " + output_param_string
             parameter_string = input_param_string + output_param_string
         else:
-            function_prototype = function_prototype + "(gracht_client_t*"
-            if not omit_parameter_names:
-                function_prototype = function_prototype + " client"
-            parameter_string = self.get_parameter_string(protocol, func.get_request_params(), omit_parameter_names)
+            function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
+
+            parameter_string = self.get_parameter_string(protocol, func.get_request_params(), case)
             if parameter_string != "":
                 function_prototype = function_prototype + ", "
         return function_prototype + parameter_string + ")"
 
     def define_prototypes(self, protocol, outfile):
         for func in protocol.get_functions():
-            outfile.write("    " + self.get_function_prototype(protocol, func, True) + ";\n")
+            outfile.write("    " + self.get_function_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_CALL) + ";\n")
         outfile.write("\n")
         return
 
-    def write_input_copy_code(self, params, outfile):
-        for param in params:
-            if int(param.get_count()) > 1:
-                size_function = ""
-                if param.get_typename() == "string":
-                    size_function = "strnlen(&" + param.get_name() + "[0], " + str(param.get_count()) + " - 1) + 1" # include space for null terminator
+    def get_size_function(self, protocol, param):
+        if param.has_length_component():
+            return param.get_name() + "_length"
+        elif param.is_string():
+            return "strlen(&" + param.get_name() + "[0])"
+        return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ")"
+
+    def get_message_flags_func(self, func):
+        if func.is_synchronous():
+            return "MESSAGE_FLAG_SYNC"
+        return "0"
+
+    def get_message_size_string(self, params):
+        message_size = "sizeof(struct gracht_message)"
+        if len(params) > 0:
+            message_size = message_size + " + (" + str(len(params)) + " * sizeof(struct gracht_param))"
+        return message_size
+    
+    def define_message_struct(self, protocol, action_id, params_in, params_out, flags, outfile):
+        params_all = params_in + params_out
+
+        # define variables
+        if len(params_all) > 0:
+            outfile.write("    struct {\n")
+            outfile.write("        struct gracht_message_header __base;\n")
+            outfile.write("        struct gracht_param          __params[" + str(len(params_all)) + "];\n")
+            outfile.write("    } __message = { .__base = { \n")
+            outfile.write("        .length = sizeof(struct gracht_message)")
+            outfile.write(" + (" + str(len(params_all)) + " * sizeof(struct gracht_param))")
+            for param in params_all:
+                if param.has_length_component() and not param.is_output():
+                    outfile.write(" + " + param.get_name() + "_length")
+        else:
+            outfile.write("    struct gracht_message __message = {\n")
+            outfile.write("        .length = sizeof(struct gracht_message)")
+        outfile.write(",\n")
+
+        outfile.write("        .param_in = " + str(len(params_in)) + ",\n")
+        outfile.write("        .param_out = " + str(len(params_out)) + ",\n")
+        outfile.write("        .flags = " + flags + ",\n")
+        outfile.write("        .protocol = " + str(protocol.get_id()) + ",\n")
+        outfile.write("        .action = " + str(action_id))
+        if len(params_all) > 0:
+            outfile.write("\n    }, .__params = {\n")
+            for index, param in enumerate(params_in):
+                size_function = self.get_size_function(protocol, param)
+                if param.is_value():
+                    outfile.write("            { .type = GRACHT_PARAM_VALUE, .data.value = (size_t)" + param.get_name() + ", .length = " + size_function + " }")
+                elif param.is_buffer() or param.is_string():
+                    outfile.write("            { .type = GRACHT_PARAM_BUFFER, .data.buffer = " + param.get_name() + ", .length = " + size_function + " }")
+                elif param.is_shm():
+                    outfile.write("            { .type = GRACHT_PARAM_SHM, .data.buffer = " + param.get_name() + ", .length = " + size_function + " }")
+                
+                if index + 1 < len(params_all):
+                    outfile.write(",\n")
                 else:
-                    size_function = "sizeof(" + param.get_typename() + ") * " + str(param.get_count())
-                outfile.write("    memcpy((void*)&__input." + param.get_name() + "[0], (const void*)&" + param.get_name() + "[0], " + size_function + ");\n")
-            else:
-                outfile.write("    __input." + param.get_name() + " = " + param.get_name() + ";\n")
+                    outfile.write("\n")
+            for index, param in enumerate(params_out):
+                size_function = self.get_size_function(protocol, param)
+                buffer_variable = param.get_name() + "_out"
+                if "MESSAGE_FLAG_SYNC" not in flags:
+                    buffer_variable = "NULL"
+
+                if param.is_value():
+                    outfile.write("            { .type = GRACHT_PARAM_VALUE, .data.buffer = " + buffer_variable + ", .length = " + size_function + " }")
+                elif param.is_buffer() or param.is_string():
+                    outfile.write("            { .type = GRACHT_PARAM_BUFFER, .data.buffer = " + buffer_variable + ", .length = " + size_function + " }")
+                elif param.is_shm():
+                    outfile.write("            { .type = GRACHT_PARAM_SHM, .data.buffer = " + buffer_variable + ", .length = " + size_function + " }")
+                
+                if index + 1 < len(params_out):
+                    outfile.write(",\n")
+                else:
+                    outfile.write("\n")
+            outfile.write("        }")
+        outfile.write("\n    };\n\n")
         return
 
     def define_function_body(self, protocol, func, outfile):
-        input_struct_name = ""
-        output_struct_name = ""
-
-        # define variables
-        outfile.write("    int __status;\n")
-        if len(func.get_request_params()) > 0:
-            input_struct_name = self.get_input_struct_name(protocol, func)
-            outfile.write("    struct " + input_struct_name + " __input;\n")
-        if func.is_synchronous() and len(func.get_response_params()) > 0:
-            output_struct_name = self.get_output_struct_name(protocol, func)
-            outfile.write("    struct " + output_struct_name + " __output;\n")
-        outfile.write("\n")
-
-        # fill in <input> structures from parameters
-        self.write_input_copy_code(func.get_request_params(), outfile)
-
-        # perform call
-        outfile.write("    __status = gracht_client_invoke(client, " + protocol.get_id() + ", " + func.get_id() + ",\n")
-        if len(func.get_request_params()) > 0:
-            outfile.write("        &__input, sizeof(struct " + input_struct_name + "),\n")
-        else:
-            outfile.write("        NULL, 0,\n")
-        
-        if func.is_synchronous() and len(func.get_response_params()) > 0:
-            outfile.write("        &__output, sizeof(struct " + output_struct_name + ")\n")
-        else:
-            outfile.write("        NULL, 0\n")
-        outfile.write("        );\n\n")
-
-        # if synchronous, fill output parameters
-        if func.is_synchronous() and len(func.get_response_params()) > 0:
-            outfile.write("    if (!__status) {\n")
-            for param in func.get_response_params():
-                if int(param.get_count()) > 1:
-                    outfile.write("        memcpy((void*)&" + param.get_name() + "[0], (const void*)&__output." + param.get_name() + "[0], sizeof(" + param.get_typename() + ") * " + str(param.get_count()) + ");\n")
-                else:
-                    outfile.write("        *" + param.get_name() + " = __output." + param.get_name() + ";\n")
-            outfile.write("    }\n")
-        outfile.write("    return __status;\n")
+        flags = self.get_message_flags_func(func)
+        self.define_message_struct(protocol, func.get_id(), func.get_request_params(), func.get_response_params(), flags, outfile)
+        outfile.write("    return gracht_client_invoke(client, (struct gracht_message*)&__message, context);\n")
         return
 
     def define_event_body_single(self, protocol, evt, outfile):
-        input_struct_name = ""
-
-        # define variables
-        outfile.write("    int __status;\n")
-        if len(evt.get_params()) > 0:
-            input_struct_name = self.get_event_struct_name(protocol, evt)
-            outfile.write("    struct " + input_struct_name + " __input;\n")
-        outfile.write("\n")
-
-        # fill in <input> structures from parameters
-        self.write_input_copy_code(evt.get_params(), outfile)
-        
-        # perform call
-        outfile.write("    __status = gracht_server_send_event(client, " + protocol.get_id() + ", " + evt.get_id() + ",\n")
-        if len(evt.get_params()) > 0:
-            outfile.write("        &__input, sizeof(struct " + input_struct_name + "));\n")
-        else:
-            outfile.write("        NULL, 0);\n")
-        outfile.write("    return __status;\n")
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
+        outfile.write("    return gracht_server_send_event(client, &__message, 0);\n")
         return
 
     def define_event_body_all(self, protocol, evt, outfile):
-        input_struct_name = ""
-
-        # define variables
-        outfile.write("    int __status;\n")
-        if len(evt.get_params()) > 0:
-            input_struct_name = self.get_event_struct_name(protocol, evt)
-            outfile.write("    struct " + input_struct_name + " __input;\n")
-        outfile.write("\n")
-
-        # fill in <input> structures from parameters
-        self.write_input_copy_code(evt.get_params(), outfile)
-        
-        # perform call
-        outfile.write("    __status = gracht_server_broadcast_event(" + protocol.get_id() + ", " + evt.get_id() + ",\n")
-        if len(evt.get_params()) > 0:
-            outfile.write("        &__input, sizeof(struct " + input_struct_name + "));\n")
-        else:
-            outfile.write("        NULL, 0);\n")
-        outfile.write("    return __status;\n")
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
+        outfile.write("    return gracht_server_broadcast_event(&__message, 0);\n")
         return
 
+    def define_response_body(self, protocol, func, outfile):
+        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], "0", outfile)
+        outfile.write("    return gracht_server_respond(message, &__message);\n")
+        return
+    
     def define_functions(self, protocol, outfile):
         for func in protocol.get_functions():
-            outfile.write(self.get_function_prototype(protocol, func, False) + "\n")
+            outfile.write(self.get_function_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_CALL) + "\n")
             outfile.write("{\n")
             self.define_function_body(protocol, func, outfile)
             outfile.write("}\n\n")
         return
 
+    def define_server_responses(self, protocol, outfile):
+        for func in protocol.get_functions():
+            if len(func.get_response_params()) > 0:
+                outfile.write(self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
+                outfile.write("{\n")
+                self.define_response_body(protocol, func, outfile)
+                outfile.write("}\n\n")
+
     def define_events(self, protocol, outfile):
         for evt in protocol.get_events():
-            outfile.write(self.get_protocol_event_prototype_name_single(protocol, evt, False) + "\n")
+            outfile.write(self.get_protocol_event_prototype_name_single(protocol, evt, CONST.TYPENAME_CASE_FUNCTION_CALL) + "\n")
             outfile.write("{\n")
             self.define_event_body_single(protocol, evt, outfile)
             outfile.write("}\n\n")
             
-            outfile.write(self.get_protocol_event_prototype_name_all(protocol, evt, False) + "\n")
+            outfile.write(self.get_protocol_event_prototype_name_all(protocol, evt, CONST.TYPENAME_CASE_FUNCTION_CALL) + "\n")
             outfile.write("{\n")
             self.define_event_body_all(protocol, evt, outfile)
             outfile.write("}\n\n")
         return
 
     def write_protocol_server_callback(self, protocol, func, outfile):
-        outfile.write("    void " + self.get_protocol_server_callback_name(protocol, func) + "(int")
-        if len(func.get_request_params()) > 0:
-            outfile.write(", struct " + self.get_input_struct_name(protocol, func) + "*")
+        outfile.write("    " + self.get_server_callback_prototype(protocol, func))
+        outfile.write(";\n")
+        
         if len(func.get_response_params()) > 0:
-            outfile.write(", struct " + self.get_output_struct_name(protocol, func) + "*")
-        outfile.write(");\n")
-        return
-
-    def write_protocol_client_callback(self, protocol, func, outfile):
-        if len(func.get_response_params()) > 0:
-            outfile.write("void " + self.get_protocol_server_callback_name(protocol, func) + "(")
-            outfile.write("struct " + self.get_output_struct_name(protocol, func) + "*")
-            outfile.write(");\n")
+            outfile.write("    " + self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE))
+            outfile.write(";\n")
         return
 
     def write_protocol_event_prototype(self, protocol, evt, outfile):
-        outfile.write("    " + self.get_protocol_event_prototype_name_single(protocol, evt, True) + ";\n")
-        outfile.write("    " + self.get_protocol_event_prototype_name_all(protocol, evt, True) + ";\n")
+        outfile.write("    " + self.get_protocol_event_prototype_name_single(protocol, evt, CONST.TYPENAME_CASE_FUNCTION_CALL) + ";\n")
+        outfile.write("    " + self.get_protocol_event_prototype_name_all(protocol, evt, CONST.TYPENAME_CASE_FUNCTION_CALL) + ";\n")
         return
 
     def write_protocol_event_callback(self, protocol, evt, outfile):
@@ -785,24 +884,19 @@ class CGenerator:
             outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
         return
     
-    def write_protocol_server_prototype(self, protocol, outfile):
-        if len(protocol.get_functions()) > 0:
-            outfile.write("    extern gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol;\n")
-        return
-    
-    def write_protocol_client_prototype(self, protocol, outfile):
+    def write_protocol_prototype(self, protocol, outfile):
         if len(protocol.get_events()) > 0:
             outfile.write("    extern gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol;\n")
         return
     
-    def write_protocol_client_event_prototypes(self, protocol, outfile):
+    def write_client_protocol_prototypes(self, protocol, outfile):
         if len(protocol.get_events()) > 0:
             for evt in protocol.get_events():
                 self.write_protocol_event_callback(protocol, evt, outfile)
             outfile.write("\n")
         return
     
-    def write_protocol_client(self, protocol, outfile):
+    def write_client_protocol(self, protocol, outfile):
         if len(protocol.get_events()) > 0:
             function_array_name = protocol.get_namespace() + "_" + protocol.get_name() + "_functions"
             outfile.write("static gracht_protocol_function_t " + function_array_name + "[] = {\n")
@@ -810,7 +904,7 @@ class CGenerator:
                 outfile.write("    { " + evt.get_id() + ", " + self.get_protocol_client_callback_name(protocol, evt) + " },\n")
             outfile.write("};\n\n")
             outfile.write("gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
-            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_events())) + ", " + function_array_name + ");\n\n")
+            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
         return
 
     def generate_shared_header(self, protocol, directory):
@@ -821,7 +915,9 @@ class CGenerator:
             self.write_header_guard_start(file_name, f)
             self.define_protocol_headers(protocol, f)
             self.define_shared_ids(protocol, f)
+            self.define_message_sizes(protocol, f)
             self.define_enums(protocol, f)
+            self.define_protocol_values(protocol, f)
             self.define_structures(protocol, f)
             self.write_header_guard_end(file_name, f)
         return
@@ -837,8 +933,8 @@ class CGenerator:
             self.define_types(protocol, f)
             self.write_c_guard_start(f)
             self.define_prototypes(protocol, f)
-            self.write_protocol_client_event_prototypes(protocol, f)
-            self.write_protocol_client_prototype(protocol, f)
+            self.write_client_protocol_prototypes(protocol, f)
+            self.write_protocol_prototype(protocol, f)
             self.write_c_guard_end(f)
             self.write_header_guard_end(file_name, f)
         return
@@ -849,7 +945,7 @@ class CGenerator:
         with open(file_path, 'w') as f:
             self.write_header(f)
             self.define_headers(["\"" + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol_client.h\"", "<string.h>"], f)
-            self.write_protocol_client(protocol, f)
+            self.write_client_protocol(protocol, f)
             self.define_functions(protocol, f)
         return
 
@@ -864,7 +960,7 @@ class CGenerator:
             self.define_types(protocol, f)
             self.write_c_guard_start(f)
             self.write_server_protocol_prototypes(protocol, f)
-            self.write_protocol_server_prototype(protocol, f)
+            self.write_protocol_prototype(protocol, f)
             self.write_c_guard_end(f)
             self.write_header_guard_end(file_name, f)
         return
@@ -876,21 +972,24 @@ class CGenerator:
             self.write_header(f)
             self.define_headers(["\"" + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol_server.h\"", "<string.h>"], f)
             self.write_server_protocol(protocol, f)
+            self.define_server_responses(protocol, f)
             self.define_events(protocol, f)
         return
     
-    def generate_client_files(self, out, protocols):
+    def generate_client_files(self, out, protocols, include_protocols):
         for proto in protocols:
-            self.generate_shared_header(proto, out)
-            self.generate_client_header(proto, out)
-            self.generate_client_impl(proto, out)
+            if (len(include_protocols) == 0) or (proto.get_name() in include_protocols):
+                self.generate_shared_header(proto, out)
+                self.generate_client_header(proto, out)
+                self.generate_client_impl(proto, out)
         return
 
-    def generate_server_files(self, out, protocols):
+    def generate_server_files(self, out, protocols, include_protocols):
         for proto in protocols:
-            self.generate_shared_header(proto, out)
-            self.generate_server_header(proto, out)
-            self.generate_server_impl(proto, out)
+            if (len(include_protocols) == 0) or (proto.get_name() in include_protocols):
+                self.generate_shared_header(proto, out)
+                self.generate_server_header(proto, out)
+                self.generate_server_impl(proto, out)
         return
 
 ##########################################
@@ -903,21 +1002,26 @@ def main(args):
     
     output_dir = get_dir_or_default(args.out, args.protocol)
     protocols = parse_protocol_xml(args.protocol)
+    include_protocols = []
     generator = None
+    
+    if args.include:
+        include_protocols = args.include.split(',')
 
     if args.lang_c:
         generator = CGenerator()
 
     if generator is not None:
         if args.client:
-            generator.generate_client_files(output_dir, protocols)
+            generator.generate_client_files(output_dir, protocols, include_protocols)
         if args.server:
-            generator.generate_server_files(output_dir, protocols)
+            generator.generate_server_files(output_dir, protocols, include_protocols)
     return
 
 if __name__== "__main__":
     parser = argparse.ArgumentParser(description='Optional app description')
     parser.add_argument('--protocol', type=str, help='The protocol that should be parsed')
+    parser.add_argument('--include', type=str, help='The protocols that should be generated from the file, comma-seperated list, default is all')
     parser.add_argument('--out', type=str, help='Protocol files output directory')
     parser.add_argument('--client', action='store_true', help='Generate client side files')
     parser.add_argument('--server', action='store_true', help='Generate server side files')

@@ -52,21 +52,22 @@
  * Memory / Addressing types below 
  * these will switch in size based upon target-arch 
  */
-typedef uint32_t                    reg32_t;
-typedef uint64_t                    reg64_t;
+
+typedef uint32_t reg32_t;
+typedef uint64_t reg64_t;
 
 #if defined(i386) || defined(__i386__)
-#define __BITS                      32
-#define __MASK                      0xFFFFFFFF
-typedef unsigned int                PhysicalAddress_t;
-typedef unsigned int                VirtualAddress_t;
-typedef reg32_t                     reg_t;
+#define __BITS             32
+#define __MASK             0xFFFFFFFF
+typedef unsigned int       PhysicalAddress_t;
+typedef unsigned int       VirtualAddress_t;
+typedef reg32_t            reg_t;
 #elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
-#define __BITS                      64
-#define __MASK                      0xFFFFFFFFFFFFFFFF
-typedef unsigned long long          PhysicalAddress_t;
-typedef unsigned long long          VirtualAddress_t;
-typedef reg64_t                     reg_t;
+#define __BITS             64
+#define __MASK             0xFFFFFFFFFFFFFFFF
+typedef unsigned long long PhysicalAddress_t;
+typedef unsigned long long VirtualAddress_t;
+typedef reg64_t            reg_t;
 #endif
 
 /**
@@ -74,15 +75,15 @@ typedef reg64_t                     reg_t;
  * these are usually fixed no matter arch and include stuff as threading, processing etc 
  */
 typedef unsigned int IntStatus_t;
-typedef size_t       UUId_t; 
+typedef unsigned int UUId_t;
 typedef unsigned int Flags_t;
 typedef unsigned     DevInfo_t;
 typedef void*        Handle_t;
 
-#define UUID_INVALID                (UUId_t)-1
+#define UUID_INVALID 0
 
-#define HANDLE_INVALID              (Handle_t)0
-#define HANDLE_GLOBAL               (Handle_t)1
+#define HANDLE_INVALID (Handle_t)0
+#define HANDLE_GLOBAL  (Handle_t)1
 
 typedef enum {
     OsSuccess = 0,
