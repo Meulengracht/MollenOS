@@ -23,6 +23,8 @@
  */
 
 #include "include/gracht/types.h"
+#include "include/gracht/list.h"
+#include <errno.h>
 
 // client callbacks
 typedef void (*client_invoke00_t)(void);
@@ -64,23 +66,23 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
                 unpackBuffer[unpackIndex] = (uint8_t)(params[i].data.value & 0xFF);
             }
             else if (params[i].length == 2) {
-                *((uint16_t*)unpackBuffer[unpackIndex]) = (uint16_t)(params[i].data.value & 0xFFFF);
+                *((uint16_t*)&unpackBuffer[unpackIndex]) = (uint16_t)(params[i].data.value & 0xFFFF);
             }
             else if (params[i].length == 4) {
-                *((uint32_t*)unpackBuffer[unpackIndex]) = (uint32_t)(params[i].data.value & 0xFFFFFFFF);
+                *((uint32_t*)&unpackBuffer[unpackIndex]) = (uint32_t)(params[i].data.value & 0xFFFFFFFF);
             }
 #if defined(amd64) || defined(__amd64__)
             else if (params[i].length == 8) {
-                *((uint64_t*)unpackBuffer[unpackIndex]) = params[i].data.value;
+                *((uint64_t*)&unpackBuffer[unpackIndex]) = params[i].data.value;
             }
 #endif
         }
         else if (params[i].type == GRACHT_PARAM_BUFFER) {
-            *((char**)unpackBuffer[unpackIndex]) = params_storage;
+            *((char**)&unpackBuffer[unpackIndex]) = params_storage;
             params_storage += params[i].length;
         }
         else if (params[i].type == GRACHT_PARAM_SHM) {
-            *((char**)unpackBuffer[unpackIndex]) = (char*)params[i].data.buffer;
+            *((char**)&unpackBuffer[unpackIndex]) = (char*)params[i].data.buffer;
         }
         
         unpackIndex += sizeof(void*);
@@ -92,8 +94,6 @@ int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
     gracht_protocol_function_t* function = get_protocol_action(protocols,
         message->protocol, message->action);
     
-    
-    TRACE("[invoke_action] %u, %u", message->protocol, message->action);
     if (!function) {
         _set_errno(EPROTONOSUPPORT);
         return -1;
@@ -101,7 +101,7 @@ int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
     
     if (message->param_count) {
         uint8_t unpackBuffer[message->param_count * sizeof(void*)];
-        unpack_parameters(message, &unpackBuffer);
+        unpack_parameters(message, &unpackBuffer[0]);
         ((server_invokeA0_t)function->address)(message, &unpackBuffer[0]);
     }
     else {
@@ -122,7 +122,7 @@ int client_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
     // parse parameters into a parameter struct
     if (message->param_count) {
         uint8_t unpackBuffer[message->param_count * sizeof(void*)];
-        unpack_parameters(message, &unpackBuffer);
+        unpack_parameters(message, &unpackBuffer[0]);
         ((client_invokeA0_t)function->address)(&unpackBuffer[0]);
     }
     else {

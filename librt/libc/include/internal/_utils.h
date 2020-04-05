@@ -3,6 +3,8 @@
 
 #include <os/osdefs.h>
 
+typedef struct gracht_client gracht_client_t;
+
 typedef struct FutexParameters {
     _Atomic(int)* _futex0;
     _Atomic(int)* _futex1;
@@ -13,8 +15,9 @@ typedef struct FutexParameters {
     size_t        _timeout;
 } FutexParameters_t;
 
-extern int IsProcessModule(void);
-extern UUId_t* GetInternalProcessId(void);
-extern const char* GetInternalCommandLine(void);
+extern int              IsProcessModule(void);
+extern UUId_t*          GetInternalProcessId(void);
+extern const char*      GetInternalCommandLine(void);
+extern gracht_client_t* GetGrachtClient(void);
 
 #endif

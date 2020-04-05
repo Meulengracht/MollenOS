@@ -23,9 +23,12 @@
  */
 
 #include <ddk/handle.h>
+#include <errno.h>
 #include <internal/_ipc.h>
+#include <internal/_io.h>
 #include <internal/_syscalls.h>
 #include <ipcontext.h>
+#include <os/mollenos.h>
 
 int ipcontext(unsigned int len, struct ipmsg_addr* addr)
 {
@@ -90,7 +93,7 @@ int putmsg(int iod, struct ipmsg_desc* msg, int timeout)
     }
     
     status = Syscall_IpcContextSend(&msg, 1, timeout);
-    return OsStatusToErrno(os_status);
+    return OsStatusToErrno(status);
 }
 
 int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
@@ -121,7 +124,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
         sb_options |= STREAMBUFFER_NO_BLOCK;
     }
     
-    stream         = io_object->object.data.ipcontext.stream;
+    stream         = handle->object.data.ipcontext.stream;
     bytesAvailable = streambuffer_read_packet_start(stream, sb_options, &base, &state);
     if (!bytesAvailable) {
         _set_errno(ENODATA);
@@ -143,7 +146,7 @@ int resp(int iod, struct ipmsg* msg, struct ipmsg_base* msgbase)
         return -1;
     }
     
-    if (!len || !msg || !buffer) {
+    if (!msg || !msgbase) {
         _set_errno(EINVAL);
         return -1;
     }
@@ -153,6 +156,6 @@ int resp(int iod, struct ipmsg* msg, struct ipmsg_base* msgbase)
         return -1;
     }
     
-    status = Syscall_IpcContextRespond(&msg, &buffer, &len, 1);
-    return OsStatusToErrno(os_status);
+    status = Syscall_IpcContextRespond(&msg, &msgbase, 1);
+    return OsStatusToErrno(status);
 }

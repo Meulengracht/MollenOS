@@ -77,7 +77,7 @@ _CODE_END
 
 #define Syscall_IpcContextCreate(Size, HandleOut, UserContextOut)          (OsStatus_t)syscall3(45, SCPARAM(Size), SCPARAM(HandleOut), SCPARAM(UserContextOut))
 #define Syscall_IpcContextSend(Messages, MessageCount, Timeout)            (OsStatus_t)syscall3(46, SCPARAM(Messages), SCPARAM(MessageCount), SCPARAM(Timeout))
-#define Syscall_IpcContextRespond(Replies, Buffers, Sizes, Count)          (OsStatus_t)syscall4(47, SCPARAM(Replies), SCPARAM(Buffers), SCPARAM(Sizes), SCPARAM(Count))
+#define Syscall_IpcContextRespond(Replies, ReplyMessages, Count)           (OsStatus_t)syscall3(47, SCPARAM(Replies), SCPARAM(ReplyMessages), SCPARAM(Count))
 
 #define Syscall_MemoryAllocate(Hint, Size, Flags, MemoryOut)               (OsStatus_t)syscall4(48, SCPARAM(Hint), SCPARAM(Size), SCPARAM(Flags), SCPARAM(MemoryOut))
 #define Syscall_MemoryFree(Pointer, Size)                                  (OsStatus_t)syscall2(49, SCPARAM(Pointer), SCPARAM(Size))

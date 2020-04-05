@@ -81,16 +81,14 @@ struct ipmsg_base {
 };
 
 struct ipmsg_desc {
-    Flags_t            flags;
     struct ipmsg_addr* address;
-    
     struct ipmsg_base* base;
     struct ipmsg_resp* response;
 };
 
 struct ipmsg {
-    struct ipmsg_resp     response;
-    struct gracht_message base;
+    struct ipmsg_resp response;
+    struct ipmsg_base base;
 };
 
 #define IPMSG_DONTWAIT 0x1

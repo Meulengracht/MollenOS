@@ -24,8 +24,8 @@
 #ifndef __GRACHT_LINK_VALI_H__
 #define __GRACHT_LINK_VALI_H__
 
-#include <gracht/link/link.h>
-#include <gracht/client.h>
+#include "link.h"
+#include "../client.h"
 #include <ipcontext.h>
 #include <os/osdefs.h>
 
@@ -35,12 +35,13 @@ struct vali_link_message {
     void*             response_buffer;
 };
 
+#define VALI_MSG_INIT_HANDLE(handle) { { IPMSG_ADDRESS_HANDLE, { handle } }, { 0 }, NULL }
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Link API
-void gracht_vali_message_init(gracht_client_t*, struct vali_link_message*);
 int  gracht_vali_message_create(gracht_client_t*, int message_size, struct vali_link_message**);
 void gracht_vali_message_finish(struct vali_link_message*);
 

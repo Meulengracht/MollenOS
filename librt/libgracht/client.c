@@ -26,7 +26,6 @@
 #include <inet/socket.h>
 #include <io.h>
 #include "include/gracht/client.h"
-#include "include/gracht/connection.h"
 #include "include/gracht/crc.h"
 #include "include/gracht/list.h"
 #include <signal.h>

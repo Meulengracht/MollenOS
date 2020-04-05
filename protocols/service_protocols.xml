@@ -10,7 +10,7 @@
         <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
         <type name="ProcessStartupInformation_t" header="os/types/process.h" />
     </types>
-    <protocols namespace="sys">
+    <protocols namespace="svc">
         <protocol name="session" id="0x1">
             <functions>
                 <function name="login" synchronous="true">

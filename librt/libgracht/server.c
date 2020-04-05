@@ -28,6 +28,7 @@
 #include "include/gracht/aio.h"
 #include "include/gracht/list.h"
 #include "include/gracht/server.h"
+#include "include/gracht/link/link.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,7 +51,7 @@ struct gracht_server {
     int                     dgram_iod;
     struct gracht_list      protocols;
     struct gracht_list      clients;
-} server_object = { { 0 } };
+} server_object = { NULL, 0, -1, -1, -1, { 0 }, { 0 } };
 
 int gracht_server_initialize(gracht_server_configuration_t* configuration)
 {
@@ -125,7 +126,7 @@ static int handle_sync_event(int iod, uint32_t events, void* storage)
     int                        status;
     TRACE("[handle_sync_event] %i, 0x%x", socket, events);
     
-    status = server_object.ops->recv_packet(server_object->ops, &message, MSG_DONTWAIT);
+    status = server_object.ops->recv_packet(server_object.ops, &message, MSG_DONTWAIT);
     if (status) {
         ERROR("[handle_sync_event] gracht_connection_recv_message returned %i", errno);
         return -1;
@@ -136,16 +137,15 @@ static int handle_sync_event(int iod, uint32_t events, void* storage)
 static int handle_async_event(int iod, uint32_t events, void* storage)
 {
     int                          status;
-    gracht_protocol_function_t*  function;
     struct gracht_recv_message   message = { .storage = storage };
     struct gracht_server_client* client = 
         (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, iod);
-    TRACE("[handle_async_event] %i, 0x%x", socket, events);
+    TRACE("[handle_async_event] %i, 0x%x", iod, events);
     
     // Check for control event. On non-passive sockets, control event is the
     // disconnect event.
     if (events & IOEVTCTL) {
-        status = gracht_aio_remove(server_object.socket_set, iod);
+        status = gracht_aio_remove(server_object.completion_iod, iod);
         if (status) {
             // TODO log
         }
@@ -156,17 +156,9 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
     }
     else if ((events & IOEVTIN) || !events) {
         while (1) {
-            status = client->ops->recv(socket, &message, MSG_DONTWAIT);
+            status = client->ops->recv(client->ops, &message, MSG_DONTWAIT);
             if (status) {
                 ERROR("[handle_async_event] gracht_connection_recv_message returned %i", errno);
-                break;
-            }
-            
-            function = get_protocol_action(message.protocol, message.action);
-            if (!function) {
-                ERROR("[handle_async_event] get_protocol_action returned null");
-                _set_errno(ENOENT);
-                status = -1;
                 break;
             }
             
@@ -183,12 +175,12 @@ static int gracht_server_shutdown(void)
     
     assert(server_object.initialized == 1);
     
-    client = &server_object.clients.head;
+    client = (struct gracht_server_client*)server_object.clients.head;
     while (client) {
         client->ops->close(client->ops);
         
         prev   = client;
-        client = client->link;
+        client = (struct gracht_server_client*)client->header.link;
         free(prev);
     }
     server_object.clients.head = NULL;
@@ -222,13 +214,13 @@ int gracht_server_main_loop(void)
         for (i = 0; i < num_events; i++) {
             int      iod   = gracht_aio_event_iod(&events[i]);
             uint32_t flags = gracht_aio_event_events(&events[i]);
-            if (iod == server_object.client_socket) {
+            if (iod == server_object.client_iod) {
                 if (handle_client_socket()) {
                     // TODO - log
                 }
             }
-            else if (iod == server_object.dgram_socket) {
-                handle_sync_event(server_object.dgram_socket, flags, storage);
+            else if (iod == server_object.dgram_iod) {
+                handle_sync_event(server_object.dgram_iod, flags, storage);
             }
             else {
                 handle_async_event(iod, flags, storage);
@@ -247,7 +239,7 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
         return -1;
     }
     
-    return server_object.ops->respond(server_object.ops, messageContext, &message);
+    return server_object.ops->respond(server_object.ops, messageContext, message);
 }
 
 int gracht_server_send_event(int client, struct gracht_message* message, unsigned int flags)
@@ -266,10 +258,10 @@ int gracht_server_broadcast_event(struct gracht_message* message, unsigned int f
 {
     struct gracht_server_client* client;
     
-    client = &server_object.clients.head;
+    client = (struct gracht_server_client*)server_object.clients.head;
     while (client) {
         client->ops->send(client->ops, message, flags);
-        client = client->link;
+        client = (struct gracht_server_client*)client->header.link;
     }
     return 0;
 }

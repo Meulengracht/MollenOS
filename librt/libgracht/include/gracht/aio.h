@@ -30,16 +30,16 @@
 #include <io_events.h>
 #include <io.h>
 
-typedef struct io_event gracht_aio_event_t
+typedef struct io_event gracht_aio_event_t;
 
 #define gracht_aio_create()                io_set_create(0)
 #define gracht_io_wait(aio, events, count) io_set_wait(aio, events, count, 0)
-#define gracht_aio_add(aio, iod)           io_set_ctrl(aio_iod, IO_EVT_DESCRIPTOR_ADD, iod, IOEVTIN | IOEVTCTL);
-#define gracht_aio_remove(aio, iod)        io_set_ctrl(aio_iod, IO_EVT_DESCRIPTOR_DEL, iod, 0);
+#define gracht_aio_add(aio, iod)           io_set_ctrl(aio, IO_EVT_DESCRIPTOR_ADD, iod, IOEVTIN | IOEVTCTL);
+#define gracht_aio_remove(aio, iod)        io_set_ctrl(aio, IO_EVT_DESCRIPTOR_DEL, iod, 0);
 #define gracht_aio_destroy(aio)            close(aio)
 
-#define gracht_aio_event_iod(event)        event->iod
-#define gracht_aio_event_events(event)     event->events
+#define gracht_aio_event_iod(event)        (event)->iod
+#define gracht_aio_event_events(event)     (event)->events
 
 #else
 #error "Undefined platform for aio"

@@ -21,16 +21,13 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <gracht/link/vali.h>
+#include <errno.h>
+#include <ddk/bytepool.h>
+#include "../../include/gracht/link/vali.h"
 #include <stdlib.h>
+#include <string.h>
 
 // message size is defined by protocol generator
-
-void gracht_vali_message_init(gracht_client_t* client, struct vali_link_message* message)
-{
-    
-}
-
 int gracht_vali_message_create(gracht_client_t* client, int message_size, struct vali_link_message** messageOut)
 {
     struct vali_link_message* message = malloc(sizeof(struct vali_link_message) + message_size);
@@ -39,8 +36,7 @@ int gracht_vali_message_create(gracht_client_t* client, int message_size, struct
         return -1;
     }
     
-    gracht_vali_message_init(client, message);
-    
+    memset(message, 0, sizeof(struct vali_link_message) + message_size);
     *messageOut = message;
     return 0;
 }
@@ -48,5 +44,5 @@ int gracht_vali_message_create(gracht_client_t* client, int message_size, struct
 // the finish will then clean up shm
 void gracht_vali_message_finish(struct vali_link_message* message)
 {
-    brel(linkManager->pool, messageContext->response_buffer);
+    brel(NULL /*linkManager->pool*/, message->response_buffer);
 }

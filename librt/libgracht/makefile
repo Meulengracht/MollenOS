@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../include -I../libc/include -I../libddk/include
+INCLUDES = -I../include -I../libddk/include -I../libds/include -I../libc/include
 
 SOURCES = $(wildcard *.c) $(wildcard os/vali/*.c)
 OBJECTS = $(SOURCES:.c=.o)

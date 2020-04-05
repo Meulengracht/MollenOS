@@ -28,10 +28,14 @@
 #include <ds/streambuffer.h>
 #include <ddk/bytepool.h>
 #include <errno.h>
-#include <gracht/link/vali.h>
+#include <internal/_syscalls.h>
+#include "../../include/gracht/link/vali.h"
 #include <os/dmabuf.h>
+#include <os/mollenos.h>
+#include <stdlib.h>
+#include <string.h>
 
-static struct vali_link_manager {
+struct vali_link_manager {
     struct client_link_ops ops;
     struct dma_attachment  dma;
     bytepool_t*            pool;
@@ -43,36 +47,36 @@ static int vali_link_connect(struct client_link_ops* linkManager)
     return -1;
 }
 
-static int vali_link_unpack_response(void* buffer, struct gracht_message* message)
+static void vali_link_unpack_response(void* buffer, struct gracht_message* message)
 {
     char* pointer = buffer;
     int   i;
     
-    for (i = 0; i < messageBase->param_out; i++) {
-        struct gracht_param* param = &messageBase->params[messageBase->param_in + i];
+    for (i = 0; i < message->header.param_out; i++) {
+        struct gracht_param* param = &message->params[message->header.param_in + i];
         
-        if (param->type == PARAM_VALUE) {
-            if (param->data.buffer.length == 1) {
-                *((uint8_t*)param->data.buffer.pointer) = *((uint8_t*)pointer);
+        if (param->type == GRACHT_PARAM_VALUE) {
+            if (param->length == 1) {
+                *((uint8_t*)param->data.buffer) = *((uint8_t*)pointer);
             }
-            else if (param->data.buffer.length == 2) {
-                *((uint16_t*)param->data.buffer.pointer) = *((uint16_t*)pointer);
+            else if (param->length == 2) {
+                *((uint16_t*)param->data.buffer) = *((uint16_t*)pointer);
             }
-            else if (param->data.buffer.length == 4) {
-                *((uint32_t*)param->data.buffer.pointer) = *((uint32_t*)pointer);
+            else if (param->length == 4) {
+                *((uint32_t*)param->data.buffer) = *((uint32_t*)pointer);
             }
-            else if (param->data.buffer.length == 8) {
-                *((uint64_t*)param->data.buffer.pointer) = *((uint64_t*)pointer);
+            else if (param->length == 8) {
+                *((uint64_t*)param->data.buffer) = *((uint64_t*)pointer);
             }
         }
-        else if (param->type == PARAM_BUFFER) {
-            memcpy(param->data.buffer.pointer, pointer, param->data.buffer.length);
+        else if (param->type == GRACHT_PARAM_BUFFER) {
+            memcpy(param->data.buffer, pointer, param->length);
         }
-        pointer += param->data.buffer.length;
+        pointer += param->length;
     }
 }
 
-static int vali_link_message_finish(struct vali_link_manager* linkManager
+static int vali_link_message_finish(struct vali_link_manager* linkManager,
     struct vali_link_message* messageContext)
 {
     brel(linkManager->pool, messageContext->response_buffer);
@@ -82,22 +86,20 @@ static int vali_link_message_finish(struct vali_link_manager* linkManager
 static int vali_link_send_packet(struct vali_link_manager* linkManager,
     struct gracht_message* messageBase, struct vali_link_message* messageContext)
 {
-    struct ipmsg_desc message;
-    OsStatus_t        status;
-    int               i;
+    struct ipmsg_desc  message;
+    struct ipmsg_desc* messagePointer = &message;
+    OsStatus_t         status;
+    int                i;
     
-    message.flags    = flags;
     message.address  = &messageContext->address;
     message.response = &messageContext->response;
     message.base     = (struct ipmsg_base*)messageBase;
     
     // Setup the response
-    if (messageBase->param_out) {
+    if (messageBase->header.param_out) {
         size_t length = 0;
-        for (i = 0; i < messageBase->param_out; i++) {
-            iov_out[i].iov_base = messageBase->params[messageBase->param_in + i].data.buffer;
-            iov_out[i].iov_len  = messageBase->params[messageBase->param_in + i].data.length;
-            length += messageBase->params[messageBase->param_in + i].data.length;
+        for (i = 0; i < messageBase->header.param_out; i++) {
+            length += messageBase->params[messageBase->header.param_in + i].length;
         }
         
         messageContext->response_buffer = bget(linkManager->pool, length);
@@ -106,12 +108,13 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
             return -1;
         }
         
-        message.ResponseDma       = linkManager.dma.handle;
-        message.ResponseDmaOffset = LOWORD(((uintptr_t)messageContext->response_buffer - (uintptr_t)linkManager.dma.buffer));
+        messageContext->response.dma_handle = linkManager->dma.handle;
+        messageContext->response.dma_offset = LOWORD(
+            ((uintptr_t)messageContext->response_buffer - (uintptr_t)linkManager->dma.buffer));
     }
     
-    status = Syscall_IpcContextSend(&message, 0);
-    if (messageBase->param_out && (messageBase->flags & MESSAGE_CONFIG_SYNC)) {
+    status = Syscall_IpcContextSend(&messagePointer, 1, 0);
+    if (messageBase->header.param_out && (messageBase->header.flags & MESSAGE_FLAG_SYNC)) {
         vali_link_unpack_response(messageContext->response_buffer, messageBase);
         vali_link_message_finish(linkManager, messageContext);
     }
@@ -178,8 +181,8 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
     
     linkManager->ops.connect = vali_link_connect;
     linkManager->ops.recv    = vali_link_recv;
-    linkManager->ops.send    = vali_link_send_packet;
-    linkManager->ops.destroy = vali_link_destroy;
+    linkManager->ops.send    = (client_link_send_fn)vali_link_send_packet;
+    linkManager->ops.destroy = (client_link_destroy_fn)vali_link_destroy;
     
     *linkOut = &linkManager->ops;
     return 0;

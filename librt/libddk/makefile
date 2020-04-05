@@ -15,13 +15,13 @@ else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
-PROTOCOLS_C = protocols/sys_session_protocol_client.c \
-			  protocols/sys_storage_protocol_client.c \
-			  protocols/sys_file_protocol_client.c \
-			  protocols/sys_path_protocol_client.c \
-			  protocols/sys_process_protocol_client.c \
-			  protocols/sys_library_protocol_client.c \
-			  protocols/sys_socket_protocol_client.c
+PROTOCOLS_C = protocols/svc_session_protocol_client.c \
+			  protocols/svc_storage_protocol_client.c \
+			  protocols/svc_file_protocol_client.c \
+			  protocols/svc_path_protocol_client.c \
+			  protocols/svc_process_protocol_client.c \
+			  protocols/svc_library_protocol_client.c \
+			  protocols/svc_socket_protocol_client.c
 
 ASM_SOURCES = $(wildcard arch/$(VALI_ARCH)/*.s)
 SOURCES = $(wildcard **/*.c) $(wildcard *.c)
@@ -34,11 +34,13 @@ LFLAGS = /lib
 # default-target
 .PHONY: all
 all: protocols ../build/ddk.lib
+	@mkdir -p include/ddk/protocols
+	cp protocols/*.h include/ddk/protocols/
 
 protocols:
 	mkdir -p $@
 
-protocols/sys_session_protocol_client.c: ../../protocols/service_protocols.xml
+protocols/svc_session_protocol_client.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
 	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
 
@@ -59,5 +61,6 @@ protocols/sys_session_protocol_client.c: ../../protocols/service_protocols.xml
 .PHONY: clean
 clean:
 	@rm -rf protocols
+	@rm -rf include/ddk/protocols
 	@rm -f ../build/ddk.lib
 	@rm -f $(OBJECTS)
