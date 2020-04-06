@@ -5,7 +5,7 @@
 include ../../config/common.mk
 
 ASFLAGS = -f win32 -Xvc
-INCLUDES = -I../include -I../libc/include -I../libddk/include
+INCLUDES = -I../libgracht/include -I../libddk/include -I../libds/include -I../include -I../libc/include
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

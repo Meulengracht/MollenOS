@@ -6,6 +6,7 @@
         <type name="uintptr_t" header="stdint.h" />
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
+        <type name="UsbTransferStatus_t" header="ddk/usb.h" />
         <type name="UsbTransfer_t" header="ddk/usb.h" />
         <type name="UsbHcPortDescriptor_t" header="ddk/usb/definitions.h" />
     </types>
@@ -19,6 +20,11 @@
                         <param name="transfer_id" type="UUId_t" />
                         <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
                     </request>
+                    <response>
+                        <param name="id" type="UUId_t" />
+                        <param name="status" type="UsbTransferStatus_t" />
+                        <param name="bytes_transferred" type="size_t" />
+                    </response>
                 </function>
                 <function name="queue" synchronous="true">
                     <request>
@@ -28,18 +34,20 @@
                         <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
                     </request>
                     <response>
-                        <param name="id" type="UUId_t" />
-                        <param name="status" type="OsStatus_t" />
+                        <param name="status" type="UsbTransferStatus_t" />
                         <param name="bytes_transferred" type="size_t" />
                     </response>
                 </function>
-                <function name="queue_periodic" synchronous="false">
+                <function name="queue_periodic" synchronous="true">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
                         <param name="transfer_id" type="UUId_t" />
                         <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
                     </request>
+                    <response>
+                        <param name="status" type="UsbTransferStatus_t" />
+                    </response>
                 </function>
                 <function name="dequeue" synchronous="true">
                     <request>

@@ -22,17 +22,18 @@
  */
 //#define __TRACE
 
-#include <ddk/contracts/usbhost.h>
 #include <ddk/usb.h>
 #include <ddk/bufferpool.h>
-#include <ddk/driver.h>
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include <os/mollenos.h>
+#include <os/process.h>
 #include <os/dmabuf.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>
 
+static _Atomic(UUId_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
 static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool*      DmaPool                  = NULL;
 static struct dma_attachment DmaAttachment;
@@ -228,27 +229,21 @@ UsbTransferOut(
     return OsSuccess;
 }
 
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferQueue(
-	_In_  UUId_t                InterfaceId,
-	_In_  UUId_t                DeviceId,
-	_In_  UsbTransfer_t*        Transfer,
-	_Out_ UsbTransferResult_t** Result)
+	_In_  UUId_t         InterfaceId,
+	_In_  UUId_t         DeviceId,
+	_In_  UsbTransfer_t* Transfer,
+	_Out_ size_t*        BytesTransferred)
 {
-    IpcMessage_t Message;
-    OsStatus_t   Status;
+    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(InterfaceId);
+    UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
+    UsbTransferStatus_t      status;
     
-    IpcInitialize(&Message);
-    
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_QUEUETRANSFER);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    
-    IpcSetUntypedArgument(&Message, 0, Transfer, sizeof(UsbTransfer_t));
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)Result);
-    return Status;
+    ctt_usbhost_queue_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, transferId, Transfer,
+        &status, BytesTransferred);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 UsbTransferStatus_t
@@ -256,96 +251,64 @@ UsbTransferQueuePeriodic(
 	_In_  UUId_t         InterfaceId,
 	_In_  UUId_t         DeviceId,
 	_In_  UsbTransfer_t* Transfer,
-	_Out_ UUId_t*        TransferId)
+	_Out_ UUId_t*        TransferIdOut)
 {
-    UsbTransferResult_t* Result;
-    IpcMessage_t         Message;
-    OsStatus_t           Status;
+    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(InterfaceId);
+    UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
+    UsbTransferStatus_t      status;
     
-    IpcInitialize(&Message);
+    ctt_usbhost_queue_periodic_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId,
+        transferId, Transfer, &status);
+    gracht_vali_message_finish(&msg);
     
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_QUEUEPERIODIC);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    
-    IpcSetUntypedArgument(&Message, 0, Transfer, sizeof(UsbTransfer_t));
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)&Result);
-    if (Status == OsSuccess) {
-        *TransferId = Result->Id;
-        return Result->Status;
-    }
-    return TransferInvalid;
+    *TransferIdOut = transferId;
+    return status;
 }
 
-UsbTransferStatus_t
+OsStatus_t
 UsbTransferDequeuePeriodic(
 	_In_ UUId_t InterfaceId,
 	_In_ UUId_t DeviceId,
 	_In_ UUId_t TransferId)
 {
-    UsbTransferStatus_t* Result;
-    IpcMessage_t         Message;
-    OsStatus_t           Status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
+    OsStatus_t               status;
     
-    IpcInitialize(&Message);
-    
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_DEQUEUEPERIODIC);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    IPC_SET_TYPED(&Message, 4, TransferId);
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)&Result);
-    if (Status == OsSuccess) {
-        return IPC_CAST_AND_DEREF(Result, UsbTransferStatus_t);
-    }
-    return TransferInvalid;
+    ctt_usbhost_dequeue_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, TransferId, &status);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t
 UsbHubResetPort(
-	_In_  UUId_t                  InterfaceId,
-	_In_  UUId_t                  DeviceId,
-	_In_  uint8_t                 PortAddress,
-	_Out_ UsbHcPortDescriptor_t** Descriptor)
+	_In_ UUId_t                 InterfaceId,
+	_In_ UUId_t                 DeviceId,
+	_In_ uint8_t                PortAddress,
+	_In_ UsbHcPortDescriptor_t* Descriptor)
 {
-    IpcMessage_t Message;
-    OsStatus_t   Status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
+    OsStatus_t               status;
     
-    IpcInitialize(&Message);
-    
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_RESETPORT);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    IPC_SET_TYPED(&Message, 4, PortAddress);
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)Descriptor);
-    return Status;
+    ctt_usbhost_reset_port_sync(GetGrachtClient(), &msg, DeviceId, PortAddress,
+        &status, Descriptor);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t
 UsbHubQueryPort(
-	_In_  UUId_t                  InterfaceId,
-	_In_  UUId_t                  DeviceId,
-	_In_  uint8_t                 PortAddress,
-	_Out_ UsbHcPortDescriptor_t** Descriptor)
+	_In_ UUId_t                 InterfaceId,
+	_In_ UUId_t                 DeviceId,
+	_In_ uint8_t                PortAddress,
+	_In_ UsbHcPortDescriptor_t* Descriptor)
 {
-    IpcMessage_t Message;
-    OsStatus_t   Status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
+    OsStatus_t               status;
     
-    IpcInitialize(&Message);
-    
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_QUERYPORT);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    IPC_SET_TYPED(&Message, 4, PortAddress);
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)Descriptor);
-    return Status;
+    ctt_usbhost_query_port_sync(GetGrachtClient(), &msg, DeviceId, PortAddress,
+        &status, Descriptor);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t
@@ -355,30 +318,14 @@ UsbEndpointReset(
     _In_ UsbHcDevice_t*             UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t* Endpoint)
 {
-    OsStatus_t*    Result;
-    OsStatus_t     Status;
-    IpcMessage_t   Message;
-    UsbHcAddress_t Address;
-
-    Address.HubAddress      = UsbDevice->HubAddress;
-    Address.PortAddress     = UsbDevice->PortAddress;
-    Address.DeviceAddress   = UsbDevice->DeviceAddress;
-    Address.EndpointAddress = Endpoint->Address;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
+    OsStatus_t               status;
     
-    IpcInitialize(&Message);
-    
-    IPC_SET_TYPED(&Message, 0, __DRIVER_QUERYCONTRACT);
-    IPC_SET_TYPED(&Message, 1, __USBHOST_RESETENDPOINT);
-    IPC_SET_TYPED(&Message, 2, ContractController);
-    IPC_SET_TYPED(&Message, 3, DeviceId);
-    
-    IpcSetUntypedArgument(&Message, 0, &Address, sizeof(UsbHcAddress_t));
-    
-    Status = IpcInvoke(InterfaceId, &Message, 0, 0, (void**)&Result);
-    if (Status == OsSuccess) {
-        return IPC_CAST_AND_DEREF(Result, OsStatus_t);
-    }
-    return Status;
+    ctt_usbhost_reset_endpoint_sync(GetGrachtClient(), &msg, DeviceId,
+        UsbDevice->HubAddress, UsbDevice->PortAddress,
+        UsbDevice->DeviceAddress, Endpoint->Address, &status);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 UsbTransferStatus_t
@@ -389,11 +336,11 @@ UsbSetAddress(
 	_In_ UsbHcEndpointDescriptor_t* Endpoint, 
     _In_ int                        Address)
 {
-    void*        PacketBuffer = NULL;
-    UsbPacket_t* Packet;
-
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    void*               PacketBuffer = NULL;
+    UsbPacket_t*        Packet;
+    UsbTransfer_t       Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
 
     // Debug
     TRACE("UsbSetAddress()");
@@ -424,12 +371,12 @@ UsbSetAddress(
         dma_pool_offset(DmaPool, PacketBuffer), UUID_INVALID, 0, 0, InTransaction);
     
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -446,8 +393,9 @@ UsbGetDeviceDescriptor(
     void*        PacketBuffer         = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -476,21 +424,21 @@ UsbGetDeviceDescriptor(
         DESCRIPTOR_SIZE, InTransaction);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // If the transfer finished correctly update the stored
     // device information to the queried
-    if (Result->Status == TransferFinished && DeviceDescriptor != NULL) {
+    if (status == TransferFinished && DeviceDescriptor != NULL) {
         memcpy(DeviceDescriptor, DescriptorVirtual, sizeof(UsbDeviceDescriptor_t));
     }
 
     // Cleanup allocations
     dma_pool_free(DmaPool, DescriptorVirtual);
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -505,8 +453,9 @@ UsbGetInitialConfigDescriptor(
     void*        PacketBuffer      = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -536,20 +485,20 @@ UsbGetInitialConfigDescriptor(
         sizeof(UsbConfigDescriptor_t), InTransaction);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // Did it complete?
-    if (Result->Status == TransferFinished) {
+    if (status == TransferFinished) {
         memcpy(ConfigDescriptor, DescriptorVirtual, sizeof(UsbConfigDescriptor_t));
     }
 
     // Cleanup allocations
     dma_pool_free(DmaPool, DescriptorVirtual);
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -565,8 +514,9 @@ UsbGetConfigDescriptor(
     void*        PacketBuffer       = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     // Sanitize parameters
     if (ConfigDescriptorBuffer == NULL 
@@ -608,20 +558,20 @@ UsbGetConfigDescriptor(
         ConfigDescriptorBufferLength, InTransaction);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // Did it complete?
-    if (Result->Status == TransferFinished) {
+    if (status == TransferFinished) {
         memcpy(ConfigDescriptorBuffer, DescriptorVirtual, ConfigDescriptorBufferLength);
     }
 
     // Cleanup allocations
     dma_pool_free(DmaPool, DescriptorVirtual);
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -635,8 +585,9 @@ UsbSetConfiguration(
     void*        PacketBuffer = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
 
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -659,12 +610,12 @@ UsbSetConfiguration(
         dma_pool_offset(DmaPool, PacketBuffer), UUID_INVALID, 0, 0, InTransaction);
     
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -679,8 +630,9 @@ UsbGetStringLanguages(
     void*        PacketBuffer      = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -710,20 +662,20 @@ UsbGetStringLanguages(
         sizeof(UsbStringDescriptor_t), InTransaction);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // Update the device structure with the queried langauges
-    if (Result->Status == TransferFinished) {
+    if (status == TransferFinished) {
         memcpy(StringDescriptor, DescriptorVirtual, sizeof(UsbStringDescriptor_t));
     }
 
     // Cleanup allocations
     dma_pool_free(DmaPool, DescriptorVirtual);
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -741,8 +693,9 @@ UsbGetStringDescriptor(
     const char*  StringBuffer;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -771,14 +724,14 @@ UsbGetStringDescriptor(
         64, InTransaction);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // Update the out variable with the string
     // TODO: convert to utf8
-    if (Result->Status == TransferFinished) {
+    if (status == TransferFinished) {
         StringBuffer = (const char*)DescriptorVirtual;
         //size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
         _CRT_UNUSED(StringBuffer);
@@ -787,7 +740,7 @@ UsbGetStringDescriptor(
     // Cleanup allocations
     dma_pool_free(DmaPool, DescriptorVirtual);
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -803,8 +756,9 @@ UsbClearFeature(
     void*        PacketBuffer = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
 
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -827,12 +781,12 @@ UsbClearFeature(
         UUID_INVALID, 0, 0, InTransaction);
     
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -848,8 +802,9 @@ UsbSetFeature(
     void*        PacketBuffer = NULL;
     UsbPacket_t* Packet;
     
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
 
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -872,12 +827,12 @@ UsbSetFeature(
         UUID_INVALID, 0, 0, InTransaction);
     
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }
 
 UsbTransferStatus_t
@@ -899,8 +854,9 @@ UsbExecutePacket(
     void*        PacketBuffer          = NULL;
     UsbPacket_t* Packet;
 
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        Transfer = { 0 };
+    UsbTransferStatus_t status;
+    size_t              bytesTransferred;
+    UsbTransfer_t       Transfer = { 0 };
     
     if (dma_pool_allocate(DmaPool, sizeof(UsbPacket_t), &PacketBuffer) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
@@ -938,13 +894,13 @@ UsbExecutePacket(
         dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, DescriptorVirtual), Length, DataStageType);
 
     // Execute the transaction and cleanup the buffer
-    if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
+    status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
+    if (status != TransferFinished) {
         ERROR("Usb transfer returned error");
-        Result->Status = TransferNotProcessed;
     }
 
     // Update the device structure with the queried langauges
-    if (Result->Status == TransferFinished && Length != 0 
+    if (status == TransferFinished && Length != 0 
         && Buffer != NULL && DataStageType == InTransaction) {
         memcpy(Buffer, DescriptorVirtual, Length);
     }
@@ -954,5 +910,5 @@ UsbExecutePacket(
         dma_pool_free(DmaPool, DescriptorVirtual);
     }
     dma_pool_free(DmaPool, PacketBuffer);
-    return Result->Status;
+    return status;
 }

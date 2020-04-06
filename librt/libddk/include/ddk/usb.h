@@ -326,12 +326,12 @@ UsbTransferOut(
  * and pipe. They must exist. The function blocks untill execution.
  * Status-code must be TransferQueued on success. */
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferQueue(
-	_In_  UUId_t                InterfaceId,
-	_In_  UUId_t                DeviceId,
-	_In_  UsbTransfer_t*        Transfer,
-	_Out_ UsbTransferResult_t** Result);
+	_In_  UUId_t         InterfaceId,
+	_In_  UUId_t         DeviceId,
+	_In_  UsbTransfer_t* Transfer,
+	_Out_ size_t*        BytesTransferred);
 
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
@@ -343,13 +343,13 @@ UsbTransferQueuePeriodic(
 	_In_  UUId_t         InterfaceId,
 	_In_  UUId_t         DeviceId,
 	_In_  UsbTransfer_t* Transfer,
-	_Out_ UUId_t*        TransferId);
+	_Out_ UUId_t*        TransferIdOut);
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
  * and the controller must be valid. Returns TransferFinished on success. */
 __EXTERN
-UsbTransferStatus_t
+OsStatus_t
 UsbTransferDequeuePeriodic(
 	_In_ UUId_t InterfaceId,
 	_In_ UUId_t DeviceId,
@@ -362,20 +362,20 @@ UsbTransferDequeuePeriodic(
 __EXTERN
 OsStatus_t
 UsbHubResetPort(
-	_In_  UUId_t                  InterfaceId,
-	_In_  UUId_t                  DeviceId,
-	_In_  uint8_t                 PortAddress,
-	_Out_ UsbHcPortDescriptor_t** Descriptor);
+	_In_ UUId_t                 InterfaceId,
+	_In_ UUId_t                 DeviceId,
+	_In_ uint8_t                PortAddress,
+	_In_ UsbHcPortDescriptor_t* Descriptor);
 
 /* UsbHubQueryPort 
  * Queries the port-descriptor of host-controller port. */
 __EXTERN
 OsStatus_t
 UsbHubQueryPort(
-	_In_  UUId_t                  InterfaceId,
-	_In_  UUId_t                  DeviceId,
-	_In_  uint8_t                 PortAddress,
-	_Out_ UsbHcPortDescriptor_t** Descriptor);
+	_In_ UUId_t                 InterfaceId,
+	_In_ UUId_t                 DeviceId,
+	_In_ uint8_t                PortAddress,
+	_In_ UsbHcPortDescriptor_t* Descriptor);
 
 /* UsbSetAddress
  * Changes the address of the usb-device. This permanently updates the address. 

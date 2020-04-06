@@ -335,6 +335,12 @@
                         <param name="buffer" type="buffer" />
                     </response>
                 </function>
+                <function name="get_modules" synchronous="true">
+                    <response>
+                        <param name="modules_length" type="size_t" count="1" />
+                        <param name="buffer" type="buffer" />
+                    </response>
+                </function>
                 <function name="get_name" synchronous="true">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
