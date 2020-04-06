@@ -22,46 +22,52 @@
  */
 #define __TRACE
 
-#include <ddk/services/net.h>
+#include <ddk/protocols/svc_socket_protocol_client.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
 int socket_create(int domain, int type, int protocol, UUId_t handle, 
     UUId_t send_handle, UUId_t recv_handle)
 {
-    stdio_handle_t* io_object;
+    stdio_handle_t* ioObject;
     int             status;
-    OsStatus_t      os_status;
+    OsStatus_t      osStatus;
     TRACE("[socket] creating from handle %u", LODWORD(handle));
     
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &io_object);
+    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &ioObject);
     if (status) {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+        
         ERROR("[socket] stdio_handle_create failed with code %u", status);
-        CloseSocket(handle, SOCKET_SHUTDOWN_DESTROY);
+        svc_socket_close_sync(GetGrachtClient(), &msg, handle, SVC_SOCKET_CLOSE_OPTIONS_DESTROY, &osStatus);
+        gracht_vali_message_finish(&msg);
         return -1;
     }
     
     TRACE("[socket] initializing libc structures");
-    stdio_handle_set_handle(io_object, handle);
-    stdio_handle_set_ops_type(io_object, STDIO_HANDLE_SOCKET);
+    stdio_handle_set_handle(ioObject, handle);
+    stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_SOCKET);
     
-    io_object->object.data.socket.domain   = domain;
-    io_object->object.data.socket.type     = type;
-    io_object->object.data.socket.protocol = protocol;
+    ioObject->object.data.socket.domain   = domain;
+    ioObject->object.data.socket.type     = type;
+    ioObject->object.data.socket.protocol = protocol;
     
-    io_object->object.data.socket.send_buffer.handle = send_handle;
-    io_object->object.data.socket.recv_buffer.handle = recv_handle;
+    ioObject->object.data.socket.send_buffer.handle = send_handle;
+    ioObject->object.data.socket.recv_buffer.handle = recv_handle;
     
     TRACE("[socket] mapping pipes");
-    os_status = io_object->ops.inherit(io_object);
-    if (os_status != OsSuccess) {
-        (void)OsStatusToErrno(os_status);
-        io_object->ops.close(io_object, 0);
-        stdio_handle_destroy(io_object, 0);
+    osStatus = ioObject->ops.inherit(ioObject);
+    if (osStatus != OsSuccess) {
+        (void)OsStatusToErrno(osStatus);
+        ioObject->ops.close(ioObject, 0);
+        stdio_handle_destroy(ioObject, 0);
         return -1;
     }
-    TRACE("[socket] done %i", io_object->fd);
-    return io_object->fd;
+    TRACE("[socket] done %i", ioObject->fd);
+    return ioObject->fd;
 }

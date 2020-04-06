@@ -22,14 +22,11 @@
  */
 
 #include <assert.h>
-#include <ddk/protocols/svc_process_protocol_client.h>
-#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
 #include <fenv.h>
-#include <gracht/link/vali.h>
 #include <internal/_all.h>
-#include <internal/_utils.h>
+#include <internal/_ipc.h>
 #include <os/context.h>
 #include <signal.h>
 #include <stdlib.h>

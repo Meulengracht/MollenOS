@@ -121,8 +121,8 @@ extern int  _flswbuf(int ch, FILE *stream);
 
 extern OsStatus_t
 StdioCreateInheritanceBlock(
-	_In_  ProcessStartupInformation_t* StartupInformation,
-    _Out_ void**                       InheritationBlock,
-    _Out_ size_t*                      InheritationBlockLength);
+	_In_  ProcessConfiguration_t* Configuration,
+    _Out_ void**                  InheritationBlock,
+    _Out_ size_t*                 InheritationBlockLength);
 
 #endif //!__INTERNAL_IO_H__

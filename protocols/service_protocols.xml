@@ -9,6 +9,7 @@
         <type name="OsFileDescriptor_t" header="os/types/file.h" />
         <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
         <type name="ProcessStartupInformation_t" header="os/types/process.h" />
+        <type name="OsStorageDescriptor_t" header="os/types/storage.h" />
     </types>
     <protocols namespace="svc">
         <protocol name="session" id="0x1">
@@ -56,6 +57,24 @@
                         </param>
                     </request>
                 </function>
+                <function name="get_descriptor" synchronous="true">
+                    <request>
+                        <param name="handle" type="UUId_t" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" count="1" />
+                        <param name="descriptor" type="buffer" subtype="OsStorageDescriptor_t" />
+                    </response>
+                </function>
+                <function name="get_descriptor_from_path" synchronous="true">
+                    <request>
+                        <param name="path" type="string" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" count="1" />
+                        <param name="descriptor" type="buffer" subtype="OsStorageDescriptor_t" />
+                    </response>
+                </function>
             </functions>
         </protocol>
         <protocol name="file" id="0x3">
@@ -88,11 +107,24 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="transfer" synchronous="false">
+                <function name="transfer_async" synchronous="false">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="offset_lo" type="unsigned int" count="1" />
                         <param name="offset_hi" type="unsigned int" count="1" />
+                        <param name="direction" type="int" count="1" />
+                        <param name="buffer_handle" type="UUId_t" count="1" />
+                        <param name="buffer_offset" type="size_t" count="1" />
+                        <param name="length" type="size_t" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" count="1" />
+                        <param name="bytes_transferred" type="size_t" count="1" />
+                    </response>
+                </function>
+                <function name="transfer" synchronous="true">
+                    <request>
+                        <param name="handle" type="UUId_t" count="1" />
                         <param name="direction" type="int" count="1" />
                         <param name="buffer_handle" type="UUId_t" count="1" />
                         <param name="buffer_offset" type="size_t" count="1" />
@@ -287,12 +319,6 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="get_id" synchronous="true">
-                    <response>
-                        <param name="status" type="OsStatus_t" count="1" />
-                        <param name="handle" type="UUId_t" count="1" />
-                    </response>
-                </function>
                 <function name="get_tick_base" synchronous="true">
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
@@ -302,6 +328,10 @@
                 <function name="get_startup_information" synchronous="true">
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
+                        <param name="handle" type="UUId_t" count="1" />
+                        <param name="argument_length" type="size_t" count="1" />
+                        <param name="inheritation_length" type="size_t" count="1" />
+                        <param name="modules_length" type="size_t" count="1" />
                         <param name="buffer" type="buffer" />
                     </response>
                 </function>
@@ -346,18 +376,6 @@
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
-                    </response>
-                </function>
-                <function name="get_inheritation_block" synchronous="true">
-                    <response>
-                        <param name="status" type="OsStatus_t" count="1" />
-                        <param name="buffer" type="buffer" />
-                    </response>
-                </function>
-                <function name="get_library_handles" synchronous="true">
-                    <response>
-                        <param name="status" type="OsStatus_t" count="1" />
-                        <param name="buffer" type="buffer" />
                     </response>
                 </function>
                 <function name="report_crash" synchronous="true">
@@ -487,9 +505,6 @@
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
-                        <param name="handle" type="UUId_t" count="1" />
-                        <param name="recv_handle" type="UUId_t" count="1" />
-                        <param name="send_handle" type="UUId_t" count="1" />
                     </response>
                 </function>
                 <function name="get_option" synchronous="true">
@@ -501,12 +516,16 @@
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
                         <param name="data" type="buffer" />
+                        <param name="length" type="int" />
                     </response>
                 </function>
                 <function name="get_address" synchronous="true">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
-                        <param name="source" type="int" count="1" />
+                        <param name="source" type="int" count="1">
+                            <value name="THIS" value="0" />
+                            <value name="PEER" value="1" />
+                        </param>
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />

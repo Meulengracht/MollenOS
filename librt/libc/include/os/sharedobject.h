@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SERVICES_SHAREDOBJECT_H__
-#define __SERVICES_SHAREDOBJECT_H__
+#ifndef __SHAREDOBJECT_H__
+#define __SHAREDOBJECT_H__
 
 #include <os/osdefs.h>
 
@@ -50,4 +50,4 @@ SharedObjectUnload(
 	_In_ Handle_t Handle));
 _CODE_END
 
-#endif //!__SERVICES_SHAREDOBJECT_H__
+#endif //!__SHAREDOBJECT_H__

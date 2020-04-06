@@ -21,7 +21,8 @@ PROTOCOLS_C = protocols/svc_session_protocol_client.c \
 			  protocols/svc_path_protocol_client.c \
 			  protocols/svc_process_protocol_client.c \
 			  protocols/svc_library_protocol_client.c \
-			  protocols/svc_socket_protocol_client.c
+			  protocols/svc_socket_protocol_client.c \
+			  protocols/ctt_usbhost_protocol_client.c
 
 ASM_SOURCES = $(wildcard arch/$(VALI_ARCH)/*.s)
 SOURCES = $(wildcard **/*.c) $(wildcard *.c)
@@ -41,6 +42,10 @@ protocols:
 	mkdir -p $@
 
 protocols/svc_session_protocol_client.c: ../../protocols/service_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
+
+protocols/ctt_usbhost_protocol_client.c: ../../protocols/contract_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
 	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
 

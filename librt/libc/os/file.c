@@ -22,13 +22,11 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
-
-#include <os/services/file.h>
-#include <os/services/storage.h>
 #include <os/mollenos.h>
 #include <stdio.h>
-#include <internal/_io.h>
 
 OsStatus_t
 GetFilePathFromFd(
@@ -36,13 +34,19 @@ GetFilePathFromFd(
     _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(FileDescriptor);
+    OsStatus_t               status;
 
     if (handle == NULL || PathBuffer == NULL || 
         handle->object.type != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFilePath(handle->object.handle, PathBuffer, MaxLength);
+    
+    svc_file_get_path_sync(GetGrachtClient(), &msg, handle->object.handle,
+        &status, PathBuffer, MaxLength);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t
@@ -50,10 +54,17 @@ GetStorageInformationFromPath(
     _In_ const char*            Path,
     _In_ OsStorageDescriptor_t* Information)
 {
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+    
     if (Information == NULL || Path == NULL) {
         return OsError;
     }
-    return QueryStorageByPath(Path, Information);
+    
+    svc_storage_get_descriptor_from_path_sync(GetGrachtClient(), &msg, Path,
+        &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t
@@ -61,63 +72,91 @@ GetStorageInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsStorageDescriptor_t* Information)
 {
-    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(FileDescriptor);
+    OsStatus_t               status;
 
     if (handle == NULL || Information == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryStorageByHandle(handle->object.handle, Information);
+    
+    svc_storage_get_descriptor_sync(GetGrachtClient(), &msg, handle->object.handle,
+        &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
-FileSystemCode_t
+OsStatus_t
 GetFileSystemInformationFromPath(
     _In_ const char *Path,
     _In_ OsFileSystemDescriptor_t *Information)
 {
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+    
     if (Information == NULL || Path == NULL) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
-    return GetFileSystemStatsByPath(Path, Information);
+    
+    svc_file_fsstat_from_path_sync(GetGrachtClient(), &msg, Path, &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
-FileSystemCode_t
+OsStatus_t
 GetFileSystemInformationFromFd(
     _In_ int FileDescriptor,
     _In_ OsFileSystemDescriptor_t *Information)
 {
-    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(FileDescriptor);
+    OsStatus_t               status;
 
     if (handle == NULL || Information == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
-    return GetFileSystemStatsByHandle(handle->object.handle, Information);
+    
+    svc_file_fsstat_sync(GetGrachtClient(), &msg, handle->object.handle, &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
-FileSystemCode_t
+OsStatus_t
 GetFileInformationFromPath(
     _In_ const char*            Path,
     _In_ OsFileDescriptor_t*    Information)
 {
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+    
     if (Information == NULL || Path == NULL) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
-    return GetFileStatsByPath(Path, Information);
+    
+    svc_file_fstat_from_path_sync(GetGrachtClient(), &msg, Path, &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
-FileSystemCode_t
+OsStatus_t
 GetFileInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsFileDescriptor_t*    Information)
 {
-    stdio_handle_t* handle = stdio_handle_get(FileDescriptor);
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(FileDescriptor);
+    OsStatus_t               status;
 
     if (handle == NULL || Information == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
-    return GetFileStatsByHandle(handle->object.handle, Information);
+    
+    svc_file_fstat_sync(GetGrachtClient(), &msg, handle->object.handle, &status, Information);
+    gracht_vali_message_finish(&msg);
+    return status;
 }
 
 OsStatus_t

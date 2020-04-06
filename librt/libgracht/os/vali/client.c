@@ -102,6 +102,7 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
             length += messageBase->params[messageBase->header.param_in + i].length;
         }
         
+        messageContext->response_pool   = linkManager->pool;
         messageContext->response_buffer = bget(linkManager->pool, length);
         if (!messageContext->response_buffer) {
             _set_errno(ENOMEM); // support bget growth?

@@ -21,13 +21,14 @@
  *     underlying file-descriptor
  */
 
-#include <os/services/file.h>
-#include <io.h>
-#include <stdio.h>
 #include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
+#include <io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 FILE* freopen(
 	_In_ const char* filename, 
@@ -62,11 +63,16 @@ FILE* freopen(
 	}
 	else {
 		if (mode != NULL) {
+			struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+			OsStatus_t               status;
+			
 			_fflags(mode, &open_flags, &stream_flags);
 			// TODO: support multiple types of streams
-			if (SetFileOptions(stream->_fd, _fopts(open_flags), _faccess(open_flags)) != OsSuccess) {
-				_set_errno(EINVAL);
-			}
+			
+			svc_file_set_options_sync(GetGrachtClient(), &msg, stream->_fd,
+				_fopts(open_flags), _faccess(open_flags), &status);
+			gracht_vali_message_finish(&msg);
+			OsStatusToErrno(status);
 		}
 	}
 	stream->_flag &= ~(_IOEOF | _IOERR);

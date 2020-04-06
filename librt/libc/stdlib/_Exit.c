@@ -20,20 +20,24 @@
  * - Definitions, prototypes and information needed.
  */
 
+#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <ddk/services/process.h>
 
 void
 _Exit(
-    _In_ int Status)
+    _In_ int exitCode)
 {
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    OsStatus_t               status;
+    
     if (IsProcessModule()) {
-        Syscall_ModuleExit(Status);
+        Syscall_ModuleExit(exitCode);
     }
     else {
-        ProcessTerminate(Status);
+        svc_process_terminate_sync(GetGrachtClient(), &msg, exitCode, &status);
+        gracht_vali_message_finish(&msg);
     }
-    Syscall_ThreadExit(Status);
+    Syscall_ThreadExit(exitCode);
     for(;;);
 }

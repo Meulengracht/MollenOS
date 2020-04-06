@@ -33,12 +33,21 @@
 #define PROCESS_INHERIT_FILES       0x00000008
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
-typedef struct ProcessStartupInformation {
+typedef struct ProcessConfiguration {
     Flags_t         InheritFlags;
     int             StdOutHandle;
     int             StdInHandle;
     int             StdErrHandle;
     size_t          MemoryLimit;
+} ProcessConfiguration_t;
+
+typedef struct ProcessStartupInformation {
+    void*  Arguments;
+    size_t ArgumentsLength;
+    void*  Inheritation;
+    size_t InheritationLength;
+    void*  LibraryEntries;
+    size_t LibraryEntriesLength;
 } ProcessStartupInformation_t;
 
 #endif //!__TYPES_PROCESS_H__

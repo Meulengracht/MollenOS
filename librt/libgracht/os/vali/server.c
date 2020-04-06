@@ -26,10 +26,12 @@
 // - Stream
 
 #include <errno.h>
-#include <gracht/link/vali.h>
+#include "../../include/gracht/link/vali.h"
+#include <io.h>
 #include <os/dmabuf.h>
+#include <stdlib.h>
 
-static struct vali_link_manager {
+struct vali_link_manager {
     struct server_link_ops ops;
     int                    iod;
 };
@@ -44,7 +46,7 @@ static int vali_link_listen(struct vali_link_manager* linkManager, int mode)
     return -1;
 }
 
-static int vali_link_accept(struct vali_link_manager* linkManager, struct struct link_ops** linkOut)
+static int vali_link_accept(struct vali_link_manager* linkManager, struct link_ops** linkOut)
 {
     _set_errno(ENOTSUP);
     return -1;
@@ -84,7 +86,7 @@ static void vali_link_destroy(struct vali_link_manager* linkManager)
     free(linkManager);
 }
 
-int gracht_link_vali_create(struct link_operations** linkOut, struct ipmsg_addr* address)
+int gracht_link_vali_create(struct server_link_ops** linkOut, struct ipmsg_addr* address)
 {
     struct vali_link_manager* linkManager;
     
@@ -98,11 +100,11 @@ int gracht_link_vali_create(struct link_operations** linkOut, struct ipmsg_addr*
     linkManager->iod = ipcontext(0x4000, address); /* 16kB */
     
     // initialize link operations
-    linkManager->ops.listen      = vali_link_listen;
-    linkManager->ops.accept      = vali_link_accept;
-    linkManager->ops.recv_packet = vali_link_recv_packet;
-    linkManager->ops.respond     = vali_link_respond;
-    linkManager->ops.destroy     = vali_link_destroy;
+    linkManager->ops.listen      = (server_link_listen_fn)vali_link_listen;
+    linkManager->ops.accept      = (server_link_accept_fn)vali_link_accept;
+    linkManager->ops.recv_packet = (server_link_recv_packet_fn)vali_link_recv_packet;
+    linkManager->ops.respond     = (server_link_respond_fn)vali_link_respond;
+    linkManager->ops.destroy     = (server_link_destroy_fn)vali_link_destroy;
     
     *linkOut = &linkManager->ops;
     return 0;

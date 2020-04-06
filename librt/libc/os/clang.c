@@ -40,16 +40,16 @@ typedef void(*_PVFI)(int);
 typedef void(*_PVTLS)(void*, unsigned long, void*);
 #endif
 
-extern OsStatus_t CRTHIDE ProcessGetLibraryEntryPoints(Handle_t LibraryList[PROCESS_MAXMODULES]);
-extern void               StdioCleanup(void);
-extern void               tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
-extern void               tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
+extern void StdioCleanup(void);
+extern void tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
+extern void tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 
-static int      CleanupPerformed               = 0;
-static Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
-static void   (*__cxa_primary_cleanup)(void);
-static void   (*__cxa_primary_tls_thread_init)(void);
-static void   (*__cxa_primary_tls_thread_finit)(void);
+static int        CleanupPerformed = 0;
+static uintptr_t* ModuleEntries    = NULL;
+static int        ModuleCount      = 0;
+static void       (*__cxa_primary_cleanup)(void);
+static void       (*__cxa_primary_tls_thread_init)(void);
+static void       (*__cxa_primary_tls_thread_finit)(void);
 
 CRTDECL(void,
 __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
@@ -120,11 +120,8 @@ __cxa_exithandlers(
     if (!Quick) {
         // Run at-exit lists for all the modules
         if (DoAtExit != 0) {
-            for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-                if (ModuleList[i] == NULL) {
-                    break;
-                }
-                ((void (*)(int))ModuleList[i])(DLL_ACTION_FINALIZE);
+            for (int i = 0; i < ModuleCount; i++) {
+                ((void (*)(int))ModuleEntries[i])(DLL_ACTION_FINALIZE);
             }
             // Cleanup primary app
             __cxa_primary_cleanup();
@@ -138,20 +135,10 @@ __cxa_exithandlers(
     tls_destroy(tls_current());
 }
 
-/* __cxa_getentrypoints
- * Retrieves a list of entry points for loaded libraries. */
-OsStatus_t __cxa_getentrypoints(Handle_t LibraryList[PROCESS_MAXMODULES])
-{
-    TRACE("__cxa_getentrypoints()");
-    if (IsProcessModule()) {
-        return Syscall_ModuleGetModuleEntryPoints(LibraryList);
-    }
-    return ProcessGetLibraryEntryPoints(LibraryList);
-}
-
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
+    _In_ ProcessStartupInformation_t* processInformation,
     _In_ void (*module_init)(void), 
     _In_ void (*module_cleanup)(void),
     _In_ void (*module_thread_init)(void),
@@ -159,13 +146,11 @@ CRTDECL(void, __cxa_runinitializers(
 {
     TRACE("__cxa_runinitializers()");
     fpreset();
-    if (__cxa_getentrypoints(ModuleList) == OsSuccess) {
-        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-            if (ModuleList[i] == NULL) {
-                break;
-            }
-            ((void (*)(int))ModuleList[i])(DLL_ACTION_INITIALIZE);
-        }
+    
+    ModuleEntries = (uintptr_t*)processInformation->LibraryEntries;
+    ModuleCount   = processInformation->LibraryEntriesLength / sizeof(uintptr_t);
+    for (int i = 0; i < ModuleCount; i++) {
+        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_INITIALIZE);
     }
 
     // Run callers initializer
@@ -181,13 +166,9 @@ CRTDECL(void, __cxa_threadinitialize(void))
 {
     TRACE("__cxa_threadinitialize()");
     fpreset();
-    if ((ModuleList[0] != 0) || (__cxa_getentrypoints(ModuleList) == OsSuccess)) {
-        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-            if (ModuleList[i] == NULL) {
-                break;
-            }
-            ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADATTACH);
-        }
+    
+    for (int i = 0; i < ModuleCount; i++) {
+        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_THREADATTACH);
     }
     __cxa_primary_tls_thread_init();
 }
@@ -197,13 +178,8 @@ CRTDECL(void, __cxa_threadinitialize(void))
 CRTDECL(void, __cxa_threadfinalize(void))
 {
     TRACE("__cxa_threadfinalize()");
-    if ((ModuleList[0] != 0) || (__cxa_getentrypoints(ModuleList) == OsSuccess)) {
-        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-            if (ModuleList[i] == NULL) {
-                break;
-            }
-            ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADDETACH);
-        }
+    for (int i = 0; i < ModuleCount; i++) {
+        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_THREADDETACH);
     }
     __cxa_primary_tls_thread_finit();
 }

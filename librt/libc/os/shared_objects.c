@@ -23,14 +23,14 @@
  */
 
 #include <ctype.h>
-#include <ddk/services/process.h>
 #include <ds/collection.h>
 #include <ds/mstring.h>
 #include <errno.h>
+#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <os/services/sharedobject.h>
+#include <os/sharedobject.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -76,7 +76,9 @@ SharedObjectLoad(
             Status = Syscall_LibraryLoad(SharedObject, &Result);
         }
         else {
-            Status = ProcessLoadLibrary(SharedObject, &Result);
+            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+            svc_library_load_sync(GetGrachtClient(), &msg, SharedObject, &Status, &Result);
+            gracht_vali_message_finish(&msg);
         }
 
         if (Status == OsSuccess && Result != HANDLE_INVALID) {
@@ -122,8 +124,13 @@ SharedObjectGetFunction(
         return (void*)Syscall_LibraryFunction(Handle, Function);
     }
 	else {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         uintptr_t AddressOfFunction;
-        Status = ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction);
+        
+        
+        svc_library_get_function_sync(GetGrachtClient(), &msg, Handle,
+            Function, &Status, &AddressOfFunction);
+        gracht_vali_message_finish(&msg);
         OsStatusToErrno(Status);
         if (Status != OsSuccess) {
             return NULL;
@@ -166,7 +173,9 @@ SharedObjectUnload(
                 Status = Syscall_LibraryUnload(Handle);
             }
 	        else {
-                Status = ProcessUnloadLibrary(Handle);
+	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+                svc_library_unload_sync(GetGrachtClient(), &msg, Handle, &Status);
+                gracht_vali_message_finish(&msg);
             }
             OsStatusToErrno(Status);
             return Status;

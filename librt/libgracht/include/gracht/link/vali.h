@@ -32,6 +32,7 @@
 struct vali_link_message {
     struct ipmsg_addr address;
     struct ipmsg_resp response;
+    void*             response_pool;
     void*             response_buffer;
 };
 

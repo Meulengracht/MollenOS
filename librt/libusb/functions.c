@@ -23,13 +23,12 @@
 //#define __TRACE
 
 #include <ddk/contracts/usbhost.h>
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/bufferpool.h>
 #include <ddk/driver.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
-#include <os/ipc.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>

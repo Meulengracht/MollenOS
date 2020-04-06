@@ -57,21 +57,25 @@
  * the new socket. Currently only DECNet has these semantics on Linux.
  */
 
-#include <ddk/services/net.h>
+#include <ddk/protocols/svc_process_protocol_client.h>
+#include <ddk/service.h>
 #include <errno.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
 #include <inet/local.h>
 #include <os/mollenos.h>
 #include <string.h>
 
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    UUId_t          socket_handle;
-    UUId_t          send_handle;
-    UUId_t          recv_handle;
-    OsStatus_t      status;
-    int             accept_iod;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          handle = stdio_handle_get(iod);
+    UUId_t                   socket_handle;
+    UUId_t                   send_handle;
+    UUId_t                   recv_handle;
+    OsStatus_t               status;
+    int                      accept_iod;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -89,8 +93,9 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         return -1;        
     }
     
-    status = AcceptSocket(handle->object.handle, address, 
-        &socket_handle, &send_handle, &recv_handle);
+    svc_socket_accept_sync(GetGrachtClient(), &msg, handle->object.handle,
+        &status, address, &socket_handle, &recv_handle, &send_handle);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

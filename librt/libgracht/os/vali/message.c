@@ -44,5 +44,5 @@ int gracht_vali_message_create(gracht_client_t* client, int message_size, struct
 // the finish will then clean up shm
 void gracht_vali_message_finish(struct vali_link_message* message)
 {
-    brel(NULL /*linkManager->pool*/, message->response_buffer);
+    brel(message->response_pool, message->response_buffer);
 }

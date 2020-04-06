@@ -20,20 +20,35 @@
  * - Deletes the file specified by the path
  */
 
-#include <os/services/file.h>
-#include <stdio.h>
+#include <ddk/protocols/svc_file_protocol_client.h>
+#include <ddk/service.h>
 #include <errno.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 #include <io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
 
 int unlink(
-	_In_ const char *path) {
-	if (path == NULL) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
-	return _fval(DeletePath(path, 0));
+	_In_ const char *path)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    int                      status;
+    OsStatus_t               osStatus;
+        
+    if (path == NULL) {
+    	_set_errno(EINVAL);
+    	return EOF;
+    }
+    
+    status = svc_file_delete_sync(GetGrachtClient(), &msg, path, 0, &osStatus);
+    gracht_vali_message_finish(&msg);
+    if (status || OsStatusToErrno(osStatus)) {
+    	return -1;
+    }
+    return 0;
 }
 
 int remove(const char * filename) {
-	return unlink(filename);
+    return unlink(filename);
 }

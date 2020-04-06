@@ -23,7 +23,7 @@
 
 #include <ds/streambuffer.h>
 #include <errno.h>
-#include <gracht/link/socket.h>
+#include "../include/gracht/link/socket.h"
 
 static struct socket_link {
     struct link_ops         ops;
