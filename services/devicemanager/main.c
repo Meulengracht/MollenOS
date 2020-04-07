@@ -84,11 +84,11 @@ void svc_device_unregister_callback(struct gracht_recv_message* message, struct 
 void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args* args)
 {
     MCoreDevice_t* Device;
-    OsStatus_t     Result = OsError;
-    DataKey_t      Key    = { .Value.Id = args->device_id };
+    OsStatus_t     Result;
+    DataKey_t      Key = { .Value.Id = args->device_id };
     
     Device = CollectionGetDataByKey(&Devices, Key, 0);
-    Result = DmIoctlDevice(Device, IPC_GET_TYPED(Message, 3));
+    Result = DmIoctlDevice(Device, args->command, args->flags);
     
     svc_device_ioctl_response(message, Result);
 }
@@ -96,15 +96,14 @@ void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_d
 void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args* args)
 {
     MCoreDevice_t* Device;
-    OsStatus_t     Result = OsError;
-    DataKey_t      Key    = { .Value.Id = args->device_id };
+    OsStatus_t     Result;
+    DataKey_t      Key = { .Value.Id = args->device_id };
     
     Device = CollectionGetDataByKey(&Devices, Key, 0);
-    Result = DmIoctlDeviceEx(Device, IPC_GET_TYPED(Message, 2),
-        IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
-        (size_t)IPC_GET_UNTYPED(Message, 0));
+    Result = DmIoctlDeviceEx(Device, args->direction,
+        args->command, &args->value, args->width);
     
-    svc_device_ioctl_ex_response(message, Result, Value);
+    svc_device_ioctl_ex_response(message, Result, args->value);
 }
 
 int

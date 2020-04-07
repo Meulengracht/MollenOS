@@ -22,7 +22,11 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/c.lib
+LIBRARIES = ../../librt/deploy/libgracht.lib \
+			../../librt/build/libsrv.lib \
+			../../librt/build/ddk.lib \
+			../../librt/build/c.lib \
+			../../librt/build/compiler-rt.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtServiceEntry /dll

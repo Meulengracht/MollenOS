@@ -86,7 +86,7 @@ static void vali_link_destroy(struct vali_link_manager* linkManager)
     free(linkManager);
 }
 
-int gracht_link_vali_create(struct server_link_ops** linkOut, struct ipmsg_addr* address)
+int gracht_link_vali_server_create(struct server_link_ops** linkOut, struct ipmsg_addr* address)
 {
     struct vali_link_manager* linkManager;
     
