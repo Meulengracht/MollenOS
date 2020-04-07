@@ -677,7 +677,7 @@ class CGenerator:
         return function_prototype + parameter_string + ")"
 
     def get_response_prototype(self, protocol, func, case):
-        function_prototype = "void " + self.get_protocol_server_response_name(protocol, func) + "("
+        function_prototype = "int " + self.get_protocol_server_response_name(protocol, func) + "("
         function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
         parameter_string = function_message_param + ", "
         parameter_string = parameter_string + self.get_parameter_string(protocol, func.get_response_params(), case)
@@ -798,17 +798,17 @@ class CGenerator:
 
     def define_event_body_single(self, protocol, evt, outfile):
         self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
-        outfile.write("    return gracht_server_send_event(client, &__message, 0);\n")
+        outfile.write("    return gracht_server_send_event(client, (struct gracht_message*)&__message, 0);\n")
         return
 
     def define_event_body_all(self, protocol, evt, outfile):
         self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
-        outfile.write("    return gracht_server_broadcast_event(&__message, 0);\n")
+        outfile.write("    return gracht_server_broadcast_event((struct gracht_message*)&__message, 0);\n")
         return
 
     def define_response_body(self, protocol, func, outfile):
         self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], "0", outfile)
-        outfile.write("    return gracht_server_respond(message, &__message);\n")
+        outfile.write("    return gracht_server_respond(message, (struct gracht_message*)&__message);\n")
         return
     
     def define_functions(self, protocol, outfile):
@@ -884,8 +884,13 @@ class CGenerator:
             outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
         return
     
-    def write_protocol_prototype(self, protocol, outfile):
+    def write_client_protocol_prototype(self, protocol, outfile):
         if len(protocol.get_events()) > 0:
+            outfile.write("    extern gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol;\n")
+        return
+
+    def write_server_protocol_prototype(self, protocol, outfile):
+        if len(protocol.get_functions()) > 0:
             outfile.write("    extern gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol;\n")
         return
     
@@ -934,7 +939,7 @@ class CGenerator:
             self.write_c_guard_start(f)
             self.define_prototypes(protocol, f)
             self.write_client_protocol_prototypes(protocol, f)
-            self.write_protocol_prototype(protocol, f)
+            self.write_client_protocol_prototype(protocol, f)
             self.write_c_guard_end(f)
             self.write_header_guard_end(file_name, f)
         return
@@ -960,7 +965,7 @@ class CGenerator:
             self.define_types(protocol, f)
             self.write_c_guard_start(f)
             self.write_server_protocol_prototypes(protocol, f)
-            self.write_protocol_prototype(protocol, f)
+            self.write_server_protocol_prototype(protocol, f)
             self.write_c_guard_end(f)
             self.write_header_guard_end(file_name, f)
         return

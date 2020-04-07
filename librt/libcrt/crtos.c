@@ -19,13 +19,12 @@
  * MollenOS C Environment - Shared Routines
  */
 
+#include <ctype.h>
 #include <internal/_syscalls.h>
-#include <os/services/process.h>
-
 #include "../libc/threads/tls.h"
+#include <os/process.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 extern int main(int argc, char **argv, char **envp);
 extern void __cxa_module_global_init(void);

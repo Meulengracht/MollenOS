@@ -22,6 +22,8 @@ PROTOCOLS_C = protocols/svc_session_protocol_client.c \
 			  protocols/svc_process_protocol_client.c \
 			  protocols/svc_library_protocol_client.c \
 			  protocols/svc_socket_protocol_client.c \
+			  protocols/svc_device_protocol_client.c \
+			  protocols/ctt_driver_protocol_client.c \
 			  protocols/ctt_usbhost_protocol_client.c
 
 ASM_SOURCES = $(wildcard arch/$(VALI_ARCH)/*.s)
@@ -38,16 +40,12 @@ all: protocols ../build/ddk.lib
 	@mkdir -p include/ddk/protocols
 	cp protocols/*.h include/ddk/protocols/
 
-protocols:
+protocols: ../../protocols/service_protocols.xml ../../protocols/contract_protocols.xml
 	mkdir -p $@
-
-protocols/svc_session_protocol_client.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
-
-protocols/ctt_usbhost_protocol_client.c: ../../protocols/contract_protocols.xml
+	python ../../protocols/gracht_generator.py --protocol ../../protocols/service_protocols.xml --out $@ --lang-c --client
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
+	python ../../protocols/gracht_generator.py --protocol ../../protocols/contract_protocols.xml --out $@ --lang-c --client
 
 ../build/ddk.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"

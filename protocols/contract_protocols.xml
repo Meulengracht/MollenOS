@@ -6,12 +6,25 @@
         <type name="uintptr_t" header="stdint.h" />
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
+        <type name="MCoreDevice_t" header="ddk/device.h" />
         <type name="UsbTransferStatus_t" header="ddk/usb.h" />
         <type name="UsbTransfer_t" header="ddk/usb.h" />
         <type name="UsbHcPortDescriptor_t" header="ddk/usb/definitions.h" />
     </types>
     <protocols namespace="ctt">
-        <protocol name="usbhost" id="0x1">
+        <protocol name="driver" id="0x10">
+            <functions>
+                <function name="register_device" synchronous="true">
+                    <request>
+                        <param name="device" type="buffer" subtype="MCoreDevice_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+        <protocol name="usbhost" id="0x11">
             <functions>
                 <function name="queue_async" synchronous="false">
                     <request>

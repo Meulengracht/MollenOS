@@ -10,6 +10,7 @@
         <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
         <type name="ProcessStartupInformation_t" header="os/types/process.h" />
         <type name="OsStorageDescriptor_t" header="os/types/storage.h" />
+        <type name="MCoreDevice_t" header="ddk/device.h" />
     </types>
     <protocols namespace="svc">
         <protocol name="session" id="0x1">
@@ -536,6 +537,57 @@
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
                         <param name="address" type="buffer" subtype="struct sockaddr" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+        <protocol name="device" id="0x8">
+            <functions>
+                <function name="register" synchronous="true">
+                    <request>
+                        <param name="parent" type="UUId_t" count="1" />
+                        <param name="device" type="buffer" subtype="MCoreDevice_t" />
+                        <param name="flags" type="unsigned int" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+            <functions>
+                <function name="unregister" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+            <functions>
+                <function name="ioctl" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" count="1" />
+                        <param name="command" type="unsigned int" count="1" />
+                        <param name="flags" type="unsigned int" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+            <functions>
+                <function name="ioctl_ex" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" count="1" />
+                        <param name="direction" type="int" count="1" />
+                        <param name="command" type="unsigned int" count="1" />
+                        <param name="value" type="size_t" count="1" />
+                        <param name="width" type="unsigned int" count="1" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="value" type="size_t" count="1" />
                     </response>
                 </function>
             </functions>

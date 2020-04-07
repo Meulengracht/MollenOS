@@ -28,7 +28,6 @@
 #include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
-#include <os/ipc.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
@@ -117,8 +116,6 @@ DestroyThread(
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
         DestroyHandle(Thread->MemorySpaceHandle);
     }
-    (void)MemorySpaceUnmap(GetCurrentMemorySpace(), 
-        (VirtualAddress_t)Thread->ArenaKernelPointer, IPC_ARENA_SIZE);
     
     kfree((void*)Thread->Name);
     kfree(Thread);
@@ -133,30 +130,6 @@ CreateDefaultThreadContexts(
         (uintptr_t)&ThreadingEntryPoint, 0);
 
     // TODO: Should we create user stacks immediately?
-}
-
-static OsStatus_t
-CreateThreadIpcArena(
-    _In_ MCoreThread_t* Thread)
-{
-    IpcArena_t* Arena;
-    OsStatus_t  Status;
-    
-    Status = MemorySpaceMap(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Thread->ArenaKernelPointer, &Thread->ArenaPhysicalAddress,
-        IPC_ARENA_SIZE, MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
-    if (Status != OsSuccess) {
-        ERROR("... failed to create ipc arena for thread: %u", Status);
-        return Status;
-    }
-    
-    Arena = Thread->ArenaKernelPointer;
-    memset(Arena, 0, IPC_ARENA_SIZE);
-    
-    // Set default state to ipc blocked, which means the thread won't accept
-    // any ipcs before IpcListen is called
-    atomic_store(&Arena->WriteSyncObject, 1);
-    return Status;
 }
 
 // Setup defaults for a new thread and creates appropriate resources
@@ -198,10 +171,6 @@ InitializeDefaultThread(
     }
     
     Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
-    if (CreateThreadIpcArena(Thread) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to create the ipc arena for the thread.");
-    }
-    
     if (ThreadingRegister(Thread) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
     }
@@ -486,7 +455,6 @@ void
 EnterProtectedThreadLevel(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    OsStatus_t     Status;
 
     // Create the userspace stack now that we need it 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
@@ -495,16 +463,7 @@ EnterProtectedThreadLevel(void)
         
     // Create the signal stack in preparation.
     Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
-    
-    // Create the ipc arena pointer that will be user accessible
-    Status = MemorySpaceMap(GetCurrentMemorySpace(),
-        (VirtualAddress_t*)&Thread->ArenaUserPointer, &Thread->ArenaPhysicalAddress,
-        IPC_ARENA_SIZE, MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY | MAPPING_PERSISTENT,
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
-    if (Status != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "... failed to create user ipc arena for thread: %u", Status);
-    }
-    
+
     // Initiate switch to userspace
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
     ThreadingYield();

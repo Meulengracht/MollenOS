@@ -31,13 +31,10 @@
 #include <deviceio.h>
 #include <handle.h>
 #include <heap.h>
-#include <os/ipc.h>
 #include <modules/manager.h>
 #include <interrupts.h>
 #include <machine.h>
 #include <timers.h>
-
-extern OsStatus_t ScIpcInvoke(UUId_t, IpcMessage_t*, unsigned int, size_t, void**);
 
 OsStatus_t
 ScAcpiQueryStatus(
@@ -177,18 +174,16 @@ ScRegisterAliasId(
 OsStatus_t
 ScLoadDriver(
     _In_ MCoreDevice_t* Device,
-    _In_ size_t         LengthOfDeviceStructure,
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)
 {
     SystemModule_t* CurrentModule = GetCurrentModule();
     SystemModule_t* Module;
-    IpcMessage_t    Message;
     OsStatus_t      Status;
 
     TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
         Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
-    if (CurrentModule == NULL || Device == NULL || LengthOfDeviceStructure < sizeof(MCoreDevice_t)) {
+    if (CurrentModule == NULL || Device == NULL) {
         if (CurrentModule == NULL) {
             return OsInvalidPermissions;
         }
@@ -223,11 +218,7 @@ ScLoadDriver(
             return Status;
         }
     }
-
-    IpcInitialize(&Message);
-    IpcSetTypedArgument(&Message, 0, __DRIVER_REGISTERINSTANCE);
-    IpcSetUntypedArgument(&Message, 0, Device, LengthOfDeviceStructure);
-    return ScIpcInvoke(Module->PrimaryThreadId, &Message, IPC_ASYNCHRONOUS | IPC_NO_RESPONSE, 0, NULL);
+    return OsSuccess;
 }
 
 UUId_t

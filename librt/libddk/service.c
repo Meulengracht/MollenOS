@@ -182,5 +182,5 @@ InstallDriver(
 {
     assert(Device != NULL);
     assert(Length != 0);
-	return Syscall_LoadDriver(Device, Length, DriverBuffer, DriverBufferLength);
+	return Syscall_LoadDriver(Device, DriverBuffer, DriverBufferLength);
 }

@@ -72,7 +72,7 @@
 #define __DEVICEMANAGER_IOCTL_EXT_WRITE             0x00000000
 #define __DEVICEMANAGER_IOCTL_EXT_READ              0x80000000
 
-PACKED_TYPESTRUCT(MCoreDevice, {
+typedef struct MCoreDevice {
     UUId_t              Id;
     char                Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
     size_t              Length;
@@ -93,7 +93,7 @@ PACKED_TYPESTRUCT(MCoreDevice, {
     DevInfo_t           Bus;
     DevInfo_t           Slot;
     DevInfo_t           Function;
-});
+} MCoreDevice_t;
 
 /* RegisterDevice
  * Allows registering of a new device in the

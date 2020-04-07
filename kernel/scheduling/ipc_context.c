@@ -173,10 +173,10 @@ WriteMessage(
         Message->response, sizeof(struct ipmsg_resp), &State->state);
     
     // Fixup all SHM buffer values before writing the base message
-    for (i = 0; i < Message->base.param_count; i++) {
-        if (Message->base.params[i].type == IPMSG_PARAM_SHM) {
+    for (i = 0; i < Message->base->param_in; i++) {
+        if (Message->base->params[i].type == IPMSG_PARAM_SHM) {
             MCoreThread_t* Thread = GetContextThread(Context);
-            OsStatus_t     Status = MapUntypedParameter(&Message->base.params[i],
+            OsStatus_t     Status = MapUntypedParameter(&Message->base->params[i],
                 Thread->MemorySpace);
             if (Status != OsSuccess) {
                 // WHAT DO
@@ -191,15 +191,15 @@ WriteMessage(
     
     streambuffer_write_packet_data(Context->KernelStream, 
         Message->base, sizeof(struct ipmsg_base) + 
-            (Message->base->param_count * sizeof(struct ipmsg_param)),
+            (Message->base->param_in * sizeof(struct ipmsg_param)),
         &State->state);
     
     // Handle all the buffer/shm parameters
-    for (i = 0; i < Message->base.param_count; i++) {
-        if (Message->base.params[i].type == IPMSG_PARAM_BUFFER) {
+    for (i = 0; i < Message->base->param_in; i++) {
+        if (Message->base->params[i].type == IPMSG_PARAM_BUFFER) {
             streambuffer_write_packet_data(Context->KernelStream, 
-                Message->base.params[i].data.buffer,
-                Message->base.params[i].length,
+                Message->base->params[i].data.buffer,
+                Message->base->params[i].length,
                 &State->state);
         }
     }
@@ -224,7 +224,7 @@ CleanupMessage(
     TRACE("CleanupMessage(0x%llx)", Message);
 
     // Flush all the mappings granted in the argument phase
-    for (i = 0; i < Message->base.param_count; i++) {
+    for (i = 0; i < Message->base.param_in; i++) {
         if (Message->base.params[i].type == IPMSG_PARAM_SHM) {
             OsStatus_t Status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 (VirtualAddress_t)Message->base.params[i].data.buffer,
@@ -256,11 +256,11 @@ SendNotification(
         atomic_store(SyncObject, 1);
         FutexWake(SyncObject, 1, 0);
     }
-    else if (Response->notify_method == IPC_NOTIFY_METHOD_HANDLE_SET) {
+    else if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
         MarkHandle(Response->notify_data.handle, 0);
     }
     else if (Response->notify_method == IPMSG_NOTIFY_SIGNAL) {
-        SignalSend(Response->notify_data.handle, SIGIPC, Response->NotifyData.Context);
+        SignalSend(Response->notify_data.handle, SIGIPC, Response->notify_context);
     }
     else if (Response->notify_method == IPMSG_NOTIFY_THREAD) {
         NOTIMPLEMENTED("[ipc] [send_notification] IPC_NOTIFY_METHOD_THREAD missing implementation");
@@ -302,6 +302,7 @@ IpcContextSendMultiple(
     _In_ size_t              Timeout)
 {
     struct message_state State;
+    int                  i;
     
     if (!Messages || !MessageCount) {
         return OsInvalidParameters;
@@ -312,7 +313,7 @@ IpcContextSendMultiple(
         OsStatus_t    Status = AllocateMessage(Messages[i], Timeout, 
              &State, &TargetContext);
         if (Status != OsSuccess) {
-            if (WriteShortResponse(&Messages[i]->response, Status) != OsSuccess) {
+            if (WriteShortResponse(Messages[i]->response, Status) != OsSuccess) {
                 WARNING("[ipc] [send_multiple] failed to write response");
             }
         }
@@ -322,8 +323,8 @@ IpcContextSendMultiple(
     
     // Iterate all messages again and wait for response
     for (i = 0; i < MessageCount; i++) {
-        if (!(Messages[i]->flags & IPMSG_DONTWAIT)) {
-            WaitForMessageNotification(&Messages[i]->response, Timeout);
+        if (!(Messages[i]->base->flags & IPMSG_DONTWAIT)) {
+            WaitForMessageNotification(Messages[i]->response, Timeout);
         }
     }
     return OsSuccess;

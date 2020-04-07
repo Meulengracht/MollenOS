@@ -49,7 +49,7 @@ _CODE_END
 #define Syscall_IoSpaceAcquire(IoSpace)                                                      (OsStatus_t)syscall1(21, SCPARAM(IoSpace))
 #define Syscall_IoSpaceRelease(IoSpace)                                                      (OsStatus_t)syscall1(22, SCPARAM(IoSpace))
 #define Syscall_IoSpaceDestroy(IoSpaceId)                                                    (OsStatus_t)syscall1(23, SCPARAM(IoSpaceId))
-#define Syscall_LoadDriver(Device, Length, Buffer, BufferLength)                             (OsStatus_t)syscall4(24, SCPARAM(Device), SCPARAM(Length), SCPARAM(Buffer), SCPARAM(BufferLength))
+#define Syscall_LoadDriver(Device, Buffer, BufferLength)                                     (OsStatus_t)syscall3(24, SCPARAM(Device), SCPARAM(Buffer), SCPARAM(BufferLength))
 #define Syscall_InterruptAdd(Descriptor, Flags)                                              (UUId_t)syscall2(25, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId)                                                 (OsStatus_t)syscall1(26, SCPARAM(InterruptId))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                        (OsStatus_t)syscall1(27, SCPARAM(BaseAddressOut))
