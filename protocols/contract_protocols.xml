@@ -7,6 +7,7 @@
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
         <type name="MCoreDevice_t" header="ddk/device.h" />
+        <type name="StorageDescriptor_t" header="ddk/storage.h" />
         <type name="UsbTransferStatus_t" header="ddk/usb.h" />
         <type name="UsbTransfer_t" header="ddk/usb.h" />
         <type name="UsbHcPortDescriptor_t" header="ddk/usb/definitions.h" />
@@ -24,7 +25,50 @@
                 </function>
             </functions>
         </protocol>
-        <protocol name="usbhost" id="0x11">
+        <protocol name="storage" id="0x11">
+            <functions>
+                <function name="stat" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="StorageDescriptor_t" />
+                    </response>
+                </function>
+                <function name="transfer_async" synchronous="false">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="direction" type="int" />
+                        <param name="sector_lo" type="unsigned int" />
+                        <param name="sector_hi" type="unsigned int" />
+                        <param name="buffer_id" type="UUId_t" />
+                        <param name="buffer_offset" type="unsigned int" />
+                        <param name="sector_count" type="size_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="sectors_transferred" type="size_t" />
+                    </response>
+                </function>
+                <function name="transfer" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="direction" type="int" />
+                        <param name="sector_lo" type="unsigned int" />
+                        <param name="sector_hi" type="unsigned int" />
+                        <param name="buffer_id" type="UUId_t" />
+                        <param name="buffer_offset" type="unsigned int" />
+                        <param name="sector_count" type="size_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="sectors_transferred" type="size_t" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+        <protocol name="usbhost" id="0x12">
             <functions>
                 <function name="queue_async" synchronous="false">
                     <request>

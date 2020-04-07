@@ -21,29 +21,53 @@
  */
 #define __TRACE
 
-#include <os/dmabuf.h>
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
+#include <os/dmabuf.h>
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 #include "../include/mbr.h"
+#include <string.h>
+
+static OsStatus_t
+ReadStorage(
+	_In_  FileSystemDisk_t* storage,
+	_In_  UUId_t            bufferHandle,
+	_In_  uint64_t          sector,
+	_In_  size_t            sectorCount,
+	_Out_ size_t*           sectorsRead)
+{
+	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
+	OsStatus_t               status;
+	
+	ctt_storage_transfer_sync(GetGrachtClient(), &msg, storage->Device,
+			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
+			bufferHandle, 0, sectorCount, &status, sectorsRead);
+	gracht_vali_message_finish(&msg);
+	return status;
+}
 
 OsStatus_t
-DiskDetectFileSystem(FileSystemDisk_t *Disk,
-	UUId_t BufferHandle, void* Buffer, 
-	uint64_t Sector, uint64_t SectorCount)
+DiskDetectFileSystem(
+	_In_ FileSystemDisk_t* disk,
+	_In_ UUId_t            bufferHandle,
+	_In_ void*             buffer, 
+	_In_ uint64_t          sector,
+	_In_ uint64_t          sectorCount)
 {
-	MasterBootRecord_t* Mbr;
-	FileSystemType_t    Type = FSUnknown;
-	size_t              SectorsRead;
+	FileSystemType_t         type = FSUnknown;
+	MasterBootRecord_t*      mbr;
+	size_t                   sectorsRead;
+	OsStatus_t               status;
 
 	// Trace
 	TRACE("DiskDetectFileSystem(Sector %u, Count %u)",
-		LODWORD(Sector), LODWORD(SectorCount));
+		LODWORD(sector), LODWORD(sectorCount));
 
 	// Make sure the MBR is loaded
-	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
-			BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
-		return OsError;
+	status = ReadStorage(disk, bufferHandle, sector, 1, &sectorsRead);
+	if (status != OsSuccess) {
+		return status;
 	}
 
 	// Ok - we do some basic signature checks 
@@ -51,20 +75,20 @@ DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	// NTFS - "NTFS" 
 	// exFAT - "EXFAT" 
 	// FAT - "FATXX"
-	Mbr = (MasterBootRecord_t*)Buffer;
-	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
-		Type = FSMFS;
+	mbr = (MasterBootRecord_t*)buffer;
+	if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
+		type = FSMFS;
 	}
-	else if (!strncmp((const char*)&Mbr->BootCode[3], "NTFS", 4)) {
-		Type = FSNTFS;
+	else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
+		type = FSNTFS;
 	}
-	else if (!strncmp((const char*)&Mbr->BootCode[3], "EXFAT", 5)) {
-		Type = FSEXFAT;
+	else if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
+		type = FSEXFAT;
 	}
-	else if (!strncmp((const char*)&Mbr->BootCode[0x36], "FAT12", 5)
-		|| !strncmp((const char*)&Mbr->BootCode[0x36], "FAT16", 5)
-		|| !strncmp((const char*)&Mbr->BootCode[0x52], "FAT32", 5)) {
-		Type = FSFAT;
+	else if (!strncmp((const char*)&mbr->BootCode[0x36], "FAT12", 5)
+		|| !strncmp((const char*)&mbr->BootCode[0x36], "FAT16", 5)
+		|| !strncmp((const char*)&mbr->BootCode[0x52], "FAT32", 5)) {
+		type = FSFAT;
 	}
 	else {
         WARNING("Unknown filesystem detected");
@@ -76,8 +100,8 @@ DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	}
 
 	// Sanitize the type
-	if (Type != FSUnknown) {
-		return DiskRegisterFileSystem(Disk, Sector, SectorCount, Type);
+	if (type != FSUnknown) {
+		return DiskRegisterFileSystem(disk, sector, sectorCount, type);
 	}
 	else {
 		return OsError;
@@ -86,48 +110,47 @@ DiskDetectFileSystem(FileSystemDisk_t *Disk,
 
 OsStatus_t
 DiskDetectLayout(
-	_In_ FileSystemDisk_t* Disk)
+	_In_ FileSystemDisk_t* disk)
 {
-	GptHeader_t* Gpt;
-	OsStatus_t   Result;
-	size_t       SectorsRead;
-	OsStatus_t   Status;
+	GptHeader_t* gpt;
+	size_t       sectorsRead;
+	OsStatus_t   status;
 	
-	struct dma_buffer_info DmaInfo;
-	struct dma_attachment  DmaAttachment;
+	struct dma_buffer_info dmaInfo;
+	struct dma_attachment  dmaAttachment;
 
-	TRACE("DiskDetectLayout(SectorSize %u)", Disk->Descriptor.SectorSize);
+	TRACE("DiskDetectLayout(SectorSize %u)", disk->Descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
-	DmaInfo.length = DmaInfo.capacity = Disk->Descriptor.SectorSize;
-	DmaInfo.flags  = 0;
-	Status = dma_create(&DmaInfo, &DmaAttachment);
-	if (Status != OsSuccess) {
-		return Status;
+	dmaInfo.length = dmaInfo.capacity = disk->Descriptor.SectorSize;
+	dmaInfo.flags  = 0;
+	status = dma_create(&dmaInfo, &dmaAttachment);
+	if (status != OsSuccess) {
+		return status;
 	}
 	
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, 1, 
-			DmaAttachment.handle, 0, 1, &SectorsRead) != OsSuccess) {
-		dma_attachment_unmap(&DmaAttachment);
-		dma_detach(&DmaAttachment);
-		return OsError;
+	status = ReadStorage(disk, dmaAttachment.handle, 1, 1, &sectorsRead);
+	if (status != OsSuccess) {
+		dma_attachment_unmap(&dmaAttachment);
+		dma_detach(&dmaAttachment);
+		return status;
 	}
 	
 	// Check the GPT signature if it matches 
 	// - If it doesn't match, it can only be a MBR disk
-	Gpt = (GptHeader_t*)DmaAttachment.buffer;
-	if (!strncmp((const char*)&Gpt->Signature[0], GPT_SIGNATURE, 8)) {
-		Result = GptEnumerate(Disk, DmaAttachment.handle, DmaAttachment.buffer);
+	gpt = (GptHeader_t*)dmaAttachment.buffer;
+	if (!strncmp((const char*)&gpt->Signature[0], GPT_SIGNATURE, 8)) {
+		status = GptEnumerate(disk, dmaAttachment.handle, dmaAttachment.buffer);
 	}
 	else {
-		Result = MbrEnumerate(Disk, DmaAttachment.handle, DmaAttachment.buffer);
+		status = MbrEnumerate(disk, dmaAttachment.handle, dmaAttachment.buffer);
 	}
 
-	dma_attachment_unmap(&DmaAttachment);
-	dma_detach(&DmaAttachment);
-	return Result;
+	dma_attachment_unmap(&dmaAttachment);
+	dma_detach(&dmaAttachment);
+	return status;
 }

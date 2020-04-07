@@ -10,6 +10,8 @@
 #include <ddk/protocols/svc_socket_protocol_client.h>
 #include <ddk/protocols/svc_storage_protocol_client.h>
 
+#include <ddk/protocols/ctt_driver_protocol_client.h>
+#include <ddk/protocols/ctt_storage_protocol_client.h>
 #include <ddk/protocols/ctt_usbhost_protocol_client.h>
 
 #include <ddk/service.h>

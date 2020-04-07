@@ -22,9 +22,28 @@
 #define __TRACE
 
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include "../include/vfs.h"
 #include "../include/mbr.h"
 #include <stdlib.h>
+
+static OsStatus_t
+ReadStorage(
+	_In_  FileSystemDisk_t* storage,
+	_In_  UUId_t            bufferHandle,
+	_In_  uint64_t          sector,
+	_In_  size_t            sectorCount,
+	_Out_ size_t*           sectorsRead)
+{
+	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
+	OsStatus_t               status;
+	
+	ctt_storage_transfer_sync(GetGrachtClient(), &msg, storage->Device,
+			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
+			bufferHandle, 0, sectorCount, &status, sectorsRead);
+	gracht_vali_message_finish(&msg);
+	return status;
+}
 
 OsStatus_t
 MbrEnumeratePartitions(
