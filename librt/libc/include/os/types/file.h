@@ -78,4 +78,22 @@ PACKED_TYPESTRUCT(FileMappingParameters, {
     size_t    Length;
 });
 
+// Access flags
+#define __FILE_READ_ACCESS                      0x00000001
+#define __FILE_WRITE_ACCESS                     0x00000002
+#define __FILE_READ_SHARE                       0x00000100
+#define __FILE_WRITE_SHARE                      0x00000200
+
+// Options flag
+#define __FILE_CREATE                           0x00000001
+#define __FILE_CREATE_RECURSIVE                 0x00000002
+#define __FILE_TRUNCATE                         0x00000004
+#define __FILE_FAILONEXIST                      0x00000008
+#define __FILE_APPEND                           0x00000100
+#define __FILE_BINARY                           0x00000200
+#define __FILE_VOLATILE                         0x00000400
+#define __FILE_TEMPORARY                        0x00000800
+#define __FILE_DIRECTORY                        0x00001000
+#define __FILE_LINK                             0x00002000
+
 #endif //!__TYPES_FILE_H__

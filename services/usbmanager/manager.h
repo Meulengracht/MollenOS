@@ -25,7 +25,7 @@
 #define __USBMANAGER_H__
 
 #include <ddk/contracts/usbhost.h>
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/bufferpool.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
@@ -108,55 +108,11 @@ __EXTERN
 OsStatus_t
 UsbCoreDestroy(void);
 
-/* UsbCoreControllerRegister
- * Registers a new controller with the given type and setup */
-__EXTERN
-OsStatus_t
-UsbCoreControllerRegister(
-    _In_ UUId_t                 DriverId,
-    _In_ MCoreDevice_t*         Device,
-    _In_ UsbControllerType_t    Type,
-    _In_ size_t                 RootPorts);
-
-/* UsbCoreControllerUnregister
- * Unregisters the given usb-controller from the manager and
- * unregisters any devices registered by the controller */
-__EXTERN
-OsStatus_t
-UsbCoreControllerUnregister(
-    _In_ UUId_t                 DriverId,
-    _In_ UUId_t                 DeviceId);
-
-/* UsbCoreEventPort 
- * Fired by a usbhost controller driver whenever there is a change
- * in port-status. The port-status is then queried automatically by
- * the usbmanager. */
-__EXTERN
-OsStatus_t
-UsbCoreEventPort(
-    _In_ UUId_t                 DriverId,
-    _In_ UUId_t                 DeviceId,
-    _In_ uint8_t                HubAddress,
-    _In_ uint8_t                PortAddress);
-
-/* UsbCoreGetControllerCount
- * Retrieves the number of registered controllers. */
-__EXTERN
-int
-UsbCoreGetControllerCount(void);
-
 /* UsbCoreGetController 
  * Looks up the controller that matches the device-identifier */
 __EXTERN
 UsbController_t*
 UsbCoreGetController(
     _In_ UUId_t                 DeviceId);
-
-/* UsbCoreGetControllerIndex
- * Looks up the controller that matches the list-index */
-__EXTERN
-UsbController_t*
-UsbCoreGetControllerIndex(
-    _In_ int                    Index);
 
 #endif //!__USBMANAGER_H__

@@ -66,11 +66,12 @@ FILE* freopen(
 			struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
 			OsStatus_t               status;
 			
+			handle = stdio_handle_get(stream->_fd);
 			_fflags(mode, &open_flags, &stream_flags);
 			// TODO: support multiple types of streams
 			
-			svc_file_set_options_sync(GetGrachtClient(), &msg, stream->_fd,
-				_fopts(open_flags), _faccess(open_flags), &status);
+			svc_file_set_options_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+				handle->object.handle, _fopts(open_flags), _faccess(open_flags), &status);
 			gracht_vali_message_finish(&msg);
 			OsStatusToErrno(status);
 		}

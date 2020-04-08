@@ -26,7 +26,7 @@
 #define _CONTRACT_USBDEVICE_INTERFACE_H_
 
 #include <ddk/usb/definitions.h>
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/driver.h>
 #include <ddk/device.h>
 #include <ddk/ddkdefs.h>

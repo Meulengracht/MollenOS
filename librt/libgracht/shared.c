@@ -78,8 +78,13 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
 #endif
         }
         else if (params[i].type == GRACHT_PARAM_BUFFER) {
-            *((char**)&unpackBuffer[unpackIndex]) = params_storage;
-            params_storage += params[i].length;
+            if (params[i].length == 0) {
+                *((char**)&unpackBuffer[unpackIndex]) = NULL;
+            }
+            else {
+                *((char**)&unpackBuffer[unpackIndex]) = params_storage;
+                params_storage += params[i].length;
+            }
         }
         else if (params[i].type == GRACHT_PARAM_SHM) {
             *((char**)&unpackBuffer[unpackIndex]) = (char*)params[i].data.buffer;

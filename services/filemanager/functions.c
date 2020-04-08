@@ -22,17 +22,20 @@
  */
 //#define __TRACE
 
+#include <ctype.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
-#include <os/services/file.h>
-#include <os/services/process.h>
-#include <ddk/services/file.h>
-#include <ddk/utils.h>
-
+#include <os/types/file.h>
+#include <os/process.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+
+#include "svc_file_protocol_server.h"
+
+static OsStatus_t Flush(UUId_t processId, UUId_t handle);
+static MString_t* VfsPathCanonicalize(const char* Path);
 
 int
 VfsEntryIsFile(
@@ -76,90 +79,90 @@ VfsGetFileSystemFromPath(
 
 /* VfsIsHandleValid
  * Checks for both owner permission and verification of the handle. */
-FileSystemCode_t
+OsStatus_t
 VfsIsHandleValid(
-    _In_  UUId_t                    Requester,
-    _In_  UUId_t                    Handle,
+    _In_  UUId_t                    processId,
+    _In_  UUId_t                    handle,
     _In_  Flags_t                   RequiredAccess,
-    _Out_ FileSystemEntryHandle_t** EntryHandle)
+    _Out_ FileSystemEntryHandle_t** entryHandle)
 {
     CollectionItem_t *Node;
-    DataKey_t Key = { .Value.Id = Handle };
-    Node       = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+    DataKey_t key = { .Value.Id = handle };
+    Node       = CollectionGetNodeByKey(VfsGetOpenHandles(), key, 0);
     if (Node == NULL) {
         ERROR("Invalid handle given for file");
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
 
-    *EntryHandle = (FileSystemEntryHandle_t*)Node->Data;
-    if ((*EntryHandle)->Owner != Requester) {
+    *entryHandle = (FileSystemEntryHandle_t*)Node->Data;
+    if ((*entryHandle)->Owner != processId) {
         ERROR("Owner of the handle did not match the requester. Access Denied.");
-        return FsAccessDenied;
+        return OsInvalidPermissions;
     }
 
-    if ((*EntryHandle)->Entry->IsLocked != UUID_INVALID && (*EntryHandle)->Entry->IsLocked != Requester) {
+    if ((*entryHandle)->Entry->IsLocked != UUID_INVALID && (*entryHandle)->Entry->IsLocked != processId) {
         ERROR("Entry is locked and lock is not held by requester. Access Denied.");
-        return FsAccessDenied;
+        return OsInvalidPermissions;
     }
 
-    if (RequiredAccess != 0 && ((*EntryHandle)->Access & RequiredAccess) != RequiredAccess) {
-        ERROR("Handle was not opened with the required access parameter. Access Denied.");
-        return FsAccessDenied;
+    if (RequiredAccess != 0 && ((*entryHandle)->Access & RequiredAccess) != RequiredAccess) {
+        ERROR("handle was not opened with the required access parameter. Access Denied.");
+        return OsInvalidPermissions;
     }
-    return FsOk;
+    return OsSuccess;
 }
 
 /* VfsOpenHandleInternal
  * Internal helper for instantiating the entry handle
  * this does not take care of anything else than opening the handle */
-FileSystemCode_t 
+OsStatus_t 
 VfsOpenHandleInternal(
     _In_  FileSystemEntry_t*        Entry,
-    _Out_ FileSystemEntryHandle_t** Handle)
+    _Out_ FileSystemEntryHandle_t** handle)
 {
     FileSystem_t *Filesystem = (FileSystem_t*)Entry->System;
-    FileSystemCode_t Code;
+    OsStatus_t status;
 
     TRACE("VfsOpenHandleInternal()");
 
-    Code = Filesystem->Module->OpenHandle(&Filesystem->Descriptor, Entry, Handle);
-    if (Code != FsOk) {
-        ERROR("Failed to initiate a new entry-handle, code %i", Code);
-        return Code;
+    status = Filesystem->Module->OpenHandle(&Filesystem->Descriptor, Entry, handle);
+    if (status != OsSuccess) {
+        ERROR("Failed to initiate a new entry-handle, code %i", status);
+        return status;
     }
 
-    (*Handle)->LastOperation       = __FILE_OPERATION_NONE;
-    (*Handle)->OutBuffer           = NULL;
-    (*Handle)->OutBufferPosition   = 0;
-    (*Handle)->Position            = 0;
-    (*Handle)->Entry               = Entry;
+    (*handle)->LastOperation       = __FILE_OPERATION_NONE;
+    (*handle)->OutBuffer           = NULL;
+    (*handle)->OutBufferPosition   = 0;
+    (*handle)->Position            = 0;
+    (*handle)->Entry               = Entry;
 
-    // Handle file specific options
+    // handle file specific options
     if (VfsEntryIsFile(Entry)) {
         // Initialise buffering as long as the file
         // handle is not opened as volatile
-        if (!((*Handle)->Options & __FILE_VOLATILE)) {
-            (*Handle)->OutBuffer = malloc(Filesystem->Descriptor.Disk.Descriptor.SectorSize);
-            memset((*Handle)->OutBuffer, 0, Filesystem->Descriptor.Disk.Descriptor.SectorSize);
+        if (!((*handle)->Options & __FILE_VOLATILE)) {
+            (*handle)->OutBuffer = malloc(Filesystem->Descriptor.Disk.Descriptor.SectorSize);
+            memset((*handle)->OutBuffer, 0, Filesystem->Descriptor.Disk.Descriptor.SectorSize);
         }
 
         // Now comes the step where we handle options 
         // - but only options that are handle-specific
-        if ((*Handle)->Options & __FILE_APPEND) {
-            Code = Filesystem->Module->SeekInEntry(&Filesystem->Descriptor, (*Handle), Entry->Descriptor.Size.QuadPart);
+        if ((*handle)->Options & __FILE_APPEND) {
+            status = Filesystem->Module->SeekInEntry(&Filesystem->Descriptor, (*handle), Entry->Descriptor.Size.QuadPart);
         }
     }
 
     // Entry locked for access?
-    if ((*Handle)->Access & __FILE_WRITE_ACCESS && !((*Handle)->Access & __FILE_WRITE_SHARE)) {
-        Entry->IsLocked = (*Handle)->Owner;
+    if ((*handle)->Access & __FILE_WRITE_ACCESS && !((*handle)->Access & __FILE_WRITE_SHARE)) {
+        Entry->IsLocked = (*handle)->Owner;
     }
-    return Code;
+    return status;
 }
 
 /* VfsVerifyAccessToPath
  * Verifies the requested user has access to the path. */
-FileSystemCode_t
+OsStatus_t
 VfsVerifyAccessToPath(
     _In_  MString_t*                Path,
     _In_  Flags_t                   Options,
@@ -179,7 +182,7 @@ VfsVerifyAccessToPath(
             // the request as we try to open a higher-level entry in exclusive mode
             if (MStringCompare(Entry->Path, Path, 0) != MSTRING_NO_MATCH) {
                 ERROR("Entry is blocked from exclusive access, access denied.");
-                return FsAccessDenied;
+                return OsInvalidPermissions;
             }
         }
 
@@ -187,7 +190,7 @@ VfsVerifyAccessToPath(
         if (Node->Key.Value.Id == PathHash) {
             if (Entry->IsLocked != UUID_INVALID) {
                 ERROR("File is opened in exclusive mode already, access denied.");
-                return FsAccessDenied;
+                return OsInvalidPermissions;
             }
             else {
                 // It's important here that we check if the flag
@@ -195,60 +198,60 @@ VfsVerifyAccessToPath(
                 // the appropriate code instead of opening a new handle
                 if (Options & __FILE_FAILONEXIST) {
                     ERROR("File already exists - open mode specifies this to be failure.");
-                    return FsPathExists;
+                    return OsExists;
                 }
                 *ExistingEntry = Entry;
                 break;
             }
         }
     }
-    return FsOk;
+    return OsSuccess;
 }
 
 /* VfsOpenInternal
  * Reusable helper for the VfsOpen to open internal
  * handles and performs the interaction with fs */
-FileSystemCode_t 
+OsStatus_t 
 VfsOpenInternal(
     _In_  MString_t*                Path,
     _In_  Flags_t                   Options,
     _In_  Flags_t                   Access,
-    _Out_ FileSystemEntryHandle_t** Handle)
+    _Out_ FileSystemEntryHandle_t** handle)
 {
-    FileSystemEntry_t* Entry    = NULL;
-    MString_t* SubPath          = NULL;
-    FileSystemCode_t Code;
-    DataKey_t Key;
+    FileSystemEntry_t* Entry   = NULL;
+    MString_t*         SubPath = NULL;
+    OsStatus_t         status;
+    DataKey_t          key;
 
     TRACE("VfsOpenInternal(Path %s)", MStringRaw(Path));
 
-    Code = VfsVerifyAccessToPath(Path, Options, Access, &Entry);
-    if (Code == FsOk) {
+    status = VfsVerifyAccessToPath(Path, Options, Access, &Entry);
+    if (status == OsSuccess) {
         // Ok if it didn't exist in cache it's a new lookup
         if (Entry == NULL) {
             FileSystem_t *Filesystem    = VfsGetFileSystemFromPath(Path, &SubPath);
             int Created                 = 0;
             if (Filesystem == NULL) {
-                return FsPathNotFound;
+                return OsDoesNotExist;
             }
 
             // Let the module do the rest
-            Code = Filesystem->Module->OpenEntry(&Filesystem->Descriptor, SubPath, &Entry);
-            if (Code == FsPathNotFound && (Options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
+            status = Filesystem->Module->OpenEntry(&Filesystem->Descriptor, SubPath, &Entry);
+            if (status == OsDoesNotExist && (Options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
                 TRACE("File was not found, but options are to create 0x%x", Options);
-                Code    = Filesystem->Module->CreatePath(&Filesystem->Descriptor, SubPath, Options, &Entry);
+                status  = Filesystem->Module->CreatePath(&Filesystem->Descriptor, SubPath, Options, &Entry);
                 Created = 1;
             }
 
             // Sanitize the open otherwise we must cleanup
-            if (Code == FsOk) {
+            if (status == OsSuccess) {
                 // It's important here that we check if the flag
                 // __FILE_FAILONEXIST has been set, then we return
                 // the appropriate code instead of opening a new handle
                 // Also this is ok if file was just created
                 if ((Options & __FILE_FAILONEXIST) && Created == 0) {
                     ERROR("Entry already exists in path. FailOnExists has been specified.");
-                    Code = Filesystem->Module->CloseEntry(&Filesystem->Descriptor, Entry);
+                    status = Filesystem->Module->CloseEntry(&Filesystem->Descriptor, Entry);
                     Entry = NULL;
                 }
                 else {
@@ -261,29 +264,29 @@ VfsOpenInternal(
                     // Take care of truncation flag if file was not newly created. The entry type
                     // must equal to file otherwise we will ignore the flag
                     if ((Options & __FILE_TRUNCATE) && Created == 0 && VfsEntryIsFile(Entry)) {
-                        Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, Entry, 0);
+                        status = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, Entry, 0);
                     }
-                    Key.Value.Id = Entry->Hash;
-                    CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(Key, Entry));
+                    key.Value.Id = Entry->Hash;
+                    CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(key, Entry));
                 }
             }
             else {
-                TRACE("File opening/creation failed with code: %i", Code);
+                TRACE("File opening/creation failed with code: %i", status);
                 Entry = NULL;
             }
             MStringDestroy(SubPath);
         }
 
         // Now we can open the handle
-        // Open Handle Internal takes care of these flags APPEND/VOLATILE/BINARY
+        // Open handle Internal takes care of these flags APPEND/VOLATILE/BINARY
         if (Entry != NULL) {
-            Code = VfsOpenHandleInternal(Entry, Handle);
-            if (Code == FsOk) {
+            status = VfsOpenHandleInternal(Entry, handle);
+            if (status == OsSuccess) {
                 Entry->References++;
             }
         }
     }
-    return Code;
+    return status;
 }
 
 /* VfsGuessBasePath
@@ -315,333 +318,363 @@ VfsGuessBasePath(
     return OsSuccess;
 }
 
-/* VfsResolvePath
- * Resolves the undetermined abs or relative path. */
 MString_t*
 VfsResolvePath(
-    _In_ UUId_t      Requester,
-    _In_ const char* Path)
+    _In_ UUId_t      processId,
+    _In_ const char* path)
 {
-    MString_t *PathResult = NULL;
+    MString_t* resolvedPath = NULL;
 
-    TRACE("VfsResolvePath(%s)", Path);
-    if (strchr(Path, ':') == NULL && strchr(Path, '$') == NULL) {
-        char *BasePath  = (char*)malloc(_MAXPATH);
-        if (!BasePath) {
+    TRACE("VfsResolvePath(%s)", path);
+    if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
+        char *basePath  = (char*)malloc(_MAXPATH);
+        if (!basePath) {
             return NULL;
         }
-        memset(BasePath, 0, _MAXPATH);
-        if (ProcessGetWorkingDirectory(Requester, &BasePath[0], _MAXPATH) == OsError) {
-            if (VfsGuessBasePath(Path, &BasePath[0]) == OsError) {
-                ERROR("Failed to guess the base path for path %s", Path);
+        memset(basePath, 0, _MAXPATH);
+        if (ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH) == OsError) {
+            if (VfsGuessBasePath(path, &basePath[0]) == OsError) {
+                ERROR("Failed to guess the base path for path %s", path);
                 return NULL;
             }
         }
         else {
-            strcat(BasePath, "/");
+            strcat(basePath, "/");
         }
-        strcat(BasePath, Path);
-        PathResult = VfsPathCanonicalize(BasePath);
+        strcat(basePath, path);
+        resolvedPath = VfsPathCanonicalize(basePath);
     }
     else {
-        PathResult = VfsPathCanonicalize(Path);
+        resolvedPath = VfsPathCanonicalize(path);
     }
-    return PathResult;
+    return resolvedPath;
 }
 
-/* VfsOpenEntry
- * Opens or creates the given file path based on
- * the given <Access> and <Options> flags. See the top of this file */
-FileSystemCode_t
-VfsOpenEntry(
-    _In_  UUId_t        Requester,
-    _In_  const char*   Path, 
-    _In_  Flags_t       Options, 
-    _In_  Flags_t       Access,
-    _Out_ UUId_t*       FileId)
+static OsStatus_t
+OpenFile(
+    _In_  UUId_t      processId,
+    _In_  const char* path, 
+    _In_  Flags_t     options, 
+    _In_  Flags_t     access,
+    _Out_ UUId_t*     handleOut)
 {
-    FileSystemEntryHandle_t* Handle = NULL;
-    FileSystemCode_t Code = FsPathNotFound;
-    MString_t* mPath;
-    DataKey_t Key;
+    FileSystemEntryHandle_t* entry;
+    OsStatus_t               status = OsDoesNotExist;
+    MString_t*               resolvedPath;
+    DataKey_t                key;
 
-    TRACE("VfsOpenEntry(Path %s, Options 0x%x, Access 0x%x)", Path, Options, Access);
-    if (Path == NULL) {
-        return FsInvalidParameters;
+    TRACE("OpenFile(Path %s, Options 0x%x, Access 0x%x)", path, options, access);
+    if (path == NULL) {
+        return OsInvalidParameters;
     }
 
     // If path is not absolute or special, we 
     // must try the working directory of caller
-    mPath = VfsResolvePath(Requester, Path);
-    if (mPath != NULL) {
-        Code = VfsOpenInternal(mPath, Options, Access, &Handle);
+    resolvedPath = VfsResolvePath(processId, path);
+    if (resolvedPath != NULL) {
+        status = VfsOpenInternal(resolvedPath, options, access, &entry);
     }
-    MStringDestroy(mPath);
+    MStringDestroy(resolvedPath);
 
     // Sanitize code
-    if (Code != FsOk) {
-        TRACE("Error opening entry, exited with code: %i", Code);
-        *FileId = UUID_INVALID;
+    if (status != OsSuccess) {
+        TRACE("Error opening entry, exited with code: %i", status);
     }
     else {
-        Handle->Id      = VfsIdentifierFileGet();
-        Handle->Owner   = Requester;
-        Handle->Access  = Access;
-        Handle->Options = Options;
+        entry->Id      = VfsIdentifierFileGet();
+        entry->Owner   = processId;
+        entry->Access  = access;
+        entry->Options = options;
         
-        Key.Value.Id = Handle->Id;
-        CollectionAppend(VfsGetOpenHandles(), CollectionCreateNode(Key, Handle));
-        *FileId = Handle->Id;
+        key.Value.Id = entry->Id;
+        CollectionAppend(VfsGetOpenHandles(), CollectionCreateNode(key, entry));
+        *handleOut = entry->Id;
     }
-    return Code;
+    return status;
 }
 
-/* VfsCloseEntry
- * Closes the given file-handle, but does not necessarily
- * close the link to the file. Returns the result */
-FileSystemCode_t
-VfsCloseEntry(
-    _In_ UUId_t         Requester,
-    _In_ UUId_t         Handle)
+void svc_file_open_callback(struct gracht_recv_message* message, struct svc_file_open_args* args)
 {
-    FileSystemEntryHandle_t*    EntryHandle;
-    FileSystemEntry_t*          Entry;
-    FileSystemCode_t            Code;
-    CollectionItem_t* Node;
-    FileSystem_t *Fs;
-    DataKey_t Key = { .Value.Id = Handle };
+    UUId_t     handle = UUID_INVALID;
+    OsStatus_t status = OpenFile(args->process_id, args->path, args->options,
+        args->access, &handle);
+    svc_file_open_response(message, status, handle);
+}
 
-    TRACE("VfsCloseEntry(Handle %u)", Handle);
+static OsStatus_t
+CloseFile(
+    _In_ UUId_t processId,
+    _In_ UUId_t handle)
+{
+    FileSystemEntryHandle_t* entryHandle;
+    FileSystemEntry_t*       entry;
+    OsStatus_t               status;
+    CollectionItem_t*        node;
+    FileSystem_t*            fileSystem;
+    DataKey_t                key = { .Value.Id = handle };
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+    TRACE("CloseFile(handle %u)", handle);
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
-    Node        = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
-    Entry       = EntryHandle->Entry;
+    
+    node  = CollectionGetNodeByKey(VfsGetOpenHandles(), key, 0);
+    entry = entryHandle->Entry;
 
-    // Handle file specific flags
-    if (VfsEntryIsFile(EntryHandle->Entry)) {
+    // handle file specific flags
+    if (VfsEntryIsFile(entryHandle->Entry)) {
         // If there has been allocated any buffers they should
         // be flushed and cleaned up 
-        if (!(EntryHandle->Options & __FILE_VOLATILE)) {
-            VfsFlushFile(Requester, Handle);
-            free(EntryHandle->OutBuffer);
+        if (!(entryHandle->Options & __FILE_VOLATILE)) {
+            Flush(processId, handle);
+            free(entryHandle->OutBuffer);
         }
     }
 
     // Call the filesystem close-handle to cleanup
-    Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->CloseHandle(&Fs->Descriptor, EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+    fileSystem = (FileSystem_t*)entryHandle->Entry->System;
+    status     = fileSystem->Module->CloseHandle(&fileSystem->Descriptor, entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
-    CollectionRemoveByNode(VfsGetOpenHandles(), Node);
-    free(Node);
+    CollectionRemoveByNode(VfsGetOpenHandles(), node);
+    free(node);
 
     // Take care of any entry cleanup / reduction
-    Entry->References--;
-    if (Entry->IsLocked == Requester) {
-        Entry->IsLocked = UUID_INVALID;
+    entry->References--;
+    if (entry->IsLocked == processId) {
+        entry->IsLocked = UUID_INVALID;
     }
 
     // Last reference?
     // Cleanup the file in case of no refs
-    if (Entry->References == 0) {
-        Key.Value.Id = Entry->Hash;
-        CollectionRemoveByKey(VfsGetOpenFiles(), Key);
-        Code = Fs->Module->CloseEntry(&Fs->Descriptor, Entry);
+    if (entry->References == 0) {
+        key.Value.Id = entry->Hash;
+        CollectionRemoveByKey(VfsGetOpenFiles(), key);
+        status = fileSystem->Module->CloseEntry(&fileSystem->Descriptor, entry);
     }
-    return Code;
+    return status;
 }
 
-/* VfsDeletePath
- * Deletes the given path the caller must make sure there is no other references
- * to the file - otherwise delete fails */
-FileSystemCode_t
-VfsDeletePath(
-    _In_ UUId_t         Requester, 
-    _In_ const char*    Path,
-    _In_ Flags_t        Options)
+void svc_file_close_callback(struct gracht_recv_message* message, struct svc_file_close_args* args)
 {
-    FileSystemEntryHandle_t* EntryHandle;
-    FileSystemCode_t Code;
-    FileSystem_t *Fs;
-    MString_t *SubPath = NULL;
-    MString_t *mPath;
-    UUId_t Handle;
-    DataKey_t Key;
+    OsStatus_t status = CloseFile(args->process_id, args->handle);
+    svc_file_close_response(message, status);
+}
 
-    TRACE("VfsDeletePath(Path %s, Options 0x%x)", Path, Options);
-    if (Path == NULL) {
-        return FsInvalidParameters;
+static OsStatus_t
+DeletePath(
+    _In_ UUId_t      processId, 
+    _In_ const char* path,
+    _In_ Flags_t     options)
+{
+    FileSystemEntryHandle_t* entryHandle;
+    OsStatus_t               status;
+    FileSystem_t*            fileSystem;
+    MString_t*               subPath;
+    MString_t *              resolvedPath;
+    UUId_t                   handle;
+    DataKey_t                key;
+
+    TRACE("VfsDeletePath(Path %s, Options 0x%x)", path, Options);
+    if (path == NULL) {
+        return OsInvalidParameters;
     }
 
     // If path is not absolute or special, we should ONLY try either
     // the current working directory.
-    mPath = VfsResolvePath(Requester, Path);
-    if (mPath == NULL) {
-        return FsPathNotFound;
+    resolvedPath = VfsResolvePath(processId, path);
+    if (resolvedPath == NULL) {
+        return OsDoesNotExist;
     }
-    Fs = VfsGetFileSystemFromPath(mPath, &SubPath);
-    MStringDestroy(mPath);
-    if (Fs == NULL) {
-        return FsPathNotFound;
+    
+    fileSystem = VfsGetFileSystemFromPath(resolvedPath, &subPath);
+    MStringDestroy(resolvedPath);
+    if (fileSystem == NULL) {
+        return OsDoesNotExist;
     }
 
     // First step is to open the path in exclusive mode
-    Code = VfsOpenEntry(Requester, Path, __FILE_VOLATILE, __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &Handle);
-    if (Code == FsOk) {
-        Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-        if (Code != FsOk) {
-            return Code;
+    status = OpenFile(processId, path, __FILE_VOLATILE, __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &handle);
+    if (status == OsSuccess) {
+        status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+        if (status != OsSuccess) {
+            return status;
         }
-        Key.Value.Id    = EntryHandle->Entry->Hash;
-        Code            = Fs->Module->DeleteEntry(&Fs->Descriptor, EntryHandle);
-        if (Code == FsOk) {
+        
+        key.Value.Id = entryHandle->Entry->Hash;
+        status       = fileSystem->Module->DeleteEntry(&fileSystem->Descriptor, entryHandle);
+        if (status == OsSuccess) {
             // Cleanup handles and open file
-            CollectionRemoveByKey(VfsGetOpenFiles(), Key);
-            Key.Value.Id = Handle;
-            CollectionRemoveByKey(VfsGetOpenHandles(), Key);
+            CollectionRemoveByKey(VfsGetOpenFiles(), key);
+            key.Value.Id = handle;
+            CollectionRemoveByKey(VfsGetOpenHandles(), key);
         }
     }
-    return Code;
+    return status;
 }
 
-FileSystemCode_t
-VfsReadEntry(
-    _In_  UUId_t  Requester,
-    _In_  UUId_t  Handle,
-    _In_  UUId_t  BufferHandle,
-    _In_  size_t  Offset,
-    _In_  size_t  Length,
-    _Out_ size_t* BytesRead)
+void svc_file_delete_callback(struct gracht_recv_message* message, struct svc_file_delete_args* args)
 {
-    FileSystemEntryHandle_t* EntryHandle;
-    FileSystemCode_t         Code;
-    FileSystem_t*            Fs;
-    OsStatus_t               Status;
-    struct dma_attachment    DmaAttachment;
+    OsStatus_t status = DeletePath(args->process_id, args->path, args->flags);
+    svc_file_delete_response(message, status);
+}
+
+static OsStatus_t
+ReadFile(
+    _In_  UUId_t  processId,
+    _In_  UUId_t  handle,
+    _In_  UUId_t  bufferHandle,
+    _In_  size_t  offset,
+    _In_  size_t  length,
+    _Out_ size_t* bytesRead)
+{
+    FileSystemEntryHandle_t* entryHandle;
+    OsStatus_t               status;
+    FileSystem_t*            fileSystem;
+    struct dma_attachment    dmaAttachment;
+
     TRACE("[vfs_read] pid => %u, id => %u, b_id => %u, len => %u", 
-        Requester, Handle, BufferHandle, LODWORD(Length));
+        processId, handle, bufferHandle, LODWORD(length));
     
-    if (BufferHandle == UUID_INVALID || Length == 0) {
+    if (bufferHandle == UUID_INVALID || length == 0) {
         ERROR("[vfs_read] error invalid parameters, length 0 or invalid b_id");
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
 
-    Code = VfsIsHandleValid(Requester, Handle, __FILE_READ_ACCESS, &EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+    status = VfsIsHandleValid(processId, handle, __FILE_READ_ACCESS, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
     // Sanity -> Flush if we wrote and now read
-    if ((EntryHandle->LastOperation != __FILE_OPERATION_READ) && VfsEntryIsFile(EntryHandle->Entry)) {
-        Code = VfsFlushFile(Requester, Handle);
+    if ((entryHandle->LastOperation != __FILE_OPERATION_READ) && VfsEntryIsFile(entryHandle->Entry)) {
+        status = Flush(processId, handle);
     }
 
-    Status = dma_attach(BufferHandle, &DmaAttachment);
-    if (Status != OsSuccess) {
-        ERROR("[vfs_read] [dma_attach] failed: %u", Status);
-        return FsInvalidParameters;
+    status = dma_attach(bufferHandle, &dmaAttachment);
+    if (status != OsSuccess) {
+        ERROR("[vfs_read] [dma_attach] failed: %u", status);
+        return OsInvalidParameters;
     }
     
-    Status = dma_attachment_map(&DmaAttachment);
-    if (Status != OsSuccess) {
-        ERROR("[vfs_read] [dma_attachment_map] failed: %u", Status);
-        dma_detach(&DmaAttachment);
-        return FsInvalidParameters;
+    status = dma_attachment_map(&dmaAttachment);
+    if (status != OsSuccess) {
+        ERROR("[vfs_read] [dma_attachment_map] failed: %u", status);
+        dma_detach(&dmaAttachment);
+        return OsInvalidParameters;
     }
 
     TRACE("[vfs_read] [module_read]");
-    Fs   = (FileSystem_t*)EntryHandle->Entry->System;
-    Code = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, BufferHandle, 
-        DmaAttachment.buffer, Offset, Length, BytesRead);
-    if (Code == FsOk) {
-        EntryHandle->LastOperation  = __FILE_OPERATION_READ;
-        EntryHandle->Position       += *BytesRead;
+    fileSystem   = (FileSystem_t*)entryHandle->Entry->System;
+    status = fileSystem->Module->ReadEntry(&fileSystem->Descriptor, entryHandle, bufferHandle, 
+        dmaAttachment.buffer, offset, length, bytesRead);
+    if (status == OsSuccess) {
+        entryHandle->LastOperation  = __FILE_OPERATION_READ;
+        entryHandle->Position       += *bytesRead;
     }
     
     // Unregister the dma buffer
-    dma_attachment_unmap(&DmaAttachment);
-    dma_detach(&DmaAttachment);
-    return Code;
+    dma_attachment_unmap(&dmaAttachment);
+    dma_detach(&dmaAttachment);
+    return status;
 }
 
-FileSystemCode_t
-VsfWriteEntry(
-    _In_  UUId_t  Requester,
-    _In_  UUId_t  Handle,
-    _In_  UUId_t  BufferHandle,
-    _In_  size_t  Offset,
-    _In_  size_t  Length,
-    _Out_ size_t* BytesWritten)
+static OsStatus_t
+WriteFile(
+    _In_  UUId_t  processId,
+    _In_  UUId_t  handle,
+    _In_  UUId_t  bufferHandle,
+    _In_  size_t  offset,
+    _In_  size_t  length,
+    _Out_ size_t* bytesWritten)
 {
-    FileSystemEntryHandle_t* EntryHandle;
-    FileSystemCode_t         Code;
-    FileSystem_t*            Fs;
-    OsStatus_t               Status;
-    struct dma_attachment    DmaAttachment;
+    FileSystemEntryHandle_t* entryHandle;
+    OsStatus_t               status;
+    FileSystem_t*            fileSystem;
+    struct dma_attachment    dmaAttachment;
 
-    TRACE("[vfs_write] pid => %u, id => %u, b_id => %u", Requester, Handle, BufferHandle);
+    TRACE("[vfs_write] pid => %u, id => %u, b_id => %u", processId, handle, bufferHandle);
 
-    if (BufferHandle == UUID_INVALID || Length == 0) {
+    if (bufferHandle == UUID_INVALID || length == 0) {
         ERROR("[vfs_write] error invalid parameters, length 0 or invalid b_id");
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
 
-    Code = VfsIsHandleValid(Requester, Handle, __FILE_WRITE_ACCESS, &EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+    status = VfsIsHandleValid(processId, handle, __FILE_WRITE_ACCESS, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
     // Sanity -> Clear read buffer if we are writing
-    if ((EntryHandle->LastOperation != __FILE_OPERATION_WRITE) && VfsEntryIsFile(EntryHandle->Entry)) {
-        Code = VfsFlushFile(Requester, Handle);
+    if ((entryHandle->LastOperation != __FILE_OPERATION_WRITE) && VfsEntryIsFile(entryHandle->Entry)) {
+        status = Flush(processId, handle);
     }
 
-    Status = dma_attach(BufferHandle, &DmaAttachment);
-    if (Status != OsSuccess) {
-        ERROR("[vfs_write] [dma_attach] failed: %u", Status);
-        return FsInvalidParameters;
+    status = dma_attach(bufferHandle, &dmaAttachment);
+    if (status != OsSuccess) {
+        ERROR("[vfs_write] [dma_attach] failed: %u", status);
+        return OsInvalidParameters;
     }
     
-    Status = dma_attachment_map(&DmaAttachment);
-    if (Status != OsSuccess) {
-        ERROR("[vfs_write] [dma_attachment_map] failed: %u", Status);
-        dma_detach(&DmaAttachment);
-        return FsInvalidParameters;
+    status = dma_attachment_map(&dmaAttachment);
+    if (status != OsSuccess) {
+        ERROR("[vfs_write] [dma_attachment_map] failed: %u", status);
+        dma_detach(&dmaAttachment);
+        return OsInvalidParameters;
     }
 
-    Fs   = (FileSystem_t*)EntryHandle->Entry->System;
-    Code = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle,
-        DmaAttachment.buffer, Offset, Length, BytesWritten);
-    if (Code == FsOk) {
-        EntryHandle->LastOperation  = __FILE_OPERATION_WRITE;
-        EntryHandle->Position       += *BytesWritten;
-        if (EntryHandle->Position > EntryHandle->Entry->Descriptor.Size.QuadPart) {
-            EntryHandle->Entry->Descriptor.Size.QuadPart = EntryHandle->Position;
+    fileSystem   = (FileSystem_t*)entryHandle->Entry->System;
+    status = fileSystem->Module->WriteEntry(&fileSystem->Descriptor, entryHandle, bufferHandle,
+        dmaAttachment.buffer, offset, length, bytesWritten);
+    if (status == OsSuccess) {
+        entryHandle->LastOperation  = __FILE_OPERATION_WRITE;
+        entryHandle->Position       += *bytesWritten;
+        if (entryHandle->Position > entryHandle->Entry->Descriptor.Size.QuadPart) {
+            entryHandle->Entry->Descriptor.Size.QuadPart = entryHandle->Position;
         }
     }
     
     // Unregister the dma buffer
-    dma_attachment_unmap(&DmaAttachment);
-    dma_detach(&DmaAttachment);
-    return Code;
+    dma_attachment_unmap(&dmaAttachment);
+    dma_detach(&dmaAttachment);
+    return status;
 }
 
-/* VfsSeekInEntry
- * Seeks in the given file entry handle. Seeks to the absolute position given. */
-FileSystemCode_t
-VfsSeekInEntry(
-    _In_ UUId_t   Requester,
-    _In_ UUId_t   Handle, 
-    _In_ uint32_t SeekLo, 
-    _In_ uint32_t SeekHi)
+void svc_file_transfer_async_callback(struct gracht_recv_message* message, struct svc_file_transfer_async_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
-    FileSystem_t *Fs;
+    svc_file_transfer_async_response(message, OsNotSupported, 0);
+}
+
+void svc_file_transfer_callback(struct gracht_recv_message* message, struct svc_file_transfer_args* args)
+{
+    size_t     bytesTransferred;
+    OsStatus_t status;
+    
+    if (args->direction == 0) {
+        status = ReadFile(args->process_id, args->handle, args->buffer_handle,
+            args->buffer_offset, args->length, &bytesTransferred);
+    }
+    else {
+        status = WriteFile(args->process_id, args->handle, args->buffer_handle,
+            args->buffer_offset, args->length, &bytesTransferred);
+    }
+    
+    svc_file_transfer_response(message, status, bytesTransferred);
+}
+
+static OsStatus_t
+Seek(
+    _In_ UUId_t   processId,
+    _In_ UUId_t   handle, 
+    _In_ uint32_t seekLo, 
+    _In_ uint32_t seekHi)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+    FileSystem_t*            fileSystem;
 
     // Combine two u32 to form one big u64 
     // This is just the declaration
@@ -651,239 +684,295 @@ VfsSeekInEntry(
             uint32_t Hi;
         } Parts;
         uint64_t Full;
-    } SeekAbs;
-    SeekAbs.Parts.Lo = SeekLo;
-    SeekAbs.Parts.Hi = SeekHi;
+    } seekOffsetAbs;
+    seekOffsetAbs.Parts.Lo = seekLo;
+    seekOffsetAbs.Parts.Hi = seekHi;
 
-    TRACE("VfsSeekFile(Handle %u, SeekLo 0x%x, SeekHi 0x%x)", Handle, SeekLo, SeekHi);
+    TRACE("Seek(handle %u, seekLo 0x%x, seekHi 0x%x)", handle, seekLo, seekHi);
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
     // Flush buffers before seeking
-    if (!(EntryHandle->Options & __FILE_VOLATILE) && VfsEntryIsFile(EntryHandle->Entry)) {
-        Code = VfsFlushFile(Requester, Handle);
-        if (Code != FsOk) {
+    if (!(entryHandle->Options & __FILE_VOLATILE) && VfsEntryIsFile(entryHandle->Entry)) {
+        status = Flush(processId, handle);
+        if (status != OsSuccess) {
             TRACE("Failed to flush file before seek");
-            return Code;
+            return status;
         }
     }
 
     // Perform the seek on a file-system level
-    Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->SeekInEntry(&Fs->Descriptor, EntryHandle, SeekAbs.Full);
-    if (Code == FsOk) {
-        EntryHandle->LastOperation      = __FILE_OPERATION_NONE;
-        EntryHandle->OutBufferPosition  = 0;
+    fileSystem = (FileSystem_t*)entryHandle->Entry->System;
+    status     = fileSystem->Module->SeekInEntry(&fileSystem->Descriptor, entryHandle, seekOffsetAbs.Full);
+    if (status == OsSuccess) {
+        entryHandle->LastOperation      = __FILE_OPERATION_NONE;
+        entryHandle->OutBufferPosition  = 0;
     }
-    return Code;
+    return status;
 }
 
-/* VfsFlushFile
- * Flushes the internal file buffers and ensures there are
- * no pending file operations for the given file handle */
-FileSystemCode_t
-VfsFlushFile(
-    _In_ UUId_t Requester, 
-    _In_ UUId_t Handle)
+void svc_file_seek_callback(struct gracht_recv_message* message, struct svc_file_seek_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
-    //FileSystem_t *Fs;
+    OsStatus_t status = Seek(args->process_id, args->handle, args->seek_lo, args->seek_hi);
+    svc_file_seek_response(message, status);
+}
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return Code;
+static OsStatus_t
+Flush(
+    _In_ UUId_t processId, 
+    _In_ UUId_t handle)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+    //FileSystem_t *fileSystem;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
     // If no buffering enabled skip, or if not a file skip
-    if ((EntryHandle->Options & __FILE_VOLATILE) || !VfsEntryIsFile(EntryHandle->Entry)) {
-        return FsOk;
+    if ((entryHandle->Options & __FILE_VOLATILE) || !VfsEntryIsFile(entryHandle->Entry)) {
+        return OsSuccess;
     }
 
     // Empty output buffer 
     // - But sanitize the buffers first
-    if (EntryHandle->OutBuffer != NULL && EntryHandle->OutBufferPosition != 0) {
+    if (entryHandle->OutBuffer != NULL && entryHandle->OutBufferPosition != 0) {
         size_t BytesWritten = 0;
 #if 0
-        Fs      = (FileSystem_t*)EntryHandle->File->System;
-        Code    = Fs->Module->WriteFile(&Fs->Descriptor, EntryHandle, NULL, &BytesWritten);
+        fileSystem = (FileSystem_t*)entryHandle->File->System;
+        status     = fileSystem->Module->WriteFile(&fileSystem->Descriptor, entryHandle, NULL, &BytesWritten);
 #endif
-        if (BytesWritten != EntryHandle->OutBufferPosition) {
-            return FsDiskError;
+        if (BytesWritten != entryHandle->OutBufferPosition) {
+            return OsDeviceError;
         }
     }
-    return Code;
+    return status;
 }
 
-/* VfsMoveEntry
- * Moves or copies a given file path to the destination path
- * this can also be used for renamining if the dest/source paths
- * match (except for filename/directoryname) */
-FileSystemCode_t
-VfsMoveEntry(
-    _In_ UUId_t         Requester,
-    _In_ const char*    Source, 
-    _In_ const char*    Destination,
-    _In_ int            Copy)
+
+void svc_file_flush_callback(struct gracht_recv_message* message, struct svc_file_flush_args* args)
+{
+    OsStatus_t status = Flush(args->process_id, args->handle);
+    svc_file_flush_response(message, status);
+}
+
+static OsStatus_t
+Move(
+    _In_ UUId_t      processId,
+    _In_ const char* source, 
+    _In_ const char* destination,
+    _In_ int         copy)
 {
     // @todo implement using existing fs functions
-    _CRT_UNUSED(Requester);
-    _CRT_UNUSED(Source);
-    _CRT_UNUSED(Destination);
-    _CRT_UNUSED(Copy);
-    return FsOk;
+    _CRT_UNUSED(processId);
+    _CRT_UNUSED(source);
+    _CRT_UNUSED(destination);
+    _CRT_UNUSED(copy);
+    return OsNotSupported;
 }
 
-/* VfsGetEntryPosition 
- * Queries the current entry position that the given handle
- * is at, it returns as two seperate unsigned values, the upper
- * value is optional and should only be checked for large entries */
-OsStatus_t
-VfsGetEntryPosition(
-    _In_  UUId_t                    Requester,
-    _In_  UUId_t                    Handle,
-    _Out_ QueryFileValuePackage_t*  Result)
+void svc_file_move_callback(struct gracht_recv_message* message, struct svc_file_move_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    OsStatus_t status = Move(args->process_id, args->from, args->to, args->copy);
+    svc_file_move_response(message, status);
+}
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
+static OsStatus_t
+GetPosition(
+    _In_  UUId_t           processId,
+    _In_  UUId_t           handle,
+    _Out_ LargeUInteger_t* Position)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
-    Result->Value.Full  = EntryHandle->Position;
-    Result->Code        = Code;
-    return OsSuccess;
+    Position->QuadPart = entryHandle->Position;
+    return status;
 }
 
-/* VfsGetEntryOptions
- * Queries the current entry options and entry access flags for the given file handle */
-OsStatus_t
-VfsGetEntryOptions(
-    _In_  UUId_t                        Requester,
-    _In_  UUId_t                        Handle,
-    _Out_ QueryFileOptionsPackage_t*    Result)
+void svc_file_get_position_callback(struct gracht_recv_message* message, struct svc_file_get_position_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    LargeUInteger_t position;
+    OsStatus_t      status = GetPosition(args->process_id, args->handle, &position);
+    svc_file_get_position_response(message, status, position.u.LowPart, position.u.HighPart);
+}
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
+static OsStatus_t
+GetOptions(
+    _In_  UUId_t        processId,
+    _In_  UUId_t        handle,
+    _Out_ unsigned int* options,
+    _Out_ unsigned int* access)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
-    Result->Options = EntryHandle->Options;
-    Result->Access  = EntryHandle->Access;
-    Result->Code    = Code;
-    return OsSuccess;
+    *options = entryHandle->Options;
+    *access  = entryHandle->Access;
+    return status;
 }
 
-/* VfsSetEntryOptions 
- * Attempts to modify the current option and or access flags
- * for the given entry handle as specified by <Options> and <Access> */
-OsStatus_t
-VfsSetEntryOptions(
-    _In_ UUId_t     Requester,
-    _In_ UUId_t     Handle,
-    _In_ Flags_t    Options,
-    _In_ Flags_t    Access)
+void svc_file_get_options_callback(struct gracht_recv_message* message, struct svc_file_get_options_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    unsigned int options, access;
+    OsStatus_t   status = GetOptions(args->process_id, args->handle, &options, &access);
+    svc_file_get_position_response(message, status, options, access);
+}
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
+static OsStatus_t
+SetOptions(
+    _In_ UUId_t  processId,
+    _In_ UUId_t  handle,
+    _In_ Flags_t options,
+    _In_ Flags_t access)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
 
-    EntryHandle->Options    = Options;
-    EntryHandle->Access     = Access;
-    return OsSuccess;
+    entryHandle->Options = options;
+    entryHandle->Access  = access;
+    return status;
 }
 
-/* VfsGetEntrySize 
- * Queries the current file-entry size that the given handle
- * has, it returns as two seperate unsigned values, the upper
- * value is optional and should only be checked for large entries */
-OsStatus_t
-VfsGetEntrySize(
-    _In_  UUId_t                    Requester,
-    _In_  UUId_t                    Handle,
-    _Out_ QueryFileValuePackage_t*  Result)
+void svc_file_set_options_callback(struct gracht_recv_message* message, struct svc_file_set_options_args* args)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    OsStatus_t status = SetOptions(args->process_id, args->handle, args->options, args->access);
+    svc_file_set_options_response(message, status);
+}
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
+OsStatus_t
+GetSize(
+    _In_  UUId_t           processId,
+    _In_  UUId_t           handle,
+    _Out_ LargeUInteger_t* Size)
+{
+    FileSystemEntryHandle_t *entryHandle = NULL;
+    OsStatus_t status;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
     }
     
-    Result->Value.Full  = EntryHandle->Entry->Descriptor.Size.QuadPart;
-    Result->Code        = Code;
-    return OsSuccess;
+    Size->QuadPart = entryHandle->Entry->Descriptor.Size.QuadPart;
+    return status;
+}
+
+void svc_file_get_size_callback(struct gracht_recv_message* message, struct svc_file_get_size_args* args)
+{
+    LargeUInteger_t size;
+    OsStatus_t      status = GetSize(args->process_id, args->handle, &size);
+    svc_file_get_size_response(message, status, size.u.LowPart, size.u.HighPart);
 }
 
 /* VfsGetEntryPath 
  * Queries the full path of a file-entry that the given handle
  * has, it returns it as a UTF8 string with max length of _MAXPATH */
-OsStatus_t
-VfsGetEntryPath(
-    _In_  UUId_t        Requester,
-    _In_  UUId_t        Handle,
-    _Out_ MString_t**   Path)
+static OsStatus_t
+GetAbsolutePathOfHandle(
+    _In_  UUId_t      processId,
+    _In_  UUId_t      handle,
+    _Out_ MString_t** path)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
         return OsError;
     }
     
-    *Path = EntryHandle->Entry->Path;
+    *path = entryHandle->Entry->Path;
     return OsSuccess;
 }
 
-/* VfsQueryEntryPath
- * Queries information about the filesystem entry through its full path. */
-FileSystemCode_t
-VfsQueryEntryPath(
-    _In_ UUId_t                     Requester,
-    _In_ const char*                Path,
-    _In_ OsFileDescriptor_t*        Information)
+void svc_file_get_path_callback(struct gracht_recv_message* message, struct svc_file_get_path_args* args)
 {
-    FileSystemCode_t Code;
-    UUId_t Handle;
-
-    Code = VfsOpenEntry(Requester, Path, 0, __FILE_READ_ACCESS | __FILE_READ_SHARE, &Handle);
-    if (Code == FsOk) {
-        Code = VfsQueryEntryHandle(Requester, Handle, Information);
-        assert(Code == FsOk);
-        // No reason to check on the code, the assumption is it always go ok
-        Code = VfsCloseEntry(Requester, Handle);
+    MString_t* path;
+    OsStatus_t status = GetAbsolutePathOfHandle(args->process_id, args->handle, &path);
+    if (status == OsSuccess) {
+        svc_file_get_path_response(message, status, MStringRaw(path));
     }
-    return Code;
+    else {
+        svc_file_get_path_response(message, status, "");
+    }
 }
 
-/* VfsQueryEntryHandle
- * Queries informatino about the filesystem entry through its handle. */
-FileSystemCode_t
-VfsQueryEntryHandle(
-    _In_ UUId_t                     Requester,
-    _In_ UUId_t                     Handle,
-    _In_ OsFileDescriptor_t*        Information)
+OsStatus_t
+StatFromHandle(
+    _In_ UUId_t              processId,
+    _In_ UUId_t              handle,
+    _In_ OsFileDescriptor_t* descriptor)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
-    FileSystemCode_t Code;
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
 
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code == FsOk) {
-        memcpy((void*)Information, (const void*)&EntryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status == OsSuccess) {
+        memcpy((void*)descriptor, (const void*)&entryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
     }
-    return Code;
+    return status;
+}
+
+void svc_file_fstat_callback(struct gracht_recv_message* message, struct svc_file_fstat_args* args)
+{
+    OsFileDescriptor_t descriptor;
+    OsStatus_t         status = StatFromHandle(args->process_id, args->handle, &descriptor);
+    svc_file_fstat_response(message, status, &descriptor);
+}
+
+OsStatus_t
+StatFromPath(
+    _In_ UUId_t              processId,
+    _In_ const char*         path,
+    _In_ OsFileDescriptor_t* descriptor)
+{
+    OsStatus_t status;
+    UUId_t     handle;
+
+    status = OpenFile(processId, path, 0, __FILE_READ_ACCESS | __FILE_READ_SHARE, &handle);
+    if (status == OsSuccess) {
+        status = StatFromHandle(processId, handle, descriptor);
+        status = CloseFile(processId, handle);
+    }
+    return status;
+}
+
+void svc_file_fstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fstat_from_path_args* args)
+{
+    OsFileDescriptor_t descriptor;
+    OsStatus_t         status = StatFromPath(args->process_id, args->path, &descriptor);
+    svc_file_fstat_from_path_response(message, status, &descriptor);
+}
+
+void svc_file_fsstat_callback(struct gracht_recv_message* message, struct svc_file_fsstat_args* args)
+{
+    OsFileSystemDescriptor_t descriptor = { 0 };
+    svc_file_fsstat_response(message, OsNotSupported, &descriptor);
+}
+
+void svc_file_fsstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fsstat_from_path_args* args)
+{
+    OsFileSystemDescriptor_t descriptor = { 0 };
+    svc_file_fsstat_from_path_response(message, OsNotSupported, &descriptor);
 }

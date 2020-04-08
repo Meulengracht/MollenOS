@@ -21,36 +21,39 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SERVICES_PROCESS_H__
-#define __SERVICES_PROCESS_H__
+#ifndef __PROCESS_H__
+#define __PROCESS_H__
 
 #include <os/osdefs.h>
 #include <os/types/process.h>
 #include <time.h>
 
 _CODE_BEGIN
-/* InitializeStartupInformation
+
+/* ProcessConfigurationInitialize
  * Resets all values of the startup information structure to default values. */
 CRTDECL(void,
-InitializeStartupInformation(
-	_In_ ProcessStartupInformation_t* StartupInformation));
+ProcessConfigurationInitialize(
+	_In_ ProcessConfiguration_t* Configuration));
 
 /* ProcessSpawn
  * Spawns a new process by the given path and optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure. */
-CRTDECL(UUId_t,
+CRTDECL(OsStatus_t,
 ProcessSpawn(
 	_In_     const char* Path,
-	_In_Opt_ const char* Arguments));
+	_In_Opt_ const char* Arguments,
+    _Out_    UUId_t*     HandleOut));
 
 /* ProcessSpawnEx
  * Spawns a new process by the given path and the given startup information block. 
  * Returns UUID_INVALID in case of failure. */
-CRTDECL(UUId_t,
+CRTDECL(OsStatus_t,
 ProcessSpawnEx(
-    _In_     const char*                  Path,
-    _In_Opt_ const char*                  Arguments,
-    _In_     ProcessStartupInformation_t* StartupInformation));
+    _In_     const char*             Path,
+    _In_Opt_ const char*             Arguments,
+    _In_     ProcessConfiguration_t* Configuration,
+    _Out_    UUId_t*                 HandleOut));
 
 /* ProcessJoin
  * Waits for the given process to terminate and
@@ -116,6 +119,6 @@ ProcessGetWorkingDirectory(
 CRTDECL(OsStatus_t, 
 ProcessSetWorkingDirectory(
     _In_ const char* Path));
-_CODE_END
 
-#endif //!__SERVICES_PROCESS_H__
+_CODE_END
+#endif //!__PROCESS_H__

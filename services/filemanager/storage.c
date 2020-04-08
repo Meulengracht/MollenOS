@@ -28,13 +28,24 @@
 #include <ddk/services/file.h>
 #include <ddk/utils.h>
 #include "include/vfs.h"
+#include <internal/_ipc.h>
 #include <os/mollenos.h>
-
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
 
+#include "svc_storage_protocol_server.h"
+
 static int GlbInitHasRun = 0;
+
+static void
+NotifySessionManagerOfNewDisk(
+    _In_ char* identifier)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
+    svc_session_new_device(GetGrachtClient(), &msg, identifier);
+    gracht_vali_message_finish(&msg);
+}
 
 OsStatus_t
 VfsResolveQueueExecute(void)
@@ -142,7 +153,7 @@ DiskRegisterFileSystem(
         CollectionAppend(VfsGetFileSystems(), CollectionCreateNode(Key, Fs));
 
         // Send notification to sessionmanager
-        SessionCheckDisk(&IdentBuffer[0]);
+        NotifySessionManagerOfNewDisk(&IdentBuffer[0]);
 
         // Start init?
         if (!GlbInitHasRun) {
@@ -157,99 +168,102 @@ DiskRegisterFileSystem(
 static int
 InitializeDisk(void* Context)
 {
-    FileSystemDisk_t*    Disk = Context;
-    StorageDescriptor_t* Descriptor;
-    OsStatus_t           Status;
+    FileSystemDisk_t*        disk = Context;
+    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(disk->Driver);
+    OsStatus_t               status;
     
-    Status = StorageQuery(Disk->Device, Disk->Driver, &Descriptor);
-    if (Status != OsSuccess) {
+    ctt_storage_stat_sync(GetGrachtClient(), &msg, disk->Device, &status, &disk->Descriptor);
+    gracht_vali_message_finish(&msg);
+    if (status != OsSuccess) {
         // TODO: disk states
         // Disk->State = Crashed
-        free(Disk);
-        return OsStatusToErrno(Status);
+        free(disk);
+        return OsStatusToErrno(status);
     }
     
-    memcpy(&Disk->Descriptor, Descriptor, sizeof(StorageDescriptor_t));
-
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
-    return OsStatusToErrno(DiskDetectLayout(Disk));
+    return OsStatusToErrno(DiskDetectLayout(disk));
 }
 
-OsStatus_t
-VfsRegisterDisk(
-    _In_ UUId_t  Driver,
-    _In_ UUId_t  Device,
-    _In_ Flags_t Flags)
+void svc_storage_register_callback(struct gracht_recv_message* message, struct svc_storage_register_args* args)
 {
-    FileSystemDisk_t* Disk;
-    DataKey_t         Key = { .Value.Id = Device };
-    thrd_t            Thread;
+    FileSystemDisk_t* disk;
+    DataKey_t         key = { .Value.Id = args->device_id };
+    thrd_t            thread;
 
     TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)", 
-        Driver, Device, Flags);
+        args->driver_id, args->device_id, args->flags);
 
     // Allocate a new instance of a disk descriptor 
     // to store data and store initial data
-    Disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
-    if (!Disk) {
-        return OsOutOfMemory;
+    disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
+    if (!disk) {
+        ERROR("storage_register:: ran out of memory");
+        return;
     }
     
-    Disk->Driver = Driver;
-    Disk->Device = Device;
-    Disk->Flags  = Flags;
+    disk->Driver = args->driver_id;
+    disk->Device = args->device_id;
+    disk->Flags  = args->flags;
     // TODO: disk states
     //Disk->State = Initializing
-    CollectionAppend(VfsGetDisks(), CollectionCreateNode(Key, Disk));
     
-    if (thrd_create(&Thread, InitializeDisk, Disk) != thrd_success) {
-        return OsError;
-    }
-    return OsSuccess;
+    CollectionAppend(VfsGetDisks(), CollectionCreateNode(key, disk));
+    thrd_create(&thread, InitializeDisk, disk);
 }
 
-OsStatus_t
-VfsUnregisterDisk(
-    _In_ UUId_t  Device,
-    _In_ Flags_t Flags)
+void svc_storage_unregister_callback(struct gracht_recv_message* message, struct svc_storage_unregister_args* args)
 {
-    FileSystemDisk_t *Disk = NULL;
-    CollectionItem_t *lNode = NULL;
-    DataKey_t Key = { .Value.Id = Device };
-    lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
-
+    FileSystemDisk_t* disk = NULL;
+    CollectionItem_t* lNode = NULL;
+    DataKey_t         key = { .Value.Id = args->device_id };
+    
     // Keep iterating untill no more FS's are present on disk
+    lNode = CollectionGetNodeByKey(VfsGetFileSystems(), key, 0);
     while (lNode != NULL) {
-        FileSystem_t *Fs = (FileSystem_t*)lNode->Data;
+        FileSystem_t* fileSystem = (FileSystem_t*)lNode->Data;
 
         // Close all open files that relate to this filesystem
         // @todo
 
         // Call destroy handler for that FS
-        if (Fs->Module->Destroy(&Fs->Descriptor, Flags) != OsSuccess) {
+        if (fileSystem->Module->Destroy(&fileSystem->Descriptor, args->flags) != OsSuccess) {
             // What do?
         }
-        Fs->Module->References--;
+        fileSystem->Module->References--;
 
         // Sanitize the module references 
         // If there are no more refs then cleanup module
-        if (Fs->Module->References <= 0) {
+        if (fileSystem->Module->References <= 0) {
             // Unload? Or keep loaded?
         }
 
         // Cleanup resources allocated by the filesystem 
-        VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
-        MStringDestroy(Fs->Identifier);
-        free(Fs);
+        VfsIdentifierFree(&fileSystem->Descriptor.Disk, fileSystem->Id);
+        MStringDestroy(fileSystem->Identifier);
+        free(fileSystem);
 
         CollectionRemoveByNode(VfsGetFileSystems(), lNode);
-        lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
+        lNode = CollectionGetNodeByKey(VfsGetFileSystems(), key, 0);
     }
 
     // Remove the disk from the list of disks
-    Disk = CollectionGetDataByKey(VfsGetDisks(), Key, 0);
-    CollectionRemoveByKey(VfsGetDisks(), Key);
-    free(Disk);
-    return OsSuccess;
+    disk = CollectionGetDataByKey(VfsGetDisks(), key, 0);
+    CollectionRemoveByKey(VfsGetDisks(), key);
+    free(disk);
+}
+
+void svc_storage_get_descriptor_callback(struct gracht_recv_message* message, struct svc_storage_get_descriptor_args* args)
+{
+    OsStorageDescriptor_t descriptor = { 0 };
+    
+    svc_storage_get_descriptor_response(message, OsNotSupported, &descriptor);
+}
+
+void svc_storage_get_descriptor_from_path_callback(struct gracht_recv_message* message, struct svc_storage_get_descriptor_from_path_args* args)
+{
+    OsStorageDescriptor_t descriptor = { 0 };
+    
+    svc_storage_get_descriptor_from_path_response(message, OsNotSupported, &descriptor);
 }

@@ -24,12 +24,15 @@
 #define __TRACE
 
 #include <ddk/contracts/usbdevice.h>
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include "manager.h"
 #include <threads.h>
 #include <stdlib.h>
+
+#include "svc_usb_protocol_server.h"
 
 static const struct {
     uint8_t      Class;
@@ -61,8 +64,11 @@ static const struct {
 
 OsStatus_t
 UsbDeviceDestroy(
-    _In_ UsbController_t *Controller,
-    _In_ UsbPort_t *Port);
+    _In_ UsbController_t* Controller,
+    _In_ UsbPort_t*       Port);
+OsStatus_t
+UsbCoreControllerUnregister(
+    _In_ UUId_t DeviceId);
 
 static Collection_t *GlbUsbControllers  = NULL;
 static Collection_t *GlbUsbDevices      = NULL;
@@ -351,7 +357,7 @@ UsbCoreDestroy(void)
         // Instantiate a pointer of correct type
         UsbController_t *Controller =
             (UsbController_t*)cNode->Data;
-        UsbCoreControllerUnregister(Controller->DriverId, Controller->Device.Id);
+        UsbCoreControllerUnregister(Controller->Device.Id);
     }
 
     // Destroy lists
@@ -360,14 +366,12 @@ UsbCoreDestroy(void)
     return UsbCleanup();
 }
 
-/* UsbCoreControllerRegister
- * Registers a new controller with the given type and setup */
 OsStatus_t
 UsbCoreControllerRegister(
-    _In_ UUId_t                 DriverId,
-    _In_ MCoreDevice_t*         Device,
-    _In_ UsbControllerType_t    Type,
-    _In_ size_t                 RootPorts)
+    _In_ UUId_t              DriverId,
+    _In_ MCoreDevice_t*      Device,
+    _In_ UsbControllerType_t Type,
+    _In_ int                 RootPorts)
 {
     // Variables
     UsbController_t *Controller = NULL;
@@ -391,13 +395,14 @@ UsbCoreControllerRegister(
     return CollectionAppend(GlbUsbControllers, CollectionCreateNode(Key, Controller));
 }
 
-/* UsbCoreControllerUnregister
- * Unregisters the given usb-controller from the manager and
- * unregisters any devices registered by the controller */
+void svc_usb_register_callback(struct gracht_recv_message* message, struct svc_usb_register_args* args)
+{
+    UsbCoreControllerRegister(args->driver_id, args->device, (UsbControllerType_t)args->type, args->port_count);
+}
+
 OsStatus_t
 UsbCoreControllerUnregister(
-    _In_ UUId_t                 DriverId,
-    _In_ UUId_t                 DeviceId)
+    _In_ UUId_t DeviceId)
 {
     // Variables
     UsbController_t *Controller = NULL;
@@ -423,12 +428,17 @@ UsbCoreControllerUnregister(
     return OsSuccess;
 }
 
+void svc_usb_unregister_callback(struct gracht_recv_message* message, struct svc_usb_unregister_args* args)
+{
+    UsbCoreControllerUnregister(args->device_id);
+}
+
 /* UsbDeviceLoadDrivers
  * Loads a driver/sends a current driver a new device notification */
 OsStatus_t
 UsbDeviceLoadDrivers(
-    _In_ UsbController_t*       Controller,
-    _In_ UsbDevice_t*           Device)
+    _In_ UsbController_t* Controller,
+    _In_ UsbDevice_t*     Device)
 {
     MCoreUsbDevice_t CoreDevice;
     int              i;
@@ -486,11 +496,11 @@ UsbDeviceSetup(
     _In_ UsbHub_t*        Hub, 
     _In_ UsbPort_t*       Port)
 {
-    UsbHcPortDescriptor_t* PortDescriptor;
-    UsbDeviceDescriptor_t  DeviceDescriptor;
-    UsbTransferStatus_t    tStatus;
-    UsbDevice_t*           Device;
-    int                    ReservedAddress = 0;
+    UsbHcPortDescriptor_t PortDescriptor;
+    UsbDeviceDescriptor_t DeviceDescriptor;
+    UsbTransferStatus_t   tStatus;
+    UsbDevice_t*          Device;
+    int                   ReservedAddress = 0;
 
     // Debug
     TRACE("UsbDeviceSetup()");
@@ -524,14 +534,14 @@ UsbDeviceSetup(
     }
 
     // Sanitize device is still present after reset
-    if (PortDescriptor->Connected != 1 && PortDescriptor->Enabled != 1) {
+    if (PortDescriptor.Connected != 1 && PortDescriptor.Enabled != 1) {
         goto DevError;
     }
 
     // Update port
     Port->Connected = 1;
     Port->Enabled   = 1;
-    Port->Speed     = PortDescriptor->Speed;
+    Port->Speed     = PortDescriptor.Speed;
 
     // Determine the MPS of the control endpoint
     if (Port->Speed == FullSpeed || Port->Speed == HighSpeed) {
@@ -731,16 +741,15 @@ UsbCoreGetController(
 
 OsStatus_t
 UsbCoreEventPort(
-    _In_ UUId_t  DriverId,
     _In_ UUId_t  DeviceId,
     _In_ uint8_t HubAddress,
     _In_ uint8_t PortAddress)
 {
-    UsbController_t*       Controller = NULL;
-    UsbHcPortDescriptor_t* Descriptor;
-    OsStatus_t             Result = OsSuccess;
-    UsbHub_t*              Hub    = NULL;
-    UsbPort_t*             Port   = NULL;
+    UsbController_t*      Controller = NULL;
+    UsbHcPortDescriptor_t Descriptor;
+    OsStatus_t            Result = OsSuccess;
+    UsbHub_t*             Hub    = NULL;
+    UsbPort_t*            Port   = NULL;
 
     // Debug
     TRACE("UsbCoreEventPort(DeviceId %u, Hub %u, Port %u)", DeviceId, HubAddress, PortAddress);
@@ -755,7 +764,7 @@ UsbCoreEventPort(
 
     // Query port status so we know the status of the port
     // Also compare to the current state to see if the change was valid
-    if (UsbHubQueryPort(DriverId, DeviceId, PortAddress, &Descriptor) != OsSuccess) {
+    if (UsbHubQueryPort(Controller->DriverId, DeviceId, PortAddress, &Descriptor) != OsSuccess) {
         ERROR("Query port failed");
         return OsError;
     }
@@ -774,26 +783,31 @@ UsbCoreEventPort(
     Port = Hub->Ports[PortAddress];
 
     // Now handle connection events
-    if (Descriptor->Connected == 1 && Port->Connected == 0) {
+    if (Descriptor.Connected == 1 && Port->Connected == 0) {
         // Connected event
         // This function updates port-status after reset
         Result = UsbDeviceSetup(Controller, Hub, Port);
     }
-    else if (Descriptor->Connected == 0 && Port->Connected == 1) {
+    else if (Descriptor.Connected == 0 && Port->Connected == 1) {
         // Disconnected event, remember that the descriptor pointer
         // becomes unavailable the moment we call the destroy device
         Result          = UsbDeviceDestroy(Controller, Port);
-        Port->Speed     = Descriptor->Speed;              // TODO: invalid
-        Port->Enabled   = Descriptor->Enabled;            // TODO: invalid
-        Port->Connected = Descriptor->Connected;          // TODO: invalid
+        Port->Speed     = Descriptor.Speed;              // TODO: invalid
+        Port->Enabled   = Descriptor.Enabled;            // TODO: invalid
+        Port->Connected = Descriptor.Connected;          // TODO: invalid
     }
     else {
         // Ignore
-        Port->Speed     = Descriptor->Speed;
-        Port->Enabled   = Descriptor->Enabled;
-        Port->Connected = Descriptor->Connected;
+        Port->Speed     = Descriptor.Speed;
+        Port->Enabled   = Descriptor.Enabled;
+        Port->Connected = Descriptor.Connected;
     }
     return Result;
+}
+
+void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc_usb_port_event_args* args)
+{
+    UsbCoreEventPort(args->device_id, args->hub_address, args->port_address);
 }
 
 int
@@ -804,7 +818,7 @@ UsbCoreGetControllerCount(void)
 
 UsbController_t*
 UsbCoreGetControllerIndex(
-    _In_ int                    Index)
+    _In_ int Index)
 {
     // Variables
     CollectionItem_t *Item  = NULL;
@@ -817,4 +831,22 @@ UsbCoreGetControllerIndex(
         } i++;
     }
     return NULL;
+}
+
+void svc_usb_get_controller_count_callback(struct gracht_recv_message* message)
+{
+    svc_usb_get_controller_count_response(message, UsbCoreGetControllerCount());
+}
+
+void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args* args)
+{
+    UsbHcController_t hcController = { { 0 }, 0 };
+    UsbController_t*  controller;
+    
+    controller = UsbCoreGetControllerIndex(args->index);
+    if (controller != NULL) {
+        memcpy(&hcController.Device, &controller->Device, sizeof(MCoreDevice_t));
+        hcController.Type = controller->Type;
+    }
+    svc_usb_get_controller_response(message, &hcController);
 }

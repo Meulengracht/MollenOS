@@ -21,12 +21,14 @@
  */
 //#define __TRACE
 
+#include <ctype.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <os/mollenos.h>
-#include <ddk/utils.h>
 #include <strings.h>
 #include <string.h>
-#include <ctype.h>
+
+#include "svc_path_protocol_server.h"
 
 #define IS_SEPERATOR(StringPointer)     ((StringPointer)[0] == '/' || (StringPointer)[0] == '\\')
 #define IS_EOL(StringPointer)           ((StringPointer)[0] == '\0')
@@ -34,7 +36,7 @@
 #define IS_IDENTIFIER(StringPointer)    ((StringPointer)[0] == '$' && (StringPointer)[1] != '(')
 #define IS_VARIABLE(StringPointer)      ((StringPointer)[0] == '$' && (StringPointer)[1] == '(')
 
-static const char* EnvironmentalPaths[PathEnvironmentCount] = {
+static const char* EnvironmentalPaths[path_count] = {
     // System paths
 	":/",
 	":/system/",
@@ -56,21 +58,21 @@ static const char* EnvironmentalPaths[PathEnvironmentCount] = {
 };
 
 static struct VfsIdentifier {
-	const char*       Identifier;
-	EnvironmentPath_t Resolve;
+	const char*                    Identifier;
+	enum svc_path_environment_path Resolve;
 } VfsIdentifiers[] = {
-	{ "sys", PathSystemDirectory },
-	{ "bin", PathCommonBin },
-	{ NULL, PathSystemDirectory }
+	{ "sys", path_system },
+	{ "bin", path_common_bin },
+	{ NULL, path_count }
 };
 
 MString_t*
 VfsPathResolveEnvironment(
-    _In_ EnvironmentPath_t Base)
+    _In_ enum svc_path_environment_path base)
 {
 	MString_t *ResolvedPath = NULL;
 	CollectionItem_t *fNode = NULL;
-	int pIndex              = (int)Base;
+	int pIndex              = (int)base;
 	int pFound              = 0;
 
 	// Create a new string instance to store resolved in
@@ -91,6 +93,18 @@ VfsPathResolveEnvironment(
 	// Now append the special paths and return it
 	MStringAppendCharacters(ResolvedPath, EnvironmentalPaths[pIndex], StrUTF8);
 	return ResolvedPath;
+}
+
+void svc_path_resolve_callback(struct gracht_recv_message* message, struct svc_path_resolve_args* args)
+{
+    MString_t* resolvedPath = VfsPathResolveEnvironment(args->base);
+    if (!resolvedPath) {
+        svc_path_resolve_response(message, OsDoesNotExist, "");
+        return;
+    }
+    
+    svc_path_resolve_response(message, OsSuccess, MStringRaw(resolvedPath));
+    MStringDestroy(resolvedPath);
 }
 
 static OsStatus_t
@@ -214,4 +228,16 @@ VfsPathCanonicalize(
 	}
     TRACE("=> %s", MStringRaw(AbsPath));
 	return AbsPath;
+}
+
+void svc_path_canonicalize_callback(struct gracht_recv_message* message, struct svc_path_canonicalize_args* args)
+{
+    MString_t* canonicalizedPath = VfsPathCanonicalize(args->path);
+    if (!canonicalizedPath) {
+        svc_path_canonicalize_response(message, OsDoesNotExist, "");
+        return;
+    }
+    
+    svc_path_canonicalize_response(message, OsSuccess, MStringRaw(canonicalizedPath));
+    MStringDestroy(canonicalizedPath);
 }

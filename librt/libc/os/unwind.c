@@ -36,8 +36,8 @@ ProcessGetLibraryHandles(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     
-    svc_process_get_modules_sync(GetGrachtClient(), &msg, ModuleLengthOut,
-        ModuleList, sizeof(void*) * PROCESS_MAXMODULES);
+    svc_process_get_modules_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        ModuleLengthOut, ModuleList, sizeof(void*) * PROCESS_MAXMODULES);
     gracht_vali_message_finish(&msg);
 }
 

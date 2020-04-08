@@ -27,17 +27,6 @@
 #include <ddk/ddkdefs.h>
 #include <ddk/interrupt.h>
 #include <ddk/io.h>
-#include <ddk/services/service.h>
-
-#define __DEVICEMANAGER_INTERFACE_VERSION           1
-
-#define __DEVICEMANAGER_REGISTERDEVICE              (int)0
-#define __DEVICEMANAGER_UNREGISTERDEVICE            (int)1
-#define __DEVICEMANAGER_QUERYDEVICE                 (int)2
-#define __DEVICEMANAGER_IOCTLDEVICE                 (int)3
-
-#define __DEVICEMANAGER_REGISTERCONTRACT            (int)4
-#define __DEVICEMANAGER_UNREGISTERCONTRACT          (int)5
 
 #define __DEVICEMANAGER_NAMEBUFFER_LENGTH           128
 #define __DEVICEMANAGER_MAX_IOSPACES                6

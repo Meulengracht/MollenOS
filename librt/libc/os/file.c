@@ -43,8 +43,8 @@ GetFilePathFromFd(
         return OsError;
     }
     
-    svc_file_get_path_sync(GetGrachtClient(), &msg, handle->object.handle,
-        &status, PathBuffer, MaxLength);
+    svc_file_get_path_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        handle->object.handle, &status, PathBuffer, MaxLength);
     gracht_vali_message_finish(&msg);
     return status;
 }
@@ -99,7 +99,8 @@ GetFileSystemInformationFromPath(
         return OsInvalidParameters;
     }
     
-    svc_file_fsstat_from_path_sync(GetGrachtClient(), &msg, Path, &status, Information);
+    svc_file_fsstat_from_path_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        Path, &status, Information);
     gracht_vali_message_finish(&msg);
     return status;
 }
@@ -118,7 +119,8 @@ GetFileSystemInformationFromFd(
         return OsInvalidParameters;
     }
     
-    svc_file_fsstat_sync(GetGrachtClient(), &msg, handle->object.handle, &status, Information);
+    svc_file_fsstat_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        handle->object.handle, &status, Information);
     gracht_vali_message_finish(&msg);
     return status;
 }
@@ -135,7 +137,8 @@ GetFileInformationFromPath(
         return OsInvalidParameters;
     }
     
-    svc_file_fstat_from_path_sync(GetGrachtClient(), &msg, Path, &status, Information);
+    svc_file_fstat_from_path_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        Path, &status, Information);
     gracht_vali_message_finish(&msg);
     return status;
 }
@@ -154,7 +157,8 @@ GetFileInformationFromFd(
         return OsInvalidParameters;
     }
     
-    svc_file_fstat_sync(GetGrachtClient(), &msg, handle->object.handle, &status, Information);
+    svc_file_fstat_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        handle->object.handle, &status, Information);
     gracht_vali_message_finish(&msg);
     return status;
 }

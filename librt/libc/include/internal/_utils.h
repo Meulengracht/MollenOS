@@ -15,9 +15,9 @@ typedef struct FutexParameters {
     size_t        _timeout;
 } FutexParameters_t;
 
-extern int              IsProcessModule(void);
-extern UUId_t*          GetInternalProcessId(void);
-extern const char*      GetInternalCommandLine(void);
-extern gracht_client_t* GetGrachtClient(void);
+extern int                IsProcessModule(void);
+extern UUId_t*            GetInternalProcessId(void);
+extern const char*        GetInternalCommandLine(void);
+CRTDECL(gracht_client_t*, GetGrachtClient(void));
 
 #endif

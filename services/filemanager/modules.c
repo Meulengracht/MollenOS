@@ -21,8 +21,9 @@
  */
 //#define __TRACE
 
-#include "include/vfs.h"
 #include <ddk/utils.h>
+#include "include/vfs.h"
+#include <os/sharedobject.h>
 #include <stdlib.h>
 
 /* Filesystem driver map

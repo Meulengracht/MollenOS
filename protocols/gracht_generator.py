@@ -482,7 +482,7 @@ class CGenerator:
         parameter_string = ""
         for index, param in enumerate(params):
             parameter_string = parameter_string + self.get_param_typename(protocol, param, case)
-            if param.has_length_component():
+            if param.has_length_component() and case != CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
                 length_param = self.get_param_typename(protocol, Parameter(param.get_name() + "_length", "size_t"), case)
                 parameter_string = parameter_string + ", " + length_param
 
@@ -712,11 +712,11 @@ class CGenerator:
         outfile.write("\n")
         return
 
-    def get_size_function(self, protocol, param):
-        if param.has_length_component():
+    def get_size_function(self, protocol, param, is_response):
+        if param.has_length_component() and not is_response:
             return param.get_name() + "_length"
         elif param.is_string():
-            return "strlen(&" + param.get_name() + "[0])"
+            return "((" + param.get_name() + " == NULL) ? 0 : strlen(&" + param.get_name() + "[0]))"
         return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ")"
 
     def get_message_flags_func(self, func):
@@ -730,7 +730,7 @@ class CGenerator:
             message_size = message_size + " + (" + str(len(params)) + " * sizeof(struct gracht_param))"
         return message_size
     
-    def define_message_struct(self, protocol, action_id, params_in, params_out, flags, outfile):
+    def define_message_struct(self, protocol, action_id, params_in, params_out, flags, is_response, outfile):
         params_all = params_in + params_out
 
         # define variables
@@ -757,7 +757,7 @@ class CGenerator:
         if len(params_all) > 0:
             outfile.write("\n    }, .__params = {\n")
             for index, param in enumerate(params_in):
-                size_function = self.get_size_function(protocol, param)
+                size_function = self.get_size_function(protocol, param, is_response)
                 if param.is_value():
                     outfile.write("            { .type = GRACHT_PARAM_VALUE, .data.value = (size_t)" + param.get_name() + ", .length = " + size_function + " }")
                 elif param.is_buffer() or param.is_string():
@@ -770,7 +770,7 @@ class CGenerator:
                 else:
                     outfile.write("\n")
             for index, param in enumerate(params_out):
-                size_function = self.get_size_function(protocol, param)
+                size_function = self.get_size_function(protocol, param, is_response)
                 buffer_variable = param.get_name() + "_out"
                 if "MESSAGE_FLAG_SYNC" not in flags:
                     buffer_variable = "NULL"
@@ -792,22 +792,22 @@ class CGenerator:
 
     def define_function_body(self, protocol, func, outfile):
         flags = self.get_message_flags_func(func)
-        self.define_message_struct(protocol, func.get_id(), func.get_request_params(), func.get_response_params(), flags, outfile)
+        self.define_message_struct(protocol, func.get_id(), func.get_request_params(), func.get_response_params(), flags, False, outfile)
         outfile.write("    return gracht_client_invoke(client, (struct gracht_message*)&__message, context);\n")
         return
 
     def define_event_body_single(self, protocol, evt, outfile):
-        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", False, outfile)
         outfile.write("    return gracht_server_send_event(client, (struct gracht_message*)&__message, 0);\n")
         return
 
     def define_event_body_all(self, protocol, evt, outfile):
-        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", outfile)
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", False, outfile)
         outfile.write("    return gracht_server_broadcast_event((struct gracht_message*)&__message, 0);\n")
         return
 
     def define_response_body(self, protocol, func, outfile):
-        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], "0", outfile)
+        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], "0", True, outfile)
         outfile.write("    return gracht_server_respond(message, (struct gracht_message*)&__message);\n")
         return
     

@@ -26,6 +26,7 @@
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <os/mollenos.h>
 #include <string.h>
 
 OsStatus_t
@@ -126,7 +127,8 @@ SetWorkingDirectory(
             else {
 	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
                 TRACE("...proc_set_cwd %s", &TempBuffer[0]);
-                svc_process_set_working_directory_sync(GetGrachtClient(), &msg, &TempBuffer[0], &Status);
+                svc_process_set_working_directory_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                    &TempBuffer[0], &Status);
                 gracht_vali_message_finish(&msg);
                 return Status;
             }

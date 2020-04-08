@@ -6,7 +6,8 @@
 include ../../config/common.mk
 
 INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
-SOURCES = $(wildcard domains/*.c) \
+SOURCES = svc_socket_protocol_server.c \
+		  $(wildcard domains/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libds.lib ../../librt/build/ddk.lib ../../librt/build/c.lib
@@ -16,6 +17,10 @@ LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll
 
 .PHONY: all
 all: ../build/netmanager.dll ../build/netmanager.mdrv
+	
+svc_socket_protocol_server.c: ../../protocols/service_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include socket
 
 ../build/netmanager.mdrv: netmanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

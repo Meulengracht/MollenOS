@@ -23,6 +23,7 @@
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <threads.h>
 
 extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
 extern void StdSignalInitialize(void);
@@ -51,7 +52,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             sizeof(__CrtStartupBuffer));
     }
     else {
-        svc_process_get_startup_information_sync(GetGrachtClient(), &msg,
+        svc_process_get_startup_information_sync(GetGrachtClient(), &msg, thrd_current(),
             &status, &__CrtProcessId, &StartupInformation->ArgumentsLength,
             &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
             &__CrtStartupBuffer[0], sizeof(__CrtStartupBuffer));

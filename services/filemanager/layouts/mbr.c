@@ -46,116 +46,119 @@ ReadStorage(
 }
 
 OsStatus_t
-MbrEnumeratePartitions(
-    _In_ FileSystemDisk_t* Disk,
-    _In_ UUId_t            BufferHandle,
-    _In_ void*             Buffer,
-    _In_ uint64_t          Sector)
+mbrEnumeratePartitions(
+    _In_ FileSystemDisk_t* disk,
+    _In_ UUId_t            bufferHandle,
+    _In_ void*             buffer,
+    _In_ uint64_t          sector)
 {
-    MasterBootRecord_t* Mbr;
-    int                 PartitionCount = 0;
+    MasterBootRecord_t* mbr;
+    int                 partitionCount = 0;
     int                 i;
-    size_t              SectorsRead;
+    size_t              sectorsRead;
+    OsStatus_t          status;
 
     // Trace
-    TRACE("MbrEnumeratePartitions(Sector %u)", LODWORD(Sector));
+    TRACE("mbrEnumeratePartitions(Sector %u)", LODWORD(sector));
 
     // Start out by reading the mbr to detect whether
     // or not there is a partition table
-    if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
-            BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
+    status = ReadStorage(disk, bufferHandle, 0, 1, &sectorsRead);
+    if (status != OsSuccess) {
         return OsError;
     }
 
     // Allocate a buffer where we can store a copy of the mbr 
     // it might be overwritten by recursion here
-    Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
-    if (!Mbr) {
+    mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
+    if (!mbr) {
         return OsOutOfMemory;
     }
-    memcpy(Mbr, Buffer, sizeof(MasterBootRecord_t));
+    memcpy(mbr, buffer, sizeof(MasterBootRecord_t));
 
     // Now try to see if there is any valid data
     // in any of the partitions
     for (i = 0; i < 4; i++) {
-        if (Mbr->Partitions[i].Status == MBR_PARTITION_ACTIVE) {
-            FileSystemType_t Type = FSUnknown;
-            PartitionCount++;
+        if (mbr->Partitions[i].Status == MBR_PARTITION_ACTIVE) {
+            FileSystemType_t type = FSUnknown;
+            partitionCount++;
 
             // Check extended partitions first 
             // 0x05 = CHS
             // 0x0F = LBA
             // 0xCF = LBA
-            if (Mbr->Partitions[i].Type == 0x05) {
+            if (mbr->Partitions[i].Type == 0x05) {
             }
-            else if (Mbr->Partitions[i].Type == 0x0F || Mbr->Partitions[i].Type == 0xCF) {
-                MbrEnumeratePartitions(Disk, BufferHandle, Buffer, Sector + Mbr->Partitions[i].LbaSector);
+            else if (mbr->Partitions[i].Type == 0x0F || mbr->Partitions[i].Type == 0xCF) {
+                mbrEnumeratePartitions(disk, bufferHandle, buffer,
+                    sector + mbr->Partitions[i].LbaSector);
             }
 
             // GPT Formatted 
             // ??? Shouldn't happen ever we reach this
             // otherwise the GPT is invalid
-            else if (Mbr->Partitions[i].Type == 0xEE) {
+            else if (mbr->Partitions[i].Type == 0xEE) {
                 return OsError;
             }
 
             // Check MFS
-            else if (Mbr->Partitions[i].Type == 0x61) {
-                Type = FSMFS;
+            else if (mbr->Partitions[i].Type == 0x61) {
+                type = FSMFS;
             }
 
             // Check FAT 
             // - Both FAT12, 16 and 32
-            else if (Mbr->Partitions[i].Type == 0x1            /* Fat12 */
-                    || Mbr->Partitions[i].Type == 0x4        /* Fat16 */
-                    || Mbr->Partitions[i].Type == 0x6        /* Fat16B */
-                    || Mbr->Partitions[i].Type == 0xB        /* FAT32 - CHS */
-                    || Mbr->Partitions[i].Type == 0xC) {    /* Fat32 - LBA */
-                Type = FSFAT;
+            else if (mbr->Partitions[i].Type == 0x1            /* Fat12 */
+                    || mbr->Partitions[i].Type == 0x4        /* Fat16 */
+                    || mbr->Partitions[i].Type == 0x6        /* Fat16B */
+                    || mbr->Partitions[i].Type == 0xB        /* FAT32 - CHS */
+                    || mbr->Partitions[i].Type == 0xC) {    /* Fat32 - LBA */
+                type = FSFAT;
             }
 
             // Check HFS
-            else if (Mbr->Partitions[i].Type == 0xAF) {
-                Type = FSHFS;
+            else if (mbr->Partitions[i].Type == 0xAF) {
+                type = FSHFS;
             }
 
             // exFat or NTFS or HPFS
             // This requires some extra checks to determine
             // exactly which fs it is
-            else if (Mbr->Partitions[i].Type == 0x7) {
-                if (!strncmp((const char*)&Mbr->BootCode[3], "EXFAT", 5)) {
-                    Type = FSEXFAT;
+            else if (mbr->Partitions[i].Type == 0x7) {
+                if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
+                    type = FSEXFAT;
                 }
-                else if (!strncmp((const char*)&Mbr->BootCode[3], "NTFS", 4)) {
-                    Type = FSNTFS;
+                else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
+                    type = FSNTFS;
                 }
                 else {
-                    Type = FSHPFS;
+                    type = FSHPFS;
                 }
             }
 
             // Register the FS
-            DiskRegisterFileSystem(Disk, Sector + Mbr->Partitions[i].LbaSector,
-                Mbr->Partitions[i].LbaSize, Type);
+            DiskRegisterFileSystem(disk, sector + mbr->Partitions[i].LbaSector,
+                mbr->Partitions[i].LbaSize, type);
         }
     }
-    free(Mbr);
-    return PartitionCount != 0 ? OsSuccess : OsError;
+    
+    free(mbr);
+    return partitionCount != 0 ? OsSuccess : OsError;
 }
 
 OsStatus_t
 MbrEnumerate(
-    _In_ FileSystemDisk_t* Disk,
-    _In_ UUId_t            BufferHandle,
-    _In_ void*             Buffer)
+    _In_ FileSystemDisk_t* disk,
+    _In_ UUId_t            bufferHandle,
+    _In_ void*             buffer)
 {
     TRACE("MbrEnumerate()");
-
+    
     // First of all, we want to detect whether or 
     // not there is a partition table available
     // otherwise we treat the entire disk as one partition
-    if (MbrEnumeratePartitions(Disk, BufferHandle, Buffer, 0) != OsSuccess) {
-        return DiskDetectFileSystem(Disk, BufferHandle, Buffer, 0, Disk->Descriptor.SectorCount);
+    if (mbrEnumeratePartitions(disk, bufferHandle, buffer, 0) != OsSuccess) {
+        return DiskDetectFileSystem(disk, bufferHandle, buffer, 0, disk->Descriptor.SectorCount);
     }
     else {
         return OsSuccess;
