@@ -22,28 +22,32 @@
  */
 #define __TRACE
 
-#include <ds/collection.h>
-#include <os/services/process.h>
-#include <ddk/services/session.h>
+#include <os/process.h>
 #include <ddk/utils.h>
-#include <os/ipc.h>
+#include <internal/_ipc.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "svc_session_protocol_server.h"
 
 static UUId_t WindowingSystemId = UUID_INVALID;
 
-OsStatus_t
-OnLoad(
-    _In_ char** ServicePathOut)
+OsStatus_t OnUnload(void)
 {
-    *ServicePathOut = SERVICE_SESSION_PATH;
     return OsSuccess;
 }
 
-OsStatus_t
-OnUnload(void)
+void GetServiceAddress(struct ipmsg_addr* address)
 {
+    address->type = IPMSG_ADDRESS_PATH;
+    address->data.path = SERVICE_SESSION_PATH;
+}
+
+OsStatus_t
+OnLoad(void)
+{
+    // Register supported interfaces
+    gracht_server_register_protocol(&svc_session_protocol);
     return OsSuccess;
 }
 
