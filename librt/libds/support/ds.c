@@ -43,7 +43,6 @@ extern OsStatus_t ScFutexWake(FutexParameters_t*);
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
-#include <ddk/services/file.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>

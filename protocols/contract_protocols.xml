@@ -6,7 +6,6 @@
         <type name="uintptr_t" header="stdint.h" />
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
-        <type name="MCoreDevice_t" header="ddk/device.h" />
         <type name="StorageDescriptor_t" header="ddk/storage.h" />
         <type name="UsbTransferStatus_t" header="ddk/usb.h" />
         <type name="UsbTransfer_t" header="ddk/usb.h" />
@@ -17,7 +16,7 @@
             <functions>
                 <function name="register_device" synchronous="true">
                     <request>
-                        <param name="device" type="buffer" subtype="MCoreDevice_t" />
+                        <param name="device" type="buffer" />
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" />

@@ -27,8 +27,6 @@
 #include <os/pe.h>
 #include <string.h>
 
-#define PROCESS_MAXMODULES 64
-
 static void
 ProcessGetLibraryHandles(
     _In_  Handle_t* ModuleList,

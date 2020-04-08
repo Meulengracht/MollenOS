@@ -84,8 +84,7 @@ dma_pool_allocate(
     _In_  size_t           length,
     _Out_ void**           address_out)
 {
-    ptrdiff_t difference;
-    void*     allocation;
+    void* allocation;
 
     TRACE("dma_pool_allocate(Size %u)", length);
 
@@ -95,7 +94,6 @@ dma_pool_allocate(
         return OsOutOfMemory;
     }
     
-    difference   = (uintptr_t)allocation - (uintptr_t)pool->attachment->buffer;
     *address_out = allocation;
     TRACE(" > Virtual address 0x%x => Physical address 0x%x", allocation, *dma_address_out);
     return OsSuccess;

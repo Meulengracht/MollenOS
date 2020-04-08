@@ -25,7 +25,7 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include <threads.h>

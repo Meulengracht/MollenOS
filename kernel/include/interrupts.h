@@ -25,7 +25,6 @@
 #define _MCORE_INTERRUPTS_H_
 
 #include <ddk/interrupt.h>
-#include <ddk/driver.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 

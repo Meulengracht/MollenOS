@@ -24,8 +24,6 @@
 
 #include <ctype.h>
 #include <ddk/contracts/filesystem.h>
-#include <ddk/services/session.h>
-#include <ddk/services/file.h>
 #include <ddk/utils.h>
 #include "include/vfs.h"
 #include <internal/_ipc.h>
@@ -102,7 +100,7 @@ DiskRegisterFileSystem(
 
     // Copy the storage ident over 
     // We use "st" for hard media, and "rm" for removables
-    strcpy(&IdentBuffer[0], (Disk->Flags & __STORAGE_REMOVABLE) ? "rm" : "st");
+    strcpy(&IdentBuffer[0], (Disk->Flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) ? "rm" : "st");
     itoa((int)Id, &IdentBuffer[2], 10);
 
     // Allocate a new copy of the fs-structure

@@ -25,7 +25,6 @@
 #define _CONTRACT_FILESYSTEM_INTERFACE_H_
 
 #include <ddk/storage.h>
-#include <ddk/driver.h>
 #include <os/mollenos.h>
 
 /* FileSystem Export 

@@ -23,8 +23,8 @@
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/osdefs.h>
+#include <os/types/process.h>
 #include <os/spinlock.h>
-#include <ddk/services/process.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>

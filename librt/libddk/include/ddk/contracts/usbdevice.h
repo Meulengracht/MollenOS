@@ -27,7 +27,6 @@
 
 #include <ddk/usb/definitions.h>
 #include <ddk/usb.h>
-#include <ddk/driver.h>
 #include <ddk/device.h>
 #include <ddk/ddkdefs.h>
 

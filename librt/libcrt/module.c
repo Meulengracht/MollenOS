@@ -21,7 +21,6 @@
  */
 
 #include "../libc/threads/tls.h"
-#include <ddk/driver.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>

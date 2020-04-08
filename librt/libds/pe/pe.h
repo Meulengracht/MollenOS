@@ -25,7 +25,7 @@
 #define __PE_IMAGE_LOADER__
 
 #include <os/osdefs.h>
-#include <ddk/services/process.h>
+#include <os/types/process.h>
 #include <ds/list.h>
 #include <os/pe.h>
 #include <time.h>

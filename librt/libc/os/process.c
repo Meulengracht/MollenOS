@@ -23,7 +23,6 @@
  */
 
 #include <assert.h>
-#include <ddk/services/process.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_ipc.h>

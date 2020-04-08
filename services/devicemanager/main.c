@@ -28,7 +28,6 @@
 #include <ctype.h>
 #include "devicemanager.h"
 #include "svc_device_protocol_server.h"
-#include <ddk/driver.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <ipcontext.h>

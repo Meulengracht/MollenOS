@@ -19,7 +19,7 @@
  * MollenOS C Library - Server Entry 
  */
 
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 #include <ddk/threadpool.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>

@@ -26,6 +26,8 @@
 
 #include <os/osdefs.h>
 
+#define PROCESS_MAXMODULES 64
+
 #define PROCESS_INHERIT_NONE        0x00000000
 #define PROCESS_INHERIT_STDOUT      0x00000001
 #define PROCESS_INHERIT_STDIN       0x00000002

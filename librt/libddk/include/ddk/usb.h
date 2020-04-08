@@ -29,7 +29,7 @@
 #include <ddk/bufferpool.h>
 #include <ddk/device.h>
 #include <ddk/usb/definitions.h>
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values

@@ -27,15 +27,6 @@
 #include <os/osdefs.h>
 #include <os/types/session.h>
 
-/* GetServiceObjectsWithCapabilities
- * Retrieves a list of service objects that match the requested capabilities. 
- * The capabilities provided is matched as an AND operation. */
-CRTDECL(OsStatus_t,
-GetServiceObjectsWithCapabilities(
-	_In_ ServiceCapabilities_t Capabilities,
-	_In_ ServiceObject_t*      ObjectBuffer,
-	_In_ size_t                MaxObjects));
-
 /* SessionLoginRequest
  * Sends a login-request to the session-manager. The sessionmanager will respond
  * with a SessionObject structure containing information about success/failure. */

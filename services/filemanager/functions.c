@@ -34,8 +34,9 @@
 
 #include "svc_file_protocol_server.h"
 
+extern MString_t* VfsPathCanonicalize(const char* Path);
+
 static OsStatus_t Flush(UUId_t processId, UUId_t handle);
-static MString_t* VfsPathCanonicalize(const char* Path);
 
 int
 VfsEntryIsFile(

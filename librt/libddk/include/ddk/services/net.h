@@ -26,7 +26,7 @@
 #define __DDK_SERVICES_NET_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 #include <ds/streambuffer.h>
 #include <inet/socket.h>
 

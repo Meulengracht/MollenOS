@@ -9,7 +9,6 @@
         <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
         <type name="ProcessConfiguration_t" header="os/types/process.h" />
         <type name="OsStorageDescriptor_t" header="os/types/storage.h" />
-        <type name="MCoreDevice_t" header="ddk/device.h" />
         <type name="UsbHcController_t" header="ddk/usb.h" />
     </types>
     <protocols namespace="svc">
@@ -576,7 +575,7 @@
                 <function name="register" synchronous="true">
                     <request>
                         <param name="parent" type="UUId_t" count="1" />
-                        <param name="device" type="buffer" subtype="MCoreDevice_t" />
+                        <param name="device" type="buffer" />
                         <param name="flags" type="unsigned int" count="1" />
                     </request>
                     <response>
@@ -621,7 +620,7 @@
                 <function name="register" synchronous="false">
                     <request>
                         <param name="driver_id" type="UUId_t" count="1" />
-                        <param name="device" type="buffer" subtype="MCoreDevice_t" />
+                        <param name="device" type="buffer" />
                         <param name="type" type="int" count="1" />
                         <param name="port_count" type="int" count="1" />
                     </request>
