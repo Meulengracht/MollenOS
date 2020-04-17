@@ -27,6 +27,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+void gracht_vali_message_defer_response(struct vali_link_deferred_response* deferredResponse,
+    struct gracht_recv_message* message)
+{
+    if (!deferredResponse || message) {
+        return;
+    }
+    
+    memcpy(&deferredResponse->recv_message, message, sizeof(struct gracht_recv_message));
+    memcpy(&deferredResponse->recv_storage, message->storage, sizeof(struct ipmsg));
+    
+    // Fixup the pointers
+    deferredResponse->recv_message.storage = &deferredResponse->recv_storage;
+    deferredResponse->recv_message.params = NULL;
+}
+
 // message size is defined by protocol generator
 int gracht_vali_message_create(gracht_client_t* client, int message_size, struct vali_link_message** messageOut)
 {

@@ -31,9 +31,9 @@
 
 OsStatus_t
 PathResolveEnvironment(
-    _In_ enum svc_path_environment_path environment,
-    _In_ char*                          buffer,
-    _In_ size_t                         maxLength)
+    _In_ EnvironmentPath_t environment,
+    _In_ char*             buffer,
+    _In_ size_t            maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
 	OsStatus_t               status;
@@ -42,7 +42,7 @@ PathResolveEnvironment(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_resolve_sync(GetGrachtClient(), &msg, environment, &status, &buffer[0], maxLength);
+	svc_path_resolve_sync(GetGrachtClient(), &msg, (enum svc_path_environment_path)environment, &status, &buffer[0], maxLength);
 	gracht_vali_message_finish(&msg);
 	return status;
 }
@@ -176,7 +176,7 @@ GetUserDirectory(
 		return OsError;
 	}
     return PathResolveEnvironment(IsProcessModule() ? 
-        path_system : path_user_data, PathBuffer, MaxLength);
+        PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -188,7 +188,7 @@ GetUserCacheDirectory(
 		return OsError;
 	}
     return PathResolveEnvironment(IsProcessModule() ? 
-        path_system : path_user_cache, PathBuffer, MaxLength);
+        PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -200,7 +200,7 @@ GetApplicationDirectory(
 		return OsError;
 	}
     return PathResolveEnvironment(IsProcessModule() ? 
-        path_system : path_app_data, PathBuffer, MaxLength);
+        PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -212,5 +212,5 @@ GetApplicationTemporaryDirectory(
 		return OsError;
 	}
     return PathResolveEnvironment(IsProcessModule() ? 
-        path_system : path_app_temp, PathBuffer, MaxLength);
+        PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
 }

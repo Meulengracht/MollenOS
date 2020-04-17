@@ -77,7 +77,8 @@ SharedObjectLoad(
         }
         else {
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-            svc_library_load_sync(GetGrachtClient(), &msg, SharedObject, &Status, &Result);
+            svc_library_load_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                SharedObject, &Status, &Result);
             gracht_vali_message_finish(&msg);
         }
 
@@ -127,9 +128,8 @@ SharedObjectGetFunction(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         uintptr_t AddressOfFunction;
         
-        
-        svc_library_get_function_sync(GetGrachtClient(), &msg, Handle,
-            Function, &Status, &AddressOfFunction);
+        svc_library_get_function_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+            Handle, Function, &Status, &AddressOfFunction);
         gracht_vali_message_finish(&msg);
         OsStatusToErrno(Status);
         if (Status != OsSuccess) {
@@ -174,7 +174,8 @@ SharedObjectUnload(
             }
 	        else {
 	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-                svc_library_unload_sync(GetGrachtClient(), &msg, Handle, &Status);
+                svc_library_unload_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                    Handle, &Status);
                 gracht_vali_message_finish(&msg);
             }
             OsStatusToErrno(Status);

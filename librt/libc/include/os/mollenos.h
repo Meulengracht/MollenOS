@@ -27,6 +27,7 @@
 #include <os/osdefs.h>
 #include <os/types/file.h>
 #include <os/types/storage.h>
+#include <os/types/path.h>
 #include <time.h>
 
 // Memory Allocation Definitions
@@ -100,6 +101,8 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char *ThreadNameBuffer, size_t MaxLengt
 /*******************************************************************************
  * Path Extensions
  *******************************************************************************/
+CRTDECL(OsStatus_t, PathCanonicalize(const char* Path, char* Buffer, size_t MaxLength));
+CRTDECL(OsStatus_t, PathResolveEnvironment(EnvironmentPath_t Base, char* Buffer, size_t MaxLength));
 CRTDECL(OsStatus_t, SetWorkingDirectory(const char *Path));
 CRTDECL(OsStatus_t, GetWorkingDirectory(char* PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetAssemblyDirectory(char *PathBuffer, size_t MaxLength));

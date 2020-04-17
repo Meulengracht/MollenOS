@@ -5,12 +5,24 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
+INCLUDES = -Iinclude \
+		   -I../../librt/libgracht/include \
+		   -I../../librt/libds/include \
+		   -I../../librt/libddk/include \
+		   -I../../librt/libc/include \
+		   -I../../librt/include
+
+LIBRARIES = ../../librt/deploy/libgracht.lib \
+			../../librt/build/libsrv.lib \
+			../../librt/build/ddk.lib \
+			../../librt/build/libds.lib \
+			../../librt/build/c.lib \
+			../../librt/build/compiler-rt.lib
+
 SOURCES = svc_socket_protocol_server.c \
 		  $(wildcard domains/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libds.lib ../../librt/build/ddk.lib ../../librt/build/c.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll
@@ -37,6 +49,7 @@ svc_socket_protocol_server.c: ../../protocols/service_protocols.xml
 .PHONY: clean
 clean:
 	@rm -f $(OBJECTS)
+	@rm -f svc_*
 	@rm -f ../build/netmanager.dll
 	@rm -f ../build/netmanager.lib
 	@rm -f ../build/netmanager.mdrv

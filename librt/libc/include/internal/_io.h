@@ -1,7 +1,6 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <ds/collection.h>
 #include <internal/_socket.h>
 #include <internal/_ipc.h>
 #include <io_events.h>        // for activity definitions
@@ -43,7 +42,7 @@ typedef struct stdio_handle stdio_handle_t;
 
 // Inheritable handle that is shared with child processes
 // should contain only portable information
-typedef struct {
+typedef struct stdio_object {
     UUId_t handle;
     int    type;
     union {
@@ -63,7 +62,7 @@ typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
 typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
 typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
 
-typedef struct {
+typedef struct stdio_ops {
     stdio_inherit inherit;
     stdio_read    read;
     stdio_write   write;
@@ -84,6 +83,11 @@ typedef struct stdio_handle {
     FILE*          buffered_stream;
 } stdio_handle_t;
 
+typedef struct stdio_inheritation_block {
+    int                 handle_count;
+    struct stdio_handle handles[];
+} stdio_inheritation_block_t;
+
 // io-object interface
 extern int             stdio_handle_create(int, int, stdio_handle_t**);
 extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
@@ -92,7 +96,6 @@ extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigne
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern stdio_handle_t* stdio_handle_get(int fd);
-extern Collection_t*   stdio_get_handles(void);
 
 // io-buffer interface
 extern OsStatus_t os_alloc_buffer(FILE* file);

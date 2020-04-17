@@ -30,12 +30,12 @@
 static void
 ProcessGetLibraryHandles(
     _In_  Handle_t* ModuleList,
-    _Out_ size_t*   ModuleLengthOut)
+    _Out_ int*      ModuleCountOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     
     svc_process_get_modules_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        ModuleLengthOut, ModuleList, sizeof(void*) * PROCESS_MAXMODULES);
+        ModuleList, sizeof(void*) * PROCESS_MAXMODULES, ModuleCountOut);
     gracht_vali_message_finish(&msg);
 }
 
@@ -45,16 +45,16 @@ UnwindGetSection(
     _In_ UnwindSection_t* Section)
 {
     Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
-    size_t   Length;
+    int      ModuleCount;
     
     if (IsProcessModule()) {
         return OsDoesNotExist;
     }
     
-    ProcessGetLibraryHandles(ModuleList, &Length);
+    ProcessGetLibraryHandles(ModuleList, &ModuleCount);
 
     // Foreach module, get section headers
-    for (unsigned i = 0; i < PROCESS_MAXMODULES; i++) {
+    for (unsigned i = 0; i < ModuleCount; i++) {
         MzHeader_t*         dosHeader;
         PeHeader_t*         peHeader;
         PeOptionalHeader_t* optHeader;

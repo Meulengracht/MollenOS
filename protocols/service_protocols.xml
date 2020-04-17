@@ -333,6 +333,7 @@
                 <function name="kill" synchronous="true">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
+                        <param name="target_handle" type="UUId_t" count="1" />
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
@@ -366,8 +367,8 @@
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
                     <response>
-                        <param name="modules_length" type="size_t" count="1" />
                         <param name="buffer" type="buffer" />
+                        <param name="module_count" type="int" />
                     </response>
                 </function>
                 <function name="get_name" synchronous="true">
@@ -408,6 +409,7 @@
                 </function>
                 <function name="terminate" synchronous="true">
                     <request>
+                        <param name="handle" type="UUId_t" count="1" />
                         <param name="exit_code" type="int" count="1" />
                     </request>
                     <response>
@@ -416,6 +418,7 @@
                 </function>
                 <function name="report_crash" synchronous="true">
                     <request>
+                        <param name="handle" type="UUId_t" count="1" />
                         <param name="crash_context" type="buffer" />
                         <param name="reason" type="int" count="1" />
                     </request>
@@ -429,6 +432,7 @@
             <functions>
                 <function name="load" synchronous="true">
                     <request>
+                        <param name="process_handle" type="UUId_t" count="1" />
                         <param name="path" type="string" />
                     </request>
                     <response>
@@ -438,6 +442,7 @@
                 </function>
                 <function name="get_function" synchronous="true">
                     <request>
+                        <param name="process_handle" type="UUId_t" count="1" />
                         <param name="handle" type="void*" />
                         <param name="function" type="string" />
                     </request>
@@ -448,6 +453,7 @@
                 </function>
                 <function name="unload" synchronous="true">
                     <request>
+                        <param name="process_handle" type="UUId_t" count="1" />
                         <param name="handle" type="void*" />
                     </request>
                     <response>

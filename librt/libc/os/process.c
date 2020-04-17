@@ -117,7 +117,8 @@ ProcessKill(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
     
-    status = svc_process_kill_sync(GetGrachtClient(), &msg, Handle, &status);
+    status = svc_process_kill_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(),
+        Handle, &status);
     gracht_vali_message_finish(&msg);
     return status;
 }

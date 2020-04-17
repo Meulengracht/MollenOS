@@ -24,7 +24,7 @@
 #ifndef __TYPES_PATH_H__
 #define __TYPES_PATH_H__
 
-typedef enum {
+typedef enum EnvironmentPath {
     PathRoot,
     PathSystemDirectory,
 

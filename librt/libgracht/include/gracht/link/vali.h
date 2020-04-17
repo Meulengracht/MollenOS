@@ -36,6 +36,11 @@ struct vali_link_message {
     void*             response_buffer;
 };
 
+struct vali_link_deferred_response {
+    struct gracht_recv_message recv_message;
+    struct ipmsg               recv_storage;
+};
+
 #define VALI_MSG_INIT_HANDLE(handle) { { IPMSG_ADDRESS_HANDLE, { handle } }, { 0 }, NULL }
 
 #ifdef __cplusplus
@@ -43,6 +48,7 @@ extern "C" {
 #endif
 
 // Link API
+void gracht_vali_message_defer_response(struct vali_link_deferred_response*, struct gracht_recv_message*);
 int  gracht_vali_message_create(gracht_client_t*, int message_size, struct vali_link_message**);
 void gracht_vali_message_finish(struct vali_link_message*);
 

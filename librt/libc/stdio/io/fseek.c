@@ -21,7 +21,6 @@
  * - Sets the position indicator associated with the stream to a new position.
  */
 
-#include <os/services/file.h>
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>

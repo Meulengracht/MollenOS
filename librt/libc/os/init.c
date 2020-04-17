@@ -25,7 +25,7 @@
 #include <internal/_utils.h>
 #include <threads.h>
 
-extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
+extern void StdioInitialize(void *InheritanceBlock);
 extern void StdSignalInitialize(void);
 
 static char             __CrtStartupBuffer[1024] = { 0 };
@@ -65,7 +65,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
     
 	// Initialize STD-C
-	StdioInitialize(StartupInformation->Inheritation, StartupInformation->InheritationLength);
+	StdioInitialize(StartupInformation->Inheritation);
     StdSignalInitialize();
 }
 

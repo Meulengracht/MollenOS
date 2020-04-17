@@ -4,16 +4,36 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
-SOURCES = $(wildcard *.c)
+INCLUDES = -Iinclude \
+		   -I../../librt/libgracht/include \
+		   -I../../librt/libds/include \
+		   -I../../librt/libddk/include \
+		   -I../../librt/libc/include \
+		   -I../../librt/include
+
+LIBRARIES = ../../librt/deploy/libgracht.lib \
+			../../librt/build/libsrv.lib \
+			../../librt/build/ddk.lib \
+			../../librt/build/libds.lib \
+			../../librt/build/c.lib \
+			../../librt/build/compiler-rt.lib
+
+SOURCES = svc_library_protocol_server.c svc_process_protocol_server.c $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/c.lib ../../librt/build/libds.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll
 
 .PHONY: all
 all: ../build/processmanager.dll ../build/processmanager.mdrv
+
+svc_process_protocol_server.c: ../../protocols/service_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include process
+
+svc_library_protocol_server.c: ../../protocols/service_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include library
 
 ../build/processmanager.mdrv: processmanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
@@ -30,6 +50,7 @@ all: ../build/processmanager.dll ../build/processmanager.mdrv
 .PHONY: clean
 clean:
 	@rm -f $(OBJECTS)
+	@rm -f svc_*
 	@rm -f ../build/processmanager.dll
 	@rm -f ../build/processmanager.lib
 	@rm -f ../build/processmanager.mdrv

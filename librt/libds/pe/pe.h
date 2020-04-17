@@ -146,13 +146,15 @@ PeResolveFunction(
 __EXTERN OsStatus_t
 PeGetModuleHandles(
     _In_  PeExecutable_t* Executable,
-    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES]);
+    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES],
+    _Out_ int*            ModuleCount);
 
 /* PeGetModuleEntryPoints
  * Retrieves a list of loaded module entry points currently loaded for the process. */
 __EXTERN OsStatus_t
 PeGetModuleEntryPoints(
     _In_  PeExecutable_t* Executable,
-    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES]);
+    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES],
+    _Out_ int*            ModuleCount);
 
 #endif //!__PE_IMAGE_LOADER__

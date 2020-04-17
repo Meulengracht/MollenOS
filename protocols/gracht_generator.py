@@ -482,7 +482,7 @@ class CGenerator:
         parameter_string = ""
         for index, param in enumerate(params):
             parameter_string = parameter_string + self.get_param_typename(protocol, param, case)
-            if param.has_length_component() and case != CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
+            if param.has_length_component() and (case != CONST.TYPENAME_CASE_FUNCTION_RESPONSE or not param.is_string()):
                 length_param = self.get_param_typename(protocol, Parameter(param.get_name() + "_length", "size_t"), case)
                 parameter_string = parameter_string + ", " + length_param
 
@@ -713,7 +713,7 @@ class CGenerator:
         return
 
     def get_size_function(self, protocol, param, is_response):
-        if param.has_length_component() and not is_response:
+        if param.has_length_component() and (not is_response or not param.is_string()):
             return param.get_name() + "_length"
         elif param.is_string():
             return "((" + param.get_name() + " == NULL) ? 0 : strlen(&" + param.get_name() + "[0]))"

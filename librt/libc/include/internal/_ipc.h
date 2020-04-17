@@ -3,6 +3,7 @@
 
 #include <ds/streambuffer.h>
 
+#include <ddk/protocols/svc_device_protocol_client.h>
 #include <ddk/protocols/svc_file_protocol_client.h>
 #include <ddk/protocols/svc_path_protocol_client.h>
 #include <ddk/protocols/svc_library_protocol_client.h>

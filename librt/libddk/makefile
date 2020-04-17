@@ -38,15 +38,15 @@ LFLAGS = /lib
 # default-target
 .PHONY: all
 all: protocols ../build/ddk.lib
-	@mkdir -p include/ddk/protocols
-	cp protocols/*.h include/ddk/protocols/
 
 protocols: ../../protocols/service_protocols.xml ../../protocols/contract_protocols.xml
 	mkdir -p $@
-	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	@printf "%b" "\033[0;36mRegenerating service protocols \033[m\n"
 	python ../../protocols/gracht_generator.py --protocol ../../protocols/service_protocols.xml --out $@ --lang-c --client
-	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	@printf "%b" "\033[0;36mRegenerating contract protocols \033[m\n"
 	python ../../protocols/gracht_generator.py --protocol ../../protocols/contract_protocols.xml --out $@ --lang-c --client
+	@mkdir -p include/ddk/protocols
+	cp protocols/*.h include/ddk/protocols/
 
 ../build/ddk.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"

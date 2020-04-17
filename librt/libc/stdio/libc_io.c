@@ -164,8 +164,9 @@ StdioCreateInheritanceBlock(
     _Out_ void**                  InheritationBlockOut,
     _Out_ size_t*                 InheritationBlockLengthOut)
 {
-    stdio_handle_t* BlockPointer    = NULL;
-    size_t          NumberOfObjects = 0;
+    stdio_inheritation_block_t* InheritationBlock;
+    size_t                      NumberOfObjects;
+    int                         i = 0;
 
     assert(Configuration != NULL);
 
@@ -175,39 +176,37 @@ StdioCreateInheritanceBlock(
     
     NumberOfObjects = StdioGetNumberOfInheritableHandles(Configuration);
     if (NumberOfObjects != 0) {
-        void*  InheritationBlock;
         size_t InheritationBlockLength;
         
-        InheritationBlockLength = NumberOfObjects * sizeof(stdio_handle_t) + sizeof(size_t);
-        InheritationBlock       = malloc(InheritationBlockLength);
+        InheritationBlockLength = sizeof(stdio_inheritation_block_t) + NumberOfObjects * sizeof(stdio_handle_t);
+        InheritationBlock       = (stdio_inheritation_block_t*)malloc(InheritationBlockLength);
         
-        *((size_t*)InheritationBlock) = NumberOfObjects * sizeof(stdio_handle_t);
-        BlockPointer                  = (stdio_handle_t*)(((size_t*)InheritationBlock) + 1);
+        InheritationBlock->handle_count = NumberOfObjects;
         
-        *InheritationBlockOut       = InheritationBlock;
-        *InheritationBlockLengthOut = InheritationBlockLength;
-
         LOCK_FILES();
         foreach(Node, &stdio_objects) {
             stdio_handle_t* Object = (stdio_handle_t*)Node->Data;
             if (StdioIsHandleInheritable(Configuration, Object) == OsSuccess) {
-                memcpy(BlockPointer, Object, sizeof(stdio_handle_t));
+                memcpy(&InheritationBlock->handles[i], Object, sizeof(stdio_handle_t));
                 
                 // Check for this fd to be equal to one of the custom handles
                 // if it is equal, we need to update the fd of the handle to our reserved
                 if (Object->fd == Configuration->StdOutHandle) {
-                    BlockPointer->fd = STDOUT_FILENO;
+                    InheritationBlock->handles[i].fd = STDOUT_FILENO;
                 }
                 if (Object->fd == Configuration->StdInHandle) {
-                    BlockPointer->fd = STDIN_FILENO;
+                    InheritationBlock->handles[i].fd = STDIN_FILENO;
                 }
                 if (Object->fd == Configuration->StdErrHandle) {
-                    BlockPointer->fd = STDERR_FILENO;
+                    InheritationBlock->handles[i].fd = STDERR_FILENO;
                 }
-                BlockPointer++;
+                i++;
             }
         }
         UNLOCK_FILES();
+        
+        *InheritationBlockOut       = (void*)InheritationBlock;
+        *InheritationBlockLengthOut = InheritationBlockLength;
     }
     return OsSuccess;
 }
@@ -246,21 +245,18 @@ StdioInheritObject(
  * Parses the inheritance block for stdio-objects that should be inheritted from the spawner. */
 static void 
 StdioParseInheritanceBlock(
-    _In_ void*  InheritanceBlock,
-    _In_ size_t InheritanceBlockLength)
+    _In_ void* inheritanceBlock)
 {
-    stdio_handle_t* handle_out;
-    stdio_handle_t* handle_in;
-    stdio_handle_t* handle_err;
+    stdio_inheritation_block_t* block = inheritanceBlock;
+    stdio_handle_t*             handle_out;
+    stdio_handle_t*             handle_in;
+    stdio_handle_t*             handle_err;
+    int                         i;
     
     // Handle inheritance
-    if (InheritanceBlock != NULL) {
-        stdio_handle_t* HandlePointer = (stdio_handle_t*)InheritanceBlock;
-        size_t          BytesLeft     = InheritanceBlockLength;
-        while (BytesLeft >= sizeof(stdio_handle_t)) {
-            StdioInheritObject(HandlePointer);
-            BytesLeft -= sizeof(stdio_handle_t);
-            HandlePointer++;
+    if (block != NULL) {
+        for (i = 0; i < block->handle_count; i++) {
+            StdioInheritObject(&block->handles[i]);
         }
     }
 
@@ -316,11 +312,10 @@ stdio_close_all_handles(void)
 
 _CRTIMP void
 StdioInitialize(
-    _In_ void*  InheritanceBlock,
-    _In_ size_t InheritanceBlockLength)
+    _In_ void*  InheritanceBlock)
 {
     stdio_bitmap_initialize();
-    StdioParseInheritanceBlock(InheritanceBlock, InheritanceBlockLength);
+    StdioParseInheritanceBlock(InheritanceBlock);
 }
 
 _CRTIMP void

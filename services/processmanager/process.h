@@ -25,7 +25,7 @@
 #define __PROCESS_INTERFACE__
 
 #include <os/osdefs.h>
-#include <os/services/process.h>
+#include <os/process.h>
 #include <os/spinlock.h>
 #include <ds/list.h>
 #include <threads.h>
@@ -39,118 +39,38 @@ DECL_STRUCT(MString);
 #define PROCESS_TERMINATING 1
 
 typedef struct Process {
-    element_t                   Header;
-    UUId_t                      PrimaryThreadId;
-    clock_t                     StartedAt;
-    atomic_int                  References;
-    int                         State;
-    spinlock_t                  SyncObject;
+    element_t              Header;
+    UUId_t                 PrimaryThreadId;
+    clock_t                StartedAt;
+    atomic_int             References;
+    int                    State;
+    spinlock_t             SyncObject;
 
-    MString_t*                  Name;
-    MString_t*                  Path;
-    MString_t*                  WorkingDirectory;
-    MString_t*                  AssemblyDirectory;
-    const char*                 Arguments;
-    size_t                      ArgumentsLength;
-    void*                       InheritationBlock;
-    size_t                      InheritationBlockLength;
-    ProcessStartupInformation_t StartupInformation;
+    MString_t*             Name;
+    MString_t*             Path;
+    MString_t*             WorkingDirectory;
+    MString_t*             AssemblyDirectory;
+    const char*            Arguments;
+    size_t                 ArgumentsLength;
+    void*                  InheritationBlock;
+    size_t                 InheritationBlockLength;
+    ProcessConfiguration_t Configuration;
 
-    PeExecutable_t*             Executable;
-    int                         ExitCode;
+    PeExecutable_t*        Executable;
+    int                    ExitCode;
 } Process_t;
 
 typedef struct ProcessJoiner {
-    element_t  Header;
-    thrd_t     Address;
-    Process_t* Process;
-    UUId_t     EventHandle;
+    element_t                          Header;
+    Process_t*                         Process;
+    UUId_t                             EventHandle;
+    struct vali_link_deferred_response DeferredResponse;
 } ProcessJoiner_t;
 
 /* InitializeProcessManager
  * Initializes the subsystems for managing the running processes, providing manipulations and optimizations. */
 __EXTERN OsStatus_t
 InitializeProcessManager(void);
-
-/* CreateProcess
- * Spawns a new process, which can be configured through the parameters. */
-__EXTERN OsStatus_t
-CreateProcess(
-    _In_  UUId_t                       Owner,
-    _In_  const char*                  Path,
-    _In_  ProcessStartupInformation_t* Parameters,
-    _In_  const char*                  Arguments,
-    _In_  size_t                       ArgumentsLength,
-    _In_  void*                        InheritationBlock,
-    _In_  size_t                       InheritationBlockLength,
-    _Out_ UUId_t*                      HandleOut);
-
-/* JoinProcess
- * Waits for the process to exit and returns the exit code. A timeout can optionally be specified. */
-__EXTERN OsStatus_t
-JoinProcess(
-    _In_  Process_t* Process,
-    _In_  thrd_t     Address,
-    _In_  size_t     Timeout);
-
-/* KillProcess
- * Request to kill a process. If security checks pass the processmanager will shutdown the process. */
-__EXTERN OsStatus_t
-KillProcess(
-    _In_ Process_t* Killer,
-    _In_ Process_t* Target);
-
-/* TerminateProcess
- * Terminates the calling process. Immediately after this the calling process must exit on its own. */
-__EXTERN OsStatus_t
-TerminateProcess(
-    _In_ Process_t* Process,
-    _In_ int        ExitCode);
-
-/* LoadProcessLibrary
- * Try to dynamically load a library for the calling process into its memory space. */
-__EXTERN OsStatus_t
-LoadProcessLibrary(
-    _In_  Process_t*  Process,
-    _In_  const char* Path,
-    _Out_ Handle_t*   HandleOut);
-
-/* ResolveProcessLibraryFunction
- * Resolves a function address with the given name. */
-__EXTERN uintptr_t
-ResolveProcessLibraryFunction(
-    _In_ Process_t*  Process,
-    _In_ Handle_t    Handle,
-    _In_ const char* Function);
-
-/* UnloadProcessLibrary
- * Unloads a previously dynamically loaded library. */
-__EXTERN OsStatus_t
-UnloadProcessLibrary(
-    _In_ Process_t* Process,
-    _In_ Handle_t   Handle);
-
-/* GetProcessLibraryHandles
- * Retrieves a list of loaded module handles currently loaded for the process. */
-__EXTERN OsStatus_t
-GetProcessLibraryHandles(
-    _In_  Process_t* Process,
-    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
-
-/* GetProcessLibraryEntryPoints
- * Retrieves a list of loaded module entry points currently loaded for the process. */
-__EXTERN OsStatus_t
-GetProcessLibraryEntryPoints(
-    _In_  Process_t* Process,
-    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
-
-/* HandleProcessCrashReport
- * Finds the module, and the relevant offset into that module. */
-__EXTERN OsStatus_t
-HandleProcessCrashReport(
-    _In_ Process_t* Process,
-    _In_ Context_t* CrashContext,
-    _In_ int        CrashReason);
 
 /* AcquireProcess
  * Acquires a reference to a process and allows safe access to the structure. */

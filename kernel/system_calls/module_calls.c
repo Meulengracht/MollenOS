@@ -106,10 +106,11 @@ ScModuleGetModuleHandles(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
     SystemModule_t* Module = GetCurrentModule();
+    int             ModuleCount;
     if (Module == NULL) {
         return OsError;
     }
-    return PeGetModuleHandles(Module->Executable, ModuleList);
+    return PeGetModuleHandles(Module->Executable, ModuleList, &ModuleCount);
 }
 
 OsStatus_t
@@ -117,10 +118,11 @@ ScModuleGetModuleEntryPoints(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
     SystemModule_t* Module = GetCurrentModule();
+    int             ModuleCount;
     if (Module == NULL) {
         return OsError;
     }
-    return PeGetModuleEntryPoints(Module->Executable, ModuleList);
+    return PeGetModuleEntryPoints(Module->Executable, ModuleList, &ModuleCount);
 }
 
 OsStatus_t

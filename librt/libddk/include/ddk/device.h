@@ -115,11 +115,11 @@ IoctlDevice(
  * <Direction> = 0 (Read), 1 (Write) */
 DDKDECL(OsStatus_t,
 IoctlDeviceEx(
-    _In_    UUId_t   Device,
-    _In_    int      Direction,
-    _In_    Flags_t  Register,
-    _InOut_ Flags_t* Value,
-    _In_    size_t   Width));
+    _In_    UUId_t  Device,
+    _In_    int     Direction,
+    _In_    Flags_t Register,
+    _InOut_ size_t* Value,
+    _In_    size_t  Width));
 
 /* InstallDriver 
  * Tries to find a suitable driver for the given device
