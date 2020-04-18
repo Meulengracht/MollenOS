@@ -49,11 +49,8 @@ extern OsStatus_t ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
 extern void*      ScCreateDisplayFramebuffer(void);
 
 // Module system calls
-extern OsStatus_t ScModuleGetStartupInformation(void* InheritanceBlock, size_t* InheritanceBlockLength, void* ArgumentBlock, size_t* ArgumentBlockLength);
-extern OsStatus_t ScModuleGetCurrentId(UUId_t* Handle);
+extern OsStatus_t ScModuleGetStartupInformation(ProcessStartupInformation_t*, UUId_t*, char*, size_t);
 extern OsStatus_t ScModuleGetCurrentName(const char* Buffer, size_t MaxLength);
-extern OsStatus_t ScModuleGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
-extern OsStatus_t ScModuleGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
 extern OsStatus_t ScModuleExit(int ExitCode);
 
 extern OsStatus_t ScSharedObjectLoad(const char* SoName, Handle_t* HandleOut);
