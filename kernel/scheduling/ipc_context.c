@@ -283,15 +283,28 @@ WriteShortResponse(
 
 static OsStatus_t
 WriteFullResponse(
-    _In_ struct ipmsg_resp* Reply,
-    _In_ const void*        Payload,
-    _In_ size_t             Length)
+    _In_ struct ipmsg*      message,
+    _In_ struct ipmsg_base* messageDescriptor)
 {
-    if (Payload && Length) {
-        size_t BytesWritten;
-        MemoryRegionWrite(Reply->dma_handle, Reply->dma_offset, Payload, Length, &BytesWritten);
+    uint16_t offset = message->response.dma_offset;
+    int      i;
+    
+    for (i = 0; i < message->base.param_out; i++) {
+        struct ipmsg_param* param        = &messageDescriptor->params[i];
+        size_t              bytesWritten = 0;
+        
+        if (param->type == IPMSG_PARAM_VALUE) {
+            MemoryRegionWrite(message->response.dma_handle, offset,
+                &param->data.value, param->length, &bytesWritten);
+        }
+        else if (param->type == IPMSG_PARAM_BUFFER) {
+            MemoryRegionWrite(message->response.dma_handle, offset,
+                param->data.buffer, param->length, &bytesWritten);
+        }
+        offset += message->base.params[message->base.param_in + i].length;
     }
-    SendNotification(Reply);
+    
+    SendNotification(&message->response);
     return OsSuccess;
 }
 
@@ -332,22 +345,21 @@ IpcContextSendMultiple(
 
 OsStatus_t
 IpcContextRespondMultiple(
-    _In_ struct ipmsg** Replies,
-    _In_ void**         ReplyBuffers,
-    _In_ size_t*        ReplyLengths,
-    _In_ int            ReplyCount)
+    _In_ struct ipmsg**      messages,
+    _In_ struct ipmsg_base** messageDescriptors,
+    _In_ int                 messageCount)
 {
     int i;
     
-    if (!Replies || !ReplyBuffers || !ReplyLengths || !ReplyCount) {
+    if (!messages || !messageDescriptors || !messageCount) {
         return OsInvalidParameters;
     }
     
-    for (i = 0; i < ReplyCount; i++) {
-        if (WriteFullResponse(&Replies[i]->response, ReplyBuffers[i], ReplyLengths[i]) != OsSuccess) {
+    for (i = 0; i < messageCount; i++) {
+        if (WriteFullResponse(messages[i], messageDescriptors[i]) != OsSuccess) {
             WARNING("[ipc] [respond] failed to write response");
         }
-        CleanupMessage(Replies[i]);
+        CleanupMessage(messages[i]);
     }
     return OsSuccess;
 }

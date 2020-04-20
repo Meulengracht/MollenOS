@@ -71,9 +71,8 @@ IpcContextSendMultiple(
  */
 KERNELAPI OsStatus_t KERNELABI
 IpcContextRespondMultiple(
-    _In_ struct ipmsg** Replies,
-    _In_ void**         ReplyBuffers,
-    _In_ size_t*        ReplyLengths,
-    _In_ int            ReplyCount);
+    _In_ struct ipmsg**      messages,
+    _In_ struct ipmsg_base** messageDescriptors,
+    _In_ int                 messageCount);
 
 #endif //!__VALI_IPC_CONTEXT_H__
