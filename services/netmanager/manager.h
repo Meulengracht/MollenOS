@@ -27,6 +27,7 @@
 #define __NET_MANAGER_H__
 
 #include <os/osdefs.h>
+#include <gracht/link/vali.h>
 
 typedef struct Socket Socket_t;
 typedef struct SocketDescriptor SocketDescriptor_t;
@@ -38,7 +39,6 @@ NetworkManagerInitialize(void);
 
 OsStatus_t
 NetworkManagerSocketCreate(
-    _In_  UUId_t  ProcessHandle,
     _In_  int     Domain,
     _In_  int     Type,
     _In_  int     Protocol,
@@ -48,44 +48,37 @@ NetworkManagerSocketCreate(
 
 OsStatus_t
 NetworkManagerSocketShutdown(
-    _In_ UUId_t ProcessHandle,
     _In_ UUId_t Handle,
     _In_ int    Options);
 
 OsStatus_t
 NetworkManagerSocketBind(
-    _In_ UUId_t                 ProcessHandle,
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address);
 
 OsStatus_t
 NetworkManagerSocketConnect(
-    _In_ UUId_t                 ProcessHandle,
-    _In_ thrd_t                 Waiter,
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address);
+    _In_ struct gracht_recv_message* message,
+    _In_ UUId_t                      handle,
+    _In_ const struct sockaddr*      address);
 
 OsStatus_t
 NetworkManagerSocketAccept(
-    _In_ UUId_t ProcessHandle,
-    _In_ thrd_t Waiter,
-    _In_ UUId_t Handle);
+    _In_ struct gracht_recv_message* message,
+    _In_ UUId_t                      handle);
 
 OsStatus_t
 NetworkManagerSocketPair(
-    _In_ UUId_t ProcessHandle,
     _In_ UUId_t Handle1,
     _In_ UUId_t Handle2);
 
 OsStatus_t
 NetworkManagerSocketListen(
-    _In_ UUId_t ProcessHandle,
     _In_ UUId_t Handle,
     _In_ int    ConnectionCount);
 
 OsStatus_t
 NetworkManagerSocketSetOption(
-    _In_ UUId_t           ProcessHandle,
     _In_ UUId_t           Handle,
     _In_ int              Protocol,
     _In_ unsigned int     Option,
@@ -94,7 +87,6 @@ NetworkManagerSocketSetOption(
 
 OsStatus_t
 NetworkManagerSocketGetOption(
-    _In_  UUId_t           ProcessHandle,
     _In_  UUId_t           Handle,
     _In_  int              Protocol,
     _In_  unsigned int     Option,
@@ -103,7 +95,6 @@ NetworkManagerSocketGetOption(
 
 OsStatus_t
 NetworkManagerSocketGetAddress(
-    _In_ UUId_t           ProcessHandle,
     _In_ UUId_t           Handle,
     _In_ int              Source,
     _In_ struct sockaddr* Address);

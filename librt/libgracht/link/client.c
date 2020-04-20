@@ -23,9 +23,9 @@
 
 #include <ds/streambuffer.h>
 #include <errno.h>
-#include <gracht/link/socket.h>
+#include "../include/gracht/link/socket.h"
 
-static struct socket_link_manager {
+struct socket_link_manager {
     struct client_link_ops             ops;
     struct socket_client_configuration config;
     int                                iod;

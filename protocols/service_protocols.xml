@@ -544,6 +544,7 @@
                         <param name="protocol" type="int" count="1" />
                         <param name="option" type="unsigned int" count="1" />
                         <param name="data" type="buffer" />
+                        <param name="length" type="int" />
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />

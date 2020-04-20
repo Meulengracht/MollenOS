@@ -6,7 +6,7 @@ include ../../config/common.mk
 
 INCLUDES = -I../include -I../libddk/include -I../libds/include -I../libc/include
 
-SOURCES = $(wildcard *.c) $(wildcard os/vali/*.c)
+SOURCES = $(wildcard *.c) $(wildcard link/*.c) $(wildcard os/vali/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags

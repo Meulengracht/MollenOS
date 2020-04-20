@@ -25,7 +25,7 @@
 #define __GRACHT_LINK_SOCKET_CLIENT_H__
 
 #include <inet/socket.h>
-#include <gracht/link/link.h>
+#include "link.h"
 
 struct socket_server_configuration {
     struct sockaddr_storage server_address;
