@@ -495,6 +495,16 @@ Collection_t* stdio_get_handles(void)
     return &stdio_objects;
 }
 
+
+UUId_t GetNativeHandle(int iod)
+{
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    if (!handle) {
+        return UUID_INVALID;
+    }
+    return handle->object.handle;
+}
+
 extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_args*);
 
 /* TranslateSystemKey

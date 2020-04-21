@@ -24,7 +24,6 @@
 #ifndef _CONTRACT_VIDEO_INTERFACE_H_
 #define _CONTRACT_VIDEO_INTERFACE_H_
 
-#include <ddk/contracts/base.h>
 #include <ddk/ddkdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {

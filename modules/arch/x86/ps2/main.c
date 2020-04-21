@@ -21,15 +21,16 @@
  * http://wiki.osdev.org/PS2
  */
 
-#include <ddk/contracts/base.h>
 #include <os/mollenos.h>
-#include <os/ipc.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
+
 #include "ps2.h"
+#include "ctt_driver_protocol_server.h"
 
 static PS2Controller_t* Ps2Controller = NULL;
 
@@ -150,10 +151,6 @@ PS2Initialize(
     // Store a copy of the device
     memcpy(&Ps2Controller->Device, Device, sizeof(MCoreDevice_t));
 
-    // Initialize the ps2-contract
-    InitializeContract(&Ps2Controller->Controller, Device->Id, 1,
-        ContractController, "PS2 Controller Interface");
-
     // No problem, last thing is to acquire the
     // io-spaces, and just return that as result
     if (AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[0]) != OsSuccess || 
@@ -165,8 +162,7 @@ PS2Initialize(
     // Data is at 0x60 - the first space, Command is at 0x64, the second space
     Ps2Controller->Data     = &Ps2Controller->Device.IoSpaces[0];
     Ps2Controller->Command  = &Ps2Controller->Device.IoSpaces[1];
-    RegisterContract(&Ps2Controller->Controller);
-
+    
     // Disable Devices
     PS2SendCommand(PS2_DISABLE_PORT1);
     PS2SendCommand(PS2_DISABLE_PORT2);
@@ -224,14 +220,14 @@ OnInterrupt(
     }
 }
 
-/* OnLoad
- * The entry-point of a driver, this is called
- * as soon as the driver is loaded in the system */
 OsStatus_t
 OnLoad(void)
 {
     // Install interrupt handler for signal
     sigprocess(SIGINT, OnInterrupt);
+    
+    // Install supported protocols
+    gracht_server_register_protocol(&ctt_driver_protocol);
     
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
@@ -249,9 +245,6 @@ OnLoad(void)
     return OsSuccess;
 }
 
-/* OnUnload
- * This is called when the driver is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
 OnUnload(void)
 {
@@ -270,9 +263,6 @@ OnUnload(void)
     return OsSuccess;
 }
 
-/* OnRegister
- * Is called when the device-manager registers a new
- * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t* Device)
@@ -287,10 +277,10 @@ OnRegister(
     }
 
     // Select port from device-id
-    if (Ps2Controller->Ports[0].Contract.DeviceId == Device->Id) {
+    if (Ps2Controller->Ports[0].DeviceId == Device->Id) {
         Port = &Ps2Controller->Ports[0];
     }
-    else if (Ps2Controller->Ports[1].Contract.DeviceId == Device->Id) {
+    else if (Ps2Controller->Ports[1].DeviceId == Device->Id) {
         Port = &Ps2Controller->Ports[1];
     }
     else {
@@ -323,21 +313,24 @@ OnRegister(
     return Result;
 }
 
-/* OnUnregister
- * Is called when the device-manager wants to unload
- * an instance of this driver from the system */
+void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+{
+    OsStatus_t status = OnRegister(args->device);
+    ctt_driver_register_device_response(message, status);
+}
+
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t*    Device)
+    _In_ MCoreDevice_t* Device)
 {
     OsStatus_t Result = OsError;
     PS2Port_t *Port;
 
     // Select port from device-id
-    if (Ps2Controller->Ports[0].Contract.DeviceId == Device->Id) {
+    if (Ps2Controller->Ports[0].DeviceId == Device->Id) {
         Port = &Ps2Controller->Ports[0];
     }
-    else if (Ps2Controller->Ports[1].Contract.DeviceId == Device->Id) {
+    else if (Ps2Controller->Ports[1].DeviceId == Device->Id) {
         Port = &Ps2Controller->Ports[1];
     }
     else {
@@ -356,13 +349,4 @@ OnUnregister(
         Result = PS2MouseCleanup(Ps2Controller, Port->Index);
     }
     return Result;
-}
-
-OsStatus_t 
-OnQuery(
-    _In_ IpcMessage_t* Message)
-{
-    // You can't query the ps-2 driver
-    _CRT_UNUSED(Message);
-    return OsSuccess;
 }

@@ -18,6 +18,8 @@ typedef struct FutexParameters {
 extern int                IsProcessModule(void);
 extern UUId_t*            GetInternalProcessId(void);
 extern const char*        GetInternalCommandLine(void);
+
 CRTDECL(gracht_client_t*, GetGrachtClient(void));
+CRTDECL(UUId_t,           GetNativeHandle(int));
 
 #endif

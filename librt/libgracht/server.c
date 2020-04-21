@@ -287,3 +287,8 @@ int gracht_server_unregister_protocol(gracht_protocol_t* protocol)
     gracht_list_remove(&server_object.protocols, &protocol->header);
     return 0;
 }
+
+int gracht_server_get_dgram_iod(void)
+{
+    return server_object.dgram_iod;
+}

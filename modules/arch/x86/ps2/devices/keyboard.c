@@ -167,7 +167,8 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.flags &= ~(KEY_MODIFIER_EXTENDED);
-        hid_events_key_event(Port->GrachtClient, 0, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
+        hid_events_key_event(Port->GrachtClient, NULL, 0, Key.flags,
+            Key.key_ascii, Key.key_code, Key.key_unicode);
     }
 }
 
@@ -255,8 +256,10 @@ PS2KeyboardInitialize(
     _In_ int              Port,
     _In_ int              Translation)
 {
-    gracht_client_configuration_t gracht_config;
-    PS2Port_t*                    Instance = &Controller->Ports[Port];
+    gracht_client_configuration_t      client_config;
+    struct socket_client_configuration link_config;
+    PS2Port_t*                         Instance = &Controller->Ports[Port];
+    int                                status;
     TRACE("... [ps2] [keyboard] initialize");
 
     // Initialize keyboard defaults
@@ -265,21 +268,17 @@ PS2KeyboardInitialize(
     PS2_KEYBOARD_DATA_REPEAT(Instance)      = PS2_REPEATS_PERSEC(16);
     PS2_KEYBOARD_DATA_DELAY(Instance)       = PS2_DELAY_500MS;
 
-    // Start out by initializing the contract
-    InitializeContract(&Instance->Contract, Instance->Contract.DeviceId, 1,
-        ContractInput, "PS2 Keyboard Interface");
-
-    // Register our contract for this device
-    if (RegisterContract(&Instance->Contract) != OsSuccess) {
-        ERROR("PS2-Keyboard: failed to install contract");
-        return OsError;
+    // Open up the input socket so we can send input data to the OS.
+    link_config.type = gracht_link_packet_based;
+    gracht_os_get_server_packet_address(&link_config.address, &link_config.address_length);
+    
+    status = gracht_link_socket_client_create(&client_config.link, &link_config);
+    if (status) {
+        ERROR("... [ps2] [keyboard] [initialize] gracht_link_socket_client_create failed %i", errno);
     }
     
-    // Open up the input socket so we can send input data to the OS.
-    gracht_config.type = gracht_client_packet_based;
-    gracht_os_get_server_packet_address(&gracht_config.address, &gracht_config.address_length);
-    if (gracht_client_create(&gracht_config, &Instance->GrachtClient)) {
-        ERROR("... [ps2] [keyboard] [initialize] gracht_client_initialize failed %i", errno);
+    if (status && gracht_client_create(&client_config, &Instance->GrachtClient)) {
+        ERROR("... [ps2] [keyboard] [initialize] gracht_client_create failed %i", errno);
     }
     
     // Initialize interrupt

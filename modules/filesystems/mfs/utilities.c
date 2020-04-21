@@ -24,9 +24,28 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
+
+static OsStatus_t
+ReadStorage(
+	_In_  FileSystemDisk_t* storage,
+	_In_  UUId_t            bufferHandle,
+	_In_  uint64_t          sector,
+	_In_  size_t            sectorCount,
+	_Out_ size_t*           sectorsRead)
+{
+	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
+	OsStatus_t               status;
+	
+	ctt_storage_transfer_sync(GetGrachtClient(), &msg, storage->Device,
+			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
+			bufferHandle, 0, sectorCount, &status, sectorsRead);
+	gracht_vali_message_finish(&msg);
+	return status;
+}
 
 OsStatus_t
 MfsReadSectors(
@@ -37,10 +56,15 @@ MfsReadSectors(
     _In_ size_t                  Count,
     _In_ size_t*                 SectorsRead)
 {
-    uint64_t AbsoluteSector = FileSystem->SectorStart + Sector;
-    return StorageTransfer(FileSystem->Disk.Device, FileSystem->Disk.Driver, 
-        __STORAGE_OPERATION_READ, AbsoluteSector, BufferHandle,
-        BufferOffset, Count, SectorsRead);
+	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.Driver);
+    uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
+	OsStatus_t               status;
+	
+	ctt_storage_transfer_sync(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
+			BufferHandle, BufferOffset, Count, &status, SectorsRead);
+	gracht_vali_message_finish(&msg);
+	return status;
 }
 
 OsStatus_t
@@ -52,10 +76,15 @@ MfsWriteSectors(
     _In_ size_t                  Count,
     _In_ size_t*                 SectorsWritten)
 {
-    uint64_t AbsoluteSector = FileSystem->SectorStart + Sector;
-    return StorageTransfer(FileSystem->Disk.Device, FileSystem->Disk.Driver, 
-        __STORAGE_OPERATION_WRITE, AbsoluteSector, BufferHandle,
-        BufferOffset, Count, SectorsWritten);
+	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.Driver);
+    uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
+	OsStatus_t               status;
+	
+	ctt_storage_transfer_sync(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+			__STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
+			BufferHandle, BufferOffset, Count, &status, SectorsWritten);
+	gracht_vali_message_finish(&msg);
+	return status;
 }
 
 OsStatus_t
@@ -136,7 +165,7 @@ MfsSetBucketLink(
     return OsSuccess;
 }
 
-FileSystemCode_t
+OsStatus_t
 MfsSwitchToNextBucketLink(
     _In_ FileSystemDescriptor_t* FileSystem,
     _In_ MfsEntryHandle_t*       Handle,
@@ -148,26 +177,26 @@ MfsSwitchToNextBucketLink(
     // We have to lookup the link for current bucket
     if (MfsGetBucketLink(FileSystem, Handle->DataBucketPosition, &Link) != OsSuccess) {
         ERROR("Failed to get link for bucket %u", Handle->DataBucketPosition);
-        return FsDiskError;
+        return OsDeviceError;
     }
 
     // Check for EOL
     if (Link.Link == MFS_ENDOFCHAIN) {
-        return FsPathNotFound;
+        return OsDoesNotExist;
     }
     NextDataBucketPosition = Link.Link;
 
     // Lookup length of link
     if (MfsGetBucketLink(FileSystem, Handle->DataBucketPosition, &Link) != OsSuccess) {
         ERROR("Failed to get length for bucket %u", Handle->DataBucketPosition);
-        return FsDiskError;
+        return OsDeviceError;
     }
 
     // Store length & Update bucket boundary
     Handle->DataBucketPosition   = NextDataBucketPosition;
     Handle->DataBucketLength     = Link.Length;
     Handle->BucketByteBoundary  += (Link.Length * BucketSizeBytes);
-    return FsOk;
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -411,14 +440,14 @@ MfsFileRecordToVfsFile(
     // VfsEntry->Base.DescriptorAccessedAt;
 }
 
-FileSystemCode_t
+OsStatus_t
 MfsUpdateRecord(
     _In_ FileSystemDescriptor_t* FileSystem, 
     _In_ MfsEntry_t*             Entry,
     _In_ int                     Action)
 {
     MfsInstance_t*      Mfs     = (MfsInstance_t*)FileSystem->ExtensionData;
-    FileSystemCode_t    Result  = FsOk;
+    OsStatus_t    Result  = OsSuccess;
     FileRecord_t*       Record  = NULL;
     size_t              i;
     size_t              SectorsTransferred;
@@ -430,7 +459,7 @@ MfsUpdateRecord(
             MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
             Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read bucket %u", Entry->DirectoryBucket);
-        Result = FsDiskError;
+        Result = OsDeviceError;
         goto Cleanup;
     }
     
@@ -472,7 +501,7 @@ MfsUpdateRecord(
     if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
         Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to update bucket %u", Entry->DirectoryBucket);
-        Result = FsDiskError;
+        Result = OsDeviceError;
     }
 
     // Cleanup and exit
@@ -482,7 +511,7 @@ Cleanup:
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
-FileSystemCode_t
+OsStatus_t
 MfsEnsureRecordSpace(
     _In_ FileSystemDescriptor_t*    FileSystem, 
     _In_ MfsEntry_t*                Entry,
@@ -503,7 +532,7 @@ MfsEnsureRecordSpace(
         // Perform the allocation of buckets
         if (MfsAllocateBuckets(FileSystem, NumBuckets, &Link) != OsSuccess) {
             ERROR("Failed to allocate %u buckets for file", NumBuckets);
-            return FsDiskError;
+            return OsDeviceError;
         }
 
         // Now iterate to end
@@ -513,7 +542,7 @@ MfsEnsureRecordSpace(
             PreviousBucketPointer = BucketPointer;
             if (MfsGetBucketLink(FileSystem, BucketPointer, &Iterator) != OsSuccess) {
                 ERROR("Failed to get link for bucket %u", BucketPointer);
-                return FsDiskError;
+                return OsDeviceError;
             }
             BucketPointer = Iterator.Link;
         }
@@ -527,7 +556,7 @@ MfsEnsureRecordSpace(
         else {
             if (MfsSetBucketLink(FileSystem, PreviousBucketPointer, &Link, 1) != OsSuccess) {
                 ERROR("Failed to set link for bucket %u", PreviousBucketPointer);
-                return FsDiskError;
+                return OsDeviceError;
             }
         }
 
@@ -535,5 +564,5 @@ MfsEnsureRecordSpace(
         Entry->AllocatedSize += (NumBuckets * BucketSizeBytes);
         Entry->ActionOnClose = MFS_ACTION_UPDATE;
     }
-    return FsOk;
+    return OsSuccess;
 }

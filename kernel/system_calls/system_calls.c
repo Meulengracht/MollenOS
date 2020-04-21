@@ -31,6 +31,7 @@
 #include <machine.h>
 #include <timers.h>
 #include <debug.h>
+#include <string.h>
 
 OsStatus_t
 ScSystemDebug(

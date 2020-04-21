@@ -26,6 +26,7 @@
 
 #include <inet/socket.h>
 #include "link.h"
+#include "../client.h"
 
 struct socket_server_configuration {
     struct sockaddr_storage server_address;

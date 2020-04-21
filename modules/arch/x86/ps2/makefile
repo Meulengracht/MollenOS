@@ -4,7 +4,8 @@
 # Include all the definitions for os
 include ../../../../config/common.mk
 
-SOURCES = hid_events_protocol_client.c \
+SOURCES = ctt_driver_protocol_server.c \
+		  hid_events_protocol_client.c \
 		  $(wildcard devices/scancodes/*.c) \
 		  $(wildcard devices/*.c) \
 		  $(wildcard ./*.c)
@@ -18,9 +19,10 @@ INCLUDES = -I../../../../protocols \
 OBJECTS = $(SOURCES:.c=.o)
 
 LIBRARIES = ../../../../librt/build/ddk.lib \
-			../../../../librt/build/c.lib \
 			../../../../librt/build/libdrv.lib \
-			../../../../librt/deploy/libgracht.lib
+			../../../../librt/deploy/libgracht.lib \
+			../../../../librt/build/c.lib \
+			../../../../librt/build/compiler-rt.lib
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 
@@ -30,6 +32,10 @@ all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 hid_events_protocol_client.c: ../../../../protocols/hid_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
 	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --client
+
+ctt_driver_protocol_server.c: ../../../../protocols/contract_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --server --include driver
 
 ../../../build/ps2.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
@@ -49,4 +55,5 @@ clean:
 	@rm -f ../../../build/ps2.lib
 	@rm -f ../../../build/ps2.mdrv
 	@rm -f hid_events_protocol*
+	@rm -f ctt_driver_protoco*
 	@rm -f $(OBJECTS)

@@ -29,8 +29,7 @@
 #include <os/spinlock.h>
 #include <os/dmabuf.h>
 #include <ds/collection.h>
-#include <ddk/contracts/base.h>
-#include <ddk/contracts/storage.h>
+#include <ddk/storage.h>
 #include <ddk/interrupt.h>
 #include <ddk/device.h>
 
@@ -339,7 +338,6 @@ typedef struct _AhciInterruptResource {
 
 typedef struct _AhciController {
     MCoreDevice_t           Device;
-    MContract_t             Contract;
     AhciInterruptResource_t InterruptResource;
     UUId_t                  InterruptId;
     spinlock_t              Lock;

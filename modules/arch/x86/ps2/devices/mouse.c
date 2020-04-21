@@ -91,7 +91,7 @@ PS2MouseInterrupt(
         Port->ResponseReadIndex = 0;
     }
     
-    hid_events_pointer_event(Port->GrachtClient, 0 /* source */, 0 /* flags */, 
+    hid_events_pointer_event(Port->GrachtClient, NULL, 0 /* source */, 0 /* flags */, 
         Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
 }
 
@@ -160,28 +160,26 @@ PS2MouseInitialize(
     _In_ PS2Controller_t* Controller,
     _In_ int              Port)
 {
-    gracht_client_configuration_t gracht_config;
-    PS2Port_t*                    Instance = &Controller->Ports[Port];
+    gracht_client_configuration_t      client_config;
+    struct socket_client_configuration link_config;
+    PS2Port_t*                         Instance = &Controller->Ports[Port];
+    int                                status;
 
     // Set initial mouse sampling
     PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
     PS2_MOUSE_DATA_MODE(Instance)       = 0;
 
-    // Start out by initializing the contract
-    InitializeContract(&Instance->Contract, 
-        Instance->Contract.DeviceId, 1, ContractInput, "PS2 Mouse Interface");
-        
-    // Register our contract for this device
-    if (RegisterContract(&Instance->Contract) != OsSuccess) {
-        ERROR("PS2-Mouse: failed to install contract");
-        return OsError;
+    // Open up the input socket so we can send input data to the OS.
+    link_config.type = gracht_link_packet_based;
+    gracht_os_get_server_packet_address(&link_config.address, &link_config.address_length);
+    
+    status = gracht_link_socket_client_create(&client_config.link, &link_config);
+    if (status) {
+        ERROR("... [ps2] [mouse] [initialize] gracht_link_socket_client_create failed %i", errno);
     }
     
-    // Open up the input socket so we can send input data to the OS.
-    gracht_config.type = gracht_client_packet_based;
-    gracht_os_get_server_packet_address(&gracht_config.address, &gracht_config.address_length);
-    if (gracht_client_create(&gracht_config, &Instance->GrachtClient)) {
-        ERROR("... [ps2] [mouse] [initialize] gracht_client_initialize failed %i", errno);
+    if (status && gracht_client_create(&client_config, &Instance->GrachtClient)) {
+        ERROR("... [ps2] [mouse] [initialize] gracht_client_create failed %i", errno);
     }
     
     // Initialize interrupt

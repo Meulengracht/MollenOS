@@ -29,7 +29,7 @@
 #include <io.h>
 #include "mfs.h"
 
-FileSystemCode_t
+OsStatus_t
 FsReadFromDirectory(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MfsEntryHandle_t*         Handle,
@@ -40,7 +40,7 @@ FsReadFromDirectory(
     _Out_ size_t*                   UnitsRead)
 {
     MfsInstance_t*   Mfs          = (MfsInstance_t*)FileSystem->ExtensionData;
-    FileSystemCode_t Result       = FsOk;
+    OsStatus_t Result       = OsSuccess;
     size_t           BytesToRead  = UnitCount;
     uint64_t         Position     = Handle->Base.Position;
     struct DIRENT*   CurrentEntry = (struct DIRENT*)((uint8_t*)Buffer + BufferOffset);
@@ -57,7 +57,7 @@ FsReadFromDirectory(
     Position *= sizeof(FileRecord_t);
 
     if ((UnitCount % sizeof(struct DIRENT)) != 0) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
     
     TRACE(" > dma: fpos %u, bytes-total %u, bytes-at %u", LODWORD(Position), BytesToRead, *BytesAt);
@@ -82,7 +82,7 @@ FsReadFromDirectory(
             if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 
                     0, Sector, Count, &SectorsRead) != OsSuccess) {
                 ERROR("Failed to read sector");
-                Result = FsDiskError;
+                Result = OsDeviceError;
                 break;
             }
 
@@ -106,9 +106,9 @@ FsReadFromDirectory(
             TRACE("read_metrics::position %u, limit %u", LODWORD(Position), 
                 LODWORD(Handle->BucketByteBoundary + BucketSize));
             Result = MfsSwitchToNextBucketLink(FileSystem, Handle, Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize);
-            if (Result != FsOk) {
-                if (Result == FsPathNotFound) {
-                    Result = FsOk;
+            if (Result != OsSuccess) {
+                if (Result == OsDoesNotExist) {
+                    Result = OsSuccess;
                 }
                 break;
             }
@@ -126,7 +126,7 @@ FsReadFromDirectory(
     return Result;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsSeekInDirectory(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ MfsEntryHandle_t*          Handle,
@@ -143,7 +143,7 @@ FsSeekInDirectory(
 
     // Sanitize seeking bounds
     if (Entry->Base.Descriptor.Size.QuadPart == 0) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
 
     // Step 1, if the new position is in
@@ -189,20 +189,20 @@ FsSeekInDirectory(
                 // Get link
                 if (MfsGetBucketLink(FileSystem, BucketPtr, &Link) != OsSuccess) {
                     ERROR("Failed to get link for bucket %u", BucketPtr);
-                    return FsDiskError;
+                    return OsDeviceError;
                 }
 
                 // If we do reach end of chain, something went terribly wrong
                 if (Link.Link == MFS_ENDOFCHAIN) {
                     ERROR("Reached end of chain during seek");
-                    return FsInvalidParameters;
+                    return OsInvalidParameters;
                 }
                 BucketPtr = Link.Link;
 
                 // Get length of link
                 if (MfsGetBucketLink(FileSystem, BucketPtr, &Link) != OsSuccess) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
-                    return FsDiskError;
+                    return OsDeviceError;
                 }
                 BucketLength        = Link.Length;
                 PositionBoundLow    += PositionBoundHigh;
@@ -219,5 +219,5 @@ FsSeekInDirectory(
     
     // Update the new position since everything went ok
     Handle->Base.Position = ActualPosition;
-    return FsOk;
+    return OsSuccess;
 }

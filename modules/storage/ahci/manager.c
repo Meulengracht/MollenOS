@@ -24,11 +24,16 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
-#include <ddk/services/file.h>
+#include <assert.h>
 #include <ddk/utils.h>
+#include <gracht/server.h>
+#include <internal/_ipc.h>
+#include <os/mollenos.h>
 #include "manager.h"
 #include <stdlib.h>
+
+#include "ctt_driver_protocol_server.h"
+#include "ctt_storage_protocol_server.h"
 
 static Collection_t Devices           = COLLECTION_INIT(KeyId);
 static UUId_t       DeviceIdGenerator = 0;
@@ -170,13 +175,38 @@ AhciManagerRegisterDevice(
     return CollectionAppend(&Devices, &Device->Header);
 }
 
-OsStatus_t
+static void
+RegisterStorage(
+    _In_ UUId_t       ProtocolServerId,
+    _In_ UUId_t       DeviceId,
+    _In_ unsigned int Flags)
+{
+    int                      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    
+    status = svc_storage_register(GetGrachtClient(), &msg,
+        ProtocolServerId, DeviceId, Flags);
+    gracht_vali_message_finish(&msg);
+}
+
+static void
+UnregisterStorage(
+    _In_ UUId_t       DeviceId,
+    _In_ unsigned int Flags)
+{
+    int                      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    
+    status = svc_storage_unregister(GetGrachtClient(), &msg, DeviceId, Flags);
+    gracht_vali_message_finish(&msg);
+}
+
+void
 AhciManagerUnregisterDevice(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
     AhciDevice_t* Device = NULL;
-    OsStatus_t    Status;
     
     // Lookup device based on controller/port
     foreach(Node, &Devices) {
@@ -188,9 +218,8 @@ AhciManagerUnregisterDevice(
     }
     assert(Device != NULL);
     
-    Status = UnregisterStorage(Device->Header.Key.Value.Id, __STORAGE_FORCED_REMOVE);
+    UnregisterStorage(Device->Header.Key.Value.Id, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
     CollectionRemoveByNode(&Devices, &Device->Header);
-    return Status;
 }
 
 static void
@@ -256,7 +285,7 @@ HandleIdentifyCommand(
     // Copy string data
     memcpy(&Device->Descriptor.Model[0], (const void*)&DeviceInformation->ModelNo[0], 40);
     memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
-    (void)RegisterStorage(Device->Descriptor.Device, Device->Descriptor.Flags);
+    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()), Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
 void
@@ -285,4 +314,18 @@ AhciManagerHandleControlResponse(
             WARNING("Unsupported ATA command 0x%x", Transaction->Command);
         } break;
     }
+}
+
+
+void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args* args)
+{
+    StorageDescriptor_t descriptor = { 0 };
+    OsStatus_t          status     = OsDoesNotExist;
+    AhciDevice_t*       device     = AhciManagerGetDevice(args->device_id);
+    if (device) {
+        memcpy(&descriptor, &device->Descriptor, sizeof(StorageDescriptor_t));
+        status = OsSuccess;
+    }
+    
+    ctt_storage_stat_response(message, status, &descriptor);
 }

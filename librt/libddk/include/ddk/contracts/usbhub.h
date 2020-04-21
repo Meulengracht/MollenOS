@@ -24,10 +24,7 @@
 #ifndef _CONTRACT_USBHOST_INTERFACE_H_
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <ddk/ddkdefs.h>
-#include <ddk/driver.h>
 #include <ddk/usb.h>
 
 /* These definitions are in-place to allow a custom

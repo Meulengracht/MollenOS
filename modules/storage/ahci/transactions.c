@@ -30,6 +30,9 @@
 #include "manager.h"
 #include <stdlib.h>
 
+#include "ctt_driver_protocol_server.h"
+#include "ctt_storage_protocol_server.h"
+
 static UUId_t TransactionId = 0;
 
 static struct {
@@ -128,7 +131,6 @@ AhciTransactionControlCreate(
     dma_attach(Device->Port->InternalBuffer.handle, &Transaction->DmaAttachment);
     dma_get_sg_table(&Transaction->DmaAttachment, &Transaction->DmaTable, -1);
     Transaction->Header.Key.Value.Id = TransactionId++;
-    Transaction->Address             = UUID_INVALID;
 
     Transaction->Type      = TransactionRegisterFISH2D;
     Transaction->State     = TransactionCreated;
@@ -151,72 +153,76 @@ AhciTransactionControlCreate(
 
 OsStatus_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*       Device,
-    _In_ thrd_t              Address,
-    _In_ StorageOperation_t* Operation)
+    _In_ AhciDevice_t*               device,
+    _In_ struct gracht_recv_message* message,
+    _In_ int                         direction,
+    _In_ uint64_t                    sector,
+    _In_ UUId_t                      bufferHandle,
+    _In_ unsigned int                bufferOffset,
+    _In_ size_t                      sectorCount)
 {
-    struct dma_attachment DmaAttachment;
-    AhciTransaction_t*    Transaction;
-    OsStatus_t            Status;
+    struct dma_attachment dmaAttachment;
+    AhciTransaction_t*    transaction;
+    OsStatus_t            status;
     int                   i;
     
-    if (!Device || !Address || !Operation) {
+    if (!device) {
         return OsInvalidParameters;
     }
     
-    Status = dma_attach(Operation->BufferHandle, &DmaAttachment);
-    if (Status != OsSuccess) {
+    status = dma_attach(bufferHandle, &dmaAttachment);
+    if (status != OsSuccess) {
         return OsInvalidParameters;
     }
     
-    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-    if (!Transaction) {
-        dma_detach(&DmaAttachment);
+    transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+    if (!transaction) {
+        dma_detach(&dmaAttachment);
         return OsOutOfMemory;
     }
     
     // Do not bother about zeroing the array
-    memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&Transaction->DmaAttachment, &DmaAttachment, sizeof(struct dma_attachment));
-    Transaction->Header.Key.Value.Id = TransactionId++;
-    Transaction->Address             = Address;
+    memset(transaction, 0, sizeof(AhciTransaction_t));
+    memcpy(&transaction->DmaAttachment, &dmaAttachment, sizeof(struct dma_attachment));
+    transaction->Header.Key.Value.Id = TransactionId++;
+    gracht_vali_message_defer_response(&transaction->DeferredMessage, message);
 
-    Transaction->Type    = TransactionRegisterFISH2D;
-    Transaction->Sector  = Operation->AbsoluteSector;
-    Transaction->State   = TransactionCreated;
-    Transaction->Slot    = -1;
+    transaction->Type    = TransactionRegisterFISH2D;
+    transaction->Sector  = sector;
+    transaction->State   = TransactionCreated;
+    transaction->Slot    = -1;
 
-    Transaction->Target.Type = Device->Type;
-    Transaction->Target.SectorSize = Device->SectorSize;
-    Transaction->Target.AddressingMode = Device->AddressingMode;
+    transaction->Target.Type = device->Type;
+    transaction->Target.SectorSize = device->SectorSize;
+    transaction->Target.AddressingMode = device->AddressingMode;
     
-    if (Operation->Direction == __STORAGE_OPERATION_READ) {
-        Transaction->Direction = AHCI_XACTION_IN;
+    if (direction == __STORAGE_OPERATION_READ) {
+        transaction->Direction = AHCI_XACTION_IN;
     }
     else {
-        Transaction->Direction = AHCI_XACTION_OUT;
+        transaction->Direction = AHCI_XACTION_OUT;
     }
     
     // Do not bother to check return code again, things should go ok now
-    dma_get_sg_table(&DmaAttachment, &Transaction->DmaTable, -1);
-    dma_sg_table_offset(&Transaction->DmaTable, Operation->BufferOffset, 
-        &Transaction->SgIndex, &Transaction->SgOffset);
+    dma_get_sg_table(&dmaAttachment, &transaction->DmaTable, -1);
+    dma_sg_table_offset(&transaction->DmaTable, bufferOffset, 
+        &transaction->SgIndex, &transaction->SgOffset);
     
     // Set upper bound on transaction
-    if ((Transaction->Sector + Operation->SectorCount) >= Device->SectorCount) {
-        Operation->SectorCount = Device->SectorCount - Transaction->Sector;
+    if ((transaction->Sector + sectorCount) >= device->SectorCount) {
+        sectorCount = device->SectorCount - transaction->Sector;
     }
     
     // Select the appropriate command
     i = 0;
     while (CommandTable[i].Direction != -1) {
-        if (CommandTable[i].Direction      == Operation->Direction &&
-            CommandTable[i].DMA            == Device->HasDMAEngine &&
-            CommandTable[i].AddressingMode == Device->AddressingMode) {
+        if (CommandTable[i].Direction      == direction &&
+            CommandTable[i].DMA            == device->HasDMAEngine &&
+            CommandTable[i].AddressingMode == device->AddressingMode) {
             // Found the appropriate command
-            Transaction->Command         = CommandTable[i].Command;
-            Transaction->SectorAlignment = CommandTable[i].SectorAlignment;
-            Transaction->BytesLeft       = MIN(Operation->SectorCount, CommandTable[i].MaxSectors) * Device->SectorSize;
+            transaction->Command         = CommandTable[i].Command;
+            transaction->SectorAlignment = CommandTable[i].SectorAlignment;
+            transaction->BytesLeft       = MIN(sectorCount, CommandTable[i].MaxSectors) * device->SectorSize;
             break;
         }
         i++;
@@ -224,14 +230,46 @@ AhciTransactionStorageCreate(
     
     // TODO: handle this
     assert(CommandTable[i].Direction != -1);
-    assert(Transaction->BytesLeft != 0);
+    assert(transaction->BytesLeft != 0);
     
     // The transaction is now prepared and ready for the dispatch
-    Status = QueueTransaction(Device->Controller, Device->Port, Transaction);
-    if (Status != OsSuccess) {
-        AhciTransactionDestroy(Transaction);
+    status = QueueTransaction(device->Controller, device->Port, transaction);
+    if (status != OsSuccess) {
+        AhciTransactionDestroy(transaction);
     }
-    return Status;
+    return status;
+}
+
+void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args* args)
+{
+    AhciDevice_t*   device = AhciManagerGetDevice(args->device_id);
+    OsStatus_t      status;
+    LargeUInteger_t sector;
+    
+    sector.u.LowPart = args->sector_lo;
+    sector.u.HighPart = args->sector_hi;
+    
+    status = AhciTransactionStorageCreate(device, message, args->direction, sector.QuadPart,
+        args->buffer_id, args->buffer_offset, args->sector_count);
+    if (status != OsSuccess) {
+        ctt_storage_transfer_async_response(message, status, 0);
+    }
+}
+
+void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)
+{
+    AhciDevice_t*   device = AhciManagerGetDevice(args->device_id);
+    OsStatus_t      status;
+    LargeUInteger_t sector;
+    
+    sector.u.LowPart = args->sector_lo;
+    sector.u.HighPart = args->sector_hi;
+    
+    status = AhciTransactionStorageCreate(device, message, args->direction, sector.QuadPart,
+        args->buffer_id, args->buffer_offset, args->sector_count);
+    if (status != OsSuccess) {
+        ctt_storage_transfer_response(message, status, 0);
+    }
 }
 
 OsStatus_t
@@ -272,27 +310,26 @@ AhciTransactionHandleResponse(
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
-    StorageOperationResult_t Result = { 0 };
-    IpcMessage_t             Message = { 0 };
+    OsStatus_t status;
+    
     TRACE("AhciCommandFinish()");
     
     // Verify the command execution
     if (Transaction->Type == TransactionRegisterFISH2D) {
-        Result.Status = VerifyRegisterFISD2H(Port, Transaction);
+        status = VerifyRegisterFISD2H(Port, Transaction);
     }
     else {
         assert(0);
     }
 
     // Is the transaction finished? (Or did it error?)
-    if (Result.Status != OsSuccess || Transaction->BytesLeft == 0) {
+    if (status != OsSuccess || Transaction->BytesLeft == 0) {
         if (Transaction->Address == UUID_INVALID) {
             AhciManagerHandleControlResponse(Port, Transaction);
         }
         else {
-            Message.Sender            = Transaction->Address;
-            Result.SectorsTransferred = Transaction->SectorsTransferred;
-            IpcReply(&Message, &Result, sizeof(StorageOperationResult_t));
+            ctt_storage_transfer_response(&Transaction->DeferredMessage.recv_message,
+                status, Transaction->SectorsTransferred);
         }
         return AhciTransactionDestroy(Transaction);
     }

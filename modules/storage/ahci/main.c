@@ -23,14 +23,15 @@
  */
 //#define __TRACE
 
-#include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+
+#include "ctt_driver_protocol_server.h"
+#include "ctt_storage_protocol_server.h"
 
 static Collection_t Controllers = COLLECTION_INIT(KeyId);
 
@@ -99,9 +100,14 @@ HandleInterrupt:
 OsStatus_t
 OnLoad(void)
 {
+    sigprocess(SIGINT, OnInterrupt);
+    
+    // Register supported protocols
+    gracht_server_register_protocol(&ctt_driver_protocol);
+    gracht_server_register_protocol(&ctt_storage_protocol);
+    
     // If AhciManagerInitialize should fail, then the OnUnload will
     // be called automatically
-    sigprocess(SIGINT, OnInterrupt);
     return AhciManagerInitialize();
 }
 
@@ -131,6 +137,12 @@ OnRegister(
     return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
+void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+{
+    OsStatus_t status = OnRegister(args->device);
+    ctt_driver_register_device_response(message, status);
+}
+
 OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t* Device)
@@ -145,62 +157,4 @@ OnUnregister(
     
     CollectionRemoveByKey(&Controllers, Key);
     return AhciControllerDestroy(Controller);
-}
-
-OsStatus_t 
-OnQuery(
-    _In_ IpcMessage_t* Message)
-{
-    if (IPC_GET_TYPED(Message, 1) != ContractStorage) {
-        return OsError;
-    }
-
-    TRACE("Ahci.OnQuery(%i)", IPC_GET_TYPED(Message, 2));
-
-    // Which kind of function has been invoked?
-    switch (IPC_GET_TYPED(Message, 2)) {
-        // Query stats about a disk identifier in the form of
-        // a StorageDescriptor
-        case __STORAGE_QUERY_STAT: {
-            AhciDevice_t*       Device;
-            StorageDescriptor_t NullDescriptor;
-            UUId_t              DiskId = (UUId_t)IPC_GET_TYPED(Message, 1);
-
-            Device = AhciManagerGetDevice(DiskId);
-            if (Device != NULL) {
-                return IpcReply(Message, &Device->Descriptor, sizeof(StorageDescriptor_t));
-            }
-            else {
-                memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return IpcReply(Message, &NullDescriptor, sizeof(StorageDescriptor_t));
-            }
-        } break;
-
-            // Read or write sectors from a disk identifier
-            // They have same parameters with different direction
-        case __STORAGE_TRANSFER: {
-            // Get parameters
-            StorageOperation_t*      Operation = (StorageOperation_t*)IPC_GET_UNTYPED(Message, 0);
-            UUId_t                   DiskId    = (UUId_t)IPC_GET_TYPED(Message, 1);
-            AhciDevice_t*            Device    = AhciManagerGetDevice(DiskId);
-            StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
-            
-            if (Device == NULL) {
-                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
-            }
-            
-            // Create the requested transaction
-            Result.Status = AhciTransactionStorageCreate(Device, Message->Sender, Operation);
-            if (Result.Status != OsSuccess) {
-                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
-            }
-            
-            return OsSuccess;
-        } break;
-
-        // Other cases not supported
-        default: {
-            return OsNotSupported;
-        }
-    }
 }

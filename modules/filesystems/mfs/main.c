@@ -21,82 +21,82 @@
  */
 //#define __TRACE
 
-#include <ddk/services/file.h>
 #include <ddk/utils.h>
-#include <threads.h>
+#include <internal/_ipc.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include "mfs.h"
 
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-FileSystemCode_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-FileSystemCode_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-FileSystemCode_t FsSeekInFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
+OsStatus_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsSeekInFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
 
 // Directory specific operation handlers
-FileSystemCode_t FsReadFromDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-FileSystemCode_t FsSeekInDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
+OsStatus_t FsReadFromDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsSeekInDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
 
-FileSystemCode_t 
+OsStatus_t 
 FsOpenEntry(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MString_t*                Path,
     _Out_ FileSystemEntry_t**       BaseEntry)
 {
-    MfsInstance_t*      Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
-    FileSystemCode_t    Result;
-    MfsEntry_t*         Entry;
+    MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
+    OsStatus_t     Result;
+    MfsEntry_t*    Entry;
 
     Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
     if (!Entry) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
     
     memset(Entry, 0, sizeof(MfsEntry_t));
     Result     = MfsLocateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path);
     *BaseEntry = (FileSystemEntry_t*)Entry;
-    if (Result != FsOk) {
+    if (Result != OsSuccess) {
         free(Entry);
     }
     return Result;
 }
 
-FileSystemCode_t 
+OsStatus_t 
 FsCreatePath(
     _In_  FileSystemDescriptor_t* FileSystem,
     _In_  MString_t*              Path,
     _In_  Flags_t                 Options,
     _Out_ FileSystemEntry_t**     BaseEntry)
 {
-    MfsInstance_t*      Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
-    FileSystemCode_t    Result;
-    MfsEntry_t*         Entry;
-    Flags_t             MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
+    MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
+    OsStatus_t     Result;
+    MfsEntry_t*    Entry;
+    Flags_t        MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
 
     Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
     if (!Entry) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
     
     memset(Entry, 0, sizeof(MfsEntry_t));
     
     Result = MfsCreateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path, MfsFlags);
     *BaseEntry  = (FileSystemEntry_t*)Entry;
-    if (Result != FsOk) {
+    if (Result != OsSuccess) {
         free(Entry);
     }
     return Result;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsCloseEntry(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntry_t*         BaseEntry)
 {
-    FileSystemCode_t Code   = FsOk;
-    MfsEntry_t* Entry       = (MfsEntry_t*)BaseEntry;
+    OsStatus_t  Code  = OsSuccess;
+    MfsEntry_t* Entry = (MfsEntry_t*)BaseEntry;
     
     TRACE("FsCloseEntry(%i)", Entry->ActionOnClose);
     if (Entry->ActionOnClose) {
@@ -108,34 +108,34 @@ FsCloseEntry(
     return Code;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsDeleteEntry(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle)
 {
-    MfsEntryHandle_t*   Handle  = (MfsEntryHandle_t*)BaseHandle;
-    MfsEntry_t*         Entry   = (MfsEntry_t*)Handle->Base.Entry;
-    FileSystemCode_t    Code;
-    OsStatus_t          Status;
+    MfsEntryHandle_t* Handle  = (MfsEntryHandle_t*)BaseHandle;
+    MfsEntry_t*       Entry   = (MfsEntry_t*)Handle->Base.Entry;
+    OsStatus_t        Code;
+    OsStatus_t        Status;
 
     Status = MfsFreeBuckets(FileSystem, Entry->StartBucket, Entry->StartLength);
     if (Status != OsSuccess) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
             Entry->StartBucket, Entry->StartLength);
-        return FsDiskError;
+        return OsDeviceError;
     }
 
     Code = MfsUpdateRecord(FileSystem, Entry, MFS_ACTION_DELETE);
-    if (Code == FsOk) {
+    if (Code == OsSuccess) {
         Code = FsCloseHandle(FileSystem, BaseHandle);
-        if (Code == FsOk) {
+        if (Code == OsSuccess) {
             Code = FsCloseEntry(FileSystem, &Entry->Base);
         }
     }
     return Code;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsOpenHandle(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntry_t*        BaseEntry,
@@ -146,7 +146,7 @@ FsOpenHandle(
 
     Handle = (MfsEntryHandle_t*)malloc(sizeof(MfsEntryHandle_t));
     if (!Handle) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
     
     memset(Handle, 0, sizeof(MfsEntryHandle_t));
@@ -154,20 +154,20 @@ FsOpenHandle(
     Handle->DataBucketPosition = Entry->StartBucket;
     Handle->DataBucketLength   = Entry->StartLength;
     *BaseHandle                = &Handle->Base;
-    return FsOk;
+    return OsSuccess;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsCloseHandle(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle)
 {
     MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
     free(Handle);
-    return FsOk;
+    return OsSuccess;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsReadEntry(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
@@ -187,7 +187,7 @@ FsReadEntry(
     }
 }
 
-FileSystemCode_t
+OsStatus_t
 FsWriteEntry(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
@@ -202,10 +202,10 @@ FsWriteEntry(
     if (!(Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
         return FsWriteToFile(FileSystem, Handle, BufferHandle, Buffer, BufferOffset, UnitCount, UnitsWritten);
     }
-    return FsInvalidParameters;
+    return OsInvalidParameters;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsSeekInEntry(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle,
@@ -237,7 +237,7 @@ FsDestroy(
     }
 
     // Which kind of unmount is it?
-    if (!(UnmountFlags & __STORAGE_FORCED_REMOVE)) {
+    if (!(UnmountFlags & SVC_STORAGE_UNREGISTER_FLAGS_FORCED)) {
         // Flush everything
         // @todo
     }

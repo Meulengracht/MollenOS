@@ -23,6 +23,8 @@
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/contracts/video.h>
+#include <ddk/io.h>
+#include <ddk/device.h>
 #include <internal/_utils.h>
 #include <ipc_context.h>
 #include <os/types/process.h>

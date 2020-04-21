@@ -36,10 +36,8 @@
 #include <string.h>
 #include <threads.h>
 
-static Collection_t Contracts           = COLLECTION_INIT(KeyId);
 static Collection_t Devices             = COLLECTION_INIT(KeyId);
 static UUId_t       DeviceIdGenerator   = 0;
-static UUId_t       ContractIdGenerator = 0;
 
 OsStatus_t OnUnload(void)
 {
@@ -161,38 +159,4 @@ DmRegisterDevice(
     }
 #endif
     return OsSuccess;
-}
-
-OsStatus_t
-DmRegisterContract(
-    _In_  MContract_t* Contract,
-    _Out_ UUId_t*      Id)
-{
-    MContract_t* CopyContract;
-    DataKey_t    Key;
-
-    assert(Contract != NULL);
-    assert(Id != NULL);
-
-    TRACE("%u: Driver installed for %u: %s", Contract->DriverId, Contract->DeviceId, &Contract->Name[0]);
-
-    // Lookup device
-    Key.Value.Id = Contract->DeviceId;
-    if (CollectionGetDataByKey(&Devices, Key, 0) == NULL) {
-        ERROR("Device id %u was not registered with the device manager",
-            Contract->DeviceId);
-        return OsError;
-    }
-
-    CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
-    if (!CopyContract) {
-        return OsOutOfMemory;
-    }
-    
-    memcpy(CopyContract, Contract, sizeof(MContract_t));
-    CopyContract->ContractId = ContractIdGenerator++;
-    Key.Value.Id             = *Id;
-    
-    *Id = CopyContract->ContractId;
-    return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
 }

@@ -23,9 +23,9 @@
 #ifndef _DRIVER_PS2_CONTROLLER_H_
 #define _DRIVER_PS2_CONTROLLER_H_
 
-#include <ddk/contracts/base.h>
+#include <ddk/device.h>
 #include <ddk/interrupt.h>
-#include <gracht/client.h>
+#include <gracht/link/socket.h>
 #include <os/osdefs.h>
 #include <ddk/io.h>
 
@@ -109,7 +109,7 @@ typedef enum PS2PortState {
 
 typedef struct PS2Port {
     int                 Index;
-    MContract_t         Contract;
+    UUId_t              DeviceId;
     DeviceInterrupt_t   Interrupt;
     UUId_t              InterruptId;
     PS2Command_t        ActiveCommand;
@@ -126,7 +126,6 @@ typedef struct PS2Port {
 
 typedef struct PS2Controller {
     MCoreDevice_t   Device;
-    MContract_t     Controller;
     DeviceIo_t*     Command;
     DeviceIo_t*     Data;
 

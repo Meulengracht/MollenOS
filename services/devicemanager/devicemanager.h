@@ -24,7 +24,6 @@
 #ifndef __DEVICEMANAGER_INTERFACE__
 #define __DEVICEMANAGER_INTERFACE__
 
-#include <ddk/contracts/base.h>
 #include <os/osdefs.h>
 #include <ddk/device.h>
 
@@ -70,15 +69,5 @@ DmIoctlDeviceEx(
 	_In_ unsigned int   Register,
 	_In_ size_t*        Value,
 	_In_ size_t         Width);
-
-/* DmRegisterContract 
- * Registers the given contact with the device-manager to let
- * the manager know we are handling this device, and what kind
- * of functionality the device supports */
-__EXTERN
-OsStatus_t
-DmRegisterContract(
-    _In_  MContract_t*          Contract,
-    _Out_ UUId_t*               Id);
 
 #endif //! __DEVICEMANAGER_INTERFACE__
