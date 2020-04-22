@@ -23,8 +23,7 @@
  */
 
 #include <assert.h>
-#include <inet/socket.h>
-#include <io.h>
+#include <errno.h>
 #include "include/gracht/client.h"
 #include "include/gracht/crc.h"
 #include "include/gracht/list.h"
@@ -43,7 +42,7 @@ extern int client_invoke_action(struct gracht_list*, struct gracht_recv_message*
 int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message, void* context)
 {
     if (!client) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     return client->ops->send(client->ops, message, context);
@@ -52,7 +51,7 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message
 int gracht_client_process_message(gracht_client_t* client, struct gracht_recv_message* message)
 {
     if (!client || !message) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     return client_invoke_action(&client->protocols, message);
@@ -61,7 +60,7 @@ int gracht_client_process_message(gracht_client_t* client, struct gracht_recv_me
 int gracht_client_wait_message(gracht_client_t* client, struct gracht_recv_message* message)
 {
     if (!client) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     return client->ops->recv(client->ops, message, 0);
@@ -74,7 +73,7 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     
     client = (gracht_client_t*)malloc(sizeof(gracht_client_t));
     if (!client) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     
@@ -94,7 +93,7 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
 int gracht_client_register_protocol(gracht_client_t* client, gracht_protocol_t* protocol)
 {
     if (!client || !protocol) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
@@ -105,7 +104,7 @@ int gracht_client_register_protocol(gracht_client_t* client, gracht_protocol_t* 
 int gracht_client_unregister_protocol(gracht_client_t* client, gracht_protocol_t* protocol)
 {
     if (!client || !protocol) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
@@ -116,7 +115,7 @@ int gracht_client_unregister_protocol(gracht_client_t* client, gracht_protocol_t
 int gracht_client_shutdown(gracht_client_t* client)
 {
     if (!client) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     

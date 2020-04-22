@@ -23,17 +23,14 @@
  */
 
 #include <assert.h>
-#include <inet/socket.h>
-#include <io.h>
+#include <errno.h>
 #include "include/gracht/aio.h"
+#include "include/gracht/debug.h"
 #include "include/gracht/list.h"
 #include "include/gracht/server.h"
 #include "include/gracht/link/link.h"
 #include <stdlib.h>
 #include <string.h>
-
-#define __TRACE
-#include <ddk/utils.h>
 
 extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
 
@@ -106,7 +103,7 @@ static int handle_client_socket(void)
     client = (struct gracht_server_client*)malloc(sizeof(struct gracht_server_client));
     if (!client) {
         client_ops->close(client_ops);
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     
@@ -144,7 +141,7 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
     
     // Check for control event. On non-passive sockets, control event is the
     // disconnect event.
-    if (events & IOEVTCTL) {
+    if (events & GRACHT_AIO_EVENT_CTRL) {
         status = gracht_aio_remove(server_object.completion_iod, iod);
         if (status) {
             // TODO log
@@ -154,7 +151,7 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
         gracht_list_remove(&server_object.clients, &client->header);
         free(client);
     }
-    else if ((events & IOEVTIN) || !events) {
+    else if ((events & GRACHT_AIO_EVENT_IN) || !events) {
         while (1) {
             status = client->ops->recv(client->ops, &message, MSG_DONTWAIT);
             if (status) {
@@ -205,7 +202,7 @@ int gracht_server_main_loop(void)
     
     storage = malloc(GRACHT_MAX_MESSAGE_SIZE);
     if (!storage) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     
@@ -235,7 +232,7 @@ int gracht_server_main_loop(void)
 int gracht_server_respond(struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
     if (!messageContext || !message) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
@@ -247,7 +244,7 @@ int gracht_server_send_event(int client, struct gracht_message* message, unsigne
     struct gracht_server_client* clientOps = 
         (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, client);
     if (!clientOps) {
-        _set_errno(ENOENT);
+        errno = (ENOENT);
         return -1;
     }
     
@@ -269,7 +266,7 @@ int gracht_server_broadcast_event(struct gracht_message* message, unsigned int f
 int gracht_server_register_protocol(gracht_protocol_t* protocol)
 {
     if (!protocol) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
@@ -280,7 +277,7 @@ int gracht_server_register_protocol(gracht_protocol_t* protocol)
 int gracht_server_unregister_protocol(gracht_protocol_t* protocol)
 {
     if (!protocol) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     

@@ -47,7 +47,7 @@ int gracht_vali_message_create(gracht_client_t* client, int message_size, struct
 {
     struct vali_link_message* message = malloc(sizeof(struct vali_link_message) + message_size);
     if (!message) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     

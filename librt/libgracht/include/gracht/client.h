@@ -27,7 +27,6 @@
 
 #include "types.h"
 #include "link/link.h"
-#include <inet/socket.h>
 
 typedef struct gracht_client_configuration {
     struct client_link_ops* link;

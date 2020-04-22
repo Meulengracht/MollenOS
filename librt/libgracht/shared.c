@@ -100,7 +100,7 @@ int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
         message->protocol, message->action);
     
     if (!function) {
-        _set_errno(EPROTONOSUPPORT);
+        errno = (EPROTONOSUPPORT);
         return -1;
     }
     
@@ -120,7 +120,7 @@ int client_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
     gracht_protocol_function_t* function = get_protocol_action(protocols,
         message->protocol, message->action);
     if (!function) {
-        _set_errno(EPROTONOSUPPORT);
+        errno = (EPROTONOSUPPORT);
         return -1;
     }
     

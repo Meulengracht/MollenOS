@@ -42,13 +42,13 @@ static int vali_link_listen(struct vali_link_manager* linkManager, int mode)
         return linkManager->iod;
     }
     
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
 static int vali_link_accept(struct vali_link_manager* linkManager, struct link_ops** linkOut)
 {
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -92,7 +92,7 @@ int gracht_link_vali_server_create(struct server_link_ops** linkOut, struct ipms
     
     linkManager = (struct vali_link_manager*)malloc(sizeof(struct vali_link_manager));
     if (!linkManager) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     

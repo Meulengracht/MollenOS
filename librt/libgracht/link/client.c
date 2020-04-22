@@ -22,16 +22,11 @@
  */
 
 #include <assert.h>
-#include <ds/streambuffer.h>
 #include <errno.h>
 #include "../include/gracht/link/socket.h"
-#include <io.h>
-#include <inet/local.h>
+#include "../include/gracht/debug.h"
 #include <stdlib.h>
 #include <string.h>
-
-#define __TRACE
-#include <ddk/utils.h>
 
 struct socket_link_manager {
     struct client_link_ops             ops;
@@ -82,10 +77,10 @@ static int socket_link_recv_stream(struct socket_link_manager* linkManager,
     bytes_read = recv(linkManager->iod, message, sizeof(struct gracht_message), flags);
     if (bytes_read != sizeof(struct gracht_message)) {
         if (bytes_read == 0) {
-            _set_errno(ENODATA);
+            errno = (ENODATA);
         }
         else {
-            _set_errno(EPIPE);
+            errno = (EPIPE);
         }
         return -1;
     }
@@ -100,7 +95,7 @@ static int socket_link_recv_stream(struct socket_link_manager* linkManager,
             ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%" 
                 PRIuIN ", expected %" PRIuIN ")",
                 bytes_read, message->header.length - sizeof(struct gracht_message));
-            _set_errno(EPIPE);
+            errno = (EPIPE);
             return -1; 
         }
     }
@@ -147,7 +142,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
     
     byte_count = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
     if (byte_count != message->header.length) {
-        _set_errno(EPIPE);
+        errno = (EPIPE);
         return -1;
     }
     
@@ -163,7 +158,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
         msg.msg_iovlen = message->header.param_out;
         byte_count = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
         if (byte_count == 0) {
-            _set_errno(EPIPE);
+            errno = (EPIPE);
             return -1;
         }
     }
@@ -174,7 +169,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
 static int socket_link_recv_packet(struct socket_link_manager* linkManager, 
     struct gracht_recv_message* context, unsigned int flags)
 {
-    struct gracht_message* message        = (struct gracht_message*)((char*)context->storage + sizeof(struct sockaddr_lc));
+    struct gracht_message* message        = (struct gracht_message*)((char*)context->storage + linkManager->config.address_length);
     void*                  params_storage = NULL;
     
     struct iovec iov[1] = { 
@@ -183,7 +178,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     
     struct msghdr msg = {
         .msg_name       = context->storage,
-        .msg_namelen    = sizeof(struct sockaddr_lc),
+        .msg_namelen    = linkManager->config.address_length,
         .msg_iov        = &iov[0],
         .msg_iovlen     = 1,
         .msg_control    = NULL,
@@ -196,10 +191,10 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     intmax_t bytes_read = recvmsg(linkManager->iod, &msg, flags);
     if (bytes_read < sizeof(struct gracht_message)) {
         if (bytes_read == 0) {
-            _set_errno(ENODATA);
+            errno = (ENODATA);
         }
         else {
-            _set_errno(EPIPE);
+            errno = (EPIPE);
         }
         return -1;
     }
@@ -226,7 +221,7 @@ static int socket_link_connect(struct socket_link_manager* linkManager)
         return -1;
     }
     
-    int status = connect(linkManager->iod, sstosa(&linkManager->config.address),
+    int status = connect(linkManager->iod, (const struct sockaddr*)&linkManager->config.address,
         linkManager->config.address_length);
     if (status) {
         close(linkManager->iod);
@@ -245,7 +240,7 @@ static int socket_link_recv(struct socket_link_manager* linkManager,
         return socket_link_recv_packet(linkManager, messageContext, flags);
     }
     
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -259,7 +254,7 @@ static int socket_link_send(struct socket_link_manager* linkManager, struct grac
         return socket_link_send_packet(linkManager, message, messageContext);
     }
     
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -283,7 +278,7 @@ int gracht_link_socket_client_create(struct client_link_ops** linkOut,
     
     linkManager = (struct socket_link_manager*)malloc(sizeof(struct socket_link_manager));
     if (!linkManager) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     

@@ -22,16 +22,11 @@
  */
 
 #include <assert.h>
-#include <ds/streambuffer.h>
 #include <errno.h>
 #include "../include/gracht/link/socket.h"
-#include <inet/local.h>
-#include <io.h>
+#include "../include/gracht/debug.h"
 #include <stdlib.h>
 #include <string.h>
-
-#define __TRACE
-#include <ddk/utils.h>
 
 struct socket_link {
     struct link_ops         ops;
@@ -90,10 +85,10 @@ static int socket_link_recv(struct socket_link* linkContext,
     bytes_read = recv(linkContext->iod, message, sizeof(struct gracht_message), flags);
     if (bytes_read != sizeof(struct gracht_message)) {
         if (bytes_read == 0) {
-            _set_errno(ENODATA);
+            errno = (ENODATA);
         }
         else {
-            _set_errno(EPIPE);
+            errno = (EPIPE);
         }
         return -1;
     }
@@ -109,7 +104,7 @@ static int socket_link_recv(struct socket_link* linkContext,
             ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%" 
                 PRIuIN ", expected %" PRIuIN ")",
                 bytes_read, message->header.length - sizeof(struct gracht_message));
-            _set_errno(EPIPE);
+            errno = (EPIPE);
             return -1; 
         }
     }
@@ -127,7 +122,7 @@ static int socket_link_close(struct socket_link* linkContext)
     int status;
     
     if (!linkContext) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
@@ -148,7 +143,8 @@ static int socket_link_listen(struct socket_link_manager* linkManager, int mode)
             return -1;
         }
         
-        status = bind(linkManager->dgram_socket, sstosa(&linkManager->config.dgram_address),
+        status = bind(linkManager->dgram_socket,
+            (const struct sockaddr*)&linkManager->config.dgram_address,
             linkManager->config.dgram_address_length);
         if (status) {
             return -1;
@@ -162,7 +158,8 @@ static int socket_link_listen(struct socket_link_manager* linkManager, int mode)
             return -1;
         }
         
-        status = bind(linkManager->client_socket, sstosa(&linkManager->config.server_address),
+        status = bind(linkManager->client_socket,
+            (const struct sockaddr*)&linkManager->config.server_address,
             linkManager->config.server_address_length);
         if (status) {
             return -1;
@@ -177,7 +174,7 @@ static int socket_link_listen(struct socket_link_manager* linkManager, int mode)
         return linkManager->client_socket;
     }
     
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -188,12 +185,13 @@ static int socket_link_accept(struct socket_link_manager* linkManager, struct li
     
     link = (struct socket_link*)malloc(sizeof(struct socket_link));
     if (!link) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     
     // TODO handle disconnects in accept in netmanager
-    link->iod = accept(linkManager->client_socket, sstosa(&link->address), &address_length);
+    link->iod = accept(linkManager->client_socket,
+        (struct sockaddr*)&link->address, &address_length);
     if (link->iod < 0) {
         free(link);
         return -1;
@@ -210,7 +208,8 @@ static int socket_link_accept(struct socket_link_manager* linkManager, struct li
 static int socket_link_recv_packet(struct socket_link_manager* linkManager, 
     struct gracht_recv_message* context, unsigned int flags)
 {
-    struct gracht_message* message        = (struct gracht_message*)((char*)context->storage + sizeof(struct sockaddr_lc));
+    struct gracht_message* message        = (struct gracht_message*)(
+        (char*)context->storage + linkManager->config.dgram_address_length);
     void*                  params_storage = NULL;
     
     struct iovec iov[1] = { 
@@ -219,7 +218,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     
     struct msghdr msg = {
         .msg_name       = context->storage,
-        .msg_namelen    = sizeof(struct sockaddr_lc),
+        .msg_namelen    = linkManager->config.dgram_address_length,
         .msg_iov        = &iov[0],
         .msg_iovlen     = 1,
         .msg_control    = NULL,
@@ -232,10 +231,10 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     intmax_t bytes_read = recvmsg(linkManager->dgram_socket, &msg, flags);
     if (bytes_read < sizeof(struct gracht_message)) {
         if (bytes_read == 0) {
-            _set_errno(ENODATA);
+            errno = (ENODATA);
         }
         else {
-            _set_errno(EPIPE);
+            errno = (EPIPE);
         }
         return -1;
     }
@@ -261,7 +260,7 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     int           i;
     struct msghdr msg = {
         messageContext->storage,
-        sizeof(struct sockaddr_lc),
+        linkManager->config.dgram_address_length,
         &iov[0],
         message->header.param_in,
         NULL, 0, 0
@@ -314,7 +313,7 @@ int gracht_link_socket_server_create(struct server_link_ops** linkOut,
     
     linkManager = (struct socket_link_manager*)malloc(sizeof(struct socket_link_manager));
     if (!linkManager) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     

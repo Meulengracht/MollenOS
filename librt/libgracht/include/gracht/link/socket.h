@@ -24,7 +24,16 @@
 #ifndef __GRACHT_LINK_SOCKET_CLIENT_H__
 #define __GRACHT_LINK_SOCKET_CLIENT_H__
 
+#if defined(MOLLENOS)
 #include <inet/socket.h>
+#include <io.h>
+#elif defined(__linux__)
+#include <unistd.h>
+#include <sys/socket.h>
+#else
+#error "Undefined platform for socket"
+#endif
+
 #include "link.h"
 #include "../client.h"
 

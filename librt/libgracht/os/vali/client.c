@@ -43,7 +43,7 @@ struct vali_link_manager {
 
 static int vali_link_connect(struct client_link_ops* linkManager)
 {
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -105,7 +105,7 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
         messageContext->response_pool   = linkManager->pool;
         messageContext->response_buffer = bget(linkManager->pool, length);
         if (!messageContext->response_buffer) {
-            _set_errno(ENOMEM); // support bget growth?
+            errno = (ENOMEM); // support bget growth?
             return -1;
         }
         
@@ -126,11 +126,11 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
 static int vali_link_recv(struct client_link_ops* linkManager, struct gracht_recv_message* message, unsigned int flags)
 {
     if (!linkManager) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return -1;
     }
     
-    _set_errno(ENOTSUP);
+    errno = (ENOTSUP);
     return -1;
 }
 
@@ -154,7 +154,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
     
     linkManager = (struct vali_link_manager*)malloc(sizeof(struct vali_link_manager));
     if (!linkManager) {
-        _set_errno(ENOMEM);
+        errno = (ENOMEM);
         return -1;
     }
     

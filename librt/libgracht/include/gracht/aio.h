@@ -27,10 +27,13 @@
 #include "types.h"
 
 #if defined(MOLLENOS)
+#include <inet/socket.h>
 #include <io_events.h>
 #include <io.h>
 
 typedef struct io_event gracht_aio_event_t;
+#define GRACHT_AIO_EVENT_IN   IOEVTIN
+#define GRACHT_AIO_EVENT_CTRL IOEVTCTL
 
 #define gracht_aio_create()                io_set_create(0)
 #define gracht_io_wait(aio, events, count) io_set_wait(aio, events, count, 0)
@@ -39,6 +42,31 @@ typedef struct io_event gracht_aio_event_t;
 #define gracht_aio_destroy(aio)            close(aio)
 
 #define gracht_aio_event_iod(event)        (event)->iod
+#define gracht_aio_event_events(event)     (event)->events
+
+#elif defined(__linux__)
+#include <unistd.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
+
+typedef struct epoll_event gracht_aio_event_t;
+#define GRACHT_AIO_EVENT_IN   EPOLLIN
+#define GRACHT_AIO_EVENT_CTRL EPOLLRDHUP
+
+#define gracht_aio_create()                epoll_create1(0)
+#define gracht_io_wait(aio, events, count) epoll_wait(aio, events, count, 0);
+#define gracht_aio_remove(aio, iod)        epoll_ctl(aio, EPOLL_CTL_DEL, iod, NULL)
+#define gracht_aio_destroy(aio)            close(aio)
+
+static int gracht_aio_add(int aio, int iod) {
+    struct epoll_event event = {
+        .events = EPOLLIN | EPOLLRDHUP,
+        .data.fd = iod
+    };
+    return epoll_ctl(aio, EPOLL_CTL_ADD, iod, &event);
+}
+
+#define gracht_aio_event_iod(event)        (event)->data.fd
 #define gracht_aio_event_events(event)     (event)->events
 
 #else
