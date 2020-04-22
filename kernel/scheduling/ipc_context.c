@@ -22,6 +22,7 @@
  */
 
 #include <ddk/barrier.h>
+#include <ddk/handle.h>
 #include <ds/streambuffer.h>
 #include <debug.h>
 #include <futex.h>
@@ -241,9 +242,11 @@ WaitForMessageNotification(
     _In_ struct ipmsg_resp* Response,
     _In_ size_t             Timeout)
 {
-    if (Response->notify_method == IPMSG_NOTIFY_NONE) {
-        _Atomic(int)* SyncObject = (_Atomic(int)*)Response->notify_data.syncobject;
-        FutexWait(SyncObject, 0, 0, Timeout);
+    if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
+        handle_event_t event;
+        int            numberOfEvents;
+        WaitForHandleSet(Response->notify_data.handle,
+            &event, 1, Timeout, &numberOfEvents);
     }
 }
 
@@ -251,12 +254,7 @@ static void
 SendNotification(
     _In_ struct ipmsg_resp* Response)
 {
-    if (Response->notify_method == IPMSG_NOTIFY_NONE) {
-        _Atomic(int)* SyncObject = (_Atomic(int)*)Response->notify_data.syncobject;
-        atomic_store(SyncObject, 1);
-        FutexWake(SyncObject, 1, 0);
-    }
-    else if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
+    if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
         MarkHandle(Response->notify_data.handle, 0);
     }
     else if (Response->notify_method == IPMSG_NOTIFY_SIGNAL) {

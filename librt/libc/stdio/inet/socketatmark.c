@@ -21,8 +21,8 @@
  * - Standard Socket IO Implementation
  */
 
-#include <ddk/services/net.h>
 #include <errno.h>
+#include <inet/socket.h>
 #include <internal/_io.h>
 #include <io.h>
 

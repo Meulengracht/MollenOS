@@ -24,12 +24,10 @@
 #ifndef _USB_MANAGER_H_
 #define _USB_MANAGER_H_
 
-#include <ddk/contracts/usbhost.h>
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/eventqueue.h>
 #include <ds/collection.h>
 #include <ddk/device.h>
-#include <ddk/driver.h>
 #include <os/spinlock.h>
 #include "transfer.h"
 #include "scheduler.h"
@@ -43,7 +41,6 @@ typedef struct _UsbManagerController {
     UUId_t              Id;
     UsbControllerType_t Type;
     MCoreDevice_t       Device;
-    MContract_t         Contract;
 
     UUId_t              Interrupt;
     _Atomic(reg32_t)    InterruptStatus;

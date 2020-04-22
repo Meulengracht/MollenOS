@@ -3,7 +3,7 @@
 # - drivers
 
 .PHONY: all
-all: build $(VALI_ARCH) mfs ahci ehci uhci ohci msd hid
+all: build $(VALI_ARCH) mfs ahci usb ehci uhci ohci msd hid
 
 build:
 	@mkdir -p $@
@@ -35,6 +35,10 @@ hid:
 	@$(MAKE) -s -C input/hid -f makefile
 
 # Usb drivers below here
+.PHONY: usb
+usb:
+	@$(MAKE) -s -C serial/usb/common -f makefile
+
 .PHONY: ohci
 ohci:
 	@$(MAKE) -s -C serial/usb/ohci -f makefile
@@ -68,6 +72,7 @@ clean: clean_$(VALI_ARCH)
 	@$(MAKE) -s -C storage/ahci -f makefile clean
 	@$(MAKE) -s -C storage/msd -f makefile clean
 	@$(MAKE) -s -C input/hid -f makefile clean
+	@$(MAKE) -s -C serial/usb/common -f makefile clean
 	@$(MAKE) -s -C serial/usb/ohci -f makefile clean
 	@$(MAKE) -s -C serial/usb/uhci -f makefile clean
 	@$(MAKE) -s -C serial/usb/ehci -f makefile clean

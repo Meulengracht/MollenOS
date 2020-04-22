@@ -75,8 +75,9 @@ typedef struct _AhciDevice {
 #define AHCI_DEVICE_MODE_LBA28  1
 #define AHCI_DEVICE_MODE_LBA48  2
 
-typedef struct {
+typedef struct AhciTransation {
     CollectionItem_t      Header;
+    int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
     AtaCommand_t          Command;

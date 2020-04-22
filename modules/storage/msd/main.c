@@ -21,35 +21,46 @@
  */
 //#define __TRACE
 
-#include <ddk/contracts/storage.h>
+#include <ddk/storage.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include "msd.h"
 #include <string.h>
 #include <stdlib.h>
 
-static Collection_t *GlbMsdDevices = NULL;
+#include "ctt_driver_protocol_server.h"
+#include "ctt_storage_protocol_server.h"
+
+static list_t Devices = LIST_INIT;
+
+MsdDevice_t*
+MsdDeviceGet(
+    _In_ UUId_t deviceId)
+{
+    return list_find_value(&Devices, (void*)(uintptr_t)deviceId);
+}
 
 OsStatus_t
 OnLoad(void)
 {
-    // Initialize state for this driver
-    GlbMsdDevices = CollectionCreate(KeyId);
+    // Register supported protocols
+    gracht_server_register_protocol(&ctt_driver_protocol);
+    gracht_server_register_protocol(&ctt_storage_protocol);
     return UsbInitialize();
+}
+
+static void
+DestroyElement(
+    _In_ element_t* Element,
+    _In_ void*      Context)
+{
+    MsdDeviceDestroy(Element->value);
 }
 
 OsStatus_t
 OnUnload(void)
 {
-    // Iterate registered controllers
-    foreach(cNode, GlbMsdDevices) {
-        MsdDeviceDestroy((MsdDevice_t*)cNode->Data);
-    }
-
-    // Data is now cleaned up, destroy list
-    CollectionDestroy(GlbMsdDevices);
+    list_clear(&Devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
@@ -57,85 +68,45 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t *Device)
 {
-    MsdDevice_t *MsdDevice = NULL;
-    DataKey_t Key = { .Value.Id = Device->Id };
+    MsdDevice_t* MsdDevice;
     
-    // Register the new controller
     MsdDevice = MsdDeviceCreate((MCoreUsbDevice_t*)Device);
-
-    // Sanitize
     if (MsdDevice == NULL) {
         return OsError;
     }
 
-    CollectionAppend(GlbMsdDevices, CollectionCreateNode(Key, MsdDevice));
+    list_append(&Devices, &MsdDevice->Header);
     return OsSuccess;
+}
+
+void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+{
+    OsStatus_t status = OnRegister(args->device);
+    ctt_driver_register_device_response(message, status);
 }
 
 OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
-    MsdDevice_t *MsdDevice;
-    DataKey_t Key = { .Value.Id = Device->Id };
-
-    // Lookup controller
-    MsdDevice = (MsdDevice_t*)
-        CollectionGetDataByKey(GlbMsdDevices, Key, 0);
-
-    // Sanitize lookup
+    MsdDevice_t* MsdDevice = MsdDeviceGet(Device->Id);
     if (MsdDevice == NULL) {
         return OsError;
     }
 
-    CollectionRemoveByKey(GlbMsdDevices, Key);
+    list_remove(&Devices, &MsdDevice->Header);
     return MsdDeviceDestroy(MsdDevice);
 }
 
-OsStatus_t 
-OnQuery(
-    _In_ IpcMessage_t* Message)
+void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args* args)
 {
-    TRACE("MSD.OnQuery(Function %i)", IPC_GET_TYPED(Message, 1));
-    if (IPC_GET_TYPED(Message, 2) != ContractStorage) {
-        return OsError;
+    StorageDescriptor_t descriptor = { 0 };
+    OsStatus_t          status     = OsDoesNotExist;
+    MsdDevice_t*        device     = MsdDeviceGet(args->device_id);
+    if (device) {
+        memcpy(&descriptor, &device->Descriptor, sizeof(StorageDescriptor_t));
+        status = OsSuccess;
     }
-
-    switch (IPC_GET_TYPED(Message, 1)) {
-        case __STORAGE_QUERY_STAT: {
-            StorageDescriptor_t NullDescriptor = { 0 };
-            MsdDevice_t*        Device         = NULL;
-            DataKey_t           Key            = { .Value.Id = IPC_GET_TYPED(Message, 3) };
-            
-            Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
-            if (Device != NULL) {
-                return IpcReply(Message, &Device->Descriptor, sizeof(StorageDescriptor_t));
-            }
-            else {
-                return IpcReply(Message, &NullDescriptor, sizeof(StorageDescriptor_t));
-            }
-        } break;
-
-        // Read or write sectors from a disk identifier
-        // They have same parameters with different direction
-        case __STORAGE_TRANSFER: {
-            StorageOperation_t*      Operation = (StorageOperation_t*)IPC_GET_UNTYPED(Message, 0);
-            DataKey_t                Key       = { .Value.Id = IPC_GET_TYPED(Message, 3) };
-            StorageOperationResult_t Result    = { .Status = OsInvalidParameters, 0 };
-            MsdDevice_t*             Device;
-            
-            Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
-            if (Device == NULL) {
-                return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
-            }
-
-            Result.Status = MsdTransferSectors(Device, Operation, &Result.SectorsTransferred);
-            return IpcReply(Message, &Result, sizeof(StorageOperationResult_t));
-        } break;
-
-        // Other cases not supported
-        default: {
-            return OsError;
-        }
-    }
+    
+    ctt_storage_stat_response(message, status, &descriptor);
 }

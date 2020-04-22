@@ -24,8 +24,6 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
-#include <ddk/contracts/usbhost.h>
-#include <ddk/services/usb.h>
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>

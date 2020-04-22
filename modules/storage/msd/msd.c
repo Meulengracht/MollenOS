@@ -21,7 +21,11 @@
 #define __TRACE
 
 #include "msd.h"
+#include <ddk/service.h>
 #include <ddk/utils.h>
+#include <gracht/server.h>
+#include <internal/_ipc.h>
+#include <internal/_utils.h>
 #include <stdlib.h>
 
 static const char *DeviceTypeStrings[TypeCount] = {
@@ -36,8 +40,32 @@ static const char *DeviceProtocolStrings[ProtocolCount] = {
     "Bulk"
 };
 
-/* MsdDeviceCreate
- * Initializes a new msd-device from the given usb-device */
+static void
+RegisterStorage(
+    _In_ UUId_t       ProtocolServerId,
+    _In_ UUId_t       DeviceId,
+    _In_ unsigned int Flags)
+{
+    int                      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    
+    status = svc_storage_register(GetGrachtClient(), &msg,
+        ProtocolServerId, DeviceId, Flags);
+    gracht_vali_message_finish(&msg);
+}
+
+static void
+UnregisterStorage(
+    _In_ UUId_t       DeviceId,
+    _In_ unsigned int Flags)
+{
+    int                      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    
+    status = svc_storage_unregister(GetGrachtClient(), &msg, DeviceId, Flags);
+    gracht_vali_message_finish(&msg);
+}
+
 MsdDevice_t*
 MsdDeviceCreate(
     _In_ MCoreUsbDevice_t* UsbDevice)
@@ -64,6 +92,8 @@ MsdDeviceCreate(
     
     memset(Device, 0, sizeof(MsdDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
+    
+    ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, &Device);
     Device->Control = &Device->Base.Endpoints[0];
 
     // Find neccessary endpoints
@@ -141,12 +171,6 @@ MsdDeviceCreate(
         goto Error;
     }
 
-    InitializeContract(&Device->Contract, Device->Base.Base.Id, 1,
-        ContractStorage, "MSD Storage Interface");
-    if (RegisterContract(&Device->Contract) != OsSuccess) {
-        ERROR("Failed to register storage contract for device");
-    }
-
     // Wait for the disk service to finish loading
     if (WaitForFileService(1000) != OsSuccess) {
         ERROR("[msd] disk ready but storage service did not start");
@@ -154,9 +178,8 @@ MsdDeviceCreate(
         return Device;
     }
 
-    if (RegisterStorage(Device->Base.Base.Id, __STORAGE_REMOVABLE) != OsSuccess) {
-        ERROR("Failed to register storage with storagemanager");
-    }
+    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()),
+        Device->Base.Base.Id, SVC_STORAGE_REGISTER_FLAGS_REMOVABLE);
     return Device;
 
 Error:
@@ -172,9 +195,7 @@ MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
     // Notify diskmanager
-    if (UnregisterStorage(Device->Base.Base.Id, __STORAGE_FORCED_REMOVE) != OsSuccess) {
-        ERROR("Failed to unregister storage with storagemanager");
-    }
+    UnregisterStorage(Device->Base.Base.Id, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
 
     // Flush existing requests?
     // @todo

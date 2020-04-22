@@ -27,7 +27,7 @@
 #define BULK_RESET_OUT  0x4
 #define BULK_RESET_ALL  (BULK_RESET | BULK_RESET_IN | BULK_RESET_OUT)
 
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/utils.h>
 #include "../msd.h"
 
@@ -430,8 +430,9 @@ BulkSendCommand(
     _In_ size_t       BufferOffset,
     _In_ size_t       DataLength)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        CommandStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       CommandStage = { 0 };
+    size_t              bytesTransferred;
 
     // Debug
     TRACE("BulkSendCommand(Command %u, Start %u, Length %u)",
@@ -445,20 +446,20 @@ BulkSendCommand(
     UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
         sizeof(MsdCommandBlock_t), 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &CommandStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &CommandStage, &bytesTransferred);
 
     // Sanitize for any transport errors
-    if (Result->Status != TransferFinished) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Result->Status);
-        if (Result->Status == TransferStalled) {
+    if (Result != TransferFinished) {
+        ERROR("Failed to send the CBW command, transfer-code %u", Result);
+        if (Result == TransferStalled) {
             ERROR("Performing a recovery-reset on device.");
             if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsSuccess) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }
     }
-    return Result->Status;
+    return Result;
 }
 
 /* BulkReadData
@@ -471,22 +472,23 @@ BulkReadData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesRead)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        DataStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       DataStage = { 0 };
+    size_t              bytesTransferred;
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &DataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result->Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result->Status);
-        if (Result->Status == TransferStalled) {
+    if (Result != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result);
+        if (Result == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_IN);
         }
         else {
@@ -496,8 +498,8 @@ BulkReadData(
     }
 
     // Return state and update out
-    *BytesRead = Result->BytesTransferred;
-    return Result->Status;
+    *BytesRead = bytesTransferred;
+    return Result;
 }
 
 UsbTransferStatus_t 
@@ -508,22 +510,23 @@ BulkWriteData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesWritten)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        DataStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       DataStage = { 0 };
+    size_t              bytesTransferred;
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->Out, BulkTransfer, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &DataStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result->Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result->Status);
-        if (Result->Status == TransferStalled) {
+    if (Result != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
+        if (Result == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_OUT);
         }
         else {
@@ -533,16 +536,17 @@ BulkWriteData(
     }
 
     // Return state
-    *BytesWritten = Result->BytesTransferred;
-    return Result->Status;
+    *BytesWritten = bytesTransferred;
+    return Result;
 }
 
 UsbTransferStatus_t 
 BulkGetStatus(
     _In_ MsdDevice_t* Device)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        StatusStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       StatusStage = { 0 };
+    size_t              bytesTransferred;
 
     // Debug
     TRACE("BulkGetStatus()");
@@ -552,22 +556,22 @@ BulkGetStatus(
         Device->In, BulkTransfer, 0);
     UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &StatusStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &StatusStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    if (Result->Status != TransferFinished) {
-        if (Result->Status == TransferStalled) {
+    if (Result != TransferFinished) {
+        if (Result == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_IN);
             return BulkGetStatus(Device);
         }
         else {
-            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result->Status);
+            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result);
         }
-        return Result->Status;
+        return Result;
     }
     else {        
         // If the host receives a CSW which is not valid, 

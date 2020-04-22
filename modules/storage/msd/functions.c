@@ -26,6 +26,9 @@
 #include <ddk/utils.h>
 #include <threads.h>
 
+#include "ctt_driver_protocol_server.h"
+#include "ctt_storage_protocol_server.h"
+
 extern MsdOperations_t BulkOperations;
 extern MsdOperations_t UfiOperations;
 static MsdOperations_t *ProtocolOperations[ProtocolCount] = {
@@ -324,31 +327,35 @@ MsdDeviceStart(
 
 static void
 SelectScsiTransferCommand(
-    _In_  MsdDevice_t*        Device,
-    _In_  StorageOperation_t* Operation,
-    _Out_ uint8_t*            CommandOut,
-    _Out_ size_t*             MaxSectorsCountOut)
+    _In_  MsdDevice_t* device,
+    _In_  int          direction,
+    _Out_ uint8_t*     commandOut,
+    _Out_ size_t*      maxSectorsCountOut)
 {
     // Detect limits based on type of device and protocol
-    if (Device->Protocol == ProtocolCB || Device->Protocol == ProtocolCBI) {
-        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ_6 : SCSI_WRITE_6;
-        *MaxSectorsCountOut = UINT8_MAX;
+    if (device->Protocol == ProtocolCB || device->Protocol == ProtocolCBI) {
+        *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ_6 : SCSI_WRITE_6;
+        *maxSectorsCountOut = UINT8_MAX;
     }
-    else if (!Device->IsExtended) {
-        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ : SCSI_WRITE;
-        *MaxSectorsCountOut = UINT16_MAX;
+    else if (!device->IsExtended) {
+        *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ : SCSI_WRITE;
+        *maxSectorsCountOut = UINT16_MAX;
     }
     else {
-        *CommandOut         = (Operation->Direction == __STORAGE_OPERATION_READ) ? SCSI_READ_16 : SCSI_WRITE_16;
-        *MaxSectorsCountOut = UINT32_MAX;
+        *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ_16 : SCSI_WRITE_16;
+        *maxSectorsCountOut = UINT32_MAX;
     }
 }
 
 OsStatus_t
 MsdTransferSectors(
-    _In_  MsdDevice_t*        Device,
-    _In_  StorageOperation_t* Operation,
-    _Out_ size_t*             SectorsTransferred)
+    _In_  MsdDevice_t* device,
+    _In_  int          direction,
+    _In_  uint64_t     sector,
+    _In_  UUId_t       bufferHandle,
+    _In_  unsigned int bufferOffset,
+    _In_  size_t       sectorCount,
+    _Out_ size_t*      sectorsTransferred)
 {
     UsbTransferStatus_t Result;
     size_t              SectorsToBeTransferred;
@@ -356,43 +363,74 @@ MsdTransferSectors(
     size_t              MaxSectorsPerCommand;
 
     TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN, 
-        Operation->Direction, Operation->AbsoluteSector, Operation->SectorCount);
+        direction, sector, sectorCount);
 
     // Protect against bad start sector
-    if (Operation->AbsoluteSector >= Device->Descriptor.SectorCount) {
+    if (sector >= device->Descriptor.SectorCount) {
         return OsInvalidParameters;
     }
 
     // Of course it's possible that the requester is requesting too much data in one
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
-    SectorsToBeTransferred = Operation->SectorCount;
-    if ((Operation->AbsoluteSector + SectorsToBeTransferred) >= Device->Descriptor.SectorCount) {
-        SectorsToBeTransferred = Device->Descriptor.SectorCount - Operation->AbsoluteSector;
+    SectorsToBeTransferred = sectorCount;
+    if ((sector + SectorsToBeTransferred) >= device->Descriptor.SectorCount) {
+        SectorsToBeTransferred = device->Descriptor.SectorCount - sector;
     }
     
     // Detect limits based on type of device and protocol
-    SelectScsiTransferCommand(Device, Operation, &Command, &MaxSectorsPerCommand);
+    SelectScsiTransferCommand(device, direction, &Command, &MaxSectorsPerCommand);
     SectorsToBeTransferred = MIN(SectorsToBeTransferred, MaxSectorsPerCommand);
 
     TRACE("[msd_transfer] command %u, max sectors for command %u", Command, MaxSectorsPerCommand);
-    Result = MsdScsiCommand(Device, Operation->Direction == __STORAGE_OPERATION_WRITE, Command, 
-        Operation->AbsoluteSector, Operation->BufferHandle, Operation->BufferOffset,
-        SectorsToBeTransferred * Device->Descriptor.SectorSize);
+    Result = MsdScsiCommand(device, direction == __STORAGE_OPERATION_WRITE, Command, 
+        sector, bufferHandle, bufferOffset, SectorsToBeTransferred * device->Descriptor.SectorSize);
     if (Result != TransferFinished) {
-        if (SectorsTransferred) {
-            *SectorsTransferred = 0;
+        if (sectorsTransferred) {
+            *sectorsTransferred = 0;
         }
         return OsError;
     }
-    else if (SectorsTransferred) {
-        *SectorsTransferred = SectorsToBeTransferred;
-        if (Device->StatusBlock->DataResidue) {
+    else if (sectorsTransferred) {
+        *sectorsTransferred = SectorsToBeTransferred;
+        if (device->StatusBlock->DataResidue) {
             // Data residue is in bytes not transferred as it does not seem
             // required that we transfer in sectors
-            size_t SectorsLeft = DIVUP(Device->StatusBlock->DataResidue, 
-                Device->Descriptor.SectorSize);
-            *SectorsTransferred -= SectorsLeft;
+            size_t SectorsLeft = DIVUP(device->StatusBlock->DataResidue, 
+                device->Descriptor.SectorSize);
+            *sectorsTransferred -= SectorsLeft;
         }
     }
     return OsSuccess;
+}
+
+void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args* args)
+{
+    MsdDevice_t*    device = MsdDeviceGet(args->device_id);
+    OsStatus_t      status;
+    LargeUInteger_t sector;
+    size_t          sectorsTransferred;
+    
+    sector.u.LowPart = args->sector_lo;
+    sector.u.HighPart = args->sector_hi;
+    
+    status = MsdTransferSectors(device, args->direction, sector.QuadPart,
+        args->buffer_id, args->buffer_offset, args->sector_count,
+        &sectorsTransferred);
+    ctt_storage_transfer_async_response(message, status, sectorsTransferred);
+}
+
+void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)
+{
+    MsdDevice_t*    device = MsdDeviceGet(args->device_id);
+    OsStatus_t      status;
+    LargeUInteger_t sector;
+    size_t          sectorsTransferred;
+    
+    sector.u.LowPart = args->sector_lo;
+    sector.u.HighPart = args->sector_hi;
+    
+    status = MsdTransferSectors(device, args->direction, sector.QuadPart,
+        args->buffer_id, args->buffer_offset, args->sector_count,
+        &sectorsTransferred);
+    ctt_storage_transfer_response(message, status, sectorsTransferred);
 }

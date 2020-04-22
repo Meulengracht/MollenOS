@@ -21,11 +21,9 @@
  */
 //#define __TRACE
 
-#include <ddk/contracts/storage.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include "hid.h"
 #include <string.h>
 #include <stdlib.h>
@@ -122,12 +120,4 @@ OnUnregister(
 
 	// Destroy it
 	return HidDeviceDestroy(HidDevice);
-}
-
-OsStatus_t 
-OnQuery(
-    _In_ IpcMessage_t* Message)
-{
-    _CRT_UNUSED(Message);
-    return OsError;
 }

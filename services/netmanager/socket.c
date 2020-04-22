@@ -25,12 +25,13 @@
 //#define __TRACE
 
 #include <ddk/handle.h>
-#include <ddk/services/net.h>
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include "socket.h"
 #include <stdlib.h>
 #include <string.h>
+
+#include "svc_socket_protocol_server.h"
 
 // TODO send pipe should have STREAMBUFFER_MULTIPLE_WRITERS only
 // TODO recv pipe should have STREAMBUFFER_MULTIPLE_READERS only
@@ -164,7 +165,7 @@ SocketShutdownImpl(
     _In_ int       Options)
 {
     mtx_lock(&Socket->SyncObject);
-    if (Options & SOCKET_SHUTDOWN_DESTROY) {
+    if (Options & SVC_SOCKET_CLOSE_OPTIONS_DESTROY) {
         if (Socket->Configuration.Connected) {
             DomainDisconnect(Socket);
         }
@@ -178,12 +179,12 @@ SocketShutdownImpl(
         return OsSuccess;
     }
     else {
-        if (Options & SOCKET_SHUTDOWN_SEND) {
+        if (Options & SVC_SOCKET_CLOSE_OPTIONS_WRITE) {
             // Disable pipe
             // TODO
         }
         
-        if (Options & SOCKET_SHUTDOWN_RECV) {
+        if (Options & SVC_SOCKET_CLOSE_OPTIONS_READ) {
             // Disable pipe
             // TODO
         }

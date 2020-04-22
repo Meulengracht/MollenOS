@@ -27,77 +27,81 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include "hci.h"
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include <stdlib.h>
 #include "transfer.h"
+
+#include "ctt_driver_protocol_server.h"
+#include "ctt_usbhost_protocol_server.h"
 
 static UUId_t __GlbTransferId = 0;
 
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ thrd_t         Address,
-    _In_ UUId_t         DeviceId)
+    _In_ UsbTransfer_t*              transfer,
+    _In_ struct gracht_recv_message* message,
+    _In_ UUId_t                      deviceId)
 {
-    UsbManagerTransfer_t* UsbTransfer;
+    UsbManagerTransfer_t* usbTransfer;
     int                   i;
     
     TRACE("[usb_create_transfer] transactions %i",
-        Transfer->TransactionCount);
+        transfer->TransactionCount);
     
-    UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
-    if (!UsbTransfer) {
+    usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
+    if (!usbTransfer) {
         return NULL;
     }
     
-    memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
-    memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
+    memset(usbTransfer, 0, sizeof(UsbManagerTransfer_t));
+    memcpy(&usbTransfer->Transfer, transfer, sizeof(UsbTransfer_t));
     
-    UsbTransfer->Address  = Address;
-    UsbTransfer->DeviceId = DeviceId;
-    UsbTransfer->Id       = __GlbTransferId++;
-    UsbTransfer->Status   = TransferNotProcessed;
+    gracht_vali_message_defer_response(&usbTransfer->DeferredMessage, message);
+    
+    usbTransfer->DeviceId = deviceId;
+    usbTransfer->Id       = __GlbTransferId++;
+    usbTransfer->Status   = TransferNotProcessed;
     
     // When attaching to dma buffers make sure we don't attach
     // multiple times as we can then save a system call or two
-    for (i = 0; i < UsbTransfer->Transfer.TransactionCount; i++) {
-        if (UsbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+    for (i = 0; i < usbTransfer->Transfer.TransactionCount; i++) {
+        if (usbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
             continue;
         }
         TRACE("[usb_create_transfer] %i: length %" PRIuIN ", b_id %u, b_offset %" PRIuIN,
-            i, Transfer->Transactions[i].Length,
-            Transfer->Transactions[i].BufferHandle,
-            Transfer->Transactions[i].BufferOffset);
+            i, transfer->Transactions[i].Length,
+            transfer->Transactions[i].BufferHandle,
+            transfer->Transactions[i].BufferOffset);
         
-        if (i != 0 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
-                UsbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
+        if (i != 0 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
+                usbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
             TRACE("... reusing");
-            memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 1],
+            memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 1],
                 sizeof(struct UsbManagerTransaction));
         }
-        else if (i == 2 && UsbTransfer->Transfer.Transactions[i].BufferHandle ==
-                UsbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
+        else if (i == 2 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
+                usbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
             TRACE("... reusing");
-            memcpy(&UsbTransfer->Transactions[i], &UsbTransfer->Transactions[i - 2],
+            memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 2],
                 sizeof(struct UsbManagerTransaction));
         }
         else {
-            dma_attach(UsbTransfer->Transfer.Transactions[i].BufferHandle,
-                &UsbTransfer->Transactions[i].DmaAttachment);
-            dma_get_sg_table(&UsbTransfer->Transactions[i].DmaAttachment,
-                &UsbTransfer->Transactions[i].DmaTable, -1);
+            dma_attach(usbTransfer->Transfer.Transactions[i].BufferHandle,
+                &usbTransfer->Transactions[i].DmaAttachment);
+            dma_get_sg_table(&usbTransfer->Transactions[i].DmaAttachment,
+                &usbTransfer->Transactions[i].DmaTable, -1);
         }
-        dma_sg_table_offset(&UsbTransfer->Transactions[i].DmaTable,
-            UsbTransfer->Transfer.Transactions[i].BufferOffset,
-            &UsbTransfer->Transactions[i].SgIndex,
-            &UsbTransfer->Transactions[i].SgOffset);
+        dma_sg_table_offset(&usbTransfer->Transactions[i].DmaTable,
+            usbTransfer->Transfer.Transactions[i].BufferOffset,
+            &usbTransfer->Transactions[i].SgIndex,
+            &usbTransfer->Transactions[i].SgOffset);
         TRACE("[usb_create_transfer] sg_count %i, sg_index %i, sg_offset %u",
-            UsbTransfer->Transactions[i].DmaTable.count,
-            UsbTransfer->Transactions[i].SgIndex,
-            LODWORD(UsbTransfer->Transactions[i].SgOffset));
+            usbTransfer->Transactions[i].DmaTable.count,
+            usbTransfer->Transactions[i].SgIndex,
+            LODWORD(usbTransfer->Transactions[i].SgOffset));
     }
-    return UsbTransfer;
+    return usbTransfer;
 }
 
 void
@@ -130,10 +134,10 @@ void
 UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t* Transfer)
 {
-    UsbTransferResult_t Result;
-    IpcMessage_t        Message = { 0 };
+    UUId_t id;
+    size_t bytesTransferred;
     
-    TRACE("[usb] [manager] send notification to 0x%x", Transfer->Address);
+    TRACE("[usb] [manager] send notification");
     
     // If user doesn't want, ignore
     if (Transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
@@ -145,15 +149,13 @@ UsbManagerSendNotification(
         if ((Transfer->Flags & TransferFlagNotified)) {
             return;
         }
-        Transfer->Flags         |= TransferFlagNotified;
-        Result.Id               = Transfer->Id;
-        Result.BytesTransferred = Transfer->Transactions[0].BytesTransferred;
-        Result.BytesTransferred += Transfer->Transactions[1].BytesTransferred;
-        Result.BytesTransferred += Transfer->Transactions[2].BytesTransferred;
-
-        Result.Status  = Transfer->Status;
-        Message.Sender = Transfer->Address;
-        IpcReply(&Message, &Result, sizeof(UsbTransferResult_t));
+        Transfer->Flags |= TransferFlagNotified;
+        id               = Transfer->Id;
+        bytesTransferred = Transfer->Transactions[0].BytesTransferred;
+        bytesTransferred += Transfer->Transactions[1].BytesTransferred;
+        bytesTransferred += Transfer->Transactions[2].BytesTransferred;
+        ctt_usbhost_queue_response(&Transfer->DeferredMessage.recv_message, Transfer->Status,
+            bytesTransferred);
     }
     else {
         // Forward data to the driver
@@ -170,4 +172,60 @@ UsbManagerSendNotification(
                 Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
         }
     }
+}
+
+void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args* args)
+{
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    OsStatus_t            status   = HciQueueTransferGeneric(transfer);
+    if (status != OsSuccess) {
+        ctt_usbhost_queue_async_response(message, transfer->Id, status, 0);
+    }
+}
+
+void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args* args)
+{
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    OsStatus_t            status   = HciQueueTransferGeneric(transfer);
+    if (status != OsSuccess) {
+        ctt_usbhost_queue_response(message, status, 0);
+    }
+}
+
+void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args* args)
+{
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    OsStatus_t            status;
+    
+    if (transfer->Transfer.Type == IsochronousTransfer) {
+        status = HciQueueTransferIsochronous(transfer);
+    }
+    else {
+        status = HciQueueTransferGeneric(transfer);
+    }
+    
+    ctt_usbhost_queue_periodic_response(message, status);
+}
+
+void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args* args)
+{
+    UsbTransferStatus_t     status     = TransferInvalid;
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerTransfer_t*   transfer   = NULL;
+
+    // Lookup transfer by iterating through available transfers
+    foreach(node, controller->TransactionList) {
+        UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->Data;
+        if (itr->Id == args->transfer_id) {
+            transfer = itr;
+            break;
+        }
+    }
+
+    // Dequeue and send result back
+    if (transfer != NULL) {
+        status = HciDequeueTransfer(transfer);
+    }
+    
+    ctt_usbhost_dequeue_response(message, status);
 }

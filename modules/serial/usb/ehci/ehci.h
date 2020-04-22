@@ -25,7 +25,6 @@
 #define __USB_EHCI__
 
 #include <os/osdefs.h>
-#include <ddk/contracts/usbhost.h>
 #include <ds/collection.h>
 #include <limits.h>
 

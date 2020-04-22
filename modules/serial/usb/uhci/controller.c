@@ -64,11 +64,10 @@ UsbManagerController_t*
 HciControllerCreate(
     _In_ MCoreDevice_t* Device)
 {
-    // Variables
-    UhciController_t *Controller    = NULL;
-    DeviceIo_t *IoBase              = NULL;
-    Flags_t IoctlValue              = 0;
-    int i;
+    UhciController_t* Controller = NULL;
+    DeviceIo_t*       IoBase     = NULL;
+    size_t            IoctlValue = 0;
+    int               i;
     
     // Debug
     TRACE("UhciControllerCreate(%s)", &Device->Name[0]);
@@ -89,7 +88,6 @@ HciControllerCreate(
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
     // Fill in some basic stuff needed for init
-    Controller->Base.Contract.DeviceId  = Controller->Base.Device.Id;
     Controller->Base.Type               = UsbUHCI;
     Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
     Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
@@ -127,22 +125,10 @@ HciControllerCreate(
         Controller->Base.IoBase = IoBase;
     }
 
-    // Start out by initializing the contract
-    InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
-        ContractController, "UHCI Controller Interface");
-
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
     RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
-
-    // Register contract before interrupt
-    if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
-        ERROR("Failed to register contract for uhci-controller");
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
-        return NULL;
-    }
 
     // Register interrupt
     RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);

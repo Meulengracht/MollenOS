@@ -24,10 +24,7 @@
 #ifndef __USB_HCI__
 #define __USB_HCI__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-#include <ddk/contracts/usbhost.h>
 #include "manager.h"
 
 /* HciControllerCreate 

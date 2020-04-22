@@ -5,10 +5,10 @@
             <functions>
                 <function name="print" synchronous="true">
                     <request>
-                        <param name="message" type="string" count="128" />
+                        <param name="message" type="string" />
                     </request>
                     <response>
-                        <param name="status" type="int" count="1" />
+                        <param name="status" type="int" />
                     </response>
                 </function>
             </functions>

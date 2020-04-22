@@ -51,7 +51,6 @@ struct ipmsg_resp {
     union {
         UUId_t    handle;
         uintptr_t callback;
-        uintptr_t syncobject;
     } notify_data;
 };
 

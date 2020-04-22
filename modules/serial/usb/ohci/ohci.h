@@ -27,7 +27,6 @@
 
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
-#include <ddk/contracts/usbhost.h>
 #include <ds/collection.h>
 
 #include "../common/manager.h"

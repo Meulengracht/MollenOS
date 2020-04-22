@@ -26,9 +26,11 @@
 #include <ddk/utils.h>
 #include "hci.h"
 #include <os/mollenos.h>
-#include <os/ipc.h>
 #include <stdlib.h>
 #include <signal.h>
+
+#include "ctt_driver_protocol_server.h"
+#include "ctt_usbhost_protocol_server.h"
 
 extern void OnInterrupt(int, void*);
 
@@ -36,6 +38,11 @@ OsStatus_t
 OnLoad(void)
 {
     sigprocess(SIGINT, OnInterrupt);
+    
+    // Register supported protocols
+    gracht_server_register_protocol(&ctt_driver_protocol);
+    gracht_server_register_protocol(&ctt_usbhost_protocol);
+    
     return UsbManagerInitialize();
 }
 
@@ -58,6 +65,12 @@ OnRegister(
     }
 }
 
+void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+{
+    OsStatus_t status = OnRegister(args->device);
+    ctt_driver_register_device_response(message, status);
+}
+
 OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
@@ -69,109 +82,20 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-OsStatus_t
-OnQuery(
-    _In_ IpcMessage_t* Message)
+void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args* args)
 {
-    UsbManagerController_t* Controller;
-    UsbManagerTransfer_t*   Transfer;
-    OsStatus_t              Result = OsError;
-    UUId_t                  Device = UUID_INVALID;
+    UsbHcPortDescriptor_t   descriptor;
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    HciPortGetStatus(controller, (int)args->port_id, &descriptor);
+    ctt_usbhost_query_port_response(message, OsSuccess, &descriptor);
+}
 
-    // Debug
-    TRACE("Hci.OnQuery(Function %i)", IPC_GET_TYPED(Message, 1));
-
-    // Instantiate some variables
-    Device      = (UUId_t)IPC_GET_TYPED(Message, 3);
-    Controller  = UsbManagerGetController(Device);
-    if (Controller == NULL) {
-        return IpcReply(Message, &Result, sizeof(OsStatus_t));
-    }
-
-    switch (IPC_GET_TYPED(Message, 1)) {
-        // Generic Queue
-        case __USBHOST_QUEUETRANSFER: {
-            UsbTransferResult_t ResPackage;
-
-            // Create and setup new transfer
-            Transfer = UsbManagerCreateTransfer(IPC_GET_UNTYPED(Message, 0),
-                Message->Sender, Device);
-            
-            // Queue the periodic transfer
-            ResPackage.Status           = HciQueueTransferGeneric(Transfer);
-            ResPackage.Id               = Transfer->Id;
-            ResPackage.BytesTransferred = 0;
-            if (ResPackage.Status != TransferQueued) {
-                return IpcReply(Message, &ResPackage, sizeof(UsbTransferResult_t));
-            }
-            else {
-                return OsSuccess;
-            }
-        } break;
-
-        // Periodic Queue
-        case __USBHOST_QUEUEPERIODIC: {
-            UsbTransferResult_t ResPackage;
-
-            // Create and setup new transfer
-            Transfer = UsbManagerCreateTransfer(IPC_GET_UNTYPED(Message, 0),
-                Message->Sender, Device);
-
-            // Queue the periodic transfer
-            if (Transfer->Transfer.Type == IsochronousTransfer) {
-                ResPackage.Status = HciQueueTransferIsochronous(Transfer);
-            }
-            else {
-                ResPackage.Status = HciQueueTransferGeneric(Transfer);
-            }
-            ResPackage.Id               = Transfer->Id;
-            ResPackage.BytesTransferred = 0;
-            return IpcReply(Message, &ResPackage, sizeof(UsbTransferResult_t));
-        } break;
-
-        // Dequeue Transfer
-        case __USBHOST_DEQUEUEPERIODIC: {
-            UUId_t              Id     = (UUId_t)IPC_GET_TYPED(Message, 4);
-            UsbTransferStatus_t Status = TransferInvalid;
-            Transfer = NULL;
-
-            // Lookup transfer by iterating through available transfers
-            foreach(tNode, Controller->TransactionList) {
-                UsbManagerTransfer_t* NodeTransfer = (UsbManagerTransfer_t*)tNode->Data;
-                if (NodeTransfer->Id == Id) {
-                    Transfer = NodeTransfer;
-                    break;
-                }
-            }
-
-            // Dequeue and send result back
-            if (Transfer != NULL) {
-                Status = HciDequeueTransfer(Transfer);
-            }
-            return IpcReply(Message, &Status, sizeof(UsbTransferStatus_t));
-        } break;
-
-        // Reset port
-        case __USBHOST_RESETPORT: {
-            // Call reset procedure, then let it fall through to QueryPort
-            HciPortReset(Controller, (int)IPC_GET_TYPED(Message, 4));
-        };
-        // Query port
-        case __USBHOST_QUERYPORT: {
-            UsbHcPortDescriptor_t Descriptor;
-            HciPortGetStatus(Controller, (int)IPC_GET_TYPED(Message, 4), &Descriptor);
-            return IpcReply(Message, &Descriptor, sizeof(UsbHcPortDescriptor_t));
-        } break;
-        
-        // Reset endpoint toggles
-        case __USBHOST_RESETENDPOINT: {
-            UsbHcAddress_t* Address = IPC_GET_UNTYPED(Message, 0);
-            Result = UsbManagerSetToggle(Device, Address, 0);
-        } break;
-
-        // Fall-through, error
-        default:
-            break;
-    }
-    return IpcReply(Message, &Result, sizeof(OsStatus_t));
+void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args* args)
+{
+    UsbHcPortDescriptor_t   descriptor;
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    OsStatus_t              status     = HciPortReset(controller, (int)args->port_id);
+    
+    HciPortGetStatus(controller, (int)args->port_id, &descriptor);
+    ctt_usbhost_reset_port_response(message, status, &descriptor);
 }

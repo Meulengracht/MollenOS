@@ -28,7 +28,6 @@
 #include "../socket.h"
 #include "../manager.h"
 #include <ddk/handle.h>
-#include <ddk/services/net.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
 #include <internal/_socket.h>
@@ -114,7 +113,7 @@ DomainLocalGetAddress(
     LcAddress->slc_family = AF_LOCAL;
     
     switch (Source) {
-        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
+        case SVC_SOCKET_GET_ADDRESS_SOURCE_THIS: {
             if (!Record) {
                 return OsDoesNotExist;
             }
@@ -122,13 +121,13 @@ DomainLocalGetAddress(
             return OsSuccess;
         } break;
         
-        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
+        case SVC_SOCKET_GET_ADDRESS_SOURCE_PEER: {
             Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
             if (!PeerSocket) {
                 return OsDoesNotExist;
             }
             return DomainLocalGetAddress(PeerSocket, 
-                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
+                SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
         } break;
     }
     return OsInvalidParameters;
@@ -229,7 +228,7 @@ ProcessSocketPacket(
     
     // We must set the client address at this point. Replace the target address with
     // the source address for the reciever.
-    DomainLocalGetAddress(Socket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
+    DomainLocalGetAddress(Socket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
     Pointer += Packet->addresslen;
     
     if (Packet->controllen) {
@@ -455,7 +454,7 @@ AcceptConnectionRequest(
     TRACE("[net_manager] [accept_request]");
     
     // Get address of the connector socket
-    DomainLocalGetAddress(connectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&address);
+    DomainLocalGetAddress(connectSocket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&address);
     
     // Create a new socket for the acceptor. This socket will be paired with
     // the connector socket.

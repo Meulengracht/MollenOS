@@ -54,7 +54,6 @@ HciControllerCreate(
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
     // Fill in some basic stuff needed for init
-    Controller->Base.Contract.DeviceId  = Controller->Base.Device.Id;
     Controller->Base.Type               = UsbEHCI;
     Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
     Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
@@ -91,10 +90,6 @@ HciControllerCreate(
         Controller->Base.IoBase = IoBase;
     }
 
-    // Start out by initializing the contract
-    InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
-        ContractController, "EHCI Controller Interface");
-
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
@@ -108,13 +103,6 @@ HciControllerCreate(
     RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(EhciController_t), 0);
     
-    if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
-        ERROR("Failed to register contract for ehci-controller");
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
-        return NULL;
-    }
-
     // Register interrupt
     RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt  = RegisterInterruptSource(
@@ -192,12 +180,10 @@ EhciDisableLegacySupport(
     // If the eecp is valid ( >= 0x40), then there are a few
     // cases we can handle, but if its not valid, there is no legacy
     if (Eecp >= 0x40) {
-
-        // Variables
-        Flags_t Semaphore   = 0;
-        Flags_t CapId       = 0;
-        Flags_t NextEecp    = 0;
-        int Run             = 1;
+        size_t Semaphore = 0;
+        size_t CapId     = 0;
+        size_t NextEecp  = 0;
+        int Run          = 1;
 
         // Get the extended capability register
         // We read the second byte, because it contains the BIOS Semaphore
@@ -228,7 +214,7 @@ EhciDisableLegacySupport(
 
         // Only continue if Id == 0x01
         if (CapId == 0x01) {
-            Flags_t Zero = 0;
+            size_t Zero = 0;
             if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
                 return;
             }
@@ -237,7 +223,7 @@ EhciDisableLegacySupport(
             if (Semaphore & 0x1) {
                 // Request for my hat back :/
                 // Third byte contains the OS Semaphore 
-                Flags_t One = 0x1;
+                size_t One = 0x1;
                 if (IoctlDeviceEx(Controller->Base.Device.Id, 1, Eecp + 0x3, &One, 1) != OsSuccess) {
                     return;
                 }

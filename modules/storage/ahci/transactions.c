@@ -132,6 +132,7 @@ AhciTransactionControlCreate(
     dma_get_sg_table(&Transaction->DmaAttachment, &Transaction->DmaTable, -1);
     Transaction->Header.Key.Value.Id = TransactionId++;
 
+    Transaction->Internal  = 1;
     Transaction->Type      = TransactionRegisterFISH2D;
     Transaction->State     = TransactionCreated;
     Transaction->Slot      = -1;
@@ -310,7 +311,7 @@ AhciTransactionHandleResponse(
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
-    OsStatus_t status;
+    OsStatus_t status = OsNotSupported;
     
     TRACE("AhciCommandFinish()");
     
@@ -324,7 +325,7 @@ AhciTransactionHandleResponse(
 
     // Is the transaction finished? (Or did it error?)
     if (status != OsSuccess || Transaction->BytesLeft == 0) {
-        if (Transaction->Address == UUID_INVALID) {
+        if (Transaction->Internal) {
             AhciManagerHandleControlResponse(Port, Transaction);
         }
         else {

@@ -25,13 +25,16 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <threads.h>
 #include "manager.h"
 #include "hci.h"
+
+#include "ctt_driver_protocol_server.h"
+#include "ctt_usbhost_protocol_server.h"
 
 static EventQueue_t* EventQueue  = NULL;
 static Collection_t  Controllers = COLLECTION_INIT(KeyId);
@@ -254,6 +257,13 @@ UsbManagerSetToggle(
         }
     }
     return OsError;
+}
+
+void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args* args)
+{
+    UsbHcAddress_t address = { args->hub_address, args->port_address, args->device_address, args->endpoint_address };
+    OsStatus_t     status  = UsbManagerSetToggle(args->device_id, &address, 0);
+    ctt_usbhost_reset_endpoint_response(message, status);
 }
 
 OsStatus_t

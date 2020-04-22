@@ -22,7 +22,7 @@
  */
 #define __TRACE
 
-#include <ddk/services/usb.h>
+#include <ddk/usb.h>
 #include <ddk/utils.h>
 #include "../msd.h"
 
@@ -140,9 +140,8 @@ UfiSendCommand(
     _In_ size_t       BufferOffset,
     _In_ size_t       DataLength)
 {
-    // Variables
     MsdCommandBlockUFI_t UfiCommandBlock;
-    UsbTransferResult_t Result  = { 0 };
+    UsbTransferStatus_t  Result;
 
     // Debug
     TRACE("UfiSendCommand(Command %u, Start %u, Length %u)",
@@ -151,17 +150,17 @@ UfiSendCommand(
     // Construct our command build the usb transfer
     UfiConstructCommand(&UfiCommandBlock, ScsiCommand, SectorStart,
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    Result.Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
+    Result = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
         &Device->Base.Device, Device->Control, 
         USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
         (uint16_t)Device->Base.Interface.Id, 
         sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
 
     // Sanitize for any transport errors
-    if (Result.Status != TransferFinished) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Result.Status);
+    if (Result != TransferFinished) {
+        ERROR("Failed to send the CBW command, transfer-code %u", Result);
     }
-    return Result.Status;
+    return Result;
 }
 
 UsbTransferStatus_t 
@@ -172,25 +171,23 @@ UfiReadData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesRead)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        DataStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       DataStage = { 0 };
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &DataStage, BytesRead);
     
     // Sanitize for any transport errors
-    if (Result->Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result->Status);
+    if (Result != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result);
         // @todo handle
     }
-
-    // Return state and update out
-    *BytesRead = Result->BytesTransferred;
-    return Result->Status;
+    
+    return Result;
 }
 
 UsbTransferStatus_t 
@@ -201,25 +198,23 @@ UfiWriteData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesWritten)
 {
-    UsbTransferResult_t* Result;
-    UsbTransfer_t        DataStage = { 0 };
+    UsbTransferStatus_t Result;
+    UsbTransfer_t       DataStage = { 0 };
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->Out, BulkTransfer, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &Result);
+    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &DataStage, BytesWritten);
 
     // Sanitize for any transport errors
-    if (Result->Status != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result->Status);
+    if (Result != TransferFinished) {
+        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
         // @todo handle
     }
-
-    // Return state and update out
-    *BytesWritten = Result->BytesTransferred;
-    return Result->Status;
+    
+    return Result;
 }
 
 /* UfiGetStatus
