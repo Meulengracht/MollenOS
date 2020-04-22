@@ -19,11 +19,10 @@
  * Generic Bitmap Implementation
  */
 
-#ifndef __GENERIC_BITMAP_H__
-#define __GENERIC_BITMAP_H__
+#ifndef __BITMAP_H__
+#define __BITMAP_H__
 
-#include <os/osdefs.h>
-#include <ds/ds.h>
+#include <ds/dsdefs.h>
 
 typedef struct {
     int     Cleanup;
@@ -36,7 +35,7 @@ typedef struct {
  * Creates a bitmap of the given size in bytes, the actual available
  * member count will then be Size * sizeof(byte). This automatically
  * allocates neccessary resources */
-CRTDECL(Bitmap_t*,
+DSDECL(Bitmap_t*,
 BitmapCreate(
     _In_ size_t Size));
 
@@ -44,7 +43,7 @@ BitmapCreate(
  * Creates a bitmap of the given size in bytes, the actual available
  * member count will then be Size * sizeof(byte). This uses user-provided
  * resources, and won't be cleaned up. */
-CRTDECL(OsStatus_t,
+DSDECL(OsStatus_t,
 BitmapConstruct(
     _In_ Bitmap_t* Bitmap,
     _In_ size_t*   Data,
@@ -52,14 +51,14 @@ BitmapConstruct(
 
 /* BitmapDestroy
  * Cleans up any resources allocated by the Create/Construct. */
-CRTDECL(OsStatus_t,
+DSDECL(OsStatus_t,
 BitmapDestroy(
     _In_ Bitmap_t* Bitmap));
 
 /* BitmapSetBits
  * Flips all bits to 1 at the given index, and for <Count> bits. Returns the 
  * actual number of bits set in this iteration. */
-CRTDECL(int,
+DSDECL(int,
 BitmapSetBits(
     _In_    Bitmap_t* Bitmap,
     _InOut_ int*      SearchIndex,
@@ -69,7 +68,7 @@ BitmapSetBits(
 /* BitmapClearBits
  * Clears all bits from the given index, and for <Count> bits. Returns the number
  * of bits cleared in this iteration. */
-CRTDECL(int,
+DSDECL(int,
 BitmapClearBits(
     _In_    Bitmap_t* Bitmap,
     _InOut_ int*      SearchIndex,
@@ -79,7 +78,7 @@ BitmapClearBits(
 /* BitmapAreBitsSet
  * If all bits are set from the given index, and for <Count> bits, then this
  * function returns 1. Otherwise 0. */
-CRTDECL(int,
+DSDECL(int,
 BitmapAreBitsSet(
     _In_ Bitmap_t* Bitmap,
     _In_ int       Index,
@@ -88,7 +87,7 @@ BitmapAreBitsSet(
 /* BitmapAreBitsClear
  * If all bits are cleared from the given index, and for <Count> bits, then this
  * function returns 1. Otherwise 0. */
-CRTDECL(int,
+DSDECL(int,
 BitmapAreBitsClear(
     _In_ Bitmap_t* Bitmap,
     _In_ int       Index,
@@ -97,10 +96,10 @@ BitmapAreBitsClear(
 /* BitmapFindBits
  * Locates the requested number of consequtive free bits.
  * Returns the index of the first free bit. Returns -1 on no free. */
-CRTDECL(int,
+DSDECL(int,
 BitmapFindBits(
     _In_    Bitmap_t* Bitmap,
     _InOut_ int*      SearchIndex,
     _In_    int       Count));
 
-#endif //!__GENERIC_BITMAP_H__
+#endif //!__BITMAP_H__

@@ -28,11 +28,7 @@
 #include <inet/socket.h>
 
 typedef struct gracht_server_configuration {
-    struct sockaddr_storage server_address;
-    socklen_t               server_address_length;
-    
-    struct sockaddr_storage dgram_address;
-    socklen_t               dgram_address_length;
+    struct server_link_ops* link;
 } gracht_server_configuration_t;
 
 #ifdef __cplusplus
@@ -46,8 +42,11 @@ int gracht_server_initialize(gracht_server_configuration_t*);
 int gracht_server_register_protocol(gracht_protocol_t*);
 int gracht_server_unregister_protocol(gracht_protocol_t*);
 int gracht_server_main_loop(void);
-int gracht_server_send_event(int, uint8_t, uint8_t, void*, size_t);
-int gracht_server_broadcast_event(uint8_t, uint8_t, void*, size_t);
+int gracht_server_get_dgram_iod(void);
+
+int gracht_server_respond(struct gracht_recv_message*, struct gracht_message*);
+int gracht_server_send_event(int, struct gracht_message*, unsigned int);
+int gracht_server_broadcast_event(struct gracht_message*, unsigned int);
 
 #ifdef __cplusplus
 }

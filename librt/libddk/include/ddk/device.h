@@ -27,17 +27,6 @@
 #include <ddk/ddkdefs.h>
 #include <ddk/interrupt.h>
 #include <ddk/io.h>
-#include <ddk/services/service.h>
-
-#define __DEVICEMANAGER_INTERFACE_VERSION           1
-
-#define __DEVICEMANAGER_REGISTERDEVICE              (int)0
-#define __DEVICEMANAGER_UNREGISTERDEVICE            (int)1
-#define __DEVICEMANAGER_QUERYDEVICE                 (int)2
-#define __DEVICEMANAGER_IOCTLDEVICE                 (int)3
-
-#define __DEVICEMANAGER_REGISTERCONTRACT            (int)4
-#define __DEVICEMANAGER_UNREGISTERCONTRACT          (int)5
 
 #define __DEVICEMANAGER_NAMEBUFFER_LENGTH           128
 #define __DEVICEMANAGER_MAX_IOSPACES                6
@@ -72,7 +61,7 @@
 #define __DEVICEMANAGER_IOCTL_EXT_WRITE             0x00000000
 #define __DEVICEMANAGER_IOCTL_EXT_READ              0x80000000
 
-PACKED_TYPESTRUCT(MCoreDevice, {
+typedef struct MCoreDevice {
     UUId_t              Id;
     char                Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
     size_t              Length;
@@ -93,7 +82,7 @@ PACKED_TYPESTRUCT(MCoreDevice, {
     DevInfo_t           Bus;
     DevInfo_t           Slot;
     DevInfo_t           Function;
-});
+} MCoreDevice_t;
 
 /* RegisterDevice
  * Allows registering of a new device in the
@@ -126,11 +115,11 @@ IoctlDevice(
  * <Direction> = 0 (Read), 1 (Write) */
 DDKDECL(OsStatus_t,
 IoctlDeviceEx(
-    _In_    UUId_t   Device,
-    _In_    int      Direction,
-    _In_    Flags_t  Register,
-    _InOut_ Flags_t* Value,
-    _In_    size_t   Width));
+    _In_    UUId_t  Device,
+    _In_    int     Direction,
+    _In_    Flags_t Register,
+    _InOut_ size_t* Value,
+    _In_    size_t  Width));
 
 /* InstallDriver 
  * Tries to find a suitable driver for the given device

@@ -20,17 +20,19 @@
  * - Standard IO file operation implementations.
  */
 
-#include <ddk/services/file.h> // for ipc
-#include <os/services/file.h>
-#include <ddk/utils.h>
-
-#include <io.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <ddk/protocols/svc_file_protocol_client.h>
+#include <ddk/service.h>
+#include <ddk/utils.h>
+#include <errno.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
+#include <io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // Convert O_* flags to WX_* flags
 static unsigned
@@ -64,12 +66,13 @@ oftowx(unsigned oflags)
 // return -1 on fail and set errno
 int open(const char* file, int flags, ...)
 {
-    FileSystemCode_t code;
-    stdio_handle_t*  object;
-    UUId_t           handle;
-    int              pmode = 0;
-    int              fd    = -1;
-    va_list          ap;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    int                      status;
+    OsStatus_t               osStatus;
+    stdio_handle_t*          object;
+    UUId_t                   handle;
+    int                      pmode = 0;
+    va_list                  ap;
 
     if (!file) {
         _set_errno(EINVAL);
@@ -84,16 +87,22 @@ int open(const char* file, int flags, ...)
     }
     
     // Try to open the file by directly communicating with the file-service
-    code = OpenFile(file, _fopts(flags), _faccess(flags), &handle);
-    if (!_fval(code)) {
-        if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
-            CloseFile(handle);
-            return -1;
-        }
-        stdio_handle_set_handle(object, handle);
-        stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
-        
-        fd = object->fd;
+    status = svc_file_open_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        file, _fopts(flags), _faccess(flags), &osStatus, &handle);
+    gracht_vali_message_finish(&msg);
+    if (status || OsStatusToErrno(osStatus)) {
+        return -1;
     }
-    return fd;
+    
+    if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
+        svc_file_close_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+            handle, &osStatus);
+        gracht_vali_message_finish(&msg);
+        return -1;
+    }
+    
+    stdio_handle_set_handle(object, handle);
+    stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
+    
+    return object->fd;
 }

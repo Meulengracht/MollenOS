@@ -28,7 +28,7 @@
 #include <string.h>
 #include "mfs.h"
 
-FileSystemCode_t
+OsStatus_t
 FsReadFromFile(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MfsEntryHandle_t*         Handle,
@@ -40,7 +40,7 @@ FsReadFromFile(
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    FileSystemCode_t Result          = FsOk;
+    OsStatus_t       Result          = OsSuccess;
     uint64_t         Position        = Handle->Base.Position;
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
     size_t           BytesToRead     = UnitCount;
@@ -54,7 +54,7 @@ FsReadFromFile(
     // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((Position + BytesToRead) > Entry->Base.Descriptor.Size.QuadPart) {
         if (Position == Entry->Base.Descriptor.Size.QuadPart) {
-            return FsOk;
+            return OsSuccess;
         }
         BytesToRead = (size_t)(Entry->Base.Descriptor.Size.QuadPart - Position);
     }
@@ -140,7 +140,7 @@ FsReadFromFile(
             if (MfsReadSectors(FileSystem, SelectedHandle, SelectedOffset, 
                     Sector, SectorCount, &SectorsRead) != OsSuccess) {
                 ERROR("Failed to read sector");
-                Result = FsDiskError;
+                Result = OsDeviceError;
                 break;
             }
             
@@ -166,9 +166,9 @@ FsReadFromFile(
         // We do if the position we have read to equals end of bucket
         if (Position == (Handle->BucketByteBoundary + (Handle->DataBucketLength * BucketSizeBytes))) {
             Result = MfsSwitchToNextBucketLink(FileSystem, Handle, BucketSizeBytes);
-            if (Result != FsOk) {
-                if (Result == FsPathNotFound) {
-                    Result = FsOk;
+            if (Result != OsSuccess) {
+                if (Result == OsDoesNotExist) {
+                    Result = OsSuccess;
                 }
                 break;
             }
@@ -183,7 +183,7 @@ FsReadFromFile(
     return Result;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsWriteToFile(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MfsEntryHandle_t*         Handle,
@@ -195,7 +195,7 @@ FsWriteToFile(
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    FileSystemCode_t Result          = FsOk;
+    OsStatus_t       Result          = OsSuccess;
     uint64_t         Position        = Handle->Base.Position;
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
     size_t           BytesToWrite    = UnitCount;
@@ -209,7 +209,7 @@ FsWriteToFile(
     // We do not have the same boundary limits here as we do when reading, when we
     // write to a file we can do so untill we run out of space on the filesystem.
     Result = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
-    if (Result != FsOk) {
+    if (Result != OsSuccess) {
         return Result;
     }
 
@@ -284,7 +284,7 @@ FsWriteToFile(
                         Sector, SectorCount, &SectorsWritten) != OsSuccess) {
                     ERROR("Failed to read sector %u for combination step", 
                         LODWORD(Sector));
-                    Result = FsDiskError;
+                    Result = OsDeviceError;
                     break;
                 }
                 
@@ -297,7 +297,7 @@ FsWriteToFile(
             if (MfsWriteSectors(FileSystem, SelectedHandle, SelectedOffset,
                     Sector, SectorCount, &SectorsWritten) != OsSuccess) {
                 ERROR("Failed to write sector %u", LODWORD(Sector));
-                Result = FsDiskError;
+                Result = OsDeviceError;
                 break;
             }
             
@@ -320,7 +320,7 @@ FsWriteToFile(
             // We have to lookup the link for current bucket
             if (MfsGetBucketLink(FileSystem, Handle->DataBucketPosition, &Link) != OsSuccess) {
                 ERROR("Failed to get link for bucket %u", Handle->DataBucketPosition);
-                Result = FsDiskError;
+                Result = OsDeviceError;
                 break;
             }
 
@@ -333,7 +333,7 @@ FsWriteToFile(
             // Lookup length of link
             if (MfsGetBucketLink(FileSystem, Handle->DataBucketPosition, &Link) != OsSuccess) {
                 ERROR("Failed to get length for bucket %u", Handle->DataBucketPosition);
-                Result = FsDiskError;
+                Result = OsDeviceError;
                 break;
             }
             Handle->DataBucketLength    = Link.Length;
@@ -346,7 +346,7 @@ FsWriteToFile(
     return Result;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsSeekInFile(
     _In_ FileSystemDescriptor_t* FileSystem,
     _In_ MfsEntryHandle_t*       Handle,
@@ -361,7 +361,7 @@ FsSeekInFile(
 
     // Sanitize seeking bounds
     if ((AbsolutePosition > Entry->Base.Descriptor.Size.QuadPart)) {
-        return FsInvalidParameters;
+        return OsInvalidParameters;
     }
 
     // Step 1, if the new position is in
@@ -408,20 +408,20 @@ FsSeekInFile(
                 // Get link
                 if (MfsGetBucketLink(FileSystem, BucketPtr, &Link) != OsSuccess) {
                     ERROR("Failed to get link for bucket %u", BucketPtr);
-                    return FsDiskError;
+                    return OsDeviceError;
                 }
 
                 // If we do reach end of chain, something went terribly wrong
                 if (Link.Link == MFS_ENDOFCHAIN) {
                     ERROR("Reached end of chain during seek");
-                    return FsInvalidParameters;
+                    return OsInvalidParameters;
                 }
                 BucketPtr = Link.Link;
 
                 // Get length of link
                 if (MfsGetBucketLink(FileSystem, BucketPtr, &Link) != OsSuccess) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
-                    return FsDiskError;
+                    return OsDeviceError;
                 }
                 BucketLength = Link.Length;
 
@@ -440,17 +440,17 @@ FsSeekInFile(
     
     // Update the new position since everything went ok
     Handle->Base.Position = AbsolutePosition;
-    return FsOk;
+    return OsSuccess;
 }
 
-FileSystemCode_t
+OsStatus_t
 FsChangeFileSize(
     _In_ FileSystemDescriptor_t* FileSystem,
     _In_ FileSystemEntry_t*      BaseEntry,
     _In_ uint64_t                Size)
 {
     MfsEntry_t*         Entry   = (MfsEntry_t*)BaseEntry;
-    FileSystemCode_t    Code    = FsOk;
+    OsStatus_t    Code    = OsSuccess;
 
     TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(Entry->Base.Name), LODWORD(Size));
 
@@ -462,11 +462,11 @@ FsChangeFileSize(
             if (Status != OsSuccess) {
                 ERROR("Failed to free the buckets at start 0x%x, length 0x%x. when truncating",
                     Entry->StartBucket, Entry->StartLength);
-                Code = FsDiskError;
+                Code = OsDeviceError;
             }
         }
 
-        if (Code == FsOk) {
+        if (Code == OsSuccess) {
             Entry->AllocatedSize = 0;
             Entry->StartBucket   = MFS_ENDOFCHAIN;
             Entry->StartLength   = 0;
@@ -476,7 +476,7 @@ FsChangeFileSize(
         Code = MfsEnsureRecordSpace(FileSystem, Entry, Size);
     }
 
-    if (Code == FsOk) {
+    if (Code == OsSuccess) {
         // entry->modified = now
         Entry->Base.Descriptor.Size.QuadPart    = Size;
         Entry->ActionOnClose                    = MFS_ACTION_UPDATE;

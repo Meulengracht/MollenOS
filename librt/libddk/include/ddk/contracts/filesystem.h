@@ -24,8 +24,7 @@
 #ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
 #define _CONTRACT_FILESYSTEM_INTERFACE_H_
 
-#include <ddk/contracts/storage.h>
-#include <ddk/driver.h>
+#include <ddk/storage.h>
 #include <os/mollenos.h>
 
 /* FileSystem Export 
@@ -112,7 +111,7 @@ __FSDECL(FsDestroy)(
 /* FsOpenEntry 
  * Fills the entry structure with information needed to access and manipulate the given path.
  * The entry can be any given type, file, directory, link etc. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsOpenEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MString_t*                Path,
@@ -122,7 +121,7 @@ __FSDECL(FsOpenEntry)(
  * Creates the path specified and fills the entry structure with similar information as
  * FsOpenEntry. This function (if success) acts like FsOpenEntry. The entry type is specified
  * by options and can be any type. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsCreatePath)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MString_t*                Path,
@@ -132,7 +131,7 @@ __FSDECL(FsCreatePath)(
 /* FsCloseEntry 
  * Releases resources allocated in the Open/Create function. If entry was opened in
  * exclusive access this is now released. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsCloseEntry)(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntry_t*         BaseEntry);
@@ -141,7 +140,7 @@ __FSDECL(FsCloseEntry)(
  * Deletes the entry specified. If the entry is a directory it must be opened in
  * exclusive access to lock all subentries. Otherwise this can result in zombie handles. 
  * This also acts as a FsCloseHandle and FsCloseEntry. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsDeleteEntry)(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle);
@@ -150,7 +149,7 @@ __FSDECL(FsDeleteEntry)(
  * Opens a new handle to a entry, this allows various interactions with the base entry, 
  * like read and write. Neccessary resources and initialization of the Handle
  * should be done here too */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsOpenHandle)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntry_t*        BaseEntry,
@@ -159,7 +158,7 @@ __FSDECL(FsOpenHandle)(
 /* FsCloseHandle 
  * Closes the entry handle and cleans up any resources allocated by the FsOpenHandle equivelent. 
  * Handle is not released by this function but should be cleaned up. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsCloseHandle)(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle);
@@ -167,7 +166,7 @@ __FSDECL(FsCloseHandle)(
 /* FsReadEntry 
  * Reads the requested number of units from the entry handle into the supplied buffer. This
  * can be handled differently based on the type of entry. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsReadEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
@@ -180,7 +179,7 @@ __FSDECL(FsReadEntry)(
 /* FsWriteEntry
  * Writes the requested number of bytes to the given
  * file handle and outputs the number of bytes actually written */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsWriteEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
@@ -193,7 +192,7 @@ __FSDECL(FsWriteEntry)(
 /* FsSeekInEntry 
  * Seeks in the given entry-handle to the absolute position
  * given, must be within boundaries otherwise a seek won't take a place */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsSeekInEntry)(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntryHandle_t*   BaseHandle,
@@ -202,7 +201,7 @@ __FSDECL(FsSeekInEntry)(
 /* FsChangeFileSize
  * Either expands or shrinks the allocated space for the given
  * file-handle to the requested size. */
-__FSAPI FileSystemCode_t
+__FSAPI OsStatus_t
 __FSDECL(FsChangeFileSize)(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ FileSystemEntry_t*         BaseEntry,

@@ -25,6 +25,7 @@
 #ifndef __LIBDS_QUEUE_H__
 #define __LIBDS_QUEUE_H__
 
+#include <ds/dsdefs.h>
 #include <ds/shared.h>
 #include <stdint.h>
 
@@ -37,25 +38,25 @@ typedef struct queue {
 
 #define QUEUE_INIT { NULL, NULL, 0, SYNC_INIT }
 
-CRTDECL(void,
+DSDECL(void,
 queue_construct(
     _In_ queue_t*));
 
-CRTDECL(void,
+DSDECL(void,
 queue_clear(
     _In_ queue_t*,
     _In_ void(*)(element_t*)));
 
-CRTDECL(int,
+DSDECL(int,
 queue_push(
     _In_ queue_t*,
     _In_ element_t*));
 
-CRTDECL(element_t*,
+DSDECL(element_t*,
 queue_pop(
     _In_ queue_t*));
 
-CRTDECL(element_t*,
+DSDECL(element_t*,
 queue_peek(
     _In_ queue_t*));
 

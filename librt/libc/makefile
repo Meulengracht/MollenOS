@@ -29,7 +29,7 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard stdio/stream/*.c) \
        		  $(wildcard time/common/*.c)
 
-COMMON_INCS = -I../include -Iinclude -I../libm/include -I../libds/include -I../libddk/include
+COMMON_INCS = -I../../librt/libgracht/include -I../include -Iinclude -I../libm/include -I../libds/include -I../libddk/include
 
 LIBK_SRCS = os/synchronization/spinlock.c \
 			locale/locale.c \
@@ -64,7 +64,7 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 LIBK_OBJECTS = $(ASM_SRCS:.s=.ko) $(COMMON_SRCS:.c=.ko) $(LIBK_SRCS:.c=.ko)
 LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 
-LIBC_DEPENDENCIES = ../build/crt.lib ../build/compiler-rt.lib ../build/static_m.lib ../build/libds.lib ../build/ddk.lib
+LIBC_DEPENDENCIES = ../deploy/libgracht.lib ../build/crt.lib ../build/compiler-rt.lib ../build/static_m.lib ../build/libds.lib ../build/ddk.lib
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)

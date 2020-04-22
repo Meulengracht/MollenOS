@@ -22,27 +22,29 @@
  */
 #define __TRACE
 
-#include <ddk/services/net.h>
 #include <ddk/utils.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
 int socket(int domain, int type, int protocol)
 {
-    OsStatus_t      os_status;
-    UUId_t          handle;
-    UUId_t          send_handle;
-    UUId_t          recv_handle;
-    int             fd;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    OsStatus_t               os_status;
+    UUId_t                   handle;
+    UUId_t                   send_handle;
+    UUId_t                   recv_handle;
+    int                      fd;
     
     // We need to create the socket object at kernel level, as we need
     // kernel assisted functionality to support a centralized storage of
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
     TRACE("[socket] remote create");
-    os_status = CreateSocket(domain, type, protocol, &handle,
-        &send_handle, &recv_handle);
+    svc_socket_create_sync(GetGrachtClient(), &msg, domain, type, protocol,
+        &os_status, &handle, &recv_handle, &send_handle);
+    gracht_vali_message_finish(&msg);
     if (os_status != OsSuccess) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);
         (void)OsStatusToErrno(os_status);

@@ -27,17 +27,21 @@
  * It is normally necessary to assign a local address using bind() before a SOCK_STREAM socket may receive connections (see accept(2)).
  */
 
-#include <ddk/services/net.h>
+#include <ddk/protocols/svc_socket_protocol_client.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
 #include <inet/local.h>
 #include <os/mollenos.h>
 
 int bind(int iod, const struct sockaddr* address, socklen_t address_length)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    OsStatus_t      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          handle = stdio_handle_get(iod);
+    OsStatus_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -49,7 +53,9 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    status = BindSocket(handle->object.handle, address);
+    svc_socket_bind_sync(GetGrachtClient(), &msg, handle->object.handle,
+        address, &status);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

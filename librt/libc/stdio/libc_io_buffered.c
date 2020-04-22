@@ -23,9 +23,12 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include <ds/collection.h>
 #include <internal/_io.h>
 #include <io.h>
 #include <stdlib.h>
+
+extern Collection_t* stdio_get_handles(void);
 
 /* os_alloc_buffer
  * Allocates a transfer buffer for a stdio file stream */

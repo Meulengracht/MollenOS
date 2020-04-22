@@ -21,9 +21,9 @@
  * - Standard IO socket operation implementations.
  */
 
-#include <ddk/services/net.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
 
@@ -64,7 +64,10 @@ OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
     OsStatus_t status = OsSuccess;
     
     if (options & STDIO_CLOSE_FULL) {
-        status = CloseSocket(handle->object.handle, SOCKET_SHUTDOWN_DESTROY);
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+        svc_socket_close_sync(GetGrachtClient(), &msg, handle->object.handle,
+            SVC_SOCKET_CLOSE_OPTIONS_DESTROY, &status);
+        gracht_vali_message_finish(&msg);
     }
     
     if (handle->object.data.socket.send_buffer.buffer) {

@@ -26,10 +26,11 @@
 #ifndef _AHCI_MANAGER_H_
 #define _AHCI_MANAGER_H_
 
-#include <os/osdefs.h>
+#include "ahci.h"
 #include <ds/collection.h>
 #include <commands.h>
-#include "ahci.h"
+#include <gracht/link/vali.h>
+#include <os/osdefs.h>
 #include <threads.h>
 
 typedef enum {
@@ -74,10 +75,9 @@ typedef struct _AhciDevice {
 #define AHCI_DEVICE_MODE_LBA28  1
 #define AHCI_DEVICE_MODE_LBA48  2
 
-typedef struct {
+typedef struct AhciTransation {
     CollectionItem_t      Header;
-    thrd_t                Address;
-    
+    int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
     AtaCommand_t          Command;
@@ -100,6 +100,8 @@ typedef struct {
     
     int                   SgIndex;
     size_t                SgOffset;
+    
+    struct vali_link_deferred_response DeferredMessage;
 } AhciTransaction_t;
 
 #define AHCI_XACTION_IN     0
@@ -114,7 +116,7 @@ __EXTERN OsStatus_t AhciManagerInitialize(void);
 __EXTERN OsStatus_t AhciManagerDestroy(void);
 __EXTERN size_t     AhciManagerGetFrameSize(void);
 __EXTERN OsStatus_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
-__EXTERN OsStatus_t AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
+__EXTERN void       AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
 __EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransaction_t*);
 
 /**
@@ -136,18 +138,6 @@ AhciTransactionControlCreate(
     _In_ AtaCommand_t  Command,
     _In_ size_t        Length,
     _In_ int           Direction);
-
-/**
- * AhciTransactionStorageCreate
- * @param Device    [In] The device that should handle the transaction.
- * @param Address   [In] The transaction that should get queued up.
- * @param Operation [In] The transaction that should get queued up.
- */
-__EXTERN OsStatus_t
-AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*       Device,
-    _In_ thrd_t              Address,
-    _In_ StorageOperation_t* Operation);
 
 /** 
  * AhciDeviceCancelTransaction

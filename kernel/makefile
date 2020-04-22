@@ -18,6 +18,7 @@ INCLUDES = -Iinclude -Iarch/include -I../librt/libds/include \
 # All the project sources
 SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard components/*.c) \
+		  $(wildcard memory/*.c) \
 		  $(wildcard modules/*.c) \
 		  $(wildcard output/fonts/*.c) \
 		  $(wildcard output/*.c) \

@@ -4,16 +4,32 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
-SOURCES = $(wildcard *.c)
+INCLUDES = -Iinclude \
+		   -I../../librt/libgracht/include \
+		   -I../../librt/libds/include \
+		   -I../../librt/libddk/include \
+		   -I../../librt/libc/include \
+		   -I../../librt/include
+
+SOURCES = svc_session_protocol_server.c $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/c.lib
+
+LIBRARIES = ../../librt/deploy/libgracht.lib \
+			../../librt/build/libsrv.lib \
+			../../librt/build/ddk.lib \
+			../../librt/build/libds.lib \
+			../../librt/build/c.lib \
+			../../librt/build/compiler-rt.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll
 
 .PHONY: all
 all: ../build/sessionmanager.dll ../build/sessionmanager.mdrv
+
+svc_session_protocol_server.c: ../../protocols/service_protocols.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include session
 
 ../build/sessionmanager.mdrv: sessionmanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
@@ -30,6 +46,7 @@ all: ../build/sessionmanager.dll ../build/sessionmanager.mdrv
 .PHONY: clean
 clean:
 	@rm -f $(OBJECTS)
+	@rm -f svc_*
 	@rm -f ../build/sessionmanager.dll
 	@rm -f ../build/sessionmanager.lib
 	@rm -f ../build/sessionmanager.mdrv

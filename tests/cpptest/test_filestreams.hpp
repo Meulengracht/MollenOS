@@ -93,18 +93,18 @@ public:
     int TestFileStats()
     {
         OsFileDescriptor_t  Stats;
-        FileSystemCode_t    Status;
+        OsStatus_t          Status;
 
         TestLog(">> TestFileStats()");
         Status = GetFileInformationFromPath("macia.app", &Stats);
-        if (Status != FsOk) {
+        if (Status != OsSuccess) {
             TestLog(" >> failed to stat macia.app");
             return 1;
         }
         TestLog(">> macia: %u - %u", Stats.Flags, Stats.Permissions);
         
         Status = GetFileInformationFromPath("maccccc.app", &Stats);
-        if (Status == FsOk) {
+        if (Status == OsSuccess) {
             TestLog(" >> failed to fail on stat with macccc.app");
             return 1;
         }

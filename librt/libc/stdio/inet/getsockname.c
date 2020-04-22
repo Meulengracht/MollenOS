@@ -21,15 +21,16 @@
  * - Standard Socket IO Implementation
  */
 
-#include <ddk/services/net.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <os/mollenos.h>
 
 int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    OsStatus_t      status;
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          handle = stdio_handle_get(iod);
+    OsStatus_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -46,11 +47,14 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    status = GetSocketAddress(handle->object.handle, SOCKET_GET_ADDRESS_SOURCE_THIS, 
-        address_out, address_length_out);
+    svc_socket_get_address_sync(GetGrachtClient(), &msg, handle->object.handle,
+        SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, &status, address_out);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;
     }
+    
+    *address_length_out = address_out->sa_len;
     return 0;
 }

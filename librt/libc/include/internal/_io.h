@@ -1,8 +1,8 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <ds/collection.h>
 #include <internal/_socket.h>
+#include <internal/_ipc.h>
 #include <io_events.h>        // for activity definitions
 #include <os/osdefs.h>
 #include <os/spinlock.h>
@@ -36,16 +36,18 @@
 #define STDIO_HANDLE_PIPE       1
 #define STDIO_HANDLE_FILE       2
 #define STDIO_HANDLE_SOCKET     3
+#define STDIO_HANDLE_IPCONTEXT  4
 
 typedef struct stdio_handle stdio_handle_t;
 
 // Inheritable handle that is shared with child processes
 // should contain only portable information
-typedef struct {
+typedef struct stdio_object {
     UUId_t handle;
     int    type;
     union {
-        struct socket socket;
+        struct socket    socket;
+        struct ipcontext ipcontext;
     } data;
 } stdio_object_t;
 
@@ -60,7 +62,7 @@ typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
 typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
 typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
 
-typedef struct {
+typedef struct stdio_ops {
     stdio_inherit inherit;
     stdio_read    read;
     stdio_write   write;
@@ -81,6 +83,11 @@ typedef struct stdio_handle {
     FILE*          buffered_stream;
 } stdio_handle_t;
 
+typedef struct stdio_inheritation_block {
+    int                 handle_count;
+    struct stdio_handle handles[];
+} stdio_inheritation_block_t;
+
 // io-object interface
 extern int             stdio_handle_create(int, int, stdio_handle_t**);
 extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
@@ -89,7 +96,6 @@ extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigne
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern stdio_handle_t* stdio_handle_get(int fd);
-extern Collection_t*   stdio_get_handles(void);
 
 // io-buffer interface
 extern OsStatus_t os_alloc_buffer(FILE* file);
@@ -103,6 +109,7 @@ extern void stdio_get_null_operations(stdio_ops_t* ops);
 extern void stdio_get_pipe_operations(stdio_ops_t* ops);
 extern void stdio_get_file_operations(stdio_ops_t* ops);
 extern void stdio_get_net_operations(stdio_ops_t* ops);
+extern void stdio_get_ipc_operations(stdio_ops_t* ops);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);
@@ -117,8 +124,8 @@ extern int  _flswbuf(int ch, FILE *stream);
 
 extern OsStatus_t
 StdioCreateInheritanceBlock(
-	_In_  ProcessStartupInformation_t* StartupInformation,
-    _Out_ void**                       InheritationBlock,
-    _Out_ size_t*                      InheritationBlockLength);
+	_In_  ProcessConfiguration_t* Configuration,
+    _Out_ void**                  InheritationBlock,
+    _Out_ size_t*                 InheritationBlockLength);
 
 #endif //!__INTERNAL_IO_H__

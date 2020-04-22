@@ -23,32 +23,38 @@
  */
 
 #include <errno.h>
+#include <gracht/link/socket.h>
 #include <gracht/server.h>
 #include <gracht/os.h>
-#include <os/services/process.h>
+#include <os/process.h>
 #include <stdio.h>
+#include <string.h>
 #include "test_utils_protocol_server.h"
 
-static void test_utils_print_callback(int client, struct test_utils_print_args* args, struct test_utils_print_ret* ret)
+static void test_utils_print_callback(struct gracht_recv_message* message, struct test_utils_print_args* args)
 {
-    printf("received message: %s\n", &args->message[0]);
-    ret->status = 0;
+    printf("received message: %s\n", args->message);
+    test_utils_print_response(message, strlen(args->message));
 }
 
 int main(int argc, char **argv)
 {
-    gracht_server_configuration_t configuration;
-    int                           code;
+    struct socket_server_configuration linkConfiguration;
+    struct gracht_server_configuration serverConfiguration;
+    int                                code;
+    UUId_t                             processId;
     
-    gracht_os_get_server_client_address(&configuration.server_address, &configuration.server_address_length);
-    gracht_os_get_server_packet_address(&configuration.dgram_address, &configuration.dgram_address_length);
-    code = gracht_server_initialize(&configuration);
+    gracht_os_get_server_client_address(&linkConfiguration.server_address, &linkConfiguration.server_address_length);
+    gracht_os_get_server_packet_address(&linkConfiguration.dgram_address, &linkConfiguration.dgram_address_length);
+    gracht_link_socket_server_create(&serverConfiguration.link, &linkConfiguration);
+    
+    code = gracht_server_initialize(&serverConfiguration);
     if (code) {
         printf("error initializing server library %i", errno);
         return code;
     }
     
     gracht_server_register_protocol(&test_utils_protocol);
-    ProcessSpawn("$bin/wmclient.app", NULL);
+    ProcessSpawn("$bin/wmclient.app", NULL, &processId);
     return gracht_server_main_loop();
 }

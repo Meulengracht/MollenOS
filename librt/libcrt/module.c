@@ -21,19 +21,17 @@
  */
 
 #include "../libc/threads/tls.h"
-#include <ddk/driver.h>
+#include <ddk/service.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
-#include <os/ipc.h>
+#include <gracht/link/vali.h>
+#include <gracht/server.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
 // Module Interface
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnRegister(MCoreDevice_t*);
-extern OsStatus_t OnUnregister(MCoreDevice_t*);
-extern OsStatus_t OnQuery(IpcMessage_t*);
 
 extern char**
 __CrtInitialize(
@@ -43,17 +41,28 @@ __CrtInitialize(
 
 void __CrtModuleEntry(void)
 {
-    thread_storage_t Tls;
-    IpcMessage_t*    Message;
-    int              IsRunning = 1;
+    thread_storage_t              tls;
+    gracht_server_configuration_t config;
+    struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
+    int                           status;
 
     // Initialize environment
-    __CrtInitialize(&Tls, 1, NULL);
+    __CrtInitialize(&tls, 1, NULL);
 
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.
     if (WaitForDeviceService(2000) != OsSuccess) {
         exit(-1);
+    }
+    
+    status = gracht_link_vali_server_create(&config.link, &addr);
+    if (status) {
+        exit(status);
+    }
+    
+    status = gracht_server_initialize(&config);
+    if (status) {
+        exit(status);
     }
 
     // Call the driver load function 
@@ -62,29 +71,7 @@ void __CrtModuleEntry(void)
         exit(-1);
     }
     
-    // Initialize the driver event loop
-    while (IsRunning) {
-        if (IpcListen(0, &Message) == OsSuccess) {
-            switch (IPC_GET_TYPED(Message, 0)) {
-                case __DRIVER_REGISTERINSTANCE: {
-                    OnRegister(IPC_GET_UNTYPED(Message, 0));
-                } break;
-                case __DRIVER_UNREGISTERINSTANCE: {
-                    OnUnregister(IPC_GET_UNTYPED(Message, 0));
-                } break;
-                case __DRIVER_QUERYCONTRACT: {
-                    OnQuery(Message);
-                } break;
-                case __DRIVER_UNLOAD: {
-                    IsRunning = 0;
-                } break;
-
-                default: {
-                    break;
-                }
-            }
-        }
-    }
+    status = gracht_server_main_loop();
     OnUnload();
-    exit(-1);
+    exit(status);
 }

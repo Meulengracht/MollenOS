@@ -20,41 +20,52 @@
  * - Definitions, prototypes and information needed.
  */
 
+#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/services/process.h>
-#include <ddk/services/process.h>
+#include <threads.h>
 
-extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
+extern void StdioInitialize(void *InheritanceBlock);
 extern void StdSignalInitialize(void);
 
-static char   __CrtArgumentBuffer[512]    = { 0 };
-static char   __CrtInheritanceBuffer[512] = { 0 };
-static int    __CrtIsModule               = 0;
-static UUId_t __CrtProcessId              = UUID_INVALID;
+static char             __CrtStartupBuffer[1024] = { 0 };
+static gracht_client_t* __CrtClient              = NULL;
+static int              __CrtIsModule            = 0;
+static UUId_t           __CrtProcessId           = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
-    size_t InheritanceBlockLength = sizeof(__CrtInheritanceBuffer);
-    size_t ArgumentBlockLength    = sizeof(__CrtArgumentBuffer);
-    _CRT_UNUSED(StartupInformation);
-
+    gracht_client_configuration_t clientConfig;
+    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    OsStatus_t                    status;
+    
     // We must set IsModule before anything
-    __CrtIsModule  = IsModule;
-    __CrtProcessId = ProcessGetCurrentId();
+    __CrtIsModule = IsModule;
+
+    // Create the ipc client
+    gracht_link_vali_client_create(&clientConfig.link);
+    gracht_client_create(&clientConfig, &__CrtClient);
 
     // Get startup information
     if (IsModule) {
-        Syscall_ModuleGetStartupInfo(&__CrtInheritanceBuffer[0], &InheritanceBlockLength, 
-                                     &__CrtArgumentBuffer[0], &ArgumentBlockLength);
+        Syscall_ModuleGetStartupInfo(StartupInformation, &__CrtProcessId, &__CrtStartupBuffer[0],
+            sizeof(__CrtStartupBuffer));
     }
     else {
-        GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
-        GetProcessCommandLine(&__CrtArgumentBuffer[0], &ArgumentBlockLength);
+        svc_process_get_startup_information_sync(GetGrachtClient(), &msg, thrd_current(),
+            &status, &__CrtProcessId, &StartupInformation->ArgumentsLength,
+            &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
+            &__CrtStartupBuffer[0], sizeof(__CrtStartupBuffer));
+        gracht_vali_message_finish(&msg);
+        
+        // fixup pointers
+        StartupInformation->Arguments      = &__CrtStartupBuffer[0];
+        StartupInformation->Inheritation   = &__CrtStartupBuffer[StartupInformation->ArgumentsLength];
+        StartupInformation->LibraryEntries = &__CrtStartupBuffer[StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
     }
     
 	// Initialize STD-C
-	StdioInitialize((void*)&__CrtInheritanceBuffer[0], InheritanceBlockLength);
+	StdioInitialize(StartupInformation->Inheritation);
     StdSignalInitialize();
 }
 
@@ -70,5 +81,10 @@ UUId_t* GetInternalProcessId(void)
 
 const char* GetInternalCommandLine(void)
 {
-    return &__CrtArgumentBuffer[0];
+    return &__CrtStartupBuffer[0];
+}
+
+gracht_client_t* GetGrachtClient(void)
+{
+    return __CrtClient;
 }

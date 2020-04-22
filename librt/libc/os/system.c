@@ -19,11 +19,12 @@
  * MollenOS System Interface
  */
 
+#include <internal/_ipc.h>
+#include <internal/_io.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/services/process.h>
 #include <os/mollenos.h>
-#include <internal/_io.h>
+#include <os/process.h>
 
 OsStatus_t
 SystemQuery(
@@ -49,7 +50,13 @@ GetSystemTick(
     _In_ LargeUInteger_t* Tick)
 {
     if (TickBase == TIME_PROCESS && !IsProcessModule()) {
-        return ProcessGetTickBase((clock_t*)&Tick->QuadPart);
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+        OsStatus_t               status;
+        
+        status = svc_process_get_tick_base_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(),
+            &status, &Tick->u.LowPart, &Tick->u.HighPart);
+        gracht_vali_message_finish(&msg);
+        return status;
     }
     return Syscall_SystemTick(TickBase, Tick);
 }

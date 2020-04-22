@@ -22,68 +22,59 @@
  */
 #define __TRACE
 
-#include <ds/collection.h>
-#include <os/services/process.h>
-#include <ddk/services/session.h>
+#include <os/process.h>
 #include <ddk/utils.h>
-#include <os/ipc.h>
+#include <internal/_ipc.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "svc_session_protocol_server.h"
 
 static UUId_t WindowingSystemId = UUID_INVALID;
 
-OsStatus_t
-OnLoad(
-    _In_ char** ServicePathOut)
-{
-    *ServicePathOut = SERVICE_SESSION_PATH;
-    return OsSuccess;
-}
-
-OsStatus_t
-OnUnload(void)
+OsStatus_t OnUnload(void)
 {
     return OsSuccess;
 }
 
-OsStatus_t
-OnEvent(
-    _In_ IpcMessage_t* Message)
+void GetServiceAddress(struct ipmsg_addr* address)
 {
-    ProcessStartupInformation_t StartupInformation;
-    OsStatus_t                  Result = OsSuccess;
-    char                        PathBuffer[64];
+    address->type = IPMSG_ADDRESS_PATH;
+    address->data.path = SERVICE_SESSION_PATH;
+}
+
+OsStatus_t
+OnLoad(void)
+{
+    // Register supported interfaces
+    gracht_server_register_protocol(&svc_session_protocol);
+    return OsSuccess;
+}
+
+void svc_session_login_callback(struct gracht_recv_message* message, struct svc_session_login_args* args)
+{
+    // if error give a fake delay of 1 << min(attempt_num, 31) if the first 5 attempts are wrong
+    // reset on login_success
+    // int svc_session_login_response(struct gracht_recv_message* message, OsStatus_t status, char* session_id);
+}
+
+void svc_session_logout_callback(struct gracht_recv_message* message, struct svc_session_logout_args* args)
+{
+    // int svc_session_logout_response(struct gracht_recv_message* message, OsStatus_t status);
+}
+
+void svc_session_new_device_callback(struct gracht_recv_message* message, struct svc_session_new_device_args* args)
+{
+    ProcessConfiguration_t config;
+    char pathBuffer[64];
     
-    TRACE("Sessionmanager.OnEvent(%i)", IPC_GET_TYPED(Message, 0));
-
-    switch (IPC_GET_TYPED(Message, 0)) {
-        case __SESSIONMANAGER_NEWDEVICE: {
-            if (WindowingSystemId == UUID_INVALID) {
-                // The identifier might be stored as a value here if less than a specific
-                // amount of bytes
-                const char* DiskIdentifier = IPC_GET_STRING(Message, 0);
-
-                // Clear up buffer and spawn app
-                memset(&PathBuffer[0], 0, sizeof(PathBuffer));
-                sprintf(&PathBuffer[0], "%s:/shared/bin/" __OSCONFIG_INIT_APP, DiskIdentifier);
-                TRACE("Spawning %s", &PathBuffer[0]);
-                InitializeStartupInformation(&StartupInformation);
-                StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
-                WindowingSystemId = ProcessSpawnEx(&PathBuffer[0], NULL, &StartupInformation);
-            }
-        } break;
-        case __SESSIONMANAGER_LOGIN: {
-            // if error give a fake delay of 1 << min(attempt_num, 31) if the first 5 attempts are wrong
-            // reset on login_success
-        } break;
-        case __SESSIONMANAGER_LOGOUT: {
-
-        } break;
-
-        default: {
-            break;
-        }
+    if (WindowingSystemId == UUID_INVALID) {
+        // Clear up buffer and spawn app
+        memset(&pathBuffer[0], 0, sizeof(pathBuffer));
+        sprintf(&pathBuffer[0], "%s:/shared/bin/" __OSCONFIG_INIT_APP, args->identifier);
+        TRACE("Spawning %s", &pathBuffer[0]);
+        ProcessConfigurationInitialize(&config);
+        config.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
+        ProcessSpawnEx(&pathBuffer[0], NULL, &config, &WindowingSystemId);
     }
-    return Result;
 }

@@ -21,16 +21,17 @@
  * - Standard Socket IO Implementation
  */
 
-#include <ddk/services/net.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <inet/local.h>
 #include <errno.h>
 #include <os/mollenos.h>
 
 int setsockopt(int iod, int protocol, int option, const void* data, socklen_t length)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    OsStatus_t      status;
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          handle = stdio_handle_get(iod);
+    OsStatus_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -42,7 +43,9 @@ int setsockopt(int iod, int protocol, int option, const void* data, socklen_t le
         return -1;
     }
     
-    status = SetSocketOption(handle->object.handle, protocol, option, data, length);
+    svc_socket_set_option_sync(GetGrachtClient(), &msg, handle->object.handle,
+        protocol, option, data, length, length, &status);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

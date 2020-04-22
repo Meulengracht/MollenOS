@@ -25,12 +25,10 @@
 
 #include <os/osdefs.h>
 #include "../scsi/scsi.h"
+#include <ds/list.h>
 
-#include <ddk/contracts/base.h>
-#include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
-#include <ddk/contracts/storage.h>
-#include <ddk/services/file.h>
+#include <ddk/storage.h>
 
 /* MSD Subclass Definitions 
  * Contains generic magic constants and definitions */
@@ -132,8 +130,8 @@ typedef struct _MsdOperations {
 
 typedef struct _MsdDevice {
     MCoreUsbDevice_t    Base;
-    MContract_t         Contract;
     StorageDescriptor_t Descriptor;
+    element_t           Header;
     MsdDeviceType_t     Type;
     MsdProtocolType_t   Protocol;
     MsdOperations_t*    Operations;
@@ -180,12 +178,7 @@ __EXTERN OsStatus_t
 MsdDeviceStart(
     _In_ MsdDevice_t *Device);
 
-/* MsdTransferSectors
- * Transfers a given amount of sectors (bytes/sector-size) from or to the MSD. */
-__EXTERN OsStatus_t
-MsdTransferSectors(
-    _In_  MsdDevice_t*        Device,
-    _In_  StorageOperation_t* Operation,
-    _Out_ size_t*             SectorsTransferred);
-
+__EXTERN MsdDevice_t*
+MsdDeviceGet(
+    _In_ UUId_t deviceId);
 #endif // !_USB_MSD_H_

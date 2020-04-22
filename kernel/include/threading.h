@@ -92,8 +92,6 @@ typedef struct SystemThread {
     
     UUId_t                  Handle;
     UUId_t                  ParentHandle;
-    void*                   ArenaKernelPointer;
-    void*                   ArenaUserPointer;
     
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
@@ -113,7 +111,6 @@ typedef struct SystemThread {
     
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
-    uintptr_t               ArenaPhysicalAddress;
     
     SignalSupport_t         Signaling;
 } MCoreThread_t;

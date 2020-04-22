@@ -19,17 +19,18 @@
  * MollenOS C Library - Server Entry 
  */
 
-#include <ddk/services/service.h>
+#include <ddk/service.h>
 #include <ddk/threadpool.h>
 #include <ddk/utils.h>
-#include <os/ipc.h>
+#include <gracht/link/vali.h>
+#include <gracht/server.h>
 #include <os/mollenos.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
-extern OsStatus_t OnLoad(char**);
+extern void       GetServiceAddress(struct ipmsg_addr*);
+extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnEvent(IpcMessage_t* Message);
 
 extern char**
 __CrtInitialize(
@@ -37,76 +38,34 @@ __CrtInitialize(
     _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
-int __CrtHandleEvent(void *Argument)
-{
-    // Initiate the message pointer
-    IpcMessage_t* Message = (IpcMessage_t*)Argument;
-    OsStatus_t Result = OnEvent(Message);
-    
-    // Cleanup and return result
-    free(Message);
-    return Result == OsSuccess ? 0 : -1;
-}
-
 void __CrtServiceEntry(void)
 {
-    thread_storage_t            Tls;
-    IpcMessage_t*               Message;
-    char*                       Path;
-#ifdef __SERVER_MULTITHREADED
-    ThreadPool_t *ThreadPool    = NULL;
-#endif
-    int IsRunning               = 1;
+    thread_storage_t              tls;
+    gracht_server_configuration_t config;
+    struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
+    int                           status;
 
     // Initialize environment
-    __CrtInitialize(&Tls, 1, NULL);
+    __CrtInitialize(&tls, 1, NULL);
+
+    GetServiceAddress(&addr);
+    status = gracht_link_vali_server_create(&config.link, &addr);
+    if (status) {
+        exit(status);
+    }
+    
+    status = gracht_server_initialize(&config);
+    if (status) {
+        exit(status);
+    }
 
     // Call the driver load function 
     // - This will be run once, before loop
-    if (OnLoad(&Path) != OsSuccess) {
+    if (OnLoad() != OsSuccess) {
         exit(-1);
     }
     
-    if (RegisterPath(Path) != OsSuccess) {
-        goto Cleanup;
-    }
-
-    // Initialize threadpool
-#ifdef __SERVER_MULTITHREADED
-    if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, &ThreadPool) != OsSuccess) {
-        goto Cleanup;
-    }
-
-    // Initialize the server event loop
-    while (IsRunning) {
-        if (IpcListen(0, &Message) == OsSuccess) {
-            IpcMessage_t* MessageItem = (IpcMessage_t*)malloc(Message->MetaLength);
-            memcpy(MessageItem, Message, Message->MetaLength);
-            ThreadPoolAddWork(ThreadPool, __CrtHandleEvent, MessageItem);
-        }
-    }
-
-    // Wait for threads to finish
-    if (ThreadPoolGetWorkingCount(ThreadPool) != 0) {
-        ThreadPoolWait(ThreadPool);
-    }
-
-    // Destroy thread-pool
-    ThreadPoolDestroy(ThreadPool);
-
-#else
-    // Initialize the server event loop
-    while (IsRunning) {
-        if (IpcListen(0, &Message) == OsSuccess) {
-            OsStatus_t Status = OnEvent(Message);
-            if (Status != OsSuccess) {
-                WARNING("[service] [on_event] returned %u", Status);
-            }
-        }
-    }
-#endif
-
-Cleanup:
+    status = gracht_server_main_loop();
     OnUnload();
     exit(-1);
 }

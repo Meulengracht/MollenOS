@@ -20,35 +20,37 @@
  * - Standard IO file operation implementations.
  */
 
-#include <ddk/services/file.h> // for ipc
-#include <os/services/file.h>
-#include <os/mollenos.h>
-#include <ddk/utils.h>
-
-#include <io.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <ddk/utils.h>
+#include <errno.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
+#include <io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "../threads/tls.h"
 
 static inline int
 perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction, 
     size_t chunk_size, off_t offset, size_t length, size_t* total_bytes)
 {
-    size_t bytes_left = length;
-    int    err_code;
+    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(GetFileService());
+    size_t                   bytes_left = length;
+    int                      err_code;
+    OsStatus_t               status;
     
     // Keep reading chunks untill we've read all requested
     while (bytes_left > 0) {
-        FileSystemCode_t fs_code;
-        size_t           bytes_to_transfer = MIN(chunk_size, bytes_left);
-        size_t           bytes_transferred;
+        size_t bytes_to_transfer = MIN(chunk_size, bytes_left);
+        size_t bytes_transferred;
 
-        fs_code = TransferFile(file_handle, buffer_handle, direction, offset, bytes_to_transfer, &bytes_transferred);
-        err_code = _fval(fs_code);
+        svc_file_transfer_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+            file_handle, direction, buffer_handle, offset, bytes_to_transfer,
+            &status, &bytes_transferred);
+        gracht_vali_message_finish(&msg);
+        err_code = OsStatusToErrno(status);
         if (err_code || bytes_transferred == 0) {
             break;
         }
@@ -134,9 +136,9 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
 
 OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    FileSystemCode_t    FsStatus;
-    LargeInteger_t      SeekFinal;
-    OsStatus_t          Status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+    LargeInteger_t           SeekFinal;
 
     // If we search from SEEK_SET, just build offset directly
     if (origin != SEEK_SET) {
@@ -144,10 +146,12 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            Status = GetFilePosition(handle->object.handle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
-            if (Status != OsSuccess) {
+            svc_file_get_position_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                handle->object.handle, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            gracht_vali_message_finish(&msg);
+            if (status != OsSuccess) {
                 ERROR("failed to get file position");
-                return OsError;
+                return status;
             }
 
             // Sanitize for overflow
@@ -158,10 +162,12 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
             }
         }
         else {
-            Status = GetFileSize(handle->object.handle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
-            if (Status != OsSuccess) {
+            svc_file_get_size_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                handle->object.handle, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            gracht_vali_message_finish(&msg);
+            if (status != OsSuccess) {
                 ERROR("failed to get file size");
-                return OsError;
+                return status;
             }
         }
         SeekFinal.QuadPart = FileInitial.QuadPart + offset;
@@ -171,13 +177,15 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
     }
 
     // Now perform the seek
-    FsStatus = SeekFile(handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
-    if (!_fval((int)FsStatus)) {
+    svc_file_seek_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart, &status);
+    gracht_vali_message_finish(&msg);
+    if (status == OsSuccess) {
         *position_out = SeekFinal.QuadPart;
         return OsSuccess;
     }
-    TRACE("stdio::fseek::fail %u", FsStatus);
-    return OsError;
+    TRACE("stdio::fseek::fail %u", status);
+    return status;
 }
 
 OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
@@ -187,17 +195,15 @@ OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
-	OsStatus_t converted = OsSuccess;
-	int        result;
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+	OsStatus_t               status = OsSuccess;
 	
 	if (options & STDIO_CLOSE_FULL) {
-        result = (int)CloseFile(handle->object.handle);
-        if (_fval(result)) {
-            result    = -1;
-            converted = OsError;
-        }
+        svc_file_close_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+            handle->object.handle, &status);
+        gracht_vali_message_finish(&msg);
 	}
-    return converted;
+    return status;
 }
 
 OsStatus_t stdio_file_op_inherit(stdio_handle_t* handle)

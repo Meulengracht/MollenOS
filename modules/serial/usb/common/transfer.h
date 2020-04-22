@@ -25,11 +25,11 @@
 #ifndef __USB_TRANSFER__
 #define __USB_TRANSFER__
 
+#include <ddk/usb.h>
+#include <gracht/link/vali.h>
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <ddk/contracts/usbhost.h>
-#include <ddk/services/usb.h>
 #include <threads.h>
 
 typedef enum _UsbManagerTransferFlags {
@@ -43,9 +43,8 @@ typedef enum _UsbManagerTransferFlags {
     TransferFlagPartial     = 0x40
 } UsbManagerTransferFlags_t;
 
-typedef struct {
-    UsbTransfer_t             Transfer;
-    thrd_t                    Address;
+typedef struct UsbManagerTransfer {
+    UsbTransfer_t Transfer;
 
     // Transfer Metadata
     UUId_t                    Id;
@@ -64,18 +63,11 @@ typedef struct {
     } Transactions[USB_TRANSACTIONCOUNT];
 
     // Periodic Transfers
-    size_t                    CurrentDataIndex;    
+    size_t CurrentDataIndex;
+    
+    // Deferred message for async responding
+    struct vali_link_deferred_response DeferredMessage;
 } UsbManagerTransfer_t;
-
-/**
- * UsbManagerCreateTransfer
- * * Creates a new transfer that is registered with the usb-management
- */
-__EXTERN UsbManagerTransfer_t*
-UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ thrd_t         Address,
-    _In_ UUId_t         Device);
 
 /**
  * UsbManagerDestroyTransfer

@@ -54,7 +54,6 @@ HciControllerCreate(
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
     // Fill in some basic stuff needed for init
-    Controller->Base.Contract.DeviceId  = Controller->Base.Device.Id;
     Controller->Base.Type               = UsbOHCI;
     Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
     Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
@@ -106,10 +105,6 @@ HciControllerCreate(
         return NULL;
     }
 
-    // Start out by initializing the contract
-    InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
-        ContractController, "OHCI Controller Interface");
-
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN,
         IoBase->Access.Memory.VirtualBase);
@@ -124,15 +119,6 @@ HciControllerCreate(
     RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
     RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
-
-    // Register contract before interrupt
-    TRACE("... register contract");
-    if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
-        ERROR("Failed to register contract for ohci-controller");
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
-        return NULL;
-    }
 
     // Register interrupt
     TRACE("... register interrupt");

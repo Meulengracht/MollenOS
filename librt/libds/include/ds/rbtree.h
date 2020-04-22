@@ -24,6 +24,7 @@
 #ifndef __LIBDS_RBTREE_H__
 #define __LIBDS_RBTREE_H__
 
+#include <ds/dsdefs.h>
 #include <ds/shared.h>
 
 typedef int (*rb_tree_cmp_fn)(void*, void*);
@@ -50,8 +51,8 @@ typedef struct rb_tree {
 #define RB_TREE_INIT { NULL, rb_tree_cmp_default, SYNC_INIT, { NULL, NULL, NULL, 0, NULL, NULL } }
 
 // Default provided comparators
-CRTDECL(int, rb_tree_cmp_default(void*,void*));
-CRTDECL(int, rb_tree_cmp_string(void*,void*));
+DSDECL(int, rb_tree_cmp_default(void*,void*));
+DSDECL(int, rb_tree_cmp_string(void*,void*));
 
 /** 
  * rb_tree_construct
@@ -59,11 +60,11 @@ CRTDECL(int, rb_tree_cmp_string(void*,void*));
  * @param RBTree  [In] The red-black tree to initialize, must be allocated.
  * @param KeyType [In] The type of index key that will be used.
  */
-CRTDECL(void,
+DSDECL(void,
 rb_tree_construct(
     _In_ rb_tree_t*));
 
-CRTDECL(void,
+DSDECL(void,
 rb_tree_construct_cmp(
     _In_ rb_tree_t*,
     _In_ rb_tree_cmp_fn));
@@ -74,7 +75,7 @@ rb_tree_construct_cmp(
  * @param RBTree     [In] The red-black tree to append the item to.
  * @param RBTreeItem [In] The item to append to the tree, the key must not exist.
  */
-CRTDECL(OsStatus_t,
+DSDECL(OsStatus_t,
 rb_tree_append(
     _In_ rb_tree_t*,
     _In_ rb_leaf_t*));
@@ -85,12 +86,12 @@ rb_tree_append(
  * @param RBTree [In] The red-black tree to perform the lookup in.
  * @param Key    [In] The key to lookup.
  */
-CRTDECL(rb_leaf_t*,
+DSDECL(rb_leaf_t*,
 rb_tree_lookup(
     _In_ rb_tree_t*,
     _In_ void*));
     
-CRTDECL(void*,
+DSDECL(void*,
 rb_tree_lookup_value(
     _In_ rb_tree_t*,
     _In_ void*));
@@ -100,7 +101,7 @@ rb_tree_lookup_value(
  * * Retrieves the item with the lowest value.
  * @param RBTree [In] The red-black tree to perform the lookup in.
  */
-CRTDECL(rb_leaf_t*,
+DSDECL(rb_leaf_t*,
 rb_tree_minimum(
 	_In_ rb_tree_t*));
 
@@ -110,7 +111,7 @@ rb_tree_minimum(
  * @param RBTree [In] The red-black tree to perform the lookup in.
  * @param Key    [In] The key to lookup.
  */
-CRTDECL(rb_leaf_t*,
+DSDECL(rb_leaf_t*,
 rb_tree_remove(
     _In_ rb_tree_t*,
     _In_ void*));

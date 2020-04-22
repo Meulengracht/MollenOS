@@ -25,6 +25,7 @@
 #ifndef __LIBDS_LIST_H__
 #define __LIBDS_LIST_H__
 
+#include <ds/dsdefs.h>
 #include <ds/shared.h>
 #include <stdint.h>
 
@@ -46,34 +47,34 @@ typedef struct list {
 #define LIST_ENUMERATE_REMOVE   (int)0x2
 
 // Default provided comparators
-CRTDECL(int, list_cmp_default(void*,void*));
-CRTDECL(int, list_cmp_string(void*,void*));
+DSDECL(int, list_cmp_default(void*,void*));
+DSDECL(int, list_cmp_string(void*,void*));
 
-CRTDECL(void,
+DSDECL(void,
 list_construct(
     _In_ list_t*));
 
-CRTDECL(void,
+DSDECL(void,
 list_construct_cmp(
     _In_ list_t*,
     _In_ list_cmp_fn));
 
-CRTDECL(void,
+DSDECL(void,
 list_clear(
     _In_ list_t*,
     _In_ void(*)(element_t*, void*),
     _In_ void*));
 
-CRTDECL(int,
+DSDECL(int,
 list_count(
     _In_ list_t*));
 
-CRTDECL(int,
+DSDECL(int,
 list_append(
     _In_ list_t*,
     _In_ element_t*));
 
-CRTDECL(int,
+DSDECL(int,
 list_remove(
     _In_ list_t*,
     _In_ element_t*));
@@ -86,27 +87,27 @@ list_remove(
  * @param count    [In] The maximum number of list nodes that will be extracted.
  * @param list_out [In] The list which the number of elements will be spliced into.
  */
-CRTDECL(void,
+DSDECL(void,
 list_splice(
     _In_ list_t*,
     _In_ int,
     _In_ list_t*));
 
-CRTDECL(element_t*,
+DSDECL(element_t*,
 list_front(
     _In_ list_t*));
 
-CRTDECL(element_t*,
+DSDECL(element_t*,
 list_find(
     _In_ list_t*,
     _In_ void*));
 
-CRTDECL(void*,
+DSDECL(void*,
 list_find_value(
     _In_ list_t*,
     _In_ void*));
 
-CRTDECL(void,
+DSDECL(void,
 list_enumerate(
     _In_ list_t*,
     _In_ int(*)(int, element_t*, void*),

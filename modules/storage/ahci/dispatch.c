@@ -24,6 +24,7 @@
  */
 //#define __TRACE
 
+#include <assert.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "manager.h"

@@ -23,23 +23,26 @@
  */
 //#define __TRACE
 
-#include <internal/_syscalls.h> // for Syscall_ThreadCreate
-#include "../../librt/libds/pe/pe.h"
-#include <os/services/file.h>
-#include <os/services/path.h>
-#include <os/mollenos.h>
-#include <os/dmabuf.h>
-#include <os/context.h>
-#include <os/ipc.h>
-#include "process.h"
+#include <assert.h>
 #include <ds/mstring.h>
 #include <ddk/eventqueue.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
+#include <internal/_syscalls.h> // for Syscall_ThreadCreate
+#include <internal/_io.h>
+#include <internal/_ipc.h>
+#include "../../librt/libds/pe/pe.h"
+#include <os/mollenos.h>
+#include <os/dmabuf.h>
+#include <os/context.h>
+#include "process.h"
 #include <stdlib.h>
-#include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <signal.h>
+
+#include "svc_library_protocol_server.h"
+#include "svc_process_protocol_server.h"
 
 static list_t        Processes  = LIST_INIT;
 static list_t        Joiners    = LIST_INIT;
@@ -116,20 +119,19 @@ static void
 HandleJoinProcess(
     _In_ void* Context)
 {
-    IpcMessage_t         Message = { 0 };
-    ProcessJoiner_t*     Join    = (ProcessJoiner_t*)Context;
-    JoinProcessPackage_t Package = { .Status = OsTimeout };
+    ProcessJoiner_t* join   = (ProcessJoiner_t*)Context;
+    OsStatus_t       status = OsTimeout;
+    int              exitCode = 0;
 
     // Notify application about this
-    if (Join->Process->State == PROCESS_TERMINATING) {
-        Package.Status   = OsSuccess;
-        Package.ExitCode = Join->Process->ExitCode;
+    if (join->Process->State == PROCESS_TERMINATING) {
+        status   = OsSuccess;
+        exitCode = join->Process->ExitCode;
     }
     
-    Message.Sender = Join->Address;
-    IpcReply(&Message, &Package, sizeof(JoinProcessPackage_t));
-    DestroyProcess(Join->Process);
-    free(Join);
+    svc_process_join_response(&join->DeferredResponse.recv_message, status, exitCode);
+    DestroyProcess(join->Process);
+    free(join);
 }
 
 static OsStatus_t
@@ -137,7 +139,7 @@ TestFilePath(
     _In_ MString_t* Path)
 {
     OsFileDescriptor_t FileStats;
-    if (GetFileStatsByPath((const char*)MStringRaw(Path), &FileStats) != FsOk) {
+    if (GetFileInformationFromPath((const char*)MStringRaw(Path), &FileStats) != FsOk) {
         return OsError;
     }
     return OsSuccess;
@@ -243,71 +245,38 @@ LoadFile(
     _Out_ void**     BufferOut,
     _Out_ size_t*    LengthOut)
 {
-    OsStatus_t       Status;
-    LargeInteger_t   QueriedSize = { { 0 } };
-    void*            Buffer      = NULL;
-    FileSystemCode_t FsCode;
-    UUId_t           Handle;
-    size_t           Size;
+    FILE*  file;
+    long   fileSize;
+    void*  fileBuffer;
+    size_t bytesRead;
+    
     TRACE("[load_file] %s", MStringRaw(FullPath));
-
-    // We have to make sure here that the path is fully resolved before loading. If not
-    // then the filemanager will try to use our working directory and that is wrong
-
-    // Open the file as read-only
-    FsCode = OpenFile(MStringRaw(FullPath), 0, __FILE_READ_ACCESS, &Handle);
-    if (FsCode != FsOk) {
-        ERROR("[load_file] [open_file] failed: %u", FsCode);
+    
+    file = fopen(MStringRaw(FullPath), "rb");
+    if (!file) {
+        ERROR("[load_file] [open_file] failed: %i", errno);
         return OsError;
     }
-
-    Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
-    if (Status != OsSuccess) {
-        ERROR("[load_file] [get_file_size] failed: %u", Status);
-        CloseFile(Handle);
-        return Status;
+    
+    fseek(file, 0, SEEK_END);
+    fileSize = ftell(file);
+    rewind(file);
+    
+    fileBuffer = malloc(fileSize);
+    if (!fileBuffer) {
+        ERROR("[load_file] [malloc] null");
+        fclose(file);
+        return OsOutOfMemory;
     }
-
-    Size = (size_t)QueriedSize.QuadPart;
-    if (Size != 0) {
-        struct dma_buffer_info DmaInfo;
-        struct dma_attachment  DmaAttachment;
-        
-        Buffer = dsalloc(Size);
-        if (!Buffer) {
-            ERROR("[load_file] [dsalloc] null");
-            return OsOutOfMemory;
-        }
-        
-        DmaInfo.name     = "file_buffer";
-        DmaInfo.length   = Size;
-        DmaInfo.capacity = Size;
-        DmaInfo.flags    = DMA_PERSISTANT;
-
-        Status = dma_export(Buffer, &DmaInfo, &DmaAttachment);
-        TRACE("[load_file] [dma_export] buffer_handle = %u, length = %u", 
-            DmaAttachment.handle, DmaInfo.length);
-        if (Status == OsSuccess) {
-            size_t Read = 0;
-            FsCode = TransferFile(Handle, DmaAttachment.handle, 0, 0, Size, &Read);
-            TRACE("[load_file] [transfer_file] read %" PRIuIN " bytes from file", Read);
-            if (FsCode != FsOk) {
-                ERROR("[load_file] [transfer_file] failed: %u", FsCode);
-                Status = OsError;
-                dsfree(Buffer);
-                Buffer = NULL;
-            }
-            dma_detach(&DmaAttachment);
-        }
-        else {
-            ERROR("[load_file] [dma_export] failed: %u", Status);
-            Status = OsError;
-        }
-    }
-    CloseFile(Handle);
-    *BufferOut = Buffer;
-    *LengthOut = Size;
-    return Status;
+    
+    bytesRead = fread(fileBuffer, 1, fileSize, file);
+    fclose(file);
+    
+    TRACE("[load_file] [transfer_file] read %" PRIuIN " bytes from file", bytesRead);
+    
+    *BufferOut = fileBuffer;
+    *LengthOut = fileSize;
+    return OsSuccess;
 }
 
 void
@@ -330,19 +299,18 @@ InitializeProcessManager(void)
 
 OsStatus_t
 CreateProcess(
-    _In_  UUId_t                       Owner,
-    _In_  const char*                  Path,
-    _In_  ProcessStartupInformation_t* Parameters,
-    _In_  const char*                  Arguments,
-    _In_  size_t                       ArgumentsLength,
-    _In_  void*                        InheritationBlock,
-    _In_  size_t                       InheritationBlockLength,
-    _Out_ UUId_t*                      HandleOut)
+    _In_  const char*             Path,
+    _In_  const char*             Arguments,
+    _In_  void*                   InheritationBlock,
+    _In_  ProcessConfiguration_t* Configuration,
+    _Out_ UUId_t*                 HandleOut)
 {
     ThreadParameters_t Paramaters;
     Process_t*         Process;
     MString_t*         PathAsMString;
     size_t             PathLength;
+    size_t             ArgumentsLength = strlen(Arguments);
+    size_t             InheritationBlockLength;
     char*              ArgumentsPointer;
     int                Index;
     UUId_t             Handle;
@@ -350,7 +318,7 @@ CreateProcess(
 
     assert(Path != NULL);
     assert(HandleOut != NULL);
-    TRACE("CreateProcess(%s, %u, %u)", Path, ArgumentsLength, InheritationBlockLength);
+    TRACE("CreateProcess(%s)", Path);
 
     Process = (Process_t*)malloc(sizeof(Process_t));
     if (!Process) {
@@ -364,7 +332,7 @@ CreateProcess(
         return Status;
     }
     
-    ELEMENT_INIT(&Process->Header, Handle, Process);
+    ELEMENT_INIT(&Process->Header, (uintptr_t)Handle, Process);
     Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References = ATOMIC_VAR_INIT(1);
     Process->StartedAt  = clock();
@@ -372,7 +340,7 @@ CreateProcess(
 
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
-    Status        = PeLoadImage(Owner, NULL, PathAsMString, &Process->Executable);
+    Status        = PeLoadImage(UUID_INVALID, NULL, PathAsMString, &Process->Executable);
     MStringDestroy(PathAsMString);
     if (Status != OsSuccess) {
         ERROR(" > failed to load executable");
@@ -388,7 +356,7 @@ CreateProcess(
     Process->AssemblyDirectory = MStringSubString(Process->Path, 0, Index);
 
     // Store copies of startup information
-    memcpy(&Process->StartupInformation, Parameters, sizeof(ProcessStartupInformation_t));
+    memcpy(&Process->Configuration, Configuration, sizeof(ProcessConfiguration_t));
 
     // Handle arguments, we need to prepend the full path of the executable
     PathLength       = strlen(MStringRaw(Process->Path));
@@ -410,7 +378,10 @@ CreateProcess(
     Process->Arguments       = (const char*)ArgumentsPointer;
     Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
 
-    if (InheritationBlock != NULL && InheritationBlockLength != 0) {
+    if (InheritationBlock != NULL) {
+        stdio_inheritation_block_t* block = InheritationBlock;
+        
+        InheritationBlockLength          = sizeof(stdio_inheritation_block_t) + (block->handle_count * sizeof(struct stdio_handle));
         Process->InheritationBlock       = malloc(InheritationBlockLength);
         Process->InheritationBlockLength = InheritationBlockLength;
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
@@ -430,11 +401,56 @@ CreateProcess(
     return Status;
 }
 
+void svc_process_spawn_callback(struct gracht_recv_message* message, struct svc_process_spawn_args* args)
+{
+    UUId_t     handle;
+    OsStatus_t status = CreateProcess(args->path, args->arguments,
+        args->inheritation_block, args->configuration, &handle);
+    svc_process_spawn_response(message, status, handle);
+}
+
+void svc_process_get_startup_information_callback(struct gracht_recv_message* message,
+    struct svc_process_get_startup_information_args* args)
+{
+    Process_t* process            = GetProcessByPrimaryThread(args->handle);
+    OsStatus_t status             = OsDoesNotExist;
+    char*      buffer             = NULL;
+    size_t     bufferLength       = 0;
+    UUId_t     handle             = UUID_INVALID;
+    size_t     argumentLength     = 0;
+    size_t     inheritationLength = 0;
+    int        moduleCount        = 0;
+    
+    if (process) {
+        buffer = malloc(process->ArgumentsLength + process->InheritationBlockLength + (PROCESS_MAXMODULES * sizeof(Handle_t)));
+        if (!buffer) {
+            status = OsOutOfMemory;
+        }
+        else {
+            handle             = (UUId_t)(uintptr_t)process->Header.key;
+            argumentLength     = process->ArgumentsLength;
+            inheritationLength = process->InheritationBlockLength;
+            
+            memcpy(&buffer[0], process->Arguments, process->ArgumentsLength);
+            memcpy(&buffer[process->ArgumentsLength], process->Arguments, process->InheritationBlockLength);
+            status = PeGetModuleEntryPoints(process->Executable,
+                (Handle_t*)&buffer[process->ArgumentsLength + process->InheritationBlockLength], &moduleCount);
+            bufferLength = process->ArgumentsLength + process->InheritationBlockLength + (moduleCount * sizeof(Handle_t));
+        }
+    }
+    
+    svc_process_get_startup_information_response(message, status, handle, argumentLength, inheritationLength,
+        moduleCount * sizeof(Handle_t), buffer, bufferLength);
+    if (buffer) {
+        free(buffer);
+    }
+}
+
 OsStatus_t
 JoinProcess(
-    _In_  Process_t* Process,
-    _In_  thrd_t     Address,
-    _In_  size_t     Timeout)
+    _In_  Process_t*                  process,
+    _In_  struct gracht_recv_message* message,
+    _In_  size_t                      timeout)
 {
     ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
     if (!Join) {
@@ -442,39 +458,34 @@ JoinProcess(
     }
     
     memset(Join, 0, sizeof(ProcessJoiner_t));
-    TRACE("JoinProcess(%u, %u)", (UUId_t)(uintptr_t)Process->Header.key, Timeout);
+    TRACE("JoinProcess(%u, %u)", (UUId_t)(uintptr_t)process->Header.key, timeout);
     
-    ELEMENT_INIT(&Join->Header, Process->Header.key, Join);
-    Join->Address = Address;
-    Join->Process = Process;
-    if (Timeout != 0) {
-        Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, Timeout);
+    ELEMENT_INIT(&Join->Header, process->Header.key, Join);
+    gracht_vali_message_defer_response(&Join->DeferredResponse, message);
+    Join->Process = process;
+    if (timeout != 0) {
+        Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, timeout);
     }
     else {
         Join->EventHandle = UUID_INVALID;
     }
-
-    // Add a reference
-    atomic_fetch_add(&Process->References, 1);
-    return list_append(&Joiners, &Join->Header);
+    
+    list_append(&Joiners, &Join->Header);
+    return OsSuccess;
 }
 
-OsStatus_t
-KillProcess(
-    _In_ Process_t* Killer,
-    _In_ Process_t* Target)
+void svc_process_join_callback(struct gracht_recv_message* message, struct svc_process_join_args* args)
 {
-    // Verify permissions
-    TRACE("KillProcess(%u, %u)", (UUId_t)(uintptr_t)Killer->Header.key, 
-        (UUId_t)(uintptr_t)Target->Header.key);
-
-    // Send a kill signal on the primary thread, if it fails, then
-    // the thread has probably already shutdown, but the process instance is
-    // lingering around.
-    if (Syscall_ThreadSignal(Target->PrimaryThreadId, SIGKILL) != OsSuccess) {
-        return TerminateProcess(Target, -1);
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = JoinProcess(process, message, args->timeout);
+    
+    // Only respond directly if the join didn't attach
+    if (status != OsSuccess) {
+        if (process) {
+            ReleaseProcess(process);
+        }
+        svc_process_join_response(message, status, 0);
     }
-    return OsSuccess;
 }
 
 static int
@@ -513,6 +524,59 @@ TerminateProcess(
     return OsSuccess;
 }
 
+void svc_process_terminate_callback(struct gracht_recv_message* message, struct svc_process_terminate_args* args)
+{
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = TerminateProcess(process, args->exit_code);
+    if (process) {
+        ReleaseProcess(process);
+    }
+    svc_process_terminate_response(message, status);
+}
+
+OsStatus_t
+KillProcess(
+    _In_ Process_t* Killer,
+    _In_ Process_t* Target)
+{
+    // Verify permissions
+    TRACE("KillProcess(%u, %u)", (UUId_t)(uintptr_t)Killer->Header.key, 
+        (UUId_t)(uintptr_t)Target->Header.key);
+        
+    if (!Killer) {
+        return OsInvalidParameters;
+    }
+    
+    if (!Target) {
+        return OsDoesNotExist;
+    }
+
+    // Send a kill signal on the primary thread, if it fails, then
+    // the thread has probably already shutdown, but the process instance is
+    // lingering around.
+    if (Syscall_ThreadSignal(Target->PrimaryThreadId, SIGKILL) != OsSuccess) {
+        return TerminateProcess(Target, -1);
+    }
+    return OsSuccess;
+}
+
+void svc_process_kill_callback(struct gracht_recv_message* message, struct svc_process_kill_args* args)
+{
+    Process_t* process = AcquireProcess(args->handle);
+    Process_t* target  = AcquireProcess(args->target_handle);
+    OsStatus_t status  = KillProcess(process, target);
+    
+    if (process) {
+        ReleaseProcess(process);
+    }
+    
+    if (target) {
+        ReleaseProcess(target);
+    }
+    
+    svc_process_kill_response(message, status);
+}
+
 OsStatus_t
 LoadProcessLibrary(
     _In_  Process_t*  Process,
@@ -537,6 +601,19 @@ LoadProcessLibrary(
     return Status;
 }
 
+void svc_library_load_callback(struct gracht_recv_message* message, struct svc_library_load_args* args)
+{
+    Process_t* process = AcquireProcess(args->process_handle);
+    OsStatus_t status  = OsInvalidParameters;
+    Handle_t   handle  = HANDLE_INVALID;
+    
+    if (process) {
+        status = LoadProcessLibrary(process, args->path, &handle);
+        ReleaseProcess(process);
+    }
+    svc_library_load_response(message, status, handle);
+}
+
 uintptr_t
 ResolveProcessLibraryFunction(
     _In_ Process_t*  Process,
@@ -552,6 +629,20 @@ ResolveProcessLibraryFunction(
     return PeResolveFunction(Image, Function);
 }
 
+void svc_library_get_function_callback(struct gracht_recv_message* message, struct svc_library_get_function_args* args)
+{
+    Process_t* process = AcquireProcess(args->process_handle);
+    OsStatus_t status  = OsInvalidParameters;
+    uintptr_t  address = 0;
+    
+    if (process) {
+        address = ResolveProcessLibraryFunction(process, args->handle, args->function);
+        status  = OsSuccess;
+        ReleaseProcess(process);
+    }
+    svc_library_get_function_response(message, status, address);
+}
+
 OsStatus_t
 UnloadProcessLibrary(
     _In_ Process_t* Process,
@@ -564,22 +655,30 @@ UnloadProcessLibrary(
     return PeUnloadLibrary(Process->Executable, (PeExecutable_t*)Handle);
 }
 
-OsStatus_t
-GetProcessLibraryHandles(
-    _In_  Process_t* Process,
-    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
+void svc_library_unload_callback(struct gracht_recv_message* message, struct svc_library_unload_args* args)
 {
-    TRACE("GetProcessLibraryHandles(%u)", (UUId_t)(uintptr_t)Process->Header.key);
-    return PeGetModuleHandles(Process->Executable, LibraryList);
+    Process_t* process = AcquireProcess(args->process_handle);
+    OsStatus_t status  = OsInvalidParameters;
+    
+    if (process) {
+        status = UnloadProcessLibrary(process, args->handle);
+        ReleaseProcess(process);
+    }
+    svc_library_unload_response(message, status);
 }
 
-OsStatus_t
-GetProcessLibraryEntryPoints(
-    _In_  Process_t* Process,
-    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
+void svc_process_get_modules_callback(struct gracht_recv_message* message, struct svc_process_get_modules_args* args)
 {
-    TRACE("GetProcessLibraryEntryPoints(%u)", (UUId_t)(uintptr_t)Process->Header.key);
-    return PeGetModuleEntryPoints(Process->Executable, LibraryList);
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = OsInvalidParameters;
+    Handle_t   buffer[PROCESS_MAXMODULES];
+    int        moduleCount = 0;
+    
+    if (process) {
+        status = PeGetModuleHandles(process->Executable, buffer, &moduleCount);
+        ReleaseProcess(process);
+    }
+    svc_process_get_modules_response(message, &buffer[0], moduleCount * sizeof(Handle_t), moduleCount);
 }
 
 OsStatus_t
@@ -588,9 +687,17 @@ HandleProcessCrashReport(
     _In_ Context_t* CrashContext,
     _In_ int        CrashReason)
 {
-    uintptr_t  ImageBase    = Process->Executable->VirtualAddress;
-    MString_t* ImageName    = Process->Executable->Name;
-    uintptr_t  CrashAddress = CONTEXT_IP(CrashContext);
+    uintptr_t  ImageBase;
+    MString_t* ImageName;
+    uintptr_t  CrashAddress;
+    
+    if (!Process || !CrashContext) {
+        return OsInvalidParameters;
+    }
+    
+    ImageBase    = Process->Executable->VirtualAddress;
+    ImageName    = Process->Executable->Name;
+    CrashAddress = CONTEXT_IP(CrashContext);
     
     TRACE("HandleProcessCrashReport(%i)", CrashReason);
     // Was it not main executable?
@@ -616,14 +723,95 @@ HandleProcessCrashReport(
     return OsSuccess;
 }
 
+void svc_process_report_crash_callback(struct gracht_recv_message* message, struct svc_process_report_crash_args* args)
+{
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = HandleProcessCrashReport(process, args->crash_context, args->reason);
+    if (process) {
+        ReleaseProcess(process);
+    }
+    svc_process_report_crash_response(message, status);
+}
+
+void svc_process_get_tick_base_callback(struct gracht_recv_message* message, struct svc_process_get_tick_base_args* args)
+{
+    Process_t*      process = AcquireProcess(args->handle);
+    OsStatus_t      status  = OsInvalidParameters;
+    LargeUInteger_t tick;
+    if (process) {
+        tick.QuadPart = clock() - process->StartedAt;
+        status        = OsSuccess;
+        ReleaseProcess(process);
+    }
+    svc_process_get_tick_base_response(message, status, tick.u.LowPart, tick.u.HighPart);
+}
+
+void svc_process_get_assembly_directory_callback(struct gracht_recv_message* message,
+    struct svc_process_get_assembly_directory_args* args)
+{
+    Process_t*  process = AcquireProcess(args->handle);
+    OsStatus_t  status  = OsInvalidParameters;
+    const char* path    = NULL;
+    if (process) {
+        path   = MStringRaw(process->AssemblyDirectory);
+        status = OsSuccess;
+        ReleaseProcess(process);
+    }
+    svc_process_get_assembly_directory_response(message, status, path);
+}
+
+void svc_process_get_working_directory_callback(struct gracht_recv_message* message,
+    struct svc_process_get_working_directory_args* args)
+{
+    Process_t*  process = AcquireProcess(args->handle);
+    OsStatus_t  status  = OsInvalidParameters;
+    const char* path    = NULL;
+    if (process) {
+        path   = MStringRaw(process->WorkingDirectory);
+        status = OsSuccess;
+        ReleaseProcess(process);
+    }
+    svc_process_get_working_directory_response(message, status, path);
+}
+
+void svc_process_set_working_directory_callback(struct gracht_recv_message* message,
+    struct svc_process_set_working_directory_args* args)
+{
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = OsInvalidParameters;
+    if (process) {
+        if (args->path != NULL) {
+            TRACE("proc_set_cwd(%s)", args->path);
+            MStringDestroy(process->WorkingDirectory);
+            process->WorkingDirectory = MStringCreate((void*)args->path, StrUTF8);
+            status = OsSuccess;
+        }
+        ReleaseProcess(process);
+    }
+    svc_process_set_working_directory_response(message, status);
+}
+
+void svc_process_get_name_callback(struct gracht_recv_message* message, struct svc_process_get_name_args* args)
+{
+    Process_t*  process = AcquireProcess(args->handle);
+    OsStatus_t  status  = OsInvalidParameters;
+    const char* name    = NULL;
+    if (process) {
+        name   = MStringRaw(process->Name);
+        status = OsSuccess;
+        ReleaseProcess(process);
+    }
+    svc_process_get_name_response(message, status, name);
+}
+
 Process_t*
 GetProcessByPrimaryThread(
     _In_ UUId_t ThreadId)
 {
     foreach(Node, &Processes) {
-        Process_t* Process = (Process_t*)Node;
-        if (Process->PrimaryThreadId == ThreadId) {
-            return Process;
+        Process_t* process = (Process_t*)Node;
+        if (process->PrimaryThreadId == ThreadId) {
+            return process;
         }
     }
     return NULL;

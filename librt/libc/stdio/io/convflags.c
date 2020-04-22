@@ -21,7 +21,6 @@
  */
 //#define __TRACE
 
-#include <os/services/file.h>
 #include <ddk/utils.h>
 #include <strings.h>
 #include <string.h>

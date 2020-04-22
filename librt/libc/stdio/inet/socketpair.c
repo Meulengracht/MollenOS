@@ -21,17 +21,18 @@
  * - Standard Socket IO Implementation
  */
 
-#include <ddk/services/net.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <io.h>
 #include <os/mollenos.h>
 
 int socketpair(int domain, int type, int protocol, int* iods)
 {
-    stdio_handle_t* io_object1;
-    stdio_handle_t* io_object2;
-    OsStatus_t      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          io_object1;
+    stdio_handle_t*          io_object2;
+    OsStatus_t               status;
     
     if (!iods) {
         _set_errno(EINVAL);
@@ -52,7 +53,9 @@ int socketpair(int domain, int type, int protocol, int* iods)
     io_object1 = stdio_handle_get(iods[0]);
     io_object2 = stdio_handle_get(iods[1]);
     
-    status = PairSockets(io_object1->object.handle, io_object2->object.handle);
+    svc_socket_pair_sync(GetGrachtClient(), &msg, io_object1->object.handle,
+        io_object2->object.handle, &status);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
         return -1;

@@ -25,11 +25,13 @@
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-#include <os/mollenos.h>
-#include <ddk/utils.h>
-#include "scheduler.h"
 #include <assert.h>
+#include <ddk/usb.h>
+#include <ddk/utils.h>
+#include <os/mollenos.h>
+#include "scheduler.h"
 #include <stdlib.h>
+#include <string.h>
 
 // Data assertions
 COMPILE_TIME_ASSERT(sizeof(UsbSchedulerObject_t) == 18);

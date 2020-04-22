@@ -4,12 +4,22 @@
 # Include all the definitions for os
 include ../../../config/common.mk
 
-SOURCES = $(wildcard ./*.c)
+INCLUDES = -I../../../librt/include \
+		   -I../../../librt/libc/include \
+		   -I../../../librt/libds/include \
+		   -I../../../librt/libddk/include \
+		   -I../../../librt/libgracht/include
 
-INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
+LIBRARIES = ../../../librt/deploy/libgracht.lib \
+			../../../librt/build/compiler-rt.lib \
+			../../../librt/build/ddk.lib \
+			../../../librt/build/c.lib \
+			../../../librt/build/libdrv.lib \
+			../../../librt/build/libds.lib
+
+SOURCES = $(wildcard ./*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
-LIBRARIES = ../../../librt/build/compiler-rt.lib ../../../librt/build/ddk.lib ../../../librt/build/c.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
 CFLAGS = $(GCFLAGS) $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap 
 

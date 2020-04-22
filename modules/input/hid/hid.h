@@ -23,8 +23,6 @@
 #define __USB_HID_H__
 
 #include <os/osdefs.h>
-#include <ddk/contracts/base.h>
-#include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
 
 typedef enum _DeviceInputType {
@@ -253,7 +251,6 @@ typedef struct _UsbHidReportCollection {
  * Represents a human input device. */
 typedef struct _HidDevice {
     MCoreUsbDevice_t             Base;
-    MContract_t                  Contract;
     UsbTransfer_t                Transfer;
     UUId_t                       TransferId;
 

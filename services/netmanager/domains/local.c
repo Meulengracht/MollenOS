@@ -28,16 +28,16 @@
 #include "../socket.h"
 #include "../manager.h"
 #include <ddk/handle.h>
-#include <ddk/services/net.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
 #include <internal/_socket.h>
 #include <inet/local.h>
 #include <io_events.h>
-#include <os/ipc.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "../svc_socket_protocol_server.h"
 
 typedef struct AddressRecord {
     element_t Header;
@@ -51,15 +51,14 @@ typedef struct SocketDomain {
 } SocketDomain_t;
 
 typedef struct ConnectionRequest {
-    element_t Header;
-    thrd_t    SourceWaiter;
-    UUId_t    SourceSocketHandle;
+    element_t                          Header;
+    UUId_t                             SourceSocketHandle;
+    struct vali_link_deferred_response Response;
 } ConnectionRequest_t;
 
 typedef struct AcceptRequest {
-    element_t Header;
-    UUId_t    TargetProcessHandle;
-    thrd_t    TargetWaiter;
+    element_t                          Header;
+    struct vali_link_deferred_response Response;
 } AcceptRequest_t;
 
 // TODO: should be hashtable
@@ -114,7 +113,7 @@ DomainLocalGetAddress(
     LcAddress->slc_family = AF_LOCAL;
     
     switch (Source) {
-        case SOCKET_GET_ADDRESS_SOURCE_THIS: {
+        case SVC_SOCKET_GET_ADDRESS_SOURCE_THIS: {
             if (!Record) {
                 return OsDoesNotExist;
             }
@@ -122,13 +121,13 @@ DomainLocalGetAddress(
             return OsSuccess;
         } break;
         
-        case SOCKET_GET_ADDRESS_SOURCE_PEER: {
+        case SVC_SOCKET_GET_ADDRESS_SOURCE_PEER: {
             Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
             if (!PeerSocket) {
                 return OsDoesNotExist;
             }
             return DomainLocalGetAddress(PeerSocket, 
-                SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
+                SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
         } break;
     }
     return OsInvalidParameters;
@@ -229,7 +228,7 @@ ProcessSocketPacket(
     
     // We must set the client address at this point. Replace the target address with
     // the source address for the reciever.
-    DomainLocalGetAddress(Socket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
+    DomainLocalGetAddress(Socket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
     Pointer += Packet->addresslen;
     
     if (Packet->controllen) {
@@ -414,135 +413,132 @@ DomainLocalBind(
 
 static ConnectionRequest_t*
 CreateConnectionRequest(
-    _In_ UUId_t SourceSocketHandle,
-    _In_ thrd_t SourceWaiter)
+    _In_ UUId_t                      sourceSocketHandle,
+    _In_ struct gracht_recv_message* message)
 {
-    ConnectionRequest_t* ConnectionRequest = malloc(sizeof(ConnectionRequest_t));
-    if (!ConnectionRequest) {
+    ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t));
+    if (!request) {
         return NULL;
     }
     
-    ELEMENT_INIT(&ConnectionRequest->Header, 0, ConnectionRequest);
-    ConnectionRequest->SourceWaiter       = SourceWaiter;
-    ConnectionRequest->SourceSocketHandle = SourceSocketHandle;
-    return ConnectionRequest;
+    ELEMENT_INIT(&request->Header, 0, request);
+    request->SourceSocketHandle = sourceSocketHandle;
+    gracht_vali_message_defer_response(&request->Response, message);
+    return request;
 }
 
 static AcceptRequest_t*
 CreateAcceptRequest(
-    _In_ UUId_t ProcessHandle,
-    _In_ thrd_t Waiter)
+    _In_ struct gracht_recv_message* message)
 {
-    AcceptRequest_t* AcceptRequest = malloc(sizeof(AcceptRequest_t));
-    if (!AcceptRequest) {
+    AcceptRequest_t* request = malloc(sizeof(AcceptRequest_t));
+    if (!request) {
         return NULL;
     }
     
-    ELEMENT_INIT(&AcceptRequest->Header, 0, AcceptRequest);
-    AcceptRequest->TargetProcessHandle = ProcessHandle;
-    AcceptRequest->TargetWaiter        = Waiter;
-    return AcceptRequest;
+    ELEMENT_INIT(&request->Header, 0, request);
+    gracht_vali_message_defer_response(&request->Response, message);
+    return request;
 }
 
 static void
 AcceptConnectionRequest(
-    _In_ UUId_t    ProcessHandle,
-    _In_ thrd_t    AcceptWaiter,
-    _In_ Socket_t* ConnectSocket,
-    _In_ thrd_t    ConnectWaiter)
+    _In_ struct gracht_recv_message* acceptMessage,
+    _In_ Socket_t*                   connectSocket,
+    _In_ struct gracht_recv_message* connectMessage)
 {
-    AcceptSocketPackage_t Package = { 0 };
-    IpcMessage_t          Message = { 0 };
+    UUId_t                  handle, recv_handle, send_handle;
+    struct sockaddr_storage address;
+    OsStatus_t              status;
+    
     TRACE("[net_manager] [accept_request]");
     
     // Get address of the connector socket
-    DomainLocalGetAddress(ConnectSocket, SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&Package.Address);
+    DomainLocalGetAddress(connectSocket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&address);
     
     // Create a new socket for the acceptor. This socket will be paired with
     // the connector socket.
-    Package.Status = NetworkManagerSocketCreate(ProcessHandle, ConnectSocket->DomainType,
-        ConnectSocket->Type, ConnectSocket->Protocol, &Package.SocketHandle,
-        &Package.SendBufferHandle, &Package.RecvBufferHandle);
-    if (Package.Status == OsSuccess) {
-        NetworkManagerSocketPair(ProcessHandle, Package.SocketHandle, 
-            (UUId_t)(uintptr_t)ConnectSocket->Header.key);
+    status = NetworkManagerSocketCreate(connectSocket->DomainType,
+        connectSocket->Type, connectSocket->Protocol, &handle,
+        &recv_handle, &send_handle);
+    if (status == OsSuccess) {
+        NetworkManagerSocketPair(handle, (UUId_t)(uintptr_t)connectSocket->Header.key);
     }
     
     // Reply to the connector (the thread that called connect())
-    Message.Sender = ConnectWaiter;
-    (void)IpcReply(&Message, &Package.Status, sizeof(OsStatus_t));
+    svc_socket_connect_response(connectMessage, status);
     
     // Reply to the accepter (the thread that called accept())
-    Message.Sender = AcceptWaiter;
-    (void)IpcReply(&Message, &Package, sizeof(AcceptSocketPackage_t));
+    svc_socket_accept_response(acceptMessage, status, (struct sockaddr*)&address,
+        handle, recv_handle, send_handle);
 }
 
 static OsStatus_t
 HandleLocalConnectionRequest(
-    _In_ thrd_t    SourceWaiter,
-    _In_ Socket_t* SourceSocket,
-    _In_ Socket_t* TargetSocket)
+    _In_ struct gracht_recv_message* message,
+    _In_ Socket_t*                   sourceSocket,
+    _In_ Socket_t*                   targetSocket)
 {
-    ConnectionRequest_t* ConnectionRequest;
-    AcceptRequest_t*     AcceptRequest;
-    element_t*           Element;
+    ConnectionRequest_t* connectionRequest;
+    AcceptRequest_t*     acceptRequest;
+    element_t*           element;
     
-    TRACE("[domain] [local] [handle_connect] %u, %u => %u", LODWORD(SourceWaiter),
-        LODWORD(SourceSocket->Header.key), LODWORD(TargetSocket->Header.key));
+    TRACE("[domain] [local] [handle_connect] %u => %u",
+        LODWORD(sourceSocket->Header.key), LODWORD(targetSocket->Header.key));
     
     // Check for active accept requests, otherwise we need to queue it up. If the backlog
     // is full, we need to reject the connection request.
-    mtx_lock(&TargetSocket->SyncObject);
-    Element = queue_pop(&TargetSocket->AcceptRequests);
-    if (!Element) {
+    mtx_lock(&targetSocket->SyncObject);
+    element = queue_pop(&targetSocket->AcceptRequests);
+    if (!element) {
         TRACE("[domain] [local] [handle_connect] creating request");
-        ConnectionRequest = CreateConnectionRequest((UUId_t)(uintptr_t)SourceSocket->Header.key, SourceWaiter);
-        if (!ConnectionRequest) {
-            mtx_unlock(&TargetSocket->SyncObject);
+        connectionRequest = CreateConnectionRequest((UUId_t)(uintptr_t)sourceSocket->Header.key, message);
+        if (!connectionRequest) {
+            mtx_unlock(&targetSocket->SyncObject);
             ERROR("[domain] [local] [handle_connect] failed to allocate memory for connection request");
             return OsOutOfMemory;
         }
         
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
-        queue_push(&TargetSocket->ConnectionRequests, &ConnectionRequest->Header);
-        handle_set_activity((UUId_t)(uintptr_t)TargetSocket->Header.key, IOEVTCTL);
+        queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
+        handle_set_activity((UUId_t)(uintptr_t)targetSocket->Header.key, IOEVTCTL);
     }
-    mtx_unlock(&TargetSocket->SyncObject);
+    mtx_unlock(&targetSocket->SyncObject);
     
     // Handle the accept request we popped earlier here, this means someone
     // has called accept() on the socket and is actively waiting
-    if (Element) {
-        AcceptRequest = Element->value;
-        AcceptConnectionRequest(AcceptRequest->TargetProcessHandle,
-            AcceptRequest->TargetWaiter, SourceSocket, SourceWaiter);
-        free(AcceptRequest);
+    if (element) {
+        acceptRequest = element->value;
+        AcceptConnectionRequest(&acceptRequest->Response.recv_message,
+            sourceSocket, message);
+        free(acceptRequest);
     }
     return OsSuccess;
 }
 
 static OsStatus_t
 DomainLocalConnect(
-    _In_ thrd_t                 Waiter,
-    _In_ Socket_t*              Socket,
-    _In_ const struct sockaddr* Address)
+    _In_ struct gracht_recv_message* message,
+    _In_ Socket_t*                   socket,
+    _In_ const struct sockaddr*      address)
 {
-    Socket_t* Target = GetSocketFromAddress(Address);
-    TRACE("[domain] [local] [connect] %s", &Address->sa_data[0]);
+    Socket_t* target = GetSocketFromAddress(address);
+    TRACE("[domain] [local] [connect] %s", &address->sa_data[0]);
     
-    if (!Target) {
-        TRACE("[domain] [local] [connect] %s did not exist", &Address->sa_data[0]);
+    if (!target) {
+        TRACE("[domain] [local] [connect] %s did not exist", &address->sa_data[0]);
         return OsHostUnreachable;
     }
     
-    if (Socket->Type != Target->Type) {
+    if (socket->Type != target->Type) {
         TRACE("[domain] [local] [connect] target is valid, but protocol was invalid source (%i, %i, %i) != target (%i, %i, %i)",
-            Socket->DomainType, Socket->Type, Socket->Protocol, Target->DomainType, Target->Type, Target->Protocol);
+            socket->DomainType, socket->Type, socket->Protocol, target->DomainType, target->Type, target->Protocol);
         return OsInvalidProtocol;
     }
     
-    if (Socket->Type == SOCK_STREAM || Socket->Type == SOCK_SEQPACKET) {
-        return HandleLocalConnectionRequest(Waiter, Socket, Target);
+    if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
+        return HandleLocalConnectionRequest(message, socket, target);
     }
     else {
         // Don't handle this scenario. It is handled locally in libc
@@ -572,52 +568,51 @@ DomainLocalDisconnect(
 
 static OsStatus_t
 DomainLocalAccept(
-    _In_ UUId_t    ProcessHandle,
-    _In_ thrd_t    Waiter,
-    _In_ Socket_t* Socket)
+    _In_ struct gracht_recv_message* message,
+    _In_ Socket_t*                   socket)
 {
-    Socket_t*            ConnectSocket;
-    ConnectionRequest_t* ConnectionRequest;
-    AcceptRequest_t*     AcceptRequest;
-    element_t*           Element;
-    OsStatus_t           Status = OsSuccess;
-    TRACE("[domain] [local] [accept] %u", LODWORD(Socket->Header.key));
+    Socket_t*            connectSocket;
+    ConnectionRequest_t* connectionRequest;
+    AcceptRequest_t*     acceptRequest;
+    element_t*           element;
+    OsStatus_t           status = OsSuccess;
+    TRACE("[domain] [local] [accept] %u", LODWORD(socket->Header.key));
     
     // Check if there is any requests available
-    mtx_lock(&Socket->SyncObject);
-    Element = queue_pop(&Socket->ConnectionRequests);
-    if (Element) {
-        mtx_unlock(&Socket->SyncObject);
-        ConnectionRequest = Element->value;
+    mtx_lock(&socket->SyncObject);
+    element = queue_pop(&socket->ConnectionRequests);
+    if (element) {
+        mtx_unlock(&socket->SyncObject);
+        connectionRequest = element->value;
         
         // Lookup the socket handle, to check if it is still valid
-        ConnectSocket = NetworkManagerSocketGet(ConnectionRequest->SourceSocketHandle);
-        if (ConnectSocket) {
-            AcceptConnectionRequest(ProcessHandle, Waiter, ConnectSocket,
-                ConnectionRequest->SourceWaiter);
+        connectSocket = NetworkManagerSocketGet(connectionRequest->SourceSocketHandle);
+        if (connectSocket) {
+            AcceptConnectionRequest(message, connectSocket,
+                &connectionRequest->Response.recv_message);
         }
         else {
-            Status = OsConnectionAborted;
+            status = OsConnectionAborted;
         }
-        free(ConnectionRequest);
+        free(connectionRequest);
     }
     else {
         // Only wait if configured to blocking, otherwise return OsBusy ish
-        if (Socket->Configuration.Blocking) {
-            AcceptRequest = CreateAcceptRequest(ProcessHandle, Waiter);
-            if (AcceptRequest) {
-                queue_push(&Socket->AcceptRequests, &AcceptRequest->Header);
+        if (socket->Configuration.Blocking) {
+            acceptRequest = CreateAcceptRequest(message);
+            if (acceptRequest) {
+                queue_push(&socket->AcceptRequests, &acceptRequest->Header);
             }
             else {
-                Status = OsOutOfMemory;
+                status = OsOutOfMemory;
             }
         }
         else {
-            Status = OsBusy; // TODO: OsTryAgain
+            status = OsBusy; // TODO: OsTryAgain
         }
-        mtx_unlock(&Socket->SyncObject);
+        mtx_unlock(&socket->SyncObject);
     }
-    return Status;
+    return status;
 }
 
 static void

@@ -27,30 +27,36 @@
 #include <bus.h>
 #include <ctype.h>
 #include "devicemanager.h"
-#include <ddk/driver.h>
+#include "svc_device_protocol_server.h"
 #include <ddk/utils.h>
 #include <ds/collection.h>
-#include <os/ipc.h>
+#include <ipcontext.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
 
-static Collection_t Contracts           = COLLECTION_INIT(KeyId);
 static Collection_t Devices             = COLLECTION_INIT(KeyId);
 static UUId_t       DeviceIdGenerator   = 0;
-static UUId_t       ContractIdGenerator = 0;
 
-/* OnLoad
- * The entry-point of a server, this is called
- * as soon as the server is loaded in the system */
+OsStatus_t OnUnload(void)
+{
+    return OsSuccess;
+}
+
+void GetServiceAddress(struct ipmsg_addr* address)
+{
+    address->type = IPMSG_ADDRESS_PATH;
+    address->data.path = SERVICE_DEVICE_PATH;
+}
+
 OsStatus_t
-OnLoad(
-    _In_ char** ServicePathOut)
+OnLoad(void)
 {
     thrd_t thr;
     
-    *ServicePathOut = SERVICE_DEVICE_PATH;
+    // Register supported interfaces
+    gracht_server_register_protocol(&svc_device_protocol);
     
     // Start the enumeration process in a new thread so we can quickly return
     // and be ready for requests.
@@ -60,102 +66,41 @@ OnLoad(
     return OsSuccess;
 }
 
-/* OnUnload
- * This is called when the server is being unloaded
- * and should free all resources allocated by the system */
-OsStatus_t
-OnUnload(void)
+void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
 {
-    // N/A not supposed to happen
-    return OsSuccess;
+    UUId_t     Result = UUID_INVALID;
+    OsStatus_t Status = DmRegisterDevice(args->parent, args->device, NULL, args->flags, &Result);
+    svc_device_register_response(message, Status);
 }
 
-/* OnEvent
- * This is called when the server recieved an external evnet
- * and should handle the given event */
-OsStatus_t
-OnEvent(
-    _In_ IpcMessage_t* Message)
+void svc_device_unregister_callback(struct gracht_recv_message* message, struct svc_device_unregister_args* args)
 {
-    TRACE("DeviceManager.OnEvent(Function %i)", IPC_GET_TYPED(Message, 0));
+    svc_device_unregister_response(message, OsNotSupported);
+}
 
-    switch (IPC_GET_TYPED(Message, 0)) {
-        case __DEVICEMANAGER_REGISTERDEVICE: {
-            UUId_t         Result = UUID_INVALID;
-            UUId_t         ParentDeviceId;
-            MCoreDevice_t* Device;
-            Flags_t        DeviceFlags;
-            
-            ParentDeviceId = (UUId_t)IPC_GET_TYPED(Message, 1);
-            DeviceFlags    = (Flags_t)IPC_GET_TYPED(Message, 2);
-            Device         = IPC_GET_UNTYPED(Message, 0);
-            if (Device != NULL) {
-                if (DmRegisterDevice(ParentDeviceId, Device, NULL, DeviceFlags, &Result) != OsSuccess) {
-                    Result = UUID_INVALID;
-                }
-            }
-            return IpcReply(Message, &Result, sizeof(UUId_t));
-        } break;
+void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args* args)
+{
+    MCoreDevice_t* Device;
+    OsStatus_t     Result;
+    DataKey_t      Key = { .Value.Id = args->device_id };
+    
+    Device = CollectionGetDataByKey(&Devices, Key, 0);
+    Result = DmIoctlDevice(Device, args->command, args->flags);
+    
+    svc_device_ioctl_response(message, Result);
+}
 
-        // Unregisters a device from the system, and 
-        // signals all drivers that are attached to 
-        // un-attach
-        case __DEVICEMANAGER_UNREGISTERDEVICE: {
-            WARNING("Got event __DEVICEMANAGER_UNREGISTERDEVICE");
-        } break;
-
-        // Queries device information and returns
-        // information about the device and the drivers
-        // attached
-        case __DEVICEMANAGER_QUERYDEVICE: {
-            WARNING("Got event __DEVICEMANAGER_QUERYDEVICE");
-        } break;
-
-        // What do?
-        case __DEVICEMANAGER_IOCTLDEVICE: {
-            MCoreDevice_t* Device;
-            OsStatus_t     Result = OsError;
-            DataKey_t      Key    = { .Value.Id = IPC_GET_TYPED(Message, 1) };
-            
-            Device = CollectionGetDataByKey(&Devices, Key, 0);
-            if (Device != NULL) {
-                if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
-                    Result = DmIoctlDevice(Device, IPC_GET_TYPED(Message, 3));
-                }
-                else if ((IPC_GET_TYPED(Message, 2) & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
-                    Result = DmIoctlDeviceEx(Device, IPC_GET_TYPED(Message, 2),
-                        IPC_GET_TYPED(Message, 3), IPC_GET_TYPED(Message, 4),
-                        (size_t)IPC_GET_UNTYPED(Message, 0));
-                }
-            }
-            return IpcReply(Message, &Result, sizeof(OsStatus_t));
-        } break;
-
-        // Registers a driver for the given device 
-        // We then store what contracts are related to 
-        // which devices in order to keep track
-        case __DEVICEMANAGER_REGISTERCONTRACT: {
-            MContract_t* Contract = (MContract_t*)IPC_GET_UNTYPED(Message, 0);
-            UUId_t       Result   = UUID_INVALID;
-
-            // Evaluate request, but don't free
-            // the allocated contract storage, we need it
-            if (DmRegisterContract(Contract, &Result) != OsSuccess) {
-                Result = UUID_INVALID;
-            }
-            return IpcReply(Message, &Result, sizeof(UUId_t));
-        } break;
-
-        // For now this function is un-implemented
-        case __DEVICEMANAGER_UNREGISTERCONTRACT: {
-            WARNING("Got event __DEVICEMANAGER_UNREGISTERCONTRACT");
-        } break;
-
-        default: {
-        } break;
-    }
-
-    return OsSuccess;
+void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args* args)
+{
+    MCoreDevice_t* Device;
+    OsStatus_t     Result;
+    DataKey_t      Key = { .Value.Id = args->device_id };
+    
+    Device = CollectionGetDataByKey(&Devices, Key, 0);
+    Result = DmIoctlDeviceEx(Device, args->direction,
+        args->command, &args->value, args->width);
+    
+    svc_device_ioctl_ex_response(message, Result, args->value);
 }
 
 int
@@ -214,38 +159,4 @@ DmRegisterDevice(
     }
 #endif
     return OsSuccess;
-}
-
-OsStatus_t
-DmRegisterContract(
-    _In_  MContract_t* Contract,
-    _Out_ UUId_t*      Id)
-{
-    MContract_t* CopyContract;
-    DataKey_t    Key;
-
-    assert(Contract != NULL);
-    assert(Id != NULL);
-
-    TRACE("%u: Driver installed for %u: %s", Contract->DriverId, Contract->DeviceId, &Contract->Name[0]);
-
-    // Lookup device
-    Key.Value.Id = Contract->DeviceId;
-    if (CollectionGetDataByKey(&Devices, Key, 0) == NULL) {
-        ERROR("Device id %u was not registered with the device manager",
-            Contract->DeviceId);
-        return OsError;
-    }
-
-    CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
-    if (!CopyContract) {
-        return OsOutOfMemory;
-    }
-    
-    memcpy(CopyContract, Contract, sizeof(MContract_t));
-    CopyContract->ContractId = ContractIdGenerator++;
-    Key.Value.Id             = *Id;
-    
-    *Id = CopyContract->ContractId;
-    return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
 }

@@ -7,7 +7,7 @@
         <type name="int16_t" header="stdint.h" />
     </types>
     <protocols namespace="hid">
-        <protocol name="events" id="0x1">
+        <protocol name="events" id="0x20">
             <enums>
                 <enum name="key_flags">
                     <value name="key_flag_lshift" value="0x1"></value>

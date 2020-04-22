@@ -22,10 +22,12 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
-#include <ddk/utils.h>
-#include "scheduler.h"
 #include <assert.h>
+#include <ddk/barrier.h>
+#include <ddk/usb.h>
+#include <ddk/utils.h>
+#include <os/mollenos.h>
+#include "scheduler.h"
 
 OsStatus_t
 UsbSchedulerLinkPeriodicElement(

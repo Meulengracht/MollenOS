@@ -65,15 +65,6 @@ typedef struct SystemMemoryMappingHandler {
     size_t    Length;
 } SystemMemoryMappingHandler_t;
 
-typedef struct {
-    Mutex_t   SyncObject;
-    size_t    Length;
-    size_t    Capacity;
-    Flags_t   Flags;
-    int       PageCount;
-    uintptr_t Pages[1];
-} SystemSharedRegion_t;
-
 typedef struct SystemMemorySpaceContext {
     DynamicMemoryPool_t Heap;
     list_t*             MemoryHandlers;
@@ -139,66 +130,6 @@ KERNELAPI OsStatus_t KERNELABI
 AreMemorySpacesRelated(
     _In_ SystemMemorySpace_t* Space1,
     _In_ SystemMemorySpace_t* Space2);
-
-/**
- * MemoryCreateSharedRegion
- * * Create a new page-aligned memory region that stretches over <Capacity>. The
- * * entire region is only committed directly to memory for <Length> bytes.
- * @param Length   [In]  The number of bytes that should be committed initially.
- * @param Capacity [In]  The number of bytes that we should reserve for continuity.
- * @param Flags    [In]  Configuration of the memory region and behaviour.
- * @param Memory   [Out] The allocated virtual buffer address.
- * @param Handle   [Out] The global handle for the memory region. 
- */
-KERNELAPI OsStatus_t KERNELABI
-MemoryCreateSharedRegion(
-    _In_  size_t  Length,
-    _In_  size_t  Capacity,
-    _In_  Flags_t Flags,
-    _Out_ void**  Memory,
-    _Out_ UUId_t* Handle);
-
-/**
- * MemoryExportSharedRegion
- * * Exports an existing memory region that stretches over <Length>. Makes sure
- * * all the memory from <Memory> to <Memory + Length> is committed.
- * @param Memory   [In]  The buffer that should be exported.
- * @param Length   [In]  Length of the buffer.
- * @param Flags    [In]  Configuration of the memory region and behaviour.
- * @param Handle   [Out] The global handle for the memory region. 
- */
-KERNELAPI OsStatus_t KERNELABI
-MemoryExportSharedRegion(
-    _In_  void*   Memory,
-    _In_  size_t  Length,
-    _In_  Flags_t Flags,
-    _Out_ UUId_t* HandleOut);
-
-KERNELAPI OsStatus_t KERNELABI
-MemoryResizeSharedRegion(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory,
-    _In_ size_t NewLength);
-
-/**
- * MemoryRefreshSharedRegion
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
- */
-KERNELAPI OsStatus_t KERNELABI
-MemoryRefreshSharedRegion(
-    _In_  UUId_t  Handle,
-    _In_  void*   Memory,
-    _In_  size_t  CurrentLength,
-    _Out_ size_t* NewLength);
-
-KERNELAPI void KERNELABI
-MemoryDestroySharedRegion(
-    _In_  void* Resource);
 
 /**
  * MemorySpaceMap

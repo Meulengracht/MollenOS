@@ -33,8 +33,6 @@
 InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
 OsStatus_t        AhciSetup(AhciController_t* Controller);
 
-/* AhciControllerCreate
- * Registers a new controller with the AHCI driver */
 AhciController_t*
 AhciControllerCreate(
     _In_ MCoreDevice_t* Device)
@@ -52,7 +50,6 @@ AhciControllerCreate(
     memset(Controller, 0, sizeof(AhciController_t));
     memcpy(&Controller->Device, Device, Device->Length);
     
-    Controller->Contract.DeviceId = Controller->Device.Id;
     spinlock_init(&Controller->Lock, spinlock_plain);
 
     // Get I/O Base, and for AHCI there might be between 1-5
@@ -82,9 +79,6 @@ AhciControllerCreate(
     }
     Controller->IoBase = IoBase;
 
-    // Start out by initializing the contract
-    InitializeContract(&Controller->Contract, Controller->Contract.DeviceId, 1,
-        ContractController, "AHCI Controller Interface");
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access
@@ -93,15 +87,6 @@ AhciControllerCreate(
     RegisterFastInterruptIoResource(&Controller->Device.Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Controller->Device.Interrupt, 
         (uintptr_t)&Controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
-
-    // Register contract before interrupt
-    Status = RegisterContract(&Controller->Contract);
-    if (Status != OsSuccess) {
-        ERROR("Failed to register contract for ahci-controller");
-        ReleaseDeviceIo(Controller->IoBase);
-        free(Controller);
-        return NULL;
-    }
 
     // Register interrupt
     TRACE(" > ahci interrupt line is %u", Controller->Device.Interrupt.Line);

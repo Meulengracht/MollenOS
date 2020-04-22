@@ -106,14 +106,14 @@ DomainFreeAddress(
 
 OsStatus_t
 DomainConnect(
-    _In_ thrd_t                 Waiter,
-    _In_ Socket_t*              Socket,
-    _In_ const struct sockaddr* Address)
+    _In_ struct gracht_recv_message* message,
+    _In_ Socket_t*                   socket,
+    _In_ const struct sockaddr*      address)
 {
-    if (!Socket->Domain) {
+    if (!socket->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.Connect(Waiter, Socket, Address);
+    return socket->Domain->Ops.Connect(message, socket, address);
 }
 
 OsStatus_t
@@ -128,14 +128,13 @@ DomainDisconnect(
 
 OsStatus_t
 DomainAccept(
-    _In_ UUId_t    ProcessHandle,
-    _In_ thrd_t    Waiter,
-    _In_ Socket_t* Socket)
+    _In_ struct gracht_recv_message* message,
+    _In_ Socket_t*                   socket)
 {
-    if (!Socket->Domain) {
+    if (!socket->Domain) {
         return OsInvalidParameters;
     }
-    return Socket->Domain->Ops.Accept(ProcessHandle, Waiter, Socket);
+    return socket->Domain->Ops.Accept(message, socket);
 }
 
 OsStatus_t

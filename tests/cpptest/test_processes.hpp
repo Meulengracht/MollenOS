@@ -22,7 +22,7 @@
  */
 #pragma once
 
-#include <os/services/process.h>
+#include <os/process.h>
 #include <os/mollenos.h>
 #include <iostream>
 #include <fstream>
@@ -39,17 +39,18 @@ public:
     {
         TestLog("TestSpawnProcess(%s)", Path.c_str());
 
-        ProcessStartupInformation_t StartupInformation;
-        InitializeStartupInformation(&StartupInformation);
+        ProcessConfiguration_t StartupInformation;
+        ProcessConfigurationInitialize(&StartupInformation);
     
         // Set inheritation
         TestLog(">> process stdout handle = %i", m_Stdout);
         StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT;
         StartupInformation.StdOutHandle = m_Stdout;
 
-        UUId_t ProcessId = ProcessSpawnEx(Path.c_str(), nullptr, &StartupInformation);
+        UUId_t     ProcessId;
+        OsStatus_t status = ProcessSpawnEx(Path.c_str(), nullptr, &StartupInformation, &ProcessId);
         TestLog(">> process id = %u", ProcessId);
-        if (ProcessId != UUID_INVALID) {
+        if (status == OsSuccess) {
             int ExitCode = 0;
             ProcessJoin(ProcessId, 0, &ExitCode);
             TestLog(">> process exitted with code = %i", ExitCode);
@@ -64,9 +65,10 @@ public:
     int TestSpawnInvalidProcess()
     {
         TestLog("TestSpawnInvalidProcess");
-        UUId_t ProcessId = ProcessSpawn("plx don't exist", nullptr);
+        UUId_t     ProcessId;
+        OsStatus_t status = ProcessSpawn("plx don't exist", nullptr, &ProcessId);
         TestLog(">> process id = %u", ProcessId);
-        if (ProcessId == UUID_INVALID) {
+        if (status != OsSuccess) {
             TestLog(">> process failed successfully");
         }
         else {

@@ -26,6 +26,7 @@
 #include <ds/mstring.h>
 #include <threading.h>
 #include <handle.h>
+#include <handle_set.h>
 #include <assert.h>
 #include <debug.h>
 #include <heap.h>

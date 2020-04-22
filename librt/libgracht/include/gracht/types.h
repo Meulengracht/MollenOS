@@ -28,18 +28,48 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define GRACHT_MAX_MESSAGE_SIZE 255
-
 typedef void* gracht_handle_t;
 
-typedef struct gracht_message {
-    uint32_t length     : 8;  // length is this message including arguments
-    uint32_t ret_length : 8;  // length of reply object
-    uint32_t crc        : 16; // crc of argument data
-    uint32_t protocol   : 8;
-    uint32_t action     : 8;
-    uint32_t padding    : 16;
-} gracht_message_t;
+#define MESSAGE_FLAG_SYNC 0x00000001
+
+#define GRACHT_MAX_MESSAGE_SIZE 255
+
+#define GRACHT_PARAM_VALUE  0
+#define GRACHT_PARAM_BUFFER 1
+#define GRACHT_PARAM_SHM    2
+
+struct gracht_param {
+    int type;
+    union {
+        size_t value;
+        void*  buffer;
+    } data;
+    size_t length;
+};
+
+struct gracht_message_header {
+    uint32_t length    : 16;
+    uint32_t param_in  : 4;
+    uint32_t param_out : 4;
+    uint32_t flags     : 8;
+    uint32_t protocol  : 8;
+    uint32_t action    : 8;
+    uint32_t reserved  : 16;
+};
+
+struct gracht_message {
+    struct gracht_message_header header;
+    struct gracht_param          params[];
+};
+
+struct gracht_recv_message {
+    void*   storage;
+    int     client;
+    void*   params;
+    int     param_count;
+    uint8_t protocol;
+    uint8_t action;
+};
 
 typedef struct gracht_object_header {
     int                          id;

@@ -31,6 +31,7 @@
 #include <arch/mmu.h>
 #include <assert.h>
 #include <cpu.h>
+#include <ddk/io.h>
 #include <debug.h>
 #include <gdt.h>
 #include <machine.h>

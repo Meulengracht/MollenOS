@@ -29,11 +29,6 @@
 #include <assert.h>
 #include "pe.h"
 
-#ifndef __TRACE
-#undef dstrace
-#define dstrace(...)
-#endif
-
 typedef struct SectionMapping {
     MemoryMapHandle_t Handle;
     uint8_t*          BasePointer;

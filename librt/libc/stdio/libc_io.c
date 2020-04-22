@@ -105,8 +105,8 @@ static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 }
  * startup information and the handle settings. */
 static OsStatus_t
 StdioIsHandleInheritable(
-    _In_ ProcessStartupInformation_t*   StartupInformation,
-    _In_ stdio_handle_t*                Object)
+    _In_ ProcessConfiguration_t* Configuration,
+    _In_ stdio_handle_t*         Object)
 {
     OsStatus_t Status = OsSuccess;
 
@@ -116,22 +116,22 @@ StdioIsHandleInheritable(
 
     // If we didn't request to inherit one of the handles, then we don't account it
     // for being the one requested.
-    if (Object->fd == StartupInformation->StdOutHandle && 
-        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDOUT)) {
+    if (Object->fd == Configuration->StdOutHandle && 
+        !(Configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
         Status = OsError;
     }
-    else if (Object->fd == StartupInformation->StdInHandle && 
-        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDIN)) {
+    else if (Object->fd == Configuration->StdInHandle && 
+        !(Configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
         Status = OsError;
     }
-    else if (Object->fd == StartupInformation->StdErrHandle && 
-        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDERR)) {
+    else if (Object->fd == Configuration->StdErrHandle && 
+        !(Configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
         Status = OsError;
     }
-    else if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES)) {
-        if (Object->fd != StartupInformation->StdOutHandle &&
-            Object->fd != StartupInformation->StdInHandle &&
-            Object->fd != StartupInformation->StdErrHandle) {
+    else if (!(Configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
+        if (Object->fd != Configuration->StdOutHandle &&
+            Object->fd != Configuration->StdInHandle &&
+            Object->fd != Configuration->StdErrHandle) {
             Status = OsError;
         }
     }
@@ -142,13 +142,13 @@ StdioIsHandleInheritable(
  * Retrieves the count of inheritable filedescriptor handles. This includes both pipes and files. */
 static size_t
 StdioGetNumberOfInheritableHandles(
-    _In_ ProcessStartupInformation_t* StartupInformation)
+    _In_ ProcessConfiguration_t* Configuration)
 {
     size_t NumberOfFiles = 0;
     LOCK_FILES();
     foreach(Node, &stdio_objects) {
         stdio_handle_t* Object = (stdio_handle_t*)Node->Data;
-        if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
+        if (StdioIsHandleInheritable(Configuration, Object) == OsSuccess) {
             NumberOfFiles++;
         }
     }
@@ -160,54 +160,53 @@ StdioGetNumberOfInheritableHandles(
  * Creates a block of data containing all the stdio handles that can be inherited. */
 static OsStatus_t
 StdioCreateInheritanceBlock(
-    _In_  ProcessStartupInformation_t* StartupInformation,
-    _Out_ void**                       InheritationBlockOut,
-    _Out_ size_t*                      InheritationBlockLengthOut)
+    _In_  ProcessConfiguration_t* Configuration,
+    _Out_ void**                  InheritationBlockOut,
+    _Out_ size_t*                 InheritationBlockLengthOut)
 {
-    stdio_handle_t* BlockPointer    = NULL;
-    size_t          NumberOfObjects = 0;
+    stdio_inheritation_block_t* InheritationBlock;
+    size_t                      NumberOfObjects;
+    int                         i = 0;
 
-    assert(StartupInformation != NULL);
+    assert(Configuration != NULL);
 
-    if (StartupInformation->InheritFlags == PROCESS_INHERIT_NONE) {
+    if (Configuration->InheritFlags == PROCESS_INHERIT_NONE) {
         return OsSuccess;
     }
     
-    NumberOfObjects = StdioGetNumberOfInheritableHandles(StartupInformation);
+    NumberOfObjects = StdioGetNumberOfInheritableHandles(Configuration);
     if (NumberOfObjects != 0) {
-        void*  InheritationBlock;
         size_t InheritationBlockLength;
         
-        InheritationBlockLength = NumberOfObjects * sizeof(stdio_handle_t) + sizeof(size_t);
-        InheritationBlock       = malloc(InheritationBlockLength);
+        InheritationBlockLength = sizeof(stdio_inheritation_block_t) + NumberOfObjects * sizeof(stdio_handle_t);
+        InheritationBlock       = (stdio_inheritation_block_t*)malloc(InheritationBlockLength);
         
-        *((size_t*)InheritationBlock) = NumberOfObjects * sizeof(stdio_handle_t);
-        BlockPointer                  = (stdio_handle_t*)(((size_t*)InheritationBlock) + 1);
+        InheritationBlock->handle_count = NumberOfObjects;
         
-        *InheritationBlockOut       = InheritationBlock;
-        *InheritationBlockLengthOut = InheritationBlockLength;
-
         LOCK_FILES();
         foreach(Node, &stdio_objects) {
             stdio_handle_t* Object = (stdio_handle_t*)Node->Data;
-            if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
-                memcpy(BlockPointer, Object, sizeof(stdio_handle_t));
+            if (StdioIsHandleInheritable(Configuration, Object) == OsSuccess) {
+                memcpy(&InheritationBlock->handles[i], Object, sizeof(stdio_handle_t));
                 
                 // Check for this fd to be equal to one of the custom handles
                 // if it is equal, we need to update the fd of the handle to our reserved
-                if (Object->fd == StartupInformation->StdOutHandle) {
-                    BlockPointer->fd = STDOUT_FILENO;
+                if (Object->fd == Configuration->StdOutHandle) {
+                    InheritationBlock->handles[i].fd = STDOUT_FILENO;
                 }
-                if (Object->fd == StartupInformation->StdInHandle) {
-                    BlockPointer->fd = STDIN_FILENO;
+                if (Object->fd == Configuration->StdInHandle) {
+                    InheritationBlock->handles[i].fd = STDIN_FILENO;
                 }
-                if (Object->fd == StartupInformation->StdErrHandle) {
-                    BlockPointer->fd = STDERR_FILENO;
+                if (Object->fd == Configuration->StdErrHandle) {
+                    InheritationBlock->handles[i].fd = STDERR_FILENO;
                 }
-                BlockPointer++;
+                i++;
             }
         }
         UNLOCK_FILES();
+        
+        *InheritationBlockOut       = (void*)InheritationBlock;
+        *InheritationBlockLengthOut = InheritationBlockLength;
     }
     return OsSuccess;
 }
@@ -246,21 +245,18 @@ StdioInheritObject(
  * Parses the inheritance block for stdio-objects that should be inheritted from the spawner. */
 static void 
 StdioParseInheritanceBlock(
-    _In_ void*  InheritanceBlock,
-    _In_ size_t InheritanceBlockLength)
+    _In_ void* inheritanceBlock)
 {
-    stdio_handle_t* handle_out;
-    stdio_handle_t* handle_in;
-    stdio_handle_t* handle_err;
+    stdio_inheritation_block_t* block = inheritanceBlock;
+    stdio_handle_t*             handle_out;
+    stdio_handle_t*             handle_in;
+    stdio_handle_t*             handle_err;
+    int                         i;
     
     // Handle inheritance
-    if (InheritanceBlock != NULL) {
-        stdio_handle_t* HandlePointer = (stdio_handle_t*)InheritanceBlock;
-        size_t          BytesLeft     = InheritanceBlockLength;
-        while (BytesLeft >= sizeof(stdio_handle_t)) {
-            StdioInheritObject(HandlePointer);
-            BytesLeft -= sizeof(stdio_handle_t);
-            HandlePointer++;
+    if (block != NULL) {
+        for (i = 0; i < block->handle_count; i++) {
+            StdioInheritObject(&block->handles[i]);
         }
     }
 
@@ -316,11 +312,10 @@ stdio_close_all_handles(void)
 
 _CRTIMP void
 StdioInitialize(
-    _In_ void*  InheritanceBlock,
-    _In_ size_t InheritanceBlockLength)
+    _In_ void*  InheritanceBlock)
 {
     stdio_bitmap_initialize();
-    StdioParseInheritanceBlock(InheritanceBlock, InheritanceBlockLength);
+    StdioParseInheritanceBlock(InheritanceBlock);
 }
 
 _CRTIMP void
@@ -399,6 +394,10 @@ int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
         case STDIO_HANDLE_SOCKET: {
             handle->object.type = STDIO_HANDLE_SOCKET;
             stdio_get_net_operations(&handle->ops);
+        } break;
+        case STDIO_HANDLE_IPCONTEXT: {
+            handle->object.type = STDIO_HANDLE_IPCONTEXT;
+            stdio_get_ipc_operations(&handle->ops);
         } break;
         
         default: {
@@ -494,6 +493,16 @@ int isatty(int fd)
 Collection_t* stdio_get_handles(void)
 {
     return &stdio_objects;
+}
+
+
+UUId_t GetNativeHandle(int iod)
+{
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    if (!handle) {
+        return UUID_INVALID;
+    }
+    return handle->object.handle;
 }
 
 extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_args*);

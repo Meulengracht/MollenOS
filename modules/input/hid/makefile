@@ -5,11 +5,23 @@
 include ../../../config/common.mk
 
 SOURCES = $(wildcard ./*.c)
-
-INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
-LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/c.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
+INCLUDES = -I../../../librt/include \
+		   -I../../../librt/libc/include \
+		   -I../../../librt/libds/include \
+		   -I../../../librt/libddk/include \
+		   -I../../../librt/libgracht/include \
+		   -I../sata
+
+LIBRARIES = ../../../librt/build/ddk.lib \
+			../../../librt/build/libusb.lib \
+			../../../librt/build/libds.lib \
+			../../../librt/deploy/libgracht.lib \
+			../../../librt/build/c.lib \
+			../../../librt/build/compiler-rt.lib \
+			../../../librt/build/libdrv.lib
+
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll
 

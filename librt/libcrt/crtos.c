@@ -19,13 +19,12 @@
  * MollenOS C Environment - Shared Routines
  */
 
+#include <ctype.h>
 #include <internal/_syscalls.h>
-#include <os/services/process.h>
-
 #include "../libc/threads/tls.h"
+#include <os/process.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 extern int main(int argc, char **argv, char **envp);
 extern void __cxa_module_global_init(void);
@@ -36,7 +35,8 @@ extern void __cxa_module_tls_thread_finit(void);
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-CRTDECL(void,        __cxa_runinitializers(void (*module_init)(void), void (*module_cleanup)(void), 
+CRTDECL(void,        __cxa_runinitializers(ProcessStartupInformation_t*, 
+	void (*module_init)(void), void (*module_cleanup)(void), 
     void (*module_thread_init)(void), void (*module_thread_finit)(void)));
 CRTDECL(void,        InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
 CRTDECL(const char*, GetInternalCommandLine(void));
@@ -160,7 +160,8 @@ __CrtInitialize(
             *ArgumentCount = 0;
         }
     }
-    __cxa_runinitializers(__cxa_module_global_init, __cxa_module_global_finit, 
+    __cxa_runinitializers(&StartupInformation,
+    	__cxa_module_global_init, __cxa_module_global_finit, 
         __cxa_module_tls_thread_init, __cxa_module_tls_thread_finit);
     return Arguments;
 }

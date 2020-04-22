@@ -22,6 +22,7 @@
 
 #include <os/osdefs.h>
 #include <ds/bitmap.h>
+#include <ds/ds.h>
 #include <string.h>
 #include <stddef.h>
 #include <assert.h>

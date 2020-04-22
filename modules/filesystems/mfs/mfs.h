@@ -31,7 +31,6 @@
 #define _MFS_H_
 
 #include <ddk/contracts/filesystem.h>
-#include <os/services/file.h>
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
 #include <ds/mstring.h>
@@ -272,9 +271,9 @@ MfsSetBucketLink(
     _In_ int                        UpdateLength);
 
 /* MfsSwitchToNextBucketLink
- * Retrieves the next bucket link, marks it active and updates the file-instance. Returns FsPathNotFound
+ * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsDoesNotExist
  * when end-of-chain. */
-__EXTERN FileSystemCode_t
+__EXTERN OsStatus_t
 MfsSwitchToNextBucketLink(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ MfsEntryHandle_t*          Handle,
@@ -309,7 +308,7 @@ MfsFreeBuckets(
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
-__EXTERN FileSystemCode_t
+__EXTERN OsStatus_t
 MfsEnsureRecordSpace(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ MfsEntry_t*                Entry,
@@ -318,7 +317,7 @@ MfsEnsureRecordSpace(
 /* MfsUpdateRecord
  * Conveniance function for updating a given file on
  * the disk, not data related to file, but the metadata */
-__EXTERN FileSystemCode_t
+__EXTERN OsStatus_t
 MfsUpdateRecord(
     _In_ FileSystemDescriptor_t*    FileSystem, 
     _In_ MfsEntry_t*                Entry,
@@ -326,8 +325,8 @@ MfsUpdateRecord(
 
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
- * directories. File is only allocated and set if the function returns FsOk */
-__EXTERN FileSystemCode_t
+ * directories. File is only allocated and set if the function returns OsSuccess */
+__EXTERN OsStatus_t
 MfsLocateRecord(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ uint32_t                   BucketOfDirectory,
@@ -337,7 +336,7 @@ MfsLocateRecord(
 /* MfsLocateFreeRecord
  * Very alike to the MfsLocateRecord except instead of locating a file entry
  * it locates a free entry in the last token of the path, and validates the path as it goes */
-__EXTERN FileSystemCode_t
+__EXTERN OsStatus_t
 MfsLocateFreeRecord(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ uint32_t                   BucketOfDirectory,
@@ -347,7 +346,7 @@ MfsLocateFreeRecord(
 /* MfsCreateRecord
  * Creates a new file-record in a directory. It internally calls MfsLocateFreeRecord to
  * find a viable entry and validate the path */
-__EXTERN FileSystemCode_t
+__EXTERN OsStatus_t
 MfsCreateRecord(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ uint32_t                   BucketOfDirectory,

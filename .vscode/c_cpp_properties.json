@@ -8,6 +8,7 @@
                 "${workspaceRoot}/librt/libc/include",
                 "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/source/include",
+                "${workspaceRoot}/librt/libgracht/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/include",
@@ -67,6 +68,7 @@
                 "${workspaceRoot}/librt/libc/include",
                 "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/source/include",
+                "${workspaceRoot}/librt/libgracht/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/include",
@@ -119,7 +121,7 @@
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "compilerPath": "/usr/local/cross/bin/clang"
+            "compilerPath": "${env:CROSS}/bin/clang"
         }
     ],
     "version": 4

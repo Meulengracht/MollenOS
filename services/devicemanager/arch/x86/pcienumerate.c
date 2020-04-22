@@ -636,12 +636,11 @@ BusEnumerate(void* Context)
     return EOK;
 }
 
-/* DmIoctlDevice
- * Allows manipulation of a given device to either disable or enable, or configure the device */
 OsStatus_t
 DmIoctlDevice(
     _In_ MCoreDevice_t* Device,
-    _In_ Flags_t        Flags)
+    _In_ unsigned int   Command,
+    _In_ unsigned int   Flags)
 {
     // Variables
     PciDevice_t *PciDevice = NULL;
@@ -699,18 +698,14 @@ DmIoctlDevice(
     return OsSuccess;
 }
 
-/* DmIoctlDeviceEx
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device. <Direction> = 0 (Read), 1 (Write) */
-Flags_t
+OsStatus_t
 DmIoctlDeviceEx(
-    _In_ MCoreDevice_t* Device,
-    _In_ Flags_t        Parameters,
-    _In_ Flags_t        Register,
-    _In_ Flags_t        Value,
-    _In_ size_t         Width)
+	_In_ MCoreDevice_t* Device,
+	_In_ int            Direction,
+	_In_ unsigned int   Register,
+	_In_ size_t*        Value,
+	_In_ size_t         Width)
 {
-    // Variables
     PciDevice_t *PciDevice = NULL;
 
     // Lookup pci-device
@@ -724,41 +719,44 @@ DmIoctlDeviceEx(
         }
     }
 
-    // Sanitize
     if (PciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
         return OsError;
     }
 
-    // Which kind of action?
-    if (Parameters & __DEVICEMANAGER_IOCTL_EXT_READ) {
+    if (Direction == __DEVICEMANAGER_IOCTL_EXT_READ) {
         if (Width == 1) {
-            return PciRead8(PciDevice->BusIo, Device->Bus,
+            *Value = (size_t)PciRead8(PciDevice->BusIo, Device->Bus,
                 Device->Slot, Device->Function, Register);
         }
         else if (Width == 2) {
-            return PciRead16(PciDevice->BusIo, Device->Bus,
+            *Value = (size_t)PciRead16(PciDevice->BusIo, Device->Bus,
+                Device->Slot, Device->Function, Register);
+        }
+        else if (Width == 4) {
+            *Value = (size_t)PciRead32(PciDevice->BusIo, Device->Bus,
                 Device->Slot, Device->Function, Register);
         }
         else {
-            return PciRead32(PciDevice->BusIo, Device->Bus,
-                Device->Slot, Device->Function, Register);
+            return OsInvalidParameters;
         }
     }
     else {
         if (Width == 1) {
             PciWrite8(PciDevice->BusIo, Device->Bus, 
-                Device->Slot, Device->Function, Register, Value);
+                Device->Slot, Device->Function, Register, LOBYTE(Value));
         }
         else if (Width == 2) {
             PciWrite16(PciDevice->BusIo, Device->Bus, 
-                Device->Slot, Device->Function, Register, Value);
+                Device->Slot, Device->Function, Register, LOWORD(Value));
+        }
+        else if (Width == 4) {
+            PciWrite32(PciDevice->BusIo, Device->Bus, 
+                Device->Slot, Device->Function, Register, LODWORD(Value));
         }
         else {
-            PciWrite32(PciDevice->BusIo, Device->Bus, 
-                Device->Slot, Device->Function, Register, Value);
+            return OsInvalidParameters;
         }
-    
     }
     return OsSuccess;
 }

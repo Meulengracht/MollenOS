@@ -21,70 +21,83 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include <assert.h>
+#include <arch/utils.h>
+#include <ds/mstring.h>
+#include <debug.h>
+#include <handle.h>
+#include <heap.h>
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
-#include <arch/utils.h>
 #include <os/types/process.h>
-#include <ds/mstring.h>
-#include <threading.h>
 #include <scheduler.h>
-#include <handle.h>
-#include <debug.h>
-#include <heap.h>
+#include <threading.h>
 #include <string.h>
 
 OsStatus_t
 ScModuleGetStartupInformation(
-    _In_ void*   InheritanceBlock, 
-    _In_ size_t* InheritanceBlockLength,
-    _In_ void*   ArgumentBlock,
-    _In_ size_t* ArgumentBlockLength)
+    _In_  ProcessStartupInformation_t* startupInformation, 
+    _Out_ UUId_t*                      processIdOut,
+    _In_  char*                        buffer,
+    _In_  size_t                       bufferMaxLength)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (Module == NULL) {
+    SystemModule_t* module          = GetCurrentModule();
+    int             bufferIndex     = 0;
+    size_t          bufferBytesLeft = bufferMaxLength;
+    int             moduleCount     = 0;
+    Handle_t        moduleList[16]; // no more is neccessary... but it is riscy
+    OsStatus_t      status;
+
+    if (!module) {
         return OsInvalidPermissions;
     }
 
-    if (Module->ArgumentBlock != NULL) {
-        if (ArgumentBlock != NULL) {
-            memcpy((void*)ArgumentBlock, Module->ArgumentBlock,
-                MIN(*ArgumentBlockLength, Module->ArgumentBlockLength));
-            *ArgumentBlockLength = MIN(*ArgumentBlockLength, Module->ArgumentBlockLength);
-        }
-        else if (ArgumentBlockLength != NULL) {
-            *ArgumentBlockLength = Module->ArgumentBlockLength;
-        }
-    }
-    else if (ArgumentBlockLength != NULL) {
-        *ArgumentBlockLength = 0;
+    if (!startupInformation || !processIdOut ||
+        !buffer || !bufferMaxLength) {
+        return OsInvalidParameters;
     }
 
-    if (Module->InheritanceBlock != NULL) {
-        if (InheritanceBlock != NULL) {
-            size_t BytesToCopy = MIN(*InheritanceBlockLength, Module->InheritanceBlockLength);
-            memcpy((void*)InheritanceBlock, Module->InheritanceBlock, BytesToCopy);
-            *InheritanceBlockLength = BytesToCopy;
-        }
-        else if (InheritanceBlockLength != NULL) {
-            *InheritanceBlockLength = Module->InheritanceBlockLength;
-        }
+    *processIdOut = module->Handle;
+
+    memset(startupInformation, 0, sizeof(ProcessStartupInformation_t));
+
+    if (module->ArgumentBlock != NULL) {
+        size_t bytesToCopy = MIN(bufferBytesLeft, module->ArgumentBlockLength);
+        memcpy(&buffer[bufferIndex], module->ArgumentBlock, bytesToCopy);
+
+        startupInformation->Arguments       = &buffer[bufferIndex];
+        startupInformation->ArgumentsLength = bytesToCopy;
+
+        bufferBytesLeft -= bytesToCopy;
+        bufferIndex     += bytesToCopy;
     }
-    else if (InheritanceBlockLength != NULL) {
-        *InheritanceBlockLength = 0;
+
+    if (module->InheritanceBlock != NULL) {
+        size_t bytesToCopy = MIN(bufferBytesLeft, module->InheritanceBlockLength);
+        memcpy(&buffer[bufferIndex], module->InheritanceBlock, bytesToCopy);
+
+        startupInformation->Inheritation       = &buffer[bufferIndex];
+        startupInformation->InheritationLength = bytesToCopy;
+
+        bufferBytesLeft -= bytesToCopy;
+        bufferIndex     += bytesToCopy;
     }
+    
+    status = PeGetModuleEntryPoints(module->Executable,
+        moduleList, &moduleCount);
+    assert(moduleCount < 16);
+    if (status == OsSuccess) {
+        size_t bytesToCopy = MIN(bufferBytesLeft, moduleCount * sizeof(Handle_t));
+        memcpy(&buffer[bufferIndex], &moduleList[0], bytesToCopy);
+
+        startupInformation->LibraryEntries       = &buffer[bufferIndex];
+        startupInformation->LibraryEntriesLength = bytesToCopy;
+
+        bufferBytesLeft -= bytesToCopy;
+        bufferIndex     += bytesToCopy;
+    }
+
     return OsSuccess;
-}
-
-OsStatus_t 
-ScModuleGetCurrentId(
-    _In_ UUId_t* Handle)
-{
-    SystemModule_t* Module = GetCurrentModule();
-    if (Module != NULL) {
-        *Handle = Module->Handle;
-        return OsSuccess;
-    }
-    return OsInvalidPermissions;
 }
 
 OsStatus_t
@@ -106,10 +119,11 @@ ScModuleGetModuleHandles(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
     SystemModule_t* Module = GetCurrentModule();
+    int             ModuleCount;
     if (Module == NULL) {
         return OsError;
     }
-    return PeGetModuleHandles(Module->Executable, ModuleList);
+    return PeGetModuleHandles(Module->Executable, ModuleList, &ModuleCount);
 }
 
 OsStatus_t
@@ -117,10 +131,11 @@ ScModuleGetModuleEntryPoints(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
     SystemModule_t* Module = GetCurrentModule();
+    int             ModuleCount;
     if (Module == NULL) {
         return OsError;
     }
-    return PeGetModuleEntryPoints(Module->Executable, ModuleList);
+    return PeGetModuleEntryPoints(Module->Executable, ModuleList, &ModuleCount);
 }
 
 OsStatus_t

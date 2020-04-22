@@ -30,16 +30,17 @@
  * a later reattempt at connection succeeds.
  */
 
-#include <ddk/services/net.h>
 #include <internal/_io.h>
+#include <internal/_ipc.h>
 #include <inet/local.h>
 #include <errno.h>
 #include <os/mollenos.h>
 
 int listen(int iod, int backlog)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    OsStatus_t      status;
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
+    stdio_handle_t*          handle = stdio_handle_get(iod);
+    OsStatus_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -57,7 +58,8 @@ int listen(int iod, int backlog)
         return -1;
     }
     
-    status = ListenSocket(handle->object.handle, backlog);
+    svc_socket_listen_sync(GetGrachtClient(), &msg, handle->object.handle, backlog, &status);
+    gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

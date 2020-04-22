@@ -24,6 +24,7 @@
 #ifndef __DS_BOUNDED_STACK_H__
 #define __DS_BOUNDED_STACK_H__
 
+#include <ds/dsdefs.h>
 #include <ds/shared.h>
 
 typedef struct bounded_stack {
@@ -36,28 +37,28 @@ typedef struct bounded_stack {
 
 _CODE_BEGIN
 
-CRTDECL(void,
+DSDECL(void,
 bounded_stack_construct(
     _In_ bounded_stack_t*,
     _In_ void**,
     _In_ int));
 
-CRTDECL(int,
+DSDECL(int,
 bounded_stack_push(
     _In_ bounded_stack_t*,
     _In_ void*));
 
-CRTDECL(int,
+DSDECL(int,
 bounded_stack_push_multiple(
     _In_ bounded_stack_t*,
     _In_ void**,
     _In_ int));
 
-CRTDECL(void*,
+DSDECL(void*,
 bounded_stack_pop(
     _In_ bounded_stack_t*));
 
-CRTDECL(int,
+DSDECL(int,
 bounded_stack_pop_multiple(
     _In_ bounded_stack_t*,
     _In_ void**,

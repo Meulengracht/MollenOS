@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <types>
+        <type name="size_t" header="stddef.h" />
+        <type name="uint8_t" header="stdint.h" />
+        <type name="uintptr_t" header="stdint.h" />
+        <type name="UUId_t" header="os/osdefs.h" />
+        <type name="OsStatus_t" header="os/osdefs.h" />
+        <type name="StorageDescriptor_t" header="ddk/storage.h" />
+        <type name="UsbTransferStatus_t" header="ddk/usb.h" />
+        <type name="UsbTransfer_t" header="ddk/usb.h" />
+        <type name="UsbHcPortDescriptor_t" header="ddk/usb/definitions.h" />
+    </types>
+    <protocols namespace="ctt">
+        <protocol name="driver" id="0x10">
+            <functions>
+                <function name="register_device" synchronous="true">
+                    <request>
+                        <param name="device" type="buffer" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+        <protocol name="storage" id="0x11">
+            <functions>
+                <function name="stat" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="StorageDescriptor_t" />
+                    </response>
+                </function>
+                <function name="transfer_async" synchronous="false">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="direction" type="int" />
+                        <param name="sector_lo" type="unsigned int" />
+                        <param name="sector_hi" type="unsigned int" />
+                        <param name="buffer_id" type="UUId_t" />
+                        <param name="buffer_offset" type="unsigned int" />
+                        <param name="sector_count" type="size_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="sectors_transferred" type="size_t" />
+                    </response>
+                </function>
+                <function name="transfer" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="direction" type="int" />
+                        <param name="sector_lo" type="unsigned int" />
+                        <param name="sector_hi" type="unsigned int" />
+                        <param name="buffer_id" type="UUId_t" />
+                        <param name="buffer_offset" type="unsigned int" />
+                        <param name="sector_count" type="size_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="sectors_transferred" type="size_t" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+        <protocol name="usbhost" id="0x12">
+            <functions>
+                <function name="queue_async" synchronous="false">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="transfer_id" type="UUId_t" />
+                        <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
+                    </request>
+                    <response>
+                        <param name="id" type="UUId_t" />
+                        <param name="status" type="UsbTransferStatus_t" />
+                        <param name="bytes_transferred" type="size_t" />
+                    </response>
+                </function>
+                <function name="queue" synchronous="true">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="transfer_id" type="UUId_t" />
+                        <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="UsbTransferStatus_t" />
+                        <param name="bytes_transferred" type="size_t" />
+                    </response>
+                </function>
+                <function name="queue_periodic" synchronous="true">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="transfer_id" type="UUId_t" />
+                        <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="UsbTransferStatus_t" />
+                    </response>
+                </function>
+                <function name="dequeue" synchronous="true">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="transfer_id" type="UUId_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+                <function name="query_port" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="port_id" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
+                    </response>
+                </function>
+                <function name="reset_port" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="port_id" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
+                    </response>
+                </function>
+                <function name="reset_endpoint" synchronous="true">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="hub_address" type="uint8_t" />
+                        <param name="port_address" type="uint8_t" />
+                        <param name="device_address" type="uint8_t" />
+                        <param name="endpoint_address" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+        </protocol>
+    </protocols>
+</root>

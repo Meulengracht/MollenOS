@@ -51,6 +51,11 @@ typedef struct element {
     void* value;
 } element_t;
 
+typedef struct valuepair {
+    void* key;
+    void* value;
+} valuepair_t;
+
 #define ELEMENT_INIT(elem, _key, _value) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = (void*)_key; (elem)->value = (void*)_value
 
 // These are for unlocked access and destroy the purpose of synchronization

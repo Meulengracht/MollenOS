@@ -24,7 +24,6 @@
 #ifndef __DEVICEMANAGER_INTERFACE__
 #define __DEVICEMANAGER_INTERFACE__
 
-#include <ddk/contracts/base.h>
 #include <os/osdefs.h>
 #include <ddk/device.h>
 
@@ -54,30 +53,21 @@ DmUnregisterDevice(
 __EXTERN
 OsStatus_t
 DmIoctlDevice(
-	_In_ MCoreDevice_t*         Device,
-	_In_ Flags_t                Flags);
+    _In_ MCoreDevice_t* Device,
+    _In_ unsigned int   Command,
+    _In_ unsigned int   Flags);
 
 /* DmIoctlDeviceEx
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
 __EXTERN
-Flags_t
-DmIoctlDeviceEx(
-	_In_ MCoreDevice_t*         Device,
-	_In_ Flags_t                Parameters,
-	_In_ Flags_t                Register,
-	_In_ Flags_t                Value,
-	_In_ size_t                 Width);
-
-/* DmRegisterContract 
- * Registers the given contact with the device-manager to let
- * the manager know we are handling this device, and what kind
- * of functionality the device supports */
-__EXTERN
 OsStatus_t
-DmRegisterContract(
-    _In_  MContract_t*          Contract,
-    _Out_ UUId_t*               Id);
+DmIoctlDeviceEx(
+	_In_ MCoreDevice_t* Device,
+	_In_ int            Direction,
+	_In_ unsigned int   Register,
+	_In_ size_t*        Value,
+	_In_ size_t         Width);
 
 #endif //! __DEVICEMANAGER_INTERFACE__
