@@ -351,5 +351,6 @@
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",
     "editor.detectIndentation": false,
-    "code-runner.runInTerminal": true
+    "code-runner.runInTerminal": true,
+    "cmake.configureOnOpen": false
 }

@@ -54,7 +54,7 @@ typedef struct epoll_event gracht_aio_event_t;
 #define GRACHT_AIO_EVENT_CTRL EPOLLRDHUP
 
 #define gracht_aio_create()                epoll_create1(0)
-#define gracht_io_wait(aio, events, count) epoll_wait(aio, events, count, 0);
+#define gracht_io_wait(aio, events, count) epoll_wait(aio, events, count, -1);
 #define gracht_aio_remove(aio, iod)        epoll_ctl(aio, EPOLL_CTL_DEL, iod, NULL)
 #define gracht_aio_destroy(aio)            close(aio)
 

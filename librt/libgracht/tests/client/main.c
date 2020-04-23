@@ -22,31 +22,43 @@
  *    communication protocols in the os
  */
 
+#include <errno.h>
 #include <gracht/link/socket.h>
-#include <gracht/client.h>
+#include <gracht/server.h>
 #include <gracht/os.h>
-#include "test_utils_protocol_client.h"
+#include "../test_utils_protocol_client.h"
 #include <stdio.h>
+#include <string.h>
+#include <sys/un.h>
+
+static const char* dgramPath = "/tmp/g_dgram";
+static const char* clientsPath = "/tmp/g_clients";
 
 int main(int argc, char **argv)
 {
     struct socket_client_configuration linkConfiguration;
     struct gracht_client_configuration clientConfiguration;
     gracht_client_t*                   client;
-    int                                code, status;
-    
-    linkConfiguration.type = gracht_link_packet_based;
-    gracht_os_get_server_packet_address(&linkConfiguration.address, &linkConfiguration.address_length);
-    
-    //linkConfiguration.type = gracht_link_stream_based;
-    //gracht_os_get_server_client_address(&linkConfiguration.address, &linkConfiguration.address_length);
+    int                                code, status = -1337;
+
+    struct sockaddr_un* addr = (struct sockaddr_un*)&linkConfiguration.address;
+    linkConfiguration.address_length = sizeof(struct sockaddr_un);
+
+    //linkConfiguration.type = gracht_link_packet_based;
+    linkConfiguration.type = gracht_link_stream_based;
+
+    addr->sun_family = AF_LOCAL;
+    strncpy (addr->sun_path, clientsPath, sizeof(addr->sun_path));
+    addr->sun_path[sizeof(addr->sun_path) - 1] = '\0';
+
     gracht_link_socket_client_create(&clientConfiguration.link, &linkConfiguration);
-    
     code = gracht_client_create(&clientConfiguration, &client);
     if (code) {
+        printf("gracht_client: error initializing client library %i, %i\n", errno, code);
         return code;
     }
     
     code = test_utils_print_sync(client, NULL, "hello from wm_client!", &status);
+    printf("gracht_client: recieved status %i\n", status);
     return gracht_client_shutdown(client);
 }

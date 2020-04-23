@@ -38,32 +38,73 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     struct gracht_message* message)
 {
     struct iovec  iov[1 + message->header.param_in];
+    struct iovec  iov_out[1 + message->header.param_out];
     int           i;
+    intmax_t      byteCount;
+    intmax_t      expectedByteCount = message->header.length;
     struct msghdr msg = {
-        NULL, 0, &iov[0], message->header.param_in, NULL, 0, 0
+        .msg_name = NULL,
+        .msg_namelen = 0,
+        .msg_iov = &iov[0],
+        .msg_iovlen = 1 + message->header.param_in,
+        .msg_control = NULL,
+        .msg_controllen = 0,
+        .msg_flags = 0
     };
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = sizeof(struct gracht_message);
+    iov[0].iov_len  = message->header.length;
     
     // Prepare the parameters
-    for (i = 1; i < message->header.param_in; i++) {
-        iov[i].iov_len = message->params[i].length;
+    for (i = 0; i < message->header.param_in; i++) {
+        iov[1 + i].iov_len   = message->params[i].length;
+        expectedByteCount += message->params[i].length;
+
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[i].iov_base = (void*)&message->params[i].data.value;
+            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
         }
         else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[i].iov_base = message->params[i].data.buffer;
+            iov[1 + i].iov_base = message->params[i].data.buffer;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
             assert(0);
         }
     }
-    
-    intmax_t bytes_written = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
-    return bytes_written != message->header.length;
+
+    byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
+    if (byteCount != expectedByteCount) {
+        ERROR("link_client: failed to send message, bytes sent: %u, expected: %lu\n",
+              (uint32_t)byteCount, expectedByteCount);
+        errno = (EPIPE);
+        return -1;
+    }
+
+    if (message->header.param_out) {
+        size_t  length = 0;
+        uint8_t recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
+        TRACE("link_client: receiving response\n");
+
+        iov_out[0].iov_base = &recvBuffer[0];
+        iov_out[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
+
+        for (i = 0; i < message->header.param_out; i++) {
+            iov_out[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
+            iov_out[1 + i].iov_len  = message->params[message->header.param_in + i].length;
+            length += message->params[message->header.param_in + i].length;
+        }
+
+        msg.msg_iov    = &iov_out[0];
+        msg.msg_iovlen = 1 + message->header.param_out;
+        byteCount = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
+        if (byteCount <= 0) {
+            errno = (EPIPE);
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 static int socket_link_recv_stream(struct socket_link_manager* linkManager,
@@ -92,9 +133,8 @@ static int socket_link_recv_stream(struct socket_link_manager* linkManager,
         if (bytes_read != message->header.length - sizeof(struct gracht_message)) {
             // do not process incomplete requests
             // TODO error code / handling
-            ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%" 
-                PRIuIN ", expected %" PRIuIN ")",
-                bytes_read, message->header.length - sizeof(struct gracht_message));
+            ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%u, expected %u)",
+                  (uint32_t)bytes_read, (uint32_t)(message->header.length - sizeof(struct gracht_message)));
             errno = (EPIPE);
             return -1; 
         }
@@ -114,25 +154,35 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
     struct iovec  iov[1 + message->header.param_in];
     struct iovec  iov_out[1 + message->header.param_out];
     int           i;
-    intmax_t      byte_count;
+    intmax_t      byteCount;
+    intmax_t      expectedByteCount = message->header.length;
     struct msghdr msg = {
-        NULL, 0, /* client only: already connected on socket */ 
-        &iov[0], message->header.param_in,
-        NULL, 0, 0
+        .msg_name = NULL,
+        .msg_namelen = 0, /* client only: already connected on socket */
+        .msg_iov = &iov[0],
+        .msg_iovlen = 1 + message->header.param_in,
+        .msg_control = NULL,
+        .msg_controllen = 0,
+        .msg_flags = 0
     };
-    
+
+    TRACE("link_client: send message (%lu, in %i, out %i)\n",
+          expectedByteCount, message->header.param_in, message->header.param_out);
+
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = sizeof(struct gracht_message);
+    iov[0].iov_len  = message->header.length;
     
     // Prepare the parameters
-    for (i = 1; i < message->header.param_in; i++) {
-        iov[i].iov_len = message->params[i].length;
+    for (i = 0; i < message->header.param_in; i++) {
+        iov[1+i].iov_len   = message->params[i].length;
+        expectedByteCount += message->params[i].length;
+
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[i].iov_base = (void*)&message->params[i].data.value;
+            iov[1+i].iov_base = (void*)&message->params[i].data.value;
         }
         else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[i].iov_base = message->params[i].data.buffer;
+            iov[1+i].iov_base = message->params[i].data.buffer;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
@@ -140,29 +190,37 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
         }
     }
     
-    byte_count = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
-    if (byte_count != message->header.length) {
+    byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
+    if (byteCount != expectedByteCount) {
+        ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
+              (uint32_t)byteCount, message->header.length);
         errno = (EPIPE);
         return -1;
     }
-    
+
     if (message->header.param_out) {
-        size_t length = 0;
+        size_t  length = 0;
+        uint8_t recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
+        TRACE("link_client: receiving response\n");
+
+        iov_out[0].iov_base = &recvBuffer[0];
+        iov_out[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
+
         for (i = 0; i < message->header.param_out; i++) {
-            iov_out[i].iov_base = message->params[message->header.param_in + i].data.buffer;
-            iov_out[i].iov_len  = message->params[message->header.param_in + i].length;
+            iov_out[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
+            iov_out[1 + i].iov_len  = message->params[message->header.param_in + i].length;
             length += message->params[message->header.param_in + i].length;
         }
-        
-        msg.msg_iov = &iov_out[0];
-        msg.msg_iovlen = message->header.param_out;
-        byte_count = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
-        if (byte_count == 0) {
+
+        msg.msg_iov    = &iov_out[0];
+        msg.msg_iovlen = 1 + message->header.param_out;
+        byteCount = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
+        if (byteCount <= 0) {
             errno = (EPIPE);
             return -1;
         }
     }
-    
+
     return 0;
 }
 
@@ -218,12 +276,14 @@ static int socket_link_connect(struct socket_link_manager* linkManager)
     
     linkManager->iod = socket(AF_LOCAL, type, 0);
     if (linkManager->iod == -1) {
+        ERROR("client_link: failed to create socket\n");
         return -1;
     }
-    
+
     int status = connect(linkManager->iod, (const struct sockaddr*)&linkManager->config.address,
         linkManager->config.address_length);
     if (status) {
+        ERROR("client_link: failed to connect to socket\n");
         close(linkManager->iod);
         return status;
     }

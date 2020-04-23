@@ -34,7 +34,7 @@ all: ../deploy/libgracht.lib
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 .PHONY: native
-native: ../native/libgracht.a ../native/gracht_server
+native: ../native/libgracht.a ../native/gracht_server ../native/gracht_client
 
 ../native/libgracht.a: $(NATIVE_OBJECTS)
 	@mkdir -p $(dir $@)
@@ -44,7 +44,12 @@ native: ../native/libgracht.a ../native/gracht_server
 ../native/gracht_server: $(TEST_SERVER_OBJECTS)
 	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;36mCreating test server " $@ "\033[m\n"
-	@ld -o $@ $(TEST_SERVER_OBJECTS) $(LFLAGS)
+	@gcc $(TEST_SERVER_OBJECTS) $(LFLAGS) -o $@
+
+../native/gracht_client: $(TEST_CLIENT_OBJECTS)
+	@mkdir -p $(dir $@)
+	@printf "%b" "\033[0;36mCreating test server " $@ "\033[m\n"
+	@gcc $(TEST_CLIENT_OBJECTS) $(LFLAGS) -o $@
 
 tests/test_utils_protocol_client.c: ../../protocols/test_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"

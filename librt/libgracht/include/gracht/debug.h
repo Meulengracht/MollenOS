@@ -30,10 +30,11 @@
 #include <ddk/utils.h>
 
 #elif defined(__linux__)
+#include <stdio.h>
 
-#define TRACE(...)
-#define WARNING(...)
-#define ERROR(...)
+#define TRACE(...)   printf(__VA_ARGS__)
+#define WARNING(...) printf(__VA_ARGS__)
+#define ERROR(...)   printf(__VA_ARGS__)
 
 #else
 #error "Undefined platform for aio"

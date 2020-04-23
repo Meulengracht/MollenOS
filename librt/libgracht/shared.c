@@ -24,6 +24,7 @@
 
 #include "include/gracht/types.h"
 #include "include/gracht/list.h"
+#include "include/gracht/debug.h"
 #include <errno.h>
 
 // client callbacks
@@ -59,7 +60,8 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
     char*                params_storage = ((char*)message->params + (message->param_count * sizeof(struct gracht_param)));
     int                  unpackIndex    = 0;
     int                  i;
-    
+
+    TRACE("offset: %lu, param count %i\n", message->param_count * sizeof(struct gracht_param), message->param_count);
     for (i = 0; i < message->param_count; i++) {
         if (params[i].type == GRACHT_PARAM_VALUE) {
             if (params[i].length == 1) {

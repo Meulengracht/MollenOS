@@ -31,12 +31,12 @@
 #include "../test_utils_protocol_server.h"
 #include <sys/un.h>
 
-static const char* dgramPath = "/dev/gracht/dgram";
-static const char* clientsPath = "/dev/gracht/clients";
+static const char* dgramPath = "/tmp/g_dgram";
+static const char* clientsPath = "/tmp/g_clients";
 
 void test_utils_print_callback(struct gracht_recv_message* message, struct test_utils_print_args* args)
 {
-    printf("received message: %s\n", args->message);
+    printf("print: received message: %s\n", args->message);
     test_utils_print_response(message, strlen(args->message));
 }
 
@@ -53,11 +53,13 @@ int main(int argc, char **argv)
     linkConfiguration.server_address_length = sizeof(struct sockaddr_un);
     
     // Setup path for dgram
+    unlink(dgramPath);
     dgramAddr->sun_family = AF_LOCAL;
     strncpy (dgramAddr->sun_path, dgramPath, sizeof(dgramAddr->sun_path));
     dgramAddr->sun_path[sizeof(dgramAddr->sun_path) - 1] = '\0';
     
     // Setup path for serverAddr
+    unlink(clientsPath);
     serverAddr->sun_family = AF_LOCAL;
     strncpy (serverAddr->sun_path, clientsPath, sizeof(serverAddr->sun_path));
     serverAddr->sun_path[sizeof(serverAddr->sun_path) - 1] = '\0';
@@ -65,7 +67,7 @@ int main(int argc, char **argv)
     gracht_link_socket_server_create(&serverConfiguration.link, &linkConfiguration);
     code = gracht_server_initialize(&serverConfiguration);
     if (code) {
-        printf("error initializing server library %i", errno);
+        printf("gracht_server: error initializing server library %i\n", errno);
         return code;
     }
     

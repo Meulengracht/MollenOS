@@ -27,12 +27,14 @@
 #include "include/gracht/client.h"
 #include "include/gracht/crc.h"
 #include "include/gracht/list.h"
+#include "include/gracht/debug.h"
 #include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 
 typedef struct gracht_client {
     uint32_t                client_id;
+    int                     iod;
     struct client_link_ops* ops;
     struct gracht_list      protocols;
 } gracht_client_t;
@@ -73,17 +75,18 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     
     client = (gracht_client_t*)malloc(sizeof(gracht_client_t));
     if (!client) {
+        ERROR("gracht_client: failed to allocate memory for client data\n");
         errno = (ENOMEM);
         return -1;
     }
     
     memset(client, 0, sizeof(gracht_client_t));
     client->ops = config->link;
-    
-    status = client->ops->connect(client->ops);
-    if (status) {
+    client->iod = client->ops->connect(client->ops);
+    if (client->iod < 0) {
+        ERROR("gracht_client: failed to connect client\n");
         free(client);
-        return status;
+        return -1;
     }
     
     *client_out = client;
