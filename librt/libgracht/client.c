@@ -71,7 +71,6 @@ int gracht_client_wait_message(gracht_client_t* client, struct gracht_recv_messa
 int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t** client_out)
 {
     gracht_client_t* client;
-    int              status;
     
     client = (gracht_client_t*)malloc(sizeof(gracht_client_t));
     if (!client) {

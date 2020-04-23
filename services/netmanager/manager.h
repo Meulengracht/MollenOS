@@ -28,6 +28,7 @@
 
 #include <os/osdefs.h>
 #include <gracht/link/vali.h>
+#include <inet/socket.h>
 
 typedef struct Socket Socket_t;
 typedef struct SocketDescriptor SocketDescriptor_t;
