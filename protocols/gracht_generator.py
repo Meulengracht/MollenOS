@@ -101,10 +101,11 @@ class Event:
         return self.params
 
 class Function:
-    def __init__(self, name, id, synchronous, request_params, response_params):
+    def __init__(self, name, id, is_async, progressable, request_params, response_params):
         self.name = name
         self.id = id
-        self.synchronous = synchronous
+        self.synchronous = not is_async
+        self.progressable = progressable
         self.request_params = request_params
         self.response_params = response_params
     
@@ -114,6 +115,8 @@ class Function:
         return self.id
     def is_synchronous(self):
         return self.synchronous
+    def is_reporting_progress(self):
+        return self.progressable
     def get_request_params(self):
         return self.request_params
     def get_response_params(self):
@@ -187,6 +190,13 @@ def str2int(v):
         return None
     except Exception:
         return None
+
+def is_valid_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
 
 def get_dir_or_default(path, protocol_xml_path):
     if not path or not os.path.isdir(path):
@@ -284,6 +294,15 @@ def parse_param(xml_param):
         if subtype is None:
             subtype = "void*"
 
+        if not is_valid_int(count):
+            raise Exception("count is not a valid integer value")
+        
+        if int(count) < 1:
+            raise Exception("count can not be less than 1")
+        
+        if int(count) > 1 and (p_type == "buffer" or p_type == "shm"):
+            raise Exception("count is not supported for buffer or shm types")
+
         trace("parsing parameter values: " + name)
         for xml_value in xml_param.findall('value'):
             values.append(parse_value(xml_value))
@@ -297,20 +316,26 @@ def parse_param(xml_param):
 def parse_function(xml_function):
     try:
         name = xml_function.get("name")
-        sync = str2bool(xml_function.get("synchronous"))
+        is_async = "async" in xml_function.keys()
+        is_progressable = "progress" in xml_function.keys()
         request_params = []
         response_params = []
 
         # validation
         if name is None:
             raise Exception("name attribute of <function> tag must be specified")
+        
+        if not is_async and is_progressable:
+            raise Exception("function must be async for it to support reporting progress")
 
         trace("parsing function: " + name)
+        trace("is async:" + str(is_async) + ", is progressable: " + str(is_progressable))
+
         for xml_param in xml_function.findall("request/param"):
             request_params.append(parse_param(xml_param))
         for xml_param in xml_function.findall("response/param"):
             response_params.append(parse_param(xml_param))
-        return Function(name, str(get_id()), sync, request_params, response_params)
+        return Function(name, str(get_id()), is_async, is_progressable, request_params, response_params)
     except Exception as e:
         error("could not parse function: " + str(e))
     return None
@@ -490,6 +515,9 @@ class CGenerator:
                 parameter_string = parameter_string + ", "
         return parameter_string
 
+    def get_protocol_server_progress_name(self, protocol, func):
+        return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_progress"
+    
     def get_protocol_server_response_name(self, protocol, func):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_response"
     
@@ -676,6 +704,13 @@ class CGenerator:
             parameter_string = parameter_string + ", struct " + self.get_input_struct_name(protocol, func) + "*"
         return function_prototype + parameter_string + ")"
 
+    def get_progress_prototype(self, protocol, func, case):
+        function_prototype = "int " + self.get_protocol_server_progress_name(protocol, func) + "("
+        function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
+        parameter_string = function_message_param + ", "
+        parameter_string = parameter_string + self.get_parameter_string(protocol, func.get_response_params(), case)
+        return function_prototype + parameter_string + ")"
+
     def get_response_prototype(self, protocol, func, case):
         function_prototype = "int " + self.get_protocol_server_response_name(protocol, func) + "("
         function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
@@ -688,9 +723,9 @@ class CGenerator:
         function_client_param = self.get_param_typename(protocol, Parameter("client", "gracht_client_t*"), case)
         function_context_param = self.get_param_typename(protocol, Parameter("context", "void*"), case)
         parameter_string = ""
+        
+        function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
         if func.is_synchronous():
-            function_prototype = function_prototype + "_sync(" + function_client_param + ", " + function_context_param
-
             input_param_string = self.get_parameter_string(protocol, func.get_request_params(), case)
             output_param_string = self.get_parameter_string(protocol, func.get_response_params(), case)
             if len(func.get_request_params()) > 0 or len(func.get_response_params()) > 0:
@@ -699,8 +734,6 @@ class CGenerator:
                 output_param_string = ", " + output_param_string
             parameter_string = input_param_string + output_param_string
         else:
-            function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
-
             parameter_string = self.get_parameter_string(protocol, func.get_request_params(), case)
             if parameter_string != "":
                 function_prototype = function_prototype + ", "
@@ -721,8 +754,8 @@ class CGenerator:
 
     def get_message_flags_func(self, func):
         if func.is_synchronous():
-            return "MESSAGE_FLAG_SYNC"
-        return "0"
+            return "0"
+        return "MESSAGE_FLAG_ASYNC"
 
     def get_message_size_string(self, params):
         message_size = "sizeof(struct gracht_message)"
@@ -772,7 +805,7 @@ class CGenerator:
             for index, param in enumerate(params_out):
                 size_function = self.get_size_function(protocol, param, is_response)
                 buffer_variable = param.get_name() + "_out"
-                if "MESSAGE_FLAG_SYNC" not in flags:
+                if "MESSAGE_FLAG_ASYNC" in flags:
                     buffer_variable = "NULL"
 
                 if param.is_value():
@@ -806,8 +839,8 @@ class CGenerator:
         outfile.write("    return gracht_server_broadcast_event((struct gracht_message*)&__message, 0);\n")
         return
 
-    def define_response_body(self, protocol, func, outfile):
-        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], "0", True, outfile)
+    def define_response_body(self, protocol, func, flags, outfile):
+        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], flags, True, outfile)
         outfile.write("    return gracht_server_respond(message, (struct gracht_message*)&__message);\n")
         return
     
@@ -821,10 +854,15 @@ class CGenerator:
 
     def define_server_responses(self, protocol, outfile):
         for func in protocol.get_functions():
+            if func.is_reporting_progress():
+                outfile.write(self.get_progress_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
+                outfile.write("{\n")
+                self.define_response_body(protocol, func, "MESSAGE_FLAG_PROGRESS", outfile)
+                outfile.write("}\n\n")
             if len(func.get_response_params()) > 0:
                 outfile.write(self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
                 outfile.write("{\n")
-                self.define_response_body(protocol, func, outfile)
+                self.define_response_body(protocol, func, "0", outfile)
                 outfile.write("}\n\n")
 
     def define_events(self, protocol, outfile):
@@ -843,6 +881,10 @@ class CGenerator:
     def write_protocol_server_callback(self, protocol, func, outfile):
         outfile.write("    " + self.get_server_callback_prototype(protocol, func))
         outfile.write(";\n")
+        
+        if func.is_reporting_progress():
+            outfile.write("    " + self.get_progress_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE))
+            outfile.write(";\n")
         
         if len(func.get_response_params()) > 0:
             outfile.write("    " + self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE))

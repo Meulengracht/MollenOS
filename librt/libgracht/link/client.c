@@ -34,11 +34,46 @@ struct socket_link_manager {
     int                                iod;
 };
 
+static int socket_link_recv_response(int iod, struct gracht_message* message)
+{
+    struct iovec  iov[1 + message->header.param_out];
+    size_t        length = 0;
+    int           i;
+    intmax_t      byteCount;
+    uint8_t       recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
+    struct msghdr msg = {
+        .msg_name = NULL,
+        .msg_namelen = 0,
+        .msg_iov = &iov[0],
+        .msg_iovlen = 1 + message->header.param_out,
+        .msg_control = NULL,
+        .msg_controllen = 0,
+        .msg_flags = 0
+    };
+    
+    TRACE("link_client: receiving response\n");
+    
+    iov[0].iov_base = &recvBuffer[0];
+    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
+
+    for (i = 0; i < message->header.param_out; i++) {
+        iov[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
+        iov[1 + i].iov_len  = message->params[message->header.param_in + i].length;
+        length += message->params[message->header.param_in + i].length;
+    }
+
+    byteCount = recvmsg(iod, &msg, MSG_WAITALL);
+    if (byteCount <= 0) {
+        errno = (EPIPE);
+        return -1;
+    }
+    return 0;
+}
+
 static int socket_link_send_stream(struct socket_link_manager* linkManager,
     struct gracht_message* message)
 {
     struct iovec  iov[1 + message->header.param_in];
-    struct iovec  iov_out[1 + message->header.param_out];
     int           i;
     intmax_t      byteCount;
     intmax_t      expectedByteCount = message->header.length;
@@ -81,29 +116,9 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
         return -1;
     }
 
-    if (message->header.param_out) {
-        size_t  length = 0;
-        uint8_t recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
-        TRACE("link_client: receiving response\n");
-
-        iov_out[0].iov_base = &recvBuffer[0];
-        iov_out[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
-
-        for (i = 0; i < message->header.param_out; i++) {
-            iov_out[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
-            iov_out[1 + i].iov_len  = message->params[message->header.param_in + i].length;
-            length += message->params[message->header.param_in + i].length;
-        }
-
-        msg.msg_iov    = &iov_out[0];
-        msg.msg_iovlen = 1 + message->header.param_out;
-        byteCount = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
-        if (byteCount <= 0) {
-            errno = (EPIPE);
-            return -1;
-        }
+    if (message->header.param_out && !(message->header.flags & MESSAGE_FLAG_ASYNC)) {
+        return socket_link_recv_response(linkManager->iod, message);
     }
-
     return 0;
 }
 
@@ -152,7 +167,6 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
     struct gracht_message* message, void* unusedContext)
 {
     struct iovec  iov[1 + message->header.param_in];
-    struct iovec  iov_out[1 + message->header.param_out];
     int           i;
     intmax_t      byteCount;
     intmax_t      expectedByteCount = message->header.length;
@@ -198,29 +212,9 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
         return -1;
     }
 
-    if (message->header.param_out) {
-        size_t  length = 0;
-        uint8_t recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
-        TRACE("link_client: receiving response\n");
-
-        iov_out[0].iov_base = &recvBuffer[0];
-        iov_out[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
-
-        for (i = 0; i < message->header.param_out; i++) {
-            iov_out[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
-            iov_out[1 + i].iov_len  = message->params[message->header.param_in + i].length;
-            length += message->params[message->header.param_in + i].length;
-        }
-
-        msg.msg_iov    = &iov_out[0];
-        msg.msg_iovlen = 1 + message->header.param_out;
-        byteCount = recvmsg(linkManager->iod, &msg, MSG_WAITALL);
-        if (byteCount <= 0) {
-            errno = (EPIPE);
-            return -1;
-        }
+    if (message->header.param_out && !(message->header.flags & MESSAGE_FLAG_ASYNC)) {
+        return socket_link_recv_response(linkManager->iod, message);
     }
-
     return 0;
 }
 

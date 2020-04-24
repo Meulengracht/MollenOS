@@ -240,7 +240,7 @@ UsbTransferQueue(
     UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      status;
     
-    ctt_usbhost_queue_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, transferId, Transfer,
+    ctt_usbhost_queue(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, transferId, Transfer,
         &status, BytesTransferred);
     gracht_vali_message_finish(&msg);
     return status;
@@ -257,7 +257,7 @@ UsbTransferQueuePeriodic(
     UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      status;
     
-    ctt_usbhost_queue_periodic_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId,
+    ctt_usbhost_queue_periodic(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId,
         transferId, Transfer, &status);
     gracht_vali_message_finish(&msg);
     
@@ -274,7 +274,7 @@ UsbTransferDequeuePeriodic(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
     OsStatus_t               status;
     
-    ctt_usbhost_dequeue_sync(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, TransferId, &status);
+    ctt_usbhost_dequeue(GetGrachtClient(), &msg, ProcessGetCurrentId(), DeviceId, TransferId, &status);
     gracht_vali_message_finish(&msg);
     return status;
 }
@@ -289,7 +289,7 @@ UsbHubResetPort(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
     OsStatus_t               status;
     
-    ctt_usbhost_reset_port_sync(GetGrachtClient(), &msg, DeviceId, PortAddress,
+    ctt_usbhost_reset_port(GetGrachtClient(), &msg, DeviceId, PortAddress,
         &status, Descriptor);
     gracht_vali_message_finish(&msg);
     return status;
@@ -305,7 +305,7 @@ UsbHubQueryPort(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
     OsStatus_t               status;
     
-    ctt_usbhost_query_port_sync(GetGrachtClient(), &msg, DeviceId, PortAddress,
+    ctt_usbhost_query_port(GetGrachtClient(), &msg, DeviceId, PortAddress,
         &status, Descriptor);
     gracht_vali_message_finish(&msg);
     return status;
@@ -321,7 +321,7 @@ UsbEndpointReset(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(InterfaceId);
     OsStatus_t               status;
     
-    ctt_usbhost_reset_endpoint_sync(GetGrachtClient(), &msg, DeviceId,
+    ctt_usbhost_reset_endpoint(GetGrachtClient(), &msg, DeviceId,
         UsbDevice->HubAddress, UsbDevice->PortAddress,
         UsbDevice->DeviceAddress, Endpoint->Address, &status);
     gracht_vali_message_finish(&msg);

@@ -40,7 +40,7 @@ ReadStorage(
 	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
 	OsStatus_t               status;
 	
-	ctt_storage_transfer_sync(GetGrachtClient(), &msg, storage->Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg, storage->Device,
 			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
 			bufferHandle, 0, sectorCount, &status, sectorsRead);
 	gracht_vali_message_finish(&msg);
@@ -60,7 +60,7 @@ MfsReadSectors(
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer_sync(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg, FileSystem->Disk.Device,
 			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count, &status, SectorsRead);
 	gracht_vali_message_finish(&msg);
@@ -80,7 +80,7 @@ MfsWriteSectors(
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer_sync(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg, FileSystem->Disk.Device,
 			__STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count, &status, SectorsWritten);
 	gracht_vali_message_finish(&msg);

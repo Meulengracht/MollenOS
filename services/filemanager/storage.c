@@ -170,7 +170,7 @@ InitializeDisk(void* Context)
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(disk->Driver);
     OsStatus_t               status;
     
-    ctt_storage_stat_sync(GetGrachtClient(), &msg, disk->Device, &status, &disk->Descriptor);
+    ctt_storage_stat(GetGrachtClient(), &msg, disk->Device, &status, &disk->Descriptor);
     gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         // TODO: disk states

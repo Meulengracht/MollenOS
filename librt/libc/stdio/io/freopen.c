@@ -70,7 +70,7 @@ FILE* freopen(
 			_fflags(mode, &open_flags, &stream_flags);
 			// TODO: support multiple types of streams
 			
-			svc_file_set_options_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+			svc_file_set_options(GetGrachtClient(), &msg, *GetInternalProcessId(),
 				handle->object.handle, _fopts(open_flags), _faccess(open_flags), &status);
 			gracht_vali_message_finish(&msg);
 			OsStatusToErrno(status);

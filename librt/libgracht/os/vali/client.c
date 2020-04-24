@@ -115,7 +115,7 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
     }
     
     status = Syscall_IpcContextSend(&messagePointer, 1, 0);
-    if (messageBase->header.param_out && (messageBase->header.flags & MESSAGE_FLAG_SYNC)) {
+    if (messageBase->header.param_out && !(messageBase->header.flags & MESSAGE_FLAG_ASYNC)) {
         vali_link_unpack_response(messageContext->response_buffer, messageBase);
         vali_link_message_finish(linkManager, messageContext);
     }

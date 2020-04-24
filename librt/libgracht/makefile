@@ -68,6 +68,7 @@ tests/test_utils_protocol_server.c: ../../protocols/test_protocol.xml
 clean:
 	@rm -f ../native/libgracht.a
 	@rm -f ../native/gracht_server
+	@rm -f ../native/gracht_client
 	@rm -f ../deploy/libgracht.lib
 	@rm -f tests/test_utils_protocol*
 	@rm -f $(OBJECTS)

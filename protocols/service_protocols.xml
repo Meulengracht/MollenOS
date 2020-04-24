@@ -15,7 +15,7 @@
     <protocols namespace="svc">
         <protocol name="session" id="0x1">
             <functions>
-                <function name="login" synchronous="true">
+                <function name="login">
                     <request>
                         <param name="username" type="string" />
                         <param name="password" type="string" />
@@ -25,7 +25,7 @@
                         <param name="session_id" type="string" />
                     </response>
                 </function>
-                <function name="logout" synchronous="true">
+                <function name="logout">
                     <request>
                         <param name="session_id" type="string" />
                     </request>
@@ -33,7 +33,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="new_device" synchronous="false">
+                <function name="new_device" async="async">
                     <request>
                         <param name="identifier" type="string" />
                     </request>
@@ -42,7 +42,7 @@
         </protocol>
         <protocol name="storage" id="0x2">
             <functions>
-                <function name="register" synchronous="false">
+                <function name="register" async="async">
                     <request>
                         <param name="driver_id" type="UUId_t" count="1" />
                         <param name="device_id" type="UUId_t" count="1" />
@@ -51,7 +51,7 @@
                         </param>
                     </request>
                 </function>
-                <function name="unregister" synchronous="false">
+                <function name="unregister" async="async">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                         <param name="flags" type="unsigned int" count="1">
@@ -59,7 +59,7 @@
                         </param>
                     </request>
                 </function>
-                <function name="get_descriptor" synchronous="true">
+                <function name="get_descriptor">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -68,7 +68,7 @@
                         <param name="descriptor" type="buffer" subtype="OsStorageDescriptor_t" />
                     </response>
                 </function>
-                <function name="get_descriptor_from_path" synchronous="true">
+                <function name="get_descriptor_from_path">
                     <request>
                         <param name="path" type="string" />
                     </request>
@@ -81,7 +81,7 @@
         </protocol>
         <protocol name="file" id="0x3">
             <functions>
-                <function name="open" synchronous="true">
+                <function name="open">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="path" type="string" />
@@ -93,7 +93,7 @@
                         <param name="handle" type="UUId_t" count="1" />
                     </response>
                 </function>
-                <function name="close" synchronous="true">
+                <function name="close">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -102,7 +102,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="delete" synchronous="true">
+                <function name="delete">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="path" type="string" />
@@ -112,7 +112,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="transfer_async" synchronous="false">
+                <function name="transfer_async" async="async" progress="progress">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -128,7 +128,7 @@
                         <param name="bytes_transferred" type="size_t" count="1" />
                     </response>
                 </function>
-                <function name="transfer" synchronous="true">
+                <function name="transfer">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -142,7 +142,7 @@
                         <param name="bytes_transferred" type="size_t" count="1" />
                     </response>
                 </function>
-                <function name="seek" synchronous="true">
+                <function name="seek">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -153,7 +153,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="flush" synchronous="true">
+                <function name="flush">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -162,7 +162,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="move" synchronous="true">
+                <function name="move">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="from" type="string" />
@@ -173,7 +173,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="set_options" synchronous="true">
+                <function name="set_options">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -184,7 +184,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="get_position" synchronous="true">
+                <function name="get_position">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -195,7 +195,7 @@
                         <param name="position_hi" type="unsigned int" count="1" />
                     </response>
                 </function>
-                <function name="get_options" synchronous="true">
+                <function name="get_options">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -206,7 +206,7 @@
                         <param name="access" type="unsigned int" count="1" />
                     </response>
                 </function>
-                <function name="get_size" synchronous="true">
+                <function name="get_size">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -217,7 +217,7 @@
                         <param name="size_hi" type="unsigned int" count="1" />
                     </response>
                 </function>
-                <function name="get_path" synchronous="true">
+                <function name="get_path">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -227,7 +227,7 @@
                         <param name="path" type="string" />
                     </response>
                 </function>
-                <function name="fstat" synchronous="true">
+                <function name="fstat">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -237,7 +237,7 @@
                         <param name="descriptor" type="buffer" subtype="OsFileDescriptor_t" count="1" />
                     </response>
                 </function>
-                <function name="fsstat" synchronous="true">
+                <function name="fsstat">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />
@@ -247,7 +247,7 @@
                         <param name="descriptor" type="buffer" subtype="OsFileSystemDescriptor_t" count="1" />
                     </response>
                 </function>
-                <function name="fstat_from_path" synchronous="true">
+                <function name="fstat_from_path">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="path" type="string" />
@@ -257,7 +257,7 @@
                         <param name="descriptor" type="buffer" subtype="OsFileDescriptor_t" count="1" />
                     </response>
                 </function>
-                <function name="fsstat_from_path" synchronous="true">
+                <function name="fsstat_from_path">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="path" type="string" />
@@ -287,7 +287,7 @@
                 </enum>
             </enums>
             <functions>
-                <function name="resolve" synchronous="true">
+                <function name="resolve">
                     <request>
                         <param name="base" type="environment_path" count="1" />
                     </request>
@@ -296,7 +296,7 @@
                         <param name="path" type="string" />
                     </response>
                 </function>
-                <function name="canonicalize" synchronous="true">
+                <function name="canonicalize">
                     <request>
                         <param name="path" type="string" />
                     </request>
@@ -309,7 +309,7 @@
         </protocol>
         <protocol name="process" id="0x5">
             <functions>
-                <function name="spawn" synchronous="true">
+                <function name="spawn">
                     <request>
                         <param name="path" type="string" />
                         <param name="arguments" type="string" />
@@ -321,7 +321,7 @@
                         <param name="handle" type="UUId_t" count="1" />
                     </response>
                 </function>
-                <function name="join" synchronous="true">
+                <function name="join">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="timeout" type="unsigned int" count="1" />
@@ -331,7 +331,7 @@
                         <param name="exit_code" type="int" count="1" />
                     </response>
                 </function>
-                <function name="kill" synchronous="true">
+                <function name="kill">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="target_handle" type="UUId_t" count="1" />
@@ -340,7 +340,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="get_tick_base" synchronous="true">
+                <function name="get_tick_base">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -350,7 +350,7 @@
                         <param name="tick_hi" type="unsigned int" count="1" />
                     </response>
                 </function>
-                <function name="get_startup_information" synchronous="true">
+                <function name="get_startup_information">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -363,7 +363,7 @@
                         <param name="buffer" type="buffer" />
                     </response>
                 </function>
-                <function name="get_modules" synchronous="true">
+                <function name="get_modules">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -372,7 +372,7 @@
                         <param name="module_count" type="int" />
                     </response>
                 </function>
-                <function name="get_name" synchronous="true">
+                <function name="get_name">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -381,7 +381,7 @@
                         <param name="name" type="string" />
                     </response>
                 </function>
-                <function name="get_assembly_directory" synchronous="true">
+                <function name="get_assembly_directory">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -390,7 +390,7 @@
                         <param name="path" type="string" />
                     </response>
                 </function>
-                <function name="get_working_directory" synchronous="true">
+                <function name="get_working_directory">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -399,7 +399,7 @@
                         <param name="path" type="string" />
                     </response>
                 </function>
-                <function name="set_working_directory" synchronous="true">
+                <function name="set_working_directory">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="path" type="string" />
@@ -408,7 +408,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="terminate" synchronous="true">
+                <function name="terminate">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="exit_code" type="int" count="1" />
@@ -417,7 +417,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="report_crash" synchronous="true">
+                <function name="report_crash">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="crash_context" type="buffer" />
@@ -431,7 +431,7 @@
         </protocol>
         <protocol name="library" id="0x6">
             <functions>
-                <function name="load" synchronous="true">
+                <function name="load">
                     <request>
                         <param name="process_handle" type="UUId_t" count="1" />
                         <param name="path" type="string" />
@@ -441,7 +441,7 @@
                         <param name="handle" type="void*" count="1" />
                     </response>
                 </function>
-                <function name="get_function" synchronous="true">
+                <function name="get_function">
                     <request>
                         <param name="process_handle" type="UUId_t" count="1" />
                         <param name="handle" type="void*" />
@@ -452,7 +452,7 @@
                         <param name="address" type="uintptr_t" count="1" />
                     </response>
                 </function>
-                <function name="unload" synchronous="true">
+                <function name="unload">
                     <request>
                         <param name="process_handle" type="UUId_t" count="1" />
                         <param name="handle" type="void*" />
@@ -465,7 +465,7 @@
         </protocol>
         <protocol name="socket" id="0x7">
             <functions>
-                <function name="create" synchronous="true">
+                <function name="create">
                     <request>
                         <param name="domain" type="int" count="1" />
                         <param name="type" type="int" count="1" />
@@ -478,7 +478,7 @@
                         <param name="send_handle" type="UUId_t" count="1" />
                     </response>
                 </function>
-                <function name="close" synchronous="true">
+                <function name="close">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="options" type="unsigned int" count="1">
@@ -491,7 +491,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="bind" synchronous="true">
+                <function name="bind">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="address" type="buffer" subtype="struct sockaddr" />
@@ -500,7 +500,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="connect" synchronous="true">
+                <function name="connect">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="address" type="buffer" subtype="struct sockaddr" />
@@ -509,7 +509,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="accept" synchronous="true">
+                <function name="accept">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                     </request>
@@ -521,7 +521,7 @@
                         <param name="send_handle" type="UUId_t" count="1" />
                     </response>
                 </function>
-                <function name="listen" synchronous="true">
+                <function name="listen">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="conn_queue_size" type="int" count="1" />
@@ -530,7 +530,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="pair" synchronous="true">
+                <function name="pair">
                     <request>
                         <param name="handle1" type="UUId_t" count="1" />
                         <param name="handle2" type="UUId_t" count="1" />
@@ -539,7 +539,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="set_option" synchronous="true">
+                <function name="set_option">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="protocol" type="int" count="1" />
@@ -551,7 +551,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="get_option" synchronous="true">
+                <function name="get_option">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="protocol" type="int" count="1" />
@@ -563,7 +563,7 @@
                         <param name="length" type="int" />
                     </response>
                 </function>
-                <function name="get_address" synchronous="true">
+                <function name="get_address">
                     <request>
                         <param name="handle" type="UUId_t" count="1" />
                         <param name="source" type="int" count="1">
@@ -580,7 +580,7 @@
         </protocol>
         <protocol name="device" id="0x8">
             <functions>
-                <function name="register" synchronous="true">
+                <function name="register">
                     <request>
                         <param name="parent" type="UUId_t" count="1" />
                         <param name="device" type="buffer" />
@@ -590,7 +590,7 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="unregister" synchronous="true">
+                <function name="unregister">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                     </request>
@@ -598,7 +598,7 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="ioctl" synchronous="true">
+                <function name="ioctl">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                         <param name="command" type="unsigned int" count="1" />
@@ -608,7 +608,7 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="ioctl_ex" synchronous="true">
+                <function name="ioctl_ex">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                         <param name="direction" type="int" count="1" />
@@ -625,7 +625,7 @@
         </protocol>
         <protocol name="usb" id="0x9">
             <functions>
-                <function name="register" synchronous="false">
+                <function name="register" async="async">
                     <request>
                         <param name="driver_id" type="UUId_t" count="1" />
                         <param name="device" type="buffer" />
@@ -633,24 +633,24 @@
                         <param name="port_count" type="int" count="1" />
                     </request>
                 </function>
-                <function name="unregister" synchronous="false">
+                <function name="unregister" async="async">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                     </request>
                 </function>
-                <function name="port_event" synchronous="false">
+                <function name="port_event" async="async">
                     <request>
                         <param name="device_id" type="UUId_t" count="1" />
                         <param name="hub_address" type="uint8_t" count="1" />
                         <param name="port_address" type="uint8_t" count="1" />
                     </request>
                 </function>
-                <function name="get_controller_count" synchronous="true">
+                <function name="get_controller_count">
                     <response>
                         <param name="count" type="int" />
                     </response>
                 </function>
-                <function name="get_controller" synchronous="true">
+                <function name="get_controller">
                     <request>
                         <param name="index" type="int" />
                     </request>

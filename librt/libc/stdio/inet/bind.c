@@ -53,7 +53,7 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    svc_socket_bind_sync(GetGrachtClient(), &msg, handle->object.handle,
+    svc_socket_bind(GetGrachtClient(), &msg, handle->object.handle,
         address, &status);
     gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {

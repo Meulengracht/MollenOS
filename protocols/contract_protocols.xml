@@ -14,7 +14,7 @@
     <protocols namespace="ctt">
         <protocol name="driver" id="0x10">
             <functions>
-                <function name="register_device" synchronous="true">
+                <function name="register_device">
                     <request>
                         <param name="device" type="buffer" />
                     </request>
@@ -26,7 +26,7 @@
         </protocol>
         <protocol name="storage" id="0x11">
             <functions>
-                <function name="stat" synchronous="true">
+                <function name="stat">
                     <request>
                         <param name="device_id" type="UUId_t" />
                     </request>
@@ -35,7 +35,7 @@
                         <param name="descriptor" type="buffer" subtype="StorageDescriptor_t" />
                     </response>
                 </function>
-                <function name="transfer_async" synchronous="false">
+                <function name="transfer_async" async="async" progress="progress">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="direction" type="int" />
@@ -50,7 +50,7 @@
                         <param name="sectors_transferred" type="size_t" />
                     </response>
                 </function>
-                <function name="transfer" synchronous="true">
+                <function name="transfer">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="direction" type="int" />
@@ -69,7 +69,7 @@
         </protocol>
         <protocol name="usbhost" id="0x12">
             <functions>
-                <function name="queue_async" synchronous="false">
+                <function name="queue_async" async="async">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
@@ -82,7 +82,7 @@
                         <param name="bytes_transferred" type="size_t" />
                     </response>
                 </function>
-                <function name="queue" synchronous="true">
+                <function name="queue">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
@@ -94,7 +94,7 @@
                         <param name="bytes_transferred" type="size_t" />
                     </response>
                 </function>
-                <function name="queue_periodic" synchronous="true">
+                <function name="queue_periodic">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
@@ -105,7 +105,7 @@
                         <param name="status" type="UsbTransferStatus_t" />
                     </response>
                 </function>
-                <function name="dequeue" synchronous="true">
+                <function name="dequeue">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
@@ -115,7 +115,7 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="query_port" synchronous="true">
+                <function name="query_port">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="port_id" type="uint8_t" />
@@ -125,7 +125,7 @@
                         <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
                     </response>
                 </function>
-                <function name="reset_port" synchronous="true">
+                <function name="reset_port">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="port_id" type="uint8_t" />
@@ -135,7 +135,7 @@
                         <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
                     </response>
                 </function>
-                <function name="reset_endpoint" synchronous="true">
+                <function name="reset_endpoint">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="hub_address" type="uint8_t" />

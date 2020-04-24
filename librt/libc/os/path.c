@@ -42,7 +42,7 @@ PathResolveEnvironment(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_resolve_sync(GetGrachtClient(), &msg, (enum svc_path_environment_path)environment, &status, &buffer[0], maxLength);
+	svc_path_resolve(GetGrachtClient(), &msg, (enum svc_path_environment_path)environment, &status, &buffer[0], maxLength);
 	gracht_vali_message_finish(&msg);
 	return status;
 }
@@ -60,7 +60,7 @@ PathCanonicalize(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_canonicalize_sync(GetGrachtClient(), &msg, path, &status, &buffer[0], maxLength);
+	svc_path_canonicalize(GetGrachtClient(), &msg, path, &status, &buffer[0], maxLength);
 	gracht_vali_message_finish(&msg);
 	return status;
 }
@@ -81,7 +81,7 @@ GetWorkingDirectory(
     }
 	else {
 	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        svc_process_get_working_directory_sync(GetGrachtClient(), &msg, UUID_INVALID,
+        svc_process_get_working_directory(GetGrachtClient(), &msg, UUID_INVALID,
             &Status, PathBuffer, MaxLength);
         gracht_vali_message_finish(&msg);
         TRACE("GetWorkingDirectory => %s", PathBuffer);
@@ -127,7 +127,7 @@ SetWorkingDirectory(
             else {
 	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
                 TRACE("...proc_set_cwd %s", &TempBuffer[0]);
-                svc_process_set_working_directory_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+                svc_process_set_working_directory(GetGrachtClient(), &msg, *GetInternalProcessId(),
                     &TempBuffer[0], &Status);
                 gracht_vali_message_finish(&msg);
                 return Status;
@@ -160,7 +160,7 @@ GetAssemblyDirectory(
 	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 	    OsStatus_t               status;
 	    
-        svc_process_get_assembly_directory_sync(GetGrachtClient(), &msg,
+        svc_process_get_assembly_directory(GetGrachtClient(), &msg,
             UUID_INVALID, &status, PathBuffer, MaxLength);
         gracht_vali_message_finish(&msg);
         return status;

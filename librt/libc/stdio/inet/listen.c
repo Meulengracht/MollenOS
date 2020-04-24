@@ -58,7 +58,7 @@ int listen(int iod, int backlog)
         return -1;
     }
     
-    svc_socket_listen_sync(GetGrachtClient(), &msg, handle->object.handle, backlog, &status);
+    svc_socket_listen(GetGrachtClient(), &msg, handle->object.handle, backlog, &status);
     gracht_vali_message_finish(&msg);
     if (status != OsSuccess) {
         OsStatusToErrno(status);

@@ -62,7 +62,7 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
     
     if (handle->object.data.socket.type == SOCK_STREAM ||
         handle->object.data.socket.type == SOCK_SEQPACKET) {
-        svc_socket_connect_sync(GetGrachtClient(), &msg, handle->object.handle,
+        svc_socket_connect(GetGrachtClient(), &msg, handle->object.handle,
             address, &status);
         gracht_vali_message_finish(&msg);
         if (status != OsSuccess) {

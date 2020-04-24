@@ -52,7 +52,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             sizeof(__CrtStartupBuffer));
     }
     else {
-        svc_process_get_startup_information_sync(GetGrachtClient(), &msg, thrd_current(),
+        svc_process_get_startup_information(GetGrachtClient(), &msg, thrd_current(),
             &status, &__CrtProcessId, &StartupInformation->ArgumentsLength,
             &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
             &__CrtStartupBuffer[0], sizeof(__CrtStartupBuffer));

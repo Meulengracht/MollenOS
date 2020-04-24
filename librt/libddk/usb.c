@@ -77,7 +77,7 @@ UsbQueryControllerCount(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_get_controller_count_sync(GetGrachtClient(), &msg, ControllerCount);
+    status = svc_usb_get_controller_count(GetGrachtClient(), &msg, ControllerCount);
     gracht_vali_message_finish(&msg);
     return OsSuccess;
 }
@@ -90,7 +90,7 @@ UsbQueryController(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_get_controller_sync(GetGrachtClient(), &msg, Index, Controller);
+    status = svc_usb_get_controller(GetGrachtClient(), &msg, Index, Controller);
     gracht_vali_message_finish(&msg);
     return OsSuccess;
 }

@@ -58,7 +58,7 @@ int main(int argc, char **argv)
         return code;
     }
     
-    code = test_utils_print_sync(client, NULL, "hello from wm_client!", &status);
+    code = test_utils_print(client, NULL, "hello from wm_client!", &status);
     printf("gracht_client: recieved status %i\n", status);
     return gracht_client_shutdown(client);
 }

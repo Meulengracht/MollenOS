@@ -44,7 +44,7 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
         
         ERROR("[socket] stdio_handle_create failed with code %u", status);
-        svc_socket_close_sync(GetGrachtClient(), &msg, handle, SVC_SOCKET_CLOSE_OPTIONS_DESTROY, &osStatus);
+        svc_socket_close(GetGrachtClient(), &msg, handle, SVC_SOCKET_CLOSE_OPTIONS_DESTROY, &osStatus);
         gracht_vali_message_finish(&msg);
         return -1;
     }

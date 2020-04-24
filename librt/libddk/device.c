@@ -34,7 +34,7 @@ RegisterDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_register_sync(GetGrachtClient(), &msg, Parent, Device, Device->Length, Flags, &status);
+    svc_device_register(GetGrachtClient(), &msg, Parent, Device, Device->Length, Flags, &status);
     return status;
 }
 
@@ -45,7 +45,7 @@ UnregisterDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_unregister_sync(GetGrachtClient(), &msg, DeviceId, &status);
+    svc_device_unregister(GetGrachtClient(), &msg, DeviceId, &status);
     return status;
 }
 
@@ -58,7 +58,7 @@ IoctlDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_ioctl_sync(GetGrachtClient(), &msg, Device, Command, Flags, &status);
+    svc_device_ioctl(GetGrachtClient(), &msg, Device, Command, Flags, &status);
     return status;
 }
 
@@ -73,7 +73,7 @@ IoctlDeviceEx(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_ioctl_ex_sync(GetGrachtClient(), &msg, Device, Direction, Register,
+    svc_device_ioctl_ex(GetGrachtClient(), &msg, Device, Direction, Register,
         *Value, Width, &status, Value);
     return status;
 }

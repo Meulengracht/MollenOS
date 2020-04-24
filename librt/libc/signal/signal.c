@@ -88,7 +88,7 @@ DefaultCrashHandler(
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         
-        status = svc_process_report_crash_sync(GetGrachtClient(), &msg,
+        status = svc_process_report_crash(GetGrachtClient(), &msg,
             *GetInternalProcessId(), Context, sizeof(Context_t),
             Signal->signal, &osStatus);
         gracht_vali_message_finish(&msg);

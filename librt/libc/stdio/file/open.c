@@ -87,7 +87,7 @@ int open(const char* file, int flags, ...)
     }
     
     // Try to open the file by directly communicating with the file-service
-    status = svc_file_open_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+    status = svc_file_open(GetGrachtClient(), &msg, *GetInternalProcessId(),
         file, _fopts(flags), _faccess(flags), &osStatus, &handle);
     gracht_vali_message_finish(&msg);
     if (status || OsStatusToErrno(osStatus)) {
@@ -95,7 +95,7 @@ int open(const char* file, int flags, ...)
     }
     
     if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
-        svc_file_close_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+        svc_file_close(GetGrachtClient(), &msg, *GetInternalProcessId(),
             handle, &osStatus);
         gracht_vali_message_finish(&msg);
         return -1;

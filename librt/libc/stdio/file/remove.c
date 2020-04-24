@@ -41,7 +41,7 @@ int unlink(
     	return EOF;
     }
     
-    status = svc_file_delete_sync(GetGrachtClient(), &msg, *GetInternalProcessId(),
+    status = svc_file_delete(GetGrachtClient(), &msg, *GetInternalProcessId(),
         path, 0, &osStatus);
     gracht_vali_message_finish(&msg);
     if (status || OsStatusToErrno(osStatus)) {
