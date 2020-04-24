@@ -97,53 +97,66 @@ PeResolveFunction(
 
 OsStatus_t
 PeGetModuleHandles(
-    _In_  PeExecutable_t* Executable,
-    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES],
-    _Out_ int*            ModuleCount)
+    _In_  PeExecutable_t* executable,
+    _Out_ Handle_t*       moduleList,
+    _Out_ int*            moduleCount)
 {
-    int Index = 0;
+    int maxCount;
+    int index;
 
-    if (!Executable || !ModuleList || !ModuleCount) {
+    if (!executable || !moduleList || !moduleCount) {
         return OsInvalidParameters;
     }
-    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
+    
+    index    = 0;
+    maxCount = *moduleCount;
 
     // Copy base over
-    ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
-    if (Executable->Libraries != NULL) {
-        foreach(i, Executable->Libraries) {
+    moduleList[index++] = (Handle_t)executable->VirtualAddress;
+    if (executable->Libraries != NULL) {
+        foreach(i, executable->Libraries) {
             PeExecutable_t *Library = i->value;
-            ModuleList[Index++]     = (Handle_t)Library->VirtualAddress;
+            moduleList[index++]     = (Handle_t)Library->VirtualAddress;
+        
+            if (index == maxCount) {
+                break;
+            }
         }
     }
     
-    *ModuleCount = Index;
+    *moduleCount = index;
     return OsSuccess;
 }
 
 OsStatus_t
 PeGetModuleEntryPoints(
-    _In_  PeExecutable_t* Executable,
-    _Out_ Handle_t        ModuleList[PROCESS_MAXMODULES],
-    _Out_ int*            ModuleCount)
+    _In_  PeExecutable_t* executable,
+    _Out_ Handle_t*       moduleList,
+    _Out_ int*            moduleCount)
 {
-    int Index = 0;
+    int maxCount;
+    int index;
 
-    if (!Executable || !ModuleList || !ModuleCount) {
+    if (!executable || !moduleList || !moduleCount) {
         return OsInvalidParameters;
     }
-    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
+    
+    index    = 0;
+    maxCount = *moduleCount;
 
-    // Copy base over
-    if (Executable->Libraries != NULL) {
-        foreach(i, Executable->Libraries) {
+    if (executable->Libraries != NULL) {
+        foreach(i, executable->Libraries) {
             PeExecutable_t *Library = i->value;
             if (Library->EntryAddress != 0) {
-                ModuleList[Index++] = (Handle_t)Library->EntryAddress;
+                moduleList[index++] = (Handle_t)Library->EntryAddress;
+            }
+        
+            if (index == maxCount) {
+                break;
             }
         }
     }
     
-    *ModuleCount = Index;
+    *moduleCount = index;
     return OsSuccess;
 }

@@ -59,10 +59,10 @@ typedef struct SystemModule {
     MString_t*      BaseDirectory;
     UUId_t          PrimaryThreadId;
     UUId_t          Alias;
-    DevInfo_t       VendorId;
-    DevInfo_t       DeviceId;
-    DevInfo_t       DeviceClass;
-    DevInfo_t       DeviceSubclass;
+    unsigned int       VendorId;
+    unsigned int       DeviceId;
+    unsigned int       DeviceClass;
+    unsigned int       DeviceSubclass;
     PeExecutable_t* Executable;
 } SystemModule_t;
 

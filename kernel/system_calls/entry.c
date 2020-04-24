@@ -71,7 +71,7 @@ extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMapping
 extern OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
 extern OsStatus_t ScAcpiQueryTableHeader(const char* Signature, ACPI_TABLE_HEADER* Header);
 extern OsStatus_t ScAcpiQueryTable(const char* Signature, ACPI_TABLE_HEADER* Table);
-extern OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, int* Interrupt, Flags_t* AcpiConform);
+extern OsStatus_t ScAcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin, int* Interrupt, Flags_t* AcpiConform);
 extern OsStatus_t ScIoSpaceRegister(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceRelease(DeviceIo_t* IoSpace);

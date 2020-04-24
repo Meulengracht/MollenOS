@@ -96,8 +96,8 @@ ScAcpiQueryTable(
 
 OsStatus_t
 ScAcpiQueryInterrupt(
-    _In_  DevInfo_t         Bus,
-    _In_  DevInfo_t         Device,
+    _In_  unsigned int         Bus,
+    _In_  unsigned int         Device,
     _In_  int               Pin, 
     _Out_ int*              Interrupt,
     _Out_ Flags_t*          AcpiConform)

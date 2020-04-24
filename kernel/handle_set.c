@@ -70,7 +70,7 @@ typedef struct HandleSetElement {
 static OsStatus_t DestroySetElement(HandleSetElement_t*);
 static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, void*, Flags_t);
 
-static list_t  HandleElements; // Sets per Handle TODO hashtable
+static list_t  HandleElements = LIST_INIT; // Sets per Handle TODO hashtable
 //static Mutex_t HandleElementsSyncObject;
 
 static void

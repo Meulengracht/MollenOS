@@ -134,9 +134,9 @@ typedef struct PciDevice {
     PciBus_t*           BusIo;
     int                 IsBridge;
 
-    DevInfo_t           Bus;
-    DevInfo_t           Slot;
-    DevInfo_t           Function;
+    unsigned int           Bus;
+    unsigned int           Slot;
+    unsigned int           Function;
     Flags_t             AcpiConform;
 
     PciNativeHeader_t*  Header;
@@ -155,40 +155,40 @@ BusEnumerate(void*);
 __EXTERN uint32_t
 PciRead32(
     _In_ PciBus_t *Io,
-    _In_ DevInfo_t Bus, 
-    _In_ DevInfo_t Slot, 
-    _In_ DevInfo_t Function, 
+    _In_ unsigned int Bus, 
+    _In_ unsigned int Slot, 
+    _In_ unsigned int Function, 
     _In_ size_t Register);
 
 /* PciRead16
  * Reads a 16 bit value from the pci-bus
  * at the specified location bus, device, function and register */
 __EXTERN uint16_t PciRead16(PciBus_t *Io,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
 /* PciRead8
  * Reads a 8 bit value from the pci-bus
  * at the specified location bus, device, function and register */
 __EXTERN uint8_t PciRead8(PciBus_t *Io,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
 /* PciWrite32
  * Writes a 32 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 __EXTERN void PciWrite32(PciBus_t *Io,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint32_t Value);
+    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value);
 
 /* PciWrite16
  * Writes a 16 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 __EXTERN void PciWrite16(PciBus_t *Io,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint16_t Value);
+    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value);
 
 /* PciWrite8
  * Writes a 8 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 __EXTERN void PciWrite8(PciBus_t *Io,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint8_t Value);
+    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value);
 
 /* PciDeviceRead
  * Reads a value of the given length from the given register
@@ -205,26 +205,26 @@ __EXTERN void PciDeviceWrite(PciDevice_t *Device,
 /* PciReadVendorId
  * Reads the vendor id at given bus/device/function location */
 __EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, 
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
+    unsigned int Bus, unsigned int Device, unsigned int Function);
 
 /* PciReadFunction
  * Reads in the pci header that exists at the given location
  * and fills out the information into <Pcs> */
 __EXTERN void PciReadFunction(PciNativeHeader_t *Pcs,
-    PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
+    PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function);
 
 /* PciReadSecondaryBusNumber
  * Reads the secondary bus number at given pci device location
  * we can use this to get the bus-number behind a bridge */
 __EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, 
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
+    unsigned int Bus, unsigned int Device, unsigned int Function);
 
 /* Reads the sub class at given location
  * Bit 7 - MultiFunction, Lower 4 bits is type.
  * Type 0 is standard, Type 1 is PCI-PCI Bridge,
  * Type 2 is CardBus Bridge */
 __EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
-    DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
+    unsigned int Bus, unsigned int Device, unsigned int Function);
 
 /* PciToString
  * Converts the given class, subclass and interface into

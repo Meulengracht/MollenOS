@@ -62,26 +62,26 @@
 #define __DEVICEMANAGER_IOCTL_EXT_READ              0x80000000
 
 typedef struct MCoreDevice {
-    UUId_t              Id;
-    char                Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
-    size_t              Length;
+    UUId_t Id;
+    char   Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
+    size_t Length;
 
     // Device Information
     // This is used both by the devicemanager and by the driver to match
-    DevInfo_t           VendorId;
-    DevInfo_t           DeviceId;
-    DevInfo_t           Class;
-    DevInfo_t           Subclass;
-    DeviceInterrupt_t   Interrupt;
-    DeviceIo_t          IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
+    unsigned int      VendorId;
+    unsigned int      DeviceId;
+    unsigned int      Class;
+    unsigned int      Subclass;
+    DeviceInterrupt_t Interrupt;
+    DeviceIo_t        IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
     // Device Bus Information 
     // This describes the location on the bus, and these informations
     // can be used to control the bus-device
-    DevInfo_t           Segment;
-    DevInfo_t           Bus;
-    DevInfo_t           Slot;
-    DevInfo_t           Function;
+    unsigned int Segment;
+    unsigned int Bus;
+    unsigned int Slot;
+    unsigned int Function;
 } MCoreDevice_t;
 
 /* RegisterDevice

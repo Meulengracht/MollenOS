@@ -25,7 +25,7 @@
 
 /* PciReadVendorId
  * Reads the vendor id at given bus/device/function location */
-uint16_t PciReadVendorId(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function)
+uint16_t PciReadVendorId(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
 {
 	return PciRead16(BusIo, Bus, Device, Function, 0);
 }
@@ -34,7 +34,7 @@ uint16_t PciReadVendorId(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevIn
  * Reads in the pci header that exists at the given location
  * and fills out the information into <Pcs> */
 void PciReadFunction(PciNativeHeader_t *Pcs, 
-	PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function)
+	PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
@@ -55,7 +55,7 @@ void PciReadFunction(PciNativeHeader_t *Pcs,
 /* PciReadSecondaryBusNumber
  * Reads the secondary bus number at given pci device location
  * we can use this to get the bus-number behind a bridge */
-uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function)
+uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
@@ -73,7 +73,7 @@ uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Devi
  * Bit 7 - MultiFunction, Lower 4 bits is type.
  * Type 0 is standard, Type 1 is PCI-PCI Bridge,
  * Type 2 is CardBus Bridge */
-uint8_t PciReadHeaderType(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function)
+uint8_t PciReadHeaderType(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);

@@ -44,7 +44,7 @@ struct vali_link_manager {
 static int vali_link_connect(struct client_link_ops* linkManager)
 {
     errno = (ENOTSUP);
-    return -1;
+    return 0;
 }
 
 static void vali_link_unpack_response(void* buffer, struct gracht_message* message)

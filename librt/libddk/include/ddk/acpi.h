@@ -88,7 +88,7 @@ DDKDECL(OsStatus_t, AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Ta
  * Queries the interrupt-line for the given bus, device and
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
-DDKDECL(OsStatus_t, AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
+DDKDECL(OsStatus_t, AcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin,
 	int *Interrupt, Flags_t *AcpiConform));
 
 #endif //!_ACPI_INTEFACE_H_

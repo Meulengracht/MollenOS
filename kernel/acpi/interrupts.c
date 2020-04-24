@@ -100,8 +100,8 @@ ConvertAcpiFlagsToConformFlags(
  * and spits out flags in AcpiConform and returns irq */
 int
 AcpiDeriveInterrupt(
-    _In_  DevInfo_t         Bus, 
-    _In_  DevInfo_t         Device,
+    _In_  unsigned int         Bus, 
+    _In_  unsigned int         Device,
     _In_  int               Pin,
     _Out_ Flags_t*          AcpiConform)
 {

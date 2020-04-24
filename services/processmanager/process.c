@@ -419,7 +419,7 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message* me
     UUId_t     handle             = UUID_INVALID;
     size_t     argumentLength     = 0;
     size_t     inheritationLength = 0;
-    int        moduleCount        = 0;
+    int        moduleCount        = PROCESS_MAXMODULES;
     
     if (process) {
         buffer = malloc(process->ArgumentsLength + process->InheritationBlockLength + (PROCESS_MAXMODULES * sizeof(Handle_t)));
@@ -434,7 +434,8 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message* me
             memcpy(&buffer[0], process->Arguments, process->ArgumentsLength);
             memcpy(&buffer[process->ArgumentsLength], process->Arguments, process->InheritationBlockLength);
             status = PeGetModuleEntryPoints(process->Executable,
-                (Handle_t*)&buffer[process->ArgumentsLength + process->InheritationBlockLength], &moduleCount);
+                (Handle_t*)&buffer[process->ArgumentsLength + process->InheritationBlockLength],
+                &moduleCount);
             bufferLength = process->ArgumentsLength + process->InheritationBlockLength + (moduleCount * sizeof(Handle_t));
         }
     }
@@ -669,13 +670,13 @@ void svc_library_unload_callback(struct gracht_recv_message* message, struct svc
 
 void svc_process_get_modules_callback(struct gracht_recv_message* message, struct svc_process_get_modules_args* args)
 {
-    Process_t* process = AcquireProcess(args->handle);
-    OsStatus_t status  = OsInvalidParameters;
+    Process_t* process     = AcquireProcess(args->handle);
+    OsStatus_t status      = OsInvalidParameters;
+    int        moduleCount = PROCESS_MAXMODULES;
     Handle_t   buffer[PROCESS_MAXMODULES];
-    int        moduleCount = 0;
     
     if (process) {
-        status = PeGetModuleHandles(process->Executable, buffer, &moduleCount);
+        status = PeGetModuleHandles(process->Executable, &buffer[0], &moduleCount);
         ReleaseProcess(process);
     }
     svc_process_get_modules_response(message, &buffer[0], moduleCount * sizeof(Handle_t), moduleCount);

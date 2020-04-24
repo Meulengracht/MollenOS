@@ -64,13 +64,13 @@ static uint32_t pci_mmcfg_writereg(uint32_t bdf, uint8_t reg, uint32_t val)
 
 /* PciToDevClass
  * Helper to construct the class from available pci-information */
-DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass) {
+unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass) {
     return ((Class & 0xFFFF) << 16 | (SubClass & 0xFFFF));
 }
 
 /* PciToDevSubClass
  * Helper to construct the sub-class from available pci-information */
-DevInfo_t PciToDevSubClass(uint32_t Interface) {
+unsigned int PciToDevSubClass(uint32_t Interface) {
     return ((Interface & 0xFFFF) << 16 | 0);
 }
 
@@ -221,7 +221,7 @@ PciCheckFunction(
     assert(Device != NULL);
 
     // Read entire function information
-    PciReadFunction(Pcs, Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function);
+    PciReadFunction(Pcs, Parent->BusIo, (unsigned int)Bus, (unsigned int)Slot, (unsigned int)Function);
 
     Device->Parent      = Parent;
     Device->BusIo       = Parent->BusIo;
@@ -310,8 +310,8 @@ PciCheckFunction(
 
                 // Update the irq-line if we found a new line
                 if (InterruptLine != INTERRUPT_NONE) {
-                    PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Slot,
-                        (DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
+                    PciWrite8(Parent->BusIo, (unsigned int)Bus, (unsigned int)Slot,
+                        (unsigned int)Function, 0x3C, (uint8_t)InterruptLine);
                     Device->Header->InterruptLine = (uint8_t)InterruptLine;
                     Device->AcpiConform           = AcpiConform;
                 }
@@ -341,7 +341,7 @@ PciCheckDevice(
     // Validate the vendor id, it's invalid only
     // if there is no device on that location
     VendorId = PciReadVendorId(Parent->BusIo, 
-        (DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function);
+        (unsigned int)Bus, (unsigned int)Slot, (unsigned int)Function);
 
     // Sanitize if device is present
     if (VendorId == 0xFFFF) {
@@ -354,7 +354,7 @@ PciCheckDevice(
     // Multi-function or single? 
     // If it is a multi-function device, check remaining functions
     if (PciReadHeaderType(Parent->BusIo, 
-        (DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function) & 0x80) {
+        (unsigned int)Bus, (unsigned int)Slot, (unsigned int)Function) & 0x80) {
         for (Function = 1; Function < 8; Function++) {
             if (PciReadVendorId(Parent->BusIo, Bus, Slot, Function) != 0xFFFF) {
                 PciCheckFunction(Parent, Bus, Slot, Function);
@@ -399,7 +399,7 @@ PciCreateDeviceFromPci(
     Device.Class    = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
     Device.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
 
-    Device.Segment  = (DevInfo_t)PciDevice->BusIo->Segment;
+    Device.Segment  = (unsigned int)PciDevice->BusIo->Segment;
     Device.Bus      = PciDevice->Bus;
     Device.Slot     = PciDevice->Slot;
     Device.Function = PciDevice->Function;

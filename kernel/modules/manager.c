@@ -43,10 +43,10 @@ RegisterModule(
     _In_ const void*        Data,
     _In_ size_t             Length,
     _In_ SystemModuleType_t Type,
-    _In_ DevInfo_t          VendorId,
-    _In_ DevInfo_t          DeviceId,
-    _In_ DevInfo_t          DeviceClass,
-    _In_ DevInfo_t          DeviceSubclass)
+    _In_ unsigned int          VendorId,
+    _In_ unsigned int          DeviceId,
+    _In_ unsigned int          DeviceClass,
+    _In_ unsigned int          DeviceSubclass)
 {
     SystemModule_t* Module;
 
@@ -124,8 +124,8 @@ GetModuleDataByPath(
 
 SystemModule_t*
 GetGenericDeviceModule(
-    _In_ DevInfo_t DeviceClass, 
-    _In_ DevInfo_t DeviceSubclass)
+    _In_ unsigned int DeviceClass, 
+    _In_ unsigned int DeviceSubclass)
 {
     foreach(i, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
@@ -139,8 +139,8 @@ GetGenericDeviceModule(
 
 SystemModule_t*
 GetSpecificDeviceModule(
-    _In_ DevInfo_t VendorId,
-    _In_ DevInfo_t DeviceId)
+    _In_ unsigned int VendorId,
+    _In_ unsigned int DeviceId)
 {
     if (VendorId == 0) {
         return NULL;
@@ -156,10 +156,10 @@ GetSpecificDeviceModule(
 
 SystemModule_t*
 GetModule(
-    _In_  DevInfo_t VendorId,
-    _In_  DevInfo_t DeviceId,
-    _In_  DevInfo_t DeviceClass,
-    _In_  DevInfo_t DeviceSubclass)
+    _In_  unsigned int VendorId,
+    _In_  unsigned int DeviceId,
+    _In_  unsigned int DeviceClass,
+    _In_  unsigned int DeviceSubclass)
 {
     foreach(i, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;

@@ -60,10 +60,10 @@ RegisterModule(
     _In_ const void*        Data,
     _In_ size_t             Length,
     _In_ SystemModuleType_t Type,
-    _In_ DevInfo_t          VendorId,
-    _In_ DevInfo_t          DeviceId,
-    _In_ DevInfo_t          DeviceClass,
-    _In_ DevInfo_t          DeviceSubclass);
+    _In_ unsigned int          VendorId,
+    _In_ unsigned int          DeviceId,
+    _In_ unsigned int          DeviceClass,
+    _In_ unsigned int          DeviceSubclass);
 
 /* SpawnServices
  * Loads all system services present in the initial ramdisk. */
@@ -84,24 +84,24 @@ GetModuleDataByPath(
  * module that is resolved by vendor id and product id. */
 KERNELAPI SystemModule_t* KERNELABI
 GetGenericDeviceModule(
-    _In_ DevInfo_t DeviceClass, 
-    _In_ DevInfo_t DeviceSubclass);
+    _In_ unsigned int DeviceClass, 
+    _In_ unsigned int DeviceSubclass);
 
 /* GetSpecificDeviceModule
  * Resolves a specific device module that is specified by both vendor id and product id. */
 KERNELAPI SystemModule_t* KERNELABI
 GetSpecificDeviceModule(
-    _In_ DevInfo_t VendorId,
-    _In_ DevInfo_t DeviceId);
+    _In_ unsigned int VendorId,
+    _In_ unsigned int DeviceId);
 
 /* GetModule
  * Retrieves an existing module instance based on the identification markers. */
 KERNELAPI SystemModule_t* KERNELABI
 GetModule(
-    _In_  DevInfo_t VendorId,
-    _In_  DevInfo_t DeviceId,
-    _In_  DevInfo_t DeviceClass,
-    _In_  DevInfo_t DeviceSubclass);
+    _In_  unsigned int VendorId,
+    _In_  unsigned int DeviceId,
+    _In_  unsigned int DeviceClass,
+    _In_  unsigned int DeviceSubclass);
 
 /* GetCurrentModule
  * Retrieves the module that belongs to the calling thread. */

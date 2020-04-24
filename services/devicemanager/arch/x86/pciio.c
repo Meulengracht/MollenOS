@@ -29,9 +29,9 @@
 size_t
 PciCalculateOffset(
 	_In_ PciBus_t*	Io,
-	_In_ DevInfo_t 	Bus,
-	_In_ DevInfo_t 	Device,
-	_In_ DevInfo_t 	Function,
+	_In_ unsigned int 	Bus,
+	_In_ unsigned int 	Device,
+	_In_ unsigned int 	Function,
 	_In_ size_t 	Register)
 {
 	if (Io->IsExtended) {
@@ -46,7 +46,7 @@ PciCalculateOffset(
  * Reads a 32 bit value from the pci-bus
  * at the specified location bus, device, function and register */
 uint32_t PciRead32(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
 	if (Io != NULL
 		&& Io->IsExtended) {
@@ -62,7 +62,7 @@ uint32_t PciRead32(PciBus_t *Io,
  * Reads a 16 bit value from the pci-bus
  * at the specified location bus, device, function and register */
 uint16_t PciRead16(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
 	if (Io != NULL
 		&& Io->IsExtended) {
@@ -78,7 +78,7 @@ uint16_t PciRead16(PciBus_t *Io,
  * Reads a 8 bit value from the pci-bus
  * at the specified location bus, device, function and register */
 uint8_t PciRead8(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
 	if (Io != NULL && Io->IsExtended) {
 		return (uint8_t)ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 1);
@@ -93,7 +93,7 @@ uint8_t PciRead8(PciBus_t *Io,
  * Writes a 32 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 void PciWrite32(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint32_t Value)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value)
 {
 	if (Io != NULL && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 4);
@@ -108,7 +108,7 @@ void PciWrite32(PciBus_t *Io,
  * Writes a 16 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 void PciWrite16(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint16_t Value)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value)
 {
 	if (Io != NULL && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 2);
@@ -123,7 +123,7 @@ void PciWrite16(PciBus_t *Io,
  * Writes a 8 bit value to the pci-bus
  * at the specified location bus, device, function and register */
 void PciWrite8(PciBus_t *Io, 
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint8_t Value)
+	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value)
 {
 	if (Io != NULL && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 1);

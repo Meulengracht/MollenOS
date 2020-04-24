@@ -580,6 +580,15 @@
         </protocol>
         <protocol name="device" id="0x8">
             <functions>
+                <function name="notify" async="async">
+                    <request>
+                        <param name="driver" type="UUId_t" />
+                        <param name="vendor_id" type="unsigned int" />
+                        <param name="device_id" type="unsigned int" />
+                        <param name="class" type="unsigned int" />
+                        <param name="subclass" type="unsigned int" />
+                    </request>
+                </function>
                 <function name="register">
                     <request>
                         <param name="parent" type="UUId_t" count="1" />

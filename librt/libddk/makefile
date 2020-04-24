@@ -23,6 +23,7 @@ PROTOCOLS_C = protocols/svc_session_protocol_client.c \
 			  protocols/svc_library_protocol_client.c \
 			  protocols/svc_socket_protocol_client.c \
 			  protocols/svc_device_protocol_client.c \
+			  protocols/svc_usb_protocol_client.c \
 			  protocols/ctt_driver_protocol_client.c \
 			  protocols/ctt_storage_protocol_client.c \
 			  protocols/ctt_usbhost_protocol_client.c

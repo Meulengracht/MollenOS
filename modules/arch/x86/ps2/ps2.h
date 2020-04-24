@@ -114,7 +114,7 @@ typedef struct PS2Port {
     UUId_t              InterruptId;
     PS2Command_t        ActiveCommand;
     PS2PortState_t      State;
-    DevInfo_t           Signature;
+    unsigned int           Signature;
     gracht_client_t*    GrachtClient;
 
     // Device state information

@@ -138,34 +138,34 @@ typedef struct PciDevice {
 /* PciRead32
  * Reads a 32 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN uint32_t PciRead32(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+__EXTERN uint32_t PciRead32(unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
 /* PciRead16
  * Reads a 16 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN uint16_t PciRead16(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+__EXTERN uint16_t PciRead16(unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
 /* PciRead8
  * Reads a 8 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN uint8_t PciRead8(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+__EXTERN uint8_t PciRead8(unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
 /* PciWrite32
  * Writes a 32 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN void PciWrite32(DevInfo_t Bus, DevInfo_t Device,
-	DevInfo_t Function, size_t Register, uint32_t Value);
+__EXTERN void PciWrite32(unsigned int Bus, unsigned int Device,
+	unsigned int Function, size_t Register, uint32_t Value);
 
 /* PciWrite16
  * Writes a 16 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN void PciWrite16(DevInfo_t Bus, DevInfo_t Device,
-	DevInfo_t Function, size_t Register, uint16_t Value);
+__EXTERN void PciWrite16(unsigned int Bus, unsigned int Device,
+	unsigned int Function, size_t Register, uint16_t Value);
 
 /* PciWrite8
  * Writes a 8 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__EXTERN void PciWrite8(DevInfo_t Bus, DevInfo_t Device,
-	DevInfo_t Function, size_t Register, uint8_t Value);
+__EXTERN void PciWrite8(unsigned int Bus, unsigned int Device,
+	unsigned int Function, size_t Register, uint8_t Value);
 
 #endif // !_X86_PCI_H_

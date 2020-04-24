@@ -38,9 +38,9 @@ extern void     outl(uint16_t port, uint32_t data);
 size_t
 PciCalculateOffset(
     _In_ int       IsExtended,
-	_In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device,
-    _In_ DevInfo_t Function,
+	_In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
     _In_ size_t    Register)
 {
 	if (IsExtended) {
@@ -54,9 +54,9 @@ PciCalculateOffset(
 
 uint32_t
 PciRead32(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device,
-    _In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
     _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
@@ -65,9 +65,9 @@ PciRead32(
 
 uint16_t
 PciRead16(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device,
-    _In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
     _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
@@ -76,9 +76,9 @@ PciRead16(
 
 uint8_t
 PciRead8(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device,
-    _In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
     _In_ size_t    Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
@@ -87,9 +87,9 @@ PciRead8(
 
 void
 PciWrite32(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device,
-	_In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+	_In_ unsigned int Function,
     _In_ size_t    Register,
     _In_ uint32_t  Value)
 {
@@ -99,9 +99,9 @@ PciWrite32(
 
 void
 PciWrite16(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device, 
-	_In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device, 
+	_In_ unsigned int Function,
     _In_ size_t    Register,
     _In_ uint16_t  Value)
 {
@@ -110,9 +110,9 @@ PciWrite16(
 }
 
 void PciWrite8(
-    _In_ DevInfo_t Bus,
-    _In_ DevInfo_t Device, 
-	_In_ DevInfo_t Function,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device, 
+	_In_ unsigned int Function,
     _In_ size_t    Register,
     _In_ uint8_t   Value)
 {

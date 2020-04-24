@@ -70,7 +70,7 @@ PS2ResetPort(
     return OsError;
 }
 
-DevInfo_t
+unsigned int
 PS2IdentifyPort(
     _In_ int Index)
 {

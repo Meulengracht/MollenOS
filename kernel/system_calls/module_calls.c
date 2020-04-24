@@ -18,8 +18,9 @@
  *
  * MollenOS MCore - System Calls
  */
-#define __MODULE "SCIF"
-//#define __TRACE
+
+#define __MODULE "syscall"
+#define __TRACE
 
 #include <assert.h>
 #include <arch/utils.h>
@@ -44,9 +45,10 @@ ScModuleGetStartupInformation(
     SystemModule_t* module          = GetCurrentModule();
     int             bufferIndex     = 0;
     size_t          bufferBytesLeft = bufferMaxLength;
-    int             moduleCount     = 0;
+    int             moduleCount     = 16;
     Handle_t        moduleList[16]; // no more is neccessary... but it is riscy
     OsStatus_t      status;
+    TRACE("[syscall] [ScModuleGetStartupInformation]");
 
     if (!module) {
         return OsInvalidPermissions;
@@ -63,6 +65,8 @@ ScModuleGetStartupInformation(
 
     if (module->ArgumentBlock != NULL) {
         size_t bytesToCopy = MIN(bufferBytesLeft, module->ArgumentBlockLength);
+        TRACE("[syscall] [ScModuleGetStartupInformation] arguments length %u", bytesToCopy);
+        
         memcpy(&buffer[bufferIndex], module->ArgumentBlock, bytesToCopy);
 
         startupInformation->Arguments       = &buffer[bufferIndex];
@@ -74,6 +78,8 @@ ScModuleGetStartupInformation(
 
     if (module->InheritanceBlock != NULL) {
         size_t bytesToCopy = MIN(bufferBytesLeft, module->InheritanceBlockLength);
+        TRACE("[syscall] [ScModuleGetStartupInformation] inherit length %u", bytesToCopy);
+        
         memcpy(&buffer[bufferIndex], module->InheritanceBlock, bytesToCopy);
 
         startupInformation->Inheritation       = &buffer[bufferIndex];
@@ -88,6 +94,8 @@ ScModuleGetStartupInformation(
     assert(moduleCount < 16);
     if (status == OsSuccess) {
         size_t bytesToCopy = MIN(bufferBytesLeft, moduleCount * sizeof(Handle_t));
+        TRACE("[syscall] [ScModuleGetStartupInformation] modules length %u", bytesToCopy);
+        
         memcpy(&buffer[bufferIndex], &moduleList[0], bytesToCopy);
 
         startupInformation->LibraryEntries       = &buffer[bufferIndex];
@@ -116,26 +124,26 @@ ScModuleGetCurrentName(
 
 OsStatus_t
 ScModuleGetModuleHandles(
-    _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
+    _In_ Handle_t* moduleList)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    int             ModuleCount;
-    if (Module == NULL) {
+    SystemModule_t* module      = GetCurrentModule();
+    int             moduleCount = PROCESS_MAXMODULES;
+    if (module == NULL) {
         return OsError;
     }
-    return PeGetModuleHandles(Module->Executable, ModuleList, &ModuleCount);
+    return PeGetModuleHandles(module->Executable, moduleList, &moduleCount);
 }
 
 OsStatus_t
 ScModuleGetModuleEntryPoints(
-    _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
+    _In_ Handle_t* moduleList)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    int             ModuleCount;
-    if (Module == NULL) {
+    SystemModule_t* module      = GetCurrentModule();
+    int             moduleCount = PROCESS_MAXMODULES;
+    if (module == NULL) {
         return OsError;
     }
-    return PeGetModuleEntryPoints(Module->Executable, ModuleList, &ModuleCount);
+    return PeGetModuleEntryPoints(module->Executable, moduleList, &moduleCount);
 }
 
 OsStatus_t
@@ -158,8 +166,6 @@ ScModuleExit(
     return Status;
 }
 
-/* ScGetWorkingDirectory
- * Queries the current working directory path for the current module (See _MAXPATH) */
 OsStatus_t
 ScGetWorkingDirectory(
     _In_ char*  PathBuffer,
@@ -176,9 +182,6 @@ ScGetWorkingDirectory(
     return OsSuccess;
 }
 
-/* ScSetWorkingDirectory
- * Performs changes to the current working directory by canonicalizing the given 
- * path modifier or absolute path */
 OsStatus_t
 ScSetWorkingDirectory(
     _In_ const char* Path)
@@ -195,8 +198,6 @@ ScSetWorkingDirectory(
     return OsSuccess;
 }
 
-/* ScGetAssemblyDirectory
- * Queries the application path for the current process (See _MAXPATH) */
 OsStatus_t
 ScGetAssemblyDirectory(
     _In_ char*  PathBuffer,
