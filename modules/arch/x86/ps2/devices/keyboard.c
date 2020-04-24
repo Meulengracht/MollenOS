@@ -24,7 +24,7 @@
 
 #include <ddk/utils.h>
 #include <errno.h>
-#include <gracht/os.h>
+#include <gracht/link/vali.h>
 #include <io.h>
 #include <os/keycodes.h>
 #include "keyboard.h"

@@ -29,6 +29,8 @@
 #include <ipcontext.h>
 #include <os/osdefs.h>
 
+struct sockaddr_storage;
+
 struct vali_link_message {
     struct ipmsg_addr address;
     struct ipmsg_resp response;
@@ -46,6 +48,10 @@ struct vali_link_deferred_response {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+int gracht_os_get_server_client_address(struct sockaddr_storage*, int*);
+int gracht_os_get_server_packet_address(struct sockaddr_storage*, int*);
+int gracht_os_thread_set_name(const char*);
 
 // Link API
 void gracht_vali_message_defer_response(struct vali_link_deferred_response*, struct gracht_recv_message*);

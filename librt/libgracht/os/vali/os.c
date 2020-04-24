@@ -23,7 +23,7 @@
  */
 
 #include <os/mollenos.h>
-#include "../../include/gracht/os.h"
+#include "../../include/gracht/link/vali.h"
 #include <inet/socket.h>
 #include <inet/local.h>
 #include <string.h>

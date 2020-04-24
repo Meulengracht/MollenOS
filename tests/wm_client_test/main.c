@@ -23,8 +23,8 @@
  */
 
 #include <gracht/link/socket.h>
+#include <gracht/link/vali.h>
 #include <gracht/client.h>
-#include <gracht/os.h>
 #include "test_utils_protocol_client.h"
 #include <stdio.h>
 

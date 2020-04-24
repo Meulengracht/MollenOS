@@ -24,7 +24,7 @@
 #include <ddk/utils.h>
 #include <io.h>
 #include "mouse.h"
-#include <gracht/os.h>
+#include <gracht/link/vali.h>
 #include "../ps2.h"
 #include <string.h>
 #include <stdlib.h>

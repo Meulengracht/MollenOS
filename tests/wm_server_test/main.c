@@ -24,8 +24,8 @@
 
 #include <errno.h>
 #include <gracht/link/socket.h>
+#include <gracht/link/vali.h>
 #include <gracht/server.h>
-#include <gracht/os.h>
 #include <os/process.h>
 #include <stdio.h>
 #include <string.h>
