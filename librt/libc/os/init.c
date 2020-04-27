@@ -23,6 +23,7 @@
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <stdlib.h>
 #include <threads.h>
 
 extern void StdioInitialize(void *InheritanceBlock);
@@ -35,17 +36,25 @@ static UUId_t           __CrtProcessId           = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
-    gracht_client_configuration_t clientConfig;
-    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t                    status;
+    gracht_client_configuration_t clientConfig = { 0 };
+    struct vali_link_message      msg          = VALI_MSG_INIT_HANDLE(GetProcessService());
+    OsStatus_t                    osStatus;
+    int                           status;
     
     // We must set IsModule before anything
     __CrtIsModule = IsModule;
 
     // Create the ipc client
-    gracht_link_vali_client_create(&clientConfig.link);
-    gracht_client_create(&clientConfig, &__CrtClient);
-
+    status = gracht_link_vali_client_create(&clientConfig.link);
+    if (status) {
+        _Exit(status);
+    }
+    
+    status = gracht_client_create(&clientConfig, &__CrtClient);
+    if (status) {
+        _Exit(status);
+    }
+    
     // Get startup information
     if (IsModule) {
         Syscall_ModuleGetStartupInfo(StartupInformation, &__CrtProcessId, &__CrtStartupBuffer[0],
@@ -53,7 +62,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
     else {
         svc_process_get_startup_information(GetGrachtClient(), &msg, thrd_current(),
-            &status, &__CrtProcessId, &StartupInformation->ArgumentsLength,
+            &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
             &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
             &__CrtStartupBuffer[0], sizeof(__CrtStartupBuffer));
         gracht_vali_message_finish(&msg);

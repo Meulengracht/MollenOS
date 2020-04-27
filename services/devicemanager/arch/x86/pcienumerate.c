@@ -470,7 +470,7 @@ BusInstallFixed(
     _In_ const char*  Name)
 {
     // Set some magic constants
-    Device->Base.Length   = sizeof(Device_t);
+    Device->Base.Length   = sizeof(BusDevice_t);
     Device->Base.VendorId = PCI_FIXED_VENDORID;
 
     // Set more magic constants to ignore class and subclass

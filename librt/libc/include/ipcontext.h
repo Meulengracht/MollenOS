@@ -90,7 +90,9 @@ struct ipmsg {
     struct ipmsg_base base;
 };
 
-#define IPMSG_DONTWAIT 0x1
+#define IPMSG_ASYNC 0x1
+
+#define IPMSG_DONTWAIT 0x100
 
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int, struct ipmsg_addr*));

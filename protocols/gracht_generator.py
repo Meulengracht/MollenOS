@@ -757,9 +757,10 @@ class CGenerator:
             outfile.write("    } __message = { .__base = { \n")
             outfile.write("        .length = sizeof(struct gracht_message)")
             outfile.write(" + (" + str(len(params_in)) + " * sizeof(struct gracht_param))")
-            for param in params_all:
-                if param.has_length_component() and not param.is_output():
-                    outfile.write(" + " + param.get_name() + "_length")
+            for param in params_in:
+                if not param.is_value():
+                    size_function = self.get_size_function(protocol, param, is_response)
+                    outfile.write(" + " + size_function)
         else:
             outfile.write("    struct gracht_message __message = {\n")
             outfile.write("        .length = sizeof(struct gracht_message)")

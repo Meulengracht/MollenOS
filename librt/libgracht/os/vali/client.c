@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include "../../include/gracht/link/vali.h"
+#include "../../include/gracht/debug.h"
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
@@ -154,6 +155,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
     
     linkManager = (struct vali_link_manager*)malloc(sizeof(struct vali_link_manager));
     if (!linkManager) {
+        ERROR("[gracht] [client-link] [vali] failed to allocate memory");
         errno = (ENOMEM);
         return -1;
     }
@@ -167,6 +169,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
     // create dma memory pool for responses
     status = dma_create(&bufferInfo, &linkManager->dma);
     if (status != OsSuccess) {
+        ERROR("[gracht] [client-link] [vali] failed to allocate DMA area");
         OsStatusToErrno(status);
         free(linkManager);
         return -1;
@@ -174,6 +177,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
     
     status = bpool(linkManager->dma.buffer, 0x1000, &linkManager->pool);
     if (status != OsSuccess) {
+        ERROR("[gracht] [client-link] [vali] failed to create DMA pool");
         dma_attachment_unmap(&linkManager->dma);
         dma_detach(&linkManager->dma);
         free(linkManager);

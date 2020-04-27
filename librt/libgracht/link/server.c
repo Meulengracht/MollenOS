@@ -48,7 +48,6 @@ static int socket_link_send(struct socket_link* linkContext,
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      bytesWritten;
-    intmax_t      expectedBytesWritten = message->header.length;
     struct msghdr msg = {
         .msg_name = NULL,
         .msg_namelen = 0,
@@ -61,13 +60,11 @@ static int socket_link_send(struct socket_link* linkContext,
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = message->header.length;
+    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
         iov[1 + i].iov_len    = message->params[i].length;
-        expectedBytesWritten += message->params[i].length;
-
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
             iov[1 + i].iov_base = (void*)&message->params[i].data.value;
         }
@@ -82,7 +79,7 @@ static int socket_link_send(struct socket_link* linkContext,
 
     TRACE("[socket_link_send] sending message\n");
     bytesWritten = sendmsg(linkContext->iod, &msg, MSG_WAITALL);
-    if (bytesWritten != expectedBytesWritten) {
+    if (bytesWritten != message->header.length) {
         return -1;
     }
 
@@ -107,27 +104,10 @@ static int socket_link_recv(struct socket_link* linkContext,
     
     if (message->header.param_in) {
         intmax_t bytesToRead = message->header.length - sizeof(struct gracht_message);
-        int      i;
 
         TRACE("[gracht_connection_recv_stream] reading message payload");
         params_storage = (char*)context->storage + sizeof(struct gracht_message);
         bytes_read     = recv(linkContext->iod, params_storage, bytesToRead, MSG_WAITALL);
-        if (bytes_read != bytesToRead) {
-            // do not process incomplete requests
-            // TODO error code / handling
-            ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%u, expected %u)",
-                  (uint32_t)bytes_read, (uint32_t)(message->header.length - sizeof(struct gracht_message)));
-            errno = (EPIPE);
-            return -1;
-        }
-
-        bytesToRead = 0;
-        for (i = 0; i < message->header.param_in; i++) {
-            bytesToRead += message->params[i].length;
-        }
-
-        bytes_read = recv(linkContext->iod, params_storage + (message->header.param_in * sizeof(struct gracht_param)),
-                bytesToRead, MSG_WAITALL);
         if (bytes_read != bytesToRead) {
             // do not process incomplete requests
             // TODO error code / handling
@@ -294,7 +274,6 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      bytesWritten;
-    intmax_t      expectedBytesWritten = message->header.length;
     struct msghdr msg = {
         .msg_name = messageContext->storage,
         .msg_namelen = linkManager->config.dgram_address_length,
@@ -307,13 +286,11 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = message->header.length;
+    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
         iov[1 + i].iov_len    = message->params[i].length;
-        expectedBytesWritten += message->params[i].length;
-
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
             iov[1 + i].iov_base = (void*)&message->params[i].data.value;
         }
@@ -327,8 +304,8 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     }
     
     bytesWritten = sendmsg(linkManager->dgram_socket, &msg, MSG_WAITALL);
-    if (bytesWritten != expectedBytesWritten) {
-        ERROR("link_server: failed to respond [%li/%li]\n", bytesWritten, expectedBytesWritten);
+    if (bytesWritten != message->header.length) {
+        ERROR("link_server: failed to respond [%li/%i]\n", bytesWritten, message->header.length);
         if (bytesWritten == -1) {
             ERROR("link_server: errno %i\n", errno);
         }

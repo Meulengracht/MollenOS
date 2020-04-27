@@ -43,7 +43,7 @@ extern int client_invoke_action(struct gracht_list*, struct gracht_recv_message*
 
 int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message, void* context)
 {
-    if (!client) {
+    if (!client || !message) {
         errno = (EINVAL);
         return -1;
     }
@@ -82,6 +82,12 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     if (!client) {
         ERROR("gracht_client: failed to allocate memory for client data\n");
         errno = (ENOMEM);
+        return -1;
+    }
+    
+    if (!config || !config->link) {
+        ERROR("[gracht] [client] config or config link was null");
+        errno = EINVAL;
         return -1;
     }
     

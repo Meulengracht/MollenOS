@@ -20,6 +20,8 @@
  * IP-Communication
  * - Implementation of inter-thread communication. 
  */
+#define __TRACE
+
 
 #include <ddk/barrier.h>
 #include <ddk/handle.h>
@@ -109,6 +111,8 @@ AllocateMessage(
 {
     IpcContext_t* Context;
     size_t        BytesAvailable;
+    size_t        BytesToAllocate = sizeof(struct ipmsg_resp) + SourceMessage->base->length;
+    TRACE("[ipc] [allocate] %u/%u", SourceMessage->base->protocol, SourceMessage->base->action);
     
     if (SourceMessage->address->type == IPMSG_ADDRESS_HANDLE) {
         Context = LookupHandleOfType(SourceMessage->address->data.handle, HandleTypeIpcContext);
@@ -117,6 +121,8 @@ AllocateMessage(
         UUId_t     Handle;
         OsStatus_t Status = LookupHandleByPath(SourceMessage->address->data.path, &Handle);
         if (Status != OsSuccess) {
+            ERROR("[ipc] [allocate] could not find target path %s", 
+                SourceMessage->address->data.path);
             return Status;
         }
         
@@ -124,12 +130,15 @@ AllocateMessage(
     }
     
     if (!Context) {
+        ERROR("[ipc] [allocate] could not find target handle %u", 
+            SourceMessage->address->data.handle);
         return OsDoesNotExist;
     }
     
     BytesAvailable = streambuffer_write_packet_start(Context->KernelStream,
-        SourceMessage->base->length, 0, &State->base, &State->state);
+        BytesToAllocate, 0, &State->base, &State->state);
     if (!BytesAvailable) {
+        ERROR("[ipc] [allocate] timeout allocating space for message");
         return OsTimeout;
     }
     
@@ -168,6 +177,8 @@ WriteMessage(
     _In_ struct message_state* State)
 {
     int i;
+    
+    TRACE("[ipc] [write] %u/%u", Message->base->protocol, Message->base->action);
     
     // Write all members in the order of ipmsg
     streambuffer_write_packet_data(Context->KernelStream, 
@@ -213,7 +224,10 @@ SendMessage(
     _In_ struct ipmsg_desc*    Message,
     _In_ struct message_state* State)
 {
-    streambuffer_write_packet_end(Context->KernelStream, State->base, Message->base->length);
+    TRACE("[ipc] [send] %u/%u", Message->base->protocol, Message->base->action);
+    
+    streambuffer_write_packet_end(Context->KernelStream, State->base,
+        sizeof(struct ipmsg_resp) + Message->base->length);
     MarkHandle(Context->Handle, 0);
 }
 
@@ -314,6 +328,7 @@ IpcContextSendMultiple(
 {
     struct message_state State;
     int                  i;
+    TRACE("[ipc] [send] count %i, timeout %u", MessageCount, LODWORD(Timeout));
     
     if (!Messages || !MessageCount) {
         return OsInvalidParameters;
@@ -334,7 +349,7 @@ IpcContextSendMultiple(
     
     // Iterate all messages again and wait for response
     for (i = 0; i < MessageCount; i++) {
-        if (!(Messages[i]->base->flags & IPMSG_DONTWAIT)) {
+        if (!(Messages[i]->base->flags & IPMSG_ASYNC)) {
             WaitForMessageNotification(Messages[i]->response, Timeout);
         }
     }

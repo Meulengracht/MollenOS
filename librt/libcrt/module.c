@@ -26,6 +26,8 @@
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
+#include <internal/_ipc.h>
+#include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
@@ -56,7 +58,7 @@ void __CrtModuleLoad(void)
         exit(-1);
     }
     
-    if (vendorId != 0 && deviceId != 0) {
+    if (vendorId != 0 && deviceId != 0 && class != 0 && subClass != 0) {
         svc_device_notify(GetGrachtClient(), &msg,
             GetNativeHandle(gracht_server_get_dgram_iod()),
             vendorId, deviceId, class, subClass);

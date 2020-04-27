@@ -76,7 +76,6 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      byteCount;
-    intmax_t      expectedByteCount = message->header.length;
     struct msghdr msg = {
         .msg_name = NULL,
         .msg_namelen = 0,
@@ -89,13 +88,11 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = message->header.length;
+    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
         iov[1 + i].iov_len   = message->params[i].length;
-        expectedByteCount += message->params[i].length;
-
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
             iov[1 + i].iov_base = (void*)&message->params[i].data.value;
         }
@@ -109,9 +106,9 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     }
 
     byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
-    if (byteCount != expectedByteCount) {
-        ERROR("link_client: failed to send message, bytes sent: %u, expected: %lu\n",
-              (uint32_t)byteCount, expectedByteCount);
+    if (byteCount != message->header.length) {
+        ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
+              (uint32_t)byteCount, message->header.length);
         errno = (EPIPE);
         return -1;
     }
@@ -169,7 +166,6 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      byteCount;
-    intmax_t      expectedByteCount = message->header.length;
     struct msghdr msg = {
         .msg_name = NULL,
         .msg_namelen = 0, /* client only: already connected on socket */
@@ -180,23 +176,21 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
         .msg_flags = 0
     };
 
-    TRACE("link_client: send message (%lu, in %i, out %i)\n",
-          expectedByteCount, message->header.param_in, message->header.param_out);
+    TRACE("link_client: send message (%u, in %i, out %i)\n",
+          message->header.length, message->header.param_in, message->header.param_out);
 
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = message->header.length;
+    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
-        iov[1+i].iov_len   = message->params[i].length;
-        expectedByteCount += message->params[i].length;
-
+        iov[1 + i].iov_len = message->params[i].length;
         if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[1+i].iov_base = (void*)&message->params[i].data.value;
+            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
         }
         else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[1+i].iov_base = message->params[i].data.buffer;
+            iov[1 + i].iov_base = message->params[i].data.buffer;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
@@ -205,7 +199,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
     }
     
     byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
-    if (byteCount != expectedByteCount) {
+    if (byteCount != message->header.length) {
         ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
               (uint32_t)byteCount, message->header.length);
         errno = (EPIPE);
