@@ -23,14 +23,15 @@
  */
 #define __TRACE
 
-#include <ddk/contracts/usbdevice.h>
+#include <ddk/usbdevice.h>
 #include <ddk/usb.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include "manager.h"
-#include <threads.h>
 #include <stdlib.h>
+#include <string.h>
+#include <threads.h>
 
 #include "svc_usb_protocol_server.h"
 
@@ -134,7 +135,7 @@ UsbReleaseAddress(
 OsStatus_t
 UsbQueryLanguages(
     _In_ UsbController_t* Controller,
-    _In_ UsbDevice_t*     Device)
+    _In_ UsbPortDevice_t* Device)
 {
     UsbStringDescriptor_t Descriptor;
     int                   i;
@@ -156,8 +157,8 @@ UsbQueryLanguages(
  * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
 OsStatus_t
 UsbQueryConfigurationDescriptors(
-    _In_ UsbController_t*       Controller,
-    _In_ UsbDevice_t*           Device)
+    _In_ UsbController_t* Controller,
+    _In_ UsbPortDevice_t* Device)
 {
     // Variables
     UsbConfigDescriptor_t Descriptor;
@@ -369,7 +370,7 @@ UsbCoreDestroy(void)
 OsStatus_t
 UsbCoreControllerRegister(
     _In_ UUId_t              DriverId,
-    _In_ MCoreDevice_t*      Device,
+    _In_ Device_t*      Device,
     _In_ UsbControllerType_t Type,
     _In_ int                 RootPorts)
 {
@@ -385,7 +386,7 @@ UsbCoreControllerRegister(
     memset(Controller, 0, sizeof(UsbController_t));
 
     // Store initial data
-    memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
+    memcpy(&Controller->Device, Device, sizeof(Device_t));
     Controller->DriverId    = DriverId;
     Controller->Type        = Type;
     Controller->PortCount   = RootPorts;
@@ -438,19 +439,19 @@ void svc_usb_unregister_callback(struct gracht_recv_message* message, struct svc
 OsStatus_t
 UsbDeviceLoadDrivers(
     _In_ UsbController_t* Controller,
-    _In_ UsbDevice_t*     Device)
+    _In_ UsbPortDevice_t* Device)
 {
-    MCoreUsbDevice_t CoreDevice;
-    int              i;
+    UsbDevice_t CoreDevice;
+    int         i;
 
     // Debug
     TRACE("UsbDeviceLoadDrivers()");
 
     // Initialize the base device
-    memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
+    memset(&CoreDevice, 0, sizeof(UsbDevice_t));
     memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
     CoreDevice.Base.Id       = UUID_INVALID;
-    CoreDevice.Base.Length   = sizeof(MCoreUsbDevice_t);
+    CoreDevice.Base.Length   = sizeof(UsbDevice_t);
     CoreDevice.Base.VendorId = Device->Base.VendorId;
     CoreDevice.Base.DeviceId = Device->Base.ProductId;
     CoreDevice.Base.Class    = USB_DEVICE_CLASS;
@@ -483,7 +484,7 @@ UsbDeviceLoadDrivers(
             }
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
-            RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, __DEVICEMANAGER_REGISTER_LOADDRIVER);
+            RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
             Device->Interfaces[i].DeviceId = CoreDevice.Base.Id;
         }
     }
@@ -499,7 +500,7 @@ UsbDeviceSetup(
     UsbHcPortDescriptor_t PortDescriptor;
     UsbDeviceDescriptor_t DeviceDescriptor;
     UsbTransferStatus_t   tStatus;
-    UsbDevice_t*          Device;
+    UsbPortDevice_t*      Device;
     int                   ReservedAddress = 0;
 
     // Debug
@@ -512,11 +513,11 @@ UsbDeviceSetup(
     }
 
     // Allocate a new instance of the usb device and reset it
-    Device = (UsbDevice_t*)malloc(sizeof(UsbDevice_t));
+    Device = (UsbPortDevice_t*)malloc(sizeof(UsbPortDevice_t));
     if (!Device) {
         return OsOutOfMemory;
     }
-    memset(Device, 0, sizeof(UsbDevice_t));
+    memset(Device, 0, sizeof(UsbPortDevice_t));
 
     // Initialize the control-endpoint
     Device->ControlEndpoint.Type            = EndpointControl;
@@ -671,9 +672,8 @@ UsbDeviceDestroy(
     _In_ UsbController_t* Controller,
     _In_ UsbPort_t*       Port)
 {
-    // Variables
-    UsbDevice_t *Device = NULL;
-    int i;
+    UsbPortDevice_t* Device;
+    int              i;
 
     // Debug
     TRACE("UsbDeviceDestroy()");
@@ -840,12 +840,12 @@ void svc_usb_get_controller_count_callback(struct gracht_recv_message* message)
 
 void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args* args)
 {
-    UsbHcController_t hcController = { { 0 }, 0 };
+    UsbHcController_t hcController = { { { 0 } }, 0 };
     UsbController_t*  controller;
     
     controller = UsbCoreGetControllerIndex(args->index);
     if (controller != NULL) {
-        memcpy(&hcController.Device, &controller->Device, sizeof(MCoreDevice_t));
+        memcpy(&hcController.Device, &controller->Device, sizeof(Device_t));
         hcController.Type = controller->Type;
     }
     svc_usb_get_controller_response(message, &hcController);

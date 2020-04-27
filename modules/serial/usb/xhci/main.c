@@ -93,7 +93,7 @@ OsStatus_t OnUnload(void)
 /* OnRegister
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
-OsStatus_t OnRegister(MCoreDevice_t *Device)
+OsStatus_t OnRegister(Device_t *Device)
 {
 	// Variables
 	AhciController_t *Controller = NULL;
@@ -120,7 +120,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 /* OnUnregister
  * Is called when the device-manager wants to unload
  * an instance of this driver from the system */
-OsStatus_t OnUnregister(MCoreDevice_t *Device)
+OsStatus_t OnUnregister(Device_t *Device)
 {
 	// Variables
 	AhciController_t *Controller = NULL;

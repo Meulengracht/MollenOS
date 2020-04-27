@@ -154,7 +154,7 @@ EhciPortCheck(
                 return OsSuccess;
             }
         }
-        return UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
+        return UsbEventPort(Controller->Base.Device.Base.Id, 0, (uint8_t)(Index & 0xFF));
     }
 
     // Enable event. This can only happen when it gets disabled due to something

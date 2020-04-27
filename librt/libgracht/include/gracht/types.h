@@ -31,7 +31,6 @@
 typedef void* gracht_handle_t;
 
 #define MESSAGE_FLAG_ASYNC    0x00000001
-#define MESSAGE_FLAG_PROGRESS 0x00000002
 
 #define GRACHT_MAX_MESSAGE_SIZE 255
 

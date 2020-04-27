@@ -23,7 +23,22 @@
  */
 
 #include <internal/_syscalls.h>
+#include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
+#include <string.h>
+
+void
+DeviceInterruptInitialize(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ BusDevice_t*       Device)
+{
+    memset(Interrupt, 0, sizeof(DeviceInterrupt_t));
+    
+    Interrupt->Line        = Device->InterruptLine;
+    Interrupt->Pin         = Device->InterruptPin;
+    Interrupt->AcpiConform = Device->InterruptAcpiConform;
+    Interrupt->Vectors[0]  = INTERRUPT_NONE;
+}
 
 void
 RegisterFastInterruptHandler(

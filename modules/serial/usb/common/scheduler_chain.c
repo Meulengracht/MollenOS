@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <ddk/usb.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>

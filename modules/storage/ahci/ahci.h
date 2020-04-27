@@ -25,13 +25,13 @@
 #ifndef _AHCI_H_
 #define _AHCI_H_
 
+#include <ddk/busdevice.h>
+#include <ddk/storage.h>
+#include <ddk/interrupt.h>
+#include <ds/collection.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/dmabuf.h>
-#include <ds/collection.h>
-#include <ddk/storage.h>
-#include <ddk/interrupt.h>
-#include <ddk/device.h>
 
 // SATA includes
 #include <commands.h>
@@ -337,7 +337,7 @@ typedef struct _AhciInterruptResource {
 } AhciInterruptResource_t;
 
 typedef struct _AhciController {
-    MCoreDevice_t           Device;
+    BusDevice_t             Device;
     AhciInterruptResource_t InterruptResource;
     UUId_t                  InterruptId;
     spinlock_t              Lock;
@@ -355,7 +355,7 @@ typedef struct _AhciController {
  * Registers a new controller with the AHCI driver */
 __EXTERN AhciController_t*
 AhciControllerCreate(
-    _In_ MCoreDevice_t*     Device);
+    _In_ BusDevice_t* Device);
 
 /* AhciControllerDestroy
  * Destroys an existing controller instance and cleans up

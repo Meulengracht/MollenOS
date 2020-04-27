@@ -25,6 +25,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include "ohci.h"
 #include <threads.h>
@@ -36,10 +37,11 @@ InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
 
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ MCoreDevice_t* Device)
+    _In_ BusDevice_t* Device)
 {
     struct dma_buffer_info DmaInfo;
     DeviceIo_t*            IoBase  = NULL;
+    DeviceInterrupt_t      Interrupt;
     OhciController_t*      Controller;
     OsStatus_t             Status;
     int i;
@@ -51,7 +53,7 @@ HciControllerCreate(
     }
     
     memset(Controller, 0, sizeof(OhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Length);
+    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
 
     // Fill in some basic stuff needed for init
     Controller->Base.Type               = UsbOHCI;
@@ -115,20 +117,21 @@ HciControllerCreate(
     WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Initialize the interrupt settings
-    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
+    DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register interrupt
     TRACE("... register interrupt");
-    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
+    RegisterInterruptContext(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
-        &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
+        &Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
     TRACE("... enabling device");
-    if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ohci-controller");

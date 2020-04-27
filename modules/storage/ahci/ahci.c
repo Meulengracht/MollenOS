@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/busdevice.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -35,9 +36,10 @@ OsStatus_t        AhciSetup(AhciController_t* Controller);
 
 AhciController_t*
 AhciControllerCreate(
-    _In_ MCoreDevice_t* Device)
+    _In_ BusDevice_t* Device)
 {
     AhciController_t* Controller;
+    DeviceInterrupt_t Interrupt;
     DeviceIo_t*       IoBase = NULL;
     OsStatus_t        Status;
     int               i;
@@ -48,7 +50,7 @@ AhciControllerCreate(
     }
     
     memset(Controller, 0, sizeof(AhciController_t));
-    memcpy(&Controller->Device, Device, Device->Length);
+    memcpy(&Controller->Device, Device, Device->Base.Length);
     
     spinlock_init(&Controller->Lock, spinlock_plain);
 
@@ -77,24 +79,24 @@ AhciControllerCreate(
         free(Controller);
         return NULL;
     }
+    
     Controller->IoBase = IoBase;
-
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
-
-    // Instantiate the register-access
     Controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
-    RegisterFastInterruptHandler(&Controller->Device.Interrupt, OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Controller->Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Device.Interrupt, 
+    
+    DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Interrupt, 
         (uintptr_t)&Controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
 
     // Register interrupt
-    TRACE(" > ahci interrupt line is %u", Controller->Device.Interrupt.Line);
-    RegisterInterruptContext(&Controller->Device.Interrupt, Controller);
-    Controller->InterruptId = RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_USERSPACE);
+    TRACE(" > ahci interrupt line is %u", Interrupt.Line);
+    RegisterInterruptContext(&Interrupt, Controller);
+    Controller->InterruptId = RegisterInterruptSource(&Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
-    Status = IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+    Status = IoctlDevice(Controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
     if (Status != OsSuccess || Controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");

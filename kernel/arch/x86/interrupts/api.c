@@ -29,7 +29,7 @@
 #include <arch.h>
 #include <arch/interrupts.h>
 #include <assert.h>
-#include <ddk/device.h>
+#include <ddk/interrupt.h>
 #include <debug.h>
 #include <machine.h>
 #include <pic.h>
@@ -61,7 +61,7 @@ InterruptGetApicConfiguration(
         // Configure as level triggered if requested by interrupt flags
         // Ignore polarity mode as that is automatically treated as active low
         // when trigger is set to level
-        if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
+        if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
             LevelTriggered = 1;
         }
 
@@ -89,7 +89,7 @@ InterruptGetApicConfiguration(
     // - Usually Level Triggered Low-Active
     else if (Interrupt->Pin != INTERRUPT_NONE) {
         // If no routing exists use the pci interrupt line
-        if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
+        if (!(Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
             TRACE(" > pci interrupt (active-low, level-triggered)");
             ApicFlags |= 0x100;                     // Lowest Priority
             ApicFlags |= 0x800;                     // Logical Destination Mode
@@ -106,10 +106,10 @@ InterruptGetApicConfiguration(
                 ApicFlags |= APIC_LEVEL_TRIGGER;
             }
             else {
-                if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
+                if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
                     ApicFlags |= APIC_LEVEL_TRIGGER;
                 }
-                if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
+                if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_POLARITY) {
                     ApicFlags |= APIC_ACTIVE_LOW;
                 }
             }

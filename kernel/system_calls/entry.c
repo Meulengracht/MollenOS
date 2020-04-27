@@ -33,6 +33,8 @@
 #include <threading.h>
 #include <threads.h>
 
+DECL_STRUCT(DeviceInterrupt);
+
 typedef struct handle_event handle_event_t;
 
 struct MemoryMappingParameters;
@@ -76,7 +78,7 @@ extern OsStatus_t ScIoSpaceRegister(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceRelease(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceDestroy(DeviceIo_t* IoSpace);
-extern OsStatus_t ScLoadDriver(MCoreDevice_t* Device, size_t Length);
+extern OsStatus_t ScLoadDriver(Device_t* Device, size_t Length);
 extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);

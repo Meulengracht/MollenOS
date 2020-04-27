@@ -26,7 +26,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <ddk/device.h>
+#include <ddk/io.h>
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */
@@ -119,25 +119,25 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
  * by the bus code, and is not related to any hardware structure. 
  * This keeps track of the bus's in the system and their io space */
 typedef struct PciBus {
-    DeviceIo_t      IoSpace;
-    int             IsExtended;
-    int             Segment;
-    int             BusStart;
-    int             BusEnd;
+    DeviceIo_t IoSpace;
+    int        IsExtended;
+    int        Segment;
+    int        BusStart;
+    int        BusEnd;
 } PciBus_t;
 
 /* PCI Device header
  * Represents a device on the pci-bus, keeps information
  * about location, children, and a parent device/controller */
 typedef struct PciDevice {
-    struct PciDevice*   Parent;
-    PciBus_t*           BusIo;
-    int                 IsBridge;
+    struct PciDevice* Parent;
+    PciBus_t*         BusIo;
+    int               IsBridge;
 
-    unsigned int           Bus;
-    unsigned int           Slot;
-    unsigned int           Function;
-    Flags_t             AcpiConform;
+    unsigned int Bus;
+    unsigned int Slot;
+    unsigned int Function;
+    Flags_t      AcpiConform;
 
     PciNativeHeader_t*  Header;
     Collection_t*       Children;
@@ -154,11 +154,11 @@ BusEnumerate(void*);
  * at the specified location bus, slot, function and register */
 __EXTERN uint32_t
 PciRead32(
-    _In_ PciBus_t *Io,
+    _In_ PciBus_t*    Io,
     _In_ unsigned int Bus, 
     _In_ unsigned int Slot, 
     _In_ unsigned int Function, 
-    _In_ size_t Register);
+    _In_ size_t       Register);
 
 /* PciRead16
  * Reads a 16 bit value from the pci-bus

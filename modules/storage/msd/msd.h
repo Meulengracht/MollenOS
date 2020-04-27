@@ -27,7 +27,7 @@
 #include "../scsi/scsi.h"
 #include <ds/list.h>
 
-#include <ddk/contracts/usbdevice.h>
+#include <ddk/usbdevice.h>
 #include <ddk/storage.h>
 
 /* MSD Subclass Definitions 
@@ -129,7 +129,7 @@ typedef struct _MsdOperations {
 } MsdOperations_t;
 
 typedef struct _MsdDevice {
-    MCoreUsbDevice_t    Base;
+    UsbDevice_t         Base;
     StorageDescriptor_t Descriptor;
     element_t           Header;
     MsdDeviceType_t     Type;
@@ -155,7 +155,7 @@ typedef struct _MsdDevice {
  * Initializes a new msd-device from the given usb-device */
 __EXTERN MsdDevice_t*
 MsdDeviceCreate(
-    _In_ MCoreUsbDevice_t *UsbDevice);
+    _In_ UsbDevice_t *UsbDevice);
 
 /* MsdDeviceDestroy
  * Destroys an existing msd device instance and cleans up

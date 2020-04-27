@@ -55,9 +55,13 @@ OnUnload(void)
 
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
-    if (HciControllerCreate(Device) == NULL) {
+    if (Device->Length != sizeof(BusDevice_t)) {
+        return OsInvalidParameters;
+    }
+    
+    if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
         return OsError;
     }
     else {
@@ -73,7 +77,7 @@ void ctt_driver_register_device_callback(struct gracht_recv_message* message, st
 
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t *Device)
+    _In_ Device_t *Device)
 {
     UsbManagerController_t* Controller = UsbManagerGetController(Device->Id);
     if (Controller == NULL) {

@@ -23,14 +23,16 @@
  */
 //#define __TRACE
 
+#include <assert.h>
 #include <os/mollenos.h>
+#include <ddk/io.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include "manager.h"
 #include "dispatch.h"
-#include <threads.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <string.h>
+#include <threads.h>
 
 AhciPort_t*
 AhciPortCreate(

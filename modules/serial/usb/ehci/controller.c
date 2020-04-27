@@ -22,7 +22,7 @@
  */
 //#define __TRACE
 
-#include <ddk/device.h>
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include "../common/hci.h"
 #include "ehci.h"
@@ -37,11 +37,11 @@ InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ MCoreDevice_t*             Device)
+    _In_ BusDevice_t* Device)
 {
-    // Variables
-    EhciController_t *Controller    = NULL;
-    DeviceIo_t *IoBase              = NULL;
+    EhciController_t* Controller;
+    DeviceInterrupt_t Interrupt;
+    DeviceIo_t*       IoBase = NULL;
     int i;
 
     // Allocate a new instance of the controller
@@ -51,7 +51,7 @@ HciControllerCreate(
     }
     
     memset(Controller, 0, sizeof(EhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Length);
+    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
 
     // Fill in some basic stuff needed for init
     Controller->Base.Type               = UsbEHCI;
@@ -99,17 +99,18 @@ HciControllerCreate(
         (IoBase->Access.Memory.VirtualBase + Controller->CapRegisters->Length);
 
     // Initialize the interrupt settings
-    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(EhciController_t), 0);
+    DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(EhciController_t), 0);
     
     // Register interrupt
-    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
+    RegisterInterruptContext(&Interrupt, Controller);
     Controller->Base.Interrupt  = RegisterInterruptSource(
-        &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
+        &Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
-    if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ehci-controller");
@@ -189,7 +190,7 @@ EhciDisableLegacySupport(
         // We read the second byte, because it contains the BIOS Semaphore
         while (Run) {
             // Retrieve capability id
-            if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp, &CapId, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp, &CapId, 1) != OsSuccess) {
                 return;
             }
 
@@ -199,7 +200,7 @@ EhciDisableLegacySupport(
             }
 
             // Nope, follow eecp link
-            if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x1, &NextEecp, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x1, &NextEecp, 1) != OsSuccess) {
                 return;
             }
 
@@ -215,7 +216,7 @@ EhciDisableLegacySupport(
         // Only continue if Id == 0x01
         if (CapId == 0x01) {
             size_t Zero = 0;
-            if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
                 return;
             }
 
@@ -224,13 +225,13 @@ EhciDisableLegacySupport(
                 // Request for my hat back :/
                 // Third byte contains the OS Semaphore 
                 size_t One = 0x1;
-                if (IoctlDeviceEx(Controller->Base.Device.Id, 1, Eecp + 0x3, &One, 1) != OsSuccess) {
+                if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, Eecp + 0x3, &One, 1) != OsSuccess) {
                     return;
                 }
 
                 // Now wait for bios to release the semaphore
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
                         return;
                     }
                     if ((Semaphore & 0x1) == 0) {
@@ -244,7 +245,7 @@ EhciDisableLegacySupport(
                 }
                 One = 1;
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x3, &Semaphore, 1) != OsSuccess) {
+                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x3, &Semaphore, 1) != OsSuccess) {
                         return;
                     }
                     if ((Semaphore & 0x1) == 1) {
@@ -259,7 +260,7 @@ EhciDisableLegacySupport(
             }
 
             // Disable SMI by setting all lower 16 bits to 0 of EECP+4
-            if (IoctlDeviceEx(Controller->Base.Device.Id, 1, Eecp + 0x4, &Zero, 2) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, Eecp + 0x4, &Zero, 2) != OsSuccess) {
                 return;
             }
         }
@@ -540,7 +541,7 @@ EhciSetup(
                     PortStatus |= EHCI_PORT_COLOR_AMBER;
                     WRITE_VOLATILE(Controller->OpRegisters->Ports[i], PortStatus);
                 }
-                UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(i & 0xFF));
+                UsbEventPort(Controller->Base.Device.Base.Id, 0, (uint8_t)(i & 0xFF));
             }
         }
     }

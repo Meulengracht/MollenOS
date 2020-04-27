@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
+#include <ddk/barrier.h>
 #include <heap.h>
 #include <interrupts.h>
 #include <machine.h>

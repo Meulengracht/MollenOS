@@ -124,7 +124,7 @@ OhciPortCheck(
     
     // We only care about connection events currently
     if (PortStatus & OHCI_PORT_CONNECT_EVENT) {
-        Result = UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
+        Result = UsbEventPort(Controller->Base.Device.Base.Id, 0, (uint8_t)(Index & 0xFF));
     }
     return Result;
 }

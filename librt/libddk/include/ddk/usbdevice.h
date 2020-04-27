@@ -22,21 +22,21 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_USBDEVICE_INTERFACE_H_
-#define _CONTRACT_USBDEVICE_INTERFACE_H_
+#ifndef __DDK_USBDEVICE_H__
+#define __DDK_USBDEVICE_H__
 
 #include <ddk/usb/definitions.h>
 #include <ddk/usb.h>
 #include <ddk/device.h>
 #include <ddk/ddkdefs.h>
 
-PACKED_TYPESTRUCT(MCoreUsbDevice, {
-    MCoreDevice_t                   Base;
-    UsbHcDevice_t                   Device;
-    UsbHcInterface_t                Interface;
-    UsbHcEndpointDescriptor_t       Endpoints[USB_MAX_ENDPOINTS];
-    UUId_t                          DriverId;
-    UUId_t                          DeviceId;
-});
+typedef struct UsbDevice {
+    Device_t                   Base;
+    UsbHcDevice_t              Device;
+    UsbHcInterface_t           Interface;
+    UsbHcEndpointDescriptor_t  Endpoints[USB_MAX_ENDPOINTS];
+    UUId_t                     DriverId;
+    UUId_t                     DeviceId;
+} UsbDevice_t;
 
 #endif

@@ -22,6 +22,7 @@
  */
 //#define __TRACE
 
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include "uhci.h"
 #include <threads.h>
@@ -62,9 +63,10 @@ UhciControllerDump(
 
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ MCoreDevice_t* Device)
+    _In_ BusDevice_t* Device)
 {
-    UhciController_t* Controller = NULL;
+    UhciController_t* Controller;
+    DeviceInterrupt_t Interrupt;
     DeviceIo_t*       IoBase     = NULL;
     size_t            IoctlValue = 0;
     int               i;
@@ -85,7 +87,7 @@ HciControllerCreate(
     }
     
     memset(Controller, 0, sizeof(UhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Length);
+    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
 
     // Fill in some basic stuff needed for init
     Controller->Base.Type               = UsbUHCI;
@@ -126,17 +128,18 @@ HciControllerCreate(
     }
 
     // Initialize the interrupt settings
-    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
+    DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
 
     // Register interrupt
-    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
+    RegisterInterruptContext(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
-        &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
+        &Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
-    if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the uhci-controller");
@@ -148,15 +151,15 @@ HciControllerCreate(
 
     // Claim the BIOS ownership and enable pci interrupts
     IoctlValue = 0x2000;
-    if (IoctlDeviceEx(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
+    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
             UHCI_USBLEGEACY, &IoctlValue, 2) != OsSuccess) {
         return NULL;
     }
 
     // If vendor is Intel we null out the intel register
-    if (Controller->Base.Device.VendorId == 0x8086) {
+    if (Controller->Base.Device.Base.VendorId == 0x8086) {
         IoctlValue = 0x00;
-        if (IoctlDeviceEx(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
+        if (IoctlDeviceEx(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
                 UHCI_USBRES_INTEL, &IoctlValue, 1) != OsSuccess) {
             return NULL;
         }

@@ -33,7 +33,7 @@
 __EXTERN
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ MCoreDevice_t*             Device);
+    _In_ BusDevice_t* Device);
 
 /* HciControllerDestroy
  * Destroys an existing controller instance and cleans up
@@ -41,24 +41,24 @@ HciControllerCreate(
 __EXTERN
 OsStatus_t
 HciControllerDestroy(
-    _In_ UsbManagerController_t*    Controller);
+    _In_ UsbManagerController_t* Controller);
 
 /* HciPortReset
  * Resets the given port and returns the result of the reset */
 __EXTERN
 OsStatus_t
 HciPortReset(
-    _In_ UsbManagerController_t*    Controller, 
-    _In_ int                        Index);
+    _In_ UsbManagerController_t* Controller, 
+    _In_ int                     Index);
 
 /* HciPortGetStatus 
  * Retrieve the current port status, with connected and enabled information */
 __EXTERN
 void
 HciPortGetStatus(
-    _In_  UsbManagerController_t*   Controller,
-    _In_  int                       Index,
-    _Out_ UsbHcPortDescriptor_t*    Port);
+    _In_  UsbManagerController_t* Controller,
+    _In_  int                     Index,
+    _Out_ UsbHcPortDescriptor_t*  Port);
 
 /* HciProcessElement 
  * Proceses the element accordingly to the reason given. The transfer associated
@@ -66,10 +66,10 @@ HciPortGetStatus(
 __EXTERN
 int
 HciProcessElement(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ uint8_t*                   Element,
-    _In_ int                        Reason,
-    _In_ void*                      Context);
+    _In_ UsbManagerController_t* Controller,
+    _In_ uint8_t*                Element,
+    _In_ int                     Reason,
+    _In_ void*                   Context);
 
 /* HciProcessEvent
  * Invoked on different very specific events that require assistance. If a transfer 
@@ -77,9 +77,9 @@ HciProcessElement(
 __EXTERN
 void
 HciProcessEvent(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ int                        Event,
-    _In_ void*                      Context);
+    _In_ UsbManagerController_t* Controller,
+    _In_ int                     Event,
+    _In_ void*                   Context);
 
 /* HciTransactionFinalize
  * Finalizes a transfer by cleaning up resources allocated. This should free
@@ -87,9 +87,9 @@ HciProcessEvent(
 __EXTERN
 OsStatus_t
 HciTransactionFinalize(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ int                        Reset);
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ int                     Reset);
 
 /* HciQueueTransferGeneric 
  * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
@@ -97,7 +97,7 @@ HciTransactionFinalize(
 __EXTERN
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t*      Transfer);
+    _In_ UsbManagerTransfer_t* Transfer);
 
 /* HciQueueTransferIsochronous 
  * Queues a new isochronous transfer for the given driver and pipe. 
@@ -105,13 +105,13 @@ HciQueueTransferGeneric(
 __EXTERN
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t*      Transfer);
+    _In_ UsbManagerTransfer_t* Transfer);
 
 /* HciDequeueTransfer 
  * Removes a queued transfer from the controller's transfer list */
 __EXTERN
 UsbTransferStatus_t
 HciDequeueTransfer(
-    _In_ UsbManagerTransfer_t*      Transfer);
+    _In_ UsbManagerTransfer_t* Transfer);
 
 #endif //!__USB_HCI__

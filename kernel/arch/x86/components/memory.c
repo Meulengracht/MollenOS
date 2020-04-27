@@ -22,17 +22,18 @@
 #define __MODULE "MEM0"
 #define __TRACE
 
-#include <arch/interrupts.h>
-#include <arch/utils.h>
-#include <multiboot.h>
-#include <machine.h>
-#include <assert.h>
-#include <memory.h>
-#include <debug.h>
 #include <arch.h>
 #include <apic.h>
+#include <assert.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <cpu.h>
+#include <ddk/io.h>
+#include <debug.h>
 #include <gdt.h>
+#include <machine.h>
+#include <multiboot.h>
+#include <memory.h>
 
 // Interface to the arch-specific
 extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(SystemMemorySpace_t* MemorySpace, VirtualAddress_t Address,

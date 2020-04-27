@@ -66,11 +66,11 @@ OnUnload(void)
 
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t *Device)
+    _In_ Device_t *Device)
 {
     MsdDevice_t* MsdDevice;
     
-    MsdDevice = MsdDeviceCreate((MCoreUsbDevice_t*)Device);
+    MsdDevice = MsdDeviceCreate((UsbDevice_t*)Device);
     if (MsdDevice == NULL) {
         return OsError;
     }
@@ -87,7 +87,7 @@ void ctt_driver_register_device_callback(struct gracht_recv_message* message, st
 
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t *Device)
+    _In_ Device_t *Device)
 {
     MsdDevice_t* MsdDevice = MsdDeviceGet(Device->Id);
     if (MsdDevice == NULL) {

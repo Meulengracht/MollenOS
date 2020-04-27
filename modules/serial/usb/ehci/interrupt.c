@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include <string.h>
 #include <stdlib.h>

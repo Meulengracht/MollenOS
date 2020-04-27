@@ -22,6 +22,7 @@
  */
 //#define __TRACE
 
+#include <ddk/busdevice.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
@@ -110,34 +111,32 @@ OsStatus_t
 PS2RegisterDevice(
     _In_ PS2Port_t* Port) 
 {
-    // Static Variables
-    MCoreDevice_t Device = { 0 };
-    Device.Length = sizeof(MCoreDevice_t);
+    BusDevice_t Device = { { 0 } };
+    Device.Base.Length = sizeof(BusDevice_t);
 
     // Initialize VID/DID to us
-    Device.VendorId = 0xFFEF;
-    Device.DeviceId = 0x0030;
+    Device.Base.VendorId = 0xFFEF;
+    Device.Base.DeviceId = 0x0030;
 
     // Invalidate generics
-    Device.Class    = 0xFF0F;
-    Device.Subclass = 0xFF0F;
+    Device.Base.Class    = 0xFF0F;
+    Device.Base.Subclass = 0xFF0F;
 
     // Initialize the irq structure
-    Device.Interrupt.Pin         = INTERRUPT_NONE;
-    Device.Interrupt.Vectors[0]  = INTERRUPT_NONE;
-    Device.Interrupt.AcpiConform = 0;
+    Device.InterruptPin         = INTERRUPT_NONE;
+    Device.InterruptAcpiConform = 0;
 
     // Select source from port index
     if (Port->Index == 0) {
-        Device.Interrupt.Line = PS2_PORT1_IRQ;
+        Device.InterruptLine = PS2_PORT1_IRQ;
     }
     else {
-        Device.Interrupt.Line = PS2_PORT2_IRQ;
+        Device.InterruptLine = PS2_PORT2_IRQ;
     }
 
     // Lastly just register the device under the controller (todo)
-    Port->DeviceId = RegisterDevice(UUID_INVALID, &Device, 
-        __DEVICEMANAGER_REGISTER_LOADDRIVER);    
+    Port->DeviceId = RegisterDevice(UUID_INVALID, &Device.Base, 
+        DEVICE_REGISTER_FLAG_LOADDRIVER);
     if (Port->DeviceId == UUID_INVALID) {
         ERROR("Failed to register new device");
         return OsError;

@@ -35,7 +35,7 @@
                         <param name="descriptor" type="buffer" subtype="StorageDescriptor_t" />
                     </response>
                 </function>
-                <function name="transfer_async" async="async" progress="progress">
+                <function name="transfer_async" async="async">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="direction" type="int" />

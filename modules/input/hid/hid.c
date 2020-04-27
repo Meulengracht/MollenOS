@@ -27,7 +27,7 @@
 
 HidDevice_t*
 HidDeviceCreate(
-    _In_ MCoreUsbDevice_t *UsbDevice)
+    _In_ UsbDevice_t *UsbDevice)
 {
     // Variables
     HidDevice_t *Device = NULL;
@@ -39,7 +39,7 @@ HidDeviceCreate(
     // Allocate new resources
     Device = (HidDevice_t*)malloc(sizeof(HidDevice_t));
     memset(Device, 0, sizeof(HidDevice_t));
-    memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
+    memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
     Device->Control = &UsbDevice->Endpoints[0];
     Device->TransferId = UUID_INVALID;
 

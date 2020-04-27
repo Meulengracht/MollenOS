@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
+#include <ddk/io.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
@@ -125,12 +126,12 @@ OnUnload(void)
 
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
     AhciController_t* Controller;
     DataKey_t         Key = { .Value.Id = Device->Id };
     
-    Controller = AhciControllerCreate(Device);
+    Controller = AhciControllerCreate((BusDevice_t*)Device);
     if (Controller == NULL) {
         return OsError;
     }
@@ -145,7 +146,7 @@ void ctt_driver_register_device_callback(struct gracht_recv_message* message, st
 
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
     AhciController_t* Controller;
     DataKey_t         Key = { .Value.Id = Device->Id };

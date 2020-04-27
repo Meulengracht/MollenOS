@@ -34,8 +34,8 @@
  * For Active Low = 1, Active High = 0 */
 int
 AcpiGetPolarityMode(
-    _In_ uint16_t           IntiFlags,
-    _In_ int                Source)
+    _In_ uint16_t IntiFlags,
+    _In_ int      Source)
 {
     // Parse the different polarity flags
     switch (IntiFlags & ACPI_MADT_POLARITY_MASK) {
@@ -58,8 +58,8 @@ AcpiGetPolarityMode(
  * For Level = 1, Edge = 0 */
 int
 AcpiGetTriggerMode(
-    _In_ uint16_t           IntiFlags,
-    _In_ int                Source)
+    _In_ uint16_t IntiFlags,
+    _In_ int      Source)
 {
     // Parse the different trigger mode flags
     switch (IntiFlags & ACPI_MADT_TRIGGER_MASK) {
@@ -81,16 +81,16 @@ AcpiGetTriggerMode(
  * Converts acpi interrupt flags to the system interrupt conform flags. */
 Flags_t
 ConvertAcpiFlagsToConformFlags(
-    _In_ uint16_t           IntiFlags,
-    _In_ int                Source)
+    _In_ uint16_t IntiFlags,
+    _In_ int      Source)
 {
     Flags_t ConformFlags = 0;
 
     if (AcpiGetPolarityMode(IntiFlags, Source) == 1) {
-        ConformFlags |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
+        ConformFlags |= INTERRUPT_ACPICONFORM_POLARITY;
     }
     if (AcpiGetTriggerMode(IntiFlags, Source) == 1) {
-        ConformFlags |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
+        ConformFlags |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
     }
     return ConformFlags;
 }
@@ -100,13 +100,13 @@ ConvertAcpiFlagsToConformFlags(
  * and spits out flags in AcpiConform and returns irq */
 int
 AcpiDeriveInterrupt(
-    _In_  unsigned int         Bus, 
-    _In_  unsigned int         Device,
-    _In_  int               Pin,
-    _Out_ Flags_t*          AcpiConform)
+    _In_  unsigned int Bus, 
+    _In_  unsigned int Device,
+    _In_  int          Pin,
+    _Out_ Flags_t*     AcpiConform)
 {
-    AcpiDevice_t*   Dev;
-    unsigned        rIndex  = (Device * 4) + (Pin - 1);
+    AcpiDevice_t* Dev;
+    unsigned      rIndex  = (Device * 4) + (Pin - 1);
 
     // Trace
     TRACE("AcpiDeriveInterrupt(Bus %" PRIuIN ", Device %" PRIuIN ", Pin %" PRIiIN ")", Bus, Device, Pin);
@@ -133,21 +133,21 @@ AcpiDeriveInterrupt(
             assert(RoutingEntry != NULL);
 
             // Update IRQ Information
-            *AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
+            *AcpiConform = INTERRUPT_ACPICONFORM_PRESENT;
             if (RoutingEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
-                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
+                *AcpiConform |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
             }
 
             if (RoutingEntry->Polarity == ACPI_ACTIVE_LOW) {
-                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
+                *AcpiConform |= INTERRUPT_ACPICONFORM_POLARITY;
             }
 
             if (RoutingEntry->Shareable != 0) {
-                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
+                *AcpiConform |= INTERRUPT_ACPICONFORM_SHAREABLE;
             }
 
             if (RoutingEntry->Fixed != 0) {
-                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
+                *AcpiConform |= INTERRUPT_ACPICONFORM_FIXED;
             }
 
             // Return found interrupt

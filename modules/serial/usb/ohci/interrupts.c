@@ -26,6 +26,7 @@
 
 #include <ds/collection.h>
 #include <os/mollenos.h>
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>

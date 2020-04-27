@@ -173,7 +173,7 @@ ScRegisterAliasId(
 
 OsStatus_t
 ScLoadDriver(
-    _In_ MCoreDevice_t* Device,
+    _In_ Device_t* Device,
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)
 {

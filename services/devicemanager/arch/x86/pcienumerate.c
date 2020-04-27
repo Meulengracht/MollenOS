@@ -26,6 +26,8 @@
 #include "../../devicemanager.h"
 #include "bus.h"
 #include <ddk/acpi.h>
+#include <ddk/busdevice.h>
+#include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -33,11 +35,11 @@
 /* PCI-Express Support
  * This is the acpi-mcfg entry structure that represents an pci-express controller */
 PACKED_TYPESTRUCT(McfgEntry, {
-    uint64_t        BaseAddress;
-    uint16_t        SegmentGroup;
-    uint8_t         StartBus;
-    uint8_t         EndBus;
-    uint32_t        Reserved;
+    uint64_t BaseAddress;
+    uint16_t SegmentGroup;
+    uint8_t  StartBus;
+    uint8_t  EndBus;
+    uint32_t Reserved;
 });
 
 /* Globals, we want to
@@ -78,9 +80,9 @@ unsigned int PciToDevSubClass(uint32_t Interface) {
  * Validates the size of a bar and the validity of the bar-size */
 uint64_t
 PciValidateBarSize(
-    _In_ uint64_t       Base,
-    _In_ uint64_t       MaxBase,
-    _In_ uint64_t       Mask)
+    _In_ uint64_t Base,
+    _In_ uint64_t MaxBase,
+    _In_ uint64_t Mask)
 {
     uint64_t Size = Mask & MaxBase;
 
@@ -101,9 +103,9 @@ PciValidateBarSize(
  * Reads and initializes all available bars for the given pci-device */
 void
 PciReadBars(
-    _In_ PciBus_t*      Bus,
-    _In_ MCoreDevice_t* Device,
-    _In_ uint32_t       HeaderType)
+    _In_ PciBus_t*    Bus,
+    _In_ BusDevice_t* Device,
+    _In_ uint32_t     HeaderType)
 {
     // Buses have 2 io spaces, devices have 6
     int Count = (HeaderType & 0x1) == 0x1 ? 2 : 6;
@@ -202,10 +204,10 @@ int PciDerivePin(int Device, int Pin) {
  * Create a new pci-device from a valid bus/device/function location on the bus */
 void
 PciCheckFunction(
-    _In_ PciDevice_t*   Parent, 
-    _In_ int            Bus, 
-    _In_ int            Slot, 
-    _In_ int            Function)
+    _In_ PciDevice_t* Parent, 
+    _In_ int          Bus, 
+    _In_ int          Slot, 
+    _In_ int          Function)
 {
     // Variables
     PciNativeHeader_t *Pcs  = NULL;
@@ -330,9 +332,9 @@ PciCheckFunction(
  * pci-location, and enumerates it's function if available */
 void
 PciCheckDevice(
-    _In_ PciDevice_t*   Parent, 
-    _In_ int            Bus, 
-    _In_ int            Slot)
+    _In_ PciDevice_t* Parent, 
+    _In_ int          Bus, 
+    _In_ int          Slot)
 {
     // Variables
     uint16_t VendorId   = 0;
@@ -367,8 +369,8 @@ PciCheckDevice(
  * Enumerates all possible devices on the given bus */
 void
 PciCheckBus(
-    _In_ PciDevice_t*   Parent, 
-    _In_ int            Bus)
+    _In_ PciDevice_t* Parent, 
+    _In_ int          Bus)
 {
     // Variables
     int Device;
@@ -384,30 +386,28 @@ PciCheckBus(
     }
 }
 
-/* PciCreateDeviceFromPci
- * Creates a new MCoreDevice_t from a pci-device and registers it with the device-manager */
-OsStatus_t
-PciCreateDeviceFromPci(
-    _In_ PciDevice_t*   PciDevice)
+/* CreateBusDeviceFromPciDevice
+ * Creates a new Device_t from a pci-device and registers it with the device-manager */
+static OsStatus_t
+CreateBusDeviceFromPciDevice(
+    _In_ PciDevice_t* PciDevice)
 {
-    // Variables
-    MCoreDevice_t Device = { 0 };
+    BusDevice_t Device = { { 0 } };
 
-    Device.Length   = sizeof(MCoreDevice_t);
-    Device.VendorId = PciDevice->Header->VendorId;
-    Device.DeviceId = PciDevice->Header->DeviceId;
-    Device.Class    = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
-    Device.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
+    Device.Base.Length   = sizeof(BusDevice_t);
+    Device.Base.VendorId = PciDevice->Header->VendorId;
+    Device.Base.DeviceId = PciDevice->Header->DeviceId;
+    Device.Base.Class    = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
+    Device.Base.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
 
     Device.Segment  = (unsigned int)PciDevice->BusIo->Segment;
     Device.Bus      = PciDevice->Bus;
     Device.Slot     = PciDevice->Slot;
     Device.Function = PciDevice->Function;
 
-    Device.Interrupt.Line           = (int)PciDevice->Header->InterruptLine;
-    Device.Interrupt.Pin            = (int)PciDevice->Header->InterruptPin;
-    Device.Interrupt.Vectors[0]     = INTERRUPT_NONE;
-    Device.Interrupt.AcpiConform    = PciDevice->AcpiConform;
+    Device.InterruptLine        = (int)PciDevice->Header->InterruptLine;
+    Device.InterruptPin         = (int)PciDevice->Header->InterruptPin;
+    Device.InterruptAcpiConform = PciDevice->AcpiConform;
 
     // Handle bars attached to device
     PciReadBars(PciDevice->BusIo, &Device, PciDevice->Header->HeaderType);
@@ -435,20 +435,20 @@ PciCreateDeviceFromPci(
             }
         }
     }
-    return DmRegisterDevice(UUID_INVALID, &Device, PciToString(PciDevice->Header->Class,
+    return DmRegisterDevice(UUID_INVALID, &Device.Base,
+        PciToString(PciDevice->Header->Class,
         PciDevice->Header->Subclass, PciDevice->Header->Interface),
-        __DEVICEMANAGER_REGISTER_LOADDRIVER, &Device.Id);
+        DEVICE_REGISTER_FLAG_LOADDRIVER, &Device.Base.Id);
 }
 
 /* PciInstallDriverCallback
  * Enumerates all found pci-devices in our list and loads drivers for the them */
 void
 PciInstallDriverCallback(
-    _In_     void*      Data, 
-    _In_     int        No, 
-    _In_Opt_ void*      Context)
+    _In_     void* Data, 
+    _In_     int   No, 
+    _In_Opt_ void* Context)
 {
-    // Variables
     PciDevice_t *PciDev = (PciDevice_t*)Data;
     _CRT_UNUSED(No);
 
@@ -458,7 +458,7 @@ PciInstallDriverCallback(
         CollectionExecuteAll(PciDev->Children, PciInstallDriverCallback, Context);
     }
     else {
-        PciCreateDeviceFromPci(PciDev);
+        CreateBusDeviceFromPciDevice(PciDev);
     }
 }
 
@@ -466,23 +466,23 @@ PciInstallDriverCallback(
  * Loads a fixed driver for the vendorid/deviceid */
 OsStatus_t
 BusInstallFixed(
-    _In_ MCoreDevice_t* Device,
-    _In_ const char*    Name)
+    _In_ BusDevice_t* Device,
+    _In_ const char*  Name)
 {
     // Set some magic constants
-    Device->Length   = sizeof(MCoreDevice_t);
-    Device->VendorId = PCI_FIXED_VENDORID;
+    Device->Base.Length   = sizeof(Device_t);
+    Device->Base.VendorId = PCI_FIXED_VENDORID;
 
     // Set more magic constants to ignore class and subclass
-    Device->Class    = 0xFF0F;
-    Device->Subclass = 0xFF0F;
+    Device->Base.Class    = 0xFF0F;
+    Device->Base.Subclass = 0xFF0F;
 
     // Invalidate irqs, this must be set by fixed drivers
-    Device->Interrupt.Pin            = INTERRUPT_NONE;
-    Device->Interrupt.Line           = INTERRUPT_NONE;
-    Device->Interrupt.Vectors[0]     = INTERRUPT_NONE;
-    Device->Interrupt.AcpiConform    = 0;
-    return DmRegisterDevice(UUID_INVALID, Device, Name,  __DEVICEMANAGER_REGISTER_LOADDRIVER, &Device->Id);
+    Device->InterruptPin         = INTERRUPT_NONE;
+    Device->InterruptLine        = INTERRUPT_NONE;
+    Device->InterruptAcpiConform = 0;
+    return DmRegisterDevice(UUID_INVALID, &Device->Base, Name,  
+        DEVICE_REGISTER_FLAG_LOADDRIVER, &Device->Base.Id);
 }
 
 /* BusRegisterPS2Controller
@@ -490,11 +490,11 @@ BusInstallFixed(
 OsStatus_t
 BusRegisterPS2Controller(void)
 {
-    MCoreDevice_t Device = { 0 };
-    OsStatus_t Status;
+    BusDevice_t Device = { { 0 } };
+    OsStatus_t  Status;
 
     // Set default ps2 device settings
-    Device.DeviceId = PCI_PS2_DEVICEID;
+    Device.Base.DeviceId = PCI_PS2_DEVICEID;
 
     // Register io-spaces for the ps2 controller, it has two ports
     // Data port - 0x60
@@ -638,17 +638,16 @@ BusEnumerate(void* Context)
 
 OsStatus_t
 DmIoctlDevice(
-    _In_ MCoreDevice_t* Device,
-    _In_ unsigned int   Command,
-    _In_ unsigned int   Flags)
+    _In_ BusDevice_t* Device,
+    _In_ unsigned int Command,
+    _In_ unsigned int Flags)
 {
-    // Variables
-    PciDevice_t *PciDevice = NULL;
-    uint16_t Settings;
+    PciDevice_t* PciDevice = NULL;
+    uint16_t     Settings;
 
     // Lookup pci-device
     foreach(dNode, __GlbPciDevices) {
-        PciDevice_t *Entry = (PciDevice_t*)dNode->Data;
+        PciDevice_t* Entry = (PciDevice_t*)dNode->Data;
         if (Entry->Bus          == Device->Bus
             && Entry->Slot      == Device->Slot
             && Entry->Function  == Device->Function) {
@@ -700,11 +699,11 @@ DmIoctlDevice(
 
 OsStatus_t
 DmIoctlDeviceEx(
-	_In_ MCoreDevice_t* Device,
-	_In_ int            Direction,
-	_In_ unsigned int   Register,
-	_In_ size_t*        Value,
-	_In_ size_t         Width)
+	_In_ BusDevice_t* Device,
+	_In_ int          Direction,
+	_In_ unsigned int Register,
+	_In_ size_t*      Value,
+	_In_ size_t       Width)
 {
     PciDevice_t *PciDevice = NULL;
 

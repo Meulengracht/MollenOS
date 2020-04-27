@@ -28,7 +28,7 @@
 UUId_t
 RegisterDevice(
     _In_ UUId_t         Parent,
-    _In_ MCoreDevice_t* Device, 
+    _In_ Device_t* Device, 
     _In_ Flags_t        Flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());

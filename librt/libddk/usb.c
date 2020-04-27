@@ -30,7 +30,7 @@
 
 OsStatus_t
 UsbControllerRegister(
-    _In_ MCoreDevice_t*      Device,
+    _In_ Device_t*      Device,
     _In_ UsbControllerType_t Type,
     _In_ size_t              Ports)
 {

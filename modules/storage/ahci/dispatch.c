@@ -29,6 +29,7 @@
 #include <ddk/utils.h>
 #include "manager.h"
 #include "dispatch.h"
+#include <string.h>
 #include <threads.h>
 
 static void

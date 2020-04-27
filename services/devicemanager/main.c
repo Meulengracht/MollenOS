@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include "devicemanager.h"
 #include "svc_device_protocol_server.h"
+#include <ddk/busdevice.h>
 #include <ddk/utils.h>
 #include <ds/collection.h>
 #include <ipcontext.h>
@@ -66,6 +67,11 @@ OnLoad(void)
     return OsSuccess;
 }
 
+void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
+{
+    
+}
+
 void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
 {
     UUId_t     Result = UUID_INVALID;
@@ -80,25 +86,29 @@ void svc_device_unregister_callback(struct gracht_recv_message* message, struct 
 
 void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args* args)
 {
-    MCoreDevice_t* Device;
-    OsStatus_t     Result;
-    DataKey_t      Key = { .Value.Id = args->device_id };
+    Device_t*  Device;
+    OsStatus_t Result = OsInvalidParameters;
+    DataKey_t  Key = { .Value.Id = args->device_id };
     
     Device = CollectionGetDataByKey(&Devices, Key, 0);
-    Result = DmIoctlDevice(Device, args->command, args->flags);
+    if (Device->Length == sizeof(BusDevice_t)) {
+        Result = DmIoctlDevice((BusDevice_t*)Device, args->command, args->flags);
+    }
     
     svc_device_ioctl_response(message, Result);
 }
 
 void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args* args)
 {
-    MCoreDevice_t* Device;
-    OsStatus_t     Result;
-    DataKey_t      Key = { .Value.Id = args->device_id };
+    Device_t* Device;
+    OsStatus_t Result = OsInvalidParameters;
+    DataKey_t  Key = { .Value.Id = args->device_id };
     
     Device = CollectionGetDataByKey(&Devices, Key, 0);
-    Result = DmIoctlDeviceEx(Device, args->direction,
-        args->command, &args->value, args->width);
+    if (Device->Length == sizeof(BusDevice_t)) {
+        Result = DmIoctlDeviceEx((BusDevice_t*)Device, args->direction,
+            args->command, &args->value, args->width);
+    }
     
     svc_device_ioctl_ex_response(message, Result, args->value);
 }
@@ -106,7 +116,7 @@ void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct sv
 int
 DmLoadDeviceDriver(void* Context)
 {
-    MCoreDevice_t* Device = Context;
+    Device_t* Device = Context;
     OsStatus_t     Status = InstallDriver(Device, Device->Length, NULL, 0);
     
     if (Status != OsSuccess) {
@@ -117,21 +127,21 @@ DmLoadDeviceDriver(void* Context)
 
 OsStatus_t
 DmRegisterDevice(
-    _In_  UUId_t         Parent,
-    _In_  MCoreDevice_t* Device, 
-    _In_  const char*    Name,
-    _In_  Flags_t        Flags,
-    _Out_ UUId_t*        Id)
+    _In_  UUId_t      Parent,
+    _In_  Device_t*   Device, 
+    _In_  const char* Name,
+    _In_  Flags_t     Flags,
+    _Out_ UUId_t*     Id)
 {
-    MCoreDevice_t* CopyDevice;
-    DataKey_t      Key = { 0 };
+    Device_t* CopyDevice;
+    DataKey_t Key = { 0 };
 
     _CRT_UNUSED(Parent);
     assert(Device != NULL);
     assert(Id != NULL);
-    assert(Device->Length >= sizeof(MCoreDevice_t));
+    assert(Device->Length >= sizeof(Device_t));
 
-    CopyDevice = (MCoreDevice_t*)malloc(Device->Length);
+    CopyDevice = (Device_t*)malloc(Device->Length);
     if (!CopyDevice) {
         return OsOutOfMemory;
     }
@@ -150,7 +160,7 @@ DmRegisterDevice(
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
-    if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
+    if (Flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
         thrd_t thr;
         if (thrd_create(&thr, DmLoadDeviceDriver, CopyDevice) != thrd_success) {
             return OsError;

@@ -101,11 +101,10 @@ class Event:
         return self.params
 
 class Function:
-    def __init__(self, name, id, is_async, progressable, request_params, response_params):
+    def __init__(self, name, id, is_async, request_params, response_params):
         self.name = name
         self.id = id
         self.synchronous = not is_async
-        self.progressable = progressable
         self.request_params = request_params
         self.response_params = response_params
     
@@ -115,8 +114,6 @@ class Function:
         return self.id
     def is_synchronous(self):
         return self.synchronous
-    def is_reporting_progress(self):
-        return self.progressable
     def get_request_params(self):
         return self.request_params
     def get_response_params(self):
@@ -317,7 +314,6 @@ def parse_function(xml_function):
     try:
         name = xml_function.get("name")
         is_async = "async" in xml_function.keys()
-        is_progressable = "progress" in xml_function.keys()
         request_params = []
         response_params = []
 
@@ -325,17 +321,14 @@ def parse_function(xml_function):
         if name is None:
             raise Exception("name attribute of <function> tag must be specified")
         
-        if not is_async and is_progressable:
-            raise Exception("function must be async for it to support reporting progress")
-
         trace("parsing function: " + name)
-        trace("is async:" + str(is_async) + ", is progressable: " + str(is_progressable))
+        trace("is async:" + str(is_async))
 
         for xml_param in xml_function.findall("request/param"):
             request_params.append(parse_param(xml_param))
         for xml_param in xml_function.findall("response/param"):
             response_params.append(parse_param(xml_param))
-        return Function(name, str(get_id()), is_async, is_progressable, request_params, response_params)
+        return Function(name, str(get_id()), is_async, request_params, response_params)
     except Exception as e:
         error("could not parse function: " + str(e))
     return None
@@ -515,9 +508,6 @@ class CGenerator:
                 parameter_string = parameter_string + ", "
         return parameter_string
 
-    def get_protocol_server_progress_name(self, protocol, func):
-        return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_progress"
-    
     def get_protocol_server_response_name(self, protocol, func):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_response"
     
@@ -704,13 +694,6 @@ class CGenerator:
             parameter_string = parameter_string + ", struct " + self.get_input_struct_name(protocol, func) + "*"
         return function_prototype + parameter_string + ")"
 
-    def get_progress_prototype(self, protocol, func, case):
-        function_prototype = "int " + self.get_protocol_server_progress_name(protocol, func) + "("
-        function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
-        parameter_string = function_message_param + ", "
-        parameter_string = parameter_string + self.get_parameter_string(protocol, func.get_response_params(), case)
-        return function_prototype + parameter_string + ")"
-
     def get_response_prototype(self, protocol, func, case):
         function_prototype = "int " + self.get_protocol_server_response_name(protocol, func) + "("
         function_message_param = self.get_param_typename(protocol, Parameter("message", "struct gracht_recv_message*"), case)
@@ -854,11 +837,6 @@ class CGenerator:
 
     def define_server_responses(self, protocol, outfile):
         for func in protocol.get_functions():
-            if func.is_reporting_progress():
-                outfile.write(self.get_progress_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
-                outfile.write("{\n")
-                self.define_response_body(protocol, func, "MESSAGE_FLAG_PROGRESS", outfile)
-                outfile.write("}\n\n")
             if len(func.get_response_params()) > 0:
                 outfile.write(self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
                 outfile.write("{\n")
@@ -881,10 +859,6 @@ class CGenerator:
     def write_protocol_server_callback(self, protocol, func, outfile):
         outfile.write("    " + self.get_server_callback_prototype(protocol, func))
         outfile.write(";\n")
-        
-        if func.is_reporting_progress():
-            outfile.write("    " + self.get_progress_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE))
-            outfile.write(";\n")
         
         if len(func.get_response_params()) > 0:
             outfile.write("    " + self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE))

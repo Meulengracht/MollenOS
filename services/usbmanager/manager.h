@@ -40,8 +40,6 @@ typedef struct _UsbInterfaceVersion {
     UsbHcEndpointDescriptor_t   Endpoints[USB_MAX_ENDPOINTS];
 } UsbInterfaceVersion_t;
 
-/* UsbInterface_t 
- * */
 typedef struct _UsbInterface {
     UsbHcInterface_t            Base;
     int                         Exists;
@@ -49,9 +47,7 @@ typedef struct _UsbInterface {
     UsbInterfaceVersion_t       Versions[USB_MAX_VERSIONS];
 } UsbInterface_t;
 
-/* UsbDevice_t 
- * */
-typedef struct _UsbDevice {
+typedef struct _UsbPortDevice {
     UsbHcDevice_t               Base;
     void*                       Descriptors;
     size_t                      DescriptorsBufferLength;
@@ -60,58 +56,49 @@ typedef struct _UsbDevice {
     UsbInterface_t              Interfaces[USB_MAX_INTERFACES];
     UsbHcEndpointDescriptor_t   ControlEndpoint;
     UsbHub_t*                   Hub;
-} UsbDevice_t;
+} UsbPortDevice_t;
 
-/* UsbPort_t
- * */
 typedef struct _UsbPort {
-    uint8_t                     Address;
-    UsbSpeed_t                  Speed;
-    int                         Enabled;
-    int                         Connected;
-    UsbDevice_t*                Device;
+    uint8_t          Address;
+    UsbSpeed_t       Speed;
+    int              Enabled;
+    int              Connected;
+    UsbPortDevice_t* Device;
 } UsbPort_t;
 
-/* UsbHub_t 
- * */
 typedef struct _UsbHub {
-    uint8_t                     Address;
-    UsbPort_t*                  Ports[USB_MAX_PORTS];
+    uint8_t    Address;
+    UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
 
-/* UsbController_t
- * */
 typedef struct _UsbController {
-    MCoreDevice_t               Device;
-    UUId_t                      DriverId;
-    UsbControllerType_t         Type;
-    size_t                      PortCount;
+    Device_t            Device;
+    UUId_t              DriverId;
+    UsbControllerType_t Type;
+    size_t              PortCount;
 
     // Address Map 
     // 4 x 32 bits = 128 possible addresses
     // which match the max in usb-spec
-    uint32_t                    AddressMap[4];
-    UsbHub_t                    RootHub;
+    uint32_t AddressMap[4];
+    UsbHub_t RootHub;
 } UsbController_t;
 
 /* UsbCoreInitialize
  * Initializes the usb-core stack driver. Allocates all neccessary resources
  * for managing usb controllers devices in the system. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbCoreInitialize(void);
 
 /* UsbCoreDestroy
  * Cleans up and frees any resouces allocated by the usb-core stack */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbCoreDestroy(void);
 
 /* UsbCoreGetController 
  * Looks up the controller that matches the device-identifier */
-__EXTERN
-UsbController_t*
+__EXTERN UsbController_t*
 UsbCoreGetController(
-    _In_ UUId_t                 DeviceId);
+    _In_ UUId_t DeviceId);
 
 #endif //!__USBMANAGER_H__

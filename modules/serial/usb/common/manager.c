@@ -78,14 +78,14 @@ OsStatus_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* Controller)
 {
-    DataKey_t   Key = { .Value.Id = Controller->Device.Id };
+    DataKey_t   Key = { .Value.Id = Controller->Device.Base.Id };
     int         Retries = 3;
     OsStatus_t  Status = OsError;
 
     // Register controller with usbmanager service, sometimes the usb service is a tad
     // slow in starting up, so try 3 times, with 1 second between
     for (int i = 0; i < Retries; i++) {
-        Status = UsbControllerRegister(&Controller->Device, Controller->Type, Controller->PortCount);
+        Status = UsbControllerRegister(&Controller->Device.Base, Controller->Type, Controller->PortCount);
         if (Status == OsSuccess) {
             break;
         }
@@ -102,10 +102,10 @@ UsbManagerDestroyController(
     _In_ UsbManagerController_t* Controller)
 {
     CollectionItem_t* cNode = NULL;
-    DataKey_t         Key   = { .Value.Id = Controller->Device.Id };
+    DataKey_t         Key   = { .Value.Id = Controller->Device.Base.Id };
 
     // Unregister controller with usbmanager service
-    if (UsbControllerUnregister(Controller->Device.Id) != OsSuccess) {
+    if (UsbControllerUnregister(Controller->Device.Base.Id) != OsSuccess) {
         return OsError;
     }
 
@@ -147,7 +147,7 @@ UsbManagerGetController(
 {
     foreach(cNode, &Controllers) {
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
-        if (Controller->Device.Id == Device) {
+        if (Controller->Device.Base.Id == Device) {
             return Controller;
         }
     }
@@ -170,7 +170,7 @@ UsbManagerGetToggle(
     foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
-        if (Controller->Device.Id == Device) {
+        if (Controller->Device.Base.Id == Device) {
             // Locate the correct endpoint
             foreach(eNode, Controller->Endpoints) {
                 // Cast data again
@@ -187,7 +187,7 @@ UsbManagerGetToggle(
     _foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
-        if (Controller->Device.Id == Device) {
+        if (Controller->Device.Base.Id == Device) {
             // Create the endpoint
             UsbManagerEndpoint_t *Endpoint = NULL;
             Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));
@@ -223,7 +223,7 @@ UsbManagerSetToggle(
     foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
-        if (Controller->Device.Id == Device) {
+        if (Controller->Device.Base.Id == Device) {
             // Locate the correct endpoint
             foreach(eNode, Controller->Endpoints) {
                 // Cast data again
@@ -241,7 +241,7 @@ UsbManagerSetToggle(
     _foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
-        if (Controller->Device.Id == Device) {
+        if (Controller->Device.Base.Id == Device) {
             // Create the endpoint
             UsbManagerEndpoint_t *Endpoint = NULL;
             Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));

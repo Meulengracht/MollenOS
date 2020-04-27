@@ -142,14 +142,14 @@ PS2SelfTest(void)
 
 OsStatus_t
 PS2Initialize(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
     OsStatus_t Status;
     uint8_t    Temp;
     int        i;
 
     // Store a copy of the device
-    memcpy(&Ps2Controller->Device, Device, sizeof(MCoreDevice_t));
+    memcpy(&Ps2Controller->Device, Device, sizeof(Device_t));
 
     // No problem, last thing is to acquire the
     // io-spaces, and just return that as result
@@ -236,7 +236,7 @@ OnLoad(void)
     }
     
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
-    Ps2Controller->Device.Id = UUID_INVALID;
+    Ps2Controller->Device.Base.Id = UUID_INVALID;
     
     if (WaitForNetService(1000) != OsSuccess) {
         ERROR(" => Failed to start ps2 driver, as net service never became available.");
@@ -265,14 +265,14 @@ OnUnload(void)
 
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
     OsStatus_t Result = OsSuccess;
     PS2Port_t *Port;
 
     // First register call is the ps2-controller and all sequent calls here is ps2-devices 
     // So install the contract as soon as it arrives
-    if (Ps2Controller->Device.Id == UUID_INVALID) {
+    if (Ps2Controller->Device.Base.Id == UUID_INVALID) {
         return PS2Initialize(Device);
     }
 
@@ -321,7 +321,7 @@ void ctt_driver_register_device_callback(struct gracht_recv_message* message, st
 
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t* Device)
+    _In_ Device_t* Device)
 {
     OsStatus_t Result = OsError;
     PS2Port_t *Port;

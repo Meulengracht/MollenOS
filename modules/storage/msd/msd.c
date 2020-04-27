@@ -68,7 +68,7 @@ UnregisterStorage(
 
 MsdDevice_t*
 MsdDeviceCreate(
-    _In_ MCoreUsbDevice_t* UsbDevice)
+    _In_ UsbDevice_t* UsbDevice)
 {
     MsdDevice_t* Device = NULL;
     int          i;
@@ -91,7 +91,7 @@ MsdDeviceCreate(
     }
     
     memset(Device, 0, sizeof(MsdDevice_t));
-    memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
+    memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
     
     ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, &Device);
     Device->Control = &Device->Base.Endpoints[0];

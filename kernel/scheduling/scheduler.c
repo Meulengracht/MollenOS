@@ -33,6 +33,7 @@
 #include <component/domain.h>
 #include <debug.h>
 #include <ds/list.h>
+#include <ddk/io.h>
 #include <heap.h>
 #include <machine.h>
 #include <scheduler.h>

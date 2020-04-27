@@ -23,7 +23,7 @@
 #ifndef _DRIVER_PS2_CONTROLLER_H_
 #define _DRIVER_PS2_CONTROLLER_H_
 
-#include <ddk/device.h>
+#include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
 #include <gracht/link/socket.h>
 #include <os/osdefs.h>
@@ -125,11 +125,10 @@ typedef struct PS2Port {
 } PS2Port_t;
 
 typedef struct PS2Controller {
-    MCoreDevice_t   Device;
-    DeviceIo_t*     Command;
-    DeviceIo_t*     Data;
-
-    PS2Port_t       Ports[PS2_MAXPORTS];
+    BusDevice_t Device;
+    DeviceIo_t* Command;
+    DeviceIo_t* Data;
+    PS2Port_t   Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 
 /* PS2PortInitialize

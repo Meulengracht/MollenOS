@@ -22,16 +22,17 @@
 #define __MODULE "CCPU"
 #define __TRACE
 
-#include <component/domain.h>
-#include <component/cpu.h>
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
-#include <machine.h>
 #include <assert.h>
-#include <string.h>
+#include <component/domain.h>
+#include <component/cpu.h>
+#include <ddk/io.h>
 #include <debug.h>
 #include <heap.h>
+#include <machine.h>
+#include <string.h>
 
 // 256 is a temporary number, once we start getting processors with more than
 // 256 TXU's then we are fucked

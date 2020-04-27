@@ -28,6 +28,7 @@
 #include <component/cpu.h>
 #include <ds/list.h>
 #include <debug.h>
+#include <ddk/barrier.h>
 #include <futex.h>
 #include <heap.h>
 #include <os/spinlock.h>

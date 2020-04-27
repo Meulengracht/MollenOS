@@ -80,13 +80,13 @@ OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t *Device)
+    _In_ Device_t *Device)
 {
 	HidDevice_t*    HidDevice = NULL;
 	DataKey_t       Key = { .Value.Id = Device->Id };
 	
 	// Register the new controller
-	HidDevice = HidDeviceCreate((MCoreUsbDevice_t*)Device);
+	HidDevice = HidDeviceCreate((UsbDevice_t*)Device);
 
 	// Sanitize
 	if (HidDevice == NULL) {
@@ -101,7 +101,7 @@ OnRegister(
  * an instance of this driver from the system */
 OsStatus_t
 OnUnregister(
-    _In_ MCoreDevice_t *Device)
+    _In_ Device_t *Device)
 {
 	HidDevice_t*    HidDevice = NULL;
 	DataKey_t       Key = { .Value.Id = Device->Id };

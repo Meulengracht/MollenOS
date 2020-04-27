@@ -112,7 +112,7 @@
                         <param name="status" type="OsStatus_t" count="1" />
                     </response>
                 </function>
-                <function name="transfer_async" async="async" progress="progress">
+                <function name="transfer_async" async="async">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="handle" type="UUId_t" count="1" />

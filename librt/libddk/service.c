@@ -175,7 +175,7 @@ WaitForNetService(
 
 OsStatus_t
 InstallDriver(
-    _In_ MCoreDevice_t* Device, 
+    _In_ Device_t* Device, 
     _In_ size_t         Length,
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)

@@ -29,6 +29,7 @@
 #include <ddk/utils.h>
 #include "manager.h"
 #include <stdlib.h>
+#include <string.h>
 
 #include "ctt_driver_protocol_server.h"
 #include "ctt_storage_protocol_server.h"

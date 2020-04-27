@@ -25,7 +25,9 @@
 #define __INTERRUPT_INTERFACE_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/io.h>
+
+DECL_STRUCT(DeviceIo);
+DECL_STRUCT(BusDevice);
 
 #define INTERRUPT_NONE                      (int)-1
 #define INTERRUPT_MAXVECTORS                8
@@ -70,12 +72,23 @@ typedef struct FastInterruptResources {
     FastInterruptResourceTable_t* ResourceTable;
 
     // System Functions
-    size_t                        (*ReadIoSpace)(DeviceIo_t*, size_t Offset, size_t Length);
-    OsStatus_t                    (*WriteIoSpace)(DeviceIo_t*, size_t Offset, size_t Value, size_t Length);
+    size_t     (*ReadIoSpace)(DeviceIo_t*, size_t Offset, size_t Length);
+    OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t Offset, size_t Value, size_t Length);
 } FastInterruptResources_t;
 
 #define INTERRUPT_IOSPACE(Resources, Index)     Resources->ResourceTable->IoResources[Index]
 #define INTERRUPT_RESOURCE(Resources, Index)    Resources->ResourceTable->MemoryResources[Index].Address
+
+/*
+ * ACPI Conform flags
+ * This is essentially some bonus information that is
+ * needed when registering interrupts
+ */
+#define INTERRUPT_ACPICONFORM_PRESENT         0x00000001
+#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002
+#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004
+#define INTERRUPT_ACPICONFORM_SHAREABLE       0x00000008
+#define INTERRUPT_ACPICONFORM_FIXED           0x00000010
 
 // Interrupt register options
 #define INTERRUPT_SOFT                  0x00000001  // Interrupt is not triggered by a hardware line
@@ -93,20 +106,28 @@ typedef struct DeviceInterrupt {
     // General information, note that these can change
     // after the RegisterInterruptSource, always use the value
     // in <Line> to see your allocated interrupt-line
-    Flags_t                      AcpiConform;
-    int                          Line;
-    int                          Pin;
-    void*                        Context;
+    Flags_t AcpiConform;
+    int     Line;
+    int     Pin;
+    void*   Context;
 
     // If the system should choose the best available
     // between all directs, fill all unused entries with 
     // INTERRUPT_NONE. Specify INTERRUPT_VECTOR to use this.
-    int                          Vectors[INTERRUPT_MAXVECTORS];
+    int Vectors[INTERRUPT_MAXVECTORS];
 
     // Read-Only
-    uintptr_t                    MsiAddress;     // INTERRUPT_MSI - The address of MSI
-    uintptr_t                    MsiValue;       // INTERRUPT_MSI - The value of MSI
+    uintptr_t MsiAddress;     // INTERRUPT_MSI - The address of MSI
+    uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
 } DeviceInterrupt_t;
+
+/* DeviceInterruptInitialize
+ * Initializes a new structure of a device interrupt configuration based
+ * on a bus device. */
+DDKDECL(void,
+DeviceInterruptInitialize(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ BusDevice_t*       Device));
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */

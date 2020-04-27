@@ -27,24 +27,9 @@
 
 #include <ddk/ddkdefs.h>
 #include <ddk/bufferpool.h>
-#include <ddk/device.h>
+#include <ddk/busdevice.h>
 #include <ddk/usb/definitions.h>
 #include <ddk/service.h>
-
-/* These definitions are in-place to allow a custom
- * setting of the device-manager, these are set to values
- * where in theory it should never be needed to have more */
-#define __USBMANAGER_INTERFACE_VERSION          1
-
-/* These are the different IPC functions supported
- * by the usbmanager, note that some of them might
- * be changed in the different versions, and/or new
- * functions will be added */
-#define __USBMANAGER_REGISTERCONTROLLER         (int)0
-#define __USBMANAGER_UNREGISTERCONTROLLER       (int)1
-#define __USBMANAGER_PORTEVENT                  (int)2
-#define __USBMANAGER_QUERYCONTROLLERCOUNT       (int)3
-#define __USBMANAGER_QUERYCONTROLLER            (int)4
 
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */
@@ -72,50 +57,50 @@ typedef enum _UsbSpeed {
 /* UsbHcPortDescriptor 
  * Describes the current port information */
 PACKED_TYPESTRUCT(UsbHcPortDescriptor, {
-	UsbSpeed_t                          Speed;
-	int                                 Enabled;
-	int                                 Connected;
+	UsbSpeed_t Speed;
+	int        Enabled;
+	int        Connected;
 });
 
 /* UsbHcController
  * Describes a generic controller with information needed
  * in order for the manager to function */
 PACKED_TYPESTRUCT(UsbHcController, {
-    MCoreDevice_t                       Device;
-    UsbControllerType_t                 Type;
-    UsbHcPortDescriptor_t               Ports[USB_MAX_PORTS];
+    BusDevice_t           Device;
+    UsbControllerType_t   Type;
+    UsbHcPortDescriptor_t Ports[USB_MAX_PORTS];
 });
 
 /* UsbHcEndpointDescriptor 
  * Describes a generic endpoint for an usb device */
 PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
-	UsbEndpointType_t                   Type;
-	UsbEndpointSynchronization_t        Synchronization;
-	size_t                              Address;
-	int                                 Direction;
-	size_t                              MaxPacketSize;
-	size_t                              Bandwidth;
-	size_t                              Interval;
+	UsbEndpointType_t            Type;
+	UsbEndpointSynchronization_t Synchronization;
+	size_t                       Address;
+	int                          Direction;
+	size_t                       MaxPacketSize;
+	size_t                       Bandwidth;
+	size_t                       Interval;
 });
 
 /* UsbHcInterfaceVersion 
  * Describes a version of an interface and it's endpoint count. */
 PACKED_TYPESTRUCT(UsbHcInterfaceVersion, {
-	int                                 Id;
-	int                                 EndpointCount;
+	int Id;
+	int EndpointCount;
 });
 
 /* UsbHcInterface 
  * Describes a generic interface for an usb device. There can be 
  * multiple versions each with a number of different endpoints. */
 PACKED_TYPESTRUCT(UsbHcInterface, {
-	int                                 Id;
-	size_t                              Class;
-	size_t                              Subclass;
-	size_t                              Protocol;
-	size_t                              StringIndex;
-	int	                                VersionCount;
-	UsbHcInterfaceVersion_t             Versions[USB_MAX_VERSIONS];
+	int                     Id;
+	size_t                  Class;
+	size_t                  Subclass;
+	size_t                  Protocol;
+	size_t                  StringIndex;
+	int	                    VersionCount;
+	UsbHcInterfaceVersion_t Versions[USB_MAX_VERSIONS];
 });
 
 /* UsbHcAddress
@@ -509,7 +494,7 @@ UsbEndpointReset(
  * Registers a new controller with the given type and setup */
 DDKDECL(OsStatus_t,
 UsbControllerRegister(
-    _In_ MCoreDevice_t*      Device,
+    _In_ Device_t*           Device,
     _In_ UsbControllerType_t Type,
     _In_ size_t              Ports));
 

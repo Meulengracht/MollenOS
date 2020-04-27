@@ -26,6 +26,7 @@
 #include "../include/vfs.h"
 #include "../include/mbr.h"
 #include <stdlib.h>
+#include <string.h>
 
 static OsStatus_t
 ReadStorage(

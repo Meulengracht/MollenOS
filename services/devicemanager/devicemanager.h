@@ -25,7 +25,9 @@
 #define __DEVICEMANAGER_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ddk/device.h>
+
+DECL_STRUCT(Device);
+DECL_STRUCT(BusDevice);
 
 /* DmRegisterDevice
  * Allows registering of a new device in the
@@ -33,11 +35,11 @@
 __EXTERN
 OsStatus_t
 DmRegisterDevice(
-	_In_  UUId_t                Parent,
-	_In_  MCoreDevice_t*        Device, 
-	_In_  const char*           Name,
-	_In_  Flags_t               Flags,
-	_Out_ UUId_t*               Id);
+	_In_  UUId_t      Parent,
+	_In_  Device_t*   Device, 
+	_In_  const char* Name,
+	_In_  Flags_t     Flags,
+	_Out_ UUId_t*     Id);
 
 /* DmUnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
@@ -45,7 +47,7 @@ DmRegisterDevice(
 __EXTERN
 OsStatus_t
 DmUnregisterDevice(
-	_In_ UUId_t                 DeviceId);
+	_In_ UUId_t DeviceId);
 
 /* DmIoctlDevice
  * Allows manipulation of a given device to either disable
@@ -53,9 +55,9 @@ DmUnregisterDevice(
 __EXTERN
 OsStatus_t
 DmIoctlDevice(
-    _In_ MCoreDevice_t* Device,
-    _In_ unsigned int   Command,
-    _In_ unsigned int   Flags);
+    _In_ BusDevice_t* Device,
+    _In_ unsigned int Command,
+    _In_ unsigned int Flags);
 
 /* DmIoctlDeviceEx
  * Allows manipulation of a given device to either disable
@@ -64,10 +66,10 @@ DmIoctlDevice(
 __EXTERN
 OsStatus_t
 DmIoctlDeviceEx(
-	_In_ MCoreDevice_t* Device,
-	_In_ int            Direction,
-	_In_ unsigned int   Register,
-	_In_ size_t*        Value,
-	_In_ size_t         Width);
+	_In_ BusDevice_t* Device,
+	_In_ int          Direction,
+	_In_ unsigned int Register,
+	_In_ size_t*      Value,
+	_In_ size_t       Width);
 
 #endif //! __DEVICEMANAGER_INTERFACE__
