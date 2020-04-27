@@ -34,6 +34,15 @@ InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
 
 static int TimerRegistered = 0;
 
+void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
+    unsigned int* class, unsigned int* subClass)
+{
+    *vendorId = 0;
+    *deviceId = 0;
+    *class    = 0xC0003;
+    *subClass = 0;
+}
+
 void
 HciTimerCallback(void* Context)
 {

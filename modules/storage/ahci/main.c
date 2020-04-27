@@ -98,6 +98,15 @@ HandleInterrupt:
     }
 }
 
+void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
+    unsigned int* class, unsigned int* subClass)
+{
+    *vendorId = 0;
+    *deviceId = 0;
+    *class    = 0x10006;
+    *subClass = 0x10000;
+}
+
 OsStatus_t
 OnLoad(void)
 {

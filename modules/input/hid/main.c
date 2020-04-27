@@ -30,6 +30,15 @@
 
 static Collection_t *GlbHidDevices = NULL;
 
+void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
+    unsigned int* class, unsigned int* subClass)
+{
+    *vendorId = 0;
+    *deviceId = 0;
+    *class    = 0xCABB;
+    *subClass = 0x30000;
+}
+
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled

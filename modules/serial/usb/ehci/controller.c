@@ -35,6 +35,15 @@
 OsStatus_t          EhciSetup(EhciController_t *Controller);
 InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
+void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
+    unsigned int* class, unsigned int* subClass)
+{
+    *vendorId = 0;
+    *deviceId = 0;
+    *class    = 0xC0003;
+    *subClass = 0x200000;
+}
+
 UsbManagerController_t*
 HciControllerCreate(
     _In_ BusDevice_t* Device)

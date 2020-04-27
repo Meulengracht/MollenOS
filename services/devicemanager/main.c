@@ -69,7 +69,8 @@ OnLoad(void)
 
 void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
 {
-    
+    TRACE("[devicemanager] [notify] [%u:%u: %u:%u]",
+        args->vendor_id, args->device_id, args->class, args->subclass);
 }
 
 void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
@@ -149,7 +150,7 @@ DmRegisterDevice(
     memcpy(CopyDevice, Device, Device->Length);
     CopyDevice->Id = Key.Value.Id = DeviceIdGenerator++;
     if (Name != NULL) {
-        memcpy(&CopyDevice->Name[0], Name, strlen(Name));
+        memcpy(&CopyDevice->Name[0], Name, strnlen(Name, sizeof(CopyDevice->Name) - 1));
     }
     
     CollectionAppend(&Devices, CollectionCreateNode(Key, CopyDevice));

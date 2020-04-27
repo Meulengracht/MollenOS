@@ -30,6 +30,7 @@
 #include <stdlib.h>
 
 // Module Interface
+extern void       GetModuleIdentifiers(unsigned int*, unsigned int*, unsigned int*, unsigned int*);
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 
@@ -38,6 +39,30 @@ __CrtInitialize(
     _In_  thread_storage_t* Tls,
     _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
+
+void __CrtModuleLoad(void)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
+    unsigned int             vendorId;
+    unsigned int             deviceId;
+    unsigned int             class;
+    unsigned int             subClass;
+    
+    GetModuleIdentifiers(&vendorId, &deviceId, &class, &subClass);
+    
+    // Call the driver load function 
+    // - This will be run once, before loop
+    if (OnLoad() != OsSuccess) {
+        exit(-1);
+    }
+    
+    if (vendorId != 0 && deviceId != 0) {
+        svc_device_notify(GetGrachtClient(), &msg,
+            GetNativeHandle(gracht_server_get_dgram_iod()),
+            vendorId, deviceId, class, subClass);
+        gracht_vali_message_finish(&msg);
+    }
+}
 
 void __CrtModuleEntry(void)
 {
@@ -65,11 +90,7 @@ void __CrtModuleEntry(void)
         exit(status);
     }
 
-    // Call the driver load function 
-    // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
-        exit(-1);
-    }
+    __CrtModuleLoad();
     
     status = gracht_server_main_loop();
     OnUnload();
