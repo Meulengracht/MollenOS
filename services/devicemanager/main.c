@@ -39,11 +39,22 @@
 
 struct device_node {
     element_t header;
+    UUId_t    driver_id;
     Device_t* device;
 };
 
-static list_t Devices             = LIST_INIT;
-static UUId_t DeviceIdGenerator   = 0;
+struct driver_node {
+    element_t    header;
+    unsigned int vendor_id;
+    unsigned int device_id;
+    
+    unsigned int class;
+    unsigned int sub_class;
+};
+
+static list_t Devices           = LIST_INIT;
+static list_t Drivers           = LIST_INIT;
+static UUId_t DeviceIdGenerator = 1;
 
 OsStatus_t OnUnload(void)
 {
@@ -70,6 +81,37 @@ OnLoad(void)
         return OsError;
     }
     return OsSuccess;
+}
+
+static struct driver_node*
+find_driver_for_device(
+    _In_ Device_t* device)
+{
+    foreach(node, &Drivers) {
+        struct driver_node* driverNode = node->value;
+        if ((device->VendorId == driverNode->vendor_id &&
+             device->DeviceId == driverNode->device_id) ||
+            (device->Class == driverNode->class &&
+             device->Subclass == driverNode->sub_class)) {
+            return driverNode;
+        }
+    }
+    return NULL;
+}
+
+static void
+update_device_drivers(void)
+{
+    foreach(node, &Devices) {
+        struct device_node* deviceNode = node->value;
+        if (deviceNode->driver_id == UUID_INVALID) {
+            struct driver_node* driverNode = find_driver_for_device(deviceNode->device);
+            if (driverNode) {
+                TRACE("[devicemanager] [notify] found device for driver: %s",
+                    &deviceNode->device->Name[0]);
+            }
+        }
+    }
 }
 
 void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
@@ -168,6 +210,7 @@ DmRegisterDevice(
     deviceId = DeviceIdGenerator++;
     
     ELEMENT_INIT(&deviceNode->header, (uintptr_t)deviceId, deviceNode);
+    deviceNode->driver_id = UUID_INVALID;
     
     memcpy(deviceNode->device, device, device->Length);
     if (name != NULL) {

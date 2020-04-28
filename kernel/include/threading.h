@@ -95,6 +95,7 @@ typedef struct SystemThread {
     
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
+    Semaphore_t             WaitObject;
     _Atomic(int)            References;
     clock_t                 StartedAt;
     struct SystemThread*    Children;

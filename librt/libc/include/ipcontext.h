@@ -26,6 +26,7 @@
 #define	__IPCONTEXT_H__
 
 #include <os/osdefs.h>
+#include <threads.h>
 
 #define IPMSG_ADDRESS_HANDLE 0
 #define IPMSG_ADDRESS_PATH   1
@@ -37,6 +38,8 @@ struct ipmsg_addr {
         const char* path;
     } data;
 };
+
+#define IPMSG_ADDR_INIT_HANDLE(handle) { IPMSG_ADDRESS_HANDLE, { handle } }
 
 #define IPMSG_NOTIFY_NONE       0
 #define IPMSG_NOTIFY_HANDLE_SET 1 // Completion handle
@@ -53,6 +56,8 @@ struct ipmsg_resp {
         uintptr_t callback;
     } notify_data;
 };
+
+#define IPMSG_RESP_INIT_DEFAULT { UUID_INVALID, 0, IPMSG_NOTIFY_NONE, NULL, { thrd_current() } }
 
 #define IPMSG_PARAM_VALUE  0
 #define IPMSG_PARAM_BUFFER 1

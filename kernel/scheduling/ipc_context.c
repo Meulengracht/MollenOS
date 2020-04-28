@@ -221,33 +221,33 @@ WriteMessage(
 
 static inline void
 SendMessage(
-    _In_ IpcContext_t*         Context,
-    _In_ struct ipmsg_desc*    Message,
-    _In_ struct message_state* State)
+    _In_ IpcContext_t*         context,
+    _In_ struct ipmsg_desc*    message,
+    _In_ struct message_state* state)
 {
     TRACE("[ipc] [send] %u/%u => %u",
-        Message->base->protocol, Message->base->action,
-        sizeof(struct ipmsg_resp) + Message->base->length);
+        message->base->protocol, message->base->action,
+        sizeof(struct ipmsg_resp) + message->base->length);
     
-    streambuffer_write_packet_end(Context->KernelStream, State->base,
-        sizeof(struct ipmsg_resp) + Message->base->length);
-    MarkHandle(Context->Handle, IOEVTIN);
+    streambuffer_write_packet_end(context->KernelStream, state->base,
+        sizeof(struct ipmsg_resp) + message->base->length);
+    MarkHandle(context->Handle, IOEVTIN);
 }
 
 static inline void
 CleanupMessage(
-    _In_ struct ipmsg* Message)
+    _In_ struct ipmsg* message)
 {
     int i;
-    TRACE("CleanupMessage(0x%llx)", Message);
+    TRACE("CleanupMessage(0x%llx)", message);
 
     // Flush all the mappings granted in the argument phase
-    for (i = 0; i < Message->base.param_in; i++) {
-        if (Message->base.params[i].type == IPMSG_PARAM_SHM) {
-            OsStatus_t Status = MemorySpaceUnmap(GetCurrentMemorySpace(),
-                (VirtualAddress_t)Message->base.params[i].data.buffer,
-                Message->base.params[i].length);
-            if (Status != OsSuccess) {
+    for (i = 0; i < message->base.param_in; i++) {
+        if (message->base.params[i].type == IPMSG_PARAM_SHM) {
+            OsStatus_t status = MemorySpaceUnmap(GetCurrentMemorySpace(),
+                (VirtualAddress_t)message->base.params[i].data.buffer,
+                message->base.params[i].length);
+            if (status != OsSuccess) {
                 // LOG
             }
         }
@@ -256,43 +256,56 @@ CleanupMessage(
 
 static void
 WaitForMessageNotification(
-    _In_ struct ipmsg_resp* Response,
-    _In_ size_t             Timeout)
+    _In_ struct ipmsg_resp* response,
+    _In_ size_t             timeout)
 {
-    if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
+    if (response->notify_method == IPMSG_NOTIFY_NONE) {
+        MCoreThread_t* thread = LookupHandleOfType(response->notify_data.handle, HandleTypeThread);
+        SemaphoreWait(&thread->WaitObject, timeout);
+    }
+    else if (response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
         handle_event_t event;
         int            numberOfEvents;
-        WaitForHandleSet(Response->notify_data.handle,
-            &event, 1, Timeout, &numberOfEvents);
+        WaitForHandleSet(response->notify_data.handle, &event, 1, timeout, &numberOfEvents);
     }
 }
 
 static void
 SendNotification(
-    _In_ struct ipmsg_resp* Response)
+    _In_ struct ipmsg_resp* response,
+    _In_ unsigned int       flags)
 {
-    if (Response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
-        MarkHandle(Response->notify_data.handle, 0);
+    if (response->notify_method == IPMSG_NOTIFY_NONE && !(flags & IPMSG_ASYNC)) {
+        MCoreThread_t* thread = LookupHandleOfType(response->notify_data.handle, HandleTypeThread);
+        if (thread) {
+            SemaphoreSignal(&thread->WaitObject, 1);
+        }
     }
-    else if (Response->notify_method == IPMSG_NOTIFY_SIGNAL) {
-        SignalSend(Response->notify_data.handle, SIGIPC, Response->notify_context);
+    else if (response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
+        MarkHandle(response->notify_data.handle, 0);
     }
-    else if (Response->notify_method == IPMSG_NOTIFY_THREAD) {
+    else if (response->notify_method == IPMSG_NOTIFY_SIGNAL) {
+        SignalSend(response->notify_data.handle, SIGIPC, response->notify_context);
+    }
+    else if (response->notify_method == IPMSG_NOTIFY_THREAD) {
         NOTIMPLEMENTED("[ipc] [send_notification] IPC_NOTIFY_METHOD_THREAD missing implementation");
     }
 }
 
 static OsStatus_t
 WriteShortResponse(
-    _In_ struct ipmsg_resp* Reply,
-    _In_ OsStatus_t         Status)
+    _In_ struct ipmsg_desc* message,
+    _In_ OsStatus_t         status)
 {
-    IpcResponsePayloadHeader_t Header = { Status };
-    size_t                     BytesWritten;
+    IpcResponsePayloadHeader_t header = { status };
+    size_t                     bytesWritten;
     
-    MemoryRegionWrite(Reply->dma_handle, Reply->dma_offset, &Header,
-        sizeof(IpcResponsePayloadHeader_t), &BytesWritten);
-    SendNotification(Reply);
+    if (message->response->dma_handle != UUID_INVALID) {
+        MemoryRegionWrite(message->response->dma_handle, message->response->dma_offset,
+            &header, sizeof(IpcResponsePayloadHeader_t), &bytesWritten);
+    }
+    
+    SendNotification(message->response, message->base->flags);
     return OsSuccess;
 }
 
@@ -304,22 +317,24 @@ WriteFullResponse(
     uint16_t offset = message->response.dma_offset;
     int      i;
     
-    for (i = 0; i < message->base.param_out; i++) {
-        struct ipmsg_param* param        = &messageDescriptor->params[i];
-        size_t              bytesWritten = 0;
-        
-        if (param->type == IPMSG_PARAM_VALUE) {
-            MemoryRegionWrite(message->response.dma_handle, offset,
-                &param->data.value, param->length, &bytesWritten);
+    if (message->response.dma_handle != UUID_INVALID) {
+        for (i = 0; i < message->base.param_out; i++) {
+            struct ipmsg_param* param        = &messageDescriptor->params[i];
+            size_t              bytesWritten = 0;
+            
+            if (param->type == IPMSG_PARAM_VALUE) {
+                MemoryRegionWrite(message->response.dma_handle, offset,
+                    &param->data.value, param->length, &bytesWritten);
+            }
+            else if (param->type == IPMSG_PARAM_BUFFER) {
+                MemoryRegionWrite(message->response.dma_handle, offset,
+                    param->data.buffer, param->length, &bytesWritten);
+            }
+            offset += message->base.params[message->base.param_in + i].length;
         }
-        else if (param->type == IPMSG_PARAM_BUFFER) {
-            MemoryRegionWrite(message->response.dma_handle, offset,
-                param->data.buffer, param->length, &bytesWritten);
-        }
-        offset += message->base.params[message->base.param_in + i].length;
     }
     
-    SendNotification(&message->response);
+    SendNotification(&message->response, messageDescriptor->flags);
     return OsSuccess;
 }
 
@@ -342,7 +357,7 @@ IpcContextSendMultiple(
         OsStatus_t    Status = AllocateMessage(Messages[i], Timeout, 
              &State, &TargetContext);
         if (Status != OsSuccess) {
-            if (WriteShortResponse(Messages[i]->response, Status) != OsSuccess) {
+            if (WriteShortResponse(Messages[i], Status) != OsSuccess) {
                 WARNING("[ipc] [send_multiple] failed to write response");
             }
         }
