@@ -25,8 +25,9 @@
 #define __X86_BUS_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
 #include <ddk/io.h>
+
+DECL_STRUCT(Collection);
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */

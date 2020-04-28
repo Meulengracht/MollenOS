@@ -49,7 +49,7 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message
     }
     
     if (message->header.length > GRACHT_MAX_MESSAGE_SIZE) {
-        errno = (EINVAL);
+        errno = (E2BIG);
         return -1;
     }
     

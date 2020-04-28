@@ -31,6 +31,7 @@
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
+#include <io_events.h>
 #include <ipc_context.h>
 #include <memoryspace.h>
 #include <memory_region.h>
@@ -224,11 +225,13 @@ SendMessage(
     _In_ struct ipmsg_desc*    Message,
     _In_ struct message_state* State)
 {
-    TRACE("[ipc] [send] %u/%u", Message->base->protocol, Message->base->action);
+    TRACE("[ipc] [send] %u/%u => %u",
+        Message->base->protocol, Message->base->action,
+        sizeof(struct ipmsg_resp) + Message->base->length);
     
     streambuffer_write_packet_end(Context->KernelStream, State->base,
         sizeof(struct ipmsg_resp) + Message->base->length);
-    MarkHandle(Context->Handle, 0);
+    MarkHandle(Context->Handle, IOEVTIN);
 }
 
 static inline void

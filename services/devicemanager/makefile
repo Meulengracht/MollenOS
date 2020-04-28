@@ -24,6 +24,7 @@ endif
 OBJECTS = $(SOURCES:.c=.o)
 LIBRARIES = ../../librt/deploy/libgracht.lib \
 			../../librt/build/libsrv.lib \
+			../../librt/build/libds.lib \
 			../../librt/build/ddk.lib \
 			../../librt/build/c.lib \
 			../../librt/build/compiler-rt.lib

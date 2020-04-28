@@ -629,10 +629,10 @@ class CGenerator:
         return
 
     def write_structure(self, protocol, struct_name, params, case, outfile):
-        outfile.write("struct " + struct_name + " {\n")
+        outfile.write("GRACHT_STRUCT(" + struct_name + ", {\n")
         for param in params:
             outfile.write("    " + self.get_param_typename(protocol, param, case) + ";\n")
-        outfile.write("};\n")
+        outfile.write("});\n")
         return
 
     def define_param_values(self, protocol, func, outfile):
@@ -935,6 +935,7 @@ class CGenerator:
         with open(file_path, 'w') as f:
             self.write_header(f)
             self.write_header_guard_start(file_name, f)
+            self.define_headers(["<gracht/types.h>"], f)
             self.define_protocol_headers(protocol, f)
             self.define_shared_ids(protocol, f)
             self.define_message_sizes(protocol, f)

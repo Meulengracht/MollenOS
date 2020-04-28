@@ -128,12 +128,18 @@ static int handle_sync_event(int iod, uint32_t events, void* storage)
     int                        status;
     TRACE("[handle_sync_event] %i, 0x%x\n", iod, events);
     
-    status = server_object.ops->recv_packet(server_object.ops, &message, MSG_DONTWAIT);
-    if (status) {
-        ERROR("[handle_sync_event] gracht_connection_recv_message returned %i\n", errno);
-        return -1;
+    while (1) {
+        status = server_object.ops->recv_packet(server_object.ops, &message, MSG_DONTWAIT);
+        if (status) {
+            if (errno != ENODATA) {
+                ERROR("[handle_sync_event] server_object.ops->recv_packet returned %i\n", errno);
+            }
+            break;
+        }
+        status = server_invoke_action(&server_object.protocols, &message);
     }
-    return server_invoke_action(&server_object.protocols, &message);
+    
+    return status;
 }
 
 static int handle_async_event(int iod, uint32_t events, void* storage)
@@ -160,7 +166,9 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
         while (1) {
             status = client->ops->recv(client->ops, &message, MSG_DONTWAIT);
             if (status) {
-                ERROR("[handle_async_event] gracht_connection_recv_message returned %i\n", errno);
+                if (errno != ENODATA) {
+                    ERROR("[handle_async_event] client->ops->recv returned %i\n", errno);
+                }
                 break;
             }
             

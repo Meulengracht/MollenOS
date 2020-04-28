@@ -43,7 +43,7 @@ struct vali_link_deferred_response {
     struct ipmsg               recv_storage;
 };
 
-#define VALI_MSG_INIT_HANDLE(handle) { { IPMSG_ADDRESS_HANDLE, { handle } }, { 0 }, NULL }
+#define VALI_MSG_INIT_HANDLE(handle) { { IPMSG_ADDRESS_HANDLE, { handle } }, { 0 }, NULL, NULL }
 
 #ifdef __cplusplus
 extern "C" {

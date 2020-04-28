@@ -29,6 +29,7 @@
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
+#include <ds/collection.h>
 #include <stdlib.h>
 #include <errno.h>
 

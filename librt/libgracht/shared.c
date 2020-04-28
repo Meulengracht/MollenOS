@@ -64,6 +64,7 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
     TRACE("offset: %lu, param count %i\n", message->param_count * sizeof(struct gracht_param), message->param_count);
     for (i = 0; i < message->param_count; i++) {
         if (params[i].type == GRACHT_PARAM_VALUE) {
+            TRACE("push value: %u", (uint32_t)(params[i].data.value & 0xFFFFFFFF));
             if (params[i].length == 1) {
                 unpackBuffer[unpackIndex] = (uint8_t)(params[i].data.value & 0xFF);
             }
@@ -78,6 +79,7 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
                 *((uint64_t*)&unpackBuffer[unpackIndex]) = params[i].data.value;
             }
 #endif
+            unpackIndex += params[i].length;
         }
         else if (params[i].type == GRACHT_PARAM_BUFFER) {
             if (params[i].length == 0) {
@@ -87,12 +89,12 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
                 *((char**)&unpackBuffer[unpackIndex]) = params_storage;
                 params_storage += params[i].length;
             }
+            unpackIndex += sizeof(void*);
         }
         else if (params[i].type == GRACHT_PARAM_SHM) {
             *((char**)&unpackBuffer[unpackIndex]) = (char*)params[i].data.buffer;
+            unpackIndex += sizeof(void*);
         }
-        
-        unpackIndex += sizeof(void*);
     }
 }
 

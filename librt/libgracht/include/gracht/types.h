@@ -28,6 +28,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#if (defined (__clang__))
+#define GRACHT_STRUCT(name, body) struct __attribute__((packed)) name body 
+#elif (defined (__GNUC__))
+#define GRACHT_STRUCT(name, body) struct name body __attribute__((packed))
+#elif (defined (__arm__))
+#define GRACHT_STRUCT(name, body) __packed struct name body
+#elif (defined (_MSC_VER))
+#define GRACHT_STRUCT(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
+#else
+#error "Please define packed struct for the used compiler"
+#endif
+
 typedef void* gracht_handle_t;
 
 #define MESSAGE_FLAG_ASYNC    0x00000001

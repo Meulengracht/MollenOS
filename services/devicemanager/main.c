@@ -30,15 +30,20 @@
 #include "svc_device_protocol_server.h"
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <ipcontext.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
 
-static Collection_t Devices             = COLLECTION_INIT(KeyId);
-static UUId_t       DeviceIdGenerator   = 0;
+struct device_node {
+    element_t header;
+    Device_t* device;
+};
+
+static list_t Devices             = LIST_INIT;
+static UUId_t DeviceIdGenerator   = 0;
 
 OsStatus_t OnUnload(void)
 {
@@ -69,8 +74,19 @@ OnLoad(void)
 
 void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
 {
-    TRACE("[devicemanager] [notify] [%u:%u: %u:%u]",
+    TRACE("[devicemanager] [notify] [%u:%u %u:%u]",
         args->vendor_id, args->device_id, args->class, args->subclass);
+    
+    foreach(node, &Devices) {
+        struct device_node* deviceNode = node->value;
+        if ((deviceNode->device->VendorId == args->vendor_id &&
+            deviceNode->device->DeviceId == args->device_id) ||
+            (deviceNode->device->Class == args->class &&
+            deviceNode->device->Subclass == args->subclass)) {
+            TRACE("[devicemanager] [notify] found device for driver: %s",
+                &deviceNode->device->Name[0]);
+        }
+    }
 }
 
 void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
@@ -87,38 +103,34 @@ void svc_device_unregister_callback(struct gracht_recv_message* message, struct 
 
 void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args* args)
 {
-    Device_t*  Device;
-    OsStatus_t Result = OsInvalidParameters;
-    DataKey_t  Key = { .Value.Id = args->device_id };
-    
-    Device = CollectionGetDataByKey(&Devices, Key, 0);
-    if (Device->Length == sizeof(BusDevice_t)) {
-        Result = DmIoctlDevice((BusDevice_t*)Device, args->command, args->flags);
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    OsStatus_t          result     = OsInvalidParameters;
+
+    if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
+        result = DmIoctlDevice((BusDevice_t*)deviceNode->device, args->command, args->flags);
     }
     
-    svc_device_ioctl_response(message, Result);
+    svc_device_ioctl_response(message, result);
 }
 
 void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args* args)
 {
-    Device_t* Device;
-    OsStatus_t Result = OsInvalidParameters;
-    DataKey_t  Key = { .Value.Id = args->device_id };
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    OsStatus_t          result     = OsInvalidParameters;
     
-    Device = CollectionGetDataByKey(&Devices, Key, 0);
-    if (Device->Length == sizeof(BusDevice_t)) {
-        Result = DmIoctlDeviceEx((BusDevice_t*)Device, args->direction,
+    if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
+        result = DmIoctlDeviceEx((BusDevice_t*)deviceNode->device, args->direction,
             args->command, &args->value, args->width);
     }
     
-    svc_device_ioctl_ex_response(message, Result, args->value);
+    svc_device_ioctl_ex_response(message, result, args->value);
 }
 
 int
 DmLoadDeviceDriver(void* Context)
 {
-    Device_t* Device = Context;
-    OsStatus_t     Status = InstallDriver(Device, Device->Length, NULL, 0);
+    Device_t*  Device = Context;
+    OsStatus_t Status = InstallDriver(Device, Device->Length, NULL, 0);
     
     if (Status != OsSuccess) {
         return OsStatusToErrno(Status);
@@ -128,42 +140,54 @@ DmLoadDeviceDriver(void* Context)
 
 OsStatus_t
 DmRegisterDevice(
-    _In_  UUId_t      Parent,
-    _In_  Device_t*   Device, 
-    _In_  const char* Name,
-    _In_  Flags_t     Flags,
-    _Out_ UUId_t*     Id)
+    _In_  UUId_t      parent,
+    _In_  Device_t*   device, 
+    _In_  const char* name,
+    _In_  Flags_t     flags,
+    _Out_ UUId_t*     idOut)
 {
-    Device_t* CopyDevice;
-    DataKey_t Key = { 0 };
+    struct device_node* deviceNode;
+    UUId_t              deviceId;
 
-    _CRT_UNUSED(Parent);
-    assert(Device != NULL);
-    assert(Id != NULL);
-    assert(Device->Length >= sizeof(Device_t));
+    _CRT_UNUSED(parent);
+    assert(device != NULL);
+    assert(idOut != NULL);
+    assert(device->Length >= sizeof(Device_t));
 
-    CopyDevice = (Device_t*)malloc(Device->Length);
-    if (!CopyDevice) {
+    deviceNode = (struct device_node*)malloc(sizeof(struct device_node));
+    if (!deviceNode) {
         return OsOutOfMemory;
     }
     
-    memcpy(CopyDevice, Device, Device->Length);
-    CopyDevice->Id = Key.Value.Id = DeviceIdGenerator++;
-    if (Name != NULL) {
-        memcpy(&CopyDevice->Name[0], Name, strnlen(Name, sizeof(CopyDevice->Name) - 1));
+    deviceNode->device = (Device_t*)malloc(device->Length);
+    if (!deviceNode->device) {
+        free(deviceNode);
+        return OsOutOfMemory;
     }
     
-    CollectionAppend(&Devices, CollectionCreateNode(Key, CopyDevice));
+    deviceId = DeviceIdGenerator++;
+    
+    ELEMENT_INIT(&deviceNode->header, (uintptr_t)deviceId, deviceNode);
+    
+    memcpy(deviceNode->device, device, device->Length);
+    if (name != NULL) {
+        memcpy(&deviceNode->device->Name[0], name,
+            strnlen(name, sizeof(deviceNode->device->Name) - 0));
+    }
+    
     TRACE("%u, Registered device %s, struct length %u", 
-        DeviceIdGenerator, &CopyDevice->Name[0], CopyDevice->Length);
-    *Id = CopyDevice->Id;
+        deviceId, &deviceNode->device->Name[0], deviceNode->device->Length);
+    
+    list_append(&Devices, &deviceNode->header);
+    deviceNode->device->Id = deviceId;
+    *idOut = deviceId;
     
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
-    if (Flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
+    if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
         thrd_t thr;
-        if (thrd_create(&thr, DmLoadDeviceDriver, CopyDevice) != thrd_success) {
+        if (thrd_create(&thr, DmLoadDeviceDriver, deviceNode->device) != thrd_success) {
             return OsError;
         }
         thrd_detach(thr);
