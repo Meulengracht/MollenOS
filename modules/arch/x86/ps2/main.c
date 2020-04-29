@@ -149,7 +149,7 @@ PS2Initialize(
     int        i;
 
     // Store a copy of the device
-    memcpy(&Ps2Controller->Device, Device, sizeof(Device_t));
+    memcpy(&Ps2Controller->Device, Device, sizeof(BusDevice_t));
 
     // No problem, last thing is to acquire the
     // io-spaces, and just return that as result
@@ -160,8 +160,8 @@ PS2Initialize(
     }
 
     // Data is at 0x60 - the first space, Command is at 0x64, the second space
-    Ps2Controller->Data     = &Ps2Controller->Device.IoSpaces[0];
-    Ps2Controller->Command  = &Ps2Controller->Device.IoSpaces[1];
+    Ps2Controller->Data    = &Ps2Controller->Device.IoSpaces[0];
+    Ps2Controller->Command = &Ps2Controller->Device.IoSpaces[1];
     
     // Disable Devices
     PS2SendCommand(PS2_DISABLE_PORT1);
@@ -324,8 +324,7 @@ OnRegister(
 
 void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
-    OsStatus_t status = OnRegister(args->device);
-    ctt_driver_register_device_response(message, status);
+    OnRegister(args->device);
 }
 
 OsStatus_t

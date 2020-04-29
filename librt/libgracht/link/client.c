@@ -154,7 +154,9 @@ static int socket_link_recv_stream(struct socket_link_manager* linkManager,
     
     context->client      = linkManager->iod;
     context->params      = (void*)params_storage;
-    context->param_count = message->header.param_in;
+    
+    context->param_in    = message->header.param_in;
+    context->param_count = message->header.param_in + message->header.param_out;
     context->protocol    = message->header.protocol;
     context->action      = message->header.action;
     return 0;
@@ -252,7 +254,9 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     
     context->client      = linkManager->iod;
     context->params      = (void*)params_storage;
-    context->param_count = message->header.param_in;
+    
+    context->param_in    = message->header.param_in;
+    context->param_count = message->header.param_in + message->header.param_out;
     context->protocol    = message->header.protocol;
     context->action      = message->header.action;
     return 0;

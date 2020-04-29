@@ -756,7 +756,7 @@ class CGenerator:
             outfile.write("        struct gracht_param          __params[" + str(len(params_all)) + "];\n")
             outfile.write("    } __message = { .__base = { \n")
             outfile.write("        .length = sizeof(struct gracht_message)")
-            outfile.write(" + (" + str(len(params_in)) + " * sizeof(struct gracht_param))")
+            outfile.write(" + (" + str(len(params_all)) + " * sizeof(struct gracht_param))")
             for param in params_in:
                 if not param.is_value():
                     size_function = self.get_size_function(protocol, param, is_response)

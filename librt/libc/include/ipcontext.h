@@ -25,6 +25,7 @@
 #ifndef __IPCONTEXT_H__
 #define	__IPCONTEXT_H__
 
+#include <gracht/types.h>
 #include <os/osdefs.h>
 #include <threads.h>
 
@@ -59,51 +60,24 @@ struct ipmsg_resp {
 
 #define IPMSG_RESP_INIT_DEFAULT { UUID_INVALID, 0, IPMSG_NOTIFY_NONE, NULL, { thrd_current() } }
 
-#define IPMSG_PARAM_VALUE  0
-#define IPMSG_PARAM_BUFFER 1
-#define IPMSG_PARAM_SHM    2
-
-struct ipmsg_param {
-    int type;
-    union {
-        size_t value;
-        void*  buffer;
-    } data;
-    size_t length;
-};
-
-struct ipmsg_base {
-    uint32_t length    : 16;
-    uint32_t param_in  : 4;
-    uint32_t param_out : 4;
-    uint32_t flags     : 8;
-    uint32_t protocol  : 8;
-    uint32_t action    : 8;
-    uint32_t reserved  : 16;
-    
-    struct ipmsg_param params[];
-};
-
 struct ipmsg_desc {
-    struct ipmsg_addr* address;
-    struct ipmsg_base* base;
-    struct ipmsg_resp* response;
+    struct ipmsg_addr*     address;
+    struct gracht_message* base;
+    struct ipmsg_resp*     response;
 };
 
 struct ipmsg {
-    struct ipmsg_resp response;
-    struct ipmsg_base base;
+    struct ipmsg_resp     response;
+    struct gracht_message base;
 };
 
-#define IPMSG_ASYNC 0x1
-
-#define IPMSG_DONTWAIT 0x100
+#define IPMSG_DONTWAIT 0x1
 
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int, struct ipmsg_addr*));
 CRTDECL(int, putmsg(int, struct ipmsg_desc*, int));
 CRTDECL(int, getmsg(int, struct ipmsg*, unsigned int, int));
-CRTDECL(int, resp(int, struct ipmsg*, struct ipmsg_base*));
+CRTDECL(int, resp(int, struct ipmsg*, struct gracht_message*));
 _CODE_END
 
 #endif //!__IPCONTEXT_H__

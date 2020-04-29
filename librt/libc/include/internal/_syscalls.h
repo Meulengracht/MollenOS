@@ -88,7 +88,7 @@ _CODE_END
 #define Syscall_DmaAttachmentRefresh(Attachment)                           (OsStatus_t)syscall1(53, SCPARAM(Attachment))
 #define Syscall_DmaAttachmentUnmap(Attachment)                             (OsStatus_t)syscall1(54, SCPARAM(Attachment))
 #define Syscall_DmaDetach(Attachment)                                      (OsStatus_t)syscall1(55, SCPARAM(Attachment))
-#define Syscall_DmaGetMetrics(Attachment, SizeOut, VectorsOut)             (OsStatus_t)syscall3(56, SCPARAM(Attachment), SCPARAM(SizeOut), SCPARAM(VectorsOut))
+#define Syscall_DmaGetMetrics(Handle, SizeOut, VectorsOut)                 (OsStatus_t)syscall3(56, SCPARAM(Handle), SCPARAM(SizeOut), SCPARAM(VectorsOut))
 
 #define Syscall_CreateHandle(HandleOut)                                    (OsStatus_t)syscall1(57, SCPARAM(HandleOut))
 #define Syscall_DestroyHandle(Handle)                                      (OsStatus_t)syscall1(58, SCPARAM(Handle))

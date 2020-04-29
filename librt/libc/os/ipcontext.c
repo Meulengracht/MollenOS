@@ -136,7 +136,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     return 0;
 }
 
-int resp(int iod, struct ipmsg* msg, struct ipmsg_base* msgbase)
+int resp(int iod, struct ipmsg* msg, struct gracht_message* msgbase)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     OsStatus_t      status;

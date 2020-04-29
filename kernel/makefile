@@ -13,7 +13,7 @@ OOT_SOURCES = ../librt/libddk/io.c
 # Get all the neccessary include paths, pretty much all in the project
 INCLUDES = -Iinclude -Iarch/include -I../librt/libds/include \
 		   -I../librt/libacpi/source/include -I../librt/libddk/include \
-		   -I../librt/libc/include -I../librt/include
+		   -I../librt/libgracht/include -I../librt/libc/include -I../librt/include
 
 # All the project sources
 SOURCES = $(wildcard acpi/*.c) \

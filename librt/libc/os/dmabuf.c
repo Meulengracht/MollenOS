@@ -127,7 +127,7 @@ dma_get_sg_table(
     // then allocate space and then retrieve full list
     sg_table->count = max_count;
     if (max_count <= 0) {
-        status = Syscall_DmaGetMetrics(attachment, &sg_table->count, NULL);
+        status = Syscall_DmaGetMetrics(attachment->handle, &sg_table->count, NULL);
         if (status != OsSuccess) {
             return status;
         }
@@ -137,7 +137,7 @@ dma_get_sg_table(
     if (!sg_table->entries) {
         return OsOutOfMemory;
     }
-    return Syscall_DmaGetMetrics(attachment, &sg_table->count, sg_table->entries);
+    return Syscall_DmaGetMetrics(attachment->handle, &sg_table->count, sg_table->entries);
 }
 
 

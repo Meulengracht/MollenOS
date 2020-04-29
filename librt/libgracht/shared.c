@@ -62,7 +62,7 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
     int                  i;
 
     TRACE("offset: %lu, param count %i\n", message->param_count * sizeof(struct gracht_param), message->param_count);
-    for (i = 0; i < message->param_count; i++) {
+    for (i = 0; i < message->param_in; i++) {
         if (params[i].type == GRACHT_PARAM_VALUE) {
             TRACE("push value: %u", (uint32_t)(params[i].data.value & 0xFFFFFFFF));
             if (params[i].length == 1) {
@@ -108,8 +108,8 @@ int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
         return -1;
     }
     
-    if (message->param_count) {
-        uint8_t unpackBuffer[message->param_count * sizeof(void*)];
+    if (message->param_in) {
+        uint8_t unpackBuffer[message->param_in * sizeof(void*)];
         unpack_parameters(message, &unpackBuffer[0]);
         ((server_invokeA0_t)function->address)(message, &unpackBuffer[0]);
     }

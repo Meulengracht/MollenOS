@@ -90,8 +90,7 @@ OnRegister(
 
 void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
-    OsStatus_t status = OnRegister(args->device);
-    ctt_driver_register_device_response(message, status);
+    OnRegister(args->device);
 }
 
 OsStatus_t

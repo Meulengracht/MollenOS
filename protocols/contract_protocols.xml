@@ -14,13 +14,10 @@
     <protocols namespace="ctt">
         <protocol name="driver" id="0x10">
             <functions>
-                <function name="register_device">
+                <function name="register_device" async="async">
                     <request>
                         <param name="device" type="buffer" />
                     </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                    </response>
                 </function>
             </functions>
         </protocol>

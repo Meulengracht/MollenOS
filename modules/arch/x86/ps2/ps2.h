@@ -108,20 +108,20 @@ typedef enum PS2PortState {
 } PS2PortState_t;
 
 typedef struct PS2Port {
-    int                 Index;
-    UUId_t              DeviceId;
-    DeviceInterrupt_t   Interrupt;
-    UUId_t              InterruptId;
-    PS2Command_t        ActiveCommand;
-    PS2PortState_t      State;
-    unsigned int           Signature;
-    gracht_client_t*    GrachtClient;
+    int               Index;
+    UUId_t            DeviceId;
+    DeviceInterrupt_t Interrupt;
+    UUId_t            InterruptId;
+    PS2Command_t      ActiveCommand;
+    PS2PortState_t    State;
+    unsigned int      Signature;
+    gracht_client_t*  GrachtClient;
 
     // Device state information
-    uint8_t             DeviceData[6];
-    uint8_t             ResponseBuffer[PS2_RINGBUFFER_SIZE];
-    uint8_t             ResponseWriteIndex;
-    uint8_t             ResponseReadIndex;
+    uint8_t           DeviceData[6];
+    uint8_t           ResponseBuffer[PS2_RINGBUFFER_SIZE];
+    uint8_t           ResponseWriteIndex;
+    uint8_t           ResponseReadIndex;
 } PS2Port_t;
 
 typedef struct PS2Controller {

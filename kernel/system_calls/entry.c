@@ -118,7 +118,7 @@ extern OsStatus_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
 extern OsStatus_t ScDmaAttachmentRefresh(struct dma_attachment*);
 extern OsStatus_t ScDmaAttachmentUnmap(struct dma_attachment*);
 extern OsStatus_t ScDmaDetach(struct dma_attachment*);
-extern OsStatus_t ScDmaGetMetrics(struct dma_attachment*, int*, struct dma_sg*);
+extern OsStatus_t ScDmaGetMetrics(UUId_t, int*, struct dma_sg*);
 
 extern OsStatus_t ScCreateHandle(UUId_t*);
 extern OsStatus_t ScDestroyHandle(UUId_t Handle);

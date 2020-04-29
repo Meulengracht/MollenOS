@@ -27,15 +27,17 @@
 #include <bus.h>
 #include <ctype.h>
 #include "devicemanager.h"
-#include "svc_device_protocol_server.h"
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
-#include <ipcontext.h>
+#include <gracht/link/vali.h>
+#include <internal/_ipc.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
+
+#include "svc_device_protocol_server.h"
 
 struct device_node {
     element_t header;
@@ -107,8 +109,15 @@ update_device_drivers(void)
         if (deviceNode->driver_id == UUID_INVALID) {
             struct driver_node* driverNode = find_driver_for_device(deviceNode->device);
             if (driverNode) {
+                UUId_t                   handle = (UUId_t)(uintptr_t)driverNode->header.key;
+                struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(handle);
                 TRACE("[devicemanager] [notify] found device for driver: %s",
                     &deviceNode->device->Name[0]);
+                ctt_driver_register_device(GetGrachtClient(), &msg, deviceNode->device,
+                    deviceNode->device->Length);
+                gracht_vali_message_finish(&msg);
+                
+                deviceNode->driver_id = handle;
             }
         }
     }
@@ -116,19 +125,27 @@ update_device_drivers(void)
 
 void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
 {
-    TRACE("[devicemanager] [notify] [%u:%u %u:%u]",
+    struct driver_node* driverNode;
+    
+    TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
         args->vendor_id, args->device_id, args->class, args->subclass);
     
-    foreach(node, &Devices) {
-        struct device_node* deviceNode = node->value;
-        if ((deviceNode->device->VendorId == args->vendor_id &&
-            deviceNode->device->DeviceId == args->device_id) ||
-            (deviceNode->device->Class == args->class &&
-            deviceNode->device->Subclass == args->subclass)) {
-            TRACE("[devicemanager] [notify] found device for driver: %s",
-                &deviceNode->device->Name[0]);
-        }
+    
+    driverNode = (struct driver_node*)malloc(sizeof(struct driver_node));
+    if (!driverNode) {
+        ERROR("[devicemanager] [notify] failed to allocate memory for driver node");
+        return;
     }
+    
+    ELEMENT_INIT(&driverNode->header, (uintptr_t)args->driver, driverNode);
+    driverNode->vendor_id = args->vendor_id;
+    driverNode->device_id = args->device_id;
+    driverNode->class = args->class;
+    driverNode->sub_class = args->subclass;
+    list_append(&Drivers, &driverNode->header);
+    
+    // Perform an update run of device/drivers
+    update_device_drivers();
 }
 
 void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)

@@ -112,8 +112,8 @@ AllocateMessage(
 {
     IpcContext_t* Context;
     size_t        BytesAvailable;
-    size_t        BytesToAllocate = sizeof(struct ipmsg_resp) + SourceMessage->base->length;
-    TRACE("[ipc] [allocate] %u/%u", SourceMessage->base->protocol, SourceMessage->base->action);
+    size_t        BytesToAllocate = sizeof(struct ipmsg_resp) + SourceMessage->base->header.length;
+    TRACE("[ipc] [allocate] %u/%u", SourceMessage->base->header.protocol, SourceMessage->base->header.action);
     
     if (SourceMessage->address->type == IPMSG_ADDRESS_HANDLE) {
         Context = LookupHandleOfType(SourceMessage->address->data.handle, HandleTypeIpcContext);
@@ -149,14 +149,14 @@ AllocateMessage(
 
 static OsStatus_t
 MapUntypedParameter(
-    _In_ struct ipmsg_param*  Parameter,
+    _In_ struct gracht_param* parameter,
     _In_ SystemMemorySpace_t* TargetMemorySpace)
 {
     VirtualAddress_t CopyAddress;
-    size_t     OffsetInPage = Parameter->data.value % GetMemorySpacePageSize();
+    size_t     OffsetInPage = parameter->data.value % GetMemorySpacePageSize();
     OsStatus_t Status       = CloneMemorySpaceMapping(
         GetCurrentMemorySpace(), TargetMemorySpace,
-        (VirtualAddress_t)Parameter->data.buffer, &CopyAddress, Parameter->length + OffsetInPage,
+        (VirtualAddress_t)parameter->data.buffer, &CopyAddress, parameter->length + OffsetInPage,
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
         MAPPING_VIRTUAL_PROCESS);
     if (Status != OsSuccess) {
@@ -165,7 +165,7 @@ MapUntypedParameter(
     }
     
     // Update buffer pointer in untyped argument
-    Parameter->data.buffer = (void*)(CopyAddress + OffsetInPage);
+    parameter->data.buffer = (void*)(CopyAddress + OffsetInPage);
     smp_wmb();
     
     return OsSuccess;
@@ -179,15 +179,16 @@ WriteMessage(
 {
     int i;
     
-    TRACE("[ipc] [write] %u/%u", Message->base->protocol, Message->base->action);
+    TRACE("[ipc] [write] %u/%u", Message->base->header.protocol,
+        Message->base->header.action);
     
     // Write all members in the order of ipmsg
     streambuffer_write_packet_data(Context->KernelStream, 
         Message->response, sizeof(struct ipmsg_resp), &State->state);
     
     // Fixup all SHM buffer values before writing the base message
-    for (i = 0; i < Message->base->param_in; i++) {
-        if (Message->base->params[i].type == IPMSG_PARAM_SHM) {
+    for (i = 0; i < Message->base->header.param_in; i++) {
+        if (Message->base->params[i].type == GRACHT_PARAM_SHM) {
             MCoreThread_t* Thread = GetContextThread(Context);
             OsStatus_t     Status = MapUntypedParameter(&Message->base->params[i],
                 Thread->MemorySpace);
@@ -203,13 +204,13 @@ WriteMessage(
     }
     
     streambuffer_write_packet_data(Context->KernelStream, 
-        Message->base, sizeof(struct ipmsg_base) + 
-            (Message->base->param_in * sizeof(struct ipmsg_param)),
+        Message->base, sizeof(struct gracht_message) + 
+            (Message->base->header.param_in * sizeof(struct gracht_param)),
         &State->state);
     
     // Handle all the buffer/shm parameters
-    for (i = 0; i < Message->base->param_in; i++) {
-        if (Message->base->params[i].type == IPMSG_PARAM_BUFFER) {
+    for (i = 0; i < Message->base->header.param_in; i++) {
+        if (Message->base->params[i].type == GRACHT_PARAM_BUFFER) {
             streambuffer_write_packet_data(Context->KernelStream, 
                 Message->base->params[i].data.buffer,
                 Message->base->params[i].length,
@@ -226,11 +227,11 @@ SendMessage(
     _In_ struct message_state* state)
 {
     TRACE("[ipc] [send] %u/%u => %u",
-        message->base->protocol, message->base->action,
-        sizeof(struct ipmsg_resp) + message->base->length);
+        message->base->header.protocol, message->base->header.action,
+        sizeof(struct ipmsg_resp) + message->base->header.length);
     
     streambuffer_write_packet_end(context->KernelStream, state->base,
-        sizeof(struct ipmsg_resp) + message->base->length);
+        sizeof(struct ipmsg_resp) + message->base->header.length);
     MarkHandle(context->Handle, IOEVTIN);
 }
 
@@ -242,8 +243,8 @@ CleanupMessage(
     TRACE("CleanupMessage(0x%llx)", message);
 
     // Flush all the mappings granted in the argument phase
-    for (i = 0; i < message->base.param_in; i++) {
-        if (message->base.params[i].type == IPMSG_PARAM_SHM) {
+    for (i = 0; i < message->base.header.param_in; i++) {
+        if (message->base.params[i].type == GRACHT_PARAM_SHM) {
             OsStatus_t status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 (VirtualAddress_t)message->base.params[i].data.buffer,
                 message->base.params[i].length);
@@ -275,7 +276,7 @@ SendNotification(
     _In_ struct ipmsg_resp* response,
     _In_ unsigned int       flags)
 {
-    if (response->notify_method == IPMSG_NOTIFY_NONE && !(flags & IPMSG_ASYNC)) {
+    if (response->notify_method == IPMSG_NOTIFY_NONE && !(flags & MESSAGE_FLAG_ASYNC)) {
         MCoreThread_t* thread = LookupHandleOfType(response->notify_data.handle, HandleTypeThread);
         if (thread) {
             SemaphoreSignal(&thread->WaitObject, 1);
@@ -305,36 +306,41 @@ WriteShortResponse(
             &header, sizeof(IpcResponsePayloadHeader_t), &bytesWritten);
     }
     
-    SendNotification(message->response, message->base->flags);
+    SendNotification(message->response, message->base->header.flags);
     return OsSuccess;
 }
 
 static OsStatus_t
 WriteFullResponse(
-    _In_ struct ipmsg*      message,
-    _In_ struct ipmsg_base* messageDescriptor)
+    _In_ struct ipmsg*          message,
+    _In_ struct gracht_message* messageDescriptor)
 {
     uint16_t offset = message->response.dma_offset;
     int      i;
     
+    TRACE("[ipc] [WriteFullResponse] dma_handle %u, dma_offset %u",
+        message->response.dma_handle, message->response.dma_offset);
     if (message->response.dma_handle != UUID_INVALID) {
-        for (i = 0; i < message->base.param_out; i++) {
-            struct ipmsg_param* param        = &messageDescriptor->params[i];
-            size_t              bytesWritten = 0;
+        for (i = 0; i < message->base.header.param_out; i++) {
+            struct gracht_param* param        = &messageDescriptor->params[i];
+            size_t               bytesWritten = 0;
             
-            if (param->type == IPMSG_PARAM_VALUE) {
+            if (param->type == GRACHT_PARAM_VALUE) {
                 MemoryRegionWrite(message->response.dma_handle, offset,
                     &param->data.value, param->length, &bytesWritten);
             }
-            else if (param->type == IPMSG_PARAM_BUFFER) {
+            else if (param->type == GRACHT_PARAM_BUFFER) {
                 MemoryRegionWrite(message->response.dma_handle, offset,
                     param->data.buffer, param->length, &bytesWritten);
             }
-            offset += message->base.params[message->base.param_in + i].length;
+            
+            offset += message->base.params[message->base.header.param_in + i].length;
+            TRACE("[ipc] [WriteFullResponse] wrote %u bytes, new offset %u",
+                LODWORD(bytesWritten), offset);
         }
     }
     
-    SendNotification(&message->response, messageDescriptor->flags);
+    SendNotification(&message->response, messageDescriptor->header.flags);
     return OsSuccess;
 }
 
@@ -367,7 +373,7 @@ IpcContextSendMultiple(
     
     // Iterate all messages again and wait for response
     for (i = 0; i < MessageCount; i++) {
-        if (!(Messages[i]->base->flags & IPMSG_ASYNC)) {
+        if (!(Messages[i]->base->header.flags & MESSAGE_FLAG_ASYNC)) {
             WaitForMessageNotification(Messages[i]->response, Timeout);
         }
     }
@@ -376,9 +382,9 @@ IpcContextSendMultiple(
 
 OsStatus_t
 IpcContextRespondMultiple(
-    _In_ struct ipmsg**      messages,
-    _In_ struct ipmsg_base** messageDescriptors,
-    _In_ int                 messageCount)
+    _In_ struct ipmsg**          messages,
+    _In_ struct gracht_message** messageDescriptors,
+    _In_ int                     messageCount)
 {
     int i;
     

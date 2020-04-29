@@ -80,6 +80,8 @@ static void vali_link_unpack_response(void* buffer, struct gracht_message* messa
 static int vali_link_message_finish(struct vali_link_manager* linkManager,
     struct vali_link_message* messageContext)
 {
+    TRACE("[gracht] [client-link] [vali] freeing 0x%llx",
+        messageContext->response_buffer);
     brel(linkManager->pool, messageContext->response_buffer);
     return 0;
 }
@@ -94,7 +96,7 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
     
     message.address  = &messageContext->address;
     message.response = &messageContext->response;
-    message.base     = (struct ipmsg_base*)messageBase;
+    message.base     = messageBase;
     
     // Setup the response
     if (messageBase->header.param_out) {
@@ -110,6 +112,8 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
             return -1;
         }
         
+        TRACE("[gracht] [client-link] [vali] allocated DMA buffer 0x%llx, length %u",
+            messageContext->response_buffer, LODWORD(length));
         messageContext->response.dma_handle = linkManager->dma.handle;
         messageContext->response.dma_offset = LOWORD(
             ((uintptr_t)messageContext->response_buffer - (uintptr_t)linkManager->dma.buffer));

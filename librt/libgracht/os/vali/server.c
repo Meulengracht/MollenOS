@@ -64,16 +64,18 @@ static int vali_link_recv_packet(struct vali_link_manager* linkManager, struct g
     
     context->client      = linkManager->iod;
     context->params      = &message->base.params[0];
-    context->param_count = message->base.param_in;
-    context->protocol    = message->base.protocol;
-    context->action      = message->base.action;
+    
+    context->param_in    = message->base.header.param_in;
+    context->param_count = message->base.header.param_in + message->base.header.param_out;
+    context->protocol    = message->base.header.protocol;
+    context->action      = message->base.header.action;
     return 0;
 }
 
 static int vali_link_respond(struct vali_link_manager* linkManager,
     struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
-    return resp(linkManager->iod, messageContext->storage, (struct ipmsg_base*)message);
+    return resp(linkManager->iod, messageContext->storage, message);
 }
 
 static void vali_link_destroy(struct vali_link_manager* linkManager)
