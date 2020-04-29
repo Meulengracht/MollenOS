@@ -60,7 +60,8 @@ static int socket_link_send(struct socket_link* linkContext,
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
+    iov[0].iov_len  = sizeof(struct gracht_message) + (
+        (message->header.param_in + message->header.param_out) * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
@@ -290,7 +291,8 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     
     // Prepare the header
     iov[0].iov_base = message;
-    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_in * sizeof(struct gracht_param));
+    iov[0].iov_len  = sizeof(struct gracht_message) + (
+        (message->header.param_in + message->header.param_out) * sizeof(struct gracht_param));
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
