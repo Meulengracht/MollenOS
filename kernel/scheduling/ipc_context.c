@@ -205,7 +205,8 @@ WriteMessage(
     
     streambuffer_write_packet_data(Context->KernelStream, 
         Message->base, sizeof(struct gracht_message) + 
-            (Message->base->header.param_in * sizeof(struct gracht_param)),
+            ((Message->base->header.param_in + Message->base->header.param_out)
+                * sizeof(struct gracht_param)),
         &State->state);
     
     // Handle all the buffer/shm parameters
