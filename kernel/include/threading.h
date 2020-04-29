@@ -34,20 +34,23 @@
 #include <time.h>
 
 // Forward some structures we need
-typedef struct SystemMemorySpace SystemMemorySpace_t;
-typedef struct SystemProcess     SystemProcess_t;
-typedef struct SchedulerObject   SchedulerObject_t;
+DECL_STRUCT(SystemMemorySpace);
+DECL_STRUCT(SystemProcess);
+DECL_STRUCT(SchedulerObject);
+DECL_STRUCT(streambuffer);
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
 typedef void(*ThreadEntry_t)(void*);
 #endif
 
-#define THREADING_CONTEXT_LEVEL0        0   // Kernel
-#define THREADING_CONTEXT_LEVEL1        1   // Application
-#define THREADING_CONTEXT_SIGNAL        2   // Signal
-#define THREADING_NUMCONTEXTS           3
-#define THREADING_CONFIGDATA_COUNT      4
+#define THREADING_CONTEXT_LEVEL0 0   // Kernel
+#define THREADING_CONTEXT_LEVEL1 1   // Application
+#define THREADING_CONTEXT_SIGNAL 2   // Signal
+#define THREADING_NUMCONTEXTS    3
+
+#define THREADING_CONFIGDATA_COUNT   4
+#define THREADING_MAX_QUEUED_SIGNALS 32
 
 /* MCoreThread::Flags Bit Definitions 
  * The first two bits denode the thread
@@ -69,20 +72,17 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-#define SIGNAL_FREE      0
-#define SIGNAL_ALLOCATED 1
-#define SIGNAL_PENDING   2
-
-typedef struct SystemSignal {
-    _Atomic(int) Status;
+typedef struct ThreadSignal {
+    int          Signal;
     void*        Argument;
     unsigned int Flags;
-} SystemSignal_t;
+} ThreadSignal_t;
 
-typedef struct SignalSupport {
-    _Atomic(int)   SignalsPending;
-    SystemSignal_t Signals[NUMSIGNALS];
-} SignalSupport_t;
+typedef struct ThreadSignals {
+    streambuffer_t* Signals;
+    _Atomic(int)    Pending;
+    unsigned int    Mask;
+} ThreadSignals_t;
 
 typedef struct SystemThread {
     SystemMemorySpace_t*    MemorySpace;
@@ -113,7 +113,7 @@ typedef struct SystemThread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
     
-    SignalSupport_t         Signaling;
+    ThreadSignals_t         Signaling;
 } MCoreThread_t;
 
 /* ThreadingEnable

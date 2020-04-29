@@ -98,6 +98,7 @@ typedef enum {
     OsBusy,                 // Error - Resource is busy or contended
     OsIncomplete,           // Error - Operation only completed partially
     OsCancelled,            // Error - Operation was cancelled
+    OsBlocked,              // Error - Operating was blocked
     OsInProgress,           // Error - Operation was in progress
     
     OsDeleted,              // Error - Resource was deleted

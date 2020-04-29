@@ -177,7 +177,7 @@ UsbManagerSendNotification(
 void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args* args)
 {
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
-    OsStatus_t            status   = HciQueueTransferGeneric(transfer);
+    UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
     if (status != OsSuccess) {
         ctt_usbhost_queue_async_response(message, transfer->Id, status, 0);
     }
@@ -186,7 +186,7 @@ void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struc
 void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args* args)
 {
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
-    OsStatus_t            status   = HciQueueTransferGeneric(transfer);
+    UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
     if (status != OsSuccess) {
         ctt_usbhost_queue_response(message, status, 0);
     }
@@ -195,7 +195,7 @@ void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_
 void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args* args)
 {
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
-    OsStatus_t            status;
+    UsbTransferStatus_t   status;
     
     if (transfer->Transfer.Type == IsochronousTransfer) {
         status = HciQueueTransferIsochronous(transfer);
@@ -209,7 +209,7 @@ void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, st
 
 void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args* args)
 {
-    UsbTransferStatus_t     status     = TransferInvalid;
+    OsStatus_t              status     = OsDoesNotExist;
     UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
     UsbManagerTransfer_t*   transfer   = NULL;
 

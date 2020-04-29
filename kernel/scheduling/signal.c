@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
+#include <ds/streambuffer.h>
 #include <handle.h>
 #include <heap.h>
 #include <internal/_signal.h>
@@ -96,13 +97,15 @@ SignalSend(
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    MCoreThread_t*  Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
-    int             Expected = SIGNAL_FREE;
-    SystemSignal_t* SignalInfo;
-    int             Result;
-    UUId_t          TargetCore;
+    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    UUId_t         TargetCore;
+    ThreadSignal_t SignalInfo = {
+        .Signal   = Signal,
+        .Argument = Argument,
+        .Flags    = 0
+    };
     
-    if (Target == NULL) {
+    if (!Target) {
         ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
         return OsDoesNotExist;
     }
@@ -112,20 +115,14 @@ SignalSend(
         return OsInvalidParameters; // Invalid
     }
     
-    TRACE("[signal] [send] thread %s, signal %i", Target->Name, Signal);
-    
-    SignalInfo = &Target->Signaling.Signals[Signal];
-    Result     = atomic_compare_exchange_strong(&SignalInfo->Status, 
-        &Expected, SIGNAL_ALLOCATED);
-    if (!Result) {
-        TRACE("Signal was already pending");
-        return OsExists; // Ignored, already pending
+    if (Target->Signaling.Mask & (1 << Signal)) {
+        return OsBlocked;
     }
     
-    // Store information and mark ready
-    SignalInfo->Argument = Argument;
-    atomic_store(&SignalInfo->Status, SIGNAL_PENDING);
-    atomic_fetch_add(&Target->Signaling.SignalsPending, 1);
+    TRACE("[signal] [send] thread %s, signal %i", Target->Name, Signal);
+    streambuffer_stream_out(Target->Signaling.Signals, &SignalInfo,
+        sizeof(ThreadSignal_t), 0);
+    atomic_fetch_add(&Target->Signaling.Pending, 1);
     
     // Is the thread local or foreign? We only handle signals locally on core,
     // so if it is running on a different core, we want to send an IPI and let
@@ -180,9 +177,9 @@ SignalProcessQueued(
     _In_ MCoreThread_t* Thread,
     _In_ Context_t*     Context)
 {
-    uintptr_t AlternativeStack;
-    uintptr_t Handler;
-    int       i;
+    ThreadSignal_t Signal;
+    uintptr_t      AlternativeStack;
+    uintptr_t      Handler;
     //TRACE("[signal] [queue]");
     
     assert(Thread != NULL);
@@ -196,25 +193,23 @@ SignalProcessQueued(
     }
     
     Handler = Thread->MemorySpace->Context->SignalHandler;
-    for (i = 0; i < NUMSIGNALS; i++) {
-        SystemSignal_t* SignalInfo = &Thread->Signaling.Signals[i];
-        int             Status;
-        
-        Status = atomic_load(&SignalInfo->Status);
-        if (Status == SIGNAL_PENDING) {
-            if (SignalInfo->Flags & SIGNAL_SEPERATE_STACK) {
-                // Missing implementation
-                // AlternativeStack = SignalInfo->Stack;
-            }
-            else {
-                AlternativeStack = 0;
-            }
-            
-            ContextPushInterceptor(Context, AlternativeStack, Handler, i, 
-                (uintptr_t)SignalInfo->Argument, SignalInfo->Flags);
-            
-            atomic_store(&SignalInfo->Status, SIGNAL_FREE);
-            atomic_fetch_sub(&Thread->Signaling.SignalsPending, 1);
+    while (1) {
+        size_t BytesRead = streambuffer_stream_in(Thread->Signaling.Signals,
+            &Signal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
+        if (!BytesRead) {
+            break;
         }
+        
+        if (Signal.Flags & SIGNAL_SEPERATE_STACK) {
+            // Missing implementation
+            // AlternativeStack = Signal.Stack;
+        }
+        else {
+            AlternativeStack = 0;
+        }
+        
+        ContextPushInterceptor(Context, AlternativeStack, Handler, Signal.Signal, 
+            (uintptr_t)Signal.Argument, Signal.Flags);
+        atomic_fetch_sub(&Thread->Signaling.Pending, 1);
     }
 }

@@ -47,18 +47,18 @@ typedef struct IpcContext {
 
 static inline MCoreThread_t*
 GetContextThread(
-    _In_ IpcContext_t* Context)
+    _In_ IpcContext_t* context)
 {
-    return LookupHandleOfType(Context->CreatorThreadHandle, HandleTypeThread);
+    return LookupHandleOfType(context->CreatorThreadHandle, HandleTypeThread);
 }
 
 static void
 IpcContextDestroy(
-    _In_ void* Resource)
+    _In_ void* resource)
 {
-    IpcContext_t* Context = Resource;
-    DestroyHandle(Context->MemoryRegionHandle);
-    kfree(Context);
+    IpcContext_t* context = resource;
+    DestroyHandle(context->MemoryRegionHandle);
+    kfree(context);
 }
 
 OsStatus_t

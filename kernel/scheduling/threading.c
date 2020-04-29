@@ -22,22 +22,23 @@
  *   a flexible and generic threading platfrom
  */
 
-#define __MODULE "THRD"
+#define __MODULE "thread"
 //#define __TRACE
 
-#include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
-#include <memoryspace.h>
-#include <threading.h>
-#include <machine.h>
-#include <timers.h>
-#include <handle.h>
 #include <assert.h>
+#include <component/cpu.h>
+#include <debug.h>
+#include <ds/streambuffer.h>
+#include <handle.h>
+#include <heap.h>
+#include <machine.h>
+#include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
-#include <debug.h>
-#include <heap.h>
+#include <threading.h>
+#include <timers.h>
 
 OsStatus_t ThreadingReap(void *Context);
 
@@ -141,8 +142,9 @@ InitializeDefaultThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-    UUId_t Handle;
-    char   NameBuffer[16];
+    OsStatus_t Status;
+    UUId_t     Handle;
+    char       NameBuffer[16];
 
     // Reset thread structure
     memset(Thread, 0, sizeof(MCoreThread_t));
@@ -158,6 +160,13 @@ InitializeDefaultThread(
     Thread->Flags        = Flags;
     Thread->ParentHandle = UUID_INVALID;
     
+    Status = streambuffer_create(sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
+        STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
+        &Thread->Signaling.Signals);
+    if (Status != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate space for signal buffer");
+    }
+    
     // Get the startup time
     TimersGetSystemTick(&Thread->StartedAt);
     
@@ -172,9 +181,11 @@ InitializeDefaultThread(
     }
     
     Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
-    if (ThreadingRegister(Thread) != OsSuccess) {
+    Status = ThreadingRegister(Thread);
+    if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
     }
+    
     CreateDefaultThreadContexts(Thread);
 }
 
@@ -565,7 +576,7 @@ ThreadingAdvance(
         
         // Handle any received signals during runtime in system calls, this must be handled
         // here after any blocking operations has been queued so we can cancel it.
-        SignalsPending = atomic_load(&Current->Signaling.SignalsPending);
+        SignalsPending = atomic_load(&Current->Signaling.Pending);
         if (SignalsPending) {
             SchedulerExpediteObject(Current->SchedulerObject);
         }

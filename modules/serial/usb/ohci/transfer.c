@@ -160,20 +160,21 @@ HciTransactionFinalize(
     return OsSuccess;
 }
 
-UsbTransferStatus_t
+OsStatus_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {
-    OhciController_t *Controller = NULL;
+    OhciController_t* Controller;
 
-    // Get Controller
-    Controller  = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
-    assert(Controller != NULL);
+    Controller = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    if (!Controller) {
+        return OsInvalidParameters;
+    }
 
     // Mark for unscheduling and
     // enable SOF, ED is not scheduled before
-    Transfer->Flags                         |= TransferFlagUnschedule;
+    Transfer->Flags |= TransferFlagUnschedule;
     WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
-    return TransferFinished;
+    return OsSuccess;
 }

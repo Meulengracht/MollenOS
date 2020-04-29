@@ -40,6 +40,7 @@ const int ErrorCodeTable[OsErrorCodeCount] = {
     EBUSY,        // OsBusy                  Error - Resource is busy or contended
     ECANCELED,    // OsIncomplete            Error - Operation only completed partially
     ECANCELED,    // OsCancelled             Error - Operation was cancelled
+    ECANCELED,    // OsBlocked               Error - Operating was blocked
     EINPROGRESS,  // OsInProgress,           Error - Operation was in progress
     
     ENOLINK,      // OsDeleted               Error - Resource was deleted

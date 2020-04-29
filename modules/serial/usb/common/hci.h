@@ -110,7 +110,7 @@ HciQueueTransferIsochronous(
 /* HciDequeueTransfer 
  * Removes a queued transfer from the controller's transfer list */
 __EXTERN
-UsbTransferStatus_t
+OsStatus_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer);
 

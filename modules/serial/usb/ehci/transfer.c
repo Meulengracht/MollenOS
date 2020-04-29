@@ -75,17 +75,17 @@ HciTransactionFinalize(
     return OsSuccess;
 }
 
-UsbTransferStatus_t
+OsStatus_t
 HciDequeueTransfer(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    EhciController_t *Controller    = NULL;
+    EhciController_t* Controller;
 
-    // Get Controller
-    Controller  = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
-    assert(Controller != NULL);
-
+    Controller = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    if (!Controller) {
+        return OsInvalidParameters;
+    }
+    
     // Unschedule immediately, but keep data intact as hardware still (might) reference it.
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
@@ -99,5 +99,6 @@ HciDequeueTransfer(
         UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
             USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
     }
-    return TransferFinished;
+    
+    return OsSuccess;
 }

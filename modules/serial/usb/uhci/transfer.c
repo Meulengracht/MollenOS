@@ -64,11 +64,11 @@ HciTransactionFinalize(
     return OsSuccess;
 }
 
-UsbTransferStatus_t
+OsStatus_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     // Mark for unscheduling on next interrupt/check
     Transfer->Flags |= TransferFlagUnschedule;
-    return TransferFinished;
+    return OsSuccess;
 }
