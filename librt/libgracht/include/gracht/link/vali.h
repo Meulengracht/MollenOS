@@ -44,22 +44,45 @@ struct vali_link_deferred_response {
 };
 
 #define VALI_MSG_INIT_HANDLE(handle) { IPMSG_ADDR_INIT_HANDLE(handle), IPMSG_RESP_INIT_DEFAULT, NULL, NULL }
+#define VALI_MSG_DEFER_SIZE(message) (message->param_count * sizeof(struct gracht_param))
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// OS API
 int gracht_os_get_server_client_address(struct sockaddr_storage*, int*);
 int gracht_os_get_server_packet_address(struct sockaddr_storage*, int*);
 int gracht_os_thread_set_name(const char*);
 
-// Link API
-void gracht_vali_message_defer_response(struct vali_link_deferred_response*, struct gracht_recv_message*);
-int  gracht_vali_message_create(gracht_client_t*, int message_size, struct vali_link_message**);
-void gracht_vali_message_finish(struct vali_link_message*);
+// Server API
+int gracht_link_vali_server_create(struct server_link_ops**, struct ipmsg_addr*);
 
-int  gracht_link_vali_server_create(struct server_link_ops**, struct ipmsg_addr*);
-int  gracht_link_vali_client_create(struct client_link_ops**);
+/**
+ * gracht_vali_message_defer_response
+ * * Used to store all neccessary data to delay a response to a message that was received.
+ * * The space allocated for the vali_link_deferred_response must be 
+ * * sizeof(vali_link_deferred_response) + VALI_MSG_DEFER_SIZE.
+ * @param deferredResponse Storage that can fit all message details.
+ * @param message          Message that was received.
+ */
+void gracht_vali_message_defer_response(
+    struct vali_link_deferred_response* deferredResponse,
+    struct gracht_recv_message* message);
+
+// Client API
+int gracht_link_vali_client_create(struct client_link_ops**);
+
+/**
+ * gracht_vali_message_finish
+ * * Used to clean up message data that was allocated for response by a client.
+ * * Must also be called by the client after a successful call.
+ * @param message Message that was sent.
+ */
+void gracht_vali_message_finish(struct vali_link_message* message);
+
+int gracht_vali_message_create(gracht_client_t*, int message_size, struct vali_link_message**);
+
 
 #ifdef __cplusplus
 }

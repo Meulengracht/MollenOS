@@ -114,7 +114,7 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
         return -1;
     }
 
-    if (message->header.param_out && !(message->header.flags & MESSAGE_FLAG_ASYNC)) {
+    if (message->header.param_out) {
         return socket_link_recv_response(linkManager->iod, message);
     }
     return 0;
@@ -210,7 +210,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager,
         return -1;
     }
 
-    if (message->header.param_out && !(message->header.flags & MESSAGE_FLAG_ASYNC)) {
+    if (message->header.param_out) {
         return socket_link_recv_response(linkManager->iod, message);
     }
     return 0;

@@ -373,7 +373,7 @@ UsbSetAddress(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
     dma_pool_free(DmaPool, PacketBuffer);
     return status;
@@ -426,7 +426,7 @@ UsbGetDeviceDescriptor(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // If the transfer finished correctly update the stored
@@ -487,7 +487,7 @@ UsbGetInitialConfigDescriptor(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // Did it complete?
@@ -560,7 +560,7 @@ UsbGetConfigDescriptor(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // Did it complete?
@@ -612,7 +612,7 @@ UsbSetConfiguration(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
     dma_pool_free(DmaPool, PacketBuffer);
     return status;
@@ -664,7 +664,7 @@ UsbGetStringLanguages(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // Update the device structure with the queried langauges
@@ -726,7 +726,7 @@ UsbGetStringDescriptor(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // Update the out variable with the string
@@ -783,7 +783,7 @@ UsbClearFeature(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
     dma_pool_free(DmaPool, PacketBuffer);
     return status;
@@ -829,7 +829,7 @@ UsbSetFeature(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
     dma_pool_free(DmaPool, PacketBuffer);
     return status;
@@ -896,7 +896,7 @@ UsbExecutePacket(
     // Execute the transaction and cleanup the buffer
     status = UsbTransferQueue(Driver, Device, &Transfer, &bytesTransferred);
     if (status != TransferFinished) {
-        ERROR("Usb transfer returned error");
+        ERROR("Usb transfer returned error %u", status);
     }
 
     // Update the device structure with the queried langauges

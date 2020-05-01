@@ -21,8 +21,10 @@
  * - This header describes the base ipc-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_ipc.h>
 #include <internal/_io.h>

@@ -123,10 +123,6 @@
                         <param name="buffer_offset" type="size_t" count="1" />
                         <param name="length" type="size_t" count="1" />
                     </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" count="1" />
-                        <param name="bytes_transferred" type="size_t" count="1" />
-                    </response>
                 </function>
                 <function name="transfer">
                     <request>
@@ -268,6 +264,14 @@
                     </response>
                 </function>
             </functions>
+            
+            <events>
+                <event name="transfer_status">
+                    <param name="id" type="UUId_t" />
+                    <param name="status" type="OsStatus_t" />
+                    <param name="bytes_transferred" type="size_t" />
+                </event>
+            </events>
         </protocol>
         <protocol name="path" id="0x4">
             <enums>

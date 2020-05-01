@@ -46,7 +46,11 @@ dma_pool_create(
         return OsInvalidParameters;
     }
     
-    pool             = (struct dma_pool*)malloc(sizeof(struct dma_pool));
+    pool = (struct dma_pool*)malloc(sizeof(struct dma_pool));
+    if (!pool) {
+        return OsOutOfMemory;
+    }
+    
     pool->attachment = attachment;
     
     status = dma_get_sg_table(attachment, &pool->table, -1);
@@ -95,7 +99,6 @@ dma_pool_allocate(
     }
     
     *address_out = allocation;
-    TRACE(" > Virtual address 0x%x => Physical address 0x%x", allocation, *dma_address_out);
     return OsSuccess;
 }
 

@@ -453,7 +453,7 @@ JoinProcess(
     _In_  struct gracht_recv_message* message,
     _In_  size_t                      timeout)
 {
-    ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
+    ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t) + VALI_MSG_DEFER_SIZE(message));
     if (!Join) {
         return OsOutOfMemory;
     }

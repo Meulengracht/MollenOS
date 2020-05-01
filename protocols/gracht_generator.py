@@ -104,7 +104,7 @@ class Function:
     def __init__(self, name, id, is_async, request_params, response_params):
         self.name = name
         self.id = id
-        self.synchronous = not is_async
+        self.async = is_async
         self.request_params = request_params
         self.response_params = response_params
     
@@ -112,8 +112,8 @@ class Function:
         return self.name
     def get_id(self):
         return self.id
-    def is_synchronous(self):
-        return self.synchronous
+    def is_async(self):
+        return self.async
     def get_request_params(self):
         return self.request_params
     def get_response_params(self):
@@ -317,17 +317,23 @@ def parse_function(xml_function):
         request_params = []
         response_params = []
 
+        trace("parsing function: " + name)
+        trace("is async:" + str(is_async))
+        
         # validation
         if name is None:
             raise Exception("name attribute of <function> tag must be specified")
         
-        trace("parsing function: " + name)
-        trace("is async:" + str(is_async))
-
+        # parse parameters
         for xml_param in xml_function.findall("request/param"):
             request_params.append(parse_param(xml_param))
         for xml_param in xml_function.findall("response/param"):
             response_params.append(parse_param(xml_param))
+        
+        # post-parsing validation
+        if is_async and len(response_params) > 0:
+            raise Exception(name + ": async responses must be defined as events.")
+        
         return Function(name, str(get_id()), is_async, request_params, response_params)
     except Exception as e:
         error("could not parse function: " + str(e))
@@ -513,9 +519,6 @@ class CGenerator:
     
     def get_protocol_server_callback_name(self, protocol, func):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_callback"
-
-    def get_protocol_client_callback_name(self, protocol, evt):
-        return protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_callback"
 
     def get_protocol_client_event_callback_name(self, protocol, evt):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_event_" + evt.get_name() + "_callback"
@@ -708,7 +711,11 @@ class CGenerator:
         parameter_string = ""
         
         function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
-        if func.is_synchronous():
+        if func.is_async():
+            parameter_string = self.get_parameter_string(protocol, func.get_request_params(), case)
+            if parameter_string != "":
+                function_prototype = function_prototype + ", "
+        else:
             input_param_string = self.get_parameter_string(protocol, func.get_request_params(), case)
             output_param_string = self.get_parameter_string(protocol, func.get_response_params(), case)
             if len(func.get_request_params()) > 0 or len(func.get_response_params()) > 0:
@@ -716,10 +723,6 @@ class CGenerator:
             if len(func.get_request_params()) > 0 and len(func.get_response_params()) > 0:
                 output_param_string = ", " + output_param_string
             parameter_string = input_param_string + output_param_string
-        else:
-            parameter_string = self.get_parameter_string(protocol, func.get_request_params(), case)
-            if parameter_string != "":
-                function_prototype = function_prototype + ", "
         return function_prototype + parameter_string + ")"
 
     def define_prototypes(self, protocol, outfile):
@@ -736,9 +739,9 @@ class CGenerator:
         return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ")"
 
     def get_message_flags_func(self, func):
-        if func.is_synchronous():
-            return "0"
-        return "MESSAGE_FLAG_ASYNC"
+        if func.is_async():
+            return "MESSAGE_FLAG_ASYNC"
+        return "0"
 
     def get_message_size_string(self, params):
         message_size = "sizeof(struct gracht_message)"
@@ -923,7 +926,7 @@ class CGenerator:
             function_array_name = protocol.get_namespace() + "_" + protocol.get_name() + "_functions"
             outfile.write("static gracht_protocol_function_t " + function_array_name + "[] = {\n")
             for evt in protocol.get_events():
-                outfile.write("    { " + evt.get_id() + ", " + self.get_protocol_client_callback_name(protocol, evt) + " },\n")
+                outfile.write("    { " + evt.get_id() + ", " + self.get_protocol_client_event_callback_name(protocol, evt) + " },\n")
             outfile.write("};\n\n")
             outfile.write("gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
             outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")

@@ -177,7 +177,7 @@ AhciTransactionStorageCreate(
         return OsInvalidParameters;
     }
     
-    transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+    transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t) + VALI_MSG_DEFER_SIZE(message));
     if (!transaction) {
         dma_detach(&dmaAttachment);
         return OsOutOfMemory;
@@ -254,7 +254,7 @@ void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, st
     status = AhciTransactionStorageCreate(device, message, args->direction, sector.QuadPart,
         args->buffer_id, args->buffer_offset, args->sector_count);
     if (status != OsSuccess) {
-        ctt_storage_transfer_async_response(message, status, 0);
+        // event oh no
     }
 }
 

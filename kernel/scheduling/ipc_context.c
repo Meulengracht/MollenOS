@@ -22,7 +22,6 @@
  */
 #define __TRACE
 
-
 #include <ddk/barrier.h>
 #include <ddk/handle.h>
 #include <ds/streambuffer.h>
@@ -389,7 +388,9 @@ IpcContextRespondMultiple(
 {
     int i;
     
+    TRACE("[ipc] [respond]");
     if (!messages || !messageDescriptors || !messageCount) {
+        ERROR("[ipc] [respond] input was null");
         return OsInvalidParameters;
     }
     

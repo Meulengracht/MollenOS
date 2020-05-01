@@ -28,7 +28,6 @@
 #include <cpu.h>
 #include <debug.h>
 #include <gdt.h>
-#include <heap.h>
 #include <log.h>
 #include <os/context.h>
 #include <memory.h>
@@ -203,43 +202,72 @@ ContextReset(
 
 Context_t*
 ContextCreate(
-    _In_ int ContextType)
+    _In_ int    contextType,
+    _In_ size_t contextSize)
 {
-    uintptr_t PhysicalContextAddress;
-    uintptr_t ContextAddress = 0;
+	OsStatus_t           status;
+	uintptr_t            physicalContextAddress;
+    uintptr_t            contextAddress = 0;
+	SystemMemorySpace_t* memorySpace    = GetCurrentMemorySpace();
 
 	// Select proper segments based on context type and run-mode
-	if (ContextType == THREADING_CONTEXT_LEVEL0) {
+	if (contextType == THREADING_CONTEXT_LEVEL0) {
 		// Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
-		ContextAddress = ((uintptr_t)kmalloc(PAGE_SIZE)) + PAGE_SIZE - sizeof(Context_t);
+		// Reserve space for size + guard page
+		status = MemorySpaceMapReserved(memorySpace, &contextAddress,
+			contextSize + PAGE_SIZE, 0, MAPPING_VIRTUAL_GLOBAL);
+		if (status != OsSuccess) {
+			return NULL;
+		}
+		
+		// Fixup contextAddress and commit size to memory
+		status = MemorySpaceCommit(memorySpace, contextAddress + PAGE_SIZE,
+			&physicalContextAddress, contextSize, 0);
+		if (status != OsSuccess) {
+			MemorySpaceUnmap(memorySpace, contextAddress, contextSize + PAGE_SIZE);
+			return NULL;
+		}
+		
+		contextAddress += (PAGE_SIZE + contextSize) - sizeof(Context_t);
 	}
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
+    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
     	// For both level1 and signal, we return a pointer to STACK_TOP_PAGE_BOTTOM
-        if (ContextType == THREADING_CONTEXT_LEVEL1) {
-		    ContextAddress = MEMORY_LOCATION_RING3_STACK_START - PAGE_SIZE;
+        if (contextType == THREADING_CONTEXT_LEVEL1) {
+		    contextAddress = MEMORY_LOCATION_RING3_STACK_START - PAGE_SIZE;
         }
         else {
-		    ContextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
+		    contextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
         }
-        MemorySpaceCommit(GetCurrentMemorySpace(), ContextAddress, 
-            &PhysicalContextAddress, GetMemorySpacePageSize(), 0);
+        
+        status = MemorySpaceCommit(memorySpace, contextAddress,
+        	&physicalContextAddress, contextSize, 0);
+        if (status != OsSuccess) {
+        	return NULL;
+        }
     }
 	else {
-		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
+		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
 	}
-    assert(ContextAddress != 0);
-	return (Context_t*)ContextAddress;
+	return (Context_t*)contextAddress;
 }
 
 void
 ContextDestroy(
-    _In_ Context_t* Context,
-    _In_ int        ContextType)
+    _In_ Context_t* context,
+    _In_ int        contextType,
+    _In_ size_t     contextSize)
 {
-    // If it is kernel space contexts they are allocated on the kernel heap,
+    if (!context) {
+        return;
+    }
+    
+    // If it is kernel space contexts they are allocated in the kernel space,
     // otherwise they are cleaned up by the memory space
-    if (ContextType == THREADING_CONTEXT_LEVEL0) {
-        kfree(Context);
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        uintptr_t contextAddress = (uintptr_t)context + sizeof(Context_t);
+        MemorySpaceUnmap(GetCurrentMemorySpace(), 
+        	contextAddress - (contextSize + PAGE_SIZE),
+            contextSize + PAGE_SIZE);
     }
 }
 

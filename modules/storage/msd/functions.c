@@ -24,6 +24,7 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include <threads.h>
 
 #include "ctt_driver_protocol_server.h"
@@ -416,7 +417,8 @@ void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, st
     status = MsdTransferSectors(device, args->direction, sector.QuadPart,
         args->buffer_id, args->buffer_offset, args->sector_count,
         &sectorsTransferred);
-    ctt_storage_transfer_async_response(message, status, sectorsTransferred);
+    
+    // status oh no
 }
 
 void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)
@@ -433,4 +435,10 @@ void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct c
         args->buffer_id, args->buffer_offset, args->sector_count,
         &sectorsTransferred);
     ctt_storage_transfer_response(message, status, sectorsTransferred);
+}
+
+void ctt_usbhost_event_queue_status_callback(
+    struct ctt_usbhost_queue_status_event* args)
+{
+    
 }

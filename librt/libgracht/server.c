@@ -251,6 +251,7 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
     struct gracht_server_client* clientOps;
 
     if (!messageContext || !message) {
+        ERROR("gracht_server: null message or context");
         errno = (EINVAL);
         return -1;
     }
@@ -261,6 +262,7 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
 
     clientOps = (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, messageContext->client);
     if (!clientOps) {
+        ERROR("gracht_server: failed to find client");
         errno = (ENOENT);
         return -1;
     }

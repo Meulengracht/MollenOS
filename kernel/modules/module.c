@@ -67,9 +67,9 @@ OsStatus_t
 SpawnModule(
     _In_ SystemModule_t* Module)
 {
-    int                    Index;
-    OsStatus_t             Status;
-    MString_t*             ModuleName;
+    int        Index;
+    OsStatus_t Status;
+    MString_t* ModuleName;
     TRACE("SpawnModule(%s)", MStringRaw(Module->Path));
 
     assert(Module != NULL);

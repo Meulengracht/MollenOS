@@ -77,15 +77,6 @@ static void vali_link_unpack_response(void* buffer, struct gracht_message* messa
     }
 }
 
-static int vali_link_message_finish(struct vali_link_manager* linkManager,
-    struct vali_link_message* messageContext)
-{
-    TRACE("[gracht] [client-link] [vali] freeing 0x%llx",
-        messageContext->response_buffer);
-    brel(linkManager->pool, messageContext->response_buffer);
-    return 0;
-}
-
 static int vali_link_send_packet(struct vali_link_manager* linkManager,
     struct gracht_message* messageBase, struct vali_link_message* messageContext)
 {
@@ -112,17 +103,16 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
             return -1;
         }
         
-        TRACE("[gracht] [client-link] [vali] allocated DMA buffer 0x%llx, length %u",
-            messageContext->response_buffer, LODWORD(length));
+        TRACE("[gracht] [client-link] [vali] allocated DMA buffer [base 0x%llx] 0x%llx, length %u",
+            linkManager->dma.buffer, messageContext->response_buffer, LODWORD(length));
         messageContext->response.dma_handle = linkManager->dma.handle;
         messageContext->response.dma_offset = LOWORD(
             ((uintptr_t)messageContext->response_buffer - (uintptr_t)linkManager->dma.buffer));
     }
     
     status = Syscall_IpcContextSend(&messagePointer, 1, 0);
-    if (messageBase->header.param_out && !(messageBase->header.flags & MESSAGE_FLAG_ASYNC)) {
+    if (messageBase->header.param_out) {
         vali_link_unpack_response(messageContext->response_buffer, messageBase);
-        vali_link_message_finish(linkManager, messageContext);
     }
     
     return OsStatusToErrno(status);
@@ -179,7 +169,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
         return -1;
     }
     
-    status = bpool(linkManager->dma.buffer, 0x1000, &linkManager->pool);
+    status = bpool(linkManager->dma.buffer, linkManager->dma.length, &linkManager->pool);
     if (status != OsSuccess) {
         ERROR("[gracht] [client-link] [vali] failed to create DMA pool");
         dma_attachment_unmap(&linkManager->dma);

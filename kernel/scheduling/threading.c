@@ -76,7 +76,6 @@ DestroyThread(
     _In_ void* Resource)
 {
     MCoreThread_t* Thread = Resource;
-    int            i;
     int            References;
     clock_t        Unused;
 
@@ -106,11 +105,10 @@ DestroyThread(
     SchedulerDestroyObject(Thread->SchedulerObject);
     ThreadingUnregister(Thread);
     
-    for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
-        if (Thread->Contexts[i] != NULL) {
-            ContextDestroy(Thread->Contexts[i], i);
-        }
-    }
+    // Detroy the thread-contexts
+    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, THREADING_KERNEL_STACK_SIZE);    
+    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1, GetMemorySpacePageSize());
+    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, GetMemorySpacePageSize());
 
     // Remove a reference to the memory space if not root, and remove the
     // kernel mapping of the threads' ipc area
@@ -126,7 +124,10 @@ static void
 CreateDefaultThreadContexts(
     _In_ MCoreThread_t* Thread)
 {
-    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
+    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0,
+        THREADING_KERNEL_STACK_SIZE);
+    assert(Thread->Contexts[THREADING_CONTEXT_LEVEL0] != NULL);
+    
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
         (uintptr_t)&ThreadingEntryPoint, 0);
 
@@ -469,13 +470,18 @@ EnterProtectedThreadLevel(void)
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
 
     // Create the userspace stack now that we need it 
-    Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
+    Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1,
+        GetMemorySpacePageSize());
+    assert(Thread->Contexts[THREADING_CONTEXT_LEVEL1] != NULL);
+    
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
         (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments);
         
     // Create the signal stack in preparation.
-    Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
-
+    Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL,
+        GetMemorySpacePageSize());
+    assert(Thread->Contexts[THREADING_CONTEXT_SIGNAL] != NULL);
+    
     // Initiate switch to userspace
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
     ThreadingYield();

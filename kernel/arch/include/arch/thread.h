@@ -66,14 +66,16 @@ RestoreThreadState(
  * the thread is been created under is passed. */
 KERNELAPI Context_t* KERNELABI
 ContextCreate(
-    _In_ int ContextType);
+    _In_ int    contextType,
+    _In_ size_t contextSize);
 
 /* ContextDestroy
  * Destroys the context for the thread and releases resources. */
 KERNELAPI void KERNELABI
 ContextDestroy(
-    _In_ Context_t* Context,
-    _In_ int        ContextType);
+    _In_ Context_t* context,
+    _In_ int        contextType,
+    _In_ size_t     contextSize);
 
 /* ContextReset
  * Resets an already existing context to new with the given parameters. */

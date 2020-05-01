@@ -163,13 +163,11 @@ OhciQueueDestroy(
     return OsSuccess;
 }
 
-/* OhciGetStatusCode
- * Retrieves a status-code from a given condition code */
 UsbTransferStatus_t
 OhciGetStatusCode(
-    _In_ int                        ConditionCode)
+    _In_ int ConditionCode)
 {
-    // One huuuge if/else
+    TRACE("[ohci] [error_code] %i", ConditionCode);
     if (ConditionCode == 0) {
         return TransferFinished;
     }
@@ -189,7 +187,7 @@ OhciGetStatusCode(
         return TransferNotProcessed;
     }
     else {
-        TRACE("Error: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
+        TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
         return TransferInvalid;
     }
 }

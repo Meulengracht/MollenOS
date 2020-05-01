@@ -29,7 +29,7 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
-#include <ddk/barrier.h>
+#include <ddk/io.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -428,10 +428,8 @@ MemoryRegionRead(
     }
     
     ClampedLength = MIN(Region->Length - Offset, Length);
-    
-    smp_mb();
-    memcpy(Buffer, (const void*)(Region->KernelMapping + Offset), ClampedLength);
-    smp_mb();
+    ReadVolatileMemory((const volatile void*)(Region->KernelMapping + Offset),
+        (volatile void*)Buffer, ClampedLength);
     
     *BytesRead = ClampedLength;
     return OsSuccess;
@@ -462,10 +460,8 @@ MemoryRegionWrite(
     }
     
     ClampedLength = MIN(Region->Length - Offset, Length);
-    
-    smp_mb();
-    memcpy((void*)(Region->KernelMapping + Offset), Buffer, ClampedLength);
-    smp_mb();
+    WriteVolatileMemory((volatile void*)(Region->KernelMapping + Offset),
+        (void*)Buffer, ClampedLength);
     
     *BytesWritten = ClampedLength;
     return OsSuccess;

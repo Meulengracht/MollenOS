@@ -42,10 +42,6 @@
                         <param name="buffer_offset" type="unsigned int" />
                         <param name="sector_count" type="size_t" />
                     </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                        <param name="sectors_transferred" type="size_t" />
-                    </response>
                 </function>
                 <function name="transfer">
                     <request>
@@ -63,6 +59,14 @@
                     </response>
                 </function>
             </functions>
+            
+            <events>
+                <event name="transfer_status">
+                    <param name="id" type="UUId_t" />
+                    <param name="status" type="OsStatus_t" />
+                    <param name="sectors_transferred" type="size_t" />
+                </event>
+            </events>
         </protocol>
         <protocol name="usbhost" id="0x12">
             <functions>
@@ -73,11 +77,6 @@
                         <param name="transfer_id" type="UUId_t" />
                         <param name="transfer" type="buffer" subtype="UsbTransfer_t" />
                     </request>
-                    <response>
-                        <param name="id" type="UUId_t" />
-                        <param name="status" type="UsbTransferStatus_t" />
-                        <param name="bytes_transferred" type="size_t" />
-                    </response>
                 </function>
                 <function name="queue">
                     <request>
@@ -145,6 +144,14 @@
                     </response>
                 </function>
             </functions>
+            
+            <events>
+                <event name="queue_status">
+                    <param name="id" type="UUId_t" />
+                    <param name="status" type="UsbTransferStatus_t" />
+                    <param name="bytes_transferred" type="size_t" />
+                </event>
+            </events>
         </protocol>
     </protocols>
 </root>

@@ -646,7 +646,7 @@ WriteFile(
 
 void svc_file_transfer_async_callback(struct gracht_recv_message* message, struct svc_file_transfer_async_args* args)
 {
-    svc_file_transfer_async_response(message, OsNotSupported, 0);
+    
 }
 
 void svc_file_transfer_callback(struct gracht_recv_message* message, struct svc_file_transfer_args* args)

@@ -28,6 +28,11 @@
 #include <os/mollenos.h>
 #include <stdio.h>
 
+void svc_file_event_transfer_status_callback(struct svc_file_transfer_status_event* args)
+{
+    // do nothing, this is only here to build
+}
+
 OsStatus_t
 GetFilePathFromFd(
     _In_ int    FileDescriptor,

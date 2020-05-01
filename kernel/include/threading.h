@@ -51,6 +51,7 @@ typedef void(*ThreadEntry_t)(void*);
 
 #define THREADING_CONFIGDATA_COUNT   4
 #define THREADING_MAX_QUEUED_SIGNALS 32
+#define THREADING_KERNEL_STACK_SIZE  0x1000
 
 /* MCoreThread::Flags Bit Definitions 
  * The first two bits denode the thread

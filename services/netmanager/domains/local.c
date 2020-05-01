@@ -416,7 +416,7 @@ CreateConnectionRequest(
     _In_ UUId_t                      sourceSocketHandle,
     _In_ struct gracht_recv_message* message)
 {
-    ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t));
+    ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t) + VALI_MSG_DEFER_SIZE(message));
     if (!request) {
         return NULL;
     }
@@ -431,7 +431,7 @@ static AcceptRequest_t*
 CreateAcceptRequest(
     _In_ struct gracht_recv_message* message)
 {
-    AcceptRequest_t* request = malloc(sizeof(AcceptRequest_t));
+    AcceptRequest_t* request = malloc(sizeof(AcceptRequest_t) + VALI_MSG_DEFER_SIZE(message));
     if (!request) {
         return NULL;
     }

@@ -46,10 +46,10 @@ UsbManagerCreateTransfer(
     UsbManagerTransfer_t* usbTransfer;
     int                   i;
     
-    TRACE("[usb_create_transfer] transactions %i",
-        transfer->TransactionCount);
+    TRACE("[usb_create_transfer] client %i, transactions %i",
+        message->client, transfer->TransactionCount);
     
-    usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
+    usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t) + VALI_MSG_DEFER_SIZE(message));
     if (!usbTransfer) {
         return NULL;
     }
@@ -178,8 +178,8 @@ void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struc
 {
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
     UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
-    if (status != OsSuccess) {
-        ctt_usbhost_queue_async_response(message, transfer->Id, status, 0);
+    if (status != TransferQueued) {
+        // status event oh no
     }
 }
 
@@ -187,7 +187,7 @@ void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_
 {
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
     UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
-    if (status != OsSuccess) {
+    if (status != TransferQueued) {
         ctt_usbhost_queue_response(message, status, 0);
     }
 }

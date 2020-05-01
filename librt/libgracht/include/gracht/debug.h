@@ -26,7 +26,7 @@
 
 #if defined(MOLLENOS)
 
-#define __TRACE
+//#define __TRACE
 #include <ddk/utils.h>
 
 #elif defined(__linux__)

@@ -30,12 +30,12 @@
 void gracht_vali_message_defer_response(struct vali_link_deferred_response* deferredResponse,
     struct gracht_recv_message* message)
 {
-    if (!deferredResponse || message) {
+    if (!deferredResponse || !message) {
         return;
     }
     
     memcpy(&deferredResponse->recv_message, message, sizeof(struct gracht_recv_message));
-    memcpy(&deferredResponse->recv_storage, message->storage, sizeof(struct ipmsg));
+    memcpy(&deferredResponse->recv_storage, message->storage, sizeof(struct ipmsg) + VALI_MSG_DEFER_SIZE(message));
     
     // Fixup the pointers
     deferredResponse->recv_message.storage = &deferredResponse->recv_storage;

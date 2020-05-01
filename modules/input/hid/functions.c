@@ -21,8 +21,15 @@
 
 #include <ddk/usb.h>
 #include <ddk/utils.h>
+#include <internal/_ipc.h>
 #include <stdlib.h>
 #include "hid.h"
+
+void ctt_usbhost_event_queue_status_callback(
+    struct ctt_usbhost_queue_status_event* args)
+{
+    
+}
 
 /* HidGetDescriptor
  * Retrieves the HID descriptor from the usb-device. */
