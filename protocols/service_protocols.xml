@@ -595,12 +595,12 @@
                 </function>
                 <function name="register">
                     <request>
-                        <param name="parent" type="UUId_t" count="1" />
                         <param name="device" type="buffer" />
                         <param name="flags" type="unsigned int" count="1" />
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" />
+                        <param name="id" type="UUId_t" />
                     </response>
                 </function>
                 <function name="unregister">

@@ -73,6 +73,7 @@ UsbCoreControllerUnregister(
 
 static Collection_t *GlbUsbControllers  = NULL;
 static Collection_t *GlbUsbDevices      = NULL;
+static const char*   VendorSpecificString = "Vendor-specific device (Usb)";
 
 /* UsbGetIdentificationString
  * Retrieves the identification string for the usb class. */
@@ -85,7 +86,7 @@ UsbGetIdentificationString(
             return DeviceIdentifications[i].IdentificationString;
         }
     }
-    return "Unrecognized (Usb)";
+    return VendorSpecificString;
 }
 
 /* UsbReserveAddress 
@@ -441,16 +442,14 @@ UsbDeviceLoadDrivers(
     _In_ UsbController_t* Controller,
     _In_ UsbPortDevice_t* Device)
 {
-    UsbDevice_t CoreDevice;
+    UsbDevice_t CoreDevice = { { 0 } };
     int         i;
 
     // Debug
     TRACE("UsbDeviceLoadDrivers()");
 
-    // Initialize the base device
-    memset(&CoreDevice, 0, sizeof(UsbDevice_t));
-    memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
-    CoreDevice.Base.Id       = UUID_INVALID;
+    memcpy(&CoreDevice.Base.Name[0], VendorSpecificString, strlen(&VendorSpecificString[0]));
+    CoreDevice.Base.ParentId = Controller->Device.Id;
     CoreDevice.Base.Length   = sizeof(UsbDevice_t);
     CoreDevice.Base.VendorId = Device->Base.VendorId;
     CoreDevice.Base.DeviceId = Device->Base.ProductId;
@@ -473,8 +472,7 @@ UsbDeviceLoadDrivers(
         // Copy specific interface-information to structure
         if (Device->Interfaces[i].Exists) {
             const char *Identification = UsbGetIdentificationString(Device->Interfaces[i].Base.Class);
-            memcpy(&CoreDevice.Interface, &Device->Interfaces[i].Base, 
-                sizeof(UsbHcInterface_t));
+            memcpy(&CoreDevice.Interface, &Device->Interfaces[i].Base, sizeof(UsbHcInterface_t));
             memcpy(&CoreDevice.Endpoints[1], &Device->Interfaces[i].Versions[0].Endpoints[0],
                 sizeof(UsbHcEndpointDescriptor_t) * Device->Interfaces[i].Versions[0].Base.EndpointCount);
 
@@ -484,8 +482,9 @@ UsbDeviceLoadDrivers(
             }
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
-            RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
-            Device->Interfaces[i].DeviceId = CoreDevice.Base.Id;
+            Device->Interfaces[i].DeviceId = RegisterDevice(
+                &CoreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
+            TRACE("device id %u for new usb device", Device->Interfaces[i].DeviceId);
         }
     }
     return OsSuccess;

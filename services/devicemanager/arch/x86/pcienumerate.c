@@ -394,7 +394,9 @@ CreateBusDeviceFromPciDevice(
     _In_ PciDevice_t* PciDevice)
 {
     BusDevice_t Device = { { 0 } };
+    UUId_t      Id;
 
+    Device.Base.ParentId = UUID_INVALID;
     Device.Base.Length   = sizeof(BusDevice_t);
     Device.Base.VendorId = PciDevice->Header->VendorId;
     Device.Base.DeviceId = PciDevice->Header->DeviceId;
@@ -436,10 +438,10 @@ CreateBusDeviceFromPciDevice(
             }
         }
     }
-    return DmRegisterDevice(UUID_INVALID, &Device.Base,
+    return DmRegisterDevice(&Device.Base,
         PciToString(PciDevice->Header->Class,
         PciDevice->Header->Subclass, PciDevice->Header->Interface),
-        DEVICE_REGISTER_FLAG_LOADDRIVER, &Device.Base.Id);
+        DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
 }
 
 /* PciInstallDriverCallback
@@ -470,7 +472,9 @@ BusInstallFixed(
     _In_ BusDevice_t* Device,
     _In_ const char*  Name)
 {
-    // Set some magic constants
+    UUId_t Id;
+    
+    Device->Base.ParentId = UUID_INVALID;
     Device->Base.Length   = sizeof(BusDevice_t);
     Device->Base.VendorId = PCI_FIXED_VENDORID;
 
@@ -482,8 +486,8 @@ BusInstallFixed(
     Device->InterruptPin         = INTERRUPT_NONE;
     Device->InterruptLine        = INTERRUPT_NONE;
     Device->InterruptAcpiConform = 0;
-    return DmRegisterDevice(UUID_INVALID, &Device->Base, Name,  
-        DEVICE_REGISTER_FLAG_LOADDRIVER, &Device->Base.Id);
+    return DmRegisterDevice(&Device->Base, Name,  
+        DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
 }
 
 /* BusRegisterPS2Controller

@@ -112,13 +112,11 @@ PS2RegisterDevice(
     _In_ PS2Port_t* Port) 
 {
     BusDevice_t Device = { { 0 } };
-    Device.Base.Length = sizeof(BusDevice_t);
-
-    // Initialize VID/DID to us
+    
+    Device.Base.ParentId = UUID_INVALID;
+    Device.Base.Length   = sizeof(BusDevice_t);
     Device.Base.VendorId = 0xFFEF;
     Device.Base.DeviceId = 0x0030;
-
-    // Invalidate generics
     Device.Base.Class    = 0xFF0F;
     Device.Base.Subclass = 0xFF0F;
 
@@ -135,8 +133,7 @@ PS2RegisterDevice(
     }
 
     // Lastly just register the device under the controller (todo)
-    Port->DeviceId = RegisterDevice(UUID_INVALID, &Device.Base, 
-        DEVICE_REGISTER_FLAG_LOADDRIVER);
+    Port->DeviceId = RegisterDevice(&Device.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
     if (Port->DeviceId == UUID_INVALID) {
         ERROR("Failed to register new device");
         return OsError;

@@ -48,11 +48,6 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message* message
         return -1;
     }
     
-    if (message->header.length > GRACHT_MAX_MESSAGE_SIZE) {
-        errno = (E2BIG);
-        return -1;
-    }
-    
     return client->ops->send(client->ops, message, context);
 }
 

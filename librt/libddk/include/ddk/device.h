@@ -34,6 +34,7 @@
 // This is used both by the devicemanager and by the driver to match
 typedef struct Device {
     UUId_t Id;
+    UUId_t ParentId;
     size_t Length;
     char   Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
 
@@ -48,7 +49,6 @@ typedef struct Device {
  * device-manager, and automatically queries for a driver for the new device */
 DDKDECL(UUId_t,
 RegisterDevice(
-    _In_ UUId_t    Parent,
     _In_ Device_t* Device, 
     _In_ Flags_t   Flags));
 

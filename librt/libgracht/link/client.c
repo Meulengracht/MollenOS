@@ -301,15 +301,23 @@ static int socket_link_recv(struct socket_link_manager* linkManager,
 static int socket_link_send(struct socket_link_manager* linkManager, struct gracht_message* message,
     void* messageContext)
 {
+    // perform length check before sending
+    if (message->header.length > GRACHT_MAX_MESSAGE_SIZE) {
+        errno = (E2BIG);
+        return -1;
+    }
+    
     if (linkManager->config.type == gracht_link_stream_based) {
         return socket_link_send_stream(linkManager, message);
     }
     else if (linkManager->config.type == gracht_link_packet_based) {
         return socket_link_send_packet(linkManager, message, messageContext);
     }
-    
-    errno = (ENOTSUP);
-    return -1;
+    else
+    {
+        errno = (ENOTSUP);
+        return -1;
+    }
 }
 
 static void socket_link_destroy(struct socket_link_manager* linkManager)

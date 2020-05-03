@@ -35,8 +35,7 @@ DECL_STRUCT(BusDevice);
 __EXTERN
 OsStatus_t
 DmRegisterDevice(
-	_In_  UUId_t      parent,
-	_In_  Device_t*   device, 
+	_In_  Device_t*   device,
 	_In_  const char* name,
 	_In_  Flags_t     flags,
 	_Out_ UUId_t*     idOut);

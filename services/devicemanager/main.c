@@ -150,9 +150,9 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
 
 void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
 {
-    UUId_t     Result = UUID_INVALID;
-    OsStatus_t Status = DmRegisterDevice(args->parent, args->device, NULL, args->flags, &Result);
-    svc_device_register_response(message, Status);
+    UUId_t     result = UUID_INVALID;
+    OsStatus_t status = DmRegisterDevice(args->device, NULL, args->flags, &result);
+    svc_device_register_response(message, status, result);
 }
 
 void svc_device_unregister_callback(struct gracht_recv_message* message, struct svc_device_unregister_args* args)
@@ -199,8 +199,7 @@ DmLoadDeviceDriver(void* Context)
 
 OsStatus_t
 DmRegisterDevice(
-    _In_  UUId_t      parent,
-    _In_  Device_t*   device, 
+    _In_  Device_t*   device,
     _In_  const char* name,
     _In_  Flags_t     flags,
     _Out_ UUId_t*     idOut)
@@ -208,7 +207,6 @@ DmRegisterDevice(
     struct device_node* deviceNode;
     UUId_t              deviceId;
 
-    _CRT_UNUSED(parent);
     assert(device != NULL);
     assert(idOut != NULL);
     assert(device->Length >= sizeof(Device_t));

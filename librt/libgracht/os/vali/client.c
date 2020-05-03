@@ -89,6 +89,21 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
     message.response = &messageContext->response;
     message.base     = messageBase;
     
+    // If the message to be sent is larger than the threshold we will convert
+    // buffer arguments into shm arguments
+    if (messageBase->header.length > GRACHT_MAX_MESSAGE_SIZE) {
+        for (i = 0; i < messageBase->header.param_in; i++) {
+            if (messageBase->params[i].type == GRACHT_PARAM_BUFFER) {
+                messageBase->params[i].type = GRACHT_PARAM_SHM;
+                messageBase->header.length -= messageBase->params[i].length;
+            }
+            
+            if (messageBase->header.length <= GRACHT_MAX_MESSAGE_SIZE) {
+                break;
+            }
+        }
+    }
+    
     // Setup the response
     if (messageBase->header.param_out) {
         size_t length = 0;
