@@ -29,13 +29,13 @@ stages:
       steps:
         - bash: make package_os
           env:
-            VALI_ARCH: ${{ parameters.architecture }
+            VALI_ARCH: ${{ parameters.architecture }}
         - bash: make package_sdk
           env:
-            VALI_ARCH: ${{ parameters.architecture }
+            VALI_ARCH: ${{ parameters.architecture }}
         - bash: make package_ddk
           env:
-            VALI_ARCH: ${{ parameters.architecture }
+            VALI_ARCH: ${{ parameters.architecture }}
     - job: publish
       steps:
         - task: PublishBuildArtifacts@1
