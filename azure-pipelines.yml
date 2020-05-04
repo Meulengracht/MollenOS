@@ -6,14 +6,12 @@
 trigger:
 - master
 
-pool:
-  vmImage: 'ubuntu-latest'
-
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+stages:
+- stage: build
+  displayName: Build kernel and drivers
+  pool: vali-builders
+  jobs:
+    - job: make
+      timeoutInMinutes: 10
+      steps:
+        - bash: make
