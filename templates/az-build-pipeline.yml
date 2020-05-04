@@ -1,0 +1,36 @@
+# Build and package pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+parameters:
+  architecture: amd64
+
+stages:
+- stage: build
+  displayName: Build kernel and drivers - ${{ parameters.architecture }}
+  pool: vali-builders
+  jobs:
+    - job: compile
+      timeoutInMinutes: 10
+      steps:
+        - bash: make VALI_ARCH=${{ parameters.architecture }} build
+- stage: create_release
+  displayName: Create release package
+  dependsOn: build
+  pool: vali-builders
+  jobs:
+    - job: package
+      timeoutInMinutes: 10
+      steps:
+        - bash: make VALI_ARCH=${{ parameters.architecture }} package_os
+        - bash: make VALI_ARCH=${{ parameters.architecture }} package_sdk
+        - bash: make VALI_ARCH=${{ parameters.architecture }} package_ddk
+    - job: publish
+      steps:
+        - task: PublishBuildArtifacts@1
+          displayName: Publish
+          inputs:
+            PathtoPublish: 'packages/'
+            ArtifactName: 'release'
+            publishLocation: 'Container'
