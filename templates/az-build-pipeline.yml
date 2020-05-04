@@ -4,7 +4,9 @@
 # https://aka.ms/yaml
 
 parameters:
-  architecture: amd64
+- name: architecture
+  type: string
+  default: 'amd64'
 
 stages:
 - stage: build
@@ -14,7 +16,9 @@ stages:
     - job: compile
       timeoutInMinutes: 10
       steps:
-        - bash: make VALI_ARCH=${{ parameters.architecture }} build
+        - bash: make build
+          env:
+            VALI_ARCH: ${{ parameters.architecture }}
 - stage: create_release
   displayName: Create release package
   dependsOn: build
@@ -23,9 +27,15 @@ stages:
     - job: package
       timeoutInMinutes: 10
       steps:
-        - bash: make VALI_ARCH=${{ parameters.architecture }} package_os
-        - bash: make VALI_ARCH=${{ parameters.architecture }} package_sdk
-        - bash: make VALI_ARCH=${{ parameters.architecture }} package_ddk
+        - bash: make package_os
+          env:
+            VALI_ARCH: ${{ parameters.architecture }
+        - bash: make package_sdk
+          env:
+            VALI_ARCH: ${{ parameters.architecture }
+        - bash: make package_ddk
+          env:
+            VALI_ARCH: ${{ parameters.architecture }
     - job: publish
       steps:
         - task: PublishBuildArtifacts@1
