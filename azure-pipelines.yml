@@ -6,23 +6,7 @@
 trigger:
 - master
 
-stages:
-- stage: build
-  displayName: Build kernel and drivers
-  pool: vali-builders
-  jobs:
-    - job: compile
-      timeoutInMinutes: 10
-      steps:
-        - bash: make build
-- stage: create_release
-  displayName: Create release package
-  dependsOn: build
-  pool: vali-builders
-  jobs:
-    - job: package
-      timeoutInMinutes: 10
-      steps:
-        - bash: make package_os
-        - bash: make package_sdk
-        - bash: make package_ddk
+extends:
+  template: templates/az-build-pipeline.yml
+  parameters:
+    architecture: amd64
