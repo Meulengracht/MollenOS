@@ -9,6 +9,9 @@ variables:
   sonarProject: Meulengracht_MollenOS
   sonarExclusions: resources/**,tools/**,librt/libm/**,librt/libacpi/**,librt/libclang/**,librt/libcxx/**
 
+trigger:
+  - master
+
 stages:
 - stage: i386_verification
   displayName: Build and verify i386 architecutre
