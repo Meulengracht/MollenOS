@@ -3,12 +3,6 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-variables:
-  sonarOrganization: meulengracht
-  sonarLogin: 2424514c0705a1297041e9f047de3a715ca796be
-  sonarProject: Meulengracht_MollenOS
-  sonarExclusions: resources/**,tools/**,librt/libm/**,librt/libacpi/**,librt/libclang/**,librt/libcxx/**
-
 trigger:
   - features/*
 
@@ -20,7 +14,7 @@ stages:
     - job: compile
       timeoutInMinutes: 10
       steps:
-        - bash: build-wrapper-linux-x86-64 --out-dir .sonar-out make clean build
+        - bash: make
           env:
             VALI_ARCH: i386
 - stage: amd64_verification
@@ -30,19 +24,6 @@ stages:
     - job: compile
       timeoutInMinutes: 10
       steps:
-        - bash: build-wrapper-linux-x86-64 --out-dir .sonar-out make clean build
+        - bash: make
           env:
             VALI_ARCH: amd64
-        - bash: >
-            $SONAR_BIN_PATH/sonar-scanner
-            -Dsonar.cfamily.build-wrapper-output=$(Build.SourcesDirectory)/.sonar-out
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.login=$(sonarLogin)
-            -Dsonar.organization=$(sonarOrganization)
-            -Dsonar.projectBaseDir=$(Build.SourcesDirectory)
-            -Dsonar.projectKey=$(sonarProject)
-            -Dsonar.scanner.app=ScannerCli
-            -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.sources=$(Build.SourcesDirectory)
-            -Dsonar.exclusions=$(sonarExclusions)
-            -Dsonar.working.directory=$(Build.SourcesDirectory)/.scannerwork
