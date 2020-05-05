@@ -10,7 +10,7 @@ variables:
   sonarExclusions: resources/**,tools/**,librt/libm/**,librt/libacpi/**,librt/libclang/**,librt/libcxx/**
 
 trigger:
-  - master
+  - features/*
 
 stages:
 - stage: i386_verification
