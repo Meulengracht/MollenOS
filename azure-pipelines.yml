@@ -10,3 +10,4 @@ extends:
   template: templates/az-build-pipeline.yml
   parameters:
     architecture: amd64
+    sonarqube: true

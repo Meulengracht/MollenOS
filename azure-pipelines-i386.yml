@@ -10,3 +10,4 @@ extends:
   template: templates/az-build-pipeline.yml
   parameters:
     architecture: i386
+    sonarqube: false

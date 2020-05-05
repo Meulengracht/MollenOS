@@ -7,6 +7,15 @@ parameters:
 - name: architecture
   type: string
   default: 'amd64'
+- name: sonarqube
+  type: boolean
+  default: false
+
+variables:
+  sonarOrganization: meulengracht
+  sonarLogin: 2424514c0705a1297041e9f047de3a715ca796be
+  sonarProject: Meulengracht_MollenOS
+  sonarExclusions: resources/**,tools/**,librt/libm/**,librt/libacpi/**,librt/libclang/**,librt/libcxx/**
 
 stages:
 - stage: build
@@ -19,6 +28,25 @@ stages:
         - bash: make build
           env:
             VALI_ARCH: ${{ parameters.architecture }}
+          condition: eq('${{ parameters.sonarqube }}', false)
+        - bash: build-wrapper-linux-x86-64 --out-dir .sonar-out make clean build
+          env:
+            VALI_ARCH: ${{ parameters.architecture }}
+          condition: eq('${{ parameters.sonarqube }}', true)
+        - bash: >
+            $SONAR_BIN_PATH/sonar-scanner
+            -Dsonar.cfamily.build-wrapper-output=$(Build.SourcesDirectory)/.sonar-out
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.login=$(sonarLogin)
+            -Dsonar.organization=$(sonarOrganization)
+            -Dsonar.projectBaseDir=$(Build.SourcesDirectory)
+            -Dsonar.projectKey=$(sonarProject)
+            -Dsonar.scanner.app=ScannerCli
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.sources=$(Build.SourcesDirectory)
+            -Dsonar.exclusions=$(sonarExclusions)
+            -Dsonar.working.directory=$(Build.SourcesDirectory)/.scannerwork
+          condition: and(succeeded(), eq('${{ parameters.sonarqube }}', true))
 - stage: create_release
   displayName: Create release package
   dependsOn: build
