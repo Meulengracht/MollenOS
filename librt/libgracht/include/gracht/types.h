@@ -51,8 +51,8 @@ typedef void* gracht_handle_t;
 #define GRACHT_PARAM_SHM    2
 
 struct gracht_param {
-    uint16_t length : 14;
-    uint16_t type   : 2;
+    uint32_t length : 30;
+    uint32_t type   : 2;
     union {
         size_t value;
         void*  buffer;
@@ -60,13 +60,12 @@ struct gracht_param {
 };
 
 struct gracht_message_header {
-    uint32_t length    : 16;
+    uint32_t length;
     uint32_t param_in  : 4;
     uint32_t param_out : 4;
     uint32_t flags     : 8;
     uint32_t protocol  : 8;
     uint32_t action    : 8;
-    uint32_t reserved  : 16;
 };
 
 struct gracht_message {

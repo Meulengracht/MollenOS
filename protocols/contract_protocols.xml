@@ -7,9 +7,8 @@
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
         <type name="StorageDescriptor_t" header="ddk/storage.h" />
-        <type name="UsbTransferStatus_t" header="ddk/usb.h" />
-        <type name="UsbTransfer_t" header="ddk/usb.h" />
-        <type name="UsbHcPortDescriptor_t" header="ddk/usb/definitions.h" />
+        <type name="UsbTransferStatus_t" header="usb/usb.h" />
+        <type name="UsbTransfer_t" header="usb/usb.h" />
     </types>
     <protocols namespace="ctt">
         <protocol name="driver" id="0x10">

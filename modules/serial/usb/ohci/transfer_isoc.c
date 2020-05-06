@@ -70,7 +70,7 @@ OhciTransferFill(
         
         if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OsSuccess) {
             OhciTdIsochronous(iTd, Transfer->Transfer.Endpoint.MaxPacketSize, 
-                (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
+                (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
         }
 
         // If we didn't allocate a td, we ran out of 

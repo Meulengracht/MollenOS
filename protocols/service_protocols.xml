@@ -10,7 +10,7 @@
         <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
         <type name="ProcessConfiguration_t" header="os/types/process.h" />
         <type name="OsStorageDescriptor_t" header="os/types/storage.h" />
-        <type name="UsbHcController_t" header="ddk/usb.h" />
+        <type name="UsbHcController_t" header="usb/usb.h" />
     </types>
     <protocols namespace="svc">
         <protocol name="session" id="0x1">

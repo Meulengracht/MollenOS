@@ -87,7 +87,7 @@ UhciTdIo(
     _In_ int                       Toggle)
 {
     uintptr_t CalculatedLength;
-    uint32_t  PId = (Direction == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT);
+    uint32_t  PId = (Direction == USB_TRANSACTION_IN ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT);
     
     // TODO: use frame-size for platfrom
     // This also works for 0 length packets, as it will result in 0 - 1

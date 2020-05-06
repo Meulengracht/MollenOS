@@ -26,7 +26,7 @@
 #define __COMPILE_ASSERT
 
 #include <assert.h>
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
 #include "scheduler.h"

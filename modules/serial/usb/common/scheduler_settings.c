@@ -24,7 +24,7 @@
 
 #include <assert.h>
 #include <os/mollenos.h>
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/utils.h>
 #include "scheduler.h"
 #include <stdlib.h>

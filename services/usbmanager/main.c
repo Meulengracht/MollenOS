@@ -22,7 +22,7 @@
  *   of all usb-controllers and their devices
  */
 
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include "manager.h"

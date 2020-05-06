@@ -16,17 +16,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Usb Definitions & Structures
+ * Usb Definitions & Structures
  * - This header describes the base usb-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _USB_DEFINITIONS_H_
-#define _USB_DEFINITIONS_H_
+#ifndef __USB_DEFINITIONS_H__
+#define __USB_DEFINITIONS_H__
 
-/* Includes
- * - Library */
-#include <ddk/ddkdefs.h>
+#include <os/osdefs.h>
 
 /* Usb Controller Definitions
  * Shared constants and magics here that are usefull to all
@@ -72,34 +70,16 @@
 #define USB_LANGUAGE_PORTUGUESE         0x416
 #define USB_LANGUAGE_RUSSIAN            0x419
 
-/* Usb Endpoint Types Definitions
- * Contains the types of endpoint that can be exposed in an interface */
-typedef enum _UsbEndpointType {
-    EndpointControl         = 0,
-    EndpointIsochronous     = 1,
-    EndpointBulk            = 2,
-    EndpointInterrupt       = 3
-} UsbEndpointType_t;
-
-/* Usb Endpoint Types Definitions
- * Contains the types of synchronization that an endpoint is using */
-typedef enum _UsbEndpointSynchronization {
-    EndpointNoSync          = 0,
-    EndpointAsync           = 1,
-    EndpointAdaptive        = 2,
-    EndpointSync            = 3
-} UsbEndpointSynchronization_t;
-
 /* UsbPacket (Shared)
  * Contains the structure of a default usb-setup packet used
  * in usb-transactions. */
-PACKED_TYPESTRUCT(UsbPacket, {
-    uint8_t                 Direction;  // Request Direction
-    uint8_t                 Type;       // Request Type
-    uint8_t                 ValueLo;    // Value (Low)
-    uint8_t                 ValueHi;    // Value (High)
-    uint16_t                Index;      // Index
-    uint16_t                Length;     // Length
+PACKED_TYPESTRUCT(usb_packet, {
+    uint8_t  Direction;  // Request Direction
+    uint8_t  Type;       // Request Type
+    uint8_t  ValueLo;    // Value (Low)
+    uint8_t  ValueHi;    // Value (High)
+    uint16_t Index;      // Index
+    uint16_t Length;     // Length
 });
 
 /* UsbPacket Definitions
@@ -147,41 +127,41 @@ PACKED_TYPESTRUCT(UsbPacket, {
 
 /* UsbPacket Definitions
  * Contains the common feature code numbers */
-#define USB_FEATURE_HALT                0x00
+#define USB_FEATURE_HALT 0x00
 
 /* UsbDeviceDescriptor (Shared)
  * Contains the structure of the device-descriptor returned by an usb device */
-PACKED_TYPESTRUCT(UsbDeviceDescriptor, {
-    uint8_t                 Length;         // Header - Length
-    uint8_t                 Type;           // Header - Type
+PACKED_TYPESTRUCT(usb_device_descriptor, {
+    uint8_t  Length;         // Header - Length
+    uint8_t  Type;           // Header - Type
 
-    uint16_t                UsbReleaseNumberBCD;        // Binary-Coded Decimal (i.e, 2.10 is expressed as 210h)
-    uint8_t                 Class;                      // Class Code
-    uint8_t                 Subclass;                   // Subclass Code
-    uint8_t                 Protocol;                   // Protocol Code
-    uint8_t                 MaxPacketSize;              // Endpoint 0 - (8, 16, 32, or 64 are the only valid options)
-    uint16_t                VendorId;
-    uint16_t                ProductId;
-    uint16_t                DeviceReleaseNumberBCD;     // Binary-Coded Decimal (i.e, 2.10 is expressed as 210h)
-    uint8_t                 StringIndexManufactor;      // Index for manufactorer
-    uint8_t                 StringIndexProduct;         // Index for product
-    uint8_t                 StringIndexSerialNumber;    // Index for serial number
-    uint8_t                 ConfigurationCount;         // Possible configurations
+    uint16_t UsbReleaseNumberBCD;        // Binary-Coded Decimal (i.e, 2.10 is expressed as 210h)
+    uint8_t  Class;                      // Class Code
+    uint8_t  Subclass;                   // Subclass Code
+    uint8_t  Protocol;                   // Protocol Code
+    uint8_t  MaxPacketSize;              // Endpoint 0 - (8, 16, 32, or 64 are the only valid options)
+    uint16_t VendorId;
+    uint16_t ProductId;
+    uint16_t DeviceReleaseNumberBCD;     // Binary-Coded Decimal (i.e, 2.10 is expressed as 210h)
+    uint8_t  StringIndexManufactor;      // Index for manufactorer
+    uint8_t  StringIndexProduct;         // Index for product
+    uint8_t  StringIndexSerialNumber;    // Index for serial number
+    uint8_t  ConfigurationCount;         // Possible configurations
 });
 
 /* UsbConfigDescriptor (Shared)
  * Contains the structure of the configuration-descriptor returned 
  * by an usb device */
-PACKED_TYPESTRUCT(UsbConfigDescriptor, {
-    uint8_t                 Length;         // Header - Length
-    uint8_t                 Type;           // Header - Type
+PACKED_TYPESTRUCT(usb_config_descriptor, {
+    uint8_t  Length;         // Header - Length
+    uint8_t  Type;           // Header - Type
 
-    uint16_t                TotalLength;            // Total size of this configuration
-    uint8_t                 NumInterfaces;          // Number of interfaces
-    uint8_t                 ConfigurationValue;     // Value of this configuration
-    uint8_t                 StrIndexConfiguration;  // String index of this configuration
-    uint8_t                 Attributes;             // Configuration attributes
-    uint8_t                 MaxPowerConsumption;    // Power consumption in units of 2 mA
+    uint16_t TotalLength;            // Total size of this configuration
+    uint8_t  NumInterfaces;          // Number of interfaces
+    uint8_t  ConfigurationValue;     // Value of this configuration
+    uint8_t  StrIndexConfiguration;  // String index of this configuration
+    uint8_t  Attributes;             // Configuration attributes
+    uint8_t  MaxPowerConsumption;    // Power consumption in units of 2 mA
 });
 
 /* UsbConfigDescriptor Definitions
@@ -192,61 +172,73 @@ PACKED_TYPESTRUCT(UsbConfigDescriptor, {
 /* UsbInterfaceDescriptor (Shared)
  * Contains the structure of the interface-descriptor returned 
  * by an usb device */
-PACKED_TYPESTRUCT(UsbInterfaceDescriptor, {
-    uint8_t             Length;         // Header - Length
-    uint8_t             Type;           // Header - Type
+PACKED_TYPESTRUCT(usb_interface_descriptor, {
+    uint8_t Length;         // Header - Length
+    uint8_t Type;           // Header - Type
 
-    uint8_t             NumInterface;       // Interface Index
-    uint8_t             AlternativeSetting; // Which alternative setting is this? if non-zero
-    uint8_t             NumEndpoints;       // Number of endpoints for this interface
-    uint8_t             Class;              // Class code
-    uint8_t             Subclass;           // Subclass code
-    uint8_t             Protocol;           // Protocol code
-    uint8_t             StrIndexInterface;  // String index of this interface
+    uint8_t NumInterface;       // Interface Index
+    uint8_t AlternativeSetting; // Which alternative setting is this? if non-zero
+    uint8_t NumEndpoints;       // Number of endpoints for this interface
+    uint8_t Class;              // Class code
+    uint8_t Subclass;           // Subclass code
+    uint8_t Protocol;           // Protocol code
+    uint8_t StrIndexInterface;  // String index of this interface
 });
 
 /* UsbEndpointDescriptor (Shared)
  * Contains the structure of the endpoint-descriptor returned 
  * by an usb device */
-PACKED_TYPESTRUCT(UsbEndpointDescriptor, {
-    uint8_t             Length;         // Header - Length
-    uint8_t             Type;           // Header - Type
+PACKED_TYPESTRUCT(usb_endpoint_descriptor, {
+    uint8_t Length;         // Header - Length
+    uint8_t Type;           // Header - Type
 
-    uint8_t             Address;        // Address and Direction
-    uint8_t             Attributes;     // Attributes of this endpoint
-    uint16_t            MaxPacketSize;  // Only bits 0-10 are valid here
-    uint8_t             Interval;       // If interrupt endpoint, this tells us how often we should update
-    uint8_t             Refresh;        // Optional
-    uint8_t             SyncAddress;    // Optional
+    uint8_t  Address;        // Address and Direction
+    uint8_t  Attributes;     // Attributes of this endpoint
+    uint16_t MaxPacketSize;  // Only bits 0-10 are valid here
+    uint8_t  Interval;       // If interrupt endpoint, this tells us how often we should update
+    uint8_t  Refresh;        // Optional
+    uint8_t  SyncAddress;    // Optional
 });
 
-/* UsbEndpointDescriptor Definitions
+/* UsbEndpointDescriptor::Address Definitions
  * Contains bit-definitions and magic values for the field UsbEndpointDescriptor::Address */
-#define USB_ENDPOINT_ADDRESS(Address)               (Address & 0x0F)
-#define USB_ENDPOINT_ADDRESS_IN                     0x80
+#define USB_ENDPOINT_ADDRESS(Address) (Address & 0x0F)
+#define USB_ENDPOINT_ADDRESS_IN       0x80
 
-/* UsbEndpointDescriptor Definitions
+/* UsbEndpointDescriptor::Attributes Definitions
  * Contains bit-definitions and magic values for the field UsbEndpointDescriptor::Attributes */
-#define USB_ENDPOINT_ATTRIBUTES_TYPE(Attributes)    ((UsbEndpointType_t)(Attributes & 0x3))
-#define USB_ENDPOINT_ATTRIBUTES_SYNC(Attributes)    ((UsbEndpointSynchronization_t)((Attributes >> 2) & 0x3))
-#define USB_ENDPOINT_ATTRIBUTES_FEEDBACK            0x10
+#define USB_ENDPOINT_TYPE(endpoint) (endpoint->Attributes & 0x3)
+#define USB_ENDPOINT_CONTROL        0
+#define USB_ENDPOINT_ISOCHRONOUS    1
+#define USB_ENDPOINT_BULK           2
+#define USB_ENDPOINT_INTERRUPT      3
+
+#define USB_ENDPOINT_SYNC_TYPE(endpoint) ((endpoint->Attributes >> 2) & 0x3)
+#define USB_ENDPOINT_NO_SYNC             0
+#define USB_ENDPOINT_ASYNC               1
+#define USB_ENDPOINT_ADAPTIVE            2
+#define USB_ENDPOINT_SYNC                3
+
+#define USB_ENDPOINT_FEEDBACK(endpoint) (endpoint->Attributes & 0x10)
+
+#define USB_ENDPOINT_MPS(endpoint)       (endpoint->MaxPacketSize & 0x7FF)
+#define USB_ENDPOINT_BANDWIDTH(endpoint) ((endpoint->MaxPacketSize >> 11) & 0x3) + 1
 
 /* UsbStringDescriptor (Shared)
- * Contains the structure of the string-descriptor returned 
- * by an usb device */
-PACKED_TYPESTRUCT(UsbStringDescriptor, {
-    uint8_t             Length;     // Header - Length
-    uint8_t             Type;       // Header - Type
-    uint8_t             Data[20];   // String data
+ * Contains the structure of the string-descriptor returned by an usb device */
+PACKED_TYPESTRUCT(usb_string_descriptor, {
+    uint8_t Length;     // Header - Length
+    uint8_t Type;       // Header - Type
+    uint8_t Data[20];   // String data
 });
 
-/* UsbStringDescriptor (Shared)
+/* UsbUnicodeStringDescriptor (Shared)
  * Contains the structure of the string-descriptor returned 
  * by an usb device. Length here is size + (2 * numUnicodeCharacters) */
-PACKED_TYPESTRUCT(UsbUnicodeStringDescriptor, {
-    uint8_t             Length;     // Header - Length
-    uint8_t             Type;       // Header - Type
-    uint8_t             String[60]; // Use a buffer large enough in all cases
+PACKED_TYPESTRUCT(usb_unicode_string_descriptor, {
+    uint8_t Length;     // Header - Length
+    uint8_t Type;       // Header - Type
+    uint8_t String[60]; // Use a buffer large enough in all cases
 });
 
-#endif //!_USB_DEFINITIONS_H_
+#endif //!__USB_DEFINITIONS_H__

@@ -80,7 +80,7 @@ OhciTransferFill(
         // the MPS, then we should make sure we add a ZLP
         if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
             Transfer->Transfer.Type == BulkTransfer &&
-            Transfer->Transfer.Transactions[i].Type == OutTransaction) {
+            Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
             TRACE("... appending zlp");
             Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
@@ -101,7 +101,7 @@ OhciTransferFill(
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             TRACE("... address 0x%" PRIxIN ", length %u, toggle %i", Address, LODWORD(Length), Toggle);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
-                if (Type == SetupTransaction) {
+                if (Type == USB_TRANSACTION_SETUP) {
                     TRACE("... setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
                     Length = OhciTdSetup(Td, Address, Length);
@@ -109,7 +109,7 @@ OhciTransferFill(
                 else {
                     TRACE("... io packet");
                     Length = OhciTdIo(Td, Transfer->Transfer.Type, 
-                        (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), 
+                        (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), 
                         Toggle, Address, Length);
                 }
             }

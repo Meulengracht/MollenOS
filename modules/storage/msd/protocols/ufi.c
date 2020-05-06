@@ -22,7 +22,7 @@
  */
 #define __TRACE
 
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/utils.h>
 #include "../msd.h"
 

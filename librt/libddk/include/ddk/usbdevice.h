@@ -25,18 +25,13 @@
 #ifndef __DDK_USBDEVICE_H__
 #define __DDK_USBDEVICE_H__
 
-#include <ddk/usb/definitions.h>
-#include <ddk/usb.h>
-#include <ddk/device.h>
 #include <ddk/ddkdefs.h>
+#include <ddk/device.h>
+#include <usb/usb.h>
 
 typedef struct UsbDevice {
-    Device_t                   Base;
-    UsbHcDevice_t              Device;
-    UsbHcInterface_t           Interface;
-    UsbHcEndpointDescriptor_t  Endpoints[USB_MAX_ENDPOINTS];
-    UUId_t                     DriverId;
-    UUId_t                     DeviceId;
+    Device_t             Base;
+    usb_device_context_t DeviceContext;
 } UsbDevice_t;
 
 #endif

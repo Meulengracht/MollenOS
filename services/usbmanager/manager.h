@@ -24,38 +24,22 @@
 #ifndef __USBMANAGER_H__
 #define __USBMANAGER_H__
 
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/bufferpool.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 
-// Forward declarations
 typedef struct _UsbHub UsbHub_t;
 
-/* UsbInterfaceVersion_t 
- * */
-typedef struct _UsbInterfaceVersion {
-    UsbHcInterfaceVersion_t     Base;
-    int                         Exists;
-    UsbHcEndpointDescriptor_t   Endpoints[USB_MAX_ENDPOINTS];
-} UsbInterfaceVersion_t;
-
-typedef struct _UsbInterface {
-    UsbHcInterface_t            Base;
-    int                         Exists;
-    UUId_t                      DeviceId;
-    UsbInterfaceVersion_t       Versions[USB_MAX_VERSIONS];
-} UsbInterface_t;
-
 typedef struct _UsbPortDevice {
-    UsbHcDevice_t               Base;
-    void*                       Descriptors;
-    size_t                      DescriptorsBufferLength;
-    
-    // Buffers
-    UsbInterface_t              Interfaces[USB_MAX_INTERFACES];
-    UsbHcEndpointDescriptor_t   ControlEndpoint;
-    UsbHub_t*                   Hub;
+    usb_device_context_t Base;
+    uint16_t             VendorId;
+    uint16_t             ProductId;
+    uint8_t              Class;
+    uint8_t              Subclass;
+    uint8_t              Protocol;
+    UUId_t               DeviceId;
+    UsbHub_t*            Hub;
 } UsbPortDevice_t;
 
 typedef struct _UsbPort {

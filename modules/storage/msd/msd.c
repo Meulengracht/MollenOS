@@ -66,6 +66,25 @@ UnregisterStorage(
     gracht_vali_message_finish(&msg);
 }
 
+static void
+DescriptorCallback(
+    _In_ int   type,
+    _In_ void* descriptor,
+    _In_ void* context)
+{
+    MsdDevice_t* device = context;
+    
+    if (type == USB_DESCRIPTOR_INTERFACE) {
+        usb_interface_descriptor_t* interface = descriptor;
+        
+        
+    }
+    else if (type == USB_DESCRIPTOR_ENDPOINT) {
+        usb_endpoint_descriptor_t* endpoint = descriptor;
+        // length can be 7 and 9
+    }
+}
+
 MsdDevice_t*
 MsdDeviceCreate(
     _In_ UsbDevice_t* UsbDevice)
@@ -75,14 +94,6 @@ MsdDeviceCreate(
 
     // Debug
     TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.Id);
-
-    // Validate the kind of msd device, we don't support all kinds
-    if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI
-        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_FLOPPY
-        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_ATAPI) {
-        ERROR("Unsupported MSD Subclass 0x%x", UsbDevice->Interface.Subclass);
-        goto Error;
-    }
 
     // Allocate new resources
     Device = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
@@ -95,6 +106,16 @@ MsdDeviceCreate(
     
     ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, &Device);
     Device->Control = &Device->Base.Endpoints[0];
+    
+    UsbEnumerateDescriptors(UsbDevice, DescriptorCallback, Device);
+
+    // Validate the kind of msd device, we don't support all kinds
+    if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI
+        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_FLOPPY
+        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_ATAPI) {
+        ERROR("Unsupported MSD Subclass 0x%x", UsbDevice->Interface.Subclass);
+        goto Error;
+    }
 
     // Find neccessary endpoints
     for (i = 1; i < Device->Base.Interface.Versions[0].EndpointCount + 1; i++) {

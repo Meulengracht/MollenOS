@@ -104,7 +104,7 @@ EhciTdIo(
     _In_ int                       Toggle)
 {
     uintptr_t NullTdPhysical   = 0;
-    uint8_t   PId              = (Direction == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
+    uint8_t   PId              = (Direction == USB_TRANSACTION_IN) ? EHCI_TD_IN : EHCI_TD_OUT;
     size_t    CalculatedLength = 0;
 
     // Initialize the new Td

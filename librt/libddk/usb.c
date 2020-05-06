@@ -23,7 +23,7 @@
  */
 
 #include <ddk/service.h>
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <internal/_ipc.h>
 #include <internal/_utils.h>
 #include <gracht/server.h>

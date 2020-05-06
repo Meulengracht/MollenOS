@@ -126,7 +126,7 @@ dma_pool_offset(
     _In_ struct dma_pool* pool,
     _In_ void*            address)
 {
-    if (!pool || !pool->attachment) {
+    if (!pool || !pool->attachment || !address) {
         return 0;
     }
     return (uintptr_t)address - (uintptr_t)pool->attachment->buffer;

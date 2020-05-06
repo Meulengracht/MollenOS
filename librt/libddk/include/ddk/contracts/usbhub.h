@@ -25,7 +25,7 @@
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
 #include <ddk/ddkdefs.h>
-#include <ddk/usb.h>
+#include <usb/usb.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values

@@ -24,7 +24,7 @@
 #define __TRACE
 
 #include <ddk/usbdevice.h>
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
@@ -74,6 +74,21 @@ UsbCoreControllerUnregister(
 static Collection_t *GlbUsbControllers  = NULL;
 static Collection_t *GlbUsbDevices      = NULL;
 static const char*   VendorSpecificString = "Vendor-specific device (Usb)";
+
+static uint16_t
+GetMaxPacketSizeControl(
+    _In_ UsbSpeed_t speed)
+{
+    if (speed == FullSpeed || speed == HighSpeed) {
+        return 64;
+    }
+    else if (speed == SuperSpeed || speed == SuperSpeedPlus) {
+        return 512;
+    }
+    else {
+        return 8;
+    }
+}
 
 /* UsbGetIdentificationString
  * Retrieves the identification string for the usb class. */
@@ -128,212 +143,6 @@ UsbReleaseAddress(
         return OsError;
     }
     Controller->AddressMap[mSegment] &= ~(1 << mOffset);
-    return OsSuccess;
-}
-
-/* UsbQueryLanguages
- * Queries available languages that string resources exists in for the specific device. */
-OsStatus_t
-UsbQueryLanguages(
-    _In_ UsbController_t* Controller,
-    _In_ UsbPortDevice_t* Device)
-{
-    UsbStringDescriptor_t Descriptor;
-    int                   i;
-
-    // Get count
-    Device->Base.LanguageCount = (Descriptor.Length - 2) / 2;
-
-    // Fill the list
-    if (Device->Base.LanguageCount > 0) {
-        for (i = 0; i < Device->Base.LanguageCount; i++) {
-            Device->Base.Languages[i] = Descriptor.Data[i];
-        }
-    }
-    return OsSuccess;
-}
-
-/* UsbQueryConfigurationDescriptors
- * Queries the full configuration descriptor setup including all endpoints and interfaces.
- * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
-OsStatus_t
-UsbQueryConfigurationDescriptors(
-    _In_ UsbController_t* Controller,
-    _In_ UsbPortDevice_t* Device)
-{
-    // Variables
-    UsbConfigDescriptor_t Descriptor;
-    uint8_t *BufferPointer      = NULL;
-    void *FullDescriptor        = NULL;
-    size_t EpIterator           = 0;
-    int CurrentIfVersion        = 0;
-    int BytesLeft               = 0;
-
-    // Query for the config-descriptor
-    if (UsbGetConfigDescriptor(Controller->DriverId, Controller->Device.Id,
-        &Device->Base, &Device->ControlEndpoint, 
-        &Descriptor, sizeof(UsbConfigDescriptor_t)) != TransferFinished) {
-        return OsError;
-    }
-
-    // Update information
-    Device->Base.Configuration          = Descriptor.ConfigurationValue;
-    Device->Base.ConfigMaxLength        = Descriptor.TotalLength;
-    Device->Base.InterfaceCount         = (int)Descriptor.NumInterfaces;
-    Device->Base.MaxPowerConsumption    = (uint16_t)(Descriptor.MaxPowerConsumption * 2);
-
-    // Query for the full descriptor
-    FullDescriptor = malloc(Descriptor.TotalLength);
-    if (!FullDescriptor) {
-        return OsOutOfMemory;
-    }
-    
-    if (UsbGetConfigDescriptor(Controller->DriverId, Controller->Device.Id,
-        &Device->Base, &Device->ControlEndpoint, 
-        FullDescriptor, Descriptor.TotalLength) != TransferFinished) {
-        free(FullDescriptor);
-        return OsError;
-    }
-
-    // Iteration variables
-    BufferPointer       = (uint8_t*)FullDescriptor;
-    BytesLeft           = (int)Descriptor.TotalLength;
-    EpIterator          = 1;
-    CurrentIfVersion    = 0;
-    
-    // Update initials
-    Device->Base.InterfaceCount = 0;
-
-    // Iterate all descriptors and parse the interfaces and 
-    // the endpoints
-    while (BytesLeft > 0) {
-        
-        // Extract identifiers for descriptor
-        uint8_t Length = *BufferPointer;
-        uint8_t Type = *(BufferPointer + 1);
-
-        // Determine descriptor type, if we reach an interface
-        // we must setup a new interface index
-        if (Length == sizeof(UsbInterfaceDescriptor_t)
-            && Type == USB_DESCRIPTOR_INTERFACE) {
-            
-            // Variables
-            UsbInterfaceDescriptor_t *Interface = 
-                (UsbInterfaceDescriptor_t*)BufferPointer;
-            UsbInterfaceVersion_t *UsbIfVersionMeta = NULL;
-            UsbHcInterfaceVersion_t *UsbIfVersion = NULL;
-            UsbInterface_t *UsbInterface = NULL;
-
-            // Short-hand the interface pointer
-            UsbInterface = &Device->Interfaces[Interface->NumInterface];
-
-            // Has it been setup yet?
-            if (!UsbInterface->Exists) {
-
-                // Copy data over
-                UsbInterface->Base.Id = Interface->NumInterface;
-                UsbInterface->Base.Class = Interface->Class;
-                UsbInterface->Base.Subclass = Interface->Subclass;
-                UsbInterface->Base.Protocol = Interface->Protocol;
-                UsbInterface->Base.StringIndex = Interface->StrIndexInterface;
-
-                // Update count
-                Device->Base.InterfaceCount++;
-                UsbInterface->Exists = 1;
-            }
-
-            // Shorthand both interface-versions
-            UsbIfVersionMeta = &UsbInterface->Versions[Interface->AlternativeSetting];
-            UsbIfVersion = &UsbInterface->Base.Versions[Interface->AlternativeSetting];
-
-            // Parse the version, all interfaces needs atleast 1 version
-            if (!UsbIfVersionMeta->Exists) {
-
-                // Print some debug information
-                TRACE("Interface %u.%u - Endpoints %u (Class %u, Subclass %u, Protocol %u)",
-                    Interface->NumInterface, Interface->AlternativeSetting, Interface->NumEndpoints, Interface->Class,
-                    Interface->Subclass, Interface->Protocol);
-
-                // Store number of endpoints and generate an id
-                UsbIfVersionMeta->Base.Id = Interface->AlternativeSetting;
-                UsbIfVersionMeta->Base.EndpointCount = Interface->NumEndpoints;
-
-                // Setup some state-machine variables
-                CurrentIfVersion = Interface->AlternativeSetting;
-                EpIterator = 0;
-            }
-
-            // Copy information from meta to base
-            memcpy(UsbIfVersion, &UsbIfVersionMeta->Base, 
-                sizeof(UsbHcInterfaceVersion_t));
-        }
-        else if ((Length == 7 || Length == 9)
-            && Type == USB_DESCRIPTOR_ENDPOINT) {
-            
-            // Variables
-            UsbHcEndpointDescriptor_t *HcEndpoint = NULL;
-            UsbEndpointDescriptor_t *Endpoint = NULL;
-            UsbEndpointType_t EndpointType;
-            size_t EndpointAddress = 0;
-
-            // Protect against null interface-endpoints
-            if (Device->Base.InterfaceCount == 0) {
-                goto NextEntry;
-            }
-
-            // Instantiate pointer
-            Endpoint = (UsbEndpointDescriptor_t*)BufferPointer;
-            HcEndpoint = &Device->Interfaces[
-                Device->Base.InterfaceCount - 1].
-                    Versions[CurrentIfVersion].Endpoints[EpIterator];
-
-            // Extract some information
-            EndpointAddress = (Endpoint->Address & 0xF);
-            EndpointType = (UsbEndpointType_t)(Endpoint->Attributes & 0x3);
-
-            // Trace some information
-            TRACE("Endpoint %u (%s) - Attributes 0x%x (MaxPacketSize 0x%x)",
-                EndpointAddress, ((Endpoint->Address & 0x80) != 0 ? "IN" : "OUT"), 
-                Endpoint->Attributes, Endpoint->MaxPacketSize);
-
-            // Update the hc-endpoint
-            HcEndpoint->Address         = EndpointAddress;
-            HcEndpoint->MaxPacketSize   = (Endpoint->MaxPacketSize & 0x7FF);
-            HcEndpoint->Bandwidth       = ((Endpoint->MaxPacketSize >> 11) & 0x3) + 1;
-            HcEndpoint->Interval        = Endpoint->Interval;
-            HcEndpoint->Type            = EndpointType;
-
-            // Determine the direction of the EP
-            if (Endpoint->Address & 0x80) {
-                HcEndpoint->Direction = USB_ENDPOINT_IN;
-            }    
-            else {
-                HcEndpoint->Direction = USB_ENDPOINT_OUT;
-            }
-            
-            // Sanitize the endpoint count, we've experienced they
-            // don't always match... which is awkward.
-            if (Device->Interfaces[Device->Base.InterfaceCount - 1].
-                    Versions[CurrentIfVersion].Base.EndpointCount < (EpIterator + 1)) {
-
-                // Yeah we got to correct it. Bad implementation
-                Device->Interfaces[
-                    Device->Base.InterfaceCount - 1].
-                        Versions[CurrentIfVersion].Base.EndpointCount++;
-            }
-
-            // Increase the EP index
-            EpIterator++;
-        }
-
-        // Go to next descriptor entry
-    NextEntry:
-        BufferPointer += Length;
-        BytesLeft -= Length;
-    }
-
-    // Cleanup buffer
-    free(FullDescriptor);
     return OsSuccess;
 }
 
@@ -435,57 +244,29 @@ void svc_usb_unregister_callback(struct gracht_recv_message* message, struct svc
     UsbCoreControllerUnregister(args->device_id);
 }
 
-/* UsbDeviceLoadDrivers
- * Loads a driver/sends a current driver a new device notification */
 OsStatus_t
 UsbDeviceLoadDrivers(
-    _In_ UsbController_t* Controller,
-    _In_ UsbPortDevice_t* Device)
+    _In_ UsbController_t* controller,
+    _In_ UsbPortDevice_t* device)
 {
-    UsbDevice_t CoreDevice = { { 0 } };
-    int         i;
+    UsbDevice_t  coreDevice     = { { 0 } };
+    const char*  identification = UsbGetIdentificationString(device->Class);
 
-    // Debug
-    TRACE("UsbDeviceLoadDrivers()");
+    TRACE("[usb] [load_driver] %u:%u %u:%u",
+        device->VendorId, device->ProductId, device->Class, device->Subclass);
 
-    memcpy(&CoreDevice.Base.Name[0], VendorSpecificString, strlen(&VendorSpecificString[0]));
-    CoreDevice.Base.ParentId = Controller->Device.Id;
-    CoreDevice.Base.Length   = sizeof(UsbDevice_t);
-    CoreDevice.Base.VendorId = Device->Base.VendorId;
-    CoreDevice.Base.DeviceId = Device->Base.ProductId;
-    CoreDevice.Base.Class    = USB_DEVICE_CLASS;
+    memcpy(&coreDevice.Base.Name[0], identification, strlen(&identification[0]));
+    memcpy(&coreDevice.DeviceContext, &device->Base, sizeof(usb_device_context_t));
+    coreDevice.Base.ParentId = controller->Device.Id;
+    coreDevice.Base.Length   = sizeof(UsbDevice_t);
+    coreDevice.Base.VendorId = device->VendorId;
+    coreDevice.Base.DeviceId = device->ProductId;
+    coreDevice.Base.Class    = USB_DEVICE_CLASS;
+    coreDevice.Base.Subclass = (device->Class << 16) | 0; // Subclass
 
-    // Initialize the usb device
-    memcpy(&CoreDevice.Device, &Device->Base, sizeof(UsbHcDevice_t));
-
-    // Copy controller target-information
-    CoreDevice.DriverId = Controller->DriverId;
-    CoreDevice.DeviceId = Controller->Device.Id;
-
-    // Copy control endpoint
-    memcpy(&CoreDevice.Endpoints[0], &Device->ControlEndpoint, 
-        sizeof(UsbHcEndpointDescriptor_t));
-
-    // Iterate discovered interfaces
-    TRACE("Iterating %i possible drivers", Device->Base.InterfaceCount);
-    for (i = 0; i < Device->Base.InterfaceCount; i++) {
-        // Copy specific interface-information to structure
-        if (Device->Interfaces[i].Exists) {
-            const char *Identification = UsbGetIdentificationString(Device->Interfaces[i].Base.Class);
-            memcpy(&CoreDevice.Interface, &Device->Interfaces[i].Base, sizeof(UsbHcInterface_t));
-            memcpy(&CoreDevice.Endpoints[1], &Device->Interfaces[i].Versions[0].Endpoints[0],
-                sizeof(UsbHcEndpointDescriptor_t) * Device->Interfaces[i].Versions[0].Base.EndpointCount);
-
-            // Let interface determine the class/subclass
-            if (Identification != NULL) {
-                memcpy(&CoreDevice.Base.Name[0], Identification, strlen(Identification));
-            }
-            CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
-            TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
-            Device->Interfaces[i].DeviceId = RegisterDevice(
-                &CoreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
-            TRACE("device id %u for new usb device", Device->Interfaces[i].DeviceId);
-        }
+    device->DeviceId = RegisterDevice(&coreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
+    if (device->DeviceId == UUID_INVALID) {
+        return OsError;
     }
     return OsSuccess;
 }
@@ -496,14 +277,14 @@ UsbDeviceSetup(
     _In_ UsbHub_t*        Hub, 
     _In_ UsbPort_t*       Port)
 {
-    UsbHcPortDescriptor_t PortDescriptor;
-    UsbDeviceDescriptor_t DeviceDescriptor;
-    UsbTransferStatus_t   tStatus;
-    UsbPortDevice_t*      Device;
-    int                   ReservedAddress = 0;
+    UsbHcPortDescriptor_t   portDescriptor;
+    usb_device_descriptor_t deviceDescriptor;
+    UsbTransferStatus_t     tStatus;
+    UsbPortDevice_t*        device;
+    int                     reservedAddress = 0;
 
     // Debug
-    TRACE("UsbDeviceSetup()");
+    TRACE("[usb] [%u:%u] setting up", Hub->Address, Port->Address);
 
     // Make sure that there isn't already one device
     // setup on the port
@@ -512,154 +293,115 @@ UsbDeviceSetup(
     }
 
     // Allocate a new instance of the usb device and reset it
-    Device = (UsbPortDevice_t*)malloc(sizeof(UsbPortDevice_t));
-    if (!Device) {
+    device = (UsbPortDevice_t*)malloc(sizeof(UsbPortDevice_t));
+    if (!device) {
         return OsOutOfMemory;
     }
-    memset(Device, 0, sizeof(UsbPortDevice_t));
+    memset(device, 0, sizeof(UsbPortDevice_t));
 
-    // Initialize the control-endpoint
-    Device->ControlEndpoint.Type            = EndpointControl;
-    Device->ControlEndpoint.Bandwidth       = 1;
-    Device->ControlEndpoint.MaxPacketSize   = 8;
-    Device->ControlEndpoint.Direction       = USB_ENDPOINT_BOTH;
-    Port->Device                            = Device;
+    Port->Device = device;
 
     // Initialize the port by resetting it
     if (UsbHubResetPort(Controller->DriverId, Controller->Device.Id,
-            Port->Address, &PortDescriptor) != OsSuccess) {
-        ERROR("(UsbHubResetPort %u) Failed to reset port %u:%u",
-            Controller->Device, Hub->Address, Port->Address);
+            Port->Address, &portDescriptor) != OsSuccess) {
+        ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
+            Hub->Address, Port->Address, Controller->Device);
         goto DevError;
     }
 
     // Sanitize device is still present after reset
-    if (PortDescriptor.Connected != 1 && PortDescriptor.Enabled != 1) {
+    if (portDescriptor.Connected != 1 && portDescriptor.Enabled != 1) {
         goto DevError;
     }
 
     // Update port
     Port->Connected = 1;
     Port->Enabled   = 1;
-    Port->Speed     = PortDescriptor.Speed;
-
-    // Determine the MPS of the control endpoint
-    if (Port->Speed == FullSpeed || Port->Speed == HighSpeed) {
-        Device->ControlEndpoint.MaxPacketSize = 64;
-    }
-    else if (Port->Speed == SuperSpeed) {
-        Device->ControlEndpoint.MaxPacketSize = 512;
-    }
+    Port->Speed     = portDescriptor.Speed;
     
-    // Initialize the underlying device class
-    Device->Base.HubAddress     = Hub->Address;
-    Device->Base.PortAddress    = Port->Address;
-    Device->Base.DeviceAddress  = 0;
-    Device->Base.Speed          = Port->Speed;
-    TRACE("Control EP mps => %u", Device->ControlEndpoint.MaxPacketSize);
-
+    // Initialize the members we have, leave device address to 0
+    device->Base.device_id      = Controller->Device.Id;
+    device->Base.driver_id      = Controller->DriverId;
+    device->Base.hub_address    = Hub->Address;
+    device->Base.port_address   = Port->Address;
+    device->Base.device_address = 0;
+    device->Base.speed          = Port->Speed;
+    device->Base.device_mps     = GetMaxPacketSizeControl(Port->Speed);
+    device->Base.configuration_length = 0;
+    
 	// Wait 100 for device to stabilize after port-reset 
 	// I found this wait to be EXTREMELY crucical, otherwise devices would stall. 
 	// because I accessed them to quickly after the reset
 	thrd_sleepex(100);
 
     // Allocate a device-address
-    if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
+    if (UsbReserveAddress(Controller, &reservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
             Controller->Device, Hub->Address, Port->Address);
         goto DevError;
     }
 
     // Set device address for the new device
-    TRACE("Setting new address for device => %i", ReservedAddress);
-    tStatus = UsbSetAddress(Controller->DriverId, Controller->Device.Id,
-        &Device->Base, &Device->ControlEndpoint, ReservedAddress);
+    TRACE("[usb] [%u:%u] new device address => %i",
+        Hub->Address, Port->Address, reservedAddress);
+    tStatus = UsbSetAddress(&device->Base, reservedAddress);
     if (tStatus != TransferFinished) {
-        tStatus = UsbSetAddress(Controller->DriverId, Controller->Device.Id,
-            &Device->Base, &Device->ControlEndpoint, ReservedAddress);
+        tStatus = UsbSetAddress(&device->Base, reservedAddress);
         if (tStatus != TransferFinished) {
-            ERROR("(Set_Address) Failed to setup port %u:%u - %u", 
+            ERROR("[usb] [%u:%u] UsbSetAddress failed - %u", 
                 Hub->Address, Port->Address, (size_t)tStatus);
             goto DevError;
         }
     }
-    Device->Base.DeviceAddress = ReservedAddress;
-
+    
     // After SetAddress device is allowed at-least 10 ms recovery
+    device->Base.device_address = reservedAddress;
     thrd_sleepex(10);
 
     // Query Device Descriptor
-    if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,
-        &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
-        if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,
-            &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
-            ERROR("(Get_Device_Desc) Failed to setup port %u:%u", 
+    tStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
+    if (tStatus != TransferFinished) {
+        tStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
+        if (tStatus != TransferFinished) {
+            ERROR("[usb] [%u:%u] UsbGetDeviceDescriptor failed", 
                 Hub->Address, Port->Address);
             goto DevError;
         }
     }
 
     // Debug Information
-    TRACE("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x", 
-    DeviceDescriptor.Length, DeviceDescriptor.VendorId, DeviceDescriptor.ProductId);
-    TRACE("Device Configurations 0x%x, Max Packet Size: 0x%x",
-        DeviceDescriptor.ConfigurationCount, DeviceDescriptor.MaxPacketSize);
+    TRACE("[usb] [%u:%u] descriptor length 0x%x, vendor id 0x%x, product id 0x%x", 
+        Hub->Address, Port->Address, deviceDescriptor.Length,
+        deviceDescriptor.VendorId, deviceDescriptor.ProductId);
+    TRACE("[usb] [%u:%u] configurations 0x%x, mps 0x%x",
+        Hub->Address, Port->Address, deviceDescriptor.ConfigurationCount,
+        deviceDescriptor.MaxPacketSize);
 
-    // Update information
-    Device->Base.Class                      = DeviceDescriptor.Class;
-    Device->Base.Subclass                   = DeviceDescriptor.Subclass;
-    Device->Base.Protocol                   = DeviceDescriptor.Protocol;
-    Device->Base.VendorId                   = DeviceDescriptor.VendorId;
-    Device->Base.ProductId                  = DeviceDescriptor.ProductId;
-    Device->Base.StringIndexManufactor      = DeviceDescriptor.StringIndexManufactor;
-    Device->Base.StringIndexProduct         = DeviceDescriptor.StringIndexProduct;
-    Device->Base.StringIndexSerialNumber    = DeviceDescriptor.StringIndexSerialNumber;
-    Device->Base.ConfigurationCount         = DeviceDescriptor.ConfigurationCount;
-    
-    // Update MPS
-    Device->Base.MaxPacketSize              = DeviceDescriptor.MaxPacketSize;
-    Device->ControlEndpoint.MaxPacketSize   = DeviceDescriptor.MaxPacketSize;
+    // Update information from the device descriptor
+    device->VendorId        = deviceDescriptor.VendorId;
+    device->ProductId       = deviceDescriptor.ProductId;
+    device->Class           = deviceDescriptor.Class;
+    device->Subclass        = deviceDescriptor.Subclass;
+    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
 
-    // Query Config Descriptor
-    if (UsbQueryConfigurationDescriptors(Controller, Device) != OsSuccess) {
-        if (UsbQueryConfigurationDescriptors(Controller, Device) != OsSuccess) {
-            ERROR("(Get_Config_Desc) Failed to setup port %u:%u", 
-                Hub->Address, Port->Address);
-            goto DevError;
-        }
-    }
-
-    // Update Configuration
-    if (UsbSetConfiguration(Controller->DriverId, Controller->Device.Id,
-        &Device->Base, &Device->ControlEndpoint, Device->Base.Configuration) != TransferFinished) {
-        if (UsbSetConfiguration(Controller->DriverId, Controller->Device.Id,
-            &Device->Base, &Device->ControlEndpoint, Device->Base.Configuration) != TransferFinished) {
-            ERROR("(Set_Configuration) Failed to setup port %u:%u", 
+    // Finish setup by selecting the default configuration (0)
+    tStatus = UsbSetConfiguration(&device->Base, 0);
+    if (tStatus != TransferFinished) {
+        tStatus = UsbSetConfiguration(&device->Base, 0);
+        if (tStatus != TransferFinished) {
+            ERROR("[usb] [%u:%u] UsbSetConfiguration failed", 
                 Hub->Address, Port->Address);
             goto DevError;
         }
     }
     
-    // Setup succeeded
-    TRACE("Setup of port %u:%u done!", Hub->Address, Port->Address);
-    return UsbDeviceLoadDrivers(Controller, Device);
+    TRACE("[usb] [%u:%u] setup success", Hub->Address, Port->Address);
+    return UsbDeviceLoadDrivers(Controller, device);
 
     // All errors are handled here
 DevError:
-    TRACE("Setup of port %u:%u failed!", Hub->Address, Port->Address);
-
-    // Release allocated address
-    if (Device->Base.DeviceAddress != 0) {
-        UsbReleaseAddress(Controller, Device->Base.DeviceAddress);
-    }
-
-    // Free the buffer that contains the descriptors
-    if (Device->Descriptors != NULL) {
-        free(Device->Descriptors);
-    }
-    free(Device);
-    Port->Device = NULL;
-
+    TRACE("[usb] [%u:%u] setup failed", Hub->Address, Port->Address);
+    UsbDeviceDestroy(Controller, Port);
     return OsError;
 }
 
@@ -671,8 +413,7 @@ UsbDeviceDestroy(
     _In_ UsbController_t* Controller,
     _In_ UsbPort_t*       Port)
 {
-    UsbPortDevice_t* Device;
-    int              i;
+    UsbPortDevice_t* device;
 
     // Debug
     TRACE("UsbDeviceDestroy()");
@@ -683,26 +424,15 @@ UsbDeviceDestroy(
     }
 
     // Instantiate the device pointer
-    Device = Port->Device;
-
-    // Iterate all interfaces and send unregister
-    for (i = 0; i < Device->Base.InterfaceCount; i++) {
-        // Send unregister
-        // @todo
-    }
+    device = Port->Device;
 
     // Release allocated address
-    if (Device->Base.DeviceAddress != 0) {
-        UsbReleaseAddress(Controller, Device->Base.DeviceAddress);
+    if (device->Base.device_address != 0) {
+        UsbReleaseAddress(Controller, device->Base.device_address);
     }
 
-    // Free the buffer that contains the descriptors
-    if (Device->Descriptors != NULL) {
-        free(Device->Descriptors);
-    }
-    free(Device);
+    free(device);
     Port->Device = NULL;
-
     return OsSuccess;
 }
 
@@ -725,7 +455,7 @@ UsbPortCreate(
 
 UsbController_t*
 UsbCoreGetController(
-    _In_ UUId_t                 DeviceId)
+    _In_ UUId_t DeviceId)
 {
     // Iterate all registered controllers
     foreach(cNode, GlbUsbControllers) {

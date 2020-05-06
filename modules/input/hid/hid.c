@@ -20,7 +20,7 @@
  */
 //#define __TRACE
 
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include "hid.h"
@@ -88,7 +88,7 @@ HidDeviceCreate(
         Device->Interrupt, InterruptTransfer, 0);
     UsbTransferPeriodic(&Device->Transfer, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->Buffer), 0x400, 
-        Device->ReportLength, InTransaction, (const void*)Device);
+        Device->ReportLength, USB_TRANSACTION_IN, (const void*)Device);
     if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
         &Device->Transfer, &Device->TransferId) != TransferQueued) {
         ERROR("Failed to install interrupt transfer");

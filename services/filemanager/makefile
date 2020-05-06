@@ -6,6 +6,7 @@ include ../../config/common.mk
 
 INCLUDES = -Iinclude \
 		   -I../../librt/libgracht/include \
+		   -I../../librt/libusb/include \
 		   -I../../librt/libds/include \
 		   -I../../librt/libddk/include \
 		   -I../../librt/include -I../../librt/libc/include

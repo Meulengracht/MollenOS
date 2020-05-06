@@ -155,7 +155,7 @@ UhciTransferFill(
         // the MPS, then we should make sure we add a ZLP
         if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
             Transfer->Transfer.Type == BulkTransfer &&
-            Transfer->Transfer.Transactions[i].Type == OutTransaction) {
+            Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
             Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
         }
@@ -176,7 +176,7 @@ UhciTransferFill(
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
-                if (Type == SetupTransaction) {
+                if (Type == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
                     Length = UhciTdSetup(Td,

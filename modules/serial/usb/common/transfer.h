@@ -25,7 +25,7 @@
 #ifndef __USB_TRANSFER__
 #define __USB_TRANSFER__
 
-#include <ddk/usb.h>
+#include <usb/usb.h>
 #include <gracht/link/vali.h>
 #include <os/dmabuf.h>
 #include <os/osdefs.h>
