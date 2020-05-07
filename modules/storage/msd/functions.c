@@ -264,6 +264,8 @@ MsdReadCapabilities(
         // Capabilities are returned in reverse byte-order
         Descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
         Descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
+        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", Descriptor->SectorCount,
+            Descriptor->SectorSize);
         Device->IsExtended = 1;
         dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
         return OsSuccess;
@@ -272,6 +274,8 @@ MsdReadCapabilities(
     // Capabilities are returned in reverse byte-order
     Descriptor->SectorCount = (uint64_t)rev32(CapabilitesPointer[0]) + 1;
     Descriptor->SectorSize = rev32(CapabilitesPointer[1]);
+    TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
+        &Descriptor->SectorCount, Descriptor->SectorCount, Descriptor->SectorSize);
     dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
     return OsSuccess;
 }
@@ -289,8 +293,7 @@ MsdDeviceStart(
     i = (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), 
-        (void**)&InquiryData) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&InquiryData) != OsSuccess) {
         ERROR("Failed to allocate buffer (inquiry)");
         return OsError;
     }

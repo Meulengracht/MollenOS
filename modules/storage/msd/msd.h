@@ -131,8 +131,8 @@ typedef struct _MsdOperations {
 
 typedef struct _MsdDevice {
     UsbDevice_t         Base;
-    StorageDescriptor_t Descriptor;
     element_t           Header;
+    StorageDescriptor_t Descriptor;
     MsdDeviceType_t     Type;
     MsdProtocolType_t   Protocol;
     MsdOperations_t*    Operations;

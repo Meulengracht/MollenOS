@@ -512,7 +512,12 @@ MemorySpaceCommit(
     if (Status != OsSuccess) {
         ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
             Status, Address, Length);
-        NOTIMPLEMENTED("[memory] [commit] implement cleanup of allocated pages");
+        if (!(Placement & MAPPING_PHYSICAL_FIXED)) {
+            IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+            bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, 
+                (void**)&PhysicalAddressValues[0], PageCount);
+            IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
+        }
     }
     return Status;
 }

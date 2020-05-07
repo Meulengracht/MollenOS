@@ -21,7 +21,6 @@ stages:
 - stage: 'build_kernel'
   displayName: 'Build kernel and drivers - ${{ parameters.architecture }}'
   pool: vali-builders
-  env: kernel-dev
   jobs:
     - job: compile
       timeoutInMinutes: 10
@@ -99,7 +98,9 @@ stages:
               - checkout: https://github.com/Meulengracht/vali-userspace.git
                 clean: true
                 submodules: recursive
-        
+              - bash: make
+                env:
+                  VALI_ARCH: ${{ parameters.architecture }}
 - stage: 'create_release'
   displayName: 'Publish release - ${{ parameters.architecture }}'
   dependsOn: build_applications

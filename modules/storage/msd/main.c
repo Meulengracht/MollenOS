@@ -111,7 +111,12 @@ void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_s
     StorageDescriptor_t descriptor = { 0 };
     OsStatus_t          status     = OsDoesNotExist;
     MsdDevice_t*        device     = MsdDeviceGet(args->device_id);
+    TRACE("[msd] [stat]");
+    
     if (device) {
+        TRACE("[msd] [stat] sectorCount %llu, sectorSize %u",
+            device->Descriptor.SectorCount,
+            device->Descriptor.SectorSize);
         memcpy(&descriptor, &device->Descriptor, sizeof(StorageDescriptor_t));
         status = OsSuccess;
     }

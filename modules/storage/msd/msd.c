@@ -191,7 +191,7 @@ MsdDeviceCreate(
     
     memset(Device, 0, sizeof(MsdDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
-    ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, &Device);
+    ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, Device);
     
     GetDeviceConfiguration(Device);
     
