@@ -181,7 +181,6 @@ InitializeDisk(void* Context)
     if (status != OsSuccess) {
         // TODO: disk states
         // Disk->State = Crashed
-        free(disk);
         return OsStatusToErrno(status);
     }
     

@@ -83,7 +83,7 @@ MsdDeviceInitialize(
     // Install operations
     if (ProtocolOperations[Device->Protocol] == NULL) {
         ERROR("Support is not implemented for the protocol.");
-        return OsError;
+        return OsNotSupported;
     }
     Device->Operations = ProtocolOperations[Device->Protocol];
     return Device->Operations->Initialize(Device);

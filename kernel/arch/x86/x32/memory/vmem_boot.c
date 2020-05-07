@@ -29,6 +29,7 @@
 #include <arch.h>
 #include <arch/output.h>
 #include <arch/mmu.h>
+#include <ddk/io.h>
 #include <assert.h>
 #include <cpu.h>
 #include <debug.h>

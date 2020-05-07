@@ -443,6 +443,9 @@ ParseConfigurationDescriptor(
     uint16_t                        bytesLeft = descriptor->TotalLength;
     int                             i;
     
+    // copy base data to the configuration
+    memcpy(&configuration->base, descriptor, sizeof(usb_config_descriptor_t));
+    
     // allocate space for interfaces
     configuration->interfaces = (usb_device_interface_t*)malloc(
         descriptor->NumInterfaces * sizeof(usb_device_interface_t));

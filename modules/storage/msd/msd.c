@@ -29,6 +29,7 @@
 #include <stdlib.h>
 
 static const char *DeviceTypeStrings[TypeCount] = {
+    "Unknown",
     "Floppy Drive",
     "Disk Drive",
     "Hard Drive"
@@ -143,6 +144,7 @@ GetDeviceConfiguration(
     
     status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
     if (status != TransferFinished) {
+        ERROR("[msd] [GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
         return;
     }
     

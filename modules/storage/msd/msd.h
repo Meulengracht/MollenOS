@@ -105,6 +105,7 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
 #define MSD_CSW_PHASE_ERROR		        0x2
 
 typedef enum _MsdDeviceType {
+    TypeUnknown,
     TypeFloppy,
 	TypeDiskDrive,
 	TypeHardDrive,

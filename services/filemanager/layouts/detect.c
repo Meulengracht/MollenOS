@@ -123,8 +123,11 @@ DiskDetectLayout(
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
-	dmaInfo.length = dmaInfo.capacity = disk->Descriptor.SectorSize;
-	dmaInfo.flags  = 0;
+	dmaInfo.name     = "disk_temp_buffer";
+	dmaInfo.capacity = disk->Descriptor.SectorSize;
+	dmaInfo.length   = disk->Descriptor.SectorSize;
+	dmaInfo.flags    = 0;
+	
 	status = dma_create(&dmaInfo, &dmaAttachment);
 	if (status != OsSuccess) {
 		return status;

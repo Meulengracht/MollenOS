@@ -91,10 +91,18 @@ find_driver_for_device(
 {
     foreach(node, &Drivers) {
         struct driver_node* driverNode = node->value;
-        if ((device->VendorId == driverNode->vendor_id &&
-             device->DeviceId == driverNode->device_id) ||
-            (device->Class == driverNode->class &&
-             device->Subclass == driverNode->sub_class)) {
+        
+        // Check against vendor/device ids if nonne-zero
+        if (driverNode->vendor_id != 0 && driverNode->device_id != 0) {
+            if (device->VendorId == driverNode->vendor_id &&
+                device->DeviceId == driverNode->device_id) {
+                return driverNode;     
+            }
+        }
+        
+        // Otherwise match against class/subclass to identify generic match
+        if (device->Class    == driverNode->class &&
+            device->Subclass == driverNode->sub_class) {
             return driverNode;
         }
     }

@@ -378,11 +378,29 @@ UsbDeviceSetup(
         deviceDescriptor.MaxPacketSize);
 
     // Update information from the device descriptor
+    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
     device->VendorId        = deviceDescriptor.VendorId;
     device->ProductId       = deviceDescriptor.ProductId;
     device->Class           = deviceDescriptor.Class;
     device->Subclass        = deviceDescriptor.Subclass;
-    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
+    
+    // If the Class is 0, then we retrieve the class/subclass from the
+    // first interface
+    if (deviceDescriptor.Class == USB_CLASS_INTERFACE) {
+        usb_device_configuration_t configuration;
+        
+        tStatus = UsbGetActiveConfigDescriptor(&device->Base, &configuration);
+        if (tStatus == TransferFinished) {
+            device->Class    = configuration.interfaces[0].settings[0].base.Class;
+            device->Subclass = configuration.interfaces[0].settings[0].base.Subclass;
+            UsbFreeConfigDescriptor(&configuration);
+        }
+        else {
+            ERROR("[usb] [%u:%u] UsbGetActiveConfigDescriptor failed", 
+                Hub->Address, Port->Address);
+            goto DevError;
+        }
+    }
 
     // Finish setup by selecting the default configuration (0)
     tStatus = UsbSetConfiguration(&device->Base, 0);
