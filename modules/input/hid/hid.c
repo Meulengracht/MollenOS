@@ -25,13 +25,93 @@
 #include <stdlib.h>
 #include "hid.h"
 
+static void*
+memdup(void* mem, size_t size)
+{
+    void* dup = malloc(size);
+    if (!dup) {
+        return NULL;
+    }
+    memcpy(dup, mem, size);
+    return dup;
+}
+
+static inline int
+IsSupportedInterface(
+    _In_ usb_device_interface_setting_t* interface)
+{
+    // Verify class is HID
+    if (interface->base.Class != USB_CLASS_HID) {
+        return 0;
+    }
+    
+    // Verify the subclass
+    if (interface->base.Subclass != HID_SUBCLASS_NONE &&
+        interface->base.Subclass != HID_SUBCLASS_BOOT) {
+        ERROR("Unsupported HID Subclass 0x%x", interface->base.Subclass);
+        return 0;
+    }
+    
+    if (interface->base.Protocol == HID_PROTOCOL_NONE ||
+        interface->base.Protocol == HID_PROTOCOL_KEYBOARD ||
+        interface->base.Protocol == HID_PROTOCOL_MOUSE) {
+        return 1;        
+    }
+
+    ERROR("This HID uses an unimplemented protocol and needs external drivers");
+    ERROR("Unsupported HID Protocol 0x%x", interface->base.Protocol);
+    return 0;
+}
+
+static inline void
+GetDeviceProtocol(
+    _In_ HidDevice_t*                    device,
+    _In_ usb_device_interface_setting_t* interface)
+{
+    device->InterfaceId = interface->base.NumInterface;
+    device->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
+    
+    if (interface->base.Subclass == HID_SUBCLASS_BOOT) {
+        device->CurrentProtocol = HID_DEVICE_PROTOCOL_BOOT;
+    }
+}
+
+static void
+GetDeviceConfiguration(
+    _In_ HidDevice_t* device)
+{
+    usb_device_configuration_t configuration;
+    UsbTransferStatus_t        status;
+    int                        i, j;
+    
+    status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
+    if (status != TransferFinished) {
+        return;
+    }
+    
+    // TODO support interface settings
+    for (i = 0; i < configuration.base.NumInterfaces; i++) {
+        usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
+        if (IsSupportedInterface(interface)) {
+            for (j = 0; j < interface->base.NumEndpoints; j++) {
+                usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
+                if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT) {
+                    device->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                }
+            }
+            GetDeviceProtocol(device, interface);
+            break;
+        }
+    }
+    
+    UsbFreeConfigDescriptor(&configuration);
+}
+
 HidDevice_t*
 HidDeviceCreate(
-    _In_ UsbDevice_t *UsbDevice)
+    _In_ UsbDevice_t* UsbDevice)
 {
-    // Variables
-    HidDevice_t *Device = NULL;
-    int i;
+    HidDevice_t* Device;
 
     // Debug
     TRACE("HidDeviceCreate()");
@@ -40,27 +120,12 @@ HidDeviceCreate(
     Device = (HidDevice_t*)malloc(sizeof(HidDevice_t));
     memset(Device, 0, sizeof(HidDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
-    Device->Control = &UsbDevice->Endpoints[0];
     Device->TransferId = UUID_INVALID;
-
-    // Find neccessary endpoints
-    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount + 1; i++) {
-        if (UsbDevice->Endpoints[i].Type == EndpointInterrupt) {
-            Device->Interrupt = &UsbDevice->Endpoints[i];
-            break;
-        }
-    }
-
+    GetDeviceConfiguration(Device);
+    
     // Make sure we at-least found an interrupt endpoint
     if (Device->Interrupt == NULL) {
         ERROR("HID Endpoint (In, Interrupt) did not exist.");
-        goto Error;
-    }
-
-    // Validate the generic driver
-    if (UsbDevice->Interface.Protocol > HID_PROTOCOL_MOUSE) {
-        ERROR("This HID uses an unimplemented protocol and needs external drivers %u", 
-            UsbDevice->Interface.Protocol);
         goto Error;
     }
 
@@ -71,8 +136,8 @@ HidDeviceCreate(
     }
 
     // Reset interrupt ep
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Interrupt) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Base.DeviceContext,
+            USB_ENDPOINT_ADDRESS(Device->Interrupt->Address)) != OsSuccess) {
         ERROR("Failed to reset endpoint (interrupt)");
         goto Error;
     }
@@ -84,12 +149,12 @@ HidDeviceCreate(
     }
 
     // Install interrupt pipe
-    UsbTransferInitialize(&Device->Transfer, &Device->Base.Device, 
-        Device->Interrupt, InterruptTransfer, 0);
+    UsbTransferInitialize(&Device->Transfer, &Device->Base.DeviceContext, 
+        Device->Interrupt, USB_TRANSFER_INTERRUPT, 0);
     UsbTransferPeriodic(&Device->Transfer, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->Buffer), 0x400, 
         Device->ReportLength, USB_TRANSACTION_IN, (const void*)Device);
-    if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
+    if (UsbTransferQueuePeriodic(&Device->Base.DeviceContext, 
         &Device->Transfer, &Device->TransferId) != TransferQueued) {
         ERROR("Failed to install interrupt transfer");
         goto Error;
@@ -114,8 +179,7 @@ HidDeviceDestroy(
 {
     // Destroy the interrupt channel
     if (Device->TransferId != UUID_INVALID) {
-        UsbTransferDequeuePeriodic(Device->Base.DriverId, 
-            Device->Base.DeviceId, Device->TransferId);
+        UsbTransferDequeuePeriodic(&Device->Base.DeviceContext, Device->TransferId);
     }
 
     // Cleanup collections

@@ -35,7 +35,7 @@ UhciTdSetup(
     _In_ UhciTransferDescriptor_t* Td,
     _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ UsbSpeed_t                Speed,
+    _In_ uint8_t                Speed,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length)
 {
@@ -52,7 +52,7 @@ UhciTdSetup(
     // Setup td flags
     Td->Flags  = UHCI_TD_ACTIVE;
     Td->Flags |= UHCI_TD_SETCOUNT(3);
-    if (Speed == LowSpeed) {
+    if (Speed == USB_SPEED_LOW) {
         Td->Flags |= UHCI_TD_LOWSPEED;
     }
 
@@ -77,17 +77,17 @@ UhciTdSetup(
 size_t
 UhciTdIo(
     _In_ UhciTransferDescriptor_t* Td,
-    _In_ UsbTransferType_t         Type,
-    _In_ UsbTransactionType_t      Direction,
+    _In_ uint8_t                   Type,
+    _In_ uint8_t                   transactionType,
     _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ UsbSpeed_t                Speed,
+    _In_ uint8_t                   Speed,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length,
     _In_ int                       Toggle)
 {
     uintptr_t CalculatedLength;
-    uint32_t  PId = (Direction == USB_TRANSACTION_IN ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT);
+    uint32_t  PId = (transactionType == USB_TRANSACTION_IN ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT);
     
     // TODO: use frame-size for platfrom
     // This also works for 0 length packets, as it will result in 0 - 1
@@ -100,15 +100,15 @@ UhciTdIo(
     // Setup td flags
     Td->Flags  = UHCI_TD_ACTIVE;
     Td->Flags |= UHCI_TD_SETCOUNT(3);
-    if (Speed == LowSpeed) {
+    if (Speed == USB_SPEED_LOW) {
         Td->Flags |= UHCI_TD_LOWSPEED;
     }
-    if (Type == IsochronousTransfer) {
+    if (Type == USB_TRANSFER_ISOCHRONOUS) {
         Td->Flags |= UHCI_TD_ISOCHRONOUS;
     }
 
     // We set SPD on in transfers, but NOT on zero length
-    if (Type == ControlTransfer) {
+    if (Type == USB_TRANSFER_CONTROL) {
         if (PId == UHCI_TD_PID_IN && Length > 0) {
             Td->Flags |= UHCI_TD_SHORT_PACKET;
         }
@@ -236,9 +236,9 @@ UhciTdRestart(
     int              Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Setup some variables
-    if (Transfer->Transfer.Type == InterruptTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
         Qh         = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-        BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
+        BufferStep = Transfer->Transfer.MaxPacketSize;
         
         // Flip
         Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;

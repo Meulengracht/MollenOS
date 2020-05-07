@@ -85,7 +85,7 @@ HciPortGetStatus(
 	// Update port metrics
     Port->Connected = (pStatus & UHCI_PORT_CONNECT_STATUS) == 0 ? 0 : 1;
     Port->Enabled   = (pStatus & UHCI_PORT_ENABLED) == 0 ? 0 : 1;
-    Port->Speed     = (pStatus & UHCI_PORT_LOWSPEED) == 0 ? FullSpeed : LowSpeed;
+    Port->Speed     = (pStatus & UHCI_PORT_LOWSPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
 }
 
 OsStatus_t

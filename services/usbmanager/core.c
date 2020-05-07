@@ -77,12 +77,12 @@ static const char*   VendorSpecificString = "Vendor-specific device (Usb)";
 
 static uint16_t
 GetMaxPacketSizeControl(
-    _In_ UsbSpeed_t speed)
+    _In_ uint8_t speed)
 {
-    if (speed == FullSpeed || speed == HighSpeed) {
+    if (speed == USB_SPEED_FULL || speed == USB_SPEED_HIGH) {
         return 64;
     }
-    else if (speed == SuperSpeed || speed == SuperSpeedPlus) {
+    else if (speed == USB_SPEED_SUPER || speed == USB_SPEED_SUPER_PLUS) {
         return 512;
     }
     else {

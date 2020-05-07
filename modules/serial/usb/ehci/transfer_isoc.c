@@ -46,8 +46,8 @@ HciQueueTransferIsochronous(
     BytesToTransfer  = Transfer->Transfer.Transactions[0].Length;
 
     // Calculate mpd
-    MaxBytesPerDescriptor   = 1024 * MAX(3, Transfer->Transfer.Endpoint.Bandwidth);
-    MaxBytesPerDescriptor  *= 8;
+    MaxBytesPerDescriptor  = 1024 * MAX(3, Transfer->Transfer.PeriodicBandwith);
+    MaxBytesPerDescriptor *= 8;
 
     // Allocate resources
     while (BytesToTransfer) {
@@ -67,7 +67,8 @@ HciQueueTransferIsochronous(
         
         if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OsSuccess) {
             if (EhciTdIsochronous(Controller, &Transfer->Transfer, iTd, 
-                    AddressPointer, BytesStep, Transfer->Transfer.Address.DeviceAddress, 
+                    AddressPointer, BytesStep, Transfer->Transfer.Transactions[0].Type,
+                    Transfer->Transfer.Address.DeviceAddress, 
                     Transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
                 // TODO: Out of bandwidth
                 TRACE(" > Out of bandwidth");

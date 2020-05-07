@@ -89,7 +89,7 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 #define USB_CHAIN_DEPTH                 1
 #define USB_POOL_MAXCOUNT               8
 
-typedef struct _UsbSchedulerPool {
+typedef struct UsbSchedulerPool {
     size_t    ElementBaseSize;            // Size of an element
     size_t    ElementAlignedSize;         // Size of an element
     size_t    ElementCount;               // Number of elements
@@ -104,7 +104,7 @@ typedef struct _UsbSchedulerPool {
     uint8_t*              ElementPool;
 } UsbSchedulerPool_t;
 
-typedef struct _UsbSchedulerSettings {
+typedef struct UsbSchedulerSettings {
     Flags_t     Flags;                          // Flags
     size_t      FrameCount;                     // Number of frames
     size_t      SubframeCount;                  // Number of sub-frames
@@ -125,7 +125,7 @@ typedef struct _UsbSchedulerSettings {
 #define USB_SCHEDULER_DEFERRED_CLEAN    (1 << 3) // If set, cleanup must occur later than unlink
 #define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
 
-typedef struct _UsbScheduler {
+typedef struct UsbScheduler {
     UsbSchedulerSettings_t  Settings;
     spinlock_t              Lock;
 
@@ -239,8 +239,8 @@ UsbSchedulerAllocateElement(
  * frees any bandwidth associated with the element. */
 __EXTERN void
 UsbSchedulerFreeElement(
-    _In_ UsbScheduler_t*            Scheduler,
-    _In_ uint8_t*                   Element);
+    _In_ UsbScheduler_t* Scheduler,
+    _In_ uint8_t*        Element);
 
 /* UsbSchedulerAllocateBandwidth
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically
@@ -248,12 +248,14 @@ UsbSchedulerFreeElement(
  * return OsError. */
 __EXTERN OsStatus_t
 UsbSchedulerAllocateBandwidth(
-    _In_ UsbScheduler_t*            Scheduler,
-    _In_ UsbHcEndpointDescriptor_t* Endpoint,
-    _In_ size_t                     BytesToTransfer,
-	_In_ UsbTransferType_t          Type,
-	_In_ UsbSpeed_t                 Speed,
-    _In_ uint8_t*                   Element);
+    _In_ UsbScheduler_t* scheduler,
+    _In_ uint8_t         interval,
+    _In_ uint16_t        mps,
+    _In_ uint8_t         transactionType,
+    _In_ size_t          bytesToTransfer,
+    _In_ uint8_t         transferType,
+    _In_ uint8_t         speed,
+    _In_ uint8_t*        element);
 
 /* UsbSchedulerChainElement
  * Chains up a new element to the given element chain. The root element

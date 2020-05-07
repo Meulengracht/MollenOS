@@ -52,12 +52,12 @@ OhciTransferFill(
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        UsbTransactionType_t Type            = Transfer->Transfer.Transactions[i].Type;
-        size_t               BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
-        int                  PreviousToggle  = -1;
-        int                  Toggle          = 0;
-        int                  IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int                  IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        uint8_t Type            = Transfer->Transfer.Transactions[i].Type;
+        size_t  BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
+        int     PreviousToggle  = -1;
+        int     Toggle          = 0;
+        int     IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
         
         TRACE("[usb] [ohci] xaction %i, length %u, type %i, zlp %i, handshake %i", 
             i, BytesToTransfer, Type, IsZLP, IsHandshake);
@@ -78,8 +78,8 @@ OhciTransferFill(
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
-            Transfer->Transfer.Type == BulkTransfer &&
+        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.MaxPacketSize) == 0 &&
+            Transfer->Transfer.Type == USB_TRANSFER_BULK &&
             Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
             TRACE("... appending zlp");
             Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;

@@ -44,7 +44,7 @@ typedef struct _UsbPortDevice {
 
 typedef struct _UsbPort {
     uint8_t          Address;
-    UsbSpeed_t       Speed;
+    uint8_t       Speed;
     int              Enabled;
     int              Connected;
     UsbPortDevice_t* Device;

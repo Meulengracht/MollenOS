@@ -11,6 +11,7 @@ INCLUDES = -I../../../librt/include \
 		   -I../../../librt/libc/include \
 		   -I../../../librt/libds/include \
 		   -I../../../librt/libddk/include \
+		   -I../../../librt/libusb/include \
 		   -I../../../librt/libgracht/include \
 		   -I../sata
 

@@ -372,7 +372,7 @@ OhciQhRestart(
 __EXTERN void
 OhciQhLink(
     _In_ OhciController_t*          Controller,
-    _In_ UsbTransferType_t          Type,
+    _In_ uint8_t          Type,
     _In_ OhciQueueHead_t*           Qh);
 
 /*******************************************************************************
@@ -394,7 +394,7 @@ OhciTdSetup(
 __EXTERN size_t
 OhciTdIo(
     _In_ OhciTransferDescriptor_t*  Td,
-    _In_ UsbTransferType_t          Type,
+    _In_ uint8_t          Type,
     _In_ uint32_t                   PId,
     _In_ int                        Toggle,
     _In_ uintptr_t                  Address,
@@ -481,7 +481,7 @@ OhciiTdRestart(
 __EXTERN void
 OhciReloadAsynchronous(
     _In_ OhciController_t*          Controller, 
-    _In_ UsbTransferType_t          TransferType);
+    _In_ uint8_t          TransferType);
 
 /* OhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the

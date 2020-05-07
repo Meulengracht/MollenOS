@@ -247,22 +247,22 @@ typedef struct _UsbHidReportCollection {
     UsbHidReportCollectionItem_t    *Childs;
 } UsbHidReportCollection_t;
 
-/* HidDevice
- * Represents a human input device. */
+#define HID_DEVICE_PROTOCOL_BOOT   0
+#define HID_DEVICE_PROTOCOL_REPORT 1
+
 typedef struct _HidDevice {
     UsbDevice_t   Base;
     UsbTransfer_t Transfer;
     UUId_t        TransferId;
 
-    // Buffers
-    UsbHidReportCollection_t    *Collection;
-    uintptr_t                   *Buffer;
-    size_t                       PreviousDataIndex;
-    size_t                       ReportLength;
+    UsbHidReportCollection_t*  Collection;
+    uintptr_t*                 Buffer;
+    size_t                     PreviousDataIndex;
+    size_t                     ReportLength;
     
-    // Endpoint Information
-    UsbHcEndpointDescriptor_t   *Control;
-    UsbHcEndpointDescriptor_t   *Interrupt;
+    uint8_t                    InterfaceId;
+    uint8_t                    CurrentProtocol;
+    usb_endpoint_descriptor_t* Interrupt;
 } HidDevice_t;
 
 /* HidDeviceCreate

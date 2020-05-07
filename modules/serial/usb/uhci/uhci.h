@@ -355,7 +355,7 @@ UhciTdSetup(
     _In_ UhciTransferDescriptor_t* Td,
     _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ UsbSpeed_t                Speed,
+    _In_ uint8_t                Speed,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length);
 
@@ -365,11 +365,11 @@ UhciTdSetup(
 __EXTERN size_t
 UhciTdIo(
     _In_ UhciTransferDescriptor_t* Td,
-    _In_ UsbTransferType_t         Type,
-    _In_ UsbTransactionType_t      Direction,
+    _In_ uint8_t                   Type,
+    _In_ uint8_t                   transactionType,
     _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ UsbSpeed_t                Speed,
+    _In_ uint8_t                   Speed,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length,
     _In_ int                       Toggle);

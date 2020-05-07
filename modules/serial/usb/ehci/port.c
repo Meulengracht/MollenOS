@@ -119,7 +119,7 @@ HciPortGetStatus(
     // Is port connected?
     Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
     Port->Enabled   = (Status & EHCI_PORT_ENABLED) == 0 ? 0 : 1;
-    Port->Speed     = HighSpeed; // Ehci only has high-speed root ports
+    Port->Speed     = USB_SPEED_HIGH; // Ehci only has high-speed root ports
 }
 
 OsStatus_t

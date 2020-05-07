@@ -62,20 +62,18 @@ typedef enum UsbControllerType {
 	UsbXHCI
 } UsbControllerType_t;
 
-typedef enum UsbSpeed {
-	LowSpeed,       // 1.0 / 1.1
-	FullSpeed,      // 1.0 / 1.1 / 2.0 (HID)
-	HighSpeed,      // 2.0
-	SuperSpeed,     // 3.0
-	SuperSpeedPlus  // 4.0
-} UsbSpeed_t;
+#define USB_SPEED_LOW        0  // 1.0 / 1.1
+#define USB_SPEED_FULL       1  // 1.0 / 1.1 / 2.0 (HID)
+#define USB_SPEED_HIGH       2  // 2.0
+#define USB_SPEED_SUPER      3  // 3.0
+#define USB_SPEED_SUPER_PLUS 4  // 4.0
 
 /* UsbHcPortDescriptor 
  * Describes the current port information */
 typedef struct UsbHcPortDescriptor {
-	UsbSpeed_t Speed;
-	int        Enabled;
-	int        Connected;
+	uint8_t Speed;
+	int     Enabled;
+	int     Connected;
 } UsbHcPortDescriptor_t;
 
 /* UsbHcController
@@ -87,7 +85,7 @@ typedef struct UsbHcController {
     UsbHcPortDescriptor_t Ports[USB_MAX_PORTS];
 } UsbHcController_t;
 
-typedef struct UsbHcAddress {
+typedef struct usb_address {
     uint8_t HubAddress;
     uint8_t PortAddress;
     uint8_t DeviceAddress;
@@ -117,18 +115,18 @@ typedef struct usb_device_context {
     uint8_t    device_address;
     uint16_t   configuration_length;
     uint16_t   device_mps;
-    UsbSpeed_t speed;
+    uint8_t speed;
 } usb_device_context_t;
 
-typedef struct UsbTransaction {
+typedef struct usb_transaction {
 	uint8_t Type;
 	uint8_t Flags;
 	UUId_t  BufferHandle;
 	size_t  BufferOffset;
 	size_t  Length;
-} UsbTransaction_t;
+} usb_transaction_t;
 
-// Bit definitions for UsbTransaction::Type
+// Value definitions for UsbTransaction::Type
 #define USB_TRANSACTION_SETUP 0
 #define USB_TRANSACTION_IN    1
 #define USB_TRANSACTION_OUT   2
@@ -137,32 +135,34 @@ typedef struct UsbTransaction {
 #define USB_TRANSACTION_ZLP       0x01
 #define USB_TRANSACTION_HANDSHAKE 0x02
 
-typedef enum UsbTransferType {
-	ControlTransfer,
-	BulkTransfer,
-	InterruptTransfer,
-	IsochronousTransfer
-} UsbTransferType_t;
-
-typedef struct UsbTransfer {
-	UsbTransferType_t Type;
-	UsbSpeed_t        Speed;
+typedef struct usb_transfer {
     UsbHcAddress_t    Address;
+	uint8_t           Type;
+	uint8_t           Speed;
 	uint16_t          MaxPacketSize;
 	uint8_t           Flags;
 	uint8_t           TransactionCount;
-    UsbTransaction_t  Transactions[USB_TRANSACTIONCOUNT];
+    usb_transaction_t Transactions[USB_TRANSACTIONCOUNT];
 
 	// Periodic Information
     const void* PeriodicData;
-    uint32_t    PeriodicBufferSize : 24;
-    uint32_t    PeriodicBandwith   : 8;
+    uint32_t    PeriodicBufferSize;
+    uint8_t     PeriodicBandwith;
+    uint8_t     PeriodicInterval;
 } UsbTransfer_t;
+
+// Value definitions for UsbTransfer::Type
+#define USB_TRANSFER_CONTROL     0
+#define USB_TRANSFER_BULK        1
+#define USB_TRANSFER_INTERRUPT   2
+#define USB_TRANSFER_ISOCHRONOUS 3
 
 /* UsbTransfer::Flags
  * Bit-definitions and declarations for the field. */
 #define USB_TRANSFER_NO_NOTIFICATION 0x01
 #define USB_TRANSFER_SHORT_NOT_OK    0x02
+
+#define USB_TRANSFER_ENDPOINT_CONTROL NULL
 
 __EXTERN OsStatus_t       UsbInitialize(void);
 __EXTERN OsStatus_t       UsbCleanup(void);
@@ -171,6 +171,11 @@ __EXTERN struct dma_pool* UsbRetrievePool(void);
 /**
  * UsbTransferInitialize
  * * Initializes the usb-transfer to target the device and endpoint.
+ * @param transfer A pointer to the transfer structure.
+ * @param device   A pointer to the device context.
+ * @param endpoint A pointer to an endpoint structure, or USB_TRANSFER_ENDPOINT_CONTROL.
+ * @param type     The type of transfer, CONTROL/BULK/INTERRUPT/ISOC.
+ * @param flags    Configuration flags for the transfer.
  */
 __EXTERN void
 UsbTransferInitialize(

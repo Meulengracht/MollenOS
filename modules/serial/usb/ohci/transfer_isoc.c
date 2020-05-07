@@ -39,9 +39,9 @@ OhciTransferFill(
     OhciIsocTransferDescriptor_t* ZeroTd     = NULL;
     OhciQueueHead_t*              Qh         = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     
-    UsbTransactionType_t Type            = Transfer->Transfer.Transactions[0].Type;
-    size_t               BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
-    size_t               MaxBytesPerDescriptor;
+    uint8_t Type            = Transfer->Transfer.Transactions[0].Type;
+    size_t  BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
+    size_t  MaxBytesPerDescriptor;
 
     // Debug
     TRACE("OhciTransferFill()");
@@ -51,7 +51,7 @@ OhciTransferFill(
         OHCI_iTD_NULL, (uint8_t**)&ZeroTd, NULL);
     
     // Calculate mpd
-    MaxBytesPerDescriptor = Transfer->Transfer.Endpoint.MaxPacketSize * 8;
+    MaxBytesPerDescriptor = Transfer->Transfer.MaxPacketSize * 8;
 
     while (BytesToTransfer) {
         OhciIsocTransferDescriptor_t* iTd;
@@ -69,7 +69,7 @@ OhciTransferFill(
             Transfer->Transactions[0].SgIndex].address + Transfer->Transactions[0].SgOffset;
         
         if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OsSuccess) {
-            OhciTdIsochronous(iTd, Transfer->Transfer.Endpoint.MaxPacketSize, 
+            OhciTdIsochronous(iTd, Transfer->Transfer.MaxPacketSize, 
                 (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
         }
 

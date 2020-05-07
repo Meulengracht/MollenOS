@@ -213,7 +213,7 @@ HciProcessElement(
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 OhciQhDump((OhciController_t*)Controller, (OhciQueueHead_t*)Element);
             }
-            else if (Transfer->Transfer.Type != IsochronousTransfer) {
+            else if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 OhciTdDump((OhciController_t*)Controller, (OhciTransferDescriptor_t*)Element);
             }
             else {
@@ -226,7 +226,7 @@ HciProcessElement(
                 return ITERATOR_CONTINUE; // Skip scan on queue-heads
             }
 
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 OhciTdValidate(Transfer, (OhciTransferDescriptor_t*)Element);
                 if (Transfer->Flags & TransferFlagShort) {
                     return ITERATOR_STOP; // Stop here
@@ -239,7 +239,7 @@ HciProcessElement(
         
         case USB_REASON_RESET: {
             if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type != IsochronousTransfer) {
+                if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                     OhciTdRestart((OhciController_t*)Controller, Transfer, (OhciTransferDescriptor_t*)Element);
                 }
                 else {
@@ -254,7 +254,7 @@ HciProcessElement(
             }
 
             // Isochronous transfers don't use toggles.
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 OhciTdSynchronize(Transfer, (OhciTransferDescriptor_t*)Element);
             }
         } break;
@@ -262,7 +262,7 @@ HciProcessElement(
         case USB_REASON_LINK: {
             // If it's a queue head link that, otherwise ignore
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+                if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
                     OhciQhLink((OhciController_t*)Controller, Transfer->Transfer.Type, (OhciQueueHead_t*)Element);
                 }
                 else {
@@ -275,7 +275,7 @@ HciProcessElement(
         case USB_REASON_UNLINK: {
             // If it's a queue head unlink that, otherwise ignore
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
+                if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
                     UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, OHCI_QH_POOL, Element);
                 }
                 return ITERATOR_STOP;

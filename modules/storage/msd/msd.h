@@ -144,11 +144,10 @@ typedef struct _MsdDevice {
     MsdCommandBlock_t*  CommandBlock;
     MsdCommandStatus_t* StatusBlock;
     
-    // CBI Information
-    UsbHcEndpointDescriptor_t* Control;
-    UsbHcEndpointDescriptor_t* In;
-	UsbHcEndpointDescriptor_t* Out;
-	UsbHcEndpointDescriptor_t* Interrupt;
+    uint8_t                    InterfaceId;
+    usb_endpoint_descriptor_t* In;
+	usb_endpoint_descriptor_t* Out;
+	usb_endpoint_descriptor_t* Interrupt;
 } MsdDevice_t;
 
 /* MsdDeviceCreate

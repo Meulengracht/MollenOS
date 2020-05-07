@@ -289,7 +289,7 @@ HciProcessElement(
     TRACE("UhciProcessElement(Reason %i)", Reason);
     switch (Reason) {
         case USB_REASON_DUMP: {
-            if (Transfer->Transfer.Type != IsochronousTransfer
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS
                 && Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 UhciQhDump((UhciController_t*)Controller, (UhciQueueHead_t*)Td);
             }
@@ -300,7 +300,7 @@ HciProcessElement(
         
         case USB_REASON_SCAN: {
             // If we have a queue-head allocated skip it
-            if (Transfer->Transfer.Type != IsochronousTransfer && 
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS && 
                 Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 // Skip scan on queue-heads
                 return ITERATOR_CONTINUE;
@@ -314,7 +314,7 @@ HciProcessElement(
         } break;
         
         case USB_REASON_RESET: {
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
                     UhciTdRestart(Transfer, Td);
                 }
@@ -326,7 +326,7 @@ HciProcessElement(
         
         case USB_REASON_FIXTOGGLE: {
             // If we have a queue-head allocated skip it
-            if (Transfer->Transfer.Type != IsochronousTransfer
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS
                 && Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 // Skip sync on queue-heads
                 return ITERATOR_CONTINUE;
@@ -336,7 +336,7 @@ HciProcessElement(
 
         case USB_REASON_LINK: {
             // If it's a queue head link that
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
@@ -348,7 +348,7 @@ HciProcessElement(
         
         case USB_REASON_UNLINK: {
             // If it's a queue head link that
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 UhciQhUnlink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
@@ -377,7 +377,7 @@ HciProcessEvent(
 
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
+            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
                 UhciQhRestart((UhciController_t*)Controller, Transfer);
             }
         } break;

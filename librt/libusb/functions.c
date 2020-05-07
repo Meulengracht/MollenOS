@@ -88,20 +88,25 @@ UsbTransferInitialize(
     _In_ uint8_t                    type,
     _In_ uint8_t                    flags)
 {
-    uint8_t endpointAddress = USB_ENDPOINT_ADDRESS(endpoint->Address);
+    // Support NULL endpoint to indicate control
+    uint8_t  endpointAddress   = endpoint ? USB_ENDPOINT_ADDRESS(endpoint->Address) : 0;
+    uint16_t endpointMps       = endpoint ? USB_ENDPOINT_MPS(endpoint) : device->device_mps;
+    uint8_t  endpointBandwidth = endpoint ? USB_ENDPOINT_BANDWIDTH(endpoint) : 0;
+    uint8_t  endpointInterval  = endpoint ? USB_ENDPOINT_INTERVAL(endpoint) : 0;
+    
     TRACE("[usb] [transfer] initialize %u", endpointAddress);
-
+    
     memset(transfer, 0, sizeof(UsbTransfer_t));
-
     transfer->Type                    = type;
     transfer->Speed                   = device->speed;
     transfer->Address.HubAddress      = device->hub_address;
     transfer->Address.PortAddress     = device->port_address;
     transfer->Address.DeviceAddress   = device->device_address;
     transfer->Address.EndpointAddress = endpointAddress;
-    transfer->MaxPacketSize           = USB_ENDPOINT_MPS(endpoint);
+    transfer->MaxPacketSize           = endpointMps;
     transfer->Flags                   = flags;
-    transfer->PeriodicBandwith        = USB_ENDPOINT_BANDWIDTH(endpoint);
+    transfer->PeriodicBandwith        = endpointBandwidth;
+    transfer->PeriodicInterval        = endpointInterval;
 }
 
 void
@@ -174,7 +179,7 @@ UsbTransferIn(
 	_In_ size_t         Length,
     _In_ int            Handshake)
 {
-    UsbTransaction_t* Transaction;
+    usb_transaction_t* Transaction;
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
@@ -202,7 +207,7 @@ UsbTransferOut(
 	_In_ size_t         Length,
     _In_ int            Handshake)
 {
-    UsbTransaction_t* Transaction;
+    usb_transaction_t* Transaction;
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
@@ -336,11 +341,6 @@ UsbExecutePacket(
     usb_packet_t*       packet;
     UsbTransfer_t       transfer;
     
-    usb_endpoint_descriptor_t controlEndpoint = {
-        sizeof(usb_endpoint_descriptor_t), USB_DESCRIPTOR_ENDPOINT,
-        0, 0, deviceContext->device_mps, 0, 0, 0
-    };
-    
     if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -374,7 +374,8 @@ UsbExecutePacket(
     }
 
     // Initialize setup transfer
-    UsbTransferInitialize(&transfer, deviceContext, &controlEndpoint, ControlTransfer, 0);
+    UsbTransferInitialize(&transfer, deviceContext, USB_TRANSFER_ENDPOINT_CONTROL,
+        USB_TRANSFER_CONTROL, 0);
     UsbTransferSetup(&transfer, dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, dmaPacketStorage),
         dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, dmaStorage), length, dataDirection);
 

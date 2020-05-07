@@ -276,7 +276,7 @@ UsbManagerFinalizeTransfer(
     TRACE("UsbManagerFinalizeTransfer()");
 
     // Is the transfer only partially done?
-    if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
+    if ((Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK)
         && Transfer->Status == TransferFinished
         && (Transfer->Flags & TransferFlagPartial)
         && !(Transfer->Flags & TransferFlagShort)) {
@@ -297,7 +297,7 @@ UsbManagerFinalizeTransfer(
         _foreach(Node, Controller->TransactionList) {
             UsbManagerTransfer_t *NextTransfer = (UsbManagerTransfer_t*)Node->Data;
             if (NextTransfer->Status == TransferNotProcessed) {
-                if (NextTransfer->Transfer.Type == IsochronousTransfer) {
+                if (NextTransfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
                     HciQueueTransferIsochronous(NextTransfer);
                 }
                 else {
@@ -351,8 +351,8 @@ UsbManagerSynchronizeTransfers(
     // Is this transfer relevant?
     if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess && 
         Transfer->Status != TransferQueued && 
-        Transfer->Transfer.Type != BulkTransfer &&
-        Transfer->Transfer.Type != InterruptTransfer) {
+        Transfer->Transfer.Type != USB_TRANSFER_BULK &&
+        Transfer->Transfer.Type != USB_TRANSFER_INTERRUPT) {
         return ITERATOR_CONTINUE;
     }
 
@@ -436,7 +436,7 @@ UsbManagerProcessTransfer(
     }
 
     // Restart?
-    if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
             USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, Transfer);
         HciProcessEvent(Controller, USB_EVENT_RESTART_DONE, Transfer);
@@ -449,7 +449,7 @@ UsbManagerProcessTransfer(
         Transfer->Status = TransferQueued;
         Transfer->Flags  = TransferFlagNone;
     }
-    else if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+    else if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
         HciTransactionFinalize(Controller, Transfer, 0);
         if (!(Controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
             Transfer->EndpointDescriptor = NULL;
@@ -560,7 +560,7 @@ void
 UsbManagerDumpSchedule(
     _In_ UsbManagerController_t* Controller)
 {
-    UsbManagerTransfer_t PseudoTransferObject = { { 0 } };
+    UsbManagerTransfer_t PseudoTransferObject = { { { 0 } } };
     for (int i = 0; i < Controller->Scheduler->Settings.FrameCount; i++) {
         WARNING("-------------------------- FRAME %i ---------------------------------", i);
         UsbManagerIterateChain(Controller, (uint8_t*)Controller->Scheduler->VirtualFrameList[i], 

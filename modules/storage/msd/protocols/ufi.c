@@ -116,18 +116,17 @@ UfiInitialize(
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->In) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Base.DeviceContext,
+        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsSuccess) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Out) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Base.DeviceContext,
+        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsSuccess) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
     }
 
-    // Done
     return OsSuccess;
 }
 
@@ -150,10 +149,9 @@ UfiSendCommand(
     // Construct our command build the usb transfer
     UfiConstructCommand(&UfiCommandBlock, ScsiCommand, SectorStart,
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    Result = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
-        &Device->Base.Device, Device->Control, 
+    Result = UsbExecutePacket(&Device->Base.DeviceContext, 
         USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
-        (uint16_t)Device->Base.Interface.Id, 
+        (uint16_t)Device->InterfaceId, 
         sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
 
     // Sanitize for any transport errors
@@ -172,14 +170,12 @@ UfiReadData(
     _Out_ size_t*      BytesRead)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage = { 0 };
+    UsbTransfer_t       DataStage;
 
-    // Perform the transfer
-    UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->In, BulkTransfer, 0);
+    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+        Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, BytesRead);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, BytesRead);
     
     // Sanitize for any transport errors
     if (Result != TransferFinished) {
@@ -199,14 +195,13 @@ UfiWriteData(
     _Out_ size_t*      BytesWritten)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage = { 0 };
+    UsbTransfer_t       DataStage;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer, 0);
+    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+        Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, BytesWritten);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, BytesWritten);
 
     // Sanitize for any transport errors
     if (Result != TransferFinished) {

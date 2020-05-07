@@ -572,7 +572,7 @@ __EXTERN
 void
 EhciEnableScheduler(
     _In_ EhciController_t*  Controller,
-    _In_ UsbTransferType_t  Type);
+    _In_ uint8_t  Type);
 
 /* EhciSetPrefetching
  * Disables the prefetching related to the transfer-type. */
@@ -580,7 +580,7 @@ __EXTERN
 OsStatus_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
-    _In_ UsbTransferType_t  Type,
+    _In_ uint8_t  Type,
     _In_ int                Set);
 
 /* EhciHalt
@@ -635,10 +635,10 @@ EhciPortScan(
 __EXTERN
 OsStatus_t
 EhciQhInitialize(
-    _In_ EhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ size_t                     Address,
-    _In_ size_t                     Endpoint);
+    _In_ EhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer,
+    _In_ uint8_t               deviceAddress,
+    _In_ uint8_t               endpointAddress);
 
 /* EhciQhDump
  * Dumps the information contained in the queue-head by writing it to stdout */
@@ -680,7 +680,7 @@ EhciTdIo(
     _In_ EhciController_t*         Controller,
     _In_ EhciTransferDescriptor_t* Td,
     _In_ size_t                    MaxPacketSize,
-    _In_ UsbTransactionType_t      Direction,
+    _In_ uint8_t                   transactionType,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length,
     _In_ int                       Toggle);
@@ -730,13 +730,14 @@ EhciTdRestart(
 __EXTERN
 OsStatus_t
 EhciTdIsochronous(
-    _In_ EhciController_t*              Controller,
-    _In_ UsbTransfer_t*                 Transfer,
-    _In_ EhciIsochronousDescriptor_t*   iTd,
-    _In_ uintptr_t                      BufferAddress,
-    _In_ size_t                         ByteCount,
-    _In_ size_t                         Address,
-    _In_ size_t                         Endpoint);
+    _In_ EhciController_t*            controller,
+    _In_ UsbTransfer_t*               transfer,
+    _In_ EhciIsochronousDescriptor_t* iTd,
+    _In_ uintptr_t                    bufferAddress,
+    _In_ size_t                       byteCount,
+    _In_ uint8_t                      transactionType,
+    _In_ uint8_t                      deviceAddress,
+    _In_ uint8_t                      endpointAddress);
 
 /* EhciiTdDump
  * Dumps the information contained in the descriptor by writing it. */

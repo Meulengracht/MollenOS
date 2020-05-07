@@ -221,6 +221,7 @@ PACKED_TYPESTRUCT(usb_endpoint_descriptor, {
 
 #define USB_ENDPOINT_FEEDBACK(endpoint) (endpoint->Attributes & 0x10)
 
+#define USB_ENDPOINT_INTERVAL(endpoint)  (endpoint->Interval)
 #define USB_ENDPOINT_MPS(endpoint)       (endpoint->MaxPacketSize & 0x7FF)
 #define USB_ENDPOINT_BANDWIDTH(endpoint) ((endpoint->MaxPacketSize >> 11) & 0x3) + 1
 

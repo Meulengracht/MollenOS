@@ -98,13 +98,13 @@ EhciTdIo(
     _In_ EhciController_t*         Controller,
     _In_ EhciTransferDescriptor_t* Td,
     _In_ size_t                    MaxPacketSize,
-    _In_ UsbTransactionType_t      Direction,
+    _In_ uint8_t                   transactionType,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length,
     _In_ int                       Toggle)
 {
     uintptr_t NullTdPhysical   = 0;
-    uint8_t   PId              = (Direction == USB_TRANSACTION_IN) ? EHCI_TD_IN : EHCI_TD_OUT;
+    uint8_t   PId              = (transactionType == USB_TRANSACTION_IN) ? EHCI_TD_IN : EHCI_TD_OUT;
     size_t    CalculatedLength = 0;
 
     // Initialize the new Td
@@ -114,7 +114,8 @@ EhciTdIo(
 
     // Always stop transaction on short-reads
     if (PId == EHCI_TD_IN) {
-        UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, EHCI_TD_NULL, NULL, &NullTdPhysical);
+        UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL,
+            EHCI_TD_NULL, NULL, &NullTdPhysical);
         Td->AlternativeLink = LODWORD(NullTdPhysical);
     }
 
@@ -172,7 +173,7 @@ EhciTdValidate(
 
     // Get error code based on type of transfer
     ErrorCode = EhciConditionCodeToIndex(
-        Transfer->Transfer.Speed == HighSpeed ? (Td->Status & 0xFC) : Td->Status);
+        Transfer->Transfer.Speed == USB_SPEED_HIGH ? (Td->Status & 0xFC) : Td->Status);
     
     if (ErrorCode != 0) {
         Transfer->Status = EhciGetStatusCode(ErrorCode);

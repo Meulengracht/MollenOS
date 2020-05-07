@@ -66,31 +66,117 @@ UnregisterStorage(
     gracht_vali_message_finish(&msg);
 }
 
-static void
-DescriptorCallback(
-    _In_ int   type,
-    _In_ void* descriptor,
-    _In_ void* context)
+static void*
+memdup(void* mem, size_t size)
 {
-    MsdDevice_t* device = context;
+    void* dup = malloc(size);
+    if (!dup) {
+        return NULL;
+    }
+    memcpy(dup, mem, size);
+    return dup;
+}
+
+static inline int
+IsSupportedInterface(
+    _In_ usb_device_interface_setting_t* interface)
+{
+    // Verify class is MSD
+    if (interface->base.Class != USB_CLASS_MSD) {
+        return 0;
+    }
     
-    if (type == USB_DESCRIPTOR_INTERFACE) {
-        usb_interface_descriptor_t* interface = descriptor;
-        
-        
+    if (interface->base.Subclass == MSD_SUBCLASS_SCSI ||
+        interface->base.Subclass == MSD_SUBCLASS_FLOPPY ||
+        interface->base.Subclass == MSD_SUBCLASS_ATAPI) {
+        return 1;
     }
-    else if (type == USB_DESCRIPTOR_ENDPOINT) {
-        usb_endpoint_descriptor_t* endpoint = descriptor;
-        // length can be 7 and 9
+    
+    ERROR("Unsupported MSD Subclass 0x%x", interface->base.Subclass);
+    return 0;
+}
+
+static inline void
+GetDeviceProtocol(
+    _In_ MsdDevice_t*                    device,
+    _In_ usb_device_interface_setting_t* interface)
+{
+    // Set initial shared stuff
+    device->Protocol                      = ProtocolUnknown;
+    device->AlignedAccess                 = 0;
+    device->Descriptor.SectorsPerCylinder = 64;
+    device->Descriptor.SectorSize         = 512;
+    device->InterfaceId                   = interface->base.NumInterface;
+    
+    // Determine type of msd
+    if (interface->base.Subclass == MSD_SUBCLASS_FLOPPY) {
+        device->Type = TypeFloppy;
+        device->AlignedAccess = 1;
+        device->Descriptor.SectorsPerCylinder = 18;
     }
+    else if (interface->base.Subclass != MSD_SUBCLASS_ATAPI) {
+        device->Type = TypeDiskDrive;
+    }
+    else {
+        device->Type = TypeHardDrive;
+    }
+    
+    // Determine type of protocol
+    if (interface->base.Protocol == MSD_PROTOCOL_CBI) {
+        device->Protocol = ProtocolCBI;
+    }
+    else if (interface->base.Protocol == MSD_PROTOCOL_CB) {
+        device->Protocol = ProtocolCB;
+    }
+    else if (interface->base.Protocol == MSD_PROTOCOL_BULK_ONLY) {
+        device->Protocol = ProtocolBulk;
+    }
+}
+
+static void
+GetDeviceConfiguration(
+    _In_ MsdDevice_t* device)
+{
+    usb_device_configuration_t configuration;
+    UsbTransferStatus_t        status;
+    int                        i, j;
+    
+    status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
+    if (status != TransferFinished) {
+        return;
+    }
+    
+    // TODO support interface settings
+    for (i = 0; i < configuration.base.NumInterfaces; i++) {
+        usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
+        if (IsSupportedInterface(interface)) {
+            for (j = 0; j < interface->base.NumEndpoints; j++) {
+                usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
+                if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT) {
+                    device->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                }
+                else if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_BULK) {
+                    if (endpoint->Address & USB_ENDPOINT_ADDRESS_IN) {
+                        device->In = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                    }
+                    else {
+                        device->Out = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                    }
+                }
+            }
+            GetDeviceProtocol(device, interface);
+            break;
+        }
+    }
+    
+    UsbFreeConfigDescriptor(&configuration);
 }
 
 MsdDevice_t*
 MsdDeviceCreate(
     _In_ UsbDevice_t* UsbDevice)
 {
-    MsdDevice_t* Device = NULL;
-    int          i;
+    MsdDevice_t* Device;
 
     // Debug
     TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.Id);
@@ -103,66 +189,9 @@ MsdDeviceCreate(
     
     memset(Device, 0, sizeof(MsdDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
-    
     ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, &Device);
-    Device->Control = &Device->Base.Endpoints[0];
     
-    UsbEnumerateDescriptors(UsbDevice, DescriptorCallback, Device);
-
-    // Validate the kind of msd device, we don't support all kinds
-    if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI
-        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_FLOPPY
-        && UsbDevice->Interface.Subclass != MSD_SUBCLASS_ATAPI) {
-        ERROR("Unsupported MSD Subclass 0x%x", UsbDevice->Interface.Subclass);
-        goto Error;
-    }
-
-    // Find neccessary endpoints
-    for (i = 1; i < Device->Base.Interface.Versions[0].EndpointCount + 1; i++) {
-        if (Device->Base.Endpoints[i].Type == EndpointInterrupt) {
-            Device->Interrupt = &Device->Base.Endpoints[i];
-        }
-        else if (Device->Base.Endpoints[i].Type == EndpointBulk) {
-            if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_IN) {
-                Device->In = &Device->Base.Endpoints[i];
-            }
-            else if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_OUT) {
-                Device->Out = &Device->Base.Endpoints[i];
-            }
-        }
-    }
-
-    // Set initial shared stuff
-    Device->Protocol = ProtocolUnknown;
-    Device->AlignedAccess = 0;
-    Device->Descriptor.SectorsPerCylinder = 64;
-    Device->Descriptor.SectorSize = 512;
-    
-    // Determine type of msd
-    if (Device->Base.Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
-        Device->Type = TypeFloppy;
-        Device->AlignedAccess = 1;
-        Device->Descriptor.SectorsPerCylinder = 18;
-    }
-    else if (Device->Base.Interface.Subclass != MSD_SUBCLASS_ATAPI) {
-        Device->Type = TypeDiskDrive;
-    }
-    else {
-        Device->Type = TypeHardDrive;
-    }
-
-    // Determine type of protocol
-    if (Device->Protocol == ProtocolUnknown) {
-        if (Device->Base.Interface.Protocol == MSD_PROTOCOL_CBI) {
-            Device->Protocol = ProtocolCBI;
-        }
-        else if (Device->Base.Interface.Protocol == MSD_PROTOCOL_CB) {
-            Device->Protocol = ProtocolCB;
-        }
-        else if (Device->Base.Interface.Protocol == MSD_PROTOCOL_BULK_ONLY) {
-            Device->Protocol = ProtocolBulk;
-        }
-    }
+    GetDeviceConfiguration(Device);
     
     // Debug
     TRACE("MSD Device of Type %s and Protocol %s", 

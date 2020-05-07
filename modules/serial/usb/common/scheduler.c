@@ -253,42 +253,46 @@ UsbSchedulerDestroy(
 
 long
 UsbSchedulerCalculateBandwidth(
-    _In_ UsbSpeed_t        Speed, 
-    _In_ int               Direction,
-    _In_ UsbTransferType_t Type,
-    _In_ size_t            Length)
+    _In_ uint8_t speed, 
+    _In_ uint8_t transactionType,
+    _In_ uint8_t transferType,
+    _In_ size_t  length)
 {
-    long Result = 0;
+    long result = 0;
 
     // The bandwidth calculations are based entirely
     // on the speed of the transfer
-    switch (Speed) {
-    case LowSpeed:
-        if (Direction == USB_ENDPOINT_IN) {
-            Result = (67667L * (31L + 10L * BitTime(Length))) / 1000L;
-            return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Result;
-        }
-        else {
-            Result = (66700L * (31L + 10L * BitTime(Length))) / 1000L;
-            return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Result;
-        }
-    case FullSpeed:
-        if (Type == IsochronousTransfer) {
-            Result = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-            return ((Direction == USB_ENDPOINT_IN) ? 7268L : 6265L) + BW_HOST_DELAY + Result;
-        }
-        else {
-            Result = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-            return 9107L + BW_HOST_DELAY + Result;
-        }
-    case SuperSpeed:
-    case HighSpeed:
-        if (Type == IsochronousTransfer)
-            Result = HS_NSECS_ISO(Length);
-        else
-            Result = HS_NSECS(Length);
+    switch (speed) {
+        case USB_SPEED_LOW:
+            if (transactionType == USB_TRANSACTION_IN) {
+                result = (67667L * (31L + 10L * BitTime(length))) / 1000L;
+                return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
+            }
+            else {
+                result = (66700L * (31L + 10L * BitTime(length))) / 1000L;
+                return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
+            }
+        case USB_SPEED_FULL:
+            if (transferType == USB_TRANSFER_ISOCHRONOUS) {
+                result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
+                return ((transactionType == USB_TRANSACTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + result;
+            }
+            else {
+                result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
+                return 9107L + BW_HOST_DELAY + result;
+            }
+        case USB_SPEED_SUPER_PLUS:
+        case USB_SPEED_SUPER:
+        case USB_SPEED_HIGH:
+            if (transferType == USB_TRANSFER_ISOCHRONOUS)
+                result = HS_NSECS_ISO(length);
+            else
+                result = HS_NSECS(length);
+        
+        default:
+            break;
     }
-    return Result;
+    return result;
 }
 
 OsStatus_t
@@ -481,72 +485,79 @@ UsbSchedulerTryAllocateBandwidth(
 
 OsStatus_t
 UsbSchedulerAllocateBandwidth(
-    _In_ UsbScheduler_t*            Scheduler,
-    _In_ UsbHcEndpointDescriptor_t* Endpoint,
-    _In_ size_t                     BytesToTransfer,
-    _In_ UsbTransferType_t          Type,
-    _In_ UsbSpeed_t                 Speed,
-    _In_ uint8_t*                   Element)
+    _In_ UsbScheduler_t* scheduler,
+    _In_ uint8_t         interval,
+    _In_ uint16_t        mps,
+    _In_ uint8_t         transactionType,
+    _In_ size_t          bytesToTransfer,
+    _In_ uint8_t         transferType,
+    _In_ uint8_t         speed,
+    _In_ uint8_t*        element)
 {
-    UsbSchedulerObject_t* sObject              = NULL;
-    UsbSchedulerPool_t*   sPool                = NULL;
-    OsStatus_t            Result               = OsSuccess;
-    int                   NumberOfTransactions = 0;
-    int                   Exponent             = 0;
+    int                   numberOfTransactions;
+    int                   exponent;
+    OsStatus_t            result;
+    UsbSchedulerObject_t* schedulerObject;
+    UsbSchedulerPool_t*   schedulerPool = NULL;
 
     // Validate element and lookup pool
-    Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
-    assert(Result == OsSuccess);
-    sObject = USB_ELEMENT_OBJECT(sPool, Element);
+    result = UsbSchedulerGetPoolFromElement(scheduler, element, &schedulerPool);
+    assert(result == OsSuccess);
+    schedulerObject = USB_ELEMENT_OBJECT(schedulerPool, element);
 
     // Calculate the required number of transactions based on the MPS
-    NumberOfTransactions = DIVUP(BytesToTransfer, Endpoint->MaxPacketSize);
+    numberOfTransactions = DIVUP(bytesToTransfer, mps);
 
     // Calculate the number of microseconds the transfer will take
-    sObject->Bandwidth = (uint16_t)NS_TO_US(UsbSchedulerCalculateBandwidth(Speed, Endpoint->Direction, Type, BytesToTransfer));
+    schedulerObject->Bandwidth = (uint16_t)NS_TO_US(UsbSchedulerCalculateBandwidth(
+        speed, transactionType, transferType, bytesToTransfer));
     
     // If highspeed calculate period as 2^(Interval-1)
-    if (Speed == HighSpeed) {
-        sObject->FrameInterval = (1 << LOWORD(Endpoint->Interval));
+    if (speed == USB_SPEED_HIGH) {
+        schedulerObject->FrameInterval = (1 << interval);
     }
     else {
-        sObject->FrameInterval = LOWORD(Endpoint->Interval);
+        schedulerObject->FrameInterval = interval;
     }
     
     // Sanitize some bounds for period
     // to be considered if it should fail instead
-    if (sObject->FrameInterval == 0)                             sObject->FrameInterval = 1;
-    if (sObject->FrameInterval > Scheduler->Settings.FrameCount) sObject->FrameInterval = Scheduler->Settings.FrameCount;
+    if (schedulerObject->FrameInterval == 0)
+        schedulerObject->FrameInterval = 1;
+    else if (schedulerObject->FrameInterval > scheduler->Settings.FrameCount)
+        schedulerObject->FrameInterval = scheduler->Settings.FrameCount;
 
     // Try to fit it in, we try lesser intervals if possible too
-    for (Exponent = 7; Exponent >= 0; --Exponent) {
-        if ((1 << Exponent) <= (int)sObject->FrameInterval) {
+    for (exponent = 7; exponent >= 0; --exponent) {
+        if ((1 << exponent) <= (int)schedulerObject->FrameInterval) {
             break;
         }
     }
 
     // Sanitize that the exponent is valid
-    if (Exponent < 0) {
-        ERROR("Invalid usb-endpoint interval %u", Endpoint->Interval);
-        Exponent = 0;
+    if (exponent < 0) {
+        ERROR("Invalid usb-endpoint interval %u", interval);
+        exponent = 0;
     }
 
     // If we don't bandwidth for transfers with 1 interval, then try 2, 4, 8, 16, 32 etc
-    if (Exponent > 0) {
-        while (Result != OsSuccess && --Exponent >= 0) {
-            sObject->FrameInterval = 1 << Exponent;
-            Result                 = UsbSchedulerTryAllocateBandwidth(Scheduler, sObject, NumberOfTransactions);
+    if (exponent > 0) {
+        while (result != OsSuccess && --exponent >= 0) {
+            schedulerObject->FrameInterval = 1 << exponent;
+            result                         = UsbSchedulerTryAllocateBandwidth(
+                scheduler, schedulerObject, numberOfTransactions);
         }
     }
     else {
-        sObject->FrameInterval = 1 << Exponent;
-        Result                 = UsbSchedulerTryAllocateBandwidth(Scheduler, sObject, NumberOfTransactions);
+        schedulerObject->FrameInterval = 1 << exponent;
+        result                         = UsbSchedulerTryAllocateBandwidth(
+            scheduler, schedulerObject, numberOfTransactions);
     }
 
-    if (Result == OsSuccess) {
-        sObject->Flags |= USB_ELEMENT_BANDWIDTH;
+    if (result == OsSuccess) {
+        schedulerObject->Flags |= USB_ELEMENT_BANDWIDTH;
     }
-    return Result;
+    return result;
 }
 
 OsStatus_t

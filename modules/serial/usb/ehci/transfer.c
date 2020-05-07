@@ -91,7 +91,7 @@ HciDequeueTransfer(
         USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
 
     // Mark transfer for cleanup and ring doorbell if async
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
         Transfer->Flags |= TransferFlagCleanup;
         EhciRingDoorbell(Controller);
     }

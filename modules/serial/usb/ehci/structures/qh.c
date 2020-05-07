@@ -29,34 +29,31 @@
 #include <assert.h>
 #include <string.h>
 
-/* EhciQhInitialize
- * This initiates any periodic scheduling information that might be needed */
 OsStatus_t
 EhciQhInitialize(
-    _In_ EhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ size_t                     Address,
-    _In_ size_t                     Endpoint)
+    _In_ EhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer,
+    _In_ uint8_t               deviceAddress,
+    _In_ uint8_t               endpointAddress)
 {
-    // Variables
-    EhciQueueHead_t *Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    OsStatus_t Status   = OsSuccess;
-    size_t EpBandwidth  = MAX(3, Transfer->Transfer.Endpoint.Bandwidth);
+    EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->EndpointDescriptor;
+    OsStatus_t       Status      = OsSuccess;
+    size_t           EpBandwidth = MAX(3, transfer->Transfer.PeriodicBandwith);
 
     // Initialize links
-    Qh->LinkPointer     = EHCI_LINK_END;
-    Qh->Overlay.NextTD  = EHCI_LINK_END;
+    Qh->LinkPointer               = EHCI_LINK_END;
+    Qh->Overlay.NextTD            = EHCI_LINK_END;
     Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
     // Initialize link flags
-    Qh->Object.Flags    |= EHCI_LINK_QH;
+    Qh->Object.Flags |= EHCI_LINK_QH;
 
     // Initialize the QH
-    Qh->Flags            = EHCI_QH_DEVADDR(Address);
-    Qh->Flags           |= EHCI_QH_EPADDR(Endpoint);
-    Qh->Flags           |= EHCI_QH_DTC;
-    Qh->Flags           |= EHCI_QH_MAXLENGTH(Transfer->Transfer.Endpoint.MaxPacketSize); // MIN(TransferLength, MPS)?
-    if (Transfer->Transfer.Type == InterruptTransfer) {
+    Qh->Flags  = EHCI_QH_DEVADDR(deviceAddress);
+    Qh->Flags |= EHCI_QH_EPADDR(endpointAddress);
+    Qh->Flags |= EHCI_QH_MAXLENGTH(transfer->Transfer.MaxPacketSize); // MIN(TransferLength, MPS)?
+    Qh->Flags |= EHCI_QH_DTC;
+    if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
         Qh->State = EHCI_QH_MULTIPLIER(EpBandwidth);
     }
     else {
@@ -64,13 +61,13 @@ EhciQhInitialize(
     }
 
     // Now, set additionals depending on speed
-    if (Transfer->Transfer.Speed == LowSpeed || Transfer->Transfer.Speed == FullSpeed) {
-        if (Transfer->Transfer.Type == ControlTransfer) {
+    if (transfer->Transfer.Speed == USB_SPEED_LOW || transfer->Transfer.Speed == USB_SPEED_FULL) {
+        if (transfer->Transfer.Type == USB_TRANSFER_CONTROL) {
             Qh->Flags |= EHCI_QH_CONTROLEP;
         }
 
         // On low-speed, set this bit
-        if (Transfer->Transfer.Speed == LowSpeed) {
+        if (transfer->Transfer.Speed == USB_SPEED_LOW) {
             Qh->Flags |= EHCI_QH_LOWSPEED;
         }
 
@@ -78,15 +75,16 @@ EhciQhInitialize(
         Qh->Flags |= EHCI_QH_RL(0);
 
         // We need to fill the TT's hub-address and port-address
-        Qh->State |= EHCI_QH_HUBADDR(Transfer->Transfer.Address.HubAddress);
-        Qh->State |= EHCI_QH_PORT(Transfer->Transfer.Address.PortAddress);
+        Qh->State |= EHCI_QH_HUBADDR(transfer->Transfer.Address.HubAddress);
+        Qh->State |= EHCI_QH_PORT(transfer->Transfer.Address.PortAddress);
     }
     else {
         // High speed device, no transaction translator
         Qh->Flags |= EHCI_QH_HIGHSPEED;
 
         // Set nak-throttle to 4 if control or bulk
-        if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+        if (transfer->Transfer.Type == USB_TRANSFER_CONTROL || 
+            transfer->Transfer.Type == USB_TRANSFER_BULK) {
             Qh->Flags |= EHCI_QH_RL(4);
         }
         else {
@@ -95,17 +93,18 @@ EhciQhInitialize(
     }
     
     // Allocate bandwith if interrupt qh
-    if (Transfer->Transfer.Type == InterruptTransfer) {
+    if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
         // If we use completion masks we'll need another transfer for start
-        size_t BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
-        if (Transfer->Transfer.Speed != HighSpeed) {
-            BytesToTransfer += Transfer->Transfer.Endpoint.MaxPacketSize;
+        size_t BytesToTransfer = transfer->Transfer.Transactions[0].Length;
+        if (transfer->Transfer.Speed != USB_SPEED_HIGH) {
+            BytesToTransfer += transfer->Transfer.MaxPacketSize;
         }
 
         // Allocate the bandwidth
-        Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
-            &Transfer->Transfer.Endpoint, BytesToTransfer,
-            Transfer->Transfer.Type, Transfer->Transfer.Speed, (uint8_t*)Qh);
+        Status = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler, 
+            transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
+            transfer->Transfer.Transactions[0].Type, BytesToTransfer,
+            transfer->Transfer.Type, transfer->Transfer.Speed, (uint8_t*)Qh);
         if (Status == OsSuccess) {
             // Calculate both the frame start and completion mask
             // If the transfer was to spand over a boundary, starting with subframes in
@@ -114,7 +113,7 @@ EhciQhInitialize(
             // works this never happens as it only allocates in same frame. If this
             // changes we need to update this @todo
             Qh->FrameStartMask  = (uint8_t)FirstSetBit(Qh->Object.FrameMask);
-            if (Transfer->Transfer.Speed != HighSpeed) {
+            if (transfer->Transfer.Speed != USB_SPEED_HIGH) {
                 Qh->FrameCompletionMask = (uint8_t)(Qh->Object.FrameMask & 0xFF);
                 Qh->FrameCompletionMask &= ~(1 << Qh->FrameStartMask);
             }

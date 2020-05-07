@@ -145,7 +145,7 @@ UsbManagerSendNotification(
     }
 
     // If notification has been sent on control/bulk do not send again
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
         if ((Transfer->Flags & TransferFlagNotified)) {
             return;
         }
@@ -167,7 +167,7 @@ UsbManagerSendNotification(
         //    Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
 
         // Increase
-        if (Transfer->Transfer.Type == InterruptTransfer) {
+        if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
             Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
                 Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
         }
@@ -197,7 +197,7 @@ void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, st
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
     UsbTransferStatus_t   status;
     
-    if (transfer->Transfer.Type == IsochronousTransfer) {
+    if (transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
         status = HciQueueTransferIsochronous(transfer);
     }
     else {

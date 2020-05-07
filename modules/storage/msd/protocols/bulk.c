@@ -35,17 +35,15 @@ OsStatus_t
 BulkReset(
     _In_ MsdDevice_t *Device)
 {
-    // Variables
-    UsbTransferStatus_t Status  = TransferNAK;
-    int Iterations              = 0;
+    UsbTransferStatus_t Status     = TransferNAK;
+    int                 Iterations = 0;
 
     // Reset is 
     // 0x21 | 0xFF | wIndex - Interface
     while (Status == TransferNAK) {
-        Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
-            &Device->Base.Device, Device->Control,
+        Status = UsbExecutePacket(&Device->Base.DeviceContext,
             USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
-            MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Base.Interface.Id, 0, NULL);
+            MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->InterfaceId, 0, NULL);
         Iterations++;
     }
 
@@ -59,53 +57,58 @@ BulkReset(
     }
 }
 
+static OsStatus_t
+ClearAndResetEndpoint(
+    _In_ MsdDevice_t*               device,
+    _In_ usb_endpoint_descriptor_t* endpoint)
+{
+    UsbTransferStatus_t status = UsbClearFeature(&device->Base.DeviceContext,
+        USBPACKET_DIRECTION_ENDPOINT, USB_ENDPOINT_ADDRESS(endpoint->Address), 
+        USB_FEATURE_HALT);
+    if (status != TransferFinished) {
+        return OsError;
+    }
+    
+    return UsbEndpointReset(&device->Base.DeviceContext,
+        USB_ENDPOINT_ADDRESS(endpoint->Address));
+}
+
 OsStatus_t
 BulkResetRecovery(
-    _In_ MsdDevice_t *Device,
-    _In_ int ResetType)
+    _In_ MsdDevice_t* device,
+    _In_ int          resetType)
 {
+    OsStatus_t status;
+    
     // Debug
-    TRACE("MsdRecoveryReset(Type %i)", ResetType);
+    TRACE("MsdRecoveryReset(Type %i)", resetType);
 
     // Perform an initial reset
-    if ((ResetType & BULK_RESET) 
-        && BulkReset(Device) != OsSuccess) {
-        ERROR("Failed to reset bulk interface");
-        return OsError;
+    if (resetType & BULK_RESET) {
+        status = BulkReset(device);
+        if (status != OsSuccess) {
+            ERROR("Failed to reset bulk interface");
+            return OsError;
+        }
     }
 
     // Clear HALT/STALL features on both in and out endpoints
-    if ((ResetType & BULK_RESET_IN) 
-        && UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
-        Device->In->Address, USB_FEATURE_HALT) != TransferFinished) {
-        ERROR("Failed to clear STALL on endpoint (in)");
-        return OsError;
+    if (resetType & BULK_RESET_IN) {
+        status = ClearAndResetEndpoint(device, device->In);
+        if (status != OsSuccess) {
+            ERROR("Failed to clear STALL on endpoint (in)");
+            return status;
+        }
     }
-    if ((ResetType & BULK_RESET_OUT) 
-        && UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
-        Device->Out->Address, USB_FEATURE_HALT) != TransferFinished) {
-        ERROR("Failed to clear STALL on endpoint (out)");
-        return OsError;
+    
+    if (resetType & BULK_RESET_OUT) {
+        status = ClearAndResetEndpoint(device, device->Out);
+        if (status != OsSuccess) {
+            ERROR("Failed to clear STALL on endpoint (out)");
+            return status;
+        }
     }
-
-    // Reset data toggles for bulk-endpoints
-     if ((ResetType & BULK_RESET_IN) 
-        && UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->In) != OsSuccess) {
-        ERROR("Failed to reset endpoint (in)");
-        return OsError;
-    }
-    if ((ResetType & BULK_RESET_OUT) 
-        && UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Out) != OsSuccess) {
-        ERROR("Failed to reset endpoint (out)");
-        return OsError;
-    }
-
-    // Reset interface again
-    return OsSuccess;
+    return status;
 }
 
 void
@@ -373,13 +376,13 @@ BulkInitialize(
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->In) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Base.DeviceContext,
+            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsSuccess) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Out) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Base.DeviceContext, 
+            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsSuccess) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
     }
@@ -431,7 +434,7 @@ BulkSendCommand(
     _In_ size_t       DataLength)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       CommandStage = { 0 };
+    UsbTransfer_t       CommandStage;
     size_t              bytesTransferred;
 
     // Debug
@@ -441,13 +444,12 @@ BulkSendCommand(
     // Construct our command build the usb transfer
     BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    UsbTransferInitialize(&CommandStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer, 0);
+    UsbTransferInitialize(&CommandStage, &Device->Base.DeviceContext, 
+        Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
         sizeof(MsdCommandBlock_t), 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &CommandStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &CommandStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     if (Result != TransferFinished) {
@@ -473,15 +475,14 @@ BulkReadData(
     _Out_ size_t*      BytesRead)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage = { 0 };
+    UsbTransfer_t       DataStage;
     size_t              bytesTransferred;
 
     // Perform the transfer
-    UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->In, BulkTransfer, 0);
+    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+        Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
@@ -511,15 +512,14 @@ BulkWriteData(
     _Out_ size_t*      BytesWritten)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage = { 0 };
+    UsbTransfer_t       DataStage;
     size_t              bytesTransferred;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer, 0);
+    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+        Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &DataStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // The host shall accept the data received.
@@ -545,19 +545,18 @@ BulkGetStatus(
     _In_ MsdDevice_t* Device)
 {
     UsbTransferStatus_t Result;
-    UsbTransfer_t       StatusStage = { 0 };
+    UsbTransfer_t       StatusStage;
     size_t              bytesTransferred;
 
     // Debug
     TRACE("BulkGetStatus()");
 
     // Perform the transfer
-    UsbTransferInitialize(&StatusStage, &Device->Base.Device, 
-        Device->In, BulkTransfer, 0);
+    UsbTransferInitialize(&StatusStage, &Device->Base.DeviceContext, 
+        Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
-    Result = UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
-        &StatusStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Base.DeviceContext, &StatusStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // On a STALL condition receiving the CSW, then:

@@ -38,17 +38,16 @@ UhciTransferFillIsochronous(
     UhciTransferDescriptor_t* PreviousTd = NULL;
     uintptr_t                 AddressPointer;
     size_t                    BytesToTransfer;
-
+    uint8_t                   Type = Transfer->Transfer.Transactions[0].Type;
+    
     TRACE("UhciTransferFillIsochronous()");
 
-    UsbTransactionType_t Type = Transfer->Transfer.Transactions[0].Type;
-    BytesToTransfer           = Transfer->Transfer.Transactions[0].Length;
-
+    BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
     while (BytesToTransfer) {
         UhciTransferDescriptor_t* Td;
         size_t                    BytesStep;
         
-        BytesStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
+        BytesStep = MIN(BytesToTransfer, Transfer->Transfer.MaxPacketSize);
         BytesStep = MIN(BytesStep, Transfer->Transactions[0].DmaTable.entries[
             Transfer->Transactions[0].SgIndex].length - Transfer->Transactions[0].SgOffset);
         
@@ -61,8 +60,10 @@ UhciTransferFillIsochronous(
                 Transfer->Transfer.Address.EndpointAddress,
                 Transfer->Transfer.Speed, AddressPointer, BytesStep, 0);
             
-            if (UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, &Transfer->Transfer.Endpoint,
-                BytesStep, IsochronousTransfer, Transfer->Transfer.Speed, (uint8_t*)Td) != OsSuccess) {
+            if (UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler,
+                Transfer->Transfer.PeriodicInterval, Transfer->Transfer.MaxPacketSize,
+                Type, BytesStep, USB_TRANSFER_ISOCHRONOUS,
+                Transfer->Transfer.Speed, (uint8_t*)Td) != OsSuccess) {
                 // Free element
                 UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)Td);
                 break;
@@ -128,12 +129,12 @@ UhciTransferFill(
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        UsbTransactionType_t Type            = Transfer->Transfer.Transactions[i].Type;
-        size_t               BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
-        int                  PreviousToggle  = -1;
-        int                  Toggle          = 0;
-        int                  IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int                  IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        uint8_t Type            = Transfer->Transfer.Transactions[i].Type;
+        size_t  BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
+        int     PreviousToggle  = -1;
+        int     Toggle          = 0;
+        int     IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
 
         TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i, MPS %u)", i,
             BytesToTransfer, Type, Transfer->Transfer.Endpoint.MaxPacketSize);
@@ -153,8 +154,8 @@ UhciTransferFill(
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.Endpoint.MaxPacketSize) == 0 &&
-            Transfer->Transfer.Type == BulkTransfer &&
+        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.MaxPacketSize) == 0 &&
+            Transfer->Transfer.Type == USB_TRANSFER_BULK &&
             Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
             Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
@@ -171,7 +172,7 @@ UhciTransferFill(
                 Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
                 Address = Dma->address + Transfer->Transactions[i].SgOffset;
                 Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
-                Length  = MIN(Length, Transfer->Transfer.Endpoint.MaxPacketSize);
+                Length  = MIN(Length, Transfer->Transfer.MaxPacketSize);
             }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);

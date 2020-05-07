@@ -39,11 +39,10 @@ HidGetDescriptor(
     _Out_ UsbHidDescriptor_t *Descriptor)
 {
     // Perform the descriptor retrieving
-    UsbTransferStatus_t Status = UsbExecutePacket(Device->Base.DriverId, 
-        Device->Base.DeviceId, &Device->Base.Device, Device->Control,
+    UsbTransferStatus_t Status = UsbExecutePacket(&Device->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, DESCRIPTOR_TYPE_HID, 0, 
-        (uint16_t)Device->Base.Interface.Id,
+        (uint16_t)Device->InterfaceId,
         sizeof(UsbHidDescriptor_t), (void*)Descriptor);
 
     if (Status != TransferFinished) {
@@ -66,11 +65,10 @@ HidGetReportDescriptor(
     _Out_ uint8_t *ReportBuffer)
 {
     // Perform the descriptor retrieving
-    UsbTransferStatus_t Status = UsbExecutePacket(Device->Base.DriverId, 
-        Device->Base.DeviceId, &Device->Base.Device, Device->Control,
+    UsbTransferStatus_t Status = UsbExecutePacket(&Device->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, ReportType, 0, 
-        (uint16_t)Device->Base.Interface.Id,
+        (uint16_t)Device->InterfaceId,
         ReportLength, (void*)ReportBuffer);
 
     if (Status != TransferFinished) {
@@ -87,14 +85,13 @@ HidGetReportDescriptor(
  * 0 = Boot Protocol, 1 = Report Protocol */
 OsStatus_t
 HidSetProtocol(
-    _In_ HidDevice_t *Device,
-    _In_ int Protocol)
+    _In_ HidDevice_t* Device,
+    _In_ int          Protocol)
 {
-    if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
-        &Device->Base.Device, Device->Control,
+    if (UsbExecutePacket(&Device->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
         HID_SET_PROTOCOL, 0, Protocol & 0xFF, 
-        (uint16_t)Device->Base.Interface.Id, 0, NULL) != TransferFinished) {
+        (uint16_t)Device->InterfaceId, 0, NULL) != TransferFinished) {
         return OsError;
     }
     else {
@@ -114,11 +111,10 @@ HidSetIdle(
     _In_ int Duration)
 {
     // This request may stall, which means it's unsupported
-    if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
-        &Device->Base.Device, Device->Control,
+    if (UsbExecutePacket(&Device->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
         HID_SET_IDLE, Duration & 0xFF, ReportId & 0xFF, 
-        (uint16_t)Device->Base.Interface.Id, 0, NULL) == TransferFinished) {
+        (uint16_t)Device->InterfaceId, 0, NULL) == TransferFinished) {
         return OsSuccess;
     }
     else {
@@ -144,11 +140,12 @@ HidSetupGeneric(
     }
 
     // Switch to report protocol
-    if (Device->Base.Interface.Subclass == HID_SUBCLASS_BOOT) {
-        if (HidSetProtocol(Device, 1) != OsSuccess) {
+    if (Device->CurrentProtocol == HID_DEVICE_PROTOCOL_BOOT) {
+        if (HidSetProtocol(Device, HID_DEVICE_PROTOCOL_REPORT) != OsSuccess) {
             ERROR("Failed to set the hid device into report protocol.");
             return OsError;
         }
+        Device->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
     }
 
     // Put the device into idle-state

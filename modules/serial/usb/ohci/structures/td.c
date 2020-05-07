@@ -64,7 +64,7 @@ OhciTdSetup(
 size_t
 OhciTdIo(
     _In_ OhciTransferDescriptor_t* Td,
-    _In_ UsbTransferType_t         Type,
+    _In_ uint8_t         Type,
     _In_ uint32_t                  PId,
     _In_ int                       Toggle,
     _In_ uintptr_t                 Address,
@@ -91,7 +91,7 @@ OhciTdIo(
 
     // We have to allow short-packets in some cases
     // where data returned or send might be shorter
-    if (Type == ControlTransfer) {
+    if (Type == USB_TRANSFER_CONTROL) {
         if (PId == OHCI_TD_IN && Length > 0) {
             Td->Flags |= OHCI_TD_SHORTPACKET_OK;
         }
@@ -218,7 +218,7 @@ OhciTdRestart(
     uintptr_t LinkAddress       = 0;
     int       Toggle            = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
-    BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
+    BufferStep = Transfer->Transfer.MaxPacketSize;
 
     // Clear
     Td->OriginalFlags &= ~(OHCI_TD_TOGGLE);

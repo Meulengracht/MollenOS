@@ -32,64 +32,66 @@
 
 OsStatus_t
 EhciTdIsochronous(
-    _In_ EhciController_t*            Controller,
-    _In_ UsbTransfer_t*               Transfer,
+    _In_ EhciController_t*            controller,
+    _In_ UsbTransfer_t*               transfer,
     _In_ EhciIsochronousDescriptor_t* iTd,
-    _In_ uintptr_t                    BufferAddress,
-    _In_ size_t                       ByteCount,
-    _In_ size_t                       Address,
-    _In_ size_t                       Endpoint)
+    _In_ uintptr_t                    bufferAddress,
+    _In_ size_t                       byteCount,
+    _In_ uint8_t                      transactionType,
+    _In_ uint8_t                      deviceAddress,
+    _In_ uint8_t                      endpointAddress)
 {
-    // Variables
-    uintptr_t BufferIterator    = BufferAddress;
-    uintptr_t PageMask          = ~((uintptr_t)0xFFF);
-    OsStatus_t Status           = OsSuccess;
-    size_t BytesLeft            = ByteCount;
-    size_t PageIndex            = 0;
-    int i;
+    uintptr_t  BufferIterator = bufferAddress;
+    uintptr_t  PageMask       = ~((uintptr_t)0xFFF);
+    OsStatus_t Status         = OsSuccess;
+    size_t     BytesLeft      = byteCount;
+    size_t     PageIndex      = 0;
+    int        i;
 
-    // Set link
-    iTd->Link                   = EHCI_LINK_END;
-    iTd->Object.Flags           |= EHCI_LINK_iTD;
+    iTd->Link          = EHCI_LINK_END;
+    iTd->Object.Flags |= EHCI_LINK_iTD;
 
     // Fill in buffer page settings and initial page
     for (i = 0; i < 7; i++) {
-        iTd->Buffers[i]         = 0;
-        iTd->ExtBuffers[i]      = 0;
+        iTd->Buffers[i]    = 0;
+        iTd->ExtBuffers[i] = 0;
+        
         if (i == 0) { // Initialize the status word/bp0
-            iTd->Buffers[i]     = EHCI_iTD_DEVADDR(Address);
-            iTd->Buffers[i]     |= EHCI_iTD_EPADDR(Endpoint);
-            iTd->Buffers[i]     |= EHCI_iTD_BUFFER(BufferAddress);
+            iTd->Buffers[i]  = EHCI_iTD_DEVADDR(deviceAddress);
+            iTd->Buffers[i] |= EHCI_iTD_EPADDR(endpointAddress);
+            iTd->Buffers[i] |= EHCI_iTD_BUFFER(bufferAddress);
 #if __BITS == 64
-            if (Controller->CParameters & EHCI_CPARAM_64BIT) {
-                iTd->ExtBuffers[i] = EHCI_iTD_EXTBUFFER(BufferAddress);
+            if (controller->CParameters & EHCI_CPARAM_64BIT) {
+                iTd->ExtBuffers[i] = EHCI_iTD_EXTBUFFER(bufferAddress);
             }
 #endif
         }
         else if (i == 1) { // Initialize the mps word
-            iTd->Buffers[i]     = EHCI_iTD_MPS(Transfer->Endpoint.MaxPacketSize);
-            if (Transfer->Endpoint.Direction == USB_ENDPOINT_IN) {
+            iTd->Buffers[i] = EHCI_iTD_MPS(transfer->MaxPacketSize);
+            
+            if (transactionType == USB_TRANSACTION_IN) {
                 iTd->Buffers[i] |= EHCI_iTD_IN;
             }
         }
         else if (i == 2) { // Initialize the multi word
-            iTd->Buffers[i]     = MAX(3, Transfer->Endpoint.Bandwidth);
+            iTd->Buffers[i] = MAX(3, transfer->PeriodicBandwith);
         }
     }
 
     // Fill in transactions
     for (i = 0; i < 8; i++) {
         if (BytesLeft > 0) {
-            size_t PageBytes        = MIN(BytesLeft, 1024 * MAX(3, Transfer->Endpoint.Bandwidth));
-            iTd->Transactions[i]    = EHCI_iTD_OFFSET(BufferIterator);
-            iTd->Transactions[i]    |= EHCI_iTD_PAGE(PageIndex);
-            iTd->Transactions[i]    |= EHCI_iTD_LENGTH(PageBytes);
-            iTd->Transactions[i]    |= EHCI_iTD_ACTIVE;
+            size_t PageBytes = MIN(BytesLeft, 1024 * MAX(3, transfer->PeriodicBandwith));
+            
+            iTd->Transactions[i]  = EHCI_iTD_OFFSET(BufferIterator);
+            iTd->Transactions[i] |= EHCI_iTD_PAGE(PageIndex);
+            iTd->Transactions[i] |= EHCI_iTD_LENGTH(PageBytes);
+            iTd->Transactions[i] |= EHCI_iTD_ACTIVE;
             if ((BufferIterator & PageMask) != ((BufferIterator + PageBytes) & PageMask)) {
                 PageIndex++;
                 iTd->Buffers[PageIndex] |= EHCI_iTD_BUFFER((BufferIterator + PageBytes));
 #if __BITS == 64
-                if (Controller->CParameters & EHCI_CPARAM_64BIT) {
+                if (controller->CParameters & EHCI_CPARAM_64BIT) {
                     iTd->ExtBuffers[PageIndex] = EHCI_iTD_EXTBUFFER((BufferIterator + PageBytes));
                 }
 #endif
@@ -109,8 +111,10 @@ EhciTdIsochronous(
     }
 
     // Handle bandwidth allocation
-    Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
-        &Transfer->Endpoint, ByteCount, Transfer->Type, Transfer->Speed, (uint8_t*)iTd);
+    Status = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler, 
+        transfer->PeriodicInterval, transfer->MaxPacketSize, 
+        transfer->Transactions[0].Type, byteCount, transfer->Type,
+        transfer->Speed, (uint8_t*)iTd);
     return Status;
 }
 

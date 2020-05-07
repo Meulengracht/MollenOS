@@ -55,15 +55,15 @@ OhciTransactionDispatch(
 void
 OhciReloadAsynchronous(
     _In_ OhciController_t* Controller, 
-    _In_ UsbTransferType_t TransferType)
+    _In_ uint8_t TransferType)
 {
     OhciQueueHead_t* Qh        = NULL;
     uintptr_t        QhAddress = 0;
     uint16_t         Index     = USB_ELEMENT_NO_INDEX;
 
     // Get correct new index
-    if (TransferType == ControlTransfer)   Index = Controller->TransactionQueueControlIndex;
-    else if (TransferType == BulkTransfer) Index = Controller->TransactionQueueBulkIndex;
+    if (TransferType == USB_TRANSFER_CONTROL)   Index = Controller->TransactionQueueControlIndex;
+    else if (TransferType == USB_TRANSFER_BULK) Index = Controller->TransactionQueueBulkIndex;
     assert(Index != USB_ELEMENT_NO_INDEX);
 
     // Get the element data
@@ -72,7 +72,7 @@ OhciReloadAsynchronous(
         Index & USB_ELEMENT_INDEX_MASK, (uint8_t**)&Qh, &QhAddress);
 
     // Handle the different queues
-    if (TransferType == ControlTransfer) {
+    if (TransferType == USB_TRANSFER_CONTROL) {
         WRITE_VOLATILE(Controller->Registers->HcControlHeadED, LODWORD(QhAddress));
         WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
             READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_CONTROL_FILLED);
@@ -81,7 +81,7 @@ OhciReloadAsynchronous(
         Controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
         Controller->TransactionsWaitingControl   = 0;
     }
-    else if (TransferType == BulkTransfer) {
+    else if (TransferType == USB_TRANSFER_BULK) {
         WRITE_VOLATILE(Controller->Registers->HcBulkHeadED, LODWORD(QhAddress));
         WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
             READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);
@@ -105,14 +105,14 @@ HciTransactionFinalize(
 
     // If it's an asynchronous transfer check for end of link, then we should
     // reload the asynchronous queue
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
         // Check if the link of the QH is eol
         reg32_t Status  = READ_VOLATILE(OhciCtrl->Registers->HcCommandStatus);
         reg32_t Control = OhciCtrl->QueuesActive;
         if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingControl != 0) {
                 // Conditions for control fulfilled
-                OhciReloadAsynchronous(OhciCtrl, ControlTransfer);
+                OhciReloadAsynchronous(OhciCtrl, USB_TRANSFER_CONTROL);
                 Status  |= OHCI_COMMAND_CONTROL_FILLED;
                 Control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
@@ -125,7 +125,7 @@ HciTransactionFinalize(
         if ((Status & OHCI_COMMAND_BULK_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingBulk != 0) {
                 // Conditions for bulk fulfilled
-                OhciReloadAsynchronous(OhciCtrl, BulkTransfer);
+                OhciReloadAsynchronous(OhciCtrl, USB_TRANSFER_BULK);
                 Status  |= OHCI_COMMAND_BULK_FILLED;
                 Control |= OHCI_CONTROL_BULK_ACTIVE;
             }
@@ -142,7 +142,7 @@ HciTransactionFinalize(
     }
 
     // Don't unlink asynchronous transfers
-    if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
+    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
             USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
 

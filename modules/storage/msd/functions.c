@@ -99,10 +99,9 @@ MsdGetMaximumLunCount(
     // Get Max LUNS is
     // 0xA1 | 0xFE | wIndex - Interface 
     // 1 Byte is expected back, values range between 0 - 15, 0-indexed
-    Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control,
+    Status = UsbExecutePacket(&Device->Base.DeviceContext,
         USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
-        MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->Base.Interface.Id, 1, &MaxLuns);
+        MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->InterfaceId, 1, &MaxLuns);
 
     // If no multiple LUNS are supported, device may STALL it says in the usbmassbulk spec 
     // but thats ok, it's not a functional stall, only command stall
