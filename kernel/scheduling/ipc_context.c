@@ -191,7 +191,8 @@ WriteMessage(
     
     // Fixup all SHM buffer values before writing the base message
     for (i = 0; i < Message->base->header.param_in; i++) {
-        if (Message->base->params[i].type == GRACHT_PARAM_SHM) {
+        if (Message->base->params[i].type == GRACHT_PARAM_SHM &&
+            Message->base->params[i].length > 0) {
             MCoreThread_t* Thread = GetContextThread(Context);
             OsStatus_t     Status = MapUntypedParameter(&Message->base->params[i],
                 Thread->MemorySpace);
@@ -214,7 +215,8 @@ WriteMessage(
     
     // Handle all the buffer/shm parameters
     for (i = 0; i < Message->base->header.param_in; i++) {
-        if (Message->base->params[i].type == GRACHT_PARAM_BUFFER) {
+        if (Message->base->params[i].type == GRACHT_PARAM_BUFFER &&
+            Message->base->params[i].length > 0) {
             streambuffer_write_packet_data(Context->KernelStream,
                 Message->base->params[i].data.buffer,
                 Message->base->params[i].length,
@@ -244,11 +246,12 @@ CleanupMessage(
     _In_ struct ipmsg* message)
 {
     int i;
-    TRACE("CleanupMessage(0x%llx)", message);
+    TRACE("[ipc] [cleanup]");
 
     // Flush all the mappings granted in the argument phase
     for (i = 0; i < message->base.header.param_in; i++) {
-        if (message->base.params[i].type == GRACHT_PARAM_SHM) {
+        if (message->base.params[i].type == GRACHT_PARAM_SHM && 
+            message->base.params[i].length > 0) {
             OsStatus_t status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 (VirtualAddress_t)message->base.params[i].data.buffer,
                 message->base.params[i].length);

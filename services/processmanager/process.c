@@ -21,6 +21,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
+
 //#define __TRACE
 
 #include <assert.h>
@@ -309,7 +310,7 @@ CreateProcess(
     Process_t*         Process;
     MString_t*         PathAsMString;
     size_t             PathLength;
-    size_t             ArgumentsLength = strlen(Arguments);
+    size_t             ArgumentsLength;
     size_t             InheritationBlockLength;
     char*              ArgumentsPointer;
     int                Index;
@@ -318,7 +319,9 @@ CreateProcess(
 
     assert(Path != NULL);
     assert(HandleOut != NULL);
-    TRACE("CreateProcess(%s)", Path);
+    TRACE("[process] [spawn] path %s, args %s", Path, Arguments);
+    
+    ArgumentsLength = Arguments ? strlen(Arguments) : 0;
 
     Process = (Process_t*)malloc(sizeof(Process_t));
     if (!Process) {
@@ -349,6 +352,7 @@ CreateProcess(
     }
 
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
+    TRACE("[process] [spawn] full path %s", MStringRaw(Process->Executable->FullPath));
     Process->Path              = MStringCreate((void*)MStringRaw(Process->Executable->FullPath), StrUTF8);
     Index                      = MStringFindReverse(Process->Path, '/', 0);
     Process->Name              = MStringSubString(Process->Path, Index + 1, -1);
