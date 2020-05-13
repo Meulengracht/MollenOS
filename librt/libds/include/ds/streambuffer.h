@@ -51,7 +51,7 @@ typedef struct streambuffer {
     _Atomic(unsigned int) producer_index;
     _Atomic(unsigned int) producer_comitted_index;
     
-    uint8_t buffer[1];
+    uint8_t buffer[];
 } streambuffer_t;
 
 DSDECL(void,

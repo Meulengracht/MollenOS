@@ -50,23 +50,25 @@ typedef void* gracht_handle_t;
 #define GRACHT_PARAM_BUFFER 1
 #define GRACHT_PARAM_SHM    2
 
-struct gracht_param {
+// Pack structures transmitted to make debugging wire format easier
+GRACHT_STRUCT(gracht_param, {
     uint32_t length : 30;
     uint32_t type   : 2;
     union {
         size_t value;
         void*  buffer;
     } data;
-};
+});
 
-struct gracht_message_header {
+// Pack structures transmitted to make debugging wire format easier
+GRACHT_STRUCT(gracht_message_header, {
     uint32_t length;
     uint32_t param_in  : 4;
     uint32_t param_out : 4;
     uint32_t flags     : 8;
     uint32_t protocol  : 8;
     uint32_t action    : 8;
-};
+});
 
 struct gracht_message {
     struct gracht_message_header header;

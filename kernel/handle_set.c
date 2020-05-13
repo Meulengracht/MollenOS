@@ -79,7 +79,7 @@ DestroyHandleSet(
 {
     HandleSet_t* Set = Resource;
     rb_leaf_t*   Leaf;
-    WARNING("[handle_set] [destroy]");
+    TRACE("[handle_set] [destroy]");
     
     do {
         Leaf = rb_tree_minimum(&Set->Handles);
@@ -99,7 +99,7 @@ CreateHandleSet(
 {
     HandleSet_t* Set;
     UUId_t       Handle;
-    WARNING("[handle_set] [create] 0x%x", Flags);
+    TRACE("[handle_set] [create] 0x%x", Flags);
     
     Set = (HandleSet_t*)kmalloc(sizeof(HandleSet_t));
     if (!Set) {
@@ -130,7 +130,7 @@ ControlHandleSet(
     HandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
     HandleSetElement_t* SetElement;
     OsStatus_t          Status;
-    WARNING("[handle_set] [control] %u, %i, %u, 0x%x", 
+    TRACE("[handle_set] [control] %u, %i, %u, 0x%x", 
         SetHandle, Operation, Handle, Configuration);
     
     if (!Set) {
@@ -179,7 +179,7 @@ WaitForHandleSet(
     int             NumberOfEvents;
     list_t          Spliced;
     element_t*      i;
-    WARNING("[handle_set] [wait] %u, %i, %" PRIuIN, 
+    TRACE("[handle_set] [wait] %u, %i, %" PRIuIN, 
         Handle, MaxEvents, Timeout);
     
     if (!Set) {
@@ -201,7 +201,7 @@ WaitForHandleSet(
     list_splice(&Set->Events, NumberOfEvents, &Spliced);
     
     smp_rmb();
-    WARNING("[handle_set] [wait] num events %i", NumberOfEvents);
+    TRACE("[handle_set] [wait] num events %i", NumberOfEvents);
     _foreach(i, &Spliced) {
         HandleSetElement_t* Element = i->value;
         
@@ -222,7 +222,7 @@ MarkHandleCallback(
 {
     HandleSetElement_t* SetElement = Element->value;
     Flags_t             Flags      = (Flags_t)(uintptr_t)Context;
-    WARNING("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
+    TRACE("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
     
     if (SetElement->Configuration & Flags) {
         int Previous;
@@ -249,7 +249,7 @@ MarkHandle(
         return OsDoesNotExist;
     }
     
-    WARNING("[handle_set] [mark] handle %u - 0x%x", Handle, Flags);
+    TRACE("[handle_set] [mark] handle %u - 0x%x", Handle, Flags);
     list_enumerate(&Element->Sets, MarkHandleCallback, (void*)(uintptr_t)Flags);
     return OsSuccess;
 }

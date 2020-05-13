@@ -82,6 +82,7 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
             unpackIndex += params[i].length;
         }
         else if (params[i].type == GRACHT_PARAM_BUFFER) {
+            TRACE("push pointer: 0x%llx %u", params_storage, params[i].length);
             if (params[i].length == 0) {
                 *((char**)&unpackBuffer[unpackIndex]) = NULL;
             }

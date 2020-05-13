@@ -47,16 +47,17 @@ struct ipmsg_addr {
 #define IPMSG_NOTIFY_SIGNAL     2 // SIGIPC
 #define IPMSG_NOTIFY_THREAD     3 // Thread callback
 
-struct ipmsg_resp {
+// Pack structures transmitted to make debugging wire format easier
+GRACHT_STRUCT(ipmsg_resp, {
     UUId_t   dma_handle;
-    uint16_t dma_offset;
+    uint32_t dma_offset;
     int      notify_method;
     void*    notify_context;
     union {
         UUId_t    handle;
         uintptr_t callback;
     } notify_data;
-};
+});
 
 #define IPMSG_RESP_INIT_DEFAULT { UUID_INVALID, 0, IPMSG_NOTIFY_NONE, NULL, { thrd_current() } }
 

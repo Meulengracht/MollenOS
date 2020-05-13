@@ -21,6 +21,7 @@
  * - This header describes the base ipc-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+
 //#define __TRACE
 
 #include <ddk/handle.h>
@@ -133,6 +134,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
         return -1;
     }
     
+    TRACE("[ipcontext] [getmsg] message available, size %" PRIuIN, bytesAvailable);
     streambuffer_read_packet_data(stream, msg, MIN(len, bytesAvailable), &state);
     streambuffer_read_packet_end(stream, base, bytesAvailable);
     return 0;

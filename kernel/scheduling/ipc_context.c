@@ -20,7 +20,8 @@
  * IP-Communication
  * - Implementation of inter-thread communication. 
  */
-#define __TRACE
+
+//#define __TRACE
 
 #include <ddk/barrier.h>
 #include <ddk/handle.h>
@@ -90,7 +91,7 @@ IpcContextCreate(
     
     Context->Handle       = CreateHandle(HandleTypeIpcContext, IpcContextDestroy, Context);
     Context->KernelStream = (streambuffer_t*)KernelMapping;
-    streambuffer_construct(Context->KernelStream, Size, 
+    streambuffer_construct(Context->KernelStream, Size - sizeof(streambuffer_t), 
         STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS);
     
     *HandleOut = Context->Handle;
@@ -178,8 +179,11 @@ WriteMessage(
 {
     int i;
     
-    TRACE("[ipc] [write] %u/%u", Message->base->header.protocol,
-        Message->base->header.action);
+    TRACE("[ipc] [write] %u/%u [%u, %u]", Message->base->header.protocol,
+        Message->base->header.action, sizeof(struct ipmsg_resp),
+        sizeof(struct gracht_message) + (
+            (Message->base->header.param_in + Message->base->header.param_out)
+                * sizeof(struct gracht_param)));
     
     // Write all members in the order of ipmsg
     streambuffer_write_packet_data(Context->KernelStream, 
@@ -211,7 +215,7 @@ WriteMessage(
     // Handle all the buffer/shm parameters
     for (i = 0; i < Message->base->header.param_in; i++) {
         if (Message->base->params[i].type == GRACHT_PARAM_BUFFER) {
-            streambuffer_write_packet_data(Context->KernelStream, 
+            streambuffer_write_packet_data(Context->KernelStream,
                 Message->base->params[i].data.buffer,
                 Message->base->params[i].length,
                 &State->state);

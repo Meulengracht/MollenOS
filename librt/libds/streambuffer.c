@@ -82,7 +82,7 @@ streambuffer_create(
 {
     // When calculating the number of bytes we want to actual structure size
     // without the buffer[1] and then capacity
-    streambuffer_t* stream = (streambuffer_t*)dsalloc((sizeof(streambuffer_t) - 1) + capacity);
+    streambuffer_t* stream = (streambuffer_t*)dsalloc(sizeof(streambuffer_t) + capacity);
     if (!stream) {
         return OsOutOfMemory;
     }
@@ -105,7 +105,7 @@ streambuffer_has_option(
     _In_ streambuffer_t* stream,
     _In_ unsigned int    option)
 {
-    return stream->options & option;
+    return (stream->options & option) != 0;
 }
 
 void
@@ -209,6 +209,11 @@ streambuffer_stream_out(
     if (stream->options & STREAMBUFFER_DISABLED) {
         return 0;
     }
+    
+    // Guard against bad lengths
+    if (!length) {
+        return 0;
+    }
 
     // Make sure we write all the bytes
     while (bytes_written < length) {
@@ -292,6 +297,11 @@ streambuffer_write_packet_start(
         return 0;
     }
 
+    // Guard against bad lengths
+    if (!length || length > (stream->capacity - sizeof(sb_packethdr_t))) {
+        return 0;
+    }
+
     adjusted_length = length + sizeof(sb_packethdr_t);
     
     // Make sure we write all the bytes in one go
@@ -343,12 +353,15 @@ streambuffer_write_packet_data(
     _Out_ unsigned int*   state)
 {
     uint8_t*     casted_ptr    = (uint8_t*)buffer;
-    unsigned int write_index   = *state;
+    unsigned int write_index   = (*state % stream->capacity);
     size_t       bytes_written = 0;
     
     while (length--) {
         // write_index++ & (stream->capacity - 1)
-        stream->buffer[(write_index++ % stream->capacity)] = casted_ptr[bytes_written++];
+        stream->buffer[write_index++] = casted_ptr[bytes_written++];
+        if (write_index == stream->capacity) {
+            write_index = 0;
+        }
     }
     
     *state = write_index;
@@ -538,13 +551,15 @@ streambuffer_read_packet_data(
     _InOut_ unsigned int*   state)
 {
     uint8_t*     casted_ptr = (uint8_t*)buffer;
-    unsigned int read_index = *state;
+    unsigned int read_index = (*state % stream->capacity);
     size_t       bytes_read = 0;
     
     // Write the data to the provided buffer
     while (length--) {
-        // read_index++ & (stream->capacity - 1)
-        casted_ptr[bytes_read++] = stream->buffer[(read_index++ % stream->capacity)];
+        casted_ptr[bytes_read++] = stream->buffer[read_index++];
+        if (read_index == stream->capacity) {
+            read_index = 0;
+        }
     }
     
     *state = read_index;
