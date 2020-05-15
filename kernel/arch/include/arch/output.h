@@ -25,7 +25,7 @@
 #define __VALI_OUTPUT_H__
 
 #include <os/osdefs.h>
-#include <ddk/contracts/video.h>
+#include <ddk/video.h>
 
 typedef struct BootTerminal {
     Flags_t						AvailableOutputs;

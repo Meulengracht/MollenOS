@@ -16,17 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Contract Definitions & Structures (Video Contract)
- * - This header describes the base contract-structure, prototypes
+ * Video Definitions & Structures
+ * - This header describes the video-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_VIDEO_INTERFACE_H_
-#define _CONTRACT_VIDEO_INTERFACE_H_
+#ifndef __DDK_VIDEO_H__
+#define __DDK_VIDEO_H__
 
 #include <ddk/ddkdefs.h>
 
-PACKED_TYPESTRUCT(VideoDescriptor, {
+typedef struct VideoDescriptor {
     size_t              BytesPerScanline;
     size_t              Height;
     size_t              Width;
@@ -41,9 +41,10 @@ PACKED_TYPESTRUCT(VideoDescriptor, {
     int                 BlueMask;
     int                 GreenMask;
     int                 ReservedMask;
-});
+} VideoDescriptor_t;
 
 _CODE_BEGIN
+
 /* QueryDisplayInformation
  * Queries the current display driver for information. */
 DDKDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
@@ -51,6 +52,6 @@ DDKDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
 /* CreateDisplayFramebuffer
  * Creates a new display framebuffer to use for direct drawing. */
 DDKDECL(void*, CreateDisplayFramebuffer(void));
-_CODE_END
 
-#endif //!_CONTRACT_VIDEO_INTERFACE_H_
+_CODE_END
+#endif //!__DDK_VIDEO_H__

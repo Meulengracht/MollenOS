@@ -25,7 +25,7 @@
 #define _DISK_LAYOUT_MBR_H_
 
 #include <os/osdefs.h>
-#include <ddk/contracts/filesystem.h>
+#include <ddk/filesystem.h>
 
 /* MBR Definitions 
  * Primarily magic constants and flags for headers */

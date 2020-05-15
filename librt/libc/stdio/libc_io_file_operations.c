@@ -19,6 +19,7 @@
  * C Standard Library
  * - Standard IO file operation implementations.
  */
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -32,52 +33,58 @@
 #include <string.h>
 #include "../threads/tls.h"
 
-static inline int
+static inline OsStatus_t
 perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction, 
-    size_t chunk_size, off_t offset, size_t length, size_t* total_bytes)
+    size_t chunkSize, off_t offset, size_t length, size_t* bytesTransferreOut)
 {
-    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(GetFileService());
-    size_t                   bytes_left = length;
-    int                      err_code;
+    struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
+    size_t                   bytesLeft = length;
     OsStatus_t               status;
+    TRACE("[libc] [file-io] [perform_transfer] length %" PRIuIN, length);
     
     // Keep reading chunks untill we've read all requested
-    while (bytes_left > 0) {
-        size_t bytes_to_transfer = MIN(chunk_size, bytes_left);
-        size_t bytes_transferred;
+    while (bytesLeft > 0) {
+        size_t bytesToTransfer = MIN(chunkSize, bytesLeft);
+        size_t bytesTransferred;
 
+        TRACE("[libc] [file-io] [perform_transfer] chunk size %" PRIuIN ", offset %" PRIuIN,
+            bytesToTransfer, offset);
         svc_file_transfer(GetGrachtClient(), &msg, *GetInternalProcessId(),
-            file_handle, direction, buffer_handle, offset, bytes_to_transfer,
-            &status, &bytes_transferred);
+            file_handle, direction, buffer_handle, offset, bytesToTransfer,
+            &status, &bytesTransferred);
         gracht_vali_message_finish(&msg);
-        err_code = OsStatusToErrno(status);
-        if (err_code || bytes_transferred == 0) {
+        
+        TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
+            bytesTransferred, status);
+        if (status != OsSuccess || bytesTransferred == 0) {
             break;
         }
 
-        bytes_left   -= bytes_transferred;
-        *total_bytes += bytes_transferred;
-        offset       += bytes_transferred;
+        bytesLeft -= bytesTransferred;
+        offset    += bytesTransferred;
     }
-    return err_code;
+    
+    *bytesTransferreOut = length - bytesLeft;
+    return status;
 }
 
-OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
-    UUId_t     builtin_handle = tls_current()->transfer_buffer.handle;
-    size_t     builtin_length = tls_current()->transfer_buffer.length;
+    UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
+    size_t     builtinLength = tls_current()->transfer_buffer.length;
+    size_t     bytesRead;
     OsStatus_t status;
-    int        err_code;
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
-    if (length >= builtin_length) {
+    if (length >= builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
         
         // enforce dword alignment on the buffer
         assert(((uintptr_t)buffer % 0x4) == 0);
         
+        info.name     = "stdio_transfer";
         info.length   = length;
         info.capacity = length;
         info.flags    = DMA_PERSISTANT;
@@ -87,27 +94,33 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
             return status;
         }
         
-        err_code = perform_transfer(handle->object.handle, attachment.handle,
-            0, length, 0, length, bytes_read);
+        // Pass the callers pointer directly here
+        status = perform_transfer(handle->object.handle, attachment.handle,
+            0, length, 0, length, bytesReadOut);
         dma_detach(&attachment);
-        return err_code == EOK ? OsSuccess : OsError;
+        return status;
     }
     
-    err_code = perform_transfer(handle->object.handle, builtin_handle, 0, builtin_length, 0, length, bytes_read);
-    memcpy(buffer, tls_current()->transfer_buffer.buffer, *bytes_read);
-    return err_code == EOK ? OsSuccess : OsError;
+    status = perform_transfer(handle->object.handle, builtinHandle, 0,
+        builtinLength, 0, length, &bytesRead);
+    if (status == OsSuccess && bytesRead > 0) {
+        memcpy(buffer, tls_current()->transfer_buffer.buffer, bytesRead);
+    }
+    
+    *bytesReadOut = bytesRead;
+    return status;
 }
 
-OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
+    size_t length, size_t* bytesWrittenOut)
 {
-    UUId_t     builtin_handle = tls_current()->transfer_buffer.handle;
-    size_t     builtin_length = tls_current()->transfer_buffer.length;
+    UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
+    size_t     builtinLength = tls_current()->transfer_buffer.length;
     OsStatus_t status;
-    int        err_code;
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
-    if (length >= builtin_length) {
+    if (length >= builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
         
@@ -123,15 +136,16 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
             return status;
         }
         
-        err_code = perform_transfer(handle->object.handle, attachment.handle,
-            1, length, 0, length, bytes_written);
+        status = perform_transfer(handle->object.handle, attachment.handle,
+            1, length, 0, length, bytesWrittenOut);
         dma_detach(&attachment);
-        return err_code == EOK ? OsSuccess : OsError;
+        return status;
     }
     
     memcpy(tls_current()->transfer_buffer.buffer, buffer, length);
-    err_code = perform_transfer(handle->object.handle, builtin_handle, 1, builtin_length, 0, length, bytes_written);
-    return err_code == EOK ? OsSuccess : OsError;
+    status = perform_transfer(handle->object.handle, builtinHandle, 1,
+        builtinLength, 0, length, bytesWrittenOut);
+    return status;
 }
 
 OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)

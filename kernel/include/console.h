@@ -25,7 +25,7 @@
 #define __CONSOLE_INTERFACE_H__
 
 #include <os/osdefs.h>
-#include <ddk/contracts/video.h>
+#include <ddk/video.h>
 
 /* InitializeSerialOutput (@arch)
  * Initializes the serial output for the operating system. This is the output that is

@@ -24,7 +24,7 @@
 #ifndef _VFS_INTERFACE_H_
 #define _VFS_INTERFACE_H_
 
-#include <ddk/contracts/filesystem.h>
+#include <ddk/filesystem.h>
 #include <os/types/path.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>

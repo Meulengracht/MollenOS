@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (FileSystem Contract)
- * - This header describes the filesystem contract-structure, prototypes
+ * Filesystem Definitions & Structures
+ * - This header describes the filesystem-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
-#define _CONTRACT_FILESYSTEM_INTERFACE_H_
+#ifndef __DDK_FILESYSTEM_H_
+#define __DDK_FILESYSTEM_H_
 
 #include <ddk/storage.h>
 #include <os/mollenos.h>
@@ -207,4 +207,4 @@ __FSDECL(FsChangeFileSize)(
     _In_ FileSystemEntry_t*         BaseEntry,
     _In_ uint64_t                   Size);
 
-#endif //!_CONTRACT_FILESYSTEM_INTERFACE_H_
+#endif //!__DDK_FILESYSTEM_H_

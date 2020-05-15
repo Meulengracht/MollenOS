@@ -30,7 +30,7 @@
 #ifndef _MFS_H_
 #define _MFS_H_
 
-#include <ddk/contracts/filesystem.h>
+#include <ddk/filesystem.h>
 #include <os/mollenos.h>
 #include <os/dmabuf.h>
 #include <ds/mstring.h>

@@ -20,6 +20,7 @@
  *    - Implements support for loading and processing pe/coff image formats
  *      and implemented as a part of libds to share between services and kernel
  */
+//#define __TRACE
 
 #include <ds/ds.h>
 #include <ds/list.h>
@@ -213,7 +214,7 @@ PeHandleSections(
             memset(Destination, 0, Section->VirtualSize);
         }
         else if ((Section->Flags & PE_SECTION_CODE) || (Section->Flags & PE_SECTION_DATA)) {
-            dstrace("section(%i): copying %u bytes 0x%x => 0x%x (0x%x, 0x%x)", i, 
+            dstrace("section(%i): copying %u bytes 0x%" PRIxIN " => 0x%" PRIxIN " (0x%" PRIxIN ", 0x%x)", i, 
                 Section->RawSize, FileBuffer, Destination,
                 Image->VirtualAddress + Section->VirtualAddress, PageFlags);
             memcpy(Destination, FileBuffer, Section->RawSize);

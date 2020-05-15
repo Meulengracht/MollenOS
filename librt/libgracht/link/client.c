@@ -36,37 +36,65 @@ struct socket_link_manager {
 
 static int socket_link_recv_response(int iod, struct gracht_message* message)
 {
-    struct iovec  iov[1 + message->header.param_out];
-    size_t        length = 0;
-    int           i;
-    intmax_t      byteCount;
-    uint8_t       recvBuffer[sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param))];
-    struct msghdr msg = {
+    struct iovec           iov;
+    size_t                 length = 0;
+    int                    i;
+    intmax_t               byteCount;
+    uint8_t*               recvBuffer;
+    struct gracht_message* recvMessage;
+    uint8_t*               recvParams;
+    struct msghdr          msg = {
         .msg_name = NULL,
         .msg_namelen = 0,
-        .msg_iov = &iov[0],
-        .msg_iovlen = 1 + message->header.param_out,
+        .msg_iov = &iov,
+        .msg_iovlen = 1,
         .msg_control = NULL,
         .msg_controllen = 0,
         .msg_flags = 0
     };
     
-    TRACE("link_client: receiving response\n");
-    
-    iov[0].iov_base = &recvBuffer[0];
-    iov[0].iov_len  = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
-
+    length = sizeof(struct gracht_message) + (message->header.param_out * sizeof(struct gracht_param));
     for (i = 0; i < message->header.param_out; i++) {
-        iov[1 + i].iov_base = message->params[message->header.param_in + i].data.buffer;
-        iov[1 + i].iov_len  = message->params[message->header.param_in + i].length;
         length += message->params[message->header.param_in + i].length;
     }
+    
+    recvBuffer = malloc(length);
+    if (!recvBuffer) {
+        errno = (ENOMEM);
+        return -1;
+    }
+ 
+    TRACE("link_client: receiving response\n");
+    
+    iov.iov_base = &recvBuffer[0];
+    iov.iov_len  = length;
 
     byteCount = recvmsg(iod, &msg, MSG_WAITALL);
     if (byteCount <= 0) {
         errno = (EPIPE);
         return -1;
     }
+    
+    recvMessage = (struct gracht_message*)recvBuffer;
+    recvParams  = recvBuffer + (sizeof(struct gracht_message) + (
+        (message->header.param_in + message->header.param_out) * sizeof(struct gracht_param)));
+    for (i = 0; i < message->header.param_out; i++) {
+        if (recvMessage->params[i].type == GRACHT_PARAM_VALUE) {
+            memcpy(message->params[message->header.param_in + i].data.buffer,
+                &recvMessage->params[i].data.value,
+                recvMessage->params[i].length);
+        }
+        else if (recvMessage->params[i].type == GRACHT_PARAM_BUFFER) {
+            memcpy(message->params[message->header.param_in + i].data.buffer,
+                recvParams, recvMessage->params[i].length);
+            recvParams += recvMessage->params[i].length;
+        }
+        else if (recvMessage->params[i].type == GRACHT_PARAM_SHM) {
+            // NO SUPPORT
+            assert(0);
+        }
+    }
+    free(recvBuffer);
     return 0;
 }
 

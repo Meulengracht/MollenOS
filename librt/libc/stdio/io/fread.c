@@ -484,14 +484,12 @@ size_t fread(void *vptr, size_t size, size_t count, FILE *stream)
 	// Keep reading untill all requested bytes are read, or EOF
 	while (rcnt > 0) {
 		int i;
-		if (!stream->_cnt && rcnt < BUFSIZ 
-			&& (stream->_flag & (_IOMYBUF | _USERBUF))) {
+		if (!stream->_cnt && rcnt < BUFSIZ && (stream->_flag & (_IOMYBUF | _USERBUF))) {
 			stream->_cnt = read(stream->_fd, stream->_base, stream->_bufsiz);
 			stream->_ptr = stream->_base;
 			i = (stream->_cnt < rcnt) ? stream->_cnt : rcnt;
 
-			/* If the buffer fill reaches eof but 
-			 * fread wouldn't, clear eof. */
+			/* If the buffer fill reaches eof but fread wouldn't, clear eof. */
 			if (i > 0 && i < stream->_cnt) {
 				stdio_handle_get(stream->_fd)->wxflag &= ~WX_ATEOF;
 				stream->_flag &= ~_IOEOF;

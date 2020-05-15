@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include <errno.h>
 #include <internal/_io.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,11 @@ int stdio_bitmap_allocate(int fd)
     int result  = -1;
     int i, j;
     TRACE("stdio_bitmap_allocate(%i)", fd);
+    
+    if (fd >= INTERNAL_MAXFILES) {
+        _set_errno(ENOENT);
+        return -1;
+    }
 
     // Trying to allocate a specific fd?
     spinlock_acquire(&stdio_fd_lock);
@@ -83,7 +89,7 @@ void stdio_bitmap_free(int fd)
     int block;
     int offset;
 
-    if (fd > STDERR_FILENO) {
+    if (fd > STDERR_FILENO && fd < INTERNAL_MAXFILES) {
         block  = fd / (8 * sizeof(int));
         offset = fd % (8 * sizeof(int));
 

@@ -152,5 +152,49 @@
                 </event>
             </events>
         </protocol>
+        <protocol name="usbhub" id="0x12">
+            <functions>
+                <function name="query_port">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="port_id" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
+                    </response>
+                </function>
+                <function name="reset_port">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="port_id" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
+                    </response>
+                </function>
+                <function name="reset_endpoint">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                        <param name="hub_address" type="uint8_t" />
+                        <param name="port_address" type="uint8_t" />
+                        <param name="device_address" type="uint8_t" />
+                        <param name="endpoint_address" type="uint8_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
+            </functions>
+            
+            <events>
+                <event name="queue_status">
+                    <param name="id" type="UUId_t" />
+                    <param name="status" type="UsbTransferStatus_t" />
+                    <param name="bytes_transferred" type="size_t" />
+                </event>
+            </events>
+        </protocol>
     </protocols>
 </root>

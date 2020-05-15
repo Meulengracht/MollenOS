@@ -241,8 +241,6 @@ StdioInheritObject(
     }
 }
 
-/* StdioParseInheritanceBlock
- * Parses the inheritance block for stdio-objects that should be inheritted from the spawner. */
 static void 
 StdioParseInheritanceBlock(
     _In_ void* inheritanceBlock)
@@ -252,9 +250,11 @@ StdioParseInheritanceBlock(
     stdio_handle_t*             handle_in;
     stdio_handle_t*             handle_err;
     int                         i;
+    WARNING("[libc] [parse_inherit] 0x%" PRIxIN, block);
     
     // Handle inheritance
     if (block != NULL) {
+        WARNING("[libc] [parse_inherit] handle count %i", block->handle_count);
         for (i = 0; i < block->handle_count; i++) {
             StdioInheritObject(&block->handles[i]);
         }
@@ -312,7 +312,7 @@ stdio_close_all_handles(void)
 
 _CRTIMP void
 StdioInitialize(
-    _In_ void*  InheritanceBlock)
+    _In_ void* InheritanceBlock)
 {
     stdio_bitmap_initialize();
     StdioParseInheritanceBlock(InheritanceBlock);

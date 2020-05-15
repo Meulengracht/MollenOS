@@ -19,7 +19,9 @@
  * C-Support Initialize Implementation
  * - Definitions, prototypes and information needed.
  */
+#define __TRACE
 
+#include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
@@ -66,6 +68,11 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
             &__CrtStartupBuffer[0], sizeof(__CrtStartupBuffer));
         gracht_vali_message_finish(&msg);
+        
+        TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
+            StartupInformation->ArgumentsLength,
+            StartupInformation->InheritationLength,
+            StartupInformation->LibraryEntriesLength);
         
         // fixup pointers
         StartupInformation->Arguments      = &__CrtStartupBuffer[0];

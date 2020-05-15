@@ -735,7 +735,7 @@ class CGenerator:
         if param.has_length_component() and (not is_response or not param.is_string()):
             return param.get_name() + "_length"
         elif param.is_string():
-            return "((" + param.get_name() + " == NULL) ? 0 : strlen(&" + param.get_name() + "[0]))"
+            return "((" + param.get_name() + " == NULL) ? 0 : (strlen(&" + param.get_name() + "[0]) + 1))"
         return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ")"
 
     def get_message_flags_func(self, func):

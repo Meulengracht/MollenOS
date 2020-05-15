@@ -204,12 +204,15 @@ ResolveFilePath(
 {
     OsStatus_t Status          = OsSuccess;
     MString_t* TemporaryResult = Path;
+    TRACE("[resolve] resolve %s", MStringRaw(Path));
 
     if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND) {
         // If we don't even have an environmental identifier present, we
         // have to get creative and guess away
         if (MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
             Status = GuessBasePath(ProcessId, Path, &TemporaryResult);
+            
+            TRACE("[resolve] base path %s", MStringRaw(TemporaryResult));
 
             // If we already deduced an absolute path skip the canonicalizing moment
             if (Status == OsSuccess && MStringFind(TemporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
@@ -227,6 +230,7 @@ ResolveFilePath(
             memset(CanonicalizedPath, 0, _MAXPATH);
 
             Status = PathCanonicalize(MStringRaw(TemporaryResult), CanonicalizedPath, _MAXPATH);
+            TRACE("[resolve] canon %s", CanonicalizedPath);
             if (Status == OsSuccess) {
                 *FullPathOut = MStringCreate(CanonicalizedPath, StrUTF8);
             }
@@ -263,6 +267,7 @@ LoadFile(
     fileSize = ftell(file);
     rewind(file);
     
+    TRACE("[load_file] size %" PRIuIN, fileSize);
     fileBuffer = malloc(fileSize);
     if (!fileBuffer) {
         ERROR("[load_file] [malloc] null");

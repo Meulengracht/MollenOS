@@ -23,7 +23,7 @@
 #define __TRACE
 
 #include <ctype.h>
-#include <ddk/contracts/filesystem.h>
+#include <ddk/filesystem.h>
 #include <ddk/utils.h>
 #include "include/vfs.h"
 #include <internal/_ipc.h>
