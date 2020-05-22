@@ -53,5 +53,6 @@ int main(int argc, char **argv)
     code = test_utils_print(client, &context, "hello from wm_client!");
     gracht_client_wait_message(client, &messageBuffer[0]);
     test_utils_print_result(client, &context, &status);
-    return gracht_client_shutdown(client);
+    gracht_client_shutdown(client);
+    return status;
 }

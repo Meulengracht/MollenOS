@@ -91,9 +91,10 @@ LookupHandleByPath(
  * * turns out to be invalid, otherwise the resource will be returned. 
  * @param Handle [In] The handle that should be acquired.
  */
-KERNELAPI void* KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AcquireHandle(
-    _In_ UUId_t Handle);
+    _In_  UUId_t Handle,
+    _Out_ void** ResourceOut);
 
 /* LookupHandle
  * Retrieves the handle given. This can fail if the handle

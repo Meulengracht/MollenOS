@@ -38,8 +38,6 @@
 #include <string.h>
 #include <threading.h>
 
-#define GRACHT_BUFFER_THRESHOLD 128
-
 typedef struct IpcContext {
     UUId_t          Handle;
     UUId_t          CreatorThreadHandle;
@@ -193,12 +191,6 @@ WriteMessage(
     
     // Fixup all SHM buffer values before writing the base message
     for (i = 0; i < Message->base->header.param_in; i++) {
-        // Convert all parameters above THRESHOLD to SHM
-        if (Message->base->params[i].type == GRACHT_PARAM_BUFFER &&
-            Message->base->params[i].length >= GRACHT_BUFFER_THRESHOLD) {
-            Message->base->params[i].type = GRACHT_PARAM_SHM;
-        }
-        
         if (Message->base->params[i].type == GRACHT_PARAM_SHM &&
             Message->base->params[i].length > 0) {
             MCoreThread_t* Thread = GetContextThread(Context);
@@ -275,6 +267,8 @@ WaitForMessageNotification(
     _In_ struct ipmsg_resp* response,
     _In_ size_t             timeout)
 {
+    TRACE("[ipc] [wait] start");
+    
     if (response->notify_method == IPMSG_NOTIFY_NONE) {
         MCoreThread_t* thread = LookupHandleOfType(response->notify_data.handle, HandleTypeThread);
         SemaphoreWait(&thread->WaitObject, timeout);
@@ -284,6 +278,8 @@ WaitForMessageNotification(
         int            numberOfEvents;
         WaitForHandleSet(response->notify_data.handle, &event, 1, timeout, &numberOfEvents);
     }
+    
+    TRACE("[ipc] [wait] end");
 }
 
 static void
@@ -291,9 +287,12 @@ SendNotification(
     _In_ struct ipmsg_resp* response,
     _In_ unsigned int       flags)
 {
-    if (response->notify_method == IPMSG_NOTIFY_NONE && !(flags & MESSAGE_FLAG_ASYNC)) {
+    TRACE("[ipc] [signal] 0x%x", flags);
+    if (response->notify_method == IPMSG_NOTIFY_NONE &&
+        MESSAGE_FLAG_TYPE(flags) == MESSAGE_FLAG_SYNC) {
         MCoreThread_t* thread = LookupHandleOfType(response->notify_data.handle, HandleTypeThread);
         if (thread) {
+            TRACE("[ipc] [signal] signalling thread");
             SemaphoreSignal(&thread->WaitObject, 1);
         }
     }
@@ -373,11 +372,10 @@ WriteFullResponse(
                 TRACE("[ipc] [WriteFullResponse] wrote %u bytes, new offset %u",
                     LODWORD(bytesWritten), offset);
             }
-            
         }
     }
     
-    SendNotification(&message->response, messageDescriptor->header.flags);
+    SendNotification(&message->response, message->base.header.flags);
     return OsSuccess;
 }
 
@@ -410,7 +408,7 @@ IpcContextSendMultiple(
     
     // Iterate all messages again and wait for response
     for (i = 0; i < MessageCount; i++) {
-        if (!(Messages[i]->base->header.flags & MESSAGE_FLAG_ASYNC)) {
+        if (MESSAGE_FLAG_TYPE(Messages[i]->base->header.flags) == MESSAGE_FLAG_SYNC) {
             WaitForMessageNotification(Messages[i]->response, Timeout);
         }
     }

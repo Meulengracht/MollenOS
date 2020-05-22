@@ -287,11 +287,9 @@ AddHandleToSet(
 {
     HandleElement_t*    Element;
     HandleSetElement_t* SetElement;
-    void*               HandleData;
     
     // Start out by acquiring an reference on the handle
-    HandleData = AcquireHandle(Handle);
-    if (!HandleData) {
+    if (AcquireHandle(Handle, NULL) != OsSuccess) {
         return OsDoesNotExist;
     }
     

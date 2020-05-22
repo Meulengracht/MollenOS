@@ -19,7 +19,8 @@
  * C-Support Initialize Implementation
  * - Definitions, prototypes and information needed.
  */
-#define __TRACE
+
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
@@ -75,9 +76,16 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             StartupInformation->LibraryEntriesLength);
         
         // fixup pointers
-        StartupInformation->Arguments      = &__CrtStartupBuffer[0];
-        StartupInformation->Inheritation   = &__CrtStartupBuffer[StartupInformation->ArgumentsLength];
-        StartupInformation->LibraryEntries = &__CrtStartupBuffer[StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
+        StartupInformation->Arguments = &__CrtStartupBuffer[0];
+        if (StartupInformation->InheritationLength) {
+            StartupInformation->Inheritation = &__CrtStartupBuffer[StartupInformation->ArgumentsLength];
+        }
+        else {
+            StartupInformation->Inheritation = NULL;
+        }
+        
+        StartupInformation->LibraryEntries = &__CrtStartupBuffer[
+            StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
     }
     
 	// Initialize STD-C

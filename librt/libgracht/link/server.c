@@ -52,7 +52,7 @@ static int socket_link_send(struct socket_link* linkContext,
         .msg_name = NULL,
         .msg_namelen = 0,
         .msg_iov = &iov[0],
-        .msg_iovlen = 1 + message->header.param_in,
+        .msg_iovlen = 1,
         .msg_control = NULL,
         .msg_controllen = 0,
         .msg_flags = 0
@@ -65,12 +65,10 @@ static int socket_link_send(struct socket_link* linkContext,
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
-        iov[1 + i].iov_len    = message->params[i].length;
-        if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
-        }
-        else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[1 + i].iov_base = message->params[i].data.buffer;
+        if (message->params[i].type == GRACHT_PARAM_BUFFER) {
+            iov[msg.msg_iovlen].iov_len  = message->params[i].length;
+            iov[msg.msg_iovlen].iov_base = message->params[i].data.buffer;
+            msg.msg_iovlen++;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
@@ -283,7 +281,7 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
         .msg_name = messageContext->storage,
         .msg_namelen = linkManager->config.dgram_address_length,
         .msg_iov = &iov[0],
-        .msg_iovlen = 1 + message->header.param_in,
+        .msg_iovlen = 1,
         .msg_control = NULL,
         .msg_controllen = 0,
         .msg_flags = 0
@@ -296,12 +294,10 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
-        iov[1 + i].iov_len    = message->params[i].length;
-        if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
-        }
-        else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[1 + i].iov_base = message->params[i].data.buffer;
+        if (message->params[i].type == GRACHT_PARAM_BUFFER) {
+            iov[msg.msg_iovlen].iov_len  = message->params[i].length;
+            iov[msg.msg_iovlen].iov_base = message->params[i].data.buffer;
+            msg.msg_iovlen++;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT

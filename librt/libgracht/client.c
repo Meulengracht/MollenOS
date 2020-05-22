@@ -70,6 +70,8 @@ extern int client_invoke_action(struct gracht_list*, struct gracht_message*);
 int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context* context,
     struct gracht_message* message)
 {
+    int status;
+    
     if (!client || !message) {
         errno = (EINVAL);
         return -1;
@@ -104,7 +106,13 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         gracht_list_append(&client->messages, &descriptor->header);
         mtx_unlock(&client->sync_object);
     }
-    return client->ops->send(client->ops, message, context);
+    
+    status = client->ops->send(client->ops, message, context);
+    if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_SYNC) {
+        struct gracht_message_descriptor* descriptor = context->descriptor;
+        descriptor->status = status == 0 ? GRACHT_MESSAGE_COMPLETED : GRACHT_MESSAGE_ERROR;
+    }
+    return status;
 }
 
 int gracht_client_await(gracht_client_t* client, struct gracht_message_context* context)

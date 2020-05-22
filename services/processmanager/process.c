@@ -444,12 +444,15 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message* me
             argumentLength     = process->ArgumentsLength;
             inheritationLength = process->InheritationBlockLength;
             
-            memcpy(&buffer[0], process->Arguments, process->ArgumentsLength);
-            memcpy(&buffer[process->ArgumentsLength], process->InheritationBlock, process->InheritationBlockLength);
+            memcpy(&buffer[0], process->Arguments, argumentLength);
+            if (inheritationLength) {
+                memcpy(&buffer[argumentLength], process->InheritationBlock, inheritationLength);
+            }
+            
             status = PeGetModuleEntryPoints(process->Executable,
-                (Handle_t*)&buffer[process->ArgumentsLength + process->InheritationBlockLength],
+                (Handle_t*)&buffer[argumentLength + inheritationLength],
                 &moduleCount);
-            bufferLength = process->ArgumentsLength + process->InheritationBlockLength + (moduleCount * sizeof(Handle_t));
+            bufferLength = argumentLength + inheritationLength + (moduleCount * sizeof(Handle_t));
         }
     }
     

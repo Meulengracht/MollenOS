@@ -212,7 +212,7 @@ CreateMemorySpace(
                 }
 
                 // Add a reference and copy data
-                AcquireHandle(MemorySpace->ParentHandle);
+                AcquireHandle(MemorySpace->ParentHandle, NULL);
                 for (i = 0; i < MEMORY_DATACOUNT; i++) {
                     MemorySpace->Data[i] = Parent->Data[i];
                 }

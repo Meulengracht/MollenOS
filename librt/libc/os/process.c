@@ -88,7 +88,7 @@ ProcessSpawnEx(
         Arguments, inheritationBlock, inheritationBlockLength, Configuration);
     svc_process_spawn_result(GetGrachtClient(), &msg.base, &status, HandleOut);
     
-    if (inheritationBlock != NULL) {
+    if (inheritationBlock) {
         free(inheritationBlock);
     }
     return status;

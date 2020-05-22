@@ -316,7 +316,7 @@ CreateThread(
         Thread->MemorySpace       = MemorySpace;
         Thread->MemorySpaceHandle = MemorySpaceHandle;
         Thread->Cookie            = Parent->Cookie;
-        AcquireHandle(MemorySpaceHandle);
+        AcquireHandle(MemorySpaceHandle, NULL);
     }
     else {
         if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {

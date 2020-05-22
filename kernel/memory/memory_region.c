@@ -222,8 +222,7 @@ MemoryRegionAttach(
 {
     MemoryRegion_t* Region;
     
-    Region = (MemoryRegion_t*)AcquireHandle(Handle);
-    if (!Region) {
+    if (AcquireHandle(Handle, (void**)&Region) != OsSuccess) {
         ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", Handle);
         return OsDoesNotExist;
     }

@@ -127,17 +127,21 @@ CreateHandle(
     return HandleId;
 }
 
-void*
+OsStatus_t
 AcquireHandle(
-    _In_ UUId_t Handle)
+    _In_  UUId_t Handle,
+    _Out_ void** ResourceOut)
 {
     ResourceHandle_t* Instance = AcquireHandleInstance(Handle);
     if (!Instance) {
-        return NULL;
+        return OsDoesNotExist;
     }
     
-    smp_rmb();
-    return Instance->Resource;
+    if (ResourceOut) {
+        smp_rmb();
+        *ResourceOut = Instance->Resource;
+    }
+    return OsSuccess;
 }
 
 OsStatus_t

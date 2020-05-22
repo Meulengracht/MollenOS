@@ -140,9 +140,10 @@ HciControllerCreate(
 
     // Enable device
     TRACE("... enabling device");
-    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+    Status = IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
+            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    if (Status != OsSuccess) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
         ReleaseDeviceIo(Controller->Base.IoBase);

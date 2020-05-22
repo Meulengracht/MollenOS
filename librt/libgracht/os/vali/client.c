@@ -36,6 +36,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define GRACHT_MESSAGE_THRESHOLD 128
+
 struct vali_link_manager {
     struct client_link_ops ops;
     struct dma_attachment  dma;
@@ -54,10 +56,20 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
     struct ipmsg_desc  message;
     struct ipmsg_desc* messagePointer = &message;
     OsStatus_t         status;
+    int                i;
     
     message.address  = &messageContext->address;
     message.response = &messageContext->response;
     message.base     = messageBase;
+    
+    if (messageBase->header.length > GRACHT_MAX_MESSAGE_SIZE) {
+        for (i = 0; messageBase->header.length > GRACHT_MAX_MESSAGE_SIZE && i < messageBase->header.param_in; i++) {
+            if (messageBase->params[i].length > GRACHT_MESSAGE_THRESHOLD) {
+                messageBase->params[i].type = GRACHT_PARAM_SHM;
+                messageBase->header.length -= messageBase->params[i].length;
+            }
+        }
+    }
     
     // Setup the response
     if (messageBase->header.param_out) {

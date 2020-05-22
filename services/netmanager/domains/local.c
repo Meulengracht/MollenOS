@@ -261,6 +261,7 @@ HandleSocketPacketData(
             BytesRead = streambuffer_read_packet_start(SourceStream, 
                 STREAMBUFFER_NO_BLOCK, &Base, &State);
             if (!BytesRead) {
+                TRACE("[socket] [local] [send_packet] no bytes read from stream");
                 break;
             }
 

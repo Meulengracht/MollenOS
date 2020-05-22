@@ -192,8 +192,8 @@ NetworkManagerSocketCreate(
     _In_  int     Type,
     _In_  int     Protocol,
     _Out_ UUId_t* HandleOut,
-    _Out_ UUId_t* SendBufferHandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut)
+    _Out_ UUId_t* RecvBufferHandleOut,
+    _Out_ UUId_t* SendBufferHandleOut)
 {
     Socket_t*  Socket;
     OsStatus_t Status;
@@ -212,7 +212,7 @@ NetworkManagerSocketCreate(
     }
     
     // Add it to the handle set
-    Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_ADD,
+    Status = handle_set_ctrl(SocketSet, HANDLE_SET_OP_ADD,
         (UUId_t)(uintptr_t)Socket->Header.key, IOEVTIN | IOEVTOUT, NULL);
     if (Status != OsSuccess) {
         // what the fuck TODO
@@ -259,7 +259,7 @@ NetworkManagerSocketShutdown(
             return OsDoesNotExist;
         }
         
-        Status = handle_set_ctrl(SocketSet, IO_EVT_DESCRIPTOR_DEL, Handle, 0, NULL);
+        Status = handle_set_ctrl(SocketSet, HANDLE_SET_OP_DEL, Handle, 0, NULL);
         if (Status != OsSuccess) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }

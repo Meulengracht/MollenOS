@@ -251,11 +251,11 @@ StdioParseInheritanceBlock(
     stdio_handle_t*             handle_in;
     stdio_handle_t*             handle_err;
     int                         i;
-    WARNING("[libc] [parse_inherit] 0x%" PRIxIN, block);
+    TRACE("[libc] [parse_inherit] 0x%" PRIxIN, block);
     
     // Handle inheritance
     if (block != NULL) {
-        WARNING("[libc] [parse_inherit] handle count %i", block->handle_count);
+        TRACE("[libc] [parse_inherit] handle count %i", block->handle_count);
         for (i = 0; i < block->handle_count; i++) {
             StdioInheritObject(&block->handles[i]);
         }
