@@ -377,9 +377,9 @@ class CGenerator:
                     size_function = self.get_size_function(protocol, param, case)
                     outfile.write(" + " + size_function)
         else:
-            outfile.write("    struct gracht_message __message = {\n")
+            outfile.write("    struct gracht_message_header __message = {\n")
             outfile.write("        .id = 0,\n")
-            outfile.write("        .length = sizeof(struct gracht_message)")
+            outfile.write("        .length = sizeof(struct gracht_message_header)")
         outfile.write(",\n")
 
         outfile.write("        .param_in = " + str(len(params_in)) + ",\n")

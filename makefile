@@ -146,9 +146,12 @@ package_ddk_headers:
 	@mkdir -p $(VALI_DDK_PATH)/include/ddk
 	@mkdir -p $(VALI_DDK_PATH)/include/gracht
 	@mkdir -p $(VALI_DDK_PATH)/protocols
+	@mkdir -p $(VALI_DDK_PATH)/protocols/languages
 	@cp -r librt/libddk/include/ddk/* $(VALI_DDK_PATH)/include/ddk/
 	@cp -r librt/libgracht/include/gracht/* $(VALI_DDK_PATH)/include/gracht/
 	@cp -r protocols/* $(VALI_DDK_PATH)/protocols/
+	@cp -r librt/libgracht/generator/*.py $(VALI_DDK_PATH)/protocols/
+	@cp -r librt/libgracht/generator/languages/*.py $(VALI_DDK_PATH)/protocols/languages/
 
 #############################################
 ##### INSTALL/IMAGE TARGETS             #####
