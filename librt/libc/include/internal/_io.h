@@ -1,8 +1,9 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <internal/_socket.h>
 #include <internal/_ipc.h>
+#include <internal/_pipe.h>
+#include <internal/_socket.h>
 #include <io_events.h>        // for activity definitions
 #include <os/osdefs.h>
 #include <os/spinlock.h>
@@ -48,6 +49,7 @@ typedef struct stdio_object {
     union {
         struct socket    socket;
         struct ipcontext ipcontext;
+        struct pipe      pipe;
     } data;
 } stdio_object_t;
 

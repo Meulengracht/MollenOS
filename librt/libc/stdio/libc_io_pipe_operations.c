@@ -20,16 +20,31 @@
  * - Standard IO pipe operation implementations.
  */
 
+#include <ds/streambuffer.h>
 #include <errno.h>
 #include <internal/_io.h>
 
 OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
+    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    size_t          bytesRead;
+
+    bytesRead = streambuffer_stream_in(stream, buffer, length, 0);
+
+
+    *bytes_read = bytesRead;
     return OsSuccess;
 }
 
 OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
+    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    size_t          bytesWritten;
+
+    bytesWritten = streambuffer_stream_out(stream, buffer, length, 0);
+
+
+    *bytes_written = bytesWritten
     return OsSuccess;
 }
 
@@ -50,15 +65,23 @@ OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     // Depending on the setup of the pipe. If the pipe is local, then we 
     // can simply free the structure. If the pipe is global/inheritable, we need
     // to free the memory used, and destroy the handle.
+    (void)dma_attachment_unmap(&handle->object.data.pipe.attachment);
+    (void)dma_detach(&handle->object.data.pipe.attachment);
     return OsSuccess;
 }
 
 OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 {
-    // dma_attach
-    // dma_attachment_map
-    // 
-    return OsSuccess;
+    OsStatus_t status;
+
+    status = dma_attach(handle->object.data.pipe.attachment.handle,
+        &handle->object.data.pipe.attachment);
+    if (status) {
+        return status;
+    }
+    
+    status = dma_attachment_map(&handle->object.data.pipe.attachment);
+    return status;
 }
 
 void stdio_get_pipe_operations(stdio_ops_t* ops)
