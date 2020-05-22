@@ -118,8 +118,7 @@ static int socket_link_recv_stream(struct socket_link_manager* linkManager,
     return 0;
 }
 
-static int socket_link_send_packet(struct socket_link_manager* linkManager,
-    struct gracht_message* message, void* unusedContext)
+static int socket_link_send_packet(struct socket_link_manager* linkManager, struct gracht_message* message)
 {
     struct iovec  iov[1 + message->header.param_in];
     int           i;
@@ -252,7 +251,7 @@ static int socket_link_send(struct socket_link_manager* linkManager,
         return socket_link_send_stream(linkManager, message);
     }
     else if (linkManager->config.type == gracht_link_packet_based) {
-        return socket_link_send_packet(linkManager, message, messageContext);
+        return socket_link_send_packet(linkManager, message);
     }
     else
     {
