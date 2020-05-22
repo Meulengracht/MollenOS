@@ -42,12 +42,15 @@ extern "C" {
 // An application can utilize multiple clients, that connect to different
 // servers. When invoking a protocol the specific client can be specified.
 int gracht_client_create(gracht_client_configuration_t*, gracht_client_t**);
-int gracht_client_wait_message(gracht_client_t*, struct gracht_recv_message*);
-int gracht_client_process_message(gracht_client_t*, struct gracht_recv_message*);
 int gracht_client_register_protocol(gracht_client_t*, gracht_protocol_t*);
 int gracht_client_unregister_protocol(gracht_client_t*, gracht_protocol_t*);
-int gracht_client_invoke(gracht_client_t*, struct gracht_message*, void*);
 int gracht_client_shutdown(gracht_client_t*);
+
+int gracht_client_wait_message(gracht_client_t*, void*);
+int gracht_client_invoke(gracht_client_t*, struct gracht_message_context*, struct gracht_message*);
+int gracht_client_await(gracht_client_t*, struct gracht_message_context*);
+int gracht_client_await_multiple(gracht_client_t*, struct gracht_message_context**, int, unsigned int);
+int gracht_client_status(gracht_client_t*, struct gracht_message_context*, struct gracht_param*);
 
 #ifdef __cplusplus
 }

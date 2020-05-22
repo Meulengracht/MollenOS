@@ -25,7 +25,6 @@
 #include <errno.h>
 #include <gracht/link/socket.h>
 #include <gracht/server.h>
-#include <gracht/os.h>
 #include "../test_utils_protocol_client.h"
 #include <stdio.h>
 #include <string.h>
@@ -33,6 +32,7 @@
 
 static const char* dgramPath = "/tmp/g_dgram";
 static const char* clientsPath = "/tmp/g_clients";
+static char        messageBuffer[GRACHT_MAX_MESSAGE_SIZE];
 
 int main(int argc, char **argv)
 {
@@ -40,6 +40,7 @@ int main(int argc, char **argv)
     struct gracht_client_configuration clientConfiguration;
     gracht_client_t*                   client;
     int                                code, status = -1337;
+    struct gracht_message_context      context;
 
     struct sockaddr_un* addr = (struct sockaddr_un*)&linkConfiguration.address;
     linkConfiguration.address_length = sizeof(struct sockaddr_un);
@@ -48,6 +49,7 @@ int main(int argc, char **argv)
     linkConfiguration.type = gracht_link_stream_based;
 
     addr->sun_family = AF_LOCAL;
+    //strncpy (addr->sun_path, dgramPath, sizeof(addr->sun_path));
     strncpy (addr->sun_path, clientsPath, sizeof(addr->sun_path));
     addr->sun_path[sizeof(addr->sun_path) - 1] = '\0';
 
@@ -58,7 +60,10 @@ int main(int argc, char **argv)
         return code;
     }
     
-    code = test_utils_print(client, NULL, "hello from wm_client!", &status);
+    code = test_utils_print(client, &context, "hello from wm_client!");
+    gracht_client_wait_message(client, &messageBuffer[0]);
+    test_utils_print_result(client, &context, &status);
+    
     printf("gracht_client: recieved status %i\n", status);
     return gracht_client_shutdown(client);
 }

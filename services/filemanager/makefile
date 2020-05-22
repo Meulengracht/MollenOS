@@ -35,15 +35,15 @@ all: ../build/filemanager.dll ../build/filemanager.mdrv
 
 svc_file_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include file
+	python $(generator_path) --protocol $< --lang-c --server --include file
 
 svc_storage_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include storage
+	python $(generator_path) --protocol $< --lang-c --server --include storage
 	
 svc_path_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include path
+	python $(generator_path) --protocol $< --lang-c --server --include path
 
 ../build/filemanager.mdrv: filemanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

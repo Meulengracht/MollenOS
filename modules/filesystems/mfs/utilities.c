@@ -29,24 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static OsStatus_t
-ReadStorage(
-	_In_  FileSystemDisk_t* storage,
-	_In_  UUId_t            bufferHandle,
-	_In_  uint64_t          sector,
-	_In_  size_t            sectorCount,
-	_Out_ size_t*           sectorsRead)
-{
-	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
-	OsStatus_t               status;
-	
-	ctt_storage_transfer(GetGrachtClient(), &msg, storage->Device,
-			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
-			bufferHandle, 0, sectorCount, &status, sectorsRead);
-	gracht_vali_message_finish(&msg);
-	return status;
-}
-
 OsStatus_t
 MfsReadSectors(
     _In_ FileSystemDescriptor_t* FileSystem, 
@@ -60,10 +42,10 @@ MfsReadSectors(
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.Device,
 			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
-			BufferHandle, BufferOffset, Count, &status, SectorsRead);
-	gracht_vali_message_finish(&msg);
+			BufferHandle, BufferOffset, Count);
+	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, SectorsRead);
 	return status;
 }
 
@@ -80,10 +62,10 @@ MfsWriteSectors(
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.Device,
 			__STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
-			BufferHandle, BufferOffset, Count, &status, SectorsWritten);
-	gracht_vali_message_finish(&msg);
+			BufferHandle, BufferOffset, Count);
+	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, SectorsWritten);
 	return status;
 }
 

@@ -35,9 +35,9 @@ _Exit(
         Syscall_ModuleExit(exitCode);
     }
     else {
-        svc_process_terminate(GetGrachtClient(), &msg,
-            *GetInternalProcessId(), exitCode, &status);
-        gracht_vali_message_finish(&msg);
+        svc_process_terminate(GetGrachtClient(), &msg.base,
+            *GetInternalProcessId(), exitCode);
+        svc_process_terminate_result(GetGrachtClient(), &msg.base, &status);
     }
     Syscall_ThreadExit(exitCode);
     for(;;);

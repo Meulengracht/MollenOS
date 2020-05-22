@@ -40,10 +40,10 @@ ReadStorage(
 	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg, storage->Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->Device,
 			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
-			bufferHandle, 0, sectorCount, &status, sectorsRead);
-	gracht_vali_message_finish(&msg);
+			bufferHandle, 0, sectorCount);
+	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, sectorsRead);
 	return status;
 }
 

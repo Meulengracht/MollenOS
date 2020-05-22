@@ -54,17 +54,15 @@ static gracht_protocol_function_t* get_protocol_action(struct gracht_list* proto
     return NULL;
 }
 
-static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpackBuffer)
+static void unpack_parameters(struct gracht_param* params, uint8_t count, void* params_storage, uint8_t* unpackBuffer)
 {
-    struct gracht_param* params         = message->params;
-    char*                params_storage = ((char*)message->params + (message->param_count * sizeof(struct gracht_param)));
-    int                  unpackIndex    = 0;
-    int                  i;
+    char* pointer = params_storage;
+    int   unpackIndex    = 0;
+    int   i;
 
-    TRACE("offset: %lu, param count %i\n", message->param_count * sizeof(struct gracht_param), message->param_count);
-    for (i = 0; i < message->param_in; i++) {
+    for (i = 0; i < count; i++) {
         if (params[i].type == GRACHT_PARAM_VALUE) {
-            TRACE("push value: %u", (uint32_t)(params[i].data.value & 0xFFFFFFFF));
+            TRACE("push value: %u\n", (uint32_t)(params[i].data.value & 0xFFFFFFFF));
             if (params[i].length == 1) {
                 unpackBuffer[unpackIndex] = (uint8_t)(params[i].data.value & 0xFF);
             }
@@ -82,13 +80,13 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
             unpackIndex += params[i].length;
         }
         else if (params[i].type == GRACHT_PARAM_BUFFER) {
-            TRACE("push pointer: 0x%llx %u", params_storage, params[i].length);
+            TRACE("push pointer: 0x%p %u\n", pointer, params[i].length);
             if (params[i].length == 0) {
                 *((char**)&unpackBuffer[unpackIndex]) = NULL;
             }
             else {
-                *((char**)&unpackBuffer[unpackIndex]) = params_storage;
-                params_storage += params[i].length;
+                *((char**)&unpackBuffer[unpackIndex]) = pointer;
+                pointer += params[i].length;
             }
             unpackIndex += sizeof(void*);
         }
@@ -99,40 +97,53 @@ static void unpack_parameters(struct gracht_recv_message* message, uint8_t* unpa
     }
 }
 
-int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_message* message)
+int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_message* recvMessage)
 {
     gracht_protocol_function_t* function = get_protocol_action(protocols,
-        message->protocol, message->action);
+        recvMessage->protocol, recvMessage->action);
+    void* param_storage;
     
     if (!function) {
         errno = (EPROTONOSUPPORT);
         return -1;
     }
     
-    if (message->param_in) {
-        uint8_t unpackBuffer[message->param_in * sizeof(void*)];
-        unpack_parameters(message, &unpackBuffer[0]);
-        ((server_invokeA0_t)function->address)(message, &unpackBuffer[0]);
+    param_storage = ((char*)recvMessage->params +
+        (recvMessage->param_count * sizeof(struct gracht_param)));
+    
+    TRACE("offset: %lu, param count %i\n",
+        recvMessage->param_count * sizeof(struct gracht_param), recvMessage->param_count);
+    if (recvMessage->param_in) {
+        uint8_t unpackBuffer[recvMessage->param_in * sizeof(void*)];
+        unpack_parameters(recvMessage->params, recvMessage->param_in, param_storage, &unpackBuffer[0]);
+        ((server_invokeA0_t)function->address)(recvMessage, &unpackBuffer[0]);
     }
     else {
-        ((server_invoke00_t)function->address)(message);
+        ((server_invoke00_t)function->address)(recvMessage);
     }
     return 0;
 }
 
-int client_invoke_action(struct gracht_list* protocols, struct gracht_recv_message* message)
+int client_invoke_action(struct gracht_list* protocols, struct gracht_message* message)
 {
     gracht_protocol_function_t* function = get_protocol_action(protocols,
-        message->protocol, message->action);
+        message->header.protocol, message->header.action);
+    uint32_t param_count;
+    void*    param_storage;
     if (!function) {
         errno = (EPROTONOSUPPORT);
         return -1;
     }
     
+    param_count   = message->header.param_in + message->header.param_out;
+    param_storage = (char*)message + sizeof(struct gracht_message) +
+            (message->header.param_in * sizeof(struct gracht_param));
+    
     // parse parameters into a parameter struct
-    if (message->param_count) {
-        uint8_t unpackBuffer[message->param_count * sizeof(void*)];
-        unpack_parameters(message, &unpackBuffer[0]);
+    TRACE("offset: %lu, param count %i\n", param_count * sizeof(struct gracht_param), param_count);
+    if (param_count) {
+        uint8_t unpackBuffer[param_count * sizeof(void*)];
+        unpack_parameters(&message->params[0], message->header.param_in, param_storage, &unpackBuffer[0]);
         ((client_invokeA0_t)function->address)(&unpackBuffer[0]);
     }
     else {

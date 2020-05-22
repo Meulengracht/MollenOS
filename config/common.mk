@@ -33,6 +33,7 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 config_path := $(abspath $(dir $(mkfile_path)))
 workspace_path := $(abspath $(config_path)/../)
 arch_path := $(abspath $(workspace_path)/kernel/arch/$(VALI_ARCH))
+generator_path := $(workspace_path)/librt/libgracht/generator/parser.py
 
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 

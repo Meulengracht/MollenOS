@@ -114,7 +114,7 @@ def parse_value(xml_value):
         error("could not parse enum value: " + str(e))
     return None
 
-def parse_param(xml_param):
+def parse_param(xml_param, is_response):
     try:
         name = xml_param.get("name")
         p_type = xml_param.get("type")
@@ -134,14 +134,15 @@ def parse_param(xml_param):
         if subtype is None:
             subtype = "void*"
 
-        if not is_valid_int(count):
-            raise Exception("count is not a valid integer value")
-        
-        if int(count) < 1:
-            raise Exception("count can not be less than 1")
-        
-        if int(count) > 1 and (p_type == "buffer" or p_type == "shm"):
-            raise Exception("count is not supported for buffer or shm types")
+        if is_valid_int(count):
+            if int(count) < 1:
+                raise Exception(name + ": count can not be less than 1")
+            
+            if int(count) > 1 and (p_type == "buffer" or p_type == "shm"):
+                raise Exception(name + ": count is not supported for buffer or shm types")
+            
+        if is_response and p_type == "shm":
+            raise Exception(name + ": shm response arguments not supported");
 
         trace("parsing parameter values: " + name)
         for xml_value in xml_param.findall('value'):
@@ -167,9 +168,9 @@ def parse_function(xml_function):
         
         # parse parameters
         for xml_param in xml_function.findall("request/param"):
-            request_params.append(parse_param(xml_param))
+            request_params.append(parse_param(xml_param, False))
         for xml_param in xml_function.findall("response/param"):
-            response_params.append(parse_param(xml_param))
+            response_params.append(parse_param(xml_param, True))
         
         return Function(name, str(get_id()), request_params, response_params)
     except Exception as e:
@@ -187,7 +188,7 @@ def parse_event(xml_event):
 
         trace("parsing event: " + name)
         for xml_param in xml_event.findall('param'):
-            params.append(parse_param(xml_param))
+            params.append(parse_param(xml_param, False))
         return Event(name, str(get_id()), params)
     except Exception as e:
         error("could not parse event: " + str(e))

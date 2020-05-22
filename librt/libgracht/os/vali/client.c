@@ -48,92 +48,32 @@ static int vali_link_connect(struct client_link_ops* linkManager)
     return 0;
 }
 
-static void vali_link_unpack_response(void* buffer, struct gracht_message* message)
-{
-    char* pointer = buffer;
-    int   i;
-    
-    for (i = 0; i < message->header.param_out; i++) {
-        struct gracht_param* param = &message->params[message->header.param_in + i];
-        
-        if (param->type == GRACHT_PARAM_VALUE) {
-            if (param->length == 1) {
-                *((uint8_t*)param->data.buffer) = *((uint8_t*)pointer);
-            }
-            else if (param->length == 2) {
-                *((uint16_t*)param->data.buffer) = *((uint16_t*)pointer);
-            }
-            else if (param->length == 4) {
-                *((uint32_t*)param->data.buffer) = *((uint32_t*)pointer);
-            }
-            else if (param->length == 8) {
-                *((uint64_t*)param->data.buffer) = *((uint64_t*)pointer);
-            }
-        }
-        else if (param->type == GRACHT_PARAM_BUFFER) {
-            memcpy(param->data.buffer, pointer, param->length);
-        }
-        pointer += param->length;
-    }
-}
-
 static int vali_link_send_packet(struct vali_link_manager* linkManager,
     struct gracht_message* messageBase, struct vali_link_message* messageContext)
 {
     struct ipmsg_desc  message;
     struct ipmsg_desc* messagePointer = &message;
     OsStatus_t         status;
-    int                i;
     
     message.address  = &messageContext->address;
     message.response = &messageContext->response;
     message.base     = messageBase;
     
-    // If the message to be sent is larger than the threshold we will convert
-    // buffer arguments into shm arguments
-    if (messageBase->header.length > GRACHT_MAX_MESSAGE_SIZE) {
-        for (i = 0; i < messageBase->header.param_in; i++) {
-            if (messageBase->params[i].type == GRACHT_PARAM_BUFFER) {
-                messageBase->params[i].type = GRACHT_PARAM_SHM;
-                messageBase->header.length -= messageBase->params[i].length;
-            }
-            
-            if (messageBase->header.length <= GRACHT_MAX_MESSAGE_SIZE) {
-                break;
-            }
-        }
-    }
-    
     // Setup the response
     if (messageBase->header.param_out) {
-        size_t length = 0;
-        for (i = 0; i < messageBase->header.param_out; i++) {
-            length += messageBase->params[messageBase->header.param_in + i].length;
-        }
-        
-        messageContext->response_pool   = linkManager->pool;
-        messageContext->response_buffer = bget(linkManager->pool, length);
-        if (!messageContext->response_buffer) {
-            errno = (ENOMEM); // support bget growth?
-            return -1;
-        }
-        
         TRACE("[gracht] [client-link] [vali] allocated DMA buffer [base 0x%llx] 0x%llx, length %u",
-            linkManager->dma.buffer, messageContext->response_buffer, LODWORD(length));
+            linkManager->dma.buffer, messageContext->base.descriptor, LODWORD(length));
         messageContext->response.dma_handle = linkManager->dma.handle;
         messageContext->response.dma_offset = LOWORD(
-            ((uintptr_t)messageContext->response_buffer - (uintptr_t)linkManager->dma.buffer));
+            ((uintptr_t)messageContext->base.descriptor - (uintptr_t)linkManager->dma.buffer));
     }
     
     status = Syscall_IpcContextSend(&messagePointer, 1, 0);
-    if (messageBase->header.param_out) {
-        vali_link_unpack_response(messageContext->response_buffer, messageBase);
-    }
-    
     return OsStatusToErrno(status);
 }
 
-static int vali_link_recv(struct client_link_ops* linkManager, struct gracht_recv_message* message, unsigned int flags)
+static int vali_link_recv(struct client_link_ops* linkManager, void* messageBuffer,
+    unsigned int flags, struct gracht_message** messageOut)
 {
     if (!linkManager) {
         errno = (EINVAL);
@@ -154,6 +94,25 @@ static void vali_link_destroy(struct vali_link_manager* linkManager)
     dma_detach(&linkManager->dma);
     free(linkManager->pool);
     free(linkManager);
+}
+
+static int vali_link_allocate_buffer(struct vali_link_manager* linkManager,
+    size_t bufferLength, void** transferBufferOut)
+{
+    void* buffer = bget(linkManager->pool, bufferLength);
+    if (!buffer) {
+        errno = (ENOMEM);
+        return -1;
+    }
+    
+    *transferBufferOut = buffer;
+    return 0;
+}
+
+static void vali_link_free_buffer(struct vali_link_manager* linkManager,
+    void* transferBuffer)
+{
+    brel(linkManager->pool, transferBuffer);
 }
 
 int gracht_link_vali_client_create(struct client_link_ops** linkOut)
@@ -193,10 +152,12 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
         return -1;
     }
     
-    linkManager->ops.connect = vali_link_connect;
-    linkManager->ops.recv    = vali_link_recv;
-    linkManager->ops.send    = (client_link_send_fn)vali_link_send_packet;
-    linkManager->ops.destroy = (client_link_destroy_fn)vali_link_destroy;
+    linkManager->ops.get_buffer  = (client_link_get_buffer_fn)vali_link_allocate_buffer;
+    linkManager->ops.free_buffer = (client_link_free_buffer_fn)vali_link_free_buffer;
+    linkManager->ops.connect     = vali_link_connect;
+    linkManager->ops.recv        = vali_link_recv;
+    linkManager->ops.send        = (client_link_send_fn)vali_link_send_packet;
+    linkManager->ops.destroy     = (client_link_destroy_fn)vali_link_destroy;
     
     *linkOut = &linkManager->ops;
     return 0;

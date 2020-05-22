@@ -9,11 +9,11 @@ all: ctt_driver_protocol_server.c ctt_usbhost_protocol_server.c
 
 ctt_driver_protocol_server.c: ../../../../protocols/contract_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --server --include driver
+	python $(generator_path) --protocol $< --lang-c --server --include driver
 
 ctt_usbhost_protocol_server.c: ../../../../protocols/contract_protocols.xml
 	@printf "%b" "\033[0;36mRegenerasting protocol " $@ "\033[m\n"
-	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --server --include usbhost
+	python $(generator_path) --protocol $< --lang-c --server --include usbhost
 
 .PHONY: clean
 clean:

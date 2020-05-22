@@ -27,24 +27,6 @@
 #include <os/osdefs.h>
 #include <ipcontext.h>
 
-// SOURCE-CONTEXT
-// |
-// |------ MESSAGE
-// |     |
-// |     |--- HEADER
-// |     |  |
-// |     |  |--- LENGTH
-// |     |  |--- SOURCE_CONTEXT
-// |     |  |--- SOURCE_CONTEXT_RESPONSE_OFFSET
-// |     |  |--- NOTIFY_METHOD
-// |     |  |--- NOTIFY_DATA
-// |     |--- PARAMETERS
-// 
-
-typedef struct IpcResponsePayloadHeader {
-    OsStatus_t Status;
-} IpcResponsePayloadHeader_t;
-
 /**
  * IpcContextCreate
  * * 

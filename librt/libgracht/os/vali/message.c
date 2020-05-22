@@ -55,13 +55,3 @@ int gracht_vali_message_create(gracht_client_t* client, int message_size, struct
     *messageOut = message;
     return 0;
 }
-
-// the finish will then clean up shm
-void gracht_vali_message_finish(struct vali_link_message* message)
-{
-    if (!message || !message->response_pool) {
-        return;
-    }
-    
-    brel(message->response_pool, message->response_buffer);
-}

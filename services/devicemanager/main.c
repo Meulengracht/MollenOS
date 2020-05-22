@@ -121,9 +121,8 @@ update_device_drivers(void)
                 struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(handle);
                 TRACE("[devicemanager] [notify] found device for driver: %s",
                     &deviceNode->device->Name[0]);
-                ctt_driver_register_device(GetGrachtClient(), &msg, deviceNode->device,
+                ctt_driver_register_device(GetGrachtClient(), &msg.base, deviceNode->device,
                     deviceNode->device->Length);
-                gracht_vali_message_finish(&msg);
                 
                 deviceNode->driver_id = handle;
             }

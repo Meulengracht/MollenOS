@@ -42,9 +42,8 @@ int socket(int domain, int type, int protocol)
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
     TRACE("[socket] remote create");
-    svc_socket_create(GetGrachtClient(), &msg, domain, type, protocol,
-        &os_status, &handle, &recv_handle, &send_handle);
-    gracht_vali_message_finish(&msg);
+    svc_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol);
+    svc_socket_create_result(GetGrachtClient(), &msg.base, &os_status, &handle, &recv_handle, &send_handle);
     if (os_status != OsSuccess) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);
         (void)OsStatusToErrno(os_status);

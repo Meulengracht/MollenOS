@@ -42,8 +42,8 @@ PathResolveEnvironment(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_resolve(GetGrachtClient(), &msg, (enum svc_path_environment_path)environment, &status, &buffer[0], maxLength);
-	gracht_vali_message_finish(&msg);
+	svc_path_resolve(GetGrachtClient(), &msg.base, (enum svc_path_environment_path)environment, maxLength);
+	svc_path_resolve_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }
 
@@ -60,8 +60,8 @@ PathCanonicalize(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_canonicalize(GetGrachtClient(), &msg, path, &status, &buffer[0], maxLength);
-	gracht_vali_message_finish(&msg);
+	svc_path_canonicalize(GetGrachtClient(), &msg.base, path, maxLength);
+	svc_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }
 
@@ -81,9 +81,8 @@ GetWorkingDirectory(
     }
 	else {
 	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        svc_process_get_working_directory(GetGrachtClient(), &msg, UUID_INVALID,
-            &Status, PathBuffer, MaxLength);
-        gracht_vali_message_finish(&msg);
+        svc_process_get_working_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
+        svc_process_get_working_directory_result(GetGrachtClient(), &msg.base, &Status, PathBuffer);
         TRACE("GetWorkingDirectory => %s", PathBuffer);
     }
     return Status;
@@ -127,9 +126,9 @@ SetWorkingDirectory(
             else {
 	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
                 TRACE("...proc_set_cwd %s", &TempBuffer[0]);
-                svc_process_set_working_directory(GetGrachtClient(), &msg, *GetInternalProcessId(),
-                    &TempBuffer[0], &Status);
-                gracht_vali_message_finish(&msg);
+                svc_process_set_working_directory(GetGrachtClient(), &msg.base,
+                    *GetInternalProcessId(), &TempBuffer[0]);
+                svc_process_set_working_directory_result(GetGrachtClient(), &msg.base, &Status);
                 return Status;
             }
         }
@@ -160,9 +159,8 @@ GetAssemblyDirectory(
 	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 	    OsStatus_t               status;
 	    
-        svc_process_get_assembly_directory(GetGrachtClient(), &msg,
-            UUID_INVALID, &status, PathBuffer, MaxLength);
-        gracht_vali_message_finish(&msg);
+        svc_process_get_assembly_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
+        svc_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, PathBuffer);
         return status;
     }
 }

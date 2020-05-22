@@ -38,7 +38,7 @@ all: ../build/devicemanager.dll ../build/devicemanager.mdrv
 
 svc_device_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include device
+	python $(generator_path) --protocol $< --lang-c --server --include device
 	
 ../build/devicemanager.mdrv: devicemanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

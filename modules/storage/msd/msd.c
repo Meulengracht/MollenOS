@@ -50,9 +50,8 @@ RegisterStorage(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
-    status = svc_storage_register(GetGrachtClient(), &msg,
+    status = svc_storage_register(GetGrachtClient(), &msg.base,
         ProtocolServerId, DeviceId, Flags);
-    gracht_vali_message_finish(&msg);
 }
 
 static void
@@ -63,8 +62,7 @@ UnregisterStorage(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
-    status = svc_storage_unregister(GetGrachtClient(), &msg, DeviceId, Flags);
-    gracht_vali_message_finish(&msg);
+    status = svc_storage_unregister(GetGrachtClient(), &msg.base, DeviceId, Flags);
 }
 
 static void*

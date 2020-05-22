@@ -30,11 +30,11 @@ all: ../build/processmanager.dll ../build/processmanager.mdrv
 
 svc_process_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include process
+	python $(generator_path) --protocol $< --lang-c --server --include process
 
 svc_library_protocol_server.c: ../../protocols/service_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server --include library
+	python $(generator_path) --protocol $< --lang-c --server --include library
 
 ../build/processmanager.mdrv: processmanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

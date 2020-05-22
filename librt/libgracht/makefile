@@ -51,13 +51,13 @@ native: ../native/libgracht.a ../native/gracht_server ../native/gracht_client
 	@printf "%b" "\033[0;36mCreating test server " $@ "\033[m\n"
 	@gcc $(TEST_CLIENT_OBJECTS) $(LFLAGS) -o $@
 
-tests/test_utils_protocol_client.c: ../../protocols/test_protocol.xml
+tests/test_utils_protocol_client.c: tests/test_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --client
+	python generator/parser.py --protocol $< --out $(dir $@) --lang-c --client
 
-tests/test_utils_protocol_server.c: ../../protocols/test_protocol.xml
+tests/test_utils_protocol_server.c: tests/test_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --out $(dir $@) --lang-c --server
+	python generator/parser.py --protocol $< --out $(dir $@) --lang-c --server
 	
 %.o : %.c
 	@mkdir -p $(dir $@)

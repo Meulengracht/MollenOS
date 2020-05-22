@@ -38,6 +38,8 @@
 #include <string.h>
 #include <threading.h>
 
+#define GRACHT_BUFFER_THRESHOLD 128
+
 typedef struct IpcContext {
     UUId_t          Handle;
     UUId_t          CreatorThreadHandle;
@@ -191,6 +193,12 @@ WriteMessage(
     
     // Fixup all SHM buffer values before writing the base message
     for (i = 0; i < Message->base->header.param_in; i++) {
+        // Convert all parameters above THRESHOLD to SHM
+        if (Message->base->params[i].type == GRACHT_PARAM_BUFFER &&
+            Message->base->params[i].length >= GRACHT_BUFFER_THRESHOLD) {
+            Message->base->params[i].type = GRACHT_PARAM_SHM;
+        }
+        
         if (Message->base->params[i].type == GRACHT_PARAM_SHM &&
             Message->base->params[i].length > 0) {
             MCoreThread_t* Thread = GetContextThread(Context);
@@ -300,17 +308,30 @@ SendNotification(
     }
 }
 
+// THIS STRUCTURE MUST MATCH THE STRUCTURE IN libgracht/client.c
+struct gracht_message_descriptor {
+    gracht_object_header_t header;
+    int                    status;
+    struct gracht_message  message;
+};
+
 static OsStatus_t
 WriteShortResponse(
     _In_ struct ipmsg_desc* message,
     _In_ OsStatus_t         status)
 {
-    IpcResponsePayloadHeader_t header = { status };
-    size_t                     bytesWritten;
+    int error_code = GRACHT_MESSAGE_ERROR;
     
+    // write status to ERROR
     if (message->response->dma_handle != UUID_INVALID) {
-        MemoryRegionWrite(message->response->dma_handle, message->response->dma_offset,
-            &header, sizeof(IpcResponsePayloadHeader_t), &bytesWritten);
+        size_t bytesWritten;
+        size_t offset = offsetof(struct gracht_message_descriptor, status);
+
+        MemoryRegionWrite(
+            message->response->dma_handle,
+            message->response->dma_offset + offset,
+            &error_code, sizeof(int),
+            &bytesWritten);
     }
     
     SendNotification(message->response, message->base->header.flags);
@@ -322,28 +343,37 @@ WriteFullResponse(
     _In_ struct ipmsg*          message,
     _In_ struct gracht_message* messageDescriptor)
 {
-    uint16_t offset = message->response.dma_offset;
-    int      i;
-    
     TRACE("[ipc] [WriteFullResponse] dma_handle %u, dma_offset %u",
         message->response.dma_handle, message->response.dma_offset);
     if (message->response.dma_handle != UUID_INVALID) {
-        for (i = 0; i < message->base.header.param_out; i++) {
-            struct gracht_param* param        = &messageDescriptor->params[i];
-            size_t               bytesWritten = 0;
+        size_t offset = message->response.dma_offset;
+        size_t bytesWritten;
+        int    i;
+        
+        offset += offsetof(struct gracht_message_descriptor, message);
+        MemoryRegionWrite(
+            message->response.dma_handle,
+            offset,
+            messageDescriptor,
+            sizeof(struct gracht_message) + (messageDescriptor->header.param_in * sizeof(struct gracht_param)),
+            &bytesWritten);
+        
+        offset += bytesWritten;
+        
+        TRACE("[ipc] [WriteFullResponse] wrote %u bytes, new offset %u",
+            LODWORD(bytesWritten), offset);
+        for (i = 0; i < messageDescriptor->header.param_in; i++) {
+            struct gracht_param* param = &messageDescriptor->params[i];
             
-            if (param->type == GRACHT_PARAM_VALUE) {
-                MemoryRegionWrite(message->response.dma_handle, offset,
-                    &param->data.value, param->length, &bytesWritten);
-            }
-            else if (param->type == GRACHT_PARAM_BUFFER) {
+            if (param->type == GRACHT_PARAM_BUFFER) {
                 MemoryRegionWrite(message->response.dma_handle, offset,
                     param->data.buffer, param->length, &bytesWritten);
+                offset += param->length;
+                
+                TRACE("[ipc] [WriteFullResponse] wrote %u bytes, new offset %u",
+                    LODWORD(bytesWritten), offset);
             }
             
-            offset += message->base.params[message->base.header.param_in + i].length;
-            TRACE("[ipc] [WriteFullResponse] wrote %u bytes, new offset %u",
-                LODWORD(bytesWritten), offset);
         }
     }
     

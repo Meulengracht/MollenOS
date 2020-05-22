@@ -31,6 +31,9 @@ typedef struct gracht_list {
     struct gracht_object_header* head;
 } gracht_list_t;
 
+#define GRACHT_LIST_HEAD(list) (list)->head
+#define GRACHT_LIST_LINK(elem) (elem)->link
+
 static struct gracht_object_header*
 gracht_list_lookup(struct gracht_list* list, int id)
 {

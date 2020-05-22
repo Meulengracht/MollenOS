@@ -20,9 +20,9 @@ LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/depl
 .PHONY: all
 all: ../bin/wmsrv.app
 
-test_utils_protocol_server.c: ../../protocols/test_protocol.xml
+test_utils_protocol_server.c: ../../librt/libgracht/tests/test_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../protocols/gracht_generator.py --protocol $< --lang-c --server
+	python $(generator_path) --protocol $< --lang-c --server
 	
 ../bin/wmsrv.app: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"

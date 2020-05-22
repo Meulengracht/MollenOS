@@ -32,11 +32,11 @@ all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 
 hid_events_protocol_client.c: ../../../../protocols/hid_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --client
+	python $(generator_path) --protocol $< --lang-c --client
 
 ctt_driver_protocol_server.c: ../../../../protocols/contract_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python ../../../../protocols/gracht_generator.py --protocol $< --lang-c --server --include driver
+	python $(generator_path) --protocol $< --lang-c --server --include driver
 
 ../../../build/ps2.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"

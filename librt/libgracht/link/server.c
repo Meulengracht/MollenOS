@@ -106,13 +106,13 @@ static int socket_link_recv(struct socket_link* linkContext,
     if (message->header.param_in) {
         intmax_t bytesToRead = message->header.length - sizeof(struct gracht_message);
 
-        TRACE("[gracht_connection_recv_stream] reading message payload");
+        TRACE("[gracht_connection_recv_stream] reading message payload\n");
         params_storage = (char*)context->storage + sizeof(struct gracht_message);
         bytes_read     = recv(linkContext->iod, params_storage, bytesToRead, MSG_WAITALL);
         if (bytes_read != bytesToRead) {
             // do not process incomplete requests
             // TODO error code / handling
-            ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%u, expected %u)",
+            ERROR("[gracht_connection_recv_message] did not read full amount of bytes (%u, expected %u)\n",
                   (uint32_t)bytes_read, (uint32_t)(message->header.length - sizeof(struct gracht_message)));
             errno = (EPIPE);
             return -1;

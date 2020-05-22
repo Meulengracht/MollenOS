@@ -5,10 +5,39 @@ class CONST(object):
     __slots__ = ()
     TYPENAME_CASE_SIZEOF = 0
     TYPENAME_CASE_FUNCTION_CALL = 1
-    TYPENAME_CASE_FUNCTION_RESPONSE = 2
-    TYPENAME_CASE_MEMBER = 3
+    TYPENAME_CASE_FUNCTION_STATUS = 2
+    TYPENAME_CASE_FUNCTION_RESPONSE = 3
+    TYPENAME_CASE_MEMBER = 4
 
 class CGenerator:
+    def should_define_parameter(self, param, case):
+        if case == CONST.TYPENAME_CASE_SIZEOF or case == CONST.TYPENAME_CASE_MEMBER:
+            return not param.is_output()
+        elif case == CONST.TYPENAME_CASE_FUNCTION_CALL:
+            return not param.is_output()
+        elif case == CONST.TYPENAME_CASE_FUNCTION_STATUS:
+            return param.is_output()
+        elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
+            return param.is_output()
+        return False
+        
+    def should_define_param_length_component(self, param, case):
+        if case == CONST.TYPENAME_CASE_SIZEOF or case == CONST.TYPENAME_CASE_MEMBER:
+            return False
+        elif case == CONST.TYPENAME_CASE_FUNCTION_CALL:
+            if param.is_buffer() and param.get_subtype() == "void*":
+                return True
+            if param.is_string() and param.is_output():
+                return True
+            return False
+        elif case == CONST.TYPENAME_CASE_FUNCTION_STATUS:
+            return False
+        elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
+            if param.is_buffer() and param.get_subtype() == "void*":
+                return True
+            return False
+        return False
+    
     def get_input_struct_name(self, protocol, func):
         return protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name().lower() + "_args"
 
@@ -38,12 +67,13 @@ class CGenerator:
                 param_typename = param.get_subtype()
         
         # format parameter, unfortunately there are 5 cases to do this
+        # TYPENAME_CASE_SIZEOF means we would like the typename for a sizeof call
         if case == CONST.TYPENAME_CASE_SIZEOF:
-            if int(param.get_count()) > 1:
-                param_typename = param_typename + " * " + param.get_count()
             return param_typename
         
-        elif case == CONST.TYPENAME_CASE_FUNCTION_CALL:
+        # TYPENAME_CASE_FUNCTION_CALL is used for event prototypes and normal
+        # async function prototypes
+        elif case == CONST.TYPENAME_CASE_FUNCTION_CALL or case == CONST.TYPENAME_CASE_FUNCTION_STATUS:
             param_name = param.get_name()
             if not param.is_value() and not param_typename.endswith("*"):
                 param_typename = param_typename + "*"
@@ -51,14 +81,14 @@ class CGenerator:
                 if param.is_value():
                     param_typename = param_typename + "*"
                 param_name = param_name + "_out"
-            if int(param.get_count()) > 1:
+            elif param.get_count() != "1":
                 param_typename = param_typename + "*"
             return param_typename + " "  + param_name
 
         elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
             if not param.is_value() and not param_typename.endswith("*"):
                 param_typename = param_typename + "*"
-            if int(param.get_count()) > 1:
+            if param.get_count() != "1":
                 param_typename = param_typename + "*"
             return param_typename + " "  + param.get_name()
         
@@ -66,23 +96,20 @@ class CGenerator:
             if not param.is_value() and not param_typename.endswith("*"):
                 param_typename = param_typename + "*"
             param_typename = param_typename + " "  + param.get_name()
-            if int(param.get_count()) > 1:
+            if param.get_count() != "1":
                 param_typename = param_typename + "[" + str(param.get_count()) + "]"
             return param_typename
         return param_typename
 
     def get_parameter_string(self, protocol, params, case):
-        last_index = len(params) - 1
-        parameter_string = ""
-        for index, param in enumerate(params):
-            parameter_string = parameter_string + self.get_param_typename(protocol, param, case)
-            if param.has_length_component() and (case != CONST.TYPENAME_CASE_FUNCTION_RESPONSE or not param.is_string()):
-                length_param = self.get_param_typename(protocol, Parameter(param.get_name() + "_length", "size_t"), case)
-                parameter_string = parameter_string + ", " + length_param
+        parameters_valid = []
+        for param in params:
+            if self.should_define_parameter(param, case):
+                parameters_valid.append(self.get_param_typename(protocol, param, case))
+            if self.should_define_param_length_component(param, case):
+                parameters_valid.append(self.get_param_typename(protocol, Parameter(param.get_name() + "_length", "size_t"), case))
 
-            if index < last_index:
-                parameter_string = parameter_string + ", "
-        return parameter_string
+        return ", ".join(parameters_valid)
 
     def get_protocol_server_response_name(self, protocol, func):
         return protocol.get_namespace() + "_" + protocol.get_name() + "_" + func.get_name() + "_response"
@@ -277,18 +304,22 @@ class CGenerator:
     def get_function_prototype(self, protocol, func, case):
         function_prototype = "int " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name()
         function_client_param = self.get_param_typename(protocol, Parameter("client", "gracht_client_t*"), case)
-        function_context_param = self.get_param_typename(protocol, Parameter("context", "void*"), case)
+        function_context_param = self.get_param_typename(protocol, Parameter("context", "struct gracht_message_context*"), case)
         function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
-        parameter_string = ""
+        input_parameters = self.get_parameter_string(protocol, func.get_request_params(), case)
+        output_parameters = self.get_parameter_string(protocol, func.get_response_params(), case)
         
-        if len(func.get_request_params()) > 0:
-            parameter_string = ", " + self.get_parameter_string(protocol, func.get_request_params(), case)
-        return function_prototype + parameter_string + ")"
+        if input_parameters != "":
+            input_parameters = ", " + input_parameters;
+        if output_parameters != "":
+            output_parameters = ", " + output_parameters
+        
+        return function_prototype + input_parameters + output_parameters + ")"
 
     def get_function_status_prototype(self, protocol, func, case):
         function_prototype = "int " + protocol.get_namespace().lower() + "_" + protocol.get_name().lower() + "_" + func.get_name() + "_result"
         function_client_param = self.get_param_typename(protocol, Parameter("client", "gracht_client_t*"), case)
-        function_context_param = self.get_param_typename(protocol, Parameter("context", "void*"), case)
+        function_context_param = self.get_param_typename(protocol, Parameter("context", "struct gracht_message_context*"), case)
         function_prototype = function_prototype + "(" + function_client_param + ", " + function_context_param
         output_param_string = self.get_parameter_string(protocol, func.get_response_params(), case)
         return function_prototype + ", " + output_param_string + ")"
@@ -297,21 +328,31 @@ class CGenerator:
         for func in protocol.get_functions():
             outfile.write("    " + self.get_function_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_CALL) + ";\n")
             if len(func.get_response_params()) > 0:
-                outfile.write("    " + self.get_function_status_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_CALL) + ";\n")
+                outfile.write("    " + self.get_function_status_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_STATUS) + ";\n")
         outfile.write("\n")
         return
 
-    def get_size_function(self, protocol, param, is_response):
-        if param.has_length_component() and (not is_response or not param.is_string()):
+    def get_size_function(self, protocol, param, case):
+        # check for special function or parameter
+        if case == CONST.TYPENAME_CASE_FUNCTION_STATUS and not param.is_value():
+            return "0";
+        
+        if self.should_define_param_length_component(param, case):
             return param.get_name() + "_length"
-        elif param.is_string():
+        
+        if param.is_string():
             return "((" + param.get_name() + " == NULL) ? 0 : (strlen(&" + param.get_name() + "[0]) + 1))"
+        
+        # otherwise we use sizeof with optional * count
+        if param.get_count() != "1":
+            return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ") * " + param.get_count()
+        
         return "sizeof(" + self.get_param_typename(protocol, param, CONST.TYPENAME_CASE_SIZEOF) + ")"
 
     def get_message_flags_func(self, func):
         if len(func.get_response_params()) == 0:
             return "MESSAGE_FLAG_ASYNC"
-        return "0"
+        return "MESSAGE_FLAG_SYNC"
 
     def get_message_size_string(self, params):
         message_size = "sizeof(struct gracht_message)"
@@ -319,7 +360,7 @@ class CGenerator:
             message_size = message_size + " + (" + str(len(params)) + " * sizeof(struct gracht_param))"
         return message_size
     
-    def define_message_struct(self, protocol, action_id, params_in, params_out, flags, is_response, outfile):
+    def define_message_struct(self, protocol, action_id, params_in, params_out, flags, case, outfile):
         params_all = params_in + params_out
 
         # define variables
@@ -328,14 +369,16 @@ class CGenerator:
             outfile.write("        struct gracht_message_header __base;\n")
             outfile.write("        struct gracht_param          __params[" + str(len(params_all)) + "];\n")
             outfile.write("    } __message = { .__base = { \n")
+            outfile.write("        .id = 0,\n")
             outfile.write("        .length = sizeof(struct gracht_message)")
             outfile.write(" + (" + str(len(params_all)) + " * sizeof(struct gracht_param))")
             for param in params_in:
                 if not param.is_value():
-                    size_function = self.get_size_function(protocol, param, is_response)
+                    size_function = self.get_size_function(protocol, param, case)
                     outfile.write(" + " + size_function)
         else:
             outfile.write("    struct gracht_message __message = {\n")
+            outfile.write("        .id = 0,\n")
             outfile.write("        .length = sizeof(struct gracht_message)")
         outfile.write(",\n")
 
@@ -347,7 +390,7 @@ class CGenerator:
         if len(params_all) > 0:
             outfile.write("\n    }, .__params = {\n")
             for index, param in enumerate(params_in):
-                size_function = self.get_size_function(protocol, param, is_response)
+                size_function = self.get_size_function(protocol, param, case)
                 if param.is_value():
                     outfile.write("            { .type = GRACHT_PARAM_VALUE, .data.value = (size_t)" + param.get_name() + ", .length = " + size_function + " }")
                 elif param.is_buffer() or param.is_string():
@@ -360,7 +403,7 @@ class CGenerator:
                 else:
                     outfile.write("\n")
             for index, param in enumerate(params_out):
-                size_function = self.get_size_function(protocol, param, is_response)
+                size_function = self.get_size_function(protocol, param, case)
                 if param.is_value():
                     outfile.write("            { .type = GRACHT_PARAM_VALUE, .data.buffer = NULL, .length = " + size_function + " }")
                 elif param.is_buffer() or param.is_string():
@@ -376,10 +419,10 @@ class CGenerator:
         outfile.write("\n    };\n\n")
         return
 
-    def define_status_struct(self, protocol, action_id, params_out, flags, is_response, outfile):
+    def define_status_struct(self, protocol, action_id, params_out, flags, case, outfile):
         outfile.write("    struct gracht_param __params[" + str(len(params_out)) + "] = {\n")
         for index, param in enumerate(params_out):
-            size_function = self.get_size_function(protocol, param, is_response)
+            size_function = self.get_size_function(protocol, param, case)
             buffer_variable = param.get_name() + "_out"
 
             if param.is_value():
@@ -398,27 +441,27 @@ class CGenerator:
 
     def define_function_body(self, protocol, func, outfile):
         flags = self.get_message_flags_func(func)
-        self.define_message_struct(protocol, func.get_id(), func.get_request_params(), func.get_response_params(), flags, False, outfile)
-        outfile.write("    return gracht_client_invoke(client, (struct gracht_message*)&__message, context);\n")
+        self.define_message_struct(protocol, func.get_id(), func.get_request_params(), func.get_response_params(), flags, CONST.TYPENAME_CASE_FUNCTION_CALL, outfile)
+        outfile.write("    return gracht_client_invoke(client, context, (struct gracht_message*)&__message);\n")
         return
 
     def define_status_body(self, protocol, func, outfile):
-        self.define_status_struct(protocol, func.get_id(), func.get_response_params(), [], True, outfile)
-        outfile.write("    return gracht_client_status(client, &__params[0], context);\n")
+        self.define_status_struct(protocol, func.get_id(), func.get_response_params(), [], CONST.TYPENAME_CASE_FUNCTION_STATUS, outfile)
+        outfile.write("    return gracht_client_status(client, context, &__params[0]);\n")
         return
     
     def define_event_body_single(self, protocol, evt, outfile):
-        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", False, outfile)
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "MESSAGE_FLAG_EVENT", CONST.TYPENAME_CASE_FUNCTION_CALL, outfile)
         outfile.write("    return gracht_server_send_event(client, (struct gracht_message*)&__message, 0);\n")
         return
 
     def define_event_body_all(self, protocol, evt, outfile):
-        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "0", False, outfile)
+        self.define_message_struct(protocol, evt.get_id(), evt.get_params(), [], "MESSAGE_FLAG_EVENT", CONST.TYPENAME_CASE_FUNCTION_CALL, outfile)
         outfile.write("    return gracht_server_broadcast_event((struct gracht_message*)&__message, 0);\n")
         return
 
     def define_response_body(self, protocol, func, flags, outfile):
-        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], flags, True, outfile)
+        self.define_message_struct(protocol, func.get_id(), func.get_response_params(), [], flags, CONST.TYPENAME_CASE_FUNCTION_RESPONSE, outfile)
         outfile.write("    return gracht_server_respond(message, (struct gracht_message*)&__message);\n")
         return
     
@@ -430,11 +473,10 @@ class CGenerator:
             outfile.write("}\n\n")
 
             if len(func.get_response_params()) > 0:
-                outfile.write(self.get_function_status_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_CALL) + "\n")
+                outfile.write(self.get_function_status_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_STATUS) + "\n")
                 outfile.write("{\n")
                 self.define_status_body(protocol, func, outfile)
                 outfile.write("}\n\n")
-                
         return
 
     def define_server_responses(self, protocol, outfile):
@@ -442,7 +484,7 @@ class CGenerator:
             if len(func.get_response_params()) > 0:
                 outfile.write(self.get_response_prototype(protocol, func, CONST.TYPENAME_CASE_FUNCTION_RESPONSE) + "\n")
                 outfile.write("{\n")
-                self.define_response_body(protocol, func, "0", outfile)
+                self.define_response_body(protocol, func, "MESSAGE_FLAG_RESPONSE", outfile)
                 outfile.write("}\n\n")
 
     def define_events(self, protocol, outfile):

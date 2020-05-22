@@ -201,7 +201,7 @@ NextPowerOfTwo(size_t Value)
     return Next;
 }
 
-#define _MAXPATH            512
+#define _MAXPATH                                512
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) <= (max)))

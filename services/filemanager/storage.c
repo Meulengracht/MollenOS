@@ -47,8 +47,7 @@ NotifySessionManagerOfNewDisk(
     _In_ char* identifier)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
-    svc_session_new_device(GetGrachtClient(), &msg, identifier);
-    gracht_vali_message_finish(&msg);
+    svc_session_new_device(GetGrachtClient(), &msg.base, identifier);
 }
 
 OsStatus_t
@@ -176,8 +175,8 @@ InitializeDisk(void* Context)
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(disk->Driver);
     OsStatus_t               status;
     
-    ctt_storage_stat(GetGrachtClient(), &msg, disk->Device, &status, &disk->Descriptor);
-    gracht_vali_message_finish(&msg);
+    ctt_storage_stat(GetGrachtClient(), &msg.base, disk->Device);
+    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &status, &disk->Descriptor);
     if (status != OsSuccess) {
         // TODO: disk states
         // Disk->State = Crashed

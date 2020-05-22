@@ -37,8 +37,8 @@ RegisterDevice(
     OsStatus_t               osStatus;
     UUId_t                   id;
     
-    status = svc_device_register(GetGrachtClient(), &msg, device, device->Length,
-        flags, &osStatus, &id);
+    status = svc_device_register(GetGrachtClient(), &msg.base, device, device->Length, flags);
+    svc_device_register_result(GetGrachtClient(), &msg.base, &osStatus, &id);
     if (status) {
         ERROR("[ddk] [device] failed to register new device, errno %i", errno);
         return UUID_INVALID;
@@ -59,7 +59,8 @@ UnregisterDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_unregister(GetGrachtClient(), &msg, DeviceId, &status);
+    svc_device_unregister(GetGrachtClient(), &msg.base, DeviceId);
+    svc_device_unregister_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
 
@@ -72,7 +73,8 @@ IoctlDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_ioctl(GetGrachtClient(), &msg, Device, Command, Flags, &status);
+    svc_device_ioctl(GetGrachtClient(), &msg.base, Device, Command, Flags);
+    svc_device_ioctl_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
 
@@ -87,7 +89,7 @@ IoctlDeviceEx(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
     
-    svc_device_ioctl_ex(GetGrachtClient(), &msg, Device, Direction, Register,
-        *Value, Width, &status, Value);
+    svc_device_ioctl_ex(GetGrachtClient(), &msg.base, Device, Direction, Register, *Value, Width);
+    svc_device_ioctl_ex_result(GetGrachtClient(), &msg.base, &status, Value);
     return status;
 }

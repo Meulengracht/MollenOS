@@ -59,10 +59,9 @@ void __CrtModuleLoad(void)
     }
     
     if (vendorId != 0 || deviceId != 0 || class != 0 || subClass != 0) {
-        svc_device_notify(GetGrachtClient(), &msg,
+        svc_device_notify(GetGrachtClient(), &msg.base,
             GetNativeHandle(gracht_server_get_dgram_iod()),
             vendorId, deviceId, class, subClass);
-        gracht_vali_message_finish(&msg);
     }
 }
 

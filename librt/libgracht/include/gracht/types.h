@@ -40,15 +40,30 @@
 #error "Please define packed struct for the used compiler"
 #endif
 
-typedef void* gracht_handle_t;
-
+#define MESSAGE_FLAG_TYPE(flags) (flags & 0x3)
+#define MESSAGE_FLAG_SYNC     0x00000000
 #define MESSAGE_FLAG_ASYNC    0x00000001
+#define MESSAGE_FLAG_EVENT    0x00000002
+#define MESSAGE_FLAG_RESPONSE 0x00000003
 
 #define GRACHT_MAX_MESSAGE_SIZE 512
 
 #define GRACHT_PARAM_VALUE  0
 #define GRACHT_PARAM_BUFFER 1
 #define GRACHT_PARAM_SHM    2
+
+#define GRACHT_AWAIT_ANY 0
+#define GRACHT_AWAIT_ALL 1
+
+#define GRACHT_MESSAGE_CREATED    0
+#define GRACHT_MESSAGE_INPROGRESS 1
+#define GRACHT_MESSAGE_COMPLETED  2
+#define GRACHT_MESSAGE_ERROR      3
+
+typedef struct gracht_object_header {
+    int                          id;
+    struct gracht_object_header* link;
+} gracht_object_header_t;
 
 // Pack structures transmitted to make debugging wire format easier
 GRACHT_STRUCT(gracht_param, {
@@ -62,6 +77,7 @@ GRACHT_STRUCT(gracht_param, {
 
 // Pack structures transmitted to make debugging wire format easier
 GRACHT_STRUCT(gracht_message_header, {
+    uint32_t id;
     uint32_t length;
     uint32_t param_in  : 4;
     uint32_t param_out : 4;
@@ -86,10 +102,10 @@ struct gracht_recv_message {
     uint8_t action;
 };
 
-typedef struct gracht_object_header {
-    int                          id;
-    struct gracht_object_header* link;
-} gracht_object_header_t;
+struct gracht_message_context {
+    uint32_t message_id;
+    void*    descriptor;
+};
 
 typedef struct gracht_protocol_function {
     uint8_t id;

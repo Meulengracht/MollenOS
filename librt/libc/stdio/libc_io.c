@@ -156,8 +156,6 @@ StdioGetNumberOfInheritableHandles(
     return NumberOfFiles;
 }
 
-/* StdioCreateInheritanceBlock
- * Creates a block of data containing all the stdio handles that can be inherited. */
 static OsStatus_t
 StdioCreateInheritanceBlock(
     _In_  ProcessConfiguration_t* Configuration,
@@ -180,6 +178,9 @@ StdioCreateInheritanceBlock(
         
         InheritationBlockLength = sizeof(stdio_inheritation_block_t) + NumberOfObjects * sizeof(stdio_handle_t);
         InheritationBlock       = (stdio_inheritation_block_t*)malloc(InheritationBlockLength);
+        if (!InheritationBlock) {
+            return OsOutOfMemory;
+        }
         
         InheritationBlock->handle_count = NumberOfObjects;
         

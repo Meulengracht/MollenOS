@@ -43,14 +43,12 @@ GetFilePathFromFd(
     stdio_handle_t*          handle = stdio_handle_get(FileDescriptor);
     OsStatus_t               status;
 
-    if (handle == NULL || PathBuffer == NULL || 
-        handle->object.type != STDIO_HANDLE_FILE) {
-        return OsError;
+    if (!handle || !PathBuffer || handle->object.type != STDIO_HANDLE_FILE) {
+        return OsInvalidParameters;
     }
     
-    svc_file_get_path(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        handle->object.handle, &status, PathBuffer, MaxLength);
-    gracht_vali_message_finish(&msg);
+    svc_file_get_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle, MaxLength);
+    svc_file_get_path_result(GetGrachtClient(), &msg.base, &status, PathBuffer);
     return status;
 }
 
@@ -63,12 +61,11 @@ GetStorageInformationFromPath(
     OsStatus_t               status;
     
     if (Information == NULL || Path == NULL) {
-        return OsError;
+        return OsInvalidParameters;
     }
     
-    svc_storage_get_descriptor_from_path(GetGrachtClient(), &msg, Path,
-        &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_storage_get_descriptor_from_path(GetGrachtClient(), &msg.base, Path);
+    svc_storage_get_descriptor_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -83,12 +80,11 @@ GetStorageInformationFromFd(
 
     if (handle == NULL || Information == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return OsError;
+        return OsInvalidParameters;
     }
     
-    svc_storage_get_descriptor(GetGrachtClient(), &msg, handle->object.handle,
-        &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_storage_get_descriptor(GetGrachtClient(), &msg.base, handle->object.handle);
+    svc_storage_get_descriptor_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -104,9 +100,8 @@ GetFileSystemInformationFromPath(
         return OsInvalidParameters;
     }
     
-    svc_file_fsstat_from_path(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        Path, &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_file_fsstat_from_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    svc_file_fsstat_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -124,9 +119,8 @@ GetFileSystemInformationFromFd(
         return OsInvalidParameters;
     }
     
-    svc_file_fsstat(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        handle->object.handle, &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_file_fsstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    svc_file_fsstat_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -142,9 +136,8 @@ GetFileInformationFromPath(
         return OsInvalidParameters;
     }
     
-    svc_file_fstat_from_path(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        Path, &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_file_fstat_from_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    svc_file_fstat_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -162,9 +155,8 @@ GetFileInformationFromFd(
         return OsInvalidParameters;
     }
     
-    svc_file_fstat(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        handle->object.handle, &status, Information);
-    gracht_vali_message_finish(&msg);
+    svc_file_fstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    svc_file_fsstat_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 
@@ -183,7 +175,7 @@ CreateFileMapping(
 
     // Sanitize that the descritor is valid
     if (handle == NULL || handle->object.type != STDIO_HANDLE_FILE) {
-        return OsError;
+        return OsInvalidParameters;
     }
 
     // Start out by allocating a memory handler handle

@@ -53,9 +53,9 @@ GetSystemTick(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         OsStatus_t               status;
         
-        status = svc_process_get_tick_base(GetGrachtClient(), &msg, ProcessGetCurrentId(),
-            &status, &Tick->u.LowPart, &Tick->u.HighPart);
-        gracht_vali_message_finish(&msg);
+        svc_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
+        svc_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status,
+            &Tick->u.LowPart, &Tick->u.HighPart);
         return status;
     }
     return Syscall_SystemTick(TickBase, Tick);

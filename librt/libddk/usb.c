@@ -38,9 +38,8 @@ UsbControllerRegister(
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     UUId_t                   serverHandle = GetNativeHandle(gracht_server_get_dgram_iod());
     
-    status = svc_usb_register(GetGrachtClient(), &msg, serverHandle, 
+    status = svc_usb_register(GetGrachtClient(), &msg.base, serverHandle, 
         Device, Device->Length, (int)Type, (int)Ports);
-    gracht_vali_message_finish(&msg);
     return OsSuccess;
 }
 
@@ -51,8 +50,7 @@ UsbControllerUnregister(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_unregister(GetGrachtClient(), &msg, DeviceId);
-    gracht_vali_message_finish(&msg);
+    status = svc_usb_unregister(GetGrachtClient(), &msg.base, DeviceId);
     return OsSuccess;
 }
 
@@ -65,8 +63,7 @@ UsbEventPort(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_port_event(GetGrachtClient(), &msg, DeviceId, HubAddress, PortAddress);
-    gracht_vali_message_finish(&msg);
+    status = svc_usb_port_event(GetGrachtClient(), &msg.base, DeviceId, HubAddress, PortAddress);
     return OsSuccess;
 }
 
@@ -77,8 +74,8 @@ UsbQueryControllerCount(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_get_controller_count(GetGrachtClient(), &msg, ControllerCount);
-    gracht_vali_message_finish(&msg);
+    status = svc_usb_get_controller_count(GetGrachtClient(), &msg.base);
+    svc_usb_get_controller_count_result(GetGrachtClient(), &msg.base, ControllerCount);
     return OsSuccess;
 }
 
@@ -90,7 +87,7 @@ UsbQueryController(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_get_controller(GetGrachtClient(), &msg, Index, Controller);
-    gracht_vali_message_finish(&msg);
+    status = svc_usb_get_controller(GetGrachtClient(), &msg.base, Index);
+    svc_usb_get_controller_result(GetGrachtClient(), &msg.base, Controller);
     return OsSuccess;
 }

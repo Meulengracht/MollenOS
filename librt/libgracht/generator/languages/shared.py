@@ -74,12 +74,6 @@ class Parameter:
         return self.typename == "shm"
     def is_output(self):
         return self.output
-    def has_length_component(self):
-        if self.is_buffer() or self.is_shm():
-            return self.subtype == "void*"
-        if self.is_string() and self.is_output():
-            return True
-        return False
 
 class Event:
     def __init__(self, name, id, params):

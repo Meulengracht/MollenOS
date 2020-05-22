@@ -392,6 +392,10 @@ CreateProcess(
         
         InheritationBlockLength          = sizeof(stdio_inheritation_block_t) + (block->handle_count * sizeof(struct stdio_handle));
         Process->InheritationBlock       = malloc(InheritationBlockLength);
+        if (!Process->InheritationBlock) {
+            // todo
+        }
+        
         Process->InheritationBlockLength = InheritationBlockLength;
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
@@ -441,7 +445,7 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message* me
             inheritationLength = process->InheritationBlockLength;
             
             memcpy(&buffer[0], process->Arguments, process->ArgumentsLength);
-            memcpy(&buffer[process->ArgumentsLength], process->Arguments, process->InheritationBlockLength);
+            memcpy(&buffer[process->ArgumentsLength], process->InheritationBlock, process->InheritationBlockLength);
             status = PeGetModuleEntryPoints(process->Executable,
                 (Handle_t*)&buffer[process->ArgumentsLength + process->InheritationBlockLength],
                 &moduleCount);

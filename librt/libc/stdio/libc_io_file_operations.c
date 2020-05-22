@@ -49,10 +49,9 @@ perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction,
 
         TRACE("[libc] [file-io] [perform_transfer] chunk size %" PRIuIN ", offset %" PRIuIN,
             bytesToTransfer, offset);
-        svc_file_transfer(GetGrachtClient(), &msg, *GetInternalProcessId(),
-            file_handle, direction, buffer_handle, offset, bytesToTransfer,
-            &status, &bytesTransferred);
-        gracht_vali_message_finish(&msg);
+        svc_file_transfer(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
+            file_handle, direction, buffer_handle, offset, bytesToTransfer);
+        svc_file_transfer_result(GetGrachtClient(), &msg.base, &status, &bytesTransferred);
         
         TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
             bytesTransferred, status);
@@ -160,9 +159,8 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            svc_file_get_position(GetGrachtClient(), &msg, *GetInternalProcessId(),
-                handle->object.handle, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
-            gracht_vali_message_finish(&msg);
+            svc_file_get_position(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+            svc_file_get_position_result(GetGrachtClient(), &msg.base, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (status != OsSuccess) {
                 ERROR("failed to get file position");
                 return status;
@@ -176,9 +174,8 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
             }
         }
         else {
-            svc_file_get_size(GetGrachtClient(), &msg, *GetInternalProcessId(),
-                handle->object.handle, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
-            gracht_vali_message_finish(&msg);
+            svc_file_get_size(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+            svc_file_get_size_result(GetGrachtClient(), &msg.base, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (status != OsSuccess) {
                 ERROR("failed to get file size");
                 return status;
@@ -191,9 +188,9 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
     }
 
     // Now perform the seek
-    svc_file_seek(GetGrachtClient(), &msg, *GetInternalProcessId(),
-        handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart, &status);
-    gracht_vali_message_finish(&msg);
+    svc_file_seek(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
+        handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
+    svc_file_seek_result(GetGrachtClient(), &msg.base, &status);
     if (status == OsSuccess) {
         *position_out = SeekFinal.QuadPart;
         return OsSuccess;
@@ -213,9 +210,8 @@ OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 	OsStatus_t               status = OsSuccess;
 	
 	if (options & STDIO_CLOSE_FULL) {
-        svc_file_close(GetGrachtClient(), &msg, *GetInternalProcessId(),
-            handle->object.handle, &status);
-        gracht_vali_message_finish(&msg);
+        svc_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+        svc_file_close_result(GetGrachtClient(), &msg.base, &status);
 	}
     return status;
 }

@@ -25,7 +25,6 @@
 #include <errno.h>
 #include <gracht/link/socket.h>
 #include <gracht/server.h>
-#include <gracht/os.h>
 #include <stdio.h>
 #include <string.h>
 #include "../test_utils_protocol_server.h"

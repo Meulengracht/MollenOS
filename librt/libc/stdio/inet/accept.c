@@ -93,9 +93,9 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         return -1;        
     }
     
-    svc_socket_accept(GetGrachtClient(), &msg, handle->object.handle,
-        &status, address, &socket_handle, &recv_handle, &send_handle);
-    gracht_vali_message_finish(&msg);
+    svc_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
+    svc_socket_accept_result(GetGrachtClient(), &msg.base, &status, address,
+        &socket_handle, &recv_handle, &send_handle);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

@@ -22,7 +22,7 @@
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" count="1" />
-                        <param name="session_id" type="string" />
+                        <param name="session_id" type="char" count="36" />
                     </response>
                 </function>
                 <function name="logout">

@@ -28,12 +28,15 @@
 #include "test_utils_protocol_client.h"
 #include <stdio.h>
 
+static char messageBuffer[GRACHT_MAX_MESSAGE_SIZE];
+
 int main(int argc, char **argv)
 {
     struct socket_client_configuration linkConfiguration;
     struct gracht_client_configuration clientConfiguration;
     gracht_client_t*                   client;
     int                                code, status;
+    struct gracht_message_context      context;
     
     linkConfiguration.type = gracht_link_packet_based;
     gracht_os_get_server_packet_address(&linkConfiguration.address, &linkConfiguration.address_length);
@@ -47,6 +50,8 @@ int main(int argc, char **argv)
         return code;
     }
     
-    code = test_utils_print(client, NULL, "hello from wm_client!", &status);
+    code = test_utils_print(client, &context, "hello from wm_client!");
+    gracht_client_wait_message(client, &messageBuffer[0]);
+    test_utils_print_result(client, &context, &status);
     return gracht_client_shutdown(client);
 }

@@ -87,11 +87,10 @@ DefaultCrashHandler(
         OsStatus_t               osStatus;
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        
-        status = svc_process_report_crash(GetGrachtClient(), &msg,
-            *GetInternalProcessId(), Context, sizeof(Context_t),
-            Signal->signal, &osStatus);
-        gracht_vali_message_finish(&msg);
+
+        status = svc_process_report_crash(GetGrachtClient(), &msg.base,
+            *GetInternalProcessId(), Context, sizeof(Context_t), Signal->signal);
+        svc_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
     
     // Last thing is to exit application

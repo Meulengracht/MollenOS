@@ -49,9 +49,8 @@ int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    svc_socket_get_address(GetGrachtClient(), &msg, handle->object.handle,
-        SVC_SOCKET_GET_ADDRESS_SOURCE_PEER, &status, address_out);
-    gracht_vali_message_finish(&msg);
+    svc_socket_get_address(GetGrachtClient(), &msg.base, handle->object.handle, SVC_SOCKET_GET_ADDRESS_SOURCE_PEER);
+    svc_socket_get_address_result(GetGrachtClient(), &msg.base, &status, address_out);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

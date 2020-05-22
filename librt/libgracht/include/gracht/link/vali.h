@@ -32,10 +32,9 @@
 struct sockaddr_storage;
 
 struct vali_link_message {
-    struct ipmsg_addr address;
-    struct ipmsg_resp response;
-    void*             response_pool;
-    void*             response_buffer;
+    struct gracht_message_context base;
+    struct ipmsg_addr             address;
+    struct ipmsg_resp             response;
 };
 
 struct vali_link_deferred_response {
@@ -43,7 +42,7 @@ struct vali_link_deferred_response {
     struct ipmsg               recv_storage;
 };
 
-#define VALI_MSG_INIT_HANDLE(handle) { IPMSG_ADDR_INIT_HANDLE(handle), IPMSG_RESP_INIT_DEFAULT, NULL, NULL }
+#define VALI_MSG_INIT_HANDLE(handle) { { 0 }, IPMSG_ADDR_INIT_HANDLE(handle), IPMSG_RESP_INIT_DEFAULT }
 #define VALI_MSG_DEFER_SIZE(message) (message->param_count * sizeof(struct gracht_param))
 
 #ifdef __cplusplus
@@ -73,16 +72,10 @@ void gracht_vali_message_defer_response(
 // Client API
 int gracht_link_vali_client_create(struct client_link_ops**);
 
-/**
- * gracht_vali_message_finish
- * * Used to clean up message data that was allocated for response by a client.
- * * Must also be called by the client after a successful call.
- * @param message Message that was sent.
- */
-void gracht_vali_message_finish(struct vali_link_message* message);
+
+
 
 int gracht_vali_message_create(gracht_client_t*, int message_size, struct vali_link_message**);
-
 
 #ifdef __cplusplus
 }
