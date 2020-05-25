@@ -108,6 +108,11 @@ OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
     return status1;
 }
 
+OsStatus_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+{
+    return OsNotSupported;
+}
+
 void stdio_get_net_operations(stdio_ops_t* ops)
 {
     ops->inherit = stdio_net_op_inherit;
@@ -115,5 +120,6 @@ void stdio_get_net_operations(stdio_ops_t* ops)
     ops->write   = stdio_net_op_write;
     ops->seek    = stdio_net_op_seek;
     ops->resize  = stdio_net_op_resize;
+    ops->ioctl   = stdio_net_op_ioctl;
     ops->close   = stdio_net_op_close;
 }

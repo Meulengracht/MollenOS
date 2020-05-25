@@ -5,6 +5,7 @@
 
 struct pipe {
     struct dma_attachment attachment;
+    unsigned int          options;
 };
 
 #endif //!__INTERNAL_PIPE_H__

@@ -191,6 +191,28 @@ streambuffer_try_truncate(
     atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
 }
 
+void
+streambuffer_get_bytes_available_in(
+    _In_  streambuffer_t* stream,
+    _Out_ size_t*         bytesAvailableOut)
+{
+    unsigned int write_index     = atomic_load(&stream->producer_comitted_index);
+    unsigned int read_index      = atomic_load(&stream->consumer_index);
+    size_t       bytes_available = bytes_readable(stream->capacity, read_index, write_index);
+    *bytesAvailableOut = bytes_available;
+}
+
+void
+streambuffer_get_bytes_available_out(
+    _In_ streambuffer_t* stream,
+    _Out_ size_t*        bytesAvailableOut)
+{
+    unsigned int write_index     = atomic_load(&stream->producer_index);
+    unsigned int read_index      = atomic_load(&stream->consumer_comitted_index);
+    size_t       bytes_available = bytes_writable(stream->capacity, read_index, write_index);
+    *bytesAvailableOut = bytes_available;
+}
+
 size_t
 streambuffer_stream_out(
     _In_ streambuffer_t* stream,

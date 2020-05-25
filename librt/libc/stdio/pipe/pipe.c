@@ -62,5 +62,6 @@ int pipe(long size, int flags)
     
     memcpy(&ioObject->object.data.pipe.attachment, &attachment,
         sizeof(struct dma_attachment));
+    ioObject->object.data.pipe.options = 0;
     return ioObject->fd;
 }

@@ -22,16 +22,16 @@
 
 #include <ds/streambuffer.h>
 #include <errno.h>
+#include <ioctl.h>
 #include <internal/_io.h>
 
 OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
+    unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesRead;
 
-    bytesRead = streambuffer_stream_in(stream, buffer, length, 0);
-
-
+    bytesRead = streambuffer_stream_in(stream, buffer, length, options);
     *bytes_read = bytesRead;
     return OsSuccess;
 }
@@ -39,12 +39,11 @@ OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
 OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesWritten;
 
-    bytesWritten = streambuffer_stream_out(stream, buffer, length, 0);
-
-
-    *bytes_written = bytesWritten
+    bytesWritten = streambuffer_stream_out(stream, (void*)buffer, length, options);
+    *bytes_written = bytesWritten;
     return OsSuccess;
 }
 
@@ -84,6 +83,32 @@ OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
     return status;
 }
 
+OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
+{
+    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+
+    if (request == FIONBIO) {
+        int blocking = va_arg(args, int);
+        if (blocking) {
+            handle->object.data.pipe.options |= STREAMBUFFER_NO_BLOCK;
+        }
+        else {
+            handle->object.data.pipe.options &= ~(STREAMBUFFER_NO_BLOCK);
+        }
+        return OsSuccess;
+    }
+    else if (request == FIONREAD) {
+        int* bytesAvailableOut = va_arg(args, int*);
+        if (bytesAvailableOut) {
+            size_t bytesAvailable;
+            streambuffer_get_bytes_available_in(stream, &bytesAvailable);
+            *bytesAvailableOut = (int)bytesAvailable;
+        }
+        return OsSuccess;
+    }
+    return OsNotSupported;
+}
+
 void stdio_get_pipe_operations(stdio_ops_t* ops)
 {
     ops->inherit = stdio_pipe_op_inherit;
@@ -91,5 +116,6 @@ void stdio_get_pipe_operations(stdio_ops_t* ops)
     ops->write   = stdio_pipe_op_write;
     ops->seek    = stdio_pipe_op_seek;
     ops->resize  = stdio_pipe_op_resize;
+    ops->ioctl   = stdio_pipe_op_ioctl;
     ops->close   = stdio_pipe_op_close;
 }

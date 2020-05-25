@@ -81,6 +81,16 @@ streambuffer_clear_option(
     _In_ streambuffer_t* stream,
     _In_ unsigned int    option));
 
+DSDECL(void,
+streambuffer_get_bytes_available_in(
+    _In_  streambuffer_t* stream,
+    _Out_ size_t*         bytesAvailableOut));
+
+DSDECL(void,
+streambuffer_get_bytes_available_out(
+    _In_ streambuffer_t* stream,
+    _Out_ size_t*        bytesAvailableOut));
+
 DSDECL(size_t,
 streambuffer_stream_out(
     _In_ streambuffer_t* stream,
