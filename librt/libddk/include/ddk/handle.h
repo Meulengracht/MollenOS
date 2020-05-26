@@ -26,16 +26,7 @@
 #define __DDK_HANDLE_H__
 
 #include <ddk/ddkdefs.h>
-
-typedef struct handle_event {
-    UUId_t  handle;
-    Flags_t events;
-    void*   context;
-} handle_event_t;
-
-#define HANDLE_SET_OP_ADD 1
-#define HANDLE_SET_OP_MOD 2
-#define HANDLE_SET_OP_DEL 3
+#include <ioevt.h>
 
 /**
  * handle_create
@@ -75,35 +66,35 @@ handle_set_create(
 /**
  * handle_set_ctrl
  * * Add, remove or modify a handle in the set.
- * @param set_handle [In] The handle of the handle set.
- * @param operation  [In] The operation that should be performed.
- * @param handle     [In] The handle that should be operated on.
- * @param flags      [In] The flags that should be configured with the handle.
+ * @param setHandle [In] The handle of the handle set.
+ * @param operation [In] The operation that should be performed.
+ * @param handle    [In] The handle that should be operated on.
+ * @param event     [In] The configuration for the event to be recieved.
  */
 DDKDECL(OsStatus_t,
 handle_set_ctrl(
-    _In_ UUId_t  set_handle,
-    _In_ int     operation,
-    _In_ UUId_t  handle,
-    _In_ Flags_t flags,
-    _In_ void*   context));
+    _In_ UUId_t              setHandle,
+    _In_ int                 operation,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event));
 
 /**
  * handle_set_wait
  * * Waits for the given handle set and stores the events that occurred in the
  * * provided array.
- * @param handle     [In]
- * @param events     [In]
- * @param max_events [In]
- * @param timeout    [In]
+ * @param handle    [In]
+ * @param events    [In]
+ * @param maxEvents [In]
+ * @param timeout   [In]
  */
 DDKDECL(OsStatus_t,
 handle_set_wait(
-    _In_  UUId_t          handle,
-    _In_  handle_event_t* events,
-    _In_  int             max_events,
-    _In_  size_t          timeout,
-    _Out_ int*            num_events));
+    _In_  UUId_t              handle,
+    _In_  struct ioevt_event* events,
+    _In_  int                 maxEvents,
+    _In_  int                 pollEvents,
+    _In_  size_t              timeout,
+    _Out_ int*                numEventsOut));
 
 /** 
  * handle_set_activity

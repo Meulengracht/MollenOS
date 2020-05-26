@@ -128,7 +128,7 @@ extern OsStatus_t ScSetHandleActivity(UUId_t, Flags_t);
 
 extern OsStatus_t ScCreateHandleSet(Flags_t, UUId_t*);
 extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, Flags_t, void*);
-extern OsStatus_t ScListenHandleSet(UUId_t, handle_event_t*, int, size_t, int*);
+extern OsStatus_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
 
 // Support system calls
 extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);

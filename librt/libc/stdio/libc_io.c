@@ -383,22 +383,22 @@ int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
     }
     
     // Get io operations
+    handle->object.type = type;
     switch (type) {
         case STDIO_HANDLE_PIPE: {
-            handle->object.type = STDIO_HANDLE_PIPE;
             stdio_get_pipe_operations(&handle->ops);
         } break;
         case STDIO_HANDLE_FILE: {
-            handle->object.type = STDIO_HANDLE_FILE;
             stdio_get_file_operations(&handle->ops);
         } break;
         case STDIO_HANDLE_SOCKET: {
-            handle->object.type = STDIO_HANDLE_SOCKET;
             stdio_get_net_operations(&handle->ops);
         } break;
         case STDIO_HANDLE_IPCONTEXT: {
-            handle->object.type = STDIO_HANDLE_IPCONTEXT;
             stdio_get_ipc_operations(&handle->ops);
+        } break;
+        case STDIO_HANDLE_EVT: {
+            stdio_get_evt_operations(&handle->ops);
         } break;
         
         default: {

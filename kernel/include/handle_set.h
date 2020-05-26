@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 
-typedef struct handle_event handle_event_t;
+struct ioevt_event;
 
 /**
  * CreateHandleSet
@@ -49,11 +49,10 @@ CreateHandleSet(
  */
 KERNELAPI OsStatus_t KERNELABI
 ControlHandleSet(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags,
-    _In_ void*   Context);
+    _In_ UUId_t              setHandle,
+    _In_ int                 operation,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event);
 
 /**
  * WaitForHandleSet
@@ -67,11 +66,12 @@ ControlHandleSet(
  */
 KERNELAPI OsStatus_t KERNELABI
 WaitForHandleSet(
-    _In_  UUId_t          Handle,
-    _In_  handle_event_t* Events,
-    _In_  int             MaxEvents,
-    _In_  size_t          Timeout,
-    _Out_ int*            NumberOfEventsOut);
+    _In_  UUId_t              handle,
+    _In_  struct ioevt_event* events,
+    _In_  int                 maxEvents,
+    _In_  int                 pollEvents,
+    _In_  size_t              timeout,
+    _Out_ int*                numEventsOut);
 
 /** 
  * MarkHandle

@@ -31,7 +31,7 @@
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
-#include <io_events.h>
+#include <ioevt.h>
 #include <ipc_context.h>
 #include <memoryspace.h>
 #include <memory_region.h>
@@ -274,9 +274,9 @@ WaitForMessageNotification(
         SemaphoreWait(&thread->WaitObject, timeout);
     }
     else if (response->notify_method == IPMSG_NOTIFY_HANDLE_SET) {
-        handle_event_t event;
-        int            numberOfEvents;
-        WaitForHandleSet(response->notify_data.handle, &event, 1, timeout, &numberOfEvents);
+        struct ioevt_event event;
+        int                numberOfEvents;
+        WaitForHandleSet(response->notify_data.handle, &event, 1, 0, timeout, &numberOfEvents);
     }
     
     TRACE("[ipc] [wait] end");

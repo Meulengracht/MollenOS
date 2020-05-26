@@ -15,6 +15,13 @@ typedef struct FutexParameters {
     size_t        _timeout;
 } FutexParameters_t;
 
+typedef struct HandleSetWaitParameters {
+    struct ioevt_event* events;
+    int                 maxEvents;
+    size_t              timeout;
+    int                 pollEvents;
+} HandleSetWaitParameters_t;
+
 extern int                IsProcessModule(void);
 extern UUId_t*            GetInternalProcessId(void);
 extern const char*        GetInternalCommandLine(void);

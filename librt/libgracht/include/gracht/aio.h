@@ -28,20 +28,27 @@
 
 #if defined(MOLLENOS)
 #include <inet/socket.h>
-#include <io_events.h>
+#include <ioevt.h>
 #include <io.h>
 
-typedef struct io_event gracht_aio_event_t;
+typedef struct ioevt_event gracht_aio_event_t;
 #define GRACHT_AIO_EVENT_IN   IOEVTIN
 #define GRACHT_AIO_EVENT_CTRL IOEVTCTL
 
-#define gracht_aio_create()                io_set_create(0)
-#define gracht_io_wait(aio, events, count) io_set_wait(aio, events, count, 0)
-#define gracht_aio_add(aio, iod)           io_set_ctrl(aio, IO_EVT_DESCRIPTOR_ADD, iod, IOEVTIN | IOEVTCTL);
-#define gracht_aio_remove(aio, iod)        io_set_ctrl(aio, IO_EVT_DESCRIPTOR_DEL, iod, 0);
+#define gracht_aio_create()                ioevt(0)
+#define gracht_io_wait(aio, events, count) ioevt_wait(aio, events, count, 0)
+#define gracht_aio_remove(aio, iod)        ioevt_ctrl(aio, IOEVT_DEL, iod, NULL);
 #define gracht_aio_destroy(aio)            close(aio)
 
-#define gracht_aio_event_iod(event)        (event)->iod
+static int gracht_aio_add(int aio, int iod) {
+    struct ioevt_event event = {
+        .events = IOEVTIN | IOEVTCTL,
+        .data.iod = iod
+    };
+    return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
+}
+
+#define gracht_aio_event_iod(event)        (event)->data.iod
 #define gracht_aio_event_events(event)     (event)->events
 
 #elif defined(__linux__)

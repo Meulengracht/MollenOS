@@ -21,15 +21,16 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <modules/manager.h>
-#include <memoryspace.h>
-#include <ds/mstring.h>
-#include <threading.h>
-#include <handle.h>
-#include <handle_set.h>
 #include <assert.h>
 #include <debug.h>
+#include <ds/mstring.h>
+#include <handle.h>
+#include <handle_set.h>
 #include <heap.h>
+#include <internal/_utils.h>
+#include <memoryspace.h>
+#include <modules/manager.h>
+#include <threading.h>
 
 OsStatus_t
 ScCreateMemoryHandler(
@@ -156,25 +157,23 @@ ScCreateHandleSet(
 
 OsStatus_t
 ScControlHandleSet(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Flags,
-    _In_ void*   Context)
+    _In_ UUId_t              setHandle,
+    _In_ int                 operation,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event)
 {
-    return ControlHandleSet(SetHandle, Operation, Handle, Flags, Context);
+    return ControlHandleSet(setHandle, operation, handle, event);
 }
 
 OsStatus_t
 ScListenHandleSet(
-    _In_  UUId_t          Handle,
-    _In_  handle_event_t* Events,
-    _In_  int             MaxEvents,
-    _In_  size_t          Timeout,
-    _Out_ int*            NumberOfEventsOut)
+    _In_  UUId_t                     handle,
+    _In_  HandleSetWaitParameters_t* parameters,
+    _Out_ int*                       numberOfEventsOut)
 {
-    if (!Events || !NumberOfEventsOut) {
+    if (!parameters || !numberOfEventsOut) {
         return OsInvalidParameters;
     }
-    return WaitForHandleSet(Handle, Events, MaxEvents, Timeout, NumberOfEventsOut);
+    return WaitForHandleSet(handle, parameters->events, parameters->maxEvents,
+        parameters->pollEvents, parameters->timeout, numberOfEventsOut);
 }

@@ -2,9 +2,9 @@
 #define __INTERNAL_IO_H__
 
 #include <internal/_ipc.h>
+#include <internal/_ioevt.h>
 #include <internal/_pipe.h>
 #include <internal/_socket.h>
-#include <io_events.h>        // for activity definitions
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/types/process.h>
@@ -38,6 +38,7 @@
 #define STDIO_HANDLE_FILE       2
 #define STDIO_HANDLE_SOCKET     3
 #define STDIO_HANDLE_IPCONTEXT  4
+#define STDIO_HANDLE_EVT        5
 
 typedef struct stdio_handle stdio_handle_t;
 
@@ -50,6 +51,7 @@ typedef struct stdio_object {
         struct socket    socket;
         struct ipcontext ipcontext;
         struct pipe      pipe;
+        struct ioevt     ioevt;
     } data;
 } stdio_object_t;
 
@@ -114,6 +116,7 @@ extern void stdio_get_pipe_operations(stdio_ops_t* ops);
 extern void stdio_get_file_operations(stdio_ops_t* ops);
 extern void stdio_get_net_operations(stdio_ops_t* ops);
 extern void stdio_get_ipc_operations(stdio_ops_t* ops);
+extern void stdio_get_evt_operations(stdio_ops_t* ops);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);

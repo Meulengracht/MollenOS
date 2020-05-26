@@ -31,9 +31,9 @@
 
 int
 _fflags(
-    _In_  const char*   mode, 
-    _Out_ int*          open_flags, 
-    _Out_ int*          stream_flags)
+    _In_  const char* mode, 
+    _Out_ int*        open_flags, 
+    _Out_ int*        stream_flags)
 {
     int plus = strchr(mode, '+') != NULL;
     TRACE("_fflags(%s)", mode);
@@ -166,7 +166,7 @@ _fflags(
  * Converts the ANSI-C-mode flags into our access flags */
 Flags_t
 _faccess(
-    _In_ int            oflags)
+    _In_ int oflags)
 {
     Flags_t mFlags = __FILE_READ_ACCESS;
 
@@ -212,31 +212,4 @@ _fopts(
         mFlags |= __FILE_BINARY;
     }
     return mFlags;
-}
-
-int
-_fval(
-    _In_ int ocode)
-{
-    if (ocode == 0)
-        _set_errno(EOK);
-    else if (ocode == 1)
-        _set_errno(EINVAL);
-    else if (ocode == 2)
-        _set_errno(EINVAL);
-    else if (ocode == 3)
-        _set_errno(ENOENT);
-    else if (ocode == 4)
-        _set_errno(ENOENT);
-    else if (ocode == 5)
-        _set_errno(EACCES);
-    else if (ocode == 6)
-        _set_errno(EISDIR);
-    else if (ocode == 7)
-        _set_errno(EEXIST);
-    else if (ocode == 8)
-        _set_errno(EIO);
-    else
-        _set_errno(EINVAL);
-    return errno;
 }

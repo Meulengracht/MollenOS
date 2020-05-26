@@ -27,12 +27,12 @@
 
 #include <debug.h>
 #include <ddk/barrier.h>
-#include <ddk/handle.h>
 #include <ds/list.h>
 #include <ds/rbtree.h>
 #include <futex.h>
 #include <handle.h>
 #include <heap.h>
+#include <ioevt.h>
 #include <string.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
@@ -63,12 +63,12 @@ typedef struct HandleSetElement {
     UUId_t                   Handle;
     _Atomic(int)             ActiveEvents;
     struct HandleSetElement* Link;
-    void*                    Context;
+    union ioevt_data         Context;
     Flags_t                  Configuration;
 } HandleSetElement_t;
 
 static OsStatus_t DestroySetElement(HandleSetElement_t*);
-static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, void*, Flags_t);
+static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, struct ioevt_event*);
 
 static list_t  HandleElements = LIST_INIT; // Sets per Handle TODO hashtable
 //static Mutex_t HandleElementsSyncObject;
@@ -121,96 +121,125 @@ CreateHandleSet(
 
 OsStatus_t
 ControlHandleSet(
-    _In_ UUId_t  SetHandle,
-    _In_ int     Operation,
-    _In_ UUId_t  Handle,
-    _In_ Flags_t Configuration,
-    _In_ void*   Context)
+    _In_ UUId_t              setHandle,
+    _In_ int                 operation,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event)
 {
-    HandleSet_t*        Set = LookupHandleOfType(SetHandle, HandleTypeSet);
-    HandleSetElement_t* SetElement;
-    OsStatus_t          Status;
+    HandleSet_t*        set = LookupHandleOfType(setHandle, HandleTypeSet);
+    HandleSetElement_t* setElement;
+    OsStatus_t          status;
     TRACE("[handle_set] [control] %u, %i, %u, 0x%x", 
-        SetHandle, Operation, Handle, Configuration);
+        setHandle, operation, handle, event->events);
     
-    if (!Set) {
+    if (!set) {
         return OsDoesNotExist;
     }
     
-    if (Operation == HANDLE_SET_OP_ADD) {
-        Status = AddHandleToSet(Set, Handle, Context, Configuration);
+    if (operation == IOEVT_ADD) {
+        status = AddHandleToSet(set, handle, event);
     }
-    else if (Operation == HANDLE_SET_OP_MOD) {
-        rb_leaf_t* Leaf = rb_tree_lookup(&Set->Handles, VOID_KEY(Handle));
-        if (!Leaf) {
+    else if (operation == IOEVT_MOD) {
+        rb_leaf_t* leaf = rb_tree_lookup(&set->Handles, VOID_KEY(handle));
+        if (!leaf) {
             return OsDoesNotExist;
         }
         
-        SetElement                = Leaf->value;
-        SetElement->Configuration = Configuration;
-        SetElement->Context       = Context;
-        Status                    = OsSuccess;
+        setElement                = leaf->value;
+        setElement->Configuration = event->events;
+        setElement->Context       = event->data;
+        status                    = OsSuccess;
     }
-    else if (Operation == HANDLE_SET_OP_DEL) {
-        rb_leaf_t* Leaf = rb_tree_remove(&Set->Handles, VOID_KEY(Handle));
-        if (!Leaf) {
+    else if (operation == IOEVT_DEL) {
+        rb_leaf_t* leaf = rb_tree_remove(&set->Handles, VOID_KEY(handle));
+        if (!leaf) {
             return OsDoesNotExist;
         }
         
-        SetElement = Leaf->value;
-        Status     = DestroySetElement(SetElement);
+        setElement = leaf->value;
+        status     = DestroySetElement(setElement);
     }
     else {
-        Status = OsInvalidParameters;
+        status = OsInvalidParameters;
     }
-    return Status;
+    return status;
 }
 
 OsStatus_t
 WaitForHandleSet(
-    _In_  UUId_t          Handle,
-    _In_  handle_event_t* Events,
-    _In_  int             MaxEvents,
-    _In_  size_t          Timeout,
-    _Out_ int*            NumberOfEventsOut)
+    _In_  UUId_t              handle,
+    _In_  struct ioevt_event* events,
+    _In_  int                 maxEvents,
+    _In_  int                 pollEvents,
+    _In_  size_t              timeout,
+    _Out_ int*                numEventsOut)
 {
-    HandleSet_t*    Set   = LookupHandleOfType(Handle, HandleTypeSet);
-    handle_event_t* Event = Events;
-    int             NumberOfEvents;
-    list_t          Spliced;
-    element_t*      i;
-    TRACE("[handle_set] [wait] %u, %i, %" PRIuIN, 
-        Handle, MaxEvents, Timeout);
+    HandleSet_t*        set   = LookupHandleOfType(handle, HandleTypeSet);
+    struct ioevt_event* event = events;
+    int                 numberOfEvents;
+    list_t              spliced;
+    element_t*          i;
+    int                 j;
+    TRACE("[handle_set] [wait] %u, %i, %" PRIuIN, handle, maxEvents, timeout);
     
-    if (!Set) {
+    if (!set) {
         return OsDoesNotExist;
     }
     
+    // If there are no queued events, but there were pollEvents, let the user
+    // handle those first.
+    numberOfEvents = atomic_exchange(&set->Pending, 0);
+    if (!numberOfEvents && pollEvents > 0) {
+        *numEventsOut = pollEvents;
+        return OsSuccess;
+    }
+    
     // Wait for response by 'polling' the value
-    NumberOfEvents = atomic_exchange(&Set->Pending, 0);
-    while (!NumberOfEvents) {
-        OsStatus_t Status = FutexWait(&Set->Pending, NumberOfEvents, 0, Timeout);
+    while (!numberOfEvents) {
+        OsStatus_t Status = FutexWait(&set->Pending, numberOfEvents, 0, timeout);
         if (Status != OsSuccess) {
             return Status;
         }
-        NumberOfEvents = atomic_exchange(&Set->Pending, 0);
+        numberOfEvents = atomic_exchange(&set->Pending, 0);
     }
     
-    list_construct(&Spliced);
-    NumberOfEvents = MIN(NumberOfEvents, MaxEvents);
-    list_splice(&Set->Events, NumberOfEvents, &Spliced);
+    list_construct(&spliced);
+    numberOfEvents = MIN(numberOfEvents, maxEvents);
+    list_splice(&set->Events, numberOfEvents, &spliced);
     
+    // roll the itererator forward so we can "append"
+    for (j = 0; j < pollEvents; j++) {
+        event++;
+    }
+    
+    TRACE("[handle_set] [wait] num events %i", numberOfEvents);
     smp_rmb();
-    TRACE("[handle_set] [wait] num events %i", NumberOfEvents);
-    _foreach(i, &Spliced) {
-        HandleSetElement_t* Element = i->value;
+    _foreach(i, &spliced) {
+        HandleSetElement_t* element = i->value;
         
-        Event->events  = atomic_exchange(&Element->ActiveEvents, 0);
-        Event->handle  = Element->Handle;
-        Event->context = Element->Context;
-        Event++;
+        // reuse an existing structure?
+        if (pollEvents) {
+            struct ioevt_event* reuse = NULL;
+            int                 j;
+            for (j = 0; j < pollEvents; j++) {
+                if (events[j].data.context == element->Context.context) {
+                    reuse = &events[j];
+                    break;
+                }
+            }
+            
+            if (reuse) {
+                reuse->events |= atomic_exchange(&element->ActiveEvents, 0);
+                continue;
+            }
+        }
+        
+        // otherwise append the event
+        event->events = atomic_exchange(&element->ActiveEvents, 0);
+        event->data   = element->Context;
+        event++;
     }
-    *NumberOfEventsOut = NumberOfEvents;
+    *numEventsOut = numberOfEvents;
     return OsSuccess;
 }
 
@@ -280,30 +309,29 @@ DestroySetElement(
 
 static OsStatus_t
 AddHandleToSet(
-    _In_ HandleSet_t* Set,
-    _In_ UUId_t       Handle,
-    _In_ void*        Context,
-    _In_ Flags_t      Configuration)
+    _In_ HandleSet_t*        set,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event)
 {
-    HandleElement_t*    Element;
-    HandleSetElement_t* SetElement;
+    HandleElement_t*    element;
+    HandleSetElement_t* setElement;
     
     // Start out by acquiring an reference on the handle
-    if (AcquireHandle(Handle, NULL) != OsSuccess) {
+    if (AcquireHandle(handle, NULL) != OsSuccess) {
         return OsDoesNotExist;
     }
     
-    Element = list_find_value(&HandleElements, VOID_KEY(Handle));
-    if (!Element) {
-        Element = (HandleElement_t*)kmalloc(sizeof(HandleElement_t));
-        if (!Element) {
+    element = list_find_value(&HandleElements, VOID_KEY(handle));
+    if (!element) {
+        element = (HandleElement_t*)kmalloc(sizeof(HandleElement_t));
+        if (!element) {
             return OsOutOfMemory;
         }
         
-        ELEMENT_INIT(&Element->Header, VOID_KEY(Handle), Element);
-        list_construct(&Element->Sets);
+        ELEMENT_INIT(&element->Header, VOID_KEY(handle), element);
+        list_construct(&element->Sets);
         
-        list_append(&HandleElements, &Element->Header);
+        list_append(&HandleElements, &element->Header);
     }
     
     // Now we have access to the handle-set and the target handle, so we can go ahead
@@ -312,39 +340,33 @@ AddHandleToSet(
     
     // For each handle added we must allocate a SetElement and add it to the
     // handle instance
-    SetElement = (HandleSetElement_t*)kmalloc(sizeof(HandleSetElement_t));
-    if (!SetElement) {
-        DestroyHandle(Handle);
+    setElement = (HandleSetElement_t*)kmalloc(sizeof(HandleSetElement_t));
+    if (!setElement) {
+        DestroyHandle(handle);
         return OsOutOfMemory;
     }
     
-    memset(SetElement, 0, sizeof(HandleSetElement_t));
-    ELEMENT_INIT(&SetElement->SetHeader, 0, SetElement);
-    ELEMENT_INIT(&SetElement->EventHeader, 0, SetElement);
-    RB_LEAF_INIT(&SetElement->HandleHeader, Handle, SetElement);
+    memset(setElement, 0, sizeof(HandleSetElement_t));
+    ELEMENT_INIT(&setElement->SetHeader, 0, setElement);
+    ELEMENT_INIT(&setElement->EventHeader, 0, setElement);
+    RB_LEAF_INIT(&setElement->HandleHeader, handle, setElement);
     
-    SetElement->Set           = Set;
-    SetElement->Handle        = Handle;
-    SetElement->Context       = Context;
-    SetElement->Configuration = Configuration;
+    setElement->Set           = set;
+    setElement->Handle        = handle;
+    setElement->Context       = event->data;
+    setElement->Configuration = event->events;
     smp_mb();
     
     // Append to the list of sets on the target handle we are going to listen
     // too. 
-    list_append(&Element->Sets, &SetElement->SetHeader);
-    //if (Flags & IOEVTFRT) {
-    //    // Should we register an initial event?
-    //    int PreviousPending;
-    //    list_append(&Set->Events, &SetElement->EventHeader);
-    //    PreviousPending = atomic_fetch_add(&Set->Pending, 1);
-    //}
+    list_append(&element->Sets, &setElement->SetHeader);
     
     // Register the target handle in the current set, so we can clean up again
-    if (rb_tree_append(&Set->Handles, &SetElement->HandleHeader) != OsSuccess) {
+    if (rb_tree_append(&set->Handles, &setElement->HandleHeader) != OsSuccess) {
         ERROR("... failed to append handle to list of handles, it exists?");
-        list_remove(&Element->Sets, &SetElement->SetHeader);
-        DestroyHandle(Handle);
-        kfree(SetElement);
+        list_remove(&element->Sets, &setElement->SetHeader);
+        DestroyHandle(handle);
+        kfree(setElement);
         return OsError;
     }
     return OsSuccess;

@@ -81,7 +81,6 @@ struct DIRENT {
 _CODE_BEGIN
 CRTDECL(Flags_t,    _faccess(int oflags));
 CRTDECL(Flags_t,    _fopts(int oflags));
-CRTDECL(int,        _fval(int ocode));
 
 // file interface
 CRTDECL(int,        pipe(long size, int flags));

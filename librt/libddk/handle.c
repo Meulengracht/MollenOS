@@ -23,6 +23,7 @@
  */
 
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <ddk/handle.h>
 
 OsStatus_t
@@ -66,27 +67,35 @@ handle_set_create(
 
 OsStatus_t
 handle_set_ctrl(
-    _In_ UUId_t  set_handle,
-    _In_ int     operation,
-    _In_ UUId_t  handle,
-    _In_ Flags_t flags,
-    _In_ void*   context)
+    _In_ UUId_t              setHandle,
+    _In_ int                 operation,
+    _In_ UUId_t              handle,
+    _In_ struct ioevt_event* event)
 {
-    return Syscall_ControlHandleSet(set_handle, operation, handle, flags, context);
+    return Syscall_ControlHandleSet(setHandle, operation, handle, event);
 }
 
 OsStatus_t
 handle_set_wait(
-    _In_  UUId_t          handle,
-    _In_  handle_event_t* events,
-    _In_  int             max_events,
-    _In_  size_t          timeout,
-    _Out_ int*            num_events)
+    _In_  UUId_t              handle,
+    _In_  struct ioevt_event* events,
+    _In_  int                 maxEvents,
+    _In_  int                 pollEvents,
+    _In_  size_t              timeout,
+    _Out_ int*                numEventsOut)
 {
-    if (!events || !num_events) {
+    HandleSetWaitParameters_t parameters = {
+        .events = events,
+        .maxEvents = maxEvents,
+        .timeout = timeout,
+        .pollEvents = pollEvents
+    };
+    
+    if (!events || !numEventsOut) {
         return OsInvalidParameters;
     }
-    return Syscall_ListenHandleSet(handle, events, max_events, timeout, num_events);
+    
+    return Syscall_ListenHandleSet(handle, &parameters, numEventsOut);
 }
 
 OsStatus_t

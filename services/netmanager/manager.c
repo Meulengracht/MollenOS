@@ -29,7 +29,6 @@
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include <inet/local.h>
-#include <io_events.h>
 #include "manager.h"
 #include "socket.h"
 #include <stdlib.h>
@@ -54,12 +53,12 @@ static thrd_t    SocketMonitorHandle;
 // streambuffers, which are read and written by the network service.
 static void
 HandleSocketEvent(
-    _In_ handle_event_t* Event)
+    _In_ struct ioevt_event* Event)
 {
     Socket_t* Socket;
-    TRACE("[socket monitor] data from %u", Event->handle);
+    TRACE("[socket monitor] data from %u", Event->data.handle);
     
-    Socket = NetworkManagerSocketGet(Event->handle);
+    Socket = NetworkManagerSocketGet(Event->data.handle);
     if (!Socket) {
         // Process is probably in the process of removing this, ignore this
         return;
@@ -105,23 +104,23 @@ static int
 SocketMonitor(
     _In_ void* Context)
 {
-    int             RunForever = 1;
-    handle_event_t* Events;
-    int             EventCount;
-    int             i;
-    OsStatus_t      Status;
+    int                 RunForever = 1;
+    struct ioevt_event* Events;
+    int                 EventCount;
+    int                 i;
+    OsStatus_t          Status;
     
     _CRT_UNUSED(Context);
     TRACE("[socket monitor] starting");
     
-    Events = malloc(sizeof(handle_event_t) * NETWORK_MANAGER_MONITOR_MAX_EVENTS);
+    Events = malloc(sizeof(struct ioevt_event) * NETWORK_MANAGER_MONITOR_MAX_EVENTS);
     if (!Events) {
         return ENOMEM;
     }
     
     while (RunForever) {
         Status = handle_set_wait(SocketSet, Events,
-            NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, &EventCount);
+            NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
         if (Status != OsSuccess) {
             ERROR("[socket_monitor] WaitForHandleSet FAILED: %u", Status);
             continue;
@@ -195,8 +194,9 @@ NetworkManagerSocketCreate(
     _Out_ UUId_t* RecvBufferHandleOut,
     _Out_ UUId_t* SendBufferHandleOut)
 {
-    Socket_t*  Socket;
-    OsStatus_t Status;
+    Socket_t*          Socket;
+    OsStatus_t         Status;
+    struct ioevt_event event;
     
     TRACE("[net_manager] [create] %i, %i, %i", Domain, Type, Protocol);
     
@@ -212,8 +212,10 @@ NetworkManagerSocketCreate(
     }
     
     // Add it to the handle set
-    Status = handle_set_ctrl(SocketSet, HANDLE_SET_OP_ADD,
-        (UUId_t)(uintptr_t)Socket->Header.key, IOEVTIN | IOEVTOUT, NULL);
+    event.events = IOEVTIN | IOEVTOUT;
+    event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
+    Status = handle_set_ctrl(SocketSet, IOEVT_ADD,
+        (UUId_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OsSuccess) {
         // what the fuck TODO
         assert(0);
@@ -259,7 +261,7 @@ NetworkManagerSocketShutdown(
             return OsDoesNotExist;
         }
         
-        Status = handle_set_ctrl(SocketSet, HANDLE_SET_OP_DEL, Handle, 0, NULL);
+        Status = handle_set_ctrl(SocketSet, IOEVT_DEL, Handle, NULL);
         if (Status != OsSuccess) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }
