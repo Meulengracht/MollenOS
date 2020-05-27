@@ -105,7 +105,7 @@ typedef struct UsbSchedulerPool {
 } UsbSchedulerPool_t;
 
 typedef struct UsbSchedulerSettings {
-    Flags_t     Flags;                          // Flags
+    unsigned int     Flags;                          // Flags
     size_t      FrameCount;                     // Number of frames
     size_t      SubframeCount;                  // Number of sub-frames
     size_t      MaxBandwidthPerFrame;           // Max bandwidth per frame
@@ -150,7 +150,7 @@ UsbSchedulerSettingsCreate(
     _In_ size_t                  FrameCount,
     _In_ size_t                  SubframeCount,
     _In_ size_t                  MaxBandwidthPerFrame,
-    _In_ Flags_t                 Flags);
+    _In_ unsigned int                 Flags);
 
 /* UsbSchedulerSettingsConfigureFrameList
  * Configure the framelist settings for the scheduler. This is always

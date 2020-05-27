@@ -33,7 +33,7 @@
 #define MUTEX_TIMED     0x2
 
 typedef struct {
-    Flags_t      Flags;
+    unsigned int      Flags;
     UUId_t       Owner;
     _Atomic(int) References;
     _Atomic(int) Value;
@@ -48,7 +48,7 @@ typedef struct {
 KERNELAPI void KERNELABI
 MutexConstruct(
     _In_ Mutex_t* Mutex,
-    _In_ Flags_t  Configuration);
+    _In_ unsigned int  Configuration);
 
 /**
  * * MutexDestruct 

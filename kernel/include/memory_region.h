@@ -44,7 +44,7 @@ KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreate(
     _In_  size_t  Length,
     _In_  size_t  Capacity,
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ void**  KernelMapping,
     _Out_ void**  UserMapping,
     _Out_ UUId_t* Handle);
@@ -62,7 +62,7 @@ KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreateExisting(
     _In_  void*   Memory,
     _In_  size_t  Length,
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* HandleOut);
 
 /**

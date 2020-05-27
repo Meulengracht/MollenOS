@@ -42,14 +42,14 @@ OsStatus_t
 ScMemoryAllocate(
     _In_      void*   Hint,
     _In_      size_t  Length,
-    _In_      Flags_t Flags,
+    _In_      unsigned int Flags,
     _Out_     void**  MemoryOut)
 {
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
-    Flags_t              MemoryFlags    = MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
+    unsigned int              MemoryFlags    = MAPPING_USERSPACE;
+    unsigned int              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     int                  PageCount;
     uintptr_t*           Pages; 
     TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);
@@ -111,8 +111,8 @@ OsStatus_t
 ScMemoryProtect(
     _In_  void*    MemoryPointer,
     _In_  size_t   Length,
-    _In_  Flags_t  Flags,
-    _Out_ Flags_t* PreviousFlags)
+    _In_  unsigned int  Flags,
+    _Out_ unsigned int* PreviousFlags)
 {
     uintptr_t AddressStart = (uintptr_t)MemoryPointer;
     if (MemoryPointer == NULL || Length == 0) {
@@ -128,7 +128,7 @@ ScDmaCreate(
     _In_ struct dma_attachment*  attachment)
 {
     OsStatus_t Status;
-    Flags_t    Flags = 0;
+    unsigned int    Flags = 0;
     void*      KernelMapping;
 
     if (!info || !attachment) {
@@ -166,7 +166,7 @@ ScDmaExport(
     _In_ struct dma_attachment*  attachment)
 {
     OsStatus_t Status;
-    Flags_t    Flags = 0;
+    unsigned int    Flags = 0;
 
     if (!buffer || !info || !attachment) {
         return OsInvalidParameters;
@@ -300,7 +300,7 @@ ScDmaAttachmentUnmap(
 
 OsStatus_t 
 ScCreateMemorySpace(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* Handle)
 {
     SystemModule_t* Module = GetCurrentModule();
@@ -342,7 +342,7 @@ ScCreateMemorySpaceMapping(
 {
     SystemModule_t*      Module         = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
-    Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
+    unsigned int              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
     VirtualAddress_t     CopyPlacement  = 0;
     int                  PageCount;
     uintptr_t*           Pages;

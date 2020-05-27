@@ -29,14 +29,14 @@
 struct MemoryMappingParameters {
     uintptr_t VirtualAddress;
     size_t    Length;
-    Flags_t   Flags;
+    unsigned int   Flags;
 };
 
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */
 DDKDECL(OsStatus_t,
 CreateMemorySpace(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* Handle));
 
 /* GetMemorySpaceForThread

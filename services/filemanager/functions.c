@@ -84,7 +84,7 @@ OsStatus_t
 VfsIsHandleValid(
     _In_  UUId_t                    processId,
     _In_  UUId_t                    handle,
-    _In_  Flags_t                   RequiredAccess,
+    _In_  unsigned int                   RequiredAccess,
     _Out_ FileSystemEntryHandle_t** entryHandle)
 {
     CollectionItem_t *Node;
@@ -166,8 +166,8 @@ VfsOpenHandleInternal(
 OsStatus_t
 VfsVerifyAccessToPath(
     _In_  MString_t*                Path,
-    _In_  Flags_t                   Options,
-    _In_  Flags_t                   Access,
+    _In_  unsigned int                   Options,
+    _In_  unsigned int                   Access,
     _Out_ FileSystemEntry_t**       ExistingEntry)
 {
     CollectionItem_t* Node;
@@ -215,8 +215,8 @@ VfsVerifyAccessToPath(
 OsStatus_t 
 VfsOpenInternal(
     _In_  MString_t*                Path,
-    _In_  Flags_t                   Options,
-    _In_  Flags_t                   Access,
+    _In_  unsigned int                   Options,
+    _In_  unsigned int                   Access,
     _Out_ FileSystemEntryHandle_t** handle)
 {
     FileSystemEntry_t* Entry   = NULL;
@@ -355,8 +355,8 @@ static OsStatus_t
 OpenFile(
     _In_  UUId_t      processId,
     _In_  const char* path, 
-    _In_  Flags_t     options, 
-    _In_  Flags_t     access,
+    _In_  unsigned int     options, 
+    _In_  unsigned int     access,
     _Out_ UUId_t*     handleOut)
 {
     FileSystemEntryHandle_t* entry;
@@ -469,7 +469,7 @@ static OsStatus_t
 DeletePath(
     _In_ UUId_t      processId, 
     _In_ const char* path,
-    _In_ Flags_t     options)
+    _In_ unsigned int     options)
 {
     FileSystemEntryHandle_t* entryHandle;
     OsStatus_t               status;
@@ -839,8 +839,8 @@ static OsStatus_t
 SetOptions(
     _In_ UUId_t  processId,
     _In_ UUId_t  handle,
-    _In_ Flags_t options,
-    _In_ Flags_t access)
+    _In_ unsigned int options,
+    _In_ unsigned int access)
 {
     FileSystemEntryHandle_t* entryHandle = NULL;
     OsStatus_t               status;

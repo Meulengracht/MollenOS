@@ -49,7 +49,7 @@ MemoryCacheCreate(
     _In_ size_t      ObjectSize,
     _In_ size_t      ObjectAlignment,
     _In_ int         ObjectMinCount,
-    _In_ Flags_t     Flags,
+    _In_ unsigned int     Flags,
     _In_ void       (*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void       (*ObjectDestructor)(struct MemoryCache*, void*));
 

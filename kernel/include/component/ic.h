@@ -26,7 +26,7 @@
 #include <os/osdefs.h>
 
 typedef struct SystemInterruptOverride {
-    Flags_t     OverrideFlags;
+    unsigned int     OverrideFlags;
     int         SourceLine;
     int         DestinationLine;
 } SystemInterruptOverride_t;
@@ -63,7 +63,7 @@ KERNELAPI OsStatus_t KERNELABI
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,
-    _In_ Flags_t    InterruptFlags);
+    _In_ unsigned int    InterruptFlags);
 
 /* GetPinOffsetByLine
  * Retrieves the correct physical pin used by the given interrupt line. */

@@ -175,7 +175,7 @@ InitializeMemorySpace(
 
 OsStatus_t
 CreateMemorySpace(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* Handle)
 {
     // If we want to create a new kernel address
@@ -308,10 +308,10 @@ ResolveVirtualSystemMemorySpaceAddress(
     _In_ SystemMemorySpace_t* SystemMemorySpace,
     _In_ uintptr_t*           VirtualAddress,
     _In_ size_t               Size,
-    _In_ Flags_t              PlacementFlags)
+    _In_ unsigned int              PlacementFlags)
 {
     VirtualAddress_t VirtualBase  = 0;
-    Flags_t          VirtualFlags = PlacementFlags & MAPPING_VIRTUAL_MASK;
+    unsigned int          VirtualFlags = PlacementFlags & MAPPING_VIRTUAL_MASK;
 
     switch (VirtualFlags) {
         case MAPPING_VIRTUAL_FIXED: {
@@ -352,8 +352,8 @@ MemorySpaceMap(
     _InOut_ VirtualAddress_t*    Address,
     _InOut_ uintptr_t*           PhysicalAddressValues,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags)
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesUpdated;
@@ -410,8 +410,8 @@ MemorySpaceMapContiguous(
     _InOut_ VirtualAddress_t*    Address,
     _In_    uintptr_t            PhysicalStartAddress,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags)
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesUpdated;
@@ -450,8 +450,8 @@ MemorySpaceMapReserved(
     _In_    SystemMemorySpace_t* MemorySpace,
     _InOut_ VirtualAddress_t*    Address,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags)
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesReserved;
@@ -491,7 +491,7 @@ MemorySpaceCommit(
     _In_ VirtualAddress_t     Address,
     _In_ uintptr_t*           PhysicalAddressValues,
     _In_ size_t               Length,
-    _In_ Flags_t              Placement)
+    _In_ unsigned int              Placement)
 {
     int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int        PagesComitted;
@@ -529,8 +529,8 @@ CloneMemorySpaceMapping(
     _In_        VirtualAddress_t     SourceAddress,
     _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
     _In_        size_t               Length,
-    _In_        Flags_t              MemoryFlags,
-    _In_        Flags_t              PlacementFlags)
+    _In_        unsigned int              MemoryFlags,
+    _In_        unsigned int              PlacementFlags)
 {
     VirtualAddress_t VirtualBase;
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
@@ -619,8 +619,8 @@ MemorySpaceChangeProtection(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ VirtualAddress_t     Address, 
     _In_        size_t               Length, 
-    _In_        Flags_t              Attributes,
-    _Out_       Flags_t*             PreviousAttributes)
+    _In_        unsigned int              Attributes,
+    _Out_       unsigned int*             PreviousAttributes)
 {
     int        PageCount = DIVUP((Length + (Address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
     int        PagesUpdated;
@@ -656,12 +656,12 @@ GetMemorySpaceMapping(
     return Status;
 }
 
-Flags_t
+unsigned int
 GetMemorySpaceAttributes(
     _In_ SystemMemorySpace_t* SystemMemorySpace, 
     _In_ VirtualAddress_t     VirtualAddress)
 {
-    Flags_t Attributes;
+    unsigned int Attributes;
     int     PagesRetrieved;
     
     assert(SystemMemorySpace != NULL);
@@ -679,7 +679,7 @@ IsMemorySpacePageDirty(
     _In_ VirtualAddress_t     Address)
 {
     OsStatus_t Status = OsSuccess;
-    Flags_t    Flags  = 0;
+    unsigned int    Flags  = 0;
     int        PagesRetrieved;
     
     // Sanitize address space
@@ -699,7 +699,7 @@ IsMemorySpacePagePresent(
     _In_ VirtualAddress_t     Address)
 {
     OsStatus_t Status = OsSuccess;
-    Flags_t    Flags  = 0;
+    unsigned int    Flags  = 0;
     int        PagesRetrieved;
     
     // Sanitize address space

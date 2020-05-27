@@ -36,7 +36,7 @@ typedef struct SystemFileMapping {
     uint64_t  FileBlock;
     uint64_t  BlockOffset;
     size_t    Length;
-    Flags_t   Flags;
+    unsigned int   Flags;
 } SystemFileMapping_t;
 
 typedef struct SystemFileMappingEvent {

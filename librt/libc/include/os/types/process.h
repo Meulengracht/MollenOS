@@ -36,7 +36,7 @@
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
 typedef struct ProcessConfiguration {
-    Flags_t         InheritFlags;
+    unsigned int         InheritFlags;
     int             StdOutHandle;
     int             StdInHandle;
     int             StdErrHandle;

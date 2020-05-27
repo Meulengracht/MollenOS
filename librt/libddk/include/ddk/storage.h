@@ -33,7 +33,7 @@
 typedef struct StorageDescriptor {
     UUId_t   Device;
     UUId_t   Driver;
-    Flags_t  Flags;
+    unsigned int  Flags;
     char     Model[64];
     char     Serial[32];
     size_t   SectorSize;

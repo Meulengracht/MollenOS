@@ -119,7 +119,7 @@ SocketMonitor(
     }
     
     while (RunForever) {
-        Status = handle_set_wait(SocketSet, Events,
+        Status = notification_queue_wait(SocketSet, Events,
             NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
         if (Status != OsSuccess) {
             ERROR("[socket_monitor] WaitForHandleSet FAILED: %u", Status);
@@ -167,7 +167,7 @@ NetworkManagerInitialize(void)
     TRACE("[net_manager] initialize");
     
     rb_tree_construct(&Sockets);
-    Status = handle_set_create(0, &SocketSet);
+    Status = notification_queue_create(0, &SocketSet);
     if (Status != OsSuccess) {
         ERROR("[net_manager] failed to create socket handle set");
         return Status;
@@ -214,7 +214,7 @@ NetworkManagerSocketCreate(
     // Add it to the handle set
     event.events = IOEVTIN | IOEVTOUT;
     event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
-    Status = handle_set_ctrl(SocketSet, IOEVT_ADD,
+    Status = notification_queue_ctrl(SocketSet, IOEVT_ADD,
         (UUId_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OsSuccess) {
         // what the fuck TODO
@@ -261,7 +261,7 @@ NetworkManagerSocketShutdown(
             return OsDoesNotExist;
         }
         
-        Status = handle_set_ctrl(SocketSet, IOEVT_DEL, Handle, NULL);
+        Status = notification_queue_ctrl(SocketSet, IOEVT_DEL, Handle, NULL);
         if (Status != OsSuccess) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }

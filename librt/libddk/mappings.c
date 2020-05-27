@@ -26,7 +26,7 @@
 
 OsStatus_t
 CreateMemorySpace(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* Handle)
 {
     if (Handle == NULL) {

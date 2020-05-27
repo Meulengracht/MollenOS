@@ -229,7 +229,7 @@ CpuInitializeFeatures(void)
 }
 
 OsStatus_t
-CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
+CpuHasFeatures(unsigned int Ecx, unsigned int Edx)
 {
 	// Check ECX features @todo multiple cpus
 	if (Ecx != 0) {

@@ -28,7 +28,7 @@
 
 typedef struct {
     long           Id;
-    Flags_t        Flags;
+    unsigned int        Flags;
     char           SerialNumber[32];
     unsigned long  SectorSize;
     LargeInteger_t SectorsTotal;

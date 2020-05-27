@@ -40,7 +40,7 @@ typedef enum {
 
 typedef struct {
     long            Id;
-    Flags_t         Flags;
+    unsigned int         Flags;
     size_t          MaxFilenameLength;
     char            SerialNumber[32];
     unsigned long   BlockSize;
@@ -52,8 +52,8 @@ typedef struct {
 typedef struct {
     long            Id;
     long            StorageId;
-    Flags_t         Flags;
-    Flags_t         Permissions;
+    unsigned int         Flags;
+    unsigned int         Permissions;
     LargeUInteger_t Size;
     struct timespec CreatedAt;
     struct timespec ModifiedAt;
@@ -72,7 +72,7 @@ typedef struct {
 
 PACKED_TYPESTRUCT(FileMappingParameters, {
     UUId_t    MemoryHandle;
-    Flags_t   Flags;
+    unsigned int   Flags;
     uint64_t  FileOffset;
     uintptr_t VirtualAddress;
     size_t    Length;

@@ -48,7 +48,7 @@ union ioevt_data {
 };
 
 struct ioevt_event {
-    int              events;
+    unsigned int     events;
     union ioevt_data data;
 };
 

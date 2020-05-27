@@ -73,14 +73,14 @@ struct DIR {
     int d_index;
 };
 struct DIRENT {
-    Flags_t d_options;
-    Flags_t d_perms;
+    unsigned int d_options;
+    unsigned int d_perms;
     char    d_name[256];
 };
 
 _CODE_BEGIN
-CRTDECL(Flags_t,    _faccess(int oflags));
-CRTDECL(Flags_t,    _fopts(int oflags));
+CRTDECL(unsigned int,    _faccess(int oflags));
+CRTDECL(unsigned int,    _fopts(int oflags));
 
 // file interface
 CRTDECL(int,        pipe(long size, int flags));

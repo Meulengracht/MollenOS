@@ -44,7 +44,7 @@ typedef struct MemoryRegion {
     uintptr_t KernelMapping;
     size_t    Length;
     size_t    Capacity;
-    Flags_t   Flags;
+    unsigned int   Flags;
     int       PageCount;
     uintptr_t Pages[];
 } MemoryRegion_t;
@@ -122,7 +122,7 @@ OsStatus_t
 MemoryRegionCreate(
     _In_  size_t  Length,
     _In_  size_t  Capacity,
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ void**  KernelMapping,
     _Out_ void**  UserMapping,
     _Out_ UUId_t* Handle)
@@ -173,7 +173,7 @@ OsStatus_t
 MemoryRegionCreateExisting(
     _In_  void*   Memory,
     _In_  size_t  Length,
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* HandleOut)
 {
     MemoryRegion_t* Region;

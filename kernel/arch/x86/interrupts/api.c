@@ -121,7 +121,7 @@ InterruptGetApicConfiguration(
 static UUId_t
 AllocateSoftwareVector(
     _In_    DeviceInterrupt_t*  Interrupt,
-    _In_    Flags_t             Flags)
+    _In_    unsigned int             Flags)
 {
     UUId_t Result = 0;
     
@@ -155,7 +155,7 @@ AllocateSoftwareVector(
 OsStatus_t
 InterruptResolve(
     _In_    DeviceInterrupt_t*  Interrupt,
-    _In_    Flags_t             Flags,
+    _In_    unsigned int             Flags,
     _Out_   UUId_t*             TableIndex)
 {
     if (!(Flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {

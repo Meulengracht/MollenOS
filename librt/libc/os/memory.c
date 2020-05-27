@@ -28,7 +28,7 @@ OsStatus_t
 MemoryAllocate(
     _In_      void*   Hint,
     _In_      size_t  Length,
-    _In_      Flags_t Flags,
+    _In_      unsigned int Flags,
     _Out_     void**  MemoryOut)
 {
 	if (!Length || !MemoryOut) {
@@ -52,8 +52,8 @@ OsStatus_t
 MemoryProtect(
     _In_  void*     Memory,
 	_In_  size_t    Length,
-    _In_  Flags_t   Flags,
-    _Out_ Flags_t*  PreviousFlags)
+    _In_  unsigned int   Flags,
+    _Out_ unsigned int*  PreviousFlags)
 {
 	if (!Length || !Memory) {
 		return OsInvalidParameters;

@@ -138,7 +138,7 @@ typedef struct PciDevice {
     unsigned int Bus;
     unsigned int Slot;
     unsigned int Function;
-    Flags_t      AcpiConform;
+    unsigned int      AcpiConform;
 
     PciNativeHeader_t*  Header;
     Collection_t*       Children;

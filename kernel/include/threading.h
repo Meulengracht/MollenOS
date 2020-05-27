@@ -103,7 +103,7 @@ typedef struct SystemThread {
     struct SystemThread*    Sibling;
 
     const char*             Name;
-    Flags_t                 Flags;
+    unsigned int                 Flags;
     _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
 
@@ -130,7 +130,7 @@ CreateThread(
     _In_  const char*    Name,
     _In_  ThreadEntry_t  Function,
     _In_  void*          Arguments,
-    _In_  Flags_t        Flags,
+    _In_  unsigned int        Flags,
     _In_  UUId_t         MemorySpaceHandle,
     _Out_ UUId_t*        Handle);
 
@@ -171,7 +171,7 @@ ThreadingIsCurrentTaskIdle(
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current thread on the current cpu */
-KERNELAPI Flags_t KERNELABI
+KERNELAPI unsigned int KERNELABI
 ThreadingGetCurrentMode(void);
 
 /* GetCurrentThreadForCore

@@ -208,7 +208,7 @@ typedef struct _UsbHidReportItemStats {
 /* UsbHidReportInputItem
  * List item for an report item. Also contains the above ItemStats. */
 typedef struct _UsbHidReportInputItem {
-    Flags_t                         Flags;
+    unsigned int                         Flags;
     UsbHidReportItemStats_t         LocalState;
 } UsbHidReportInputItem_t;
 

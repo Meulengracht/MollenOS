@@ -28,7 +28,7 @@
 #include <ddk/video.h>
 
 typedef struct BootTerminal {
-    Flags_t						AvailableOutputs;
+    unsigned int						AvailableOutputs;
     VideoDescriptor_t			Info;
 
     uintptr_t                   FrameBufferAddress;

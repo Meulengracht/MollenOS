@@ -68,7 +68,7 @@ ArchMmuGetPageAttributes(
     _In_  SystemMemorySpace_t*,
     _In_  VirtualAddress_t,
     _In_  int,
-    _In_  Flags_t*,
+    _In_  unsigned int*,
     _Out_ int*);
 
 /**
@@ -88,7 +88,7 @@ ArchMmuUpdatePageAttributes(
     _In_  SystemMemorySpace_t*,
     _In_  VirtualAddress_t,
     _In_  int,
-    _In_  Flags_t*,
+    _In_  unsigned int*,
     _Out_ int*);
 
 /**
@@ -129,7 +129,7 @@ ArchMmuSetContiguousVirtualPages(
     _In_  VirtualAddress_t,
     _In_  PhysicalAddress_t,
     _In_  int,
-    _In_  Flags_t,
+    _In_  unsigned int,
     _Out_ int*);
 
 /**
@@ -148,7 +148,7 @@ ArchMmuReserveVirtualPages(
     _In_  SystemMemorySpace_t*,
     _In_  VirtualAddress_t,
     _In_  int,
-    _In_  Flags_t,
+    _In_  unsigned int,
     _Out_ int*);
 
 /**
@@ -171,7 +171,7 @@ ArchMmuSetVirtualPages(
     _In_  VirtualAddress_t,
     _In_  PhysicalAddress_t*,
     _In_  int,
-    _In_  Flags_t,
+    _In_  unsigned int,
     _Out_ int*);
 
 /**

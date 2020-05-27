@@ -76,7 +76,6 @@ typedef reg64_t            reg_t;
  */
 typedef unsigned int IntStatus_t;
 typedef unsigned int UUId_t;
-typedef unsigned int Flags_t;
 typedef void*        Handle_t;
 
 #define UUID_INVALID 0

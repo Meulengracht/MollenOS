@@ -30,7 +30,7 @@
 UUId_t
 RegisterDevice(
     _In_ Device_t* device,
-    _In_ Flags_t   flags)
+    _In_ unsigned int   flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     int                      status;
@@ -67,8 +67,8 @@ UnregisterDevice(
 OsStatus_t
 IoctlDevice(
     _In_ UUId_t  Device,
-    _In_ Flags_t Command,
-    _In_ Flags_t Flags)
+    _In_ unsigned int Command,
+    _In_ unsigned int Flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     OsStatus_t               status;
@@ -82,7 +82,7 @@ OsStatus_t
 IoctlDeviceEx(
     _In_    UUId_t  Device,
     _In_    int     Direction,
-    _In_    Flags_t Register,
+    _In_    unsigned int Register,
     _InOut_ size_t* Value,
     _In_    size_t  Width)
 {

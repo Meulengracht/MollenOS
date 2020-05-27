@@ -34,7 +34,7 @@
 
 OsStatus_t
 ScCreateMemoryHandler(
-    _In_  Flags_t    Flags,
+    _In_  unsigned int    Flags,
     _In_  size_t     Length,
     _Out_ UUId_t*    HandleOut,
     _Out_ uintptr_t* AddressBaseOut)
@@ -107,7 +107,7 @@ ScCreateHandle(
 OsStatus_t
 ScSetHandleActivity(
     _In_ UUId_t  Handle,
-    _In_ Flags_t Flags)
+    _In_ unsigned int Flags)
 {
     return MarkHandle(Handle, Flags);
 }
@@ -141,7 +141,7 @@ ScDestroyHandle(
 
 OsStatus_t
 ScCreateHandleSet(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* HandleOut)
 {
     if (!HandleOut) {

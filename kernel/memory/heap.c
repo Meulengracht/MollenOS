@@ -59,7 +59,7 @@ typedef struct MemoryAtomicCache {
 typedef struct MemoryCache {
     const char*      Name;
     Mutex_t          SyncObject;
-    Flags_t          Flags;
+    unsigned int          Flags;
 
     size_t           ObjectSize;
     size_t           ObjectAlignment;
@@ -85,7 +85,7 @@ static struct FixedCache {
     size_t         ObjectSize;
     const char*    Name;
     MemoryCache_t* Cache;
-    Flags_t        InitializationFlags;
+    unsigned int        InitializationFlags;
 } DefaultCaches[] = {
     { 32,     "size32_cache",     NULL, HEAP_CACHE_DEFAULT },
     { 64,     "size64_cache",     NULL, HEAP_CACHE_DEFAULT },
@@ -553,7 +553,7 @@ MemoryCacheConstruct(
     _In_ size_t         ObjectSize,
     _In_ size_t         ObjectAlignment,
     _In_ int            ObjectMinCount,
-    _In_ Flags_t        Flags,
+    _In_ unsigned int        Flags,
     _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
@@ -613,7 +613,7 @@ MemoryCacheCreate(
     _In_ size_t      ObjectSize,
     _In_ size_t      ObjectAlignment,
     _In_ int         ObjectMinCount,
-    _In_ Flags_t     Flags,
+    _In_ unsigned int     Flags,
     _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {

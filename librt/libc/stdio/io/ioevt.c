@@ -46,7 +46,7 @@ int ioevt(int flags)
         return -1;
     }
     
-    osStatus = handle_set_create(0, &handle);
+    osStatus = notification_queue_create(0, &handle);
     if (osStatus != OsSuccess) {
         (void)OsStatusToErrno(osStatus);
         stdio_handle_destroy(ioObject, 0);
@@ -112,7 +112,7 @@ int ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event* event)
         return -1;
     }
     
-    status = handle_set_ctrl(evtObject->object.handle, op,
+    status = notification_queue_ctrl(evtObject->object.handle, op,
         ioObject->object.handle, event);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
@@ -148,7 +148,7 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
         entry = entry->link;
     }
     
-    status = handle_set_wait(evtObject->object.handle, &events[0], 
+    status = notification_queue_wait(evtObject->object.handle, &events[0], 
         max_events, i, timeout, &numEvents);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);

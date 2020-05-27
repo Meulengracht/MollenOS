@@ -83,7 +83,7 @@ OsStatus_t
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,
-    _In_ Flags_t    InterruptFlags)
+    _In_ unsigned int    InterruptFlags)
 {
     int i;
     

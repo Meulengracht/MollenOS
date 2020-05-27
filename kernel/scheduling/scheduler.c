@@ -57,7 +57,7 @@
 typedef struct SchedulerObject {
     element_t               Header;
     _Atomic(int)            State;
-    Flags_t                 Flags;
+    unsigned int                 Flags;
     UUId_t                  CoreId;
     size_t                  TimeSlice;
     size_t                  TimeSliceLeft;
@@ -330,7 +330,7 @@ AllocateScheduler(
 SchedulerObject_t*
 SchedulerCreateObject(
     _In_ void*   Payload,
-    _In_ Flags_t Flags)
+    _In_ unsigned int Flags)
 {
     SchedulerObject_t* Object = kmalloc(sizeof(SchedulerObject_t));
     if (!Object) {

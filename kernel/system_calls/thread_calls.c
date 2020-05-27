@@ -39,7 +39,7 @@ ScThreadCreate(
     _In_  ThreadParameters_t* Parameters,
     _Out_ UUId_t*             HandleOut)
 {
-    Flags_t     ThreadFlags       = ThreadingGetCurrentMode();
+    unsigned int     ThreadFlags       = ThreadingGetCurrentMode();
     UUId_t      MemorySpaceHandle = UUID_INVALID;
     const char* Name              = NULL;
     if (Entry == NULL) {

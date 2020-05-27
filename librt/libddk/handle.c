@@ -28,12 +28,12 @@
 
 OsStatus_t
 handle_create(
-    _Out_ UUId_t* handle_out)
+    _Out_ UUId_t* handleOut)
 {
-    if (!handle_out) {
+    if (!handleOut) {
         return OsInvalidParameters;
     }
-    return Syscall_CreateHandle(handle_out);
+    return Syscall_CreateHandle(handleOut);
 }
 
 OsStatus_t
@@ -55,18 +55,26 @@ handle_set_path(
 }
 
 OsStatus_t
-handle_set_create(
-    _In_  Flags_t flags,
-    _Out_ UUId_t* handle_out)
+handle_post_notification(
+    _In_ UUId_t       handle,
+    _In_ unsigned int flags)
 {
-    if (!handle_out) {
-        return OsInvalidParameters;
-    }
-    return Syscall_CreateHandleSet(flags, handle_out);
+    return Syscall_HandleSetActivity(handle, flags);
 }
 
 OsStatus_t
-handle_set_ctrl(
+notification_queue_create(
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut)
+{
+    if (!handleOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_CreateHandleSet(flags, handleOut);
+}
+
+OsStatus_t
+notification_queue_ctrl(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
@@ -76,7 +84,7 @@ handle_set_ctrl(
 }
 
 OsStatus_t
-handle_set_wait(
+notification_queue_wait(
     _In_  UUId_t              handle,
     _In_  struct ioevt_event* events,
     _In_  int                 maxEvents,
@@ -96,12 +104,4 @@ handle_set_wait(
     }
     
     return Syscall_ListenHandleSet(handle, &parameters, numEventsOut);
-}
-
-OsStatus_t
-handle_set_activity(
-    _In_ UUId_t  handle,
-    _In_ Flags_t flags)
-{
-    return Syscall_HandleSetActivity(handle, flags);
 }

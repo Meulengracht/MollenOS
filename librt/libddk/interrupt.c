@@ -66,7 +66,7 @@ RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ uintptr_t          Address,
     _In_ size_t             Length,
-    _In_ Flags_t            Flags)
+    _In_ unsigned int            Flags)
 {
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Interrupt->FastInterrupt.MemoryResources[i].Address == 0) {
@@ -89,7 +89,7 @@ RegisterInterruptContext(
 UUId_t
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ Flags_t            Flags)
+    _In_ unsigned int            Flags)
 {
 	// Sanitize input
 	if (Interrupt == NULL) {

@@ -65,7 +65,7 @@ extern OsStatus_t ScGetWorkingDirectory(char* PathBuffer, size_t MaxLength);
 extern OsStatus_t ScSetWorkingDirectory(const char* Path);
 extern OsStatus_t ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
 
-extern OsStatus_t ScCreateMemorySpace(Flags_t Flags, UUId_t* Handle);
+extern OsStatus_t ScCreateMemorySpace(unsigned int Flags, UUId_t* Handle);
 extern OsStatus_t ScGetThreadMemorySpaceHandle(UUId_t ThreadHandle, UUId_t* Handle);
 extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, void** AddressOut);
 
@@ -73,13 +73,13 @@ extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMapping
 extern OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
 extern OsStatus_t ScAcpiQueryTableHeader(const char* Signature, ACPI_TABLE_HEADER* Header);
 extern OsStatus_t ScAcpiQueryTable(const char* Signature, ACPI_TABLE_HEADER* Table);
-extern OsStatus_t ScAcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin, int* Interrupt, Flags_t* AcpiConform);
+extern OsStatus_t ScAcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin, int* Interrupt, unsigned int* AcpiConform);
 extern OsStatus_t ScIoSpaceRegister(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceRelease(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceDestroy(DeviceIo_t* IoSpace);
 extern OsStatus_t ScLoadDriver(Device_t* Device, size_t Length);
-extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
+extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, unsigned int Flags);
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
 
@@ -106,9 +106,9 @@ extern OsStatus_t ScFutexWait(FutexParameters_t* Parameters);
 extern OsStatus_t ScFutexWake(FutexParameters_t* Parameters);
 
 // Memory system calls
-extern OsStatus_t ScMemoryAllocate(void*, size_t, Flags_t, void**);
+extern OsStatus_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
 extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
-extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, Flags_t Flags, Flags_t* PreviousFlags);
+extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, unsigned int Flags, unsigned int* PreviousFlags);
 
 extern OsStatus_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
 extern OsStatus_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
@@ -124,16 +124,16 @@ extern OsStatus_t ScCreateHandle(UUId_t*);
 extern OsStatus_t ScDestroyHandle(UUId_t Handle);
 extern OsStatus_t ScRegisterHandlePath(UUId_t, const char*);
 extern OsStatus_t ScLookupHandle(const char*, UUId_t*);
-extern OsStatus_t ScSetHandleActivity(UUId_t, Flags_t);
+extern OsStatus_t ScSetHandleActivity(UUId_t, unsigned int);
 
-extern OsStatus_t ScCreateHandleSet(Flags_t, UUId_t*);
-extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, Flags_t, void*);
+extern OsStatus_t ScCreateHandleSet(unsigned int, UUId_t*);
+extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, unsigned int, void*);
 extern OsStatus_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
 
 // Support system calls
 extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
 extern OsStatus_t ScRaiseSignal(UUId_t ThreadHandle, int Signal);
-extern OsStatus_t ScCreateMemoryHandler(Flags_t Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
+extern OsStatus_t ScCreateMemoryHandler(unsigned int Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
 extern OsStatus_t ScDestroyMemoryHandler(UUId_t Handle);
 extern OsStatus_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
 extern OsStatus_t ScSystemQuery(SystemDescriptor_t* Descriptor);

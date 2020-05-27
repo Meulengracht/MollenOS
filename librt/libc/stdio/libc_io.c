@@ -450,7 +450,7 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
-    OsStatus_t status = handle_set_activity(handle->object.handle, activity);
+    OsStatus_t status = handle_post_notification(handle->object.handle, activity);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

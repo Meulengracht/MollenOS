@@ -67,13 +67,13 @@ OsStatus_t
 FsCreatePath(
     _In_  FileSystemDescriptor_t* FileSystem,
     _In_  MString_t*              Path,
-    _In_  Flags_t                 Options,
+    _In_  unsigned int                 Options,
     _Out_ FileSystemEntry_t**     BaseEntry)
 {
     MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
     OsStatus_t     Result;
     MfsEntry_t*    Entry;
-    Flags_t        MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
+    unsigned int        MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
 
     Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
     if (!Entry) {
@@ -223,7 +223,7 @@ FsSeekInEntry(
 OsStatus_t
 FsDestroy(
     _In_ FileSystemDescriptor_t* Descriptor,
-    _In_ Flags_t                 UnmountFlags)
+    _In_ unsigned int                 UnmountFlags)
 {
     MfsInstance_t *Mfs;
 
@@ -328,7 +328,7 @@ FsInitialize(
 
     // Store some data from the boot-record
     Mfs->Version                  = (int)BootRecord->Version;
-    Mfs->Flags                    = (Flags_t)BootRecord->Flags;
+    Mfs->Flags                    = (unsigned int)BootRecord->Flags;
     Mfs->MasterRecordSector       = BootRecord->MasterRecordSector;
     Mfs->MasterRecordMirrorSector = BootRecord->MasterRecordMirror;
     Mfs->SectorsPerBucket         = BootRecord->SectorsPerBucket;

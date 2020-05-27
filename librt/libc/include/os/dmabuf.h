@@ -46,7 +46,7 @@ struct dma_buffer_info {
     const char* name;
     size_t      length;
     size_t      capacity;
-    Flags_t     flags;
+    unsigned int     flags;
 };
 
 struct dma_attachment {

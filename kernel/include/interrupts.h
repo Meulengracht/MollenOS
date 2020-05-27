@@ -37,7 +37,7 @@ typedef struct SystemInterrupt {
     UUId_t                          Id;
     UUId_t                          ModuleHandle;
     UUId_t                          Thread;
-    Flags_t                         Flags;
+    unsigned int                         Flags;
     int                             Source;
     struct SystemInterrupt*         Link;
 } SystemInterrupt_t;
@@ -64,7 +64,7 @@ GetFastInterruptTable(void);
 KERNELAPI UUId_t KERNELABI
 InterruptRegister(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ Flags_t            Flags);
+    _In_ unsigned int            Flags);
 
 /* InterruptUnregister 
  * Unregisters the interrupt from the system and removes any resources that was associated 
@@ -149,7 +149,7 @@ AcpiGetTriggerMode(
 
 /* ConvertAcpiFlagsToConformFlags
  * Converts acpi interrupt flags to the system interrupt conform flags. */
-KERNELAPI Flags_t KERNELABI
+KERNELAPI unsigned int KERNELABI
 ConvertAcpiFlagsToConformFlags(
     _In_ uint16_t           IntiFlags,
     _In_ int                Source);
@@ -162,6 +162,6 @@ AcpiDeriveInterrupt(
     _In_  unsigned int         Bus, 
     _In_  unsigned int         Device,
     _In_  int               Pin,
-    _Out_ Flags_t*          AcpiConform);
+    _Out_ unsigned int*          AcpiConform);
 
 #endif //!_MCORE_INTERRUPTS_H_

@@ -50,7 +50,7 @@ typedef struct Device {
 DDKDECL(UUId_t,
 RegisterDevice(
     _In_ Device_t* Device, 
-    _In_ Flags_t   Flags));
+    _In_ unsigned int   Flags));
 
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 

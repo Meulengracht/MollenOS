@@ -191,7 +191,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
+    handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
     return OsSuccess;
 }
 
@@ -294,7 +294,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            handle_set_activity((UUId_t)TargetSocket->Header.key, IOEVTIN);
+            handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -503,7 +503,7 @@ HandleLocalConnectionRequest(
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
         queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
-        handle_set_activity((UUId_t)(uintptr_t)targetSocket->Header.key, IOEVTCTL);
+        handle_post_notification((UUId_t)(uintptr_t)targetSocket->Header.key, IOEVTCTL);
     }
     mtx_unlock(&targetSocket->SyncObject);
     
@@ -558,7 +558,7 @@ DomainLocalDisconnect(
     
     // Send a disconnect request if socket was valid
     if (PeerSocket) {
-        handle_set_activity(Socket->Domain->ConnectedSocket, IOEVTCTL);
+        handle_post_notification(Socket->Domain->ConnectedSocket, IOEVTCTL);
         Status = OsSuccess;
     }
     

@@ -141,7 +141,7 @@ InitializeDefaultThread(
     _In_ const char*    Name,
     _In_ ThreadEntry_t  Function,
     _In_ void*          Arguments,
-    _In_ Flags_t        Flags)
+    _In_ unsigned int        Flags)
 {
     OsStatus_t Status;
     UUId_t     Handle;
@@ -272,7 +272,7 @@ CreateThread(
     _In_  const char*    Name,
     _In_  ThreadEntry_t  Function,
     _In_  void*          Arguments,
-    _In_  Flags_t        Flags,
+    _In_  unsigned int        Flags,
     _In_  UUId_t         MemorySpaceHandle,
     _Out_ UUId_t*        Handle)
 {
@@ -324,7 +324,7 @@ CreateThread(
             Thread->MemorySpaceHandle = UUID_INVALID;
         }
         else {
-            Flags_t MemorySpaceFlags = 0;
+            unsigned int MemorySpaceFlags = 0;
             if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
                 MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
@@ -525,7 +525,7 @@ ThreadingIsCurrentTaskIdle(
     return (Core->CurrentThread == &Core->IdleThread) ? 1 : 0;
 }
 
-Flags_t
+unsigned int
 ThreadingGetCurrentMode(void)
 {
     if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) == NULL) {

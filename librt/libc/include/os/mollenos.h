@@ -70,9 +70,9 @@ _CODE_BEGIN
 /*******************************************************************************
  * Memory Extensions
  *******************************************************************************/
-CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, Flags_t Flags, void** MemoryOut));
+CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, unsigned int Flags, void** MemoryOut));
 CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
-CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, Flags_t Flags, Flags_t* PreviousFlags));
+CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, unsigned int Flags, unsigned int* PreviousFlags));
 
 /*******************************************************************************
  * System Extensions
@@ -90,7 +90,7 @@ CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
  *******************************************************************************/
 typedef struct {
     const char* Name;
-    Flags_t     Configuration;
+    unsigned int     Configuration;
     UUId_t      MemorySpaceHandle;
     size_t      MaximumStackSize;
 } ThreadParameters_t;

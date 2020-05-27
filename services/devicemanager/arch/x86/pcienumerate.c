@@ -273,7 +273,7 @@ PciCheckFunction(
         // query acpi interrupt information for device
         if (__GlbAcpiAvailable == 1) {
             PciDevice_t* Iterator      = Device;
-            Flags_t      AcpiConform   = 0;
+            unsigned int      AcpiConform   = 0;
             int          InterruptLine = INTERRUPT_NONE;
             int          Pin           = Pcs->InterruptPin;
 

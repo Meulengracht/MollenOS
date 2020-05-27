@@ -34,7 +34,7 @@
  */
 DDKDECL(OsStatus_t,
 handle_create(
-    _Out_ UUId_t* handle_out));
+    _Out_ UUId_t* handleOut));
 
 /**
  * handle_destroy
@@ -54,17 +54,17 @@ handle_set_path(
     _In_ const char* path));
 
 /**
- * handle_set_create
+ * notification_queue_create
  * * Creates a new handle set that can be used for asynchronus events.
  * @param flags [In] Creation flags that configure the new handle set behaviour. 
  */
 DDKDECL(OsStatus_t,
-handle_set_create(
-    _In_  Flags_t flags,
-    _Out_ UUId_t* handle_out));
+notification_queue_create(
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut));
 
 /**
- * handle_set_ctrl
+ * notification_queue_ctrl
  * * Add, remove or modify a handle in the set.
  * @param setHandle [In] The handle of the handle set.
  * @param operation [In] The operation that should be performed.
@@ -72,14 +72,14 @@ handle_set_create(
  * @param event     [In] The configuration for the event to be recieved.
  */
 DDKDECL(OsStatus_t,
-handle_set_ctrl(
+notification_queue_ctrl(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
     _In_ struct ioevt_event* event));
 
 /**
- * handle_set_wait
+ * notification_queue_wait
  * * Waits for the given handle set and stores the events that occurred in the
  * * provided array.
  * @param handle    [In]
@@ -88,7 +88,7 @@ handle_set_ctrl(
  * @param timeout   [In]
  */
 DDKDECL(OsStatus_t,
-handle_set_wait(
+notification_queue_wait(
     _In_  UUId_t              handle,
     _In_  struct ioevt_event* events,
     _In_  int                 maxEvents,
@@ -97,15 +97,15 @@ handle_set_wait(
     _Out_ int*                numEventsOut));
 
 /** 
- * handle_set_activity
+ * handle_post_notification
  * * Marks a handle that an event has been completed. If the handle has any
  * * sets registered they will be notified.
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags which denote which kind of event.
  */
 DDKDECL(OsStatus_t,
-handle_set_activity(
+handle_post_notification(
     _In_ UUId_t  handle,
-    _In_ Flags_t flags));
+    _In_ unsigned int flags));
 
 #endif //!__DDK_HANDLE_H__

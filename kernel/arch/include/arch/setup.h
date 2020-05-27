@@ -37,6 +37,6 @@
 KERNELAPI OsStatus_t KERNELABI
 SystemFeaturesInitialize(
     _In_ Multiboot_t* BootInformation,
-    _In_ Flags_t      Systems);
+    _In_ unsigned int      Systems);
 
 #endif // !_MCORE_SYSTEMSETUP_H_

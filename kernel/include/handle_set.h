@@ -36,7 +36,7 @@ struct ioevt_event;
  */
 KERNELAPI UUId_t KERNELABI
 CreateHandleSet(
-    _In_  Flags_t Flags);
+    _In_  unsigned int Flags);
 
 /**
  * ControlHandleSet
@@ -83,6 +83,6 @@ WaitForHandleSet(
 KERNELAPI OsStatus_t KERNELABI
 MarkHandle(
     _In_ UUId_t  Handle,
-    _In_ Flags_t Flags);
+    _In_ unsigned int Flags);
 
 #endif //! __HANDLE_SET_H__

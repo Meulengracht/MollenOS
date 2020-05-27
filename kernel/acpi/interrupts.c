@@ -79,12 +79,12 @@ AcpiGetTriggerMode(
 
 /* ConvertAcpiFlagsToConformFlags
  * Converts acpi interrupt flags to the system interrupt conform flags. */
-Flags_t
+unsigned int
 ConvertAcpiFlagsToConformFlags(
     _In_ uint16_t IntiFlags,
     _In_ int      Source)
 {
-    Flags_t ConformFlags = 0;
+    unsigned int ConformFlags = 0;
 
     if (AcpiGetPolarityMode(IntiFlags, Source) == 1) {
         ConformFlags |= INTERRUPT_ACPICONFORM_POLARITY;
@@ -103,7 +103,7 @@ AcpiDeriveInterrupt(
     _In_  unsigned int Bus, 
     _In_  unsigned int Device,
     _In_  int          Pin,
-    _Out_ Flags_t*     AcpiConform)
+    _Out_ unsigned int*     AcpiConform)
 {
     AcpiDevice_t* Dev;
     unsigned      rIndex  = (Device * 4) + (Pin - 1);

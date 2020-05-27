@@ -47,12 +47,12 @@ static SystemInterruptMode_t        InterruptMode   = InterruptModePic;
 size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
 uintptr_t GlbLocalApicBase = 0;
 
-static Flags_t
+static unsigned int
 GetSystemLvtByAcpi(
     _In_ uint8_t Lvt)
 {
     ACPI_TABLE_HEADER* Header   = NULL;
-    Flags_t            LvtSetup = 0;
+    unsigned int            LvtSetup = 0;
 
     // Check for MADT presence and enumerate
     if (AcpiAvailable() == ACPI_AVAILABLE && 

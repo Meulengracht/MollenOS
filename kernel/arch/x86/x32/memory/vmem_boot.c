@@ -64,7 +64,7 @@ MmVirtualFillPageTable(
 	_In_ PageTable_t*       Table, 
 	_In_ PhysicalAddress_t  PhysicalAddress, 
 	_In_ VirtualAddress_t   VirtualAddress, 
-	_In_ Flags_t            Flags,
+	_In_ unsigned int            Flags,
 	_In_ size_t             Length)
 {
 	uintptr_t pAddress = PhysicalAddress | Flags;
@@ -82,7 +82,7 @@ MmVirtualMapMemoryRange(
     _In_ PageDirectory_t* Directory,
 	_In_ VirtualAddress_t AddressStart,
 	_In_ size_t           Length,
-	_In_ Flags_t          Flags)
+	_In_ unsigned int          Flags)
 {
     int PdStart = PAGE_DIRECTORY_INDEX(AddressStart);
     int PdEnd   = PdStart + DIVUP(Length, TABLE_SPACE_SIZE);
@@ -104,7 +104,7 @@ CreateKernelVirtualMemorySpace(void)
     size_t            BytesToMap;
     PhysicalAddress_t PhysicalBase;
     VirtualAddress_t  VirtualBase;
-    Flags_t           KernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
+    unsigned int           KernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
 	TRACE("[vmem] [boot_create]");
 
     // Can we use global pages for kernel table?

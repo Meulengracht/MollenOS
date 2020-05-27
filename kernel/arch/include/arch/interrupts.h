@@ -37,7 +37,7 @@ InterruptInitialize(void);
 KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
     _In_  DeviceInterrupt_t* Interrupt,
-    _In_  Flags_t            Flags,
+    _In_  unsigned int            Flags,
     _Out_ UUId_t*            TableIndex);
 
 /* InterruptConfigure

@@ -385,7 +385,7 @@ MfsCreateRecord(
     _In_ uint32_t                   BucketOfDirectory,
     _In_ MfsEntry_t*                Entry,
     _In_ MString_t*                 Path,
-    _In_ Flags_t                    Flags)
+    _In_ unsigned int                    Flags)
 {
     OsStatus_t Result;
 

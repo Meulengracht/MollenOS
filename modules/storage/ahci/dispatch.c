@@ -157,7 +157,7 @@ DispatchCommand(
     _In_ AhciController_t*  Controller,
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction,
-    _In_ Flags_t            Flags,
+    _In_ unsigned int            Flags,
     _In_ void*              AtaCommand,
     _In_ size_t             AtaCommandLength,
     _In_ void*              AtapiCommand, 
@@ -296,7 +296,7 @@ AhciDispatchRegisterFIS(
     _In_ AhciTransaction_t* Transaction)
 {
     FISRegisterH2D_t Fis = { 0 };
-    Flags_t          Flags;
+    unsigned int          Flags;
     int              BytesQueued;
 
     TRACE("AhciDispatchRegisterFIS(Cmd 0x%x, Sector 0x%x)",

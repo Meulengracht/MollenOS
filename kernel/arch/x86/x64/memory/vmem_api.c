@@ -84,7 +84,7 @@ MmVirtualGetTable(
     PageDirectory_t*      Directory      = NULL;
 	PageTable_t*          Table          = NULL;
 	uintptr_t             Physical       = 0;
-    Flags_t               CreateFlags    = PAGE_PRESENT | PAGE_WRITE;
+    unsigned int               CreateFlags    = PAGE_PRESENT | PAGE_WRITE;
     uint64_t              ParentMapping;
     int                   Result;
     

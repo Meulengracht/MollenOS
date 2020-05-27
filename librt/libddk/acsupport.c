@@ -54,7 +54,7 @@ OsStatus_t AcpiQueryInterrupt(
     _In_  unsigned int Device,
     _In_  int       Pin,
     _Out_ int*      Interrupt,
-    _Out_ Flags_t*  AcpiConform)
+    _Out_ unsigned int*  AcpiConform)
 {
     if (Interrupt == NULL || AcpiConform == NULL) {
         return OsError;

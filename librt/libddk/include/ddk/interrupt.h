@@ -50,7 +50,7 @@ typedef InterruptStatus_t(*InterruptHandler_t)(FastInterruptResources_t*, void*)
 typedef struct FastInterruptMemoryResource {
     uintptr_t Address;
     size_t    Length;
-    Flags_t   Flags;
+    unsigned int   Flags;
 } FastInterruptMemoryResource_t;
 
 // Fast-Interrupt Resource Table
@@ -106,7 +106,7 @@ typedef struct DeviceInterrupt {
     // General information, note that these can change
     // after the RegisterInterruptSource, always use the value
     // in <Line> to see your allocated interrupt-line
-    Flags_t AcpiConform;
+    unsigned int AcpiConform;
     int     Line;
     int     Pin;
     void*   Context;
@@ -150,7 +150,7 @@ RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ uintptr_t          Address,
     _In_ size_t             Length,
-    _In_ Flags_t            Flags));
+    _In_ unsigned int            Flags));
 
 /* RegisterInterruptContext
  * Sets the context pointer that should be attached to any SIGINT events. */
@@ -165,7 +165,7 @@ RegisterInterruptContext(
 DDKDECL(UUId_t,
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ Flags_t            Flags));
+    _In_ unsigned int            Flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */

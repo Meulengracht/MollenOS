@@ -50,7 +50,7 @@ typedef struct MString MString_t;
 PACKED_TYPESTRUCT(FileSystemDisk, {
     UUId_t                      Driver;
     UUId_t                      Device;
-    Flags_t                     Flags;
+    unsigned int                     Flags;
     StorageDescriptor_t         Descriptor;
 });
 
@@ -59,7 +59,7 @@ PACKED_TYPESTRUCT(FileSystemDisk, {
  * and holds a copy of the disk information to provide
  * disk access and information */
 PACKED_TYPESTRUCT(FileSystemDescriptor, {
-    Flags_t                     Flags;
+    unsigned int                     Flags;
     FileSystemDisk_t            Disk;
     uint64_t                    SectorStart;
     uint64_t                    SectorCount;
@@ -85,9 +85,9 @@ PACKED_TYPESTRUCT(FileSystemEntryHandle, {
     FileSystemEntry_t*  Entry;
     UUId_t              Id;
     UUId_t              Owner;
-    Flags_t             Access;
-    Flags_t             Options;
-    Flags_t             LastOperation;
+    unsigned int             Access;
+    unsigned int             Options;
+    unsigned int             LastOperation;
     uint64_t            Position;
     void*               OutBuffer;
     size_t              OutBufferPosition;
@@ -106,7 +106,7 @@ __FSDECL(FsInitialize)(
 __FSAPI OsStatus_t
 __FSDECL(FsDestroy)(
     _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ Flags_t                    UnmountFlags);
+    _In_ unsigned int                    UnmountFlags);
 
 /* FsOpenEntry 
  * Fills the entry structure with information needed to access and manipulate the given path.
@@ -125,7 +125,7 @@ __FSAPI OsStatus_t
 __FSDECL(FsCreatePath)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MString_t*                Path,
-    _In_  Flags_t                   Options,
+    _In_  unsigned int                   Options,
     _Out_ FileSystemEntry_t**       BaseEntry);
 
 /* FsCloseEntry 

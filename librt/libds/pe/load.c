@@ -165,7 +165,7 @@ PeHandleSections(
         // in memory we want to copy data to
         uintptr_t VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
         uint8_t*  FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
-        Flags_t   PageFlags          = MEMORY_READ;
+        unsigned int   PageFlags          = MEMORY_READ;
         size_t    SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
         uint8_t*  Destination;
 

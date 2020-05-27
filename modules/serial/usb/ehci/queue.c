@@ -101,7 +101,7 @@ EhciQueueInitialize(
 {
     // Variables
     UsbSchedulerSettings_t Settings;
-    Flags_t SchedulerFlags = 0;
+    unsigned int SchedulerFlags = 0;
 
     // Trace
     TRACE("EhciQueueInitialize()");

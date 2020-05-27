@@ -132,6 +132,6 @@ CpuInitializeFeatures(void);
 /* CpuHasFeatures
  * Determines if the cpu has the requested features */
 KERNELAPI OsStatus_t KERNELABI
-CpuHasFeatures(Flags_t Ecx, Flags_t Edx);
+CpuHasFeatures(unsigned int Ecx, unsigned int Edx);
 
 #endif // !_x86_CPU_H_

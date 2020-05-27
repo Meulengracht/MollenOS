@@ -37,7 +37,7 @@
 void
 MutexConstruct(
     _In_ Mutex_t* Mutex,
-    _In_ Flags_t  Configuration)
+    _In_ unsigned int  Configuration)
 {
     assert(Mutex != NULL);
     

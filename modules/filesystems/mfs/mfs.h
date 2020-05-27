@@ -211,7 +211,7 @@ PACKED_TYPESTRUCT(MfsEntryHandle, {
 });
 
 typedef struct MfsInstance {
-    Flags_t    Flags;
+    unsigned int    Flags;
     int        Version;
     size_t     SectorsPerBucket;
     struct dma_attachment TransferBuffer;
@@ -352,22 +352,22 @@ MfsCreateRecord(
     _In_ uint32_t                   BucketOfDirectory,
     _In_ MfsEntry_t*                Entry, 
     _In_ MString_t*                 Path,
-    _In_ Flags_t                    Flags);
+    _In_ unsigned int                    Flags);
 
 /* MfsVfsFlagsToFileRecordFlags
  * Converts the generic vfs options/permissions to the native mfs representation. */
-__EXTERN Flags_t
+__EXTERN unsigned int
 MfsVfsFlagsToFileRecordFlags(
-    _In_ Flags_t                    Flags,
-    _In_ Flags_t                    Permissions);
+    _In_ unsigned int                    Flags,
+    _In_ unsigned int                    Permissions);
 
 /* MfsFileRecordFlagsToVfsFlags
  * Converts the native MFS file flags into the generic vfs options/permissions. */
 __EXTERN void
 MfsFileRecordFlagsToVfsFlags(
     _In_  FileRecord_t*             NativeEntry,
-    _Out_ Flags_t*                  Flags,
-    _Out_ Flags_t*                  Permissions);
+    _Out_ unsigned int*                  Flags,
+    _Out_ unsigned int*                  Permissions);
 
 /* MfsFileRecordToVfsFile
  * Converts a native MFS file record into the generic vfs representation. */

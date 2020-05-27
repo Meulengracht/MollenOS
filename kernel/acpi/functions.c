@@ -235,7 +235,7 @@ AcpiDeviceAttachData(
 ACPI_STATUS
 AcpiDeviceQueryStatus(
     _In_ ACPI_HANDLE Handle, 
-    _Out_ Flags_t *DeviceStatus)
+    _Out_ unsigned int *DeviceStatus)
 {
     // Variables
     ACPI_STATUS Status = AE_OK;
@@ -267,7 +267,7 @@ AcpiDeviceGetStatus(
 {
     // Variables
     ACPI_STATUS Status     = AE_OK;
-    Flags_t Flags         = 0;
+    unsigned int Flags         = 0;
 
     // Does the device support the method?
     if (Device->Features & ACPI_FEATURE_STA) {
@@ -607,7 +607,7 @@ AcpiDeviceSelectIrq(
     _In_ PciRoutingSource_t* Source)
 {
     PciRoutingEntry_t* SelectedEntry;
-    Flags_t            DeviceStatus = 0;
+    unsigned int            DeviceStatus = 0;
     ACPI_STATUS        Status       = AE_OK;
 
     ACPI_BUFFER Buffer;

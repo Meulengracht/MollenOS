@@ -73,7 +73,7 @@ typedef struct SystemMemorySpaceContext {
 
 typedef struct SystemMemorySpace {
     UUId_t                      ParentHandle;
-    Flags_t                     Flags;
+    unsigned int                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
     SystemMemorySpaceContext_t* Context;
 } SystemMemorySpace_t;
@@ -90,7 +90,7 @@ InitializeMemorySpace(
  * might recycle a already existing address space */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpace(
-    _In_  Flags_t Flags,
+    _In_  unsigned int Flags,
     _Out_ UUId_t* Handle);
 
 /* DestroyMemorySpace
@@ -147,8 +147,8 @@ MemorySpaceMap(
     _InOut_ VirtualAddress_t*    Address,
     _InOut_ uintptr_t*           PhysicalAddressValues,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags);
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceMapContiguous
@@ -166,8 +166,8 @@ MemorySpaceMapContiguous(
     _InOut_ VirtualAddress_t*    Address,
     _In_    uintptr_t            PhysicalStartAddress,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags);
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceMapReserved
@@ -183,8 +183,8 @@ MemorySpaceMapReserved(
     _In_    SystemMemorySpace_t* MemorySpace,
     _InOut_ VirtualAddress_t*    Address,
     _In_    size_t               Length,
-    _In_    Flags_t              MemoryFlags,
-    _In_    Flags_t              PlacementFlags);
+    _In_    unsigned int              MemoryFlags,
+    _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceUnmap
@@ -215,7 +215,7 @@ MemorySpaceCommit(
     _In_ VirtualAddress_t     Address,
     _In_ uintptr_t*           PhysicalAddressValues,
     _In_ size_t               Length,
-    _In_ Flags_t              Placement);
+    _In_ unsigned int              Placement);
 
 /**
  * MemorySpaceChangeProtection
@@ -229,8 +229,8 @@ MemorySpaceChangeProtection(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ VirtualAddress_t     Address, 
     _In_        size_t               Length, 
-    _In_        Flags_t              Attributes,
-    _Out_       Flags_t*             PreviousAttributes);
+    _In_        unsigned int              Attributes,
+    _Out_       unsigned int*             PreviousAttributes);
 
 /**
  * CloneMemorySpaceMapping
@@ -251,8 +251,8 @@ CloneMemorySpaceMapping(
     _In_        VirtualAddress_t     SourceAddress,
     _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
     _In_        size_t               Length,
-    _In_        Flags_t              MemoryFlags,
-    _In_        Flags_t              PlacementFlags);
+    _In_        unsigned int              MemoryFlags,
+    _In_        unsigned int              PlacementFlags);
 
 /**
  * GetMemorySpaceMapping
@@ -271,7 +271,7 @@ GetMemorySpaceMapping(
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */
-KERNELAPI Flags_t KERNELABI
+KERNELAPI unsigned int KERNELABI
 GetMemorySpaceAttributes(
     _In_ SystemMemorySpace_t* SystemMemorySpace, 
     _In_ VirtualAddress_t     VirtualAddress);

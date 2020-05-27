@@ -219,8 +219,8 @@ InterruptResolveMemoryResources(
         if (Source->MemoryResources[i].Address != 0) {
             uintptr_t Offset       = Source->MemoryResources[i].Address % GetMemorySpacePageSize();
             size_t Length          = Source->MemoryResources[i].Length + Offset;
-            Flags_t PageFlags      = MAPPING_COMMIT | MAPPING_PERSISTENT;
-            Flags_t PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED;
+            unsigned int PageFlags      = MAPPING_COMMIT | MAPPING_PERSISTENT;
+            unsigned int PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED;
             if (Source->MemoryResources[i].Flags & INTERRUPT_RESOURCE_DISABLE_CACHE) {
                 PageFlags |= MAPPING_NOCACHE;
             }
@@ -254,8 +254,8 @@ InterruptResolveResources(
 {
     FastInterruptResourceTable_t* Source      = &Interrupt->Interrupt.FastInterrupt;
     FastInterruptResourceTable_t* Destination = &Interrupt->KernelResources;
-    Flags_t                       PlacementFlags;
-    Flags_t                       PageFlags;
+    unsigned int                       PlacementFlags;
+    unsigned int                       PageFlags;
     OsStatus_t                    Status;
     uintptr_t                     Virtual;
     uintptr_t                     Offset;
@@ -334,7 +334,7 @@ InterruptReleaseResources(
 UUId_t
 InterruptRegister(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ Flags_t            Flags)
+    _In_ unsigned int            Flags)
 {
     SystemInterrupt_t* Entry;
     UUId_t             TableIndex;

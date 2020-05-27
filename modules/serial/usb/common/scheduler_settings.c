@@ -36,7 +36,7 @@ UsbSchedulerSettingsCreate(
     _In_ size_t                     FrameCount,
     _In_ size_t                     SubframeCount,
     _In_ size_t                     MaxBandwidthPerFrame,
-    _In_ Flags_t                    Flags)
+    _In_ unsigned int                    Flags)
 {
     assert(Settings != NULL);
     memset((void*)Settings, 0, sizeof(UsbSchedulerSettings_t));

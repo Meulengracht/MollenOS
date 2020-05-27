@@ -75,7 +75,7 @@ typedef struct SystemScheduler {
 KERNELAPI SchedulerObject_t* KERNELABI
 SchedulerCreateObject(
     _In_ void*   Payload,
-    _In_ Flags_t Flags);
+    _In_ unsigned int Flags);
 
 /* SchedulerDestroyObject
  * Cleans up the resources associated with the kernel scheduler. */

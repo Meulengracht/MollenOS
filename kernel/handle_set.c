@@ -49,7 +49,7 @@ typedef struct HandleSet {
     _Atomic(int) Pending;
     list_t       Events;
     rb_tree_t    Handles;
-    Flags_t      Flags;
+    unsigned int Flags;
 } HandleSet_t;
 
 // A set element is a handle descriptor and an event descriptor
@@ -64,7 +64,7 @@ typedef struct HandleSetElement {
     _Atomic(int)             ActiveEvents;
     struct HandleSetElement* Link;
     union ioevt_data         Context;
-    Flags_t                  Configuration;
+    unsigned int             Configuration;
 } HandleSetElement_t;
 
 static OsStatus_t DestroySetElement(HandleSetElement_t*);
@@ -95,7 +95,7 @@ DestroyHandleSet(
 
 UUId_t
 CreateHandleSet(
-    _In_  Flags_t Flags)
+    _In_  unsigned int Flags)
 {
     HandleSet_t* Set;
     UUId_t       Handle;
@@ -174,13 +174,12 @@ WaitForHandleSet(
     _In_  size_t              timeout,
     _Out_ int*                numEventsOut)
 {
-    HandleSet_t*        set   = LookupHandleOfType(handle, HandleTypeSet);
-    struct ioevt_event* event = events;
-    int                 numberOfEvents;
-    list_t              spliced;
-    element_t*          i;
-    int                 j;
-    TRACE("[handle_set] [wait] %u, %i, %" PRIuIN, handle, maxEvents, timeout);
+    HandleSet_t* set   = LookupHandleOfType(handle, HandleTypeSet);
+    int          numberOfEvents;
+    list_t       spliced;
+    element_t*   i;
+    int          j, k = pollEvents;
+    TRACE("[handle_set] [wait] %u, %i, %i, %" PRIuIN, handle, maxEvents, pollEvents, timeout);
     
     if (!set) {
         return OsDoesNotExist;
@@ -203,24 +202,18 @@ WaitForHandleSet(
         numberOfEvents = atomic_exchange(&set->Pending, 0);
     }
     
-    list_construct(&spliced);
     numberOfEvents = MIN(numberOfEvents, maxEvents);
+    list_construct(&spliced);
     list_splice(&set->Events, numberOfEvents, &spliced);
-    
-    // roll the itererator forward so we can "append"
-    for (j = 0; j < pollEvents; j++) {
-        event++;
-    }
     
     TRACE("[handle_set] [wait] num events %i", numberOfEvents);
     smp_rmb();
     _foreach(i, &spliced) {
         HandleSetElement_t* element = i->value;
         
-        // reuse an existing structure?
+        // reuse an existing structure (combine events)?
         if (pollEvents) {
             struct ioevt_event* reuse = NULL;
-            int                 j;
             for (j = 0; j < pollEvents; j++) {
                 if (events[j].data.context == element->Context.context) {
                     reuse = &events[j];
@@ -235,11 +228,11 @@ WaitForHandleSet(
         }
         
         // otherwise append the event
-        event->events = atomic_exchange(&element->ActiveEvents, 0);
-        event->data   = element->Context;
-        event++;
+        events[k].events = atomic_exchange(&element->ActiveEvents, 0);
+        events[k].data   = element->Context;
+        k++;
     }
-    *numEventsOut = numberOfEvents;
+    *numEventsOut = k;
     return OsSuccess;
 }
 
@@ -250,7 +243,7 @@ MarkHandleCallback(
     _In_ void*      Context)
 {
     HandleSetElement_t* SetElement = Element->value;
-    Flags_t             Flags      = (Flags_t)(uintptr_t)Context;
+    unsigned int             Flags      = (unsigned int)(uintptr_t)Context;
     TRACE("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
     
     if (SetElement->Configuration & Flags) {
@@ -271,7 +264,7 @@ MarkHandleCallback(
 OsStatus_t
 MarkHandle(
     _In_ UUId_t  Handle,
-    _In_ Flags_t Flags)
+    _In_ unsigned int Flags)
 {
     HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(Handle));
     if (!Element) {

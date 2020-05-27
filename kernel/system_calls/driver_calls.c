@@ -100,7 +100,7 @@ ScAcpiQueryInterrupt(
     _In_  unsigned int         Device,
     _In_  int               Pin, 
     _Out_ int*              Interrupt,
-    _Out_ Flags_t*          AcpiConform)
+    _Out_ unsigned int*          AcpiConform)
 {
     *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
     return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
@@ -224,7 +224,7 @@ ScLoadDriver(
 UUId_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ Flags_t            Flags)
+    _In_ unsigned int            Flags)
 {
     SystemModule_t* Module = GetCurrentModule();
     if (Interrupt == NULL || Module == NULL || 

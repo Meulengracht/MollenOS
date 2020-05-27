@@ -36,7 +36,7 @@
 #include <threading.h>
 
 extern OsStatus_t ThreadingFpuException(MCoreThread_t *Thread);
-extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
+extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, unsigned int*);
 extern reg_t __getcr2(void);
 
 static void
@@ -165,7 +165,7 @@ ExceptionEntry(
         // Debug the error code
         if (Registers->ErrorCode & 0x1) {
             // Page access violation for a page that was present
-            Flags_t Attributes = GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address);
+            unsigned int Attributes = GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address);
             
             if (Registers->ErrorCode & 0x2) {
                 // Write access, so lets verify that write attributes are set, if they

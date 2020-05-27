@@ -184,11 +184,11 @@ InitializeSystemMemory(
     return OsSuccess;
 }
 
-static Flags_t
+static unsigned int
 ConvertGenericAttributesToX86(
-    _In_ Flags_t Flags)
+    _In_ unsigned int Flags)
 {
-    Flags_t NativeFlags = 0;
+    unsigned int NativeFlags = 0;
 
     if (Flags & MAPPING_COMMIT) {
         NativeFlags |= PAGE_PRESENT;
@@ -214,11 +214,11 @@ ConvertGenericAttributesToX86(
     return NativeFlags;
 }
 
-static Flags_t
+static unsigned int
 ConvertX86AttributesToGeneric(
-    _In_ Flags_t Flags)
+    _In_ unsigned int Flags)
 {
-    Flags_t GenericFlags = 0;
+    unsigned int GenericFlags = 0;
 
     if (Flags & (PAGE_PRESENT | PAGE_RESERVED)) {
         GenericFlags = MAPPING_EXECUTABLE; // For now 
@@ -259,14 +259,14 @@ ArchMmuGetPageAttributes(
     _In_  SystemMemorySpace_t* MemorySpace,
     _In_  VirtualAddress_t     StartAddress,
     _In_  int                  PageCount,
-    _In_  Flags_t*             AttributeValues,
+    _In_  unsigned int*             AttributeValues,
     _Out_ int*                 PagesCleared)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
     int                IsCurrent, Update;
-    Flags_t            X86Attributes;
+    unsigned int            X86Attributes;
     int                Index;
     int                i      = 0;
     OsStatus_t         Status = OsSuccess;
@@ -296,13 +296,13 @@ ArchMmuUpdatePageAttributes(
     _In_  SystemMemorySpace_t* MemorySpace,
     _In_  VirtualAddress_t     StartAddress,
     _In_  int                  PageCount,
-    _In_  Flags_t*             Attributes,
+    _In_  unsigned int*             Attributes,
     _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    Flags_t            X86Attributes;
+    unsigned int            X86Attributes;
     int                IsCurrent, Update;
     int                Index;
     int                i      = 0;
@@ -415,13 +415,13 @@ ArchMmuSetContiguousVirtualPages(
     _In_  VirtualAddress_t     StartAddress,
     _In_  PhysicalAddress_t    PhysicalStartAddress,
     _In_  int                  PageCount,
-    _In_  Flags_t              Attributes,
+    _In_  unsigned int              Attributes,
     _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    Flags_t            X86Attributes;
+    unsigned int            X86Attributes;
     int                Update;
     int                IsCurrent;
     int                Index;
@@ -469,13 +469,13 @@ ArchMmuReserveVirtualPages(
     _In_  SystemMemorySpace_t* MemorySpace,
     _In_  VirtualAddress_t     StartAddress,
     _In_  int                  PageCount,
-    _In_  Flags_t              Attributes,
+    _In_  unsigned int              Attributes,
     _Out_ int*                 PagesReserved)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    Flags_t            X86Attributes;
+    unsigned int            X86Attributes;
     int                Update;
     int                IsCurrent;
     int                Index;
@@ -518,13 +518,13 @@ ArchMmuSetVirtualPages(
     _In_  VirtualAddress_t     StartAddress,
     _In_  PhysicalAddress_t*   PhysicalAddressValues,
     _In_  int                  PageCount,
-    _In_  Flags_t              Attributes,
+    _In_  unsigned int              Attributes,
     _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
-    Flags_t            X86Attributes;
+    unsigned int            X86Attributes;
     int                Update;
     int                IsCurrent;
     int                Index;

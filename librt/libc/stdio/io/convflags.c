@@ -164,11 +164,11 @@ _fflags(
 
 /* _faccess
  * Converts the ANSI-C-mode flags into our access flags */
-Flags_t
+unsigned int
 _faccess(
     _In_ int oflags)
 {
-    Flags_t mFlags = __FILE_READ_ACCESS;
+    unsigned int mFlags = __FILE_READ_ACCESS;
 
     // Convert to access flags
     if (oflags & O_WRONLY) {
@@ -182,11 +182,11 @@ _faccess(
 
 /* _fopts
  * Converts the ANSI-C-mode flags into our option flags */
-Flags_t
+unsigned int
 _fopts(
     _In_ int oflags)
 {
-    Flags_t mFlags = 0;
+    unsigned int mFlags = 0;
     TRACE("_fopts(0x%x)", oflags);
 
     // Take care of opening flags

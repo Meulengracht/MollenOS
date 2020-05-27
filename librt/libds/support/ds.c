@@ -55,7 +55,7 @@ typedef struct MemoryMappingState {
     MemorySpaceHandle_t Handle;
     uintptr_t           Address;
     size_t              Length;
-    Flags_t             Flags;
+    unsigned int             Flags;
 } MemoryMappingState_t;
 
 /*******************************************************************************
@@ -293,7 +293,7 @@ OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
 
 // Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly 
 // accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
-OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, size_t Length, Flags_t Flags, MemoryMapHandle_t* HandleOut)
+OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, size_t Length, unsigned int Flags, MemoryMapHandle_t* HandleOut)
 {
     MemoryMappingState_t* StateObject = (MemoryMappingState_t*)dsalloc(sizeof(MemoryMappingState_t));
     OsStatus_t            Status;
@@ -312,8 +312,8 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t    KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
-    Flags_t    PlacementFlags = MAPPING_VIRTUAL_FIXED;
+    unsigned int    KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    unsigned int    PlacementFlags = MAPPING_VIRTUAL_FIXED;
     int        PageCount      = DIVUP(Length, GetMemorySpacePageSize());
     uintptr_t* Pages;
     
@@ -352,8 +352,8 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
 
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t PreviousFlags;
-    Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    unsigned int PreviousFlags;
+    unsigned int KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
     if (StateObject->Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }

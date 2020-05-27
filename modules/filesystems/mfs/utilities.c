@@ -360,12 +360,12 @@ MfsZeroBucket(
     return OsSuccess;
 }
 
-Flags_t
+unsigned int
 MfsVfsFlagsToFileRecordFlags(
-    _In_ Flags_t Flags,
-    _In_ Flags_t Permissions)
+    _In_ unsigned int Flags,
+    _In_ unsigned int Permissions)
 {
-    Flags_t NativeFlags = 0;
+    unsigned int NativeFlags = 0;
 
     if (Flags & __FILE_DIRECTORY) {
         NativeFlags |= MFS_FILERECORD_DIRECTORY;
@@ -379,8 +379,8 @@ MfsVfsFlagsToFileRecordFlags(
 void
 MfsFileRecordFlagsToVfsFlags(
     _In_  FileRecord_t* NativeEntry,
-    _Out_ Flags_t*      Flags,
-    _Out_ Flags_t*      Permissions)
+    _Out_ unsigned int*      Flags,
+    _Out_ unsigned int*      Permissions)
 {
     // Permissions are not really implemented
     *Permissions    = (FILE_PERMISSION_READ | FILE_PERMISSION_WRITE | FILE_PERMISSION_EXECUTE);
