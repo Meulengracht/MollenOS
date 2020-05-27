@@ -110,9 +110,9 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
     status = client->ops->send(client->ops, message, context);
     if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_SYNC) {
         struct gracht_message_descriptor* descriptor = context->descriptor;
-        descriptor->status = status == 0 ? GRACHT_MESSAGE_COMPLETED : GRACHT_MESSAGE_ERROR;
+        descriptor->status = status;
     }
-    return status;
+    return status == GRACHT_MESSAGE_ERROR ? -1 : 0;
 }
 
 int gracht_client_await(gracht_client_t* client, struct gracht_message_context* context)

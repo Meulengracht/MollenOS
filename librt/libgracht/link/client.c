@@ -75,10 +75,10 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
         ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
               (uint32_t)byteCount, message->header.length);
         errno = (EPIPE);
-        return -1;
+        return GRACHT_MESSAGE_ERROR;
     }
 
-    return 0;
+    return GRACHT_MESSAGE_INPROGRESS;
 }
 
 static int socket_link_recv_stream(struct socket_link_manager* linkManager,
@@ -161,10 +161,10 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager, stru
         ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
               (uint32_t)byteCount, message->header.length);
         errno = (EPIPE);
-        return -1;
+        return GRACHT_MESSAGE_ERROR;
     }
 
-    return 0;
+    return GRACHT_MESSAGE_INPROGRESS;
 }
 
 static int socket_link_recv_packet(struct socket_link_manager* linkManager, 
@@ -244,7 +244,7 @@ static int socket_link_send(struct socket_link_manager* linkManager,
     // perform length check before sending
     if (message->header.length > GRACHT_MAX_MESSAGE_SIZE) {
         errno = (E2BIG);
-        return -1;
+        return GRACHT_MESSAGE_ERROR;
     }
     
     if (linkManager->config.type == gracht_link_stream_based) {
@@ -256,7 +256,7 @@ static int socket_link_send(struct socket_link_manager* linkManager,
     else
     {
         errno = (ENOTSUP);
-        return -1;
+        return GRACHT_MESSAGE_ERROR;
     }
 }
 

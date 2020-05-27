@@ -55,10 +55,10 @@
 #define GRACHT_AWAIT_ANY 0
 #define GRACHT_AWAIT_ALL 1
 
+#define GRACHT_MESSAGE_ERROR      -1
 #define GRACHT_MESSAGE_CREATED    0
 #define GRACHT_MESSAGE_INPROGRESS 1
 #define GRACHT_MESSAGE_COMPLETED  2
-#define GRACHT_MESSAGE_ERROR      3
 
 typedef struct gracht_object_header {
     int                          id;

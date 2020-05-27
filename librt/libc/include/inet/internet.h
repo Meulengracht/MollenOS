@@ -113,7 +113,7 @@ typedef	uint32_t in_addr_t;
 // ip4 address
 struct in_addr {
     in_addr_t s_addr; 
-}
+};
 
 // ip6 address
 struct in6_addr

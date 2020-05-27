@@ -174,7 +174,7 @@ WaitForHandleSet(
     _In_  size_t              timeout,
     _Out_ int*                numEventsOut)
 {
-    HandleSet_t* set   = LookupHandleOfType(handle, HandleTypeSet);
+    HandleSet_t* set = LookupHandleOfType(handle, HandleTypeSet);
     int          numberOfEvents;
     list_t       spliced;
     element_t*   i;

@@ -81,7 +81,11 @@ static int vali_link_send_packet(struct vali_link_manager* linkManager,
     }
     
     status = Syscall_IpcContextSend(&messagePointer, 1, 0);
-    return OsStatusToErrno(status);
+    if (status != OsSuccess) {
+        OsStatusToErrno(status);
+        return GRACHT_MESSAGE_ERROR;
+    }
+    return GRACHT_MESSAGE_COMPLETED;
 }
 
 static int vali_link_recv(struct client_link_ops* linkManager, void* messageBuffer,
