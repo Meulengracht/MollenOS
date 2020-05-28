@@ -495,20 +495,19 @@ Cleanup:
  * Ensures that the given record has the space neccessary for the required data. */
 OsStatus_t
 MfsEnsureRecordSpace(
-    _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ MfsEntry_t*                Entry,
-    _In_ uint64_t                   SpaceRequired)
+    _In_ FileSystemDescriptor_t* FileSystem, 
+    _In_ MfsEntry_t*             Entry,
+    _In_ uint64_t                SpaceRequired)
 {
-    MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    size_t              BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
     TRACE("MfsEnsureRecordSpace(%u)", LODWORD(SpaceRequired));
 
     if (SpaceRequired > Entry->AllocatedSize) {
         // Calculate the number of sectors, then number of buckets
-        size_t NumSectors = (size_t)(DIVUP((SpaceRequired - Entry->AllocatedSize),
-            FileSystem->Disk.Descriptor.SectorSize));
-        size_t NumBuckets = DIVUP(NumSectors, Mfs->SectorsPerBucket);
-        uint32_t BucketPointer, PreviousBucketPointer;
+        size_t      NumSectors = (size_t)(DIVUP((SpaceRequired - Entry->AllocatedSize), FileSystem->Disk.Descriptor.SectorSize));
+        size_t      NumBuckets = DIVUP(NumSectors, Mfs->SectorsPerBucket);
+        uint32_t    BucketPointer, PreviousBucketPointer;
         MapRecord_t Iterator, Link;
 
         // Perform the allocation of buckets
@@ -518,8 +517,8 @@ MfsEnsureRecordSpace(
         }
 
         // Now iterate to end
-        BucketPointer           = Entry->StartBucket;
-        PreviousBucketPointer   = MFS_ENDOFCHAIN;
+        BucketPointer         = Entry->StartBucket;
+        PreviousBucketPointer = MFS_ENDOFCHAIN;
         while (BucketPointer != MFS_ENDOFCHAIN) {
             PreviousBucketPointer = BucketPointer;
             if (MfsGetBucketLink(FileSystem, BucketPointer, &Iterator) != OsSuccess) {

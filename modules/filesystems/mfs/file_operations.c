@@ -30,20 +30,20 @@
 
 OsStatus_t
 FsReadFromFile(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MfsEntryHandle_t*         Handle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  void*                     Buffer,
-    _In_  size_t                    BufferOffset,
-    _In_  size_t                    UnitCount,
-    _Out_ size_t*                   UnitsRead)
+    _In_  FileSystemDescriptor_t* FileSystem,
+    _In_  MfsEntryHandle_t*       Handle,
+    _In_  UUId_t                  BufferHandle,
+    _In_  void*                   Buffer,
+    _In_  size_t                  BufferOffset,
+    _In_  size_t                  UnitCount,
+    _Out_ size_t*                 UnitsRead)
 {
-    MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    OsStatus_t       Result          = OsSuccess;
-    uint64_t         Position        = Handle->Base.Position;
-    size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t           BytesToRead     = UnitCount;
+    MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    MfsEntry_t*    Entry           = (MfsEntry_t*)Handle->Base.Entry;
+    OsStatus_t     Result          = OsSuccess;
+    uint64_t       Position        = Handle->Base.Position;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t         BytesToRead     = UnitCount;
 
     TRACE("[mfs] [read_file] id 0x%x, position %u, length %u",
         Handle->Base.Id, LODWORD(Handle->Base.Position), LODWORD(UnitCount));
@@ -53,12 +53,24 @@ FsReadFromFile(
 
     // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((Position + BytesToRead) > Entry->Base.Descriptor.Size.QuadPart) {
-        if (Position == Entry->Base.Descriptor.Size.QuadPart) {
+        if (Position >= Entry->Base.Descriptor.Size.QuadPart) {
             return OsSuccess;
         }
         BytesToRead = (size_t)(Entry->Base.Descriptor.Size.QuadPart - Position);
     }
 
+    if (Handle->DataBucketPosition == MFS_ENDOFCHAIN) {
+        // No buckets allocated for this file. Guard against this as there are two cases;
+        // Case 1 - Newly created file, return OsSuccess;
+        if (Entry->Base.Descriptor.Size.QuadPart == 0) {
+            return OsSuccess;
+        }
+        else {
+            // Read from integrated data
+            // TODO
+        }
+    }
+    
     // Debug counter values
     TRACE(" > dma: 0x%x, fpos %u, bytes-total %u, bytes-at %u", DataPointer, 
         LODWORD(Position), BytesToRead, *BytesAt);
@@ -66,8 +78,6 @@ FsReadFromFile(
     // Read the current sector, update index to where data starts
     // Keep reading consecutive after that untill all bytes requested have
     // been read
-
-    // Read in a loop to make sure we read all requested bytes
     while (BytesToRead) {
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
@@ -185,20 +195,20 @@ FsReadFromFile(
 
 OsStatus_t
 FsWriteToFile(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MfsEntryHandle_t*         Handle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  void*                     Buffer,
-    _In_  size_t                    BufferOffset,
-    _In_  size_t                    UnitCount,
-    _Out_ size_t*                   UnitsWritten)
+    _In_  FileSystemDescriptor_t* FileSystem,
+    _In_  MfsEntryHandle_t*       Handle,
+    _In_  UUId_t                  BufferHandle,
+    _In_  void*                   Buffer,
+    _In_  size_t                  BufferOffset,
+    _In_  size_t                  UnitCount,
+    _Out_ size_t*                 UnitsWritten)
 {
-    MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    OsStatus_t       Result          = OsSuccess;
-    uint64_t         Position        = Handle->Base.Position;
-    size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t           BytesToWrite    = UnitCount;
+    MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    MfsEntry_t*    Entry           = (MfsEntry_t*)Handle->Base.Entry;
+    OsStatus_t     Result          = OsSuccess;
+    uint64_t       Position        = Handle->Base.Position;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t         BytesToWrite    = UnitCount;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
         Handle->Base.Id, LODWORD(Position), UnitCount);
@@ -352,17 +362,12 @@ FsSeekInFile(
     _In_ MfsEntryHandle_t*       Handle,
     _In_ uint64_t                AbsolutePosition)
 {
-    MfsInstance_t*  Mfs                 = (MfsInstance_t*)FileSystem->ExtensionData;
-    MfsEntry_t*     Entry               = (MfsEntry_t*)Handle->Base.Entry;
-    size_t          InitialBucketMax    = 0;
-    int             ConstantLoop        = 1;
+    MfsInstance_t* Mfs              = (MfsInstance_t*)FileSystem->ExtensionData;
+    MfsEntry_t*    Entry            = (MfsEntry_t*)Handle->Base.Entry;
+    size_t         InitialBucketMax = 0;
+    int            ConstantLoop     = 1;
 
     TRACE("FsSeekInFile(Id 0x%x, Position 0x%x)", Handle->Base.Id, LODWORD(AbsolutePosition));
-
-    // Sanitize seeking bounds
-    if ((AbsolutePosition > Entry->Base.Descriptor.Size.QuadPart)) {
-        return OsInvalidParameters;
-    }
 
     // Step 1, if the new position is in
     // initial bucket, we need to do no actual seeking
@@ -379,8 +384,8 @@ FsSeekInFile(
         uint64_t OldBucketLow, OldBucketHigh;
 
         // Calculate bucket boundaries
-        OldBucketLow    = Handle->BucketByteBoundary;
-        OldBucketHigh   = OldBucketLow + (Handle->DataBucketLength 
+        OldBucketLow  = Handle->BucketByteBoundary;
+        OldBucketHigh = OldBucketLow + (Handle->DataBucketLength 
             * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
 
         // If we are seeking inside the same bucket no need
@@ -390,18 +395,20 @@ FsSeekInFile(
         }
         else {
             // We need to figure out which bucket the position is in
-            uint64_t PositionBoundLow   = 0;
-            uint64_t PositionBoundHigh  = InitialBucketMax;
+            uint64_t    PositionBoundLow  = 0;
+            uint64_t    PositionBoundHigh = InitialBucketMax;
             MapRecord_t Link;
 
             // Start at the file-bucket
-            uint32_t BucketPtr      = Entry->StartBucket;
-            uint32_t BucketLength   = Entry->StartLength;
+            uint32_t BucketPtr    = Entry->StartBucket;
+            uint32_t BucketLength = Entry->StartLength;
             while (ConstantLoop) {
                 // Check if we reached correct bucket
-                if (AbsolutePosition >= PositionBoundLow
-                    && AbsolutePosition < (PositionBoundLow + PositionBoundHigh)) {
-                    Handle->BucketByteBoundary = PositionBoundLow;
+                TRACE("[mfs] [seek] are we there yeti? [%llu-%llu]/%llu",
+                    PositionBoundLow, PositionBoundLow + PositionBoundHigh, AbsolutePosition);
+                
+                // Check termination conditions
+                if (AbsolutePosition >= PositionBoundLow && AbsolutePosition < (PositionBoundLow + PositionBoundHigh)) {
                     break;
                 }
 
@@ -411,11 +418,14 @@ FsSeekInFile(
                     return OsDeviceError;
                 }
 
-                // If we do reach end of chain, something went terribly wrong
+                // If we do reach end of chain, then we handle this case by setting
+                // the pointer to the wished destination, and store the last indices
                 if (Link.Link == MFS_ENDOFCHAIN) {
-                    ERROR("Reached end of chain during seek");
-                    return OsInvalidParameters;
+                    WARNING("[mfs] [seek] seeking beyond eof [%llu-%llu]/%llu",
+                        PositionBoundLow, PositionBoundLow + PositionBoundHigh, AbsolutePosition);
+                    break;
                 }
+                
                 BucketPtr = Link.Link;
 
                 // Get length of link
@@ -427,14 +437,13 @@ FsSeekInFile(
 
                 // Calculate bounds for the new bucket
                 PositionBoundLow += PositionBoundHigh;
-                PositionBoundHigh = (BucketLength * 
-                    (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+                PositionBoundHigh = (BucketLength * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
             }
 
-            // Update bucket pointer
-            if (BucketPtr != MFS_ENDOFCHAIN) {
-                Handle->DataBucketPosition = BucketPtr;
-            }
+            // Update handle positioning
+            Handle->DataBucketPosition = BucketPtr;
+            Handle->DataBucketLength   = BucketLength;
+            Handle->BucketByteBoundary = PositionBoundLow;
         }
     }
     
@@ -449,8 +458,8 @@ FsChangeFileSize(
     _In_ FileSystemEntry_t*      BaseEntry,
     _In_ uint64_t                Size)
 {
-    MfsEntry_t*         Entry   = (MfsEntry_t*)BaseEntry;
-    OsStatus_t    Code    = OsSuccess;
+    MfsEntry_t* Entry = (MfsEntry_t*)BaseEntry;
+    OsStatus_t  Code  = OsSuccess;
 
     TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(Entry->Base.Name), LODWORD(Size));
 

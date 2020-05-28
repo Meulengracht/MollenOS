@@ -20,7 +20,7 @@
  */
 
 #define __MODULE "syscall"
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <arch/utils.h>
