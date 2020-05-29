@@ -152,7 +152,7 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
     
     // Check for control event. On non-passive sockets, control event is the
     // disconnect event.
-    if (events & GRACHT_AIO_EVENT_CTRL) {
+    if (events & GRACHT_AIO_EVENT_DISCONNECT) {
         status = gracht_aio_remove(server_object.completion_iod, iod);
         if (status) {
             // TODO log
