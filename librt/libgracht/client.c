@@ -265,17 +265,14 @@ int gracht_client_wait_message(gracht_client_t* client, void* messageBuffer)
         return -1;
     }
     
-    status = client->ops->recv(client->ops, messageBuffer, 0, &message);
+    status = client->ops->recv(client->ops, messageBuffer, GRACHT_WAIT_BLOCK, &message);
     if (status) {
         return status;
     }
     
-    // iterate awaiters and mark those that contain this message
-    mtx_lock(&client->sync_object);
-    mark_awaiters(client, message->header.id);
-    mtx_unlock(&client->sync_object);
-    
     // if the message is not an event, then do not invoke any actions
+    TRACE("[gracht] [client] invoking message type %u - %u/%u",
+        message->header.flags, message->header.protocol, message->header.action);
     if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_EVENT) {
         return client_invoke_action(&client->protocols, message);
     }
@@ -292,6 +289,11 @@ int gracht_client_wait_message(gracht_client_t* client, void* messageBuffer)
         
         // set status
         descriptor->status = GRACHT_MESSAGE_COMPLETED;
+        
+        // iterate awaiters and mark those that contain this message
+        mtx_lock(&client->sync_object);
+        mark_awaiters(client, message->header.id);
+        mtx_unlock(&client->sync_object);
     }
     return 0;
 }

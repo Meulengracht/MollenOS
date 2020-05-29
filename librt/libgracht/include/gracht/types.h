@@ -60,6 +60,8 @@
 #define GRACHT_MESSAGE_INPROGRESS 1
 #define GRACHT_MESSAGE_COMPLETED  2
 
+#define GRACHT_WAIT_BLOCK 0x1
+
 typedef struct gracht_object_header {
     int                          id;
     struct gracht_object_header* link;

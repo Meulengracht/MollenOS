@@ -35,6 +35,10 @@
 #include <memoryspace.h>
 #include <threading.h>
 
+#define PAGE_FAULT_PRESENT 0x1
+#define PAGE_FAULT_WRITE   0x2
+#define PAGE_FAULT_USER    0x4
+
 extern OsStatus_t ThreadingFpuException(MCoreThread_t *Thread);
 extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, unsigned int*);
 extern reg_t __getcr2(void);
@@ -163,19 +167,30 @@ ExceptionEntry(
         Core    = GetCurrentProcessorCore();
 
         // Debug the error code
-        if (Registers->ErrorCode & 0x1) {
+        if (Registers->ErrorCode & PAGE_FAULT_PRESENT) {
             // Page access violation for a page that was present
-            unsigned int Attributes = GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address);
+            unsigned int attributes             = GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address);
+            int          invalidProtectionLevel = (Registers->ErrorCode & PAGE_FAULT_USER)
+                    && (attributes & MAPPING_USERSPACE) == 0;
             
-            if (Registers->ErrorCode & 0x2) {
+            if (invalidProtectionLevel) {
+                ERROR("%s: ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
+                    Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
+                    Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+                if (Registers->ErrorCode & PAGE_FAULT_USER) {
+                    SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+                    IssueFixed = 1;
+                }
+            }
+            else if (Registers->ErrorCode & PAGE_FAULT_WRITE) {
                 // Write access, so lets verify that write attributes are set, if they
                 // are not, then the thread tried to write to read-only memory
-                if (Attributes & MAPPING_READONLY) {
+                if (attributes & MAPPING_READONLY) {
                     // If it was a user-process, kill it, otherwise fall through to kernel crash
                     ERROR("%s: WRITE_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                         Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
                         Address, Registers->ErrorCode, CONTEXT_IP(Registers));
-                    if (Registers->ErrorCode & 0x4) {
+                    if (Registers->ErrorCode & PAGE_FAULT_USER) {
                         SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
                         IssueFixed = 1;
                     }
@@ -201,7 +216,7 @@ ExceptionEntry(
                 IssueFixed = 1;
             }
             else {
-                ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
+                ERROR("%s: ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                     Core->CurrentThread != NULL ? Core->CurrentThread->Name : "None", 
                     Address, Registers->ErrorCode, CONTEXT_IP(Registers));
                 if (Core) {

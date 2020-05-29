@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ipc.h>
+#include <ioctl.h>
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
 
@@ -108,8 +109,19 @@ OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
     return status1;
 }
 
-OsStatus_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+OsStatus_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
+    streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.buffer;
+
+    if (request == FIONREAD) {
+        int* bytesAvailableOut = va_arg(args, int*);
+        if (bytesAvailableOut) {
+            size_t bytesAvailable;
+            streambuffer_get_bytes_available_in(recvStream, &bytesAvailable);
+            *bytesAvailableOut = (int)bytesAvailable;
+        }
+        return OsSuccess;
+    }
     return OsNotSupported;
 }
 

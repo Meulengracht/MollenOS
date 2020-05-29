@@ -212,7 +212,7 @@ NetworkManagerSocketCreate(
     }
     
     // Add it to the handle set
-    event.events = IOEVTIN | IOEVTOUT;
+    event.events = IOEVTOUT;
     event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
     Status = notification_queue_ctrl(SocketSet, IOEVT_ADD,
         (UUId_t)(uintptr_t)Socket->Header.key, &event);

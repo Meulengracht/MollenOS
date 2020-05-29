@@ -19,7 +19,9 @@
  * MollenOS General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+
 //#define __TRACE
+#define CACHE_SEGMENTED
 
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
@@ -375,12 +377,14 @@ FsInitialize(
         LODWORD(Mfs->MasterRecord.MapSize));
 
     // Load map
-    Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
+    Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize);
     bMap           = (uint8_t*)Mfs->BucketMap;
     BytesLeft      = Mfs->MasterRecord.MapSize;
     BytesRead      = 0;
     i              = 0;
     imax           = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
+
+#ifdef CACHE_SEGMENTED
     while (BytesLeft) {
         uint64_t MapSector    = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
         size_t   TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
@@ -408,6 +412,39 @@ FsInitialize(
             WARNING("Cached %u/%u bytes of sector-map", LODWORD(BytesRead), LODWORD(Mfs->MasterRecord.MapSize));
         }
     }
+#else
+    struct dma_buffer_info mapInfo;
+    struct dma_attachment  mapAttachment;
+    uint64_t               mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
+    size_t                 sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
+        Descriptor->Disk.Descriptor.SectorSize);
+    
+    mapInfo.name     = "mfs_mapbuffer";
+    mapInfo.length   = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize;
+    mapInfo.capacity = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize;
+    mapInfo.flags    = DMA_PERSISTANT;
+    
+    Status = dma_export(bMap, &mapInfo, &mapAttachment);
+    if (Status != OsSuccess) {
+        ERROR("[mfs] [init] failed to export buffer for sector-map");
+        goto Error;
+    }
+
+    if (MfsReadSectors(Descriptor, mapAttachment.handle, 0, 
+            mapSector, sectorCount, &SectorsTransferred) != OsSuccess) {
+        ERROR("[mfs] [init] failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
+        goto Error;
+    }
+    
+    if (SectorsTransferred != sectorCount) {
+        ERROR("[mfs] [init] read %u sectors instead of %u from sector %u", 
+            LODWORD(SectorsTransferred), LODWORD(sectorCount), LODWORD(mapSector));
+        goto Error;
+    }
+
+    dma_detach(&mapAttachment);
+#endif
+    
     FsInitializeRootRecord(Mfs);
     return OsSuccess;
 

@@ -165,6 +165,7 @@ HandleSocketStreamData(
         if (DoRead) {
             BytesRead = streambuffer_stream_in(SourceStream, &TemporaryBuffer[0], 
                 sizeof(TemporaryBuffer), STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
+            TRACE("[socket] [local] [send_stream] read %" PRIuIN " bytes from source", BytesRead);
             if (!BytesRead) {
                 // This can happen if the first event or last event got out of sync
                 // we handle this by ignoring the event and just returning. Do not mark
@@ -176,9 +177,11 @@ HandleSocketStreamData(
         
         BytesWritten = streambuffer_stream_out(TargetStream, &TemporaryBuffer[0], 
             BytesRead, STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
+        TRACE("[socket] [local] [send_stream] wrote %" PRIuIN " bytes to target", BytesWritten);
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
+                handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
                 return OsOutOfMemory;
             }
             

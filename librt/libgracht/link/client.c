@@ -44,7 +44,7 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
         .msg_name = NULL,
         .msg_namelen = 0,
         .msg_iov = &iov[0],
-        .msg_iovlen = 1 + message->header.param_in,
+        .msg_iovlen = 1,
         .msg_control = NULL,
         .msg_controllen = 0,
         .msg_flags = 0
@@ -57,12 +57,10 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
-        iov[1 + i].iov_len   = message->params[i].length;
-        if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
-        }
-        else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[1 + i].iov_base = message->params[i].data.buffer;
+        if (message->params[i].type == GRACHT_PARAM_BUFFER) {
+            iov[msg.msg_iovlen].iov_len  = message->params[i].length;
+            iov[msg.msg_iovlen].iov_base = message->params[i].data.buffer;
+            msg.msg_iovlen++;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
@@ -127,7 +125,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager, stru
         .msg_name = NULL,
         .msg_namelen = 0, /* client only: already connected on socket */
         .msg_iov = &iov[0],
-        .msg_iovlen = 1 + message->header.param_in,
+        .msg_iovlen = 1,
         .msg_control = NULL,
         .msg_controllen = 0,
         .msg_flags = 0
@@ -143,12 +141,10 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager, stru
     
     // Prepare the parameters
     for (i = 0; i < message->header.param_in; i++) {
-        iov[1 + i].iov_len = message->params[i].length;
-        if (message->params[i].type == GRACHT_PARAM_VALUE) {
-            iov[1 + i].iov_base = (void*)&message->params[i].data.value;
-        }
-        else if (message->params[i].type == GRACHT_PARAM_BUFFER) {
-            iov[1 + i].iov_base = message->params[i].data.buffer;
+        if (message->params[i].type == GRACHT_PARAM_BUFFER) {
+            iov[msg.msg_iovlen].iov_len  = message->params[i].length;
+            iov[msg.msg_iovlen].iov_base = message->params[i].data.buffer;
+            msg.msg_iovlen++;
         }
         else if (message->params[i].type == GRACHT_PARAM_SHM) {
             // NO SUPPORT
@@ -227,11 +223,17 @@ static int socket_link_connect(struct socket_link_manager* linkManager)
 static int socket_link_recv(struct socket_link_manager* linkManager,
     void* messageBuffer, unsigned int flags, struct gracht_message** messageOut)
 {
+    unsigned int convertedFlags = 0;
+    
+    if (flags & GRACHT_WAIT_BLOCK) {
+        convertedFlags |= MSG_WAITALL;
+    }
+    
     if (linkManager->config.type == gracht_link_stream_based) {
-        return socket_link_recv_stream(linkManager, messageBuffer, flags, messageOut);
+        return socket_link_recv_stream(linkManager, messageBuffer, convertedFlags, messageOut);
     }
     else if (linkManager->config.type == gracht_link_packet_based) {
-        return socket_link_recv_packet(linkManager, messageBuffer, flags, messageOut);
+        return socket_link_recv_packet(linkManager, messageBuffer, convertedFlags, messageOut);
     }
     
     errno = (ENOTSUP);

@@ -45,6 +45,8 @@
  * of the full amount requested.
  */
 
+//#define __TRACE
+
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
@@ -83,8 +85,9 @@ static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, 
     
     for (i = 0; i < msg->msg_iovlen; i++) {
         struct iovec* iov = &msg->msg_iov[i];
-        numbytes += streambuffer_stream_in(stream, 
-            iov->iov_base, iov->iov_len, sb_options);
+        TRACE("[libc] [socket] [recv] reading %" PRIuIN "bytes", iov->iov_len);
+        numbytes += streambuffer_stream_in(stream, iov->iov_base, iov->iov_len, sb_options);
+        TRACE("[libc] [socket] [recv] read %i bytes", numbytes);
         if (numbytes < iov->iov_len) {
             if (!(flags & MSG_DONTWAIT)) {
                 _set_errno(EPIPE);

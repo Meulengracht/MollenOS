@@ -38,13 +38,13 @@ int main(int argc, char **argv)
     int                                code, status;
     struct gracht_message_context      context;
     
-    linkConfiguration.type = gracht_link_packet_based;
-    gracht_os_get_server_packet_address(&linkConfiguration.address, &linkConfiguration.address_length);
+    //linkConfiguration.type = gracht_link_packet_based;
+    //gracht_os_get_server_packet_address(&linkConfiguration.address, &linkConfiguration.address_length);
     
-    //linkConfiguration.type = gracht_link_stream_based;
-    //gracht_os_get_server_client_address(&linkConfiguration.address, &linkConfiguration.address_length);
+    linkConfiguration.type = gracht_link_stream_based;
+    gracht_os_get_server_client_address(&linkConfiguration.address, &linkConfiguration.address_length);
+    
     gracht_link_socket_client_create(&clientConfiguration.link, &linkConfiguration);
-    
     code = gracht_client_create(&clientConfiguration, &client);
     if (code) {
         return code;

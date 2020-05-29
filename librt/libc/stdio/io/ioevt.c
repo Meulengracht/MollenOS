@@ -21,7 +21,10 @@
  * io descriptors. If they are not supported errno is set to ENOTSUPP
  */
 
+//#define __TRACE
+
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ioevt.h>
@@ -129,6 +132,8 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
     OsStatus_t          status;
     int                 i = 0;
     
+    TRACE("[ioevt] [wait] %i, %i", evt_iod, max_events);
+    
     if (!evtObject) {
         _set_errno(EBADF);
         return -1;
@@ -136,9 +141,12 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
     
     entry = evtObject->object.data.ioevt.entries;
     while (entry && i < max_events) {
+        TRACE("[ioevt] [wait] %i = 0x%x", entry->iod, entry->event.events);
         if ((entry->event.events & (IOEVTIN | IOEVTLVT)) == (IOEVTIN | IOEVTLVT)) {
             int bytesAvailable = 0;
-            ioctl(entry->iod, FIONREAD, &bytesAvailable);
+            int result         = ioctl(entry->iod, FIONREAD, &bytesAvailable);
+            TRACE("[ioevt] [wait] %i = %i bytes available [%i]",
+                entry->iod, bytesAvailable, result);
             if (bytesAvailable) {
                 events[i].events = IOEVTIN;
                 events[i].data   = entry->event.data;

@@ -129,18 +129,27 @@ ControlHandleSet(
     HandleSet_t*        set = LookupHandleOfType(setHandle, HandleTypeSet);
     HandleSetElement_t* setElement;
     OsStatus_t          status;
-    TRACE("[handle_set] [control] %u, %i, %u, 0x%x", 
-        setHandle, operation, handle, event->events);
+    TRACE("[handle_set] [control] %u, %i, %u", setHandle, operation, handle);
     
     if (!set) {
         return OsDoesNotExist;
     }
     
     if (operation == IOEVT_ADD) {
+        if (!event) {
+            return OsInvalidParameters;
+        }
+        
         status = AddHandleToSet(set, handle, event);
     }
     else if (operation == IOEVT_MOD) {
-        rb_leaf_t* leaf = rb_tree_lookup(&set->Handles, VOID_KEY(handle));
+        rb_leaf_t* leaf;
+        
+        if (!event) {
+            return OsInvalidParameters;
+        }
+        
+        leaf = rb_tree_lookup(&set->Handles, VOID_KEY(handle));
         if (!leaf) {
             return OsDoesNotExist;
         }
