@@ -32,8 +32,8 @@
 #include <io.h>
 
 typedef struct ioevt_event gracht_aio_event_t;
-#define GRACHT_AIO_EVENT_IN   IOEVTIN
-#define GRACHT_AIO_EVENT_CTRL IOEVTCTL
+#define GRACHT_AIO_EVENT_IN         IOEVTIN
+#define GRACHT_AIO_EVENT_DISCONNECT IOEVTCTL
 
 #define gracht_aio_create()                ioevt(0)
 #define gracht_io_wait(aio, events, count) ioevt_wait(aio, events, count, 0)
@@ -42,7 +42,7 @@ typedef struct ioevt_event gracht_aio_event_t;
 
 static int gracht_aio_add(int aio, int iod) {
     struct ioevt_event event = {
-        .events = IOEVTIN | IOEVTCTL,
+        .events = IOEVTIN | IOEVTCTL | IOEVTLVT,
         .data.iod = iod
     };
     return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
@@ -57,8 +57,8 @@ static int gracht_aio_add(int aio, int iod) {
 #include <sys/socket.h>
 
 typedef struct epoll_event gracht_aio_event_t;
-#define GRACHT_AIO_EVENT_IN   EPOLLIN
-#define GRACHT_AIO_EVENT_CTRL EPOLLRDHUP
+#define GRACHT_AIO_EVENT_IN         EPOLLIN
+#define GRACHT_AIO_EVENT_DISCONNECT EPOLLRDHUP
 
 #define gracht_aio_create()                epoll_create1(0)
 #define gracht_io_wait(aio, events, count) epoll_wait(aio, events, count, -1);
