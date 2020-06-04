@@ -13,7 +13,7 @@
     <protocols namespace="ctt">
         <protocol name="driver" id="0x10">
             <functions>
-                <function name="register_device" async="async">
+                <function name="register_device">
                     <request>
                         <param name="device" type="buffer" />
                     </request>
@@ -31,7 +31,7 @@
                         <param name="descriptor" type="buffer" subtype="StorageDescriptor_t" />
                     </response>
                 </function>
-                <function name="transfer_async" async="async">
+                <function name="transfer_async">
                     <request>
                         <param name="device_id" type="UUId_t" />
                         <param name="direction" type="int" />
@@ -69,7 +69,7 @@
         </protocol>
         <protocol name="usbhost" id="0x12">
             <functions>
-                <function name="queue_async" async="async">
+                <function name="queue_async">
                     <request>
                         <param name="process_id" type="UUId_t" />
                         <param name="device_id" type="UUId_t" />
