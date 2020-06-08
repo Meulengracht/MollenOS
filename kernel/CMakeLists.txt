@@ -41,13 +41,16 @@ add_executable (vali-core
 	components/cpu.c
 	components/domain.c
 	components/ic.c
-	components/memory.c
 
+	# Memory
+	memory/heap.c
+	memory/memory_region.c
+	memory/memory_space.c
+    
 	# Modules
 	modules/manager.c
 	modules/module.c
 	modules/ramdisk.c
-	modules/signal.c
 
 	# Output
 	output/fonts/font6x12.c
@@ -55,46 +58,48 @@ add_executable (vali-core
 	output/console.c
 	output/log.c
 
-	# Synchronization
-	synchronization/mutex.c
-	synchronization/semaphore.c
+	# Scheduling
+	scheduling/futex.c
+	scheduling/ipc_context.c
+	scheduling/irq_spinlock.c
+	scheduling/mutex.c
+	scheduling/scheduler.c
+	scheduling/semaphore.c
+	scheduling/signal.c
+	scheduling/threading.c
 
 	# System calls
 	system_calls/driver_calls.c
-	system_calls/ipc_calls.c
+	system_calls/entry.c
 	system_calls/memory_calls.c
 	system_calls/module_calls.c
 	system_calls/ossupport_calls.c
 	system_calls/sharedobject_calls.c
 	system_calls/synchonization_calls.c
 	system_calls/system_calls.c
-	system_calls/table.c
 	system_calls/thread_calls.c
 
 	# Tests
-	tests/data_structures_tests.c
-	tests/synchronization_tests.c
-	tests/test_manager.c
+    tests/test_manager.c
+    
+	# Utils
+	utils/crc32.c
+	utils/dynamic_memory_pool.c
+	utils/static_memory_pool.c
 
 	# Systems
-	crc32.c
 	debug.c
 	deviceio.c
-	garbagecollector.c
 	handle.c
-	heap.c
+	handle_set.c
 	interrupts.c
+	interrupts_handlers.c
 	interrupts_table.c
 	machine.c
-	memorybuffer.c
-	memoryspace.c
-	pipe.c
-	scheduler.c
-	threading.c
 	time.c)
 set_target_properties (
 	vali-core
 	PROPERTIES
 		OUTPUT_NAME "syskrnl"
 		SUFFIX ".mos")
-target_link_libraries (vali-core ${VALI_PLATFORM}.lib)
+target_link_libraries (vali-core vali-${VALI_PLATFORM}.lib)
