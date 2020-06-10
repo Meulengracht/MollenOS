@@ -51,6 +51,7 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \
 			$(wildcard stdio/file/*.c) \
+			$(wildcard stdio/pipe/*.c) \
 			$(wildcard stdio/inet/*.c) \
 			$(wildcard stdio/inet/domains/*.c) \
 			$(wildcard stdio/io/*.c) \

@@ -18,6 +18,7 @@
  *
  * CRT Functions 
  */
+
 //#define __TRACE
 
 #include <internal/_syscalls.h>
@@ -135,31 +136,6 @@ __cxa_exithandlers(
     tls_destroy(tls_current());
 }
 
-/* __cxa_runinitializers 
- * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(
-    _In_ ProcessStartupInformation_t* processInformation,
-    _In_ void (*module_init)(void), 
-    _In_ void (*module_cleanup)(void),
-    _In_ void (*module_thread_init)(void),
-    _In_ void (*module_thread_finit)(void)))
-{
-    TRACE("__cxa_runinitializers()");
-    fpreset();
-    
-    ModuleEntries = (uintptr_t*)processInformation->LibraryEntries;
-    ModuleCount   = processInformation->LibraryEntriesLength / sizeof(uintptr_t);
-    for (int i = 0; i < ModuleCount; i++) {
-        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_INITIALIZE);
-    }
-
-    // Run callers initializer
-    module_init();
-    __cxa_primary_cleanup          = module_cleanup;
-    __cxa_primary_tls_thread_init  = module_thread_init;
-    __cxa_primary_tls_thread_finit = module_thread_finit;
-}
-
 /* __cxa_threadinitialize
  * Initializes thread storage runtime for all loaded modules */
 CRTDECL(void, __cxa_threadinitialize(void))
@@ -229,4 +205,34 @@ CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dso_symb
     TRACE("__cxa_thread_at_quick_exit_impl()");
     tls_atexit_quick(thrd_current(), dtor, NULL, dso_symbol);
     return 0;
+}
+
+/* __cxa_runinitializers 
+ * C++ Initializes library C++ runtime for all loaded modules */
+CRTDECL(void, __cxa_runinitializers(
+    _In_ ProcessStartupInformation_t* processInformation,
+    _In_ void (*module_init)(void), 
+    _In_ void (*module_cleanup)(void),
+    _In_ void (*module_thread_init)(void),
+    _In_ void (*module_thread_finit)(void)))
+{
+    TRACE("[__cxa_runinitializers] info 0x%" PRIxIN, processInformation);
+    fpreset();
+    
+    __cxa_primary_cleanup          = module_cleanup;
+    __cxa_primary_tls_thread_init  = module_thread_init;
+    __cxa_primary_tls_thread_finit = module_thread_finit;
+    
+    ModuleEntries = (uintptr_t*)processInformation->LibraryEntries;
+    ModuleCount   = processInformation->LibraryEntriesLength / sizeof(uintptr_t);
+    
+    TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, ModuleCount, ModuleEntries);
+    for (int i = 0; i < ModuleCount; i++) {
+        TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, ModuleEntries[i]);
+        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_INITIALIZE);
+    }
+
+    // Run global and primary thread setup for process
+    TRACE("[__cxa_runinitializers] init primary module");
+    module_init();
 }

@@ -22,6 +22,7 @@
 
 //#define __TRACE
 
+#include <assert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
@@ -68,12 +69,14 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
             &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
             &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
-            &__CrtStartupBuffer[0]);
+            &__CrtStartupBuffer[0] /*, sizeof(__CrtStartupBuffer) */);
         
         TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
             StartupInformation->ArgumentsLength,
             StartupInformation->InheritationLength,
             StartupInformation->LibraryEntriesLength);
+        assert((StartupInformation->ArgumentsLength + StartupInformation->InheritationLength + 
+            StartupInformation->LibraryEntriesLength) < sizeof(__CrtStartupBuffer))
         
         // fixup pointers
         StartupInformation->Arguments = &__CrtStartupBuffer[0];

@@ -19,6 +19,7 @@
  * COFF/PE Image Support
  *   - Implements CRT routines and sections neccessary for proper running PE/COFF images.
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>

@@ -147,7 +147,7 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
             int result         = ioctl(entry->iod, FIONREAD, &bytesAvailable);
             TRACE("[ioevt] [wait] %i = %i bytes available [%i]",
                 entry->iod, bytesAvailable, result);
-            if (bytesAvailable) {
+            if (!result && bytesAvailable) {
                 events[i].events = IOEVTIN;
                 events[i].data   = entry->event.data;
                 i++;

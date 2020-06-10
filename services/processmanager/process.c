@@ -315,7 +315,7 @@ CreateProcess(
     Process_t*         Process;
     MString_t*         PathAsMString;
     size_t             PathLength;
-    size_t             ArgumentsLength;
+    size_t             ArgumentsLength = 0;
     size_t             InheritationBlockLength;
     char*              ArgumentsPointer;
     int                Index;
@@ -326,7 +326,10 @@ CreateProcess(
     assert(HandleOut != NULL);
     TRACE("[process] [spawn] path %s, args %s", Path, Arguments);
     
-    ArgumentsLength = Arguments ? strlen(Arguments) : 0;
+    // include zero terminator
+    if (Arguments) {
+        ArgumentsLength = strlen(Arguments) + 1;
+    }
 
     Process = (Process_t*)malloc(sizeof(Process_t));
     if (!Process) {
@@ -379,11 +382,18 @@ CreateProcess(
         return OsOutOfMemory;
     }
     
+    // Build the argument string, remember to null terminate.
     memcpy(&ArgumentsPointer[0], (const void*)MStringRaw(Process->Path), PathLength);
-    ArgumentsPointer[PathLength] = ' ';
-    if (Arguments != NULL && ArgumentsLength != 0) {
+    if (ArgumentsLength != 0) {
+        ArgumentsPointer[PathLength] = ' ';
+        
+        // ArgumentsLength includes zero termination, so no need to set explict
         memcpy(&ArgumentsPointer[PathLength + 1], (void*)Arguments, ArgumentsLength);
     }
+    else {
+        ArgumentsPointer[PathLength] = '\0';
+    }
+    
     Process->Arguments       = (const char*)ArgumentsPointer;
     Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
 

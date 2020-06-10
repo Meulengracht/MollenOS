@@ -57,7 +57,7 @@ int pipe(long size, int flags)
         return status;
     }
 
-    stdio_handle_set_handle(ioObject, handle);
+    stdio_handle_set_handle(ioObject, attachment.handle);
     stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_PIPE);
     
     memcpy(&ioObject->object.data.pipe.attachment, &attachment,

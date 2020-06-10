@@ -22,7 +22,7 @@
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
-#define __TRACE
+//#define __TRACE
 
 #include "domains.h"
 #include "../socket.h"

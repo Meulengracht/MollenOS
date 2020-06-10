@@ -41,27 +41,27 @@ CRTDECL(void,        __cxa_runinitializers(ProcessStartupInformation_t*,
 CRTDECL(void,        InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
 CRTDECL(const char*, GetInternalCommandLine(void));
 
-/* Unescape Quotes in arguments */
 void
 UnEscapeQuotes(
-    _InOut_ char *Arg)
+    _InOut_ char* string)
 {
-	char *LastChar = NULL;
+	char* lastCharacter = NULL;
 
-	while (*Arg) {
-		if (*Arg == '"' && (LastChar != NULL && *LastChar == '\\')) {
-			char *CurrChar = Arg;
-			char *CurrLast = LastChar;
+	while (*string) {
+		if (*string == '"' && (lastCharacter != NULL && *lastCharacter == '\\')) {
+			char* currentCharacter     = string;
+			char* currentLastCharacter = lastCharacter;
 
-			while (*CurrChar) {
-				*CurrLast = *CurrChar;
-				CurrLast = CurrChar;
-				CurrChar++;
+			while (*currentCharacter) {
+				*currentLastCharacter = *currentCharacter;
+				currentLastCharacter = currentCharacter;
+				currentCharacter++;
 			}
-			*CurrLast = '\0';
+			*currentLastCharacter = '\0';
 		}
-		LastChar = Arg;
-		Arg++;
+		
+		lastCharacter = string;
+		string++;
 	}
 }
 
@@ -69,8 +69,8 @@ UnEscapeQuotes(
  * If called with NULL in argv, it simply counts */
 int
 ParseCommandLine(
-    _In_ char *CmdLine,
-    _In_ char **ArgBuffer)
+    _In_ char*  CmdLine,
+    _In_ char** ArgBuffer)
 {
 	char *BufPtr;
 	char *lastp = NULL;
@@ -165,3 +165,28 @@ __CrtInitialize(
         __cxa_module_tls_thread_init, __cxa_module_tls_thread_finit);
     return Arguments;
 }
+
+#if 0
+int main()
+{
+    string cmdLine;
+    
+    cout << "please enter command line: ";
+    getline (cin, cmdLine);
+    
+    char*  cCmdLine      = (char*)malloc(strlen(cmdLine.c_str()) + 1);
+    memcpy(cCmdLine, cmdLine.c_str(), strlen(cmdLine.c_str()));
+    cCmdLine[strlen(cmdLine.c_str())] = '\0';
+    
+    int    ArgumentCount = ParseCommandLine(cCmdLine, NULL);
+    char** Arguments     = (char**)calloc(sizeof(char*), ArgumentCount + 1);
+    
+    ParseCommandLine(cCmdLine, Arguments);
+    
+    for (int i = 0; i < ArgumentCount; i++) {
+        cout << Arguments[i] << endl;
+    }
+
+    return 0;
+}
+#endif

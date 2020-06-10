@@ -22,6 +22,8 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
+//#define __TRACE
+
 #include <ds/ds.h>
 #include <ds/list.h>
 #include <os/mollenos.h>
@@ -35,9 +37,6 @@
 #define dstrace(...)
 #endif
 
-/* PeResolveLibrary
- * Resolves a dependancy or a given module path, a load address must be provided
- * together with a pe-file header to fill out and the parent that wants to resolve the library */
 PeExecutable_t*
 PeResolveLibrary(
     _In_    PeExecutable_t* Parent,
@@ -48,7 +47,7 @@ PeResolveLibrary(
     PeExecutable_t* Exports      = NULL;
     OsStatus_t Status;
 
-    dstrace("PeResolveLibrary(Name %s)", MStringRaw(LibraryName));
+    //dstrace("PeResolveLibrary(Name %s)", MStringRaw(LibraryName));
     if (ExportParent == NULL) {
         ExportParent = Image;
     }
@@ -147,6 +146,9 @@ PeGetModuleEntryPoints(
     if (executable->Libraries != NULL) {
         foreach(i, executable->Libraries) {
             PeExecutable_t *Library = i->value;
+            
+            dstrace("[pe] [get_modules] %i: library %s => 0x%" PRIxIN,
+                index, MStringRaw(Library->Name), Library->EntryAddress);
             if (Library->EntryAddress != 0) {
                 moduleList[index++] = (Handle_t)Library->EntryAddress;
             }
