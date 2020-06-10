@@ -10,16 +10,20 @@ set (VALI_PATH_DEPLOY ${CMAKE_BINARY_DIR}/deploy)
 set (VALI_PATH_INITRD ${CMAKE_BINARY_DIR}/initrd)
 set (VALI_PROJECTS "")
 
+set (ENV{VALI_ARCH} ${VALI_ARCH})
+
 # Create neccessary directories
 file(MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
 file(MAKE_DIRECTORY ${VALI_PATH_INITRD})
 
-if(CMAKE_CROSSCOMPILING)
+if (CMAKE_CROSSCOMPILING)
     set (VALI_WORKDIR "${CMAKE_BINARY_DIR}/host")
     file(MAKE_DIRECTORY ${VALI_WORKDIR})
 else()
     set (VALI_WORKDIR "${CMAKE_BINARY_DIR}")
 endif()
+
+message(STATUS "early build status: ${VALI_EARLY_BUILD}")
 
 # Add native tools needed to build the final image
 if (VALI_EARLY_BUILD)
@@ -27,16 +31,11 @@ if (VALI_EARLY_BUILD)
     return()
 endif()
 
-include(cmake/SetupEnvironment.cmake)
-project(Vali)
-
 # Run early build initialization that require host compiler
 execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}"
                         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                        -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
                         -DVALI_EARLY_BUILD=ON
-                        -DVALI_CROSS_TOOLS=${VALI_CROSS_TOOLS}
-                        -DVALI_PLATFORM=${VALI_PLATFORM}
+                        -DCMAKE_SYSTEM_NAME=${CMAKE_HOST_SYSTEM_NAME}
                         ${CMAKE_SOURCE_DIR}
                WORKING_DIRECTORY "${VALI_WORKDIR}")
 
@@ -46,6 +45,10 @@ execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}"
 # specified CMAKE_BUILD_TYPE above.
 execute_process (COMMAND ${CMAKE_COMMAND} --build . --target tools
                 WORKING_DIRECTORY "${VALI_WORKDIR}")
+
+# Now that we have invoked the other commands we can setup this environment
+include(cmake/SetupEnvironment.cmake)
+project(Vali)
 
 # Add the tools project again so we can access it
 add_subdirectory (tools)

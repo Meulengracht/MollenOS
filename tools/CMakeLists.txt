@@ -1,4 +1,5 @@
 # Configuration
+project(vali-tools)
 enable_language (C)
 
 # Configure compilation options

@@ -2,10 +2,6 @@
 project (Vali-Kernel)
 enable_language (C)
 
-if (NOT DEFINED VALI_CROSS_TOOLS)
-    message (FATAL_ERROR "You must define VALI_CROSS_TOOLS to point to a clang cross compiler")
-endif ()
-
 # Configure options
 option (VALI_KERNEL_TRACE "Enable debug tracing in the kernel" ON)
 option (VALI_SMP "Enable multicore support in the kernel" ON)
