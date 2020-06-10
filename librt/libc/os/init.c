@@ -76,7 +76,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             StartupInformation->InheritationLength,
             StartupInformation->LibraryEntriesLength);
         assert((StartupInformation->ArgumentsLength + StartupInformation->InheritationLength + 
-            StartupInformation->LibraryEntriesLength) < sizeof(__CrtStartupBuffer))
+            StartupInformation->LibraryEntriesLength) < sizeof(__CrtStartupBuffer));
         
         // fixup pointers
         StartupInformation->Arguments = &__CrtStartupBuffer[0];

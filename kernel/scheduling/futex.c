@@ -239,7 +239,6 @@ FutexWait(
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
     IntStatus_t                 CpuState;
-    int                         Result;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -282,17 +281,18 @@ FutexWait(
         }
     }
     
-    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
-    Result = atomic_load(Futex);
-    if (Result != ExpectedValue) {
+    (void)atomic_fetch_add(&FutexItem->Waiters, 1);
+    if (atomic_load(Futex) != ExpectedValue) {
+        (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
         InterruptRestoreState(CpuState);
-        return OsError;
+        return OsInterrupted;
     }
+    
     SchedulerBlock(&FutexItem->BlockQueue, Timeout);
     InterruptRestoreState(CpuState);
     ThreadingYield();
 
-    Result = atomic_fetch_sub(&FutexItem->Waiters, 1);
+    (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", GetCurrentThreadId());
     return SchedulerGetTimeoutReason();
 }
@@ -312,7 +312,6 @@ FutexWaitOperation(
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
     IntStatus_t                 CpuState;
-    int                         Result;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -355,19 +354,20 @@ FutexWaitOperation(
         }
     }
     
-    Result = atomic_fetch_add(&FutexItem->Waiters, 1);
-    Result = atomic_load(Futex);
-    if (Result != ExpectedValue) {
+    (void)atomic_fetch_add(&FutexItem->Waiters, 1);
+    if (atomic_load(Futex) != ExpectedValue) {
+        (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
         InterruptRestoreState(CpuState);
-        return OsError;
+        return OsInterrupted;
     }
+    
     SchedulerBlock(&FutexItem->BlockQueue, Timeout);
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
     InterruptRestoreState(CpuState);
     ThreadingYield();
     
-    Result = atomic_fetch_sub(&FutexItem->Waiters, 1);
+    (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", GetCurrentThreadId());
     return SchedulerGetTimeoutReason();
 }

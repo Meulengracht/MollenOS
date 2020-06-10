@@ -121,8 +121,8 @@ SocketMonitor(
     while (RunForever) {
         Status = notification_queue_wait(SocketSet, Events,
             NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
-        if (Status != OsSuccess) {
-            ERROR("[socket_monitor] WaitForHandleSet FAILED: %u", Status);
+        if (Status != OsSuccess && Status != OsInterrupted) {
+            ERROR("[socket_monitor] notification_queue_wait FAILED: %u", Status);
             continue;
         }
         
