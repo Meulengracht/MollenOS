@@ -1,5 +1,5 @@
 # Project setup
-project (Vali-Kernel)
+project (ValiKernel)
 enable_language (C)
 
 # Configure options
@@ -18,7 +18,15 @@ else ()
 endif ()
 
 # Configure include paths
-include_directories (../librt/include ../librt/libc/include ../librt/libds/include ../librt/libddk/include ../librt/libacpi/include include)
+include_directories (
+    ../librt/include
+    ../librt/libc/include
+    ../librt/libds/include
+    ../librt/libddk/include
+    ../librt/libgracht/include
+    ../librt/libacpi/source/include
+    arch/include
+    include)
 
 # Configure source files
 add_executable (vali-core

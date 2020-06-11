@@ -35,7 +35,6 @@ endif()
 execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}"
                         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                         -DVALI_EARLY_BUILD=ON
-                        -DCMAKE_SYSTEM_NAME=${CMAKE_HOST_SYSTEM_NAME}
                         ${CMAKE_SOURCE_DIR}
                WORKING_DIRECTORY "${VALI_WORKDIR}")
 
@@ -43,15 +42,13 @@ execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}"
 # because we cannot know what config the developer will be using
 # at this point. For non-multi-config generators, we've already
 # specified CMAKE_BUILD_TYPE above.
-execute_process (COMMAND ${CMAKE_COMMAND} --build . --target tools
+execute_process (COMMAND ${CMAKE_COMMAND} --build . --target all
                 WORKING_DIRECTORY "${VALI_WORKDIR}")
 
-# Now that we have invoked the other commands we can setup this environment
-include(cmake/SetupEnvironment.cmake)
-project(Vali)
 
-# Add the tools project again so we can access it
-add_subdirectory (tools)
+# Setup local compilation
+include (cmake/ClangToolchain.cmake)
+project (ValiOS)
 
 # define the tools to be used in child projects
 if (MSVC)
@@ -72,10 +69,8 @@ set (REVISION_EXECUTABLE "${VALI_WORKDIR}/tools/${REVISION_SUFFIX}")
 set (RD_EXECUTABLE "${VALI_WORKDIR}/tools/${RD_SUFFIX}")
 set (LZSS_EXECUTABLE "${VALI_WORKDIR}/tools/${LZSS_SUFFIX}")
 
-# Configure compilation
-include (cmake/${VALI_PLATFORM}PlatformConfig.cmake)
-
 # Configure projects that are specified
+include (cmake/${VALI_PLATFORM}PlatformConfig.cmake)
 foreach (proj in ${VALI_PROJECTS})
     message (STATUS "${proj}")
 	if ("${proj}" MATCHES ".txt$")

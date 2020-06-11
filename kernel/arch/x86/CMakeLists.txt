@@ -1,5 +1,5 @@
 # Project setup
-project (Vali-Platform-X86)
+project (ValiPlatform-X86)
 enable_language (ASM_NASM)
 enable_language (C)
 
@@ -14,13 +14,16 @@ else ()
     add_subdirectory(x64)
 endif ()
 
+# Copy config file
+configure_file(arch.h arch.h COPYONLY)
+
 # Configure include paths
 include_directories (
         ../../../librt/include
         ../../../librt/libc/include
         ../../../librt/libds/include
         ../../../librt/libddk/include
-        ../../../librt/libacpi/include
+        ../../../librt/libacpi/source/include
         ../../include)
 
 # Add support for .S extension
