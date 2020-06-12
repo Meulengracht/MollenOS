@@ -1,5 +1,5 @@
 # Project setup
-project (ValiPlatform-i386)
+project (ValiPlatform-amd64)
 enable_language (ASM_NASM)
 enable_language (C)
 
@@ -23,7 +23,7 @@ include_directories (
 # Add support for .S extension
 set_source_files_properties(min.S PROPERTIES LANGUAGE ASM_NASM)
 
-add_library(vali-i386
+add_library(vali-amd64
         _descriptors.s
         _irq.s
         _thread.s
@@ -36,4 +36,4 @@ add_library(vali-i386
         memory/vmem_api.c
         memory/vmem_boot.c
 )
-install(TARGETS vali-i386 LIBRARY DESTINATION lib)
+install(TARGETS vali-amd64 LIBRARY DESTINATION lib)

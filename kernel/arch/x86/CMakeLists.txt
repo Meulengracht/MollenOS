@@ -6,30 +6,35 @@ enable_language (C)
 set (CMAKE_ASM_NASM_COMPILE_OBJECT "<CMAKE_ASM_NASM_COMPILER> <INCLUDES> \
     <FLAGS> -f ${CMAKE_ASM_NASM_OBJECT_FORMAT} -o <OBJECT> <SOURCE>")
 set (CMAKE_ASM_NASM_OBJECT_FORMAT bin)
-set (CMAKE_ASM_NASM_FLAGS "-D${VALI_PLATFORM} -D__${VALI_PLATFORM}__")
+set (CMAKE_ASM_NASM_FLAGS "-D${VALI_ARCH} -D__${VALI_ARCH}__")
 
-if (${VALI_PLATFORM} STREQUAL "i386")
+if (${VALI_ARCH} STREQUAL "i386")
     add_subdirectory(x32)
+    include_directories(x32)
 else ()
     add_subdirectory(x64)
+    include_directories(x64)
 endif ()
 
 # Copy config file
-configure_file(arch.h arch.h COPYONLY)
+configure_file(arch.h ${CMAKE_BINARY_DIR}/arch.h COPYONLY)
 
 # Configure include paths
 include_directories (
+        ${CMAKE_BINARY_DIR}
         ../../../librt/include
         ../../../librt/libc/include
         ../../../librt/libds/include
         ../../../librt/libddk/include
         ../../../librt/libacpi/source/include
-        ../../include)
+        ../../include
+        ../include
+        ./)
 
 # Add support for .S extension
 set_source_files_properties(min.S PROPERTIES LANGUAGE ASM_NASM)
 
-add_library(vali-x86
+add_library(vali-platform
         components/cmos.c
         components/cpu.c
         components/io.c
@@ -55,3 +60,5 @@ add_library(vali-x86
 
         idt_stubs.c
         )
+target_link_libraries (vali-platform vali-${VALI_ARCH})
+install(TARGETS vali-platform LIBRARY DESTINATION lib)

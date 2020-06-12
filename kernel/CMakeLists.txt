@@ -2,23 +2,16 @@
 project (ValiKernel)
 enable_language (C)
 
-# Configure options
-option (VALI_KERNEL_TRACE "Enable debug tracing in the kernel" ON)
-option (VALI_SMP "Enable multicore support in the kernel" ON)
-option (VALI_DEBUG_CONSOLE "Enable the debug console on boot instead of splash" ON)
-option (VALI_DEBUG_MODE "Enter the debug console mode after boot instead of normal system startup" OFF)
-option (VALI_RUN_CPP_TESTS "Enables user-mode testing programs for the c/c++ suite" ON)
-option (VALI_RUN_KERNEL_TESTS "Enable kernel-mode testing suites of the operating system" OFF)
-
 # Include the architecture
-if (${VALI_PLATFORM} STREQUAL "i386" OR ${VALI_PLATFORM} STREQUAL "amd64")
+if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
     add_subdirectory (arch/x86)
 else ()
-	add_subdirectory (arch/${VALI_PLATFORM})
+	add_subdirectory (arch/${VALI_ARCH})
 endif ()
 
 # Configure include paths
 include_directories (
+    ${CMAKE_BINARY_DIR}
     ../librt/include
     ../librt/libc/include
     ../librt/libds/include
@@ -27,6 +20,16 @@ include_directories (
     ../librt/libacpi/source/include
     arch/include
     include)
+
+# Copy config file
+configure_file(../revision.h ${CMAKE_BINARY_DIR}/revision.h COPYONLY)
+
+# Generate the revision header
+#add_custom_command(
+#    OUTPUT "${CMAKE_BINARY_DIR}/revision.h"
+#    COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision" build clang
+#    COMMENT "Updating revision header"
+#)
 
 # Configure source files
 add_executable (vali-core
@@ -105,5 +108,5 @@ set_target_properties (
 	vali-core
 	PROPERTIES
 		OUTPUT_NAME "syskrnl"
-		SUFFIX ".mos")
-target_link_libraries (vali-core vali-${VALI_PLATFORM}.lib)
+        SUFFIX ".mos")
+target_link_libraries (vali-core vali-platform)
