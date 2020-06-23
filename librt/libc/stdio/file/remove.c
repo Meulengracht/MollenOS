@@ -20,7 +20,7 @@
  * - Deletes the file specified by the path
  */
 
-#include <ddk/protocols/svc_file_protocol_client.h>
+#include <svc_file_protocol_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>

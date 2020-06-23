@@ -16,7 +16,8 @@ INCLUDES = -I../../../../protocols \
 		   -I../../../../librt/libds/include \
 		   -I../../../../librt/libddk/include \
 		   -I../../../../librt/libusb/include \
-		   -I../../../../librt/libgracht/include
+		   -I../../../../librt/libgracht/include \
+		   -I./
 OBJECTS = $(SOURCES:.c=.o)
 
 LIBRARIES = ../../../../librt/build/ddk.lib \

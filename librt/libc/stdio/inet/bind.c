@@ -27,7 +27,7 @@
  * It is normally necessary to assign a local address using bind() before a SOCK_STREAM socket may receive connections (see accept(2)).
  */
 
-#include <ddk/protocols/svc_socket_protocol_client.h>
+#include <svc_socket_protocol_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>

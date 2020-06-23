@@ -57,7 +57,7 @@
  * the new socket. Currently only DECNet has these semantics on Linux.
  */
 
-#include <ddk/protocols/svc_process_protocol_client.h>
+#include <svc_process_protocol_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>

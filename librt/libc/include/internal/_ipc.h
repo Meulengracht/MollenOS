@@ -3,19 +3,19 @@
 
 #include <ds/streambuffer.h>
 
-#include <ddk/protocols/svc_device_protocol_client.h>
-#include <ddk/protocols/svc_file_protocol_client.h>
-#include <ddk/protocols/svc_path_protocol_client.h>
-#include <ddk/protocols/svc_library_protocol_client.h>
-#include <ddk/protocols/svc_process_protocol_client.h>
-#include <ddk/protocols/svc_session_protocol_client.h>
-#include <ddk/protocols/svc_socket_protocol_client.h>
-#include <ddk/protocols/svc_storage_protocol_client.h>
-#include <ddk/protocols/svc_usb_protocol_client.h>
+#include <svc_device_protocol_client.h>
+#include <svc_file_protocol_client.h>
+#include <svc_path_protocol_client.h>
+#include <svc_library_protocol_client.h>
+#include <svc_process_protocol_client.h>
+#include <svc_session_protocol_client.h>
+#include <svc_socket_protocol_client.h>
+#include <svc_storage_protocol_client.h>
+#include <svc_usb_protocol_client.h>
 
-#include <ddk/protocols/ctt_driver_protocol_client.h>
-#include <ddk/protocols/ctt_storage_protocol_client.h>
-#include <ddk/protocols/ctt_usbhost_protocol_client.h>
+#include <ctt_driver_protocol_client.h>
+#include <ctt_storage_protocol_client.h>
+#include <ctt_usbhost_protocol_client.h>
 
 #include <ddk/service.h>
 #include <gracht/link/vali.h>

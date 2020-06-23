@@ -21,7 +21,7 @@
  */
 
 #include <assert.h>
-#include <ddk/protocols/svc_file_protocol_client.h>
+#include <svc_file_protocol_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>

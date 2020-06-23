@@ -10,6 +10,7 @@ INCLUDES = -Iinclude \
 		   -I../../librt/libusb/include \
 		   -I../../librt/libds/include \
 		   -I../../librt/libddk/include \
+		   -I../../librt/libddk/protocols \
 		   -I../../librt/libc/include \
 		   -I../../librt/include
 

@@ -9,6 +9,7 @@ INCLUDES = -Iinclude \
 		   -I../../librt/libusb/include \
 		   -I../../librt/libds/include \
 		   -I../../librt/libddk/include \
+		   -I../../librt/libddk/protocols \
 		   -I../../librt/include -I../../librt/libc/include
 
 PROTOCOLS = svc_file_protocol_server.c \

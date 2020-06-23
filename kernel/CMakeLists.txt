@@ -33,6 +33,8 @@ configure_file(../revision.h ${CMAKE_BINARY_DIR}/revision.h COPYONLY)
 
 # Configure source files
 add_executable (vali-core
+    # OOT
+    ../librt/libddk/io.c
 
 	# ACPI
 	acpi/functions.c
@@ -103,10 +105,16 @@ add_executable (vali-core
 	interrupts_handlers.c
 	interrupts_table.c
 	machine.c
-	time.c)
+	time.c
+)
+
+add_dependencies (vali-core vali-platform vali-${VALI_ARCH})
 set_target_properties (
 	vali-core
 	PROPERTIES
+        COMPILE_FLAGS "-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__"
+        LINK_FLAGS "/entry:kentry /fixed /base:\"0x100000\" /manifest:no /lldmap"
 		OUTPUT_NAME "syskrnl"
-        SUFFIX ".mos")
-target_link_libraries (vali-core vali-platform)
+        SUFFIX ".mos"
+)
+target_link_libraries (vali-core vali-platform vali-${VALI_ARCH} libacpi libdsk libk librt)

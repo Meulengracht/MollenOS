@@ -21,7 +21,7 @@
  *   the standard en-US keyboard. Supports Ascii for now
  */
 
-#include "../protocols/hid_events_protocol.h"
+#include <hid_events_protocol.h>
 #include <os/keycodes.h>
 
 // Keymap when modifier SHIFT is present

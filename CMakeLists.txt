@@ -12,7 +12,8 @@ option (VALI_ENABLE_EHCI "Enter the debug console mode after boot instead of nor
 option (VALI_ENABLE_EHCI_64BIT "Enter the debug console mode after boot instead of normal system startup" OFF)
 
 option (VALI_RUN_KERNEL_TESTS "Enable kernel-mode testing suites of the operating system" OFF)
-option (VALI_INIT_APP "The application to execute for system initialization" "vioarr.app")
+
+set (VALI_INIT_APP "vioarr.app" CACHE STRING "The application to execute for system initialization")
 
 set (VALI_ARCH "i386" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
@@ -20,7 +21,7 @@ set (ENV{VALI_ARCH} ${VALI_ARCH})
 
 # Enable the system image switch
 set (VALI_BUILD ON)
-set (VALI_PROJECTS "")
+set (VALI_BOOTSTRAP ON)
 
 # Initialize project
 include (cmake/SetupEnvironment.cmake)
@@ -42,7 +43,8 @@ include (ExternalProject)
 ExternalProject_Add(tools
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/tools
     CMAKE_CACHE_ARGS
-        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR})
+        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
+)
 
 # Configure projects that are specified
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cmake")
@@ -51,15 +53,21 @@ endif ()
 
 include (cmake/HandleFeatureFlags.cmake)
 include (cmake/${VALI_ARCH}PlatformConfig.cmake)
-foreach (proj in ${VALI_PROJECTS})
-    message (STATUS "${proj}")
-	if ("${proj}" MATCHES ".txt$")
-		get_filename_component (proj_temp "${proj}" DIRECTORY)
-	    add_subdirectory (${proj_temp})
-	elseif ("${proj}" MATCHES ".cmake$")
-        include (${proj})
-	endif ()
-endforeach (proj)
+
+# Configure bootloader
+add_subdirectory (boot)
+
+# Configure the runtime libraries
+add_subdirectory (librt)
 
 # Configure the kernel project
 add_subdirectory (kernel)
+
+# Build services
+add_subdirectory (services)
+
+# Build modules
+add_subdirectory (modules)
+
+# Build tests
+add_subdirectory (tests)

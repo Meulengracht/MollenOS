@@ -3,10 +3,7 @@ project (ValiPlatform-amd64)
 enable_language (ASM_NASM)
 enable_language (C)
 
-set (CMAKE_ASM_NASM_COMPILE_OBJECT "<CMAKE_ASM_NASM_COMPILER> <INCLUDES> \
-    <FLAGS> -f ${CMAKE_ASM_NASM_OBJECT_FORMAT} -o <OBJECT> <SOURCE>")
-set (CMAKE_ASM_NASM_OBJECT_FORMAT win32)
-set (CMAKE_ASM_NASM_FLAGS "-Xvc -D${VALI_ARCH} -D__${VALI_ARCH}__")
+set (CMAKE_ASM_NASM_OBJECT_FORMAT win64)
 
 # Configure include paths
 include_directories (
@@ -20,20 +17,26 @@ include_directories (
         ../
         ./)
 
+set (ASM_SOURCES
+    memory/_paging.s
+    _descriptors.s
+    _irq.s
+    _thread.s
+    boot.s
+    portio.s
+)
+
 # Add support for .S extension
-set_source_files_properties(min.S PROPERTIES LANGUAGE ASM_NASM)
+set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
 
-add_library(vali-amd64
-        _descriptors.s
-        _irq.s
-        _thread.s
-        boot.s
+add_library(vali-amd64 STATIC
+    ${ASM_SOURCES}
 
-        gdt.c
-        idt.c
+    context.c
+    gdt.c
+    idt.c
 
-        memory/_paging.s
-        memory/vmem_api.c
-        memory/vmem_boot.c
+    memory/vmem_api.c
+    memory/vmem_boot.c
 )
 install(TARGETS vali-amd64 LIBRARY DESTINATION lib)

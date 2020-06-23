@@ -29,13 +29,15 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard stdio/stream/*.c) \
        		  $(wildcard time/common/*.c)
 
-COMMON_INCS = -I../../librt/libgracht/include \
-			  -I../../librt/libusb/include \
-			  -I../include \
-			  -Iinclude \
+COMMON_INCS = -I../libgracht/include \
+			  -I../libusb/include \
 			  -I../libm/include \
 			  -I../libds/include \
-			  -I../libddk/include
+			  -I../libddk/include \
+			  -I../libddk/protocols \
+			  -I../include \
+			  -Istdio/protocols \
+			  -Iinclude \
 
 LIBK_SRCS = os/synchronization/spinlock.c \
 			locale/locale.c \

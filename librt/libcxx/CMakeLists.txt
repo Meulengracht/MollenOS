@@ -25,7 +25,7 @@ set(LLVM_ENABLE_RTTI ON CACHE BOOL "")
 set(LLVM_EXPORT_SYMBOLS_FOR_PLUGINS ON CACHE BOOL "")
 set(LLVM_CONFIG_PATH "$ENV{CROSS}/bin/llvm-config" CACHE FILEPATH "")
 
-if("${VALI_BUILD}" STREQUAL "i386")
+if("${VALI_ARCH}" STREQUAL "i386")
   set(LLVM_BUILD_32_BITS ON CACHE BOOL "")
 else()
   set(LLVM_BUILD_32_BITS OFF CACHE BOOL "")
@@ -56,12 +56,6 @@ set(LIBCXX_INCLUDE_DOCS OFF CACHE BOOL "")
 set(LIBCXX_INCLUDE_TESTS OFF CACHE BOOL "")
 set(LIBCXX_HAS_EXTERNAL_THREAD_API ON CACHE BOOL "")
 
-# Clear the required system libraries, as we are bootstrapping
-set(_OLD_CMAKE_C_STANDARD_LIBRARIES ${CMAKE_C_STANDARD_LIBRARIES})
-set(_OLD_CMAKE_CXX_STANDARD_LIBRARIES ${CMAKE_CXX_STANDARD_LIBRARIES})
-set(CMAKE_C_STANDARD_LIBRARIES "")
-set(CMAKE_CXX_STANDARD_LIBRARIES "")
-
 # include unwind library
 add_subdirectory(libunwind)
 
@@ -71,7 +65,3 @@ add_subdirectory(libcxxabi)
 # Include the cxx library, since this build depends on the output
 # of libcxxabi
 add_subdirectory(libcxx)
-
-# Restore default link libraries
-set(CMAKE_C_STANDARD_LIBRARIES ${_OLD_CMAKE_C_STANDARD_LIBRARIES})
-set(CMAKE_CXX_STANDARD_LIBRARIES ${_OLD_CMAKE_CXX_STANDARD_LIBRARIES})

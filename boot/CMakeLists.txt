@@ -2,10 +2,8 @@
 project (Vali-Boot)
 enable_language (ASM_NASM)
 
-set (CMAKE_ASM_NASM_COMPILE_OBJECT "<CMAKE_ASM_NASM_COMPILER> <INCLUDES> \
-    <FLAGS> -f ${CMAKE_ASM_NASM_OBJECT_FORMAT} -o <OBJECT> <SOURCE>")
-set (CMAKE_ASM_NASM_OBJECT_FORMAT bin)
 set (CMAKE_ASM_NASM_FLAGS "-D${VALI_ARCH} -D__${VALI_ARCH}__")
+set (CMAKE_ASM_NASM_OBJECT_FORMAT bin)
 
 # Configure compilation options
 if (VALI_BUILD)

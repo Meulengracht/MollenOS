@@ -22,7 +22,7 @@
  */
 #define __TRACE
 
-#include <ddk/protocols/svc_socket_protocol_client.h>
+#include <svc_socket_protocol_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>

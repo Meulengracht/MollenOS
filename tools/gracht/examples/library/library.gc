@@ -1,8 +1,0 @@
-# examples/library/library
-# Defines the library interface
-using book;
-
-namespace library;
-
-func loan(Book book) : uint;
-func return(uint book_handle) : bool;

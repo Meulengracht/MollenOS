@@ -24,7 +24,7 @@
 #define _DRIVER_PS2_KEYBOARD_H_
 
 #include <os/osdefs.h>
-#include "../hid_events_protocol_client.h"
+#include <hid_events_protocol_client.h>
 
 // PS2 keyboard specific commands
 #define PS2_KEYBOARD_SETLEDS                0xED

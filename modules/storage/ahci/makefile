@@ -8,9 +8,11 @@ INCLUDES = -I../../../librt/include \
 		   -I../../../librt/libc/include \
 		   -I../../../librt/libds/include \
 		   -I../../../librt/libddk/include \
+		   -I../../../librt/libddk/protocols \
 		   -I../../../librt/libusb/include \
 		   -I../../../librt/libgracht/include \
-		   -I../sata
+		   -I../sata \
+		   -I./
 
 LIBRARIES = ../../../librt/build/ddk.lib \
 			../../../librt/build/libds.lib \

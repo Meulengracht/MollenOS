@@ -4,15 +4,15 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/libgracht/include \
-		   -I../../librt/libusb/include \
+INCLUDES = -I../libgracht/include \
+		   -I../libusb/include \
+		   -I../libddk/include \
+		   -I../libddk/protocols \
 		   -I../libds/include \
-		   -I../include \
 		   -I../libc/include \
-		   -I../libddk/include
+		   -I../include
 
-C_SRCS_ALL = $(wildcard vscrt/*.c) \
-			 $(wildcard ./*.c)
+C_SRCS_ALL = $(wildcard ./*.c)
 OBJECTS_ALL = $(C_SRCS_ALL:.c=.o)
 
 ifeq ($(MAKECMDGOALS),libcrt)

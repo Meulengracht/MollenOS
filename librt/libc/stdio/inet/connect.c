@@ -34,7 +34,7 @@
  * sa_family member of sockaddr set to AF_UNSPEC.
  */
 
-#include <ddk/protocols/svc_socket_protocol_client.h>
+#include <svc_socket_protocol_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>

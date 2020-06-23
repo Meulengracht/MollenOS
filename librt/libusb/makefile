@@ -4,13 +4,13 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../libgracht/include \
 		   -I../libddk/include \
+		   -I../libddk/protocols \
 		   -I../libds/include \
-		   -Iinclude \
+		   -I../libc/include \
 		   -I../include \
-		   -I../libc/include
+		   -Iinclude
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
@@ -32,11 +32,6 @@ all: ../build/libusb.lib
 	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
-
-%.o : %.s
-	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
-	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

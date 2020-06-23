@@ -90,7 +90,7 @@ thrd_t thrd_current(void) {
 #include <internal/_syscalls.h>
 #include <internal/_io.h>
 #include <io.h>
-#include "protocols/hid_events_protocol.h"
+#include <hid_events_protocol.h>
 #include <os/keycodes.h>
 #include <os/mollenos.h>
 #include <stdio.h>

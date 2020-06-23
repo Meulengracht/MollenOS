@@ -33,11 +33,10 @@
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
 #include <os/mollenos.h>
+#include <svc_device_protocol_server.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
-
-#include "svc_device_protocol_server.h"
 
 struct device_node {
     element_t header;

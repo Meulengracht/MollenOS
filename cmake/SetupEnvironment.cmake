@@ -1,13 +1,5 @@
 # Make sure all the proper env are set
-set(CMAKE_SYSTEM_NAME Vali)
-set(CMAKE_CROSSCOMPILING OFF CACHE BOOL "")
-set(CMAKE_C_COMPILER "$ENV{CROSS}/bin/clang" CACHE FILEPATH "")
-set(CMAKE_CXX_COMPILER "$ENV{CROSS}/bin/clang++" CACHE FILEPATH "")
-set(CMAKE_LINKER "$ENV{CROSS}/bin/lld-link" CACHE FILEPATH "")
-set(CMAKE_AR "$ENV{CROSS}/bin/llvm-ar" CACHE FILEPATH "")
-set(CMAKE_RANLIB "$ENV{CROSS}/bin/llvm-ranlib" CACHE FILEPATH "")
-set(CMAKE_C_COMPILER_WORKS 1)
-set(CMAKE_CXX_COMPILER_WORKS 1)
+set(CMAKE_SYSTEM_NAME vali-cross)
 set(VERBOSE 1)
 
 # Setup shared compile flags to make compilation succeed
@@ -18,7 +10,7 @@ if("$ENV{VALI_ARCH}" STREQUAL "i386")
     set(VALI_DEFINITIONS ${VALI_DEFINITIONS} -Di386 -D__i386__)
     set(VALI_COMPILE_FLAGS ${VALI_COMPILE_FLAGS} -m32 --target=i386-pc-win32-itanium-coff)
 elseif("$ENV{VALI_ARCH}" STREQUAL "amd64")
-    set(VALI_DEFINITIONS ${VALI_DEFINITIONS} -Damd64 -D__amd64__ -D__x86_64__)
+    set(VALI_DEFINITIONS ${VALI_DEFINITIONS} -Damd64 -D__amd64__ -Dx86_64 -D__x86_64__)
     set(VALI_COMPILE_FLAGS ${VALI_COMPILE_FLAGS} -m64 --target=amd64-pc-win32-itanium-coff -fdwarf-exceptions)
 endif()
 string(REPLACE ";" " " VALI_DEFINITIONS "${VALI_DEFINITIONS}")
