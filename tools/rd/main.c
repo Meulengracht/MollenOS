@@ -88,11 +88,9 @@ MCoreRamDiskHeader_t RdHeaderStatic = {
 static void ShowSyntax(void)
 {
 	printf("  Syntax:\n\n"
-           "    Build    :  rd <arch> <output>\n\n");
+           "    Build    :  rd --arch <arch> --initrd <path to initrd folder> --out <output>\n\n");
 }
 
-/* Crc32GenerateTable
- * Generates a dynamic crc-32 table. */
 void
 Crc32GenerateTable(void)
 {
@@ -324,8 +322,7 @@ char *PerformRLE(char *data, long length, long *new_length)
 // main
 int main(int argc, char *argv[])
 {
-	// Variables
-	struct dirent *dp = NULL;
+    struct dirent *dp = NULL;
 	char *filename_buffer;
 	char *dataptr = NULL;
 	FILE *out = NULL;
@@ -335,21 +332,38 @@ int main(int argc, char *argv[])
 	char **tokens;
 	int tokencount;
 
+    // parameters
+    char* archParameter = NULL;
+    char* initrdPath = NULL;
+    char* outPath = NULL; 
+
 	// Print header
 	printf("MollenOS Ramdisk Builder\n"
            "Copyright 2017 Philip Meulengracht (www.mollenos.com)\n\n");
 
 	// Validate the number of arguments
 	// format: rd $(arch) $(out)
-	if (argc != 3) {
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--arch") && (i + 1) < argc) {
+            archParameter = argv[++i];
+        }
+        else if (!strcmp(argv[i], "--initrd") && (i + 1) < argc) {
+            initrdPath = argv[++i];
+        }
+        else if (!strcmp(argv[i], "--out") && (i + 1) < argc) {
+            outPath = argv[++i];
+        }
+    }
+
+	if (archParameter == NULL || initrdPath == NULL || outPath == NULL) {
 		ShowSyntax();
 		return 1;
 	}
 
 	// Create the output file
-	out = fopen(argv[2], "wb+");
+	out = fopen(outPath, "wb+");
 	if (out == NULL) {
-		printf("%s was an invalid output file\n", argv[2]);
+		printf("%s was an invalid output file\n", outPath);
 		return 1;
     }
     
@@ -359,18 +373,22 @@ int main(int argc, char *argv[])
 
 	// Fill in architecture
 	// Arch - x86_32 = 0x08, x86_64 = 0x10
-    if (!strcmp(argv[1], "i386") || !strcmp(argv[1], "__i386__")) {
+    if (!strcmp(archParameter, "i386") || !strcmp(archParameter, "__i386__")) {
 	    RdHeaderStatic.Architecture = 0x08;
     }
-    else if (!strcmp(argv[1], "amd64") || !strcmp(argv[1], "__amd64__")) {
+    else if (!strcmp(archParameter, "amd64") || !strcmp(archParameter, "__amd64__")) {
 	    RdHeaderStatic.Architecture = 0x10;
+    }
+    else {
+		printf("%s was an unsupported architecture\n", archParameter);
+		return 1;
     }
 
 	RdHeaderStatic.FileCount = 0;
 
     // Open directory
     printf("Counting available files for rd\n");
-	if ((dfd = opendir("initrd")) == NULL) {
+	if ((dfd = opendir(initrdPath)) == NULL) {
 		fprintf(stderr, "Can't open initrd folder\n");
 		return 1;
 	}
@@ -414,7 +432,7 @@ int main(int argc, char *argv[])
 		struct stat stbuf;
 
 		// Build path string
-		sprintf(filename_buffer, "initrd/%s", dp->d_name);
+		sprintf(filename_buffer, "%s/%s", initrdPath, dp->d_name);
 		if (stat(filename_buffer, &stbuf) == -1) {
 			printf("Unable to stat file: %s\n", filename_buffer);
 			continue;

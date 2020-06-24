@@ -89,7 +89,7 @@ package_os: copy_initrd_files
 	$(eval VALI_VERSION = $(shell ./revision print all))
 	@mkdir -p os_package
 	@cp -a boot/build/. os_package/
-	@./rd $(VALI_ARCH) initrd.mos
+	@./rd --arch $(VALI_ARCH) --initrd initrd --out initrd.mos
 	@./lzss c initrd.mos os_package/initrd.mos
 	@./lzss c kernel/build/syskrnl.mos os_package/syskrnl.mos
 	@cp -r resources os_package/
@@ -173,7 +173,7 @@ install_shared: copy_initrd_files
 	cp -a resources/system/. deploy/hdd/system/
 	cp -a resources/shared/. deploy/hdd/shared/
 	cp -a boot/build/. deploy/
-	./rd $(VALI_ARCH) initrd.mos
+	./rd --arch $(VALI_ARCH) --initrd initrd --out initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
 	cp librt/build/*.lib deploy/hdd/shared/lib/

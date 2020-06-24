@@ -101,7 +101,7 @@ add_custom_target (install_applications
 
 add_custom_target (install_prepare
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --directory ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYS}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYS}/syskrnl.mos
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/*.dll ${VALI_PATH_DEPLOY_SHARED_BIN}
