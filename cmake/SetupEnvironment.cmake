@@ -1,6 +1,21 @@
 # Make sure all the proper env are set
-set(CMAKE_SYSTEM_NAME vali-cross)
-set(VERBOSE 1)
+set (CMAKE_SYSTEM_NAME vali-cross)
+set (VERBOSE 1)
+
+if(NOT DEFINED ENV{CROSS})
+  message(FATAL_ERROR "CROSS environmental variable must point to a clang cross-compiler for Vali")
+endif()
+
+set (CMAKE_CROSSCOMPILING ON CACHE BOOL "")
+set (CMAKE_C_COMPILER "$ENV{CROSS}/bin/clang" CACHE FILEPATH "")
+set (CMAKE_CXX_COMPILER "$ENV{CROSS}/bin/clang++" CACHE FILEPATH "")
+set (CMAKE_LINKER "$ENV{CROSS}/bin/lld-link" CACHE FILEPATH "")
+set (CMAKE_AR "$ENV{CROSS}/bin/llvm-ar" CACHE FILEPATH "")
+set (CMAKE_RANLIB "$ENV{CROSS}/bin/llvm-ranlib" CACHE FILEPATH "")
+if (VALI_BOOTSTRAP)
+    set (CMAKE_C_COMPILER_WORKS 1)
+    set (CMAKE_CXX_COMPILER_WORKS 1)
+endif ()
 
 # Setup shared compile flags to make compilation succeed
 # -Xclang -flto-visibility-public-std

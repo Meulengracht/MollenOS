@@ -14,4 +14,8 @@ include_directories (
 )
 
 add_library(libusb functions.c)
-install(TARGETS libusb LIBRARY DESTINATION lib)
+install(TARGETS libusb
+    ARCHIVE DESTINATION lib/vali-ddk
+    LIBRARY DESTINATION lib/vali-ddk
+    RUNTIME DESTINATION bin/vali-ddk
+)

@@ -56,7 +56,11 @@ set_source_files_properties(${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES}
 )
 
 add_library(libm ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
-install(TARGETS libm LIBRARY DESTINATION lib)
+install(TARGETS libm LIBRARY
+    ARCHIVE DESTINATION lib/vali-sdk
+    LIBRARY DESTINATION lib/vali-sdk
+    RUNTIME DESTINATION bin/vali-sdk
+)
 
 add_library(m SHARED ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
 set_target_properties(m
@@ -69,7 +73,7 @@ set_target_properties(m
 )
 
 install(TARGETS m
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib/vali-sdk
+    LIBRARY DESTINATION lib/vali-sdk
+    RUNTIME DESTINATION bin/vali-sdk
 )

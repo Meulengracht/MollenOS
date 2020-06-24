@@ -1,10 +1,6 @@
 ##################################################
 # Setup platform environment
 ##################################################
-if(NOT DEFINED ENV{CROSS})
-  message(FATAL_ERROR "CROSS environmental variable must point to a clang cross-compiler for Vali")
-endif()
-
 set(MOLLENOS ON)
 set(VALI ON)
 
@@ -26,17 +22,7 @@ set(CMAKE_LIBRARY_PATH_FLAG "-LIBPATH:")
 set(CMAKE_LINK_LIBRARY_FLAG "")
 set(CMAKE_LINK_DEF_FILE_FLAG "/def:")
 
-set(CMAKE_CROSSCOMPILING ON CACHE BOOL "")
-set(CMAKE_C_COMPILER "$ENV{CROSS}/bin/clang" CACHE FILEPATH "")
-set(CMAKE_CXX_COMPILER "$ENV{CROSS}/bin/clang++" CACHE FILEPATH "")
-set(CMAKE_LINKER "$ENV{CROSS}/bin/lld-link" CACHE FILEPATH "")
-set(CMAKE_AR "$ENV{CROSS}/bin/llvm-ar" CACHE FILEPATH "")
-set(CMAKE_RANLIB "$ENV{CROSS}/bin/llvm-ranlib" CACHE FILEPATH "")
-
 if (VALI_BOOTSTRAP)
-    set (CMAKE_C_COMPILER_WORKS 1)
-    set (CMAKE_CXX_COMPILER_WORKS 1)
-
     set (INITIAL_C_LIBRARIES "")
     set (INITIAL_CXX_LIBRARIES "")
     

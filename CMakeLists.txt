@@ -1,5 +1,12 @@
 cmake_minimum_required (VERSION 3.8.2)
 
+# Enable the system image switch
+set (VALI_BUILD ON)
+set (VALI_BOOTSTRAP ON)
+
+include (cmake/SetupEnvironment.cmake)
+project (ValiOS)
+
 # Setup options and defaults
 option (VALI_ENABLE_KERNEL_TRACE "Enable debug tracing in the kernel" ON)
 option (VALI_ENABLE_SMP "Enable multicore support in the kernel" ON)
@@ -19,24 +26,37 @@ set (VALI_ARCH "i386" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
 set (ENV{VALI_ARCH} ${VALI_ARCH})
 
-# Enable the system image switch
-set (VALI_BUILD ON)
-set (VALI_BOOTSTRAP ON)
-
-# Initialize project
-include (cmake/SetupEnvironment.cmake)
-project (ValiOS)
-
 # Set paths
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set (VALI_PATH_DEPLOY ${CMAKE_BINARY_DIR}/deploy)
-set (VALI_PATH_INITRD ${CMAKE_BINARY_DIR}/initrd)
+set (VALI_PATH_DEPLOY            ${CMAKE_BINARY_DIR}/deploy)
+set (VALI_PATH_DEPLOY_HDD        ${CMAKE_BINARY_DIR}/deploy/hdd)
+set (VALI_PATH_DEPLOY_SYSTEM     ${CMAKE_BINARY_DIR}/deploy/hdd/system)
+set (VALI_PATH_DEPLOY_SHARED     ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
+set (VALI_PATH_DEPLOY_SHARED_BIN ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
+set (VALI_PATH_DEPLOY_SHARED_LIB ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
+set (VALI_PATH_INITRD            ${CMAKE_BINARY_DIR}/initrd)
+set (VALI_PATH_APPLICATIONS      ${CMAKE_BINARY_DIR}/apps)
+
+if (DEFINED ENV{VALI_APPLICATION_PATH})
+    set (VALI_PATH_APPLICATIONS $ENV{VALI_APPLICATION_PATH})
+endif ()
+
+# Setup tools
+set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
+set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
+set (TOOL_DU ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/diskutility)
 
 # Create neccessary directories
-file(MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
-file(MAKE_DIRECTORY ${VALI_PATH_INITRD})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_HDD})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_BIN})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
+file (MAKE_DIRECTORY ${VALI_PATH_INITRD})
+file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
 
 # Run early build initialization that require host compiler
 include (ExternalProject)
@@ -71,3 +91,34 @@ add_subdirectory (modules)
 
 # Build tests
 add_subdirectory (tests)
+
+# Installation and utility targets
+add_custom_target (install_applications
+    COMMAND ${CMAKE_COMMAND} -E copy ${VALI_PATH_APPLICATIONS}/*.app ${VALI_PATH_DEPLOY_SHARED_BIN}
+    COMMAND ${CMAKE_COMMAND} -E copy ${VALI_PATH_APPLICATIONS}/*.dll ${VALI_PATH_DEPLOY_SHARED_BIN}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_target (install_prepare
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --directory ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYS}/initrd.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYS}/syskrnl.mos
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/*.dll ${VALI_PATH_DEPLOY_SHARED_BIN}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/*.lib ${VALI_PATH_DEPLOY_SHARED_LIB}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS tools
+)
+
+add_custom_target (install_img
+    COMMAND mono ${TOOL_DU} -auto -target img -scheme mbr
+    COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    DEPENDS install_prepare install_applications
+)
+
+add_custom_target (install_vmdk
+    COMMAND mono ${TOOL_DU} -auto -target vmdk -scheme mbr
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    DEPENDS install_prepare install_applications
+)

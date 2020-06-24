@@ -39,9 +39,13 @@ add_sources(link/client.c link/server.c)
 add_sources(client.c crc16.c server.c shared.c)
 
 add_library(libgracht ${SRCS})
-install(TARGETS libgracht LIBRARY DESTINATION lib)
-install(DIRECTORY include DESTINATION ${CMAKE_BINARY_DIR}/include)
-install(DIRECTORY generator DESTINATION ${CMAKE_BINARY_DIR}/share/gracht)
+install(TARGETS libgracht
+    ARCHIVE DESTINATION lib/vali-ddk
+    LIBRARY DESTINATION lib/vali-ddk
+    RUNTIME DESTINATION bin/vali-ddk
+)
+install(DIRECTORY include/ DESTINATION include/vali-ddk)
+install(DIRECTORY generator/ DESTINATION share/vali)
 
 if (GRACHT_BUILD_TESTS)
     add_custom_command(

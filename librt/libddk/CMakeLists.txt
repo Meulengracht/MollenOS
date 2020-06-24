@@ -66,4 +66,10 @@ add_library(libddk
     usb.c
     utils.c
 )
-install(TARGETS libddk LIBRARY DESTINATION lib)
+install(TARGETS libddk
+    ARCHIVE DESTINATION lib/vali-ddk
+    LIBRARY DESTINATION lib/vali-ddk
+    RUNTIME DESTINATION bin/vali-ddk
+)
+install(DIRECTORY include/ DESTINATION include/vali-ddk)
+install(DIRECTORY ../../protocols/ DESTINATION share/vali/protocols)

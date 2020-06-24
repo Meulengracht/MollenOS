@@ -47,4 +47,8 @@ add_library(libcrt
 )
 add_dependencies(libcrt libddk)
 
-install(TARGETS libcrt LIBRARY DESTINATION lib)
+install(TARGETS libcrt
+    ARCHIVE DESTINATION lib/vali-sdk
+    LIBRARY DESTINATION lib/vali-sdk
+    RUNTIME DESTINATION bin/vali-sdk
+)

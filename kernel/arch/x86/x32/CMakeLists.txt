@@ -37,4 +37,3 @@ add_library(vali-i386
     memory/vmem_api.c
     memory/vmem_boot.c
 )
-install(TARGETS vali-i386 LIBRARY DESTINATION lib)

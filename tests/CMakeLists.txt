@@ -17,6 +17,12 @@ macro (add_test_target)
                 LINK_FLAGS "/lldmap /entry:__CrtConsoleEntry"
         )
         target_link_libraries (${ARGV0} libgracht libds libddk c librt)
+        
+        if (DEFINED VALI_PATH_APPLICATIONS)
+            add_custom_command (TARGET ${ARGV0} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_APPLICATIONS}
+            )
+        endif ()
     else ()
         message (FATAL_ERROR "Not enough parameters for add_test_target")
     endif ()

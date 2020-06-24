@@ -491,7 +491,6 @@ add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
 target_compile_options(libk
   PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL>
 )
-install(TARGETS libk LIBRARY DESTINATION lib)
 
 add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC})
 target_compile_options(c
@@ -503,7 +502,18 @@ set_target_properties(c
 )
 target_link_libraries (c libgracht libds libddk libm librt)
 install(TARGETS c
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib/vali-sdk
+    LIBRARY DESTINATION lib/vali-sdk
+    RUNTIME DESTINATION bin/vali-sdk
 )
+install(DIRECTORY include/ DESTINATION include/vali-sdk 
+    FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "internal" EXCLUDE
+)
+
+if (DEFINED VALI_PATH_INITRD)
+    add_custom_command (TARGET c POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:c> ${VALI_PATH_INITRD}
+    )
+endif ()

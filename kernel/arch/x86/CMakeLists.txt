@@ -60,4 +60,3 @@ add_library(vali-platform STATIC
 )
 
 add_dependencies (vali-platform vali-${VALI_ARCH})
-install(TARGETS vali-platform LIBRARY DESTINATION lib)

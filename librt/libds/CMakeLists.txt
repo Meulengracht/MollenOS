@@ -61,8 +61,12 @@ set (SHARED_SOURCES
 add_library(libdsk ${SHARED_SOURCES} support/dsk.c)
 set_target_properties(libdsk PROPERTIES COMPILE_FLAGS -mno-sse -D__LIBDS_KERNEL__ -D_KRNL_DLL)
 target_include_directories(libdsk PUBLIC ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
-install(TARGETS libdsk LIBRARY DESTINATION lib)
 
 add_library(libds ${SHARED_SOURCES} support/ds.c)
 target_include_directories(libds PUBLIC ${SHARED_INCLUDES})
-install(TARGETS libds LIBRARY DESTINATION lib)
+install(TARGETS libds
+    ARCHIVE DESTINATION lib/vali-sdk
+    LIBRARY DESTINATION lib/vali-sdk
+    RUNTIME DESTINATION bin/vali-sdk
+)
+install(DIRECTORY include/ DESTINATION include/vali-sdk)

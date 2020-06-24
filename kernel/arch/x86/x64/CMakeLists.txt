@@ -39,4 +39,3 @@ add_library(vali-amd64 STATIC
     memory/vmem_api.c
     memory/vmem_boot.c
 )
-install(TARGETS vali-amd64 LIBRARY DESTINATION lib)

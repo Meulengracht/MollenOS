@@ -6,6 +6,9 @@ set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Build the diskutility, since this is a c# project it is a bit tricky
+add_subdirectory (diskutility)
+
 # target_compile_options(example PUBLIC -std=c++1y -Wall -Wfloat-conversion)
 if (MSVC)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -30,11 +33,6 @@ else ()
 endif ()
 install(TARGETS lzss EXPORT tools_lz DESTINATION bin)
 install(EXPORT tools_lz NAMESPACE lz_ DESTINATION lib/tools_lz)
-
-# Build the diskutility, since this is a c# project it is a bit tricky
-if (MSVC)
-    add_subdirectory (diskutility)
-endif ()
 
 # Build the file to C-hex array utility
 add_executable (file2c file2c/main.c)
