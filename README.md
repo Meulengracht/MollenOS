@@ -3,17 +3,17 @@
 
 | Build Configuration   | Status   |
 | --------------------- |:-------- |
-| I386                  | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
-| AMD64                 | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
+| I386                  | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg) |
+| AMD64                 | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
 
 ## Download
 
 | Build Configuration | Image | Version | Download Link |
 | ------------------- | -----:| -------:| ------------- |
-| I386                | .Img  | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_I386_ReleaseImg/.lastSuccessful) |
-| I386                | .Vmdk | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_I386_ReleaseVmdk/.lastSuccessful) |
-| AMD64               | .Img  | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_Amd64_ReleaseImg/.lastSuccessful) |
-| AMD64               | .Vmdk | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_Amd64_ReleaseVmdk/.lastSuccessful) |
+| I386                | .Img  | Latest  | Coming soon |
+| I386                | .Vmdk | Latest  | Coming soon |
+| AMD64               | .Img  | Latest  | Coming soon |
+| AMD64               | .Vmdk | Latest  | Coming soon |
 
 
 ## Table of Contents
