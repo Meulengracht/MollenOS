@@ -3,7 +3,7 @@ SCRIPT=`realpath $0`
 SCRIPTPATH=`dirname $SCRIPT`
 
 # Dev-libraries
-sudo apt-get -qq install zip nasm mono-complete
+apt-get -y -qq git cmake gcc g++ install zip nasm mono-complete make python
 
 # Install the cmake platform template
 CMAKE_VERSION="$(cmake --version)";
