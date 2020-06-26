@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set the directory
 WORKDIR /usr/workspace/vali
 
-# copy all the files to the container
+# Copy all repository files to image
 COPY . .
 
 # Build the operating system
