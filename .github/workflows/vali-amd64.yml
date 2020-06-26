@@ -14,5 +14,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build the Docker image
+      with:
+        submodules: recursive
+    - name: Building image
       run: docker build --build-arg ARCH=amd64 . --file Dockerfile --tag vali-amd64:$(date +%s)
