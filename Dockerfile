@@ -19,6 +19,6 @@ COPY . .
 
 # Build the operating system
 RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && ./tools/depends.sh && \
-    mkdir -p /usr/worspace/vali-build && cd /usr/worspace/vali-build && \
+    mkdir -p /usr/workspace/vali-build && cd /usr/workspace/vali-build && \
     cmake -G "Unix Makefiles" -DVALI_ARCH=$VALI_ARCH ../vali && \
     make
