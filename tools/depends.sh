@@ -15,10 +15,10 @@ if [[ $CMAKE_VERSION =~ $CMAKE_REGEX ]]
         echo "Found cmake version ${regex_match}"
         if [ -d "/usr/share/cmake-${regex_match}" ]; then
             echo "Updating cmake platform in path /usr/share/cmake-${regex_match}"
-            sudo cp --verbose $SCRIPTPATH/*.cmake /usr/share/cmake-${regex_match}/Modules/Platform/
+            cp --verbose $SCRIPTPATH/*.cmake /usr/share/cmake-${regex_match}/Modules/Platform/
         elif [ -d "/usr/local/share/cmake-${regex_match}" ]; then
             echo "Updating cmake platform in path /usr/local/share/cmake-${regex_match}"
-            sudo cp --verbose $SCRIPTPATH/*.cmake /usr/local/share/cmake-${regex_match}/Modules/Platform/
+            cp --verbose $SCRIPTPATH/*.cmake /usr/local/share/cmake-${regex_match}/Modules/Platform/
         fi
 else
     echo "Unknown cmake version that regex did not match ${CMAKE_VERSION}"
