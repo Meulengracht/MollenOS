@@ -122,3 +122,15 @@ add_custom_target (install_vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS install_prepare install_applications
 )
+
+add_custom_command(
+    OUTPUT mollenos_usb.img
+    COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
+    DEPENDS install_img
+)
+
+add_custom_target (run_bochs
+    COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    DEPENDS mollenos_usb.img
+)
