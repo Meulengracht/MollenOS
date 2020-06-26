@@ -31,7 +31,7 @@ set (CMAKE_CXX_FLAGS "-std=c++17 -ffreestanding ${SHARED_FLAGS} ${ARCH_FLAGS} ${
 set (VALI_COMPILER_RT_ASM_FLAGS ${CMAKE_C_FLAGS})
 set (VALI_COMPILER_RT_C_FLAGS "${CMAKE_C_FLAGS} -I${CMAKE_CURRENT_LIST_DIR}/../librt/include -I${CMAKE_CURRENT_LIST_DIR}/../librt/libc/include")
 set (VALI_COMPILER_RT_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CURRENT_LIST_DIR}/../librt/include -I${CMAKE_CURRENT_LIST_DIR}/../librt/libc/include")
-set (VALI_COMPILER_RT_TARGET static_clang_rt.builtins-x86_32)
+set (VALI_COMPILER_RT_TARGET static_clang_rt.builtins-i386)
 
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} some other flags")
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
