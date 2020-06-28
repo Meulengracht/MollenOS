@@ -20,7 +20,7 @@ macro (add_test_target)
         
         if (DEFINED VALI_PATH_APPLICATIONS)
             add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_APPLICATIONS}
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_APPLICATIONS}/bin
             )
         endif ()
     else ()
