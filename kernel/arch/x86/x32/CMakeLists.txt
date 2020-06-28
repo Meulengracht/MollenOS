@@ -7,33 +7,36 @@ set (CMAKE_ASM_NASM_OBJECT_FORMAT win32)
 
 # Configure include paths
 include_directories (
-        ../../../../librt/include
-        ../../../../librt/libc/include
-        ../../../../librt/libds/include
-        ../../../../librt/libddk/include
-        ../../../../librt/libacpi/source/include
-        ../../include
-        ../../../include
-        ../
-        ./)
+    ../../../../librt/include
+    ../../../../librt/libc/include
+    ../../../../librt/libds/include
+    ../../../../librt/libddk/include
+    ../../../../librt/libacpi/source/include
+    ../../include
+    ../../../include
+    ../
+    ./
+)
 
 set (ASM_SOURCES
+    memory/_paging.s
     _descriptors.s
     _irq.s
     _thread.s
     boot.s
+    portio.s
 )
 
 # Add support for .S extension
 set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
 
-add_library(vali-i386
+add_library(vali-i386 STATIC
     ${ASM_SOURCES}
 
+    context.c
     gdt.c
     idt.c
 
-    memory/_paging.s
     memory/vmem_api.c
     memory/vmem_boot.c
 )

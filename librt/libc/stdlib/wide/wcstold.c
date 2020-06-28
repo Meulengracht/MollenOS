@@ -37,6 +37,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "../local.h"
 #include "../../locale/setlocale.h"
 
+#ifdef _HAVE_LONG_DOUBLE
+
 __EXTERN double wcstod_l(
   __CONST wchar_t *__restrict nptr, 
   wchar_t **__restrict endptr,
@@ -51,7 +53,8 @@ long double wcstold_l(
 /* On platforms where long double is as wide as double.  */
   return wcstod_l(nptr, endptr, loc);
 
-#else /* This is a duplicate of the code in wcstod.c, but converted to long double.  */
+  /* This is a duplicate of the code in wcstod.c, but converted to long double.  */
+#else
 
   static const mbstate_t initial;
   mbstate_t mbs;
@@ -128,3 +131,5 @@ long double wcstold(
   return wcstold_l(nptr, endptr, __get_current_locale ());
 #endif
 }
+
+#endif //!_HAVE_LONG_DOUBLE

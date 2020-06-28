@@ -19,10 +19,10 @@ include_directories (
 )
 
 if (${VALI_ARCH} STREQUAL "i386")
-    set (MATH_FLAGS "-D_DOUBLE_IS_32BITS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL")
+    set (MATH_FLAGS -D_DOUBLE_IS_32BITS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL)
     include_directories(../../kernel/include ../../kernel/x86/x32)
 elseif (${VALI_ARCH} STREQUAL "amd64")
-    set (MATH_FLAGS "-D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL")
+    set (MATH_FLAGS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL)
     include_directories(../../kernel/include ../../kernel/x86/x64)
 endif ()
 

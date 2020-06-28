@@ -86,11 +86,11 @@
 #display_library: rfb
 #display_library: sdl, options="fullscreen" # startup in fullscreen mode
 #display_library: sdl2, options="fullscreen" # startup in fullscreen mode
-display_library: term
+#display_library: term
 #display_library: vncsrv
 #display_library: win32
 #display_library: wx
-#display_library: x
+display_library: x
 
 #=======================================================================
 # CPU:
