@@ -1,4 +1,5 @@
-import os
+import os, sys
+import re
 import glob
 import zipfile
 import subprocess
@@ -107,27 +108,32 @@ if __name__== "__main__":
 
     if pargs.cp:
         if pargs.source and pargs.dest:
-            recursive_copy_files(pargs.source, pargs.dest, pargs.pattern)
-            return
+            copy_files(pargs.source, pargs.dest, pargs.pattern)
+            sys.exit(0)
         else:
             print("utils: missing arg --source or --dest")
     elif pargs.create_zip:
+        output_regex = re.compile('([0-9]+).([0-9]+).([0-9]+)', re.IGNORECASE)
+
         if pargs.zip_dirs and pargs.zip_out:
             zip_version = ""
             zip_out = pargs.zip_out
             if pargs.rev_path:
-                zip_version = subprocess.check_output([pargs.rev_path, 'print', 'all']).decode('utf-8')
+                stdoutput = subprocess.check_output([pargs.rev_path, 'print', 'all']).decode('utf-8')
+                print(stdoutput)
+                version_match = output_regex.match(stdoutput)
+                zip_version = version_match.group(1) + "." + version_match.group(2) + "." + version_match.group(3)
                 path_part1 = zip_out.replace(".zip", "")
                 zip_out = path_part1 + "-" + zip_version + ".zip"
             print("utils: creating zip file " + zip_out)
             zipf = zipfile.ZipFile(zip_out, 'w')
             zip_paths = pargs.zip_dirs.split(',')
-            for zip_dir in zip_paths
-                add_folder_to_zip(zipf, pargs.zip_dir)
+            for zip_dir in zip_paths:
+                add_folder_to_zip(zipf, zip_dir)
             zipf.close()
-            return
+            sys.exit(0)
         else:
             print("utils: missing arg --zip-dir or --zip-out")
     else:
         print("utils: either --cp or --create-zip must be given as arguments")
-    os.exit(-1)
+    sys.exit(-1)

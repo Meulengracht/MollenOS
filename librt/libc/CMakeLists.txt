@@ -502,11 +502,11 @@ set_target_properties(c
 )
 target_link_libraries (c libgracht libds libddk libm librt)
 install(TARGETS c
-    ARCHIVE DESTINATION lib/vali-sdk
-    LIBRARY DESTINATION lib/vali-sdk
-    RUNTIME DESTINATION bin/vali-sdk
+    ARCHIVE DESTINATION vali-sdk/lib
+    LIBRARY DESTINATION vali-sdk/lib
+    RUNTIME DESTINATION vali-sdk/bin
 )
-install(DIRECTORY include/ DESTINATION include/vali-sdk 
+install(DIRECTORY include/ DESTINATION vali-sdk/include 
     FILES_MATCHING
         PATTERN "*.h"
         PATTERN "internal" EXCLUDE

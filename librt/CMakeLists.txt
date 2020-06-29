@@ -101,7 +101,7 @@ ExternalProject_Add(compiler-rt
 )
 
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/vali-cross)
-install(DIRECTORY include/ DESTINATION include/vali-sdk)
+install(DIRECTORY include/ DESTINATION vali-sdk/include)
 
 # Runtime libraries
 add_subdirectory (libcrt)
@@ -111,9 +111,9 @@ add_subdirectory (libddk)
 merge_libraries (librt libcrt ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/vali-cross/${VALI_COMPILER_RT_TARGET})
 add_dependencies (librt compiler-rt)
 install (TARGETS librt
-    ARCHIVE DESTINATION lib/vali-sdk
-    LIBRARY DESTINATION lib/vali-sdk
-    RUNTIME DESTINATION bin/vali-sdk
+    ARCHIVE DESTINATION vali-sdk/lib
+    LIBRARY DESTINATION vali-sdk/lib
+    RUNTIME DESTINATION vali-sdk/bin
 )
 
 # Libraries used by building of everything

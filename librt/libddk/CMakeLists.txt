@@ -67,9 +67,9 @@ add_library(libddk
     utils.c
 )
 install(TARGETS libddk
-    ARCHIVE DESTINATION lib/vali-ddk
-    LIBRARY DESTINATION lib/vali-ddk
-    RUNTIME DESTINATION bin/vali-ddk
+    ARCHIVE DESTINATION vali-ddk/lib
+    LIBRARY DESTINATION vali-ddk/lib
+    RUNTIME DESTINATION vali-ddk/bin
 )
-install(DIRECTORY include/ DESTINATION include/vali-ddk)
-install(DIRECTORY ../../protocols/ DESTINATION share/vali/protocols)
+install(DIRECTORY include/ DESTINATION vali-ddk/include)
+install(DIRECTORY ../../protocols/ DESTINATION vali-ddk/share/vali/protocols)

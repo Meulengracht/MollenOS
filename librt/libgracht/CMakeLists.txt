@@ -40,12 +40,12 @@ add_sources(client.c crc16.c server.c shared.c)
 
 add_library(libgracht ${SRCS})
 install(TARGETS libgracht
-    ARCHIVE DESTINATION lib/vali-ddk
-    LIBRARY DESTINATION lib/vali-ddk
-    RUNTIME DESTINATION bin/vali-ddk
+    ARCHIVE DESTINATION vali-ddk/lib
+    LIBRARY DESTINATION vali-ddk/lib
+    RUNTIME DESTINATION vali-ddk/bin
 )
-install(DIRECTORY include/ DESTINATION include/vali-ddk)
-install(DIRECTORY generator/ DESTINATION share/vali)
+install(DIRECTORY include/ DESTINATION vali-ddk/include)
+install(DIRECTORY generator/ DESTINATION vali-ddk/share/vali)
 
 if (GRACHT_BUILD_TESTS)
     add_custom_command(
