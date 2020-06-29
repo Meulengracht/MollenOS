@@ -15,16 +15,15 @@ ENV CROSS=$CROSS_PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the directory
-WORKDIR /usr/workspace/vali
-
-# Copy all repository files to image
-COPY . .
+WORKDIR /usr/workspace
 
 # Configure apt and install packages
+# https://github.com/Meulengracht/MollenOS/blob/master/tools/depends.sh
 RUN apt-get update \
     #
     # Install vali dependencies for development
-    && sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && ./tools/depends.sh \
+    && wget https://github.com/Meulengracht/MollenOS/blob/master/tools/depends.sh \
+    && sed -i 's/\r$//' ./depends.sh && chmod +x ./depends.sh && ./depends.sh \
     #
     # [Optional] Update UID/GID if needed
     && if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then \
