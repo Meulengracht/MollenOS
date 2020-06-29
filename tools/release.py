@@ -166,7 +166,7 @@ def main(args):
     diskutility_path = os.path.join(main_path, 'diskutility')
     os.chmod(diskutility_path, 509)
     p = subprocess.Popen([diskutility_path, '-auto', '-target', pargs.target, '-scheme', pargs.scheme])
-    p.wait();
+    p.wait()
     
     # Delete the deployment folder and resource folders as we are now done
     delete_folder_if_exists(deployment_folder)

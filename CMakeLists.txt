@@ -47,6 +47,7 @@ endif ()
 set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
 set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
 set (TOOL_DU ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/diskutility)
+set (TOOL_RV ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision)
 
 # Create neccessary directories
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
@@ -94,8 +95,8 @@ add_subdirectory (tests)
 
 # Installation and utility targets
 add_custom_target (install_applications
-    COMMAND ${CMAKE_COMMAND} -E copy ${VALI_PATH_APPLICATIONS}/bin/*.app ${VALI_PATH_DEPLOY_SHARED_BIN}
-    COMMAND ${CMAKE_COMMAND} -E copy ${VALI_PATH_APPLICATIONS}/bin/*.dll ${VALI_PATH_DEPLOY_SHARED_BIN}
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -104,8 +105,8 @@ add_custom_target (install_prepare
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYS}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYS}/syskrnl.mos
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/*.dll ${VALI_PATH_DEPLOY_SHARED_BIN}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/*.lib ${VALI_PATH_DEPLOY_SHARED_LIB}
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS tools
 )
@@ -133,4 +134,12 @@ add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS mollenos_usb.img
+)
+
+# Todo get this working correctly and add the OS package
+add_custom_target(package
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --rev-path ${TOOL_RV} --zip-dir ${CMAKE_INSTALL_PREFIX}/include/vali-sdk --zip-out vali-sdk.zip
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --rev-path ${TOOL_RV} --zip-dir ${CMAKE_INSTALL_PREFIX}/include/vali-ddk --zip-out vali-ddk.zip
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    DEPENDS install
 )
