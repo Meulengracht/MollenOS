@@ -18,7 +18,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /usr/workspace/vali
 
 # Copy all repository files to image
-COPY ../ .
+COPY . .
 
 # Configure apt and install packages
 RUN apt-get update \
