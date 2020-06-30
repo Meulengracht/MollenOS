@@ -1,0 +1,29 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build and push
+      uses: docker/build-push-action@v1.1.0
+      with:
+        # Username used to log in to a Docker registry. If not set then no login will occur
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        # Password or personal access token used to log in to a Docker registry. If not set then no login will occur
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        # Which dockerfile to use
+        dockerfile: .devcontainer/Dockerfile
+        # Docker repository to tag the image with
+        repository: valios/vali-vscode
+        # Automatically tags the built image with the git reference as per the readme
+        tag_with_ref: true
