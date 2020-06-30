@@ -1,6 +1,7 @@
 {
 	"name": "Vali",
 	"dockerFile": "Dockerfile",
+	"context": "..",
 	"runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
 
 	// Set *default* container specific settings.json values on container create.
@@ -10,12 +11,12 @@
 
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
-        "ms-vscode.cpptools",
-        "ms-dotnettools.csharp",
-        "ms-python.python",
-        "ms-vscode.cmake-tools",
-        "twxs.cmake",
-        "aaron-bond.better-comments"
+		"ms-vscode.cpptools",
+		"ms-dotnettools.csharp",
+		"ms-python.python",
+		"ms-vscode.cmake-tools",
+		"twxs.cmake",
+		"aaron-bond.better-comments"
 	]
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
