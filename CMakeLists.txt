@@ -103,31 +103,29 @@ add_custom_target (install_applications
 add_custom_target (install_prepare
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYS}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYS}/syskrnl.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYSTEM}/syskrnl.mos
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS tools
 )
+add_dependencies(install_prepare tools)
 
 add_custom_target (install_img
     COMMAND mono ${TOOL_DU} -auto -target img -scheme mbr
-    COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDS install_prepare install_applications
 )
+add_dependencies(install_img install_prepare install_applications)
 
 add_custom_target (install_vmdk
     COMMAND mono ${TOOL_DU} -auto -target vmdk -scheme mbr
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDS install_prepare install_applications
 )
+add_dependencies(install_vmdk install_prepare install_applications)
 
 add_custom_command(
     OUTPUT mollenos_usb.img
     COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
-    DEPENDS install_img
 )
 
 add_custom_target (run_bochs

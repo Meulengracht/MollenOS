@@ -26,7 +26,7 @@ namespace DiskUtility
             // Iterate through and create all directories
             String BaseRoot = "deploy/hdd/";
             Console.WriteLine("Creating system file tree");
-            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "deploy/hdd/");
+            Console.WriteLine("Root: " + System.IO.Directory.GetCurrentDirectory() + "/deploy/hdd/");
             String[] Dirs = Directory.GetDirectories("deploy/hdd/", "*", SearchOption.AllDirectories);
 
             foreach (String pDir in Dirs) {
