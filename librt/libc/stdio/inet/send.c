@@ -110,9 +110,11 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
 }
 
 // Valid flags for send are
+// MSG_CONFIRM      (Not supported)
+// MSG_EOR          (Not supported)
 // MSG_OOB          (No OOB support)
+// MSG_MORE         (Not supported)
 // MSG_DONTROUTE    (Dunno what this is)
-// MSG_WAITALL      (Supported)
 // MSG_DONTWAIT     (Supported)
 // MSG_NOSIGNAL     (Ignored on Vali)
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
@@ -124,12 +126,8 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
         sb_options |= STREAMBUFFER_PRIORITY;
     }
     
-    if (!(flags & MSG_WAITALL)) {
-        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
-    }
-    
     if (flags & MSG_DONTWAIT) {
-        sb_options |= STREAMBUFFER_NO_BLOCK;
+        sb_options |= STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL;
     }
     
     // For stream sockets we don't need to build the packet header. Simply just

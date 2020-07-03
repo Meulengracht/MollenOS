@@ -27,7 +27,7 @@
 #include <gracht/server.h>
 #include <stdio.h>
 #include <string.h>
-#include "../test_utils_protocol_server.h"
+#include <test_utils_protocol_server.h>
 #include <sys/un.h>
 
 static const char* dgramPath = "/tmp/g_dgram";
@@ -41,7 +41,7 @@ void test_utils_print_callback(struct gracht_recv_message* message, struct test_
 
 int main(int argc, char **argv)
 {
-    struct socket_server_configuration linkConfiguration;
+    struct socket_server_configuration linkConfiguration = { 0 };
     struct gracht_server_configuration serverConfiguration;
     int                                code;
     

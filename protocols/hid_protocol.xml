@@ -23,27 +23,23 @@
                 </enum>
             </enums>
             
-            <functions>
-                <function name="key_event" async="async">
-                    <request>
-                        <param name="source" type="int" count="1" />
-                        <param name="flags" type="key_flags" count="1" />
-                        <param name="key_ascii" type="uint8_t" count="1" />
-                        <param name="key_code" type="uint8_t" count="1" />
-                        <param name="key_unicode" type="uint32_t" count="1" />
-                    </request>
-                </function>
-                <function name="pointer_event" async="async">
-                    <request>
-                        <param name="source" type="int" count="1" />
-                        <param name="flags" type="uint16_t" count="1" />
-                        <param name="rel_x" type="int16_t" count="1" />
-                        <param name="rel_y" type="int16_t" count="1" />
-                        <param name="rel_z" type="int16_t" count="1" />
-                        <param name="buttons_set" type="uint32_t" count="1" />
-                    </request>
-                </function>
-            </functions>
+            <events>
+                <event name="key_event">
+                    <param name="source" type="int" count="1" />
+                    <param name="flags" type="key_flags" count="1" />
+                    <param name="key_ascii" type="uint8_t" count="1" />
+                    <param name="key_code" type="uint8_t" count="1" />
+                    <param name="key_unicode" type="uint32_t" count="1" />
+                </event>
+                <event name="pointer_event">
+                    <param name="source" type="int" count="1" />
+                    <param name="flags" type="uint16_t" count="1" />
+                    <param name="rel_x" type="int16_t" count="1" />
+                    <param name="rel_y" type="int16_t" count="1" />
+                    <param name="rel_z" type="int16_t" count="1" />
+                    <param name="buttons_set" type="uint32_t" count="1" />
+                </event>
+            </events>
         </protocol>
     </protocols>
 </root>

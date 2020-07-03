@@ -32,13 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
+#include <gracht_control_protocol_server.h>
 
-struct gracht_server_client {
-    struct gracht_object_header header;
-    int                         iod;
-    struct link_ops*            ops;
-};
+extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
 
 struct gracht_server {
     struct server_link_ops* ops;
@@ -49,6 +45,11 @@ struct gracht_server {
     struct gracht_list      protocols;
     struct gracht_list      clients;
 } server_object = { NULL, 0, -1, -1, -1, { 0 }, { 0 } };
+
+static void client_destroy(struct gracht_server_client*);
+static void client_subscribe(struct gracht_server_client*, uint8_t);
+static void client_unsubscribe(struct gracht_server_client*, uint8_t);
+static int  client_is_subscribed(struct gracht_server_client*, uint8_t);
 
 int gracht_server_initialize(gracht_server_configuration_t* configuration)
 {
@@ -69,7 +70,6 @@ int gracht_server_initialize(gracht_server_configuration_t* configuration)
     // are not supported by the link operations.
     server_object.client_iod = server_object.ops->listen(server_object.ops, LINK_LISTEN_SOCKET);
     if (server_object.client_iod < 0) {
-        ERROR("gracht_server: failed to create client listener\n");
         if (errno != ENOTSUP) {
             return -1;
         }
@@ -80,7 +80,6 @@ int gracht_server_initialize(gracht_server_configuration_t* configuration)
     
     server_object.dgram_iod = server_object.ops->listen(server_object.ops, LINK_LISTEN_DGRAM);
     if (server_object.dgram_iod < 0) {
-        ERROR("gracht_server: failed to create packet listener\n");
         if (errno != ENOTSUP) {
             return -1;
         }
@@ -88,37 +87,28 @@ int gracht_server_initialize(gracht_server_configuration_t* configuration)
     else {
         gracht_aio_add(server_object.completion_iod, server_object.dgram_iod);
     }
+
+    if (server_object.client_iod < 0 && server_object.dgram_iod < 0) {
+        ERROR("gracht_server_initialize: neither of client and dgram links were supported");
+        return -1;
+    }
     
+    gracht_server_register_protocol(&gracht_control_protocol);
     return 0;
 }
 
 static int handle_client_socket(void)
 {
     struct gracht_server_client* client;
-    struct link_ops*             client_ops;
-    int                          client_iod;
-    
-    client_iod = server_object.ops->accept(server_object.ops, &client_ops);
-    if (client_iod < 0) {
+
+    int status = server_object.ops->accept(server_object.ops, &client);
+    if (status) {
         ERROR("gracht_server: failed to accept client\n");
-        return -1;
+        return status;
     }
     
-    client = (struct gracht_server_client*)malloc(sizeof(struct gracht_server_client));
-    if (!client) {
-        ERROR("gracht_server: failed to allocate data for client\n");
-        client_ops->close(client_ops);
-        errno = (ENOMEM);
-        return -1;
-    }
-    
-    client->header.id = client_iod;
-    client->iod = client_iod;
-    client->ops = client_ops;
-    
-    // add client to list and aio
     gracht_list_append(&server_object.clients, &client->header);
-    gracht_aio_add(server_object.completion_iod, client_iod);
+    gracht_aio_add(server_object.completion_iod, client->iod);
     return 0;
 }
 
@@ -158,16 +148,14 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
             // TODO log
         }
         
-        status = client->ops->close(client->ops);
-        gracht_list_remove(&server_object.clients, &client->header);
-        free(client);
+        client_destroy(client);
     }
     else if ((events & GRACHT_AIO_EVENT_IN) || !events) {
         while (1) {
-            status = client->ops->recv(client->ops, &message, MSG_DONTWAIT);
+            status = server_object.ops->recv_client(client, &message, MSG_DONTWAIT);
             if (status) {
                 if (errno != ENODATA) {
-                    ERROR("[handle_async_event] client->ops->recv returned %i\n", errno);
+                    ERROR("[handle_async_event] server_object.ops->recv_client returned %i\n", errno);
                 }
                 break;
             }
@@ -181,17 +169,14 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
 static int gracht_server_shutdown(void)
 {
     struct gracht_server_client* client;
-    struct gracht_server_client* prev;
     
     assert(server_object.initialized == 1);
     
     client = (struct gracht_server_client*)server_object.clients.head;
     while (client) {
-        client->ops->close(client->ops);
-        
-        prev   = client;
-        client = (struct gracht_server_client*)client->header.link;
-        free(prev);
+        struct gracht_server_client* temp = (struct gracht_server_client*)client->header.link;
+        client_destroy(client);
+        client = temp;
     }
     server_object.clients.head = NULL;
     
@@ -248,7 +233,7 @@ int gracht_server_main_loop(void)
 
 int gracht_server_respond(struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
-    struct gracht_server_client* clientOps;
+    struct gracht_server_client* client;
 
     if (!messageContext || !message) {
         ERROR("gracht_server: null message or context");
@@ -260,26 +245,27 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
         return server_object.ops->respond(server_object.ops, messageContext, message);
     }
 
-    clientOps = (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, messageContext->client);
-    if (!clientOps) {
+    client = (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, messageContext->client);
+    if (!client) {
         ERROR("gracht_server: failed to find client");
         errno = (ENOENT);
         return -1;
     }
 
-    return clientOps->ops->send(clientOps->ops, message, MSG_WAITALL);
+    return server_object.ops->send_client(client, message, MSG_WAITALL);
 }
 
 int gracht_server_send_event(int client, struct gracht_message* message, unsigned int flags)
 {
-    struct gracht_server_client* clientOps = 
+    struct gracht_server_client* serverClient = 
         (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, client);
-    if (!clientOps) {
+    if (!serverClient) {
         errno = (ENOENT);
         return -1;
     }
     
-    return clientOps->ops->send(clientOps->ops, message, flags);
+    // When sending target specific events - we do not care about subscriptions
+    return server_object.ops->send_client(serverClient, message, flags);
 }
 
 int gracht_server_broadcast_event(struct gracht_message* message, unsigned int flags)
@@ -288,7 +274,9 @@ int gracht_server_broadcast_event(struct gracht_message* message, unsigned int f
     
     client = (struct gracht_server_client*)server_object.clients.head;
     while (client) {
-        client->ops->send(client->ops, message, flags);
+        if (client_is_subscribed(client, message->header.protocol)) {
+            server_object.ops->send_client(client, message, flags);
+        }
         client = (struct gracht_server_client*)client->header.link;
     }
     return 0;
@@ -319,4 +307,90 @@ int gracht_server_unregister_protocol(gracht_protocol_t* protocol)
 int gracht_server_get_dgram_iod(void)
 {
     return server_object.dgram_iod;
+}
+
+// Client helpers
+static void client_destroy(struct gracht_server_client* client)
+{
+    gracht_list_remove(&server_object.clients, &client->header);
+    server_object.ops->destroy_client(client);
+}
+
+// Client subscription helpers
+static void client_subscribe(struct gracht_server_client* client, uint8_t id)
+{
+    int block  = id / 32;
+    int offset = id % 32;
+
+    if (id == 0xFF) {
+        // subscribe to all
+        memset(&client->subscriptions[0], 0xFF, sizeof(client->subscriptions));
+        return;
+    }
+
+    client->subscriptions[block] |= (1 << offset);
+}
+
+static void client_unsubscribe(struct gracht_server_client* client, uint8_t id)
+{
+    int block  = id / 32;
+    int offset = id % 32;
+
+    if (id == 0xFF) {
+        // unsubscribe to all
+        memset(&client->subscriptions[0], 0, sizeof(client->subscriptions));
+        return;
+    }
+
+    client->subscriptions[block] &= ~(1 << offset);
+}
+
+static int client_is_subscribed(struct gracht_server_client* client, uint8_t id)
+{
+    int block  = id / 32;
+    int offset = id % 32;
+    return client->subscriptions[block] & (1 << offset) != 0;
+}
+
+// Server control protocol implementation
+void gracht_control_get_protocols_callback(struct gracht_recv_message* message)
+{
+    struct gracht_protocol* protocol;
+    
+    protocol = (struct gracht_protocol*)server_object.protocols.head;
+    while (protocol) {
+        gracht_control_event_protocol_single(message->client, protocol->name, protocol->id);
+        protocol = (struct gracht_protocol*)protocol->header.link;
+    }
+}
+
+void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_control_subscribe_args* input)
+{
+    struct gracht_server_client* client = 
+        (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, message->client);
+    if (!client) {
+        if (server_object.ops->create_client(server_object.ops, message, &client)) {
+            ERROR("[gracht_control_subscribe_callback] server_object.ops->create_client returned error");
+            return;
+        }
+        gracht_list_append(&server_object.clients, &client->header);
+    }
+
+    client_subscribe(client, input->protocol_id);
+}
+
+void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_control_unsubscribe_args* input)
+{
+    struct gracht_server_client* client = 
+        (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, message->client);
+    if (!client) {
+        return;
+    }
+
+    client_unsubscribe(client, input->protocol_id);
+    
+    // cleanup the client if we unsubscripe
+    if (input->protocol_id == 0xFF) {
+        client_destroy(client);
+    }
 }

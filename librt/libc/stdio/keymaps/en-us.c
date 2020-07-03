@@ -54,7 +54,7 @@ static uint8_t AsciiKeyMap[VK_KEYCOUNT] = {
 
 void
 GetKeyFromSystemKeyEnUs(
-    struct hid_events_key_event_args* key)
+    struct hid_events_key_event_event* key)
 {
     int shouldUpperCase = key->flags & (key_flag_lshift | key_flag_rshift);
     if (key->flags & key_flag_capslock) {

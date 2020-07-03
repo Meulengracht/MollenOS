@@ -34,35 +34,38 @@ enum gracht_link_type {
     gracht_link_packet_based  // connection less mode
 };
 
-struct link_ops;
-
-typedef int (*link_recv_fn)(struct link_ops*, struct gracht_recv_message*, unsigned int flags);
-typedef int (*link_send_fn)(struct link_ops*, struct gracht_message*, unsigned int flags);
-typedef int (*link_close_fn)(struct link_ops*);
-
-struct link_ops {
-    link_recv_fn  recv;
-    link_send_fn  send;
-    link_close_fn close;
+struct gracht_server_client {
+    struct gracht_object_header header;
+    uint32_t                    subscriptions[8]; // 32 bytes to cover 255 bits
+    int                         iod;
 };
 
 struct server_link_ops;
+struct client_link_ops;
+
+typedef int (*server_create_client_fn)(struct server_link_ops*, struct gracht_recv_message*, struct gracht_server_client**);
+typedef int (*server_recv_client_fn)(struct gracht_server_client*, struct gracht_recv_message*, unsigned int flags);
+typedef int (*server_send_client_fn)(struct gracht_server_client*, struct gracht_message*, unsigned int flags);
+typedef int (*server_destroy_client_fn)(struct gracht_server_client*);
 
 typedef int  (*server_link_listen_fn)(struct server_link_ops*, int mode);
-typedef int  (*server_link_accept_fn)(struct server_link_ops*, struct link_ops**);
+typedef int  (*server_link_accept_fn)(struct server_link_ops*, struct gracht_server_client**);
 typedef int  (*server_link_recv_packet_fn)(struct server_link_ops*, struct gracht_recv_message*, unsigned int flags);
 typedef int  (*server_link_respond_fn)(struct server_link_ops*, struct gracht_recv_message*, struct gracht_message*);
 typedef void (*server_link_destroy_fn)(struct server_link_ops*);
 
 struct server_link_ops {
+    server_create_client_fn  create_client;
+    server_destroy_client_fn destroy_client;
+    server_recv_client_fn    recv_client;
+    server_send_client_fn    send_client;
+
     server_link_listen_fn      listen;
     server_link_accept_fn      accept;
     server_link_recv_packet_fn recv_packet;
     server_link_respond_fn     respond;
     server_link_destroy_fn     destroy;
 };
-
-struct client_link_ops;
 
 typedef int  (*client_link_get_buffer_fn)(struct client_link_ops*, size_t, void**);
 typedef void (*client_link_free_buffer_fn)(struct client_link_ops*, void*);

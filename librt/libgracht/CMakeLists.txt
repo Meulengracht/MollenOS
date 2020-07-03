@@ -1,4 +1,8 @@
 # Project setup
+if (NOT VALI_BUILD)
+    cmake_minimum_required (VERSION 3.8.2)
+endif ()
+
 project (Gracht)
 enable_language (C)
 
@@ -6,6 +10,11 @@ option (GRACHT_BUILD_TESTS "Build test server and client program for gracht" OFF
 option (GRACHT_INSTALL_HEADERS "Install headers and library")
 
 set (SRCS "")
+
+set (GENERATED_SOURCES
+    ${CMAKE_BINARY_DIR}/gracht_control_protocol_server.c
+    ${CMAKE_BINARY_DIR}/gracht_control_protocol_client.c
+)
 
 macro (add_sources)
     file (RELATIVE_PATH _relPath "${PROJECT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -21,6 +30,7 @@ endmacro()
 # Configure include paths
 if (VALI_BUILD)
     include_directories (
+        ${CMAKE_BINARY_DIR}
         ../libds/include
         ../libddk/include
         ../libc/include
@@ -28,42 +38,64 @@ if (VALI_BUILD)
         ./include
     )
 else ()
-    include_directories(./include)
+    include_directories(
+        ${CMAKE_BINARY_DIR}
+        ./include
+    )
 endif ()
 
 if (MOLLENOS)
     add_sources (os/vali/client.c os/vali/message.c os/vali/os.c os/vali/server.c)
 endif ()
 
+add_custom_command(
+    OUTPUT ${GENERATED_SOURCES}
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/generator/parser.py --protocol ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml --out ${CMAKE_BINARY_DIR} --lang-c --client --server
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml
+)
+
+add_sources(${GENERATED_SOURCES})
 add_sources(link/client.c link/server.c)
 add_sources(client.c crc16.c server.c shared.c)
 
 add_library(libgracht ${SRCS})
-install(TARGETS libgracht
-    ARCHIVE DESTINATION vali-ddk/lib
-    LIBRARY DESTINATION vali-ddk/lib
-    RUNTIME DESTINATION vali-ddk/bin
-)
-install(DIRECTORY include/ DESTINATION vali-ddk/include)
-install(DIRECTORY generator/ DESTINATION vali-ddk/share/vali)
+
+if (VALI_BUILD)
+    install(TARGETS libgracht
+        ARCHIVE DESTINATION vali-ddk/lib
+        LIBRARY DESTINATION vali-ddk/lib
+        RUNTIME DESTINATION vali-ddk/bin
+    )
+    install(DIRECTORY include/ DESTINATION vali-ddk/include)
+    install(DIRECTORY generator/ DESTINATION vali-ddk/share/vali)
+else ()
+    install(TARGETS libgracht
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+    install(DIRECTORY include/ DESTINATION include)
+    install(DIRECTORY generator/ DESTINATION share/gracht)
+endif ()
 
 if (GRACHT_BUILD_TESTS)
     add_custom_command(
         OUTPUT  test_utils_protocol_server.c test_utils_protocol_client.c
-        COMMAND python generator/parser.py --protocol tests/test_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --server
-        COMMAND python generator/parser.py --protocol tests/test_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --client
-        DEPENDS tests/test_protocol.xml
+        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/generator/parser.py --protocol ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --server --client
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_protocol.xml
     )
 
     add_executable(gclient
-        tests/client/main.cpp
+        tests/client/main.c
         ${CMAKE_CURRENT_BINARY_DIR}/test_utils_protocol_client.c
     )
+    target_link_libraries(gclient libgracht)
 
     add_executable(gserver
-        tests/server/main.cpp
+        tests/server/main.c
         ${CMAKE_CURRENT_BINARY_DIR}/test_utils_protocol_server.c
     )
+    target_link_libraries(gserver libgracht)
 
     if (UNIX)
         target_link_libraries(gclient -lrt -lc)

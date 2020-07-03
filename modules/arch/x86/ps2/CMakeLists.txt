@@ -25,14 +25,14 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_client.c
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --client
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_server.c
+    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --server
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml
 )
 
 set (ADDITONAL_SOURCES
     ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c
-    ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_client.c)
+    ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_server.c)
 
 add_module_target(ps2 ""
     ${ADDITONAL_SOURCES}

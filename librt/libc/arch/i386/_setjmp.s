@@ -35,9 +35,6 @@ global _longjmp
 
 ; int _setjmp(jmp_buf env);
 __setjmp:
-	; We don't use a stack frame here
-
-	; Get params
 	mov edx, [esp + 4]
 
 	; Save state
@@ -50,7 +47,6 @@ __setjmp:
     mov ecx, [esp]
     mov [edx + REGISTER_IP], ecx
 
-	; Done
 	xor eax, eax
 	ret 
 

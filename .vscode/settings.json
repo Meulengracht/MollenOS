@@ -1,5 +1,4 @@
 {
-    "C_Cpp.intelliSenseEngine": "Default",
     "explorer.autoReveal": false,
     "files.associations": {
         "random": "cpp",
@@ -351,6 +350,9 @@
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",
     "editor.detectIndentation": false,
-    "code-runner.runInTerminal": true,
-    "cmake.configureOnOpen": false
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/../vali-build",
+    "cmake.configureArgs": [
+        "-DVALI_ARCH=amd64"
+    ]
 }

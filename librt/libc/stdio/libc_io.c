@@ -506,14 +506,14 @@ UUId_t GetNativeHandle(int iod)
     return handle->object.handle;
 }
 
-extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_args*);
+extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_event*);
 
 /* TranslateSystemKey
  * Performs the translation on the keycode in the system key structure. This fills
  * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
 OsStatus_t
 TranslateSystemKey(
-    _In_ struct hid_events_key_event_args* key)
+    _In_ struct hid_events_key_event_event* key)
 {
     if (key->key_code != VK_INVALID) {
         GetKeyFromSystemKeyEnUs(key);

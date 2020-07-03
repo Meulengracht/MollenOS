@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <types>
+        <type name="uint8_t" header="stdint.h" />
+    </types>
+    <protocols namespace="gracht">
+        <protocol name="control" id="0">
+            <functions>
+                <function name="get_protocols" />
+                <function name="subscribe">
+                    <request>
+                        <param name="protocol_id" type="uint8_t" />
+                    </request>
+                </function>
+                <function name="unsubscribe">
+                    <request>
+                        <param name="protocol_id" type="uint8_t" />
+                    </request>
+                </function>
+            </functions>
+
+            <events>
+                <event name="protocol">
+                    <param name="name" type="char" count="16" />
+                    <param name="id" type="uint8_t" />
+                </event>
+            </events>
+        </protocol>
+    </protocols>
+</root>

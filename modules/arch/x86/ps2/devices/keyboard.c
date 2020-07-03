@@ -34,8 +34,8 @@
 
 OsStatus_t
 PS2KeyboardHandleModifiers(
-    _In_ PS2Port_t*                        Port,
-    _In_ struct hid_events_key_event_args* Key)
+    _In_ PS2Port_t*                         Port,
+    _In_ struct hid_events_key_event_event* Key)
 {
     uint16_t Flags = *((uint16_t*)&PS2_KEYBOARD_DATA_STATE_LO(Port));
 
@@ -144,9 +144,9 @@ void
 PS2KeyboardInterrupt(
     _In_ PS2Port_t* Port)
 {
-    struct hid_events_key_event_args Key         = { 0 };
-    OsStatus_t                       Status      = OsError;
-    uint8_t                          ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
+    struct hid_events_key_event_event Key         = { 0 };
+    OsStatus_t                        Status      = OsError;
+    uint8_t                           ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
 
     // Perform scancode-translation
     while (Status == OsError) {
@@ -167,8 +167,7 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
         Key.flags &= ~(KEY_MODIFIER_EXTENDED);
-        hid_events_key_event(Port->GrachtClient, NULL, 0, Key.flags,
-            Key.key_ascii, Key.key_code, Key.key_unicode);
+        hid_events_event_key_event_all(0, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
     }
 }
 

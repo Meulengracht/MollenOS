@@ -142,7 +142,7 @@ def parse_param(xml_param, is_response):
                 raise Exception(name + ": count is not supported for buffer or shm types")
             
         if is_response and p_type == "shm":
-            raise Exception(name + ": shm response arguments not supported");
+            raise Exception(name + ": shm response arguments not supported")
 
         trace("parsing parameter values: " + name)
         for xml_value in xml_param.findall('value'):
@@ -214,7 +214,7 @@ def parse_protocol(global_types, global_enums, namespace, xml_protocol):
         if is_valid_id is None:
             raise Exception("id " + p_id + " attribute of <protocol> tag must an integer/hex string")
         if is_valid_id == 0:
-            raise Exception("id 0 of <protocol> " + name + " is reserved for internal usage")
+            trace("id 0 of <protocol> " + name + " is reserved for internal usage")
         if is_valid_id > 255:
             raise Exception("id of <protocol> " + name + " can not be higher than 255")
 

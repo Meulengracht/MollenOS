@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,15 +15,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS C Library - SetJmp & LongJmp
+ * Setjmp/longjmp implementation
+ * - Performs state storing and restoring
  */
 
 #ifndef __SETJMP_INC__
 #define __SETJMP_INC__
 
-/* Includes 
- * - Library */
 #include <crtdefs.h>
 #include <stdint.h>
 
@@ -171,8 +169,8 @@ typedef struct __JUMP_BUFFER {
 #endif
 
 #ifndef _JMP_BUF_DEFINED
-typedef _JBTYPE jmp_buf[_JBLEN];
 #define _JMP_BUF_DEFINED
+typedef _JBTYPE jmp_buf[_JBLEN];
 #endif
 
 _CODE_BEGIN

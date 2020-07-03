@@ -28,10 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct socket_link {
-    struct link_ops         ops;
-    struct sockaddr_storage address;
-    int                     iod;
+struct socket_link_client {
+    struct gracht_server_client base;
+    struct sockaddr_storage     address;
 };
 
 struct socket_link_manager {
@@ -42,7 +41,9 @@ struct socket_link_manager {
     int dgram_socket;
 };
 
-static int socket_link_send(struct socket_link* linkContext,
+static int clientId = 10000;
+
+static int socket_link_send_client(struct socket_link_client* client,
     struct gracht_message* message, unsigned int flags)
 {
     struct iovec  iov[1 + message->header.param_in];
@@ -77,7 +78,7 @@ static int socket_link_send(struct socket_link* linkContext,
     }
 
     TRACE("[socket_link_send] sending message\n");
-    bytesWritten = sendmsg(linkContext->iod, &msg, MSG_WAITALL);
+    bytesWritten = sendmsg(client->base.iod, &msg, 0);
     if (bytesWritten != message->header.length) {
         return -1;
     }
@@ -85,7 +86,7 @@ static int socket_link_send(struct socket_link* linkContext,
     return 0;
 }
 
-static int socket_link_recv(struct socket_link* linkContext,
+static int socket_link_recv_client(struct socket_link_client* client,
     struct gracht_recv_message* context, unsigned int flags)
 {
     struct gracht_message* message        = context->storage;
@@ -93,7 +94,7 @@ static int socket_link_recv(struct socket_link* linkContext,
     size_t                 bytes_read;
     
     TRACE("[gracht_connection_recv_stream] reading message header\n");
-    bytes_read = recv(linkContext->iod, message, sizeof(struct gracht_message), flags);
+    bytes_read = recv(client->base.iod, message, sizeof(struct gracht_message), flags);
     if (bytes_read != sizeof(struct gracht_message)) {
         if (bytes_read == 0) {
             errno = (ENODATA);
@@ -106,7 +107,7 @@ static int socket_link_recv(struct socket_link* linkContext,
 
         TRACE("[gracht_connection_recv_stream] reading message payload\n");
         params_storage = (char*)context->storage + sizeof(struct gracht_message);
-        bytes_read     = recv(linkContext->iod, params_storage, bytesToRead, MSG_WAITALL);
+        bytes_read     = recv(client->base.iod, params_storage, bytesToRead, MSG_WAITALL);
         if (bytes_read != bytesToRead) {
             // do not process incomplete requests
             // TODO error code / handling
@@ -117,7 +118,7 @@ static int socket_link_recv(struct socket_link* linkContext,
         }
     }
     
-    context->client      = linkContext->iod;
+    context->client      = client->base.header.id;
     context->params      = (void*)params_storage;
     
     context->param_in    = message->header.param_in;
@@ -127,17 +128,46 @@ static int socket_link_recv(struct socket_link* linkContext,
     return 0;
 }
 
-static int socket_link_close(struct socket_link* linkContext)
+static int socket_link_create_client(struct socket_link_manager* linkManager, struct gracht_recv_message* message,
+    struct socket_link_client** clientOut)
 {
-    int status;
+    struct socket_link_client* client;
+    struct sockaddr_storage*   address;
+    int    status;
     
-    if (!linkContext) {
+    if (!linkManager || !message || !clientOut) {
         errno = (EINVAL);
         return -1;
     }
     
-    status = close(linkContext->iod);
-    free(linkContext);
+    client = (struct socket_link_client*)malloc(sizeof(struct socket_link_client));
+    if (!client) {
+        errno = (ENOMEM);
+        return -1;
+    }
+
+    memset(client, 0, sizeof(struct socket_link_client));
+    client->base.header.id = clientId++;
+    client->base.iod = message->client;
+
+    address = (struct sockaddr_storage*)message->storage;
+    memcpy(&client->address, address, linkManager->config.server_address_length);
+    
+    *clientOut = client;
+    return 0;
+}
+
+static int socket_link_destroy_client(struct socket_link_client* client)
+{
+    int status;
+    
+    if (!client) {
+        errno = (EINVAL);
+        return -1;
+    }
+    
+    status = close(client->base.iod);
+    free(client);
     return status;
 }
 
@@ -188,35 +218,32 @@ static int socket_link_listen(struct socket_link_manager* linkManager, int mode)
     return -1;
 }
 
-static int socket_link_accept(struct socket_link_manager* linkManager, struct link_ops** linkOut)
+static int socket_link_accept(struct socket_link_manager* linkManager, struct gracht_server_client** clientOut)
 {
-    struct socket_link* link;
-    socklen_t           address_length;
+    struct socket_link_client* client;
+    socklen_t                  address_length;
     TRACE("[socket_link_accept]\n");
-    
-    link = (struct socket_link*)malloc(sizeof(struct socket_link));
-    if (!link) {
+
+    client = (struct socket_link_client*)malloc(sizeof(struct socket_link_client));
+    if (!client) {
         ERROR("link_server: failed to allocate data for link\n");
         errno = (ENOMEM);
         return -1;
     }
-    
+
+    memset(client, 0, sizeof(struct socket_link_client));
+
     // TODO handle disconnects in accept in netmanager
-    TRACE("link_server: accepting client on socket %i\n", linkManager->client_socket);
-    link->iod = accept(linkManager->client_socket,
-        (struct sockaddr*)&link->address, &address_length);
-    if (link->iod < 0) {
+    client->base.header.id = clientId++;
+    client->base.iod = accept(linkManager->client_socket, (struct sockaddr*)&client->address, &address_length);
+    if (client->base.iod < 0) {
         ERROR("link_server: failed to accept client\n");
-        free(link);
+        free(client);
         return -1;
     }
     
-    link->ops.send  = (link_send_fn)socket_link_send;
-    link->ops.recv  = (link_recv_fn)socket_link_recv;
-    link->ops.close = (link_close_fn)socket_link_close;
-
-    *linkOut = &link->ops;
-    return link->iod;
+    *clientOut = &client->base;
+    return 0;
 }
 
 static int socket_link_recv_packet(struct socket_link_manager* linkManager, 
@@ -348,6 +375,12 @@ int gracht_link_socket_server_create(struct server_link_ops** linkOut,
     memset(linkManager, 0, sizeof(struct socket_link_manager));
     memcpy(&linkManager->config, configuration, sizeof(struct socket_server_configuration));
     
+    linkManager->ops.create_client  = (server_create_client_fn)socket_link_create_client;
+    linkManager->ops.destroy_client = (server_destroy_client_fn)socket_link_destroy_client;
+
+    linkManager->ops.recv_client = (server_recv_client_fn)socket_link_recv_client;
+    linkManager->ops.send_client = (server_send_client_fn)socket_link_send_client;
+
     linkManager->ops.listen      = (server_link_listen_fn)socket_link_listen;
     linkManager->ops.accept      = (server_link_accept_fn)socket_link_accept;
     linkManager->ops.recv_packet = (server_link_recv_packet_fn)socket_link_recv_packet;

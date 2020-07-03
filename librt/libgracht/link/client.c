@@ -68,10 +68,11 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
         }
     }
 
-    byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
+    byteCount = sendmsg(linkManager->iod, &msg, 0);
     if (byteCount != message->header.length) {
-        ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
-              (uint32_t)byteCount, message->header.length);
+        ERROR("link_client: failed to send message, bytes sent: %li, expected: %u (%i)\n",
+              byteCount, message->header.length, errno);
+        perror("following error: ");
         errno = (EPIPE);
         return GRACHT_MESSAGE_ERROR;
     }
@@ -152,7 +153,7 @@ static int socket_link_send_packet(struct socket_link_manager* linkManager, stru
         }
     }
     
-    byteCount = sendmsg(linkManager->iod, &msg, MSG_WAITALL);
+    byteCount = sendmsg(linkManager->iod, &msg, 0);
     if (byteCount != message->header.length) {
         ERROR("link_client: failed to send message, bytes sent: %u, expected: %u\n",
               (uint32_t)byteCount, message->header.length);
@@ -205,12 +206,13 @@ static int socket_link_connect(struct socket_link_manager* linkManager)
     int type = linkManager->config.type == gracht_link_stream_based ? SOCK_STREAM : SOCK_DGRAM;
     
     linkManager->iod = socket(AF_LOCAL, type, 0);
-    if (linkManager->iod == -1) {
+    if (linkManager->iod < 0) {
         ERROR("client_link: failed to create socket\n");
         return -1;
     }
-
-    int status = connect(linkManager->iod, (const struct sockaddr*)&linkManager->config.address,
+    
+    int status = connect(linkManager->iod, 
+        (const struct sockaddr*)&linkManager->config.address,
         linkManager->config.address_length);
     if (status) {
         ERROR("client_link: failed to connect to socket\n");

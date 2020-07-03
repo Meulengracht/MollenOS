@@ -25,7 +25,7 @@
 #include <errno.h>
 #include <gracht/link/socket.h>
 #include <gracht/server.h>
-#include "../test_utils_protocol_client.h"
+#include <test_utils_protocol_client.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/un.h>
@@ -36,7 +36,7 @@ static char        messageBuffer[GRACHT_MAX_MESSAGE_SIZE];
 
 int main(int argc, char **argv)
 {
-    struct socket_client_configuration linkConfiguration;
+    struct socket_client_configuration linkConfiguration = { 0 };
     struct gracht_client_configuration clientConfiguration;
     gracht_client_t*                   client;
     int                                code, status = -1337;

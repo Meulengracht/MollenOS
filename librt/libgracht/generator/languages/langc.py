@@ -541,7 +541,7 @@ class CGenerator:
                 outfile.write("    { " + func.get_id() + ", " + self.get_protocol_server_callback_name(protocol, func) + " },\n")
             outfile.write("};\n\n")
             outfile.write("gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
-            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
+            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", \"" + protocol.get_name().lower() + "\", " + str(len(protocol.get_functions())) + ", " + function_array_name + ");\n\n")
         return
     
     def write_client_protocol_prototype(self, protocol, outfile):
@@ -569,7 +569,7 @@ class CGenerator:
                 outfile.write("    { " + evt.get_id() + ", " + self.get_protocol_client_event_callback_name(protocol, evt) + " },\n")
             outfile.write("};\n\n")
             outfile.write("gracht_protocol_t " + protocol.get_namespace() + "_" + protocol.get_name() + "_protocol = ")
-            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", " + str(len(protocol.get_events())) + ", " + function_array_name + ");\n\n")
+            outfile.write("GRACHT_PROTOCOL_INIT(" + protocol.get_id() + ", \"" + protocol.get_name().lower() +  "\", " + str(len(protocol.get_events())) + ", " + function_array_name + ");\n\n")
         return
 
     def generate_shared_header(self, protocol, directory):

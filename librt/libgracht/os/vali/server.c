@@ -31,10 +31,74 @@
 #include <os/dmabuf.h>
 #include <stdlib.h>
 
+struct vali_link_client {
+    struct gracht_server_client base;
+    struct ipmsg_resp           response;
+};
+
 struct vali_link_manager {
     struct server_link_ops ops;
     int                    iod;
 };
+
+static int clientId = 10000;
+
+static int vali_link_send_client(struct gracht_server_client* client,
+    struct gracht_message* message, unsigned int flags)
+{
+    errno = (ENOTSUP);
+    return -1;
+}
+
+static int vali_link_recv_client(struct gracht_server_client* client,
+    struct gracht_recv_message* context, unsigned int flags)
+{
+    errno = (ENOTSUP);
+    return -1;
+}
+
+static int vali_link_create_client(struct socket_link_manager* linkManager, struct gracht_recv_message* message,
+    struct vali_link_client** clientOut)
+{
+    struct ipmsg*            ipmsg;
+    struct vali_link_client* client;
+    int    status;
+    
+    if (!linkManager || !message || !clientOut) {
+        errno = (EINVAL);
+        return -1;
+    }
+    
+    ipmsg  = (struct ipmsg*)message->storage;
+    client = (struct vali_link_client*)malloc(sizeof(struct vali_link_client));
+    if (!client) {
+        errno = (ENOMEM);
+        return -1;
+    }
+
+    memset(client, 0, sizeof(struct vali_link_client));
+    client->base.header.id = clientId++;
+    client->base.iod = message->client;
+
+    memcpy(&client->response, &ipmsg->response, sizeof(struct ipmsg_resp));
+    
+    *clientOut = client;
+    return 0;
+}
+
+static int vali_link_destroy_client(struct vali_link_client* client)
+{
+    int status;
+    
+    if (!client) {
+        errno = (EINVAL);
+        return -1;
+    }
+    
+    status = close(client->base.iod);
+    free(client);
+    return status;
+}
 
 static int vali_link_listen(struct vali_link_manager* linkManager, int mode)
 {
@@ -46,7 +110,7 @@ static int vali_link_listen(struct vali_link_manager* linkManager, int mode)
     return -1;
 }
 
-static int vali_link_accept(struct vali_link_manager* linkManager, struct link_ops** linkOut)
+static int vali_link_accept(struct vali_link_manager* linkManager, struct gracht_server_client** clientOut)
 {
     errno = (ENOTSUP);
     return -1;
@@ -101,7 +165,13 @@ int gracht_link_vali_server_create(struct server_link_ops** linkOut, struct ipms
     // create an ipc context
     linkManager->iod = ipcontext(0x4000, address); /* 16kB */
     
-    // initialize link operations
+    // initialize link operations    
+    linkManager->ops.create_client  = (server_create_client_fn)vali_link_create_client;
+    linkManager->ops.destroy_client = (server_destroy_client_fn)vali_link_destroy_client;
+
+    linkManager->ops.recv_client = (server_recv_client_fn)vali_link_recv_client;
+    linkManager->ops.send_client = (server_send_client_fn)vali_link_send_client;
+
     linkManager->ops.listen      = (server_link_listen_fn)vali_link_listen;
     linkManager->ops.accept      = (server_link_accept_fn)vali_link_accept;
     linkManager->ops.recv_packet = (server_link_recv_packet_fn)vali_link_recv_packet;
