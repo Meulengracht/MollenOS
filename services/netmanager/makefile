@@ -12,7 +12,8 @@ INCLUDES = -Iinclude \
 		   -I../../librt/libddk/include \
 		   -I../../librt/libddk/protocols \
 		   -I../../librt/libc/include \
-		   -I../../librt/include
+		   -I../../librt/include \
+		   -I./
 
 LIBRARIES = ../../librt/deploy/libgracht.lib \
 			../../librt/build/libsrv.lib \

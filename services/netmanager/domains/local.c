@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../svc_socket_protocol_server.h"
+#include <svc_socket_protocol_server.h>
 
 typedef struct AddressRecord {
     element_t Header;

@@ -267,6 +267,8 @@ set (SOURCES_STDIO
     stdio/io/ioevt.c
     stdio/io/perror.c
     stdio/io/putc.c
+    stdio/io/putchar.c
+    stdio/io/puts.c
     stdio/io/putsw.c
     stdio/io/putw.c
     stdio/io/putwc.c

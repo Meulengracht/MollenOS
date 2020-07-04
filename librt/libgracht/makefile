@@ -4,12 +4,12 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -Iinclude -I../include -I../libddk/include -I../libds/include -I../libc/include
-SOURCES = $(wildcard *.c) $(wildcard link/*.c) $(wildcard os/vali/*.c)
+INCLUDES = -Iinclude -I../include -I../libddk/include -I../libds/include -I../libc/include -I./
+SOURCES = gracht_control_protocol_server.c gracht_control_protocol_client.c $(wildcard *.c) $(wildcard link/*.c) $(wildcard os/vali/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 NATIVE_INCLUDES = -Iinclude
-NATIVE_SOURCES = $(wildcard *.c) $(wildcard link/*.c)
+NATIVE_SOURCES = gracht_control_protocol_server.c gracht_control_protocol_client.c $(wildcard *.c) $(wildcard link/*.c)
 NATIVE_OBJECTS = $(NATIVE_SOURCES:.c=.o)
 
 TEST_SERVER_SOURCES = tests/test_utils_protocol_server.c $(wildcard tests/server/*.c)
@@ -51,6 +51,14 @@ native: ../native/libgracht.a ../native/gracht_server ../native/gracht_client
 	@printf "%b" "\033[0;36mCreating test server " $@ "\033[m\n"
 	@gcc $(TEST_CLIENT_OBJECTS) $(LFLAGS) -o $@
 
+gracht_control_protocol_client.c: protocol.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python generator/parser.py --protocol $< --out $(dir $@) --lang-c --client
+
+gracht_control_protocol_server.c: protocol.xml
+	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
+	python generator/parser.py --protocol $< --out $(dir $@) --lang-c --server
+
 tests/test_utils_protocol_client.c: tests/test_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
 	python generator/parser.py --protocol $< --out $(dir $@) --lang-c --client
@@ -66,6 +74,7 @@ tests/test_utils_protocol_server.c: tests/test_protocol.xml
 
 .PHONY: clean
 clean:
+	@rm -f gracht_control*
 	@rm -f ../native/libgracht.a
 	@rm -f ../native/gracht_server
 	@rm -f ../native/gracht_client

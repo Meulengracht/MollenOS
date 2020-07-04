@@ -124,7 +124,7 @@ add_custom_target (install_vmdk
 add_dependencies(install_vmdk install_prepare install_applications)
 
 add_custom_command(
-    OUTPUT mollenos_usb.img
+    OUTPUT always_run.special mollenos_usb.img
     COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
 )
 

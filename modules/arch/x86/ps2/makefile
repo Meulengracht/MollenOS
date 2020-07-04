@@ -5,7 +5,7 @@
 include ../../../../config/common.mk
 
 SOURCES = ctt_driver_protocol_server.c \
-		  hid_events_protocol_client.c \
+		  hid_events_protocol_server.c \
 		  $(wildcard devices/scancodes/*.c) \
 		  $(wildcard devices/*.c) \
 		  $(wildcard ./*.c)
@@ -31,9 +31,9 @@ LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 .PHONY: all
 all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 
-hid_events_protocol_client.c: ../../../../protocols/hid_protocol.xml
+hid_events_protocol_server.c: ../../../../protocols/hid_protocol.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
-	python $(generator_path) --protocol $< --lang-c --client
+	python $(generator_path) --protocol $< --lang-c --server
 
 ctt_driver_protocol_server.c: ../../../../protocols/contract_protocols.xml
 	@printf "%b" "\033[0;36mRegenerating protocol " $@ "\033[m\n"
