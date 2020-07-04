@@ -49,14 +49,14 @@ struct ipmsg_addr {
 
 // Pack structures transmitted to make debugging wire format easier
 GRACHT_STRUCT(ipmsg_resp, {
-    UUId_t   dma_handle;
-    uint32_t dma_offset;
-    int      notify_method;
-    void*    notify_context;
+    UUId_t   dma_handle; // ::handle
+    uint32_t dma_offset; // remove
+    int      notify_method; // remove?
+    void*    notify_context; // remove?
     union {
         UUId_t    handle;
         uintptr_t callback;
-    } notify_data;
+    } notify_data; // remove?
 });
 
 #define IPMSG_RESP_INIT_DEFAULT { UUID_INVALID, 0, IPMSG_NOTIFY_NONE, NULL, { thrd_current() } }

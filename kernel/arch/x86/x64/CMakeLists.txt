@@ -40,3 +40,6 @@ add_library(vali-amd64 STATIC
     memory/vmem_api.c
     memory/vmem_boot.c
 )
+target_compile_options(vali-amd64
+    PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__>
+)

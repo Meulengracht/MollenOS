@@ -2,8 +2,7 @@
 project (Vali-Boot)
 enable_language (ASM_NASM)
 
-set (CMAKE_ASM_NASM_FLAGS "-D${VALI_ARCH} -D__${VALI_ARCH}__ -D${FEATURE_FLAGS}")
-set (CMAKE_ASM_NASM_OBJECT_FORMAT bin)
+string(REPLACE " " ";" NASM_FEATURE_FLAGS ${FEATURE_FLAGS})
 
 # Configure compilation options
 if (VALI_BUILD)
@@ -25,7 +24,7 @@ endif ()
 add_custom_target(stage1 ALL DEPENDS stage1.sys)
 add_custom_command(OUTPUT stage1.sys POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMAND nasm -f bin ${CMAKE_ASM_NASM_FLAGS} -o ${VALI_PATH_DEPLOY}/stage1.sys ${SRCS}
+    COMMAND nasm ARGS -f bin -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o ${VALI_PATH_DEPLOY}/stage1.sys ${SRCS}
     COMMENT "Compiling bootloader (stage1)"
     DEPENDS ${SRCS}
 )
@@ -33,7 +32,7 @@ add_custom_command(OUTPUT stage1.sys POST_BUILD
 add_custom_target(stage2 ALL DEPENDS stage2.sys)
 add_custom_command(OUTPUT stage2.sys POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/stage2
-    COMMAND nasm -f bin ${CMAKE_ASM_NASM_FLAGS} -o ${VALI_PATH_DEPLOY}/stage2.sys stage2.asm
+    COMMAND nasm ARGS -f bin -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o ${VALI_PATH_DEPLOY}/stage2.sys stage2.asm
     COMMENT "Compiling bootloader (stage2)"
     DEPENDS stage2/stage2.asm
 )
@@ -41,7 +40,7 @@ add_custom_command(OUTPUT stage2.sys POST_BUILD
 add_custom_target(ap ALL DEPENDS ap.sys)
 add_custom_command(OUTPUT ap.sys POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/stage2
-    COMMAND nasm -f bin -DTRAMPOLINE_LOCATION=0x8000 ${CMAKE_ASM_NASM_FLAGS} -o ${VALI_PATH_DEPLOY}/ap.sys ap.asm
+    COMMAND nasm ARGS -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o ${VALI_PATH_DEPLOY}/ap.sys ap.asm
     COMMENT "Compiling trampoline code"
     DEPENDS stage2/ap.asm
 )

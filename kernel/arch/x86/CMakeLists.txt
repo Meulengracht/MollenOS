@@ -58,5 +58,7 @@ add_library(vali-platform STATIC
     
     idt_stubs.c
 )
-
+target_compile_options(vali-platform
+    PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__>
+)
 add_dependencies (vali-platform vali-${VALI_ARCH})

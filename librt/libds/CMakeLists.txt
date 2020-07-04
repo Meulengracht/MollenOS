@@ -59,7 +59,9 @@ set (SHARED_SOURCES
 )
 
 add_library(libdsk ${SHARED_SOURCES} support/dsk.c)
-set_target_properties(libdsk PROPERTIES COMPILE_FLAGS -mno-sse -D__LIBDS_KERNEL__ -D_KRNL_DLL)
+target_compile_options(libdsk
+    PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -D__LIBDS_KERNEL__ -D_KRNL_DLL>
+)
 target_include_directories(libdsk PUBLIC ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
 
 add_library(libds ${SHARED_SOURCES} support/ds.c)

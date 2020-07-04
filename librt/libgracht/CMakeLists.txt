@@ -45,7 +45,12 @@ else ()
 endif ()
 
 if (MOLLENOS)
-    add_sources (os/vali/client.c os/vali/message.c os/vali/os.c os/vali/server.c)
+    add_sources (
+        os/vali/client.c
+        os/vali/message.c
+        os/vali/os.c
+        os/vali/server.c
+    )
 endif ()
 
 add_custom_command(
