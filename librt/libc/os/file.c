@@ -48,6 +48,7 @@ GetFilePathFromFd(
     }
     
     svc_file_get_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle, MaxLength);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_file_get_path_result(GetGrachtClient(), &msg.base, &status, PathBuffer);
     return status;
 }
@@ -65,6 +66,7 @@ GetStorageInformationFromPath(
     }
     
     svc_storage_get_descriptor_from_path(GetGrachtClient(), &msg.base, Path);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_storage_get_descriptor_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
@@ -84,6 +86,7 @@ GetStorageInformationFromFd(
     }
     
     svc_storage_get_descriptor(GetGrachtClient(), &msg.base, handle->object.handle);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_storage_get_descriptor_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
@@ -101,6 +104,7 @@ GetFileSystemInformationFromPath(
     }
     
     svc_file_fsstat_from_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_file_fsstat_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
@@ -120,6 +124,7 @@ GetFileSystemInformationFromFd(
     }
     
     svc_file_fsstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_file_fsstat_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
@@ -137,6 +142,7 @@ GetFileInformationFromPath(
     }
     
     svc_file_fstat_from_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_file_fstat_from_path_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
@@ -156,7 +162,8 @@ GetFileInformationFromFd(
     }
     
     svc_file_fstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
-    svc_file_fsstat_result(GetGrachtClient(), &msg.base, &status, Information);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    svc_file_fstat_result(GetGrachtClient(), &msg.base, &status, Information);
     return status;
 }
 

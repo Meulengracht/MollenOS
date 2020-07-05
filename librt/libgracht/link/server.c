@@ -27,6 +27,7 @@
 #include "../include/gracht/debug.h"
 #include <stdlib.h>
 #include <string.h>
+#include <gracht/crc.h>
 
 struct socket_link_client {
     struct gracht_server_client base;
@@ -40,8 +41,6 @@ struct socket_link_manager {
     int client_socket;
     int dgram_socket;
 };
-
-static int clientId = 10000;
 
 static int socket_link_send_client(struct socket_link_client* client,
     struct gracht_message* message, unsigned int flags)
@@ -146,8 +145,8 @@ static int socket_link_create_client(struct socket_link_manager* linkManager, st
     }
 
     memset(client, 0, sizeof(struct socket_link_client));
-    client->base.header.id = clientId++;
-    client->base.iod = message->client;
+    client->base.header.id = message->client;
+    client->base.iod = linkManager->dgram_socket;
 
     address = (struct sockaddr_storage*)message->storage;
     memcpy(&client->address, address, linkManager->config.server_address_length);
@@ -233,13 +232,13 @@ static int socket_link_accept(struct socket_link_manager* linkManager, struct gr
     memset(client, 0, sizeof(struct socket_link_client));
 
     // TODO handle disconnects in accept in netmanager
-    client->base.header.id = clientId++;
     client->base.iod = accept(linkManager->client_socket, (struct sockaddr*)&client->address, &address_length);
     if (client->base.iod < 0) {
         ERROR("link_server: failed to accept client\n");
         free(client);
         return -1;
     }
+    client->base.header.id = client->base.iod;
     
     *clientOut = &client->base;
     return 0;
@@ -251,6 +250,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     struct gracht_message* message        = (struct gracht_message*)(
         (char*)context->storage + linkManager->config.dgram_address_length);
     void*                  params_storage = NULL;
+    uint32_t               addressCrc;
 
     struct iovec iov[1] = { {
             .iov_base = message,
@@ -278,6 +278,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
         return -1;
     }
 
+    addressCrc = crc32_generate((const unsigned char*)msg.msg_name, (size_t)msg.msg_namelen);
     TRACE("[gracht_connection_recv_stream] read [%u/%u] addr bytes, %p\n",
             msg.msg_namelen, linkManager->config.dgram_address_length,
             msg.msg_name);
@@ -286,8 +287,8 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     if (message->header.param_in) {
         params_storage = &message->params[0];
     }
-    
-    context->client      = linkManager->dgram_socket;
+
+    context->client      = (int)addressCrc;
     context->params      = (void*)params_storage;
     
     context->param_in    = message->header.param_in;

@@ -29,5 +29,6 @@
 // CRC API
 // General crc routines for providing data integrity
 uint16_t crc16_generate(const unsigned char* data, size_t length);
+uint32_t crc32_generate(const unsigned char *input_str, size_t num_bytes);
 
 #endif // !__GRACHT_CRC_H__

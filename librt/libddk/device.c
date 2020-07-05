@@ -38,6 +38,7 @@ RegisterDevice(
     UUId_t                   id;
     
     status = svc_device_register(GetGrachtClient(), &msg.base, device, device->Length, flags);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_device_register_result(GetGrachtClient(), &msg.base, &osStatus, &id);
     if (status) {
         ERROR("[ddk] [device] failed to register new device, errno %i", errno);
@@ -60,6 +61,7 @@ UnregisterDevice(
     OsStatus_t               status;
     
     svc_device_unregister(GetGrachtClient(), &msg.base, DeviceId);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_device_unregister_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
@@ -74,6 +76,7 @@ IoctlDevice(
     OsStatus_t               status;
     
     svc_device_ioctl(GetGrachtClient(), &msg.base, Device, Command, Flags);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_device_ioctl_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
@@ -90,6 +93,7 @@ IoctlDeviceEx(
     OsStatus_t               status;
     
     svc_device_ioctl_ex(GetGrachtClient(), &msg.base, Device, Direction, Register, *Value, Width);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_device_ioctl_ex_result(GetGrachtClient(), &msg.base, &status, Value);
     return status;
 }

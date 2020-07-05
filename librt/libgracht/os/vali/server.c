@@ -34,6 +34,7 @@
 
 struct vali_link_client {
     struct gracht_server_client base;
+    struct ipmsg_addr           address;
 };
 
 struct vali_link_manager {
@@ -41,13 +42,15 @@ struct vali_link_manager {
     int                    iod;
 };
 
-static int clientId = 10000;
-
-static int vali_link_send_client(struct gracht_server_client* client,
+static int vali_link_send_client(struct vali_link_client* client,
     struct gracht_message* message, unsigned int flags)
 {
-    errno = (ENOTSUP);
-    return -1;
+    struct ipmsg_header ipmsg = {
+            .sender  = GetNativeHandle(client->base.iod),
+            .address = &client->address,
+            .base    = message
+    };
+    return putmsg(client->base.iod, &ipmsg, 0);
 }
 
 static int vali_link_recv_client(struct gracht_server_client* client,
@@ -61,21 +64,26 @@ static int vali_link_create_client(struct vali_link_manager* linkManager, struct
     struct vali_link_client** clientOut)
 {
     struct vali_link_client* client;
+    UUId_t                   clientHandle;
     
     if (!linkManager || !message || !clientOut) {
         errno = (EINVAL);
         return -1;
     }
 
-    client = (struct vali_link_client*)malloc(sizeof(struct vali_link_client));
+    clientHandle = ((struct ipmsg*)message->storage)->sender;
+    client       = (struct vali_link_client*)malloc(sizeof(struct vali_link_client));
     if (!client) {
         errno = (ENOMEM);
         return -1;
     }
 
     memset(client, 0, sizeof(struct vali_link_client));
-    client->base.header.id = clientId++;
-    client->base.iod = message->client;
+    client->base.header.id = message->client;
+    client->base.iod = linkManager->iod;
+
+    client->address.type = IPMSG_ADDRESS_HANDLE;
+    client->address.data.handle = clientHandle;
 
     *clientOut = client;
     return 0;
@@ -121,7 +129,7 @@ static int vali_link_recv_packet(struct vali_link_manager* linkManager, struct g
         return status;
     }
     
-    context->client      = linkManager->iod;
+    context->client      = (int)message->sender;
     context->params      = &message->base.params[0];
     
     context->param_in    = message->base.header.param_in;

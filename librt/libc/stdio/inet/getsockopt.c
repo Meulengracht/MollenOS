@@ -44,6 +44,7 @@ int getsockopt(int iod, int protocol, int option, void* data, socklen_t* length_
     }
     
     svc_socket_get_option(GetGrachtClient(), &msg.base, handle->object.handle, protocol, option, *length_out);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_socket_get_option_result(GetGrachtClient(), &msg.base, &status, data, length_out);
     if (status != OsSuccess) {
         OsStatusToErrno(status);

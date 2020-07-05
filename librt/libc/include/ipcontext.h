@@ -56,10 +56,10 @@ struct ipmsg {
 #define IPMSG_DONTWAIT 0x1
 
 _CODE_BEGIN
-CRTDECL(int, ipcontext(unsigned int, struct ipmsg_addr*));
-CRTDECL(int, putmsg(int, struct ipmsg_header*, int));
-CRTDECL(int, getmsg(int, struct ipmsg*, unsigned int, int));
-CRTDECL(int, resp(int, struct ipmsg*, struct ipmsg_header*));
+CRTDECL(int, ipcontext(unsigned int len, struct ipmsg_addr* addr));
+CRTDECL(int, putmsg(int iod, struct ipmsg_header* msg, int timeout));
+CRTDECL(int, getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags));
+CRTDECL(int, resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp));
 _CODE_END
 
 #endif //!__IPCONTEXT_H__

@@ -176,6 +176,7 @@ InitializeDisk(void* Context)
     OsStatus_t               status;
     
     ctt_storage_stat(GetGrachtClient(), &msg.base, disk->Device);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &status, &disk->Descriptor);
     if (status != OsSuccess) {
         // TODO: disk states

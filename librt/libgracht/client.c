@@ -307,9 +307,7 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     
     memset(client, 0, sizeof(gracht_client_t));
     mtx_init(&client->sync_object, mtx_plain);
-
-    // allow the same thread to make new calls while handling current
-    mtx_init(&client->wait_object, mtx_recursive);
+    mtx_init(&client->wait_object, mtx_plain);
 
     client->ops = config->link;
     client->iod = client->ops->connect(client->ops);

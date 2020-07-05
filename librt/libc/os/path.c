@@ -43,6 +43,7 @@ PathResolveEnvironment(
 	}
 	
 	svc_path_resolve(GetGrachtClient(), &msg.base, (enum svc_path_environment_path)environment, maxLength);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
 	svc_path_resolve_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }
@@ -61,6 +62,7 @@ PathCanonicalize(
 	}
 	
 	svc_path_canonicalize(GetGrachtClient(), &msg.base, path, maxLength);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
 	svc_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }
@@ -82,6 +84,7 @@ GetWorkingDirectory(
 	else {
 	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         svc_process_get_working_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
         svc_process_get_working_directory_result(GetGrachtClient(), &msg.base, &Status, PathBuffer);
         TRACE("GetWorkingDirectory => %s", PathBuffer);
     }
@@ -128,6 +131,7 @@ SetWorkingDirectory(
                 TRACE("...proc_set_cwd %s", &TempBuffer[0]);
                 svc_process_set_working_directory(GetGrachtClient(), &msg.base,
                     *GetInternalProcessId(), &TempBuffer[0]);
+                gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
                 svc_process_set_working_directory_result(GetGrachtClient(), &msg.base, &Status);
                 return Status;
             }
@@ -160,6 +164,7 @@ GetAssemblyDirectory(
 	    OsStatus_t               status;
 	    
         svc_process_get_assembly_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
         svc_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, PathBuffer);
         return status;
     }

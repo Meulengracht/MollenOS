@@ -61,7 +61,7 @@ add_custom_command(
 
 add_sources(${GENERATED_SOURCES})
 add_sources(link/client.c link/server.c)
-add_sources(client.c crc16.c server.c shared.c)
+add_sources(client.c crc.c server.c shared.c)
 
 add_library(libgracht ${SRCS})
 

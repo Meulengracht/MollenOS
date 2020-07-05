@@ -89,6 +89,7 @@ int open(const char* file, int flags, ...)
     // Try to open the file by directly communicating with the file-service
     status = svc_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
         file, _fopts(flags), _faccess(flags));
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
     if (status || OsStatusToErrno(osStatus)) {
         return -1;
@@ -96,6 +97,7 @@ int open(const char* file, int flags, ...)
     
     if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
         svc_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
         svc_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;
     }

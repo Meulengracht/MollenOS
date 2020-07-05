@@ -33,10 +33,14 @@
 extern void StdioInitialize(void *InheritanceBlock);
 extern void StdSignalInitialize(void);
 
-static char             __CrtStartupBuffer[1024] = { 0 };
-static gracht_client_t* __CrtClient              = NULL;
-static int              __CrtIsModule            = 0;
-static UUId_t           __CrtProcessId           = UUID_INVALID;
+// The default inbuilt client for rpc communication. In general this should only be used
+// internally for calls to services and modules.
+static char             __CrtClientBuffer[GRACHT_MAX_MESSAGE_SIZE] = { 0 };
+static gracht_client_t* __CrtClient                                = NULL;
+
+static char   __CrtStartupBuffer[1024] = { 0 };
+static int    __CrtIsModule            = 0;
+static UUId_t __CrtProcessId           = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
@@ -66,6 +70,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
     else {
         svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), sizeof(__CrtStartupBuffer));
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
                                                    &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
                                                    &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
@@ -114,4 +119,9 @@ const char* GetInternalCommandLine(void)
 gracht_client_t* GetGrachtClient(void)
 {
     return __CrtClient;
+}
+
+void* GetGrachtBuffer(void)
+{
+    return (void*)&__CrtClientBuffer[0];
 }

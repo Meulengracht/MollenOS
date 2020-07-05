@@ -55,6 +55,7 @@ int socketpair(int domain, int type, int protocol, int* iods)
     
     svc_socket_pair(GetGrachtClient(), &msg.base, io_object1->object.handle,
         io_object2->object.handle);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
     svc_socket_pair_result(GetGrachtClient(), &msg.base, &status);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);

@@ -90,6 +90,7 @@ DefaultCrashHandler(
 
         status = svc_process_report_crash(GetGrachtClient(), &msg.base,
             *GetInternalProcessId(), Context, sizeof(Context_t), Signal->signal);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
         svc_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
     
