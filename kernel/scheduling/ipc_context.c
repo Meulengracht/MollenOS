@@ -24,10 +24,8 @@
 //#define __TRACE
 
 #include <ddk/barrier.h>
-#include <ddk/handle.h>
 #include <ds/streambuffer.h>
 #include <debug.h>
-#include <futex.h>
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
@@ -35,7 +33,6 @@
 #include <ipc_context.h>
 #include <memoryspace.h>
 #include <memory_region.h>
-#include <string.h>
 #include <threading.h>
 
 typedef struct IpcContext {
@@ -302,9 +299,6 @@ IpcContextRespondMultiple(
     struct message_state state;
     int                  i;
 
-    // messages => originally received messages
-    // descriptors => responses
-    
     TRACE("[ipc] [respond]");
     if (!messages || !responses || !count) {
         ERROR("[ipc] [respond] input was null");

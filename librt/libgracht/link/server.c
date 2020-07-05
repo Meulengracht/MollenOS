@@ -90,7 +90,7 @@ static int socket_link_recv_client(struct socket_link_client* client,
 {
     struct gracht_message* message        = context->storage;
     char*                  params_storage = NULL;
-    size_t                 bytes_read;
+    intmax_t               bytes_read;
     
     TRACE("[gracht_connection_recv_stream] reading message header\n");
     bytes_read = recv(client->base.iod, message, sizeof(struct gracht_message), flags);
@@ -106,7 +106,7 @@ static int socket_link_recv_client(struct socket_link_client* client,
 
         TRACE("[gracht_connection_recv_stream] reading message payload\n");
         params_storage = (char*)context->storage + sizeof(struct gracht_message);
-        bytes_read     = recv(client->base.iod, params_storage, bytesToRead, MSG_WAITALL);
+        bytes_read     = recv(client->base.iod, params_storage, (size_t)bytesToRead, MSG_WAITALL);
         if (bytes_read != bytesToRead) {
             // do not process incomplete requests
             // TODO error code / handling
@@ -149,7 +149,7 @@ static int socket_link_create_client(struct socket_link_manager* linkManager, st
     client->base.iod = linkManager->dgram_socket;
 
     address = (struct sockaddr_storage*)message->storage;
-    memcpy(&client->address, address, linkManager->config.server_address_length);
+    memcpy(&client->address, address, (size_t)linkManager->config.server_address_length);
     
     *clientOut = client;
     return 0;
@@ -254,7 +254,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
 
     struct iovec iov[1] = { {
             .iov_base = message,
-            .iov_len  = GRACHT_MAX_MESSAGE_SIZE - linkManager->config.dgram_address_length
+            .iov_len  = (size_t)(GRACHT_MAX_MESSAGE_SIZE - linkManager->config.dgram_address_length)
         }
     };
     
@@ -289,7 +289,7 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
     }
 
     context->client      = (int)addressCrc;
-    context->params      = (void*)params_storage;
+    context->params      = params_storage;
     
     context->param_in    = message->header.param_in;
     context->param_count = message->header.param_in + message->header.param_out;

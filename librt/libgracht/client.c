@@ -267,7 +267,7 @@ int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_co
         return client_invoke_action(&client->protocols, message);
     }
     else if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_RESPONSE) {
-        struct gracht_message_descriptor* descriptor =  (struct gracht_message_descriptor*)
+        struct gracht_message_descriptor* descriptor = (struct gracht_message_descriptor*)
             gracht_list_lookup(&client->messages, (int)message->header.id);
         if (!descriptor) {
             // what the heck?

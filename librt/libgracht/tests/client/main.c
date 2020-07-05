@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     }
     
     code = test_utils_print(client, &context, "hello from wm_client!");
-    gracht_client_wait_message(client, &messageBuffer[0]);
+    gracht_client_wait_message(client, &context, &messageBuffer[0]);
     test_utils_print_result(client, &context, &status);
     
     printf("gracht_client: recieved status %i\n", status);

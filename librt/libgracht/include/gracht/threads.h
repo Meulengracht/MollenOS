@@ -31,10 +31,13 @@
 
 typedef pthread_mutex_t mtx_t;
 
+#define thrd_success 0
+
 #define mtx_plain NULL
 
 #define mtx_init    pthread_mutex_init
 #define mtx_destroy pthread_mutex_destroy
+#define mtx_trylock pthread_mutex_trylock
 #define mtx_lock    pthread_mutex_lock
 #define mtx_unlock  pthread_mutex_unlock
 
