@@ -133,7 +133,6 @@ static int socket_link_create_client(struct socket_link_manager* linkManager, st
 {
     struct socket_link_client* client;
     struct sockaddr_storage*   address;
-    int    status;
     
     if (!linkManager || !message || !clientOut) {
         errno = (EINVAL);

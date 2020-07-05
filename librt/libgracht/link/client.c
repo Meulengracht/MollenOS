@@ -72,7 +72,6 @@ static int socket_link_send_stream(struct socket_link_manager* linkManager,
     if (byteCount != message->header.length) {
         ERROR("link_client: failed to send message, bytes sent: %li, expected: %u (%i)\n",
               byteCount, message->header.length, errno);
-        perror("following error: ");
         errno = (EPIPE);
         return GRACHT_MESSAGE_ERROR;
     }
@@ -277,25 +276,6 @@ static void socket_link_destroy(struct socket_link_manager* linkManager)
     free(linkManager);
 }
 
-static int socket_link_allocate_buffer(struct socket_link_manager* linkManager,
-    size_t bufferLength, void** transferBufferOut)
-{
-    void* buffer = malloc(bufferLength);
-    if (!buffer) {
-        errno = (ENOMEM);
-        return -1;
-    }
-    
-    *transferBufferOut = buffer;
-    return 0;
-}
-
-static void socket_link_free_buffer(struct socket_link_manager* linkManager,
-    void* transferBuffer)
-{
-    free(transferBuffer);
-}
-
 int gracht_link_socket_client_create(struct client_link_ops** linkOut, 
     struct socket_client_configuration* configuration)
 {
@@ -309,9 +289,7 @@ int gracht_link_socket_client_create(struct client_link_ops** linkOut,
     
     memset(linkManager, 0, sizeof(struct socket_link_manager));
     memcpy(&linkManager->config, configuration, sizeof(struct socket_client_configuration));
-    
-    linkManager->ops.get_buffer  = (client_link_get_buffer_fn)socket_link_allocate_buffer;
-    linkManager->ops.free_buffer = (client_link_free_buffer_fn)socket_link_free_buffer;
+
     linkManager->ops.connect     = (client_link_connect_fn)socket_link_connect;
     linkManager->ops.recv        = (client_link_recv_fn)socket_link_recv;
     linkManager->ops.send        = (client_link_send_fn)socket_link_send;

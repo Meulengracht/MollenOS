@@ -67,9 +67,9 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     else {
         svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), sizeof(__CrtStartupBuffer));
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
-            &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
-            &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
-            &__CrtStartupBuffer[0] /*, sizeof(__CrtStartupBuffer) */);
+                                                   &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
+                                                   &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
+                                                   &__CrtStartupBuffer[0] /*, sizeof(__CrtStartupBuffer) */);
         
         TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
             StartupInformation->ArgumentsLength,

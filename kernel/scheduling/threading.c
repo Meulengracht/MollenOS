@@ -151,7 +151,6 @@ InitializeDefaultThread(
     memset(Thread, 0, sizeof(MCoreThread_t));
     MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
     SemaphoreConstruct(&Thread->EventObject, 0, 1);
-    SemaphoreConstruct(&Thread->WaitObject, 0, 1);
     
     Handle = CreateHandle(HandleTypeThread, DestroyThread, Thread);
     Thread->Handle       = Handle;

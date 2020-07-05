@@ -349,7 +349,7 @@ static int client_is_subscribed(struct gracht_server_client* client, uint8_t id)
 {
     int block  = id / 32;
     int offset = id % 32;
-    return client->subscriptions[block] & (1 << offset) != 0;
+    return (client->subscriptions[block] & (1 << offset)) != 0;
 }
 
 // Server control protocol implementation

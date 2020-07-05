@@ -34,7 +34,6 @@ struct sockaddr_storage;
 struct vali_link_message {
     struct gracht_message_context base;
     struct ipmsg_addr             address;
-    struct ipmsg_resp             response;
 };
 
 struct vali_link_deferred_response {
@@ -42,7 +41,7 @@ struct vali_link_deferred_response {
     struct ipmsg               recv_storage;
 };
 
-#define VALI_MSG_INIT_HANDLE(handle) { { 0 }, IPMSG_ADDR_INIT_HANDLE(handle), IPMSG_RESP_INIT_DEFAULT }
+#define VALI_MSG_INIT_HANDLE(handle) { { 0 }, IPMSG_ADDR_INIT_HANDLE(handle) }
 #define VALI_MSG_DEFER_SIZE(message) (message->param_count * sizeof(struct gracht_param))
 
 #ifdef __cplusplus

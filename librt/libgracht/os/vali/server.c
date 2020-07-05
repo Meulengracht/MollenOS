@@ -27,13 +27,13 @@
 
 #include <errno.h>
 #include "../../include/gracht/link/vali.h"
+#include <internal/_utils.h>
 #include <io.h>
-#include <os/dmabuf.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct vali_link_client {
     struct gracht_server_client base;
-    struct ipmsg_resp           response;
 };
 
 struct vali_link_manager {
@@ -57,19 +57,16 @@ static int vali_link_recv_client(struct gracht_server_client* client,
     return -1;
 }
 
-static int vali_link_create_client(struct socket_link_manager* linkManager, struct gracht_recv_message* message,
+static int vali_link_create_client(struct vali_link_manager* linkManager, struct gracht_recv_message* message,
     struct vali_link_client** clientOut)
 {
-    struct ipmsg*            ipmsg;
     struct vali_link_client* client;
-    int    status;
     
     if (!linkManager || !message || !clientOut) {
         errno = (EINVAL);
         return -1;
     }
-    
-    ipmsg  = (struct ipmsg*)message->storage;
+
     client = (struct vali_link_client*)malloc(sizeof(struct vali_link_client));
     if (!client) {
         errno = (ENOMEM);
@@ -80,8 +77,6 @@ static int vali_link_create_client(struct socket_link_manager* linkManager, stru
     client->base.header.id = clientId++;
     client->base.iod = message->client;
 
-    memcpy(&client->response, &ipmsg->response, sizeof(struct ipmsg_resp));
-    
     *clientOut = client;
     return 0;
 }
@@ -139,7 +134,16 @@ static int vali_link_recv_packet(struct vali_link_manager* linkManager, struct g
 static int vali_link_respond(struct vali_link_manager* linkManager,
     struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
-    return resp(linkManager->iod, messageContext->storage, message);
+    struct ipmsg_addr ipaddr = {
+            .type = IPMSG_ADDRESS_HANDLE,
+            .data.handle = ((struct ipmsg*)messageContext->storage)->sender
+    };
+    struct ipmsg_header ipmsg = {
+            .sender  = GetNativeHandle(linkManager->iod),
+            .address = &ipaddr,
+            .base    = message
+    };
+    return resp(linkManager->iod, messageContext->storage, &ipmsg);
 }
 
 static void vali_link_destroy(struct vali_link_manager* linkManager)

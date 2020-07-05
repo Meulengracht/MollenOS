@@ -75,7 +75,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     return io_object->fd;
 }
 
-int putmsg(int iod, struct ipmsg_desc* msg, int timeout)
+int putmsg(int iod, struct ipmsg_header* msg, int timeout)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     OsStatus_t      status;
@@ -140,7 +140,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     return 0;
 }
 
-int resp(int iod, struct ipmsg* msg, struct gracht_message* msgbase)
+int resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     OsStatus_t      status;
@@ -150,7 +150,7 @@ int resp(int iod, struct ipmsg* msg, struct gracht_message* msgbase)
         return -1;
     }
     
-    if (!msg || !msgbase) {
+    if (!msg || !resp) {
         _set_errno(EINVAL);
         return -1;
     }
@@ -160,6 +160,6 @@ int resp(int iod, struct ipmsg* msg, struct gracht_message* msgbase)
         return -1;
     }
     
-    status = Syscall_IpcContextRespond(&msg, &msgbase, 1);
+    status = Syscall_IpcContextRespond(&msg, &resp, 1);
     return OsStatusToErrno(status);
 }

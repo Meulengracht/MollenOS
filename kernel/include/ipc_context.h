@@ -43,9 +43,9 @@ IpcContextCreate(
  */
 KERNELAPI OsStatus_t KERNELABI
 IpcContextSendMultiple(
-    _In_ struct ipmsg_desc** Messages,
-    _In_ int                 MessageCount,
-    _In_ size_t              Timeout);
+    _In_ struct ipmsg_header** messages,
+    _In_ int                   messageCount,
+    _In_ size_t                timeout);
 
 /**
  * IpcContextRespondMultiple
@@ -53,8 +53,8 @@ IpcContextSendMultiple(
  */
 KERNELAPI OsStatus_t KERNELABI
 IpcContextRespondMultiple(
-    _In_ struct ipmsg**          messages,
-    _In_ struct gracht_message** messageDescriptors,
-    _In_ int                     messageCount);
+    _In_ struct ipmsg**        messages,
+    _In_ struct ipmsg_header** responses,
+    _In_ int                   count);
 
 #endif //!__VALI_IPC_CONTEXT_H__

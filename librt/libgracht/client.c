@@ -56,6 +56,7 @@ typedef struct gracht_client {
     struct gracht_list      awaiters;
     struct gracht_list      messages;
     mtx_t                   sync_object;
+    mtx_t                   wait_object;
 } gracht_client_t;
 
 // static methods
@@ -85,7 +86,8 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         struct gracht_message_descriptor* descriptor;
         size_t bufferLength = sizeof(struct gracht_message_descriptor) + (message->header.param_out * sizeof(struct gracht_param));
         int    i;
-        
+
+        assert(context != NULL);
         for (i = 0; i < message->header.param_out; i++) {
             if (message->params[message->header.param_in + i].type == GRACHT_PARAM_BUFFER) {
                 bufferLength += message->params[message->header.param_in + i].length;
@@ -93,7 +95,9 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         }
         
         context->message_id = message->header.id;
-        if (client->ops->get_buffer(client->ops, bufferLength, &context->descriptor)) {
+        context->descriptor = malloc(bufferLength);
+        if (!context->descriptor) {
+            errno = (ENOMEM);
             return -1;
         }
         
@@ -113,41 +117,6 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         descriptor->status = status;
     }
     return status == GRACHT_MESSAGE_ERROR ? -1 : 0;
-}
-
-int gracht_client_await(gracht_client_t* client, struct gracht_message_context* context)
-{
-    struct gracht_message_awaiter* awaiter;
-    
-    if (!client || !context) {
-        errno = (EINVAL);
-        return -1;
-    }
-    
-    awaiter = malloc(sizeof(struct gracht_message_awaiter) + sizeof(uint32_t));
-    if (!awaiter) {
-        errno = (ENOMEM);
-        return -1;
-    }
-    
-    cnd_init(&awaiter->event);
-    awaiter->header.id   = 0;
-    awaiter->header.link = NULL;
-    awaiter->flags       = GRACHT_AWAIT_ANY;
-    awaiter->id_count    = 1;
-    awaiter->ids[0]      = context->message_id;
-    
-    // do not add the awaiter if the condition is success
-    mtx_lock(&client->sync_object);
-    if (check_awaiter_condition(client, awaiter, &context, 1)) {
-        gracht_list_append(&client->awaiters, &awaiter->header);
-        cnd_wait(&awaiter->event, &client->sync_object);
-        gracht_list_remove(&client->awaiters, &awaiter->header);
-    }
-    mtx_unlock(&client->sync_object);
-    
-    free(awaiter);
-    return 0;
 }
 
 int gracht_client_await_multiple(gracht_client_t* client,
@@ -187,6 +156,11 @@ int gracht_client_await_multiple(gracht_client_t* client,
     
     free(awaiter);
     return 0;
+}
+
+int gracht_client_await(gracht_client_t* client, struct gracht_message_context* context)
+{
+    return gracht_client_await_multiple(client, &context, 1, GRACHT_AWAIT_ANY);
 }
 
 // status, output_buffer
@@ -249,13 +223,13 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
             }
         }
         
-        client->ops->free_buffer(client->ops, context->descriptor);
+        free(context->descriptor);
     }
     
-    return 0;
+    return descriptor->status;
 }
 
-int gracht_client_wait_message(gracht_client_t* client, void* messageBuffer)
+int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_context* context, void *messageBuffer)
 {
     struct gracht_message* message;
     int                    status;
@@ -264,8 +238,24 @@ int gracht_client_wait_message(gracht_client_t* client, void* messageBuffer)
         errno = (EINVAL);
         return -1;
     }
-    
+
+    if (mtx_trylock(&client->wait_object) != thrd_success) {
+        // did not succeed in taking the lock, if we are waiting for a specific message, then we do an
+        // await instead
+        if (context) {
+            return gracht_client_await(client, context);
+        }
+        else {
+            // otherwise we are trying to just wait for events, and another thread is already doing that
+            // should we just wait? For now accept the fate that we wait
+            if (mtx_lock(&client->wait_object) != thrd_success) {
+                return -1;
+            }
+        }
+    }
+
     status = client->ops->recv(client->ops, messageBuffer, GRACHT_WAIT_BLOCK, &message);
+    mtx_unlock(&client->wait_object);
     if (status) {
         return status;
     }
@@ -317,6 +307,10 @@ int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t*
     
     memset(client, 0, sizeof(gracht_client_t));
     mtx_init(&client->sync_object, mtx_plain);
+
+    // allow the same thread to make new calls while handling current
+    mtx_init(&client->wait_object, mtx_recursive);
+
     client->ops = config->link;
     client->iod = client->ops->connect(client->ops);
     if (client->iod < 0) {
@@ -341,6 +335,7 @@ int gracht_client_shutdown(gracht_client_t* client)
     }
     
     mtx_destroy(&client->sync_object);
+    mtx_destroy(&client->wait_object);
     free(client);
     return 0;
 }

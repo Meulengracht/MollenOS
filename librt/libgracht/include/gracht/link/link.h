@@ -67,17 +67,12 @@ struct server_link_ops {
     server_link_destroy_fn     destroy;
 };
 
-typedef int  (*client_link_get_buffer_fn)(struct client_link_ops*, size_t, void**);
-typedef void (*client_link_free_buffer_fn)(struct client_link_ops*, void*);
 typedef int  (*client_link_connect_fn)(struct client_link_ops*);
 typedef int  (*client_link_recv_fn)(struct client_link_ops*, void* messageBuffer, unsigned int flags, struct gracht_message**);
 typedef int  (*client_link_send_fn)(struct client_link_ops*, struct gracht_message*, void* messageContext);
 typedef void (*client_link_destroy_fn)(struct client_link_ops*);
 
 struct client_link_ops {
-    client_link_get_buffer_fn  get_buffer;
-    client_link_free_buffer_fn free_buffer;
-    
     client_link_connect_fn connect;
     client_link_recv_fn    recv;
     client_link_send_fn    send;

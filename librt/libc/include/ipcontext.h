@@ -42,33 +42,14 @@ struct ipmsg_addr {
 
 #define IPMSG_ADDR_INIT_HANDLE(handle) { IPMSG_ADDRESS_HANDLE, { handle } }
 
-#define IPMSG_NOTIFY_NONE       0
-#define IPMSG_NOTIFY_HANDLE_SET 1 // Completion handle
-#define IPMSG_NOTIFY_SIGNAL     2 // SIGIPC
-#define IPMSG_NOTIFY_THREAD     3 // Thread callback
-
-// Pack structures transmitted to make debugging wire format easier
-GRACHT_STRUCT(ipmsg_resp, {
-    UUId_t   dma_handle; // ::handle
-    uint32_t dma_offset; // remove
-    int      notify_method; // remove?
-    void*    notify_context; // remove?
-    union {
-        UUId_t    handle;
-        uintptr_t callback;
-    } notify_data; // remove?
-});
-
-#define IPMSG_RESP_INIT_DEFAULT { UUID_INVALID, 0, IPMSG_NOTIFY_NONE, NULL, { thrd_current() } }
-
-struct ipmsg_desc {
+struct ipmsg_header {
+    UUId_t                 sender;
     struct ipmsg_addr*     address;
     struct gracht_message* base;
-    struct ipmsg_resp*     response;
 };
 
 struct ipmsg {
-    struct ipmsg_resp     response;
+    UUId_t                sender;
     struct gracht_message base;
 };
 
@@ -76,9 +57,9 @@ struct ipmsg {
 
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int, struct ipmsg_addr*));
-CRTDECL(int, putmsg(int, struct ipmsg_desc*, int));
+CRTDECL(int, putmsg(int, struct ipmsg_header*, int));
 CRTDECL(int, getmsg(int, struct ipmsg*, unsigned int, int));
-CRTDECL(int, resp(int, struct ipmsg*, struct gracht_message*));
+CRTDECL(int, resp(int, struct ipmsg*, struct ipmsg_header*));
 _CODE_END
 
 #endif //!__IPCONTEXT_H__
