@@ -6,15 +6,6 @@
 | I386                  | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg) |
 | AMD64                 | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
 
-## Download
-
-| Build Configuration | Image | Version | Download Link |
-| ------------------- | -----:| -------:| ------------- |
-| I386                | .Img  | Latest  | Coming soon |
-| I386                | .Vmdk | Latest  | Coming soon |
-| AMD64               | .Img  | Latest  | Coming soon |
-| AMD64               | .Vmdk | Latest  | Coming soon |
-
 
 ## Table of Contents
 
@@ -48,16 +39,9 @@ the project.
 | Variable              | Required | Description             |
 | --------------------- |:-------- |:-----------------------:|
 | CROSS                 | Yes      | Points to where the cross-compiler is installed. |
-| VALI_ARCH             | Yes\*    | Which architecture you will build the OS and applications for. |
-| VALI_SDK_PATH         | No\*\*   | Points to where the SDK should be installed for app development. |
-| VALI_DDK_PATH         | No\*\*   | Points to where the DDK should be installed for driver development. |
-| VALI_APPLICATION_PATH | No\*\*\* | Points to where the Vali applications/libraries are built. |
+| VALI_APPLICATION_PATH | No\*     | Points to where the Vali applications/libraries are built. |
 
-\* The supported platforms targets right now are i386 and amd64
-
-\*\* Can be supplied to enable make install_sdk and make install_ddk
-
-\*\*\* Can be supplied to include built applications in the kernel image
+\* Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain <a name="setting-up-toolchain"></a>
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
@@ -77,7 +61,18 @@ After this, you are essentially ready to start developing on the operating syste
 when contributing, please follow the pull template that is provided.
 
 ### Setting up for application development <a name="setting-up-app-devenv"></a>
-If you want to build applications for Vali, you will need the make install_sdk/ddk commands, you will need all the not required environment variables. Then follow the instructions located [here](https://github.com/Meulengracht/vali-userspace) to get the sources for the applications.
+If you want to build applications for Vali, you will need to install the sdk and ddk by using make install. This will install the required headers and libraries in a shared location that you specify during cmake configuration by using the CMAKE_INSTALL_PREFIX. 
+
+Then follow the instructions located [here](https://github.com/Meulengracht/vali-userspace) to get the sources for the applications.
+
+### The build option for cmake <a name="build-options"></a>
+These are highlighted build configuration options for the cmake generation, there are more options, but these are the most often configured.
+
+| Option            | Default Value | | Description             |
+| ----------------- |:-------------:|:-----------------------:|
+| VALI_ARCH                 | i386  | Which architecture you will build the OS and applications for. Supported are i386 and amd64. |
+| VALI_ENABLE_KERNEL_TRACE  | ON    | Enable debug tracing in the kernel. |
+| VALI_ENABLE_SMP           | ON    | Enable multicore support in the kernel. |
 
 ### The build commands <a name="build-commands"></a>
 There is a series of build commands available.
@@ -85,8 +80,7 @@ There is a series of build commands available.
 | Command           | Description             |
 | ----------------- |:-----------------------:|
 | make              | Builds the operating system and support libraries |
-| make install_sdk  | Installs the SDK to the location VALI_SDK_PATH points. This is needed for app and driver development. |
-| make install_ddk  | Installs the DDK to the location VALI_DDK_PATH points. This is needed for driver development. |
+| make install      | Installs the SDK and DDK to the location pointed by CMAKE_INSTALL_PREFIX. This is needed for app and driver development. |
 | make install_img  | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .img |
 | make install_vmdk | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .vmdk |
 
