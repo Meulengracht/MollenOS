@@ -68,7 +68,7 @@ Then follow the instructions located [here](https://github.com/Meulengracht/vali
 ### The build option for cmake <a name="build-options"></a>
 These are highlighted build configuration options for the cmake generation, there are more options, but these are the most often configured.
 
-| Option            | Default Value | | Description             |
+| Option            | Default Value | Description             |
 | ----------------- |:-------------:|:-----------------------:|
 | VALI_ARCH                 | i386  | Which architecture you will build the OS and applications for. Supported are i386 and amd64. |
 | VALI_ENABLE_KERNEL_TRACE  | ON    | Enable debug tracing in the kernel. |
