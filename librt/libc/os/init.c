@@ -30,7 +30,8 @@
 #include <stdlib.h>
 #include <threads.h>
 
-extern void StdioInitialize(void *InheritanceBlock);
+extern void StdioInitialize(void);
+extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
@@ -48,22 +49,34 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     struct vali_link_message      msg          = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t                    osStatus;
     int                           status;
+    TRACE("[InitializeProcess]");
     
     // We must set IsModule before anything
     __CrtIsModule = IsModule;
 
+    // Initialize the standard C library
+    TRACE("[InitializeProcess] initializing stdio");
+    StdioInitialize();
+    TRACE("[InitializeProcess] initializing stdsig");
+    StdSignalInitialize();
+
     // Create the ipc client
+    TRACE("[InitializeProcess] creating rpc link");
     status = gracht_link_vali_client_create(&clientConfig.link);
     if (status) {
+        ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
         _Exit(status);
     }
-    
+
+    TRACE("[InitializeProcess] creating rpc client");
     status = gracht_client_create(&clientConfig, &__CrtClient);
     if (status) {
+        ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
         _Exit(status);
     }
     
     // Get startup information
+    TRACE("[InitializeProcess] receiving startup configuration");
     if (IsModule) {
         Syscall_ModuleGetStartupInfo(StartupInformation, &__CrtProcessId, &__CrtStartupBuffer[0],
             sizeof(__CrtStartupBuffer));
@@ -95,10 +108,9 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         StartupInformation->LibraryEntries = &__CrtStartupBuffer[
             StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
     }
-    
-	// Initialize STD-C
-	StdioInitialize(StartupInformation->Inheritation);
-    StdSignalInitialize();
+
+    // Parse the configuration information
+    StdioConfigureStandardHandles(StartupInformation->Inheritation);
 }
 
 int IsProcessModule(void)

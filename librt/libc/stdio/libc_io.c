@@ -242,8 +242,7 @@ StdioInheritObject(
     }
 }
 
-static void 
-StdioParseInheritanceBlock(
+void StdioConfigureStandardHandles(
     _In_ void* inheritanceBlock)
 {
     stdio_inheritation_block_t* block = inheritanceBlock;
@@ -311,12 +310,9 @@ stdio_close_all_handles(void)
     return files_closed;
 }
 
-_CRTIMP void
-StdioInitialize(
-    _In_ void* InheritanceBlock)
+void StdioInitialize(void)
 {
     stdio_bitmap_initialize();
-    StdioParseInheritanceBlock(InheritanceBlock);
 }
 
 _CRTIMP void

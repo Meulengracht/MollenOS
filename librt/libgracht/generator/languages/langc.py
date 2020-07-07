@@ -1,5 +1,5 @@
 import os
-from shared import Parameter
+from .shared import Parameter
 
 class CONST(object):
     __slots__ = ()

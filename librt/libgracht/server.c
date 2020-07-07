@@ -241,15 +241,9 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
         return -1;
     }
 
-    if (messageContext->client == server_object.dgram_iod) {
-        return server_object.ops->respond(server_object.ops, messageContext, message);
-    }
-
     client = (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, messageContext->client);
     if (!client) {
-        ERROR("gracht_server: failed to find client");
-        errno = (ENOENT);
-        return -1;
+        return server_object.ops->respond(server_object.ops, messageContext, message);
     }
 
     return server_object.ops->send_client(client, message, MSG_WAITALL);

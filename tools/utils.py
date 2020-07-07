@@ -1,10 +1,11 @@
-import os, sys
-import re
-import glob
-import zipfile
-import subprocess
-import shutil
 import argparse
+import glob
+import os
+import re
+import shutil
+import subprocess
+import sys
+import zipfile
 
 
 def delete_folder_if_exists(folder_path):

@@ -41,9 +41,11 @@ int stdio_bitmap_initialize(void)
 
 int stdio_bitmap_allocate(int fd)
 {
-    int result  = -1;
+    int result = -1;
     int i, j;
+
     TRACE("stdio_bitmap_allocate(%i)", fd);
+    assert(stdio_fd_bitmap != NULL);
     
     if (fd >= INTERNAL_MAXFILES) {
         _set_errno(ENOENT);
@@ -53,20 +55,23 @@ int stdio_bitmap_allocate(int fd)
     // Trying to allocate a specific fd?
     spinlock_acquire(&stdio_fd_lock);
     if (fd >= 0) {
-        int Block   = fd / (8 * sizeof(int));
-        int Offset  = fd % (8 * sizeof(int));
+        int Block  = fd / (8 * sizeof(int));
+        int Offset = fd % (8 * sizeof(int));
         if (stdio_fd_bitmap[Block] & (1 << Offset)) {
-            result  = -1;
+            result = -1;
         }
         else {
             stdio_fd_bitmap[Block] |= (1 << Offset);
-            result  = fd;
+            result = fd;
         }
     }
     else {
-        // Iterate the bitmap and find a free fd
+        // due to initialization might try to allocate fd's before parsing the inheritation
+        // we would like to reserve some of the lower fds for STDOUT, STDERR, STDIN
+        j = 3;
+
         for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
-            for (j = 0; j < (8 * sizeof(int)); j++) {
+            for (; j < (8 * sizeof(int)); j++) {
                 if (!(stdio_fd_bitmap[i] & (1 << j))) {
                     stdio_fd_bitmap[i] |= (1 << j);
                     result = (i * (8 * sizeof(int))) + j;
@@ -78,6 +83,7 @@ int stdio_bitmap_allocate(int fd)
             if (j != (8 * sizeof(int))) {
                 break;
             }
+            j = 0;
         }
     }
     spinlock_release(&stdio_fd_lock);
@@ -88,6 +94,8 @@ void stdio_bitmap_free(int fd)
 {
     int block;
     int offset;
+
+    assert(stdio_fd_bitmap != NULL);
 
     if (fd > STDERR_FILENO && fd < INTERNAL_MAXFILES) {
         block  = fd / (8 * sizeof(int));
