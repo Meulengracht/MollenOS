@@ -112,11 +112,11 @@ static int handle_client_socket(void)
     return 0;
 }
 
-static int handle_sync_event(int iod, uint32_t events, void* storage)
+static int handle_sync_event(void* storage)
 {
     struct gracht_recv_message message = { .storage = storage };
     int                        status;
-    TRACE("[handle_sync_event] %i, 0x%x\n", iod, events);
+    TRACE("[handle_sync_event]");
     
     while (1) {
         status = server_object.ops->recv_packet(server_object.ops, &message, MSG_DONTWAIT);
@@ -222,7 +222,7 @@ int gracht_server_main_loop(void)
                 }
             }
             else if (iod == server_object.dgram_iod) {
-                handle_sync_event(server_object.dgram_iod, flags, storage);
+                handle_sync_event(storage);
             }
             else {
                 handle_async_event(iod, flags, storage);
