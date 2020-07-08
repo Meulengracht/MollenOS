@@ -180,7 +180,7 @@ UsbCoreDestroy(void)
 OsStatus_t
 UsbCoreControllerRegister(
     _In_ UUId_t              DriverId,
-    _In_ Device_t*      Device,
+    _In_ Device_t*           Device,
     _In_ UsbControllerType_t Type,
     _In_ int                 RootPorts)
 {
@@ -499,7 +499,7 @@ UsbCoreEventPort(
     UsbPort_t*            Port   = NULL;
 
     // Debug
-    TRACE("UsbCoreEventPort(DeviceId %u, Hub %u, Port %u)", DeviceId, HubAddress, PortAddress);
+    TRACE("[UsbCoreEventPort] DeviceId %u, Hub %u, Port %u", DeviceId, HubAddress, PortAddress);
 
     // Lookup controller first to only handle events
     // from registered controllers

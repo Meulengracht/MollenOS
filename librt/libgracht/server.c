@@ -159,8 +159,11 @@ static int handle_async_event(int iod, uint32_t events, void* storage)
                 }
                 break;
             }
-            
+
             status = server_invoke_action(&server_object.protocols, &message);
+            if (status) {
+                WARNING("[handle_async_event] failed to invoke server action\n");
+            }
         }
     }
     return 0;

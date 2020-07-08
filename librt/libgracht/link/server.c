@@ -301,6 +301,8 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
 static int socket_link_respond(struct socket_link_manager* linkManager,
     struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
+    struct gracht_message* recvmsg = (struct gracht_message*)((char*)messageContext->storage + linkManager->config.dgram_address_length);
+
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      bytesWritten;
@@ -313,6 +315,9 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
         .msg_controllen = 0,
         .msg_flags = 0
     };
+
+    // Set the id of the message to the one of the received
+    message->header.id = recvmsg->header.id;
     
     // Prepare the header
     iov[0].iov_base = message;

@@ -29,7 +29,6 @@
 #include "include/gracht/list.h"
 #include "include/gracht/debug.h"
 #include "include/gracht/threads.h"
-#include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -71,6 +70,7 @@ extern int client_invoke_action(struct gracht_list*, struct gracht_message*);
 int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context* context,
     struct gracht_message* message)
 {
+    struct gracht_message_descriptor* descriptor = NULL;
     int status;
     
     if (!client || !message) {
@@ -83,7 +83,6 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
     
     // require intermediate buffer for sync operations
     if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_SYNC) {
-        struct gracht_message_descriptor* descriptor;
         size_t bufferLength = sizeof(struct gracht_message_descriptor) + (message->header.param_out * sizeof(struct gracht_param));
         int    i;
 
@@ -97,7 +96,7 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         context->message_id = message->header.id;
         context->descriptor = malloc(bufferLength);
         if (!context->descriptor) {
-            errno = (ENOMEM);
+            errno = ENOMEM;
             return -1;
         }
         
@@ -112,8 +111,7 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
     }
     
     status = client->ops->send(client->ops, message, context);
-    if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_SYNC) {
-        struct gracht_message_descriptor* descriptor = context->descriptor;
+    if (descriptor) {
         descriptor->status = status;
     }
     return status == GRACHT_MESSAGE_ERROR ? -1 : 0;
@@ -169,6 +167,7 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
 {
     struct gracht_message_descriptor* descriptor;
     char*                             pointer = NULL;
+    int                               status;
     int                               i;
     TRACE("[gracht] [client] get status from context\n");
     
@@ -182,8 +181,9 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
     descriptor = (struct gracht_message_descriptor*)gracht_list_lookup(
             &client->messages, (int)context->message_id);
     if (!descriptor) {
-        ERROR("[gracht] [client] descriptor for message was not found\n");
         mtx_unlock(&client->sync_object);
+
+        ERROR("[gracht] [client] descriptor for message was not found\n");
         errno = (EALREADY);
         return -1;
     }
@@ -191,12 +191,11 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
     if (descriptor->status == GRACHT_MESSAGE_COMPLETED || 
         descriptor->status == GRACHT_MESSAGE_ERROR) {
         gracht_list_remove(&client->messages, &descriptor->header);
-        
-        pointer = (char*)&descriptor->message.params[0] +
-            (descriptor->message.header.param_in * sizeof(struct gracht_param));
+        pointer = (char*)&descriptor->message.params[descriptor->message.header.param_in];
     }
     mtx_unlock(&client->sync_object);
-    
+
+    status = descriptor->status;
     if (pointer) {
         TRACE("[gracht] [client] unpacking parameters\n");
         for (i = 0; i < descriptor->message.header.param_in; i++) {
@@ -226,7 +225,7 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
         free(context->descriptor);
     }
     
-    return descriptor->status;
+    return status;
 }
 
 int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_context* context, void *messageBuffer)
@@ -271,6 +270,7 @@ int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_co
             gracht_list_lookup(&client->messages, (int)message->header.id);
         if (!descriptor) {
             // what the heck?
+            ERROR("[gracht_client_wait_message] descriptor %u was not found", message->header.id);
             return -1;
         }
         

@@ -73,7 +73,7 @@ static int vali_link_send_message(struct vali_link_manager* linkManager,
         OsStatusToErrno(status);
         return GRACHT_MESSAGE_ERROR;
     }
-    return GRACHT_MESSAGE_COMPLETED;
+    return GRACHT_MESSAGE_INPROGRESS;
 }
 
 static int vali_link_recv(struct vali_link_manager* linkManager, void* messageBuffer,
@@ -83,7 +83,7 @@ static int vali_link_recv(struct vali_link_manager* linkManager, void* messageBu
     int           status;
     unsigned int  convertedFlags = 0;
 
-    if (flags & GRACHT_WAIT_BLOCK) {
+    if (!(flags & GRACHT_WAIT_BLOCK)) {
         convertedFlags |= IPMSG_DONTWAIT;
     }
 
