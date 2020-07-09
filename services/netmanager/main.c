@@ -28,7 +28,32 @@
 #include <ddk/utils.h>
 #include "manager.h"
 
-#include "svc_socket_protocol_server.h"
+#include <svc_socket_protocol_server.h>
+
+extern void svc_socket_create_callback(struct gracht_recv_message* message, struct svc_socket_create_args*);
+extern void svc_socket_close_callback(struct gracht_recv_message* message, struct svc_socket_close_args*);
+extern void svc_socket_bind_callback(struct gracht_recv_message* message, struct svc_socket_bind_args*);
+extern void svc_socket_connect_callback(struct gracht_recv_message* message, struct svc_socket_connect_args*);
+extern void svc_socket_accept_callback(struct gracht_recv_message* message, struct svc_socket_accept_args*);
+extern void svc_socket_listen_callback(struct gracht_recv_message* message, struct svc_socket_listen_args*);
+extern void svc_socket_pair_callback(struct gracht_recv_message* message, struct svc_socket_pair_args*);
+extern void svc_socket_set_option_callback(struct gracht_recv_message* message, struct svc_socket_set_option_args*);
+extern void svc_socket_get_option_callback(struct gracht_recv_message* message, struct svc_socket_get_option_args*);
+extern void svc_socket_get_address_callback(struct gracht_recv_message* message, struct svc_socket_get_address_args*);
+
+static gracht_protocol_function_t svc_socket_callbacks[10] = {
+    { PROTOCOL_SVC_SOCKET_CREATE_ID , svc_socket_create_callback },
+    { PROTOCOL_SVC_SOCKET_CLOSE_ID , svc_socket_close_callback },
+    { PROTOCOL_SVC_SOCKET_BIND_ID , svc_socket_bind_callback },
+    { PROTOCOL_SVC_SOCKET_CONNECT_ID , svc_socket_connect_callback },
+    { PROTOCOL_SVC_SOCKET_ACCEPT_ID , svc_socket_accept_callback },
+    { PROTOCOL_SVC_SOCKET_LISTEN_ID , svc_socket_listen_callback },
+    { PROTOCOL_SVC_SOCKET_PAIR_ID , svc_socket_pair_callback },
+    { PROTOCOL_SVC_SOCKET_SET_OPTION_ID , svc_socket_set_option_callback },
+    { PROTOCOL_SVC_SOCKET_GET_OPTION_ID , svc_socket_get_option_callback },
+    { PROTOCOL_SVC_SOCKET_GET_ADDRESS_ID , svc_socket_get_address_callback },
+};
+DEFINE_SVC_SOCKET_SERVER_PROTOCOL(svc_socket_callbacks, 10);
 
 OsStatus_t OnUnload(void)
 {
@@ -45,6 +70,6 @@ OsStatus_t
 OnLoad(void)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_socket_protocol);
+    gracht_server_register_protocol(&svc_socket_server_protocol);
     return NetworkManagerInitialize();
 }

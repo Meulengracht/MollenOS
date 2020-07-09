@@ -28,7 +28,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "svc_session_protocol_server.h"
+
+#include <svc_session_protocol_server.h>
+
+extern void svc_session_login_callback(struct gracht_recv_message* message, struct svc_session_login_args*);
+extern void svc_session_logout_callback(struct gracht_recv_message* message, struct svc_session_logout_args*);
+extern void svc_session_new_device_callback(struct gracht_recv_message* message, struct svc_session_new_device_args*);
+
+static gracht_protocol_function_t svc_session_callbacks[3] = {
+    { PROTOCOL_SVC_SESSION_LOGIN_ID , svc_session_login_callback },
+    { PROTOCOL_SVC_SESSION_LOGOUT_ID , svc_session_logout_callback },
+    { PROTOCOL_SVC_SESSION_NEW_DEVICE_ID , svc_session_new_device_callback },
+};
+DEFINE_SVC_SESSION_SERVER_PROTOCOL(svc_session_callbacks, 3);
 
 static UUId_t WindowingSystemId = UUID_INVALID;
 
@@ -47,7 +59,7 @@ OsStatus_t
 OnLoad(void)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_session_protocol);
+    gracht_server_register_protocol(&svc_session_server_protocol);
     return OsSuccess;
 }
 

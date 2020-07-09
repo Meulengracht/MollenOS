@@ -31,8 +31,27 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_storage_protocol_server.h"
+#include <ctt_driver_protocol_server.h>
+
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
+
+static gracht_protocol_function_t ctt_driver_callbacks[1] = {
+        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
+};
+DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
+
+#include <ctt_storage_protocol_server.h>
+
+extern void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args*);
+extern void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args*);
+extern void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args*);
+
+static gracht_protocol_function_t ctt_storage_callbacks[3] = {
+    { PROTOCOL_CTT_STORAGE_STAT_ID , ctt_storage_stat_callback },
+    { PROTOCOL_CTT_STORAGE_TRANSFER_ASYNC_ID , ctt_storage_transfer_async_callback },
+    { PROTOCOL_CTT_STORAGE_TRANSFER_ID , ctt_storage_transfer_callback },
+};
+DEFINE_CTT_STORAGE_SERVER_PROTOCOL(ctt_storage_callbacks, 3);
 
 static Collection_t Controllers = COLLECTION_INIT(KeyId);
 
@@ -113,8 +132,8 @@ OnLoad(void)
     sigprocess(SIGINT, OnInterrupt);
     
     // Register supported protocols
-    gracht_server_register_protocol(&ctt_driver_protocol);
-    gracht_server_register_protocol(&ctt_storage_protocol);
+    gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_storage_server_protocol);
     
     // If AhciManagerInitialize should fail, then the OnUnload will
     // be called automatically
@@ -147,7 +166,7 @@ OnRegister(
     return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
-void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
     OnRegister(args->device);
 }

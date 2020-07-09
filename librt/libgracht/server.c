@@ -34,6 +34,18 @@
 
 #include <gracht_control_protocol_server.h>
 
+
+static void gracht_control_get_protocols_callback(struct gracht_recv_message* message);
+static void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_control_subscribe_args*);
+static void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_control_unsubscribe_args*);
+
+static gracht_protocol_function_t server_callbacks[3] = {
+   { PROTOCOL_GRACHT_CONTROL_GET_PROTOCOLS_ID , gracht_control_get_protocols_callback },
+   { PROTOCOL_GRACHT_CONTROL_SUBSCRIBE_ID , gracht_control_subscribe_callback },
+   { PROTOCOL_GRACHT_CONTROL_UNSUBSCRIBE_ID , gracht_control_unsubscribe_callback },
+};
+DEFINE_GRACHT_CONTROL_SERVER_PROTOCOL(server_callbacks, 3);
+
 extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
 
 struct gracht_server {
@@ -93,7 +105,7 @@ int gracht_server_initialize(gracht_server_configuration_t* configuration)
         return -1;
     }
     
-    gracht_server_register_protocol(&gracht_control_protocol);
+    gracht_server_register_protocol(&gracht_control_server_protocol);
     return 0;
 }
 
@@ -243,6 +255,9 @@ int gracht_server_respond(struct gracht_recv_message* messageContext, struct gra
         errno = (EINVAL);
         return -1;
     }
+
+    // update the id for the response
+    message->header.id = messageContext->message_id;
 
     client = (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, messageContext->client);
     if (!client) {

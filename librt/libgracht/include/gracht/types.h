@@ -94,14 +94,15 @@ struct gracht_message {
 };
 
 struct gracht_recv_message {
-    void*   storage;
-    void*   params;
+    void* storage;
+    void* params;
     
-    int     client;
-    uint8_t param_in;
-    uint8_t param_count;
-    uint8_t protocol;
-    uint8_t action;
+    int      client;
+    uint32_t message_id;
+    uint8_t  param_in;
+    uint8_t  param_count;
+    uint8_t  protocol;
+    uint8_t  action;
 };
 
 struct gracht_message_context {

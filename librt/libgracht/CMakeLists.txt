@@ -13,7 +13,7 @@ set (SRCS "")
 
 set (GENERATED_SOURCES
     ${CMAKE_BINARY_DIR}/gracht_control_protocol_server.c
-    ${CMAKE_BINARY_DIR}/gracht_control_protocol_client.c
+    #${CMAKE_BINARY_DIR}/gracht_control_protocol_client.c
 )
 
 macro (add_sources)
@@ -55,7 +55,7 @@ endif ()
 
 add_custom_command(
     OUTPUT ${GENERATED_SOURCES}
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/generator/parser.py --protocol ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml --out ${CMAKE_BINARY_DIR} --lang-c --client --server
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/generator/parser.py --protocol ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml --out ${CMAKE_BINARY_DIR} --lang-c --server
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml
 )
 
@@ -81,6 +81,7 @@ else ()
     )
     install(DIRECTORY include/ DESTINATION include)
     install(DIRECTORY generator/ DESTINATION share/gracht)
+    install(FILES protocol.xml DESTINATION share/gracht)
 endif ()
 
 if (GRACHT_BUILD_TESTS)

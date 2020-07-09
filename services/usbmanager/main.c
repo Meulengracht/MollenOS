@@ -26,7 +26,23 @@
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include "manager.h"
-#include "svc_usb_protocol_server.h"
+
+#include <svc_usb_protocol_server.h>
+
+extern void svc_usb_register_callback(struct gracht_recv_message* message, struct svc_usb_register_args*);
+extern void svc_usb_unregister_callback(struct gracht_recv_message* message, struct svc_usb_unregister_args*);
+extern void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc_usb_port_event_args*);
+extern void svc_usb_get_controller_count_callback(struct gracht_recv_message* message);
+extern void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args*);
+
+static gracht_protocol_function_t svc_usb_callbacks[5] = {
+    { PROTOCOL_SVC_USB_REGISTER_ID , svc_usb_register_callback },
+    { PROTOCOL_SVC_USB_UNREGISTER_ID , svc_usb_unregister_callback },
+    { PROTOCOL_SVC_USB_PORT_EVENT_ID , svc_usb_port_event_callback },
+    { PROTOCOL_SVC_USB_GET_CONTROLLER_COUNT_ID , svc_usb_get_controller_count_callback },
+    { PROTOCOL_SVC_USB_GET_CONTROLLER_ID , svc_usb_get_controller_callback },
+};
+DEFINE_SVC_USB_SERVER_PROTOCOL(svc_usb_callbacks, 5);
 
 OsStatus_t OnUnload(void)
 {
@@ -43,6 +59,6 @@ OsStatus_t
 OnLoad(void)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_usb_protocol);
+    gracht_server_register_protocol(&svc_usb_server_protocol);
     return UsbCoreInitialize();
 }

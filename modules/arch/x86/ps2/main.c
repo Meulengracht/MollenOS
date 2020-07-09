@@ -21,7 +21,6 @@
  * http://wiki.osdev.org/PS2
  */
 
-#include <os/mollenos.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <threads.h>
@@ -30,7 +29,15 @@
 #include <stdlib.h>
 
 #include "ps2.h"
-#include "ctt_driver_protocol_server.h"
+
+#include <ctt_driver_protocol_server.h>
+
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
+
+static gracht_protocol_function_t ctt_driver_callbacks[1] = {
+    { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
+};
+DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 static PS2Controller_t* Ps2Controller = NULL;
 
@@ -236,7 +243,7 @@ OnLoad(void)
     sigprocess(SIGINT, OnInterrupt);
     
     // Install supported protocols
-    gracht_server_register_protocol(&ctt_driver_protocol);
+    gracht_server_register_protocol(&ctt_driver_server_protocol);
     
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
@@ -322,7 +329,7 @@ OnRegister(
     return Result;
 }
 
-void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
     OnRegister(args->device);
 }

@@ -128,7 +128,8 @@ static int vali_link_recv_packet(struct vali_link_manager* linkManager, struct g
     if (status) {
         return status;
     }
-    
+
+    context->message_id  = message->base.header.id;
     context->client      = (int)message->sender;
     context->params      = &message->base.params[0];
     
@@ -152,9 +153,6 @@ static int vali_link_respond(struct vali_link_manager* linkManager,
             .address = &ipaddr,
             .base    = message
     };
-
-    // Set the id of the message to the one of the received
-    message->header.id = recvmsg->base.header.id;
     return resp(linkManager->iod, messageContext->storage, &ipmsg);
 }
 

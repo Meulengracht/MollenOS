@@ -634,7 +634,23 @@
                         <param name="value" type="size_t" count="1" />
                     </response>
                 </function>
+                <function name="get_devices_by_protocol">
+                    <request>
+                        <param name="protocol_id" type="uint8_t" />
+                    </request>
+                </function>
             </functions>
+
+            <events>
+                <event name="protocol_device">
+                    <param name="device_id" type="UUId_t" />
+                    <param name="protocol_id" type="uint8_t" />
+                </event>
+                <event name="device_update">
+                    <param name="device_id" type="UUId_t" />
+                    <param name="connected" type="int" />
+                </event>
+            </events>
         </protocol>
         <protocol name="usb" id="0x9">
             <functions>

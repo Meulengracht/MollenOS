@@ -24,7 +24,16 @@ add_custom_command(
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml
 )
 
-set (ADDITONAL_SOURCES ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol_server.c)
+add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gracht_control_protocol_client.c
+        COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/librt/libgracht/protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --client
+        DEPENDS ${CMAKE_SOURCE_DIR}/librt/libgracht/protocol.xml
+)
+
+set (ADDITONAL_SOURCES
+    ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol_server.c
+    ${CMAKE_CURRENT_BINARY_DIR}/gracht_control_protocol_client.c
+)
 
 if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
     include_directories(arch/x86)

@@ -29,8 +29,35 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_usbhost_protocol_server.h"
+#include <ctt_driver_protocol_server.h>
+
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
+
+static gracht_protocol_function_t ctt_driver_callbacks[1] = {
+        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
+};
+DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
+
+#include <ctt_usbhost_protocol_server.h>
+
+extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
+extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
+extern void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args*);
+extern void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args*);
+extern void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args*);
+extern void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args*);
+extern void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args*);
+
+static gracht_protocol_function_t ctt_usbhost_callbacks[7] = {
+    { PROTOCOL_CTT_USBHOST_QUEUE_ASYNC_ID , ctt_usbhost_queue_async_callback },
+    { PROTOCOL_CTT_USBHOST_QUEUE_ID , ctt_usbhost_queue_callback },
+    { PROTOCOL_CTT_USBHOST_QUEUE_PERIODIC_ID , ctt_usbhost_queue_periodic_callback },
+    { PROTOCOL_CTT_USBHOST_DEQUEUE_ID , ctt_usbhost_dequeue_callback },
+    { PROTOCOL_CTT_USBHOST_QUERY_PORT_ID , ctt_usbhost_query_port_callback },
+    { PROTOCOL_CTT_USBHOST_RESET_PORT_ID , ctt_usbhost_reset_port_callback },
+    { PROTOCOL_CTT_USBHOST_RESET_ENDPOINT_ID , ctt_usbhost_reset_endpoint_callback },
+};
+DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 7);
 
 extern void OnInterrupt(int, void*);
 
@@ -40,8 +67,8 @@ OnLoad(void)
     sigprocess(SIGINT, OnInterrupt);
     
     // Register supported protocols
-    gracht_server_register_protocol(&ctt_driver_protocol);
-    gracht_server_register_protocol(&ctt_usbhost_protocol);
+    gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_usbhost_server_protocol);
     
     return UsbManagerInitialize();
 }

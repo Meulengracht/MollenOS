@@ -116,7 +116,8 @@ static int socket_link_recv_client(struct socket_link_client* client,
             return -1;
         }
     }
-    
+
+    context->message_id  = message->header.id;
     context->client      = client->base.header.id;
     context->params      = (void*)params_storage;
     
@@ -288,9 +289,10 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
         params_storage = &message->params[0];
     }
 
+    context->message_id  = message->header.id;
     context->client      = (int)addressCrc;
     context->params      = params_storage;
-    
+
     context->param_in    = message->header.param_in;
     context->param_count = message->header.param_in + message->header.param_out;
     context->protocol    = message->header.protocol;
@@ -301,8 +303,6 @@ static int socket_link_recv_packet(struct socket_link_manager* linkManager,
 static int socket_link_respond(struct socket_link_manager* linkManager,
     struct gracht_recv_message* messageContext, struct gracht_message* message)
 {
-    struct gracht_message* recvmsg = (struct gracht_message*)((char*)messageContext->storage + linkManager->config.dgram_address_length);
-
     struct iovec  iov[1 + message->header.param_in];
     int           i;
     intmax_t      bytesWritten;
@@ -316,9 +316,6 @@ static int socket_link_respond(struct socket_link_manager* linkManager,
         .msg_flags = 0
     };
 
-    // Set the id of the message to the one of the received
-    message->header.id = recvmsg->header.id;
-    
     // Prepare the header
     iov[0].iov_base = message;
     iov[0].iov_len  = sizeof(struct gracht_message) + (

@@ -33,10 +33,36 @@
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
 #include <os/mollenos.h>
-#include <svc_device_protocol_server.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
+
+#include <svc_device_protocol_server.h>
+static void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args*);
+static void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args*);
+static void svc_device_unregister_callback(struct gracht_recv_message* message, struct svc_device_unregister_args*);
+static void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args*);
+static void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args*);
+static void svc_device_get_devices_by_protocol_callback(struct gracht_recv_message* message, struct svc_device_get_devices_by_protocol_args*);
+
+static gracht_protocol_function_t svc_device_functions[6] = {
+    { PROTOCOL_SVC_DEVICE_NOTIFY_ID , svc_device_notify_callback },
+    { PROTOCOL_SVC_DEVICE_REGISTER_ID , svc_device_register_callback },
+    { PROTOCOL_SVC_DEVICE_UNREGISTER_ID , svc_device_unregister_callback },
+    { PROTOCOL_SVC_DEVICE_IOCTL_ID , svc_device_ioctl_callback },
+    { PROTOCOL_SVC_DEVICE_IOCTL_EX_ID , svc_device_ioctl_ex_callback },
+    { PROTOCOL_SVC_DEVICE_GET_DEVICES_BY_PROTOCOL_ID , svc_device_get_devices_by_protocol_callback },
+};
+DEFINE_SVC_DEVICE_SERVER_PROTOCOL(svc_device_functions, 6);
+
+#include <gracht_control_protocol_client.h>
+
+static void gracht_control_event_protocol_callback(struct gracht_control_protocol_event*);
+
+static gracht_protocol_function_t gracht_control_callbacks[1] = {
+    { PROTOCOL_GRACHT_CONTROL_PROTOCOL_ID , gracht_control_event_protocol_callback },
+};
+DEFINE_GRACHT_CONTROL_CLIENT_PROTOCOL(gracht_control_callbacks, 1);
 
 struct device_node {
     element_t header;
@@ -74,7 +100,7 @@ OnLoad(void)
     thrd_t thr;
     
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_device_protocol);
+    gracht_server_register_protocol(&svc_device_server_protocol);
     
     // Start the enumeration process in a new thread so we can quickly return
     // and be ready for requests.
@@ -191,6 +217,18 @@ void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct sv
     svc_device_ioctl_ex_response(message, result, args->value);
 }
 
+void svc_device_get_devices_by_protocol_callback(
+        struct gracht_recv_message* message,
+        struct svc_device_get_devices_by_protocol_args* args)
+{
+    foreach(node, &Devices) {
+        struct device_node* deviceNode = node->value;
+        // if (device_supports_node(deviceNode, args->protocol_id)) {
+        //  protocol_device(device->device_id, args->protocol_id);
+        //}
+    }
+}
+
 int
 DmLoadDeviceDriver(void* Context)
 {
@@ -258,4 +296,9 @@ DmRegisterDevice(
     }
 #endif
     return OsSuccess;
+}
+
+void gracht_control_event_protocol_callback(struct gracht_control_protocol_event* input)
+{
+
 }
