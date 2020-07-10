@@ -54,7 +54,7 @@ GetSystemTick(
         OsStatus_t               status;
         
         svc_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status,
             &Tick->u.LowPart, &Tick->u.HighPart);
         return status;

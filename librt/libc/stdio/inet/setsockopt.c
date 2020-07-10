@@ -45,7 +45,7 @@ int setsockopt(int iod, int protocol, int option, const void* data, socklen_t le
     
     svc_socket_set_option(GetGrachtClient(), &msg.base, handle->object.handle,
         protocol, option, data, length, length);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     svc_socket_set_option_result(GetGrachtClient(), &msg.base, &status);
     if (status != OsSuccess) {
         OsStatusToErrno(status);

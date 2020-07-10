@@ -21,7 +21,6 @@
  */
 
 #include <ds/streambuffer.h>
-#include <errno.h>
 #include <ioctl.h>
 #include <internal/_io.h>
 
@@ -87,7 +86,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
 
-    if (request == FIONBIO) {
+    if ((unsigned int)request == FIONBIO) {
         int blocking = va_arg(args, int);
         if (blocking) {
             handle->object.data.pipe.options |= STREAMBUFFER_NO_BLOCK;
@@ -97,7 +96,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
         }
         return OsSuccess;
     }
-    else if (request == FIONREAD) {
+    else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             size_t bytesAvailable;

@@ -40,7 +40,7 @@
 #define _IOCTL_CMD(x)  ((x >> 8) & 0xFF)
 
 // encoding macros
-#define _IOC(dir, type, cmd, len) (dir | (type << 16) || (cmd << 8) || len)
+#define _IOC(dir, type, cmd, len) (dir | (type << 16) | (cmd << 8) | len)
 #define _IOC_V(type, cmd)            _IOC(_IOCTL_VOID, type, cmd, 0)
 #define _IOC_R(type, cmd, arg_type)  _IOC(_IOCTL_READ, type, cmd, sizeof(arg_type))
 #define _IOC_W(type, cmd, arg_type)  _IOC(_IOCTL_WRITE, type, cmd, sizeof(arg_type))

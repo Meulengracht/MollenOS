@@ -239,7 +239,7 @@ UsbTransferQueue(
     
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->device_id, transferId, transfer);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &status, bytesTransferred);
     return status;
 }
@@ -256,7 +256,7 @@ UsbTransferQueuePeriodic(
     
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->device_id, transferId, transfer);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &status);
     
     *transferIdOut = transferId;
@@ -273,7 +273,7 @@ UsbTransferDequeuePeriodic(
     
     ctt_usbhost_dequeue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->device_id, transferId);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_dequeue_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
@@ -289,7 +289,7 @@ UsbHubResetPort(
     OsStatus_t               status;
     
     ctt_usbhost_reset_port(GetGrachtClient(), &msg.base, DeviceId, PortAddress);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_reset_port_result(GetGrachtClient(), &msg.base, &status, Descriptor);
     return status;
 }
@@ -305,7 +305,7 @@ UsbHubQueryPort(
     OsStatus_t               status;
     
     ctt_usbhost_query_port(GetGrachtClient(), &msg.base, DeviceId, PortAddress);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_query_port_result(GetGrachtClient(), &msg.base, &status, Descriptor);
     return status;
 }
@@ -321,7 +321,7 @@ UsbEndpointReset(
     ctt_usbhost_reset_endpoint(GetGrachtClient(), &msg.base, deviceContext->device_id,
         deviceContext->hub_address, deviceContext->port_address,
         deviceContext->device_address, endpointAddress);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     ctt_usbhost_reset_endpoint_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }

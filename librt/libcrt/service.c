@@ -19,12 +19,9 @@
  * MollenOS C Library - Server Entry 
  */
 
-#include <ddk/service.h>
-#include <ddk/threadpool.h>
-#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
-#include <os/mollenos.h>
+#include <internal/_utils.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
@@ -59,13 +56,20 @@ void __CrtServiceEntry(void)
         exit(status);
     }
 
-    // Call the driver load function 
+    // listen to client events as well
+    gracht_server_listen_client(GetGrachtClient());
+
+    // Call the driver load function
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
         exit(-1);
     }
-    
+
     status = gracht_server_main_loop();
+    if (status) {
+        exit(-1);
+    }
+
     OnUnload();
-    exit(-1);
+    exit(0);
 }

@@ -21,27 +21,47 @@
  * - Standard IO null operation implementations.
  */
 
+#include <ddk/handle.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <ddk/handle.h>
+#include <ioctl.h>
 
 OsStatus_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    return OsNotSupported;
+    streambuffer_t* stream  = handle->object.data.ipcontext.stream;
+    unsigned int    options = handle->object.data.ipcontext.options;
+    unsigned int    base;
+    unsigned int    state;
+    size_t          bytesAvailable;
+
+    bytesAvailable = streambuffer_read_packet_start(stream, options, &base, &state);
+    if (!bytesAvailable) {
+        _set_errno(ENODATA);
+        return -1;
+    }
+
+    streambuffer_read_packet_data(stream, buffer, MIN(length, bytesAvailable), &state);
+    streambuffer_read_packet_end(stream, base, bytesAvailable);
+
+    *bytes_read = MIN(length, bytesAvailable);
+    return OsSuccess;
 }
 
 OsStatus_t stdio_ipc_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
+    // Write is not supported
     return OsNotSupported;
 }
 
 OsStatus_t stdio_ipc_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
+    // Seek is not supported
     return OsNotSupported;
 }
 
 OsStatus_t stdio_ipc_op_resize(stdio_handle_t* handle, long long resize_by)
 {
+    // Resize is not supported
     return OsNotSupported;
 }
 
@@ -55,11 +75,33 @@ OsStatus_t stdio_ipc_op_close(stdio_handle_t* handle, int options)
 
 OsStatus_t stdio_ipc_op_inherit(stdio_handle_t* handle)
 {
+    // Is not supported
     return OsSuccess;
 }
 
-OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
+    streambuffer_t* stream = handle->object.data.ipcontext.stream;
+
+    if ((unsigned int)request == FIONBIO) {
+        int blocking = va_arg(args, int);
+        if (blocking) {
+            handle->object.data.ipcontext.options |= STREAMBUFFER_NO_BLOCK;
+        }
+        else {
+            handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
+        }
+        return OsSuccess;
+    }
+    else if ((unsigned int)request == FIONREAD) {
+        int* bytesAvailableOut = va_arg(args, int*);
+        if (bytesAvailableOut) {
+            size_t bytesAvailable;
+            streambuffer_get_bytes_available_in(stream, &bytesAvailable);
+            *bytesAvailableOut = (int)bytesAvailable;
+        }
+        return OsSuccess;
+    }
     return OsNotSupported;
 }
 

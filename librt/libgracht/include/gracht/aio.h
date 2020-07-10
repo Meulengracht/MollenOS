@@ -48,8 +48,19 @@ static int gracht_aio_add(int aio, int iod) {
     return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
 }
 
-#define gracht_aio_event_iod(event)        (event)->data.iod
-#define gracht_aio_event_events(event)     (event)->events
+static int gracht_aio_add_extern(int aio, int iod, void* ptr) {
+    struct ioevt_event event = {
+            .events = IOEVTIN | IOEVTCTL | IOEVTLVT,
+            .data.val64 = (uint64_t)ptr
+    };
+    return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
+}
+
+#define gracht_aio_event_iod(event)    (event)->data.iod
+#define gracht_aio_event_extern(event) (event)->data.context
+#define gracht_aio_event_events(event) (event)->events
+
+#define gracht_aio_event_is_extern(event) ((event)->data.val64 > 0xFFFF)
 
 #elif defined(__linux__)
 #include <unistd.h>
@@ -73,8 +84,19 @@ static int gracht_aio_add(int aio, int iod) {
     return epoll_ctl(aio, EPOLL_CTL_ADD, iod, &event);
 }
 
-#define gracht_aio_event_iod(event)        (event)->data.fd
-#define gracht_aio_event_events(event)     (event)->events
+static int gracht_aio_add_extern(int aio, int iod, void* ptr) {
+    struct epoll_event event = {
+        .events = EPOLLIN | EPOLLRDHUP,
+        .data.u64 = (uint64_t)ptr
+    };
+    return epoll_ctl(aio, EPOLL_CTL_ADD, iod, &event);
+}
+
+#define gracht_aio_event_iod(event)    (event)->data.fd
+#define gracht_aio_event_extern(event) (event)->data.ptr
+#define gracht_aio_event_events(event) (event)->events
+
+#define gracht_aio_event_is_extern(event) ((event)->data.u64 > 0xFFFF)
 
 #else
 #error "Undefined platform for aio"

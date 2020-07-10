@@ -33,46 +33,48 @@
 
 #include "include/gracht/crc.h"
 
-#define CRC_POLY_16      0xA001
-#define	CRC_START_16     0x0000
-#define	CRC_START_MODBUS 0xFFFF
+#define    CRC_POLY_16      0xA001
+#define    CRC_START_16     0x0000
+#define    CRC_START_MODBUS 0xFFFF
 
-#define CRC_POLY_32      0xEDB88320ul
-#define	CRC_START_32     0xFFFFFFFFul
+#define    CRC_POLY_32      0xEDB88320ul
+#define    CRC_START_32     0xFFFFFFFFul
 
-static void     crc16_initialize(void);
-static void     crc32_initialize(void);
+static void crc16_initialize(void);
+
+static void crc32_initialize(void);
 
 static int      crc_tab16_init = 0;
 static uint16_t crc_tab16[256];
 
 static int      crc_tab32_init = 0;
 static uint32_t crc_tab32[256];
+
 /*
  * The function crc_16() calculates the 16 bits CRC16 in one pass for a byte
  * string of which the beginning has been passed to the function. The number of
  * bytes to check is also a parameter. The number of the bytes in the string is
  * limited by the constant SIZE_MAX.
  */
-uint16_t crc16_generate(const unsigned char* data, size_t length)
+uint16_t crc16_generate(const unsigned char *data, size_t length)
 {
-	const unsigned char* ptr;
-	uint16_t             crc;
-	size_t               a;
+    const unsigned char *ptr;
+    uint16_t            crc;
+    size_t              a;
 
-	if (!crc_tab16_init) {
-	    crc16_initialize();
-	}
+    if (!crc_tab16_init) {
+        crc16_initialize();
+    }
 
-	crc = CRC_START_16;
-	ptr = data;
+    crc = CRC_START_16;
+    ptr = data;
 
-	if (ptr != NULL) {
-	    for (a = 0; a < length; a++) {
-    		crc = (crc >> 8) ^ crc_tab16[ (crc ^ (uint16_t) *ptr++) & 0x00FF ];
-    	}
-	}
-	return crc;
+    if (ptr != NULL) {
+        for (a = 0; a < length; a++) {
+            crc = (crc >> 8) ^ crc_tab16[(crc ^ (uint16_t) *ptr++) & 0x00FF];
+        }
+    }
+    return crc;
 }
 
 /*
@@ -82,23 +84,23 @@ uint16_t crc16_generate(const unsigned char* data, size_t length)
  */
 uint16_t crc_modbus(const unsigned char *data, size_t length)
 {
-	const unsigned char* ptr;
-	uint16_t             crc;
-	size_t               a;
+    const unsigned char *ptr;
+    uint16_t            crc;
+    size_t              a;
 
-	if (!crc_tab16_init) {
-	    crc16_initialize();
-	}
+    if (!crc_tab16_init) {
+        crc16_initialize();
+    }
 
-	crc = CRC_START_MODBUS;
-	ptr = data;
+    crc = CRC_START_MODBUS;
+    ptr = data;
 
-	if (ptr != NULL) {
-	    for (a = 0; a < length; a++) {
-		    crc = (crc >> 8) ^ crc_tab16[(crc ^ (uint16_t)*ptr++) & 0x00FF];
-	    }
-	}
-	return crc;
+    if (ptr != NULL) {
+        for (a = 0; a < length; a++) {
+            crc = (crc >> 8) ^ crc_tab16[(crc ^ (uint16_t) *ptr++) & 0x00FF];
+        }
+    }
+    return crc;
 }
 
 /*
@@ -107,10 +109,10 @@ uint16_t crc_modbus(const unsigned char *data, size_t length)
  */
 uint16_t crc16_update(uint16_t crc, unsigned char c)
 {
-	if (!crc_tab16_init) {
-	    crc16_initialize();
-	}
-	return (crc >> 8) ^ crc_tab16[(crc ^ (uint16_t)c) & 0x00FF];
+    if (!crc_tab16_init) {
+        crc16_initialize();
+    }
+    return (crc >> 8) ^ crc_tab16[(crc ^ (uint16_t) c) & 0x00FF];
 }
 
 /*
@@ -121,23 +123,23 @@ uint16_t crc16_update(uint16_t crc, unsigned char c)
  */
 static void crc16_initialize(void)
 {
-	uint16_t i;
-	uint16_t j;
-	uint16_t crc;
-	uint16_t c;
+    uint16_t i;
+    uint16_t j;
+    uint16_t crc;
+    uint16_t c;
 
-	for (i = 0; i < 256; i++) {
-		crc = 0;
-		c   = i;
+    for (i = 0; i < 256; i++) {
+        crc = 0;
+        c   = i;
 
-		for (j = 0; j < 8; j++) {
-			if ( (crc ^ c) & 0x0001 ) crc = ( crc >> 1 ) ^ CRC_POLY_16;
-			else                      crc =   crc >> 1;
-			c = c >> 1;
-		}
-		crc_tab16[i] = crc;
-	}
-	crc_tab16_init = 1;
+        for (j = 0; j < 8; j++) {
+            if ((crc ^ c) & 0x0001) { crc = (crc >> 1) ^ CRC_POLY_16; }
+            else { crc = crc >> 1; }
+            c = c >> 1;
+        }
+        crc_tab16[i] = crc;
+    }
+    crc_tab16_init = 1;
 }
 
 /*
@@ -149,9 +151,9 @@ static void crc16_initialize(void)
  */
 uint32_t crc32_generate(const unsigned char *input_str, size_t num_bytes)
 {
-    uint32_t crc;
+    uint32_t            crc;
     const unsigned char *ptr;
-    size_t a;
+    size_t              a;
 
     if (!crc_tab32_init) {
         crc32_initialize();
@@ -160,8 +162,10 @@ uint32_t crc32_generate(const unsigned char *input_str, size_t num_bytes)
     crc = CRC_START_32;
     ptr = input_str;
 
-    if ( ptr != NULL ) for (a=0; a<num_bytes; a++) {
-        crc = (crc >> 8) ^ crc_tab32[(crc ^ (uint32_t) *ptr++) & 0x000000FFul];
+    if (ptr != NULL) {
+        for (a = 0; a < num_bytes; a++) {
+            crc = (crc >> 8) ^ crc_tab32[(crc ^ (uint32_t) *ptr++) & 0x000000FFul];
+        }
     }
 
     return (crc ^ 0xFFFFFFFFul);
@@ -194,14 +198,14 @@ void crc32_initialize(void)
     uint32_t j;
     uint32_t crc;
 
-    for (i=0; i<256; i++) {
+    for (i = 0; i < 256; i++) {
 
         crc = i;
 
-        for (j=0; j<8; j++) {
+        for (j = 0; j < 8; j++) {
 
-            if ( crc & 0x00000001L ) crc = ( crc >> 1 ) ^ CRC_POLY_32;
-            else                     crc =   crc >> 1;
+            if (crc & 0x00000001L) { crc = (crc >> 1) ^ CRC_POLY_32; }
+            else { crc = crc >> 1; }
         }
 
         crc_tab32[i] = crc;

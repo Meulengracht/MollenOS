@@ -595,8 +595,8 @@ class CGenerator:
             outfile.write(str(len(protocol.get_events())) + "] = {\n")
             for evt in protocol.get_events():
                 evt_name = protocol.get_namespace().upper() + "_" \
-                            + protocol.get_name().upper() + "_" + evt.get_name().upper()
-                evt_definition = "PROTOCOL_" + evt_name + "_EVENT_ID "
+                            + protocol.get_name().upper() + "_EVENT_" + evt.get_name().upper()
+                evt_definition = "PROTOCOL_" + evt_name + "_ID "
                 outfile.write(" *    { " + evt_definition + ", "
                               + self.get_protocol_client_event_callback_name(protocol, evt) + " },\n")
             outfile.write(" * };\n")

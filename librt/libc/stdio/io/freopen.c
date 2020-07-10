@@ -72,7 +72,7 @@ FILE* freopen(
 			
 			svc_file_set_options(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
 				handle->object.handle, _fopts(open_flags), _faccess(open_flags));
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
 			svc_file_set_options_result(GetGrachtClient(), &msg.base, &status);
 			OsStatusToErrno(status);
 		}

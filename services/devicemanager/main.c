@@ -55,14 +55,14 @@ static gracht_protocol_function_t svc_device_functions[6] = {
 };
 DEFINE_SVC_DEVICE_SERVER_PROTOCOL(svc_device_functions, 6);
 
-#include <gracht_control_protocol_client.h>
+#include <ctt_driver_protocol_client.h>
 
-static void gracht_control_event_protocol_callback(struct gracht_control_protocol_event*);
+static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event*);
 
-static gracht_protocol_function_t gracht_control_callbacks[1] = {
-    { PROTOCOL_GRACHT_CONTROL_PROTOCOL_ID , gracht_control_event_protocol_callback },
+static gracht_protocol_function_t ctt_driver_callbacks[1] = {
+    { PROTOCOL_CTT_DRIVER_EVENT_DEVICE_PROTOCOL_ID , ctt_driver_event_device_protocol_callback },
 };
-DEFINE_GRACHT_CONTROL_CLIENT_PROTOCOL(gracht_control_callbacks, 1);
+DEFINE_CTT_DRIVER_CLIENT_PROTOCOL(ctt_driver_callbacks, 1);
 
 struct device_node {
     element_t header;
@@ -101,7 +101,10 @@ OnLoad(void)
     
     // Register supported interfaces
     gracht_server_register_protocol(&svc_device_server_protocol);
-    
+
+    // Register the client control protocol
+    gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
+
     // Start the enumeration process in a new thread so we can quickly return
     // and be ready for requests.
     if (thrd_create(&thr, BusEnumerate, NULL) != thrd_success) {
@@ -161,8 +164,7 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
     
     TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
         args->vendor_id, args->device_id, args->class, args->subclass);
-    
-    
+
     driverNode = (struct driver_node*)malloc(sizeof(struct driver_node));
     if (!driverNode) {
         ERROR("[devicemanager] [notify] failed to allocate memory for driver node");
@@ -243,10 +245,10 @@ DmLoadDeviceDriver(void* Context)
 
 OsStatus_t
 DmRegisterDevice(
-    _In_  Device_t*   device,
-    _In_  const char* name,
-    _In_  unsigned int     flags,
-    _Out_ UUId_t*     idOut)
+    _In_  Device_t*    device,
+    _In_  const char*  name,
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      idOut)
 {
     struct device_node* deviceNode;
     UUId_t              deviceId;
@@ -298,7 +300,7 @@ DmRegisterDevice(
     return OsSuccess;
 }
 
-void gracht_control_event_protocol_callback(struct gracht_control_protocol_event* input)
+static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event* args)
 {
 
 }

@@ -83,17 +83,24 @@ void __CrtModuleEntry(void)
     
     status = gracht_link_vali_server_create(&config.link, &addr);
     if (status) {
-        exit(status);
+        exit(-1);
     }
     
     status = gracht_server_initialize(&config);
     if (status) {
-        exit(status);
+        exit(-1);
     }
 
+    // listen to client events as well
+    gracht_server_listen_client(GetGrachtClient());
+
     __CrtModuleLoad();
-    
+
     status = gracht_server_main_loop();
+    if (status) {
+        exit(-1);
+    }
+
     OnUnload();
-    exit(status);
+    exit(0);
 }

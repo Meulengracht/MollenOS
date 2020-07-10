@@ -44,6 +44,7 @@ static gracht_protocol_function_t* get_protocol_action(struct gracht_list* proto
     
     if (!protocol) {
         ERROR("[gracht] [client] [invoke] protocol %u was not found", protocol_id);
+        errno = ENOTSUP;
         return NULL;
     }
     
@@ -52,7 +53,9 @@ static gracht_protocol_function_t* get_protocol_action(struct gracht_list* proto
             return &protocol->functions[i];
         }
     }
+
     ERROR("[gracht] [client] [invoke] action %u was not found", action_id);
+    errno = ENOTSUP;
     return NULL;
 }
 
@@ -106,7 +109,6 @@ int server_invoke_action(struct gracht_list* protocols, struct gracht_recv_messa
     void* param_storage;
     
     if (!function) {
-        errno = (EPROTONOSUPPORT);
         return -1;
     }
     
@@ -132,9 +134,8 @@ int client_invoke_action(struct gracht_list* protocols, struct gracht_message* m
         message->header.protocol, message->header.action);
     uint32_t param_count;
     void*    param_storage;
+
     if (!function) {
-        ERROR("[gracht] [client] [invoke] protocol or action was not found");
-        errno = (EPROTONOSUPPORT);
         return -1;
     }
     

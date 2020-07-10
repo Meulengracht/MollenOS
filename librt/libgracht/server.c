@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <errno.h>
 #include "include/gracht/aio.h"
+#include "include/gracht/client.h"
 #include "include/gracht/debug.h"
 #include "include/gracht/list.h"
 #include "include/gracht/server.h"
@@ -33,7 +34,6 @@
 #include <string.h>
 
 #include <gracht_control_protocol_server.h>
-
 
 static void gracht_control_get_protocols_callback(struct gracht_recv_message* message);
 static void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_control_subscribe_args*);
@@ -50,13 +50,14 @@ extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*
 
 struct gracht_server {
     struct server_link_ops* ops;
+    void*                   messageBuffer;
     int                     initialized;
     int                     completion_iod;
     int                     client_iod;
     int                     dgram_iod;
     struct gracht_list      protocols;
     struct gracht_list      clients;
-} server_object = { NULL, 0, -1, -1, -1, { 0 }, { 0 } };
+} server_object = { NULL, NULL, 0, -1, -1, -1, { 0 }, { 0 } };
 
 static void client_destroy(struct gracht_server_client*);
 static void client_subscribe(struct gracht_server_client*, uint8_t);
@@ -198,6 +199,10 @@ static int gracht_server_shutdown(void)
     if (server_object.completion_iod != -1) {
         gracht_aio_destroy(server_object.completion_iod);
     }
+
+    if (server_object.messageBuffer) {
+        free(server_object.messageBuffer);
+    }
     
     if (server_object.ops != NULL) {
         server_object.ops->destroy(server_object.ops);
@@ -205,6 +210,34 @@ static int gracht_server_shutdown(void)
     
     server_object.initialized = 0;
     return 0;
+}
+
+int gracht_server_listen_client(gracht_client_t* client)
+{
+    if (!client || server_object.completion_iod < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (!server_object.messageBuffer) {
+        server_object.messageBuffer = malloc(GRACHT_MAX_MESSAGE_SIZE);
+        if (!server_object.messageBuffer) {
+            errno = ENOMEM;
+            return -1;
+        }
+    }
+
+    return gracht_aio_add_extern(server_object.completion_iod, gracht_client_iod(client), client);
+}
+
+int gracht_server_unlisten_client(gracht_client_t* client)
+{
+    if (!client || server_object.completion_iod < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    return gracht_aio_remove(server_object.completion_iod, gracht_client_iod(client));
 }
 
 int gracht_server_main_loop(void)
@@ -228,10 +261,12 @@ int gracht_server_main_loop(void)
             uint32_t flags = gracht_aio_event_events(&events[i]);
 
             TRACE("gracht_server: event %u from %i\n", flags, iod);
-            if (iod == server_object.client_iod) {
-                if (handle_client_socket()) {
-                    // TODO - log
-                }
+            if (gracht_aio_event_is_extern(&events[i])) {
+                gracht_client_wait_message(gracht_aio_event_extern(&events[i]),
+                        NULL, server_object.messageBuffer, 0);
+            }
+            else if (iod == server_object.client_iod) {
+                handle_client_socket();
             }
             else if (iod == server_object.dgram_iod) {
                 handle_sync_event(storage);

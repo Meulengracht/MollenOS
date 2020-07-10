@@ -54,7 +54,7 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
     }
     
     svc_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, address);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     svc_socket_bind_result(GetGrachtClient(), &msg.base, &status);
     if (status != OsSuccess) {
         OsStatusToErrno(status);

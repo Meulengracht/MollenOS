@@ -43,7 +43,7 @@ int socket(int domain, int type, int protocol)
     // communication between processes and are needed long before anything else.
     TRACE("[socket] remote create");
     svc_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     svc_socket_create_result(GetGrachtClient(), &msg.base, &os_status, &handle, &recv_handle, &send_handle);
     if (os_status != OsSuccess) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);

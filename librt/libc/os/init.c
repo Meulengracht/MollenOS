@@ -83,7 +83,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
     else {
         svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), sizeof(__CrtStartupBuffer));
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer());
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
                                                    &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
                                                    &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,

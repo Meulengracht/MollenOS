@@ -61,7 +61,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
         }
     }
     
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &io_object);
+    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE | WX_DONTINHERIT, &io_object);
     if (status) {
         handle_destroy(handle);
         return -1;
@@ -70,7 +70,8 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     stdio_handle_set_handle(io_object, handle);
     stdio_handle_set_ops_type(io_object, STDIO_HANDLE_IPCONTEXT);
     
-    io_object->object.data.ipcontext.stream = stream;
+    io_object->object.data.ipcontext.stream  = stream;
+    io_object->object.data.ipcontext.options = 0;
     
     return io_object->fd;
 }

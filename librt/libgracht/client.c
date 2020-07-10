@@ -228,7 +228,11 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
     return status;
 }
 
-int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_context* context, void *messageBuffer)
+int gracht_client_wait_message(
+        gracht_client_t*               client,
+        struct gracht_message_context* context,
+        void*                          messageBuffer,
+        unsigned int                   flags)
 {
     struct gracht_message* message;
     int                    status;
@@ -239,6 +243,11 @@ int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_co
     }
 
     if (mtx_trylock(&client->wait_object) != thrd_success) {
+        if (!(flags & GRACHT_WAIT_BLOCK)) {
+            errno = EBUSY;
+            return -1;
+        }
+
         // did not succeed in taking the lock, if we are waiting for a specific message, then we do an
         // await instead
         if (context) {
@@ -253,7 +262,7 @@ int gracht_client_wait_message(gracht_client_t* client, struct gracht_message_co
         }
     }
 
-    status = client->ops->recv(client->ops, messageBuffer, GRACHT_WAIT_BLOCK, &message);
+    status = client->ops->recv(client->ops, messageBuffer, flags, &message);
     mtx_unlock(&client->wait_object);
     if (status) {
         return status;
@@ -336,6 +345,15 @@ int gracht_client_shutdown(gracht_client_t* client)
     mtx_destroy(&client->wait_object);
     free(client);
     return 0;
+}
+
+int gracht_client_iod(gracht_client_t* client)
+{
+    if (!client) {
+        errno = EINVAL;
+        return -1;
+    }
+    return client->iod;
 }
 
 int gracht_client_register_protocol(gracht_client_t* client, gracht_protocol_t* protocol)

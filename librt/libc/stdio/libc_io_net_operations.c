@@ -21,12 +21,10 @@
  * - Standard IO socket operation implementations.
  */
 
-#include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ipc.h>
 #include <ioctl.h>
 #include <os/dmabuf.h>
-#include <os/mollenos.h>
 
 OsStatus_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
@@ -113,7 +111,7 @@ OsStatus_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.buffer;
 
-    if (request == FIONREAD) {
+    if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             size_t bytesAvailable;

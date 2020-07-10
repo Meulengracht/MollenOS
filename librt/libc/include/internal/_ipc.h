@@ -24,6 +24,7 @@
 
 struct ipcontext {
     streambuffer_t* stream;
+    unsigned int    options;
 };
 
 #endif //!__INTERNAL_IPC_H__

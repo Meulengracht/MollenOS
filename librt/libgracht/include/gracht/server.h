@@ -26,6 +26,8 @@
 
 #include "types.h"
 
+typedef struct gracht_client gracht_client_t;
+
 typedef struct gracht_server_configuration {
     struct server_link_ops* link;
 } gracht_server_configuration_t;
@@ -40,7 +42,12 @@ extern "C" {
 int gracht_server_initialize(gracht_server_configuration_t*);
 int gracht_server_register_protocol(gracht_protocol_t*);
 int gracht_server_unregister_protocol(gracht_protocol_t*);
+
+int gracht_server_listen_client(gracht_client_t*);
+int gracht_server_unlisten_client(gracht_client_t*);
+
 int gracht_server_main_loop(void);
+
 int gracht_server_get_dgram_iod(void);
 
 int gracht_server_respond(struct gracht_recv_message*, struct gracht_message*);
