@@ -25,10 +25,11 @@
 #include <errno.h>
 #include <gracht/link/socket.h>
 #include <gracht/server.h>
-#include <test_utils_protocol_client.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/un.h>
+
+#include <test_utils_protocol_client.h>
 
 static const char* dgramPath = "/tmp/g_dgram";
 static const char* clientsPath = "/tmp/g_clients";
@@ -59,9 +60,15 @@ int main(int argc, char **argv)
         printf("gracht_client: error initializing client library %i, %i\n", errno, code);
         return code;
     }
-    
-    code = test_utils_print(client, &context, "hello from wm_client!");
-    gracht_client_wait_message(client, &context, &messageBuffer[0]);
+
+    if (argc > 1) {
+        code = test_utils_print(client, &context, argv[1]);
+    }
+    else {
+        code = test_utils_print(client, &context, "hello from wm_client!");
+    }
+
+    gracht_client_wait_message(client, &context, &messageBuffer[0], GRACHT_WAIT_BLOCK);
     test_utils_print_result(client, &context, &status);
     
     printf("gracht_client: recieved status %i\n", status);

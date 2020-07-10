@@ -27,8 +27,16 @@
 #include <gracht/server.h>
 #include <stdio.h>
 #include <string.h>
-#include <test_utils_protocol_server.h>
 #include <sys/un.h>
+
+#include <test_utils_protocol_server.h>
+
+void test_utils_print_callback(struct gracht_recv_message* message, struct test_utils_print_args*);
+
+static gracht_protocol_function_t test_utils_callbacks[1] = {
+    { PROTOCOL_TEST_UTILS_PRINT_ID , test_utils_print_callback },
+};
+DEFINE_TEST_UTILS_SERVER_PROTOCOL(test_utils_callbacks, 1);
 
 static const char* dgramPath = "/tmp/g_dgram";
 static const char* clientsPath = "/tmp/g_clients";
@@ -70,6 +78,6 @@ int main(int argc, char **argv)
         return code;
     }
     
-    gracht_server_register_protocol(&test_utils_protocol);
+    gracht_server_register_protocol(&test_utils_server_protocol);
     return gracht_server_main_loop();
 }
