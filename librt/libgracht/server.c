@@ -66,7 +66,15 @@ static int  client_is_subscribed(struct gracht_server_client*, uint8_t);
 
 int gracht_server_initialize(gracht_server_configuration_t* configuration)
 {
-    assert(server_object.initialized == 0);
+    if (server_object.initialized) {
+        errno = EALREADY;
+        return -1;
+    }
+
+    if (!configuration) {
+        errno = EINVAL;
+        return -1;
+    }
     
     // store handler
     server_object.initialized = 1;
@@ -186,7 +194,10 @@ static int gracht_server_shutdown(void)
 {
     struct gracht_server_client* client;
     
-    assert(server_object.initialized == 1);
+    if (!server_object.initialized) {
+        errno = ENOTSUP;
+        return -1;
+    }
     
     client = (struct gracht_server_client*)server_object.clients.head;
     while (client) {

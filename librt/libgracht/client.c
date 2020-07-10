@@ -86,7 +86,11 @@ int gracht_client_invoke(gracht_client_t* client, struct gracht_message_context*
         size_t bufferLength = sizeof(struct gracht_message_descriptor) + (message->header.param_out * sizeof(struct gracht_param));
         int    i;
 
-        assert(context != NULL);
+        if (!context) {
+            errno = EINVAL;
+            return -1;
+        }
+
         for (i = 0; i < message->header.param_out; i++) {
             if (message->params[message->header.param_in + i].type == GRACHT_PARAM_BUFFER) {
                 bufferLength += message->params[message->header.param_in + i].length;
@@ -123,7 +127,7 @@ int gracht_client_await_multiple(gracht_client_t* client,
     struct gracht_message_awaiter* awaiter;
     int                            i;
     
-    if (!client || !contexts) {
+    if (!client || !contexts || !contextCount) {
         errno = (EINVAL);
         return -1;
     }
@@ -178,8 +182,7 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
     
     // guard against already checked
     mtx_lock(&client->sync_object);
-    descriptor = (struct gracht_message_descriptor*)gracht_list_lookup(
-            &client->messages, (int)context->message_id);
+    descriptor = (struct gracht_message_descriptor*)context->descriptor;
     if (!descriptor) {
         mtx_unlock(&client->sync_object);
 
@@ -202,7 +205,7 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
             struct gracht_param* out_param = &params[i];
             struct gracht_param* in_param  = &descriptor->message.params[i];
             
-            if (out_param->type == GRACHT_PARAM_VALUE) {
+            if (out_param->data.buffer && out_param->type == GRACHT_PARAM_VALUE) {
                 if (out_param->length == 1) {
                     *((uint8_t*)out_param->data.buffer) = (uint8_t)(in_param->data.value & 0xFF);
                 }
@@ -217,7 +220,9 @@ int gracht_client_status(gracht_client_t* client, struct gracht_message_context*
                 }
             }
             else if (out_param->type == GRACHT_PARAM_BUFFER) {
-                memcpy(out_param->data.buffer, pointer, in_param->length);
+                if (out_param->data.buffer) {
+                    memcpy(out_param->data.buffer, pointer, in_param->length);
+                }
                 pointer += in_param->length;
             }
         }
@@ -237,7 +242,7 @@ int gracht_client_wait_message(
     struct gracht_message* message;
     int                    status;
     
-    if (!client) {
+    if (!client || !messageBuffer) {
         errno = (EINVAL);
         return -1;
     }

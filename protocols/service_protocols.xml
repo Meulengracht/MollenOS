@@ -644,6 +644,7 @@
             <events>
                 <event name="protocol_device">
                     <param name="device_id" type="UUId_t" />
+                    <param name="driver_id" type="UUId_t" />
                     <param name="protocol_id" type="uint8_t" />
                 </event>
                 <event name="device_update">
