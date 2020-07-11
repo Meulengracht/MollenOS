@@ -77,3 +77,4 @@ install(TARGETS m
     LIBRARY DESTINATION vali-sdk/lib
     RUNTIME DESTINATION vali-sdk/bin
 )
+install(DIRECTORY include/ DESTINATION vali-sdk/include)
