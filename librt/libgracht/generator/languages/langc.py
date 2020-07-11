@@ -726,10 +726,15 @@ class CGenerator:
             self.define_events(protocol, f)
         return
 
-    def generate_client_files(self, out, protocols, include_protocols):
+    def generate_shared_files(self, out, protocols, include_protocols):
         for proto in protocols:
             if (len(include_protocols) == 0) or (proto.get_name() in include_protocols):
                 self.generate_shared_header(proto, out)
+        return
+
+    def generate_client_files(self, out, protocols, include_protocols):
+        for proto in protocols:
+            if (len(include_protocols) == 0) or (proto.get_name() in include_protocols):
                 self.generate_client_header(proto, out)
                 self.generate_client_impl(proto, out)
         return
@@ -737,7 +742,6 @@ class CGenerator:
     def generate_server_files(self, out, protocols, include_protocols):
         for proto in protocols:
             if (len(include_protocols) == 0) or (proto.get_name() in include_protocols):
-                self.generate_shared_header(proto, out)
                 self.generate_server_header(proto, out)
                 self.generate_server_impl(proto, out)
         return

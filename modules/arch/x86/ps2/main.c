@@ -31,13 +31,16 @@
 #include "ps2.h"
 
 #include <ctt_driver_protocol_server.h>
+#include <hid_events_protocol.h>
 
 static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
+static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
 
-static gracht_protocol_function_t ctt_driver_callbacks[1] = {
+static gracht_protocol_function_t ctt_driver_callbacks[2] = {
     { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
+    { PROTOCOL_CTT_DRIVER_GET_DEVICE_PROTOCOLS_ID , ctt_driver_get_device_protocols_callback },
 };
-DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
+DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
 
 static PS2Controller_t* Ps2Controller = NULL;
 
@@ -332,6 +335,12 @@ OnRegister(
 static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
     OnRegister(args->device);
+}
+
+static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
+{
+    // announce the protocols we support
+    ctt_driver_event_device_protocol_single(message->client, args->device_id, "hid", PROTOCOL_HID_EVENTS_ID);
 }
 
 OsStatus_t

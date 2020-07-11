@@ -286,6 +286,7 @@ def main(args):
         generator = CGenerator()
 
     if generator is not None:
+        generator.generate_shared_files(output_dir, protocols, include_protocols)
         if args.client:
             generator.generate_client_files(output_dir, protocols, include_protocols)
         if args.server:
