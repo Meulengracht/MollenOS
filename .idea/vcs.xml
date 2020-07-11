@@ -4,8 +4,5 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libacpi" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libclang" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/librt/libcxx/libcxx" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/librt/libcxx/libcxxabi" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/librt/libcxx/libunwind" vcs="Git" />
   </component>
 </project>
