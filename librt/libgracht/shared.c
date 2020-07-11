@@ -43,7 +43,7 @@ static gracht_protocol_function_t* get_protocol_action(struct gracht_list* proto
         gracht_list_lookup(protocols, (int)(uint32_t)protocol_id);
     
     if (!protocol) {
-        ERROR("[gracht] [client] [invoke] protocol %u was not found", protocol_id);
+        ERROR("[get_protocol_action] protocol %u was not implemented", protocol_id);
         errno = ENOTSUP;
         return NULL;
     }
@@ -54,7 +54,7 @@ static gracht_protocol_function_t* get_protocol_action(struct gracht_list* proto
         }
     }
 
-    ERROR("[gracht] [client] [invoke] action %u was not found", action_id);
+    ERROR("[get_protocol_action] action %u was not implemented", action_id);
     errno = ENOTSUP;
     return NULL;
 }

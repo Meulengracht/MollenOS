@@ -320,6 +320,7 @@ AddHandleToSet(
     
     // Start out by acquiring an reference on the handle
     if (AcquireHandle(handle, NULL) != OsSuccess) {
+        ERROR("[AddHandleToSet] failed to acquire handle %u", handle);
         return OsDoesNotExist;
     }
     

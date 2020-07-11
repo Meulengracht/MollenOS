@@ -41,10 +41,13 @@ struct vali_link_manager {
     int                    iod;
 };
 
-static int vali_link_connect(struct client_link_ops* linkManager)
+static int vali_link_connect(struct vali_link_manager* linkManager)
 {
-    errno = (ENOTSUP);
-    return 0;
+    if (!linkManager) {
+        errno = EINVAL;
+        return -1;
+    }
+    return linkManager->iod;
 }
 
 static int vali_link_send_message(struct vali_link_manager* linkManager,
@@ -125,7 +128,7 @@ int gracht_link_vali_client_create(struct client_link_ops** linkOut)
         return -1;
     }
 
-    linkManager->ops.connect     = vali_link_connect;
+    linkManager->ops.connect     = (client_link_connect_fn)vali_link_connect;
     linkManager->ops.recv        = (client_link_recv_fn)vali_link_recv;
     linkManager->ops.send        = (client_link_send_fn)vali_link_send_message;
     linkManager->ops.destroy     = (client_link_destroy_fn)vali_link_destroy;

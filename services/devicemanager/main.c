@@ -64,10 +64,16 @@ static gracht_protocol_function_t ctt_driver_callbacks[1] = {
 };
 DEFINE_CTT_DRIVER_CLIENT_PROTOCOL(ctt_driver_callbacks, 1);
 
+struct device_protocol {
+    element_t header;
+    char*     name;
+};
+
 struct device_node {
     element_t header;
     UUId_t    driver_id;
     Device_t* device;
+    list_t    protocols;
 };
 
 struct driver_node {
@@ -151,6 +157,7 @@ update_device_drivers(void)
                     &deviceNode->device->Name[0]);
                 ctt_driver_register_device(GetGrachtClient(), &msg.base, deviceNode->device,
                     deviceNode->device->Length);
+                ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, deviceNode->device->Id);
                 
                 deviceNode->driver_id = handle;
             }
@@ -225,9 +232,13 @@ void svc_device_get_devices_by_protocol_callback(
 {
     foreach(node, &Devices) {
         struct device_node* deviceNode = node->value;
-        // if (device_supports_node(deviceNode, args->protocol_id)) {
-        //  protocol_device(device->device_id, args->protocol_id);
-        //}
+        foreach(protoNode, &deviceNode->protocols) {
+            struct device_protocol* protocol = node->value;
+            if ((uintptr_t)protocol->header.key == (uintptr_t)args->protocol_id) {
+                svc_device_event_protocol_device_single(message->client, deviceNode->device->Id,
+                    deviceNode->driver_id, args->protocol_id);
+            }
+        }
     }
 }
 
@@ -251,7 +262,7 @@ DmRegisterDevice(
     _Out_ UUId_t*      idOut)
 {
     struct device_node* deviceNode;
-    UUId_t              deviceId;
+    Device_t*           deviceCopy;
 
     assert(device != NULL);
     assert(idOut != NULL);
@@ -261,31 +272,32 @@ DmRegisterDevice(
     if (!deviceNode) {
         return OsOutOfMemory;
     }
-    
-    deviceNode->device = (Device_t*)malloc(device->Length);
-    if (!deviceNode->device) {
+
+    deviceCopy = (Device_t*)malloc(device->Length);
+    if (!deviceCopy) {
         free(deviceNode);
         return OsOutOfMemory;
     }
-    
-    deviceId = DeviceIdGenerator++;
-    
-    ELEMENT_INIT(&deviceNode->header, (uintptr_t)deviceId, deviceNode);
-    deviceNode->driver_id = UUID_INVALID;
-    
-    memcpy(deviceNode->device, device, device->Length);
+
+    // Create the device cloned object and adjust name/id
+    memcpy(deviceCopy, device, device->Length);
     if (name != NULL) {
-        memcpy(&deviceNode->device->Name[0], name,
-            strnlen(name, sizeof(deviceNode->device->Name) - 0));
+        strncpy(&deviceCopy->Name[0], name, sizeof(deviceCopy->Name));
     }
-    
-    TRACE("%u, Registered device %s, struct length %u", 
-        deviceId, &deviceNode->device->Name[0], deviceNode->device->Length);
-    
+    deviceCopy->Id = DeviceIdGenerator++;
+
+    // initialize object
+    ELEMENT_INIT(&deviceNode->header, (uintptr_t)deviceCopy->Id, deviceNode);
+    deviceNode->driver_id = UUID_INVALID;
+    deviceNode->device    = deviceCopy;
+    list_construct(&deviceNode->protocols);
+
     list_append(&Devices, &deviceNode->header);
-    deviceNode->device->Id = deviceId;
-    *idOut = deviceId;
-    
+    *idOut = deviceCopy->Id;
+
+    TRACE("%u, Registered device %s, struct length %u",
+          deviceCopy->Id, &deviceCopy->Name[0], deviceCopy->Length);
+
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
@@ -302,5 +314,15 @@ DmRegisterDevice(
 
 static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event* args)
 {
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    if (deviceNode) {
+        struct device_protocol* protocol = malloc(sizeof(struct device_protocol));
+        if (!protocol) {
+            return;
+        }
 
+        ELEMENT_INIT(&protocol->header, (uintptr_t)args->protocol_id, protocol);
+        protocol->name = strdup(&args->protocol_name[0]);
+        list_append(&deviceNode->protocols, &protocol->header);
+    }
 }

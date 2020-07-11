@@ -19,13 +19,13 @@ include_directories (
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol.h
     COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include driver --server
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_server.c
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/hid_events_protocol.h
     COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --server
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml
 )

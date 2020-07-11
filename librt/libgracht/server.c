@@ -22,7 +22,6 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <assert.h>
 #include <errno.h>
 #include "include/gracht/aio.h"
 #include "include/gracht/client.h"

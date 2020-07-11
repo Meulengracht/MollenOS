@@ -19,7 +19,7 @@ include_directories (
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/svc_session_protocol_server.c
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/svc_session_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/svc_session_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/svc_session_protocol.h
     COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include session --server
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml
 )
