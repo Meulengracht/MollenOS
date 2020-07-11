@@ -1,12 +1,3 @@
-[submodule "librt/libcxx/abi"]
-	path = librt/libcxx/libcxxabi
-	url = https://github.com/Meulengracht/libcxxabi
-[submodule "librt/libcxx/cxx"]
-	path = librt/libcxx/libcxx
-	url = https://github.com/Meulengracht/libcxx
-[submodule "librt/libcxx/unwind"]
-	path = librt/libcxx/libunwind
-	url = https://github.com/Meulengracht/libunwind
 [submodule "librt/libclang"]
 	path = librt/libclang
 	url = https://github.com/Meulengracht/compiler-rt
