@@ -508,7 +508,7 @@ install(TARGETS c
     LIBRARY DESTINATION vali-sdk/lib
     RUNTIME DESTINATION vali-sdk/bin
 )
-install(DIRECTORY include/ DESTINATION vali-sdk/include 
+install(DIRECTORY include/ DESTINATION vali-sdk/include
     FILES_MATCHING
         PATTERN "*.h"
         PATTERN "internal" EXCLUDE

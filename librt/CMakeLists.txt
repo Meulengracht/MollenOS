@@ -4,6 +4,8 @@ if (NOT DEFINED VALI_BUILD)
     project(ValiRuntimeLibraries)
 endif ()
 
+string(TOLOWER "${CMAKE_C_COMPILER_ID}-${CMAKE_C_COMPILER_VERSION}" VALI_COMPILER_ID)
+
 macro (merge_libraries)
     # To produce a library we need at least one source file.
     # It is created by ADD_CUSTOM_COMMAND below and will helps 
@@ -101,7 +103,7 @@ ExternalProject_Add(compiler-rt
 )
 
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/vali-cross)
-install(DIRECTORY include/ DESTINATION vali-sdk/include)
+install(DIRECTORY include/ DESTINATION vali-sdk/include/${VALI_COMPILER_ID})
 
 # Runtime libraries
 add_subdirectory (libcrt)
