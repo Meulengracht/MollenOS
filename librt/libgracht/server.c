@@ -32,18 +32,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <gracht_control_protocol_server.h>
+GRACHT_STRUCT(gracht_subscription_args, {
+    uint8_t protocol_id;
+});
 
-static void gracht_control_get_protocols_callback(struct gracht_recv_message* message);
-static void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_control_subscribe_args*);
-static void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_control_unsubscribe_args*);
+static void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_subscription_args*);
+static void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_subscription_args*);
 
-static gracht_protocol_function_t server_callbacks[3] = {
-   { PROTOCOL_GRACHT_CONTROL_GET_PROTOCOLS_ID , gracht_control_get_protocols_callback },
-   { PROTOCOL_GRACHT_CONTROL_SUBSCRIBE_ID , gracht_control_subscribe_callback },
-   { PROTOCOL_GRACHT_CONTROL_UNSUBSCRIBE_ID , gracht_control_unsubscribe_callback },
+static gracht_protocol_function_t control_functions[2] = {
+   { 0 , gracht_control_subscribe_callback },
+   { 1 , gracht_control_unsubscribe_callback },
 };
-DEFINE_GRACHT_CONTROL_SERVER_PROTOCOL(server_callbacks, 3);
+static gracht_protocol_t control_protocol = GRACHT_PROTOCOL_INIT(0, "gctrl", 2, control_functions);
 
 extern int server_invoke_action(struct gracht_list*, struct gracht_recv_message*);
 
@@ -113,7 +113,7 @@ int gracht_server_initialize(gracht_server_configuration_t* configuration)
         return -1;
     }
     
-    gracht_server_register_protocol(&gracht_control_server_protocol);
+    gracht_server_register_protocol(&control_protocol);
     return 0;
 }
 
@@ -410,18 +410,7 @@ static int client_is_subscribed(struct gracht_server_client* client, uint8_t id)
 }
 
 // Server control protocol implementation
-void gracht_control_get_protocols_callback(struct gracht_recv_message* message)
-{
-    struct gracht_protocol* protocol;
-    
-    protocol = (struct gracht_protocol*)server_object.protocols.head;
-    while (protocol) {
-        gracht_control_event_protocol_single(message->client, protocol->name, protocol->id);
-        protocol = (struct gracht_protocol*)protocol->header.link;
-    }
-}
-
-void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_control_subscribe_args* input)
+void gracht_control_subscribe_callback(struct gracht_recv_message* message, struct gracht_subscription_args* input)
 {
     struct gracht_server_client* client = 
         (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, message->client);
@@ -436,7 +425,7 @@ void gracht_control_subscribe_callback(struct gracht_recv_message* message, stru
     client_subscribe(client, input->protocol_id);
 }
 
-void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_control_unsubscribe_args* input)
+void gracht_control_unsubscribe_callback(struct gracht_recv_message* message, struct gracht_subscription_args* input)
 {
     struct gracht_server_client* client = 
         (struct gracht_server_client*)gracht_list_lookup(&server_object.clients, message->client);

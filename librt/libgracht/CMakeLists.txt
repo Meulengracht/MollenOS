@@ -11,10 +11,6 @@ option (GRACHT_INSTALL_HEADERS "Install headers and library")
 
 set (SRCS "")
 
-set (GENERATED_SOURCES
-    ${CMAKE_BINARY_DIR}/gracht_control_protocol_server.c
-)
-
 macro (add_sources)
     file (RELATIVE_PATH _relPath "${PROJECT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
     foreach (_src ${ARGN})
@@ -52,13 +48,6 @@ if (MOLLENOS)
     )
 endif ()
 
-add_custom_command(
-    OUTPUT ${GENERATED_SOURCES} ${CMAKE_BINARY_DIR}/gracht_control_protocol_server.h ${CMAKE_BINARY_DIR}/gracht_control_protocol.h
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/generator/parser.py --protocol ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml --out ${CMAKE_BINARY_DIR} --lang-c --server
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/protocol.xml
-)
-
-add_sources(${GENERATED_SOURCES})
 add_sources(link/client.c link/server.c)
 add_sources(client.c crc.c server.c shared.c)
 

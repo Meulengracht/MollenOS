@@ -9,18 +9,22 @@ from languages.langc import CGenerator
 global_id = 0
 trace_enabled = 0
 
+
 def error(text):
     print(text)
     sys.exit(-1)
+
 
 def trace(text):
     if trace_enabled != 0:
         print(text)
 
+
 def str2bool(v):
     if v is None:
         return False
     return v.lower() in ("yes", "true", "t", "1")
+
 
 def str2int(v):
     try:
@@ -31,17 +35,20 @@ def str2int(v):
     except Exception:
         return None
 
+
 def is_valid_int(s):
-    try: 
+    try:
         int(s)
         return True
     except ValueError:
         return False
 
+
 def get_dir_or_default(path, protocol_xml_path):
     if not path or not os.path.isdir(path):
         return os.getcwd()
     return path
+
 
 def get_id():
     global global_id
@@ -50,17 +57,19 @@ def get_id():
     global_id = global_id + 1
     return p_id
 
+
 def reset_id():
     global global_id
     global_id = 0
     return
+
 
 def create_type_from_xml(xml_type, global_scope):
     try:
         name = xml_type.get("name")
         header = xml_type.get("header")
         definition = xml_type.get("definition")
-        
+
         # validation
         if name is None:
             raise Exception("name attribute of <type> tag must be specified")
@@ -74,11 +83,12 @@ def create_type_from_xml(xml_type, global_scope):
         error("could not parse protocol types")
     return None
 
+
 def create_enum_from_xml(xml_enum, global_scope):
     try:
         name = xml_enum.get("name")
         values = []
-        
+
         # validation
         if name is None:
             raise Exception("name attribute of <enum> tag must be specified")
@@ -86,15 +96,16 @@ def create_enum_from_xml(xml_enum, global_scope):
         trace("parsing enum: " + name)
         for xml_value in xml_enum.findall('value'):
             values.append(parse_value(xml_value))
-        
+
         # validation
         if len(values) == 0:
             raise Exception("enums must have atleast one value specified")
-        
+
         return Enumerator(name, values, global_scope)
     except Exception as e:
         error("could not parse enum: " + str(e))
     return None
+
 
 def parse_value(xml_value):
     try:
@@ -114,6 +125,7 @@ def parse_value(xml_value):
         error("could not parse enum value: " + str(e))
     return None
 
+
 def parse_param(xml_param, is_response):
     try:
         name = xml_param.get("name")
@@ -121,13 +133,13 @@ def parse_param(xml_param, is_response):
         count = xml_param.get("count")
         subtype = xml_param.get("subtype")
         values = []
-        
+
         # validation
         if name is None:
             raise Exception("name attribute of <param> tag must be specified")
         if p_type is None:
             raise Exception("type attribute of <param> tag must be specified")
-        
+
         # set default parameters for optional values
         if count is None:
             count = "1"
@@ -137,22 +149,23 @@ def parse_param(xml_param, is_response):
         if is_valid_int(count):
             if int(count) < 1:
                 raise Exception(name + ": count can not be less than 1")
-            
+
             if int(count) > 1 and (p_type == "buffer" or p_type == "shm"):
                 raise Exception(name + ": count is not supported for buffer or shm types")
-            
+
         if is_response and p_type == "shm":
             raise Exception(name + ": shm response arguments not supported")
 
         trace("parsing parameter values: " + name)
         for xml_value in xml_param.findall('value'):
             values.append(parse_value(xml_value))
-        
+
         trace("parsed parameter: " + name)
         return Parameter(name, p_type, subtype, count, values)
     except Exception as e:
         error("could not parse parameter: " + str(e))
     return None
+
 
 def parse_function(xml_function):
     try:
@@ -161,27 +174,30 @@ def parse_function(xml_function):
         response_params = []
 
         trace("parsing function: " + name)
-        
+
         # validation
         if name is None:
             raise Exception("name attribute of <function> tag must be specified")
-        
+        if name == "subscribe" or name == "unsubscribe":
+            raise Exception("subscribe and unsubscribe are reserved function names")
+
         # parse parameters
         for xml_param in xml_function.findall("request/param"):
             request_params.append(parse_param(xml_param, False))
         for xml_param in xml_function.findall("response/param"):
             response_params.append(parse_param(xml_param, True))
-        
+
         return Function(name, str(get_id()), request_params, response_params)
     except Exception as e:
         error("could not parse function: " + str(e))
     return None
 
+
 def parse_event(xml_event):
     try:
         name = xml_event.get("name")
         params = []
-        
+
         # validation
         if name is None:
             raise Exception("name attribute of <event> tag must be specified")
@@ -193,6 +209,7 @@ def parse_event(xml_event):
     except Exception as e:
         error("could not parse event: " + str(e))
     return None
+
 
 def parse_protocol(global_types, global_enums, namespace, xml_protocol):
     try:
@@ -209,12 +226,12 @@ def parse_protocol(global_types, global_enums, namespace, xml_protocol):
             raise Exception("name attribute of <protocol> tag must be specified")
         if p_id is None:
             raise Exception("id attribute of <protocol> tag must be specified")
-        
+
         is_valid_id = str2int(p_id)
         if is_valid_id is None:
             raise Exception("id " + p_id + " attribute of <protocol> tag must an integer/hex string")
         if is_valid_id == 0:
-            trace("id 0 of <protocol> " + name + " is reserved for internal usage")
+            raise Exception("id 0 of <protocol> " + name + " is reserved for internal usage")
         if is_valid_id > 255:
             raise Exception("id of <protocol> " + name + " can not be higher than 255")
 
@@ -232,6 +249,7 @@ def parse_protocol(global_types, global_enums, namespace, xml_protocol):
         error("could not parse protocol: " + str(e))
     return None
 
+
 def parse_protocols(global_types, global_enums, root):
     protocols = []
     xml_protocols_header = root.find("protocols")
@@ -241,11 +259,12 @@ def parse_protocols(global_types, global_enums, root):
     namespace = xml_protocols_header.get("namespace")
     if namespace is None:
         error("could not parse protocol: namespace attribute was not defined in the <protocols> tag")
-    
+
     trace("parsed namespace: " + namespace)
     for xml_protocol in root.findall('protocols/protocol'):
         protocols.append(parse_protocol(global_types, global_enums, namespace, xml_protocol))
     return protocols
+
 
 def parse_global_types(root):
     types = []
@@ -253,11 +272,13 @@ def parse_global_types(root):
         types.append(create_type_from_xml(xml_type, True))
     return types
 
+
 def parse_global_enums(root):
     enums = []
     for xml_enum in root.findall('enums/enum'):
         enums.append(create_enum_from_xml(xml_enum, True))
     return enums
+
 
 def parse_protocol_xml(protocol_xml_path):
     root = ET.parse(protocol_xml_path).getroot()
@@ -266,6 +287,7 @@ def parse_protocol_xml(protocol_xml_path):
     protocols = parse_protocols(global_types, global_enums, root)
     return protocols
 
+
 ##########################################
 # Argument parser and orchestration code
 ##########################################
@@ -273,12 +295,12 @@ def main(args):
     global trace_enabled
     if args.trace:
         trace_enabled = 1
-    
+
     output_dir = get_dir_or_default(args.out, args.protocol)
     protocols = parse_protocol_xml(args.protocol)
     include_protocols = []
     generator = None
-    
+
     if args.include:
         include_protocols = args.include.split(',')
 
@@ -293,10 +315,12 @@ def main(args):
             generator.generate_server_files(output_dir, protocols, include_protocols)
     return
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optional app description')
     parser.add_argument('--protocol', type=str, help='The protocol that should be parsed')
-    parser.add_argument('--include', type=str, help='The protocols that should be generated from the file, comma-seperated list, default is all')
+    parser.add_argument('--include', type=str,
+                        help='The protocols that should be generated from the file, comma-seperated list, default is all')
     parser.add_argument('--out', type=str, help='Protocol files output directory')
     parser.add_argument('--client', action='store_true', help='Generate client side files')
     parser.add_argument('--server', action='store_true', help='Generate server side files')
