@@ -4,7 +4,7 @@ SCRIPTPATH=`dirname $SCRIPT`
 
 # Dev-libraries
 apt-get update
-apt-get -y -qq install git cmake gcc g++ zip nasm mono-complete make python
+apt-get -y -qq install git cmake gcc g++ zip nasm mono-complete make python3
 
 # Install the cmake platform template
 CMAKE_VERSION="$(cmake --version)";
