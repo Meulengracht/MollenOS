@@ -108,7 +108,7 @@ def write_param_values(protocol, func, param, outfile):
     return
 
 
-def get_param_typename(protocol, param, case) -> str:
+def get_param_typename(protocol, param, case):
     # resolve enums and structs
     if param.get_enum_ref() is not None:
         param_typename = "enum " + get_enum_name(protocol, param.get_enum_ref())
