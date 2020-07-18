@@ -240,6 +240,7 @@
 
             <events>
                 <event name="properties">
+                    <param name="device_id" type="UUId_t" />
                     <param name="device_type" type="type" />
                 </event>
                 <event name="button">

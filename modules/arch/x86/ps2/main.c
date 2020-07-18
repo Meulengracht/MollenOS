@@ -363,10 +363,10 @@ static void ctt_input_get_properties_callback(struct gracht_recv_message* messag
 
     if (port) {
         if (port->Signature == 0xAB41 || port->Signature == 0xABC1 || port->Signature == 0xAB83) {
-            ctt_input_event_properties_single(message->client, input_type_keyboard);
+            ctt_input_event_properties_single(message->client, args->device_id, input_type_keyboard);
         }
         else {
-            ctt_input_event_properties_single(message->client, input_type_mouse);
+            ctt_input_event_properties_single(message->client, args->device_id, input_type_mouse);
         }
     }
 }
