@@ -21,7 +21,7 @@
  *   the standard en-US keyboard. Supports Ascii for now
  */
 
-#include <hid_events_protocol.h>
+#include <ctt_input_protocol.h>
 #include <os/keycodes.h>
 
 // Keymap when modifier SHIFT is present
@@ -54,7 +54,7 @@ static uint8_t AsciiKeyMap[VK_KEYCOUNT] = {
 
 void
 GetKeyFromSystemKeyEnUs(
-    struct hid_events_key_event_event* key)
+    struct ctt_input_button_event* key)
 {
     int shouldUpperCase = key->flags & (key_flag_lshift | key_flag_rshift);
     if (key->flags & key_flag_capslock) {

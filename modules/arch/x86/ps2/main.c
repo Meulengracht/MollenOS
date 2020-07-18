@@ -31,7 +31,7 @@
 #include "ps2.h"
 
 #include <ctt_driver_protocol_server.h>
-#include <hid_events_protocol.h>
+#include <ctt_input_protocol_server.h>
 
 static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
@@ -41,6 +41,13 @@ static gracht_protocol_function_t ctt_driver_callbacks[2] = {
     { PROTOCOL_CTT_DRIVER_GET_DEVICE_PROTOCOLS_ID , ctt_driver_get_device_protocols_callback },
 };
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
+
+static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args*);
+
+static gracht_protocol_function_t ctt_input_callbacks[1] = {
+    { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
+};
+DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
 
 static PS2Controller_t* Ps2Controller = NULL;
 
@@ -340,7 +347,28 @@ static void ctt_driver_register_device_callback(struct gracht_recv_message* mess
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
 {
     // announce the protocols we support
-    ctt_driver_event_device_protocol_single(message->client, args->device_id, "hid", PROTOCOL_HID_EVENTS_ID);
+    ctt_driver_event_device_protocol_single(message->client, args->device_id, "input", PROTOCOL_CTT_INPUT_ID);
+}
+
+static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args* args)
+{
+    PS2Port_t* port = NULL;
+
+    if (Ps2Controller->Ports[0].DeviceId == args->device_id) {
+        port = &Ps2Controller->Ports[0];
+    }
+    else if (Ps2Controller->Ports[1].DeviceId == args->device_id) {
+        port = &Ps2Controller->Ports[1];
+    }
+
+    if (port) {
+        if (port->Signature == 0xAB41 || port->Signature == 0xABC1 || port->Signature == 0xAB83) {
+            ctt_input_event_properties_single(message->client, input_type_keyboard);
+        }
+        else {
+            ctt_input_event_properties_single(message->client, input_type_mouse);
+        }
+    }
 }
 
 OsStatus_t

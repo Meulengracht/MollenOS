@@ -63,8 +63,8 @@ static uint8_t ScancodeSet2ExtendedTable[126] = {
 
 OsStatus_t
 ScancodeSet2ToVKey(
-    _In_ struct hid_events_key_event_event* KeyState,
-    _In_ uint8_t                            Scancode)
+    _In_ struct ctt_input_button_event* KeyState,
+    _In_ uint8_t                        Scancode)
 {
     // Handle special cases
     if (Scancode == PS2_CODE_EXTENDED) {

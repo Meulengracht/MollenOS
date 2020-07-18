@@ -90,7 +90,7 @@ thrd_t thrd_current(void) {
 #include <internal/_syscalls.h>
 #include <internal/_io.h>
 #include <io.h>
-#include <hid_events_protocol.h>
+#include <ctt_input_protocol.h>
 #include <os/keycodes.h>
 #include <os/mollenos.h>
 #include <stdio.h>
@@ -502,14 +502,14 @@ UUId_t GetNativeHandle(int iod)
     return handle->object.handle;
 }
 
-extern void GetKeyFromSystemKeyEnUs(struct hid_events_key_event_event*);
+extern void GetKeyFromSystemKeyEnUs(struct ctt_input_button_event*);
 
 /* TranslateSystemKey
  * Performs the translation on the keycode in the system key structure. This fills
  * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
 OsStatus_t
 TranslateSystemKey(
-    _In_ struct hid_events_key_event_event* key)
+    _In_ struct ctt_input_button_event* key)
 {
     if (key->key_code != VK_INVALID) {
         GetKeyFromSystemKeyEnUs(key);

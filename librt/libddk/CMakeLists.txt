@@ -34,7 +34,8 @@ set (GENERATED_HEADERS
     ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol.h
     ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol_client.h
 
-    ${CMAKE_BINARY_DIR}/hid_events_protocol.h
+    ${CMAKE_BINARY_DIR}/ctt_input_protocol.h
+    ${CMAKE_BINARY_DIR}/ctt_input_protocol_client.h
 )
 
 set (GENERATED_SOURCES
@@ -51,6 +52,7 @@ set (GENERATED_SOURCES
     ${CMAKE_BINARY_DIR}/ctt_storage_protocol_client.c
     ${CMAKE_BINARY_DIR}/ctt_usbhub_protocol_client.c
     ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol_client.c
+    ${CMAKE_BINARY_DIR}/ctt_input_protocol_client.c
 )
 
 # Configure include paths
@@ -76,7 +78,6 @@ add_custom_command(
     OUTPUT ${GENERATED_SOURCES} ${GENERATED_HEADERS}
     COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_BINARY_DIR} --lang-c --client
     COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_BINARY_DIR} --lang-c --client
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/hid_protocol.xml --out ${CMAKE_BINARY_DIR} --lang-c
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
 )
 

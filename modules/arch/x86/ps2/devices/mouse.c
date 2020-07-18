@@ -61,7 +61,7 @@ void
 PS2MouseInterrupt(
     _In_ PS2Port_t* Port)
 {
-    struct hid_events_pointer_event_event Input;
+    struct ctt_input_cursor_event Input;
     uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
 
     // Update relative x and y
@@ -90,8 +90,9 @@ PS2MouseInterrupt(
     if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
         Port->ResponseReadIndex = 0;
     }
-    
-    hid_events_event_pointer_event_all(0 /* source */, 0 /* flags */, Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
+
+    ctt_input_event_cursor_all(Port->DeviceId, 0 /* flags */,
+            Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
 }
 
 OsStatus_t
