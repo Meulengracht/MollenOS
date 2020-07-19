@@ -268,6 +268,19 @@ list_front(
     return front;
 }
 
+element_t*
+list_back(
+    _In_ list_t* list)
+{
+    element_t* front;
+    assert(list != NULL);
+
+    LIST_LOCK;
+    front = list->tail;
+    LIST_UNLOCK;
+    return front;
+}
+
 void*
 list_find_value(
     _In_ list_t* list,

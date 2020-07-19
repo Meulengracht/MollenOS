@@ -98,6 +98,10 @@ list_front(
     _In_ list_t*));
 
 DSDECL(element_t*,
+       list_back(
+   _In_ list_t*));
+
+DSDECL(element_t*,
 list_find(
     _In_ list_t*,
     _In_ void*));
