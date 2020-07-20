@@ -56,8 +56,8 @@ void
 GetKeyFromSystemKeyEnUs(
     struct ctt_input_button_event* key)
 {
-    int shouldUpperCase = key->flags & (key_flag_lshift | key_flag_rshift);
-    if (key->flags & key_flag_capslock) {
+    int shouldUpperCase = key->modifiers & (VK_MODIFIER_LSHIFT | VK_MODIFIER_RSHIFT);
+    if (key->modifiers & VK_MODIFIER_CAPSLOCK) {
         if (shouldUpperCase != 0) {
             shouldUpperCase = 0;
         }

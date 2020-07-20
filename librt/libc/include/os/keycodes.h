@@ -24,7 +24,7 @@
 #ifndef _KEYCODES_INTERFACE_H_
 #define _KEYCODES_INTERFACE_H_
 
-typedef enum _KeyCode {
+typedef enum KeyCode {
     VK_INVALID              = 0x00,
 
     // 0-9
@@ -177,5 +177,18 @@ typedef enum _KeyCode {
 
     VK_KEYCOUNT             = 0x91
 } KeyCode_t;
+
+typedef enum KeyModifiers {
+    VK_MODIFIER_LSHIFT    = 0x1,
+    VK_MODIFIER_RSHIFT    = 0x2,
+    VK_MODIFIER_LALT      = 0x4,
+    VK_MODIFIER_RALT      = 0x8,
+    VK_MODIFIER_LCTRL     = 0x10,
+    VK_MODIFIER_RCTRL     = 0x20,
+    VK_MODIFIER_SCROLLOCK = 0x40,
+    VK_MODIFIER_NUMLOCK   = 0x80,
+    VK_MODIFIER_CAPSLOCK  = 0x100,
+    VK_MODIFIER_RELEASED  = 0x1000
+} KeyModifiers_t;
 
 #endif //!_KEYCODES_INTERFACE_H_

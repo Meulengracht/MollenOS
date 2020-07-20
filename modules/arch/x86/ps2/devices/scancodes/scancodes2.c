@@ -68,16 +68,16 @@ ScancodeSet2ToVKey(
 {
     // Handle special cases
     if (Scancode == PS2_CODE_EXTENDED) {
-        KeyState->flags |= KEY_MODIFIER_EXTENDED;
+        KeyState->modifiers |= KEY_MODIFIER_EXTENDED;
         return OsError;
     }
     else if (Scancode == PS2_CODE_RELEASED) {
-        KeyState->flags |= key_flag_released;
+        KeyState->modifiers |= VK_MODIFIER_RELEASED;
         return OsError;
     }
 
     // Get appropriate scancode
-    if (KeyState->flags & KEY_MODIFIER_EXTENDED) {
+    if (KeyState->modifiers & KEY_MODIFIER_EXTENDED) {
         KeyState->key_code = ScancodeSet2ExtendedTable[Scancode];
     }
     else {

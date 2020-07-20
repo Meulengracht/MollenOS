@@ -42,71 +42,71 @@ PS2KeyboardHandleModifiers(
     // Handle modifiers
     switch (Key->key_code) {
         case VK_LSHIFT: {
-            Flags |= key_flag_lshift;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_lshift);
+            Flags |= VK_MODIFIER_LSHIFT;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_LSHIFT);
             }
         } break;
         case VK_RSHIFT: {
-            Flags |= key_flag_rshift;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_rshift);
+            Flags |= VK_MODIFIER_RSHIFT;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_RSHIFT);
             }
         } break;
         
         case VK_LCONTROL: {
-            Flags |= key_flag_lctrl;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_lctrl);
+            Flags |= VK_MODIFIER_LCTRL;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_LCTRL);
             }
         } break;
         case VK_RCONTROL: {
-            Flags |= key_flag_rctrl;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_rctrl);
+            Flags |= VK_MODIFIER_RCTRL;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_RCTRL);
             }
         } break;
         
         case VK_LALT: {
-            Flags |= key_flag_lalt;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_lalt);
+            Flags |= VK_MODIFIER_LALT;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_LALT);
             }
         } break;
         case VK_RALT: {
-            Flags |= key_flag_ralt;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_ralt);
+            Flags |= VK_MODIFIER_RALT;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_RALT);
             }
         } break;
 
         case VK_SCROLL: {
-            Flags |= key_flag_scrollock;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_scrollock);
+            Flags |= VK_MODIFIER_SCROLLOCK;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_SCROLLOCK);
             }
         } break;
         case VK_NUMLOCK: {
-            Flags |= key_flag_numlock;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_numlock);
+            Flags |= VK_MODIFIER_NUMLOCK;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_NUMLOCK);
             }
         } break;
         case VK_CAPSLOCK: {
-            Flags |= key_flag_capslock;
-            if (Key->flags & key_flag_released) {
-                Flags &= ~(key_flag_capslock);
+            Flags |= VK_MODIFIER_CAPSLOCK;
+            if (Key->modifiers & VK_MODIFIER_RELEASED) {
+                Flags &= ~(VK_MODIFIER_CAPSLOCK);
             }
         } break;
 
         default: {
-            Key->flags |= Flags;
+            Key->modifiers |= Flags;
             return OsSuccess;
         };
     }
 
     // Update the state flags
-    Key->flags |= Flags;
+    Key->modifiers |= Flags;
     *((uint16_t*)&PS2_KEYBOARD_DATA_STATE_LO(Port)) = Flags;
     return OsError;
 }
@@ -166,8 +166,8 @@ PS2KeyboardInterrupt(
 
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
-        Key.flags &= ~(KEY_MODIFIER_EXTENDED);
-        ctt_input_event_button_all(Port->DeviceId, Key.flags, Key.key_ascii, Key.key_code, Key.key_unicode);
+        Key.modifiers &= ~(KEY_MODIFIER_EXTENDED);
+        ctt_input_event_button_all(Port->DeviceId, Key.key_code, Key.modifiers, Key.key_ascii, Key.key_unicode);
     }
 }
 

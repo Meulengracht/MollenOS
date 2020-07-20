@@ -6,6 +6,8 @@
         <type name="uintptr_t" header="stdint.h" />
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
+        <type name="KeyCode_t" header="os/keycodes.h" />
+        <type name="KeyModifiers_t" header="os/keycodes.h" />
         <type name="StorageDescriptor_t" header="ddk/storage.h" />
         <type name="UsbTransferStatus_t" header="usb/usb.h" />
         <type name="UsbTransfer_t" header="usb/usb.h" />
@@ -212,18 +214,6 @@
 
         <protocol name="input" id="0x13">
             <enums>
-                <enum name="key_flags">
-                    <value name="key_flag_lshift" value="0x1"></value>
-                    <value name="key_flag_rshift" value="0x2"></value>
-                    <value name="key_flag_lalt" value="0x4"></value>
-                    <value name="key_flag_ralt" value="0x8"></value>
-                    <value name="key_flag_lctrl" value="0x10"></value>
-                    <value name="key_flag_rctrl" value="0x20"></value>
-                    <value name="key_flag_scrollock" value="0x40"></value>
-                    <value name="key_flag_numlock" value="0x80"></value>
-                    <value name="key_flag_capslock" value="0x100"></value>
-                    <value name="key_flag_released" value="0x1000"></value>
-                </enum>
                 <enum name="type">
                     <value name="input_type_mouse" value="0x1"></value>
                     <value name="input_type_keyboard" value="0x2"></value>
@@ -245,9 +235,9 @@
                 </event>
                 <event name="button">
                     <param name="device_id" type="UUId_t" />
-                    <param name="flags" type="key_flags" />
+                    <param name="key_code" type="KeyCode_t" />
+                    <param name="modifiers" type="KeyModifiers_t" />
                     <param name="key_ascii" type="uint8_t" />
-                    <param name="key_code" type="uint8_t" />
                     <param name="key_unicode" type="uint32_t" />
                 </event>
                 <event name="cursor">
