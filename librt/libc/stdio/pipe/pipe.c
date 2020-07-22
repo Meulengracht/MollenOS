@@ -42,7 +42,7 @@ int pipe(long size, int flags)
     bufferInfo.flags    = 0;
 
     osStatus = dma_create(&bufferInfo, &attachment);
-    if (osStatus) {
+    if (osStatus != OsSuccess) {
         return OsStatusToErrno(osStatus);
     }
 

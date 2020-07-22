@@ -44,7 +44,7 @@ static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr*
         total_len += bytes_streamed;
     }
     
-    stdio_handle_activity(handle, IOEVTOUT);
+    stdio_handle_activity(handle, IOSETOUT);
     return total_len;
 }
 
@@ -105,7 +105,7 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
         numbytes += byte_count;
     }
     streambuffer_write_packet_end(stream, base, avail_len);
-    stdio_handle_activity(handle, IOEVTOUT);
+    stdio_handle_activity(handle, IOSETOUT);
     return numbytes;
 }
 

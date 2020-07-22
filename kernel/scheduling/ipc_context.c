@@ -29,7 +29,7 @@
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
-#include <ioevt.h>
+#include <ioset.h>
 #include <ipc_context.h>
 #include <memoryspace.h>
 #include <memory_region.h>
@@ -233,7 +233,7 @@ SendMessage(
     
     streambuffer_write_packet_end(context->KernelStream, state->base,
         sizeof(UUId_t) + message->base->header.length);
-    MarkHandle(context->Handle, IOEVTIN);
+    MarkHandle(context->Handle, IOSETIN);
 }
 
 static inline void

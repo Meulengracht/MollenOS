@@ -32,7 +32,7 @@
 #include <ds/list.h>
 #include <internal/_socket.h>
 #include <inet/local.h>
-#include <ioevt.h>
+#include <ioset.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -181,7 +181,7 @@ HandleSocketStreamData(
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
-                handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
+                handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
                 return OsOutOfMemory;
             }
             
@@ -194,7 +194,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
+    handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
     return OsSuccess;
 }
 
@@ -297,7 +297,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            handle_post_notification((UUId_t)TargetSocket->Header.key, IOEVTIN);
+            handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -506,7 +506,7 @@ HandleLocalConnectionRequest(
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
         queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
-        handle_post_notification((UUId_t)(uintptr_t)targetSocket->Header.key, IOEVTCTL);
+        handle_post_notification((UUId_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
     }
     mtx_unlock(&targetSocket->SyncObject);
     
@@ -561,7 +561,7 @@ DomainLocalDisconnect(
     
     // Send a disconnect request if socket was valid
     if (PeerSocket) {
-        handle_post_notification(Socket->Domain->ConnectedSocket, IOEVTCTL);
+        handle_post_notification(Socket->Domain->ConnectedSocket, IOSETCTL);
         Status = OsSuccess;
     }
     

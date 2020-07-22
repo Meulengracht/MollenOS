@@ -264,7 +264,7 @@ set (SOURCES_STDIO
     stdio/io/getwc.c
     stdio/io/getwchar.c
     stdio/io/ioctl.c
-    stdio/io/ioevt.c
+    stdio/io/ioset.c
     stdio/io/perror.c
     stdio/io/putc.c
     stdio/io/putchar.c
@@ -290,7 +290,7 @@ set (SOURCES_STDIO
     stdio/libc_io_bitmap.c
     stdio/libc_io_buffered.c
 
-    stdio/libc_io_evt_operations.c
+    stdio/libc_io_set_operations.c
     stdio/libc_io_file_operations.c
     stdio/libc_io_ipc_operations.c
     stdio/libc_io_net_operations.c
@@ -368,6 +368,7 @@ set (SOURCES_STDLIB
 set (SOURCES_OS
     os/synchronization/binarysemaphore.c
     os/synchronization/spinlock.c
+    os/synchronization/event.c
 
     os/clang.c
     os/dmabuf.c

@@ -16,7 +16,7 @@ typedef struct FutexParameters {
 } FutexParameters_t;
 
 typedef struct HandleSetWaitParameters {
-    struct ioevt_event* events;
+    struct ioset_event* events;
     int                 maxEvents;
     size_t              timeout;
     int                 pollEvents;

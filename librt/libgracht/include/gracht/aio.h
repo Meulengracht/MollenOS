@@ -28,39 +28,28 @@
 
 #if defined(MOLLENOS)
 #include <inet/socket.h>
-#include <ioevt.h>
+#include <ioset.h>
 #include <io.h>
 
-typedef struct ioevt_event gracht_aio_event_t;
-#define GRACHT_AIO_EVENT_IN         IOEVTIN
-#define GRACHT_AIO_EVENT_DISCONNECT IOEVTCTL
+typedef struct ioset_event gracht_aio_event_t;
+#define GRACHT_AIO_EVENT_IN         IOSETIN
+#define GRACHT_AIO_EVENT_DISCONNECT IOSETCTL
 
-#define gracht_aio_create()                ioevt(0)
-#define gracht_io_wait(aio, events, count) ioevt_wait(aio, events, count, 0)
-#define gracht_aio_remove(aio, iod)        ioevt_ctrl(aio, IOEVT_DEL, iod, NULL);
+#define gracht_aio_create()                ioset(0)
+#define gracht_io_wait(aio, events, count) ioset_wait(aio, events, count, 0)
+#define gracht_aio_remove(aio, iod)        ioset_ctrl(aio, IOSET_DEL, iod, NULL);
 #define gracht_aio_destroy(aio)            close(aio)
 
 static int gracht_aio_add(int aio, int iod) {
-    struct ioevt_event event = {
-        .events = IOEVTIN | IOEVTCTL | IOEVTLVT,
+    struct ioset_event event = {
+        .events = IOSETIN | IOSETCTL | IOSETLVT,
         .data.iod = iod
     };
-    return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
-}
-
-static int gracht_aio_add_extern(int aio, int iod, void* ptr) {
-    struct ioevt_event event = {
-            .events = IOEVTIN | IOEVTCTL | IOEVTLVT,
-            .data.val64 = (uint64_t)ptr
-    };
-    return ioevt_ctrl(aio, IOEVT_ADD, iod, &event);
+    return ioset_ctrl(aio, IOSET_ADD, iod, &event);
 }
 
 #define gracht_aio_event_iod(event)    (event)->data.iod
-#define gracht_aio_event_extern(event) (event)->data.context
 #define gracht_aio_event_events(event) (event)->events
-
-#define gracht_aio_event_is_extern(event) ((event)->data.val64 > 0xFFFF)
 
 #elif defined(__linux__)
 #include <unistd.h>
@@ -84,19 +73,8 @@ static int gracht_aio_add(int aio, int iod) {
     return epoll_ctl(aio, EPOLL_CTL_ADD, iod, &event);
 }
 
-static int gracht_aio_add_extern(int aio, int iod, void* ptr) {
-    struct epoll_event event = {
-        .events = EPOLLIN | EPOLLRDHUP,
-        .data.u64 = (uint64_t)ptr
-    };
-    return epoll_ctl(aio, EPOLL_CTL_ADD, iod, &event);
-}
-
 #define gracht_aio_event_iod(event)    (event)->data.fd
-#define gracht_aio_event_extern(event) (event)->data.ptr
 #define gracht_aio_event_events(event) (event)->events
-
-#define gracht_aio_event_is_extern(event) ((event)->data.u64 > 0xFFFF)
 
 #else
 #error "Undefined platform for aio"

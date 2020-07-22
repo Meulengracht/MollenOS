@@ -28,8 +28,8 @@
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include "../../include/gracht/link/vali.h"
-#include "../../include/gracht/debug.h"
+#include "gracht/link/vali.h"
+#include "gracht/debug.h"
 #include <io.h>
 #include <os/mollenos.h>
 #include <stdlib.h>

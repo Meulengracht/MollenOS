@@ -41,14 +41,14 @@ endif ()
 
 if (MOLLENOS)
     add_sources (
-        os/vali/client.c
-        os/vali/message.c
-        os/vali/os.c
-        os/vali/server.c
+            link/vali-ipc/client.c
+            link/vali-ipc/message.c
+            link/vali-ipc/os.c
+            link/vali-ipc/server.c
     )
 endif ()
 
-add_sources(link/client.c link/server.c)
+add_sources(link/socket/client.c link/socket/server.c)
 add_sources(client.c crc.c server.c shared.c)
 
 add_library(libgracht ${SRCS})

@@ -21,25 +21,25 @@
  * io descriptors. If they are not supported errno is set to ENOTSUPP
  */
 
-#ifndef __IOEVT_H__
-#define __IOEVT_H__
+#ifndef __IOSET_H__
+#define __IOSET_H__
 
 #include <os/osdefs.h>
 
-enum ioevt_flags
+enum ioset_flags
 {
-    IOEVTIN  = 0x1,  // Receieved data
-    IOEVTOUT = 0x2,  // Sent data
-    IOEVTCTL = 0x4,  // Control event
+    IOSETIN  = 0x1,  // Receieved data
+    IOSETOUT = 0x2,  // Sent data
+    IOSETCTL = 0x4,  // Control event
     
-    IOEVTLVT = 0x1000  // Level triggered
+    IOSETLVT = 0x1000  // Level triggered
 };
 
-#define IOEVT_ADD 1
-#define IOEVT_MOD 2
-#define IOEVT_DEL 3
+#define IOSET_ADD 1
+#define IOSET_MOD 2
+#define IOSET_DEL 3
 
-union ioevt_data {
+union ioset_data {
     int      iod;
     UUId_t   handle;
     void*    context;
@@ -47,17 +47,17 @@ union ioevt_data {
     uint64_t val64;
 };
 
-struct ioevt_event {
+struct ioset_event {
     unsigned int     events;
-    union ioevt_data data;
+    union ioset_data data;
 };
 
 _CODE_BEGIN
 
-CRTDECL(int, ioevt(int flags));
-CRTDECL(int, ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event*));
-CRTDECL(int, ioevt_wait(int evt_iod, struct ioevt_event*, int max_events, int timeout));
+CRTDECL(int, ioset(int flags));
+CRTDECL(int, ioset_ctrl(int set_iod, int op, int iod, struct ioset_event*));
+CRTDECL(int, ioset_wait(int set_iod, struct ioset_event*, int max_events, int timeout));
 
 _CODE_END
 
-#endif // !__IOEVT_H__
+#endif // !__IOSET_H__

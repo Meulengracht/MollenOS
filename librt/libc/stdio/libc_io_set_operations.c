@@ -25,27 +25,27 @@
 #include <internal/_io.h>
 #include <ddk/handle.h>
 
-OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+OsStatus_t stdio_set_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+OsStatus_t stdio_set_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+OsStatus_t stdio_set_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_resize(stdio_handle_t* handle, long long resize_by)
+OsStatus_t stdio_set_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_close(stdio_handle_t* handle, int options)
+OsStatus_t stdio_set_op_close(stdio_handle_t* handle, int options)
 {
     if (handle->object.handle != UUID_INVALID) {
         return handle_destroy(handle->object.handle);
@@ -53,23 +53,23 @@ OsStatus_t stdio_evt_op_close(stdio_handle_t* handle, int options)
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_inherit(stdio_handle_t* handle)
+OsStatus_t stdio_set_op_inherit(stdio_handle_t* handle)
 {
     return OsSuccess;
 }
 
-OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+OsStatus_t stdio_set_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
 {
     return OsNotSupported;
 }
 
-void stdio_get_evt_operations(stdio_ops_t* ops)
+void stdio_get_set_operations(stdio_ops_t* ops)
 {
-    ops->inherit = stdio_evt_op_inherit;
-    ops->read    = stdio_evt_op_read;
-    ops->write   = stdio_evt_op_write;
-    ops->seek    = stdio_evt_op_seek;
-    ops->resize  = stdio_evt_op_resize;
-    ops->ioctl   = stdio_evt_op_ioctl;
-    ops->close   = stdio_evt_op_close;
+    ops->inherit = stdio_set_op_inherit;
+    ops->read    = stdio_set_op_read;
+    ops->write   = stdio_set_op_write;
+    ops->seek    = stdio_set_op_seek;
+    ops->resize  = stdio_set_op_resize;
+    ops->ioctl   = stdio_set_op_ioctl;
+    ops->close   = stdio_set_op_close;
 }

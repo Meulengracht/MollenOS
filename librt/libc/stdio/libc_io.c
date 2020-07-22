@@ -391,8 +391,8 @@ int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
         case STDIO_HANDLE_IPCONTEXT: {
             stdio_get_ipc_operations(&handle->ops);
         } break;
-        case STDIO_HANDLE_EVT: {
-            stdio_get_evt_operations(&handle->ops);
+        case STDIO_HANDLE_SET: {
+            stdio_get_set_operations(&handle->ops);
         } break;
         
         default: {

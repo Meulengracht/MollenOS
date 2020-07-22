@@ -118,10 +118,10 @@ typedef struct PS2Port {
     gracht_client_t*  GrachtClient;
 
     // Device state information
-    uint8_t           DeviceData[6];
-    uint8_t           ResponseBuffer[PS2_RINGBUFFER_SIZE];
-    uint8_t           ResponseWriteIndex;
-    uint8_t           ResponseReadIndex;
+    uint8_t      DeviceData[6];
+    uint8_t      ResponseBuffer[PS2_RINGBUFFER_SIZE];
+    atomic_uint  ResponseWriteIndex;
+    atomic_uint  ResponseReadIndex;
 } PS2Port_t;
 
 typedef struct PS2Controller {

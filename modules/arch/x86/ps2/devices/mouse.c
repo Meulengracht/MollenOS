@@ -27,7 +27,6 @@
 #include <gracht/link/vali.h>
 #include "../ps2.h"
 #include <string.h>
-#include <stdlib.h>
 
 InterruptStatus_t
 PS2MouseFastInterrupt(
@@ -46,53 +45,47 @@ PS2MouseFastInterrupt(
         return InterruptHandledStop;
     }
     else {
-        Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
-        if (!(Port->ResponseWriteIndex % BreakAtBytes)) {
-            if (Port->ResponseWriteIndex == PS2_RINGBUFFER_SIZE) {
-                Port->ResponseWriteIndex = 0; // Start over
-            }
+        uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
+        Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
+        if (!(index % BreakAtBytes)) {
             return InterruptHandled;
         }
     }
+    smp_wmb();
     return InterruptHandledStop;
 }
 
 void
 PS2MouseInterrupt(
-    _In_ PS2Port_t* Port)
+    _In_ PS2Port_t* port)
 {
-    struct ctt_input_cursor_event Input;
-    uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
+    struct ctt_input_cursor_event input;
+    uint8_t                       bytesRequired = PS2_MOUSE_DATA_MODE(port) == 0 ? 3 : 4;
+    uint32_t                      index;
+
+    smp_rmb();
+    index = atomic_load(&port->ResponseReadIndex) % PS2_RINGBUFFER_SIZE;
 
     // Update relative x and y
-    Input.rel_x = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 1] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 4) & 0x100));
-    Input.rel_y = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 2] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 3) & 0x100));
-    Input.buttons_set = Port->ResponseBuffer[0] & 0x7; // L-M-R buttons
+    input.rel_x       = (int16_t)(port->ResponseBuffer[index + 1] - ((port->ResponseBuffer[index] << 4) & 0x100));
+    input.rel_y       = (int16_t)(port->ResponseBuffer[index + 2] - ((port->ResponseBuffer[index] << 3) & 0x100));
+    input.buttons_set = port->ResponseBuffer[0] & 0x7; // L-M-R buttons
 
     // Check extended data modes
-    if (PS2_MOUSE_DATA_MODE(Port) == 1) {
-        Input.rel_z = (int16_t)(char)Port->ResponseBuffer[Port->ResponseReadIndex + 3];
+    if (PS2_MOUSE_DATA_MODE(port) == 1) {
+        input.rel_z = (int16_t)(char)port->ResponseBuffer[index + 3];
     }
-    else if (PS2_MOUSE_DATA_MODE(Port) == 2) {
+    else if (PS2_MOUSE_DATA_MODE(port) == 2) {
         // 4 bit signed value
-        Input.rel_z = (int16_t)(char)(Port->ResponseBuffer[Port->ResponseReadIndex + 3] & 0xF);
-        if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_4BTN) {
-            Input.buttons_set |= 0x8;
-        }
-        if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_5BTN) {
-            Input.buttons_set |= 0x10;
-        }
+        input.rel_z        = (int16_t)(char)(port->ResponseBuffer[index + 3] & 0xF);
+        input.buttons_set |= (port->ResponseBuffer[index + 3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
     }
     else {
-        Input.rel_z = 0;
-    }
-    Port->ResponseReadIndex += BytesRequired;
-    if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
-        Port->ResponseReadIndex = 0;
+        input.rel_z = 0;
     }
 
-    ctt_input_event_cursor_all(Port->DeviceId, 0 /* flags */,
-            Input.rel_x, Input.rel_y, Input.rel_z, Input.buttons_set);
+    atomic_fetch_add(&port->ResponseReadIndex, bytesRequired);
+    ctt_input_event_cursor_all(port->DeviceId, 0, input.rel_x, input.rel_y, input.rel_z, input.buttons_set);
 }
 
 OsStatus_t

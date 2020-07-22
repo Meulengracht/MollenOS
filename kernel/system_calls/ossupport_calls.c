@@ -160,7 +160,7 @@ ScControlHandleSet(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
-    _In_ struct ioevt_event* event)
+    _In_ struct ioset_event* event)
 {
     return ControlHandleSet(setHandle, operation, handle, event);
 }

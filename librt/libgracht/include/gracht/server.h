@@ -26,10 +26,10 @@
 
 #include "types.h"
 
-typedef struct gracht_client gracht_client_t;
-
 typedef struct gracht_server_configuration {
     struct server_link_ops* link;
+    int                     set_descriptor;
+    int                     set_descriptor_provided;
 } gracht_server_configuration_t;
 
 #ifdef __cplusplus
@@ -43,9 +43,7 @@ int gracht_server_initialize(gracht_server_configuration_t*);
 int gracht_server_register_protocol(gracht_protocol_t*);
 int gracht_server_unregister_protocol(gracht_protocol_t*);
 
-int gracht_server_listen_client(gracht_client_t*);
-int gracht_server_unlisten_client(gracht_client_t*);
-
+int gracht_server_handle_event(int iod, unsigned int events);
 int gracht_server_main_loop(void);
 
 int gracht_server_get_dgram_iod(void);

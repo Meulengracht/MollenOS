@@ -24,6 +24,7 @@
 #include <internal/_utils.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
+#include <ioset.h>
 
 extern void       GetServiceAddress(struct ipmsg_addr*);
 extern OsStatus_t OnLoad(void);
@@ -34,6 +35,23 @@ __CrtInitialize(
     _In_  thread_storage_t* Tls,
     _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
+
+static void __CrtServiceMainLoop(int setIod)
+{
+    struct ioset_event events[32];
+
+    while (1) {
+        int num_events = ioset_wait(setIod, &events[0], 32, 0);
+        for (int i = 0; i < num_events; i++) {
+            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
+                gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
+            }
+            else {
+                gracht_server_handle_event(events[i].data.iod, events[i].events);
+            }
+        }
+    }
+}
 
 void __CrtServiceEntry(void)
 {
@@ -50,14 +68,22 @@ void __CrtServiceEntry(void)
     if (status) {
         exit(status);
     }
-    
+
+    config.set_descriptor          = ioset(0);
+    config.set_descriptor_provided = 1;
+
     status = gracht_server_initialize(&config);
     if (status) {
         exit(status);
     }
 
     // listen to client events as well
-    gracht_server_listen_client(GetGrachtClient());
+    ioset_ctrl(config.set_descriptor, IOSET_ADD,
+               gracht_client_iod(GetGrachtClient()),
+               &(struct ioset_event) {
+                       .data.iod = gracht_client_iod(GetGrachtClient()),
+                       .events   = IOSETIN | IOSETCTL | IOSETLVT
+               });
 
     // Call the driver load function
     // - This will be run once, before loop
@@ -65,11 +91,7 @@ void __CrtServiceEntry(void)
         exit(-1);
     }
 
-    status = gracht_server_main_loop();
-    if (status) {
-        exit(-1);
-    }
-
+    __CrtServiceMainLoop(config.set_descriptor);
     OnUnload();
     exit(0);
 }

@@ -23,7 +23,7 @@
 
 #include <errno.h>
 #include <ddk/bytepool.h>
-#include "../../include/gracht/link/vali.h"
+#include "gracht/link/vali.h"
 #include <stdlib.h>
 #include <string.h>
 

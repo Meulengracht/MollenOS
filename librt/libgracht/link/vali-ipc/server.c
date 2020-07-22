@@ -26,7 +26,7 @@
 // - Stream
 
 #include <errno.h>
-#include "../../include/gracht/link/vali.h"
+#include "gracht/link/vali.h"
 #include <internal/_utils.h>
 #include <io.h>
 #include <stdlib.h>

@@ -27,17 +27,17 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_ioevt.h>
+#include <internal/_ioset.h>
 #include <ioctl.h>
-#include <ioevt.h>
+#include <ioset.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
-static void                ioevt_append(stdio_handle_t*, struct ioevt_entry*);
-static struct ioevt_entry* ioevt_get(stdio_handle_t*, int);
-static struct ioevt_entry* ioevt_remove(stdio_handle_t*, int);
+static void                ioset_append(stdio_handle_t*, struct ioset_entry*);
+static struct ioset_entry* ioset_get(stdio_handle_t*, int);
+static struct ioset_entry* ioset_remove(stdio_handle_t*, int);
 
-int ioevt(int flags)
+int ioset(int flags)
 {
     stdio_handle_t* ioObject;
     OsStatus_t      osStatus;
@@ -57,32 +57,32 @@ int ioevt(int flags)
     }
     
     stdio_handle_set_handle(ioObject, handle);
-    stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_EVT);
+    stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_SET);
     
-    ioObject->object.data.ioevt.entries = NULL;
+    ioObject->object.data.ioset.entries = NULL;
     
     return ioObject->fd;
 }
 
-int ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event* event)
+int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 {
-    stdio_handle_t*     evtObject = stdio_handle_get(evt_iod);
+    stdio_handle_t*     setObject = stdio_handle_get(evt_iod);
     stdio_handle_t*     ioObject  = stdio_handle_get(iod);
     OsStatus_t          status;
-    struct ioevt_entry* entry;
+    struct ioset_entry * entry;
     
     if (!event) {
         _set_errno(EINVAL);
         return -1;
     }
     
-    if (!evtObject || !ioObject) {
+    if (!setObject || !ioObject) {
         _set_errno(EBADF);
         return -1;
     }
     
-    if (op == IOEVT_ADD) {
-        entry = malloc(sizeof(struct ioevt_entry));
+    if (op == IOSET_ADD) {
+        entry = malloc(sizeof(struct ioset_entry));
         if (!entry) {
             _set_errno(ENOMEM);
             return -1;
@@ -92,18 +92,18 @@ int ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event* event)
         entry->event.events = event->events;
         entry->event.data   = event->data;
         entry->link         = NULL;
-        ioevt_append(evtObject, entry);
+        ioset_append(setObject, entry);
     }
-    else if (op == IOEVT_MOD) {
-        entry = ioevt_get(evtObject, iod);
+    else if (op == IOSET_MOD) {
+        entry = ioset_get(setObject, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
         entry->event.events = event->events;
     }
-    else if (op == IOEVT_DEL) {
-        entry = ioevt_remove(evtObject, iod);
+    else if (op == IOSET_DEL) {
+        entry = ioset_remove(setObject, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
@@ -115,8 +115,8 @@ int ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event* event)
         return -1;
     }
     
-    status = notification_queue_ctrl(evtObject->object.handle, op,
-        ioObject->object.handle, event);
+    status = notification_queue_ctrl(setObject->object.handle, op,
+                                     ioObject->object.handle, event);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
         return -1;
@@ -124,31 +124,31 @@ int ioevt_ctrl(int evt_iod, int op, int iod, struct ioevt_event* event)
     return 0;
 }
 
-int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int timeout)
+int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int timeout)
 {
-    stdio_handle_t*     evtObject = stdio_handle_get(evt_iod);
+    stdio_handle_t*     setObject = stdio_handle_get(set_iod);
     int                 numEvents;
-    struct ioevt_entry* entry;
+    struct ioset_entry* entry;
     OsStatus_t          status;
     int                 i = 0;
     
-    TRACE("[ioevt] [wait] %i, %i", evt_iod, max_events);
+    TRACE("[ioset] [wait] %i, %i", set_iod, max_events);
     
-    if (!evtObject) {
+    if (!setObject) {
         _set_errno(EBADF);
         return -1;
     }
     
-    entry = evtObject->object.data.ioevt.entries;
+    entry = setObject->object.data.ioset.entries;
     while (entry && i < max_events) {
-        TRACE("[ioevt] [wait] %i = 0x%x", entry->iod, entry->event.events);
-        if ((entry->event.events & (IOEVTIN | IOEVTLVT)) == (IOEVTIN | IOEVTLVT)) {
+        TRACE("[ioset] [wait] %i = 0x%x", entry->iod, entry->event.events);
+        if ((entry->event.events & (IOSETIN | IOSETLVT)) == (IOSETIN | IOSETLVT)) {
             int bytesAvailable = 0;
             int result         = ioctl(entry->iod, FIONREAD, &bytesAvailable);
-            TRACE("[ioevt] [wait] %i = %i bytes available [%i]",
+            TRACE("[ioset] [wait] %i = %i bytes available [%i]",
                 entry->iod, bytesAvailable, result);
             if (!result && bytesAvailable) {
-                events[i].events = IOEVTIN;
+                events[i].events = IOSETIN;
                 events[i].data   = entry->event.data;
                 i++;
             }
@@ -156,8 +156,8 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
         entry = entry->link;
     }
     
-    status = notification_queue_wait(evtObject->object.handle, &events[0], 
-        max_events, i, timeout, &numEvents);
+    status = notification_queue_wait(setObject->object.handle, &events[0],
+                                     max_events, i, timeout, &numEvents);
     if (status != OsSuccess) {
         (void)OsStatusToErrno(status);
         return -1;
@@ -165,12 +165,12 @@ int ioevt_wait(int evt_iod, struct ioevt_event* events, int max_events, int time
     return numEvents;
 }
 
-static void ioevt_append(stdio_handle_t* handle, struct ioevt_entry* entry)
+static void ioset_append(stdio_handle_t* handle, struct ioset_entry* entry)
 {
-    struct ioevt_entry* itr = handle->object.data.ioevt.entries;
+    struct ioset_entry * itr = handle->object.data.ioset.entries;
     
-    if (!handle->object.data.ioevt.entries) {
-        handle->object.data.ioevt.entries = entry;
+    if (!handle->object.data.ioset.entries) {
+        handle->object.data.ioset.entries = entry;
     }
     else {
         while (itr->link) {
@@ -180,9 +180,9 @@ static void ioevt_append(stdio_handle_t* handle, struct ioevt_entry* entry)
     }
 }
 
-static struct ioevt_entry* ioevt_get(stdio_handle_t* handle, int iod)
+static struct ioset_entry* ioset_get(stdio_handle_t* handle, int iod)
 {
-    struct ioevt_entry* itr = handle->object.data.ioevt.entries;
+    struct ioset_entry * itr = handle->object.data.ioset.entries;
     while (itr) {
         if (itr->iod == iod) {
             return itr;
@@ -191,12 +191,12 @@ static struct ioevt_entry* ioevt_get(stdio_handle_t* handle, int iod)
     return NULL;
 }
 
-static struct ioevt_entry* ioevt_remove(stdio_handle_t* handle, int iod)
+static struct ioset_entry* ioset_remove(stdio_handle_t* handle, int iod)
 {
-    struct ioevt_entry* itr = handle->object.data.ioevt.entries;
-    struct ioevt_entry* prev;
+    struct ioset_entry * itr = handle->object.data.ioset.entries;
+    struct ioset_entry * prev;
     if (itr && itr->iod == iod) {
-        handle->object.data.ioevt.entries = itr->link;
+        handle->object.data.ioset.entries = itr->link;
         return itr;
     }
     

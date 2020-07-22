@@ -22,14 +22,12 @@
 
 #include "../libc/threads/tls.h"
 #include <ddk/service.h>
-#include <ddk/device.h>
-#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
 #include <internal/_ipc.h>
 #include <internal/_utils.h>
-#include <os/mollenos.h>
 #include <stdlib.h>
+#include <ioset.h>
 
 // Module Interface
 extern void       GetModuleIdentifiers(unsigned int*, unsigned int*, unsigned int*, unsigned int*);
@@ -65,6 +63,23 @@ void __CrtModuleLoad(void)
     }
 }
 
+static void __CrtModuleMainLoop(int setIod)
+{
+    struct ioset_event events[32];
+
+    while (1) {
+        int num_events = ioset_wait(setIod, &events[0], 32, 0);
+        for (int i = 0; i < num_events; i++) {
+            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
+                gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
+            }
+            else {
+                gracht_server_handle_event(events[i].data.iod, events[i].events);
+            }
+        }
+    }
+}
+
 void __CrtModuleEntry(void)
 {
     thread_storage_t              tls;
@@ -85,22 +100,25 @@ void __CrtModuleEntry(void)
     if (status) {
         exit(-1);
     }
+
+    config.set_descriptor          = ioset(0);
+    config.set_descriptor_provided = 1;
     
     status = gracht_server_initialize(&config);
     if (status) {
-        exit(-1);
+        exit(status);
     }
 
     // listen to client events as well
-    gracht_server_listen_client(GetGrachtClient());
+    ioset_ctrl(config.set_descriptor, IOSET_ADD,
+               gracht_client_iod(GetGrachtClient()),
+               &(struct ioset_event) {
+                       .data.iod = gracht_client_iod(GetGrachtClient()),
+                       .events   = IOSETIN | IOSETCTL | IOSETLVT
+               });
 
     __CrtModuleLoad();
-
-    status = gracht_server_main_loop();
-    if (status) {
-        exit(-1);
-    }
-
+    __CrtModuleMainLoop(config.set_descriptor);
     OnUnload();
     exit(0);
 }

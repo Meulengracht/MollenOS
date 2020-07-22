@@ -53,7 +53,7 @@ static thrd_t    SocketMonitorHandle;
 // streambuffers, which are read and written by the network service.
 static void
 HandleSocketEvent(
-    _In_ struct ioevt_event* Event)
+    _In_ struct ioset_event* Event)
 {
     Socket_t* Socket;
     TRACE("[socket monitor] data from %u", Event->data.handle);
@@ -76,7 +76,7 @@ HandleSocketEvent(
     }
     
     // Data has been sent to the socket, process it and forward
-    if (Event->events & IOEVTOUT) {
+    if (Event->events & IOSETOUT) {
         // Make sure the socket is not passive, they are not allowed to send data
         if (Socket->Configuration.Passive) {
             ERROR("[socket_monitor] passive socket sent data, this is no-go");
@@ -105,7 +105,7 @@ SocketMonitor(
     _In_ void* Context)
 {
     int                 RunForever = 1;
-    struct ioevt_event* Events;
+    struct ioset_event * Events;
     int                 EventCount;
     int                 i;
     OsStatus_t          Status;
@@ -113,7 +113,7 @@ SocketMonitor(
     _CRT_UNUSED(Context);
     TRACE("[socket monitor] starting");
     
-    Events = malloc(sizeof(struct ioevt_event) * NETWORK_MANAGER_MONITOR_MAX_EVENTS);
+    Events = malloc(sizeof(struct ioset_event) * NETWORK_MANAGER_MONITOR_MAX_EVENTS);
     if (!Events) {
         return ENOMEM;
     }
@@ -196,7 +196,7 @@ NetworkManagerSocketCreate(
 {
     Socket_t*          Socket;
     OsStatus_t         Status;
-    struct ioevt_event event;
+    struct ioset_event event;
     
     TRACE("[net_manager] [create] %i, %i, %i", Domain, Type, Protocol);
     
@@ -212,10 +212,10 @@ NetworkManagerSocketCreate(
     }
     
     // Add it to the handle set
-    event.events = IOEVTOUT;
+    event.events = IOSETOUT;
     event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
-    Status = notification_queue_ctrl(SocketSet, IOEVT_ADD,
-        (UUId_t)(uintptr_t)Socket->Header.key, &event);
+    Status = notification_queue_ctrl(SocketSet, IOSET_ADD,
+                                     (UUId_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OsSuccess) {
         // what the fuck TODO
         assert(0);
@@ -261,7 +261,7 @@ NetworkManagerSocketShutdown(
             return OsDoesNotExist;
         }
         
-        Status = notification_queue_ctrl(SocketSet, IOEVT_DEL, Handle, NULL);
+        Status = notification_queue_ctrl(SocketSet, IOSET_DEL, Handle, NULL);
         if (Status != OsSuccess) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }

@@ -31,8 +31,9 @@
 #include <ds/rbtree.h>
 #include <futex.h>
 #include <handle.h>
+#include <handle_set.h>
 #include <heap.h>
-#include <ioevt.h>
+#include <ioset.h>
 #include <string.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
@@ -63,12 +64,12 @@ typedef struct HandleSetElement {
     UUId_t                   Handle;
     _Atomic(int)             ActiveEvents;
     struct HandleSetElement* Link;
-    union ioevt_data         Context;
-    unsigned int             Configuration;
+    union ioset_data Context;
+    unsigned int     Configuration;
 } HandleSetElement_t;
 
 static OsStatus_t DestroySetElement(HandleSetElement_t*);
-static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, struct ioevt_event*);
+static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, struct ioset_event*);
 
 static list_t  HandleElements = LIST_INIT; // Sets per Handle TODO hashtable
 //static Mutex_t HandleElementsSyncObject;
@@ -124,7 +125,7 @@ ControlHandleSet(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
-    _In_ struct ioevt_event* event)
+    _In_ struct ioset_event* event)
 {
     HandleSet_t*        set = LookupHandleOfType(setHandle, HandleTypeSet);
     HandleSetElement_t* setElement;
@@ -135,14 +136,14 @@ ControlHandleSet(
         return OsDoesNotExist;
     }
     
-    if (operation == IOEVT_ADD) {
+    if (operation == IOSET_ADD) {
         if (!event) {
             return OsInvalidParameters;
         }
         
         status = AddHandleToSet(set, handle, event);
     }
-    else if (operation == IOEVT_MOD) {
+    else if (operation == IOSET_MOD) {
         rb_leaf_t* leaf;
         
         if (!event) {
@@ -159,7 +160,7 @@ ControlHandleSet(
         setElement->Context       = event->data;
         status                    = OsSuccess;
     }
-    else if (operation == IOEVT_DEL) {
+    else if (operation == IOSET_DEL) {
         rb_leaf_t* leaf = rb_tree_remove(&set->Handles, VOID_KEY(handle));
         if (!leaf) {
             return OsDoesNotExist;
@@ -177,7 +178,7 @@ ControlHandleSet(
 OsStatus_t
 WaitForHandleSet(
     _In_  UUId_t              handle,
-    _In_  struct ioevt_event* events,
+    _In_  struct ioset_event* events,
     _In_  int                 maxEvents,
     _In_  int                 pollEvents,
     _In_  size_t              timeout,
@@ -222,7 +223,7 @@ WaitForHandleSet(
         
         // reuse an existing structure (combine events)?
         if (pollEvents) {
-            struct ioevt_event* reuse = NULL;
+            struct ioset_event * reuse = NULL;
             for (j = 0; j < pollEvents; j++) {
                 if (events[j].data.context == element->Context.context) {
                     reuse = &events[j];
@@ -252,7 +253,7 @@ MarkHandleCallback(
     _In_ void*      Context)
 {
     HandleSetElement_t* SetElement = Element->value;
-    unsigned int             Flags      = (unsigned int)(uintptr_t)Context;
+    unsigned int        Flags      = (unsigned int)(uintptr_t)Context;
     TRACE("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
     
     if (SetElement->Configuration & Flags) {
@@ -272,7 +273,7 @@ MarkHandleCallback(
 
 OsStatus_t
 MarkHandle(
-    _In_ UUId_t  Handle,
+    _In_ UUId_t       Handle,
     _In_ unsigned int Flags)
 {
     HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(Handle));
@@ -313,7 +314,7 @@ static OsStatus_t
 AddHandleToSet(
     _In_ HandleSet_t*        set,
     _In_ UUId_t              handle,
-    _In_ struct ioevt_event* event)
+    _In_ struct ioset_event* event)
 {
     HandleElement_t*    element;
     HandleSetElement_t* setElement;
