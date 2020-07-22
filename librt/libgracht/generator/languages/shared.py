@@ -86,7 +86,10 @@ class Parameter:
         return self.default_value
 
     def is_value(self):
-        return not self.is_string() and not self.is_buffer() and not self.is_shm()
+        return not self.is_string() and not self.is_buffer() and not self.is_shm() and not self.is_array()
+
+    def is_array(self):
+        return self.get_count() != "1"
 
     def is_string(self):
         return self.typename == "string"

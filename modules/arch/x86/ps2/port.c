@@ -112,7 +112,8 @@ PS2RegisterDevice(
     _In_ PS2Port_t* Port) 
 {
     BusDevice_t Device = { { 0 } };
-    
+
+    strcpy(&Device.Base.Name[0], "PS2 Child Device");
     Device.Base.ParentId = UUID_INVALID;
     Device.Base.Length   = sizeof(BusDevice_t);
     Device.Base.VendorId = 0xFFEF;

@@ -74,7 +74,7 @@ OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 
     status = dma_attach(handle->object.data.pipe.attachment.handle,
         &handle->object.data.pipe.attachment);
-    if (status) {
+    if (status != OsSuccess) {
         return status;
     }
     

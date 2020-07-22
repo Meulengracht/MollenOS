@@ -266,19 +266,17 @@ void StdioConfigureStandardHandles(
     // stdout/stderr handles.
     handle_out = stdio_handle_get(STDOUT_FILENO);
     if (handle_out == NULL) {
-        stdio_handle_create(STDOUT_FILENO, 0, &handle_out);
+        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT, &handle_out);
     }
-    
-    // Always create a pipe handle for stdin, that has valid operations.
+
     handle_in = stdio_handle_get(STDIN_FILENO);
     if (handle_in == NULL) {
-        stdio_handle_create(STDIN_FILENO, WX_PIPE | WX_TTY, &handle_in);
-        stdio_handle_set_ops_type(handle_in, STDIO_HANDLE_PIPE);
+        stdio_handle_create(STDIN_FILENO, WX_DONTINHERIT, &handle_in);
     }
     
     handle_err = stdio_handle_get(STDERR_FILENO);
     if (handle_err == NULL) {
-        stdio_handle_create(STDERR_FILENO, 0, &handle_err);
+        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
     }
     
     stdio_handle_set_buffered(handle_out, &__GlbStdout, _IOWRT);

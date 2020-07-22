@@ -35,7 +35,7 @@ def should_define_param_length_component(param, case):
     elif case == CONST.TYPENAME_CASE_FUNCTION_STATUS:
         return False
     elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
-        if param.is_buffer() and param.get_subtype() == "void*":
+        if param.is_buffer() and param.get_subtype() == "void*" and param.get_count() == "1":
             return True
         return False
     return False
@@ -131,29 +131,32 @@ def get_param_typename(protocol, param, case):
     # async function prototypes
     elif case == CONST.TYPENAME_CASE_FUNCTION_CALL or case == CONST.TYPENAME_CASE_FUNCTION_STATUS:
         param_name = param.get_name()
-        if not param.is_value() and not param_typename.endswith("*"):
+        if not param.is_value() and not param.is_array() and not param_typename.endswith("*"):
             param_typename = param_typename + "*"
+
         if param.is_output():
             if param.is_value():
                 param_typename = param_typename + "*"
             param_name = param_name + "_out"
-        elif param.get_count() != "1":
-            param_typename = param_typename + "*"
-        return param_typename + " " + param_name
+        param_typename = param_typename + " " + param_name
+        if param.is_array():
+            param_typename = param_typename + "[" + str(param.get_count()) + "]"
+        return param_typename
 
     elif case == CONST.TYPENAME_CASE_FUNCTION_RESPONSE:
         if not param.is_value() and not param_typename.endswith("*"):
             param_typename = param_typename + "*"
-        if param.get_count() != "1":
-            param_typename = param_typename + "*"
-        return param_typename + " " + param.get_name()
+        param_typename = param_typename + " " + param.get_name()
+        if param.is_array():
+            param_typename = param_typename + "[" + str(param.get_count()) + "]"
+        return param_typename
 
     elif case == CONST.TYPENAME_CASE_MEMBER:
         if not param.is_value() and not param_typename.endswith("*"):
             param_typename = param_typename + "*"
         param_typename = param_typename + " " + param.get_name()
-        if param.get_count() != "1":
-            param_typename = param_typename + "[" + str(param.get_count()) + "]"
+        #if param.is_array():
+        #    param_typename = param_typename + "[" + str(param.get_count()) + "]"
         return param_typename
     return param_typename
 
@@ -265,7 +268,7 @@ def get_size_function(protocol, param, case):
         return "((" + param.get_name() + " == NULL) ? 0 : (strlen(&" + param.get_name() + "[0]) + 1))"
 
     # otherwise we use sizeof with optional * count
-    if param.get_count() != "1":
+    if param.is_array():
         return "sizeof(" + get_param_typename(protocol, param,
                                               CONST.TYPENAME_CASE_SIZEOF) + ") * " + param.get_count()
 
@@ -311,7 +314,7 @@ def define_message_struct(protocol, action_id, params_in, params_out, flags, cas
                 outfile.write(
                     "            { .type = GRACHT_PARAM_VALUE, .data.value = (size_t)"
                     + param.get_name() + ", .length = " + size_function + " }")
-            elif param.is_buffer() or param.is_string():
+            elif param.is_buffer() or param.is_string() or param.is_array():
                 outfile.write(
                     "            { .type = GRACHT_PARAM_BUFFER, .data.buffer = "
                     + param.get_name() + ", .length = " + size_function + " }")
@@ -330,7 +333,7 @@ def define_message_struct(protocol, action_id, params_in, params_out, flags, cas
                 outfile.write(
                     "            { .type = GRACHT_PARAM_VALUE, .data.buffer = NULL, .length = "
                     + size_function + " }")
-            elif param.is_buffer() or param.is_string():
+            elif param.is_buffer() or param.is_string() or param.is_array():
                 outfile.write(
                     "            { .type = GRACHT_PARAM_BUFFER, .data.buffer = NULL, .length = "
                     + size_function + " }")
@@ -358,7 +361,7 @@ def define_status_struct(protocol, params_out, case, outfile):
             outfile.write(
                 "            { .type = GRACHT_PARAM_VALUE, .data.buffer = "
                 + buffer_variable + ", .length = " + size_function + " }")
-        elif param.is_buffer() or param.is_string():
+        elif param.is_buffer() or param.is_string() or param.is_array():
             outfile.write(
                 "            { .type = GRACHT_PARAM_BUFFER, .data.buffer = "
                 + buffer_variable + ", .length = " + size_function + " }")

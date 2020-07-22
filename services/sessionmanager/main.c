@@ -77,7 +77,6 @@ void svc_session_logout_callback(struct gracht_recv_message* message, struct svc
 
 void svc_session_new_device_callback(struct gracht_recv_message* message, struct svc_session_new_device_args* args)
 {
-    ProcessConfiguration_t config;
     char pathBuffer[64];
     
     if (WindowingSystemId == UUID_INVALID) {
@@ -85,8 +84,6 @@ void svc_session_new_device_callback(struct gracht_recv_message* message, struct
         memset(&pathBuffer[0], 0, sizeof(pathBuffer));
         sprintf(&pathBuffer[0], "%s:/shared/bin/" __OSCONFIG_INIT_APP, args->identifier);
         TRACE("Spawning %s", &pathBuffer[0]);
-        ProcessConfigurationInitialize(&config);
-        config.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
-        ProcessSpawnEx(&pathBuffer[0], NULL, &config, &WindowingSystemId);
+        ProcessSpawn(&pathBuffer[0], NULL, &WindowingSystemId);
     }
 }

@@ -254,6 +254,7 @@ OnLoad(void)
     
     // Install supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_input_server_protocol);
     
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
@@ -346,8 +347,11 @@ static void ctt_driver_register_device_callback(struct gracht_recv_message* mess
 
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
 {
-    // announce the protocols we support
-    ctt_driver_event_device_protocol_single(message->client, args->device_id, "input", PROTOCOL_CTT_INPUT_ID);
+    // announce the protocols we support for the individual devices
+    if (args->device_id != Ps2Controller->Device.Base.Id) {
+        ctt_driver_event_device_protocol_single(message->client, args->device_id,
+                "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
+    }
 }
 
 static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args* args)

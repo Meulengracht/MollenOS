@@ -167,7 +167,8 @@ update_device_drivers(void)
 
 void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
 {
-    struct driver_node* driverNode;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(args->driver);
+    struct driver_node*      driverNode;
     
     TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
         args->vendor_id, args->device_id, args->class, args->subclass);
@@ -184,6 +185,9 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
     driverNode->class = args->class;
     driverNode->sub_class = args->subclass;
     list_append(&Drivers, &driverNode->header);
+
+    // Subscribe to events from this source
+    ctt_driver_subscribe(GetGrachtClient(), &msg.base);
     
     // Perform an update run of device/drivers
     update_device_drivers();
@@ -230,10 +234,11 @@ void svc_device_get_devices_by_protocol_callback(
         struct gracht_recv_message* message,
         struct svc_device_get_devices_by_protocol_args* args)
 {
+    TRACE("[svc_device_get_devices_by_protocol_callback] %u", args->protocol_id);
     foreach(node, &Devices) {
         struct device_node* deviceNode = node->value;
         foreach(protoNode, &deviceNode->protocols) {
-            struct device_protocol* protocol = node->value;
+            struct device_protocol* protocol = protoNode->value;
             if ((uintptr_t)protocol->header.key == (uintptr_t)args->protocol_id) {
                 svc_device_event_protocol_device_single(message->client, deviceNode->device->Id,
                     deviceNode->driver_id, args->protocol_id);
@@ -315,6 +320,8 @@ DmRegisterDevice(
 static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event* args)
 {
     struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+
+    TRACE("[ctt_driver_event_device_protocol_callback] %u => %s", args->device_id, args->protocol_name);
     if (deviceNode) {
         struct device_protocol* protocol = malloc(sizeof(struct device_protocol));
         if (!protocol) {

@@ -57,7 +57,7 @@
 typedef struct SchedulerObject {
     element_t               Header;
     _Atomic(int)            State;
-    unsigned int                 Flags;
+    unsigned int            Flags;
     UUId_t                  CoreId;
     size_t                  TimeSlice;
     size_t                  TimeSliceLeft;
@@ -76,14 +76,14 @@ static struct Transition {
     int Event;
     int TargetState;
 } StateTransitions[] = {
-    { STATE_INITIAL, EVENT_QUEUE, STATE_QUEUEING },
-    { STATE_QUEUEING, EVENT_QUEUE_FINISH, STATE_QUEUED },
-    { STATE_QUEUED, EVENT_EXECUTE, STATE_RUNNING },
-    { STATE_RUNNING, EVENT_SCHEDULE, STATE_QUEUEING },
-    { STATE_RUNNING, EVENT_BLOCK, STATE_BLOCKING },
-    { STATE_BLOCKING, EVENT_QUEUE, STATE_RUNNING },
-    { STATE_BLOCKING, EVENT_SCHEDULE, STATE_BLOCKED },
-    { STATE_BLOCKED, EVENT_QUEUE, STATE_QUEUEING }
+    { STATE_INITIAL,  EVENT_QUEUE,        STATE_QUEUEING },
+    { STATE_QUEUEING, EVENT_QUEUE_FINISH, STATE_QUEUED   },
+    { STATE_QUEUED,   EVENT_EXECUTE,      STATE_RUNNING  },
+    { STATE_RUNNING,  EVENT_SCHEDULE,     STATE_QUEUEING },
+    { STATE_RUNNING,  EVENT_BLOCK,        STATE_BLOCKING },
+    { STATE_BLOCKING, EVENT_QUEUE,        STATE_RUNNING  },
+    { STATE_BLOCKING, EVENT_SCHEDULE,     STATE_BLOCKED  },
+    { STATE_BLOCKED,  EVENT_QUEUE,        STATE_QUEUEING }
 };
 
 #ifdef __TRACE
@@ -477,8 +477,8 @@ SchedulerQueueObject(
     
     ResultState = ExecuteEvent(Object, EVENT_QUEUE);
     if (ResultState == STATE_INVALID) {
-        WARNING("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
-        return OsInvalidParameters;    
+        WARNING("[scheduler] [queue] object %s was in invalid state", GetNameOfObject(Object));
+        return OsInvalidParameters;
     }
     
     // Either the resulting state is RUNNING which means we cancelled the block,
