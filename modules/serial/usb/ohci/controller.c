@@ -33,7 +33,7 @@
 #include <stdlib.h>
 
 OsStatus_t        OhciSetup(OhciController_t *Controller);
-InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
+InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     unsigned int* class, unsigned int* subClass)
@@ -127,14 +127,14 @@ HciControllerCreate(
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register interrupt
     TRACE("... register interrupt");
-    RegisterInterruptContext(&Interrupt, Controller);
+    RegisterInterruptEventDescriptor(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
         &Interrupt, INTERRUPT_USERSPACE);
 

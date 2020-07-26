@@ -24,6 +24,7 @@
 
 #include <ddk/utils.h>
 #include <errno.h>
+#include <event.h>
 #include <gracht/link/vali.h>
 #include <io.h>
 #include <os/keycodes.h>
@@ -113,18 +114,17 @@ PS2KeyboardHandleModifiers(
 
 InterruptStatus_t
 PS2KeyboardFastInterrupt(
-    _In_ FastInterruptResources_t* InterruptTable,
-    _In_ void*                     Unused)
+        _In_ InterruptFunctionTable_t* InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
-    DeviceIo_t* IoSpace   = INTERRUPT_IOSPACE(InterruptTable, 0);
-    PS2Port_t* Port       = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    uint8_t DataRecieved  = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
-    PS2Command_t* Command = &Port->ActiveCommand;
+    DeviceIo_t*   IoSpace      = INTERRUPT_IOSPACE(ResourceTable, 0);
+    PS2Port_t*    Port         = (PS2Port_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    uint8_t       DataRecieved = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
+    PS2Command_t* Command      = &Port->ActiveCommand;
 
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
         Command->SyncObject++;
-        return InterruptHandledStop;
     }
     else {
         Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
@@ -134,10 +134,10 @@ PS2KeyboardFastInterrupt(
 
         // Determine if it is an actual scancode or extension code
         if (DataRecieved != PS2_CODE_EXTENDED && DataRecieved != PS2_CODE_RELEASED) {
-            return InterruptHandled;
+            InterruptTable->EventSignal(ResourceTable->EventHandle);
         }
     }
-    return InterruptHandledStop;
+    return InterruptHandled;
 }
 
 void
@@ -252,20 +252,20 @@ PS2KeyboardSetLEDs(
 OsStatus_t
 PS2KeyboardInitialize(
     _In_ PS2Controller_t* Controller,
-    _In_ int              Port,
+    _In_ int              port,
     _In_ int              Translation)
 {
     gracht_client_configuration_t      client_config;
     struct socket_client_configuration link_config;
-    PS2Port_t*                         Instance = &Controller->Ports[Port];
+    PS2Port_t*                         instance = &Controller->Ports[port];
     int                                status;
     TRACE("... [ps2] [keyboard] initialize");
 
     // Initialize keyboard defaults
-    PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
-    PS2_KEYBOARD_DATA_SCANCODESET(Instance) = 2;
-    PS2_KEYBOARD_DATA_REPEAT(Instance)      = PS2_REPEATS_PERSEC(16);
-    PS2_KEYBOARD_DATA_DELAY(Instance)       = PS2_DELAY_500MS;
+    PS2_KEYBOARD_DATA_XLATION(instance)     = (uint8_t)Translation;
+    PS2_KEYBOARD_DATA_SCANCODESET(instance) = 2;
+    PS2_KEYBOARD_DATA_REPEAT(instance)      = PS2_REPEATS_PERSEC(16);
+    PS2_KEYBOARD_DATA_DELAY(instance)       = PS2_DELAY_500MS;
 
     // Open up the input socket so we can send input data to the OS.
     link_config.type = gracht_link_packet_based;
@@ -276,48 +276,55 @@ PS2KeyboardInitialize(
         ERROR("... [ps2] [keyboard] [initialize] gracht_link_socket_client_create failed %i", errno);
     }
     
-    if (status && gracht_client_create(&client_config, &Instance->GrachtClient)) {
+    if (status && gracht_client_create(&client_config, &instance->GrachtClient)) {
         ERROR("... [ps2] [keyboard] [initialize] gracht_client_create failed %i", errno);
+    }
+
+    instance->event_descriptor = eventd((size_t)instance, EVT_RESET_EVENT);
+    if (instance->event_descriptor <= 0) {
+        ERROR("... [ps2] [keyboard] [initialize] eventd failed %i", errno);
     }
     
     // Initialize interrupt
-    RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
-    RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
-    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
+    RegisterInterruptEventDescriptor(&instance->Interrupt, instance->event_descriptor);
+    RegisterFastInterruptIoResource(&instance->Interrupt, Controller->Data);
+    RegisterFastInterruptHandler(&instance->Interrupt, (InterruptHandler_t)PS2KeyboardFastInterrupt);
+    instance->InterruptId = RegisterInterruptSource(&instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
 
     // Reset keyboard LEDs status
-    if (PS2KeyboardSetLEDs(Instance, 0, 0, 0) != OsSuccess) {
+    if (PS2KeyboardSetLEDs(instance, 0, 0, 0) != OsSuccess) {
         ERROR("PS2-Keyboard: failed to reset LEDs");
     }
 
     // Update typematics to preffered settings
-    if (PS2KeyboardSetTypematics(Instance) != OsSuccess) {
+    if (PS2KeyboardSetTypematics(instance) != OsSuccess) {
         WARNING("PS2-Keyboard: failed to set typematic settings");
     }
     
     // Select our preffered scancode set
-    if (PS2KeyboardSetScancode(Instance, 2) != OsSuccess) {
+    if (PS2KeyboardSetScancode(instance, 2) != OsSuccess) {
         WARNING("PS2-Keyboard: failed to select scancodeset 2 (%u)", 
-            PS2_KEYBOARD_DATA_SCANCODESET(Instance));
+            PS2_KEYBOARD_DATA_SCANCODESET(instance));
     }
 
-    Instance->State = PortStateActive;
-    return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
+    instance->State = PortStateActive;
+    return PS2PortExecuteCommand(instance, PS2_ENABLE_SCANNING, NULL);
 }
 
 OsStatus_t
 PS2KeyboardCleanup(
-    _In_ PS2Controller_t* Controller,
-    _In_ int              Port)
+    _In_ PS2Controller_t* controller,
+    _In_ int              index)
 {
-    PS2Port_t* Instance = &Controller->Ports[Port];
+    PS2Port_t* port = &controller->Ports[index];
 
     // Try to disable the device before cleaning up
-    PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
-    UnregisterInterruptSource(Instance->InterruptId);
+    PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
+    UnregisterInterruptSource(port->InterruptId);
     
-    gracht_client_shutdown(Instance->GrachtClient);
-    Instance->Signature = 0xFFFFFFFF;
-    Instance->State     = PortStateConnected;
+    gracht_client_shutdown(port->GrachtClient);
+    port->Signature = 0xFFFFFFFF;
+    port->State     = PortStateConnected;
+    close(port->event_descriptor);
     return OsSuccess;
 }

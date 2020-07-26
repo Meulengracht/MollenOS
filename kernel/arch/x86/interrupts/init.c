@@ -42,13 +42,13 @@ InitializeSoftwareHandlers(void)
     // Install local apic handlers
     // - LVT Error handler
     Interrupt.Line                  = INTERRUPT_LVTERROR;
-    Interrupt.FastInterrupt.Handler = ApicErrorHandler;
+    Interrupt.ResourceTable.Handler = ApicErrorHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE);
     
     // - Timer handler
     Interrupt.Line                  = INTERRUPT_LAPIC;
-    Interrupt.FastInterrupt.Handler = ApicTimerHandler;
+    Interrupt.ResourceTable.Handler = ApicTimerHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE);
 }

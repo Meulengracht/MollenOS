@@ -249,9 +249,6 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
 OsStatus_t
 OnLoad(void)
 {
-    // Install interrupt handler for signal
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Install supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_input_server_protocol);

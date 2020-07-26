@@ -31,8 +31,8 @@ extern size_t GlbTimerQuantum;
 
 InterruptStatus_t
 ApicTimerHandler(
-    _In_ FastInterruptResources_t* NotUsed,
-    _In_ void*                     Context)
+        _In_ InterruptFunctionTable_t* NotUsed,
+        _In_ void*                     Context)
 {
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
@@ -51,8 +51,8 @@ ApicTimerHandler(
 
 InterruptStatus_t
 ApicErrorHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+        _In_ InterruptFunctionTable_t*  NotUsed,
+        _In_ void*                      Context)
 {
     _CRT_UNUSED(Context);
     _CRT_UNUSED(NotUsed);

@@ -35,6 +35,7 @@ typedef struct MemoryCache MemoryCache_t;
 #define HEAP_SLAB_NO_ATOMIC_CACHE 0x08 // Set to disable smp optimizations
 #define HEAP_INITIAL_SLAB         0x10 // Set to allocate the initial slab
 #define HEAP_SINGLE_SLAB          0x20 // Set to disable multiple slabs
+#define HEAP_CACHE_USERSPACE      0x40 // Set to allow the pages to accessed by userspace
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.
@@ -45,13 +46,13 @@ void MemoryCacheInitialize(void);
 // both with alignment, flags and constructor/destructor functionality upon creation of objects.
 KERNELAPI MemoryCache_t* KERNELABI
 MemoryCacheCreate(
-    _In_ const char* Name,
-    _In_ size_t      ObjectSize,
-    _In_ size_t      ObjectAlignment,
-    _In_ int         ObjectMinCount,
-    _In_ unsigned int     Flags,
-    _In_ void       (*ObjectConstructor)(struct MemoryCache*, void*),
-    _In_ void       (*ObjectDestructor)(struct MemoryCache*, void*));
+    _In_ const char*  Name,
+    _In_ size_t       ObjectSize,
+    _In_ size_t       ObjectAlignment,
+    _In_ int          ObjectMinCount,
+    _In_ unsigned int Flags,
+    _In_ void        (*ObjectConstructor)(struct MemoryCache*, void*),
+    _In_ void        (*ObjectDestructor)(struct MemoryCache*, void*));
 
 // MemoryCacheAllocate
 // Allocates a new object from the cache.

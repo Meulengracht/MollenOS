@@ -31,7 +31,7 @@
 #include "ahci.h"
 
 // Prototypes
-InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
+InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 OsStatus_t        AhciSetup(AhciController_t* Controller);
 
 AhciController_t*
@@ -92,7 +92,7 @@ AhciControllerCreate(
 
     // Register interrupt
     TRACE(" > ahci interrupt line is %u", Interrupt.Line);
-    RegisterInterruptContext(&Interrupt, Controller);
+    RegisterInterruptEventDescriptor(&Interrupt, Controller);
     Controller->InterruptId = RegisterInterruptSource(&Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device

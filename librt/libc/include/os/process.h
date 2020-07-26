@@ -64,11 +64,18 @@ ProcessJoin(
     _In_  size_t Timeout,
     _Out_ int*   ExitCode));
 
-/* ProcessKill
- * Terminates the process with the given id */
+/**
+ * Dispatches a signal to the target process, the target process must be listening to asynchronous signals
+ * otherwise the signal is ignored. Both SIGKILL and SIGQUIT will terminate the process in any event, if security
+ * checks are passed.
+ * @param Handle The handle of the target process
+ * @param Signal The signal that should be sent to the process
+ * @return       The status of the operation
+ */
 CRTDECL(OsStatus_t,
-ProcessKill(
-	_In_ UUId_t Handle));
+ProcessSignal(
+    _In_ UUId_t Handle,
+    _In_ int    Signal));
 
 /* ProcessGetCurrentId
  * Retrieves the current process identifier. */

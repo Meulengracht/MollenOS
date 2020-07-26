@@ -64,8 +64,6 @@ extern void OnInterrupt(int, void*);
 OsStatus_t
 OnLoad(void)
 {
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_usbhost_server_protocol);

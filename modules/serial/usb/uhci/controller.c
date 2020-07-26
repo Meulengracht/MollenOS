@@ -30,7 +30,7 @@
 #include <string.h>
 
 OsStatus_t        UhciSetup(UhciController_t *Controller);
-InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
+InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 static int TimerRegistered = 0;
 
@@ -138,12 +138,12 @@ HciControllerCreate(
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
 
     // Register interrupt
-    RegisterInterruptContext(&Interrupt, Controller);
+    RegisterInterruptEventDescriptor(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
         &Interrupt, INTERRUPT_USERSPACE);
 

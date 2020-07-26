@@ -31,7 +31,9 @@ enum ioset_flags
     IOSETIN  = 0x1,  // Receieved data
     IOSETOUT = 0x2,  // Sent data
     IOSETCTL = 0x4,  // Control event
-    
+    IOSETSYN = 0x8,  // Synchronization event
+    IOSETTIM = 0x10, // Timeout event
+
     IOSETLVT = 0x1000  // Level triggered
 };
 

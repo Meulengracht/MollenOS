@@ -36,8 +36,8 @@ extern clock_t CmosGetTicks(void);
 
 InterruptStatus_t
 RtcInterrupt(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+        _In_ InterruptFunctionTable_t*  NotUsed,
+        _In_ void*                      Context)
 {
     Cmos_t *Chip = (Cmos_t*)Context;
     _CRT_UNUSED(NotUsed);
@@ -85,7 +85,7 @@ RtcInitialize(
     Interrupt.Line                  = CMOS_RTC_IRQ;
     Interrupt.Pin                   = INTERRUPT_NONE;
     Interrupt.Vectors[0]            = INTERRUPT_NONE;
-    Interrupt.FastInterrupt.Handler = RtcInterrupt;
+    Interrupt.ResourceTable.Handler = RtcInterrupt;
     Interrupt.Context               = Chip;
     
     Chip->Irq = InterruptRegister(&Interrupt, INTERRUPT_NOTSHARABLE | INTERRUPT_KERNEL);

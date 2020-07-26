@@ -60,14 +60,13 @@ static Collection_t Controllers = COLLECTION_INIT(KeyId);
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      Reserved)
+        _In_ InterruptFunctionTable_t*     InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
-    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
     reg32_t                  InterruptStatus;
     int                      i;
-    _CRT_UNUSED(Reserved);
 
     // Skip processing immediately if the interrupt was not for us
     InterruptStatus = Registers->InterruptStatus;
@@ -129,8 +128,6 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
 OsStatus_t
 OnLoad(void)
 {
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_storage_server_protocol);

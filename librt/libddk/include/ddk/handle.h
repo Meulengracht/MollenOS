@@ -29,24 +29,29 @@
 #include <ioset.h>
 
 /**
- * handle_create
- * * Allocates a new handle for a system resource with a reference of 1.
+ * Allocates a new handle for a system resource with a reference of 1.
+ * @param handleOut A unique identifier to a generic OS handle
+ * @return          Status of the handle creation
  */
 DDKDECL(OsStatus_t,
 handle_create(
     _Out_ UUId_t* handleOut));
 
 /**
- * handle_destroy
- * * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
+ * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
+ * @param handle A generic OS handle
+ * @return       Status of the operation
  */
 DDKDECL(OsStatus_t,
 handle_destroy(
     _In_ UUId_t handle));
 
 /**
- * handle_set_path
- * * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
+ * Registers a unique system wide path for the handle, so the handle can be accessed across the system
+ * without knowing handle itself
+ * @param handle A generic OS handle
+ * @param path   The path to be registered for the handle
+ * @return       Whether or not the path was successfully registered for the handle
  */
 DDKDECL(OsStatus_t,
 handle_set_path(
@@ -54,9 +59,10 @@ handle_set_path(
     _In_ const char* path));
 
 /**
- * notification_queue_create
- * * Creates a new handle set that can be used for asynchronus events.
- * @param flags [In] Creation flags that configure the new handle set behaviour. 
+ * Creates a new handle set that can be used for asynchronus events.
+ * @param flags     Creation flags that configure the new handle set behaviour.
+ * @param handleOut A unique identifier to an OS handle of the type Set
+ * @return          status of the queue creation
  */
 DDKDECL(OsStatus_t,
 notification_queue_create(
@@ -76,7 +82,7 @@ notification_queue_ctrl(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
-    _In_ struct ioset_event * event));
+    _In_ struct ioset_event* event));
 
 /**
  * notification_queue_wait
@@ -105,7 +111,7 @@ notification_queue_wait(
  */
 DDKDECL(OsStatus_t,
 handle_post_notification(
-    _In_ UUId_t  handle,
+    _In_ UUId_t       handle,
     _In_ unsigned int flags));
 
 #endif //!__DDK_HANDLE_H__

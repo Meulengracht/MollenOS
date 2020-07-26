@@ -35,15 +35,14 @@
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      NotUsed)
+        _In_ InterruptFunctionTable_t* InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
     // Variables
     EchiOperationalRegisters_t* Registers;
-    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
     reg32_t InterruptStatus;
-    _CRT_UNUSED(NotUsed);
 
     RegisterAddress    += ((EchiCapabilityRegisters_t*)RegisterAddress)->Length;
     Registers           = (EchiOperationalRegisters_t*)RegisterAddress;

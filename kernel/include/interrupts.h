@@ -32,9 +32,9 @@
 #define INTERRUPT_KERNEL 0x10000000
 
 typedef struct SystemInterrupt {
-    DeviceInterrupt_t               Interrupt;
-    FastInterruptResourceTable_t    KernelResources;
-    UUId_t                          Id;
+    DeviceInterrupt_t        Interrupt;
+    InterruptResourceTable_t KernelResources;
+    UUId_t                   Id;
     UUId_t                          ModuleHandle;
     UUId_t                          Thread;
     unsigned int                         Flags;
@@ -53,9 +53,9 @@ InitializeInterruptTable(void);
 KERNELAPI void KERNELABI
 InitializeInterruptHandlers(void);
 
-/* FastInterruptResources_t
+/* InterruptFunctionTable_t
  * Retrieves the system fast interrupt resource table to pass to process interrupt handlers. */
-KERNELAPI FastInterruptResources_t* KERNELABI
+KERNELAPI InterruptFunctionTable_t* KERNELABI
 GetFastInterruptTable(void);
 
 /* InterruptRegister

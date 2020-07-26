@@ -47,6 +47,7 @@ int gracht_server_handle_event(int iod, unsigned int events);
 int gracht_server_main_loop(void);
 
 int gracht_server_get_dgram_iod(void);
+int gracht_server_get_set_iod(void);
 
 int gracht_server_respond(struct gracht_recv_message*, struct gracht_message*);
 int gracht_server_send_event(int, struct gracht_message*, unsigned int);

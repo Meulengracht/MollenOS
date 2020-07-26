@@ -26,6 +26,7 @@
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
 #include <string.h>
+#include <internal/_utils.h>
 
 void
 DeviceInterruptInitialize(
@@ -45,7 +46,7 @@ RegisterFastInterruptHandler(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ InterruptHandler_t Handler)
 {
-    Interrupt->FastInterrupt.Handler = Handler;
+    Interrupt->ResourceTable.Handler = Handler;
 }
 
 void
@@ -54,8 +55,8 @@ RegisterFastInterruptIoResource(
     _In_ DeviceIo_t*        IoSpace)
 {
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
-        if (Interrupt->FastInterrupt.IoResources[i] == NULL) {
-            Interrupt->FastInterrupt.IoResources[i] = IoSpace;
+        if (Interrupt->ResourceTable.IoResources[i] == NULL) {
+            Interrupt->ResourceTable.IoResources[i] = IoSpace;
             break;
         }
     }
@@ -69,21 +70,25 @@ RegisterFastInterruptMemoryResource(
     _In_ unsigned int            Flags)
 {
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
-        if (Interrupt->FastInterrupt.MemoryResources[i].Address == 0) {
-            Interrupt->FastInterrupt.MemoryResources[i].Address = Address;
-            Interrupt->FastInterrupt.MemoryResources[i].Length  = Length;
-            Interrupt->FastInterrupt.MemoryResources[i].Flags   = Flags;
+        if (Interrupt->ResourceTable.MemoryResources[i].Address == 0) {
+            Interrupt->ResourceTable.MemoryResources[i].Address = Address;
+            Interrupt->ResourceTable.MemoryResources[i].Length  = Length;
+            Interrupt->ResourceTable.MemoryResources[i].Flags   = Flags;
             break;
         }
     }
 }
 
 void
-RegisterInterruptContext(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ void*              Context)
+RegisterInterruptEventDescriptor(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ int                eventDescriptor)
 {
-    Interrupt->Context = Context;
+    if (!interrupt) {
+        return;
+    }
+
+    interrupt->ResourceTable.EventHandle = GetNativeHandle(eventDescriptor);
 }
 
 UUId_t

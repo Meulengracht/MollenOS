@@ -52,8 +52,8 @@ static queue_t        TxuReusableBin                      = QUEUE_INIT;
 
 InterruptStatus_t
 ProcessorHaltHandler(
-    _In_ FastInterruptResources_t* NotUsed,
-    _In_ void*                     NotUsedEither)
+        _In_ InterruptFunctionTable_t* NotUsed,
+        _In_ void*                     NotUsedEither)
 {
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
@@ -63,8 +63,8 @@ ProcessorHaltHandler(
 
 InterruptStatus_t
 FunctionExecutionInterruptHandler(
-    _In_ FastInterruptResources_t* NotUsed,
-    _In_ void*                     NotUsedEither)
+        _In_ InterruptFunctionTable_t* NotUsed,
+        _In_ void*                     NotUsedEither)
 {
     SystemCpuCore_t* Core = GetCurrentProcessorCore();
     TxuMessage_t*    Message;
@@ -167,13 +167,13 @@ InitializeInterruptHandlers(void)
     Interrupt.Line                  = INTERRUPT_NONE;
     
     // Halt
-    Interrupt.FastInterrupt.Handler    = ProcessorHaltHandler;
+    Interrupt.ResourceTable.Handler = ProcessorHaltHandler;
     InterruptHandlers[CpuFunctionHalt] = InterruptRegister(&Interrupt,
         INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
 
     // Custom
-    Interrupt.Line                       = INTERRUPT_NONE;
-    Interrupt.FastInterrupt.Handler      = FunctionExecutionInterruptHandler;
+    Interrupt.Line                  = INTERRUPT_NONE;
+    Interrupt.ResourceTable.Handler = FunctionExecutionInterruptHandler;
     InterruptHandlers[CpuFunctionCustom] = InterruptRegister(&Interrupt,
         INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
 }

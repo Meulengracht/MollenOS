@@ -31,6 +31,8 @@
 #include <signal.h>
 #include <stdlib.h>
 
+typedef void (*__sa_process_t)(int, void*);
+
 // Assembly entry points that handle the stack changes made
 // by the stack system in the kernel
 extern void __signalentry(void);
@@ -186,6 +188,35 @@ is_signal_valid(
     return 0;
 }
 
+void sigsetzero(struct sigset* sigset)
+{
+    if (!sigset) {
+        return;
+    }
+
+    memset(sigset, 0, sizeof(struct sigset));
+}
+
+void sigsetadd(struct sigset* sigset, int signal)
+{
+    if (!sigset) {
+        return;
+    }
+
+    sigset->mask |= (1 << signal);
+}
+
+int signald(struct sigset* sigset, unsigned int flags)
+{
+    // @todo we need to build the protocol functions in process manager
+    // signal_queue_create
+    // signal_queue_post
+    // signal_queue_wait
+    // signal_queue_destroy
+
+    return 0;
+}
+
 __sa_handler_t
 signal(
     _In_ int            sig,
@@ -208,12 +239,6 @@ signal(
     }
     _set_errno(EINVAL);
     return SIG_ERR;
-}
-
-__sa_process_t
-sigprocess(int sig, __sa_process_t handler)
-{
-    return (__sa_process_t)signal(sig, (__sa_handler_t)handler);
 }
 
 int

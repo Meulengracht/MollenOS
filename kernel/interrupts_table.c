@@ -24,10 +24,11 @@
 #include <arch/io.h>
 #include <ddk/interrupt.h>
 #include <interrupts.h>
+#include <userevent.h>
 
-static FastInterruptResources_t FastInterruptTable = { 0 };
+static InterruptFunctionTable_t FastInterruptTable = {0 };
 
-FastInterruptResources_t*
+InterruptFunctionTable_t*
 GetFastInterruptTable(void)
 {
     return &FastInterruptTable;
@@ -66,4 +67,5 @@ InitializeInterruptTable(void)
 {
     FastInterruptTable.ReadIoSpace  = TableFunctionReadIoSpace;
     FastInterruptTable.WriteIoSpace = TableFunctionWriteIoSpace;
+    FastInterruptTable.EventSignal  = UserEventSignal;
 }

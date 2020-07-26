@@ -271,66 +271,65 @@ PS2PortFinishCommand(
  * Initializes the given port and tries to identify the device on the port */
 OsStatus_t
 PS2PortInitialize(
-    _In_ PS2Port_t* Port)
+    _In_ PS2Port_t* port)
 {
     uint8_t Temp;
 
-    TRACE(" > initializing ps2 port %i", Port->Index);
+    TRACE(" > initializing ps2 port %i", port->Index);
 
     // Initialize some variables for the port
-    Port->Interrupt.AcpiConform = 0;
-    Port->Interrupt.Pin         = INTERRUPT_NONE;
-    Port->Interrupt.Vectors[0]  = INTERRUPT_NONE;
-    if (Port->Index == 0) {
-        Port->Interrupt.Line = PS2_PORT1_IRQ;
+    port->Interrupt.AcpiConform = 0;
+    port->Interrupt.Pin         = INTERRUPT_NONE;
+    port->Interrupt.Vectors[0] = INTERRUPT_NONE;
+    if (port->Index == 0) {
+        port->Interrupt.Line = PS2_PORT1_IRQ;
     }
     else {
-        Port->Interrupt.Line = PS2_PORT2_IRQ;
+        port->Interrupt.Line = PS2_PORT2_IRQ;
     }
 
     // Initialize interrupt resources
-    RegisterFastInterruptMemoryResource(&Port->Interrupt, (uintptr_t)Port, sizeof(PS2Port_t), 0);
-    RegisterInterruptContext(&Port->Interrupt, Port);
+    RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);
 
     // Start out by doing an interface
     // test on the given port
-    if (PS2InterfaceTest(Port->Index) != OsSuccess) {
-        ERROR(" > ps2-port %i failed interface test", Port->Index);
+    if (PS2InterfaceTest(port->Index) != OsSuccess) {
+        ERROR(" > ps2-port %i failed interface test", port->Index);
         return OsError;
     }
 
     // Select the correct port
-    PS2SendCommand(Port->Index == 0 ? PS2_ENABLE_PORT1 : PS2_ENABLE_PORT2);
+    PS2SendCommand(port->Index == 0 ? PS2_ENABLE_PORT1 : PS2_ENABLE_PORT2);
 
     // Get controller configuration
     PS2SendCommand(PS2_GET_CONFIGURATION);
     Temp = PS2ReadData(0);
 
     // Check if the port is enabled - otherwise return error
-    if (Temp & (1 << (4 + Port->Index))) {
+    if (Temp & (1 << (4 + port->Index))) {
         return OsError; 
     }
-    Temp |= (1 << Port->Index); // Enable IRQ
+    Temp |= (1 << port->Index); // Enable IRQ
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
     if (PS2WriteData(Temp) != OsSuccess) {
-        ERROR(" > ps2-port %i failed to update configuration", Port->Index);
+        ERROR(" > ps2-port %i failed to update configuration", port->Index);
         return OsError;
     }
 
     // Reset the port
-    if (PS2ResetPort(Port->Index) != OsSuccess) {
-        ERROR(" > ps2-port %i failed port reset", Port->Index);
+    if (PS2ResetPort(port->Index) != OsSuccess) {
+        ERROR(" > ps2-port %i failed port reset", port->Index);
         return OsError;
     }
-    Port->Signature = PS2IdentifyPort(Port->Index);
-    TRACE(" > ps2-port %i device signature 0x%x", Port->Index, Port->Signature);
+    port->Signature = PS2IdentifyPort(port->Index);
+    TRACE(" > ps2-port %i device signature 0x%x", port->Index, port->Signature);
     
     // If the signature is ok - device present
-    if (Port->Signature != 0xFFFFFFFF) {
-        Port->State = PortStateConnected;
-        return PS2RegisterDevice(Port);
+    if (port->Signature != 0xFFFFFFFF) {
+        port->State = PortStateConnected;
+        return PS2RegisterDevice(port);
     }
     return OsSuccess;
 }

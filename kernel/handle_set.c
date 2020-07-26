@@ -211,7 +211,8 @@ WaitForHandleSet(
         }
         numberOfEvents = atomic_exchange(&set->Pending, 0);
     }
-    
+
+    // @todo add the unhandled event count back
     numberOfEvents = MIN(numberOfEvents, maxEvents);
     list_construct(&spliced);
     list_splice(&set->Events, numberOfEvents, &spliced);
@@ -223,7 +224,7 @@ WaitForHandleSet(
         
         // reuse an existing structure (combine events)?
         if (pollEvents) {
-            struct ioset_event * reuse = NULL;
+            struct ioset_event* reuse = NULL;
             for (j = 0; j < pollEvents; j++) {
                 if (events[j].data.context == element->Context.context) {
                     reuse = &events[j];
