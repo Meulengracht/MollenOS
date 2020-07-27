@@ -376,7 +376,7 @@ InterruptRegister(
     memcpy(&Entry->Interrupt, Interrupt, sizeof(DeviceInterrupt_t));
 
     // Check against sharing
-    if (Flags & INTERRUPT_NOTSHARABLE) {
+    if (Flags & INTERRUPT_EXCLUSIVE) {
         if (InterruptTable[TableIndex].Descriptor != NULL) {
             // We failed to gain exclusive access
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", TableIndex);
@@ -410,7 +410,7 @@ InterruptRegister(
     if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty    = 1;
-        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
+        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
     }
     else {
         // Insert and increase penalty

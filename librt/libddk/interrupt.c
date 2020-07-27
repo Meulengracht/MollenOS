@@ -67,7 +67,7 @@ RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ uintptr_t          Address,
     _In_ size_t             Length,
-    _In_ unsigned int            Flags)
+    _In_ unsigned int       Flags)
 {
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Interrupt->ResourceTable.MemoryResources[i].Address == 0) {
@@ -80,21 +80,21 @@ RegisterFastInterruptMemoryResource(
 }
 
 void
-RegisterInterruptEventDescriptor(
+RegisterInterruptDescriptor(
     _In_ DeviceInterrupt_t* interrupt,
-    _In_ int                eventDescriptor)
+    _In_ int                descriptor)
 {
     if (!interrupt) {
         return;
     }
 
-    interrupt->ResourceTable.EventHandle = GetNativeHandle(eventDescriptor);
+    interrupt->ResourceTable.ResourceHandle = GetNativeHandle(descriptor);
 }
 
 UUId_t
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int            Flags)
+    _In_ unsigned int       Flags)
 {
 	// Sanitize input
 	if (Interrupt == NULL) {

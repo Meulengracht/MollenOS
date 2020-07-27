@@ -25,6 +25,8 @@
 #include <ddk/interrupt.h>
 #include <interrupts.h>
 #include <userevent.h>
+#include <ds/streambuffer.h>
+#include <memory_region.h>
 
 static InterruptFunctionTable_t FastInterruptTable = {0 };
 
@@ -62,10 +64,25 @@ TableFunctionWriteIoSpace(
     return OsError;
 }
 
+static OsStatus_t
+TableFunctionWriteStreambuffer(
+        _In_ UUId_t      handle,
+        _In_ const void* buffer,
+        _In_ size_t      length)
+{
+    streambuffer_t* stream;
+
+    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsSuccess) {
+        streambuffer_stream_out(stream, buffer, length, STREAMBUFFER_NO_BLOCK);
+    }
+    return OsSuccess;
+}
+
 void
 InitializeInterruptTable(void)
 {
     FastInterruptTable.ReadIoSpace  = TableFunctionReadIoSpace;
     FastInterruptTable.WriteIoSpace = TableFunctionWriteIoSpace;
     FastInterruptTable.EventSignal  = UserEventSignal;
+    FastInterruptTable.WriteStream  = TableFunctionWriteStreambuffer;
 }

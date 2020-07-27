@@ -134,7 +134,7 @@ PS2KeyboardFastInterrupt(
 
         // Determine if it is an actual scancode or extension code
         if (DataRecieved != PS2_CODE_EXTENDED && DataRecieved != PS2_CODE_RELEASED) {
-            InterruptTable->EventSignal(ResourceTable->EventHandle);
+            InterruptTable->EventSignal(ResourceTable->ResourceHandle);
         }
     }
     return InterruptHandled;
@@ -280,16 +280,10 @@ PS2KeyboardInitialize(
         ERROR("... [ps2] [keyboard] [initialize] gracht_client_create failed %i", errno);
     }
 
-    instance->event_descriptor = eventd((size_t)instance, EVT_RESET_EVENT);
-    if (instance->event_descriptor <= 0) {
-        ERROR("... [ps2] [keyboard] [initialize] eventd failed %i", errno);
-    }
-    
     // Initialize interrupt
-    RegisterInterruptEventDescriptor(&instance->Interrupt, instance->event_descriptor);
     RegisterFastInterruptIoResource(&instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&instance->Interrupt, (InterruptHandler_t)PS2KeyboardFastInterrupt);
-    instance->InterruptId = RegisterInterruptSource(&instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
+    instance->InterruptId = RegisterInterruptSource(&instance->Interrupt, INTERRUPT_EXCLUSIVE);
 
     // Reset keyboard LEDs status
     if (PS2KeyboardSetLEDs(instance, 0, 0, 0) != OsSuccess) {
@@ -325,6 +319,5 @@ PS2KeyboardCleanup(
     gracht_client_shutdown(port->GrachtClient);
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
-    close(port->event_descriptor);
     return OsSuccess;
 }

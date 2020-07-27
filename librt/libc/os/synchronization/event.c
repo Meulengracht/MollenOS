@@ -24,12 +24,16 @@
 #include <internal/_io.h>
 #include <internal/_syscalls.h>
 
-int eventd(size_t initialValue, unsigned int flags)
+int eventd(unsigned int initialValue, unsigned int flags)
 {
     stdio_handle_t* ioObject;
     int             status;
     UUId_t          handle;
     atomic_int*     syncAddress;
+
+    if (EVT_TYPE(flags) == EVT_RESET_EVENT) {
+        initialValue = 1;
+    }
 
     status = stdio_handle_create(-1, WX_OPEN, &ioObject);
     if (status) {

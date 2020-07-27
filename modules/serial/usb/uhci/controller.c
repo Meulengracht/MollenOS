@@ -143,9 +143,8 @@ HciControllerCreate(
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
 
     // Register interrupt
-    RegisterInterruptEventDescriptor(&Interrupt, Controller);
-    Controller->Base.Interrupt = RegisterInterruptSource(
-        &Interrupt, INTERRUPT_USERSPACE);
+    RegisterInterruptDescriptor(&Interrupt, Controller);
+    Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
     if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,

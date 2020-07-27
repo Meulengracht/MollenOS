@@ -78,7 +78,7 @@ PitInitialize(void)
 	Interrupt.ResourceTable.Handler = PitInterrupt;
 	PitUnit.NsTick                  = 1000;
 
-	PitUnit.Irq = InterruptRegister(&Interrupt, INTERRUPT_NOTSHARABLE | INTERRUPT_KERNEL);
+	PitUnit.Irq = InterruptRegister(&Interrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
 	if (PitUnit.Irq != UUID_INVALID) {
 		TimersRegisterSystemTimer(PitUnit.Irq, PitUnit.NsTick, PitGetTicks, PitResetTicks);
 	}

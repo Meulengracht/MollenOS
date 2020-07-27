@@ -169,11 +169,11 @@ InitializeInterruptHandlers(void)
     // Halt
     Interrupt.ResourceTable.Handler = ProcessorHaltHandler;
     InterruptHandlers[CpuFunctionHalt] = InterruptRegister(&Interrupt,
-        INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
+                                                           INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE);
 
     // Custom
     Interrupt.Line                  = INTERRUPT_NONE;
     Interrupt.ResourceTable.Handler = FunctionExecutionInterruptHandler;
     InterruptHandlers[CpuFunctionCustom] = InterruptRegister(&Interrupt,
-        INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
+                                                             INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE);
 }

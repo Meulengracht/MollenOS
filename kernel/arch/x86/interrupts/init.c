@@ -43,14 +43,14 @@ InitializeSoftwareHandlers(void)
     // - LVT Error handler
     Interrupt.Line                  = INTERRUPT_LVTERROR;
     Interrupt.ResourceTable.Handler = ApicErrorHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE);
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL
+                                  | INTERRUPT_EXCLUSIVE);
     
     // - Timer handler
     Interrupt.Line                  = INTERRUPT_LAPIC;
     Interrupt.ResourceTable.Handler = ApicTimerHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE);
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL
+                                  | INTERRUPT_EXCLUSIVE);
 }
 
 OsStatus_t

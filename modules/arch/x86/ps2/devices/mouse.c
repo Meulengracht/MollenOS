@@ -48,7 +48,7 @@ PS2MouseFastInterrupt(
         uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
         Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
         if (!(index % BreakAtBytes)) {
-            InterruptTable->EventSignal(ResourceTable->EventHandle);
+            InterruptTable->EventSignal(ResourceTable->ResourceHandle);
         }
     }
     smp_wmb();
@@ -175,16 +175,10 @@ PS2MouseInitialize(
         ERROR("... [ps2] [mouse] [initialize] gracht_client_create failed %i", errno);
     }
 
-    port->event_descriptor = eventd((size_t)port, EVT_RESET_EVENT);
-    if (port->event_descriptor <= 0) {
-        ERROR("... [ps2] [mouse] [initialize] eventd failed %i", errno);
-    }
-
     // Initialize interrupt
-    RegisterInterruptEventDescriptor(&port->Interrupt, port->event_descriptor);
     RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
     RegisterFastInterruptHandler(&port->Interrupt, (InterruptHandler_t)PS2MouseFastInterrupt);
-    port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
+    port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_EXCLUSIVE);
 
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
@@ -218,6 +212,5 @@ PS2MouseCleanup(
     gracht_client_shutdown(port->GrachtClient);
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
-    close(port->event_descriptor);
     return OsSuccess;
 }

@@ -40,13 +40,13 @@
 #include <threading.h>
 
 typedef struct MemoryRegion {
-    Mutex_t   SyncObject;
-    uintptr_t KernelMapping;
-    size_t    Length;
-    size_t    Capacity;
-    unsigned int   Flags;
-    int       PageCount;
-    uintptr_t Pages[];
+    Mutex_t      SyncObject;
+    uintptr_t    KernelMapping;
+    size_t       Length;
+    size_t       Capacity;
+    unsigned int Flags;
+    int          PageCount;
+    uintptr_t    Pages[];
 } MemoryRegion_t;
 
 static OsStatus_t
@@ -517,5 +517,25 @@ MemoryRegionGetSg(
         // Adjust the initial sg entry for offset
         SgListOut[0].length -= SgListOut[0].address % PageSize;
     }
+    return OsSuccess;
+}
+
+OsStatus_t
+MemoryRegionGetKernelMapping(
+        _In_  UUId_t handle,
+        _Out_ void** bufferOut)
+{
+    MemoryRegion_t* region;
+
+    if (!bufferOut) {
+        return OsInvalidParameters;
+    }
+
+    region = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
+    if (!region) {
+        return OsDoesNotExist;
+    }
+
+    *bufferOut = (void*)region->KernelMapping;
     return OsSuccess;
 }

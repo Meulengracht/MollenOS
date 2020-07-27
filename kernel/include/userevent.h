@@ -45,7 +45,7 @@ UserEventInitialize(void);
  */
 KERNELAPI OsStatus_t KERNELABI
 UserEventCreate(
-    _In_  size_t       initialValue,
+    _In_  unsigned int initialValue,
     _In_  unsigned int flags,
     _Out_ UUId_t*      handleOut,
     _Out_ atomic_int** syncAddressOut);

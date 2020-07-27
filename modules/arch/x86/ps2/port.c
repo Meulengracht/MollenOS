@@ -27,6 +27,9 @@
 #include <threads.h>
 #include <string.h>
 #include <stdlib.h>
+#include <event.h>
+#include <ioset.h>
+#include <gracht/server.h>
 #include "ps2.h"
 
 uint8_t
@@ -275,7 +278,7 @@ PS2PortInitialize(
 {
     uint8_t Temp;
 
-    TRACE(" > initializing ps2 port %i", port->Index);
+    TRACE("[PS2PortInitialize] %i", port->Index);
 
     // Initialize some variables for the port
     port->Interrupt.AcpiConform = 0;
@@ -288,8 +291,19 @@ PS2PortInitialize(
         port->Interrupt.Line = PS2_PORT2_IRQ;
     }
 
+    port->event_descriptor = eventd((size_t)port, EVT_RESET_EVENT);
+    if (port->event_descriptor <= 0) {
+        ERROR("[PS2PortInitialize] eventd failed %i", errno);
+        return OsError;
+    }
+
+    // register the event descriptor with the our server set
+    ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, port->event_descriptor,
+            &(struct ioset_event){ .data.iod = port->event_descriptor, .events = IOSETSYN });
+
     // Initialize interrupt resources
     RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);
+    RegisterInterruptDescriptor(&port->Interrupt, port->event_descriptor);
 
     // Start out by doing an interface
     // test on the given port

@@ -59,7 +59,7 @@ typedef struct FastInterruptMemoryResource {
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
 typedef struct InterruptResourceTable {
     InterruptHandler_t            Handler;
-    UUId_t                        EventHandle;
+    UUId_t                        ResourceHandle;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
 } InterruptResourceTable_t;
@@ -72,6 +72,7 @@ typedef struct InterruptFunctionTable {
     size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
     OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
     OsStatus_t (*EventSignal)(UUId_t handle);
+    OsStatus_t (*WriteStream)(UUId_t handle, const void* buffer, size_t length);
 } InterruptFunctionTable_t;
 
 #define INTERRUPT_IOSPACE(Resources, Index)     Resources->IoResources[Index]
@@ -89,11 +90,10 @@ typedef struct InterruptFunctionTable {
 #define INTERRUPT_ACPICONFORM_FIXED           0x00000010
 
 // Interrupt register options
-#define INTERRUPT_SOFT                  0x00000001  // Interrupt is not triggered by a hardware line
-#define INTERRUPT_VECTOR                0x00000002  // Interrupt can be either values set in the Vector
-#define INTERRUPT_MSI                   0x00000004  // Interrupt uses MSI to deliver
-#define INTERRUPT_NOTSHARABLE           0x00000008  // Interrupt line can not be shared
-#define INTERRUPT_USERSPACE             0x00000010  // Send interrupt notification to process
+#define INTERRUPT_SOFT      0x00000001  // Interrupt is not triggered by a hardware line
+#define INTERRUPT_VECTOR    0x00000002  // Interrupt can be either values set in the Vector
+#define INTERRUPT_MSI       0x00000004  // Interrupt uses MSI to deliver
+#define INTERRUPT_EXCLUSIVE 0x00000008  // Interrupt line can not be shared
 
 typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
@@ -152,13 +152,13 @@ RegisterFastInterruptMemoryResource(
 
 /**
  * Register event descriptor that will be signalled when a fast interrupt needs additional processing
- * @param interrupt       The interrupt descriptor that it should be bound to
- * @param eventDescriptor The event descriptor that should be available for signalling
+ * @param interrupt  The interrupt descriptor that it should be bound to
+ * @param descriptor The descriptor that should be available for the interrupt
  */
 DDKDECL(void,
-RegisterInterruptEventDescriptor(
+RegisterInterruptDescriptor(
     _In_ DeviceInterrupt_t* interrupt,
-    _In_ int                eventDescriptor));
+    _In_ int                descriptor));
 
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source

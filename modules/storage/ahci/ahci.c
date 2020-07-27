@@ -92,8 +92,8 @@ AhciControllerCreate(
 
     // Register interrupt
     TRACE(" > ahci interrupt line is %u", Interrupt.Line);
-    RegisterInterruptEventDescriptor(&Interrupt, Controller);
-    Controller->InterruptId = RegisterInterruptSource(&Interrupt, INTERRUPT_USERSPACE);
+    RegisterInterruptDescriptor(&Interrupt, Controller);
+    Controller->InterruptId = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
     Status = IoctlDevice(Controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,

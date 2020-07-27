@@ -36,11 +36,11 @@ _CODE_BEGIN
 /**
  * Creates a new event descriptor that can act as different types of synchronization primitives. The initialValue
  * parameter has different meaning for each kind of event
- * @param initialValue Can either be the value transferred, the count of the semaphore, or timeout value
+ * @param initialValue Can either be the count of the semaphore, or timeout value
  * @param flags        Configuration of the event descriptor
  * @return             An descriptor that can be used as a handle
  */
-CRTDECL(int, eventd(size_t initialValue, unsigned int flags));
+CRTDECL(int, eventd(unsigned int initialValue, unsigned int flags));
 
 _CODE_END
 

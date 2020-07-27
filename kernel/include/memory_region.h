@@ -186,4 +186,15 @@ MemoryRegionGetSg(
     _Out_ int*           SgCountOut,
     _Out_ struct dma_sg* SgListOut);
 
+/**
+ * Retrieves the kernel memory mapping for a given memory region handle
+ * @param handle    The handle of the memory region
+ * @param bufferOut A pointer to the buffer will be set if successful.
+ * @return          The status of the operation.
+ */
+KERNELAPI OsStatus_t KERNELABI
+MemoryRegionGetKernelMapping(
+        _In_  UUId_t handle,
+        _Out_ void** bufferOut);
+
 #endif //!__MEMORY_REGION_H__

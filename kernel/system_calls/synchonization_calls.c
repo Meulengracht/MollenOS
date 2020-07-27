@@ -54,7 +54,7 @@ ScFutexWake(
     return FutexWake(parameters->_futex0, parameters->_val0, parameters->_flags);
 }
 
-OsStatus_t ScEventCreate(size_t initialValue, unsigned int flags, UUId_t* handleOut, atomic_int** syncAddressOut)
+OsStatus_t ScEventCreate(unsigned int initialValue, unsigned int flags, UUId_t* handleOut, atomic_int** syncAddressOut)
 {
     return UserEventCreate(initialValue, flags, handleOut, syncAddressOut);
 }

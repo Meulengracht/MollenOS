@@ -101,7 +101,7 @@ extern OsStatus_t ScThreadGetContext(Context_t* ContextOut);
 // Synchronization system calls
 extern OsStatus_t ScFutexWait(FutexParameters_t* parameters);
 extern OsStatus_t ScFutexWake(FutexParameters_t* parameters);
-extern OsStatus_t ScEventCreate(size_t, unsigned int, UUId_t*, atomic_int**);
+extern OsStatus_t ScEventCreate(unsigned int, unsigned int, UUId_t*, atomic_int**);
 
 // Memory system calls
 extern OsStatus_t ScMemoryAllocate(void*, size_t, unsigned int, void**);

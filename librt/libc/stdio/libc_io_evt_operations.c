@@ -25,7 +25,6 @@
 #include <event.h>
 #include <internal/_io.h>
 #include <internal/_syscalls.h>
-#include <os/futex.h>
 
 static OsStatus_t evt_lock(atomic_int* sync_address)
 {
@@ -34,7 +33,7 @@ static OsStatus_t evt_lock(atomic_int* sync_address)
     int               value;
 
     parameters._futex0 = sync_address;
-    parameters._flags  = FUTEX_WAIT_PRIVATE;
+    parameters._flags  = 0;
     parameters._timeout = 0;
 
     while (1) {
@@ -67,7 +66,7 @@ static OsStatus_t evt_unlock(atomic_int* sync_address, size_t maxValue, size_t v
 
     parameters._futex0 = sync_address;
     parameters._val0   = 0;
-    parameters._flags  = FUTEX_WAKE_PRIVATE;
+    parameters._flags  = 0;
 
     // assert not max
     currentValue = atomic_load(sync_address);
@@ -107,14 +106,8 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
     }
 
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
-        if (EVT_TYPE(handle->object.data.evt.flags) == EVT_RESET_EVENT) {
-            *(size_t*)buffer = handle->object.data.evt.initialValue;
-        }
-        else {
-            *(size_t*)buffer = 1;
-        }
-
-        *bytes_read = sizeof(size_t);
+        *(size_t*)buffer = 1;
+        *bytes_read      = sizeof(size_t);
     }
     return OsSuccess;
 }

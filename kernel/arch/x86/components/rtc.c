@@ -88,7 +88,7 @@ RtcInitialize(
     Interrupt.ResourceTable.Handler = RtcInterrupt;
     Interrupt.Context               = Chip;
     
-    Chip->Irq = InterruptRegister(&Interrupt, INTERRUPT_NOTSHARABLE | INTERRUPT_KERNEL);
+    Chip->Irq = InterruptRegister(&Interrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
     if (Chip->Irq != UUID_INVALID) {
         TimersRegisterSystemTimer(Chip->Irq, Chip->NsTick, CmosGetTicks, CmosResetTicks);
     }

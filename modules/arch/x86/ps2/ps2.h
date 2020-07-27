@@ -85,7 +85,11 @@
 #define PS2_RESEND_COMMAND          0xFE
 #define PS2_ACK_COMMAND             0xFA
 
-typedef enum _PS2CommandState {
+#define SIGNATURE_HAS_XLATION(sig) (sig == 0xAB41 || sig == 0xABC1)
+#define SIGNATURE_IS_KEYBOARD(sig) (sig == 0xAB41 || sig == 0xABC1 || sig == 0xAB83)
+#define SIGNATURE_IS_MOUSE(sig)    (sig != 0xFFFFFFFF && !SIGNATURE_IS_KEYBOARD(sig))
+
+typedef enum PS2CommandState {
     PS2Free             = 0,
     PS2InQueue          = 1,
     PS2WaitingResponse  = 2

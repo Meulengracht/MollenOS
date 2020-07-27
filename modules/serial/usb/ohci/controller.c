@@ -134,9 +134,8 @@ HciControllerCreate(
 
     // Register interrupt
     TRACE("... register interrupt");
-    RegisterInterruptEventDescriptor(&Interrupt, Controller);
-    Controller->Base.Interrupt = RegisterInterruptSource(
-        &Interrupt, INTERRUPT_USERSPACE);
+    RegisterInterruptDescriptor(&Interrupt, Controller);
+    Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
     TRACE("... enabling device");
