@@ -271,10 +271,18 @@ OnUnload(void)
 
 OsStatus_t OnEvent(int eventDescriptor)
 {
-    if (Ps2Controller->Ports[0].event_descriptor == eventDescriptor ||
-            Ps2Controller->Ports[1].event_descriptor == eventDescriptor) {
-        PS2Port_t* port;
-        if (read(eventDescriptor, &port, sizeof(PS2Port_t*)) != sizeof(PS2Port_t*)) {
+    PS2Port_t*   port = NULL;
+    unsigned int value;
+
+    if (Ps2Controller->Ports[0].event_descriptor == eventDescriptor) {
+        port = &Ps2Controller->Ports[0];
+    }
+    else if (Ps2Controller->Ports[1].event_descriptor == eventDescriptor) {
+        port = &Ps2Controller->Ports[1];
+    }
+
+    if (port) {
+        if (read(eventDescriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
             return OsError;
         }
 

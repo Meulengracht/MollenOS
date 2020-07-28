@@ -214,6 +214,6 @@ PS2KeyboardCleanup(
  * Handles the ps2-keyboard interrupt and processes the captured data */
 __EXTERN void
 PS2KeyboardInterrupt(
-    _In_ PS2Port_t* Port);
+    _In_ PS2Port_t* port);
 
 #endif //!_DRIVER_PS2_CONTROLLER_H_

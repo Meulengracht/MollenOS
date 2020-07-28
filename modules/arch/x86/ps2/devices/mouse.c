@@ -43,15 +43,18 @@ PS2MouseFastInterrupt(
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
         Command->SyncObject++;
+        smp_wmb();
     }
     else {
         uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
         Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
+        smp_wmb();
+
         if (!(index % BreakAtBytes)) {
             InterruptTable->EventSignal(ResourceTable->ResourceHandle);
         }
     }
-    smp_wmb();
+
     return InterruptHandled;
 }
 

@@ -172,7 +172,7 @@ HciQueueTransferGeneric(
     EhciController_t* Controller;
     DataKey_t         Key;
 
-    Controller       = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Controller       = (EhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
 
     // Step 1 - Allocate queue head

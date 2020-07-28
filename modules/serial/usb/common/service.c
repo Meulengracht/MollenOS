@@ -39,6 +39,7 @@ static gracht_protocol_function_t ctt_driver_callbacks[1] = {
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 #include <ctt_usbhost_protocol_server.h>
+#include <io.h>
 
 extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
 extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
@@ -59,8 +60,6 @@ static gracht_protocol_function_t ctt_usbhost_callbacks[7] = {
 };
 DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 7);
 
-extern void OnInterrupt(int, void*);
-
 OsStatus_t
 OnLoad(void)
 {
@@ -74,8 +73,24 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-    signal(SIGINT, SIG_DFL);
-    return UsbManagerDestroy();
+    UsbManagerDestroy();
+    return OsSuccess;
+}
+
+OsStatus_t OnEvent(int eventDescriptor)
+{
+    UsbManagerController_t* controller = UsbManagerGetControllerByIod(eventDescriptor);
+    unsigned int            value;
+
+    if (!controller) {
+        return OsDoesNotExist;
+    }
+
+    if (read(eventDescriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+        return OsError;
+    }
+
+    HciInterruptCallback(controller);
 }
 
 OsStatus_t
@@ -89,9 +104,7 @@ OnRegister(
     if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
         return OsError;
     }
-    else {
-        return OsSuccess;
-    }
+    return OsSuccess;
 }
 
 void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
@@ -103,7 +116,7 @@ OsStatus_t
 OnUnregister(
     _In_ Device_t *Device)
 {
-    UsbManagerController_t* Controller = UsbManagerGetController(Device->Id);
+    UsbManagerController_t* Controller = UsbManagerGetControllerByDeviceId(Device->Id);
     if (Controller == NULL) {
         return OsError;
     }
@@ -113,7 +126,7 @@ OnUnregister(
 void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
-    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);
     ctt_usbhost_query_port_response(message, OsSuccess, &descriptor);
 }
@@ -121,7 +134,7 @@ void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct
 void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
-    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
     OsStatus_t              status     = HciPortReset(controller, (int)args->port_id);
     
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);

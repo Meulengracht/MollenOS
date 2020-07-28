@@ -45,6 +45,7 @@ typedef enum _UsbManagerTransferFlags {
 
 typedef struct UsbManagerTransfer {
     UsbTransfer_t Transfer;
+    element_t     header;
 
     // Transfer Metadata
     UUId_t                    Id;

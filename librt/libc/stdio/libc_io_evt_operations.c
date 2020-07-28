@@ -56,7 +56,7 @@ static OsStatus_t evt_lock(atomic_int* sync_address)
     return status;
 }
 
-static OsStatus_t evt_unlock(atomic_int* sync_address, size_t maxValue, size_t value)
+static OsStatus_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
 {
     FutexParameters_t parameters;
     OsStatus_t        status = OsIncomplete;
@@ -95,7 +95,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
     OsStatus_t result;
 
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
-        if (!buffer || length < sizeof(size_t)) {
+        if (!buffer || length < sizeof(unsigned int)) {
             return OsInvalidPermissions;
         }
     }
@@ -106,8 +106,8 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
     }
 
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
-        *(size_t*)buffer = 1;
-        *bytes_read      = sizeof(size_t);
+        *(unsigned int*)buffer = 1;
+        *bytes_read            = sizeof(unsigned int);
     }
     return OsSuccess;
 }
@@ -115,7 +115,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
 OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     OsStatus_t result = OsNotSupported;
-    if (!buffer || length < sizeof(size_t)) {
+    if (!buffer || length < sizeof(unsigned int)) {
         return OsInvalidPermissions;
     }
 
@@ -124,10 +124,11 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
         if (result == OsSuccess) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
-        *bytes_written = sizeof(size_t);
+        *bytes_written = sizeof(unsigned int);
     }
     else if (EVT_TYPE(handle->object.data.evt.flags) == EVT_SEM_EVENT) {
-        size_t value = *(size_t*)buffer;
+        unsigned int value = *(unsigned int*)buffer;
+
         result = evt_unlock(handle->object.data.evt.sync_address,
                             handle->object.data.evt.initialValue,
                             value);

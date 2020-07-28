@@ -48,93 +48,81 @@ UsbManagerController_t*
 HciControllerCreate(
     _In_ BusDevice_t* Device)
 {
-    EhciController_t* Controller;
-    DeviceInterrupt_t Interrupt;
-    DeviceIo_t*       IoBase = NULL;
+    EhciController_t* controller;
+    DeviceInterrupt_t interrupt;
+    DeviceIo_t*       ioBase = NULL;
     int i;
 
-    // Allocate a new instance of the controller
-    Controller = (EhciController_t*)malloc(sizeof(EhciController_t));
-    if (!Controller) {
+    controller = (EhciController_t*)UsbManagerCreateController(Device, UsbEHCI, sizeof(EhciController_t));
+    if (!controller) {
         return NULL;
     }
-    
-    memset(Controller, 0, sizeof(EhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
-
-    // Fill in some basic stuff needed for init
-    Controller->Base.Type               = UsbEHCI;
-    Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
-    Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    spinlock_init(&Controller->Base.Lock, spinlock_plain);
 
     // Get I/O Base, and for EHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &Controller->Base.Device.IoSpaces[i];
+        if (controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
+            ioBase = &controller->Base.Device.IoSpaces[i];
             break;
         }
     }
 
     // Sanitize that we found the io-space
-    if (IoBase == NULL) {
+    if (ioBase == NULL) {
         ERROR("No memory space found for ehci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
+          ioBase->Type, ioBase->PhysicalBase, ioBase->Size);
 
     // Acquire the io-space
-    if (AcquireDeviceIo(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(ioBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ehci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
-    else {
-        // Store information
-        Controller->Base.IoBase = IoBase;
-    }
+
+    controller->Base.IoBase = ioBase;
 
     // Trace
-    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
+    TRACE("Io-Space was assigned virtual address 0x%x", ioBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access
-    Controller->CapRegisters = (EchiCapabilityRegisters_t*)IoBase->Access.Memory.VirtualBase;
-    Controller->OpRegisters  = (EchiOperationalRegisters_t*)
-        (IoBase->Access.Memory.VirtualBase + Controller->CapRegisters->Length);
+    controller->CapRegisters = (EchiCapabilityRegisters_t*)ioBase->Access.Memory.VirtualBase;
+    controller->OpRegisters  = (EchiOperationalRegisters_t*)
+        (ioBase->Access.Memory.VirtualBase + controller->CapRegisters->Length);
 
     // Initialize the interrupt settings
-    DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(EhciController_t), 0);
+    DeviceInterruptInitialize(&interrupt, Device);
+    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
+    RegisterFastInterruptIoResource(&interrupt, ioBase);
+    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller, sizeof(EhciController_t), 0);
     
     // Register interrupt
-    RegisterInterruptDescriptor(&Interrupt, Controller);
-    Controller->Base.Interrupt  = RegisterInterruptSource(&Interrupt, 0);
+    RegisterInterruptDescriptor(&interrupt, controller->Base.event_descriptor);
+    controller->Base.Interrupt = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
+    if (IoctlDevice(controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+                    (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ehci-controller");
-        UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
+        UnregisterInterruptSource(controller->Base.Interrupt);
+        ReleaseDeviceIo(controller->Base.IoBase);
+        free(controller);
         return NULL;
     }
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (EhciSetup(Controller) == OsSuccess) {
-        return &Controller->Base;
+    if (EhciSetup(controller) == OsSuccess) {
+        return &controller->Base;
     }
     else {
-        HciControllerDestroy(&Controller->Base);
+        HciControllerDestroy(&controller->Base);
         return NULL;
     }
 }

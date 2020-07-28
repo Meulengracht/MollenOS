@@ -28,7 +28,6 @@
 #include <assert.h>
 #include <ddk/utils.h>
 #include "hci.h"
-#include <os/mollenos.h>
 #include <stdlib.h>
 #include "transfer.h"
 
@@ -44,6 +43,7 @@ UsbManagerCreateTransfer(
     _In_ UUId_t                      deviceId)
 {
     UsbManagerTransfer_t* usbTransfer;
+    UUId_t                transferId;
     int                   i;
     
     TRACE("[usb_create_transfer] client %i, transactions %i",
@@ -58,9 +58,11 @@ UsbManagerCreateTransfer(
     memcpy(&usbTransfer->Transfer, transfer, sizeof(UsbTransfer_t));
     
     gracht_vali_message_defer_response(&usbTransfer->DeferredMessage, message);
-    
+    transferId = __GlbTransferId++;
+
+    ELEMENT_INIT(&usbTransfer->header, (uintptr_t)transferId, usbTransfer);
     usbTransfer->DeviceId = deviceId;
-    usbTransfer->Id       = __GlbTransferId++;
+    usbTransfer->Id       = transferId;
     usbTransfer->Status   = TransferNotProcessed;
     
     // When attaching to dma buffers make sure we don't attach
@@ -210,12 +212,12 @@ void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, st
 void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args* args)
 {
     OsStatus_t              status     = OsDoesNotExist;
-    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
     UsbManagerTransfer_t*   transfer   = NULL;
 
     // Lookup transfer by iterating through available transfers
-    foreach(node, controller->TransactionList) {
-        UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->Data;
+    foreach(node, &controller->TransactionList) {
+        UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->value;
         if (itr->Id == args->transfer_id) {
             transfer = itr;
             break;

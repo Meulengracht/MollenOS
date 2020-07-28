@@ -6,7 +6,7 @@
 struct evt {
     unsigned int flags;
     unsigned int options;
-    size_t       initialValue;
+    unsigned int initialValue;
     atomic_int*  sync_address;
 };
 

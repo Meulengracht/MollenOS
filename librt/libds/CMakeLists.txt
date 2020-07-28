@@ -52,6 +52,7 @@ set (SHARED_SOURCES
     bounded_stack.c
     collection.c
     hashtable.c
+    hash_sip.c
     list.c
     queue.c
     rbtree.c

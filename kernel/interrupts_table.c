@@ -73,7 +73,7 @@ TableFunctionWriteStreambuffer(
     streambuffer_t* stream;
 
     if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsSuccess) {
-        streambuffer_stream_out(stream, buffer, length, STREAMBUFFER_NO_BLOCK);
+        streambuffer_stream_out(stream, (void*)buffer, length, STREAMBUFFER_NO_BLOCK);
     }
     return OsSuccess;
 }

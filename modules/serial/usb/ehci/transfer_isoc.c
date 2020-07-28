@@ -41,7 +41,7 @@ HciQueueTransferIsochronous(
     DataKey_t                    Key;
     int                          i;
 
-    Controller       = (EhciController_t *)UsbManagerGetController(Transfer->DeviceId);
+    Controller       = (EhciController_t *) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
     BytesToTransfer  = Transfer->Transfer.Transactions[0].Length;
 

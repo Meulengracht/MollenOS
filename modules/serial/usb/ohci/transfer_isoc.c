@@ -120,7 +120,7 @@ HciQueueTransferIsochronous(
     OhciController_t* Controller;
     DataKey_t         Key;
 
-    Controller          = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Controller          = (OhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
     Transfer->Status    = TransferNotProcessed;
 
     // Step 1 - Allocate queue head
