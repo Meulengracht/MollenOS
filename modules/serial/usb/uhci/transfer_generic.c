@@ -257,7 +257,7 @@ HciQueueTransferGeneric(
     UhciQueueHead_t*  EndpointDescriptor = NULL;
     UhciController_t* Controller;
     
-    Controller       = (UhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
+    Controller       = (UhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
 
     // Step 1 - Allocate queue head
@@ -296,7 +296,7 @@ HciQueueTransferIsochronous(
     UhciController_t* Controller;
 
     // Get Controller
-    Controller       = (UhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
+    Controller       = (UhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
 
     // Store transaction in queue if it's not there already

@@ -36,9 +36,9 @@
 #include "ctt_driver_protocol_server.h"
 #include "ctt_storage_protocol_server.h"
 
-static Collection_t Devices           = COLLECTION_INIT(KeyId);
-static UUId_t       DeviceIdGenerator = 0;
-static size_t       FrameSize;
+static list_t devices           = LIST_INIT;
+static UUId_t deviceIdGenerator = 0;
+static size_t frameSize;
 
 static void
 FlipStringBuffer(
@@ -76,30 +76,36 @@ AhciManagerInitialize(void)
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
     if (Status == OsSuccess) {
-        FrameSize = Descriptor.PageSizeBytes;
+        frameSize = Descriptor.PageSizeBytes;
     }
     return Status;
 }
 
-OsStatus_t
+static void
+AhciManagerDestroyDevice(
+        _In_ element_t* element,
+        _In_ void*      context)
+{
+
+}
+
+void
 AhciManagerDestroy(void)
 {
-    TRACE("AhciManagerDestroy()");
-    return CollectionClear(&Devices);
+    list_clear(&devices, AhciManagerDestroyDevice, NULL);
 }
 
 size_t
 AhciManagerGetFrameSize(void)
 {
-    return FrameSize;
+    return frameSize;
 }
 
 AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t DeviceId)
+    _In_ UUId_t deviceId)
 {
-    DataKey_t Key = { .Value.Id = DeviceId };
-    return CollectionGetDataByKey(&Devices, Key, 0);
+    return list_find_value(&devices, (void*)(uintptr_t)deviceId);
 }
 
 static AhciDevice_t*
@@ -108,31 +114,32 @@ CreateInitialDevice(
     _In_ AhciPort_t*       Port,
     _In_ DeviceType_t      Type)
 {
-    AhciDevice_t* Device;
+    AhciDevice_t* device;
+    UUId_t        deviceId;
 
     TRACE("CreateInitialDevice(Controller %i, Port %i)",
         Controller->Device.Id, Port->Id);
 
-    Device = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
-    if (!Device) {
+    device = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
+    if (!device) {
         return NULL;
     }
 
-    memset(Device, 0, sizeof(AhciDevice_t));
-    Device->Controller     = Controller;
-    Device->Port           = Port;
-    Device->Type           = Type;
-    
-    // Allocate a new device id
-    Device->Descriptor.Device   = DeviceIdGenerator++;
-    Device->Header.Key.Value.Id = Device->Descriptor.Device;
-    
-    // Set initial addressing mode + initial values
-    Device->AddressingMode = 1;
-    Device->SectorSize     = 512;
-    return Device;
-}
+    deviceId = deviceIdGenerator++;
 
+    memset(device, 0, sizeof(AhciDevice_t));
+
+    ELEMENT_INIT(&device->header, (uintptr_t)deviceId, device);
+    device->Descriptor.Device = deviceId;
+    device->Controller = Controller;
+    device->Port       = Port;
+    device->Type       = Type;
+
+    // Set initial addressing mode + initial values
+    device->AddressingMode = 1;
+    device->SectorSize     = 512;
+    return device;
+}
 
 OsStatus_t
 AhciManagerRegisterDevice(
@@ -173,7 +180,9 @@ AhciManagerRegisterDevice(
         free(Device);
         return Status;
     }
-    return CollectionAppend(&Devices, &Device->Header);
+
+    list_append(&devices, &Device->header);
+    return OsSuccess;
 }
 
 static void
@@ -186,6 +195,9 @@ RegisterStorage(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
     status = svc_storage_register(GetGrachtClient(), &msg.base, ProtocolServerId, DeviceId, Flags);
+    if (status) {
+        // @todo log message
+    }
 }
 
 static void
@@ -197,93 +209,96 @@ UnregisterStorage(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
     status = svc_storage_unregister(GetGrachtClient(), &msg.base, DeviceId, Flags);
+    if (status) {
+        // @todo log message
+    }
 }
 
 void
 AhciManagerUnregisterDevice(
-    _In_ AhciController_t* Controller, 
-    _In_ AhciPort_t*       Port)
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port)
 {
-    AhciDevice_t* Device = NULL;
+    AhciDevice_t* device = NULL;
     
     // Lookup device based on controller/port
-    foreach(Node, &Devices) {
-        AhciDevice_t* _Device = (AhciDevice_t*)Node;
-        if (_Device->Port == Port) {
-            Device = _Device;
+    foreach(node, &devices) {
+        AhciDevice_t* ahciDevice = (AhciDevice_t*)node;
+        if (ahciDevice->Port == port) {
+            device = ahciDevice;
             break;
         }
     }
-    assert(Device != NULL);
+    assert(device != NULL);
     
-    UnregisterStorage(Device->Header.Key.Value.Id, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
-    CollectionRemoveByNode(&Devices, &Device->Header);
+    UnregisterStorage(device->Descriptor.Device, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
+    list_remove(&devices, &device->header);
 }
 
 static void
 HandleIdentifyCommand(
-    _In_ AhciDevice_t* Device)
+    _In_ AhciDevice_t* device)
 {
-    ATAIdentify_t* DeviceInformation = 
-        (ATAIdentify_t*)Device->Port->InternalBuffer.buffer;
+    ATAIdentify_t* deviceInformation =
+        (ATAIdentify_t*)device->Port->InternalBuffer.buffer;
 
     // Flip the data in the strings as it's inverted
-    FlipStringBuffer(DeviceInformation->SerialNo, 20);
-    FlipStringBuffer(DeviceInformation->ModelNo, 40);
-    FlipStringBuffer(DeviceInformation->FWRevision, 8);
+    FlipStringBuffer(deviceInformation->SerialNo, 20);
+    FlipStringBuffer(deviceInformation->ModelNo, 40);
+    FlipStringBuffer(deviceInformation->FWRevision, 8);
 
-    TRACE("HandleIdentifyCommand(%s)", &DeviceInformation->ModelNo[0]);
+    TRACE("HandleIdentifyCommand(%s)", &deviceInformation->ModelNo[0]);
 
     // Set capabilities
-    if (DeviceInformation->Capabilities0 & (1 << 0)) {
-        Device->HasDMAEngine = 1;
+    if (deviceInformation->Capabilities0 & (1 << 0)) {
+        device->HasDMAEngine = 1;
     }
 
     // Check addressing mode supported
     // Check that LBA is supported
-    if (DeviceInformation->Capabilities0 & (1 << 1)) {
-        Device->AddressingMode = 1; // LBA28
-        if (DeviceInformation->CommandSetSupport1 & (1 << 10)) {
-            Device->AddressingMode = 2; // LBA48
+    if (deviceInformation->Capabilities0 & (1 << 1)) {
+        device->AddressingMode = 1; // LBA28
+        if (deviceInformation->CommandSetSupport1 & (1 << 10)) {
+            device->AddressingMode = 2; // LBA48
         }
     }
     else {
-        Device->AddressingMode = 0; // CHS
+        device->AddressingMode = 0; // CHS
     }
 
     // Calculate sector size if neccessary
-    if (DeviceInformation->SectorSize & (1 << 12)) {
-        Device->SectorSize = DeviceInformation->WordsPerLogicalSector * 2;
+    if (deviceInformation->SectorSize & (1 << 12)) {
+        device->SectorSize = deviceInformation->WordsPerLogicalSector * 2;
     }
     else {
-        Device->SectorSize = 512;
+        device->SectorSize = 512;
     }
 
     // Calculate sector count per physical sector
-    if (DeviceInformation->SectorSize & (1 << 13)) {
-        Device->SectorSize *= (DeviceInformation->SectorSize & 0xF);
+    if (deviceInformation->SectorSize & (1 << 13)) {
+        device->SectorSize *= (deviceInformation->SectorSize & 0xF);
     }
 
     // Now, get the number of sectors for this particular disk
-    if (DeviceInformation->SectorCountLBA48 != 0) {
-        Device->SectorCount = DeviceInformation->SectorCountLBA48;
+    if (deviceInformation->SectorCountLBA48 != 0) {
+        device->SectorCount = deviceInformation->SectorCountLBA48;
     }
     else {
-        Device->SectorCount = DeviceInformation->SectorCountLBA28;
+        device->SectorCount = deviceInformation->SectorCountLBA28;
     }
 
     // At this point the ahcidisk structure is filled
     // and we can continue to fill out the descriptor
-    memset(&Device->Descriptor, 0, sizeof(StorageDescriptor_t));
-    Device->Descriptor.Driver      = UUID_INVALID;
-    Device->Descriptor.Flags       = 0;
-    Device->Descriptor.SectorCount = Device->SectorCount;
-    Device->Descriptor.SectorSize  = Device->SectorSize;
+    memset(&device->Descriptor, 0, sizeof(StorageDescriptor_t));
+    device->Descriptor.Driver      = UUID_INVALID;
+    device->Descriptor.Flags       = 0;
+    device->Descriptor.SectorCount = device->SectorCount;
+    device->Descriptor.SectorSize  = device->SectorSize;
 
     // Copy string data
-    memcpy(&Device->Descriptor.Model[0], (const void*)&DeviceInformation->ModelNo[0], 40);
-    memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
-    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()), Device->Descriptor.Device, Device->Descriptor.Flags);
+    memcpy(&device->Descriptor.Model[0], (const void*)&deviceInformation->ModelNo[0], 40);
+    memcpy(&device->Descriptor.Serial[0], (const void*)&deviceInformation->SerialNo[0], 20);
+    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()), device->Descriptor.Device, device->Descriptor.Flags);
 }
 
 void
@@ -294,7 +309,7 @@ AhciManagerHandleControlResponse(
     AhciDevice_t* Device = NULL;
     
     // Lookup device based on controller/port
-    foreach(Node, &Devices) {
+    foreach(Node, &devices) {
         AhciDevice_t* _Device = (AhciDevice_t*)Node;
         if (_Device->Port == Port) {
             Device = _Device;

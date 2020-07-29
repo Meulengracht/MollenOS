@@ -162,22 +162,13 @@ UsbManagerDumpChain(
     _In_ int                     Direction);
 
 /**
- * Get the controller by the given device id
- * @param id The device id of the controller.
- * @return   A pointer to the usb manager controller structure.
+ * Get the controller by the given deviceId
+ * @param deviceId The device deviceId of the controller.
+ * @return         A pointer to the usb manager controller structure.
  */
 __EXTERN UsbManagerController_t*
-UsbManagerGetControllerByDeviceId(
-    _In_ UUId_t id);
-
-/**
- * Get the controller by the given device event descriptor. Primarily to use with interrupts.
- * @param iod The corresponding event descriptor.
- * @return    A pointer to the usb manager controller structure.
- */
-__EXTERN UsbManagerController_t*
-UsbManagerGetControllerByIod(
-        _In_ int iod);
+UsbManagerGetController(
+    _In_ UUId_t deviceId);
 
 /**
  * Gets the current toggle status of an endpoint address for the controller.

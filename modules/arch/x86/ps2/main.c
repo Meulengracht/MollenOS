@@ -23,10 +23,11 @@
 
 #include <ddk/service.h>
 #include <ddk/utils.h>
-#include <threads.h>
+#include <ioset.h>
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <threads.h>
 
 #include "ps2.h"
 
@@ -269,20 +270,13 @@ OnUnload(void)
     return OsSuccess;
 }
 
-OsStatus_t OnEvent(int eventDescriptor)
+OsStatus_t OnEvent(struct ioset_event* event)
 {
-    PS2Port_t*   port = NULL;
+    PS2Port_t*   port = event->data.context;
     unsigned int value;
 
-    if (Ps2Controller->Ports[0].event_descriptor == eventDescriptor) {
-        port = &Ps2Controller->Ports[0];
-    }
-    else if (Ps2Controller->Ports[1].event_descriptor == eventDescriptor) {
-        port = &Ps2Controller->Ports[1];
-    }
-
     if (port) {
-        if (read(eventDescriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+        if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
             return OsError;
         }
 

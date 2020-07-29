@@ -212,7 +212,7 @@ void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, st
 void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args* args)
 {
     OsStatus_t              status     = OsDoesNotExist;
-    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
     UsbManagerTransfer_t*   transfer   = NULL;
 
     // Lookup transfer by iterating through available transfers

@@ -27,7 +27,7 @@
 #include <os/mollenos.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include "manager.h"
 #include "dispatch.h"
 #include <stdlib.h>
@@ -58,6 +58,8 @@ AhciPortCreate(
     }
     
     memset(AhciPort, 0, sizeof(AhciPort_t));
+    list_construct(&AhciPort->Transactions);
+
     AhciPort->Id        = Port;     // Sequential port number
     AhciPort->Index     = Index;    // Index in validity map
     AhciPort->SlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
@@ -69,9 +71,16 @@ AhciPortCreate(
     dma_create(&DmaInfo, &AhciPort->InternalBuffer);
     
     // TODO: port nr or bit index? Right now use the Index in the validity map
-    AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index));
-    AhciPort->Transactions = CollectionCreate(KeyInteger);
+    AhciPort->Registers = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index));
     return AhciPort;
+}
+
+static void
+AhciPortCancelTransactionCallback(
+    _In_ element_t* element,
+    _In_ void*      context)
+{
+    AhciManagerCancelTransaction((AhciTransaction_t*)element->value);
 }
 
 void
@@ -79,18 +88,11 @@ AhciPortCleanup(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
-    CollectionItem_t* Node;
-
     // Null out the port-entry in the controller
     Controller->Ports[Port->Index] = NULL;
 
     // Go through each transaction for the ports and clean up
-    Node = CollectionPopFront(Port->Transactions);
-    while (Node) {
-        AhciManagerCancelTransaction((AhciTransaction_t*)Node);
-        Node = CollectionPopFront(Port->Transactions);
-    }
-    CollectionDestroy(Port->Transactions);
+    list_clear(&Port->Transactions, AhciPortCancelTransactionCallback, NULL);
     AhciManagerUnregisterDevice(Controller, Port);
     
     // Destroy the internal transfer buffer
@@ -433,7 +435,6 @@ AhciPortInterruptHandler(
     AhciTransaction_t* Transaction;
     reg32_t            InterruptStatus;
     reg32_t            DoneCommands;
-    DataKey_t          Key;
     int                i;
     
     // Check interrupt services 
@@ -486,13 +487,12 @@ HandleInterrupt:
     if (DoneCommands != 0) {
         for (i = 0; i < AHCI_MAX_PORTS; i++) {
             if (DoneCommands & (1 << i)) {
-                Key.Value.Integer = i;
-                Transaction       = (AhciTransaction_t*)CollectionGetNodeByKey(Port->Transactions, Key, 0);                
+                Transaction = (AhciTransaction_t*)list_find_value(&Port->Transactions, (void*)(uintptr_t)i);
                 assert(Transaction != NULL);
 
                 // Handle transaction completion, release slot, queue up a new command if any
                 // and then handle the event
-                CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
+                list_remove(&Port->Transactions, &Transaction->header);
                 memcpy((void*)&Transaction->Response, Port->RecievedFisDMA.buffer, sizeof(AHCIFis_t));
                 AhciPortFreeCommandSlot(Port, Transaction->Slot);
                 Transaction->Slot = -1;

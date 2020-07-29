@@ -33,7 +33,7 @@
 extern void       GetModuleIdentifiers(unsigned int*, unsigned int*, unsigned int*, unsigned int*);
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnEvent(int eventDescriptor);
+extern OsStatus_t OnEvent(struct ioset_event* event);
 
 extern char**
 __CrtInitialize(
@@ -72,7 +72,7 @@ static void __CrtModuleMainLoop(int setIod)
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             // Check if the driver had any IRQs registered
-            if (OnEvent(events[i].data.iod) == OsSuccess) {
+            if (OnEvent(&events[i]) == OsSuccess) {
                 continue;
             }
 

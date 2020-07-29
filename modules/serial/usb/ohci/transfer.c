@@ -166,7 +166,7 @@ HciDequeueTransfer(
 {
     OhciController_t* Controller;
 
-    Controller = (OhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
+    Controller = (OhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     if (!Controller) {
         return OsInvalidParameters;
     }

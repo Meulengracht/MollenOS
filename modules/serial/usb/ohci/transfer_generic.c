@@ -179,7 +179,7 @@ HciQueueTransferGeneric(
     OhciQueueHead_t*  EndpointDescriptor = NULL;
     OhciController_t* Controller;
 
-    Controller          = (OhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
+    Controller          = (OhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status    = TransferNotProcessed;
 
     // Step 1 - Allocate queue head

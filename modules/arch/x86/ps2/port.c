@@ -299,7 +299,7 @@ PS2PortInitialize(
 
     // register the event descriptor with the our server set
     ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, port->event_descriptor,
-            &(struct ioset_event){ .data.iod = port->event_descriptor, .events = IOSETSYN });
+            &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
 
     // Initialize interrupt resources
     RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);

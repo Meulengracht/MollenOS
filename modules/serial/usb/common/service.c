@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ioset.h>
 #include "hci.h"
 #include <os/mollenos.h>
 #include <stdlib.h>
@@ -77,16 +78,16 @@ OnUnload(void)
     return OsSuccess;
 }
 
-OsStatus_t OnEvent(int eventDescriptor)
+OsStatus_t OnEvent(struct ioset_event* event)
 {
-    UsbManagerController_t* controller = UsbManagerGetControllerByIod(eventDescriptor);
+    UsbManagerController_t* controller = event->data.context;
     unsigned int            value;
 
     if (!controller) {
         return OsDoesNotExist;
     }
 
-    if (read(eventDescriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+    if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
         return OsError;
     }
 
@@ -117,7 +118,7 @@ OsStatus_t
 OnUnregister(
     _In_ Device_t *Device)
 {
-    UsbManagerController_t* Controller = UsbManagerGetControllerByDeviceId(Device->Id);
+    UsbManagerController_t* Controller = UsbManagerGetController(Device->Id);
     if (Controller == NULL) {
         return OsError;
     }
@@ -127,7 +128,7 @@ OnUnregister(
 void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
-    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);
     ctt_usbhost_query_port_response(message, OsSuccess, &descriptor);
 }
@@ -135,7 +136,7 @@ void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct
 void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
-    UsbManagerController_t* controller = UsbManagerGetControllerByDeviceId(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
     OsStatus_t              status     = HciPortReset(controller, (int)args->port_id);
     
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);

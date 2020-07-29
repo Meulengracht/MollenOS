@@ -45,11 +45,6 @@ struct usb_controller_device_index {
     UsbManagerController_t* pointer;
 };
 
-struct usb_controller_iod_index {
-    int                     iod;
-    UsbManagerController_t* pointer;
-};
-
 struct usb_controller_endpoint {
     UUId_t address;
     int    toggle;
@@ -60,16 +55,12 @@ static void UsbManagerQueryUHCIPorts(void*);
 static uint64_t default_dev_hash(const void*);
 static int      default_dev_cmp(const void*, const void*);
 
-static uint64_t default_iod_hash(const void*);
-static int      default_iod_cmp(const void*, const void*);
-
 static uint64_t endpoint_hash(const void*);
 static int      endpoint_cmp(const void*, const void*);
 
 static EventQueue_t* eventQueue           = NULL;
 static int           hciCheckupRegistered = 0;
 static hashtable_t   controllers          = { 0 };
-static hashtable_t   controllersByIod     = { 0 };
 static uint8_t       hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
 
 OsStatus_t
@@ -86,9 +77,6 @@ UsbManagerInitialize(void)
     hashtable_construct(&controllers, 0,
             sizeof(struct usb_controller_device_index),
             default_dev_hash, default_dev_cmp);
-    hashtable_construct(&controllersByIod, 0,
-            sizeof(struct usb_controller_iod_index),
-            default_iod_hash, default_iod_cmp);
 
     return OsSuccess;
 }
@@ -97,7 +85,6 @@ void
 UsbManagerDestroy(void)
 {
     DestroyEventQueue(eventQueue);
-    hashtable_destroy(&controllersByIod);
     hashtable_destroy(&controllers);
 }
 
@@ -132,13 +119,11 @@ UsbManagerCreateController(
 
     // add the event descriptor to the gracht server
     ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
-        &(struct ioset_event){ .data.iod = controller->event_descriptor, .events = IOSETSYN });
+        &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
 
     // add indexes
     hashtable_set(&controllers, &(struct usb_controller_device_index) {
         .deviceId = device->Base.Id, .pointer = controller });
-    hashtable_set(&controllersByIod, &(struct usb_controller_iod_index) {
-        .iod = controller->event_descriptor, .pointer = controller });
 
     // UHCI does not support hub events, so we install a timer if not already
     if (type == UsbUHCI && !hciCheckupRegistered) {
@@ -169,8 +154,6 @@ UsbManagerDestroyController(
     // remove the controller indexes
     hashtable_remove(&controllers, &(struct usb_controller_device_index) {
             .deviceId = controller->Device.Base.Id });
-    hashtable_remove(&controllersByIod, &(struct usb_controller_iod_index) {
-            .iod = controller->event_descriptor });
 
     // clean up resources
     hashtable_destroy(&controller->Endpoints);
@@ -227,19 +210,11 @@ UsbManagerIterateTransfers(
 }
 
 UsbManagerController_t*
-UsbManagerGetControllerByDeviceId(
-    _In_ UUId_t id)
+UsbManagerGetController(
+    _In_ UUId_t deviceId)
 {
     return (UsbManagerController_t*)hashtable_get(&controllers,
-            &(struct usb_controller_device_index) { .deviceId = id });
-}
-
-UsbManagerController_t*
-UsbManagerGetControllerByIod(
-        _In_ int iod)
-{
-    return (UsbManagerController_t*)hashtable_get(&controllersByIod,
-            &(struct usb_controller_iod_index) { .iod = iod });
+            &(struct usb_controller_device_index) { .deviceId = deviceId });
 }
 
 int
@@ -626,19 +601,6 @@ static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
     const struct usb_controller_device_index* index1 = deviceIndex1;
     const struct usb_controller_device_index* index2 = deviceIndex2;
     return index1->deviceId == index2->deviceId ? 0 : 1;
-}
-
-static uint64_t default_iod_hash(const void* iodIndex)
-{
-    const struct usb_controller_iod_index* index = iodIndex;
-    return siphash_64((const uint8_t*)&index->iod, sizeof(int), &hashKey[0]);
-}
-
-static int default_iod_cmp(const void* iodIndex1, const void* iodIndex2)
-{
-    const struct usb_controller_iod_index* index1 = iodIndex1;
-    const struct usb_controller_iod_index* index2 = iodIndex2;
-    return index1->iod == index2->iod ? 0 : 1;
 }
 
 static uint64_t endpoint_hash(const void* element)
