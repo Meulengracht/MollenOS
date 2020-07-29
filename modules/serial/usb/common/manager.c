@@ -28,6 +28,7 @@
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
+#include <ds/hash_sip.h>
 #include <event.h>
 #include "hci.h"
 #include <ioset.h>
@@ -54,6 +55,8 @@ struct usb_controller_endpoint {
     int    toggle;
 };
 
+static void UsbManagerQueryUHCIPorts(void*);
+
 static uint64_t default_dev_hash(const void*);
 static int      default_dev_cmp(const void*, const void*);
 
@@ -63,9 +66,11 @@ static int      default_iod_cmp(const void*, const void*);
 static uint64_t endpoint_hash(const void*);
 static int      endpoint_cmp(const void*, const void*);
 
-static EventQueue_t* eventQueue = NULL;
-static hashtable_t   controllers;
-static hashtable_t   controllersByIod;
+static EventQueue_t* eventQueue           = NULL;
+static int           hciCheckupRegistered = 0;
+static hashtable_t   controllers          = { 0 };
+static hashtable_t   controllersByIod     = { 0 };
+static uint8_t       hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
 
 OsStatus_t
 UsbManagerInitialize(void)
@@ -115,7 +120,7 @@ UsbManagerCreateController(
     controller->Type = type;
     list_construct(&controller->TransactionList);
     hashtable_construct(&controller->Endpoints, 0,
-            sizeof(UsbManagerEndpoint_t), endpoint_hash, endpoint_cmp);
+            sizeof(struct usb_controller_endpoint), endpoint_hash, endpoint_cmp);
     spinlock_init(&controller->Lock, spinlock_plain);
 
     // create the event descriptor to allow listening for interrupts
@@ -134,6 +139,12 @@ UsbManagerCreateController(
         .deviceId = device->Base.Id, .pointer = controller });
     hashtable_set(&controllersByIod, &(struct usb_controller_iod_index) {
         .iod = controller->event_descriptor, .pointer = controller });
+
+    // UHCI does not support hub events, so we install a timer if not already
+    if (type == UsbUHCI && !hciCheckupRegistered) {
+        QueuePeriodicEvent(eventQueue, UsbManagerQueryUHCIPorts, NULL, MSEC_PER_SEC);
+        hciCheckupRegistered = 1;
+    }
     return controller;
 }
 
@@ -170,6 +181,23 @@ UsbManagerDestroyController(
 
     // Unregister controller with usbmanager service
     return UsbControllerUnregister(controller->Device.Base.Id);
+}
+
+static void
+UsbManagerQueryUHCIController(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       unusedContext)
+{
+    const struct usb_controller_device_index* deviceIndex = element;
+    HciTimerCallback(deviceIndex->pointer);
+}
+
+static void
+UsbManagerQueryUHCIPorts(
+    _In_ void* unusedContext)
+{
+    hashtable_enumerate(&controllers, UsbManagerQueryUHCIController, unusedContext);
 }
 
 void
@@ -585,4 +613,43 @@ UsbManagerDumpSchedule(
         UsbManagerIterateChain(Controller, (uint8_t*)Controller->Scheduler->VirtualFrameList[i], 
             USB_CHAIN_BREATH, USB_REASON_DUMP, UsbManagerDumpScheduleElement, &PseudoTransferObject);
     }
+}
+
+static uint64_t default_dev_hash(const void* deviceIndex)
+{
+    const struct usb_controller_device_index* index = deviceIndex;
+    return siphash_64((const uint8_t*)&index->deviceId, sizeof(UUId_t), &hashKey[0]);
+}
+
+static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
+{
+    const struct usb_controller_device_index* index1 = deviceIndex1;
+    const struct usb_controller_device_index* index2 = deviceIndex2;
+    return index1->deviceId == index2->deviceId ? 0 : 1;
+}
+
+static uint64_t default_iod_hash(const void* iodIndex)
+{
+    const struct usb_controller_iod_index* index = iodIndex;
+    return siphash_64((const uint8_t*)&index->iod, sizeof(int), &hashKey[0]);
+}
+
+static int default_iod_cmp(const void* iodIndex1, const void* iodIndex2)
+{
+    const struct usb_controller_iod_index* index1 = iodIndex1;
+    const struct usb_controller_iod_index* index2 = iodIndex2;
+    return index1->iod == index2->iod ? 0 : 1;
+}
+
+static uint64_t endpoint_hash(const void* element)
+{
+    const struct usb_controller_endpoint* endpoint = element;
+    return siphash_64((const uint8_t*)&endpoint->address, sizeof(UUId_t), &hashKey[0]);
+}
+
+static int endpoint_cmp(const void* element1, const void* element2)
+{
+    const struct usb_controller_endpoint* endpoint1 = element1;
+    const struct usb_controller_endpoint* endpoint2 = element2;
+    return endpoint1->address == endpoint2->address ? 0 : 1;
 }

@@ -127,12 +127,9 @@ HciControllerCreate(
     }
 }
 
-/* HciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
 OsStatus_t
 HciControllerDestroy(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
     // Unregister, then destroy
     UsbManagerDestroyController(Controller);
@@ -146,11 +143,15 @@ HciControllerDestroy(
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
 
-    // Free the list of endpoints
-    CollectionDestroy(Controller->TransactionList);
-    CollectionDestroy(Controller->Endpoints);
     free(Controller);
     return OsSuccess;
+}
+
+void
+HciTimerCallback(
+    _In_ UsbManagerController_t* baseController)
+{
+    // do nothing
 }
 
 void

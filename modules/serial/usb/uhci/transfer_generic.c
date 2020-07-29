@@ -256,7 +256,6 @@ HciQueueTransferGeneric(
 {
     UhciQueueHead_t*  EndpointDescriptor = NULL;
     UhciController_t* Controller;
-    DataKey_t         Key;
     
     Controller       = (UhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
@@ -279,9 +278,8 @@ HciQueueTransferGeneric(
     }
 
     // Store transaction in queue if it's not there already
-    Key.Value.Integer = (int)Transfer->Id;
-    if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
-        CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
+    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
+        list_append(&Controller->Base.TransactionList, &Transfer->header);
     }
 
     // If it fails to queue up => restore toggle
@@ -296,16 +294,14 @@ HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     UhciController_t* Controller;
-    DataKey_t         Key;
 
     // Get Controller
     Controller       = (UhciController_t*) UsbManagerGetControllerByDeviceId(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
 
     // Store transaction in queue if it's not there already
-    Key.Value.Integer = (int)Transfer->Id;
-    if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
-        CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
+    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
+        list_append(&Controller->Base.TransactionList, &Transfer->header);
     }
     
     // Fill the transfer

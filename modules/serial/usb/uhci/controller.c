@@ -32,8 +32,6 @@
 OsStatus_t        UhciSetup(UhciController_t *Controller);
 InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
-static int TimerRegistered = 0;
-
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     unsigned int* class, unsigned int* subClass)
 {
@@ -41,19 +39,6 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     *deviceId = 0;
     *class    = 0xC0003;
     *subClass = 0;
-}
-
-void
-HciTimerCallback(void* Context)
-{
-    TRACE("HciTimerCallback()");
-    _CRT_UNUSED(Context);
-    // Do a port-check and perform transaction checks
-    foreach(cNode, UsbManagerGetControllers()) {
-        UhciUpdateCurrentFrame((UhciController_t*)cNode->Data);
-        UhciPortsCheck((UhciController_t*)cNode->Data);
-        UsbManagerProcessTransfers((UsbManagerController_t*)cNode->Data);
-    }
 }
 
 void
@@ -83,27 +68,11 @@ HciControllerCreate(
     // Debug
     TRACE("UhciControllerCreate(%s)", &Device->Name[0]);
 
-    // Register the callback if it's not already
-    if (TimerRegistered == 0) {
-        QueuePeriodicEvent(UsbManagerGetEventQueue(), HciTimerCallback, NULL, MSEC_PER_SEC);
-        TimerRegistered = 1;
-    }
-
-    // Allocate a new instance of the controller
-    Controller = (UhciController_t*)malloc(sizeof(UhciController_t));
+    Controller = (UhciController_t*)UsbManagerCreateController(Device, UsbUHCI, sizeof(UhciController_t));
     if (!Controller) {
         return NULL;
     }
     
-    memset(Controller, 0, sizeof(UhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
-
-    // Fill in some basic stuff needed for init
-    Controller->Base.Type               = UsbUHCI;
-    Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
-    Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    spinlock_init(&Controller->Base.Lock, spinlock_plain);
-
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
@@ -138,12 +107,12 @@ HciControllerCreate(
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterInterruptDescriptor(&Interrupt, Controller->Base.event_descriptor);
     RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
 
     // Register interrupt
-    RegisterInterruptDescriptor(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
@@ -188,6 +157,9 @@ OsStatus_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
+    // Unregister, then destroy
+    UsbManagerDestroyController(Controller);
+    
     // Cleanup scheduler
     UhciQueueDestroy((UhciController_t*)Controller);
 
@@ -197,11 +169,18 @@ HciControllerDestroy(
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
 
-    // Clean up allocated lists
-    CollectionDestroy(Controller->TransactionList);
-    CollectionDestroy(Controller->Endpoints);
     free(Controller);
     return OsSuccess;
+}
+
+void
+HciTimerCallback(
+    _In_ UsbManagerController_t* baseController)
+{
+    TRACE("HciTimerCallback()");
+    UhciUpdateCurrentFrame((UhciController_t*)baseController);
+    UhciPortsCheck((UhciController_t*)baseController);
+    UsbManagerProcessTransfers((UsbManagerController_t*)baseController);
 }
 
 OsStatus_t

@@ -91,6 +91,7 @@ OsStatus_t OnEvent(int eventDescriptor)
     }
 
     HciInterruptCallback(controller);
+    return OsSuccess;
 }
 
 OsStatus_t

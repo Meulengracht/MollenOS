@@ -23,7 +23,6 @@
  */
 //#define __TRACE
 
-#include <ds/collection.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../uhci.h"

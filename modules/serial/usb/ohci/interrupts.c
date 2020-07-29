@@ -24,7 +24,6 @@
 
 #define __TRACE
 
-#include <ds/collection.h>
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
@@ -82,15 +81,16 @@ OnFastInterrupt(
     // Store interrupts, acknowledge and return
     Registers->HcInterruptStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
+    
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+HciInterruptCallback(
+    _In_ UsbManagerController_t* baseController)
 {
-    OhciController_t* Controller = (OhciController_t*)InterruptData;
+    OhciController_t* Controller = (OhciController_t*)baseController;
     reg32_t           InterruptStatus;
 
 ProcessInterrupt:

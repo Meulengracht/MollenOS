@@ -55,21 +55,11 @@ HciControllerCreate(
     OsStatus_t             Status;
     int i;
 
-    // Allocate a new instance of the controller
-    Controller = (OhciController_t*)malloc(sizeof(OhciController_t));
+    Controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
     if (!Controller) {
         return NULL;
     }
     
-    memset(Controller, 0, sizeof(OhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
-
-    // Fill in some basic stuff needed for init
-    Controller->Base.Type               = UsbOHCI;
-    Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
-    Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    spinlock_init(&Controller->Base.Lock, spinlock_plain);
-
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
@@ -127,6 +117,7 @@ HciControllerCreate(
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&Interrupt, Device);
+    RegisterInterruptDescriptor(&Interrupt, Controller->Base.event_descriptor);
     RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
@@ -134,7 +125,6 @@ HciControllerCreate(
 
     // Register interrupt
     TRACE("... register interrupt");
-    RegisterInterruptDescriptor(&Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
@@ -181,11 +171,16 @@ HciControllerDestroy(
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
-
-    // Free the list of endpoints
-    CollectionDestroy(Controller->Endpoints);
+    
     free(Controller);
     return OsSuccess;
+}
+
+void
+HciTimerCallback(
+    _In_ UsbManagerController_t* baseController)
+{
+    // do nothing
 }
 
 void

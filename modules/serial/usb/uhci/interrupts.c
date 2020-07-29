@@ -32,7 +32,7 @@
 
 InterruptStatus_t
 OnFastInterrupt(
-        _In_ InterruptFunctionTable_t*     InterruptTable,
+        _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
 {
     UhciController_t* Controller = (UhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
@@ -48,15 +48,15 @@ OnFastInterrupt(
 
     // Clear interrupt bits
     InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+HciInterruptCallback(
+    _In_ UsbManagerController_t* baseController)
 {
-    UhciController_t* Controller = (UhciController_t*)InterruptData;
+    UhciController_t* Controller = (UhciController_t*)baseController;
     uint16_t          InterruptStatus;
     
 HandleInterrupt:
