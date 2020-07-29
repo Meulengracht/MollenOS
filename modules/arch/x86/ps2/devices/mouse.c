@@ -27,14 +27,15 @@
 #include <gracht/link/vali.h>
 #include "../ps2.h"
 #include <string.h>
+#include <event.h>
 
 InterruptStatus_t
 PS2MouseFastInterrupt(
-    _In_ FastInterruptResources_t* InterruptTable,
-    _In_ void*                     NotUsed)
+        _In_ InterruptFunctionTable_t* InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
-    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
-    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(ResourceTable, 0);
+    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
     uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
     uint8_t BreakAtBytes    = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
     PS2Command_t* Command   = &Port->ActiveCommand;
@@ -42,17 +43,19 @@ PS2MouseFastInterrupt(
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
         Command->SyncObject++;
-        return InterruptHandledStop;
+        smp_wmb();
     }
     else {
         uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
         Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
+        smp_wmb();
+
         if (!(index % BreakAtBytes)) {
-            return InterruptHandled;
+            InterruptTable->EventSignal(ResourceTable->ResourceHandle);
         }
     }
-    smp_wmb();
-    return InterruptHandledStop;
+
+    return InterruptHandled;
 }
 
 void
@@ -150,17 +153,17 @@ PS2EnableScroll(
 
 OsStatus_t
 PS2MouseInitialize(
-    _In_ PS2Controller_t* Controller,
-    _In_ int              Port)
+    _In_ PS2Controller_t* controller,
+    _In_ int              index)
 {
     gracht_client_configuration_t      client_config;
     struct socket_client_configuration link_config;
-    PS2Port_t*                         Instance = &Controller->Ports[Port];
+    PS2Port_t*                         port = &controller->Ports[index];
     int                                status;
 
     // Set initial mouse sampling
-    PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
-    PS2_MOUSE_DATA_MODE(Instance)       = 0;
+    PS2_MOUSE_DATA_SAMPLING(port) = 100;
+    PS2_MOUSE_DATA_MODE(port)     = 0;
 
     // Open up the input socket so we can send input data to the OS.
     link_config.type = gracht_link_packet_based;
@@ -171,46 +174,46 @@ PS2MouseInitialize(
         ERROR("... [ps2] [mouse] [initialize] gracht_link_socket_client_create failed %i", errno);
     }
     
-    if (status && gracht_client_create(&client_config, &Instance->GrachtClient)) {
+    if (status && gracht_client_create(&client_config, &port->GrachtClient)) {
         ERROR("... [ps2] [mouse] [initialize] gracht_client_create failed %i", errno);
     }
-    
+
     // Initialize interrupt
-    RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
-    RegisterFastInterruptHandler(&Instance->Interrupt, PS2MouseFastInterrupt);
-    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
+    RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
+    RegisterFastInterruptHandler(&port->Interrupt, (InterruptHandler_t)PS2MouseFastInterrupt);
+    port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_EXCLUSIVE);
 
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
-    if (PS2EnableScroll(Instance) == OsSuccess) {
-        PS2_MOUSE_DATA_MODE(Instance) = 1;
-        if (PS2EnableExtensions(Instance) == OsSuccess) {
-            PS2_MOUSE_DATA_MODE(Instance) = 2;
+    if (PS2EnableScroll(port) == OsSuccess) {
+        PS2_MOUSE_DATA_MODE(port) = 1;
+        if (PS2EnableExtensions(port) == OsSuccess) {
+            PS2_MOUSE_DATA_MODE(port) = 2;
         }
     }
 
     // Update sampling to 60, no need for faster updates
-    if (PS2SetSampling(Instance, 60) == OsSuccess) {
-        PS2_MOUSE_DATA_SAMPLING(&Controller->Ports[Port]) = 100;
+    if (PS2SetSampling(port, 60) == OsSuccess) {
+        PS2_MOUSE_DATA_SAMPLING(&controller->Ports[index]) = 100;
     }
 
-    Instance->State = PortStateActive;
-    return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
+    port->State = PortStateActive;
+    return PS2PortExecuteCommand(port, PS2_ENABLE_SCANNING, NULL);
 }
 
 OsStatus_t
 PS2MouseCleanup(
-    _In_ PS2Controller_t* Controller,
-    _In_ int              Port)
+    _In_ PS2Controller_t* controller,
+    _In_ int              index)
 {
-    PS2Port_t *Instance = &Controller->Ports[Port];
+    PS2Port_t* port = &controller->Ports[index];
 
     // Try to disable the device before cleaning up
-    PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
-    UnregisterInterruptSource(Instance->InterruptId);
+    PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
+    UnregisterInterruptSource(port->InterruptId);
 
-    gracht_client_shutdown(Instance->GrachtClient);
-    Instance->Signature = 0xFFFFFFFF;
-    Instance->State     = PortStateConnected;
+    gracht_client_shutdown(port->GrachtClient);
+    port->Signature = 0xFFFFFFFF;
+    port->State     = PortStateConnected;
     return OsSuccess;
 }

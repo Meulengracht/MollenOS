@@ -117,8 +117,7 @@ typedef enum {
 
 typedef enum {
     InterruptNotHandled,
-    InterruptHandled,       // Handled, notify process
-    InterruptHandledStop,   // Handled, do not notify process
+    InterruptHandled
 } InterruptStatus_t;
 
 typedef union LargeInteger {

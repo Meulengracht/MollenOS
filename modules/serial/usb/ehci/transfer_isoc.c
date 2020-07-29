@@ -38,10 +38,9 @@ HciQueueTransferIsochronous(
     EhciController_t*            Controller;
     size_t                       BytesToTransfer;
     size_t                       MaxBytesPerDescriptor;
-    DataKey_t                    Key;
     int                          i;
 
-    Controller       = (EhciController_t *)UsbManagerGetController(Transfer->DeviceId);
+    Controller       = (EhciController_t *) UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
     BytesToTransfer  = Transfer->Transfer.Transactions[0].Length;
 
@@ -113,8 +112,7 @@ HciQueueTransferIsochronous(
     }
 
     Transfer->EndpointDescriptor = (void*)FirstTd;
-    Key.Value.Integer            = 0;
     
-    CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
+    list_append(&Controller->Base.TransactionList, &Transfer->header);
     return EhciTransactionDispatch(Controller, Transfer);
 }

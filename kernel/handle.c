@@ -38,7 +38,7 @@ typedef struct ResourceHandle {
     void*              Resource;
     atomic_int         References;
     HandleType_t       Type;
-    unsigned int            Flags;
+    unsigned int       Flags;
     HandleDestructorFn Destructor;
     element_t*         PathHeader;
     element_t          Header;

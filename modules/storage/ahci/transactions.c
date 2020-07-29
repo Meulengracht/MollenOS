@@ -66,13 +66,13 @@ QueueTransaction(
     _In_ AhciPort_t*        Port,
     _In_ AhciTransaction_t* Transaction)
 {
-    OsStatus_t Status;
+    OsStatus_t status;
     
     // OK so the transaction we just recieved needs to be queued up,
     // so we must initally see if we can allocate a new slot on the port
-    Status = AhciPortAllocateCommandSlot(Port, &Transaction->Slot);
-    CollectionAppend(Port->Transactions, &Transaction->Header);
-    if (Status != OsSuccess) {
+    status = AhciPortAllocateCommandSlot(Port, &Transaction->Slot);
+    list_append(&Port->Transactions, &Transaction->header);
+    if (status != OsSuccess) {
         Transaction->State = TransactionQueued;
         return OsSuccess;
     }
@@ -82,7 +82,7 @@ QueueTransaction(
     Transaction->State = TransactionInProgress;
     switch (Transaction->Type) {
         case TransactionRegisterFISH2D: {
-            Status = AhciDispatchRegisterFIS(Controller, Port, Transaction);
+            status = AhciDispatchRegisterFIS(Controller, Port, Transaction);
         } break;
         
         default: {
@@ -90,11 +90,11 @@ QueueTransaction(
         } break;
     }
     
-    if (Status != OsSuccess) {
-        CollectionRemoveByNode(Port->Transactions, &Transaction->Header);
+    if (status != OsSuccess) {
+        list_remove(&Port->Transactions, &Transaction->header);
         AhciPortFreeCommandSlot(Port, Transaction->Slot);
     }
-    return Status;
+    return status;
 }
 
 static OsStatus_t
@@ -115,42 +115,45 @@ AhciTransactionControlCreate(
     _In_ size_t        Length,
     _In_ int           Direction)
 {
-    AhciTransaction_t* Transaction;
-    OsStatus_t         Status;
+    AhciTransaction_t* transaction;
+    OsStatus_t         status;
+    UUId_t             transactionId;
     
     if (!Device) {
         return OsInvalidParameters;
     }
 
-    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-    if (!Transaction) {
+    transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+    if (!transaction) {
         return OsOutOfMemory;
     }
+
+    transactionId = TransactionId++;
     
     // Do not bother about zeroing the array
-    memset(Transaction, 0, sizeof(AhciTransaction_t));
-    dma_attach(Device->Port->InternalBuffer.handle, &Transaction->DmaAttachment);
-    dma_get_sg_table(&Transaction->DmaAttachment, &Transaction->DmaTable, -1);
-    Transaction->Header.Key.Value.Id = TransactionId++;
+    memset(transaction, 0, sizeof(AhciTransaction_t));
+    dma_attach(Device->Port->InternalBuffer.handle, &transaction->DmaAttachment);
+    dma_get_sg_table(&transaction->DmaAttachment, &transaction->DmaTable, -1);
 
-    Transaction->Internal  = 1;
-    Transaction->Type      = TransactionRegisterFISH2D;
-    Transaction->State     = TransactionCreated;
-    Transaction->Slot      = -1;
-    Transaction->Command   = Command;
-    Transaction->BytesLeft = Length;
-    Transaction->Direction = Direction;
+    ELEMENT_INIT(&transaction->header, (void*)(uintptr_t)transactionId, transaction);
+    transaction->Internal  = 1;
+    transaction->Type      = TransactionRegisterFISH2D;
+    transaction->State     = TransactionCreated;
+    transaction->Slot      = -1;
+    transaction->Command   = Command;
+    transaction->BytesLeft = Length;
+    transaction->Direction = Direction;
 
-    Transaction->Target.Type = Device->Type;
-    Transaction->Target.SectorSize = Device->SectorSize;
-    Transaction->Target.AddressingMode = Device->AddressingMode;
+    transaction->Target.Type           = Device->Type;
+    transaction->Target.SectorSize     = Device->SectorSize;
+    transaction->Target.AddressingMode = Device->AddressingMode;
     
     // The transaction is now prepared and ready for the dispatch
-    Status = QueueTransaction(Device->Controller, Device->Port, Transaction);
-    if (Status != OsSuccess) {
-        AhciTransactionDestroy(Transaction);
+    status = QueueTransaction(Device->Controller, Device->Port, transaction);
+    if (status != OsSuccess) {
+        AhciTransactionDestroy(transaction);
     }
-    return Status;
+    return status;
 }
 
 OsStatus_t
@@ -165,6 +168,7 @@ AhciTransactionStorageCreate(
 {
     struct dma_attachment dmaAttachment;
     AhciTransaction_t*    transaction;
+    UUId_t                transactionId;
     OsStatus_t            status;
     int                   i;
     
@@ -182,11 +186,14 @@ AhciTransactionStorageCreate(
         dma_detach(&dmaAttachment);
         return OsOutOfMemory;
     }
-    
+
+    transactionId = TransactionId++;
+
     // Do not bother about zeroing the array
     memset(transaction, 0, sizeof(AhciTransaction_t));
     memcpy(&transaction->DmaAttachment, &dmaAttachment, sizeof(struct dma_attachment));
-    transaction->Header.Key.Value.Id = TransactionId++;
+
+    ELEMENT_INIT(&transaction->header, (void*)(uintptr_t)transactionId, transaction);
     gracht_vali_message_defer_response(&transaction->DeferredMessage, message);
 
     transaction->Type    = TransactionRegisterFISH2D;

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,74 +16,97 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * - Generic Hash Table Implementation
- *  The hash-table uses chained indices to solve the possibility of collision.
- *  The hash table runs in O(1 + a) time, where a = size/capacity assuming
- *  optimal hash-distribution. All list sizes should be <a>
+ * - Open addressed hashtable implementation using round robin for balancing.
  */
 
-#ifndef __GENERIC_HASHTABLE_H__
-#define __GENERIC_HASHTABLE_H__
+#ifndef __LIBDS_HASHTABLE_H__
+#define __LIBDS_HASHTABLE_H__
 
-#include <os/osdefs.h>
-#include <ds/ds.h>
-#include <ds/collection.h>
+#include <ds/dsdefs.h>
 
-#define HASHTABLE_DEFAULT_LOADFACTOR    75 // Equals 75 percent
+#define HASHTABLE_LOADFACTOR_GROW   75 // Equals 75 percent load
+#define HASHTABLE_LOADFACTOR_SHRINK 20 // Equals 20 percent load
+#define HASHTABLE_MINIMUM_CAPACITY  16
 
-typedef size_t(*HashFn)(const char*, size_t);
+typedef uint64_t (*hashtable_hashfn)(const void* element);
+typedef int      (*hashtable_cmpfn)(const void* lh, const void* rh);
+typedef void     (*hashtable_enumfn)(int index, const void* element, void* userContext);
 
-typedef struct _HashTable {
-    size_t          Capacity;
-    size_t          Size;
-    size_t          LoadFactor;
-    HashFn          GetHashCode;
-    Collection_t*   Array;
-} HashTable_t;
+typedef struct hashtable {
+    size_t capacity;
+    size_t element_count;
+    size_t grow_count;
+    size_t shrink_count;
+    size_t element_size;
+    void*  swap;
+    void*  elements;
 
-/* HashTableCreate
- * Initializes a new hash table structure of the desired capacity, and load factor.
- * The load factor defaults to HASHTABLE_DEFAULT_LOADFACTOR. */
-CRTDECL(HashTable_t*,
-HashTableCreate(
-    _In_ size_t Capacity,
-    _In_ size_t LoadFactor));
+    hashtable_hashfn hash;
+    hashtable_cmpfn  cmp;
+} hashtable_t;
 
-/* HashTableSetHashFunction
- * Overrides the default hash function with a user provided hash function. To
- * reset this set with NULL. */
-CRTDECL(void,
-HashTableSetHashFunction(
-    _In_ HashTable_t*   HashTable,
-    _In_ HashFn         Fn));
+/**
+ * Constructs a new hashtable that can be used to store and retrieve elements. The hashtable is constructed
+ * in such a way that variable sized elements are supported, and the allows for inline keys in the element.
+ * @param hashtable       The hashtable pointer that will be initialized.
+ * @param requestCapacity The initial capacity of the hashtable, will automatically be set to HASHTABLE_MINIMUM_CAPACITY if less.
+ * @param elementSize     The size of the elements that will be stored in the hashtable.
+ * @param hashFunction    The hash function that will be used to hash the element data.
+ * @param cmpFunction     The function that will be invoked when comparing the keys of two elements.
+ * @return                Status of the hashtable construction.
+ */
+DSDECL(int, hashtable_construct(
+    _In_ hashtable_t*     hashtable,
+    _In_ size_t           requestCapacity,
+    _In_ size_t           elementSize,
+    _In_ hashtable_hashfn hashFunction,
+    _In_ hashtable_cmpfn  cmpFunction));
 
-/* HashTableDestroy
- * Cleans up all resources associated with the hashtable. This does not clear up the values
- * registered in the hash-table. */
-CRTDECL(void,
-HashTableDestroy(
-    _In_ HashTable_t* HashTable));
+/**
+ * Destroys the hashtable and frees up any resources previously allocated. The structure itself is not freed.
+ * @param hashtable The hashtable to cleanup.
+ */
+DSDECL(void, hashtable_destroy(
+    _In_ hashtable_t* hashtable));
 
-/* HashTableInsert
- * Inserts or overwrites the existing key in the hashtable. */
-CRTDECL(void,
-HashTableInsert(
-    _In_ HashTable_t*   HashTable,
-    _In_ DataKey_t      Key,
-    _In_ void*          Data));
+/**
+ * Inserts or replaces the element with the calculated hash. 
+ * @param hashtable The hashtable the element should be inserted into.
+ * @param element   The element that should be inserted into the hashtable.
+ * @return          The replaced element is returned, or NULL if element was inserted.
+ */
+DSDECL(void*, hashtable_set(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  element));
 
-/* HashTableRemove 
- * Removes the entry with the matching key from the hashtable. */
-CRTDECL(void,
-HashTableRemove(
-    _In_ HashTable_t*   HashTable, 
-    _In_ DataKey_t      Key));
+/**
+ * Retrieves the element with the corresponding key.
+ * @param hashtable The hashtable to use for the lookup.
+ * @param key       The key to retrieve an element for.
+ * @return          A pointer to the object.
+ */
+DSDECL(void*, hashtable_get(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  key));
 
-/* HashTableGetValue
- * Retrieves the data associated with the given key from the hashtable */
-CRTDECL(void*,
-HashTableGetValue(
-    _In_ HashTable_t*   HashTable, 
-    _In_ DataKey_t      Key));
+/**
+ * Removes the element from the hashtable with the given key.
+ * @param hashtable The hashtable to remove the element from.
+ * @param key       Key of the element to lookup.
+ */
+DSDECL(void*, hashtable_remove(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  key));
 
-#endif //!_HASHTABLE_H_
+/**
+ * Enumerates all elements in the hashtable.
+ * @param hashtable    The hashtable to enumerate elements in.
+ * @param enumFunction Callback function to invoke on each element.
+ * @param context      A user-provided callback context.
+ */
+DSDECL(void, hashtable_enumerate(
+    _In_ hashtable_t*     hashtable,
+    _In_ hashtable_enumfn enumFunction,
+    _In_ void*            context));
+
+#endif //!__LIBDS_HASHTABLE_H__

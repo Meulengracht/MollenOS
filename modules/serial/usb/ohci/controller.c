@@ -33,7 +33,7 @@
 #include <stdlib.h>
 
 OsStatus_t        OhciSetup(OhciController_t *Controller);
-InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
+InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     unsigned int* class, unsigned int* subClass)
@@ -55,21 +55,11 @@ HciControllerCreate(
     OsStatus_t             Status;
     int i;
 
-    // Allocate a new instance of the controller
-    Controller = (OhciController_t*)malloc(sizeof(OhciController_t));
+    Controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
     if (!Controller) {
         return NULL;
     }
     
-    memset(Controller, 0, sizeof(OhciController_t));
-    memcpy(&Controller->Base.Device, Device, Device->Base.Length);
-
-    // Fill in some basic stuff needed for init
-    Controller->Base.Type               = UsbOHCI;
-    Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
-    Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    spinlock_init(&Controller->Base.Lock, spinlock_plain);
-
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
@@ -127,16 +117,15 @@ HciControllerCreate(
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterInterruptDescriptor(&Interrupt, Controller->Base.event_descriptor);
+    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
     RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register interrupt
     TRACE("... register interrupt");
-    RegisterInterruptContext(&Interrupt, Controller);
-    Controller->Base.Interrupt = RegisterInterruptSource(
-        &Interrupt, INTERRUPT_USERSPACE);
+    Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
     TRACE("... enabling device");
@@ -182,11 +171,16 @@ HciControllerDestroy(
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
-
-    // Free the list of endpoints
-    CollectionDestroy(Controller->Endpoints);
+    
     free(Controller);
     return OsSuccess;
+}
+
+void
+HciTimerCallback(
+    _In_ UsbManagerController_t* baseController)
+{
+    // do nothing
 }
 
 void

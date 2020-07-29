@@ -22,7 +22,15 @@
 #ifndef __DS_DSDEFS_H__
 #define __DS_DSDEFS_H__
 
+#ifdef __DS_TESTPROGRAM
+#include <stddef.h>
+#include <stdint.h>
+
+#define _In_
+#define _Out_
+#else
 #include <os/osdefs.h>
+#endif
 
 #define DSDECL(ReturnType, Function) extern ReturnType Function
 #define DSDECL_DATA(Type, Name) extern Type Name

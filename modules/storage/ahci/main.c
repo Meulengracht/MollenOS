@@ -23,9 +23,10 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
+#include <ioset.h>
+#include <os/mollenos.h>
 #include "manager.h"
 #include <string.h>
 #include <stdlib.h>
@@ -41,6 +42,7 @@ static gracht_protocol_function_t ctt_driver_callbacks[1] = {
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 #include <ctt_storage_protocol_server.h>
+#include <io.h>
 
 extern void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args*);
 extern void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args*);
@@ -53,21 +55,17 @@ static gracht_protocol_function_t ctt_storage_callbacks[3] = {
 };
 DEFINE_CTT_STORAGE_SERVER_PROTOCOL(ctt_storage_callbacks, 3);
 
-static Collection_t Controllers = COLLECTION_INIT(KeyId);
+static list_t controllers = LIST_INIT;
 
-/* OnFastInterrupt
- * Is called for the sole purpose to determine if this source
- * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      Reserved)
+    _In_ InterruptFunctionTable_t* InterruptTable,
+    _In_ InterruptResourceTable_t* ResourceTable)
 {
-    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
     reg32_t                  InterruptStatus;
     int                      i;
-    _CRT_UNUSED(Reserved);
 
     // Skip processing immediately if the interrupt was not for us
     InterruptStatus = Registers->InterruptStatus;
@@ -78,41 +76,41 @@ OnFastInterrupt(
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if ((InterruptStatus & (1 << i)) != 0) {
-            AHCIPortRegisters_t* PortRegister   = (AHCIPortRegisters_t*)((uintptr_t)Registers + AHCI_REGISTER_PORTBASE(i));
-            Resource->PortInterruptStatus[i]   |= PortRegister->InterruptStatus;
-            PortRegister->InterruptStatus       = PortRegister->InterruptStatus;
+            AHCIPortRegisters_t* PortRegister = (AHCIPortRegisters_t*)((uintptr_t)Registers + AHCI_REGISTER_PORTBASE(i));
+
+            Resource->PortInterruptStatus[i] |= PortRegister->InterruptStatus;
+            PortRegister->InterruptStatus     = PortRegister->InterruptStatus;
         }
     }
 
     // Write clear interrupt register and return
-    Registers->InterruptStatus              = InterruptStatus;
-    Resource->ControllerInterruptStatus    |= InterruptStatus;
+    Registers->InterruptStatus           = InterruptStatus;
+    Resource->ControllerInterruptStatus |= InterruptStatus;
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
 OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+    _In_ AhciController_t* controller)
 {
-    AhciController_t* Controller = (AhciController_t*)InterruptData;
     reg32_t           InterruptStatus;
     int               i;
 
 HandleInterrupt:
-    InterruptStatus = Controller->InterruptResource.ControllerInterruptStatus;
-    Controller->InterruptResource.ControllerInterruptStatus = 0;
+    InterruptStatus = controller->InterruptResource.ControllerInterruptStatus;
+    controller->InterruptResource.ControllerInterruptStatus = 0;
     
     // Iterate the port-map and check if the interrupt
     // came from that port
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
-            AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+        if (controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
+            AhciPortInterruptHandler(controller, controller->Ports[i]);
         }
     }
     
     // Re-handle?
-    if (Controller->InterruptResource.ControllerInterruptStatus != 0) {
+    if (controller->InterruptResource.ControllerInterruptStatus != 0) {
         goto HandleInterrupt;
     }
 }
@@ -129,8 +127,6 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
 OsStatus_t
 OnLoad(void)
 {
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_storage_server_protocol);
@@ -140,30 +136,50 @@ OnLoad(void)
     return AhciManagerInitialize();
 }
 
+static void
+ClearControllerCallback(
+    _In_ element_t* element,
+    _In_ void*      context)
+{
+    AhciControllerDestroy((AhciController_t*)element->value);
+}
+
 OsStatus_t
 OnUnload(void)
 {
-    foreach(cNode, &Controllers) {
-        AhciControllerDestroy((AhciController_t*)cNode->Data);
+    list_clear(&controllers, ClearControllerCallback, NULL);
+    AhciManagerDestroy();
+    return OsSuccess;
+}
+
+OsStatus_t OnEvent(struct ioset_event* event)
+{
+    AhciController_t* controller = event->data.context;
+    unsigned int      value;
+
+    if (!controller) {
+        return OsDoesNotExist;
     }
-    CollectionClear(&Controllers);
-    
-    signal(SIGINT, SIG_DFL);
-    return AhciManagerDestroy();
+
+    if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+        return OsError;
+    }
+
+    OnInterrupt(controller);
+    return OsSuccess;
 }
 
 OsStatus_t
 OnRegister(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    AhciController_t* Controller;
-    DataKey_t         Key = { .Value.Id = Device->Id };
-    
-    Controller = AhciControllerCreate((BusDevice_t*)Device);
-    if (Controller == NULL) {
+    AhciController_t* controller = AhciControllerCreate((BusDevice_t*)device);
+    if (controller == NULL) {
         return OsError;
     }
-    return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
+
+    list_append(&controllers, &controller->header);
+    return OsSuccess;
 }
 
 static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
@@ -173,16 +189,13 @@ static void ctt_driver_register_device_callback(struct gracht_recv_message* mess
 
 OsStatus_t
 OnUnregister(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    AhciController_t* Controller;
-    DataKey_t         Key = { .Value.Id = Device->Id };
-    
-    Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
-    if (Controller == NULL) {
+    AhciController_t* controller = list_find_value(&controllers, (void*)(uintptr_t)device->Id);
+    if (controller == NULL) {
         return OsDoesNotExist;
     }
     
-    CollectionRemoveByKey(&Controllers, Key);
-    return AhciControllerDestroy(Controller);
+    list_remove(&controllers, &controller->header);
+    return AhciControllerDestroy(controller);
 }

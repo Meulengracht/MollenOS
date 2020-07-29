@@ -27,7 +27,7 @@
 #define _AHCI_MANAGER_H_
 
 #include "ahci.h"
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <commands.h>
 #include <gracht/link/vali.h>
 #include <os/osdefs.h>
@@ -50,20 +50,20 @@ typedef enum {
     DeviceSEMB // Enclosure Management Bridge
 } DeviceType_t;
 
-typedef struct _AhciDevice {
-    CollectionItem_t        Header;
-    StorageDescriptor_t     Descriptor;
+typedef struct AhciDevice {
+    element_t           header;
+    StorageDescriptor_t Descriptor;
 
-    AhciController_t*       Controller;
-    AhciPort_t*             Port;
-    int                     Index;
+    AhciController_t* Controller;
+    AhciPort_t*       Port;
+    int               Index;
 
-    DeviceType_t            Type;
-    int                     HasDMAEngine;
-    size_t                  SectorSize;
-    uint64_t                SectorCount;
+    DeviceType_t      Type;
+    int               HasDMAEngine;
+    size_t            SectorSize;
+    uint64_t          SectorCount;
     
-    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
+    int               AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
     struct {
         uint16_t CylinderCount;
         uint8_t  TracksPerCylinder;
@@ -76,7 +76,7 @@ typedef struct _AhciDevice {
 #define AHCI_DEVICE_MODE_LBA48  2
 
 typedef struct AhciTransation {
-    CollectionItem_t      Header;
+    element_t             header;
     int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
@@ -113,7 +113,7 @@ typedef struct AhciTransation {
  * transactions
  */
 __EXTERN OsStatus_t AhciManagerInitialize(void);
-__EXTERN OsStatus_t AhciManagerDestroy(void);
+__EXTERN void AhciManagerDestroy(void);
 __EXTERN size_t     AhciManagerGetFrameSize(void);
 __EXTERN OsStatus_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
 __EXTERN void       AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
@@ -125,7 +125,7 @@ __EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransactio
  */
 __EXTERN AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t DeviceId);
+    _In_ UUId_t deviceId);
 
 /**
  * AhciTransactionControlCreate

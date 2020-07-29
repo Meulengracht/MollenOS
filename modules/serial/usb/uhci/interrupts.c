@@ -32,13 +32,12 @@
 
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t* InterruptTable,
-    _In_ void*                     NotUsed)
+        _In_ InterruptFunctionTable_t* InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
-    UhciController_t* Controller = (UhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    DeviceIo_t*       IoSpace    = INTERRUPT_IOSPACE(InterruptTable, 0);
+    UhciController_t* Controller = (UhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    DeviceIo_t*       IoSpace    = INTERRUPT_IOSPACE(ResourceTable, 0);
     uint16_t          InterruptStatus;
-    _CRT_UNUSED(NotUsed);
 
     // Was the interrupt even from this controller?
     InterruptStatus = LOWORD(InterruptTable->ReadIoSpace(IoSpace, UHCI_REGISTER_STATUS, 2));
@@ -49,15 +48,15 @@ OnFastInterrupt(
 
     // Clear interrupt bits
     InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+HciInterruptCallback(
+    _In_ UsbManagerController_t* baseController)
 {
-    UhciController_t* Controller = (UhciController_t*)InterruptData;
+    UhciController_t* Controller = (UhciController_t*)baseController;
     uint16_t          InterruptStatus;
     
 HandleInterrupt:

@@ -28,7 +28,7 @@
 #include <ddk/busdevice.h>
 #include <ddk/storage.h>
 #include <ddk/interrupt.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/dmabuf.h>
@@ -325,22 +325,24 @@ typedef struct _AhciPort {
 
     _Atomic(int)            Slots;
     int                     SlotCount;
-    Collection_t*           Transactions;
+    list_t                  Transactions;
 } AhciPort_t;
 
 /* AhciInterruptResource
  * The shared interrupt resource that is used to store data from the fast interrupt
  * into process interrupt. */
-typedef struct _AhciInterruptResource {
-    reg32_t                 ControllerInterruptStatus;
-    reg32_t                 PortInterruptStatus[AHCI_MAX_PORTS];
+typedef struct AhciInterruptResource {
+    reg32_t ControllerInterruptStatus;
+    reg32_t PortInterruptStatus[AHCI_MAX_PORTS];
 } AhciInterruptResource_t;
 
 typedef struct _AhciController {
     BusDevice_t             Device;
+    element_t               header;
     AhciInterruptResource_t InterruptResource;
     UUId_t                  InterruptId;
     spinlock_t              Lock;
+    int                     event_descriptor;
 
     DeviceIo_t*             IoBase;
     AHCIGenericRegisters_t* Registers;

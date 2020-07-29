@@ -25,7 +25,6 @@
 #define __USB_EHCI__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
 #include <limits.h>
 
 #include "../common/manager.h"

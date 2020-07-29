@@ -24,7 +24,6 @@
 
 #define __TRACE
 
-#include <ds/collection.h>
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
@@ -37,14 +36,13 @@
 
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      NotUsed)
+        _In_ InterruptFunctionTable_t*     InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
-    OhciRegisters_t*  Registers  = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
-    OhciController_t* Controller = (OhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    OhciHCCA_t*       Hcca       = (OhciHCCA_t*)INTERRUPT_RESOURCE(InterruptTable, 1);
+    OhciRegisters_t*  Registers  = (OhciRegisters_t*)INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
+    OhciController_t* Controller = (OhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    OhciHCCA_t*       Hcca       = (OhciHCCA_t*)INTERRUPT_RESOURCE(ResourceTable, 1);
     reg32_t           InterruptStatus;
-    _CRT_UNUSED(NotUsed);
 
     // There are two cases where it might be, just to be sure
     // we don't miss an interrupt, if the HeadDone is set or the intr is set
@@ -83,15 +81,16 @@ OnFastInterrupt(
     // Store interrupts, acknowledge and return
     Registers->HcInterruptStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
+    
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+HciInterruptCallback(
+    _In_ UsbManagerController_t* baseController)
 {
-    OhciController_t* Controller = (OhciController_t*)InterruptData;
+    OhciController_t* Controller = (OhciController_t*)baseController;
     reg32_t           InterruptStatus;
 
 ProcessInterrupt:

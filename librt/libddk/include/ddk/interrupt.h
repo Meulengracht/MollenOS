@@ -42,42 +42,41 @@ DECL_STRUCT(BusDevice);
 // however they are not allowed to do any waiting, functions calls or any lengthy operations.
 #ifndef __INTERRUPTHANDLER
 #define __INTERRUPTHANDLER
-typedef struct FastInterruptResources FastInterruptResources_t;
-typedef InterruptStatus_t(*InterruptHandler_t)(FastInterruptResources_t*, void*);
+typedef struct InterruptFunctionTable InterruptFunctionTable_t;
+typedef InterruptStatus_t(*InterruptHandler_t)(InterruptFunctionTable_t*, void*);
 #endif
 
 // Fast-Interrupt Memory Resource
 typedef struct FastInterruptMemoryResource {
-    uintptr_t Address;
-    size_t    Length;
-    unsigned int   Flags;
+    uintptr_t    Address;
+    size_t       Length;
+    unsigned int Flags;
 } FastInterruptMemoryResource_t;
 
 // Fast-Interrupt Resource Table
 // Table that descripes the executable region of the fast interrupt handler, and the
 // memory resources the fast interrupt handler needs access too. Validation and security
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
-typedef struct FastInterruptResourceTable {
+typedef struct InterruptResourceTable {
     InterruptHandler_t            Handler;
+    UUId_t                        ResourceHandle;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
-} FastInterruptResourceTable_t;
+} InterruptResourceTable_t;
 
 // Fast-Interrupt
 // Fast-interrupts are severely limited in what they can access, the interrupt table provides access
 // to pre-mapped regions that was requested when the interrupt was registed. The table can provide access
 // to some memory regions, io-regions and some system-functions (like the standard input pipe).
-typedef struct FastInterruptResources {
-    // Resource Table
-    FastInterruptResourceTable_t* ResourceTable;
+typedef struct InterruptFunctionTable {
+    size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
+    OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
+    OsStatus_t (*EventSignal)(UUId_t handle);
+    OsStatus_t (*WriteStream)(UUId_t handle, const void* buffer, size_t length);
+} InterruptFunctionTable_t;
 
-    // System Functions
-    size_t     (*ReadIoSpace)(DeviceIo_t*, size_t Offset, size_t Length);
-    OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t Offset, size_t Value, size_t Length);
-} FastInterruptResources_t;
-
-#define INTERRUPT_IOSPACE(Resources, Index)     Resources->ResourceTable->IoResources[Index]
-#define INTERRUPT_RESOURCE(Resources, Index)    Resources->ResourceTable->MemoryResources[Index].Address
+#define INTERRUPT_IOSPACE(Resources, Index)     Resources->IoResources[Index]
+#define INTERRUPT_RESOURCE(Resources, Index)    Resources->MemoryResources[Index].Address
 
 /*
  * ACPI Conform flags
@@ -91,25 +90,24 @@ typedef struct FastInterruptResources {
 #define INTERRUPT_ACPICONFORM_FIXED           0x00000010
 
 // Interrupt register options
-#define INTERRUPT_SOFT                  0x00000001  // Interrupt is not triggered by a hardware line
-#define INTERRUPT_VECTOR                0x00000002  // Interrupt can be either values set in the Vector
-#define INTERRUPT_MSI                   0x00000004  // Interrupt uses MSI to deliver
-#define INTERRUPT_NOTSHARABLE           0x00000008  // Interrupt line can not be shared
-#define INTERRUPT_USERSPACE             0x00000010  // Send interrupt notification to process
+#define INTERRUPT_SOFT      0x00000001  // Interrupt is not triggered by a hardware line
+#define INTERRUPT_VECTOR    0x00000002  // Interrupt can be either values set in the Vector
+#define INTERRUPT_MSI       0x00000004  // Interrupt uses MSI to deliver
+#define INTERRUPT_EXCLUSIVE 0x00000008  // Interrupt line can not be shared
 
 typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
     // FastHandler is called to determine whether or not this source
     // has produced the interrupt.
-    FastInterruptResourceTable_t FastInterrupt;
+    InterruptResourceTable_t ResourceTable;
 
     // General information, note that these can change
     // after the RegisterInterruptSource, always use the value
     // in <Line> to see your allocated interrupt-line
     unsigned int AcpiConform;
-    int     Line;
-    int     Pin;
-    void*   Context;
+    int          Line;
+    int          Pin;
+    void*        Context;
 
     // If the system should choose the best available
     // between all directs, fill all unused entries with 
@@ -150,14 +148,17 @@ RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ uintptr_t          Address,
     _In_ size_t             Length,
-    _In_ unsigned int            Flags));
+    _In_ unsigned int       Flags));
 
-/* RegisterInterruptContext
- * Sets the context pointer that should be attached to any SIGINT events. */
+/**
+ * Register event descriptor that will be signalled when a fast interrupt needs additional processing
+ * @param interrupt  The interrupt descriptor that it should be bound to
+ * @param descriptor The descriptor that should be available for the interrupt
+ */
 DDKDECL(void,
-RegisterInterruptContext(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ void*              Context));
+RegisterInterruptDescriptor(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ int                descriptor));
 
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
@@ -165,7 +166,7 @@ RegisterInterruptContext(
 DDKDECL(UUId_t,
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int            Flags));
+    _In_ unsigned int       Flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */

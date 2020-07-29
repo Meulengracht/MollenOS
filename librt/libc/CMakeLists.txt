@@ -296,6 +296,7 @@ set (SOURCES_STDIO
     stdio/libc_io_net_operations.c
     stdio/libc_io_null_operations.c
     stdio/libc_io_pipe_operations.c
+    stdio/libc_io_evt_operations.c
 )
 
 set (SOURCES_STDLIB

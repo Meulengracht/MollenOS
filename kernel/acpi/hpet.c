@@ -154,8 +154,8 @@ HpReadMainCounter(
 
 InterruptStatus_t
 HpInterrupt(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+        _In_ InterruptFunctionTable_t* NotUsed,
+        _In_ void*                     Context)
 {
     size_t InterruptStatus = 0;
     int i                  = 0;
@@ -253,7 +253,7 @@ HpAllocateInterrupt(
     int i, j;
     
     memset(&HpetInterrupt, 0, sizeof(DeviceInterrupt_t));
-    HpetInterrupt.FastInterrupt.Handler = HpInterrupt;
+    HpetInterrupt.ResourceTable.Handler = HpInterrupt;
     HpetInterrupt.Context               = Timer;
     HpetInterrupt.Line                  = INTERRUPT_NONE;
     HpetInterrupt.Pin                   = INTERRUPT_NONE;

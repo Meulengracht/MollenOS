@@ -33,6 +33,7 @@
 extern void       GetModuleIdentifiers(unsigned int*, unsigned int*, unsigned int*, unsigned int*);
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
+extern OsStatus_t OnEvent(struct ioset_event* event);
 
 extern char**
 __CrtInitialize(
@@ -70,6 +71,11 @@ static void __CrtModuleMainLoop(int setIod)
     while (1) {
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
+            // Check if the driver had any IRQs registered
+            if (OnEvent(&events[i]) == OsSuccess) {
+                continue;
+            }
+
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
             }

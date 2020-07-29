@@ -106,7 +106,7 @@ add_executable (vali-core
 	interrupts_table.c
 	machine.c
 	time.c
-)
+        scheduling/userevent.c)
 
 add_dependencies (vali-core vali-platform vali-${VALI_ARCH})
 set_target_properties (

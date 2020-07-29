@@ -229,7 +229,7 @@ static int gracht_server_shutdown(void)
     }
     server_object.clients.head = NULL;
     
-    if (server_object.set_iod != -1) {
+    if (server_object.set_iod != -1 && !server_object.set_iod_provided) {
         gracht_aio_destroy(server_object.set_iod);
     }
 
@@ -352,6 +352,11 @@ int gracht_server_unregister_protocol(gracht_protocol_t* protocol)
 int gracht_server_get_dgram_iod(void)
 {
     return server_object.dgram_iod;
+}
+
+int gracht_server_get_set_iod(void)
+{
+    return server_object.set_iod;
 }
 
 // Client helpers

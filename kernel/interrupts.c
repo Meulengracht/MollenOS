@@ -133,8 +133,8 @@ static OsStatus_t
 InterruptCleanupIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Resources = &Interrupt->KernelResources;
-    OsStatus_t                    Status    = OsSuccess;
+    InterruptResourceTable_t* Resources = &Interrupt->KernelResources;
+    OsStatus_t                Status    = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Resources->IoResources[i] != NULL) {
@@ -156,9 +156,9 @@ static OsStatus_t
 InterruptResolveIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Source      = &Interrupt->Interrupt.FastInterrupt;
-    FastInterruptResourceTable_t* Destination = &Interrupt->KernelResources;
-    OsStatus_t                    Status      = OsSuccess;
+    InterruptResourceTable_t* Source      = &Interrupt->Interrupt.ResourceTable;
+    InterruptResourceTable_t* Destination = &Interrupt->KernelResources;
+    OsStatus_t                Status      = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Source->IoResources[i] != NULL) {
@@ -183,7 +183,7 @@ static OsStatus_t
 InterruptCleanupMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Resources = &Interrupt->KernelResources;
+    InterruptResourceTable_t * Resources = &Interrupt->KernelResources;
     OsStatus_t Status                       = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
@@ -210,10 +210,10 @@ static OsStatus_t
 InterruptResolveMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Source        = &Interrupt->Interrupt.FastInterrupt;
-    FastInterruptResourceTable_t* Destination   = &Interrupt->KernelResources;
-    OsStatus_t Status                           = OsSuccess;
-    uintptr_t UpdatedMapping;
+    InterruptResourceTable_t* Source      = &Interrupt->Interrupt.ResourceTable;
+    InterruptResourceTable_t* Destination = &Interrupt->KernelResources;
+    OsStatus_t                Status      = OsSuccess;
+    uintptr_t                 UpdatedMapping;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Source->MemoryResources[i].Address != 0) {
@@ -252,14 +252,14 @@ static OsStatus_t
 InterruptResolveResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Source      = &Interrupt->Interrupt.FastInterrupt;
-    FastInterruptResourceTable_t* Destination = &Interrupt->KernelResources;
-    unsigned int                       PlacementFlags;
-    unsigned int                       PageFlags;
-    OsStatus_t                    Status;
-    uintptr_t                     Virtual;
-    uintptr_t                     Offset;
-    size_t                        Length;
+    InterruptResourceTable_t * Source      = &Interrupt->Interrupt.ResourceTable;
+    InterruptResourceTable_t * Destination = &Interrupt->KernelResources;
+    unsigned int               PlacementFlags;
+    unsigned int               PageFlags;
+    OsStatus_t                 Status;
+    uintptr_t                  Virtual;
+    uintptr_t                  Offset;
+    size_t                     Length;
 
     TRACE("InterruptResolveResources()");
 
@@ -299,7 +299,7 @@ static OsStatus_t
 InterruptReleaseResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Resources = &Interrupt->KernelResources;
+    InterruptResourceTable_t * Resources = &Interrupt->KernelResources;
     OsStatus_t Status;
     uintptr_t Offset;
     size_t Length;
@@ -334,7 +334,7 @@ InterruptReleaseResources(
 UUId_t
 InterruptRegister(
     _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int            Flags)
+    _In_ unsigned int       Flags)
 {
     SystemInterrupt_t* Entry;
     UUId_t             TableIndex;
@@ -376,7 +376,7 @@ InterruptRegister(
     memcpy(&Entry->Interrupt, Interrupt, sizeof(DeviceInterrupt_t));
 
     // Check against sharing
-    if (Flags & INTERRUPT_NOTSHARABLE) {
+    if (Flags & INTERRUPT_EXCLUSIVE) {
         if (InterruptTable[TableIndex].Descriptor != NULL) {
             // We failed to gain exclusive access
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", TableIndex);
@@ -410,7 +410,7 @@ InterruptRegister(
     if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty    = 1;
-        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
+        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
     }
     else {
         // Insert and increase penalty
@@ -427,7 +427,7 @@ InterruptRegister(
     }
     IrqSpinlockRelease(&InterruptTableSyncObject);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
-        Entry->Id, Entry->Interrupt.FastInterrupt.Handler, Entry->Interrupt.Context);
+          Entry->Id, Entry->Interrupt.ResourceTable.Handler, Entry->Interrupt.Context);
     return Entry->Id;
 }
 
@@ -568,22 +568,15 @@ InterruptHandle(
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
-            Result = Entry->Interrupt.FastInterrupt.Handler(GetFastInterruptTable(), Entry->Interrupt.Context);
-            if (Result != InterruptNotHandled) {
+            Result = Entry->Interrupt.ResourceTable.Handler(GetFastInterruptTable(), Entry->Interrupt.Context);
+            if (Result == InterruptHandled) {
                 Source = Entry->Source;
                 break;
             }
         }
         else {
-            // Use the fast-handler initially
-            GetFastInterruptTable()->ResourceTable = &Entry->KernelResources;
-            Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
-            if (Result != InterruptNotHandled) {
-                // We have the InterruptHandledStop as a marker to identify
-                // when it's not neccessary to further send an interrupt notification
-                if ((Entry->Flags & INTERRUPT_USERSPACE) != 0 && Result != InterruptHandledStop) {
-                    (void)SignalSend(Entry->Thread, SIGINT, Entry->Interrupt.Context);
-                }
+            Result = Entry->KernelResources.Handler(GetFastInterruptTable(), &Entry->KernelResources);
+            if (Result == InterruptHandled) {
                 Source = Entry->Source;
                 break;
             }

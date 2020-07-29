@@ -1,6 +1,7 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
+#include <internal/_evt.h>
 #include <internal/_ipc.h>
 #include <internal/_ioset.h>
 #include <internal/_pipe.h>
@@ -39,6 +40,7 @@
 #define STDIO_HANDLE_SOCKET     3
 #define STDIO_HANDLE_IPCONTEXT  4
 #define STDIO_HANDLE_SET        5
+#define STDIO_HANDLE_EVENT      6
 
 typedef struct stdio_handle stdio_handle_t;
 
@@ -52,6 +54,7 @@ typedef struct stdio_object {
         struct ipcontext ipcontext;
         struct pipe      pipe;
         struct ioset     ioset;
+        struct evt       evt;
     } data;
 } stdio_object_t;
 
@@ -117,6 +120,7 @@ extern void stdio_get_file_operations(stdio_ops_t* ops);
 extern void stdio_get_net_operations(stdio_ops_t* ops);
 extern void stdio_get_ipc_operations(stdio_ops_t* ops);
 extern void stdio_get_set_operations(stdio_ops_t* ops);
+extern void stdio_get_evt_operations(stdio_ops_t* ops);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);

@@ -80,17 +80,48 @@
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
 typedef	void (*__sa_handler_t)(int);
-typedef void (*__sa_process_t)(int, void*);
 #endif
+
+#ifndef __SIGSET_DEFINED__
+#define __SIGSET_DEFINED__
+typedef struct sigset {
+    unsigned int mask;
+} sigset_t;
+#endif
+
 #define SIG_DFL (__sa_handler_t)0
 #define SIG_IGN (__sa_handler_t)1
 #define SIG_ERR (__sa_handler_t)-1
 
-/* We allow handlers for SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
 _CODE_BEGIN
-CRTDECL(__sa_process_t, sigprocess(int sig, __sa_process_t handler));
+
+CRTDECL(void, sigsetzero(struct sigset* sigset));
+CRTDECL(void, sigsetadd(struct sigset* sigset, int signal));
+
+/**
+ * Creates a signal descriptor that can be used to receive and handle asynchronous signals. This does however
+ * not include hardware generated signals, like SIGSEGV, SIGFPU etc
+ * @param sigset The supported signals that should be listened for
+ * @param flags  Configuration options for the descriptor
+ * @return       The descriptor that can be used to receive signals
+ */
+CRTDECL(int, signald(struct sigset* sigset, unsigned int flags));
+
+/**
+ * Install a custom signal handler for the given signal. The previous handler is returned to allow for chaining
+ * signal handlers. Only supported signals are allowed. These handlers are invoked for synchronous + hardware signals.
+ * @param sig     The signal that should be installed a handler for
+ * @param handler The handler to be invoked
+ * @return        The previous handler that was installed
+ */
 CRTDECL(__sa_handler_t, signal(int sig, __sa_handler_t handler));
-CRTDECL(int,            raise(int sig));
+
+/**
+ * Raise a synchronous signal exception, this will invoke the handler installed, or halt the program.
+ * @param sig The signal that should be invoked
+ * @return    Whether or not the signal was correctly invoked
+ */
+CRTDECL(int, raise(int sig));
 _CODE_END
 
 #endif //__SIGNAL_H__

@@ -22,18 +22,37 @@
 
 #include <event.h>
 #include <internal/_io.h>
+#include <internal/_syscalls.h>
 
-int event(unsigned int flags)
+int eventd(unsigned int initialValue, unsigned int flags)
 {
+    stdio_handle_t* ioObject;
+    int             status;
+    UUId_t          handle;
+    atomic_int*     syncAddress;
 
-}
+    if (EVT_TYPE(flags) == EVT_RESET_EVENT) {
+        initialValue = 1;
+    }
 
-int event_wait(int iod, int timeout)
-{
+    status = stdio_handle_create(-1, WX_OPEN, &ioObject);
+    if (status) {
+        return status;
+    }
 
-}
+    if (Syscall_EventCreate(initialValue, flags, &handle, &syncAddress) != OsSuccess) {
+        stdio_handle_destroy(ioObject, 0);
+        errno = ENOSYS;
+        return -1;
+    }
 
-int event_set(int iod)
-{
+    stdio_handle_set_handle(ioObject, handle);
+    stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_EVENT);
 
+    ioObject->object.data.evt.flags   = flags;
+    ioObject->object.data.evt.options = 0;
+    ioObject->object.data.evt.initialValue = initialValue;
+    ioObject->object.data.evt.sync_address = syncAddress;
+
+    return ioObject->fd;
 }

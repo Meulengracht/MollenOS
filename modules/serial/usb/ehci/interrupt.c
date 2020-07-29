@@ -22,28 +22,22 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
-#include <string.h>
 #include <stdlib.h>
 #include "../common/manager.h"
 #include "ehci.h"
 
-/* OnFastInterrupt
- * Is called for the sole purpose to determine if this source
- * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      NotUsed)
+        _In_ InterruptFunctionTable_t* InterruptTable,
+        _In_ InterruptResourceTable_t* ResourceTable)
 {
     // Variables
     EchiOperationalRegisters_t* Registers;
-    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
     reg32_t InterruptStatus;
-    _CRT_UNUSED(NotUsed);
 
     RegisterAddress    += ((EchiCapabilityRegisters_t*)RegisterAddress)->Length;
     Registers           = (EchiOperationalRegisters_t*)RegisterAddress;
@@ -57,49 +51,50 @@ OnFastInterrupt(
     // Acknowledge the interrupt by clearing
     Registers->UsbStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
+
+    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
     return InterruptHandled;
 }
 
 void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
+HciInterruptCallback(
+    _In_ UsbManagerController_t* baseController)
 {
-    EhciController_t* Controller      = (EhciController_t*)InterruptData;
-    reg32_t           ChangeBits      = (reg32_t)~0;
-    reg32_t           InterruptStatus;
+    EhciController_t* controller = (EhciController_t*)baseController;
+    reg32_t           changeBits = (reg32_t)~0UL;
+    reg32_t           interruptStatus;
 
 ProcessInterrupt:
-    InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
+    interruptStatus = atomic_exchange(&controller->Base.InterruptStatus, 0);
 
     // Transaction update, either error or completion
-    if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR | EHCI_STATUS_ASYNC_DOORBELL)) {
-        UsbManagerProcessTransfers(&Controller->Base);
+    if (interruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR | EHCI_STATUS_ASYNC_DOORBELL)) {
+        UsbManagerProcessTransfers(&controller->Base);
     }
 
     // Hub change? We should enumerate ports and detect
     // which events occured
-    if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
+    if (interruptStatus & EHCI_STATUS_PORTCHANGE) {
         // Give it ~0 if it doesn't support per-port change
-        if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
-            ChangeBits = (InterruptStatus >> 16);
+        if (controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+            changeBits = (interruptStatus >> 16);
         }
-        EhciPortScan(Controller, ChangeBits);
+        EhciPortScan(controller, changeBits);
     }
 
     // HC Fatal Error
     // Clear all queued, reset controller
-    if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
-        if (EhciQueueReset(Controller) != OsSuccess) {
+    if (interruptStatus & EHCI_STATUS_HOSTERROR) {
+        if (EhciQueueReset(controller) != OsSuccess) {
             ERROR("EHCI-Failure: Failed to reset queue after fatal error");
         }
-        if (EhciRestart(Controller) != OsSuccess) {
+        if (EhciRestart(controller) != OsSuccess) {
             ERROR("EHCI-Failure: Failed to reset controller after fatal error");
         }
     }
 
     // In case an interrupt fired during processing
-    if (atomic_load(&Controller->Base.InterruptStatus) != 0) {
+    if (atomic_load(&controller->Base.InterruptStatus) != 0) {
         goto ProcessInterrupt;
     }
 }

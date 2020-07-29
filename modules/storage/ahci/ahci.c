@@ -23,42 +23,56 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
+#include <event.h>
+#include <ioset.h>
+#include <gracht/server.h>
 #include "ahci.h"
 
 // Prototypes
-InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
+InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 OsStatus_t        AhciSetup(AhciController_t* Controller);
 
 AhciController_t*
 AhciControllerCreate(
     _In_ BusDevice_t* Device)
 {
-    AhciController_t* Controller;
+    AhciController_t* controller;
     DeviceInterrupt_t Interrupt;
     DeviceIo_t*       IoBase = NULL;
     OsStatus_t        Status;
     int               i;
 
-    Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
-    if (!Controller) {
+    controller = (AhciController_t*)malloc(sizeof(AhciController_t));
+    if (!controller) {
         return NULL;
     }
     
-    memset(Controller, 0, sizeof(AhciController_t));
-    memcpy(&Controller->Device, Device, Device->Base.Length);
-    
-    spinlock_init(&Controller->Lock, spinlock_plain);
+    memset(controller, 0, sizeof(AhciController_t));
+    memcpy(&controller->Device, Device, Device->Base.Length);
+    spinlock_init(&controller->Lock, spinlock_plain);
+    ELEMENT_INIT(&controller->header, (void*)(uintptr_t)Device->Base.Id, controller);
+
+    // Create the event descriptor used to receive irqs
+    controller->event_descriptor = eventd(0, EVT_RESET_EVENT);
+    if (controller->event_descriptor < 0) {
+        free(controller);
+        ERROR("[AhciControllerCreate] failed to create event descriptor");
+        return NULL;
+    }
+
+    // register it with the io set
+    ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
+               &(struct ioset_event) { .data.context = controller, .events = IOSETSYN });
 
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one
     for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
-        if (Controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &Controller->Device.IoSpaces[i];
+        if (controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
+            IoBase = &controller->Device.IoSpaces[i];
             break;
         }
     }
@@ -66,7 +80,7 @@ AhciControllerCreate(
     // Sanitize that we found the io-space
     if (IoBase == NULL) {
         ERROR("No memory space found for ahci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
@@ -76,43 +90,43 @@ AhciControllerCreate(
     Status = AcquireDeviceIo(IoBase); 
     if (Status != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
-    
-    Controller->IoBase = IoBase;
+
+    controller->IoBase = IoBase;
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
-    Controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
+    controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
     
     DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterFastInterruptHandler(&Interrupt, OnFastInterrupt);
+    RegisterInterruptDescriptor(&Interrupt, controller->event_descriptor);
+    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Interrupt, 
-        (uintptr_t)&Controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
+    RegisterFastInterruptMemoryResource(&Interrupt,
+                                        (uintptr_t)&controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
 
     // Register interrupt
     TRACE(" > ahci interrupt line is %u", Interrupt.Line);
-    RegisterInterruptContext(&Interrupt, Controller);
-    Controller->InterruptId = RegisterInterruptSource(&Interrupt, INTERRUPT_USERSPACE);
+    controller->InterruptId = RegisterInterruptSource(&Interrupt, 0);
 
     // Enable device
-    Status = IoctlDevice(Controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (Status != OsSuccess || Controller->InterruptId == UUID_INVALID) {
+    Status = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+                         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    if (Status != OsSuccess || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
-        UnregisterInterruptSource(Controller->InterruptId);
-        ReleaseDeviceIo(Controller->IoBase);
-        free(Controller);
+        UnregisterInterruptSource(controller->InterruptId);
+        ReleaseDeviceIo(controller->IoBase);
+        free(controller);
         return NULL;
     }
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (AhciSetup(Controller) == OsSuccess) {
-        return Controller;
+    if (AhciSetup(controller) == OsSuccess) {
+        return controller;
     }
     else {
-        AhciControllerDestroy(Controller);
+        AhciControllerDestroy(controller);
         return NULL;
     }
 }

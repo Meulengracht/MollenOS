@@ -38,8 +38,8 @@ static Pit_t PitUnit = { 0 };
 
 InterruptStatus_t
 PitInterrupt(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+        _In_ InterruptFunctionTable_t*  NotUsed,
+        _In_ void*                      Context)
 {
     // Unused
     _CRT_UNUSED(NotUsed);
@@ -75,10 +75,10 @@ PitInitialize(void)
 	Interrupt.Line                  = PIT_IRQ;
 	Interrupt.Pin                   = INTERRUPT_NONE;
 	Interrupt.Vectors[0]            = INTERRUPT_NONE;
-	Interrupt.FastInterrupt.Handler = PitInterrupt;
+	Interrupt.ResourceTable.Handler = PitInterrupt;
 	PitUnit.NsTick                  = 1000;
 
-	PitUnit.Irq = InterruptRegister(&Interrupt, INTERRUPT_NOTSHARABLE | INTERRUPT_KERNEL);
+	PitUnit.Irq = InterruptRegister(&Interrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
 	if (PitUnit.Irq != UUID_INVALID) {
 		TimersRegisterSystemTimer(PitUnit.Irq, PitUnit.NsTick, PitGetTicks, PitResetTicks);
 	}

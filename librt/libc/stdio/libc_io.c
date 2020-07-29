@@ -97,7 +97,7 @@ thrd_t thrd_current(void) {
 #include <stdlib.h>
 #include <string.h>
 
-static Collection_t stdio_objects = COLLECTION_INIT(KeyInteger);
+static Collection_t stdio_objects = COLLECTION_INIT(KeyInteger); // TODO hashtable
 static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 /* StdioIsHandleInheritable
@@ -138,8 +138,6 @@ StdioIsHandleInheritable(
     return Status;
 }
 
-/* StdioGetNumberOfInheritableHandles 
- * Retrieves the count of inheritable filedescriptor handles. This includes both pipes and files. */
 static size_t
 StdioGetNumberOfInheritableHandles(
     _In_ ProcessConfiguration_t* Configuration)
@@ -393,6 +391,9 @@ int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
         } break;
         case STDIO_HANDLE_SET: {
             stdio_get_set_operations(&handle->ops);
+        } break;
+        case STDIO_HANDLE_EVENT: {
+            stdio_get_evt_operations(&handle->ops);
         } break;
         
         default: {

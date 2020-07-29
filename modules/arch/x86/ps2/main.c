@@ -23,10 +23,11 @@
 
 #include <ddk/service.h>
 #include <ddk/utils.h>
-#include <threads.h>
+#include <ioset.h>
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <threads.h>
 
 #include "ps2.h"
 
@@ -133,7 +134,7 @@ PS2SetScanning(
         PS2SendCommand(PS2_SELECT_PORT2);
     }
 
-    if (PS2WriteData(Status)    != OsSuccess || 
+    if (PS2WriteData(Status)    != OsSuccess ||
         PS2ReadData(0)          != PS2_ACK) {
         return OsError;
     }
@@ -170,7 +171,7 @@ PS2Initialize(
 
     // No problem, last thing is to acquire the
     // io-spaces, and just return that as result
-    if (AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[0]) != OsSuccess || 
+    if (AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[0]) != OsSuccess ||
         AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[1]) != OsSuccess) {
         ERROR(" > failed to acquire ps2 io spaces");
         return OsError;
@@ -179,7 +180,7 @@ PS2Initialize(
     // Data is at 0x60 - the first space, Command is at 0x64, the second space
     Ps2Controller->Data    = &Ps2Controller->Device.IoSpaces[0];
     Ps2Controller->Command = &Ps2Controller->Device.IoSpaces[1];
-    
+
     // Disable Devices
     PS2SendCommand(PS2_DISABLE_PORT1);
     PS2SendCommand(PS2_DISABLE_PORT2);
@@ -222,21 +223,6 @@ PS2Initialize(
     return OsSuccess;
 }
 
-void
-OnInterrupt(
-    _In_     int   Signal,
-    _In_Opt_ void* InterruptData)
-{
-    PS2Port_t* Port = (PS2Port_t*)InterruptData;
-    if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1 ||
-        Port->Signature == 0xAB83) {
-        PS2KeyboardInterrupt(Port);
-    }
-    else if (Port->Signature != 0xFFFFFFFF) {
-        PS2MouseInterrupt(Port);
-    }
-}
-
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     unsigned int* class, unsigned int* subClass)
 {
@@ -249,22 +235,19 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
 OsStatus_t
 OnLoad(void)
 {
-    // Install interrupt handler for signal
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Install supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_input_server_protocol);
-    
+
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
     if (!Ps2Controller) {
         return OsOutOfMemory;
     }
-    
+
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
     Ps2Controller->Device.Base.Id = UUID_INVALID;
-    
+
     if (WaitForNetService(1000) != OsSuccess) {
         ERROR(" => Failed to start ps2 driver, as net service never became available.");
         return OsTimeout;
@@ -275,9 +258,6 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-    // Restore default interrupt signal handler
-    signal(SIGINT, SIG_DFL);
-    
     // Destroy the io-spaces we created
     if (Ps2Controller->Command != NULL) {
         ReleaseDeviceIo(Ps2Controller->Command);
@@ -290,6 +270,27 @@ OnUnload(void)
     return OsSuccess;
 }
 
+OsStatus_t OnEvent(struct ioset_event* event)
+{
+    PS2Port_t*   port = event->data.context;
+    unsigned int value;
+
+    if (port) {
+        if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+            return OsError;
+        }
+
+        if (SIGNATURE_IS_KEYBOARD(port->Signature)) {
+            PS2KeyboardInterrupt(port);
+        }
+        else if (SIGNATURE_IS_MOUSE(port->Signature)) {
+            PS2MouseInterrupt(port);
+        }
+        return OsSuccess;
+    }
+    return OsDoesNotExist;
+}
+
 OsStatus_t
 OnRegister(
     _In_ Device_t* Device)
@@ -297,7 +298,7 @@ OnRegister(
     OsStatus_t Result = OsSuccess;
     PS2Port_t *Port;
 
-    // First register call is the ps2-controller and all sequent calls here is ps2-devices 
+    // First register call is the ps2-controller and all sequent calls here is ps2-devices
     // So install the contract as soon as it arrives
     if (Ps2Controller->Device.Base.Id == UUID_INVALID) {
         return PS2Initialize(Device);
@@ -314,7 +315,7 @@ OnRegister(
         return OsError;
     }
 
-    // Ok .. It's a new device 
+    // Ok .. It's a new device
     // - What kind of device?
     if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
         Result = PS2KeyboardInitialize(Ps2Controller, Port->Index, 1);

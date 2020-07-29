@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,119 +16,422 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * - Generic Hash Table Implementation
- *  The hash-table uses chained indices to solve the possibility of collision.
- *  The hash table runs in O(1 + a) time, where a = size/capacity assuming
- *  optimal hash-distribution. All list sizes should be <a>
+ * - Open addressed hashtable implementation using round robin for balancing.
  */
 
-#include <ds/hashtable.h>
+//#define __DS_TESTPROGRAM
+
 #include <assert.h>
+#include <ds/hashtable.h>
+#include <errno.h>
 #include <string.h>
 
-static size_t 
-GetDefaultHashValue(const char* Value, size_t Length)
+#ifdef __DS_TESTPROGRAM
+#include <stdlib.h>
+#include <stdio.h>
+#define dsalloc malloc
+#define dsfree  free
+#define dstrace printf
+#else
+#include <ds/ds.h>
+#endif
+
+struct hashtable_element {
+    uint16_t probeCount;
+    uint64_t hash;
+    uint8_t  payload[];
+};
+
+#define SHOULD_GROW(hashtable)        (hashtable->element_count == hashtable->grow_count)
+#define SHOULD_SHRINK(hashtable)      (hashtable->element_count == hashtable->shrink_count)
+
+#define GET_ELEMENT_ARRAY(hashtable, elements, index) (struct hashtable_element*)&((uint8_t*)elements)[index * hashtable->element_size]
+#define GET_ELEMENT(hashtable, index)                 GET_ELEMENT_ARRAY(hashtable, hashtable->elements, index)
+
+static int  hashtable_resize(hashtable_t* hashtable, size_t newCapacity);
+static void hashtable_remove_and_bump(hashtable_t* hashtable, struct hashtable_element* element, size_t index);
+
+int hashtable_construct(
+    _In_ hashtable_t*     hashtable,
+    _In_ size_t           requestCapacity,
+    _In_ size_t           elementSize,
+    _In_ hashtable_hashfn hashFunction,
+    _In_ hashtable_cmpfn  cmpFunction)
 {
+    size_t initialCapacity  = HASHTABLE_MINIMUM_CAPACITY;
+    size_t totalElementSize = elementSize + sizeof(struct hashtable_element);
+    void*  elementStorage;
+    void*  swapElement;
+
+    if (!hashtable || !hashFunction || !cmpFunction) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // select initial capacity
+    if (requestCapacity > initialCapacity) {
+        // Make sure we have a power of two
+        while (initialCapacity < requestCapacity) {
+            initialCapacity <<= 1;
+        }
+    }
+
+    elementStorage = dsalloc(initialCapacity * totalElementSize);
+    if (!elementStorage) {
+        errno = ENOMEM;
+        return -1;
+    }
+    memset(elementStorage, 0, initialCapacity * totalElementSize);
+
+    swapElement = dsalloc(totalElementSize);
+    if (!swapElement) {
+        dsfree(elementStorage);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    hashtable->capacity      = initialCapacity;
+    hashtable->element_count = 0;
+    hashtable->grow_count    = (initialCapacity * HASHTABLE_LOADFACTOR_GROW) / 100;
+    hashtable->shrink_count  = (initialCapacity * HASHTABLE_LOADFACTOR_SHRINK) / 100;
+    hashtable->element_size  = totalElementSize;
+    hashtable->elements      = elementStorage;
+    hashtable->swap          = swapElement;
+    hashtable->hash          = hashFunction;
+    hashtable->cmp           = cmpFunction;
     return 0;
 }
 
-/* HashTableCreate
- * Initializes a new hash table structure of the desired capacity, and load factor.
- * The load factor defaults to HASHTABLE_DEFAULT_LOADFACTOR. */
-HashTable_t*
-HashTableCreate(
-    _In_ size_t Capacity,
-    _In_ size_t LoadFactor)
+void hashtable_destroy(
+    _In_ hashtable_t* hashtable)
 {
-    HashTable_t* HashTable = (HashTable_t*)dsalloc(sizeof(HashTable_t));
-    assert(HashTable != NULL);
-
-    HashTable->Array = (Collection_t*)dsalloc(sizeof(Collection_t) * Capacity);
-    assert(HashTable->Array != NULL);
-    memset(HashTable->Array, 0, sizeof(sizeof(Collection_t) * Capacity));
-    for (size_t i = 0; i < Capacity; i++) {
-        HashTable->Array[i].KeyType = KeyId;
+    if (!hashtable) {
+        return;
     }
 
-    HashTable->Size         = 0;
-    HashTable->Capacity     = Capacity;
-    HashTable->LoadFactor   = LoadFactor;
-    HashTable->GetHashCode  = GetDefaultHashValue;
-	return HashTable;
-}
-
-/* HashTableDestroy
- * Cleans up all resources associated with the hashtable. This does not clear up the values
- * registered in the hash-table. */
-void
-HashTableDestroy(
-    _In_ HashTable_t* HashTable)
-{
-    assert(HashTable != NULL);
-    for (size_t i = 0; i < HashTable->Capacity; i++) {
-        CollectionClear(&HashTable->Array[i]);
+    if (hashtable->swap) {
+        dsfree(hashtable->swap);
     }
-    dsfree(HashTable->Array);
-    dsfree(HashTable);
-}
 
-/* HashTableSetHashFunction
- * Overrides the default hash function with a user provided hash function. To
- * reset this set with NULL. */
-void
-HashTableSetHashFunction(
-    _In_ HashTable_t*   HashTable,
-    _In_ HashFn         Fn)
-{
-    assert(HashTable != NULL);
-    HashTable->GetHashCode = Fn;
-}
-
-/* HashTableInsert
- * Inserts or overwrites the existing key in the hashtable. */
-void
-HashTableInsert(
-    _In_ HashTable_t*   HashTable,
-    _In_ DataKey_t      Key,
-    _In_ void*          Data)
-{
-    assert(HashTable != NULL);
-    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
-    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
-    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
-    CollectionItem_t*   Existing    = CollectionGetNodeByKey(Array, ArrayKey, 0);
-    if (Existing == NULL) {
-        CollectionAppend(Array, CollectionCreateNode(ArrayKey, Data));
-    }
-    else {
-        Existing->Data = Data;
+    if (hashtable->elements) {
+        dsfree(hashtable->elements);
     }
 }
 
-/* HashTableRemove 
- * Removes the entry with the matching key from the hashtable. */
-void
-HashTableRemove(
-    _In_ HashTable_t*   HashTable,
-    _In_ DataKey_t      Key)
+void* hashtable_set(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  element)
 {
-    assert(HashTable != NULL);
-    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
-    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
-    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
-    CollectionRemoveByKey(Array, ArrayKey);
+    if (!hashtable) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    uint8_t                   elementBuffer[hashtable->element_size];
+    struct hashtable_element* iterElement = (struct hashtable_element*)&elementBuffer[0];
+    size_t                    index;
+
+    // Only resize on entry - that way we avoid any unneccessary resizing
+    if (SHOULD_GROW(hashtable) && hashtable_resize(hashtable, hashtable->capacity << 1)) {
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    // build an intermediate object containing our new element
+    iterElement->probeCount = 1;
+    iterElement->hash       = hashtable->hash(element);
+    memcpy(&iterElement->payload[0], element, hashtable->element_size - sizeof(struct hashtable_element));
+
+    index = iterElement->hash & (hashtable->capacity - 1);
+    while (1) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, index);
+        
+        // few cases to consider when doing this, either the slot is not taken or it is
+        if (!current->probeCount) {
+            memcpy(current, iterElement, hashtable->element_size);
+            hashtable->element_count++;
+            return NULL;
+        }
+        else {
+            // If the slot is taken, we either replace it or we move fit in between
+            // Just because something shares hash these is no guarantee that it's an element we want
+            // to replace - instead let the user decide. Another strategy here is to use double hashing
+            // and try to trust that
+            if (current->hash == iterElement->hash &&
+                !hashtable->cmp(&current->payload[0], &iterElement->payload[0])) {
+                memcpy(hashtable->swap, current, hashtable->element_size);
+                memcpy(current, iterElement, hashtable->element_size);
+                return &((struct hashtable_element*)hashtable->swap)->payload[0];
+            }
+
+            // ok so we instead insert it here if our probe count is lower, we should not stop
+            // the iteration though, the element we swap out must be inserted again at the next
+            // probe location, and we must continue this charade untill no more elements are displaced
+            if (current->probeCount < iterElement->probeCount) {
+                memcpy(hashtable->swap, current, hashtable->element_size);
+                memcpy(current, iterElement, hashtable->element_size);
+                memcpy(iterElement, hashtable->swap, hashtable->element_size);
+            }
+        }
+
+        iterElement->probeCount++;
+        index = (index + 1) & (hashtable->capacity - 1);
+    }
+    return NULL;
 }
 
-/* HashTableGetValue
- * Retrieves the data associated with the given key from the hashtable */
-void*
-HashTableGetValue(
-    _In_ HashTable_t*   HashTable,
-    _In_ DataKey_t      Key)
+void* hashtable_get(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  key)
 {
-    assert(HashTable != NULL);
-    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
-    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
-    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
-	return CollectionGetDataByKey(Array, ArrayKey, 0);
+    uint64_t hash;
+    size_t   index;
+
+    if (!hashtable) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    hash  = hashtable->hash(key);
+    index = hash & (hashtable->capacity - 1);
+    while (1) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, index);
+        
+        // termination condition
+        if (!current->probeCount) {
+            errno = ENOENT;
+            return NULL;
+        }
+
+        // both hash and compare must match
+        if (current->hash == hash && !hashtable->cmp(&current->payload[0], key)) {
+            return &current->payload[0];
+        }
+
+        index = (index + 1) & (hashtable->capacity - 1);
+    }
+    return NULL;
 }
+
+void* hashtable_remove(
+    _In_ hashtable_t* hashtable,
+    _In_ const void*  key)
+{
+    uint64_t hash;
+    size_t   index;
+
+    if (!hashtable) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    // Only resize on entry to avoid any unncessary resizes
+    if (SHOULD_SHRINK(hashtable) && hashtable_resize(hashtable, hashtable->capacity >> 1)) {
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    hash  = hashtable->hash(key);
+    index = hash & (hashtable->capacity - 1);
+    while (1) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, index);
+
+        // Does the key event exist, otherwise exit
+        if (!current->probeCount) {
+            errno = ENOENT;
+            return NULL;
+        }
+
+        if (current->hash == hash && !hashtable->cmp(&current->payload[0], key)) {
+            hashtable_remove_and_bump(hashtable, current, index);
+            return &((struct hashtable_element*)hashtable->swap)->payload[0];
+        }
+
+        index = (index + 1) & (hashtable->capacity - 1);
+    }
+    return NULL;
+}
+
+void hashtable_enumerate(
+    _In_ hashtable_t*     hashtable,
+    _In_ hashtable_enumfn enumFunction,
+    _In_ void*            context)
+{
+    size_t i;
+
+    if (!hashtable || !enumFunction) {
+        errno = EINVAL;
+        return;
+    }
+
+    for (i = 0; i < hashtable->capacity; i++) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, i);
+        if (current->probeCount) {
+            enumFunction(i, &current->payload[0], context);
+        }
+    }
+}
+
+static void hashtable_remove_and_bump(
+    _In_ hashtable_t*              hashtable,
+    _In_ struct hashtable_element* element,
+    _In_ size_t                    index)
+{
+    struct hashtable_element* previous = element;
+
+    // Remove is a little bit more extensive, we have to bump up all elements that
+    // share the hash
+    memcpy(hashtable->swap, element, hashtable->element_size);
+    element->probeCount = 0;
+
+    index = (index + 1) & (hashtable->capacity - 1);
+    while (1) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, index);
+        if (current->probeCount <= 1) {
+            // this element is the first in a new chain or a free element
+            break;
+        }
+        
+        // reduce the probe count and move it one up
+        current->probeCount--;
+        memcpy(previous, current, hashtable->element_size);
+        
+        // store next space and move to next index
+        previous = current;
+        index    = (index + 1) & (hashtable->capacity - 1);
+    }
+
+    hashtable->element_count--;
+}
+
+static int hashtable_resize(
+    _In_ hashtable_t* hashtable,
+    _In_ size_t       newCapacity)
+{
+    size_t updatedIndex;
+    void*  resizedStorage;
+    int    i;
+
+    // potentially there can be a too big resize - but practically very unlikely...
+    if (newCapacity < HASHTABLE_MINIMUM_CAPACITY) {
+        return 0; // ignore resize
+    }
+
+    resizedStorage = dsalloc(newCapacity * hashtable->element_size);
+    if (!resizedStorage) {
+        errno = ENOMEM;
+        return -1;
+    }
+    
+    // transfer objects and reset their probeCount
+    memset(resizedStorage, 0, newCapacity * hashtable->element_size);
+    for (i = 0; i < hashtable->capacity; i++) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, i);
+        struct hashtable_element* newCurrent;
+        if (current->probeCount) {
+            current->probeCount = 1;
+            updatedIndex        = current->hash & (newCapacity - 1);
+            
+            while (1) {
+                newCurrent = GET_ELEMENT_ARRAY(hashtable, resizedStorage, updatedIndex);
+                if (!newCurrent->probeCount) {
+                    memcpy(newCurrent, current, hashtable->element_size);
+                    break;
+                }
+                else {
+                    if (newCurrent->probeCount < current->probeCount) {
+                        memcpy(hashtable->swap, newCurrent, hashtable->element_size);
+                        memcpy(newCurrent, current, hashtable->element_size);
+                        memcpy(current, hashtable->swap, hashtable->element_size);
+                    }
+                }
+
+                current->probeCount++;
+                updatedIndex = (updatedIndex + 1) & (newCapacity - 1);
+            }
+        }
+    }
+
+    dsfree(hashtable->elements);
+
+    hashtable->elements      = resizedStorage;
+    hashtable->capacity      = newCapacity;
+    hashtable->grow_count    = (newCapacity * HASHTABLE_LOADFACTOR_GROW) / 100;
+    hashtable->shrink_count  = (newCapacity * HASHTABLE_LOADFACTOR_SHRINK) / 100;
+
+    return 0;
+}
+
+#ifdef __DS_TESTPROGRAM
+#include "hash_sip.c"
+
+struct transaction {
+    int    id;
+    double amount;
+};
+
+static uint8_t hashKey[16] = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
+
+uint64_t test_hash(const void* transactionPointer)
+{
+    const struct transaction* xaction = transactionPointer;
+    return siphash_64((const uint8_t*)&xaction->id, sizeof(int), &hashKey[0]);
+}
+
+int test_cmp(const void* transactionPointer1, const void* transactionPointer2)
+{
+    const struct transaction* xaction1 = transactionPointer1;
+    const struct transaction* xaction2 = transactionPointer2;
+    return xaction1->id == xaction2->id ? 0 : 1;
+}
+
+int main()
+{
+    struct transaction* pointer;
+    hashtable_t         testTable;
+    int                 result;
+    int                 i;
+
+    dstrace("constructing table\n");
+    result = hashtable_construct(&testTable, 0, sizeof(struct transaction), test_hash, test_cmp);
+    if (result) {
+        dstrace("hashtable_test: construction failed with: %i\n", errno);
+        return result;
+    }
+
+    dstrace("adding elements to table\n");
+    for (i = 0; i < 500; i++) {
+        struct transaction xaction = {
+            .id = i,
+            .amount = (double)(i * 14)
+        };
+        hashtable_set(&testTable, &xaction);
+    }
+
+    dstrace("retrieving test element from table\n");
+    pointer = hashtable_get(&testTable, &(struct transaction){ .id = 250 });
+    if (!pointer) {
+        dstrace("hashtable_test: the insert with id 250 failed, could not retrieve element\n");
+        return result;
+    }
+    
+    dstrace("found element with id 250: %f\n", pointer->amount);
+
+    
+    dstrace("removing elements from table\n");
+    for (i = 0; i < 500; i += 4) {
+        hashtable_remove(&testTable, &(struct transaction){ .id = i });
+    }
+
+    dstrace("retrieving test element from table\n");
+    pointer = hashtable_get(&testTable, &(struct transaction){ .id = 133 });
+    if (!pointer) {
+        dstrace("hashtable_test: the insert with id 133 failed, could not retrieve element\n");
+        return result;
+    }
+    
+    dstrace("found element with id 133: %f\n", pointer->amount);
+    return 0;
+}
+
+#endif

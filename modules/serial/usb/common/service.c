@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ioset.h>
 #include "hci.h"
 #include <os/mollenos.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@ static gracht_protocol_function_t ctt_driver_callbacks[1] = {
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 #include <ctt_usbhost_protocol_server.h>
+#include <io.h>
 
 extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
 extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
@@ -59,13 +61,9 @@ static gracht_protocol_function_t ctt_usbhost_callbacks[7] = {
 };
 DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 7);
 
-extern void OnInterrupt(int, void*);
-
 OsStatus_t
 OnLoad(void)
 {
-    sigprocess(SIGINT, OnInterrupt);
-    
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_usbhost_server_protocol);
@@ -76,8 +74,25 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-    signal(SIGINT, SIG_DFL);
-    return UsbManagerDestroy();
+    UsbManagerDestroy();
+    return OsSuccess;
+}
+
+OsStatus_t OnEvent(struct ioset_event* event)
+{
+    UsbManagerController_t* controller = event->data.context;
+    unsigned int            value;
+
+    if (!controller) {
+        return OsDoesNotExist;
+    }
+
+    if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+        return OsError;
+    }
+
+    HciInterruptCallback(controller);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -91,9 +106,7 @@ OnRegister(
     if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
         return OsError;
     }
-    else {
-        return OsSuccess;
-    }
+    return OsSuccess;
 }
 
 void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)

@@ -22,16 +22,10 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
-#include <os/mollenos.h>
-#include <ddk/utils.h>
-#include "ohci.h"
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
 #include <assert.h>
+#include <ddk/utils.h>
+#include <os/mollenos.h>
+#include "ohci.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>

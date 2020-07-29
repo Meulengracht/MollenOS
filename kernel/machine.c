@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <threading.h>
 #include <timers.h>
+#include <userevent.h>
 
 #ifdef __OSCONFIG_TEST_KERNEL
 extern void StartTestingPhase(void);
@@ -184,6 +185,9 @@ InitializeMachine(
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif
+
+    // Initialize all userspace subsystems here
+    UserEventInitialize();
 
     // Either of three things happen, testing phase can begin, we can enter
     // debug console or last option is normal operation.

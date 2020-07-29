@@ -33,7 +33,8 @@ typedef enum HandleType {
     HandleTypeMemorySpace,
     HandleTypeMemoryRegion,
     HandleTypeThread,
-    HandleTypeIpcContext
+    HandleTypeIpcContext,
+    HandleTypeUserEvent
 } HandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);

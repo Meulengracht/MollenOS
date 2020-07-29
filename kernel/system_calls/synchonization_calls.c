@@ -25,30 +25,36 @@
 #include <internal/_utils.h>
 #include <os/osdefs.h>
 #include <futex.h>
+#include <userevent.h>
 
 OsStatus_t
 ScFutexWait(
-    _In_ FutexParameters_t* Parameters)
+    _In_ FutexParameters_t* parameters)
 {
     // Two version of wait
-    if (Parameters->_flags & FUTEX_WAIT_OP) {
-        return FutexWaitOperation(Parameters->_futex0, Parameters->_val0,
-            Parameters->_futex1, Parameters->_val1, Parameters->_val2,
-            Parameters->_flags, Parameters->_timeout);
+    if (parameters->_flags & FUTEX_WAIT_OP) {
+        return FutexWaitOperation(parameters->_futex0, parameters->_val0,
+                                  parameters->_futex1, parameters->_val1, parameters->_val2,
+                                  parameters->_flags, parameters->_timeout);
     }
-    return FutexWait(Parameters->_futex0, Parameters->_val0, Parameters->_flags,
-        Parameters->_timeout);
+    return FutexWait(parameters->_futex0, parameters->_val0, parameters->_flags,
+                     parameters->_timeout);
 }
 
 OsStatus_t
 ScFutexWake(
-    _In_ FutexParameters_t* Parameters)
+    _In_ FutexParameters_t* parameters)
 {
     // Also two versions of wake
-    if (Parameters->_flags & FUTEX_WAKE_OP) {
-        return FutexWakeOperation(Parameters->_futex0, Parameters->_val0,
-            Parameters->_futex1, Parameters->_val1, Parameters->_val2,
-            Parameters->_flags);
+    if (parameters->_flags & FUTEX_WAKE_OP) {
+        return FutexWakeOperation(parameters->_futex0, parameters->_val0,
+                                  parameters->_futex1, parameters->_val1, parameters->_val2,
+                                  parameters->_flags);
     }
-    return FutexWake(Parameters->_futex0, Parameters->_val0, Parameters->_flags);
+    return FutexWake(parameters->_futex0, parameters->_val0, parameters->_flags);
+}
+
+OsStatus_t ScEventCreate(unsigned int initialValue, unsigned int flags, UUId_t* handleOut, atomic_int** syncAddressOut)
+{
+    return UserEventCreate(initialValue, flags, handleOut, syncAddressOut);
 }

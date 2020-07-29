@@ -23,7 +23,7 @@
 
 #include <ddk/storage.h>
 #include <ddk/utils.h>
-#include <os/mollenos.h>
+#include <ioset.h>
 #include "msd.h"
 #include <string.h>
 #include <stdlib.h>
@@ -90,6 +90,11 @@ OnUnload(void)
 {
     list_clear(&Devices, DestroyElement, NULL);
     return UsbCleanup();
+}
+
+OsStatus_t OnEvent(struct ioset_event* event)
+{
+    return OsNotSupported;
 }
 
 OsStatus_t

@@ -170,9 +170,8 @@ HciQueueTransferGeneric(
 {
     EhciQueueHead_t*  EndpointDescriptor = NULL;
     EhciController_t* Controller;
-    DataKey_t         Key;
 
-    Controller       = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Controller       = (EhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status = TransferNotProcessed;
 
     // Step 1 - Allocate queue head
@@ -195,9 +194,8 @@ HciQueueTransferGeneric(
     }
 
     // Store transaction in queue if it's not there already
-    Key.Value.Integer = (int)Transfer->Id;
-    if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
-        CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
+    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
+        list_append(&Controller->Base.TransactionList, &Transfer->header);
     }
 
     // If it fails to queue up => restore toggle
