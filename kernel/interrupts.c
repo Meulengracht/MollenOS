@@ -569,17 +569,14 @@ InterruptHandle(
     while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
             Result = Entry->Interrupt.ResourceTable.Handler(GetFastInterruptTable(), Entry->Interrupt.Context);
-            if (Result == InterruptHandled) {
-                Source = Entry->Source;
-                break;
-            }
         }
         else {
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), &Entry->KernelResources);
-            if (Result == InterruptHandled) {
-                Source = Entry->Source;
-                break;
-            }
+        }
+
+        if (Result == InterruptHandled) {
+            Source = Entry->Source;
+            break;
         }
         Entry = Entry->Link;
     }
