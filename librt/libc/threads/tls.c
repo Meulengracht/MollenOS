@@ -48,9 +48,6 @@
 #define TLS_ATEXIT_CXA              1
 #define TLS_ATEXIT_THREAD_CXA       2
 
-/* TlsThreadInstance (Private)
- * Contains a thread-specific storage for a given process-key and a 
- * thread-specific destructor. */
 typedef struct TlsThreadInstance {
     CollectionItem_t    ListHeader;
     tss_t               Key;
@@ -58,9 +55,6 @@ typedef struct TlsThreadInstance {
     tss_dtor_t          Destructor;
 } TlsThreadInstance_t;
 
-/* _TlsAtExit (Private)
- * Implements both per-process and per-thread at-exit functionality. Can be
- * invoked either by a thread closing down or by either abort()/exit()/quickexit() */
 typedef struct TlsAtExit {
     CollectionItem_t    ListHeader;
     int                 Type;
@@ -72,10 +66,6 @@ typedef struct TlsAtExit {
     } AtExit;
 } TlsAtExit_t;
 
-/* TlsProcessInstance (Private)
- * Per-process TLS data that stores the
- * allocated keys and their desctructors. 
- * Also keeps a list of tls-entries for threads */
 typedef struct TlsProcessInstance {
     int             Keys[TLS_MAX_KEYS];
     tss_dtor_t      Dss[TLS_MAX_KEYS];

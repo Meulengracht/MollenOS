@@ -280,10 +280,11 @@ PS2PortInitialize(
 
     TRACE("[PS2PortInitialize] %i", port->Index);
 
-    // Initialize some variables for the port
+    // Initialize some variables for the port, this is essentially 
+    // the same init as DeviceInterruptInitialize
     port->Interrupt.AcpiConform = 0;
     port->Interrupt.Pin         = INTERRUPT_NONE;
-    port->Interrupt.Vectors[0] = INTERRUPT_NONE;
+    port->Interrupt.Vectors[0]  = INTERRUPT_NONE;
     if (port->Index == 0) {
         port->Interrupt.Line = PS2_PORT1_IRQ;
     }
@@ -291,7 +292,7 @@ PS2PortInitialize(
         port->Interrupt.Line = PS2_PORT2_IRQ;
     }
 
-    port->event_descriptor = eventd((size_t)port, EVT_RESET_EVENT);
+    port->event_descriptor = eventd(0, EVT_RESET_EVENT);
     if (port->event_descriptor <= 0) {
         ERROR("[PS2PortInitialize] eventd failed %i", errno);
         return OsError;
@@ -302,8 +303,8 @@ PS2PortInitialize(
             &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
 
     // Initialize interrupt resources
-    RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);
     RegisterInterruptDescriptor(&port->Interrupt, port->event_descriptor);
+    RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);
 
     // Start out by doing an interface
     // test on the given port

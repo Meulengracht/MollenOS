@@ -272,10 +272,10 @@ OnUnload(void)
 
 OsStatus_t OnEvent(struct ioset_event* event)
 {
-    PS2Port_t*   port = event->data.context;
-    unsigned int value;
+    if (event->events & IOSETSYN) {
+        PS2Port_t*   port = event->data.context;
+        unsigned int value;
 
-    if (port) {
         if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
             return OsError;
         }

@@ -33,6 +33,7 @@
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
+extern void StdSoInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
@@ -59,6 +60,8 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     StdioInitialize();
     TRACE("[InitializeProcess] initializing stdsig");
     StdSignalInitialize();
+    TRACE("[InitializeProcess] initializing so");
+    StdSoInitialize();
 
     // Create the ipc client
     TRACE("[InitializeProcess] creating rpc link");

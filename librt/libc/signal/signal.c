@@ -211,7 +211,7 @@ int signald(struct sigset* sigset, unsigned int flags)
     // @todo we need to build the protocol functions in process manager
     // signal_queue_create
     // signal_queue_post
-    // signal_queue_wait
+    // signal_queue_wait [implemented as pipe_read]
     // signal_queue_destroy
 
     return 0;

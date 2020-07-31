@@ -80,19 +80,19 @@ OnUnload(void)
 
 OsStatus_t OnEvent(struct ioset_event* event)
 {
-    UsbManagerController_t* controller = event->data.context;
-    unsigned int            value;
+    if (event->events & IOSETSYN) {
+        UsbManagerController_t* controller = event->data.context;
+        unsigned int            value;
 
-    if (!controller) {
-        return OsDoesNotExist;
+        if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+            return OsError;
+        }
+
+        HciInterruptCallback(controller);
+        return OsSuccess;
     }
 
-    if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
-        return OsError;
-    }
-
-    HciInterruptCallback(controller);
-    return OsSuccess;
+    return OsDoesNotExist;
 }
 
 OsStatus_t
