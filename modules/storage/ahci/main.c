@@ -154,19 +154,18 @@ OnUnload(void)
 
 OsStatus_t OnEvent(struct ioset_event* event)
 {
-    AhciController_t* controller = event->data.context;
-    unsigned int      value;
+    if (event->events & IOSETSYN) {
+        AhciController_t* controller = event->data.context;
+        unsigned int      value;
+        
+        if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+            return OsError;
+        }
 
-    if (!controller) {
-        return OsDoesNotExist;
+        OnInterrupt(controller);
+        return OsSuccess;
     }
-
-    if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
-        return OsError;
-    }
-
-    OnInterrupt(controller);
-    return OsSuccess;
+    return OsDoesNotExist;
 }
 
 OsStatus_t

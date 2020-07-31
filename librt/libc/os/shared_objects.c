@@ -23,7 +23,7 @@
  */
 
 #include <ctype.h>
-#include <ds/collection.h>
+#include <ds/hashtable.h>
 #include <ds/mstring.h>
 #include <errno.h>
 #include <internal/_ipc.h>
@@ -33,81 +33,95 @@
 #include <os/sharedobject.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <threads.h>
 
-typedef struct LibraryItem {
-    CollectionItem_t Header;
-    Handle_t         Handle;
-    int              References;
-} LibraryItem_t;
+typedef struct library_element {
+    const char* path;
+    atomic_int* references;
+    Handle_t    handle;
+};
+
+static uint64_t so_hash(const void* element);
+static int      so_cmp(const void* lh, const void* rh);
 
 typedef void (*SOInitializer_t)(int);
-static Collection_t LoadedLibraries = COLLECTION_INIT(KeyId);
 
-static size_t SharedObjectHash(const char *String) {
-	uint8_t* Pointer    = (uint8_t*)String;
-	size_t Hash         = 5381;
-	int Character       = 0;
-	if (String == NULL) {
-        return 0;
-    }
-	while ((Character = tolower(*Pointer++)) != 0)
-		Hash = ((Hash << 5) + Hash) + Character; /* hash * 33 + c */
-	return Hash;
+static hashtable_t libraries;
+static mtx_t       librariesLock;
+
+void
+StdSoInitialize(void)
+{
+    hashtable_construct(&libraries, 0, sizeof(struct library_element), so_hash, so_cmp);
+    mtx_init(&librariesLock);
 }
 
 Handle_t 
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
-    SOInitializer_t Initializer = NULL;
-    LibraryItem_t*  Library     = NULL;
-    Handle_t        Result      = HANDLE_INVALID;
-    DataKey_t       Key         = { .Value.Id = SharedObjectHash(SharedObject) };
-    OsStatus_t      Status      = OsSuccess;
+    SOInitializer_t          Initializer;
+    struct library_element*  library;
+    Handle_t                 handle = HANDLE_INVALID;
+    OsStatus_t               Status = OsSuccess;
 
     // Special case
     if (SharedObject == NULL) {
         return HANDLE_GLOBAL;
     }
 
-    Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
-    if (Library == NULL) {
-        if (IsProcessModule()) {
-            Status = Syscall_LibraryLoad(SharedObject, &Result);
-        }
-        else {
-            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-            svc_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-            svc_library_load_result(GetGrachtClient(), &msg.base, &Status, &Result);
-        }
-
-        if (Status == OsSuccess && Result != HANDLE_INVALID) {
-            Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
-            if (Library == NULL) {
-                _set_errno(ENOMEM);
-                return HANDLE_INVALID;
-            }
-            memset(Library, 0, sizeof(LibraryItem_t));
-            
-            Library->Header.Key.Value.Id = Key.Value.Id;
-            Library->Handle              = Result;
-            CollectionAppend(&LoadedLibraries, (CollectionItem_t*)Library);
-        }
+    mtx_lock(&librariesLock);
+    library = hashtable_get(&libraries, &(struct library_element) { .path = SharedObject });
+    if (library) {
+        atomic_fetch_and_add(library->references, 1);
+        handle = Library->Handle;
+        mtx_unlock(&librariesLock);
+        return handle;
     }
 
-    if (Library != NULL) {
-        Library->References++;
-        if (Library->References == 1) {
-            Initializer = (SOInitializer_t)SharedObjectGetFunction(Library->Handle, "__CrtLibraryEntry");
-            if (Initializer != NULL) {
-                Initializer(DLL_ACTION_INITIALIZE);
-            }
-        }
-        Result = Library->Handle;
+    if (IsProcessModule()) {
+        Status = Syscall_LibraryLoad(SharedObject, &handle);
     }
+    else {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+        svc_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+        svc_library_load_result(GetGrachtClient(), &msg.base, &Status, &handle);
+    }
+
+    if (Status == OsSuccess && handle != HANDLE_INVALID) {
+        struct library_element element;
+        element->references = (atomic_int*)malloc(sizeof(atomic_int));
+        if (!element->references) {
+            _set_errno(ENOMEM);
+            return HANDLE_INVALID;
+        }
+        
+        element.path = strdup(SharedObject);
+        if (!element.path) {
+            free(element->references);
+            _set_errno(ENOMEM);
+            return HANDLE_INVALID;
+        }
+
+        element.handle = handle;
+        atomic_store(element.references, 1);
+        hashtable_set(&libraries, &element);
+        mtx_unlock(&librariesLock);
+        
+        // run initializer
+        Initializer = (SOInitializer_t)SharedObjectGetFunction(handle, "__CrtLibraryEntry");
+        if (Initializer != NULL) {
+            Initializer(DLL_ACTION_INITIALIZE);
+        }
+    }
+    else {
+        mtx_unlock(&librariesLock);
+    }
+
     OsStatusToErrno(Status);
-    return Result;
+    return handle;
 }
 
 void*
@@ -139,49 +153,91 @@ SharedObjectGetFunction(
     }
 }
 
+struct so_enum_context {
+    UUId_t                  handle;
+    struct library_element* library;
+};
+
 OsStatus_t
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
-    SOInitializer_t Initialize = NULL;
-    LibraryItem_t*  Library    = NULL;
-    OsStatus_t      Status;
+    SOInitializer_t        Initialize = NULL;
+    struct so_enum_context enumContext;
+    int                    references;
+    OsStatus_t             status = OsSuccess;
 
 	if (Handle == HANDLE_INVALID) {
 	    _set_errno(EINVAL);
 		return OsError;
 	}
+    
     if (Handle == HANDLE_GLOBAL) {
         return OsSuccess;
     }
-    foreach(Node, &LoadedLibraries) {
-        if (((LibraryItem_t*)Node)->Handle == Handle) {
-            Library = (LibraryItem_t*)Node;
-            break;
-        }
+
+    enumContext.handle  = Handle;
+    enumContext.library = NULL;
+
+    mtx_lock(&librariesLock);
+    hashtable_enumerate(&libraries, so_enumerate, &enumContext);
+    if (!enumContext.library) {
+        mtx_unlock(&librariesLock);
+        errno = ENOENT;
+        return OsDoesNotExist;
     }
-    if (Library != NULL) {
-        Library->References--;
-        if (Library->References == 0) {
-            // Run finalizer before unload
-            Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
-            if (Initialize != NULL) {
-                Initialize(DLL_ACTION_FINALIZE);
-            }
-            
-            if (IsProcessModule()) {
-                Status = Syscall_LibraryUnload(Handle);
-            }
-	        else {
-	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-                svc_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle);
-                gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-                svc_library_unload_result(GetGrachtClient(), &msg.base, &Status);
-            }
-            OsStatusToErrno(Status);
-            return Status;
+    
+    references = atomic_fetch_and_sub(enumContext.library->references, 1);
+    if (references == 1) {
+        // Run finalizer before unload
+        Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
+        if (Initialize != NULL) {
+            Initialize(DLL_ACTION_FINALIZE);
         }
+        
+        if (IsProcessModule()) {
+            status = Syscall_LibraryUnload(Handle);
+        }
+        else {
+            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+            svc_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle);
+            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+            svc_library_unload_result(GetGrachtClient(), &msg.base, &status);
+        }
+        OsStatusToErrno(status);
     }
-	_set_errno(EFAULT);
-    return OsError;
+    mtx_unlock(&librariesLock);
+    return status;
+}
+
+static void so_enumerate(int index, const void* element, void* userContext)
+{
+    const struct library_element* library     = element;
+    struct so_enum_context*       enumContext = usercontext;
+    if (enumContext->handle == library->handle) {
+        enumContext->library = (struct library_element*)library;
+    }
+}
+
+static uint64_t so_hash(const void* element)
+{
+    const struct library_element* library = element;
+	
+    uint8_t* pointer = (uint8_t*)library->path;
+	uint64_t hash    = 5381;
+	int      character;
+	if (!pointer) {
+        return 0;
+    }
+
+	while ((character = tolower(*pointer++)) != 0)
+		hash = ((hash << 5) + hash) + character; /* hash * 33 + c */
+	return hash;
+}
+
+static int so_cmp(const void* element1, const void* element2)
+{
+    const struct library_element* library1 = element1;
+    const struct library_element* library2 = element2;
+    return strcasecmp(library1->path, library2->path);
 }
