@@ -24,7 +24,6 @@
 
 #include <ctype.h>
 #include <ds/hashtable.h>
-#include <ds/mstring.h>
 #include <errno.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
@@ -36,14 +35,15 @@
 #include <strings.h>
 #include <threads.h>
 
-typedef struct library_element {
+struct library_element {
     const char* path;
     atomic_int* references;
     Handle_t    handle;
 };
 
 static uint64_t so_hash(const void* element);
-static int      so_cmp(const void* lh, const void* rh);
+static int      so_cmp(const void* element1, const void* element2);
+static void     so_enumerate(int index, const void* element, void* userContext);
 
 typedef void (*SOInitializer_t)(int);
 
@@ -54,7 +54,7 @@ void
 StdSoInitialize(void)
 {
     hashtable_construct(&libraries, 0, sizeof(struct library_element), so_hash, so_cmp);
-    mtx_init(&librariesLock);
+    mtx_init(&librariesLock, mtx_plain);
 }
 
 Handle_t 
@@ -74,8 +74,8 @@ SharedObjectLoad(
     mtx_lock(&librariesLock);
     library = hashtable_get(&libraries, &(struct library_element) { .path = SharedObject });
     if (library) {
-        atomic_fetch_and_add(library->references, 1);
-        handle = Library->Handle;
+        atomic_fetch_add(library->references, 1);
+        handle = library->handle;
         mtx_unlock(&librariesLock);
         return handle;
     }
@@ -92,15 +92,15 @@ SharedObjectLoad(
 
     if (Status == OsSuccess && handle != HANDLE_INVALID) {
         struct library_element element;
-        element->references = (atomic_int*)malloc(sizeof(atomic_int));
-        if (!element->references) {
+        element.references = (atomic_int*)malloc(sizeof(atomic_int));
+        if (!element.references) {
             _set_errno(ENOMEM);
             return HANDLE_INVALID;
         }
         
         element.path = strdup(SharedObject);
         if (!element.path) {
-            free(element->references);
+            free(element.references);
             _set_errno(ENOMEM);
             return HANDLE_INVALID;
         }
@@ -138,7 +138,7 @@ SharedObjectGetFunction(
     if (IsProcessModule()) {
         return (void*)Syscall_LibraryFunction(Handle, Function);
     }
-	else {
+    else {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         uintptr_t AddressOfFunction;
         
@@ -154,7 +154,7 @@ SharedObjectGetFunction(
 }
 
 struct so_enum_context {
-    UUId_t                  handle;
+    Handle_t                handle;
     struct library_element* library;
 };
 
@@ -187,7 +187,7 @@ SharedObjectUnload(
         return OsDoesNotExist;
     }
     
-    references = atomic_fetch_and_sub(enumContext.library->references, 1);
+    references = atomic_fetch_sub(enumContext.library->references, 1);
     if (references == 1) {
         // Run finalizer before unload
         Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
@@ -213,7 +213,7 @@ SharedObjectUnload(
 static void so_enumerate(int index, const void* element, void* userContext)
 {
     const struct library_element* library     = element;
-    struct so_enum_context*       enumContext = usercontext;
+    struct so_enum_context*       enumContext = userContext;
     if (enumContext->handle == library->handle) {
         enumContext->library = (struct library_element*)library;
     }
