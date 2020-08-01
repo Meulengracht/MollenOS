@@ -22,7 +22,6 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../common/hci.h"
 #include "ohci.h"

@@ -213,8 +213,12 @@ UsbManagerController_t*
 UsbManagerGetController(
     _In_ UUId_t deviceId)
 {
-    return (UsbManagerController_t*)hashtable_get(&controllers,
+    struct usb_controller_device_index* index = hashtable_get(&controllers,
             &(struct usb_controller_device_index) { .deviceId = deviceId });
+    if (!index) {
+        return NULL;
+    }
+    return index->pointer;
 }
 
 int
@@ -223,11 +227,10 @@ UsbManagerGetToggle(
     _In_ UsbHcAddress_t* address)
 {
     // Create an unique id for this endpoint
-    UsbManagerController_t*         controller;
+    UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
     UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
-    controller = hashtable_get(&controllers, &(struct usb_controller_device_index) { .deviceId = deviceId });
     if (!controller) {
         return 0;
     }
@@ -249,11 +252,10 @@ UsbManagerSetToggle(
     _In_ int             toggle)
 {
     // Create an unique id for this endpoint
-    UsbManagerController_t*         controller;
+    UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
     UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
-    controller = hashtable_get(&controllers, &(struct usb_controller_device_index) { .deviceId = deviceId });
     if (!controller) {
         return OsDoesNotExist;
     }
