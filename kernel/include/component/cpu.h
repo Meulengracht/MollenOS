@@ -41,11 +41,11 @@
 typedef void(*TxuFunction_t)(void*);
 
 typedef enum SystemCpuState {
-    CpuStateUnavailable     = 0x0,
-    CpuStateShutdown        = 0x1,
-    CpuStateRunning         = 0x2,
+    CpuStateUnavailable     = 0x0U,
+    CpuStateShutdown        = 0x1U,
+    CpuStateRunning         = 0x2U,
 
-    CpuStateInterruptActive = 0x10000
+    CpuStateInterruptActive = 0x10000U
 } SystemCpuState_t;
 
 typedef enum SystemCpuFunctionType {

@@ -82,7 +82,7 @@ OnFastInterrupt(
     Registers->HcInterruptStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
     
-    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
+    InterruptTable->EventSignal(ResourceTable->HandleResource);
     return InterruptHandled;
 }
 

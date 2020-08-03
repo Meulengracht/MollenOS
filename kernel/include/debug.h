@@ -40,7 +40,7 @@
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
 #define TRACE(...) LogAppendMessage(LOG_TRACE, __VA_ARGS__)
-#define TRACE2(...) LogAppendMessage(LOG_TRACE, "[" __MODULE "] [" __func__ "] " __VA_ARGS__)
+#define TRACE2(...) LogAppendMessage(LOG_TRACE, "[" __MODULE "] [" __FUNC__ "] " __VA_ARGS__)
 #else
 #define TRACE(...)
 #endif

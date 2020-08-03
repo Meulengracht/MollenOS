@@ -29,7 +29,7 @@
 #define EVT_RESET_EVENT   0
 #define EVT_SEM_EVENT     1
 #define EVT_TIMEOUT_EVENT 2
-#define EVT_TYPE(x)       (x & 0x3)
+#define EVT_TYPE(x)       (x & 0x3U)
 
 _CODE_BEGIN
 

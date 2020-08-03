@@ -48,7 +48,7 @@ OnFastInterrupt(
 
     // Clear interrupt bits
     InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
-    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
+    InterruptTable->EventSignal(ResourceTable->HandleResource);
     return InterruptHandled;
 }
 

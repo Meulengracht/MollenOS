@@ -134,7 +134,7 @@ PS2KeyboardFastInterrupt(
 
         // Determine if it is an actual scancode or extension code
         if (DataRecieved != PS2_CODE_EXTENDED && DataRecieved != PS2_CODE_RELEASED) {
-            interruptTable->EventSignal(resourceTable->ResourceHandle);
+            interruptTable->EventSignal(resourceTable->HandleResource);
         }
     }
 

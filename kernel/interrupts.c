@@ -85,8 +85,7 @@ InterruptGetPenalty(
     }
 
     // Sanitize that source is valid
-    if (InterruptTable[Source].Sharable == 0
-        && InterruptTable[Source].Penalty > 0) {
+    if (InterruptTable[Source].Sharable == 0 && InterruptTable[Source].Penalty > 0) {
         return INTERRUPT_NONE;
     }
     return InterruptTable[Source].Penalty;
@@ -94,24 +93,24 @@ InterruptGetPenalty(
 
 int
 InterruptGetLeastLoaded(
-    _In_ int Irqs[],
-    _In_ int Count)
+    _In_ int interruptVectors[],
+    _In_ int count)
 {
     int SelectedPenality = INTERRUPT_NONE;
     int SelectedIrq      = INTERRUPT_NONE;
     int i;
 
-    TRACE("InterruptGetLeastLoaded(Count %" PRIiIN ")", Count);
+    TRACE("InterruptGetLeastLoaded(Count %" PRIiIN ")", count);
 
     // Iterate all the available irqs
     // that the device-supports
-    for (i = 0; i < Count; i++) {
-        if (Irqs[i] == INTERRUPT_NONE) {
+    for (i = 0; i < count; i++) {
+        if (interruptVectors[i] == INTERRUPT_NONE) {
             break;
         }
 
         // Calculate count
-        int Penalty = InterruptGetPenalty(Irqs[i]);
+        int Penalty = InterruptGetPenalty(interruptVectors[i]);
 
         // Sanitize status, if -1 then its not usable
         if (Penalty == INTERRUPT_NONE) {
@@ -120,7 +119,7 @@ InterruptGetLeastLoaded(
 
         // Store the lowest penalty
         if (SelectedIrq == INTERRUPT_NONE || Penalty < SelectedPenality) {
-            SelectedIrq = Irqs[i];
+            SelectedIrq = interruptVectors[i];
             SelectedPenality = Penalty;
         }
     }
@@ -154,10 +153,11 @@ InterruptCleanupIoResources(
  * kernel space to allow the handler to access them. */
 static OsStatus_t
 InterruptResolveIoResources(
-    _In_ SystemInterrupt_t* Interrupt)
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ SystemInterrupt_t* systemInterrupt)
 {
-    InterruptResourceTable_t* Source      = &Interrupt->Interrupt.ResourceTable;
-    InterruptResourceTable_t* Destination = &Interrupt->KernelResources;
+    InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
+    InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
     OsStatus_t                Status      = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
@@ -171,7 +171,7 @@ InterruptResolveIoResources(
     }
     
     if (Status != OsSuccess) {
-        Status = InterruptCleanupIoResources(Interrupt);
+        (void)InterruptCleanupIoResources(systemInterrupt);
         return OsError;
     }
     return Status;
@@ -208,52 +208,58 @@ InterruptCleanupMemoryResources(
  * kernel space to allow the handler to access them. */
 static OsStatus_t
 InterruptResolveMemoryResources(
-    _In_ SystemInterrupt_t* Interrupt)
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ SystemInterrupt_t* systemInterrupt)
 {
-    InterruptResourceTable_t* Source      = &Interrupt->Interrupt.ResourceTable;
-    InterruptResourceTable_t* Destination = &Interrupt->KernelResources;
-    OsStatus_t                Status      = OsSuccess;
-    uintptr_t                 UpdatedMapping;
+    InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
+    InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
+    OsStatus_t                success = OsSuccess;
+    uintptr_t                 updatedMapping;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
-        if (Source->MemoryResources[i].Address != 0) {
-            uintptr_t Offset       = Source->MemoryResources[i].Address % GetMemorySpacePageSize();
-            size_t Length          = Source->MemoryResources[i].Length + Offset;
-            unsigned int PageFlags      = MAPPING_COMMIT | MAPPING_PERSISTENT;
-            unsigned int PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED;
-            if (Source->MemoryResources[i].Flags & INTERRUPT_RESOURCE_DISABLE_CACHE) {
-                PageFlags |= MAPPING_NOCACHE;
+        if (source->MemoryResources[i].Address != 0) {
+            uintptr_t    offset         = source->MemoryResources[i].Address % GetMemorySpacePageSize();
+            size_t       length         = source->MemoryResources[i].Length + offset;
+            unsigned int pageFlags      = MAPPING_COMMIT | MAPPING_PERSISTENT;
+            unsigned int placementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED;
+            if (source->MemoryResources[i].Flags & INTERRUPT_RESOURCE_DISABLE_CACHE) {
+                pageFlags |= MAPPING_NOCACHE;
             }
 
-            Status = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-                Source->MemoryResources[i].Address, &UpdatedMapping, Length, PageFlags, PlacementFlags);
-            if (Status != OsSuccess) {
+            success = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
+                                              source->MemoryResources[i].Address, &updatedMapping, length, pageFlags, placementFlags);
+            if (success != OsSuccess) {
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
             }
-            TRACE(" > remapped resource to 0x%" PRIxIN " from 0x%" PRIxIN "", UpdatedMapping + Offset, Source->MemoryResources[i]);
-            Destination->MemoryResources[i].Address = UpdatedMapping + Offset;
-            Destination->MemoryResources[i].Length  = Source->MemoryResources[i].Length;
-            Destination->MemoryResources[i].Flags   = Source->MemoryResources[i].Flags;
+            TRACE(" > remapped resource to 0x%" PRIxIN " from 0x%" PRIxIN "", updatedMapping + offset, source->MemoryResources[i]);
+            destination->MemoryResources[i].Address = updatedMapping + offset;
+            destination->MemoryResources[i].Length  = source->MemoryResources[i].Length;
+            destination->MemoryResources[i].Flags   = source->MemoryResources[i].Flags;
         }
     }
 
-    if (Status != OsSuccess) {
-        Status = InterruptCleanupMemoryResources(Interrupt);
+    if (success != OsSuccess) {
+        (void)InterruptCleanupMemoryResources(systemInterrupt);
         return OsError;
     }
-    return Status;
+    return success;
 }
 
-/* InterruptResolveResources
+/**
  * Maps the neccessary fast-interrupt resources into kernel space
- * and allowing the interrupt handler to access the requested memory spaces. */
+ * and allowing the interrupt handler to access the requested memory spaces.
+ * @param deviceInterrupt
+ * @param systemInterrupt
+ * @return
+ */
 static OsStatus_t
 InterruptResolveResources(
-    _In_ SystemInterrupt_t* Interrupt)
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ SystemInterrupt_t* systemInterrupt)
 {
-    InterruptResourceTable_t * Source      = &Interrupt->Interrupt.ResourceTable;
-    InterruptResourceTable_t * Destination = &Interrupt->KernelResources;
+    InterruptResourceTable_t * Source      = &deviceInterrupt->ResourceTable;
+    InterruptResourceTable_t * Destination = &systemInterrupt->KernelResources;
     unsigned int               PlacementFlags;
     unsigned int               PageFlags;
     OsStatus_t                 Status;
@@ -280,13 +286,13 @@ InterruptResolveResources(
     Destination->Handler = (InterruptHandler_t)Virtual;
 
     TRACE(" > remapping io-resources");
-    if (InterruptResolveIoResources(Interrupt) != OsSuccess) {
+    if (InterruptResolveIoResources(deviceInterrupt, systemInterrupt) != OsSuccess) {
         ERROR(" > failed to remap interrupt io resources");
         return OsError;
     }
 
     TRACE(" > remapping memory-resources");
-    if (InterruptResolveMemoryResources(Interrupt) != OsSuccess) {
+    if (InterruptResolveMemoryResources(deviceInterrupt, systemInterrupt) != OsSuccess) {
         ERROR(" > failed to remap interrupt memory resources");
         return OsError;
     }
@@ -333,102 +339,110 @@ InterruptReleaseResources(
 
 UUId_t
 InterruptRegister(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int       Flags)
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ unsigned int       flags)
 {
-    SystemInterrupt_t* Entry;
-    UUId_t             TableIndex;
-    UUId_t             Id;
+    SystemInterrupt_t* systemInterrupt;
+    UUId_t             tableIndex;
+    UUId_t             id;
+
+    if (!deviceInterrupt) {
+        return OsInvalidParameters;
+    }
 
     TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
-        Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
+          Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], flags);
 
-    Entry = (SystemInterrupt_t*)kmalloc(sizeof(SystemInterrupt_t));
-    if (!Entry) {
+    systemInterrupt = (SystemInterrupt_t*)kmalloc(sizeof(SystemInterrupt_t));
+    if (!systemInterrupt) {
         return UUID_INVALID;
     }
     
     // TODO: change this to use handle system
-    Id = atomic_fetch_add(&InterruptIdGenerator, 1);
-    memset((void*)Entry, 0, sizeof(SystemInterrupt_t));
+    id = atomic_fetch_add(&InterruptIdGenerator, 1);
+    memset((void*)systemInterrupt, 0, sizeof(SystemInterrupt_t));
 
-    Entry->Id           = (Id << 16);    
-    Entry->ModuleHandle = UUID_INVALID;
-    Entry->Thread       = GetCurrentThreadId();
-    Entry->Flags        = Flags;
+    systemInterrupt->Id           = (id << 16U);
+    systemInterrupt->ModuleHandle = UUID_INVALID;
+    systemInterrupt->Thread       = GetCurrentThreadId();
+    systemInterrupt->Flags        = flags;
+    systemInterrupt->Line         = deviceInterrupt->Line;
+    systemInterrupt->Pin          = deviceInterrupt->Pin;
+    systemInterrupt->AcpiConform  = deviceInterrupt->AcpiConform;
 
     // Get process id?
-    if (!(Flags & INTERRUPT_KERNEL)) {
+    if (!(flags & INTERRUPT_KERNEL)) {
         assert(GetCurrentModule() != NULL);
-        Entry->ModuleHandle = GetCurrentModule()->Handle;
+        systemInterrupt->ModuleHandle = GetCurrentModule()->Handle;
     }
 
     // Resolve the table index
-    if (InterruptResolve(Interrupt, Flags, &TableIndex) != OsSuccess) {
+    if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OsSuccess) {
         ERROR("Failed to resolve the interrupt, invalid flags.");
-        kfree(Entry);
+        kfree(systemInterrupt);
         return OsError;
     }
 
     // Update remaining members now that we resolved
-    Entry->Source  = Interrupt->Line; // clear Source for software interrupts?
-    Entry->Id     |= TableIndex;
-    memcpy(&Entry->Interrupt, Interrupt, sizeof(DeviceInterrupt_t));
+    systemInterrupt->Source                         = deviceInterrupt->Line; // clear Source for software interrupts?
+    systemInterrupt->Id                            |= tableIndex;
+    systemInterrupt->Handler                        = deviceInterrupt->ResourceTable.Handler;
+    systemInterrupt->Context                        = deviceInterrupt->Context;
+    systemInterrupt->KernelResources.HandleResource = deviceInterrupt->ResourceTable.HandleResource;
 
     // Check against sharing
-    if (Flags & INTERRUPT_EXCLUSIVE) {
-        if (InterruptTable[TableIndex].Descriptor != NULL) {
+    if (flags & INTERRUPT_EXCLUSIVE) {
+        if (InterruptTable[tableIndex].Descriptor != NULL) {
             // We failed to gain exclusive access
-            ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", TableIndex);
-            kfree(Entry);
+            ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
+            kfree(systemInterrupt);
             return OsError;
         }
     }
-    else if (InterruptTable[TableIndex].Sharable != 1 && 
-             InterruptTable[TableIndex].Penalty > 0) {
+    else if (InterruptTable[tableIndex].Sharable != 1 && InterruptTable[tableIndex].Penalty > 0) {
         // Existing interrupt has exclusive access
         ERROR(" > existing interrupt has exclusive access");
-        kfree(Entry);
+        kfree(systemInterrupt);
         return OsError;
     }
 
     // Trace
-    TRACE("Updated line %i:%i for index 0x%" PRIxIN "",
-        Interrupt->Line, Interrupt->Pin, TableIndex);
+    TRACE("Updated line %i:%i for index 0x%" PRIxIN,
+          deviceInterrupt->Line, deviceInterrupt->Pin, tableIndex);
 
     // If it's an user interrupt, resolve resources
-    if (Entry->ModuleHandle != UUID_INVALID) {
-        if (InterruptResolveResources(Entry) != OsSuccess) {
+    if (systemInterrupt->ModuleHandle != UUID_INVALID) {
+        if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OsSuccess) {
             ERROR(" > failed to resolve the requested resources");
-            kfree(Entry);
+            kfree(systemInterrupt);
             return OsError;
         }
     }
     
     // Initialize the table entry?
     IrqSpinlockAcquire(&InterruptTableSyncObject);
-    if (InterruptTable[TableIndex].Descriptor == NULL) {
-        InterruptTable[TableIndex].Descriptor = Entry;
-        InterruptTable[TableIndex].Penalty    = 1;
-        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
+    if (InterruptTable[tableIndex].Descriptor == NULL) {
+        InterruptTable[tableIndex].Descriptor = systemInterrupt;
+        InterruptTable[tableIndex].Penalty    = 1;
+        InterruptTable[tableIndex].Sharable   = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
     }
     else {
         // Insert and increase penalty
-        Entry->Link = InterruptTable[TableIndex].Descriptor;
-        InterruptTable[TableIndex].Descriptor = Entry;
-        if (InterruptIncreasePenalty(TableIndex) != OsSuccess) {
-            ERROR("Failed to increase penalty for source %" PRIiIN "", Entry->Source);
+        systemInterrupt->Link                 = InterruptTable[tableIndex].Descriptor;
+        InterruptTable[tableIndex].Descriptor = systemInterrupt;
+        if (InterruptIncreasePenalty(tableIndex) != OsSuccess) {
+            ERROR("Failed to increase penalty for source %" PRIiIN "", systemInterrupt->Source);
         }
     }
 
     // Enable the new interrupt
-    if (InterruptConfigure(Entry, 1) != OsSuccess) {
-        ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
+    if (InterruptConfigure(systemInterrupt, 1) != OsSuccess) {
+        ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
     }
     IrqSpinlockRelease(&InterruptTableSyncObject);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
-          Entry->Id, Entry->Interrupt.ResourceTable.Handler, Entry->Interrupt.Context);
-    return Entry->Id;
+          systemInterrupt->Id, systemInterrupt->Interrupt.ResourceTable.Handler, systemInterrupt->Interrupt.Context);
+    return systemInterrupt->Id;
 }
 
 OsStatus_t
@@ -443,13 +457,13 @@ InterruptUnregister(
 
     // Sanitize parameter
     if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
-        return OsError;
+        return OsInvalidParameters;
     }
     
     // Iterate handlers in that table index and unlink the given entry
     IrqSpinlockAcquire(&InterruptTableSyncObject);
     Entry = InterruptTable[TableIndex].Descriptor;
-    while (Entry != NULL) {
+    while (Entry) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
                 if (Entry->ModuleHandle != GetCurrentModule()->Handle) {
@@ -475,8 +489,8 @@ InterruptUnregister(
     IrqSpinlockRelease(&InterruptTableSyncObject);
 
     // Sanitize if we were successfull
-    if (Found == 0) {
-        return OsError;
+    if (!Found) {
+        return OsDoesNotExist;
     }
     
     // Decrease penalty
@@ -484,19 +498,16 @@ InterruptUnregister(
         InterruptDecreasePenalty(Entry->Source);
     }
 
-    // Entry is now unlinked, clean it up 
-    // mask the interrupt again if neccessary
-    if (Found == 1) {
-        if (InterruptTable[Entry->Source].Penalty == 0) {
-            InterruptConfigure(Entry, 0);
-        }
-        if (Entry->ModuleHandle != UUID_INVALID) {
-            if (InterruptReleaseResources(Entry) != OsSuccess) {
-                ERROR(" > failed to cleanup interrupt resources");
-            }
-        }
-        kfree(Entry);
+    // Entry is now unlinked, clean it up mask the interrupt again if neccessary
+    if (InterruptTable[Entry->Source].Penalty == 0) {
+        InterruptConfigure(Entry, 0);
     }
+    if (Entry->ModuleHandle != UUID_INVALID) {
+        if (InterruptReleaseResources(Entry) != OsSuccess) {
+            ERROR(" > failed to cleanup interrupt resources");
+        }
+    }
+    kfree(Entry);
     return Result;
 }
 
@@ -514,13 +525,6 @@ InterruptGet(
         }
     }
     return NULL;
-}
-
-SystemInterrupt_t*
-InterruptGetIndex(
-   _In_ UUId_t TableIndex)
-{
-    return InterruptTable[TableIndex].Descriptor;
 }
 
 void
@@ -550,7 +554,7 @@ InterruptHandle(
     SystemCpuCore_t*   Core     = GetCurrentProcessorCore();
     uint32_t           Priority = InterruptsGetPriority();
     int                Source   = INTERRUPT_NONE;
-    InterruptStatus_t  Result   = InterruptNotHandled;
+    InterruptStatus_t  Result;
     SystemInterrupt_t* Entry;
     InterruptsSetPriority(TableIndex);
 
@@ -568,7 +572,7 @@ InterruptHandle(
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
-            Result = Entry->Interrupt.ResourceTable.Handler(GetFastInterruptTable(), Entry->Interrupt.Context);
+            Result = Entry->Handler(GetFastInterruptTable(), Entry->Context);
         }
         else {
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), &Entry->KernelResources);

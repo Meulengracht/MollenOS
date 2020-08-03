@@ -30,33 +30,45 @@
 
 void
 DeviceInterruptInitialize(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ BusDevice_t*       Device)
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ BusDevice_t*       device)
 {
-    memset(Interrupt, 0, sizeof(DeviceInterrupt_t));
-    
-    Interrupt->Line        = Device->InterruptLine;
-    Interrupt->Pin         = Device->InterruptPin;
-    Interrupt->AcpiConform = Device->InterruptAcpiConform;
-    Interrupt->Vectors[0]  = INTERRUPT_NONE;
+    if (!interrupt ||  !device) {
+        return;
+    }
+
+    memset(interrupt, 0, sizeof(DeviceInterrupt_t));
+
+    interrupt->Line        = device->InterruptLine;
+    interrupt->Pin         = device->InterruptPin;
+    interrupt->AcpiConform = device->InterruptAcpiConform;
+    interrupt->Vectors[0] = INTERRUPT_NONE;
 }
 
 void
 RegisterFastInterruptHandler(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ InterruptHandler_t Handler)
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ InterruptHandler_t handler)
 {
-    Interrupt->ResourceTable.Handler = Handler;
+    if (!interrupt) {
+        return;
+    }
+
+    interrupt->ResourceTable.Handler = handler;
 }
 
 void
 RegisterFastInterruptIoResource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ DeviceIo_t*        IoSpace)
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ DeviceIo_t*        ioSpace)
 {
+    if (!interrupt) {
+        return;
+    }
+
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
-        if (Interrupt->ResourceTable.IoResources[i] == NULL) {
-            Interrupt->ResourceTable.IoResources[i] = IoSpace;
+        if (!interrupt->ResourceTable.IoResources[i]) {
+            interrupt->ResourceTable.IoResources[i] = ioSpace;
             break;
         }
     }
@@ -64,16 +76,20 @@ RegisterFastInterruptIoResource(
 
 void
 RegisterFastInterruptMemoryResource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ uintptr_t          Address,
-    _In_ size_t             Length,
-    _In_ unsigned int       Flags)
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uintptr_t          address,
+    _In_ size_t             length,
+    _In_ unsigned int       flags)
 {
+    if (!interrupt) {
+        return;
+    }
+
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
-        if (Interrupt->ResourceTable.MemoryResources[i].Address == 0) {
-            Interrupt->ResourceTable.MemoryResources[i].Address = Address;
-            Interrupt->ResourceTable.MemoryResources[i].Length  = Length;
-            Interrupt->ResourceTable.MemoryResources[i].Flags   = Flags;
+        if (interrupt->ResourceTable.MemoryResources[i].Address == 0) {
+            interrupt->ResourceTable.MemoryResources[i].Address = address;
+            interrupt->ResourceTable.MemoryResources[i].Length  = length;
+            interrupt->ResourceTable.MemoryResources[i].Flags   = flags;
             break;
         }
     }
@@ -88,28 +104,20 @@ RegisterInterruptDescriptor(
         return;
     }
 
-    interrupt->ResourceTable.ResourceHandle = GetNativeHandle(descriptor);
+    interrupt->ResourceTable.HandleResource = GetNativeHandle(descriptor);
 }
 
 UUId_t
 RegisterInterruptSource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int       Flags)
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ unsigned int       flags)
 {
-	// Sanitize input
-	if (Interrupt == NULL) {
-		return UUID_INVALID;
-	}
-	return Syscall_InterruptAdd(Interrupt, Flags);
+	return Syscall_InterruptAdd(interrupt, flags);
 }
 
 OsStatus_t
 UnregisterInterruptSource(
-    _In_ UUId_t Source)
+    _In_ UUId_t interruptHandle)
 {
-	// Sanitize input
-	if (Source == UUID_INVALID) {
-		return OsError;
-	}
-	return Syscall_InterruptRemove(Source);
+	return Syscall_InterruptRemove(interruptHandle);
 }

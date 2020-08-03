@@ -51,7 +51,7 @@ PS2MouseFastInterrupt(
         smp_wmb();
 
         if (!(index % BreakAtBytes)) {
-            InterruptTable->EventSignal(ResourceTable->ResourceHandle);
+            InterruptTable->EventSignal(ResourceTable->HandleResource);
         }
     }
 
