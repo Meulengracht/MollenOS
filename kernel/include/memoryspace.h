@@ -32,31 +32,31 @@
 
 /* SystemMemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
-#define MEMORY_DATACOUNT                4
+#define MEMORY_DATACOUNT 4
 
 /* SystemMemorySpace (Type) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
-#define MEMORY_SPACE_INHERIT            0x00000001
-#define MEMORY_SPACE_APPLICATION        0x00000002
+#define MEMORY_SPACE_INHERIT            0x00000001U
+#define MEMORY_SPACE_APPLICATION        0x00000002U
 
 /* SystemMemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
-#define MAPPING_USERSPACE               0x00000001  // Userspace mapping
-#define MAPPING_NOCACHE                 0x00000002  // Disable caching for mapping
-#define MAPPING_READONLY                0x00000004  // Memory can only be read
-#define MAPPING_EXECUTABLE              0x00000008  // Memory can be executed
-#define MAPPING_ISDIRTY                 0x00000010  // Memory that has been marked poluted/written to
-#define MAPPING_PERSISTENT              0x00000020  // Memory should not be freed when mapping is removed
-#define MAPPING_DOMAIN                  0x00000040  // Memory allocated for mapping must be domain local
-#define MAPPING_COMMIT                  0x00000080  // Memory should be comitted immediately
-#define MAPPING_LOWFIRST                0x00000100  // Memory resources should be allocated by low-addresses first
+#define MAPPING_USERSPACE               0x00000001U  // Userspace mapping
+#define MAPPING_NOCACHE                 0x00000002U  // Disable caching for mapping
+#define MAPPING_READONLY                0x00000004U  // Memory can only be read
+#define MAPPING_EXECUTABLE              0x00000008U  // Memory can be executed
+#define MAPPING_ISDIRTY                 0x00000010U  // Memory that has been marked poluted/written to
+#define MAPPING_PERSISTENT              0x00000020U  // Memory should not be freed when mapping is removed
+#define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
+#define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
+#define MAPPING_LOWFIRST                0x00000100U  // Memory resources should be allocated by low-addresses first
 
-#define MAPPING_PHYSICAL_FIXED          0x00000001  // (Physical) Mappings are supplied
+#define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 
-#define MAPPING_VIRTUAL_GLOBAL          0x00000002  // (Virtual) Mapping is done in global access memory
-#define MAPPING_VIRTUAL_PROCESS         0x00000004  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_FIXED           0x00000008  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x0000000E
+#define MAPPING_VIRTUAL_GLOBAL          0x00000002U  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000004U  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_FIXED           0x00000008U  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x0000000EU
 
 typedef struct SystemMemoryMappingHandler {
     element_t Header;
@@ -73,7 +73,7 @@ typedef struct SystemMemorySpaceContext {
 
 typedef struct SystemMemorySpace {
     UUId_t                      ParentHandle;
-    unsigned int                     Flags;
+    unsigned int                Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
     SystemMemorySpaceContext_t* Context;
 } SystemMemorySpace_t;

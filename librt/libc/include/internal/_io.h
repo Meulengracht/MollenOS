@@ -104,7 +104,7 @@ extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
-extern stdio_handle_t* stdio_handle_get(int fd);
+extern stdio_handle_t* stdio_handle_get(int iod);
 
 // io-buffer interface
 extern OsStatus_t os_alloc_buffer(FILE* file);

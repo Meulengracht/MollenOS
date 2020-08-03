@@ -67,8 +67,9 @@ void __CrtModuleLoad(void)
 static void __CrtModuleMainLoop(int setIod)
 {
     struct ioset_event events[32];
+    int                serverRunning = 1;
 
-    while (1) {
+    while (serverRunning) {
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             // Check if the driver had any IRQs registered

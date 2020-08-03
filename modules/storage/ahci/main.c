@@ -86,7 +86,7 @@ OnFastInterrupt(
     // Write clear interrupt register and return
     Registers->InterruptStatus           = InterruptStatus;
     Resource->ControllerInterruptStatus |= InterruptStatus;
-    InterruptTable->EventSignal(ResourceTable->ResourceHandle);
+    InterruptTable->EventSignal(ResourceTable->HandleResource);
     return InterruptHandled;
 }
 

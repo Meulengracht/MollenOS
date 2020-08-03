@@ -34,7 +34,7 @@ DECL_STRUCT(BusDevice);
 #define INTERRUPT_MAX_MEMORY_RESOURCES      4
 #define INTERRUPT_MAX_IO_RESOURCES          4
 
-#define INTERRUPT_RESOURCE_DISABLE_CACHE    0x00000001
+#define INTERRUPT_RESOURCE_DISABLE_CACHE    0x00000001U
 
 // Fast-interrupts
 // Fast-interrupt handlers are called from an interrupt context and therefore
@@ -59,7 +59,7 @@ typedef struct FastInterruptMemoryResource {
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
 typedef struct InterruptResourceTable {
     InterruptHandler_t            Handler;
-    UUId_t                        ResourceHandle;
+    UUId_t                        HandleResource;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
 } InterruptResourceTable_t;
@@ -83,17 +83,17 @@ typedef struct InterruptFunctionTable {
  * This is essentially some bonus information that is
  * needed when registering interrupts
  */
-#define INTERRUPT_ACPICONFORM_PRESENT         0x00000001
-#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002
-#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004
-#define INTERRUPT_ACPICONFORM_SHAREABLE       0x00000008
-#define INTERRUPT_ACPICONFORM_FIXED           0x00000010
+#define INTERRUPT_ACPICONFORM_PRESENT         0x00000001U
+#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002U
+#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004U
+#define INTERRUPT_ACPICONFORM_SHAREABLE       0x00000008U
+#define INTERRUPT_ACPICONFORM_FIXED           0x00000010U
 
 // Interrupt register options
-#define INTERRUPT_SOFT      0x00000001  // Interrupt is not triggered by a hardware line
-#define INTERRUPT_VECTOR    0x00000002  // Interrupt can be either values set in the Vector
-#define INTERRUPT_MSI       0x00000004  // Interrupt uses MSI to deliver
-#define INTERRUPT_EXCLUSIVE 0x00000008  // Interrupt line can not be shared
+#define INTERRUPT_SOFT      0x00000001U  // Interrupt is not triggered by a hardware line
+#define INTERRUPT_VECTOR    0x00000002U  // Interrupt can be either values set in the Vector
+#define INTERRUPT_MSI       0x00000004U  // Interrupt uses MSI to deliver
+#define INTERRUPT_EXCLUSIVE 0x00000008U  // Interrupt line can not be shared
 
 typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
@@ -124,31 +124,31 @@ typedef struct DeviceInterrupt {
  * on a bus device. */
 DDKDECL(void,
 DeviceInterruptInitialize(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ BusDevice_t*       Device));
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ BusDevice_t*       device));
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */
 DDKDECL(void,
 RegisterFastInterruptHandler(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ InterruptHandler_t Handler));
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ InterruptHandler_t handler));
 
 /* RegisterFastInterruptIoResource
  * Registers the given device io resource with the fast-interrupt. */
 DDKDECL(void,
 RegisterFastInterruptIoResource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ DeviceIo_t*        IoSpace));
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ DeviceIo_t*        ioSpace));
 
 /* RegisterFastInterruptMemoryResource
  * Registers the given memory resource with the fast-interrupt. */
 DDKDECL(void,
 RegisterFastInterruptMemoryResource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ uintptr_t          Address,
-    _In_ size_t             Length,
-    _In_ unsigned int       Flags));
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uintptr_t          address,
+    _In_ size_t             length,
+    _In_ unsigned int       flags));
 
 /**
  * Register event descriptor that will be signalled when a fast interrupt needs additional processing
@@ -165,13 +165,13 @@ RegisterInterruptDescriptor(
  * is returned. After a succesful register, SIGINT can be invoked by the event-system */
 DDKDECL(UUId_t,
 RegisterInterruptSource(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int       Flags));
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ unsigned int       flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */
 DDKDECL(OsStatus_t,
 UnregisterInterruptSource(
-    _In_ UUId_t Source));
+    _In_ UUId_t interruptHandle));
 
 #endif //!_INTERRUPT_INTERFACE_H_

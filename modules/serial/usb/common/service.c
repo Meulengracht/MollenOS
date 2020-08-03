@@ -23,12 +23,8 @@
  */
 //#define __TRACE
 
-#include <ddk/utils.h>
 #include <ioset.h>
 #include "hci.h"
-#include <os/mollenos.h>
-#include <stdlib.h>
-#include <signal.h>
 
 #include <ctt_driver_protocol_server.h>
 

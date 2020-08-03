@@ -32,20 +32,22 @@
 KERNELAPI OsStatus_t KERNELABI
 InterruptInitialize(void);
 
-/* InterruptResolve 
- * Resolves the table index from the given interrupt settings. */
 KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
-    _In_  DeviceInterrupt_t* Interrupt,
-    _In_  unsigned int            Flags,
-    _Out_ UUId_t*            TableIndex);
+    _In_    DeviceInterrupt_t* Interrupt,
+    _In_    unsigned int       Flags,
+    _Out_   UUId_t*            TableIndex);
 
-/* InterruptConfigure
- * Configures the given interrupt in the system */
+/**
+ * Initialize and enable/disable the interrupt described in systemInterrupt member.
+ * @param systemInterrupt
+ * @param enable
+ * @return Status of the operation
+ */
 KERNELAPI OsStatus_t KERNELABI
 InterruptConfigure(
-    _In_ SystemInterrupt_t* Descriptor,
-    _In_ int                Enable);
+    _In_ SystemInterrupt_t* systemInterrupt,
+    _In_ int                enable);
 
 /* Interrupts
  * Used for manipulation of interrupt state. */

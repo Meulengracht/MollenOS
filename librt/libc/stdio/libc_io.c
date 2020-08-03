@@ -453,9 +453,9 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
     return 0;
 }
 
-stdio_handle_t* stdio_handle_get(int fd)
+stdio_handle_t* stdio_handle_get(int iod)
 {
-    DataKey_t Key = { .Value.Integer = fd };
+    DataKey_t Key = { .Value.Integer = iod };
     return (stdio_handle_t*)CollectionGetDataByKey(&stdio_objects, Key, 0);
 }
 

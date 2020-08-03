@@ -44,7 +44,7 @@ extern reg_t __getflags(void);
 
 static uint64_t
 InterruptGetApicConfiguration(
-    _In_ DeviceInterrupt_t* Interrupt)
+    _In_ SystemInterrupt_t* systemInterrupt)
 {
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
@@ -52,16 +52,16 @@ InterruptGetApicConfiguration(
 
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
-    if (Interrupt->Line < NUM_ISA_INTERRUPTS && Interrupt->Pin == INTERRUPT_NONE) {
+    if (systemInterrupt->Line < NUM_ISA_INTERRUPTS && systemInterrupt->Pin == INTERRUPT_NONE) {
         int Enabled, LevelTriggered;
-        PicGetConfiguration(Interrupt->Line, &Enabled, &LevelTriggered);
+        PicGetConfiguration(systemInterrupt->Line, &Enabled, &LevelTriggered);
         ApicFlags |= 0x100;                    // Lowest Priority
         ApicFlags |= 0x800;                    // Logical Destination Mode
         
         // Configure as level triggered if requested by interrupt flags
         // Ignore polarity mode as that is automatically treated as active low
         // when trigger is set to level
-        if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
+        if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
             LevelTriggered = 1;
         }
 
@@ -77,7 +77,7 @@ InterruptGetApicConfiguration(
     
     // Case 2 - PCI Interrupts (No-Pin) 
     // - Must be Level Triggered Low-Active
-    else if (Interrupt->Line >= NUM_ISA_INTERRUPTS && Interrupt->Pin == INTERRUPT_NONE) {
+    else if (systemInterrupt->Line >= NUM_ISA_INTERRUPTS && systemInterrupt->Pin == INTERRUPT_NONE) {
         TRACE(" > pci interrupt (active-low, level-triggered)");
         ApicFlags |= 0x100;                         // Lowest Priority
         ApicFlags |= 0x800;                         // Logical Destination Mode
@@ -87,9 +87,9 @@ InterruptGetApicConfiguration(
 
     // Case 3 - PCI Interrupts (Pin) 
     // - Usually Level Triggered Low-Active
-    else if (Interrupt->Pin != INTERRUPT_NONE) {
+    else if (systemInterrupt->Pin != INTERRUPT_NONE) {
         // If no routing exists use the pci interrupt line
-        if (!(Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
+        if (!(systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
             TRACE(" > pci interrupt (active-low, level-triggered)");
             ApicFlags |= 0x100;                     // Lowest Priority
             ApicFlags |= 0x800;                     // Logical Destination Mode
@@ -101,15 +101,15 @@ InterruptGetApicConfiguration(
 
             // Both trigger and polarity is either fixed or set by the
             // information we extracted earlier
-            if (Interrupt->Line >= NUM_ISA_INTERRUPTS) {
+            if (systemInterrupt->Line >= NUM_ISA_INTERRUPTS) {
                 ApicFlags |= APIC_ACTIVE_LOW;
                 ApicFlags |= APIC_LEVEL_TRIGGER;
             }
             else {
-                if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
+                if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
                     ApicFlags |= APIC_LEVEL_TRIGGER;
                 }
-                if (Interrupt->AcpiConform & INTERRUPT_ACPICONFORM_POLARITY) {
+                if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_POLARITY) {
                     ApicFlags |= APIC_ACTIVE_LOW;
                 }
             }
@@ -154,9 +154,9 @@ AllocateSoftwareVector(
 
 OsStatus_t
 InterruptResolve(
-    _In_    DeviceInterrupt_t*  Interrupt,
-    _In_    unsigned int             Flags,
-    _Out_   UUId_t*             TableIndex)
+    _In_    DeviceInterrupt_t* Interrupt,
+    _In_    unsigned int       Flags,
+    _Out_   UUId_t*            TableIndex)
 {
     if (!(Flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
         if (Flags & INTERRUPT_VECTOR) {
@@ -223,8 +223,8 @@ InterruptResolve(
 
 OsStatus_t
 InterruptConfigure(
-    _In_ SystemInterrupt_t* Descriptor,
-    _In_ int                Enable)
+    _In_ SystemInterrupt_t* systemInterrupt,
+    _In_ int                enable)
 {
     SystemInterruptController_t *Ic = NULL;
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
@@ -238,21 +238,21 @@ InterruptConfigure(
     } ApicExisting;
     
     // Debug
-    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", Descriptor->Id, Enable);
+    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", systemInterrupt->Id, enable);
 
     // Is this a software interrupt? Don't install
-    if (Descriptor->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
+    if (systemInterrupt->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
         return OsSuccess;
     }
 
     // Are we disabling? Skip configuration
-    if (Enable == 0) {
+    if (enable == 0) {
         goto UpdateEntry;
     }
 
     // Determine the kind of apic configuration
-    TableIndex  = (Descriptor->Id & 0xFF);
-    ApicFlags   = InterruptGetApicConfiguration(&Descriptor->Interrupt);
+    TableIndex  = (systemInterrupt->Id & 0xFF);
+    ApicFlags   = InterruptGetApicConfiguration(systemInterrupt);
     ApicFlags  |= TableIndex;
 
     // Trace
@@ -260,27 +260,27 @@ InterruptConfigure(
 
     // If this is an (E)ISA interrupt make sure it's configured
     // properly in the PIC/ELCR
-    if (Descriptor->Source < NUM_ISA_INTERRUPTS) {
+    if (systemInterrupt->Source < NUM_ISA_INTERRUPTS) {
         // ISA Interrupts can be level triggered
         // so make sure we configure it for level triggering
         if (ApicFlags & APIC_LEVEL_TRIGGER) {
-            PicConfigureLine(Descriptor->Source, -1, 1);
+            PicConfigureLine(systemInterrupt->Source, -1, 1);
         }
     }
 
 UpdateEntry:
     if (GetApicInterruptMode() == InterruptModePic) {
-        PicConfigureLine(Descriptor->Source, Enable, -1);
+        PicConfigureLine(systemInterrupt->Source, enable, -1);
     }
     else {
         // If Apic Entry is located, we need to adjust
-        Ic = GetInterruptControllerByLine(Descriptor->Source);
+        Ic = GetInterruptControllerByLine(systemInterrupt->Source);
         if (Ic != NULL) {
-            if (Enable == 0) {
-                ApicWriteIoEntry(Ic, Descriptor->Source, APIC_MASKED);
+            if (enable == 0) {
+                ApicWriteIoEntry(Ic, systemInterrupt->Source, APIC_MASKED);
             }
             else {
-                ApicExisting.Full = ApicReadIoEntry(Ic, Descriptor->Source);
+                ApicExisting.Full = ApicReadIoEntry(Ic, systemInterrupt->Source);
 
                 // Sanity, we can't just override the existing interrupt vector
                 // so if it's already installed, we modify the table-index
@@ -293,13 +293,13 @@ UpdateEntry:
                 }
                 else {
                     // Unmask the irq in the io-apic
-                    TRACE("Installing source %i => 0x%" PRIxIN "", Descriptor->Source, LODWORD(ApicFlags));
-                    ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
+                    TRACE("Installing source %i => 0x%" PRIxIN "", systemInterrupt->Source, LODWORD(ApicFlags));
+                    ApicWriteIoEntry(Ic, systemInterrupt->Source, ApicFlags);
                 }
             }
         }
         else {
-            ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+            ERROR("Failed to derive io-apic for source %i", systemInterrupt->Source);
             return OsError;
         }
     }
