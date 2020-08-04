@@ -311,7 +311,7 @@ ResolveVirtualSystemMemorySpaceAddress(
     _In_ unsigned int              PlacementFlags)
 {
     VirtualAddress_t VirtualBase  = 0;
-    unsigned int          VirtualFlags = PlacementFlags & MAPPING_VIRTUAL_MASK;
+    unsigned int     VirtualFlags = PlacementFlags & MAPPING_VIRTUAL_MASK;
 
     switch (VirtualFlags) {
         case MAPPING_VIRTUAL_FIXED: {
@@ -352,8 +352,8 @@ MemorySpaceMap(
     _InOut_ VirtualAddress_t*    Address,
     _InOut_ uintptr_t*           PhysicalAddressValues,
     _In_    size_t               Length,
-    _In_    unsigned int              MemoryFlags,
-    _In_    unsigned int              PlacementFlags)
+    _In_    unsigned int         MemoryFlags,
+    _In_    unsigned int         PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesUpdated;
@@ -378,15 +378,13 @@ MemorySpaceMap(
     }
     else if (MemoryFlags & MAPPING_COMMIT) {
         IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
-        bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory,
-            (void**)&PhysicalAddressValues[0], PageCount);
+        bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&PhysicalAddressValues[0], PageCount);
         IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
     }
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(MemorySpace,
-        Address, Length, PlacementFlags);
+    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(MemorySpace, Address, Length, PlacementFlags);
     if (!VirtualBase) {
         // Cleanup physical mappings
         // TODO

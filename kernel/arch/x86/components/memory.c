@@ -23,9 +23,7 @@
 #define __TRACE
 
 #include <arch.h>
-#include <apic.h>
 #include <assert.h>
-#include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <cpu.h>
 #include <ddk/io.h>
@@ -151,7 +149,7 @@ InitializeSystemMemory(
     GAMemorySize = MEMORY_LOCATION_VIDEO - READ_VOLATILE(LastReservedAddress);
     TRACE("[pmem] [mem_init] initial size of ga memory to 0x%" PRIxIN, GAMemorySize);    
     if (!IsPowerOfTwo(GAMemorySize)) {
-        GAMemorySize = NextPowerOfTwo(GAMemorySize) >> 1;
+        GAMemorySize = NextPowerOfTwo(GAMemorySize) >> 1U;
         TRACE("[pmem] [mem_init] adjusting size of ga memory to 0x%" PRIxIN, GAMemorySize);    
     }
     StaticMemoryPoolConstruct(GlobalAccessMemory, (void*)GAMemory, 
@@ -266,7 +264,7 @@ ArchMmuGetPageAttributes(
     PAGE_MASTER_LEVEL* Directory;
     PageTable_t*       Table;
     int                IsCurrent, Update;
-    unsigned int            X86Attributes;
+    unsigned int       X86Attributes;
     int                Index;
     int                i      = 0;
     OsStatus_t         Status = OsSuccess;
@@ -288,7 +286,7 @@ ArchMmuGetPageAttributes(
         }
     }
     *PagesCleared = i;
-    return OsSuccess;
+    return Status;
 }
 
 OsStatus_t
@@ -352,11 +350,11 @@ ArchMmuUpdatePageAttributes(
 
 OsStatus_t
 ArchMmuCommitVirtualPage(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     StartAddress,
-    _In_ PhysicalAddress_t*   PhysicalAddressValues,
-    _In_  int                 PageCount,
-    _Out_ int*                PagesComitted)
+    _In_ SystemMemorySpace_t*     MemorySpace,
+    _In_ VirtualAddress_t         StartAddress,
+    _In_ const PhysicalAddress_t* PhysicalAddressValues,
+    _In_  int                     PageCount,
+    _Out_ int*                    PagesComitted)
 {
     
     PAGE_MASTER_LEVEL* ParentDirectory;
@@ -514,12 +512,12 @@ ArchMmuReserveVirtualPages(
 
 OsStatus_t
 ArchMmuSetVirtualPages(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  PhysicalAddress_t*   PhysicalAddressValues,
-    _In_  int                  PageCount,
-    _In_  unsigned int              Attributes,
-    _Out_ int*                 PagesUpdated)
+    _In_  SystemMemorySpace_t*     MemorySpace,
+    _In_  VirtualAddress_t         StartAddress,
+    _In_  const PhysicalAddress_t* PhysicalAddressValues,
+    _In_  int                      PageCount,
+    _In_  unsigned int             Attributes,
+    _Out_ int*                     PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -584,7 +582,7 @@ ArchMmuClearVirtualPages(
     OsStatus_t         Status = OsSuccess;
 
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount && Status == OsSuccess) {
+    while (PageCount) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
         if (Table == NULL) {
             Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
@@ -631,7 +629,7 @@ ArchMmuVirtualToPhysical(
     OsStatus_t         Status = OsSuccess;
     
     Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount && Status == OsSuccess) {
+    while (PageCount) {
         Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 0, &Update);
         if (Table == NULL) {
             Status = (i == 0) ? OsDoesNotExist : OsIncomplete;
