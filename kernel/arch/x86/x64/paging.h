@@ -27,9 +27,9 @@
 /* Paging Definitions
  * Defines paging structure sizes for the different hardware paging structures. */
 #define ENTRIES_PER_PAGE        512
-#define PAGE_SIZE               0x1000
-#define PAGE_MASK               0xFFFFFFFFFFFFF000
-#define ATTRIBUTE_MASK          0x0000000000000FFF
+#define PAGE_SIZE               0x1000U
+#define PAGE_MASK               0xFFFFFFFFFFFFF000ULL
+#define ATTRIBUTE_MASK          0x0000000000000FFFULL
 
 /* Table sizes, in 64 bit a table is 2mb 
  * and this means we need to identity map more than a single page-table. */
@@ -37,14 +37,14 @@
 #define DIRECTORY_SPACE_SIZE       ((uint64_t)TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define DIRECTORY_TABLE_SPACE_SIZE ((uint64_t)DIRECTORY_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define PML4_SPACE_SIZE            ((uint64_t)DIRECTORY_TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
-#define MEMORY_ALLOCATION_MASK  0x3FFFFF
+#define MEMORY_ALLOCATION_MASK     0x3FFFFFU
 
 /* Indices
  * 9 bits each are used for each part, with the first 12 bits reserved */
-#define PAGE_LEVEL_4_INDEX(x)           (((x) >> 39) & 0x1FF)
-#define PAGE_DIRECTORY_POINTER_INDEX(x) (((x) >> 30) & 0x1FF)
-#define PAGE_DIRECTORY_INDEX(x)         (((x) >> 21) & 0x1FF)
-#define PAGE_TABLE_INDEX(x)             (((x) >> 12) & 0x1FF)
+#define PAGE_LEVEL_4_INDEX(x)           (((x) >> 39U) & 0x1FFU)
+#define PAGE_DIRECTORY_POINTER_INDEX(x) (((x) >> 30U) & 0x1FFU)
+#define PAGE_DIRECTORY_INDEX(x)         (((x) >> 21U) & 0x1FFU)
+#define PAGE_TABLE_INDEX(x)             (((x) >> 12U) & 0x1FFU)
 
 /* Page Table Structure
  * Contains a table of pages (level 1) */

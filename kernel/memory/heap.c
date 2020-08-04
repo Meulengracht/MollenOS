@@ -34,7 +34,7 @@
 #include <machine.h>
 #include <string.h>
 
-#define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5
+#define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5U
 #define MEMORY_SLAB_ONSITE_THRESHOLD                512
 #define MEMORY_ATOMIC_CACHE(Cache, Core)            (MemoryAtomicCache_t*)(Cache->AtomicCaches + (Core * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*)))))
 #define MEMORY_ATOMIC_ELEMENT(AtomicCache, Element) ((uintptr_t**)((uintptr_t)AtomicCache + sizeof(MemoryAtomicCache_t) + (Element * sizeof(void*))))

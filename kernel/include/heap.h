@@ -27,15 +27,15 @@
 typedef struct MemoryCache MemoryCache_t;
 
 // Debug options for caches
-#define HEAP_DEBUG_USE_AFTER_FREE 0x01
-#define HEAP_DEBUG_OVERRUN        0x02
+#define HEAP_DEBUG_USE_AFTER_FREE 0x01U
+#define HEAP_DEBUG_OVERRUN        0x02U
 
 // Configuration options for caches
-#define HEAP_CACHE_DEFAULT        0x04 // Only set for fixed size caches
-#define HEAP_SLAB_NO_ATOMIC_CACHE 0x08 // Set to disable smp optimizations
-#define HEAP_INITIAL_SLAB         0x10 // Set to allocate the initial slab
-#define HEAP_SINGLE_SLAB          0x20 // Set to disable multiple slabs
-#define HEAP_CACHE_USERSPACE      0x40 // Set to allow the pages to accessed by userspace
+#define HEAP_CACHE_DEFAULT        0x04U // Only set for fixed size caches
+#define HEAP_SLAB_NO_ATOMIC_CACHE 0x08U // Set to disable smp optimizations
+#define HEAP_INITIAL_SLAB         0x10U // Set to allocate the initial slab
+#define HEAP_SINGLE_SLAB          0x20U // Set to disable multiple slabs
+#define HEAP_CACHE_USERSPACE      0x40U // Set to allow the pages to accessed by userspace
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.

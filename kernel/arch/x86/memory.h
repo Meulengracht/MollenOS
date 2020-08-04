@@ -26,30 +26,30 @@
 #include <paging.h>
 
 // Shared bitfields
-#define PAGE_PRESENT            0x1
-#define PAGE_WRITE              0x2
-#define PAGE_USER               0x4
-#define PAGE_WRITETHROUGH       0x8
-#define PAGE_CACHE_DISABLE      0x10
-#define PAGE_ACCESSED           0x20
+#define PAGE_PRESENT            0x1U
+#define PAGE_WRITE              0x2U
+#define PAGE_USER               0x4U
+#define PAGE_WRITETHROUGH       0x8U
+#define PAGE_CACHE_DISABLE      0x10U
+#define PAGE_ACCESSED           0x20U
 
 // Page-specific bitfields
-#define PAGE_DIRTY              0x40
-#define PAGE_PAT                0x80
-#define PAGE_GLOBAL             0x100
+#define PAGE_DIRTY              0x40U
+#define PAGE_PAT                0x80U
+#define PAGE_GLOBAL             0x100U
 
 // PageTable-specific bitfields
-#define PAGETABLE_UNUSED        0x40
-#define PAGETABLE_LARGE         0x80
-#define PAGETABLE_ZERO          0x100 // Must be zero, unused
+#define PAGETABLE_UNUSED        0x40u
+#define PAGETABLE_LARGE         0x80U
+#define PAGETABLE_ZERO          0x100U // Must be zero, unused
 
 // OS Bitfields for pages, bits 9-11 are available
-#define PAGE_PERSISTENT         0x200
-#define PAGE_RESERVED           0x400
-#define PAGE_NX                 0x8000000000000000 // amd64 + nx cpuid must be set
+#define PAGE_PERSISTENT         0x200U
+#define PAGE_RESERVED           0x400U
+#define PAGE_NX                 0x8000000000000000U // amd64 + nx cpuid must be set
 
 // OS Bitfields for page tables, bits 9-11 are available
-#define PAGETABLE_INHERITED     0x200
+#define PAGETABLE_INHERITED     0x200U
 
 // Function helpers for repeating functions where it pays off
 // to have them seperate
