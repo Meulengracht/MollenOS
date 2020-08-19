@@ -19,6 +19,7 @@
  * - Components mostly belong to system domains. This is the representation
  *   of a system domain.
  */
+
 #include <component/domain.h>
 #include <arch/utils.h>
 #include <machine.h>

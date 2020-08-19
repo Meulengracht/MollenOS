@@ -32,14 +32,14 @@
 
 // Memory Allocation Definitions
 // Flags that can be used when requesting virtual memory
-#define MEMORY_COMMIT        0x00000001                   // If commit is not passed, memory will only be reserved.
-#define MEMORY_LOWFIRST      0x00000002                   // Allocate from low memory
-#define MEMORY_CLEAN         0x00000004                   // Memory should be cleaned
-#define MEMORY_UNCHACHEABLE  0x00000008                   // Memory must not be cached
+#define MEMORY_COMMIT        0x00000001U                  // If commit is not passed, memory will only be reserved.
+#define MEMORY_LOWFIRST      0x00000002U                  // Allocate from low memory
+#define MEMORY_CLEAN         0x00000004U                  // Memory should be cleaned
+#define MEMORY_UNCHACHEABLE  0x00000008U                  // Memory must not be cached
 
-#define MEMORY_READ          0x00000010                   // Memory is readable
-#define MEMORY_WRITE         0x00000020                   // Memory is writable
-#define MEMORY_EXECUTABLE    0x00000040                   // Memory is executable
+#define MEMORY_READ          0x00000010U                  // Memory is readable
+#define MEMORY_WRITE         0x00000020U                  // Memory is writable
+#define MEMORY_EXECUTABLE    0x00000040U                  // Memory is executable
 
 PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t NumberOfProcessors;
@@ -89,10 +89,10 @@ CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
  * Threading Extensions
  *******************************************************************************/
 typedef struct {
-    const char* Name;
-    unsigned int     Configuration;
-    UUId_t      MemorySpaceHandle;
-    size_t      MaximumStackSize;
+    const char*  Name;
+    unsigned int Configuration;
+    UUId_t       MemorySpaceHandle;
+    size_t       MaximumStackSize;
 } ThreadParameters_t;
 CRTDECL(void,       InitializeThreadParameters(ThreadParameters_t* Paramaters));
 CRTDECL(OsStatus_t, SetCurrentThreadName(const char *ThreadName));
@@ -116,9 +116,9 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t Ma
  *******************************************************************************/
 
 // CreateFileMapping::Flags
-#define FILE_MAPPING_READ       0x00000001
-#define FILE_MAPPING_WRITE      0x00000002
-#define FILE_MAPPING_EXECUTE    0x00000004
+#define FILE_MAPPING_READ       0x00000001U
+#define FILE_MAPPING_WRITE      0x00000002U
+#define FILE_MAPPING_EXECUTE    0x00000004U
 
 CRTDECL(OsStatus_t, GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, OsStorageDescriptor_t *Information));

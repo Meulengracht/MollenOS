@@ -28,17 +28,17 @@
 #include <ds/dsdefs.h>
 
 // Configuration flags for the stream
-#define STREAMBUFFER_MULTIPLE_READERS     0x1
-#define STREAMBUFFER_MULTIPLE_WRITERS     0x2
-#define STREAMBUFFER_GLOBAL               0x4
-#define STREAMBUFFER_OVERWRITE_ENABLED    0x8
-#define STREAMBUFFER_DISABLED             0x10
+#define STREAMBUFFER_MULTIPLE_READERS     0x1U
+#define STREAMBUFFER_MULTIPLE_WRITERS     0x2U
+#define STREAMBUFFER_GLOBAL               0x4U
+#define STREAMBUFFER_OVERWRITE_ENABLED    0x8U
+#define STREAMBUFFER_DISABLED             0x10U
 
 // Options for reads and writes
-#define STREAMBUFFER_NO_BLOCK      0x1
-#define STREAMBUFFER_ALLOW_PARTIAL 0x2
-#define STREAMBUFFER_PRIORITY      0x4
-#define STREAMBUFFER_PEEK          0x8
+#define STREAMBUFFER_NO_BLOCK      0x1U
+#define STREAMBUFFER_ALLOW_PARTIAL 0x2U
+#define STREAMBUFFER_PRIORITY      0x4U
+#define STREAMBUFFER_PEEK          0x8U
 
 typedef struct streambuffer {
     size_t       capacity;

@@ -61,17 +61,17 @@ typedef void(*ThreadEntry_t)(void*);
  * 2 => Reserved
  * 3 => Reserved 
  * Bit 3: If it's currently in switch-mode */
-#define THREADING_KERNELMODE            0x00000000
-#define THREADING_USERMODE              0x00000001
-#define THREADING_MODEMASK              0x00000003
+#define THREADING_KERNELMODE            0x00000000U
+#define THREADING_USERMODE              0x00000001U
+#define THREADING_MODEMASK              0x00000003U
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
 
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
-#define THREADING_KERNELENTRY           0x00000004
-#define THREADING_IDLE                  0x00000008
-#define THREADING_INHERIT               0x00000010
-#define THREADING_TRANSITION_USERMODE   0x10000000
+#define THREADING_KERNELENTRY           0x00000004U
+#define THREADING_IDLE                  0x00000008U
+#define THREADING_INHERIT               0x00000010U
+#define THREADING_TRANSITION_USERMODE   0x10000000U
 
 typedef struct ThreadSignal {
     int          Signal;

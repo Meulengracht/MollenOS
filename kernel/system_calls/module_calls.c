@@ -26,8 +26,6 @@
 #include <arch/utils.h>
 #include <ds/mstring.h>
 #include <debug.h>
-#include <handle.h>
-#include <heap.h>
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <os/types/process.h>
@@ -172,11 +170,12 @@ ScGetWorkingDirectory(
     _In_ size_t MaxLength)
 {
     SystemModule_t* Module = GetCurrentModule();
-    size_t          BytesToCopy = MaxLength;
+    size_t          BytesToCopy;
     
     if (Module == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
+
     BytesToCopy = MIN(strlen(MStringRaw(Module->WorkingDirectory)) + 1, MaxLength);
     memcpy(PathBuffer, MStringRaw(Module->WorkingDirectory), BytesToCopy);
     return OsSuccess;

@@ -80,7 +80,7 @@ AllocateSyncAddress(
 
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
     status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
-                                         (VirtualAddress_t)event->kernel_mapping, 1, &dmaAddress);
+                                         (VirtualAddress_t)kernelAddress, 1, &dmaAddress);
     if (status != OsSuccess) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
@@ -97,6 +97,7 @@ AllocateSyncAddress(
 
     event->kernel_mapping    = (atomic_int*)kernelAddress;
     event->userspace_mapping = (atomic_int*)(userAddress + offsetInPage);
+    atomic_store(event->kernel_mapping, 0);
     return OsSuccess;
 }
 
@@ -170,7 +171,10 @@ UserEventSignal(
                 if (result) {
                     break;
                 }
-                FutexWake(event->kernel_mapping, 1, 0);
+
+                if (currentValue >= 0) {
+                    FutexWake(event->kernel_mapping, 1, 0);
+                }
             }
         }
     }

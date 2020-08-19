@@ -40,8 +40,6 @@
 #include <threading.h>
 #include <timers.h>
 
-OsStatus_t ThreadingReap(void *Context);
-
 // Common entry point for everything
 static void
 ThreadingEntryPoint(void)

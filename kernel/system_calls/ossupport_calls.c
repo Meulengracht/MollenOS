@@ -22,22 +22,19 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <debug.h>
-#include <ds/mstring.h>
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
 #include <internal/_utils.h>
 #include <memoryspace.h>
-#include <modules/manager.h>
 #include <threading.h>
 
 OsStatus_t
 ScCreateMemoryHandler(
-    _In_  unsigned int    Flags,
-    _In_  size_t     Length,
-    _Out_ UUId_t*    HandleOut,
-    _Out_ uintptr_t* AddressBaseOut)
+    _In_  unsigned int Flags,
+    _In_  size_t       Length,
+    _Out_ UUId_t*      HandleOut,
+    _Out_ uintptr_t*   AddressBaseOut)
 {
     SystemMemoryMappingHandler_t* Handler;
     SystemMemorySpace_t*          Space = GetCurrentMemorySpace();
@@ -132,7 +129,7 @@ OsStatus_t
 ScDestroyHandle(
     _In_ UUId_t Handle)
 {
-    if (Handle == 0 || Handle == UUID_INVALID) {
+    if (Handle == UUID_INVALID) {
         return OsInvalidParameters;
     }
     DestroyHandle(Handle);

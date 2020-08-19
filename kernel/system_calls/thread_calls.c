@@ -73,8 +73,8 @@ ScThreadJoin(
     _In_  UUId_t ThreadId,
     _Out_ int*   ExitCode)
 {
-    int        ResultCode = 0;
-    OsStatus_t Result     = AreThreadsRelated(ThreadId, GetCurrentThreadId());
+    int        ResultCode;
+    OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
 
     if (Result == OsSuccess) {
         ResultCode = ThreadingJoinThread(ThreadId);
