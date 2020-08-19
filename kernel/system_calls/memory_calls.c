@@ -35,7 +35,6 @@
 #include <memoryspace.h>
 #include <memory_region.h>
 #include <threading.h>
-#include <machine.h>
 #include <string.h>
 
 OsStatus_t
@@ -48,8 +47,8 @@ ScMemoryAllocate(
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
-    unsigned int              MemoryFlags    = MAPPING_USERSPACE;
-    unsigned int              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
+    unsigned int         MemoryFlags    = MAPPING_USERSPACE;
+    unsigned int         PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     int                  PageCount;
     uintptr_t*           Pages; 
     TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);

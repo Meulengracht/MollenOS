@@ -23,7 +23,6 @@
 #define __MODULE "signal"
 //#define __TRACE
 
-#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
@@ -31,12 +30,9 @@
 #include <debug.h>
 #include <ds/streambuffer.h>
 #include <handle.h>
-#include <heap.h>
 #include <internal/_signal.h>
 #include <machine.h>
-#include <memoryspace.h>
 #include <scheduler.h>
-#include <string.h>
 #include <threading.h>
 
 static void

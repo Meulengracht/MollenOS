@@ -482,7 +482,7 @@ cache_calculate_slab_size(
 {
     // We only ever accept 1/8th of a page of wasted bytes
     size_t pageSize        = GetMemorySpacePageSize();
-    size_t acceptedWastage = (pageSize >> 4);
+    size_t acceptedWastage = (pageSize >> 4U);
     size_t reservedSpace   = 0;
     int    slabOnSite      = 0;
     size_t pageCount       = 1;

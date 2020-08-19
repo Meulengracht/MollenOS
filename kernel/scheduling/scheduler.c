@@ -28,7 +28,6 @@
 #include <assert.h>
 #include <arch/time.h>
 #include <arch/thread.h>
-#include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <component/domain.h>
 #include <debug.h>
@@ -380,7 +379,6 @@ SchedulerSleep(
     _Out_ clock_t* InterruptedAt)
 {
     SchedulerObject_t* Object;
-    int                ResultState;
     TRACE("[scheduler] [sleep] %" PRIuIN, Milliseconds);
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
@@ -397,7 +395,7 @@ SchedulerSleep(
     
     // We don't check return state here as we can only ever be in running
     // state at this point
-    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
+    (void)ExecuteEvent(Object, EVENT_BLOCK);
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
@@ -417,7 +415,6 @@ SchedulerBlock(
     _In_ size_t  Timeout)
 {
     SchedulerObject_t* Object;
-    int                ResultState;
     TRACE("[scheduler] [block] %" PRIuIN, Timeout);
     
     Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
@@ -430,7 +427,7 @@ SchedulerBlock(
 
     // We don't check return state here as we can only ever be in running
     // state at this point
-    ResultState = ExecuteEvent(Object, EVENT_BLOCK);
+    (void)ExecuteEvent(Object, EVENT_BLOCK);
     
     // For now the lists include a lock, which perform memory barriers
     list_append(BlockQueue, &Object->Header);

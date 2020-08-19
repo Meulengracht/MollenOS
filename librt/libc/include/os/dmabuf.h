@@ -28,9 +28,9 @@
 
 #include <os/osdefs.h>
 
-#define DMA_PERSISTANT  0x00000001
-#define DMA_UNCACHEABLE 0x00000002
-#define DMA_CLEAN       0x00000004
+#define DMA_PERSISTANT  0x00000001U
+#define DMA_UNCACHEABLE 0x00000002U
+#define DMA_CLEAN       0x00000004U
 
 struct dma_sg {
     uintptr_t address;

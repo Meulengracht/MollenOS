@@ -30,11 +30,9 @@
 #include <debug.h>
 #include <deviceio.h>
 #include <handle.h>
-#include <heap.h>
 #include <modules/manager.h>
 #include <interrupts.h>
 #include <machine.h>
-#include <timers.h>
 
 OsStatus_t
 ScAcpiQueryStatus(

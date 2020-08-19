@@ -16,20 +16,20 @@
 #endif
 
 // Values for wxflag
-#define WX_OPEN             0x01
-#define WX_ATEOF            0x02
-#define WX_READNL           0x04  // read started with \n
-#define WX_READEOF          0x04  // like ATEOF, but for underlying file rather than buffer
-#define WX_PIPE             0x08
-#define WX_READCR           0x10  // underlying file is at \r
-#define WX_DONTINHERIT      0x20
-#define WX_APPEND           0x40
-#define WX_TTY              0x80
-#define WX_TEXT             0x100
-#define WX_WIDE             0x200
-#define WX_UTF              (WX_TEXT | 0x400)
-#define WX_INHERITTED       0x800
-#define WX_PERSISTANT       0x1000
+#define WX_OPEN             0x01U
+#define WX_ATEOF            0x02U
+#define WX_READNL           0x04U  // read started with \n
+#define WX_READEOF          0x04U  // like ATEOF, but for underlying file rather than buffer
+#define WX_PIPE             0x08U
+#define WX_READCR           0x10U  // underlying file is at \r
+#define WX_DONTINHERIT      0x20U
+#define WX_APPEND           0x40U
+#define WX_TTY              0x80U
+#define WX_TEXT             0x100U
+#define WX_WIDE             0x200U
+#define WX_UTF              (WX_TEXT | 0x400U)
+#define WX_INHERITTED       0x800U
+#define WX_PERSISTANT       0x1000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024

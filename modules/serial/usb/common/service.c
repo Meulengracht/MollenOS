@@ -37,6 +37,7 @@ DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 #include <ctt_usbhost_protocol_server.h>
 #include <io.h>
+#include <ddk/utils.h>
 
 extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
 extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
@@ -80,7 +81,9 @@ OsStatus_t OnEvent(struct ioset_event* event)
         UsbManagerController_t* controller = event->data.context;
         unsigned int            value;
 
-        if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+        int bytesRead = read(controller->event_descriptor, &value, sizeof(unsigned int));
+        if (bytesRead != sizeof(unsigned int)) {
+            ERROR("[OnEvent] read failed %i :(", bytesRead);
             return OsError;
         }
 

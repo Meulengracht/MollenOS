@@ -287,7 +287,7 @@ int read(int fd, void* buffer, unsigned int len)
 	size_t          Utf16;
 	long long       pos;
 
-    if (handle == NULL) {
+    if (!handle) {
         _set_errno(EBADFD);
         return -1;
     }

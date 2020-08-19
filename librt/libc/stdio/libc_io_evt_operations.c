@@ -32,18 +32,20 @@ static OsStatus_t evt_lock(atomic_int* sync_address)
     OsStatus_t        status = OsSuccess;
     int               value;
 
-    parameters._futex0 = sync_address;
-    parameters._flags  = 0;
+    parameters._futex0  = sync_address;
+    parameters._flags   = 0;
     parameters._timeout = 0;
 
     while (1) {
         value = atomic_load(sync_address);
         while (value < 1) {
             parameters._val0 = value;
+
             status = Syscall_FutexWait(&parameters);
             if (status != OsSuccess) {
                 break;
             }
+
             value = atomic_load(sync_address);
         }
 

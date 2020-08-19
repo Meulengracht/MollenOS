@@ -28,10 +28,10 @@
                    ((oparg & 0xfff) << 12) | \
                    (cmparg & 0xfff))
 
-#define FUTEX_WAIT_PRIVATE      0x1
-#define FUTEX_WAIT_OP           0x2
-#define FUTEX_WAKE_PRIVATE      0x4
-#define FUTEX_WAKE_OP           0x8
+#define FUTEX_WAIT_PRIVATE      0x1U
+#define FUTEX_WAIT_OP           0x2U
+#define FUTEX_WAKE_PRIVATE      0x4U
+#define FUTEX_WAKE_OP           0x8U
 
 //int futex(int *uaddr, int op, int val, const struct timespec *timeout,
 //          int *uaddr2, int val3);

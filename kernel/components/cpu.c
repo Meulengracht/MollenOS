@@ -23,7 +23,6 @@
 #define __TRACE
 
 #include <arch/interrupts.h>
-#include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/domain.h>
