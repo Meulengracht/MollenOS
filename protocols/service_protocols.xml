@@ -421,36 +421,10 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="signal_queue_create">
-                    <request>
-                        <param name="handle" type="UUId_t" />
-                        <param name="mask" type="UUId_t" />
-                    </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                        <param name="queue_handle" type="UUId_t" />
-                    </response>
-                </function>
-                <function name="signal_queue_post">
-                    <request>
-                        <param name="handle" type="UUId_t" />
-                        <param name="signal" type="int" />
-                    </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                    </response>
-                </function>
-                <function name="signal_queue_destroy">
-                    <request>
-                        <param name="handle" type="UUId_t" />
-                    </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                    </response>
-                </function>
                 <function name="report_crash">
                     <request>
-                        <param name="handle" type="UUId_t" />
+                        <param name="thread_handle" type="UUId_t" />
+                        <param name="process_handle" type="UUId_t" />
                         <param name="crash_context" type="buffer" />
                         <param name="reason" type="int" />
                     </request>

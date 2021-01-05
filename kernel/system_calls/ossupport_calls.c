@@ -36,11 +36,11 @@ ScCreateMemoryHandler(
     _Out_ UUId_t*      HandleOut,
     _Out_ uintptr_t*   AddressBaseOut)
 {
-    SystemMemoryMappingHandler_t* Handler;
-    SystemMemorySpace_t*          Space = GetCurrentMemorySpace();
+    MemoryMappingHandler_t * Handler;
+    MemorySpace_t          *          Space = GetCurrentMemorySpace();
     assert(Space->Context != NULL);
 
-    Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
+    Handler = (MemoryMappingHandler_t*)kmalloc(sizeof(MemoryMappingHandler_t));
     if (!Handler) {
         return OsOutOfMemory;
     }
@@ -65,8 +65,8 @@ OsStatus_t
 ScDestroyMemoryHandler(
     _In_ UUId_t Handle)
 {
-    SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)LookupHandle(Handle);
-    SystemMemorySpace_t*          Space   = GetCurrentMemorySpace();
+    MemoryMappingHandler_t * Handler        = (MemoryMappingHandler_t*)LookupHandle(Handle);
+    MemorySpace_t          *          Space = GetCurrentMemorySpace();
     assert(Space->Context != NULL);
 
     if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
@@ -83,7 +83,7 @@ OsStatus_t
 ScInstallSignalHandler(
     _In_ uintptr_t Handler) 
 {
-    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     assert(Space->Context != NULL);
 
     Space->Context->SignalHandler = Handler;

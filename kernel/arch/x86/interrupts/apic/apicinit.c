@@ -118,7 +118,7 @@ InitializeApicLvt(
     }
 
     // Disable the lvt entry for all other than the boot processor
-    if (ArchGetProcessorCoreId() != GetMachine()->Processor.Cores->Id) {
+    if (ArchGetProcessorCoreId() != CpuCoreId(GetMachine()->Processor.Cores)) {
         Temp |= APIC_MASKED;
     }
     ApicWriteLocal(APIC_LINT0_REGISTER + (Lvt * 0x10), Temp);

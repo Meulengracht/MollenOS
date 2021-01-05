@@ -130,14 +130,18 @@ CRTDECL(uintmax_t,          strtoumax(const char *__restrict, char **__restrict,
 CRTDECL(int,   rand(void));
 CRTDECL(void,  srand(unsigned int));
 
+// C99 Alloca
+void* _alloca(size_t);
+#define alloca(size) _alloca(size)
+
 // C11 Aligned allocation
 CRTDECL(void*, aligned_alloc(size_t alignment, size_t size));
 
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
 _CRTIMP_NORETURN(void abort(void));
-_CRTIMP char *getenv(const char*);
-_CRTIMP int system(const char*);
+CRTDECL(char*, getenv(const char*));
+CRTDECL(int,  system(const char*));
 
 /* These are the different exit functions, they 
  * all do the same, but have different procedures

@@ -38,28 +38,22 @@ void
 ModuleThreadEntry(
     _In_ void* Context)
 {
-    SystemModule_t* Module    = (SystemModule_t*)Context;
-    UUId_t          CurrentCpu = ArchGetProcessorCoreId();
-    MCoreThread_t*  Thread     = GetCurrentThreadForCore(CurrentCpu);
-    OsStatus_t      Status;
+    SystemModule_t* module = (SystemModule_t*)Context;
+    OsStatus_t status;
     
-    assert(Module != NULL);
-    TimersGetSystemTick(&Module->StartedAt);
+    assert(module != NULL);
+    TimersGetSystemTick(&module->StartedAt);
 
     // Setup base address for code data
-    TRACE("Loading PE-image into memory (path %s)", MStringRaw(Module->Path));
-    Status = PeLoadImage(UUID_INVALID, NULL, Module->Path, &Module->Executable);
-    if (Status == OsSuccess) {
-        Thread->Function  = (ThreadEntry_t)Module->Executable->EntryAddress;
-        Thread->Arguments = NULL;
-    }
-    else {
-        ERROR("Failed to bootstrap pe image: %" PRIuIN "", Status);
-        Module->PrimaryThreadId = UUID_INVALID;
+    TRACE("Loading PE-image into memory (path %s)", MStringRaw(module->Path));
+    status = PeLoadImage(UUID_INVALID, NULL, module->Path, &module->Executable);
+    if (status != OsSuccess) {
+        ERROR("Failed to bootstrap pe image: %" PRIuIN "", status);
+        module->PrimaryThreadId = UUID_INVALID;
     }
     
-    if (Status == OsSuccess) {
-        EnterProtectedThreadLevel();
+    if (status == OsSuccess) {
+        ThreadingEnterUsermode((ThreadEntry_t)module->Executable->EntryAddress, NULL);
     }
 }
 
@@ -67,9 +61,9 @@ OsStatus_t
 SpawnModule(
     _In_ SystemModule_t* Module)
 {
-    int        Index;
-    OsStatus_t Status;
-    MString_t* ModuleName;
+    int        index;
+    OsStatus_t status;
+    MString_t* moduleName;
     TRACE("SpawnModule(%s)", MStringRaw(Module->Path));
 
     assert(Module != NULL);
@@ -78,17 +72,18 @@ SpawnModule(
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    Index                    = MStringFindReverse(Module->Path, '/', 0);
-    Module->WorkingDirectory = MStringSubString(Module->Path, 0, Index);
-    Module->BaseDirectory    = MStringSubString(Module->Path, 0, Index);
-    ModuleName               = MStringSubString(Module->Path, Index + 1, -1);
-    Status                   = CreateThread(MStringRaw(ModuleName), ModuleThreadEntry, Module, 
-        THREADING_KERNELENTRY | THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
-    MStringDestroy(ModuleName);
-    if (Status != OsSuccess) {
+    index                    = MStringFindReverse(Module->Path, '/', 0);
+    Module->WorkingDirectory = MStringSubString(Module->Path, 0, index);
+    Module->BaseDirectory    = MStringSubString(Module->Path, 0, index);
+    moduleName               = MStringSubString(Module->Path, index + 1, -1);
+    status                   = ThreadCreate(MStringRaw(moduleName), ModuleThreadEntry, Module,
+                                THREADING_KERNELENTRY | THREADING_USERMODE, UUID_INVALID,
+                                &Module->PrimaryThreadId);
+    MStringDestroy(moduleName);
+    if (status != OsSuccess) {
         // @todo cleanup everything?
-        return Status;
+        return status;
     }
-    ThreadingDetachThread(Module->PrimaryThreadId);
+    ThreadDetach(Module->PrimaryThreadId);
     return OsSuccess;
 }

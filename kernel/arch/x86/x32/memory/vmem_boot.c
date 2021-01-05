@@ -177,11 +177,11 @@ CreateKernelVirtualMemorySpace(void)
 
 OsStatus_t
 InitializeVirtualSpace(
-    _In_ SystemMemorySpace_t* SystemMemorySpace)
+        _In_ MemorySpace_t* SystemMemorySpace)
 {
 	TRACE("[vmem] [initialize]");
 
-    if (GetCurrentProcessorCore() == GetMachine()->Processor.Cores) {
+    if (CpuCoreCurrent() == GetMachine()->Processor.Cores) {
         
         // Update the configuration data for the memory space
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = PDBootPhysicalAddress;

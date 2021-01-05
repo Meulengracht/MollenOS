@@ -30,16 +30,16 @@
 #include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
 
-/* SystemMemorySpace Definitions
+/* MemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MEMORY_DATACOUNT 4
 
-/* SystemMemorySpace (Type) Definitions
+/* MemorySpace (Type) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MEMORY_SPACE_INHERIT            0x00000001U
 #define MEMORY_SPACE_APPLICATION        0x00000002U
 
-/* SystemMemorySpace (Flags) Definitions
+/* MemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MAPPING_USERSPACE               0x00000001U  // Userspace mapping
 #define MAPPING_NOCACHE                 0x00000002U  // Disable caching for mapping
@@ -58,32 +58,32 @@
 #define MAPPING_VIRTUAL_FIXED           0x00000008U  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x0000000EU
 
-typedef struct SystemMemoryMappingHandler {
+typedef struct MemoryMappingHandler {
     element_t Header;
     UUId_t    Handle;
     uintptr_t Address;
     size_t    Length;
-} SystemMemoryMappingHandler_t;
+} MemoryMappingHandler_t;
 
-typedef struct SystemMemorySpaceContext {
+typedef struct MemorySpaceContext {
     DynamicMemoryPool_t Heap;
     list_t*             MemoryHandlers;
     uintptr_t           SignalHandler;
-} SystemMemorySpaceContext_t;
+} MemorySpaceContext_t;
 
-typedef struct SystemMemorySpace {
-    UUId_t                      ParentHandle;
-    unsigned int                Flags;
-    uintptr_t                   Data[MEMORY_DATACOUNT];
-    SystemMemorySpaceContext_t* Context;
-} SystemMemorySpace_t;
+typedef struct MemorySpace {
+    UUId_t                ParentHandle;
+    unsigned int          Flags;
+    uintptr_t             Data[MEMORY_DATACOUNT];
+    MemorySpaceContext_t* Context;
+} MemorySpace_t;
 
 /* InitializeMemorySpace
  * Initializes the system memory space. This initializes a static version of the
  * system memory space which is the default space the cpu should use for kernel operation. */
 KERNELAPI OsStatus_t KERNELABI
 InitializeMemorySpace(
-    _In_ SystemMemorySpace_t* SystemMemorySpace);
+        _In_ MemorySpace_t* SystemMemorySpace);
 
 /* CreateMemorySpace
  * Initialize a new memory space, depending on what user is requesting we 
@@ -104,18 +104,18 @@ DestroyMemorySpace(
  * for the current cpu */
 KERNELAPI void KERNELABI
 SwitchMemorySpace(
-    _In_ SystemMemorySpace_t*);
+        _In_ MemorySpace_t*);
 
 /* GetCurrentMemorySpace
  * Returns the current address space if there is no active threads or threading
  * is not setup it returns the kernel address space */
-KERNELAPI SystemMemorySpace_t* KERNELABI
+KERNELAPI MemorySpace_t* KERNELABI
 GetCurrentMemorySpace(void);
 
 /* GetDomainMemorySpace
  * Retrieves the system's current copy of its memory space. If domains are active it will
  * be for the current domain, if system is uma-mode it's the machine wide. */
-KERNELAPI SystemMemorySpace_t* KERNELABI
+KERNELAPI MemorySpace_t* KERNELABI
 GetDomainMemorySpace(void);
 
 /* GetCurrentMemorySpaceHandle
@@ -128,8 +128,8 @@ GetCurrentMemorySpaceHandle(void);
  * Checks if two memory spaces are related to each other by sharing resources. */
 KERNELAPI OsStatus_t KERNELABI
 AreMemorySpacesRelated(
-    _In_ SystemMemorySpace_t* Space1,
-    _In_ SystemMemorySpace_t* Space2);
+        _In_ MemorySpace_t* Space1,
+        _In_ MemorySpace_t* Space2);
 
 /**
  * MemorySpaceMap
@@ -143,12 +143,12 @@ AreMemorySpacesRelated(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMap(
-    _In_    SystemMemorySpace_t* MemorySpace,
-    _InOut_ VirtualAddress_t*    Address,
-    _InOut_ uintptr_t*           PhysicalAddressValues,
-    _In_    size_t               Length,
-    _In_    unsigned int              MemoryFlags,
-    _In_    unsigned int              PlacementFlags);
+        _In_    MemorySpace_t* MemorySpace,
+        _InOut_ VirtualAddress_t*    Address,
+        _InOut_ uintptr_t*           PhysicalAddressValues,
+        _In_    size_t               Length,
+        _In_    unsigned int              MemoryFlags,
+        _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceMapContiguous
@@ -162,12 +162,12 @@ MemorySpaceMap(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMapContiguous(
-    _In_    SystemMemorySpace_t* MemorySpace,
-    _InOut_ VirtualAddress_t*    Address,
-    _In_    uintptr_t            PhysicalStartAddress,
-    _In_    size_t               Length,
-    _In_    unsigned int              MemoryFlags,
-    _In_    unsigned int              PlacementFlags);
+        _In_    MemorySpace_t* MemorySpace,
+        _InOut_ VirtualAddress_t*    Address,
+        _In_    uintptr_t            PhysicalStartAddress,
+        _In_    size_t               Length,
+        _In_    unsigned int              MemoryFlags,
+        _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceMapReserved
@@ -180,11 +180,11 @@ MemorySpaceMapContiguous(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMapReserved(
-    _In_    SystemMemorySpace_t* MemorySpace,
-    _InOut_ VirtualAddress_t*    Address,
-    _In_    size_t               Length,
-    _In_    unsigned int              MemoryFlags,
-    _In_    unsigned int              PlacementFlags);
+        _In_    MemorySpace_t* MemorySpace,
+        _InOut_ VirtualAddress_t*    Address,
+        _In_    size_t               Length,
+        _In_    unsigned int              MemoryFlags,
+        _In_    unsigned int              PlacementFlags);
 
 /**
  * MemorySpaceUnmap
@@ -195,9 +195,9 @@ MemorySpaceMapReserved(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceUnmap(
-    _In_ SystemMemorySpace_t* MemorySpace, 
-    _In_ VirtualAddress_t     Address, 
-    _In_ size_t               Size);
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ VirtualAddress_t     Address,
+        _In_ size_t               Size);
 
 /** 
  * MemorySpaceCommit
@@ -211,11 +211,11 @@ MemorySpaceUnmap(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceCommit(
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ VirtualAddress_t     Address,
-    _In_ uintptr_t*           PhysicalAddressValues,
-    _In_ size_t               Length,
-    _In_ unsigned int              Placement);
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ VirtualAddress_t     Address,
+        _In_ uintptr_t*           PhysicalAddressValues,
+        _In_ size_t               Length,
+        _In_ unsigned int              Placement);
 
 /**
  * MemorySpaceChangeProtection
@@ -226,11 +226,11 @@ MemorySpaceCommit(
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceChangeProtection(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ VirtualAddress_t     Address, 
-    _In_        size_t               Length, 
-    _In_        unsigned int              Attributes,
-    _Out_       unsigned int*             PreviousAttributes);
+        _In_        MemorySpace_t* SystemMemorySpace,
+        _InOut_Opt_ VirtualAddress_t     Address,
+        _In_        size_t               Length,
+        _In_        unsigned int              Attributes,
+        _Out_       unsigned int*             PreviousAttributes);
 
 /**
  * CloneMemorySpaceMapping
@@ -246,13 +246,13 @@ MemorySpaceChangeProtection(
  */
 KERNELAPI OsStatus_t KERNELABI
 CloneMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* SourceSpace,
-    _In_        SystemMemorySpace_t* DestinationSpace,
-    _In_        VirtualAddress_t     SourceAddress,
-    _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
-    _In_        size_t               Length,
-    _In_        unsigned int              MemoryFlags,
-    _In_        unsigned int              PlacementFlags);
+        _In_        MemorySpace_t* SourceSpace,
+        _In_        MemorySpace_t* DestinationSpace,
+        _In_        VirtualAddress_t     SourceAddress,
+        _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
+        _In_        size_t               Length,
+        _In_        unsigned int              MemoryFlags,
+        _In_        unsigned int              PlacementFlags);
 
 /**
  * GetMemorySpaceMapping
@@ -264,33 +264,33 @@ CloneMemorySpaceMapping(
  */
 KERNELAPI OsStatus_t KERNELABI
 GetMemorySpaceMapping(
-    _In_  SystemMemorySpace_t* MemorySpace, 
-    _In_  VirtualAddress_t     Address,
-    _In_  int                  PageCount,
-    _Out_ uintptr_t*           DmaVectorOut);
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     Address,
+        _In_  int                  PageCount,
+        _Out_ uintptr_t*           DmaVectorOut);
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */
 KERNELAPI unsigned int KERNELABI
 GetMemorySpaceAttributes(
-    _In_ SystemMemorySpace_t* SystemMemorySpace, 
-    _In_ VirtualAddress_t     VirtualAddress);
+        _In_ MemorySpace_t* SystemMemorySpace,
+        _In_ VirtualAddress_t     VirtualAddress);
 
 /* IsMemorySpacePageDirty
  * Checks if the given virtual address is dirty (has been written data to). 
  * Returns OsSuccess if the address is dirty. */
 KERNELAPI OsStatus_t KERNELABI
 IsMemorySpacePageDirty(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ VirtualAddress_t       Address);
+        _In_ MemorySpace_t*   SystemMemorySpace,
+        _In_ VirtualAddress_t       Address);
 
 /* IsMemorySpacePagePresent
  * Checks if the given virtual address is present. Returns success if the page
  * at the address has a mapping. */
 KERNELAPI OsStatus_t KERNELABI
 IsMemorySpacePagePresent(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ VirtualAddress_t       Address);
+        _In_ MemorySpace_t*   SystemMemorySpace,
+        _In_ VirtualAddress_t       Address);
 
 /* GetMemorySpacePageSize
  * Retrieves the memory page-size used by the underlying architecture. */

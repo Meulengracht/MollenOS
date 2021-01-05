@@ -40,7 +40,7 @@ typedef struct SystemFileMapping {
 } SystemFileMapping_t;
 
 typedef struct SystemFileMappingEvent {
-    SystemMemorySpace_t* MemorySpace;
+    MemorySpace_t * MemorySpace;
     uintptr_t            Address;
     OsStatus_t           Result;
 } SystemFileMappingEvent_t;

@@ -34,10 +34,10 @@
 #include <time.h>
 
 // Forward some structures we need
-DECL_STRUCT(SystemMemorySpace);
+DECL_STRUCT(MemorySpace);
 DECL_STRUCT(SystemProcess);
 DECL_STRUCT(SchedulerObject);
-DECL_STRUCT(streambuffer);
+DECL_STRUCT(Thread);
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -73,138 +73,201 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010U
 #define THREADING_TRANSITION_USERMODE   0x10000000U
 
-typedef struct ThreadSignal {
-    int          Signal;
-    void*        Argument;
-    unsigned int Flags;
-} ThreadSignal_t;
+#define THREAD_GET(Handle) (Thread_t*)LookupHandleOfType(Handle, HandleTypeThread)
 
-typedef struct ThreadSignals {
-    streambuffer_t* Signals;
-    _Atomic(int)    Pending;
-    unsigned int    Mask;
-} ThreadSignals_t;
-
-typedef struct SystemThread {
-    SystemMemorySpace_t*    MemorySpace;
-    UUId_t                  MemorySpaceHandle;
-    SchedulerObject_t*      SchedulerObject;
-    Context_t*              ContextActive;
-    
-    UUId_t                  Handle;
-    UUId_t                  ParentHandle;
-    
-    Mutex_t                 SyncObject;
-    Semaphore_t             EventObject;
-    Semaphore_t             WaitObject;
-    _Atomic(int)            References;
-    clock_t                 StartedAt;
-    struct SystemThread*    Children;
-    struct SystemThread*    Sibling;
-
-    const char*             Name;
-    unsigned int                 Flags;
-    _Atomic(int)            Cleanup;
-    UUId_t                  Cookie;
-
-    ThreadEntry_t           Function;
-    void*                   Arguments;
-    int                     RetCode;
-    
-    Context_t*              Contexts[THREADING_NUMCONTEXTS];
-    uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
-    
-    ThreadSignals_t         Signaling;
-} MCoreThread_t;
-
-/* ThreadingEnable
- * Enables the threading system for the given cpu calling the function. */
-KERNELAPI void KERNELABI
-ThreadingEnable(void);
-
-/* CreateThread
+/**
+ * ThreadCreate
  * Creates a new thread that will execute the given function as soon as possible. The 
- * thread can be supplied with arguments, mode and a custom memory space. */
+ * thread can be supplied with arguments, mode and a custom memory space.
+ */
 KERNELAPI OsStatus_t KERNELABI
-CreateThread(
+ThreadCreate(
     _In_  const char*    Name,
     _In_  ThreadEntry_t  Function,
     _In_  void*          Arguments,
-    _In_  unsigned int        Flags,
+    _In_  unsigned int   Flags,
     _In_  UUId_t         MemorySpaceHandle,
     _Out_ UUId_t*        Handle);
 
-/* TerminateThread
+/**
+ * ThreadTerminate
  * Marks the thread with the given id for finished, and it will be cleaned up
- * on next switch unless specified. The given exitcode will be stored. */
+ * on next switch unless specified. The given exitcode will be stored.
+ */
 KERNELAPI OsStatus_t KERNELABI
-TerminateThread(
+ThreadTerminate(
     _In_ UUId_t ThreadId,
     _In_ int    ExitCode,
     _In_ int    TerminateChildren);
 
-/* ThreadingJoinThread
- * Can be used to wait for a thread the return 
- * value of this function is the ret-code of the thread */
+/**
+ * ThreadJoin
+ * Can be used to wait for a thread
+ * @param ThreadId The thread handle
+ * @return         Exit code of the joined thread
+ */
 KERNELAPI int KERNELABI
-ThreadingJoinThread(
+ThreadJoin(
     _In_ UUId_t ThreadId);
 
-/* ThreadingDetachThread
+/**
+ * ThreadDetach
  * Detaches a running thread by marking it without parent, this will make
- * sure it runs untill it kills itself. */
+ * sure it runs untill it kills itself.
+ */
 KERNELAPI OsStatus_t KERNELABI
-ThreadingDetachThread(
+ThreadDetach(
     _In_  UUId_t ThreadId);
 
-/* EnterProtectedThreadLevel
- * Initializes non-kernel mode and marks the thread
- * for transitioning, there is no return from this function */
-KERNELAPI void KERNELABI
-EnterProtectedThreadLevel(void);
-
-/* ThreadingIsCurrentTaskIdle
- * Is the given cpu running it's idle task? */
+/**
+ * ThreadIsCurrentIdle
+ * Is the given cpu running it's idle task?
+ */
 KERNELAPI int KERNELABI
-ThreadingIsCurrentTaskIdle(
+ThreadIsCurrentIdle(
     _In_ UUId_t CoreId);
 
-/* ThreadingGetCurrentMode
- * Returns the current run-mode for the current thread on the current cpu */
+/**
+ * ThreadCurrentMode
+ * Returns the current run-mode for the current thread on the current cpu
+ */
 KERNELAPI unsigned int KERNELABI
-ThreadingGetCurrentMode(void);
+ThreadCurrentMode(void);
 
-/* GetCurrentThreadForCore
- * Retrieves the current thread on the given cpu if there is any issues it returns NULL */
-KERNELAPI MCoreThread_t* KERNELABI
-GetCurrentThreadForCore(
+/**
+ * ThreadCurrentHandle
+ * Retrives the current thread handle on the current cpu */
+KERNELAPI UUId_t KERNELABI
+ThreadCurrentHandle(void);
+
+/**
+ * ThreadCurrentForCore
+ * Retrieves the current thread on the given cpu if there is any issues it returns NULL
+ * @TODO Move this to cpu file
+ */
+KERNELAPI Thread_t* KERNELABI
+ThreadCurrentForCore(
     _In_ UUId_t CoreId);
 
-/* GetCurrentThreadId
- * Retrives the current thread id on the current cpu from the callers perspective */
-KERNELAPI UUId_t KERNELABI
-GetCurrentThreadId(void);
-
-/* AreThreadsRelated 
- * Returns whether or not the threads are running in same address space context. */
+/**
+ * ThreadIsRelated
+ * Returns whether or not the threads are running in same address space context.
+ */
 KERNELAPI OsStatus_t KERNELABI
-AreThreadsRelated(
+ThreadIsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2);
 
-/* ThreadingAdvance
- * This is the thread-switch function and must be be called from the below architecture 
- * to get the next thread to run */
-KERNELAPI OsStatus_t KERNELABI
-ThreadingAdvance(
-    _In_  int     Preemptive,
-    _In_  size_t  MillisecondsPassed,
-    _Out_ size_t* NextDeadlineOut);
+/**
+ * ThreadIsRoot
+ * @param Thread A pointer to a thread structure
+ * @return       1 If the thread is a root thread
+ */
+KERNELAPI int KERNELABI
+ThreadIsRoot(
+        _In_ Thread_t* Thread);
 
-/* DisplayActiveThreads
- * Prints out debugging information about each thread in the system, only active threads */
-KERNELAPI void KERNELABI
-DisplayActiveThreads(void);
+/**
+ * ThreadHandle
+ * @param Thread A pointer to a thread structure
+ * @return       The handle for the thread structure
+ */
+KERNELAPI UUId_t KERNELABI
+ThreadHandle(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadStartTime
+ * @param Thread A pointer to a thread structure
+ * @return       The start time for the thread
+ */
+KERNELAPI clock_t KERNELABI
+ThreadStartTime(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadCookie
+ * @param Thread A pointer to a thread structure
+ * @return       The cookie for the thread
+ */
+KERNELAPI UUId_t KERNELABI
+ThreadCookie(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadSetName
+ * @param Thread A pointer to a thread structure
+ * @return       Status of the operation
+ */
+KERNELAPI OsStatus_t KERNELABI
+ThreadSetName(
+        _In_ Thread_t*   Thread,
+        _In_ const char* Name);
+
+/**
+ * ThreadName
+ * @param Thread A pointer to a thread structure
+ * @return       A pointer to a null terminated string of the threads name
+ */
+KERNELAPI const char* KERNELABI
+ThreadName(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadFlags
+ * @param Thread A pointer to a thread structure
+ * @return       The current configuration flags for the Thread instance
+ */
+KERNELAPI unsigned int KERNELABI
+ThreadFlags(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadMemorySpace
+ * @param Thread A pointer to a thread structure
+ * @return       A pointer to the threads memory space
+ */
+KERNELAPI MemorySpace_t* KERNELABI
+ThreadMemorySpace(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadMemorySpaceHandle
+ * @param Thread A pointer to a thread structure
+ * @return       The handle for the threads memory space
+ */
+KERNELAPI UUId_t KERNELABI
+ThreadMemorySpaceHandle(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadSchedulerHandle
+ * @param Thread A pointer to a thread structure
+ * @return       A pointer to the threads scheduler instance
+ */
+KERNELAPI SchedulerObject_t* KERNELABI
+ThreadSchedulerHandle(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadData
+ * @param Thread A pointer to a thread structure
+ * @return       A pointer to the thread configuration data of size THREADING_CONFIGDATA_COUNT
+ */
+KERNELAPI uintptr_t* KERNELABI
+ThreadData(
+        _In_ Thread_t* Thread);
+
+/**
+ * ThreadContext
+ * @param Thread A pointer to a thread structure
+ * @param Context The context that should be requested
+ * @return       A pointer to the thread context
+ */
+KERNELAPI Context_t* KERNELABI
+ThreadContext(
+        _In_ Thread_t* Thread,
+        _In_ int       Context);
 
 /**
  * SignalSend
@@ -234,7 +297,44 @@ SignalExecuteLocalThreadTrap(
  */
 KERNELAPI void KERNELABI
 SignalProcessQueued(
-    _In_ MCoreThread_t* Thread,
+    _In_ Thread_t* Thread,
     _In_ Context_t*     Context);
+
+/**
+ * ThreadingEnable
+ * Enables the threading system for the given cpu calling the function.
+ */
+KERNELAPI void KERNELABI
+ThreadingEnable(void);
+
+/**
+ * ThreadingEnterUsermode
+ * Initializes non-kernel mode and marks the thread
+ * for transitioning, there is no return from this function
+ * @param EntryPoint The entry point from where to execute code in usermode
+ * @param Argument A pointer or value that should be passed to entry point as argument
+ */
+KERNELAPI void KERNELABI
+ThreadingEnterUsermode(
+        _In_ ThreadEntry_t EntryPoint,
+        _In_ void*         Argument);
+
+/**
+ * ThreadingAdvance
+ * This is the thread-switch function and must be be called from the below architecture
+ * to get the next thread to run
+ */
+KERNELAPI OsStatus_t KERNELABI
+ThreadingAdvance(
+        _In_  int     Preemptive,
+        _In_  size_t  MillisecondsPassed,
+        _Out_ size_t* NextDeadlineOut);
+
+/**
+ * DisplayActiveThreads
+ * Prints out debugging information about each thread in the system, only active threads
+ */
+KERNELAPI void KERNELABI
+DisplayActiveThreads(void);
 
 #endif //!__THREADING_H__

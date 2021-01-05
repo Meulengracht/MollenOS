@@ -65,6 +65,15 @@ ProcessJoin(
     _Out_ int*   ExitCode));
 
 /**
+ * Delivers a kill signal to the target process if security checks are passed against the process.
+ * @param Handle Handle of the process to signal.
+ * @return       Status of the operation.
+ */
+CRTDECL(OsStatus_t,
+ProcessKill(
+        _In_ UUId_t Handle));
+
+/**
  * Dispatches a signal to the target process, the target process must be listening to asynchronous signals
  * otherwise the signal is ignored. Both SIGKILL and SIGQUIT will terminate the process in any event, if security
  * checks are passed.

@@ -80,6 +80,8 @@ extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, unsigned int
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
 
+extern OsStatus_t ScMapThreadMemoryRegion(UUId_t, uintptr_t, size_t, void**);
+
 ///////////////////////////////////////////////
 // Operating System Interface
 // - Unprotected, all
@@ -191,23 +193,24 @@ static struct SystemCallDescriptor {
     DefineSyscall(26, ScUnregisterInterrupt),
     DefineSyscall(27, ScGetProcessBaseAddress),
 
+    DefineSyscall(28, ScMapThreadMemoryRegion),
+
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Unprotected, all
 
     // Threading system calls
-    DefineSyscall(28, ScThreadCreate),
-    DefineSyscall(29, ScThreadExit),
-    DefineSyscall(30, ScThreadSignal),
-    DefineSyscall(31, ScThreadJoin),
-    DefineSyscall(32, ScThreadDetach),
-    DefineSyscall(33, ScThreadSleep),
-    DefineSyscall(34, ScThreadYield),
-    DefineSyscall(35, ScThreadGetCurrentId),
-    DefineSyscall(36, ScThreadCookie),
-    DefineSyscall(37, ScThreadSetCurrentName),
-    DefineSyscall(38, ScThreadGetCurrentName),
-    DefineSyscall(39, ScThreadGetContext),
+    DefineSyscall(29, ScThreadCreate),
+    DefineSyscall(30, ScThreadExit),
+    DefineSyscall(31, ScThreadSignal),
+    DefineSyscall(32, ScThreadJoin),
+    DefineSyscall(33, ScThreadDetach),
+    DefineSyscall(34, ScThreadSleep),
+    DefineSyscall(35, ScThreadYield),
+    DefineSyscall(36, ScThreadGetCurrentId),
+    DefineSyscall(37, ScThreadCookie),
+    DefineSyscall(38, ScThreadSetCurrentName),
+    DefineSyscall(39, ScThreadGetCurrentName),
 
     // Synchronization system calls
     DefineSyscall(40, ScFutexWait),
@@ -261,7 +264,7 @@ SyscallHandle(
     _In_ Context_t* Context)
 {
     struct SystemCallDescriptor* Handler;
-    MCoreThread_t*               Thread;
+    Thread_t*               Thread;
     size_t                       Index = CONTEXT_SC_FUNC(Context);
     size_t                       ReturnValue;
     
@@ -270,7 +273,7 @@ SyscallHandle(
         return Context;
     }
     
-    Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
     Handler = &SystemCallsTable[Index];
     
     ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(

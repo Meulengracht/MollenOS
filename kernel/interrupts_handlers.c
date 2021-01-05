@@ -66,7 +66,7 @@ FunctionExecutionInterruptHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     NotUsedEither)
 {
-    SystemCpuCore_t* Core = GetCurrentProcessorCore();
+    SystemCpuCore_t* Core = CpuCoreCurrent();
     TxuMessage_t*    Message;
     element_t*       Element;
     TRACE("FunctionExecutionInterruptHandler(%u)", Core->Id);
@@ -74,7 +74,7 @@ FunctionExecutionInterruptHandler(
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
 
-    Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
+    Element = CpuCorePopQueuedIpc(Core);
     while (Element != NULL) {
         Message = Element->value;
         atomic_store(&Message->Delivered, 1);
@@ -82,7 +82,7 @@ FunctionExecutionInterruptHandler(
         Message->Handler(Message->Argument);
         
         queue_push(&TxuReusableBin, Element);
-        Element = queue_pop(&Core->FunctionQueue[CpuFunctionCustom]);
+        Element = CpuCorePopQueuedIpc(Core);
     }
     return InterruptHandled;
 }
@@ -120,7 +120,7 @@ TxuMessageSend(
     atomic_store(&Message->Delivered, 0);
     smp_wmb();
 
-    queue_push(&Core->FunctionQueue[Type], &Message->Header);
+    CpuCoreQueueIpc(Core, Type, &Message->Header);
     Status = ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
     if (Status != OsSuccess) {
         if (!Asynchronous) {

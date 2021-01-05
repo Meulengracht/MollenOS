@@ -88,6 +88,7 @@ add_library(libddk
     acsupport.c
     bufferpool.c
     bytepool.c
+    debug.c
     device.c
     deviceio.c
     eventqueue.c

@@ -227,6 +227,7 @@ set (SOURCES_STDIO
     stdio/io/chsize.c
     stdio/io/clearerr.c
     stdio/io/convflags.c
+    stdio/io/dup.c
     stdio/io/fclose.c
     stdio/io/feof.c
     stdio/io/ferror.c
@@ -281,9 +282,7 @@ set (SOURCES_STDIO
     stdio/io/strerror.c
     stdio/io/ungetc.c
     stdio/io/ungetwc.c
-    
-    stdio/keymaps/en-us.c
-    
+
     stdio/pipe/pipe.c
 
     stdio/libc_io.c
@@ -371,12 +370,15 @@ set (SOURCES_OS
     os/synchronization/spinlock.c
     os/synchronization/event.c
 
+    os/keymaps/en-us.c
+
     os/clang.c
     os/dmabuf.c
     os/error_codes.c
     os/file.c
     os/init.c
     os/ipcontext.c
+    os/keycodes.c
     os/memory.c
     os/path.c
     os/process.c

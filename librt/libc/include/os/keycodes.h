@@ -24,6 +24,8 @@
 #ifndef _KEYCODES_INTERFACE_H_
 #define _KEYCODES_INTERFACE_H_
 
+#include <crtdefs.h>
+
 typedef enum KeyCode {
     VK_INVALID              = 0x00,
 
@@ -191,4 +193,18 @@ typedef enum KeyModifiers {
     VK_MODIFIER_RELEASED  = 0x1000
 } KeyModifiers_t;
 
+_CODE_BEGIN
+/**
+ * Performs the translation on the keycode in the system key structure. Returns the corresponding
+ * ASCII character for the given keyCode with modifiers.
+ * @param  keyCode
+ * @param  keyModifiers
+ * @return The corresponding ASCII character
+ */
+CRTDECL(char,
+TranslateKeyCode(
+        _In_  KeyCode_t keyCode,
+        _In_  KeyModifiers_t keyModifiers));
+
+_CODE_END
 #endif //!_KEYCODES_INTERFACE_H_

@@ -364,7 +364,7 @@ InterruptRegister(
 
     systemInterrupt->Id           = (id << 16U);
     systemInterrupt->ModuleHandle = UUID_INVALID;
-    systemInterrupt->Thread       = GetCurrentThreadId();
+    systemInterrupt->Thread       = ThreadCurrentHandle();
     systemInterrupt->Flags        = flags;
     systemInterrupt->Line         = deviceInterrupt->Line;
     systemInterrupt->Pin          = deviceInterrupt->Pin;
@@ -531,18 +531,19 @@ void
 InterruptSetActiveStatus(
     _In_ int Active)
 {
-    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
-    State &= ~(CpuStateInterruptActive);
+    SystemCpuCore_t* core = CpuCoreCurrent();
+    SystemCpuState_t cpuState = CpuCoreState(core);
+    cpuState &= ~(CpuStateInterruptActive);
     if (Active) {
-        State |= CpuStateInterruptActive;
+        cpuState |= CpuStateInterruptActive;
     }
-    WRITE_VOLATILE(GetCurrentProcessorCore()->State, State);
+    CpuCoreSetState(core, cpuState);
 }
 
 int
 InterruptGetActiveStatus(void)
 {
-    SystemCpuState_t State = READ_VOLATILE(GetCurrentProcessorCore()->State);
+    SystemCpuState_t State = CpuCoreState(CpuCoreCurrent());
     return (State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
@@ -551,54 +552,31 @@ InterruptHandle(
     _In_  Context_t* Context,
     _In_  int        TableIndex)
 {
-    SystemCpuCore_t*   Core     = GetCurrentProcessorCore();
-    uint32_t           Priority = InterruptsGetPriority();
-    int                Source   = INTERRUPT_NONE;
-    InterruptStatus_t  Result;
-    SystemInterrupt_t* Entry;
-    InterruptsSetPriority(TableIndex);
+    uint32_t           initialPriority = InterruptsGetPriority();
+    int                interruptSource = INTERRUPT_NONE;
+    InterruptStatus_t  interruptStatus;
+    SystemInterrupt_t* entry;
 
-    if (!Core->InterruptNesting) {
-        InterruptSetActiveStatus(1);
-        Core->InterruptRegisters = Context;
-        Core->InterruptPriority  = Priority;
-    }
-    Core->InterruptNesting++;
-#ifdef __OSCONFIG_NESTED_INTERRUPTS
-    InterruptEnable();
-#endif
+    InterruptsSetPriority(TableIndex);
+    CpuCoreEnterInterrupt(Context, initialPriority);
 
     // Update current status
-    Entry = InterruptTable[TableIndex].Descriptor;
-    while (Entry != NULL) {
-        if (Entry->Flags & INTERRUPT_KERNEL) {
-            Result = Entry->Handler(GetFastInterruptTable(), Entry->Context);
+    entry = InterruptTable[TableIndex].Descriptor;
+    while (entry != NULL) {
+        if (entry->Flags & INTERRUPT_KERNEL) {
+            interruptStatus = entry->Handler(GetFastInterruptTable(), entry->Context);
         }
         else {
-            Result = Entry->KernelResources.Handler(GetFastInterruptTable(), &Entry->KernelResources);
+            interruptStatus = entry->KernelResources.Handler(GetFastInterruptTable(), &entry->KernelResources);
         }
 
-        if (Result == InterruptHandled) {
-            Source = Entry->Source;
+        if (interruptStatus == InterruptHandled) {
+            interruptSource = entry->Source;
             break;
         }
-        Entry = Entry->Link;
+        entry = entry->Link;
     }
     
-    InterruptsAcknowledge(Source, TableIndex);
-    
-#ifdef __OSCONFIG_NESTED_INTERRUPTS
-    InterruptDisable();
-#endif
-    Core->InterruptNesting--;
-    if (!Core->InterruptNesting) {
-        Context = Core->InterruptRegisters;
-        Core->InterruptRegisters = NULL;
-        InterruptsSetPriority(Core->InterruptPriority);
-        InterruptSetActiveStatus(0);
-    }
-    else {
-        InterruptsSetPriority(Priority);
-    }
-    return Context;
+    InterruptsAcknowledge(interruptSource, TableIndex);
+    return CpuCoreExitInterrupt(Context, initialPriority);
 }

@@ -36,8 +36,8 @@ typedef struct SystemDomain {
     element_t           Header;
     UUId_t              Id;
     SystemCpu_t         CoreGroup;
-    SystemMemory_t      Memory;
-    SystemMemorySpace_t SystemSpace;
+    SystemMemory_t Memory;
+    MemorySpace_t  SystemSpace;
 } SystemDomain_t;
 
 /* CreateNumaDomain

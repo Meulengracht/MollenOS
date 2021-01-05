@@ -31,6 +31,9 @@ set (ADDITONAL_SOURCES
 add_service_target(processmanager ""
     ${ADDITONAL_SOURCES}
 
-    process.c
+    debugger.c
     main.c
+    map_parser.c
+    process.c
+    symbol_loader.c
 )

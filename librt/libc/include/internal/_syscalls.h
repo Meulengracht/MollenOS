@@ -54,20 +54,21 @@ _CODE_END
 #define Syscall_InterruptRemove(InterruptId)                                                 (OsStatus_t)syscall1(26, SCPARAM(InterruptId))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                        (OsStatus_t)syscall1(27, SCPARAM(BaseAddressOut))
 
+#define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, Length, PointerOut)             (OsStatus_t)syscall4(28, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(Length), SCPARAM(PointerOut))
+
 ///////////////////////////////////////////////
 //Operating System (Process) Interface
-#define Syscall_ThreadCreate(Entry, Argument, Parameters, HandleOut)       (OsStatus_t)syscall4(28, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Parameters), SCPARAM(HandleOut))
-#define Syscall_ThreadExit(ExitCode)                                       (OsStatus_t)syscall1(29, SCPARAM(ExitCode))
-#define Syscall_ThreadSignal(ThreadId, Signal)                             (OsStatus_t)syscall2(30, SCPARAM(ThreadId), SCPARAM(Signal))
-#define Syscall_ThreadJoin(ThreadId, ExitCode)                             (OsStatus_t)syscall2(31, SCPARAM(ThreadId), SCPARAM(ExitCode))
-#define Syscall_ThreadDetach(ThreadId)                                     (OsStatus_t)syscall1(32, SCPARAM(ThreadId))
-#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept)               (OsStatus_t)syscall2(33, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
-#define Syscall_ThreadYield()                                              (OsStatus_t)syscall0(34)
-#define Syscall_ThreadId()                                                 (UUId_t)syscall0(35)
-#define Syscall_ThreadCookie()                                             (UUId_t)syscall0(36)
-#define Syscall_ThreadSetCurrentName(Name)                                 (UUId_t)syscall1(37, SCPARAM(Name))
-#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (UUId_t)syscall2(38, SCPARAM(NameBuffer), SCPARAM(MaxLength))
-#define Syscall_ThreadGetContext(Context)                                  (OsStatus_t)syscall1(39, SCPARAM(ContextOut))
+#define Syscall_ThreadCreate(Entry, Argument, Parameters, HandleOut)       (OsStatus_t)syscall4(29, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Parameters), SCPARAM(HandleOut))
+#define Syscall_ThreadExit(ExitCode)                                       (OsStatus_t)syscall1(30, SCPARAM(ExitCode))
+#define Syscall_ThreadSignal(ThreadId, Signal)                             (OsStatus_t)syscall2(31, SCPARAM(ThreadId), SCPARAM(Signal))
+#define Syscall_ThreadJoin(ThreadId, ExitCode)                             (OsStatus_t)syscall2(32, SCPARAM(ThreadId), SCPARAM(ExitCode))
+#define Syscall_ThreadDetach(ThreadId)                                     (OsStatus_t)syscall1(33, SCPARAM(ThreadId))
+#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept)               (OsStatus_t)syscall2(34, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
+#define Syscall_ThreadYield()                                              (OsStatus_t)syscall0(35)
+#define Syscall_ThreadId()                                                 (UUId_t)syscall0(36)
+#define Syscall_ThreadCookie()                                             (UUId_t)syscall0(37)
+#define Syscall_ThreadSetCurrentName(Name)                                 (UUId_t)syscall1(38, SCPARAM(Name))
+#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (UUId_t)syscall2(39, SCPARAM(NameBuffer), SCPARAM(MaxLength))
 
 #define Syscall_FutexWait(Parameters)                                      (OsStatus_t)syscall1(40, SCPARAM(Parameters))
 #define Syscall_FutexWake(Parameters)                                      (OsStatus_t)syscall1(41, SCPARAM(Parameters))

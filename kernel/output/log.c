@@ -104,7 +104,7 @@ void
 LogRenderMessages(void)
 {
     SystemLogLine_t* Line;
-    MCoreThread_t*   Thread;
+    Thread_t*   Thread;
     
     if (!LogObject.AllowRender) {
         return;
@@ -117,7 +117,7 @@ LogRenderMessages(void)
         if (LogObject.RenderIndex == LogObject.NumberOfLines) {
             LogObject.RenderIndex = 0;
         }
-        Thread = LookupHandleOfType(Line->ThreadHandle, HandleTypeThread);
+        Thread = THREAD_GET(Line->ThreadHandle);
 
         // Don't give raw any special handling
         if (Line->Type == LOG_RAW) {
@@ -127,7 +127,7 @@ LogRenderMessages(void)
         else {
             VideoGetTerminal()->FgColor = TypeColors[Line->Type];
             printf("[%s-%u-%s] ", TypeDescriptions[Line->Type], Line->CoreId, 
-                Thread ? Thread->Name : "boot");
+                Thread ? ThreadName(Thread) : "boot");
             if (Line->Type != LOG_ERROR) {
                 VideoGetTerminal()->FgColor = 0;
             }
@@ -175,7 +175,7 @@ LogAppendMessage(
     memset((void*)Line, 0, sizeof(SystemLogLine_t));
     Line->Type         = Type;
     Line->CoreId       = CoreId;
-    Line->ThreadHandle = GetCurrentThreadId();
+    Line->ThreadHandle = ThreadCurrentHandle();
     
 	va_start(Arguments, Message);
     vsnprintf(&Line->Data[0], sizeof(Line->Data) - 1, Message, Arguments);

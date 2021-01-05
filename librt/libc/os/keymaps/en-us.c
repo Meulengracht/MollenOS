@@ -52,12 +52,15 @@ static uint8_t AsciiKeyMap[VK_KEYCOUNT] = {
     0, 0, 0, 0, 0, 0
 };
 
-void
-GetKeyFromSystemKeyEnUs(
-    struct ctt_input_button_event* key)
+char
+GetASCIIFromKeyCodeEnUs(
+    _In_ KeyCode_t keyCode,
+    _In_ KeyModifiers_t keyModifiers)
 {
-    int shouldUpperCase = key->modifiers & (VK_MODIFIER_LSHIFT | VK_MODIFIER_RSHIFT);
-    if (key->modifiers & VK_MODIFIER_CAPSLOCK) {
+    char character       = '\0';
+    int  shouldUpperCase = keyModifiers & (VK_MODIFIER_LSHIFT | VK_MODIFIER_RSHIFT);
+
+    if (keyModifiers & VK_MODIFIER_CAPSLOCK) {
         if (shouldUpperCase != 0) {
             shouldUpperCase = 0;
         }
@@ -68,14 +71,10 @@ GetKeyFromSystemKeyEnUs(
 
     // Handle modifiers, caps lock negates shift as seen above
     if (shouldUpperCase) {
-        key->key_ascii = AsciiShiftKeyMap[key->key_code];
+        character = AsciiShiftKeyMap[keyCode];
     }
     else {
-        key->key_ascii = AsciiKeyMap[key->key_code];
+        character = AsciiKeyMap[keyCode];
     }
-
-    // Copy if standard unicode, otherwise ignore for now
-    if (key->key_ascii < 128) {
-        key->key_unicode = key->key_ascii;
-    }
+    return character;
 }

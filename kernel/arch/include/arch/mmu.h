@@ -29,17 +29,17 @@
 
 extern OsStatus_t
 InitializeVirtualSpace(
-    _In_ SystemMemorySpace_t*);
+        _In_ MemorySpace_t*);
 
 extern OsStatus_t
 CloneVirtualSpace(
-    _In_ SystemMemorySpace_t*,
-    _In_ SystemMemorySpace_t*,
-    _In_ int);
+        _In_ MemorySpace_t*,
+        _In_ MemorySpace_t*,
+        _In_ int);
 
 extern OsStatus_t
 DestroyVirtualSpace(
-    _In_ SystemMemorySpace_t*);
+        _In_ MemorySpace_t*);
 
 /**
  * ArchMmuSwitchMemorySpace
@@ -49,7 +49,7 @@ DestroyVirtualSpace(
  */
 KERNELAPI void KERNELABI
 ArchMmuSwitchMemorySpace(
-    _In_ SystemMemorySpace_t*);
+        _In_ MemorySpace_t*);
 
 /**
  * ArchMmuGetPageAttributes
@@ -65,11 +65,11 @@ ArchMmuSwitchMemorySpace(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuGetPageAttributes(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  int,
-    _In_  unsigned int*,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  int,
+        _In_  unsigned int*,
+        _Out_ int*);
 
 /**
  * ArchMmuUpdatePageAttributes
@@ -85,11 +85,11 @@ ArchMmuGetPageAttributes(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuUpdatePageAttributes(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  int,
-    _In_  unsigned int*,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  int,
+        _In_  unsigned int*,
+        _Out_ int*);
 
 /**
  * ArchMmuCommitVirtualPage
@@ -104,11 +104,11 @@ ArchMmuUpdatePageAttributes(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuCommitVirtualPage(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  PhysicalAddress_t*,
-    _In_  int,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  PhysicalAddress_t*,
+        _In_  int,
+        _Out_ int*);
 
 /**
  * ArchMmuSetContiguousVirtualPages
@@ -125,12 +125,12 @@ ArchMmuCommitVirtualPage(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetContiguousVirtualPages(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  PhysicalAddress_t,
-    _In_  int,
-    _In_  unsigned int,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  PhysicalAddress_t,
+        _In_  int,
+        _In_  unsigned int,
+        _Out_ int*);
 
 /**
  * ArchMmuReserveVirtualPages
@@ -145,11 +145,11 @@ ArchMmuSetContiguousVirtualPages(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuReserveVirtualPages(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  int,
-    _In_  unsigned int,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  int,
+        _In_  unsigned int,
+        _Out_ int*);
 
 /**
  * ArchMmuSetVirtualPages
@@ -167,12 +167,12 @@ ArchMmuReserveVirtualPages(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetVirtualPages(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  PhysicalAddress_t*,
-    _In_  int,
-    _In_  unsigned int,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  PhysicalAddress_t*,
+        _In_  int,
+        _In_  unsigned int,
+        _Out_ int*);
 
 /**
  * ArchMmuClearVirtualPages
@@ -186,10 +186,10 @@ ArchMmuSetVirtualPages(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuClearVirtualPages(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  int,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  int,
+        _Out_ int*);
 
 /**
  * ArchMmuVirtualToPhysical
@@ -206,10 +206,10 @@ ArchMmuClearVirtualPages(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuVirtualToPhysical(
-    _In_  SystemMemorySpace_t*,
-    _In_  VirtualAddress_t,
-    _In_  int,
-    _In_  PhysicalAddress_t*,
-    _Out_ int*);
+        _In_  MemorySpace_t*,
+        _In_  VirtualAddress_t,
+        _In_  int,
+        _In_  PhysicalAddress_t*,
+        _Out_ int*);
 
 #endif //!__SYSTEM_MMU_INTEFACE_H__

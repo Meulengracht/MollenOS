@@ -58,14 +58,14 @@ typedef struct SchedulerQueue {
     SchedulerObject_t* Tail;
 } SchedulerQueue_t;
 
-typedef struct SystemScheduler {
+typedef struct Scheduler {
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
     _Atomic(int)           ObjectCount;
     _Atomic(unsigned long) Bandwidth;
     clock_t                LastBoost;
-} SystemScheduler_t;
+} Scheduler_t;
 
 #define SCHEDULER_INIT { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 

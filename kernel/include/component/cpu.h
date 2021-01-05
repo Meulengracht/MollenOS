@@ -40,6 +40,8 @@
 
 typedef void(*TxuFunction_t)(void*);
 
+typedef struct SystemCpuCore SystemCpuCore_t;
+
 typedef enum SystemCpuState {
     CpuStateUnavailable     = 0x0U,
     CpuStateShutdown        = 0x1U,
@@ -62,25 +64,6 @@ typedef struct TxuMessage {
     void*         Argument;
 } TxuMessage_t;
 
-typedef struct SystemCpuCore {
-    UUId_t            Id;
-    SystemCpuState_t  State;
-    int               External;
-
-    // Static resources
-    MCoreThread_t     IdleThread;
-    SystemScheduler_t Scheduler;
-
-    // State resources
-    queue_t           FunctionQueue[CpuFunctionCount];
-    MCoreThread_t*    CurrentThread;
-    Context_t*        InterruptRegisters;
-    int               InterruptNesting;
-    uint32_t          InterruptPriority;
-    
-    struct SystemCpuCore* Link;
-} SystemCpuCore_t;
-
 typedef struct SystemCpu {
     char                Vendor[16];     // zero terminated string
     char                Brand[64];      // zero terminated string
@@ -91,9 +74,16 @@ typedef struct SystemCpu {
     struct SystemCpu*   Link;
 } SystemCpu_t;
 
-#define SYSTEM_CORE_FN_STATE_INIT { QUEUE_INIT, QUEUE_INIT }
-#define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL, NULL, 0, 0, NULL }
-#define SYSTEM_CPU_INIT           { { 0 }, { 0 }, { 0 }, 0, NULL, NULL }
+#define SYSTEM_CPU_INIT { { 0 }, { 0 }, { 0 }, 0, NULL, NULL }
+
+/**
+ * InitializePrimaryProcessor
+ * * Initializes the processor environment for the calling processor, this also
+ * * sets the calling TXU as the boot-TXU and initializes static data for this.
+ */
+KERNELAPI void KERNELABI
+InitializePrimaryProcessor(
+        _In_ SystemCpu_t* Cpu);
 
 /**
  * EnableMultiProcessoringMode
@@ -104,18 +94,11 @@ KERNELAPI void KERNELABI
 EnableMultiProcessoringMode(void);
 
 /**
- * InitializePrimaryProcessor
- * * Initializes the processor environment for the calling processor, this also
- * * sets the calling TXU as the boot-TXU and initializes static data for this.
- */
-KERNELAPI void KERNELABI
-InitializePrimaryProcessor(
-    _In_ SystemCpu_t* Cpu);
-
-/* RegisterApplicationCore
+ * RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the
  * application-core will be initialized on first call to this function. This also allocates a 
- * new instance of the cpu-core. */
+ * new instance of the cpu-core.
+ */
 KERNELAPI void KERNELABI
 RegisterApplicationCore(
     _In_ SystemCpu_t*     Cpu,
@@ -123,16 +106,20 @@ RegisterApplicationCore(
     _In_ SystemCpuState_t InitialState,
     _In_ int              External);
 
-/* ActivateApplicationCore 
+/**
+ * ActivateApplicationCore
  * Activates the given core and prepares it for usage. This sets up a new 
- * scheduler and initializes a new idle thread. This function does never return. */
+ * scheduler and initializes a new idle thread. This function does never return.
+ */
 KERNELAPI void KERNELABI
 ActivateApplicationCore(
     _In_ SystemCpuCore_t* Core);
 
-/* StartApplicationCore (@arch)
+/**
+ * StartApplicationCore (@arch)
  * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
- * cores in the processor. */
+ * cores in the processor.
+ */
 KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t* Core);
@@ -165,15 +152,171 @@ ProcessorMessageSend(
     _In_ void*                   Argument,
     _In_ int                     Asynchronous);
 
-/* GetProcessorCore
- * Retrieves the cpu core from the given core-id. */
+/**
+ * GetProcessorCore
+ * Retrieves the cpu core from the given core-id.
+ */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetProcessorCore(
     _In_ UUId_t CoreId);
 
-/* GetCurrentProcessorCore
- * Retrieves the cpu core that belongs to calling cpu core. */
+/**
+ * CpuCoreCurrent
+ * Retrieves the cpu core that belongs to calling cpu core.
+ */
 KERNELAPI SystemCpuCore_t* KERNELABI
-GetCurrentProcessorCore(void);
+CpuCoreCurrent(void);
+
+/**
+ * CpuCoreEnterInterrupt
+ * @param InterruptContext  The context of the current interrupt
+ * @param InterruptPriority The priority before entering the interrupt
+ */
+KERNELAPI void KERNELABI
+CpuCoreEnterInterrupt(
+    _In_ Context_t* InterruptContext,
+    _In_ int        InterruptPriority);
+
+/**
+ * CpuCoreExitInterrupt
+ * @param InterruptContext  The context of the current interrupt
+ * @param InterruptPriority The priority before entering the interrupt
+ * @return                  The context that should be switched to
+ */
+KERNELAPI Context_t* KERNELABI
+CpuCoreExitInterrupt(
+    _In_ Context_t* InterruptContext,
+    _In_ int        InterruptPriority);
+
+/**
+ * CpuCorePopQueuedIpc
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        The next IPC structure that has been queued, or NULL if none
+ */
+KERNELAPI element_t* KERNELABI
+CpuCorePopQueuedIpc(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreQueueIpc
+ * @param CpuCore A pointer to a cpu core structure
+ * @param Element A pointer to the element header of the IPC message
+ */
+KERNELAPI void KERNELABI
+CpuCoreQueueIpc(
+        _In_ SystemCpuCore_t*        CpuCore,
+        _In_ SystemCpuFunctionType_t IpcType,
+        _In_ element_t*              Element);
+
+/**
+ * CpuCoreId
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        The id of the cpu core instance
+ */
+KERNELAPI UUId_t KERNELABI
+CpuCoreId(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreSetState
+ * @param CpuCore A pointer to a cpu core structure
+ * @param State   The new state of the cpu core
+ */
+KERNELAPI void KERNELABI
+CpuCoreSetState(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ SystemCpuState_t State);
+
+/**
+ * CpuCoreState
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        The current cpu core state
+ */
+KERNELAPI SystemCpuState_t KERNELABI
+CpuCoreState(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreNext
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        A pointer to the next cpu core in the cpu
+ */
+KERNELAPI SystemCpuCore_t* KERNELABI
+CpuCoreNext(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreSetPriority
+ * @param CpuCore A pointer to a cpu core structure
+ * @param Priority The new priority of the cpu core
+ */
+KERNELAPI void KERNELABI
+CpuCoreSetPriority(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ int              Priority);
+
+/**
+ * CpuCorePriority
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        The current cpu core priority
+ */
+KERNELAPI int KERNELABI
+CpuCorePriority(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreSetCurrentThread
+ * @param CpuCore A pointer to a cpu core structure
+ */
+KERNELAPI void KERNELABI
+CpuCoreSetCurrentThread(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ Thread_t*        Thread);
+
+/**
+ * CpuCoreCurrentThread
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        A pointer to the current thread instance
+ */
+KERNELAPI Thread_t* KERNELABI
+CpuCoreCurrentThread(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreIdleThread
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        A pointer to the idle thread of the cpu core
+ */
+KERNELAPI Thread_t* KERNELABI
+CpuCoreIdleThread(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreScheduler
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        A pointer to the cpu core's scheduler
+ */
+KERNELAPI Scheduler_t* KERNELABI
+CpuCoreScheduler(
+        _In_ SystemCpuCore_t* CpuCore);
+
+/**
+ * CpuCoreSetInterruptContext
+ * @param CpuCore A pointer to a cpu core structure
+ * @param Context A pointer to the new interrupt context
+ */
+KERNELAPI void KERNELABI
+CpuCoreSetInterruptContext(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ Context_t*       Context);
+
+/**
+ * CpuCoreInterruptContext
+ * @param CpuCore A pointer to a cpu core structure
+ * @return        A pointer to the current threads interrupt context
+ */
+KERNELAPI Context_t* KERNELABI
+CpuCoreInterruptContext(
+        _In_ SystemCpuCore_t* CpuCore);
 
 #endif // !__COMPONENT_CPU__

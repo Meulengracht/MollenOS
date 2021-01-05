@@ -39,19 +39,18 @@
 
 OsStatus_t
 ScMemoryAllocate(
-    _In_      void*   Hint,
-    _In_      size_t  Length,
+    _In_      void*        Hint,
+    _In_      size_t       Length,
     _In_      unsigned int Flags,
-    _Out_     void**  MemoryOut)
+    _Out_     void**       MemoryOut)
 {
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
-    SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     unsigned int         MemoryFlags    = MAPPING_USERSPACE;
     unsigned int         PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     int                  PageCount;
-    uintptr_t*           Pages; 
-    TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN, Flags, Length);
+    uintptr_t*           Pages;
     
     if (!Length || !MemoryOut) {
         return OsInvalidParameters;
@@ -81,14 +80,16 @@ ScMemoryAllocate(
     }
     
     // Create the actual mappings
-    Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, 
-        MemoryFlags, PlacementFlags);
+    Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, MemoryFlags, PlacementFlags);
     if (Status == OsSuccess) {
         *MemoryOut = (void*)AllocatedAddress;
         if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
             memset((void*)AllocatedAddress, 0, Length);
         }
     }
+
+    TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN " == 0x%" PRIxIN,
+          Flags, Length, AllocatedAddress);
     kfree(Pages);
     return Status;
 }
@@ -98,7 +99,7 @@ ScMemoryFree(
     _In_ uintptr_t  Address, 
     _In_ size_t     Size)
 {
-    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
     }
@@ -317,7 +318,7 @@ ScGetThreadMemorySpaceHandle(
     _In_  UUId_t  ThreadHandle,
     _Out_ UUId_t* Handle)
 {
-    MCoreThread_t*  Thread;
+    Thread_t*  Thread;
     SystemModule_t* Module = GetCurrentModule();
     if (Handle == NULL || Module == NULL) {
         if (Module == NULL) {
@@ -325,9 +326,9 @@ ScGetThreadMemorySpaceHandle(
         }
         return OsError;
     }
-    Thread = (MCoreThread_t*)LookupHandleOfType(ThreadHandle, HandleTypeThread);
+    Thread = THREAD_GET(ThreadHandle);
     if (Thread != NULL) {
-        *Handle = Thread->MemorySpaceHandle;
+        *Handle = ThreadMemorySpaceHandle(Thread);
         return OsSuccess;
     }
     return OsDoesNotExist;
@@ -339,9 +340,9 @@ ScCreateMemorySpaceMapping(
     _In_  struct MemoryMappingParameters* Parameters,
     _Out_ void**                          AddressOut)
 {
-    SystemModule_t*      Module         = GetCurrentModule();
-    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
-    unsigned int              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
+    SystemModule_t*      Module = GetCurrentModule();
+    MemorySpace_t*       MemorySpace = (MemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
+    unsigned int         RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
     VirtualAddress_t     CopyPlacement  = 0;
     int                  PageCount;
     uintptr_t*           Pages;
@@ -398,4 +399,42 @@ ScCreateMemorySpaceMapping(
         CopyPlacement, RequiredFlags, Parameters->Length);
     *AddressOut = (void*)CopyPlacement;
     return Status;
+}
+
+
+OsStatus_t
+ScMapThreadMemoryRegion(
+    _In_  UUId_t    ThreadHandle,
+    _In_  uintptr_t Address,
+    _In_  size_t    Length,
+    _Out_ void**    PointerOut)
+{
+    Thread_t*       thread;
+    SystemModule_t* module = GetCurrentModule();
+    uintptr_t       copiedAddress;
+    OsStatus_t      status;
+
+    if (!module) {
+        return OsInvalidPermissions;
+    }
+
+    if (!Length) {
+        return OsInvalidParameters;
+    }
+
+    thread = THREAD_GET(ThreadHandle);
+    if (!thread) {
+        return OsDoesNotExist;
+    }
+
+    status = CloneMemorySpaceMapping(ThreadMemorySpace(thread), GetCurrentMemorySpace(),
+                                     Address, &copiedAddress, Length,
+                                     MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+                                     MAPPING_VIRTUAL_PROCESS);
+    if (status != OsSuccess) {
+        return status;
+    }
+
+    *PointerOut = (void*)copiedAddress;
+    return OsSuccess;
 }

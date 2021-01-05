@@ -21,6 +21,7 @@
  */
 
 #include <ds/streambuffer.h>
+#include <ddk/utils.h>
 #include <ioctl.h>
 #include <internal/_io.h>
 
@@ -29,6 +30,9 @@ OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesRead;
+    if (handle->wxflag & WX_NULLPIPE) {
+        return OsNotSupported;
+    }
 
     bytesRead = streambuffer_stream_in(stream, buffer, length, options);
     *bytes_read = bytesRead;
@@ -40,6 +44,11 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesWritten;
+    if (handle->wxflag & WX_NULLPIPE) {
+        *bytes_written = length;
+        ERROR("%s", buffer);
+        return OsSuccess;
+    }
 
     bytesWritten = streambuffer_stream_out(stream, (void*)buffer, length, options);
     *bytes_written = bytesWritten;

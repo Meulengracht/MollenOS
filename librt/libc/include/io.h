@@ -45,7 +45,7 @@
  */
 #define O_TEXT          0x4000  /* file mode is text (translated) */
 #define O_BINARY        0x8000  /* file mode is binary (untranslated) */
-#define O_WTEXT         0x10000 /* file mode is UTF16 (translated) */
+#define O_WTEXT         0x10000 /* file mode is unicode */
 #define O_U16TEXT       0x20000 /* file mode is UTF16 no BOM (translated) */
 #define O_U8TEXT        0x40000 /* file mode is UTF8  no BOM (translated) */
 
@@ -82,12 +82,15 @@ _CODE_BEGIN
 CRTDECL(unsigned int,    _faccess(int oflags));
 CRTDECL(unsigned int,    _fopts(int oflags));
 
-// file interface
+// shared io interface
 CRTDECL(int,        pipe(long size, int flags));
+CRTDECL(int,        dup(int iod));
 CRTDECL(int,        open(const char *file, int flags, ...));
 CRTDECL(int,        close(int fd));
 CRTDECL(int,        read(int fd, void *buffer, unsigned int len));
 CRTDECL(int,        write(int fd, const void *buffer, unsigned int length));
+
+// file interface
 CRTDECL(long,       lseek(int fd, long offset, int whence));
 CRTDECL(long long,  lseeki64(int fd, long long offset, int whence));
 CRTDECL(long,       tell(int fd));
@@ -100,7 +103,7 @@ CRTDECL(int,        opendir(const char *path, int flags, struct DIR **handle));
 CRTDECL(int,        closedir(struct DIR *handle));
 CRTDECL(int,        readdir(struct DIR *handle, struct DIRENT *entry));
 
-// shared interface
+// file and directory interface
 CRTDECL(int,        link(const char *from, const char *to, int symbolic));
 CRTDECL(int,        unlink(const char *path));
 CRTDECL(int,        isatty(int fd));

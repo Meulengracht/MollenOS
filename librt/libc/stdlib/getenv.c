@@ -1,49 +1,53 @@
-/* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Get Environment Variable
-*/
+/**
+ * MollenOS
+ *
+ * Copyright 2016, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - Get Environment Variable
+ */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 
 /* A NULL environment, the day we support env
- * variables this should be in TLS and initialized */
-static char *_GlbEnvironmentNull[] = { NULL };
-char **_GlbEnviron = &_GlbEnvironmentNull[0];
+ * variables this should be in TLS and initialized from the session manager */
+static char* NullEnvironment[] = {
+        NULL
+};
 
-/* Get environmental var 
- * Returns the settings for a given key */
-char *getenv(const char *name)
+static char* TestEnvironment[] = {
+        "LP_DEBUG=pipe,tgsi,tex,setup,rast,query,screen,scene,fence,mem,fs",
+        NULL
+};
+
+// A pointer to the current environment
+char** CurrentEnvironment = &TestEnvironment[0];
+
+char* getenv(const char *name)
 {
-	/* Get a pointer to the environment 
-	 * first entry  */
-	char ***Env = &_GlbEnviron;
-	register int len;
-	register char **p;
-	const char *c;
+	char***         environment = &CurrentEnvironment;
+	register int    length;
+	register char** p;
+	const char*     c;
 
 	/* Sanitize the env variable, the first entry
 	 * may not be null actually */
-	if (!*Env) {
+	if (!*environment) {
 		return NULL;
 	}
 
@@ -53,16 +57,14 @@ char *getenv(const char *name)
 
 	/* Identifiers may not contain an '=', so cannot match if does */
 	if (*c != '=') {
-		len = c - name;
-		for (p = *Env; *p; ++p) {
-			if (!strncmp(*p, name, len)) {
-				if (*(c = *p + len) == '=') {
+        length = c - name;
+		for (p = *environment; *p; ++p) {
+			if (!strncmp(*p, name, length)) {
+				if (*(c = *p + length) == '=') {
 					return (char *)(++c);
 				}
 			}
 		}
 	}
-
-	/* Not found */
 	return NULL;
 }

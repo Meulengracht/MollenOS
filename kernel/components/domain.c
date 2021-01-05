@@ -24,6 +24,8 @@
 #include <arch/utils.h>
 #include <machine.h>
 
+#include "cpu_private.h"
+
 OsStatus_t
 CreateNumaDomain(
     _In_  UUId_t            DomainId,

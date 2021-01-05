@@ -33,6 +33,8 @@
 #include <machine.h>
 #include <string.h>
 
+#include "cpu_private.h"
+
 // 256 is a temporary number, once we start getting processors with more than
 // 256 TXU's then we are fucked
 static SystemCpuCore_t* TxuTable[256] = { 0 };
@@ -47,7 +49,7 @@ GetProcessorCore(
 }
 
 SystemCpuCore_t*
-GetCurrentProcessorCore(void)
+CpuCoreCurrent(void)
 {
     assert(TxuTable[ArchGetProcessorCoreId()] != NULL);
     return TxuTable[ArchGetProcessorCoreId()];
@@ -154,7 +156,7 @@ ProcessorMessageSend(
 {
     SystemDomain_t*  Domain;
     SystemCpu_t*     Processor;
-    SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
+    SystemCpuCore_t* CurrentCore = CpuCoreCurrent();
     SystemCpuCore_t* Iter;
     OsStatus_t       Status;
     int              Executions = 0;
@@ -185,4 +187,191 @@ ProcessorMessageSend(
         Iter = Iter->Link;
     }
     return Executions;
+}
+
+void
+CpuCoreEnterInterrupt(
+    _In_ Context_t* InterruptContext,
+    _In_ int        InterruptPriority)
+{
+    SystemCpuCore_t* core = CpuCoreCurrent();
+    if (!core->InterruptNesting) {
+        InterruptSetActiveStatus(1);
+        core->InterruptRegisters = InterruptContext;
+        core->InterruptPriority  = InterruptPriority;
+    }
+    core->InterruptNesting++;
+#ifdef __OSCONFIG_NESTED_INTERRUPTS
+    InterruptEnable();
+#endif
+}
+
+Context_t*
+CpuCoreExitInterrupt(
+    _In_ Context_t* InterruptContext,
+    _In_ int        InterruptPriority)
+{
+    SystemCpuCore_t* core = CpuCoreCurrent();
+
+#ifdef __OSCONFIG_NESTED_INTERRUPTS
+    InterruptDisable();
+#endif
+    core->InterruptNesting--;
+    if (!core->InterruptNesting) {
+        InterruptContext = core->InterruptRegisters;
+        core->InterruptRegisters = NULL;
+        InterruptsSetPriority(core->InterruptPriority);
+        InterruptSetActiveStatus(0);
+    }
+    else {
+        InterruptsSetPriority(InterruptPriority);
+    }
+    return InterruptContext;
+}
+
+
+element_t*
+CpuCorePopQueuedIpc(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return queue_pop(&CpuCore->FunctionQueue[CpuFunctionCustom]);
+}
+
+void
+CpuCoreQueueIpc(
+        _In_ SystemCpuCore_t*        CpuCore,
+        _In_ SystemCpuFunctionType_t IpcType,
+        _In_ element_t*              Element)
+{
+    if (!CpuCore) {
+        return;
+    }
+    queue_push(&CpuCore->FunctionQueue[IpcType], Element);
+}
+
+UUId_t
+CpuCoreId(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return UUID_INVALID;
+    }
+    return CpuCore->Id;
+}
+
+void
+CpuCoreSetState(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ SystemCpuState_t State)
+{
+    if (!CpuCore) {
+        return;
+    }
+    WRITE_VOLATILE(CpuCore->State, State);
+}
+
+SystemCpuState_t
+CpuCoreState(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return CpuStateUnavailable;
+    }
+    return READ_VOLATILE(CpuCore->State);
+}
+
+SystemCpuCore_t*
+CpuCoreNext(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return CpuCore->Link;
+}
+
+void
+CpuCoreSetPriority(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ int              Priority)
+{
+    if (!CpuCore) {
+        return;
+    }
+    CpuCore->InterruptPriority = Priority;
+}
+
+int
+CpuCorePriority(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return 0;
+    }
+    return CpuCore->InterruptPriority;
+}
+
+void
+CpuCoreSetCurrentThread(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ Thread_t*        Thread)
+{
+    if (!CpuCore) {
+        return;
+    }
+    CpuCore->CurrentThread = Thread;
+}
+
+Thread_t*
+CpuCoreCurrentThread(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return CpuCore->CurrentThread;
+}
+
+Thread_t*
+CpuCoreIdleThread(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return &CpuCore->IdleThread;
+}
+
+Scheduler_t*
+CpuCoreScheduler(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return &CpuCore->Scheduler;
+}
+
+void
+CpuCoreSetInterruptContext(
+        _In_ SystemCpuCore_t* CpuCore,
+        _In_ Context_t*       Context)
+{
+    if (!CpuCore) {
+        return;
+    }
+    CpuCore->InterruptRegisters = Context;
+}
+
+Context_t*
+CpuCoreInterruptContext(
+        _In_ SystemCpuCore_t* CpuCore)
+{
+    if (!CpuCore) {
+        return NULL;
+    }
+    return CpuCore->InterruptRegisters;
 }

@@ -147,27 +147,30 @@ TryAgain:
     return ResultState;
 }
 
-static SystemScheduler_t*
+static Scheduler_t*
 SchedulerGetFromCore(
     _In_ UUId_t CoreId)
 {
-    return &GetProcessorCore(CoreId)->Scheduler;
+    return CpuCoreScheduler(GetProcessorCore(CoreId));
 }
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
     _In_ UUId_t CoreId)
 {
-    return (GetProcessorCore(CoreId)->CurrentThread != NULL) ? 
-        GetProcessorCore(CoreId)->CurrentThread->SchedulerObject : NULL;
+    Thread_t* thread = CpuCoreCurrentThread(GetProcessorCore(CoreId));
+    if (!thread) {
+        return NULL;
+    }
+    return ThreadSchedulerHandle(thread);
 }
 
 static const char*
 GetNameOfObject(
     _In_ SchedulerObject_t* Object)
 {
-    MCoreThread_t* Thread = Object->Object;
-    return (const char*)Thread->Name;
+    Thread_t* Thread = Object->Object;
+    return ThreadName(Thread);
 }
 
 static void
@@ -222,9 +225,9 @@ RemoveFromQueue(
 
 static void
 QueueForScheduler(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ SchedulerObject_t* Object,
-    _In_ int                OutsideAdvance)
+        _In_ Scheduler_t* Scheduler,
+        _In_ SchedulerObject_t* Object,
+        _In_ int                OutsideAdvance)
 {
     int ResultState;
     
@@ -247,10 +250,10 @@ static void
 QueueOnCoreFunction(
     _In_ void* Context)
 {
-    SystemScheduler_t* Scheduler = &GetCurrentProcessorCore()->Scheduler;
-    SchedulerObject_t* Object    = (SchedulerObject_t*)Context;
-    QueueForScheduler(Scheduler, Object, 1);
-    if (ThreadingIsCurrentTaskIdle(Object->CoreId)) {
+    Scheduler_t*       scheduler = CpuCoreScheduler(CpuCoreCurrent());
+    SchedulerObject_t* object    = (SchedulerObject_t*)Context;
+    QueueForScheduler(scheduler, object, 1);
+    if (ThreadIsCurrentIdle(object->CoreId)) {
         ThreadingYield();
     }
 }
@@ -259,15 +262,15 @@ static inline OsStatus_t
 QueueObjectImmediately(
     _In_ SchedulerObject_t* Object)
 {
-    SystemCpuCore_t* Core;
+    SystemCpuCore_t* core      = CpuCoreCurrent();
+    Scheduler_t*     scheduler = CpuCoreScheduler(core);
     
     // If the object is running on our core, just append it
-    Core = GetCurrentProcessorCore();
-    if (Core->Id == Object->CoreId) {
-        IrqSpinlockAcquire(&Core->Scheduler.SyncObject);
-        QueueForScheduler(&Core->Scheduler, Object, 1);
-        IrqSpinlockRelease(&Core->Scheduler.SyncObject);
-        if (ThreadingIsCurrentTaskIdle(Core->Id)) {
+    if (CpuCoreId(core) == Object->CoreId) {
+        IrqSpinlockAcquire(&scheduler->SyncObject);
+        QueueForScheduler(scheduler, Object, 1);
+        IrqSpinlockRelease(&scheduler->SyncObject);
+        if (ThreadIsCurrentIdle(CpuCoreId(core))) {
             ThreadingYield();
         }
         return OsSuccess;
@@ -281,49 +284,50 @@ static void
 AllocateScheduler(
     _In_ SchedulerObject_t* Object)
 {
-    SystemDomain_t*    Domain    = GetCurrentDomain();
-    SystemCpu_t*       CoreGroup = &GetMachine()->Processor;
-    SystemCpuCore_t*   Iter;
-    SystemScheduler_t* Scheduler;
-    UUId_t             CoreId;
+    SystemDomain_t*  domain    = GetCurrentDomain();
+    SystemCpu_t*     coreGroup = &GetMachine()->Processor;
+    SystemCpuCore_t* iter;
+    Scheduler_t*     scheduler;
+    UUId_t           coreId;
     
     // Select the default core range
-    if (Domain != NULL) {
+    if (domain != NULL) {
         // Use the core range from our domain
-        CoreGroup = &Domain->CoreGroup;
+        coreGroup = &domain->CoreGroup;
     }
-    Scheduler = &CoreGroup->Cores->Scheduler;
-    CoreId    = CoreGroup->Cores->Id;
-    Iter      = CoreGroup->Cores->Link;
+    scheduler = CpuCoreScheduler(coreGroup->Cores);
+    coreId    = CpuCoreId(coreGroup->Cores);
+    iter      = CpuCoreNext(coreGroup->Cores);
     
     // Allocate a processor core for this object
-    while (Iter) {
+    while (iter) {
+        Scheduler_t*  iterScheduler = CpuCoreScheduler(iter);
         unsigned long Bw1;
         unsigned long Bw2;
         
         // Skip cores not booted yet, their scheduler is not initialized
         smp_rmb();
-        if (!(Iter->State & CpuStateRunning)) {
-            Iter = Iter->Link;
+        if (!(CpuCoreState(iter) & CpuStateRunning)) {
+            iter = CpuCoreNext(iter);
             continue;
         }
         
-        Bw1 = atomic_load(&Iter->Scheduler.Bandwidth);
-        Bw2 = atomic_load(&Scheduler->Bandwidth);
+        Bw1 = atomic_load(&iterScheduler->Bandwidth);
+        Bw2 = atomic_load(&scheduler->Bandwidth);
         if (Bw1 < Bw2) {
-            Scheduler = &Iter->Scheduler;
-            CoreId    = Iter->Id;
+            scheduler = iterScheduler;
+            coreId    = CpuCoreId(iter);
         }
-        
-        Iter = Iter->Link;
+
+        iter = CpuCoreNext(iter);
     }
     
     // Select whatever we end up with
-    Object->CoreId = CoreId;
+    Object->CoreId = coreId;
     
     // Add pressure on this scheduler
-    atomic_fetch_add(&Scheduler->Bandwidth, Object->TimeSlice);
-    atomic_fetch_add(&Scheduler->ObjectCount, 1);
+    atomic_fetch_add(&scheduler->Bandwidth, Object->TimeSlice);
+    atomic_fetch_add(&scheduler->ObjectCount, 1);
 }
 
 SchedulerObject_t*
@@ -363,7 +367,7 @@ void
 SchedulerDestroyObject(
     _In_ SchedulerObject_t* Object)
 {
-    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Object->CoreId);
+    Scheduler_t * Scheduler = SchedulerGetFromCore(Object->CoreId);
     
     // Remove pressure, and explicit put a memory barrier to push these
     // memory writes to other cores that allocate objects
@@ -518,9 +522,9 @@ SchedulerGetTimeoutReason(void)
 
 static void
 UpdatePressureForObject(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ SchedulerObject_t* Object,
-    _In_ int                NewPressureRank)
+        _In_ Scheduler_t* Scheduler,
+        _In_ SchedulerObject_t* Object,
+        _In_ int                NewPressureRank)
 {
     if (NewPressureRank != Object->Queue) {
         atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
@@ -534,7 +538,7 @@ UpdatePressureForObject(
 
 static void
 SchedulerBoost(
-    _In_ SystemScheduler_t* Scheduler)
+        _In_ Scheduler_t* Scheduler)
 {
     for (int i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
         if (Scheduler->Queues[i].Head) {
@@ -548,8 +552,8 @@ SchedulerBoost(
 
 static void
 PerformObjectTimeout(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ SchedulerObject_t* Object)
+        _In_ Scheduler_t* Scheduler,
+        _In_ SchedulerObject_t* Object)
 {
     int ResultState;
     
@@ -573,9 +577,9 @@ PerformObjectTimeout(
 // is also only called on this core, and the list here is only iterated on this core.
 static size_t
 SchedulerUpdateSleepQueue(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ SchedulerObject_t* IgnoreObject,
-    _In_ size_t             MillisecondsPassed)
+        _In_ Scheduler_t* Scheduler,
+        _In_ SchedulerObject_t* IgnoreObject,
+        _In_ size_t             MillisecondsPassed)
 {
     size_t             NextUpdate = __MASK;
     SchedulerObject_t* i          = Scheduler->SleepQueue.Head;
@@ -598,9 +602,9 @@ SchedulerUpdateSleepQueue(
 
 static void
 HandleObjectRequeue(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ SchedulerObject_t* Object,
-    _In_ int                Preemptive)
+        _In_ Scheduler_t* Scheduler,
+        _In_ SchedulerObject_t* Object,
+        _In_ int                Preemptive)
 {
     int ResultState;
     
@@ -638,10 +642,10 @@ SchedulerAdvance(
     _In_  size_t             MillisecondsPassed,
     _Out_ size_t*            NextDeadlineOut)
 {
-    SystemScheduler_t* Scheduler  = &GetCurrentProcessorCore()->Scheduler;
-    SchedulerObject_t* NextObject = NULL;
-    clock_t            CurrentClock;
-    size_t             NextDeadline;
+    Scheduler_t*       scheduler  = CpuCoreScheduler(CpuCoreCurrent());
+    SchedulerObject_t* nextObject = NULL;
+    clock_t            currentClock;
+    size_t             nextDeadline;
     int                i;
     TRACE("[scheduler] [advance] current 0x%llx, forced %i, ms-passed %llu",
         Object, Preemptive, MillisecondsPassed);
@@ -655,8 +659,8 @@ SchedulerAdvance(
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
         Object->TimeSliceLeft -= MillisecondsPassed;
-        NextDeadline           = SchedulerUpdateSleepQueue(Scheduler, NULL, MillisecondsPassed);
-        *NextDeadlineOut       = MIN(Object->TimeSliceLeft, NextDeadline);
+        nextDeadline = SchedulerUpdateSleepQueue(scheduler, NULL, MillisecondsPassed);
+        *NextDeadlineOut       = MIN(Object->TimeSliceLeft, nextDeadline);
         TRACE("[scheduler] [advance] redeploy next deadline %llu", *NextDeadlineOut);
         return Object->Object;
     }
@@ -665,47 +669,47 @@ SchedulerAdvance(
     // to requeue immediately is if the thread was running. Otherwise it's because
     // we've been interrupted or blocked.
     if (Object != NULL) {
-        HandleObjectRequeue(Scheduler, Object, Preemptive);
+        HandleObjectRequeue(scheduler, Object, Preemptive);
     }
-    NextDeadline = SchedulerUpdateSleepQueue(Scheduler, Object, MillisecondsPassed);
+    nextDeadline = SchedulerUpdateSleepQueue(scheduler, Object, MillisecondsPassed);
 
     // Get next object
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
-        if (Scheduler->Queues[i].Head != NULL) {
-            NextObject = Scheduler->Queues[i].Head;
-            RemoveFromQueue(&Scheduler->Queues[i], NextObject);
-            UpdatePressureForObject(Scheduler, NextObject, i);
-            NextDeadline = MIN(NextObject->TimeSlice, NextDeadline);
-            ExecuteEvent(NextObject, EVENT_EXECUTE);
+        if (scheduler->Queues[i].Head != NULL) {
+            nextObject = scheduler->Queues[i].Head;
+            RemoveFromQueue(&scheduler->Queues[i], nextObject);
+            UpdatePressureForObject(scheduler, nextObject, i);
+            nextDeadline = MIN(nextObject->TimeSlice, nextDeadline);
+            ExecuteEvent(nextObject, EVENT_EXECUTE);
             break;
         }
     }
     
     // Handle the boost timer as long as there are active objects running
     // if we run out of objects then boosting makes no sense
-    if (NextObject != NULL) {
-        TimersGetSystemTick(&CurrentClock);
+    if (nextObject != NULL) {
+        TimersGetSystemTick(&currentClock);
         
         // Handle the boost timer
-        if (Scheduler->LastBoost == 0) {
-            Scheduler->LastBoost = CurrentClock;
+        if (scheduler->LastBoost == 0) {
+            scheduler->LastBoost = currentClock;
         }
         else {
-            clock_t TimeDiff = CurrentClock - Scheduler->LastBoost;
-            if (TimeDiff >= SCHEDULER_BOOST) {
-                SchedulerBoost(Scheduler);
-                Scheduler->LastBoost = CurrentClock;
+            clock_t timeDiff = currentClock - scheduler->LastBoost;
+            if (timeDiff >= SCHEDULER_BOOST) {
+                SchedulerBoost(scheduler);
+                scheduler->LastBoost = currentClock;
             }
         }
-        *NextDeadlineOut = NextDeadline;
-        TRACE("[scheduler] [advance] next 0x%llx, deadline in %llu", NextObject, NextDeadline);
+        *NextDeadlineOut = nextDeadline;
+        TRACE("[scheduler] [advance] next 0x%llx, deadline in %llu", nextObject, nextDeadline);
     }
     else {
         // Reset boost
-        Scheduler->LastBoost = 0;
-        *NextDeadlineOut = (NextDeadline == __MASK) ? 0 : NextDeadline;
+        scheduler->LastBoost = 0;
+        *NextDeadlineOut = (nextDeadline == __MASK) ? 0 : nextDeadline;
         TRACE("[scheduler] [advance] no next object, deadline in %llu", *NextDeadlineOut);
     }
     
-    return (NextObject == NULL) ? NULL : NextObject->Object;
+    return (nextObject == NULL) ? NULL : nextObject->Object;
 }

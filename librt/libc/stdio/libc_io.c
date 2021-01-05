@@ -77,7 +77,7 @@ int wctomb(char *mbchar, wchar_t wchar)
 }
 
 thrd_t thrd_current(void) {
-    return (thrd_t)GetCurrentThreadId();
+    return (thrd_t)ThreadCurrentHandle();
 }
 
 #else
@@ -264,7 +264,8 @@ void StdioConfigureStandardHandles(
     // stdout/stderr handles.
     handle_out = stdio_handle_get(STDOUT_FILENO);
     if (handle_out == NULL) {
-        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT, &handle_out);
+        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_out);
+        stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
     }
 
     handle_in = stdio_handle_get(STDIN_FILENO);
@@ -274,7 +275,8 @@ void StdioConfigureStandardHandles(
     
     handle_err = stdio_handle_get(STDERR_FILENO);
     if (handle_err == NULL) {
-        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
+        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_err);
+        stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
     }
     
     stdio_handle_set_buffered(handle_out, &__GlbStdout, _IOWRT);
@@ -357,6 +359,17 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     
     *handle_out = handle;
     return EOK;
+}
+
+void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source)
+{
+    if (!target || !source) {
+        return;
+    }
+
+    // Copy the stdio object data, and then update ops
+    memcpy(&target->object, &source->object, sizeof(stdio_object_t));
+    stdio_handle_set_ops_type(target, source->object.type);
 }
 
 int stdio_handle_set_handle(stdio_handle_t* handle, UUId_t io_handle)
@@ -499,22 +512,6 @@ UUId_t GetNativeHandle(int iod)
         return UUID_INVALID;
     }
     return handle->object.handle;
-}
-
-extern void GetKeyFromSystemKeyEnUs(struct ctt_input_button_event*);
-
-/* TranslateSystemKey
- * Performs the translation on the keycode in the system key structure. This fills
- * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
-OsStatus_t
-TranslateSystemKey(
-    _In_ struct ctt_input_button_event* key)
-{
-    if (key->key_code != VK_INVALID) {
-        GetKeyFromSystemKeyEnUs(key);
-        return OsSuccess;
-    }
-    return OsError;
 }
 
 #endif

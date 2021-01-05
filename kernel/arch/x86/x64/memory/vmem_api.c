@@ -45,10 +45,10 @@
 
 PageMasterTable_t*
 MmVirtualGetMasterTable(
-    _In_  SystemMemorySpace_t*  MemorySpace,
-    _In_  VirtualAddress_t      Address,
-    _Out_ PageMasterTable_t**   ParentDirectory,
-    _Out_ int*                  IsCurrent)
+        _In_  MemorySpace_t*  MemorySpace,
+        _In_  VirtualAddress_t      Address,
+        _Out_ PageMasterTable_t**   ParentDirectory,
+        _Out_ int*                  IsCurrent)
 {
     PageMasterTable_t* Directory = (PageMasterTable_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     PageMasterTable_t* Parent    = NULL;
@@ -59,7 +59,7 @@ MmVirtualGetMasterTable(
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
     if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
-            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandleOfType(
+            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
                 MemorySpace->ParentHandle, HandleTypeMemorySpace);
             Parent = (PageMasterTable_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
@@ -230,9 +230,9 @@ SyncPd:
 
 OsStatus_t
 CloneVirtualSpace(
-    _In_ SystemMemorySpace_t*   MemorySpaceParent, 
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ int                    Inherit)
+        _In_ MemorySpace_t*   MemorySpaceParent,
+        _In_ MemorySpace_t*   MemorySpace,
+        _In_ int                    Inherit)
 {
     PageDirectoryTable_t* SystemDirectoryTable = NULL;
     PageDirectoryTable_t* DirectoryTable       = NULL;
@@ -386,7 +386,7 @@ MmVirtualDestroyPageDirectoryTable(
 
 OsStatus_t
 DestroyVirtualSpace(
-    _In_ SystemMemorySpace_t* SystemMemorySpace)
+        _In_ MemorySpace_t* SystemMemorySpace)
 {
     PageMasterTable_t *Current = (PageMasterTable_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     uint64_t Mapping;
