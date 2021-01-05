@@ -51,10 +51,10 @@ typedef struct SystemMachine {
     Multiboot_t                 BootInformation;
 
     // UMA Hardware Resources
-    SystemCpu_t                 Processor;      // Used in UMA mode
-    SystemMemorySpace_t         SystemSpace;    // Used in UMA mode
-    bounded_stack_t             PhysicalMemory;
-    IrqSpinlock_t               PhysicalMemoryLock;
+    SystemCpu_t     Processor;      // Used in UMA mode
+    MemorySpace_t   SystemSpace;    // Used in UMA mode
+    bounded_stack_t PhysicalMemory;
+    IrqSpinlock_t   PhysicalMemoryLock;
     
     // Global Hardware Resources
     StaticMemoryPool_t          GlobalAccessMemory;
@@ -73,25 +73,33 @@ typedef struct SystemMachine {
     size_t                      MemoryGranularity;
 } SystemMachine_t;
 
-/* GetMachine
- * Retrieves a pointer for the machine structure. */
+/**
+ * GetMachine
+ * Retrieves a pointer for the machine structure.
+ */
 KERNELAPI SystemMachine_t* KERNELABI
 GetMachine(void);
 
-/* SetMachineUmaMode (@arch)
+/**
+ * SetMachineUmaMode (@arch)
  * Sets the current machine into UMA mode which means there are no domains. This must
- * be implemented by the architecture to allow a arch-specific setup of the UMA topology. */
+ * be implemented by the architecture to allow a arch-specific setup of the UMA topology.
+ */
 KERNELAPI void KERNELABI
 SetMachineUmaMode(void);
 
-/* InitializeSystemTimers (@arch)
- * Register and start all neccessary system timers for the operating system to run. */
+/**
+ * InitializeSystemTimers (@arch)
+ * Register and start all neccessary system timers for the operating system to run.
+ */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemTimers(void);
 
-/* InitializeSystemMemory (@arch)
+/**
+ * InitializeSystemMemory (@arch)
  * Initializes the entire system memory range, selecting ranges that should
- * be reserved and those that are free for system use. */
+ * be reserved and those that are free for system use.
+ */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemory(
     _In_ Multiboot_t*        BootInformation,
@@ -101,4 +109,14 @@ InitializeSystemMemory(
     _In_ size_t*             MemoryGranularity,
     _In_ size_t*             NumberOfMemoryBlocks);
 
+/**
+ * AllocatePhysicalMemory
+ * Tries to allocate the requested number of memory pages
+ * @param PageCount The number of physical memory pages to allocate
+ * @return          The status of the operation
+ */
+KERNELAPI OsStatus_t KERNELABI
+AllocatePhysicalMemory(
+    _In_ int        PageCount,
+    _In_ uintptr_t* Pages);
 #endif // !__VALI_MACHINE__

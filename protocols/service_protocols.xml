@@ -423,7 +423,8 @@
                 </function>
                 <function name="report_crash">
                     <request>
-                        <param name="handle" type="UUId_t" />
+                        <param name="thread_handle" type="UUId_t" />
+                        <param name="process_handle" type="UUId_t" />
                         <param name="crash_context" type="buffer" />
                         <param name="reason" type="int" />
                     </request>

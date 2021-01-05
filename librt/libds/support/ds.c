@@ -326,7 +326,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
         return OsOutOfMemory;
     }
     
-    Status = MemorySpaceMap((SystemMemorySpace_t*)Handle, Address,
+    Status = MemorySpaceMap((MemorySpace_t*)Handle, Address,
         Pages, Length, KernelFlags, PlacementFlags);
     dsfree(Pages);
 #else

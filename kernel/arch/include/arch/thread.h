@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 
-typedef struct SystemThread MCoreThread_t;
+typedef struct Thread Thread_t;
 
 /* ThreadingRegister
  * Initializes a new arch-specific thread context
@@ -35,14 +35,14 @@ typedef struct SystemThread MCoreThread_t;
  * the yield interrupt handler first time its called */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingRegister(
-    _In_ MCoreThread_t *Thread);
+    _In_ Thread_t *Thread);
 
 /* ThreadingUnregister
  * Unregisters the thread from the system and cleans up any 
  * resources allocated by ThreadingRegister */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingUnregister(
-    _In_ MCoreThread_t *Thread);
+    _In_ Thread_t *Thread);
 
 /* ThreadingYield
  * Yields the current thread control to the scheduler */
@@ -53,13 +53,13 @@ ThreadingYield(void);
  * Saves the current state for the thread passed as parameter. */
 KERNELAPI void KERNELABI
 SaveThreadState(
-    _In_ MCoreThread_t* Thread);
+    _In_ Thread_t* Thread);
 
 /* RestoreThreadState
  * Restores the thread state to allow the thread to run next. */
 KERNELAPI void KERNELABI
 RestoreThreadState(
-    _In_ MCoreThread_t* Thread);
+    _In_ Thread_t* Thread);
 
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which

@@ -47,17 +47,17 @@ _fflags(
     switch (*mode++) {
         case 'R':
         case 'r':
-            *open_flags = plus ? O_RDWR : O_RDONLY;
+            *open_flags = O_TEXT | (plus ? O_RDWR : O_RDONLY);
             *stream_flags = plus ? _IORW : _IOREAD;
             break;
         case 'W':
         case 'w':
-            *open_flags = O_CREAT | O_TRUNC | (plus ? O_RDWR : O_WRONLY);
+            *open_flags = O_CREAT | O_TRUNC | O_TEXT | (plus ? O_RDWR : O_WRONLY);
             *stream_flags = plus ? _IORW : _IOWRT;
             break;
         case 'A':
         case 'a':
-            *open_flags = O_CREAT | O_APPEND | (plus ? O_RDWR : O_WRONLY);
+            *open_flags = O_CREAT | O_APPEND | O_TEXT | (plus ? O_RDWR : O_WRONLY);
             *stream_flags = plus ? _IORW : _IOWRT;
             break;
         default:

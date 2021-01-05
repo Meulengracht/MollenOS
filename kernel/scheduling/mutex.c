@@ -73,7 +73,7 @@ MutexTryLock(
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
             Count = atomic_load(&Mutex->References);
-            if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
+            if (Count != 0 && Mutex->Owner == ThreadCurrentHandle()) {
                 Status = atomic_compare_exchange_weak_explicit(&Mutex->References, 
                     &Count, Count + 1, memory_order_release,
                     memory_order_acquire);
@@ -88,7 +88,7 @@ MutexTryLock(
     
     Status = atomic_compare_exchange_strong(&Mutex->Value, &Zero, 1);
     if (Status) {
-        Mutex->Owner = GetCurrentThreadId();
+        Mutex->Owner = ThreadCurrentHandle();
         atomic_store(&Mutex->References, 1);
         return OsSuccess;
     }
@@ -110,7 +110,7 @@ __MutexPerformLock(
     if (Mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
             Count = atomic_load(&Mutex->References);
-            if (Count != 0 && Mutex->Owner == GetCurrentThreadId()) {
+            if (Count != 0 && Mutex->Owner == ThreadCurrentHandle()) {
                 Status = atomic_compare_exchange_weak_explicit(&Mutex->References, 
                     &Count, Count + 1, memory_order_release,
                     memory_order_acquire);
@@ -151,7 +151,7 @@ __MutexPerformLock(
         }
     }
     
-    Mutex->Owner = GetCurrentThreadId();
+    Mutex->Owner = ThreadCurrentHandle();
     atomic_store(&Mutex->References, 1);
     return OsSuccess;
 }
@@ -190,7 +190,7 @@ MutexUnlock(
     // Sanitize state of the mutex, are we even able to unlock it?
     Count = atomic_load(&Mutex->References);
     assert(Count != 0);
-    assert(Mutex->Owner == GetCurrentThreadId());
+    assert(Mutex->Owner == ThreadCurrentHandle());
     
     Count = atomic_fetch_sub(&Mutex->References, 1);
     if ((Count - 1) == 0) {

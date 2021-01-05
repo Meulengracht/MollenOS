@@ -148,17 +148,17 @@ OsStatus_t
 ScModuleExit(
     _In_ int ExitCode)
 {
-    MCoreThread_t*  Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Thread_t*       Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     SystemModule_t* Module = GetCurrentModule();
-    OsStatus_t      Status = OsError;
+    OsStatus_t      Status = OsNotSupported;
     if (Module != NULL) {
         WARNING("Process %s terminated with code %i", MStringRaw(Module->Executable->Name), ExitCode);
         // Are we detached? Then call only thread cleanup
-        if (Thread->ParentHandle == UUID_INVALID) {
-            Status = TerminateThread(Thread->Handle, ExitCode, 1);
+        if (ThreadIsRoot(Thread)) {
+            Status = ThreadTerminate(ThreadHandle(Thread), ExitCode, 1);
         }
         else {
-            Status = TerminateThread(Module->PrimaryThreadId, ExitCode, 1);
+            Status = ThreadTerminate(Module->PrimaryThreadId, ExitCode, 1);
         }
     }
     return Status;

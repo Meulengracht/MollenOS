@@ -30,6 +30,7 @@
 #include <os/context.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <threads.h>
 
 typedef void (*__sa_process_t)(int, void*);
 
@@ -90,7 +91,7 @@ DefaultCrashHandler(
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
-        status = svc_process_report_crash(GetGrachtClient(), &msg.base,
+        status = svc_process_report_crash(GetGrachtClient(), &msg.base, thrd_current(),
             *GetInternalProcessId(), Context, sizeof(Context_t), Signal->signal);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);

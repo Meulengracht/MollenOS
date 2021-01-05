@@ -134,7 +134,7 @@ InitializeMachine(
 #ifdef __OSCONFIG_ACPI_SUPPORT
     Status = AcpiInitializeEarly();
     if (Status != OsSuccess) {
-        // Assume UMA machine and put the machine into UMA mode
+        // Assume UMA machine and put the machine into UMA modKERNELAPI e
         SetMachineUmaMode();
     }
 #else
@@ -218,4 +218,23 @@ IdleProcessor:
     while (1) {
         ArchProcessorIdle();
     }
+}
+
+OsStatus_t
+AllocatePhysicalMemory(
+    _In_ int        PageCount,
+    _In_ uintptr_t* Pages)
+{
+    OsStatus_t Status = OsSuccess;
+    int        PagesAllocated;
+
+    IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
+    PagesAllocated = bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&Pages[0], PageCount);
+    if (PagesAllocated < PageCount) {
+        bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, (void**)&Pages[0], PagesAllocated);
+        Status = OsOutOfMemory;
+    }
+    IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
+
+    return Status;
 }

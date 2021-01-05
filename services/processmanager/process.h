@@ -72,6 +72,13 @@ typedef struct ProcessJoiner {
 __EXTERN OsStatus_t
 InitializeProcessManager(void);
 
+/**
+ * DebuggerInitialize
+ * Initializes the debugger functionality in the process manager
+ */
+__EXTERN void
+DebuggerInitialize(void);
+
 /* AcquireProcess
  * Acquires a reference to a process and allows safe access to the structure. */
 __EXTERN Process_t*

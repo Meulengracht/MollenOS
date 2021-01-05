@@ -77,7 +77,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
-    if (length >= builtinLength) {
+    if (length > builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
         
@@ -120,7 +120,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
-    if (length >= builtinLength) {
+    if (length > builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
         

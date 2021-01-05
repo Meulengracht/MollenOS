@@ -38,6 +38,8 @@
 #include <string.h>
 #include <vbe.h>
 
+#include "../../../components/cpu_private.h"
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #define __get_cpuid(Function, Registers) __cpuid(Registers, Function);

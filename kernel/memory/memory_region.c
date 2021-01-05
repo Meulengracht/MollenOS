@@ -51,9 +51,9 @@ typedef struct MemoryRegion {
 
 static OsStatus_t
 CreateUserMapping(
-    _In_  MemoryRegion_t*      Region,
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _Out_ uintptr_t*           AllocatedMapping)
+        _In_  MemoryRegion_t*      Region,
+        _In_  MemorySpace_t* MemorySpace,
+        _Out_ uintptr_t*           AllocatedMapping)
 {
     // This is more tricky, for the calling process we must make a new
     // mapping that spans the entire Capacity, but is uncommitted, and then commit
@@ -74,8 +74,8 @@ CreateUserMapping(
 
 static OsStatus_t
 CreateKernelMapping(
-    _In_ MemoryRegion_t*      Region,
-    _In_ SystemMemorySpace_t* MemorySpace)
+        _In_ MemoryRegion_t*      Region,
+        _In_ MemorySpace_t* MemorySpace)
 {
     OsStatus_t Status = MemorySpaceMapReserved(MemorySpace,
         (VirtualAddress_t*)&Region->KernelMapping, Region->Capacity, 
@@ -92,9 +92,9 @@ CreateKernelMapping(
 
 static OsStatus_t
 CreateKernelMappingFromExisting(
-    _In_ MemoryRegion_t*      Region,
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ uintptr_t            UserAddress)
+        _In_ MemoryRegion_t*      Region,
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ uintptr_t            UserAddress)
 {
     OsStatus_t Status = GetMemorySpaceMapping(MemorySpace, 
         (uintptr_t)UserAddress, Region->PageCount, &Region->Pages[0]);

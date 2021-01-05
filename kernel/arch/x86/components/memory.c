@@ -34,8 +34,8 @@
 #include <memory.h>
 
 // Interface to the arch-specific
-extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(SystemMemorySpace_t* MemorySpace, VirtualAddress_t Address,
-    PAGE_MASTER_LEVEL** ParentDirectory, int* IsCurrent);
+extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* MemorySpace, VirtualAddress_t Address,
+                                                  PAGE_MASTER_LEVEL** ParentDirectory, int* IsCurrent);
 extern PageTable_t* MmVirtualGetTable(PAGE_MASTER_LEVEL* ParentPageMasterTable, PAGE_MASTER_LEVEL* PageMasterTable,
     VirtualAddress_t VirtualAddress, int IsCurrent, int CreateIfMissing, int* Update);
 
@@ -244,7 +244,7 @@ ConvertX86AttributesToGeneric(
 
 void
 ArchMmuSwitchMemorySpace(
-    SystemMemorySpace_t* MemorySpace)
+        MemorySpace_t* MemorySpace)
 {
     assert(MemorySpace != NULL);
     assert(MemorySpace->Data[MEMORY_SPACE_CR3] != 0);
@@ -254,11 +254,11 @@ ArchMmuSwitchMemorySpace(
 
 OsStatus_t
 ArchMmuGetPageAttributes(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  int                  PageCount,
-    _In_  unsigned int*             AttributeValues,
-    _Out_ int*                 PagesCleared)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  int                  PageCount,
+        _In_  unsigned int*             AttributeValues,
+        _Out_ int*                 PagesCleared)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -291,11 +291,11 @@ ArchMmuGetPageAttributes(
 
 OsStatus_t
 ArchMmuUpdatePageAttributes(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  int                  PageCount,
-    _In_  unsigned int*             Attributes,
-    _Out_ int*                 PagesUpdated)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  int                  PageCount,
+        _In_  unsigned int*             Attributes,
+        _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -350,11 +350,11 @@ ArchMmuUpdatePageAttributes(
 
 OsStatus_t
 ArchMmuCommitVirtualPage(
-    _In_ SystemMemorySpace_t*     MemorySpace,
-    _In_ VirtualAddress_t         StartAddress,
-    _In_ const PhysicalAddress_t* PhysicalAddressValues,
-    _In_  int                     PageCount,
-    _Out_ int*                    PagesComitted)
+        _In_ MemorySpace_t*     MemorySpace,
+        _In_ VirtualAddress_t         StartAddress,
+        _In_ const PhysicalAddress_t* PhysicalAddressValues,
+        _In_  int                     PageCount,
+        _Out_ int*                    PagesComitted)
 {
     
     PAGE_MASTER_LEVEL* ParentDirectory;
@@ -409,12 +409,12 @@ ArchMmuCommitVirtualPage(
 
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetContiguousVirtualPages(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  PhysicalAddress_t    PhysicalStartAddress,
-    _In_  int                  PageCount,
-    _In_  unsigned int              Attributes,
-    _Out_ int*                 PagesUpdated)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  PhysicalAddress_t    PhysicalStartAddress,
+        _In_  int                  PageCount,
+        _In_  unsigned int              Attributes,
+        _Out_ int*                 PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -464,11 +464,11 @@ ArchMmuSetContiguousVirtualPages(
 
 OsStatus_t
 ArchMmuReserveVirtualPages(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  int                  PageCount,
-    _In_  unsigned int              Attributes,
-    _Out_ int*                 PagesReserved)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  int                  PageCount,
+        _In_  unsigned int              Attributes,
+        _Out_ int*                 PagesReserved)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -512,12 +512,12 @@ ArchMmuReserveVirtualPages(
 
 OsStatus_t
 ArchMmuSetVirtualPages(
-    _In_  SystemMemorySpace_t*     MemorySpace,
-    _In_  VirtualAddress_t         StartAddress,
-    _In_  const PhysicalAddress_t* PhysicalAddressValues,
-    _In_  int                      PageCount,
-    _In_  unsigned int             Attributes,
-    _Out_ int*                     PagesUpdated)
+        _In_  MemorySpace_t*     MemorySpace,
+        _In_  VirtualAddress_t         StartAddress,
+        _In_  const PhysicalAddress_t* PhysicalAddressValues,
+        _In_  int                      PageCount,
+        _In_  unsigned int             Attributes,
+        _Out_ int*                     PagesUpdated)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -566,10 +566,10 @@ ArchMmuSetVirtualPages(
 
 OsStatus_t
 ArchMmuClearVirtualPages(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  int                  PageCount,
-    _Out_ int*                 PagesCleared)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  int                  PageCount,
+        _Out_ int*                 PagesCleared)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -613,11 +613,11 @@ ArchMmuClearVirtualPages(
 
 OsStatus_t
 ArchMmuVirtualToPhysical(
-    _In_  SystemMemorySpace_t* MemorySpace,
-    _In_  VirtualAddress_t     StartAddress,
-    _In_  int                  PageCount,
-    _In_  PhysicalAddress_t*   PhysicalAddressValues,
-    _Out_ int*                 PagesRetrieved)
+        _In_  MemorySpace_t* MemorySpace,
+        _In_  VirtualAddress_t     StartAddress,
+        _In_  int                  PageCount,
+        _In_  PhysicalAddress_t*   PhysicalAddressValues,
+        _Out_ int*                 PagesRetrieved)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -652,10 +652,10 @@ ArchMmuVirtualToPhysical(
 
 OsStatus_t
 SetDirectIoAccess(
-    _In_ UUId_t               CoreId,
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ uint16_t             Port,
-    _In_ int                  Enable)
+        _In_ UUId_t               CoreId,
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ uint16_t             Port,
+        _In_ int                  Enable)
 {
     uint8_t *IoMap = (uint8_t*)MemorySpace->Data[MEMORY_SPACE_IOMAP];
 

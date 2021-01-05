@@ -165,8 +165,7 @@ PS2KeyboardInterrupt(
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(port, &buttonEvent) == OsSuccess) {
         buttonEvent.modifiers &= ~(KEY_MODIFIER_EXTENDED);
-        ctt_input_event_button_all(port->DeviceId, buttonEvent.key_code,
-                buttonEvent.modifiers, buttonEvent.key_ascii, buttonEvent.key_unicode);
+        ctt_input_event_button_all(port->DeviceId, buttonEvent.key_code, buttonEvent.modifiers);
     }
 }
 

@@ -34,20 +34,22 @@
 #include <machine.h>
 #include <scheduler.h>
 #include <threading.h>
+#include "threading_private.h"
 
 static void
 ExecuteSignalOnCoreFunction(
     _In_ void* Context)
 {
-    MCoreThread_t* Thread = Context;
+    Thread_t* thread = Context;
     TRACE("[signal] [execute]");
     
     // This function has determine the course of action for the given thread.
-    // CASE 1: Thread is currently running, Modify the current context and push
+    // CASE 1: thread is currently running, Modify the current context and push
     //         the new signal handlers. The current context can be retrieved from
     //         the current core structure
-    if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) == Thread) {
-        SystemCpuCore_t* Core = GetCurrentProcessorCore();
+    if (ThreadCurrentForCore(ArchGetProcessorCoreId()) == thread) {
+        SystemCpuCore_t* core           = CpuCoreCurrent();
+        Context_t*       currentContext = CpuCoreInterruptContext(core);
         
         // CASE 1.1: The thread is currently executing kernel code (syscall).
         //           In this case we must leave the system call be in queue,
@@ -58,9 +60,9 @@ ExecuteSignalOnCoreFunction(
         // CASE 1.2: The thread is currently executing user code. In this case
         //           we can simply process all the queued signals onto the current
         //           context.
-        if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Core->InterruptRegisters))) {
+        if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(currentContext))) {
             TRACE("[signal] [execute] case 1.2");
-            SignalProcessQueued(Thread, Core->InterruptRegisters);
+            SignalProcessQueued(thread, currentContext);
         }
     }
     
@@ -71,9 +73,9 @@ ExecuteSignalOnCoreFunction(
         // CASE 2.1: The thread is currently executing kernel code (syscall).
         //           In this case the signal must stay queued and be handled
         //           on exit of system call
-        if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Thread->ContextActive))) {
+        if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(thread->ContextActive))) {
             TRACE("[signal] [execute] case 2.1");
-            SchedulerExpediteObject(Thread->SchedulerObject);
+            SchedulerExpediteObject(thread->SchedulerObject);
         }
         
         // CASE 2.2: The thread is currently executing user code. In this case
@@ -82,7 +84,7 @@ ExecuteSignalOnCoreFunction(
         //           not currently blocked, as it would require a system call.
         else {
             TRACE("[signal] [execute] case 2.2");
-            SignalProcessQueued(Thread, Thread->ContextActive);
+            SignalProcessQueued(thread, thread->ContextActive);
         }
     }
 }
@@ -93,7 +95,7 @@ SignalSend(
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    MCoreThread_t* Target   = (MCoreThread_t*)LookupHandleOfType(ThreadId, HandleTypeThread);
+    Thread_t* Target   = THREAD_GET(ThreadId);
     UUId_t         TargetCore;
     ThreadSignal_t SignalInfo = {
         .Signal   = Signal,
@@ -139,7 +141,7 @@ SignalExecuteLocalThreadTrap(
     _In_ int        Signal,
     _In_ void*      Argument)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     
     assert(Thread != NULL);
     
@@ -170,7 +172,7 @@ SignalExecuteLocalThreadTrap(
 
 void
 SignalProcessQueued(
-    _In_ MCoreThread_t* Thread,
+    _In_ Thread_t* Thread,
     _In_ Context_t*     Context)
 {
     ThreadSignal_t Signal;

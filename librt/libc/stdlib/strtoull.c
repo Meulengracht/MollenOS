@@ -81,9 +81,11 @@ _strtoull_l (const char *__restrict nptr,
 			c -= 'a' - 10;
 		else
 			break;
+
 		if (c >= base)
 			break;
-               if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
+
+		if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
 			any = -1;
 		else {
 			any = 1;

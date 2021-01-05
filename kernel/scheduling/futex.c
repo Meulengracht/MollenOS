@@ -45,7 +45,7 @@ typedef struct FutexItem {
     spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
     
-    SystemMemorySpaceContext_t* Context;
+    MemorySpaceContext_t * Context;
     uintptr_t                   FutexAddress;
 } FutexItem_t;
 
@@ -76,8 +76,12 @@ static SchedulerObject_t*
 SchedulerGetCurrentObject(
     _In_ UUId_t CoreId)
 {
-    return (GetProcessorCore(CoreId)->CurrentThread != NULL) ? 
-        GetProcessorCore(CoreId)->CurrentThread->SchedulerObject : NULL;
+    Thread_t* currentThread = CpuCoreCurrentThread(GetProcessorCore(CoreId));
+    if (!currentThread) {
+        return NULL;
+    }
+
+    return ThreadSchedulerHandle(currentThread);
 }
 
 static FutexBucket_t*
@@ -91,9 +95,9 @@ FutexGetBucket(
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexGetNode(
-    _In_ FutexBucket_t*              Bucket,
-    _In_ uintptr_t                   FutexAddress,
-    _In_ SystemMemorySpaceContext_t* Context)
+        _In_ FutexBucket_t*              Bucket,
+        _In_ uintptr_t                   FutexAddress,
+        _In_ MemorySpaceContext_t* Context)
 {
     foreach(i, &Bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
@@ -108,9 +112,9 @@ FutexGetNode(
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexCreateNode(
-    _In_ FutexBucket_t*              Bucket,
-    _In_ uintptr_t                   FutexAddress,
-    _In_ SystemMemorySpaceContext_t* Context)
+        _In_ FutexBucket_t*              Bucket,
+        _In_ uintptr_t                   FutexAddress,
+        _In_ MemorySpaceContext_t* Context)
 {
     FutexItem_t* Existing;
     FutexItem_t* Item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
@@ -234,12 +238,12 @@ FutexWait(
     _In_ int           Flags,
     _In_ size_t        Timeout)
 {
-    SystemMemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*              Bucket;
+    MemorySpaceContext_t * Context = NULL;
+    FutexBucket_t        *              Bucket;
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
     IntStatus_t                 CpuState;
-    TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
+    TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -293,7 +297,7 @@ FutexWait(
     ThreadingYield();
 
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    TRACE("%u: woke up", GetCurrentThreadId());
+    TRACE("%u: woke up", ThreadCurrentHandle());
     return SchedulerGetTimeoutReason();
 }
 
@@ -307,12 +311,12 @@ FutexWaitOperation(
     _In_ int           Flags,
     _In_ size_t        Timeout)
 {
-    SystemMemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*              Bucket;
+    MemorySpaceContext_t * Context = NULL;
+    FutexBucket_t        *              Bucket;
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
     IntStatus_t                 CpuState;
-    TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
+    TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -368,7 +372,7 @@ FutexWaitOperation(
     ThreadingYield();
     
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    TRACE("%u: woke up", GetCurrentThreadId());
+    TRACE("%u: woke up", ThreadCurrentHandle());
     return SchedulerGetTimeoutReason();
 }
 
@@ -378,8 +382,8 @@ FutexWake(
     _In_ int           Count,
     _In_ int           Flags)
 {
-    SystemMemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*     Bucket;
+    MemorySpaceContext_t * Context = NULL;
+    FutexBucket_t        *     Bucket;
     FutexItem_t*       FutexItem;
     OsStatus_t         Status = OsDoesNotExist;
     uintptr_t          FutexAddress;
@@ -454,7 +458,7 @@ FutexWakeOperation(
 {
     OsStatus_t Status;
     int        InitialValue;
-    TRACE("%u: FutexWakeOperation(f 0x%llx)", GetCurrentThreadId(), Futex);
+    TRACE("%u: FutexWakeOperation(f 0x%llx)", ThreadCurrentHandle(), Futex);
     
     InitialValue = atomic_load(Futex);
     FutexPerformOperation(Futex2, Operation);

@@ -111,9 +111,9 @@ OsStatus_t
 AcquireSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
 {
-    SystemDeviceIo_t*    SystemIo;
-    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
-    SystemModule_t*      Module = GetCurrentModule();
+    SystemDeviceIo_t *    SystemIo;
+    MemorySpace_t    * Space       = GetCurrentMemorySpace();
+    SystemModule_t   *      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
     assert(IoSpace != NULL);
 
@@ -174,9 +174,9 @@ OsStatus_t
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
 {
-    SystemDeviceIo_t*    SystemIo;
-    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
-    SystemModule_t*      Module = GetCurrentModule();
+    SystemDeviceIo_t *    SystemIo;
+    MemorySpace_t    * Space       = GetCurrentMemorySpace();
+    SystemModule_t   *      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
     
     assert(IoSpace != NULL);

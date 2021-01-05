@@ -185,12 +185,12 @@ GetModule(
 SystemModule_t*
 GetCurrentModule(void)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     foreach(i, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Executable != NULL && 
             AreMemorySpacesRelated(Module->Executable->MemorySpace, 
-                (MemorySpaceHandle_t)Thread->MemorySpace) == OsSuccess) {
+                (MemorySpaceHandle_t)ThreadMemorySpace(Thread)) == OsSuccess) {
             return Module;
         }
     }

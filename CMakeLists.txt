@@ -30,14 +30,15 @@ set (ENV{VALI_ARCH} ${VALI_ARCH})
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set (VALI_PATH_DEPLOY            ${CMAKE_BINARY_DIR}/deploy)
-set (VALI_PATH_DEPLOY_HDD        ${CMAKE_BINARY_DIR}/deploy/hdd)
-set (VALI_PATH_DEPLOY_SYSTEM     ${CMAKE_BINARY_DIR}/deploy/hdd/system)
-set (VALI_PATH_DEPLOY_SHARED     ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
-set (VALI_PATH_DEPLOY_SHARED_BIN ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
-set (VALI_PATH_DEPLOY_SHARED_LIB ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
-set (VALI_PATH_INITRD            ${CMAKE_BINARY_DIR}/initrd)
-set (VALI_PATH_APPLICATIONS      ${CMAKE_BINARY_DIR}/apps)
+set (VALI_PATH_DEPLOY             ${CMAKE_BINARY_DIR}/deploy)
+set (VALI_PATH_DEPLOY_HDD         ${CMAKE_BINARY_DIR}/deploy/hdd)
+set (VALI_PATH_DEPLOY_SYSTEM      ${CMAKE_BINARY_DIR}/deploy/hdd/system)
+set (VALI_PATH_DEPLOY_SHARED      ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
+set (VALI_PATH_DEPLOY_SHARED_BIN  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
+set (VALI_PATH_DEPLOY_SHARED_LIB  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
+set (VALI_PATH_DEPLOY_SHARED_MAPS ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
+set (VALI_PATH_INITRD             ${CMAKE_BINARY_DIR}/initrd)
+set (VALI_PATH_APPLICATIONS       ${CMAKE_BINARY_DIR}/apps)
 
 if (DEFINED ENV{VALI_APPLICATION_PATH})
     set (VALI_PATH_APPLICATIONS $ENV{VALI_APPLICATION_PATH})
@@ -56,6 +57,7 @@ file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_BIN})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_MAPS})
 file (MAKE_DIRECTORY ${VALI_PATH_INITRD})
 file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
 
@@ -65,6 +67,12 @@ ExternalProject_Add(tools
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/tools
     CMAKE_CACHE_ARGS
         -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
+)
+
+ExternalProject_Add(unit_tests
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/unit_tests
+    CMAKE_CACHE_ARGS
+    -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
 )
 
 # Configure projects that are specified
@@ -97,6 +105,7 @@ add_subdirectory (tests)
 add_custom_target (install_applications
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -107,6 +116,7 @@ add_custom_target (install_prepare
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYSTEM}/syskrnl.mos
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 add_dependencies(install_prepare tools)

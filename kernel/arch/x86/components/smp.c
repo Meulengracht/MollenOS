@@ -24,15 +24,12 @@
 #define __MODULE "SMP0"
 #define __TRACE
 
-#include <component/domain.h>
 #include <component/cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
-#include <ddk/io.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <memory.h>
 #include <timers.h>
 #include <debug.h>
 #include <apic.h>
@@ -80,7 +77,7 @@ SmpApplicationCoreEntry(void)
     TssInitialize(0);
 
     // Register with system - no returning
-    ActivateApplicationCore(GetCurrentProcessorCore());
+    ActivateApplicationCore(CpuCoreCurrent());
 }
 
 static void
@@ -105,7 +102,8 @@ void
 StartApplicationCore(
     _In_ SystemCpuCore_t* Core)
 {
-    int Timeout;
+    UUId_t CoreId = CpuCoreId(Core);
+    int    Timeout;
 
     // Initialize jump space
     if (!JumpSpaceInitialized) {
@@ -114,9 +112,9 @@ StartApplicationCore(
     }
 
     // Perform the IPI
-    TRACE(" > booting core %" PRIuIN "", Core->Id);
-    if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
-        ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", Core->Id);
+    TRACE(" > booting core %" PRIuIN "", CoreId);
+    if (ApicPerformIPI(CoreId, 1) != OsSuccess) {
+        ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", CoreId);
         return;
     }
     PollTimerForMilliseconds(10);
@@ -124,22 +122,22 @@ StartApplicationCore(
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
     // Perform the SIPI - some cpu's require two SIPI's.
-    if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-        ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
+    if (ApicPerformSIPI(CoreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
+        ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", CoreId);
         return;
     }
 
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     Timeout = 10;
-    while (!(READ_VOLATILE(Core->State) & CpuStateRunning) && Timeout) {
+    while (!(CpuCoreState(Core) & CpuStateRunning) && Timeout) {
         PollTimerForMilliseconds(1);
         Timeout--;
     }
     
-    if (!(READ_VOLATILE(Core->State) & CpuStateRunning)) {
-        if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-            ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
+    if (!(CpuCoreState(Core) & CpuStateRunning)) {
+        if (ApicPerformSIPI(CoreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
+            ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", CoreId);
             return;
         }
     }

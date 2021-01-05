@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ RegisterDomainCore(
     _In_ UUId_t          CoreId,
     _In_ int             Override)
 {
-    if (CoreId != Domain->CoreGroup.Cores->Id) {
+    if (CoreId != CpuCoreId(Domain->CoreGroup.Cores)) {
         //RegisterApplicationCore(Domain, CoreId, CpuStateShutdown, 0);
     }
     else {
@@ -233,7 +233,7 @@ EnumerateSystemCoresMADT(
                         uint8_t ApicId      = AcpiCpu->Id;
                         uint8_t ProcessorId = AcpiCpu->ProcessorId;
                         TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
-                        if (ApicId != GetMachine()->Processor.Cores->Id) {
+                        if (ApicId != CpuCoreId(GetMachine()->Processor.Cores)) {
                             RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }

@@ -237,8 +237,6 @@
                     <param name="device_id" type="UUId_t" />
                     <param name="key_code" type="KeyCode_t" />
                     <param name="modifiers" type="KeyModifiers_t" />
-                    <param name="key_ascii" type="uint8_t" />
-                    <param name="key_unicode" type="uint32_t" />
                 </event>
                 <event name="cursor">
                     <param name="device_id" type="UUId_t" />

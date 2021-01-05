@@ -40,12 +40,12 @@ DebugPageMemorySpaceHandlers(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     OsStatus_t           Status = OsError;
 
     if (Space->Context != NULL) {
         foreach(i, Space->Context->MemoryHandlers) {
-            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)i->value;
+            MemoryMappingHandler_t * Handler = (MemoryMappingHandler_t*)i->value;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
                 ERROR("Implement support for MemorySpaceHandlers");
                 for(;;);
@@ -83,7 +83,7 @@ DebugPageFault(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     uintptr_t            PhysicalAddress;
     OsStatus_t           Status;
     
@@ -113,15 +113,15 @@ DebugHaltAllProcessorCores(
     
     Iter = Processor->Cores;
     while (Iter) {
-        if (Iter->Id == ExcludeId) {
-            Iter = Iter->Link;
+        if (CpuCoreId(Iter) == ExcludeId) {
+            Iter = CpuCoreNext(Iter);
             continue;
         }
         
-        if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
-            TxuMessageSend(Iter->Id, CpuFunctionHalt, NULL, NULL, 1);
+        if (CpuCoreState(Iter) & CpuStateRunning) {
+            TxuMessageSend(CpuCoreId(Iter), CpuFunctionHalt, NULL, NULL, 1);
         }
-        Iter = Iter->Link;
+        Iter = CpuCoreNext(Iter);
     }
     return OsSuccess;
 }
@@ -132,7 +132,7 @@ DebugPanic(
     _In_ Context_t*  Context,
     _In_ const char* Message, ...)
 {
-    MCoreThread_t *CurrentThread;
+    Thread_t *CurrentThread;
     char MessageBuffer[256];
     va_list Arguments;
     UUId_t CoreId;
@@ -161,10 +161,10 @@ DebugPanic(
     LogAppendMessage(LOG_ERROR, &MessageBuffer[0]);
     
     // Log cpu and threads
-    CurrentThread = GetCurrentThreadForCore(CoreId);
+    CurrentThread = ThreadCurrentForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LOG_ERROR, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-            CurrentThread->Name, CurrentThread->Handle, CoreId);
+            ThreadName(CurrentThread), ThreadHandle(CurrentThread), CoreId);
     }
     
     if (Context) {

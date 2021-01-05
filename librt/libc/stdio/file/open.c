@@ -20,6 +20,8 @@
  * - Standard IO file operation implementations.
  */
 
+#define __TRACE
+
 #include <assert.h>
 #include <svc_file_protocol_client.h>
 #include <ddk/service.h>
@@ -34,21 +36,39 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Convert O_* flags to WX_* flags
-static unsigned
-oftowx(unsigned oflags)
-{
-    int         wxflags = 0;
-    unsigned    unsupp; // until we support everything
+#define BOM_MAX_LEN 4
 
-    if (oflags & O_APPEND)               wxflags |= WX_APPEND;
-    if (oflags & O_BINARY)               {/* Nothing to do */}
-    else if (oflags & O_TEXT)            wxflags |= WX_TEXT;
-    else if (oflags & O_WTEXT)           wxflags |= WX_TEXT|WX_WIDE;
-    else if (oflags & O_U16TEXT)         wxflags |= WX_TEXT|WX_UTF|WX_WIDE;
-    else if (oflags & O_U8TEXT)          wxflags |= WX_TEXT|WX_UTF;
-    else                                 wxflags |= WX_TEXT; // default to TEXT
-    if (oflags & O_NOINHERIT)            wxflags |= WX_DONTINHERIT;
+static const struct bom_mode {
+    const char*   name;
+    size_t        len;
+    unsigned int  flags;
+    unsigned char identifier[BOM_MAX_LEN];
+} supported_bom_modes[] = {
+        { "UTF32BE", 4, WX_UTF32 | WX_BIGENDIAN, { 0x00, 0x00, 0xFE, 0xFF } },
+        { "UTF32LE", 4, WX_UTF32, { 0xFF, 0xFE, 0x00, 0x00 } },
+        { "UTF16BE", 2, WX_UTF16 | WX_BIGENDIAN, { 0xFE, 0xFF } },
+        { "UTF16LE", 2, WX_UTF16, { 0xFF, 0xFE } },
+        { "UTF8", 3, WX_UTF, { 0xEF, 0xBB, 0xBF } },
+        { NULL, 0, 0, { 0 }}
+};
+
+// Convert O_* flags to WX_* flags
+static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
+{
+    int          wxflags = 0;
+    unsigned int unsupp; // until we support everything
+
+    // detect options
+    if (oflags & O_APPEND)    wxflags |= WX_APPEND;
+    if (oflags & O_NOINHERIT) wxflags |= WX_DONTINHERIT;
+
+    // detect mode
+    if (oflags & O_BINARY)       {/* Nothing to do */}
+    else if (oflags & O_TEXT)    wxflags |= WX_TEXT;
+    else if (oflags & O_WTEXT)   wxflags |= WX_WIDE;
+    else if (oflags & O_U16TEXT) wxflags |= WX_UTF16;
+    else if (oflags & O_U8TEXT)  wxflags |= WX_UTF;
+    else                         wxflags |= WX_TEXT; // default to TEXT
 
     if ((unsupp = oflags & ~(
                     O_BINARY|O_TEXT|O_APPEND|
@@ -58,9 +78,34 @@ oftowx(unsigned oflags)
                     O_SEQUENTIAL|O_RANDOM|O_SHORT_LIVED|
                     O_WTEXT|O_U16TEXT|O_U8TEXT
                     ))) {
-        TRACE(":unsupported oflags 0x%x\n", unsupp);
+        TRACE(STR(":unsupported oflags 0x%x"), unsupp);
     }
     return wxflags;
+}
+
+static unsigned int __detect_filemode(int iod)
+{
+    char bomBuffer[BOM_MAX_LEN];
+    int  bytesRead;
+
+    bytesRead = read(iod, &bomBuffer[0], sizeof(bomBuffer));
+    if (bytesRead > 0) {
+        int i = 0;
+
+        while (supported_bom_modes[i].name != NULL) {
+            if (bytesRead >= supported_bom_modes[i].len &&
+                !memcmp(&bomBuffer[0], &supported_bom_modes[i].identifier[0], supported_bom_modes[i].len)) {
+                TRACE(STR("[__detect_filemode] mode automatically set to %s"), supported_bom_modes[i].name);
+                lseek(iod, supported_bom_modes[i].len, SEEK_SET);
+                return supported_bom_modes[i].flags;
+            }
+            i++;
+        }
+    }
+
+    // not able to detect mode
+    lseek(iod, 0, SEEK_SET);
+    return 0;
 }
 
 // return -1 on fail and set errno
@@ -95,7 +140,7 @@ int open(const char* file, int flags, ...)
         return -1;
     }
     
-    if (stdio_handle_create(-1, oftowx((unsigned int)flags), &object)) {
+    if (stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object)) {
         svc_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
@@ -104,6 +149,14 @@ int open(const char* file, int flags, ...)
     
     stdio_handle_set_handle(object, handle);
     stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
-    
+
+    // detect filemode automatically
+    if (flags & O_TEXT) {
+        unsigned int detectedMode = __detect_filemode(object->fd);
+        if (detectedMode) {
+            object->wxflag &= ~WX_TEXT_FLAGS;
+            object->wxflag |= detectedMode;
+        }
+    }
     return object->fd;
 }

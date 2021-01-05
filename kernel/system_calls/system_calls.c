@@ -125,9 +125,9 @@ ScSystemTick(
             }
         }
         else if (TickBase == TIME_THREAD) {
-            MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+            Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
-                Tick->QuadPart -= Thread->StartedAt;
+                Tick->QuadPart -= ThreadStartTime(Thread);
             }
         }
         return OsSuccess;
@@ -171,7 +171,7 @@ ScQueryDisplayInformation(
 void*
 ScCreateDisplayFramebuffer(void)
 {
-    SystemMemorySpace_t* Space      = GetCurrentMemorySpace();
+    MemorySpace_t * Space = GetCurrentMemorySpace();
     uintptr_t            FbPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t            FbVirtual  = 0;
     size_t               FbSize     = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;

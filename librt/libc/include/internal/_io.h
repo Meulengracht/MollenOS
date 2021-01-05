@@ -26,10 +26,16 @@
 #define WX_APPEND           0x40U
 #define WX_TTY              0x80U
 #define WX_TEXT             0x100U
-#define WX_WIDE             0x200U
+#define WX_WIDE             (WX_TEXT | 0x200U)
 #define WX_UTF              (WX_TEXT | 0x400U)
-#define WX_INHERITTED       0x800U
-#define WX_PERSISTANT       0x1000U
+#define WX_UTF16            (WX_WIDE | 0x800U)
+#define WX_UTF32            (WX_WIDE | 0x1000U)
+#define WX_BIGENDIAN        0x2000U
+#define WX_TEXT_FLAGS       (WX_TEXT | WX_WIDE | WX_UTF | WX_UTF16 | WX_UTF32 | WX_BIGENDIAN)
+
+#define WX_INHERITTED       0x4000U
+#define WX_PERSISTANT       0x8000U
+#define WX_NULLPIPE         0x10000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -84,10 +90,10 @@ typedef struct stdio_ops {
 // support for a handle.
 typedef struct stdio_handle {
     int            fd;
+    unsigned int   wxflag;
     spinlock_t     lock;
     stdio_object_t object;
     stdio_ops_t    ops;
-    unsigned short wxflag;
     char           lookahead[3];
     FILE*          buffered_stream;
 } stdio_handle_t;
@@ -98,7 +104,8 @@ typedef struct stdio_inheritation_block {
 } stdio_inheritation_block_t;
 
 // io-object interface
-extern int             stdio_handle_create(int, int, stdio_handle_t**);
+extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
+extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
 extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);

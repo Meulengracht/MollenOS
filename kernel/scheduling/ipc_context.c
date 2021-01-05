@@ -42,11 +42,11 @@ typedef struct IpcContext {
     streambuffer_t* KernelStream;
 } IpcContext_t;
 
-static inline MCoreThread_t*
+static inline Thread_t*
 GetContextThread(
     _In_ IpcContext_t* context)
 {
-    return LookupHandleOfType(context->CreatorThreadHandle, HandleTypeThread);
+    return THREAD_GET(context->CreatorThreadHandle);
 }
 
 static void
@@ -77,7 +77,7 @@ IpcContextCreate(
         return OsOutOfMemory;
     }
     
-    Context->CreatorThreadHandle = GetCurrentThreadId();
+    Context->CreatorThreadHandle = ThreadCurrentHandle();
     
     Status = MemoryRegionCreate(Size, Size, 0, &KernelMapping, UserContextOut,
         &Context->MemoryRegionHandle);
@@ -144,8 +144,8 @@ AllocateMessage(
 
 static OsStatus_t
 MapUntypedParameter(
-    _In_ struct gracht_param* parameter,
-    _In_ SystemMemorySpace_t* TargetMemorySpace)
+        _In_ struct gracht_param* parameter,
+        _In_ MemorySpace_t* TargetMemorySpace)
 {
     VirtualAddress_t CopyAddress;
     size_t     OffsetInPage = parameter->data.value % GetMemorySpacePageSize();
@@ -188,16 +188,16 @@ WriteMessage(
     for (i = 0; i < message->base->header.param_in; i++) {
         if (message->base->params[i].type == GRACHT_PARAM_SHM &&
             message->base->params[i].length > 0) {
-            MCoreThread_t* Thread = GetContextThread(context);
-            OsStatus_t     Status = MapUntypedParameter(&message->base->params[i],
-                Thread->MemorySpace);
-            if (Status != OsSuccess) {
+            Thread_t*  thread = GetContextThread(context);
+            OsStatus_t status = MapUntypedParameter(&message->base->params[i],
+                                                    ThreadMemorySpace(thread));
+            if (status != OsSuccess) {
                 // WHAT DO
                 //CleanupMessage(Target, &IpcContext->Message);
                 //atomic_store(&IpcContext->WriteSyncObject, 0);
                 //(void)FutexWake(&IpcContext->WriteSyncObject, 1, 0);
                 ERROR("[ipc] [initialize_message] failed to map parameter");
-                return Status;
+                return status;
             }
         }
     }

@@ -208,7 +208,7 @@ ContextCreate(
 	OsStatus_t           status;
 	uintptr_t            physicalContextAddress;
     uintptr_t            contextAddress = 0;
-	SystemMemorySpace_t* memorySpace    = GetCurrentMemorySpace();
+	MemorySpace_t * memorySpace = GetCurrentMemorySpace();
 
 	// Select proper segments based on context type and run-mode
 	if (contextType == THREADING_CONTEXT_LEVEL0) {

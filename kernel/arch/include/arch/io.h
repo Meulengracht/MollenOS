@@ -72,9 +72,9 @@ WriteDirectPci(
  * Set's the io status of the given memory space. */
 KERNELAPI OsStatus_t KERNELABI
 SetDirectIoAccess(
-    _In_ UUId_t               CoreId,
-    _In_ SystemMemorySpace_t* MemorySpace,
-    _In_ uint16_t             Port,
-    _In_ int                  Enable);
+        _In_ UUId_t               CoreId,
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ uint16_t             Port,
+        _In_ int                  Enable);
 
 #endif //!__SYSTEM_IO_INTEFACE_H__
