@@ -62,11 +62,12 @@ typedef struct stdio_handle {
 #define WX_APPEND           0x40U
 #define WX_TTY              0x80U
 #define WX_TEXT             0x100U
-#define WX_WIDE             0x200U
+#define WX_WIDE             (WX_TEXT | 0x200U)
 #define WX_UTF              (WX_TEXT | 0x400U)
-#define WX_INHERITTED       0x800U
-#define WX_PERSISTANT       0x1000U
-#define WX_NULLPIPE         0x8000U
+#define WX_UTF16            (WX_WIDE | 0x800U)
+#define WX_UTF32            (WX_WIDE | 0x1000U)
+#define WX_BIGENDIAN        0x2000U
+#define WX_TEXT_FLAGS       (WX_TEXT | WX_WIDE | WX_UTF | WX_UTF16 | WX_UTF32 | WX_BIGENDIAN)
 
 #define _IOFBF     0x0000
 #define _IOREAD	   0x0001
