@@ -101,7 +101,7 @@ static void test_text(stdio_handle_t* handle)
     handle->wxflag = WX_TEXT;
 
     printf(STR("[test_text] Testing file reading as binary"));
-    status = __read_as_text_or_utf16(handle, &buffer[0], sizeof(buffer));
+    status = __read_as_text_or_wide(handle, &buffer[0], sizeof(buffer));
     printf(STR("[test_text] Result: %i"), status);
     printf(STR("[test_text] %s"), &buffer[0]);
 }
@@ -131,7 +131,7 @@ static int test_utf16(stdio_handle_t* handle)
     handle->wxflag = WX_UTF | WX_WIDE;
 
     printf(STR("[test_utf16] Testing file reading as utf16"));
-    status = __read_as_text_or_utf16(handle, &buffer[0], sizeof(buffer));
+    status = __read_as_text_or_wide(handle, &buffer[0], sizeof(buffer));
     printf(STR("[test_utf16] Result: %i"), status);
     wprintf(L"[test_utf16] %s\n", (wchar_t*)&buffer[0]);
 }
