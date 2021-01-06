@@ -14,6 +14,7 @@ typedef unsigned int UUId_t;
 
 #define OsSuccess     (int)0
 #define OsOutOfMemory (int)-1
+#define OsError       (int)-2
 
 #include <stdint.h>
 #include <inttypes.h>

@@ -22,7 +22,7 @@
  *  invoked once a process crashes
  */
 
-#define __TRACE
+//#define __TRACE
 
 #ifndef __TEST
 #include <ddk/utils.h>
@@ -215,7 +215,8 @@ LoadObjectsInMap(
                                &symbolContext->symbols[symbolIndex]);
         if (parsed) {
             iterator = parsed;
-            symbolNameIndex += strlen(&symbolContext->symbol_storage[symbolNameIndex]);
+            symbolNameIndex += strlen(&symbolContext->symbol_storage[symbolNameIndex]) + 1;
+            symbolIndex++;
             continue;
         }
 

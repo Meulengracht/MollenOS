@@ -152,7 +152,11 @@ int open(const char* file, int flags, ...)
 
     // detect filemode automatically
     if (flags & O_TEXT) {
-        unsigned int detectedMode = __detect_filemode(object->fd);
+        unsigned int detectedMode;
+
+        object->wxflag &= ~WX_TEXT;
+        detectedMode = __detect_filemode(object->fd);
+        object->wxflag |= WX_TEXT;
         if (detectedMode) {
             object->wxflag &= ~WX_TEXT_FLAGS;
             object->wxflag |= detectedMode;

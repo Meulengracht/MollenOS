@@ -117,7 +117,8 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
                     free(readbuf);
                 }
 				return 0;
-			}else {
+			}
+            else {
 				pos++;
 			}
         }
@@ -301,104 +302,104 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 }
 
 static int
-__read_as_text_or_utf16(stdio_handle_t* handle, char* buf, unsigned int count)
+__read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 {
-    char*           BufferCursor = (char*)buf;
-    size_t          BytesRead;
-    size_t          Utf16;
-    long long       pos;
+    char*     bufferPointer = (char*)buf;
+    size_t    bytesRead     = 0;
+    int       isUtf16;
+    long long pos;
 
     // Determine if we are reading UTF16
-    Utf16 = (handle->wxflag & (WX_WIDE | WX_UTF)) == (WX_WIDE | WX_UTF);
-    if (((handle->wxflag & WX_UTF) || Utf16) && (count & 0x1)) {
+    isUtf16 = (handle->wxflag & WX_UTF16) == WX_UTF16;
+    if (isUtf16 && (count & 0x1)) {
         _set_errno(EINVAL);
-        return 4;
+        return -1;
     }
 
     // Now do the actual read of either binary or UTF16
     if (handle->lookahead[0] != '\n' ||
-        handle->ops.read(handle, BufferCursor, count, &BytesRead) == OsSuccess) {
+        handle->ops.read(handle, bufferPointer, count, &bytesRead) == OsSuccess) {
         if (handle->lookahead[0] != '\n') {
-            BufferCursor[0] = handle->lookahead[0];
+            bufferPointer[0]     = handle->lookahead[0];
             handle->lookahead[0] = '\n';
 
-            if (Utf16) {
-                BufferCursor[1] = handle->lookahead[1];
+            if (isUtf16) {
+                bufferPointer[1]     = handle->lookahead[1];
                 handle->lookahead[1] = '\n';
             }
 
-            if (count > (1 + Utf16) && handle->ops.read(handle,
-                                                      BufferCursor + 1 + Utf16, count - 1 - Utf16, &BytesRead) == OsSuccess) {
-                BytesRead += 1 + Utf16;
+            if (count > (1 + isUtf16) && handle->ops.read(handle,
+                                                          bufferPointer + 1 + isUtf16,
+                                                          count - 1 - isUtf16,
+                                                          &bytesRead) == OsSuccess) {
+                bytesRead += 1 + isUtf16;
             }
             else {
-                BytesRead = 1 + Utf16;
+                bytesRead = 1 + isUtf16;
             }
         }
 
         // If we get uneven bytes read ignore the last
-        if (Utf16 && (BytesRead & 1)) {
-            BytesRead--;
+        if (isUtf16 && (bytesRead & 1)) {
+            bytesRead--;
         }
 
         // Test against EOF
-        if (count != 0 && BytesRead == 0) {
+        if (count != 0 && bytesRead == 0) {
             handle->wxflag |= WX_ATEOF;
         }
-        else if (handle->wxflag & WX_TEXT) {
+        else {
             size_t i, j;
 
             // Detect reading newline
-            if (BufferCursor[0] == '\n' && (!Utf16 || BufferCursor[1] == 0)) {
+            if (bufferPointer[0] == '\n' && (!isUtf16 || bufferPointer[1] == 0)) {
                 handle->wxflag |= WX_READNL;
             }
             else {
                 handle->wxflag &= ~WX_READNL;
             }
 
-            for (i = 0, j = 0; i < BytesRead; i += 1 + Utf16)
+            for (i = 0, j = 0; i < bytesRead; i += 1 + isUtf16)
             {
                 // In text mode, a ctrl-z signals EOF
-                if (BufferCursor[i] == 0x1a && (!Utf16 || BufferCursor[i + 1] == 0)) {
+                if (bufferPointer[i] == 0x1a && (!isUtf16 || bufferPointer[i + 1] == 0)) {
                     handle->wxflag |= WX_ATEOF;
                     break;
                 }
 
                 // In text mode, strip \r if followed by \n
-                if (BufferCursor[i] == '\r'
-                    && (!Utf16 || BufferCursor[i + 1] == 0)
-                    && (i + 1 + Utf16 == BytesRead))
+                if (bufferPointer[i] == '\r'
+                    && (!isUtf16 || bufferPointer[i + 1] == 0)
+                    && (i + 1 + isUtf16 == bytesRead))
                 {
                     char lookahead[2];
                     size_t localBytesRead;
 
                     lookahead[1] = '\n';
-                    if (handle->ops.read(handle, lookahead, 1 + Utf16, &localBytesRead) == OsSuccess
+                    if (handle->ops.read(handle, lookahead, 1 + isUtf16, &localBytesRead) == OsSuccess
                         && localBytesRead) {
-                        if (lookahead[0] == '\n'
-                            && (!Utf16 || lookahead[1] == 0)
-                            && j == 0) {
-                            BufferCursor[j++] = '\n';
+                        if (lookahead[0] == '\n' && (!isUtf16 || lookahead[1] == 0) && j == 0) {
+                            bufferPointer[j++] = '\n';
 
-                            if (Utf16) {
-                                BufferCursor[j++] = 0;
+                            if (isUtf16) {
+                                bufferPointer[j++] = 0;
                             }
                         }
                         else {
-                            if (lookahead[0] != '\n' || (Utf16 && lookahead[1] != 0)) {
-                                BufferCursor[j++] = '\r';
+                            if (lookahead[0] != '\n' || (isUtf16 && lookahead[1] != 0)) {
+                                bufferPointer[j++] = '\r';
 
-                                if (Utf16) {
-                                    BufferCursor[j++] = 0;
+                                if (isUtf16) {
+                                    bufferPointer[j++] = 0;
                                 }
                             }
 
                             if (handle->wxflag & (WX_PIPE | WX_TTY)) {
-                                if (lookahead[0] == '\n' && (!Utf16 || !lookahead[1])) {
-                                    BufferCursor[j++] = '\n';
+                                if (lookahead[0] == '\n' && (!isUtf16 || !lookahead[1])) {
+                                    bufferPointer[j++] = '\n';
 
-                                    if (Utf16) {
-                                        BufferCursor[j++] = 0;
+                                    if (isUtf16) {
+                                        bufferPointer[j++] = 0;
                                     }
                                 }
                                 else {
@@ -407,38 +408,35 @@ __read_as_text_or_utf16(stdio_handle_t* handle, char* buf, unsigned int count)
                                 }
                             }
                             else {
-                                handle->ops.seek(handle, SEEK_CUR, -1 - Utf16, &pos);
+                                handle->ops.seek(handle, SEEK_CUR, -1 - isUtf16, &pos);
                             }
                         }
                     }
                     else {
-                        BufferCursor[j++] = '\r';
+                        bufferPointer[j++] = '\r';
 
-                        if (Utf16) {
-                            BufferCursor[j++] = 0;
+                        if (isUtf16) {
+                            bufferPointer[j++] = 0;
                         }
                     }
                 }
-                else if ((BufferCursor[i] != '\r'
-                          || (Utf16 && BufferCursor[i + 1] != 0))
-                         || (BufferCursor[i + 1 + Utf16] != '\n'
-                             || (Utf16 && BufferCursor[i + 3] != 0))) {
-                    BufferCursor[j++] = BufferCursor[i];
-
-                    if (Utf16) {
-                        BufferCursor[j++] = BufferCursor[i + 1];
+                else if ((bufferPointer[i] != '\r' || (isUtf16 && bufferPointer[i + 1] != 0)) ||
+                         (bufferPointer[i + 1 + isUtf16] != '\n' || (isUtf16 && bufferPointer[i + 3] != 0))) {
+                    bufferPointer[j++] = bufferPointer[i];
+                    if (isUtf16) {
+                        bufferPointer[j++] = bufferPointer[i + 1];
                     }
                 }
             }
 
             // Update bytes read
-            BytesRead = j;
+            bytesRead = j;
         }
     }
     else {
         return -1;
     }
-    return (int)BytesRead;
+    return (int)bytesRead;
 }
 
 
@@ -464,11 +462,11 @@ read(int fd, void* buffer, unsigned int len)
     }
 
 	// Determine if we are reading UTF8
-	if ((handle->wxflag & WX_UTF) && !(handle->wxflag & WX_WIDE)) {
+	if ((handle->wxflag & WX_UTF) == WX_UTF) {
 		return __read_as_utf8(handle, (wchar_t*)buffer, len);
 	}
 
-	return __read_as_text_or_utf16(handle, buffer, len);
+	return __read_as_text_or_wide(handle, buffer, len);
 }
 
 size_t

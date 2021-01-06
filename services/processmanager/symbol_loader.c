@@ -22,7 +22,7 @@
  *  invoked once a process crashes
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
@@ -69,6 +69,7 @@ SymbolsLoadContext(
     TRACE("[SymbolsLoadContext] loading map file");
     status = SymbolLoadMapFile(binaryName, &fileBuffer, &fileSize);
     if (status != OsSuccess) {
+        WARNING("[SymbolsLoadContext] failed to load map for %s", binaryName);
         return status;
     }
 
@@ -76,6 +77,7 @@ SymbolsLoadContext(
     status = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
     free(fileBuffer);
     if (status != OsSuccess) {
+        WARNING("[SymbolsLoadContext] failed to parse map for %s", binaryName);
         return status;
     }
 
@@ -140,11 +142,12 @@ SymbolLoadMapFile(
         _Out_ long*       fileSizeOut)
 {
     char                   path[_MAXPATH];
-    char                   tmp[_MAXPATH];
+    char                   tmp[_MAXPATH] = { 0 };
     const char*            lastDot = strrchr(binaryName, '.');
     FILE*                  file;
     long                   fileSize;
     void*                  fileBuffer;
+    size_t                 bytesRead;
 
     if (lastDot) {
         size_t length = (size_t)((uintptr_t)lastDot - (uintptr_t)binaryName);
@@ -168,14 +171,24 @@ SymbolLoadMapFile(
     fileSize = ftell(file);
     rewind(file);
 
+    if (!fileSize) {
+        fclose(file);
+        return OsInvalidParameters;
+    }
+
     fileBuffer = malloc(fileSize);
     if (!fileBuffer) {
         fclose(file);
         return OsOutOfMemory;
     }
 
-    fread(fileBuffer, 1, fileSize, file);
+    bytesRead = fread(fileBuffer, 1, fileSize, file);
     fclose(file);
+
+    if (bytesRead != fileSize) {
+        ERROR("[SymbolsLoadContext] fread returned %i", (int)bytesRead);
+        return OsError;
+    }
 
     *fileBufferOut = fileBuffer;
     *fileSizeOut   = fileSize;

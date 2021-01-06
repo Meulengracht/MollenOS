@@ -43,10 +43,8 @@ int write(int fd, const void* buffer, unsigned int length)
 		lseek(fd, 0, SEEK_END);
 	}
 
-	// If we aren't in text mode, raw write the data
-	// without any text-processing
-	if (handle->ops.write(handle, (char*)buffer, 
-		length, &BytesWritten) == OsSuccess) {
+	// If we aren't in text mode, raw write the data without any text-processing
+	if (handle->ops.write(handle, (char*)buffer, length, &BytesWritten) == OsSuccess) {
 		return (int)BytesWritten;
 	}
 

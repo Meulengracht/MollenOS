@@ -103,7 +103,7 @@ HandleProcessCrashReport(
 
     // Print stack trace for application
     if (crashContext->UserRsp) {
-        void       * stack;
+        void*      stack;
         uintptr_t  offset      = crashContext->UserRsp & 0xFFF;
         size_t     upperLength = 0x1000 + offset;
         OsStatus_t status      = MapThreadMemoryRegion(threadHandle, crashContext->UserRsp, upperLength, &stack);

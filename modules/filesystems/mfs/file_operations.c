@@ -188,8 +188,7 @@ FsReadFromFile(
     // if (update_when_accessed) @todo
     // entry->accessed = now
     // entry->action_on_close = update
-
-    TRACE(" > bytes read %u/%u", *UnitsRead, Length);
+    TRACE("[mfs] [read_file] bytes read %u/%u", *UnitsRead, UnitCount);
     return Result;
 }
 

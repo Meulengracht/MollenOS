@@ -30,13 +30,8 @@ static char* NullEnvironment[] = {
         NULL
 };
 
-static char* TestEnvironment[] = {
-        "LP_DEBUG=pipe,tgsi,tex,setup,rast,query,screen,scene,fence,mem,fs",
-        NULL
-};
-
 // A pointer to the current environment
-char** CurrentEnvironment = &TestEnvironment[0];
+char** CurrentEnvironment = &NullEnvironment[0];
 
 char* getenv(const char *name)
 {
