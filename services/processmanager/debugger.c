@@ -102,15 +102,15 @@ HandleProcessCrashReport(
           programName, moduleName, crashAddress - moduleBase, crashAddress, crashReason);
 
     // Print stack trace for application
-    if (crashContext->UserRsp) {
+    if (CONTEXT_USERSP(crashContext)) {
         void*      stack;
-        uintptr_t  offset      = crashContext->UserRsp & 0xFFF;
+        uintptr_t  offset      = CONTEXT_USERSP(crashContext) & 0xFFF;
         size_t     upperLength = 0x1000 + offset;
-        OsStatus_t status      = MapThreadMemoryRegion(threadHandle, crashContext->UserRsp, upperLength, &stack);
+        OsStatus_t status      = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), upperLength, &stack);
         if (status == OsSuccess) {
             // Traverse the memory region up to stack max
-            uintptr_t* stackAddress = (uintptr_t*) ((uintptr_t) stack + offset);
-            uintptr_t* stackLimit   = (uintptr_t*) ((uint8_t*) stackAddress + 0x1000);
+            uintptr_t* stackAddress = (uintptr_t*)((uintptr_t)stack + offset);
+            uintptr_t* stackLimit   = (uintptr_t*)((uint8_t*)stackAddress + 0x1000);
             ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
