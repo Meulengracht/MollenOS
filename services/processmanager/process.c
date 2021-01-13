@@ -88,30 +88,29 @@ ReleaseProcess(
     }
 }
 
-Process_t *
+Process_t*
 AcquireProcess(
-        _In_
-        UUId_t Handle)
+        _In_ UUId_t Handle)
 {
-    Process_t *Process = (Process_t *) list_find_value(&Processes, (void *) (uintptr_t) Handle);
-    if (Process != NULL) {
+    Process_t* process = (Process_t*)list_find_value(&Processes, (void *)(uintptr_t)Handle);
+    if (process != NULL) {
         int References;
         while (1) {
-            References = atomic_load(&Process->References);
+            References = atomic_load(&process->References);
             if (References == 0) {
                 break;
             }
-            if (atomic_compare_exchange_weak(&Process->References, &References, References + 1)) {
+            if (atomic_compare_exchange_weak(&process->References, &References, References + 1)) {
                 break;
             }
         }
 
         if (References > 0) {
-            spinlock_acquire(&Process->SyncObject);
-            if (Process->State == PROCESS_RUNNING) {
-                return Process;
+            spinlock_acquire(&process->SyncObject);
+            if (process->State == PROCESS_RUNNING) {
+                return process;
             }
-            ReleaseProcess(Process);
+            ReleaseProcess(process);
         }
     }
     return NULL;
@@ -779,13 +778,15 @@ void svc_process_get_assembly_directory_callback(struct gracht_recv_message *mes
 void svc_process_get_working_directory_callback(struct gracht_recv_message *message,
                                                 struct svc_process_get_working_directory_args *args)
 {
-    Process_t  *process = AcquireProcess(args->handle);
-    OsStatus_t status   = OsInvalidParameters;
-    const char *path    = NULL;
+    Process_t*  process = AcquireProcess(args->handle);
+    OsStatus_t  status  = OsInvalidParameters;
+    const char* path    = NULL;
     if (process) {
         path   = MStringRaw(process->WorkingDirectory);
         status = OsSuccess;
         ReleaseProcess(process);
+
+        TRACE("[get_cwd] %s", path);
     }
     svc_process_get_working_directory_response(message, status, path);
 }
@@ -793,11 +794,11 @@ void svc_process_get_working_directory_callback(struct gracht_recv_message *mess
 void svc_process_set_working_directory_callback(struct gracht_recv_message *message,
                                                 struct svc_process_set_working_directory_args *args)
 {
-    Process_t  *process = AcquireProcess(args->handle);
+    Process_t* process = AcquireProcess(args->handle);
     OsStatus_t status   = OsInvalidParameters;
     if (process) {
         if (args->path != NULL) {
-            TRACE("proc_set_cwd(%s)", args->path);
+            TRACE("[set_cwd] %s", args->path);
             MStringDestroy(process->WorkingDirectory);
             process->WorkingDirectory = MStringCreate((void *) args->path, StrUTF8);
             status = OsSuccess;

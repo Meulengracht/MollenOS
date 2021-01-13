@@ -136,6 +136,10 @@ ProcessGetTickBase(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
     LargeUInteger_t          tick;
+
+    if (!tickOut) {
+        return OsInvalidParameters;
+    }
     
     svc_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
@@ -152,8 +156,12 @@ GetProcessCommandLine(
 {
     const char* commandLine = GetInternalCommandLine();
 	size_t      length      = strlen(&commandLine[0]);
-	
-	memcpy(buffer, commandLine, MIN(*maxLength, length));
+
+    if (!buffer || maxLength == 0) {
+        return OsInvalidParameters;
+    }
+
+    memcpy(buffer, commandLine, MIN(*maxLength, length));
 	*maxLength = length;
 	return OsSuccess;
 }
@@ -165,7 +173,11 @@ ProcessGetCurrentName(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
-    
+
+    if (!Buffer || MaxLength == 0) {
+        return OsInvalidParameters;
+    }
+
     if (IsProcessModule()) {
         return Syscall_ModuleName(Buffer, MaxLength);
     }
@@ -184,7 +196,11 @@ ProcessGetAssemblyDirectory(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
-    
+
+    if (!Buffer || MaxLength == 0) {
+        return OsInvalidParameters;
+    }
+
     if (Handle == UUID_INVALID) {
         if (IsProcessModule()) {
             return Syscall_GetAssemblyDirectory(Buffer, MaxLength);
@@ -206,6 +222,10 @@ ProcessGetWorkingDirectory(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
+
+    if (!Buffer || MaxLength == 0) {
+        return OsInvalidParameters;
+    }
     
     if (Handle == UUID_INVALID) {
         if (IsProcessModule()) {
@@ -226,6 +246,10 @@ ProcessSetWorkingDirectory(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
+
+    if (!Path) {
+        return OsInvalidParameters;
+    }
     
     if (IsProcessModule()) {
         return Syscall_SetWorkingDirectory(Path);

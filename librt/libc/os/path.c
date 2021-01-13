@@ -24,9 +24,9 @@
 
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
+#include <os/process.h>
 #include <string.h>
 
 OsStatus_t
@@ -72,23 +72,8 @@ GetWorkingDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
-    OsStatus_t Status;
-
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
-	}
-
-    if (IsProcessModule()) {
-        Status = Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
-    }
-	else {
-	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        svc_process_get_working_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_process_get_working_directory_result(GetGrachtClient(), &msg.base, &Status, PathBuffer);
-        TRACE("GetWorkingDirectory => %s", PathBuffer);
-    }
-    return Status;
+    // Use the process version instead of the path version
+    return ProcessGetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -96,13 +81,12 @@ SetWorkingDirectory(
     _In_ const char* Path)
 {
     OsFileDescriptor_t FileInfo;
-	char               TempBuffer[_MAXPATH];
+	char               TempBuffer[_MAXPATH] = { 0 };
     TRACE("SetWorkingDirectory(%s)", Path);
 
 	if (Path == NULL || strlen(Path) == 0) {
 		return OsError;
 	}
-	memset(&TempBuffer[0], 0, _MAXPATH);
 
     if (strstr(Path, ":/") != NULL || strstr(Path, ":\\") != NULL) {
         memcpy(&TempBuffer[0], Path, strlen(Path));
@@ -123,18 +107,7 @@ SetWorkingDirectory(
             }
 
             // Handle this differently based on a module or application
-            if (IsProcessModule()) {
-                return Syscall_SetWorkingDirectory(&TempBuffer[0]);
-            }
-            else {
-	            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-                TRACE("...proc_set_cwd %s", &TempBuffer[0]);
-                svc_process_set_working_directory(GetGrachtClient(), &msg.base,
-                    *GetInternalProcessId(), &TempBuffer[0]);
-                gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-                svc_process_set_working_directory_result(GetGrachtClient(), &msg.base, &Status);
-                return Status;
-            }
+            return ProcessSetWorkingDirectory(&TempBuffer[0]);
         }
         else {
             ERROR("GetFileInformationFromPath(%s) Result: %u, %u",
@@ -149,25 +122,10 @@ SetWorkingDirectory(
 
 OsStatus_t
 GetAssemblyDirectory(
-    _In_ char*  PathBuffer, 
+    _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
-	}
-
-    if (IsProcessModule()) {
-        return Syscall_GetAssemblyDirectory(PathBuffer, MaxLength);
-    }
-	else {
-	    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-	    OsStatus_t               status;
-	    
-        svc_process_get_assembly_directory(GetGrachtClient(), &msg.base, UUID_INVALID, MaxLength);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, PathBuffer);
-        return status;
-    }
+    return ProcessGetAssemblyDirectory(UUID_INVALID, PathBuffer, MaxLength);
 }
 
 OsStatus_t
