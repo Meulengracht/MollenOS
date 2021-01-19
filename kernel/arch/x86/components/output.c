@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,8 +27,11 @@
 #include <arch/io.h>
 #include <string.h>
 #include <vbe.h>
+#include <heap.h>
 
 static BootTerminal_t Terminal = { 0 };
+
+void VideoFlush(void);
 
 extern const uint8_t  MCoreFontBitmaps[];
 extern const uint32_t MCoreFontNumChars;
@@ -44,12 +48,16 @@ VesaDrawPixel(
     _In_ unsigned Y, 
     _In_ uint32_t Color)
 {
-    unsigned int ClampedX  = MIN(X, (Terminal.Info.Width - 1));
-    unsigned int ClampedY  = MIN(Y, (Terminal.Info.Height - 1));
-    uint32_t* VideoPointer = (uint32_t*)(Terminal.FrameBufferAddress 
-        + ((ClampedY * Terminal.Info.BytesPerScanline)
-        + (ClampedX * (Terminal.Info.Depth / 8))));
-    (*VideoPointer) = (0xFF000000 | Color);
+    unsigned int clampedX  = MIN(X, (Terminal.Info.Width - 1));
+    unsigned int clampedY  = MIN(Y, (Terminal.Info.Height - 1));
+    size_t       offset    = (clampedY * Terminal.Info.BytesPerScanline) + (clampedX * (Terminal.Info.Depth / 8));
+    uint32_t*    bbPointer = (uint32_t*)(Terminal.BackBufferAddress + offset);
+    uint32_t*    fbPointer = (uint32_t*)(Terminal.FrameBufferAddress + offset);
+
+    (*fbPointer) = (0xFF000000 | Color);
+    if (Terminal.BackBufferAddress) {
+        (*bbPointer) = (0xFF000000 | Color);
+    }
 }
 
 static OsStatus_t 
@@ -60,15 +68,16 @@ VesaDrawCharacter(
     _In_ uint32_t FgColor, 
     _In_ uint32_t BgColor)
 {
-    // Variables
-    uint32_t *vPtr = NULL;
-    uint8_t *ChPtr = NULL;
-    unsigned Row, i = (unsigned)Character;
+    uint32_t*    fbPointer;
+    uint32_t*    bbPointer;
+    uint8_t*     charData;
+    size_t       fbOffset;
+    unsigned int row, i;
 
     // Calculate the video-offset
-    vPtr = (uint32_t*)(Terminal.FrameBufferAddress 
-        + ((CursorY * Terminal.Info.BytesPerScanline)
-        + (CursorX * (Terminal.Info.Depth / 8))));
+    fbOffset  = (CursorY * Terminal.Info.BytesPerScanline) + (CursorX * (Terminal.Info.Depth / 8));
+    fbPointer = (uint32_t*)(Terminal.FrameBufferAddress + fbOffset);
+    bbPointer = (uint32_t*)(Terminal.BackBufferAddress + fbOffset);
 
     // If it's unicode lookup index
 #ifdef UNICODE
@@ -79,25 +88,33 @@ VesaDrawCharacter(
     if (i == MCoreFontNumChars) {
         return OsDoesNotExist;
     }
+#else
+    i = (unsigned)Character
 #endif
 
     // Lookup bitmap
-    ChPtr = (uint8_t*)&MCoreFontBitmaps[i * MCoreFontHeight];
+    charData = (uint8_t*)&MCoreFontBitmaps[i * MCoreFontHeight];
 
     // Iterate bitmap rows
-    for (Row = 0; Row < MCoreFontHeight; Row++) {
-        uint8_t BmpData = ChPtr[Row];
-        uintptr_t _;
+    for (row = 0; row < MCoreFontHeight; row++) {
+        uint8_t   bmpData = charData[row];
+        uintptr_t _fb, _bb;
 
         // Render data in row
         for (i = 0; i < 8; i++) {
-            vPtr[i] = (BmpData >> (7 - i)) & 0x1 ? (0xFF000000 | FgColor) : (0xFF000000 | BgColor);
+            fbPointer[i] = (bmpData >> (7 - i)) & 0x1 ? (0xFF000000 | FgColor) : (0xFF000000 | BgColor);
+            if (Terminal.BackBufferAddress) {
+                bbPointer[i] = (bmpData >> (7 - i)) & 0x1 ? (0xFF000000 | FgColor) : (0xFF000000 | BgColor);
+            }
         }
 
-        // Increase the memory pointer by row
-        _ = (uintptr_t)vPtr;
-        _ += Terminal.Info.BytesPerScanline;
-        vPtr = (uint32_t*)_;
+        _fb       = (uintptr_t)fbPointer;
+        _fb      += Terminal.Info.BytesPerScanline;
+        fbPointer = (uint32_t*)_fb;
+
+        _bb       = (uintptr_t)bbPointer;
+        _bb      += Terminal.Info.BytesPerScanline;
+        bbPointer = (uint32_t*)_bb;
     }
 
     return OsSuccess;
@@ -105,53 +122,62 @@ VesaDrawCharacter(
 
 static OsStatus_t 
 VesaScroll(
-    _In_ int ByLines)
+    _In_ int lineCount)
 {
-    // Variables
-    uint8_t *VideoPtr = NULL;
-    size_t BytesToCopy = 0;
-    int Lines = 0;
-    int i = 0, j = 0;
+    uint8_t* videoPointer;
+    size_t   bytesToCopy;
+    int      lines;
+    int      i, j;
 
     // How many lines do we need to modify?
-    Lines = (Terminal.CursorLimitY - Terminal.CursorStartY);
+    lines = (Terminal.CursorLimitY - Terminal.CursorStartY);
 
     // Calculate the initial screen position
-    VideoPtr = (uint8_t*)(Terminal.FrameBufferAddress +
-        ((Terminal.CursorStartY * Terminal.Info.BytesPerScanline)
-            + (Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    if (Terminal.BackBufferAddress) {
+        videoPointer = (uint8_t*)(Terminal.BackBufferAddress +
+                                  ((Terminal.CursorStartY * Terminal.Info.BytesPerScanline)
+                                   + (Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    }
+    else {
+        videoPointer = (uint8_t*)(Terminal.FrameBufferAddress +
+                                  ((Terminal.CursorStartY * Terminal.Info.BytesPerScanline)
+                                   + (Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    }
 
     // Calculate num of bytes
-    BytesToCopy = ((Terminal.CursorLimitX - Terminal.CursorStartX)
-        * (Terminal.Info.Depth / 8));
+    bytesToCopy = ((Terminal.CursorLimitX - Terminal.CursorStartX)
+                   * (Terminal.Info.Depth / 8));
 
-    // Do the actual scroll
-    for (i = 0; i < ByLines; i++) {
-        for (j = 0; j < Lines; j++) {
-            memcpy(VideoPtr, VideoPtr +
-                (Terminal.Info.BytesPerScanline * MCoreFontHeight), BytesToCopy);
-            VideoPtr += Terminal.Info.BytesPerScanline;
+    // Do the actual scroll, crappy routine since we have borders.... this means we can't do a
+    // continous copy
+    for (i = 0; i < lineCount; i++) {
+        for (j = 0; j < lines; j++) {
+            memcpy(videoPointer, videoPointer +
+                                 (Terminal.Info.BytesPerScanline * MCoreFontHeight), bytesToCopy);
+            videoPointer += Terminal.Info.BytesPerScanline;
         }
     }
 
     // Clear out the lines that was scrolled
-    VideoPtr = (uint8_t*)(Terminal.FrameBufferAddress +
-        ((Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    videoPointer = (uint8_t*)(Terminal.FrameBufferAddress +
+                              ((Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
 
     // Scroll pointer down to bottom - n lines
-    VideoPtr += (Terminal.Info.BytesPerScanline 
-        * (Terminal.CursorLimitY - (MCoreFontHeight * ByLines)));
+    videoPointer += (Terminal.Info.BytesPerScanline
+                     * (Terminal.CursorLimitY - (MCoreFontHeight * lineCount)));
 
     // Clear out lines
-    for (i = 0; i < ((int)MCoreFontHeight * ByLines); i++) {
-        memset(VideoPtr, 0xFF, BytesToCopy);
-        VideoPtr += Terminal.Info.BytesPerScanline;
+    for (i = 0; i < ((int)MCoreFontHeight * lineCount); i++) {
+        memset(videoPointer, 0xFF, bytesToCopy);
+        videoPointer += Terminal.Info.BytesPerScanline;
     }
 
     // We did the scroll, modify cursor
-    Terminal.CursorY -= (MCoreFontHeight * ByLines);
+    Terminal.CursorY -= (MCoreFontHeight * lineCount);
 
-    // No errors
+    if (Terminal.BackBufferAddress) {
+        VideoFlush();
+    }
     return OsSuccess;
 }
 
@@ -403,9 +429,23 @@ void
 VideoClear(void)
 {
     if (Terminal.AvailableOutputs & (VIDEO_TEXT | VIDEO_GRAPHICS)) {
-        void *Destination= (void*)Terminal.FrameBufferAddress;
-        size_t ByteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
-        memset(Destination, 0xFF, ByteCount);
+        size_t byteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+
+        if (Terminal.BackBufferAddress) {
+            memset((void*)Terminal.BackBufferAddress, 0xFF, byteCount);
+        }
+        memset((void*)Terminal.FrameBufferAddress, 0xFF, byteCount);
+    }
+}
+
+void
+VideoFlush(void)
+{
+    if (Terminal.BackBufferAddress) {
+        void*  source      = (void*)Terminal.BackBufferAddress;
+        void*  destination = (void*)Terminal.FrameBufferAddress;
+        size_t byteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+        memcpy(destination, source, byteCount);
     }
 }
 
@@ -497,6 +537,21 @@ InitializeFramebufferOutput(void)
         // VBE-Mode (Graphics)
         default: {
             if (GetMachine()->BootInformation.VbeModeInfo) {
+                size_t             backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+                VirtualAddress_t   backBuffer;
+                int                pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
+                PhysicalAddress_t* pages = kmalloc(sizeof(PhysicalAddress_t) * pageCount);
+
+                if (pages) {
+                    OsStatus_t status = MemorySpaceMap(GetCurrentMemorySpace(), &backBuffer,
+                                                             &pages[0], backBufferSize,
+                                                             MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
+                    if (status == OsSuccess) {
+                        Terminal.BackBufferAddress = backBuffer;
+                    }
+                    kfree(pages);
+                }
+
                 Terminal.AvailableOutputs |= VIDEO_GRAPHICS;
             }
         } break;

@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,10 +27,9 @@
 #include <stdio.h>
 #include <internal/_io.h>
 
-int _filbuf(
+int __fill_buffer(
 	_In_ FILE *file)
 {
-	// Variables
 	unsigned char c;
     
 	// We can't fill the io buffer if this is a string resource
@@ -112,7 +112,7 @@ int fgetc(
 		j = *i;
 	}
 	else {
-		j = _filbuf(file);
+		j = __fill_buffer(file);
 	}
 	_unlock_file(file);
 	return j;

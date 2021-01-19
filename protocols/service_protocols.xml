@@ -356,7 +356,9 @@
                 </function>
                 <function name="get_startup_information">
                     <request>
-                        <param name="handle" type="UUId_t" />
+                        <param name="process_handle" type="UUId_t" />
+                        <param name="dmabuf_handle" type="UUId_t" />
+                        <param name="dmabuf_length" type="size_t" />
                     </request>
                     <response>
                         <param name="status" type="OsStatus_t" />
@@ -364,7 +366,6 @@
                         <param name="argument_length" type="size_t" />
                         <param name="inheritation_length" type="size_t" />
                         <param name="modules_length" type="size_t" />
-                        <param name="buffer" type="buffer" />
                     </response>
                 </function>
                 <function name="get_modules">

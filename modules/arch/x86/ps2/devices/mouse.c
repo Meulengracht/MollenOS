@@ -34,23 +34,24 @@ PS2MouseFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
 {
-    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(ResourceTable, 0);
-    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
-    uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
-    uint8_t BreakAtBytes    = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
-    PS2Command_t* Command   = &Port->ActiveCommand;
+    DeviceIo_t*   ioSpace = INTERRUPT_IOSPACE(ResourceTable, 0);
+    PS2Port_t*    port = (PS2Port_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    uint8_t       dataRecieved = (uint8_t)InterruptTable->ReadIoSpace(ioSpace, PS2_REGISTER_DATA, 1);
+    uint8_t       breakAtBytes = PS2_MOUSE_DATA_MODE(port) == 0 ? 3 : 4;
+    PS2Command_t* command = &port->ActiveCommand;
 
-    if (Command->State != PS2Free) {
-        Command->Buffer[Command->SyncObject] = DataRecieved;
-        Command->SyncObject++;
+    if (command->State != PS2Free) {
+        command->Buffer[command->SyncObject] = dataRecieved;
         smp_wmb();
+        command->SyncObject++;
     }
     else {
-        uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
-        Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
+        uint32_t index = port->ResponseWriteIndex;
+        port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = dataRecieved;
         smp_wmb();
+        port->ResponseWriteIndex++;
 
-        if (!(index % BreakAtBytes)) {
+        if (!(index % breakAtBytes)) {
             InterruptTable->EventSignal(ResourceTable->HandleResource);
         }
     }
@@ -64,12 +65,10 @@ PS2MouseInterrupt(
 {
     struct ctt_input_cursor_event input;
     uint8_t                       bytesRequired = PS2_MOUSE_DATA_MODE(port) == 0 ? 3 : 4;
-    uint32_t                      index;
-
-    smp_rmb();
-    index = atomic_load(&port->ResponseReadIndex) % PS2_RINGBUFFER_SIZE;
+    uint32_t                      index = port->ResponseReadIndex % PS2_RINGBUFFER_SIZE;
 
     // Update relative x and y
+    smp_rmb();
     input.rel_x       = (int16_t)(port->ResponseBuffer[index + 1] - ((port->ResponseBuffer[index] << 4) & 0x100));
     input.rel_y       = (int16_t)(port->ResponseBuffer[index + 2] - ((port->ResponseBuffer[index] << 3) & 0x100));
     input.buttons_set = port->ResponseBuffer[0] & 0x7; // L-M-R buttons
@@ -87,7 +86,7 @@ PS2MouseInterrupt(
         input.rel_z = 0;
     }
 
-    atomic_fetch_add(&port->ResponseReadIndex, bytesRequired);
+    port->ResponseReadIndex += bytesRequired;
     ctt_input_event_cursor_all(port->DeviceId, 0, input.rel_x, input.rel_y, input.rel_z, input.buttons_set);
 }
 

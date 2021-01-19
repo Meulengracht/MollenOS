@@ -29,6 +29,7 @@
 #include <internal/_utils.h>
 #include <stdlib.h>
 #include <threads.h>
+#include "../threads/tls.h"
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
@@ -37,12 +38,12 @@ extern void StdSoInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
-static char             __CrtClientBuffer[GRACHT_MAX_MESSAGE_SIZE] = { 0 };
-static gracht_client_t* __CrtClient                                = NULL;
+static char             __crt_gclient_buffer[GRACHT_MAX_MESSAGE_SIZE] = { 0 };
+static gracht_client_t* __crt_gclient = NULL;
 
-static char   __CrtStartupBuffer[1024] = { 0 };
-static int    __CrtIsModule            = 0;
-static UUId_t __CrtProcessId           = UUID_INVALID;
+static char   __crt_raw_cmdline[1024] = { 0 };
+static int    __crt_is_module         = 0;
+static UUId_t __crt_process_id        = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
@@ -53,7 +54,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     TRACE("[InitializeProcess]");
     
     // We must set IsModule before anything
-    __CrtIsModule = IsModule;
+    __crt_is_module = IsModule;
 
     // Initialize the standard C library
     TRACE("[InitializeProcess] initializing stdio");
@@ -72,7 +73,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
 
     TRACE("[InitializeProcess] creating rpc client");
-    status = gracht_client_create(&clientConfig, &__CrtClient);
+    status = gracht_client_create(&clientConfig, &__crt_gclient);
     if (status) {
         ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
         _Exit(status);
@@ -81,35 +82,41 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     // Get startup information
     TRACE("[InitializeProcess] receiving startup configuration");
     if (IsModule) {
-        Syscall_ModuleGetStartupInfo(StartupInformation, &__CrtProcessId, &__CrtStartupBuffer[0],
-            sizeof(__CrtStartupBuffer));
+        Syscall_ModuleGetStartupInfo(StartupInformation, &__crt_process_id, &__crt_raw_cmdline[0],
+                                     sizeof(__crt_raw_cmdline));
     }
     else {
-        svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), sizeof(__CrtStartupBuffer));
+        UUId_t dmaHandle = tls_current()->transfer_buffer.handle;
+        char*  dmaBuffer = tls_current()->transfer_buffer.buffer;
+        size_t maxLength = tls_current()->transfer_buffer.length;
+
+        svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), dmaHandle, maxLength);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
-                                                   &osStatus, &__CrtProcessId, &StartupInformation->ArgumentsLength,
-                                                   &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength,
-                                                   &__CrtStartupBuffer[0] /*, sizeof(__CrtStartupBuffer) */);
+                                                   &osStatus, &__crt_process_id, &StartupInformation->ArgumentsLength,
+                                                   &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength);
         
         TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
             StartupInformation->ArgumentsLength,
             StartupInformation->InheritationLength,
             StartupInformation->LibraryEntriesLength);
         assert((StartupInformation->ArgumentsLength + StartupInformation->InheritationLength + 
-            StartupInformation->LibraryEntriesLength) < sizeof(__CrtStartupBuffer));
+            StartupInformation->LibraryEntriesLength) < maxLength);
         
         // fixup pointers
-        StartupInformation->Arguments = &__CrtStartupBuffer[0];
+        StartupInformation->Arguments = &dmaBuffer[0];
         if (StartupInformation->InheritationLength) {
-            StartupInformation->Inheritation = &__CrtStartupBuffer[StartupInformation->ArgumentsLength];
+            StartupInformation->Inheritation = &dmaBuffer[StartupInformation->ArgumentsLength];
         }
         else {
             StartupInformation->Inheritation = NULL;
         }
         
-        StartupInformation->LibraryEntries = &__CrtStartupBuffer[
+        StartupInformation->LibraryEntries = &dmaBuffer[
             StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
+
+        // copy the arguments to the raw cmdline
+        memcpy(&__crt_raw_cmdline[0], StartupInformation->Arguments, StartupInformation->ArgumentsLength);
     }
 
     // Parse the configuration information
@@ -118,25 +125,25 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
 
 int IsProcessModule(void)
 {
-    return __CrtIsModule;
+    return __crt_is_module;
 }
 
 UUId_t* GetInternalProcessId(void)
 {
-    return &__CrtProcessId;
+    return &__crt_process_id;
 }
 
 const char* GetInternalCommandLine(void)
 {
-    return &__CrtStartupBuffer[0];
+    return &__crt_raw_cmdline[0];
 }
 
 gracht_client_t* GetGrachtClient(void)
 {
-    return __CrtClient;
+    return __crt_gclient;
 }
 
 void* GetGrachtBuffer(void)
 {
-    return (void*)&__CrtClientBuffer[0];
+    return (void*)&__crt_gclient_buffer[0];
 }

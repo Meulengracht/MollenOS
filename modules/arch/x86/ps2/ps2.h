@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PS2 Controller (Controller) Driver
+ * X86 PS2 Controller (Controller) Driver
  * http://wiki.osdev.org/PS2
  */
 
@@ -125,8 +126,8 @@ typedef struct PS2Port {
     // Device state information
     uint8_t      DeviceData[6];
     uint8_t      ResponseBuffer[PS2_RINGBUFFER_SIZE];
-    atomic_uint  ResponseWriteIndex;
-    atomic_uint  ResponseReadIndex;
+    unsigned int ResponseWriteIndex;
+    unsigned int ResponseReadIndex;
 } PS2Port_t;
 
 typedef struct PS2Controller {

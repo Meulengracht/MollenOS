@@ -37,10 +37,11 @@ set_source_files_properties(${MSCRT_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
 
 add_library(libcrt
     ${MSCRT_SOURCES}
-    crtos.c
-    crtcoff.c
+    crt/argparse.c
+    crt/crtinit.c
+    crt/crtcoff.c
 
-    entry.c
+    console.c
     library.c
     module.c
     service.c

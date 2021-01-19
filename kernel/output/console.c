@@ -103,9 +103,11 @@ VideoQuery(
 	return OsSuccess;
 }
 
-/* InitializeConsole
+/**
+ * InitializeConsole
  * Initializes the output environment. This enables either visual representation
- * and debugging of the kernel and enables a serial debugger. */
+ * and debugging of the kernel and enables a serial debugger.
+ */
 OsStatus_t 
 InitializeConsole(void)
 {

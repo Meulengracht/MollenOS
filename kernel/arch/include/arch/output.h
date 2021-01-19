@@ -28,11 +28,12 @@
 #include <ddk/video.h>
 
 typedef struct BootTerminal {
-    unsigned int						AvailableOutputs;
+    unsigned int				AvailableOutputs;
     VideoDescriptor_t			Info;
 
     uintptr_t                   FrameBufferAddress;
     uintptr_t                   FrameBufferAddressPhysical;
+    uintptr_t                   BackBufferAddress;
 
     unsigned					CursorX;
     unsigned					CursorY;

@@ -31,12 +31,12 @@ extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 
 extern char**
-__CrtInitialize(
-    _In_  thread_storage_t* Tls,
-    _In_  int               IsModule,
-    _Out_ int*              ArgumentCount);
+__crt_init(
+    _In_  thread_storage_t* threadStorage,
+    _In_  int               isModule,
+    _Out_ int*              argumentCount);
 
-static void __CrtServiceMainLoop(int setIod)
+_Noreturn static void __crt_service_main(int setIod)
 {
     struct ioset_event events[32];
 
@@ -55,13 +55,12 @@ static void __CrtServiceMainLoop(int setIod)
 
 void __CrtServiceEntry(void)
 {
-    thread_storage_t              tls;
+    thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 
-    // Initialize environment
-    __CrtInitialize(&tls, 1, NULL);
+    __crt_init(&threadStorage, 1, NULL);
 
     GetServiceAddress(&addr);
     status = gracht_link_vali_server_create(&config.link, &addr);
@@ -91,7 +90,7 @@ void __CrtServiceEntry(void)
         exit(-1);
     }
 
-    __CrtServiceMainLoop(config.set_descriptor);
+    __crt_service_main(config.set_descriptor);
     OnUnload();
     exit(0);
 }

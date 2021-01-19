@@ -82,12 +82,12 @@ typedef void(*ThreadEntry_t)(void*);
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadCreate(
-    _In_  const char*    Name,
-    _In_  ThreadEntry_t  Function,
-    _In_  void*          Arguments,
-    _In_  unsigned int   Flags,
-    _In_  UUId_t         MemorySpaceHandle,
-    _Out_ UUId_t*        Handle);
+    _In_  const char*    name,
+    _In_  ThreadEntry_t  entry,
+    _In_  void*          arguments,
+    _In_  unsigned int   flags,
+    _In_  UUId_t         memorySpaceHandle,
+    _Out_ UUId_t*        handle);
 
 /**
  * ThreadTerminate

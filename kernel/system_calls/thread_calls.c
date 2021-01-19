@@ -39,25 +39,25 @@ ScThreadCreate(
     _In_  ThreadParameters_t* Parameters,
     _Out_ UUId_t*             HandleOut)
 {
-    unsigned int     ThreadFlags       = ThreadCurrentMode();
-    UUId_t      MemorySpaceHandle = UUID_INVALID;
-    const char* Name              = NULL;
+    unsigned int threadCurrentMode = ThreadCurrentMode();
+    UUId_t       memorySpaceHandle = UUID_INVALID;
+    const char*  name              = NULL;
     if (Entry == NULL) {
         return OsInvalidParameters;
     }
     
     // Handle additional paramaters
     if (Parameters != NULL) {
-        Name              = Parameters->Name;
-        ThreadFlags      |= Parameters->Configuration;
-        MemorySpaceHandle = Parameters->MemorySpaceHandle;
+        name               = Parameters->Name;
+        threadCurrentMode |= Parameters->Configuration;
+        memorySpaceHandle  = Parameters->MemorySpaceHandle;
     }
     
     // If a memory space is not provided, then we inherit
-    if (MemorySpaceHandle == UUID_INVALID) {
-        ThreadFlags |= THREADING_INHERIT;
+    if (memorySpaceHandle == UUID_INVALID) {
+        threadCurrentMode |= THREADING_INHERIT;
     }
-    return ThreadCreate(Name, Entry, Arguments, ThreadFlags, MemorySpaceHandle, HandleOut);
+    return ThreadCreate(name, Entry, Arguments, threadCurrentMode, memorySpaceHandle, HandleOut);
 }
 
 OsStatus_t

@@ -268,96 +268,96 @@ ThreadingEnable(void)
 
 OsStatus_t
 ThreadCreate(
-    _In_  const char*    Name,
-    _In_  ThreadEntry_t  Function,
-    _In_  void*          Arguments,
-    _In_  unsigned int        Flags,
-    _In_  UUId_t         MemorySpaceHandle,
-    _Out_ UUId_t*        Handle)
+    _In_  const char*    name,
+    _In_  ThreadEntry_t  entry,
+    _In_  void*          arguments,
+    _In_  unsigned int   flags,
+    _In_  UUId_t         memorySpaceHandle,
+    _Out_ UUId_t*        handle)
 {
-    Thread_t* Thread;
-    Thread_t* Parent;
-    UUId_t         CoreId;
+    Thread_t* thread;
+    Thread_t* parent;
+    UUId_t    coreId;
 
-    TRACE("ThreadCreate(%s, 0x%" PRIxIN ")", Name, Flags);
+    TRACE("ThreadCreate(%s, 0x%" PRIxIN ")", name, flags);
 
-    CoreId = ArchGetProcessorCoreId();
-    Parent = ThreadCurrentForCore(CoreId);
+    coreId = ArchGetProcessorCoreId();
+    parent = ThreadCurrentForCore(coreId);
 
-    Thread = (Thread_t*)kmalloc(sizeof(Thread_t));
-    if (!Thread) {
+    thread = (Thread_t*)kmalloc(sizeof(Thread_t));
+    if (!thread) {
         return OsOutOfMemory;
     }
     
-    InitializeDefaultThread(Thread, Name, Function, Arguments, Flags);
+    InitializeDefaultThread(thread, name, entry, arguments, flags);
     
     // Setup parent and cookie information
-    Thread->ParentHandle = Parent->Handle;
-    if (Flags & THREADING_INHERIT) {
-        Thread->Cookie = Parent->Cookie;
+    thread->ParentHandle = parent->Handle;
+    if (flags & THREADING_INHERIT) {
+        thread->Cookie = parent->Cookie;
     }
     else {
-        Thread->Cookie = CreateThreadCookie(Thread, Parent);
+        thread->Cookie = CreateThreadCookie(thread, parent);
     }
 
     // Is a memory space given to us that we should run in? Determine run mode automatically
-    if (MemorySpaceHandle != UUID_INVALID) {
-        MemorySpace_t * MemorySpace = (MemorySpace_t*)LookupHandleOfType(
-            MemorySpaceHandle, HandleTypeMemorySpace);
-        if (MemorySpace == NULL) {
+    if (memorySpaceHandle != UUID_INVALID) {
+        MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(memorySpaceHandle, HandleTypeMemorySpace);
+        if (memorySpace == NULL) {
             // TODO: cleanup
             return OsDoesNotExist;
         }
 
-        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-            Thread->Flags |= THREADING_USERMODE;
+        if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+            thread->Flags |= THREADING_USERMODE;
         }
-        Thread->MemorySpace       = MemorySpace;
-        Thread->MemorySpaceHandle = MemorySpaceHandle;
-        Thread->Cookie            = Parent->Cookie;
-        AcquireHandle(MemorySpaceHandle, NULL);
+        thread->MemorySpace        = memorySpace;
+        thread->MemorySpaceHandle  = memorySpaceHandle;
+        thread->Cookie             = parent->Cookie;
+        AcquireHandle(memorySpaceHandle, NULL);
     }
     else {
-        if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-            Thread->MemorySpace       = GetDomainMemorySpace();
-            Thread->MemorySpaceHandle = UUID_INVALID;
+        if (THREADING_RUNMODE(flags) == THREADING_KERNELMODE) {
+            thread->MemorySpace       = GetDomainMemorySpace();
+            thread->MemorySpaceHandle = UUID_INVALID;
         }
         else {
-            unsigned int MemorySpaceFlags = 0;
-            if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
-                MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
+            unsigned int memorySpaceFlags = 0;
+            if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
+                memorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
-            if (Flags & THREADING_INHERIT) {
-                MemorySpaceFlags |= MEMORY_SPACE_INHERIT;
+            if (flags & THREADING_INHERIT) {
+                memorySpaceFlags |= MEMORY_SPACE_INHERIT;
             }
-            if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
+            if (CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle) != OsSuccess) {
                 ERROR("Failed to create memory space for thread");
                 // TODO: cleanup
                 return OsError;
             }
-            Thread->MemorySpace = (MemorySpace_t*)LookupHandleOfType(
-                Thread->MemorySpaceHandle, HandleTypeMemorySpace);
+            thread->MemorySpace = (MemorySpace_t*)LookupHandleOfType(
+                    thread->MemorySpaceHandle, HandleTypeMemorySpace);
         }
     }
     
     // Create pre-mapped tls region for userspace threads, the area will be reserved
     // but not physically allocated
-    if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
-        uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
-        size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
-        OsStatus_t Status           = MemorySpaceMapReserved(Thread->MemorySpace,
-            &ThreadRegionStart, ThreadRegionSize, 
-            MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_VIRTUAL_FIXED);
-        if (Status != OsSuccess) {
+    if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
+        uintptr_t  threadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
+        size_t     threadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
+        OsStatus_t status            = MemorySpaceMapReserved(
+                thread->MemorySpace,
+                &threadRegionStart, threadRegionSize,
+                MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_VIRTUAL_FIXED);
+        if (status != OsSuccess) {
             ERROR("[thread_create] failed to premap TLS area");
         }
     }
-    AddChild(Parent, Thread);
+    AddChild(parent, thread);
 
-    WARNING("[thread_create] new thread %s on core %u", 
-        Thread->Name, SchedulerObjectGetAffinity(Thread->SchedulerObject));
-    SchedulerQueueObject(Thread->SchedulerObject);
-    *Handle = Thread->Handle;
+    WARNING("[thread_create] new thread %s on core %u",
+            thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
+    SchedulerQueueObject(thread->SchedulerObject);
+    *handle = thread->Handle;
     return OsSuccess;
 }
 

@@ -23,35 +23,19 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-extern int main(int argc, char **argv, char **envp);
+extern int    main(int argc, char **argv, char **envp);
+extern char** __crt_init(thread_storage_t* threadStorage, int isModule, int* argumentCount);
 
-/* CRT Initialization sequence
- * for a shared C/C++ environment call this in all entry points */
-extern char**
-__CrtInitialize(
-    _In_  thread_storage_t* Tls,
-    _In_  int               IsModule,
-    _Out_ int*              ArgumentCount);
-
-/* __CrtConsoleEntry
- * Console crt initialization routine. This spawns a new console
- * if no inheritance is given. */
 void
 __CrtConsoleEntry(void)
 {
-	// Variables
-	thread_storage_t        Tls;
-	char **Arguments        = NULL;
-	int ArgumentCount       = 0;
-	int ExitCode            = 0;
+	thread_storage_t threadStorage;
+	char**           argv;
+	int              argc;
+	int              exitCode;
 
-	// Initialize run-time
-	Arguments = __CrtInitialize(&Tls, 0, &ArgumentCount);
-
-    // Call user-process entry routine
-	ExitCode = main(ArgumentCount, Arguments, NULL);
-
-	// Exit cleanly, calling atexit() functions
-	free(Arguments);
-	exit(ExitCode);
+	argv = __crt_init(&threadStorage, 0, &argc);
+	exitCode = main(argc, argv, NULL);
+	free(argv);
+	exit(exitCode);
 }

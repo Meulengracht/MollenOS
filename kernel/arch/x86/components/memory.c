@@ -512,56 +512,56 @@ ArchMmuReserveVirtualPages(
 
 OsStatus_t
 ArchMmuSetVirtualPages(
-        _In_  MemorySpace_t*     MemorySpace,
-        _In_  VirtualAddress_t         StartAddress,
-        _In_  const PhysicalAddress_t* PhysicalAddressValues,
-        _In_  int                      PageCount,
-        _In_  unsigned int             Attributes,
-        _Out_ int*                     PagesUpdated)
+        _In_  MemorySpace_t*           memorySpace,
+        _In_  VirtualAddress_t         startAddress,
+        _In_  const PhysicalAddress_t* physicalAddressValues,
+        _In_  int                      pageCount,
+        _In_  unsigned int             attributes,
+        _Out_ int*                     pagesUpdated)
 {
-    PAGE_MASTER_LEVEL* ParentDirectory;
-    PAGE_MASTER_LEVEL* Directory;
-    PageTable_t*       Table;
-    unsigned int            X86Attributes;
-    int                Update;
-    int                IsCurrent;
-    int                Index;
-    int                i      = 0;
-    OsStatus_t         Status = OsSuccess;
-    uintptr_t          Zero   = 0;
+    PAGE_MASTER_LEVEL* parentDirectory;
+    PAGE_MASTER_LEVEL* directory;
+    PageTable_t*       table;
+    unsigned int       x86Attributes;
+    int                update;
+    int                isCurrent;
+    int                index;
+    int                i         = 0;
+    OsStatus_t         osSuccess = OsSuccess;
+    uintptr_t          zero      = 0;
 
-    X86Attributes = ConvertGenericAttributesToX86(Attributes);
+    x86Attributes = ConvertGenericAttributesToX86(attributes);
     
     // For kernel mappings we would like to mark the mappings global
-    if (StartAddress < MEMORY_LOCATION_KERNEL_END) {
+    if (startAddress < MEMORY_LOCATION_KERNEL_END) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
-            X86Attributes |= PAGE_GLOBAL;
+            x86Attributes |= PAGE_GLOBAL;
         }
     }
 
-    Directory = MmVirtualGetMasterTable(MemorySpace, StartAddress, &ParentDirectory, &IsCurrent);
-    while (PageCount && Status == OsSuccess) {
-        Table = MmVirtualGetTable(ParentDirectory, Directory, StartAddress, IsCurrent, 1, &Update);
-        assert(Table != NULL);
-        
-        Index = PAGE_TABLE_INDEX(StartAddress);
-        for (; Index < ENTRIES_PER_PAGE && PageCount; Index++, PageCount--, i++, StartAddress += PAGE_SIZE) {
-            uintptr_t Mapping = (PhysicalAddressValues[i] & PAGE_MASK) | X86Attributes;
-            if (!atomic_compare_exchange_strong(&Table->Pages[Index], &Zero, Mapping)) {
+    directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
+    while (pageCount && osSuccess == OsSuccess) {
+        table = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 1, &update);
+        assert(table != NULL);
+
+        index = PAGE_TABLE_INDEX(startAddress);
+        for (; index < ENTRIES_PER_PAGE && pageCount; index++, pageCount--, i++, startAddress += PAGE_SIZE) {
+            uintptr_t mapping = (physicalAddressValues[i] & PAGE_MASK) | x86Attributes;
+            if (!atomic_compare_exchange_strong(&table->Pages[index], &zero, mapping)) {
                 // Tried to replace a value that was not 0
                 ERROR("[arch_update_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
-                    StartAddress, Zero);
-                Status = OsIncomplete;
+                      startAddress, zero);
+                osSuccess = OsIncomplete;
                 break;
             }
             
-            if (IsCurrent) {
-                memory_invalidate_addr(StartAddress);
+            if (isCurrent) {
+                memory_invalidate_addr(startAddress);
             }
         }
     }
-    *PagesUpdated = i;
-    return Status;
+    *pagesUpdated = i;
+    return osSuccess;
 }
 
 OsStatus_t

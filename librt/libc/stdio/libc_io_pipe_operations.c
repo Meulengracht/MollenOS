@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -51,6 +52,8 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
     }
 
     bytesWritten = streambuffer_stream_out(stream, (void*)buffer, length, options);
+    stdio_handle_activity(handle, IOSETIN); // Mark pipe for recieved data
+
     *bytes_written = bytesWritten;
     return OsSuccess;
 }

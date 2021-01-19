@@ -319,6 +319,7 @@ AddHandleToSet(
 {
     HandleElement_t*    element;
     HandleSetElement_t* setElement;
+    OsStatus_t          osStatus;
     
     // Start out by acquiring an reference on the handle
     if (AcquireHandle(handle, NULL) != OsSuccess) {
@@ -367,12 +368,13 @@ AddHandleToSet(
     list_append(&element->Sets, &setElement->SetHeader);
     
     // Register the target handle in the current set, so we can clean up again
-    if (rb_tree_append(&set->Handles, &setElement->HandleHeader) != OsSuccess) {
-        ERROR("... failed to append handle to list of handles, it exists?");
+    osStatus = rb_tree_append(&set->Handles, &setElement->HandleHeader);
+    if (osStatus != OsSuccess) {
+        ERROR("[handle_set] [AddHandleToSet] rb_tree_append failed with %u", osStatus);
         list_remove(&element->Sets, &setElement->SetHeader);
         DestroyHandle(handle);
         kfree(setElement);
-        return OsError;
+        return osStatus;
     }
     return OsSuccess;
 }

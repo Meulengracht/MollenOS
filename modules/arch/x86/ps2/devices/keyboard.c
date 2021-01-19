@@ -33,6 +33,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+
+
 OsStatus_t
 PS2KeyboardHandleModifiers(
     _In_ PS2Port_t*                     port,
@@ -117,23 +119,23 @@ PS2KeyboardFastInterrupt(
         _In_ InterruptFunctionTable_t* interruptTable,
         _In_ InterruptResourceTable_t* resourceTable)
 {
-    DeviceIo_t*   IoSpace      = INTERRUPT_IOSPACE(resourceTable, 0);
-    PS2Port_t*    Port         = (PS2Port_t*)INTERRUPT_RESOURCE(resourceTable, 0);
-    uint8_t       DataRecieved = (uint8_t)interruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
-    PS2Command_t* Command      = &Port->ActiveCommand;
+    DeviceIo_t*   ioSpace      = INTERRUPT_IOSPACE(resourceTable, 0);
+    PS2Port_t*    port         = (PS2Port_t*)INTERRUPT_RESOURCE(resourceTable, 0);
+    uint8_t       dataRecieved = (uint8_t)interruptTable->ReadIoSpace(ioSpace, PS2_REGISTER_DATA, 1);
+    PS2Command_t* command      = &port->ActiveCommand;
 
-    if (Command->State != PS2Free) {
-        Command->Buffer[Command->SyncObject] = DataRecieved;
-        Command->SyncObject++;
+    if (command->State != PS2Free) {
+        command->Buffer[command->SyncObject] = dataRecieved;
         smp_wmb();
+        command->SyncObject++;
     }
     else {
-        uint32_t index = atomic_fetch_add(&Port->ResponseWriteIndex, 1);
-        Port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE] = DataRecieved;
+        port->ResponseBuffer[port->ResponseWriteIndex % PS2_RINGBUFFER_SIZE] = dataRecieved;
         smp_wmb();
+        port->ResponseWriteIndex++;
 
         // Determine if it is an actual scancode or extension code
-        if (DataRecieved != PS2_CODE_EXTENDED && DataRecieved != PS2_CODE_RELEASED) {
+        if (dataRecieved != PS2_CODE_EXTENDED && dataRecieved != PS2_CODE_RELEASED) {
             interruptTable->EventSignal(resourceTable->HandleResource);
         }
     }
@@ -145,27 +147,39 @@ void
 PS2KeyboardInterrupt(
     _In_ PS2Port_t* port)
 {
-    struct ctt_input_button_event buttonEvent = { 0 };
-    OsStatus_t                    status      = OsError;
+    struct ctt_input_button_event buttonEvent;
+    OsStatus_t                    status;
+    uint8_t                       scancode;
     uint8_t                       scancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(port);
+    uint32_t                      readIndex   = port->ResponseReadIndex;
 
-    // Perform scancode-translation
-    while (status == OsError) {
-        uint32_t index    = atomic_fetch_add(&port->ResponseReadIndex, 1) % PS2_RINGBUFFER_SIZE;
-        uint8_t  scancode = port->ResponseBuffer[index];
-        if (scancodeSet == 1) {
-            ERROR("PS2-Keyboard: Scancode set 1");
-            break;
-        }
-        else if (scancodeSet == 2) {
-            status = ScancodeSet2ToVKey(&buttonEvent, scancode);
-        }
-    }
+    smp_rmb(); // wait for all loads to be done before reading write_index
+    while (readIndex < port->ResponseWriteIndex) {
+        memset(&buttonEvent, 0, sizeof(struct ctt_input_button_event));
+        status = OsError;
 
-    // If the key was an actual key and not modifier, remove our flags and send
-    if (PS2KeyboardHandleModifiers(port, &buttonEvent) == OsSuccess) {
-        buttonEvent.modifiers &= ~(KEY_MODIFIER_EXTENDED);
-        ctt_input_event_button_all(port->DeviceId, buttonEvent.key_code, buttonEvent.modifiers);
+        // Perform scancode-translation
+        while (status == OsError && readIndex < port->ResponseWriteIndex) {
+            scancode = port->ResponseBuffer[readIndex % PS2_RINGBUFFER_SIZE];
+            if (scancodeSet == 1) {
+                ERROR("PS2-Keyboard: Scancode set 1");
+                break;
+            }
+            else if (scancodeSet == 2) {
+                status = ScancodeSet2ToVKey(&buttonEvent, scancode);
+            }
+            readIndex++;
+        }
+
+        if (status == OsSuccess) {
+            port->ResponseReadIndex = readIndex;
+
+            // If the key was an actual key and not modifier, remove our flags and send
+            if (PS2KeyboardHandleModifiers(port, &buttonEvent) == OsSuccess) {
+                buttonEvent.modifiers &= ~(KEY_MODIFIER_EXTENDED);
+                ctt_input_event_button_all(port->DeviceId, buttonEvent.key_code, buttonEvent.modifiers);
+            }
+        }
     }
 }
 

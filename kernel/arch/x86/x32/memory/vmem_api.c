@@ -159,9 +159,9 @@ SyncWithParent:
 
 OsStatus_t
 CloneVirtualSpace(
-        _In_ MemorySpace_t*   MemorySpaceParent,
-        _In_ MemorySpace_t*   MemorySpace,
-        _In_ int                    Inherit)
+        _In_ MemorySpace_t* MemorySpaceParent,
+        _In_ MemorySpace_t* MemorySpace,
+        _In_ int            Inherit)
 {
     PageDirectory_t* SystemDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t* ParentDirectory = NULL;

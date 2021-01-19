@@ -55,7 +55,7 @@ static const struct bom_mode {
 // Convert O_* flags to WX_* flags
 static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 {
-    int          wxflags = 0;
+    unsigned int wxflags = 0;
     unsigned int unsupp; // until we support everything
 
     // detect options

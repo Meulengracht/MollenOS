@@ -36,12 +36,12 @@ extern OsStatus_t OnUnload(void);
 extern OsStatus_t OnEvent(struct ioset_event* event);
 
 extern char**
-__CrtInitialize(
-    _In_  thread_storage_t* Tls,
-    _In_  int               IsModule,
-    _Out_ int*              ArgumentCount);
+__crt_init(
+    _In_  thread_storage_t* threadStorage,
+    _In_  int               isModule,
+    _Out_ int*              argumentCount);
 
-void __CrtModuleLoad(void)
+void __crt_module_load(void)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     unsigned int             vendorId;
@@ -64,12 +64,11 @@ void __CrtModuleLoad(void)
     }
 }
 
-static void __CrtModuleMainLoop(int setIod)
+_Noreturn static void __crt_module_main(int setIod)
 {
     struct ioset_event events[32];
-    int                serverRunning = 1;
 
-    while (serverRunning) {
+    while (1) {
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             // Check if the driver had any IRQs registered
@@ -89,13 +88,13 @@ static void __CrtModuleMainLoop(int setIod)
 
 void __CrtModuleEntry(void)
 {
-    thread_storage_t              tls;
+    thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 
     // Initialize environment
-    __CrtInitialize(&tls, 1, NULL);
+    __crt_init(&threadStorage, 1, NULL);
 
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.
@@ -124,8 +123,8 @@ void __CrtModuleEntry(void)
                        .events   = IOSETIN | IOSETCTL | IOSETLVT
                });
 
-    __CrtModuleLoad();
-    __CrtModuleMainLoop(config.set_descriptor);
+    __crt_module_load();
+    __crt_module_main(config.set_descriptor);
     OnUnload();
     exit(0);
 }

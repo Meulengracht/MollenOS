@@ -145,22 +145,22 @@ AllocateMessage(
 static OsStatus_t
 MapUntypedParameter(
         _In_ struct gracht_param* parameter,
-        _In_ MemorySpace_t* TargetMemorySpace)
+        _In_ MemorySpace_t*       targetMemorySpace)
 {
-    VirtualAddress_t CopyAddress;
-    size_t     OffsetInPage = parameter->data.value % GetMemorySpacePageSize();
-    OsStatus_t Status       = CloneMemorySpaceMapping(
-        GetCurrentMemorySpace(), TargetMemorySpace,
-        (VirtualAddress_t)parameter->data.buffer, &CopyAddress, parameter->length + OffsetInPage,
+    VirtualAddress_t copyAddress;
+    size_t           offsetInPage = parameter->data.value % GetMemorySpacePageSize();
+    OsStatus_t       status       = CloneMemorySpaceMapping(
+            GetCurrentMemorySpace(), targetMemorySpace,
+            (VirtualAddress_t)parameter->data.buffer, &copyAddress, parameter->length + offsetInPage,
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
-        MAPPING_VIRTUAL_PROCESS);
-    if (Status != OsSuccess) {
+            MAPPING_VIRTUAL_PROCESS);
+    if (status != OsSuccess) {
         ERROR("[ipc] [map_untyped] Failed to clone ipc mapping");
-        return Status;
+        return status;
     }
     
     // Update buffer pointer in untyped argument
-    parameter->data.buffer = (void*)(CopyAddress + OffsetInPage);
+    parameter->data.buffer = (void*)(copyAddress + offsetInPage);
     smp_wmb();
     
     return OsSuccess;

@@ -213,8 +213,7 @@ CreateKernelVirtualMemorySpace(void)
         Table = GET_TABLE_HELPER(Directory, VirtualBase);
         TRACE("[vmem] [boot_create] identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "", 
             VirtualBase, VirtualBase + Length);
-        MmVirtualFillPageTable(Table, PhysicalBase, VirtualBase,
-            KernelPageFlags, Length);
+        MmVirtualFillPageTable(Table, PhysicalBase, VirtualBase, KernelPageFlags, Length);
         
         BytesToMap   -= Length;
         PhysicalBase += Length;
@@ -231,8 +230,7 @@ CreateKernelVirtualMemorySpace(void)
             size_t Length = MIN(BytesToMap, TABLE_SPACE_SIZE);
             
             Table = GET_TABLE_HELPER(Directory, VirtualBase);
-            MmVirtualFillPageTable(Table, PhysicalBase, VirtualBase,
-                KernelPageFlags, Length);
+            MmVirtualFillPageTable(Table, PhysicalBase, VirtualBase, KernelPageFlags, Length);
 
             BytesToMap   -= Length;
             PhysicalBase += TABLE_SPACE_SIZE;

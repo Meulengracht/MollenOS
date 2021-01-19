@@ -160,7 +160,7 @@ int resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp)
         _set_errno(EINVAL);
         return -1;
     }
-    
+
     status = Syscall_IpcContextRespond(&msg, &resp, 1);
     return OsStatusToErrno(status);
 }

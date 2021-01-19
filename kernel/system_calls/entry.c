@@ -264,7 +264,7 @@ SyscallHandle(
     _In_ Context_t* Context)
 {
     struct SystemCallDescriptor* Handler;
-    Thread_t*               Thread;
+    Thread_t*                    Thread;
     size_t                       Index = CONTEXT_SC_FUNC(Context);
     size_t                       ReturnValue;
     

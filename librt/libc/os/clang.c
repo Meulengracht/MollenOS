@@ -21,11 +21,8 @@
 
 //#define __TRACE
 
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
 #include <os/osdefs.h>
 #include <os/types/process.h>
-#include <os/spinlock.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -224,7 +221,7 @@ CRTDECL(void, __cxa_runinitializers(
     __cxa_primary_tls_thread_finit = module_thread_finit;
     
     ModuleEntries = (uintptr_t*)processInformation->LibraryEntries;
-    ModuleCount   = processInformation->LibraryEntriesLength / sizeof(uintptr_t);
+    ModuleCount   = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
     
     TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, ModuleCount, ModuleEntries);
     for (int i = 0; i < ModuleCount; i++) {

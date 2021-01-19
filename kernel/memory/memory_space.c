@@ -176,7 +176,7 @@ InitializeMemorySpace(
 OsStatus_t
 CreateMemorySpace(
     _In_  unsigned int Flags,
-    _Out_ UUId_t* Handle)
+    _Out_ UUId_t*      Handle)
 {
     // If we want to create a new kernel address
     // space we instead want to re-use the current 
@@ -187,47 +187,50 @@ CreateMemorySpace(
         *Handle = GetCurrentMemorySpaceHandle();
     }
     else if (Flags & MEMORY_SPACE_APPLICATION) {
-        MemorySpace_t * Parent      = NULL;
-        MemorySpace_t * MemorySpace = (MemorySpace_t*)kmalloc(sizeof(MemorySpace_t));
-        memset((void*)MemorySpace, 0, sizeof(MemorySpace_t));
+        MemorySpace_t* parent      = NULL;
+        MemorySpace_t* memorySpace = (MemorySpace_t*)kmalloc(sizeof(MemorySpace_t));
+        if (!memorySpace) {
+            return OsOutOfMemory;
+        }
+        memset((void*)memorySpace, 0, sizeof(MemorySpace_t));
 
-        MemorySpace->Flags        = Flags;
-        MemorySpace->ParentHandle = UUID_INVALID;
+        memorySpace->Flags        = Flags;
+        memorySpace->ParentHandle = UUID_INVALID;
 
         // Parent must be the upper-most instance of the address-space
         // of the process. Only to the point of not having kernel as parent
         if (Flags & MEMORY_SPACE_INHERIT) {
             int i;
-            Parent = GetCurrentMemorySpace();
-            if (Parent != GetDomainMemorySpace()) {
-                if (Parent->ParentHandle != UUID_INVALID) {
-                    MemorySpace->ParentHandle = Parent->ParentHandle;
-                    MemorySpace->Context      = Parent->Context;
-                    Parent                    = (MemorySpace_t*)LookupHandleOfType(
-                        Parent->ParentHandle, HandleTypeMemorySpace);
+            parent = GetCurrentMemorySpace();
+            if (parent != GetDomainMemorySpace()) {
+                if (parent->ParentHandle != UUID_INVALID) {
+                    memorySpace->ParentHandle = parent->ParentHandle;
+                    memorySpace->Context      = parent->Context;
+                    parent = (MemorySpace_t*)LookupHandleOfType(
+                            parent->ParentHandle, HandleTypeMemorySpace);
                 }
                 else {
-                    MemorySpace->ParentHandle = GetCurrentMemorySpaceHandle();
-                    MemorySpace->Context      = Parent->Context;
+                    memorySpace->ParentHandle = GetCurrentMemorySpaceHandle();
+                    memorySpace->Context      = parent->Context;
                 }
 
                 // Add a reference and copy data
-                AcquireHandle(MemorySpace->ParentHandle, NULL);
+                AcquireHandle(memorySpace->ParentHandle, NULL);
                 for (i = 0; i < MEMORY_DATACOUNT; i++) {
-                    MemorySpace->Data[i] = Parent->Data[i];
+                    memorySpace->Data[i] = parent->Data[i];
                 }
             }
             else {
-                Parent = NULL;
+                parent = NULL;
             }
         }
         
         // If we are root, create the memory bitmaps
-        if (MemorySpace->ParentHandle == UUID_INVALID) {
-            CreateMemorySpaceContext(MemorySpace);
+        if (memorySpace->ParentHandle == UUID_INVALID) {
+            CreateMemorySpaceContext(memorySpace);
         }
-        CloneVirtualSpace(Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, MemorySpace);
+        CloneVirtualSpace(parent, memorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
+        *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
@@ -404,12 +407,12 @@ MemorySpaceMap(
 
 OsStatus_t
 MemorySpaceMapContiguous(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ VirtualAddress_t*    Address,
-        _In_    uintptr_t            PhysicalStartAddress,
-        _In_    size_t               Length,
-        _In_    unsigned int              MemoryFlags,
-        _In_    unsigned int              PlacementFlags)
+        _In_    MemorySpace_t*    MemorySpace,
+        _InOut_ VirtualAddress_t* Address,
+        _In_    uintptr_t         PhysicalStartAddress,
+        _In_    size_t            Length,
+        _In_    unsigned int      MemoryFlags,
+        _In_    unsigned int      PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesUpdated;
@@ -445,11 +448,11 @@ MemorySpaceMapContiguous(
 
 OsStatus_t
 MemorySpaceMapReserved(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ VirtualAddress_t*    Address,
-        _In_    size_t               Length,
-        _In_    unsigned int              MemoryFlags,
-        _In_    unsigned int              PlacementFlags)
+        _In_    MemorySpace_t*    MemorySpace,
+        _InOut_ VirtualAddress_t* Address,
+        _In_    size_t            Length,
+        _In_    unsigned int      MemoryFlags,
+        _In_    unsigned int      PlacementFlags)
 {
     int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int              PagesReserved;

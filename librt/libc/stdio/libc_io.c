@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -105,119 +106,125 @@ static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 }
  * startup information and the handle settings. */
 static OsStatus_t
 StdioIsHandleInheritable(
-    _In_ ProcessConfiguration_t* Configuration,
-    _In_ stdio_handle_t*         Object)
+    _In_ ProcessConfiguration_t* configuration,
+    _In_ stdio_handle_t*         handle)
 {
-    OsStatus_t Status = OsSuccess;
+    OsStatus_t osSuccess = OsSuccess;
 
-    if (Object->wxflag & WX_DONTINHERIT) {
-        Status = OsError;
+    if (handle->wxflag & WX_DONTINHERIT) {
+        osSuccess = OsError;
     }
 
     // If we didn't request to inherit one of the handles, then we don't account it
     // for being the one requested.
-    if (Object->fd == Configuration->StdOutHandle && 
-        !(Configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
-        Status = OsError;
+    if (handle->fd == configuration->StdOutHandle &&
+        !(configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
+        osSuccess = OsError;
     }
-    else if (Object->fd == Configuration->StdInHandle && 
-        !(Configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
-        Status = OsError;
+    else if (handle->fd == configuration->StdInHandle &&
+             !(configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
+        osSuccess = OsError;
     }
-    else if (Object->fd == Configuration->StdErrHandle && 
-        !(Configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
-        Status = OsError;
+    else if (handle->fd == configuration->StdErrHandle &&
+             !(configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
+        osSuccess = OsError;
     }
-    else if (!(Configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
-        if (Object->fd != Configuration->StdOutHandle &&
-            Object->fd != Configuration->StdInHandle &&
-            Object->fd != Configuration->StdErrHandle) {
-            Status = OsError;
+    else if (!(configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
+        if (handle->fd != configuration->StdOutHandle &&
+            handle->fd != configuration->StdInHandle &&
+            handle->fd != configuration->StdErrHandle) {
+            osSuccess = OsError;
         }
     }
-    return Status;
+
+    TRACE("[can_inherit] iod %i, handle %u: %s",
+            handle->fd, handle->object.handle,
+            (osSuccess == OsSuccess) ? "yes" : "no");
+    return osSuccess;
 }
 
 static size_t
 StdioGetNumberOfInheritableHandles(
-    _In_ ProcessConfiguration_t* Configuration)
+    _In_ ProcessConfiguration_t* configuration)
 {
-    size_t NumberOfFiles = 0;
+    size_t numberOfFiles = 0;
     LOCK_FILES();
     foreach(Node, &stdio_objects) {
-        stdio_handle_t* Object = (stdio_handle_t*)Node->Data;
-        if (StdioIsHandleInheritable(Configuration, Object) == OsSuccess) {
-            NumberOfFiles++;
+        stdio_handle_t* object = (stdio_handle_t*)Node->Data;
+        if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
+            numberOfFiles++;
         }
     }
     UNLOCK_FILES();
-    return NumberOfFiles;
+    return numberOfFiles;
 }
 
 static OsStatus_t
 StdioCreateInheritanceBlock(
-    _In_  ProcessConfiguration_t* Configuration,
-    _Out_ void**                  InheritationBlockOut,
-    _Out_ size_t*                 InheritationBlockLengthOut)
+    _In_  ProcessConfiguration_t* configuration,
+    _Out_ void**                  inheritationBlockOut,
+    _Out_ size_t*                 inheritationBlockLengthOut)
 {
-    stdio_inheritation_block_t* InheritationBlock;
-    size_t                      NumberOfObjects;
+    stdio_inheritation_block_t* inheritationBlock;
+    size_t                      numberOfObjects;
     int                         i = 0;
 
-    assert(Configuration != NULL);
+    assert(configuration != NULL);
 
-    if (Configuration->InheritFlags == PROCESS_INHERIT_NONE) {
+    if (configuration->InheritFlags == PROCESS_INHERIT_NONE) {
         return OsSuccess;
     }
-    
-    NumberOfObjects = StdioGetNumberOfInheritableHandles(Configuration);
-    if (NumberOfObjects != 0) {
-        size_t InheritationBlockLength;
-        
-        InheritationBlockLength = sizeof(stdio_inheritation_block_t) + NumberOfObjects * sizeof(stdio_handle_t);
-        InheritationBlock       = (stdio_inheritation_block_t*)malloc(InheritationBlockLength);
-        if (!InheritationBlock) {
+
+    numberOfObjects = StdioGetNumberOfInheritableHandles(configuration);
+    if (numberOfObjects != 0) {
+        size_t inheritationBlockLength;
+
+        inheritationBlockLength = sizeof(stdio_inheritation_block_t) + (numberOfObjects * sizeof(struct stdio_handle));
+        inheritationBlock       = (stdio_inheritation_block_t*)malloc(inheritationBlockLength);
+        if (!inheritationBlock) {
             return OsOutOfMemory;
         }
-        
-        InheritationBlock->handle_count = NumberOfObjects;
+
+        TRACE("[add_inherit] length %u", inheritationBlockLength);
+        inheritationBlock->handle_count = numberOfObjects;
         
         LOCK_FILES();
         foreach(Node, &stdio_objects) {
-            stdio_handle_t* Object = (stdio_handle_t*)Node->Data;
-            if (StdioIsHandleInheritable(Configuration, Object) == OsSuccess) {
-                memcpy(&InheritationBlock->handles[i], Object, sizeof(stdio_handle_t));
+            stdio_handle_t* object = (stdio_handle_t*)Node->Data;
+            if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
+                memcpy(&inheritationBlock->handles[i], object, sizeof(struct stdio_handle));
                 
                 // Check for this fd to be equal to one of the custom handles
                 // if it is equal, we need to update the fd of the handle to our reserved
-                if (Object->fd == Configuration->StdOutHandle) {
-                    InheritationBlock->handles[i].fd = STDOUT_FILENO;
+                if (object->fd == configuration->StdOutHandle) {
+                    inheritationBlock->handles[i].fd = STDOUT_FILENO;
                 }
-                if (Object->fd == Configuration->StdInHandle) {
-                    InheritationBlock->handles[i].fd = STDIN_FILENO;
+                if (object->fd == configuration->StdInHandle) {
+                    inheritationBlock->handles[i].fd = STDIN_FILENO;
                 }
-                if (Object->fd == Configuration->StdErrHandle) {
-                    InheritationBlock->handles[i].fd = STDERR_FILENO;
+                if (object->fd == configuration->StdErrHandle) {
+                    inheritationBlock->handles[i].fd = STDERR_FILENO;
                 }
                 i++;
             }
         }
         UNLOCK_FILES();
         
-        *InheritationBlockOut       = (void*)InheritationBlock;
-        *InheritationBlockLengthOut = InheritationBlockLength;
+        *inheritationBlockOut       = (void*)inheritationBlock;
+        *inheritationBlockLengthOut = inheritationBlockLength;
     }
     return OsSuccess;
 }
 
 static void
 StdioInheritObject(
-    _In_ stdio_handle_t* InheritHandle)
+    _In_ struct stdio_handle* inheritHandle)
 {
     stdio_handle_t* handle;
     int             status;
+    TRACE("[inhert] iod %i, handle %u", inheritHandle->fd, inheritHandle->object.handle);
     
-    status = stdio_handle_create(InheritHandle->fd, InheritHandle->wxflag | WX_INHERITTED, &handle);
+    status = stdio_handle_create(inheritHandle->fd, inheritHandle->wxflag | WX_INHERITTED, &handle);
     if (!status) {
         if (handle->fd == STDOUT_FILENO) {
             __GlbStdout._fd = handle->fd;
@@ -228,15 +235,15 @@ StdioInheritObject(
         else if (handle->fd == STDERR_FILENO) {
             __GlbStderr._fd = handle->fd;
         }
-        stdio_handle_set_handle(handle, InheritHandle->object.handle);
-        stdio_handle_set_ops_type(handle, InheritHandle->object.type);
+
+        stdio_handle_clone(handle, inheritHandle);
         if (handle->ops.inherit(handle) != OsSuccess) {
-            WARNING(" > failed to inherit fd %i", InheritHandle->fd);
+            TRACE(" > failed to inherit fd %i", inheritHandle->fd);
             stdio_handle_destroy(handle, 0);
         }
     }
     else {
-        WARNING(" > failed to create inheritted handle with fd %i", InheritHandle->fd);
+        WARNING(" > failed to create inheritted handle with fd %i", inheritHandle->fd);
     }
 }
 
@@ -252,7 +259,6 @@ void StdioConfigureStandardHandles(
     
     // Handle inheritance
     if (block != NULL) {
-        TRACE("[libc] [parse_inherit] handle count %i", block->handle_count);
         for (i = 0; i < block->handle_count; i++) {
             StdioInheritObject(&block->handles[i]);
         }
@@ -263,18 +269,18 @@ void StdioConfigureStandardHandles(
     // for this process. If the process wants to get output it must reopen the
     // stdout/stderr handles.
     handle_out = stdio_handle_get(STDOUT_FILENO);
-    if (handle_out == NULL) {
+    if (!handle_out) {
         stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_out);
         stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
     }
 
     handle_in = stdio_handle_get(STDIN_FILENO);
-    if (handle_in == NULL) {
+    if (!handle_in) {
         stdio_handle_create(STDIN_FILENO, WX_DONTINHERIT, &handle_in);
     }
     
     handle_err = stdio_handle_get(STDERR_FILENO);
-    if (handle_err == NULL) {
+    if (!handle_err) {
         stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_err);
         stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
     }
@@ -496,7 +502,7 @@ int isatty(int fd)
     if (!handle) {
         return EBADF;
     }
-    return handle->wxflag & WX_TTY;
+    return (handle->wxflag & WX_TTY) != 0;
 }
 
 Collection_t* stdio_get_handles(void)

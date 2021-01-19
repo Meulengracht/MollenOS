@@ -22,10 +22,40 @@
 
 //#define __TRACE
 
+#include <ddk/utils.h>
 #include <internal/_io.h>
 #include <io.h>
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
+
+// Convert O_* flags to WX_* flags
+static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
+{
+    unsigned int wxflags = WX_PIPE | WX_APPEND;
+    unsigned int unsupp; // until we support everything
+
+    // detect options
+    if (oflags & O_NOINHERIT) wxflags |= WX_DONTINHERIT;
+
+    // detect mode, default to binary
+    if (oflags & O_BINARY)       {/* Nothing to do */}
+    else if (oflags & O_TEXT)    wxflags |= WX_TEXT;
+    else if (oflags & O_WTEXT)   wxflags |= WX_WIDE;
+    else if (oflags & O_U16TEXT) wxflags |= WX_UTF16;
+    else if (oflags & O_U8TEXT)  wxflags |= WX_UTF;
+
+    if ((unsupp = oflags & ~(
+            O_BINARY|O_TEXT|O_APPEND|
+            O_TRUNC|O_EXCL|O_CREAT|
+            O_RDWR|O_WRONLY|O_TEMPORARY|
+            O_NOINHERIT|
+            O_SEQUENTIAL|O_RANDOM|O_SHORT_LIVED|
+            O_WTEXT|O_U16TEXT|O_U8TEXT
+    ))) {
+        TRACE(STR("[pipe] [__convert_o_to_wx_flags] unsupported oflags 0x%x"), unsupp);
+    }
+    return wxflags;
+}
 
 int pipe(long size, int flags)
 {
@@ -34,6 +64,7 @@ int pipe(long size, int flags)
     int                    status;
     struct dma_buffer_info bufferInfo;
     struct dma_attachment  attachment;
+    unsigned int           wxflags = __convert_o_to_wx_flags(flags);
 
     // create the dma attachment
     bufferInfo.name     = "libc_pipe";
@@ -51,7 +82,7 @@ int pipe(long size, int flags)
         size - sizeof(struct streambuffer),
         STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL);
 
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &ioObject);
+    status = stdio_handle_create(-1, WX_OPEN | wxflags, &ioObject);
     if (status) {
         dma_detach(&attachment);
         return status;

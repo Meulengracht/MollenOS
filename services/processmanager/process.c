@@ -43,36 +43,35 @@
 #include "svc_library_protocol_server.h"
 #include "svc_process_protocol_server.h"
 
-static list_t       Processes   = LIST_INIT;
-static list_t       Joiners     = LIST_INIT;
-static EventQueue_t *EventQueue = NULL;
+static list_t        Processes  = LIST_INIT;
+static list_t        Joiners    = LIST_INIT;
+static EventQueue_t* EventQueue = NULL;
 
 static OsStatus_t
 DestroyProcess(
-        _In_
-        Process_t *Process)
+        _In_ Process_t* process)
 {
-    int References = atomic_fetch_sub(&Process->References, 1);
+    int References = atomic_fetch_sub(&process->References, 1);
     if (References == 1) {
-        UUId_t Handle = (UUId_t) (uintptr_t) Process->Header.key;
-        list_remove(&Processes, &Process->Header);
-        if (Process->Name != NULL) {
-            MStringDestroy(Process->Name);
+        UUId_t Handle = (UUId_t) (uintptr_t) process->Header.key;
+        list_remove(&Processes, &process->Header);
+        if (process->Name != NULL) {
+            MStringDestroy(process->Name);
         }
-        if (Process->Path != NULL) {
-            MStringDestroy(Process->Path);
+        if (process->Path != NULL) {
+            MStringDestroy(process->Path);
         }
-        if (Process->WorkingDirectory != NULL) {
-            MStringDestroy(Process->WorkingDirectory);
+        if (process->WorkingDirectory != NULL) {
+            MStringDestroy(process->WorkingDirectory);
         }
-        if (Process->AssemblyDirectory != NULL) {
-            MStringDestroy(Process->AssemblyDirectory);
+        if (process->AssemblyDirectory != NULL) {
+            MStringDestroy(process->AssemblyDirectory);
         }
-        if (Process->Executable != NULL) {
-            PeUnloadImage(Process->Executable);
+        if (process->Executable != NULL) {
+            PeUnloadImage(process->Executable);
         }
         handle_destroy(Handle);
-        free(Process);
+        free(process);
         return OsSuccess;
     }
     return OsError;
@@ -118,22 +117,21 @@ AcquireProcess(
 
 static void
 HandleJoinProcess(
-        _In_
-        void *Context)
+        _In_ void* context)
 {
-    ProcessJoiner_t *join    = (ProcessJoiner_t *) Context;
-    OsStatus_t      status   = OsTimeout;
-    int             exitCode = 0;
+    ProcessJoiner_t* waitContext = (ProcessJoiner_t*)context;
+    OsStatus_t       status      = OsTimeout;
+    int              exitCode    = 0;
 
     // Notify application about this
-    if (join->Process->State == PROCESS_TERMINATING) {
+    if (waitContext->Process->State == PROCESS_TERMINATING) {
         status   = OsSuccess;
-        exitCode = join->Process->ExitCode;
+        exitCode = waitContext->Process->ExitCode;
     }
 
-    svc_process_join_response(&join->DeferredResponse.recv_message, status, exitCode);
-    DestroyProcess(join->Process);
-    free(join);
+    svc_process_join_response(&waitContext->DeferredResponse.recv_message, status, exitCode);
+    DestroyProcess(waitContext->Process);
+    free(waitContext);
 }
 
 static OsStatus_t
@@ -310,129 +308,129 @@ InitializeProcessManager(void)
 
 OsStatus_t
 CreateProcess(
-        _In_
-        const char *Path,
-        _In_
-        const char *Arguments,
-        _In_
-        void *InheritationBlock,
-        _In_
-        ProcessConfiguration_t *Configuration,
-        _Out_
-        UUId_t *HandleOut)
+        _In_  const char*             path,
+        _In_  const char*             arguments,
+        _In_  void*                   inheritationBlock,
+        _In_  ProcessConfiguration_t* configuration,
+        _Out_ UUId_t*                 handleOut)
 {
-    ThreadParameters_t Paramaters;
-    Process_t          *Process;
-    MString_t          *PathAsMString;
-    size_t             PathLength;
-    size_t             ArgumentsLength = 0;
-    size_t             InheritationBlockLength;
-    char               *ArgumentsPointer;
-    int                Index;
-    UUId_t             Handle;
-    OsStatus_t         Status;
+    ThreadParameters_t threadParameters;
+    Process_t*         process;
+    MString_t*         pathAsMString;
+    size_t             pathLength;
+    size_t             argumentsLength = 0;
+    size_t             inheritationBlockLength;
+    char*              argumentsPointer;
+    int                index;
+    UUId_t             handle;
+    OsStatus_t         osStatus;
 
-    assert(Path != NULL);
-    assert(HandleOut != NULL);
-    TRACE("[process] [spawn] path %s, args %s", Path, Arguments);
+    assert(path != NULL);
+    assert(handleOut != NULL);
+    TRACE("[process] [spawn] path %s, args %s", path, arguments);
 
-    // include zero terminator
-    if (Arguments) {
-        ArgumentsLength = strlen(Arguments) + 1;
+    // check for null or empty
+    if (arguments && strlen(arguments) > 0) {
+        // include zero terminator
+        argumentsLength = strlen(arguments) + 1;
     }
 
-    Process = (Process_t *) malloc(sizeof(Process_t));
-    if (!Process) {
+    process = (Process_t *)malloc(sizeof(Process_t));
+    if (!process) {
         return OsOutOfMemory;
     }
-    memset(Process, 0, sizeof(Process_t));
+    memset(process, 0, sizeof(Process_t));
 
-    Status = handle_create(&Handle);
-    if (Status != OsSuccess) {
-        free(Process);
-        return Status;
+    osStatus = handle_create(&handle);
+    if (osStatus != OsSuccess) {
+        free(process);
+        return osStatus;
     }
 
-    ELEMENT_INIT(&Process->Header, (uintptr_t) Handle, Process);
-    Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
-    Process->References = ATOMIC_VAR_INIT(1);
-    Process->StartedAt  = clock();
-    spinlock_init(&Process->SyncObject, spinlock_recursive);
+    ELEMENT_INIT(&process->Header, (uintptr_t) handle, process);
+    process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
+    process->References = ATOMIC_VAR_INIT(1);
+    process->StartedAt  = clock();
+    spinlock_init(&process->SyncObject, spinlock_recursive);
 
     // Load the executable
-    PathAsMString = MStringCreate((void *) Path, StrUTF8);
-    Status        = PeLoadImage(UUID_INVALID, NULL, PathAsMString, &Process->Executable);
-    MStringDestroy(PathAsMString);
-    if (Status != OsSuccess) {
+    pathAsMString = MStringCreate((void *) path, StrUTF8);
+    osStatus      = PeLoadImage(UUID_INVALID, NULL, pathAsMString, &process->Executable);
+    MStringDestroy(pathAsMString);
+    if (osStatus != OsSuccess) {
         ERROR(" > failed to load executable");
-        free(Process);
-        return Status;
+        free(process);
+        return osStatus;
     }
 
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    TRACE("[process] [spawn] full path %s", MStringRaw(Process->Executable->FullPath));
-    Process->Path = MStringCreate((void *) MStringRaw(Process->Executable->FullPath), StrUTF8);
-    Index = MStringFindReverse(Process->Path, '/', 0);
-    Process->Name              = MStringSubString(Process->Path, Index + 1, -1);
-    Process->WorkingDirectory  = MStringSubString(Process->Path, 0, Index);
-    Process->AssemblyDirectory = MStringSubString(Process->Path, 0, Index);
+    TRACE("[process] [spawn] full path %s", MStringRaw(process->Executable->FullPath));
+    process->Path = MStringCreate((void *) MStringRaw(process->Executable->FullPath), StrUTF8);
+    index = MStringFindReverse(process->Path, '/', 0);
+    process->Name              = MStringSubString(process->Path, index + 1, -1);
+    process->WorkingDirectory  = MStringSubString(process->Path, 0, index);
+    process->AssemblyDirectory = MStringSubString(process->Path, 0, index);
 
     // Store copies of startup information
-    memcpy(&Process->Configuration, Configuration, sizeof(ProcessConfiguration_t));
+    memcpy(&process->Configuration, configuration, sizeof(ProcessConfiguration_t));
 
-    // Handle arguments, we need to prepend the full path of the executable
-    PathLength       = strlen(MStringRaw(Process->Path));
-    ArgumentsPointer = malloc(PathLength + 1 + ArgumentsLength);
-    if (!ArgumentsPointer) {
-        MStringDestroy(Process->Path);
-        MStringDestroy(Process->Name);
-        MStringDestroy(Process->WorkingDirectory);
-        MStringDestroy(Process->AssemblyDirectory);
-        free(Process);
+    // handle arguments, we need to prepend the full path of the executable
+    pathLength       = strlen(MStringRaw(process->Path));
+    argumentsPointer = malloc(pathLength + 1 + argumentsLength);
+    if (!argumentsPointer) {
+        MStringDestroy(process->Path);
+        MStringDestroy(process->Name);
+        MStringDestroy(process->WorkingDirectory);
+        MStringDestroy(process->AssemblyDirectory);
+        free(process);
         return OsOutOfMemory;
     }
 
     // Build the argument string, remember to null terminate.
-    memcpy(&ArgumentsPointer[0], (const void *) MStringRaw(Process->Path), PathLength);
-    if (ArgumentsLength != 0) {
-        ArgumentsPointer[PathLength] = ' ';
+    memcpy(&argumentsPointer[0], (const void *) MStringRaw(process->Path), pathLength);
+    if (argumentsLength != 0) {
+        argumentsPointer[pathLength] = ' ';
 
-        // ArgumentsLength includes zero termination, so no need to set explict
-        memcpy(&ArgumentsPointer[PathLength + 1], (void *) Arguments, ArgumentsLength);
+        // argumentsLength includes zero termination, so no need to set explict
+        memcpy(&argumentsPointer[pathLength + 1], (void *) arguments, argumentsLength);
     }
     else {
-        ArgumentsPointer[PathLength] = '\0';
+        argumentsPointer[pathLength] = '\0';
     }
 
-    Process->Arguments       = (const char *) ArgumentsPointer;
-    Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
+    process->Arguments       = (const char *) argumentsPointer;
+    process->ArgumentsLength = pathLength + 1 + argumentsLength;
 
-    if (InheritationBlock != NULL) {
-        stdio_inheritation_block_t *block = InheritationBlock;
+    if (inheritationBlock != NULL) {
+        stdio_inheritation_block_t *block = inheritationBlock;
 
-        InheritationBlockLength = sizeof(stdio_inheritation_block_t) +
+        inheritationBlockLength = sizeof(stdio_inheritation_block_t) +
                                   (block->handle_count * sizeof(struct stdio_handle));
-        Process->InheritationBlock = malloc(InheritationBlockLength);
-        if (!Process->InheritationBlock) {
+        process->InheritationBlock = malloc(inheritationBlockLength);
+        if (!process->InheritationBlock) {
             // todo
         }
 
-        Process->InheritationBlockLength = InheritationBlockLength;
-        memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
+        process->InheritationBlockLength = inheritationBlockLength;
+        memcpy(process->InheritationBlock, inheritationBlock, inheritationBlockLength);
     }
 
     // Initialize threading paramaters for the new thread
-    InitializeThreadParameters(&Paramaters);
-    Paramaters.Name              = MStringRaw(Process->Name);
-    Paramaters.MemorySpaceHandle = (UUId_t)(uintptr_t)Process->Executable->MemorySpace;
+    InitializeThreadParameters(&threadParameters);
+    threadParameters.Name              = MStringRaw(process->Name);
+    threadParameters.MemorySpaceHandle = (UUId_t)(uintptr_t)process->Executable->MemorySpace;
 
-    Status = Syscall_ThreadCreate(Process->Executable->EntryAddress, NULL, &Paramaters, &Process->PrimaryThreadId);
-    if (Status == OsSuccess) {
-        Status = Syscall_ThreadDetach(Process->PrimaryThreadId);
+    osStatus = Syscall_ThreadCreate(
+            process->Executable->EntryAddress,
+            NULL, // Argument
+            &threadParameters,
+            &process->PrimaryThreadId);
+    if (osStatus == OsSuccess) {
+        osStatus = Syscall_ThreadDetach(process->PrimaryThreadId);
     }
-    list_append(&Processes, &Process->Header);
-    *HandleOut = Handle;
-    return Status;
+    list_append(&Processes, &process->Header);
+    *handleOut = handle;
+    return osStatus;
 }
 
 void svc_process_spawn_callback(struct gracht_recv_message *message,
@@ -447,81 +445,82 @@ void svc_process_spawn_callback(struct gracht_recv_message *message,
 void svc_process_get_startup_information_callback(struct gracht_recv_message *message,
                                                   struct svc_process_get_startup_information_args *args)
 {
-    Process_t  *process           = GetProcessByPrimaryThread(args->handle);
+    Process_t* process            = GetProcessByPrimaryThread(args->process_handle);
     OsStatus_t status             = OsDoesNotExist;
-    char       *buffer            = NULL;
-    size_t     bufferLength       = 0;
     UUId_t     handle             = UUID_INVALID;
     size_t     argumentLength     = 0;
     size_t     inheritationLength = 0;
     int        moduleCount        = PROCESS_MAXMODULES;
 
     if (process) {
-        buffer = malloc(
-                process->ArgumentsLength + process->InheritationBlockLength + (PROCESS_MAXMODULES * sizeof(Handle_t)));
-        if (!buffer) {
-            status = OsOutOfMemory;
-        }
-        else {
-            handle             = (UUId_t) (uintptr_t) process->Header.key;
-            argumentLength     = process->ArgumentsLength;
-            inheritationLength = process->InheritationBlockLength;
+        struct dma_attachment dmaAttachment;
+        status = dma_attach(args->dmabuf_handle, &dmaAttachment);
+        if (status == OsSuccess) {
+            status = dma_attachment_map(&dmaAttachment);
+            if (status == OsSuccess) {
+                char* buffer = dmaAttachment.buffer;
 
-            memcpy(&buffer[0], process->Arguments, argumentLength);
-            if (inheritationLength) {
-                memcpy(&buffer[argumentLength], process->InheritationBlock, inheritationLength);
+                handle             = (UUId_t) (uintptr_t) process->Header.key;
+                argumentLength     = process->ArgumentsLength;
+                inheritationLength = process->InheritationBlockLength;
+
+                memcpy(&buffer[0], process->Arguments, argumentLength);
+                if (inheritationLength) {
+                    memcpy(&buffer[argumentLength], process->InheritationBlock, inheritationLength);
+                }
+
+                status = PeGetModuleEntryPoints(
+                        process->Executable,
+                        (Handle_t *)
+                                &buffer[argumentLength + inheritationLength],
+                        &moduleCount);
+                dma_attachment_unmap(&dmaAttachment);
             }
-
-            status       = PeGetModuleEntryPoints(process->Executable,
-                                                  (Handle_t *) &buffer[argumentLength + inheritationLength],
-                                                  &moduleCount);
-            bufferLength = argumentLength + inheritationLength + (moduleCount * sizeof(Handle_t));
+            dma_detach(&dmaAttachment);
         }
     }
 
-    svc_process_get_startup_information_response(message, status, handle, argumentLength, inheritationLength,
-                                                 moduleCount * sizeof(Handle_t), buffer, bufferLength);
-    if (buffer) {
-        free(buffer);
-    }
+    svc_process_get_startup_information_response(
+            message,
+            status,
+            handle,
+            argumentLength,
+            inheritationLength,
+            moduleCount * sizeof(Handle_t));
 }
 
 OsStatus_t
 JoinProcess(
-        _In_
-        Process_t *process,
-        _In_
-        struct gracht_recv_message *message,
-        _In_
-        size_t timeout)
+        _In_ Process_t*                  process,
+        _In_ struct gracht_recv_message* message,
+        _In_ size_t                      timeout)
 {
-    ProcessJoiner_t *Join = (ProcessJoiner_t *) malloc(sizeof(ProcessJoiner_t) + VALI_MSG_DEFER_SIZE(message));
-    if (!Join) {
+    size_t           waitContextSize = sizeof(ProcessJoiner_t) + VALI_MSG_DEFER_SIZE(message);
+    ProcessJoiner_t* waitContext = (ProcessJoiner_t*)malloc(waitContextSize);
+    if (!waitContext) {
         return OsOutOfMemory;
     }
 
-    memset(Join, 0, sizeof(ProcessJoiner_t));
-    TRACE("JoinProcess(%u, %u)", (UUId_t) (uintptr_t) process->Header.key, timeout);
-
-    ELEMENT_INIT(&Join->Header, process->Header.key, Join);
-    gracht_vali_message_defer_response(&Join->DeferredResponse, message);
-    Join->Process = process;
+    memset(waitContext, 0, waitContextSize);
+    ELEMENT_INIT(&waitContext->Header, process->Header.key, waitContext);
+    gracht_vali_message_defer_response(&waitContext->DeferredResponse, message);
+    waitContext->Process = process;
     if (timeout != 0) {
-        Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, timeout);
+        waitContext->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, waitContext, timeout);
     }
     else {
-        Join->EventHandle = UUID_INVALID;
+        waitContext->EventHandle = UUID_INVALID;
     }
 
-    list_append(&Joiners, &Join->Header);
+    list_append(&Joiners, &waitContext->Header);
     return OsSuccess;
 }
 
-void svc_process_join_callback(struct gracht_recv_message *message,
-                               struct svc_process_join_args *args)
+void svc_process_join_callback(struct gracht_recv_message*   message,
+                               struct svc_process_join_args* args)
 {
-    Process_t  *process = AcquireProcess(args->handle);
-    OsStatus_t status   = JoinProcess(process, message, args->timeout);
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = JoinProcess(process, message, args->timeout);
 
     // Only respond directly if the join didn't attach
     if (status != OsSuccess) {
@@ -534,50 +533,45 @@ void svc_process_join_callback(struct gracht_recv_message *message,
 
 static int
 WakeupAllWaiters(
-        _In_
-        int Index,
-        _In_
-        element_t *Element,
-        _In_
-        void *Context)
+        _In_ int        index,
+        _In_ element_t* element,
+        _In_ void*      context)
 {
-    Process_t       *Process = Context;
-    ProcessJoiner_t *Join    = Element->value;
-    if (Process->Header.key != Element->key) {
+    Process_t*       process     = context;
+    ProcessJoiner_t* waitContext = element->value;
+    if (process->Header.key != element->key) {
         return LIST_ENUMERATE_CONTINUE;
     }
 
-    if (Join->EventHandle != UUID_INVALID) {
-        if (CancelEvent(EventQueue, Join->EventHandle) == OsSuccess) {
-            HandleJoinProcess((void *) Join);
+    if (waitContext->EventHandle != UUID_INVALID) {
+        if (CancelEvent(EventQueue, waitContext->EventHandle) == OsSuccess) {
+            HandleJoinProcess((void*)waitContext);
         }
     }
     else {
-        HandleJoinProcess((void *) Join);
+        HandleJoinProcess((void*)waitContext);
     }
     return LIST_ENUMERATE_REMOVE;
 }
 
 OsStatus_t
 TerminateProcess(
-        _In_
-        Process_t *Process,
-        _In_
-        int ExitCode)
+        _In_ Process_t* process,
+        _In_ int        exitCode)
 {
-    WARNING("[terminate_process] process %u exitted with code: %i", Process->Header.key, ExitCode);
+    WARNING("[terminate_process] process %u exitted with code: %i", process->Header.key, exitCode);
 
-    Process->State    = PROCESS_TERMINATING;
-    Process->ExitCode = ExitCode;
-    list_enumerate(&Joiners, WakeupAllWaiters, Process);
+    process->State    = PROCESS_TERMINATING;
+    process->ExitCode = exitCode;
+    list_enumerate(&Joiners, WakeupAllWaiters, process);
     return OsSuccess;
 }
 
-void svc_process_terminate_callback(struct gracht_recv_message *message,
-                                    struct svc_process_terminate_args *args)
+void svc_process_terminate_callback(struct gracht_recv_message*        message,
+                                    struct svc_process_terminate_args* args)
 {
-    Process_t  *process = AcquireProcess(args->handle);
-    OsStatus_t status   = TerminateProcess(process, args->exit_code);
+    Process_t* process = AcquireProcess(args->handle);
+    OsStatus_t status  = TerminateProcess(process, args->exit_code);
     if (process) {
         ReleaseProcess(process);
     }
@@ -586,37 +580,35 @@ void svc_process_terminate_callback(struct gracht_recv_message *message,
 
 OsStatus_t
 KillProcess(
-        _In_
-        Process_t *Killer,
-        _In_
-        Process_t *Target)
+        _In_ Process_t* killer,
+        _In_ Process_t* victim)
 {
     // Verify permissions
-    TRACE("KillProcess(%u, %u)", (UUId_t) (uintptr_t) Killer->Header.key,
-          (UUId_t) (uintptr_t) Target->Header.key);
+    TRACE("KillProcess(%u, %u)", (UUId_t) (uintptr_t) killer->Header.key,
+          (UUId_t) (uintptr_t) victim->Header.key);
 
-    if (!Killer) {
+    if (!killer) {
         return OsInvalidParameters;
     }
 
-    if (!Target) {
+    if (!victim) {
         return OsDoesNotExist;
     }
 
     // Send a kill signal on the primary thread, if it fails, then
     // the thread has probably already shutdown, but the process instance is
     // lingering around.
-    if (Syscall_ThreadSignal(Target->PrimaryThreadId, SIGKILL) != OsSuccess) {
-        return TerminateProcess(Target, -1);
+    if (Syscall_ThreadSignal(victim->PrimaryThreadId, SIGKILL) != OsSuccess) {
+        return TerminateProcess(victim, -1);
     }
     return OsSuccess;
 }
 
-void svc_process_kill_callback(struct gracht_recv_message *message,
-                               struct svc_process_kill_args *args)
+void svc_process_kill_callback(struct gracht_recv_message*   message,
+                               struct svc_process_kill_args* args)
 {
-    Process_t  *process = AcquireProcess(args->handle);
-    Process_t  *target  = AcquireProcess(args->target_handle);
+    Process_t* process = AcquireProcess(args->handle);
+    Process_t* target  = AcquireProcess(args->target_handle);
     OsStatus_t status   = KillProcess(process, target);
 
     if (process) {

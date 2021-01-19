@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Common Entry Point
+ * Kernel entry point
  */
 #define __MODULE "MACH"
 #define __TRACE
