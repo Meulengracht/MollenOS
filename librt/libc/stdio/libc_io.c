@@ -98,8 +98,10 @@ thrd_t thrd_current(void) {
 #include <stdlib.h>
 #include <string.h>
 
-static Collection_t stdio_objects = COLLECTION_INIT(KeyInteger); // TODO hashtable
-static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
+static Collection_t g_stdioObjects = COLLECTION_INIT(KeyInteger); // TODO hashtable
+static FILE         g_stdout = { 0 };
+static FILE         g_stdint = { 0 };
+static FILE         g_stderr = { 0 };
 
 /* StdioIsHandleInheritable
  * Returns whether or not the handle should be inheritted by sub-processes based on the requested
@@ -149,7 +151,7 @@ StdioGetNumberOfInheritableHandles(
 {
     size_t numberOfFiles = 0;
     LOCK_FILES();
-    foreach(Node, &stdio_objects) {
+    foreach(Node, &g_stdioObjects) {
         stdio_handle_t* object = (stdio_handle_t*)Node->Data;
         if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
             numberOfFiles++;
@@ -189,7 +191,7 @@ StdioCreateInheritanceBlock(
         inheritationBlock->handle_count = numberOfObjects;
         
         LOCK_FILES();
-        foreach(Node, &stdio_objects) {
+        foreach(Node, &g_stdioObjects) {
             stdio_handle_t* object = (stdio_handle_t*)Node->Data;
             if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
                 memcpy(&inheritationBlock->handles[i], object, sizeof(struct stdio_handle));
@@ -227,13 +229,13 @@ StdioInheritObject(
     status = stdio_handle_create(inheritHandle->fd, inheritHandle->wxflag | WX_INHERITTED, &handle);
     if (!status) {
         if (handle->fd == STDOUT_FILENO) {
-            __GlbStdout._fd = handle->fd;
+            g_stdout._fd = handle->fd;
         }
         else if (handle->fd == STDIN_FILENO) {
-            __GlbStdin._fd = handle->fd;
+            g_stdint._fd = handle->fd;
         }
         else if (handle->fd == STDERR_FILENO) {
-            __GlbStderr._fd = handle->fd;
+            g_stderr._fd = handle->fd;
         }
 
         stdio_handle_clone(handle, inheritHandle);
@@ -285,9 +287,9 @@ void StdioConfigureStandardHandles(
         stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
     }
     
-    stdio_handle_set_buffered(handle_out, &__GlbStdout, _IOWRT);
-    stdio_handle_set_buffered(handle_in,  &__GlbStdin,  _IOREAD);
-    stdio_handle_set_buffered(handle_err, &__GlbStderr, _IOWRT);
+    stdio_handle_set_buffered(handle_out, &g_stdout, _IOWRT);
+    stdio_handle_set_buffered(handle_in, &g_stdint, _IOREAD);
+    stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT);
 }
 
 static int
@@ -297,8 +299,8 @@ stdio_close_all_handles(void)
     int             files_closed = 0;
     
     LOCK_FILES();
-    while (CollectionBegin(&stdio_objects) != NULL) {
-        CollectionItem_t* Node = CollectionBegin(&stdio_objects);
+    while (CollectionBegin(&g_stdioObjects) != NULL) {
+        CollectionItem_t* Node = CollectionBegin(&g_stdioObjects);
         handle = (stdio_handle_t*)Node->Data;
         
         // Is it a buffered stream or raw?
@@ -360,7 +362,7 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     stdio_get_null_operations(&handle->ops);
 
     key.Value.Integer = updated_fd;
-    CollectionAppend(&stdio_objects, CollectionCreateNode(key, handle));
+    CollectionAppend(&g_stdioObjects, CollectionCreateNode(key, handle));
     TRACE("[stdio_handle_create] success %i", updated_fd);
     
     *handle_out = handle;
@@ -456,7 +458,7 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
     }
     
     key.Value.Integer = handle->fd;
-    CollectionRemoveByKey(&stdio_objects, key);
+    CollectionRemoveByKey(&g_stdioObjects, key);
     stdio_bitmap_free(handle->fd);
     free(handle);
     return EOK;
@@ -475,20 +477,20 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
 stdio_handle_t* stdio_handle_get(int iod)
 {
     DataKey_t Key = { .Value.Integer = iod };
-    return (stdio_handle_t*)CollectionGetDataByKey(&stdio_objects, Key, 0);
+    return (stdio_handle_t*)CollectionGetDataByKey(&g_stdioObjects, Key, 0);
 }
 
 FILE* stdio_get_std(int n)
 {
     switch (n) {
         case STDOUT_FILENO: {
-            return &__GlbStdout;
+            return &g_stdout;
         }
         case STDIN_FILENO: {
-            return &__GlbStdin;
+            return &g_stdint;
         }
         case STDERR_FILENO: {
-            return &__GlbStderr;
+            return &g_stderr;
         }
         default: {
             return NULL;
@@ -507,7 +509,7 @@ int isatty(int fd)
 
 Collection_t* stdio_get_handles(void)
 {
-    return &stdio_objects;
+    return &g_stdioObjects;
 }
 
 

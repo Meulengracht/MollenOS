@@ -879,8 +879,7 @@ void* kmalloc(size_t Size)
     struct FixedCache* Selected = cache_find_fixed_size(Size);
     if (Selected == NULL) {
         ERROR("Could not find a cache for size %" PRIuIN "", Size);
-        MemoryCacheDump(NULL);
-        assert(0);   
+        return NULL;
     }
 
     // If the cache does not exist, we must create it

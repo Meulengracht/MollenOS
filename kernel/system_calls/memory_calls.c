@@ -39,59 +39,60 @@
 
 OsStatus_t
 ScMemoryAllocate(
-    _In_      void*        Hint,
-    _In_      size_t       Length,
-    _In_      unsigned int Flags,
-    _Out_     void**       MemoryOut)
+    _In_      void*        hint,
+    _In_      size_t       length,
+    _In_      unsigned int flags,
+    _Out_     void**       memoryOut)
 {
-    OsStatus_t           Status;
-    uintptr_t            AllocatedAddress;
-    MemorySpace_t * Space = GetCurrentMemorySpace();
-    unsigned int         MemoryFlags    = MAPPING_USERSPACE;
-    unsigned int         PlacementFlags = MAPPING_VIRTUAL_PROCESS;
-    int                  PageCount;
-    uintptr_t*           Pages;
+    OsStatus_t     osStatus;
+    uintptr_t      allocatedAddress;
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    unsigned int   memoryFlags    = MAPPING_USERSPACE;
+    unsigned int   placementFlags = MAPPING_VIRTUAL_PROCESS;
+    int            pageCount;
+    uintptr_t*     pages;
     
-    if (!Length || !MemoryOut) {
+    if (!length || !memoryOut) {
         return OsInvalidParameters;
     }
 
-    PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
-    if (!Pages) {
+    pageCount = DIVUP(length, GetMemorySpacePageSize());
+    pages     = kmalloc(sizeof(uintptr_t) * pageCount);
+    if (!pages) {
+        WARNING("[api] [mem_allocate] failed to allocate size 0x%llx, page count %i", length, pageCount);
         return OsOutOfMemory;
     }
 
     // Convert flags from memory domain to memory space domain
-    if (Flags & MEMORY_COMMIT) {
-        MemoryFlags |= MAPPING_COMMIT;
+    if (flags & MEMORY_COMMIT) {
+        memoryFlags |= MAPPING_COMMIT;
     }
-    if (Flags & MEMORY_UNCHACHEABLE) {
-        MemoryFlags |= MAPPING_NOCACHE;
+    if (flags & MEMORY_UNCHACHEABLE) {
+        memoryFlags |= MAPPING_NOCACHE;
     }
-    if (Flags & MEMORY_LOWFIRST) {
-        MemoryFlags |= MAPPING_LOWFIRST;
+    if (flags & MEMORY_LOWFIRST) {
+        memoryFlags |= MAPPING_LOWFIRST;
     }
-    if (!(Flags & MEMORY_WRITE)) {
+    if (!(flags & MEMORY_WRITE)) {
         //MemoryFlags |= MAPPING_READONLY;
     }
-    if (Flags & MEMORY_EXECUTABLE) {
-        MemoryFlags |= MAPPING_EXECUTABLE;
+    if (flags & MEMORY_EXECUTABLE) {
+        memoryFlags |= MAPPING_EXECUTABLE;
     }
     
     // Create the actual mappings
-    Status = MemorySpaceMap(Space, &AllocatedAddress, Pages, Length, MemoryFlags, PlacementFlags);
-    if (Status == OsSuccess) {
-        *MemoryOut = (void*)AllocatedAddress;
-        if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
-            memset((void*)AllocatedAddress, 0, Length);
+    osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, memoryFlags, placementFlags);
+    if (osStatus == OsSuccess) {
+        *memoryOut = (void*)allocatedAddress;
+        if ((flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
+            memset((void*)allocatedAddress, 0, length);
         }
     }
 
     TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN " == 0x%" PRIxIN,
-          Flags, Length, AllocatedAddress);
-    kfree(Pages);
-    return Status;
+          flags, length, allocatedAddress);
+    kfree(pages);
+    return osStatus;
 }
 
 OsStatus_t 

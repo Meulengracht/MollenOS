@@ -25,6 +25,7 @@
 #include <event.h>
 #include <internal/_io.h>
 #include <internal/_syscalls.h>
+#include <ddk/utils.h>
 
 static OsStatus_t evt_lock(atomic_int* sync_address)
 {
@@ -72,21 +73,20 @@ static OsStatus_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, un
 
     // assert not max
     currentValue = atomic_load(sync_address);
-    if ((currentValue + value) <= maxValue) {
+    if (currentValue < maxValue) {
         for (i = 0; i < value; i++) {
-            while ((currentValue + 1) <= maxValue) {
+            result = 0;
+            while (!result && currentValue < maxValue) {
                 result = atomic_compare_exchange_weak(sync_address,
                         &currentValue, currentValue + 1);
-                if (result) {
-                    break;
-                }
                 parameters._val0++;
             }
         }
     }
 
     if (parameters._val0) {
-        status = Syscall_FutexWake(&parameters);
+        Syscall_FutexWake(&parameters);
+        status = OsSuccess;
     }
 
     return status;
@@ -96,6 +96,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
 {
     OsStatus_t result;
 
+    // Sanitize buffer and length for RESET and SEM events
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
         if (!buffer || length < sizeof(unsigned int)) {
             return OsInvalidPermissions;
@@ -107,7 +108,12 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
         return result;
     }
 
-    if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
+    // Read the reset event value if we are a reset event, otherwise for SEM read value is 1
+    if (EVT_TYPE(handle->object.data.evt.flags) == EVT_RESET_EVENT) {
+        *(unsigned int*)buffer = handle->object.data.evt.initialValue;
+        *bytes_read            = sizeof(unsigned int);
+    }
+    else if (EVT_TYPE(handle->object.data.evt.flags) == EVT_SEM_EVENT) {
         *(unsigned int*)buffer = 1;
         *bytes_read            = sizeof(unsigned int);
     }
@@ -122,11 +128,13 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
     }
 
     if (EVT_TYPE(handle->object.data.evt.flags) == EVT_RESET_EVENT) {
+        handle->object.data.evt.initialValue = *(unsigned int*)buffer;
+        *bytes_written = sizeof(unsigned int);
+
         result = evt_unlock(handle->object.data.evt.sync_address, 1, 1);
         if (result == OsSuccess) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
-        *bytes_written = sizeof(unsigned int);
     }
     else if (EVT_TYPE(handle->object.data.evt.flags) == EVT_SEM_EVENT) {
         unsigned int value = *(unsigned int*)buffer;

@@ -42,13 +42,13 @@ SymbolLoadMapFile(
 static uint64_t SymbolContextHash(const void* element);
 static int      SymbolContextCmp(const void* element1, const void* element2);
 
-static hashtable_t LoadedSymbols;
+static hashtable_t g_loadedSymbolContexts;
 
 void
 SymbolInitialize(void)
 {
     // Initialize the hashtable
-    hashtable_construct(&LoadedSymbols,
+    hashtable_construct(&g_loadedSymbolContexts,
                         HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct symbol_context),
                         SymbolContextHash,
@@ -85,8 +85,8 @@ SymbolsLoadContext(
     symbolContext.key = strdup(binaryName);
 
     TRACE("[SymbolsLoadContext] context loaded %s", symbolContext.key);
-    hashtable_set(&LoadedSymbols, &symbolContext);
-    *symbolContextOut = hashtable_get(&LoadedSymbols, &(struct symbol_context) { .key = binaryName });
+    hashtable_set(&g_loadedSymbolContexts, &symbolContext);
+    *symbolContextOut = hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
     return OsSuccess;
 }
 
@@ -107,7 +107,7 @@ SymbolLookup(
     }
 
     // Check for loaded context
-    symbolContext = (struct symbol_context*)hashtable_get(&LoadedSymbols, &(struct symbol_context) { .key = binaryName });
+    symbolContext = (struct symbol_context*)hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
     if (!symbolContext) {
         status = SymbolsLoadContext(binaryName, &symbolContext);
         if (status != OsSuccess) {

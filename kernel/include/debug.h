@@ -53,6 +53,7 @@
 
 #define WRITELINE(...)              LogAppendMessage(LOG_DEBUG, __VA_ARGS__)
 #define WARNING(...)                LogAppendMessage(LOG_WARNING, __VA_ARGS__)
+#define WARNING_IF(cond, ...)       { if ((cond)) { LogAppendMessage(LOG_WARNING, __VA_ARGS__); } }
 #define ERROR(...)              	LogAppendMessage(LOG_ERROR, __VA_ARGS__)
 #define FATAL(Scope, ...)         	DebugPanic(Scope, NULL, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message)   	DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)

@@ -89,7 +89,7 @@ AcquireProcess(
  * Releases a reference to a process and unlocks the process structure for other threads. */
 void
 ReleaseProcess(
-    _In_ Process_t* Process);
+    _In_ Process_t* process);
 
 /* GetProcessByPrimaryThread
  * Looks up a process instance by its primary thread. This can be used by the

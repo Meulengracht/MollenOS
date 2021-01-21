@@ -93,6 +93,6 @@ int pipe(long size, int flags)
     
     memcpy(&ioObject->object.data.pipe.attachment, &attachment,
         sizeof(struct dma_attachment));
-    ioObject->object.data.pipe.options = 0;
+    ioObject->object.data.pipe.options = STREAMBUFFER_ALLOW_PARTIAL;
     return ioObject->fd;
 }

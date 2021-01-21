@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,10 +27,10 @@
 
 OsStatus_t
 MemoryAllocate(
-    _In_      void*   Hint,
-    _In_      size_t  Length,
-    _In_      unsigned int Flags,
-    _Out_     void**  MemoryOut)
+    _In_  void*        Hint,
+    _In_  size_t       Length,
+    _In_  unsigned int Flags,
+    _Out_ void**       MemoryOut)
 {
 	if (!Length || !MemoryOut) {
 		return OsInvalidParameters;

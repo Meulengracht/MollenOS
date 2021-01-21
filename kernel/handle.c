@@ -201,7 +201,6 @@ LookupHandleByPath(
     
     Instance = list_find_value(&PathRegister, (void*)Path);
     if (!Instance) {
-        WARNING("[handle_lookup_by_path] %s not found", Path);
         return OsDoesNotExist;
     }
     

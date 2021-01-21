@@ -47,10 +47,15 @@
 #define _IOC_RW(type, cmd, arg_type) _IOC(_IOCTL_READWRITE, type, cmd, sizeof(arg_type))
 
 // shared commands that ctl standard iod functions
-#define FIONBIO  _IOC_W(_IOCTL_SHARED, 0, int) // set blocking io
-#define FIOASYNC _IOC_W(_IOCTL_SHARED, 1, int) // set async io
-#define FIONREAD _IOC_R(_IOCTL_SHARED, 2, int) // number of bytes available
+#define FIONBIO   _IOC_W(_IOCTL_SHARED, 0, int) // set blocking io
+#define FIOASYNC  _IOC_W(_IOCTL_SHARED, 1, int) // set async io
+#define FIONREAD  _IOC_R(_IOCTL_SHARED, 2, int) // number of bytes available for reading before block
+#define FIONWRITE _IOC_R(_IOCTL_SHARED, 3, int) // number of bytes available for writing before block
+
+_CODE_BEGIN
 
 CRTDECL(int, ioctl(int iod, unsigned long request, ...));
+
+_CODE_END
 
 #endif //!__C_IOCTL_H__

@@ -84,12 +84,14 @@ OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
     streambuffer_t* stream = handle->object.data.ipcontext.stream;
 
     if ((unsigned int)request == FIONBIO) {
-        int blocking = va_arg(args, int);
-        if (blocking) {
-            handle->object.data.ipcontext.options |= STREAMBUFFER_NO_BLOCK;
-        }
-        else {
-            handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
+        int* nonBlocking = va_arg(args, int*);
+        if (nonBlocking) {
+            if (*nonBlocking) {
+                handle->object.data.ipcontext.options |= STREAMBUFFER_NO_BLOCK;
+            }
+            else {
+                handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
+            }
         }
         return OsSuccess;
     }

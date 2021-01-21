@@ -131,7 +131,7 @@ ControlHandleSet(
     HandleSetElement_t* setElement;
     OsStatus_t          status;
     TRACE("[handle_set] [control] %u, %i, %u", setHandle, operation, handle);
-    
+
     if (!set) {
         return OsDoesNotExist;
     }
@@ -190,7 +190,7 @@ WaitForHandleSet(
     element_t*   i;
     int          j, k = pollEvents;
     TRACE("[handle_set] [wait] %u, %i, %i, %" PRIuIN, handle, maxEvents, pollEvents, timeout);
-    
+
     if (!set) {
         return OsDoesNotExist;
     }
@@ -218,6 +218,7 @@ WaitForHandleSet(
     list_splice(&set->Events, numberOfEvents, &spliced);
     
     TRACE("[handle_set] [wait] num events %i", numberOfEvents);
+
     smp_rmb();
     _foreach(i, &spliced) {
         HandleSetElement_t* element = i->value;
@@ -249,23 +250,23 @@ WaitForHandleSet(
 
 static int
 MarkHandleCallback(
-    _In_ int        Index,
-    _In_ element_t* Element,
-    _In_ void*      Context)
+    _In_ int        index,
+    _In_ element_t* element,
+    _In_ void*      context)
 {
-    HandleSetElement_t* SetElement = Element->value;
-    unsigned int        Flags      = (unsigned int)(uintptr_t)Context;
-    TRACE("[handle_set] [mark_cb] 0x%x", SetElement->Configuration);
+    HandleSetElement_t* setElement     = element->value;
+    unsigned int        flags          = (unsigned int)(uintptr_t)context;
+    unsigned int        acceptedEvents = setElement->Configuration & flags;
+    TRACE("[handle_set] [mark_cb] 0x%x, 0x%x", setElement->Configuration, acceptedEvents);
     
-    if (SetElement->Configuration & Flags) {
-        int Previous;
-        Previous = atomic_fetch_or(&SetElement->ActiveEvents, (int)Flags);
-        if (!Previous) {
-            list_append(&SetElement->Set->Events, &SetElement->EventHeader);
-            
-            Previous = atomic_fetch_add(&SetElement->Set->Pending, 1);
-            if (!Previous) {
-                (void)FutexWake(&SetElement->Set->Pending, 1, 0);
+    if (acceptedEvents) {
+        int previousEvents = atomic_fetch_or(&setElement->ActiveEvents, (int)acceptedEvents);
+        if (!previousEvents) {
+            list_append(&setElement->Set->Events, &setElement->EventHeader);
+
+            previousEvents = atomic_fetch_add(&setElement->Set->Pending, 1);
+            if (!previousEvents) {
+                (void)FutexWake(&setElement->Set->Pending, 1, 0);
             }
         }
     }

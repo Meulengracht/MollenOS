@@ -26,9 +26,26 @@
 #include <crtdefs.h>
 #include <stddef.h>
 
+/**
+ * Reset events are either set or not set. When writing or reading from a reset event
+ * the value that can be written or read is a integer value. If multiple writes are done
+ * the most recent value is the one read.
+ */
 #define EVT_RESET_EVENT   0
+
+/**
+ * Semaphore events have max values set by the initialValue. The real initial value of the semaphore will be 0.
+ * Reads will always consume a value of 1, and writes can 'restore' multiple values. The value written is the count
+ * and should be of size unsigned int.
+ */
 #define EVT_SEM_EVENT     1
+
+/**
+ * Timeout events have their timeout value defined by initialValue. Timeout events cannot be written to, but only
+ * read from, and will trigger once the timeout value has been reached. Read can be invoked with NULL and length of 0.
+ */
 #define EVT_TIMEOUT_EVENT 2
+
 #define EVT_TYPE(x)       (x & 0x3U)
 
 _CODE_BEGIN

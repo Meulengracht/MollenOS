@@ -30,7 +30,6 @@
 #define __STRICT_ASSERT(x) 
 #endif
 
-#include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <debug.h>
@@ -95,23 +94,21 @@ SemaphoreSignal(
     _In_ int          Value)
 {
     OsStatus_t Status = OsError;
-    int        CurrentValue;
+    int        currentValue;
     int        i;
-    int        Result;
+    int        result;
 
     TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
     // assert not max
-    CurrentValue = atomic_load(&Semaphore->Value);
-    __STRICT_ASSERT((CurrentValue + Value) <= Semaphore->MaxValue);
-    if ((CurrentValue + Value) <= Semaphore->MaxValue) {
+    currentValue = atomic_load(&Semaphore->Value);
+    __STRICT_ASSERT((currentValue + Value) <= Semaphore->MaxValue);
+    if (currentValue < Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
-            while ((CurrentValue + 1) <= Semaphore->MaxValue) {
-                Result = atomic_compare_exchange_weak(&Semaphore->Value, 
-                    &CurrentValue, CurrentValue + 1);
-                if (Result) {
-                    break;
-                }
+            result = 0;
+            while (!result && currentValue < Semaphore->MaxValue) {
+                result = atomic_compare_exchange_weak(&Semaphore->Value,
+                                                      &currentValue, currentValue + 1);
             }
             FutexWake(&Semaphore->Value, 1, 0);
         }

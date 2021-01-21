@@ -31,8 +31,8 @@
 int close(int fd)
 {
 	stdio_handle_t* handle;
-	int             result = EOK;
-	int             options;
+	int             result  = EOK;
+	int             options = STDIO_CLOSE_FULL;
 
 	handle = stdio_handle_get(fd);
 	if (!handle) {
@@ -41,8 +41,7 @@ int close(int fd)
 	}
 	
 	// The cases where we close is when the handle is
-	// not inheritted and the handle is not persistant
-	options = STDIO_CLOSE_FULL;
+	// not inheritted or the handle is not persistant
 	if (handle->wxflag & (WX_INHERITTED | WX_PERSISTANT)) {
 		options = STDIO_CLOSE_INHERIT;
 	}

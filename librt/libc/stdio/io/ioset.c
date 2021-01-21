@@ -145,8 +145,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
         if ((entry->event.events & (IOSETIN | IOSETLVT)) == (IOSETIN | IOSETLVT)) {
             int bytesAvailable = 0;
             int result         = ioctl(entry->iod, FIONREAD, &bytesAvailable);
-            TRACE("[ioset] [wait] %i = %i bytes available [%i]",
-                entry->iod, bytesAvailable, result);
+            TRACE("[ioset] [wait] %i = %i bytes available [%i]", entry->iod, bytesAvailable, result);
             if (!result && bytesAvailable) {
                 events[i].events = IOSETIN;
                 events[i].data   = entry->event.data;

@@ -196,6 +196,10 @@ streambuffer_get_bytes_available_in(
     _In_  streambuffer_t* stream,
     _Out_ size_t*         bytesAvailableOut)
 {
+    if (!stream || !bytesAvailableOut) {
+        return;
+    }
+
     unsigned int write_index     = atomic_load(&stream->producer_comitted_index);
     unsigned int read_index      = atomic_load(&stream->consumer_index);
     size_t       bytes_available = bytes_readable(stream->capacity, read_index, write_index);
@@ -424,7 +428,7 @@ streambuffer_stream_in(
     _In_ streambuffer_t* stream,
     _In_ void*           buffer,
     _In_ size_t          length,
-    _In_  unsigned int   options)
+    _In_ unsigned int    options)
 {
     uint8_t*          casted_ptr = (uint8_t*)buffer;
     size_t            bytes_read = 0;

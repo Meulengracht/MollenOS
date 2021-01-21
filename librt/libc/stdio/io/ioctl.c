@@ -21,6 +21,7 @@
  * io descriptors. If they are not supported errno is set to EBADF
  */
 
+#include <errno.h>
 #include <internal/_io.h>
 #include <ioctl.h>
 #include <os/mollenos.h>

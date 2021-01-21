@@ -22,6 +22,7 @@
  */
 
 #include <ds/streambuffer.h>
+#include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <ioctl.h>
 #include <internal/_io.h>
@@ -77,6 +78,9 @@ OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     // to free the memory used, and destroy the handle.
     (void)dma_attachment_unmap(&handle->object.data.pipe.attachment);
     (void)dma_detach(&handle->object.data.pipe.attachment);
+    if (options == STDIO_CLOSE_FULL) {
+        handle_destroy(handle->object.handle);
+    }
     return OsSuccess;
 }
 
@@ -99,19 +103,21 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
 
     if ((unsigned int)request == FIONBIO) {
-        int blocking = va_arg(args, int);
-        if (blocking) {
-            handle->object.data.pipe.options |= STREAMBUFFER_NO_BLOCK;
-        }
-        else {
-            handle->object.data.pipe.options &= ~(STREAMBUFFER_NO_BLOCK);
+        int* nonBlocking = va_arg(args, int*);
+        if (nonBlocking) {
+            if (*nonBlocking) {
+                handle->object.data.pipe.options |= STREAMBUFFER_NO_BLOCK;
+            }
+            else {
+                handle->object.data.pipe.options &= ~(STREAMBUFFER_NO_BLOCK);
+            }
         }
         return OsSuccess;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
-            size_t bytesAvailable;
+            size_t bytesAvailable = 0;
             streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
