@@ -33,8 +33,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-
-
 OsStatus_t
 PS2KeyboardHandleModifiers(
     _In_ PS2Port_t*                     port,

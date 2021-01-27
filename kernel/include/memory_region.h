@@ -53,17 +53,17 @@ MemoryRegionCreate(
  * MemoryRegionCreateExisting
  * * Exports an existing memory region that stretches over <Length>. Makes sure
  * * all the memory from <Memory> to <Memory + Length> is committed.
- * @param Memory   [In]  The buffer that should be exported.
- * @param Length   [In]  Length of the buffer.
- * @param Flags    [In]  Configuration of the memory region and behaviour.
+ * @param memory   [In]  The buffer that should be exported.
+ * @param size   [In]  Length of the buffer.
+ * @param flags    [In]  Configuration of the memory region and behaviour.
  * @param Handle   [Out] The global handle for the memory region. 
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreateExisting(
-    _In_  void*   Memory,
-    _In_  size_t  Length,
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* HandleOut);
+    _In_  void*   memory,
+    _In_  size_t  size,
+    _In_  unsigned int flags,
+    _Out_ UUId_t* handleOut);
 
 /**
  * MemoryRegionAttach
@@ -81,16 +81,13 @@ MemoryRegionAttach(
  * MemoryRegionInherit
  * * Refreshes the current memory mapping to align with the memory region.
  * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
+ * @param regionHandle        [In]
+ * @param memoryOut        [In]
  * @param CurrentLength [In]
  * @param NewLength     [Out]
  */
 KERNELAPI OsStatus_t KERNELABI
-MemoryRegionInherit(
-    _In_  UUId_t  Handle,
-    _Out_ void**  Memory,
-    _Out_ size_t* Length);
+MemoryRegionInherit(UUId_t regionHandle, void** memoryOut, size_t* size, unsigned int accessFlags);
 
 /**
  * MemoryRegionUnherit

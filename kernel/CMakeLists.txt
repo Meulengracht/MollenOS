@@ -78,15 +78,15 @@ add_executable (vali-core
 	scheduling/threading.c
 
 	# System calls
-	system_calls/driver_calls.c
-	system_calls/entry.c
-	system_calls/memory_calls.c
-	system_calls/module_calls.c
-	system_calls/ossupport_calls.c
-	system_calls/sharedobject_calls.c
-	system_calls/synchonization_calls.c
-	system_calls/system_calls.c
-	system_calls/thread_calls.c
+	system_api/driver_api.c
+	system_api/entry.c
+	system_api/memory_api.c
+	system_api/module_api.c
+	system_api/ossupport_api.c
+	system_api/sharedobject_api.c
+	system_api/synchonization_api.c
+	system_api/system_api.c
+	system_api/thread_api.c
 
 	# Tests
     tests/test_manager.c

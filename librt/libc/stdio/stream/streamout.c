@@ -353,28 +353,27 @@ int streamout(
 
     buffer[BUFFER_SIZE] = '\0';
 
-    while (written >= 0)
-    {
+    while (written >= 0) {
         chr = *format++;
 
-        /* Check for end of format string */
-        if (chr == _T('\0')) break;
+        // Termination case, end of string
+        if (chr == _T('\0')) {
+            break;
+        }
 
-        /* Check for 'normal' character or double % */
-        if ((chr != _T('%')) ||
-            (chr = *format++) == _T('%'))
-        {
-            /* Write the character to the stream */
-            if ((written = streamout_char(stream, chr)) == 0) return -1;
+        // Normal case: non-% or actual % characters.
+        if ((chr != _T('%')) || (chr = *format++) == _T('%')) {
+            if ((written = streamout_char(stream, chr)) == 0) {
+                return -1;
+            }
             written_all += written;
             continue;
         }
 
-        /* Handle flags */
+        // Handle all flag-like characters
         flags = 0;
-        while (1)
-        {
-                 if (chr == _T('-')) flags |= FLAG_ALIGN_LEFT;
+        while (1) {
+            if      (chr == _T('-')) flags |= FLAG_ALIGN_LEFT;
             else if (chr == _T('+')) flags |= FLAG_FORCE_SIGN;
             else if (chr == _T(' ')) flags |= FLAG_FORCE_SIGNSP;
             else if (chr == _T('0')) flags |= FLAG_PAD_ZERO;
@@ -383,42 +382,34 @@ int streamout(
             chr = *format++;
         }
 
-        /* Handle field width modifier */
-        if (chr == _T('*'))
-        {
+        // Handle field width modifier
+        if (chr == _T('*')) {
             fieldwidth = va_arg(argptr, int);
-            if (fieldwidth < 0)
-            {
+            if (fieldwidth < 0) {
                 flags |= FLAG_ALIGN_LEFT;
                 fieldwidth = -fieldwidth;
             }
             chr = *format++;
         }
-        else
-        {
+        else {
             fieldwidth = 0;
-            while (chr >= _T('0') && chr <= _T('9'))
-            {
+            while (chr >= _T('0') && chr <= _T('9')) {
                 fieldwidth = fieldwidth * 10 + (chr - _T('0'));
                 chr = *format++;
             }
         }
 
         /* Handle precision modifier */
-        if (chr == '.')
-        {
+        if (chr == '.') {
             chr = *format++;
 
-            if (chr == _T('*'))
-            {
+            if (chr == _T('*')) {
                 precision = va_arg(argptr, int);
                 chr = *format++;
             }
-            else
-            {
+            else {
                 precision = 0;
-                while (chr >= _T('0') && chr <= _T('9'))
-                {
+                while (chr >= _T('0') && chr <= _T('9')) {
                     precision = precision * 10 + (chr - _T('0'));
                     chr = *format++;
                 }
@@ -427,26 +418,21 @@ int streamout(
         else precision = -1;
 
         /* Handle argument size prefix */
-        do
-        {
-                 if (chr == _T('h')) flags |= FLAG_SHORT;
+        do {
+            if      (chr == _T('h')) flags |= FLAG_SHORT;
             else if (chr == _T('w')) flags |= FLAG_WIDECHAR;
             else if (chr == _T('L')) flags |= 0; // FIXME: long double
             else if (chr == _T('F')) flags |= 0; // FIXME: what is that?
-            else if (chr == _T('l'))
-            {
+            else if (chr == _T('l')) {
                 /* Check if this is the 2nd 'l' in a row */
                 if (format[-2] == 'l') flags |= FLAG_INT64;
                 else flags |= FLAG_LONG;
             }
-            else if (chr == _T('I'))
-            {
-                if (format[0] == _T('3') && format[1] == _T('2'))
-                {
+            else if (chr == _T('I')) {
+                if (format[0] == _T('3') && format[1] == _T('2')) {
                     format += 2;
                 }
-                else if (format[0] == _T('6') && format[1] == _T('4'))
-                {
+                else if (format[0] == _T('6') && format[1] == _T('4')) {
                     format += 2;
                     flags |= FLAG_INT64;
                 }
@@ -492,13 +478,11 @@ int streamout(
             case_char:
                 string = buffer;
                 len = 1;
-                if (flags & FLAG_WIDECHAR)
-                {
+                if (flags & FLAG_WIDECHAR) {
                     ((wchar_t*)string)[0] = va_arg(argptr, int);
                     ((wchar_t*)string)[1] = _T('\0');
                 }
-                else
-                {
+                else {
                     ((char*)string)[0] = va_arg(argptr, int);
                     ((char*)string)[1] = _T('\0');
                 }
@@ -643,18 +627,17 @@ int streamout(
         if (padding < 0) padding = 0;
 
         /* Optional left space padding */
-        if ((flags & (FLAG_ALIGN_LEFT | FLAG_PAD_ZERO)) == 0)
-        {
-            for (; padding > 0; padding--)
-            {
-                if ((written = streamout_char(stream, _T(' '))) == 0) return -1;
+        if ((flags & (FLAG_ALIGN_LEFT | FLAG_PAD_ZERO)) == 0) {
+            for (; padding > 0; padding--) {
+                if ((written = streamout_char(stream, _T(' '))) == 0) {
+                    return -1;
+                }
                 written_all += written;
             }
         }
 
         /* Optional prefix */
-        if (prefix)
-        {
+        if (prefix) {
             written = streamout_string(stream, prefix, prefixlen);
             if (written == -1) return -1;
             written_all += written;

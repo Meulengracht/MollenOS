@@ -561,7 +561,7 @@ ReadFile(
         return OsInvalidParameters;
     }
     
-    status = dma_attachment_map(&dmaAttachment);
+    status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
     if (status != OsSuccess) {
         ERROR("[vfs_read] [dma_attachment_map] failed: %u", status);
         dma_detach(&dmaAttachment);
@@ -620,7 +620,7 @@ WriteFile(
         return OsInvalidParameters;
     }
     
-    status = dma_attachment_map(&dmaAttachment);
+    status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
     if (status != OsSuccess) {
         ERROR("[vfs_write] [dma_attachment_map] failed: %u", status);
         dma_detach(&dmaAttachment);

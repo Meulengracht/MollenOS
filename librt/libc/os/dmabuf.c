@@ -62,12 +62,13 @@ dma_attach(
 
 OsStatus_t
 dma_attachment_map(
-    _In_ struct dma_attachment* attachment)
+    _In_ struct dma_attachment* attachment,
+    _In_ unsigned int           accessFlags)
 {
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return Syscall_DmaAttachmentMap(attachment);
+    return Syscall_DmaAttachmentMap(attachment, accessFlags);
 }
 
 OsStatus_t

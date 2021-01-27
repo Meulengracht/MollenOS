@@ -55,9 +55,14 @@ ProcessSpawnEx(
     _In_     ProcessConfiguration_t* Configuration,
     _Out_    UUId_t*                 HandleOut));
 
-/* ProcessJoin
- * Waits for the given process to terminate and
- * returns the return-code the process exit'ed with */
+/**
+ * ProcessJoin
+ * Waits for the given process to terminate and returns the return-code the process exit'ed with
+ * @param Handle
+ * @param Timeout
+ * @param ExitCode
+ * @return         Status of the operation
+ */
 CRTDECL(OsStatus_t,
 ProcessJoin(
 	_In_  UUId_t Handle,

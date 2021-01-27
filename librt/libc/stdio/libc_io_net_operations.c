@@ -95,12 +95,12 @@ OsStatus_t stdio_net_op_inherit(stdio_handle_t* handle)
         return status1 != OsSuccess ? status1 : status2;
     }
     
-    status1 = dma_attachment_map(&handle->object.data.socket.send_buffer);
+    status1 = dma_attachment_map(&handle->object.data.socket.send_buffer, DMA_ACCESS_WRITE);
     if (status1 != OsSuccess) {
         return status1;
     }
     
-    status1 = dma_attachment_map(&handle->object.data.socket.recv_buffer);
+    status1 = dma_attachment_map(&handle->object.data.socket.recv_buffer, DMA_ACCESS_WRITE);
     if (status1 != OsSuccess) {
         return status1;
     }

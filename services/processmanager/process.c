@@ -472,7 +472,7 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message *me
         struct dma_attachment dmaAttachment;
         status = dma_attach(args->dmabuf_handle, &dmaAttachment);
         if (status == OsSuccess) {
-            status = dma_attachment_map(&dmaAttachment);
+            status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
             if (status == OsSuccess) {
                 char* buffer = dmaAttachment.buffer;
 

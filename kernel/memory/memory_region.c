@@ -25,17 +25,14 @@
 #define __MODULE "memory_region"
 //#define __TRACE
 
-#include <arch/mmu.h>
 #include <arch/utils.h>
 #include <assert.h>
-#include <component/cpu.h>
 #include <ddk/io.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
 #include <os/dmabuf.h>
 #include <memoryspace.h>
-#include <machine.h>
 #include <string.h>
 #include <threading.h>
 
@@ -51,71 +48,82 @@ typedef struct MemoryRegion {
 
 static OsStatus_t
 CreateUserMapping(
-        _In_  MemoryRegion_t*      Region,
-        _In_  MemorySpace_t* MemorySpace,
-        _Out_ uintptr_t*           AllocatedMapping)
+        _In_ MemoryRegion_t* region,
+        _In_ MemorySpace_t*  memorySpace,
+        _In_ uintptr_t*      allocatedMapping,
+        _In_ unsigned int    accessFlags)
 {
     // This is more tricky, for the calling process we must make a new
     // mapping that spans the entire Capacity, but is uncommitted, and then commit
     // the Length of it.
-    OsStatus_t Status = MemorySpaceMapReserved(MemorySpace,
-        (VirtualAddress_t*)AllocatedMapping, Region->Capacity, 
-        MAPPING_USERSPACE | MAPPING_PERSISTENT | Region->Flags,
-        MAPPING_VIRTUAL_PROCESS);
-    if (Status != OsSuccess) {
-        return Status;
+    unsigned int requiredFlags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
+    OsStatus_t   status = MemorySpaceMapReserved(
+            memorySpace,
+            (VirtualAddress_t*)allocatedMapping, region->Capacity,
+            requiredFlags | region->Flags | accessFlags,
+            MAPPING_VIRTUAL_PROCESS);
+    if (status != OsSuccess) {
+        return status;
     }
     
     // Now commit <Length> in pages, reuse the mappings from the kernel
-    Status = MemorySpaceCommit(MemorySpace, (VirtualAddress_t)*AllocatedMapping,
-        &Region->Pages[0], Region->Length, MAPPING_PHYSICAL_FIXED);
-    return Status;
+    status = MemorySpaceCommit(
+            memorySpace,
+            (VirtualAddress_t)*allocatedMapping,
+            &region->Pages[0],
+            region->Length,
+            MAPPING_PHYSICAL_FIXED);
+    return status;
 }
 
 static OsStatus_t
 CreateKernelMapping(
-        _In_ MemoryRegion_t*      Region,
-        _In_ MemorySpace_t* MemorySpace)
+        _In_ MemoryRegion_t* region,
+        _In_ MemorySpace_t*  memorySpace)
 {
-    OsStatus_t Status = MemorySpaceMapReserved(MemorySpace,
-        (VirtualAddress_t*)&Region->KernelMapping, Region->Capacity, 
-        Region->Flags, MAPPING_VIRTUAL_GLOBAL);
-    if (Status != OsSuccess) {
-        return Status;
+    OsStatus_t status = MemorySpaceMapReserved(
+            memorySpace,
+            (VirtualAddress_t*)&region->KernelMapping, region->Capacity,
+            region->Flags, MAPPING_VIRTUAL_GLOBAL);
+    if (status != OsSuccess) {
+        return status;
     }
     
     // Now commit <Length> in pages, reuse the mappings from the kernel
-    Status = MemorySpaceCommit(MemorySpace, (VirtualAddress_t)Region->KernelMapping,
-        &Region->Pages[0], Region->Length, 0);
-    return Status;
+    status = MemorySpaceCommit(
+            memorySpace, (VirtualAddress_t)region->KernelMapping,
+            &region->Pages[0], region->Length, 0);
+    return status;
 }
 
 static OsStatus_t
 CreateKernelMappingFromExisting(
-        _In_ MemoryRegion_t*      Region,
-        _In_ MemorySpace_t* MemorySpace,
-        _In_ uintptr_t            UserAddress)
+        _In_ MemoryRegion_t* region,
+        _In_ MemorySpace_t*  memorySpace,
+        _In_ uintptr_t       userAddress)
 {
-    OsStatus_t Status = GetMemorySpaceMapping(MemorySpace, 
-        (uintptr_t)UserAddress, Region->PageCount, &Region->Pages[0]);
-    if (Status != OsSuccess) {
-        return Status;
+    OsStatus_t status = GetMemorySpaceMapping(
+            memorySpace, (uintptr_t)userAddress,
+            region->PageCount, &region->Pages[0]);
+    if (status != OsSuccess) {
+        return status;
     }
-    
-    Status = MemorySpaceMap(MemorySpace, (uintptr_t*)&Region->KernelMapping,
-        &Region->Pages[0], Region->Length, Region->Flags, MAPPING_VIRTUAL_GLOBAL);
-    return Status;
+
+    status = MemorySpaceMap(
+            memorySpace, (uintptr_t*)&region->KernelMapping,
+            &region->Pages[0], region->Length, region->Flags, MAPPING_VIRTUAL_GLOBAL);
+    return status;
 }
 
 static void
 MemoryRegionDestroy(
-    _In_ void* Resource)
+    _In_ void* resource)
 {
-    MemoryRegion_t* Region = (MemoryRegion_t*)Resource;
-    if (Region->KernelMapping) {
-        MemorySpaceUnmap(GetCurrentMemorySpace(), Region->KernelMapping, Region->Capacity);
+    MemoryRegion_t* region = (MemoryRegion_t*)resource;
+    if (region->KernelMapping) {
+        MemorySpaceUnmap(GetCurrentMemorySpace(), region->KernelMapping, region->Capacity);
     }
-    kfree(Region);
+    kfree(region);
 }
 
 OsStatus_t
@@ -154,7 +162,7 @@ MemoryRegionCreate(
         goto ErrorHandler;
     }
     
-    Status = CreateUserMapping(Region, GetCurrentMemorySpace(), (uintptr_t*)UserMapping);
+    Status = CreateUserMapping(Region, GetCurrentMemorySpace(), (uintptr_t*) UserMapping, 0);
     if (Status != OsSuccess) {
         ERROR("[shared_region] [create] CreateUserMapping failed with %u", Status);
         goto ErrorHandler;
@@ -171,47 +179,46 @@ ErrorHandler:
 
 OsStatus_t
 MemoryRegionCreateExisting(
-    _In_  void*   Memory,
-    _In_  size_t  Length,
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* HandleOut)
+    _In_  void*        memory,
+    _In_  size_t       size,
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut)
 {
-    MemoryRegion_t* Region;
-    OsStatus_t      Status;
-    int             PageCount;
-    size_t          CapacityWithOffset;
+    MemoryRegion_t* region;
+    OsStatus_t      osStatus;
+    int             pageCount;
+    size_t          capacityWithOffset;
 
     // Capacity is the expected maximum size of the region. Regions
     // are resizable, but to ensure that enough continious space is
     // allocated we must do it like this. Otherwise one must create a new.
-    CapacityWithOffset = Length + ((uintptr_t)Memory % GetMemorySpacePageSize());
-    PageCount          = DIVUP(CapacityWithOffset, GetMemorySpacePageSize());
-    
-    Region = (MemoryRegion_t*)kmalloc(
-        sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * PageCount));
-    if (!Region) {
+    capacityWithOffset = size + ((uintptr_t)memory % GetMemorySpacePageSize());
+    pageCount          = DIVUP(capacityWithOffset, GetMemorySpacePageSize());
+
+    region = (MemoryRegion_t*)kmalloc(sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
+    if (!region) {
         return OsOutOfMemory;
     }
     
-    memset(Region, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * PageCount));
-    MutexConstruct(&Region->SyncObject, MUTEX_PLAIN);
-    Region->Flags     = Flags;
-    Region->Length    = CapacityWithOffset;
-    Region->Capacity  = CapacityWithOffset;
-    Region->PageCount = PageCount;
-    
-    Status = CreateKernelMappingFromExisting(Region, GetCurrentMemorySpace(), (uintptr_t)Memory);
-    if (Status != OsSuccess) {
-        ERROR("[shared_region] [create_existing] CreateKernelMappingFromExisting failed with %u", Status);
+    memset(region, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
+    MutexConstruct(&region->SyncObject, MUTEX_PLAIN);
+    region->Flags     = flags;
+    region->Length    = capacityWithOffset;
+    region->Capacity  = capacityWithOffset;
+    region->PageCount = pageCount;
+
+    osStatus = CreateKernelMappingFromExisting(region, GetCurrentMemorySpace(), (uintptr_t)memory);
+    if (osStatus != OsSuccess) {
+        ERROR("[shared_region] [create_existing] CreateKernelMappingFromExisting failed with %u", osStatus);
         goto ErrorHandler;
     }
     
-    *HandleOut = CreateHandle(HandleTypeMemoryRegion, MemoryRegionDestroy, Region);
-    return Status;
+    *handleOut = CreateHandle(HandleTypeMemoryRegion, MemoryRegionDestroy, region);
+    return osStatus;
     
 ErrorHandler:
-    MemoryRegionDestroy(Region);
-    return Status;
+    MemoryRegionDestroy(region);
+    return osStatus;
 }
 
 
@@ -231,46 +238,44 @@ MemoryRegionAttach(
     return OsSuccess;
 }
 
-
 OsStatus_t
 MemoryRegionInherit(
-    _In_  UUId_t  Handle,
-    _Out_ void**  Memory,
-    _Out_ size_t* Length)
+        _In_  UUId_t       regionHandle,
+        _Out_ void**       memoryOut,
+        _Out_ size_t*      size,
+        _In_  unsigned int accessFlags)
 {
-    MemoryRegion_t* Region;
-    OsStatus_t      Status;
-    uintptr_t       Offset;
-    uintptr_t       Address;
-    TRACE("MemoryRegionInherit(0x%x)", Handle);
+    MemoryRegion_t* region;
+    OsStatus_t      osStatus;
+    uintptr_t       offset;
+    uintptr_t       address;
+    TRACE("MemoryRegionInherit(0x%x)", regionHandle);
     
-    if (!Memory) {
+    if (!memoryOut) {
         return OsInvalidParameters;
     }
-    
-    Region = (MemoryRegion_t*)LookupHandleOfType(Handle, HandleTypeMemoryRegion);
-    if (!Region) {
+
+    region = (MemoryRegion_t*)LookupHandleOfType(regionHandle, HandleTypeMemoryRegion);
+    if (!region) {
         return OsDoesNotExist;
     }
     
-    MutexLock(&Region->SyncObject);
-    
+    MutexLock(&region->SyncObject);
     // This is more tricky, for the calling process we must make a new
     // mapping that spans the entire Capacity, but is uncommitted, and then commit
     // the Length of it.
-    Offset = (Region->Pages[0] % GetMemorySpacePageSize());
-    Status = CreateUserMapping(Region, GetCurrentMemorySpace(), &Address);
+    offset   = (region->Pages[0] % GetMemorySpacePageSize());
+    osStatus = CreateUserMapping(region, GetCurrentMemorySpace(), &address, accessFlags);
+    MutexUnlock(&region->SyncObject);
     
-    MutexUnlock(&Region->SyncObject);
-    
-    if (Status != OsSuccess) {
-        ERROR("[shared_region] [create] CreateUserMapping failed with %u", Status);
-        return Status;
+    if (osStatus != OsSuccess) {
+        ERROR("[shared_region] [create] CreateUserMapping failed with %u", osStatus);
+        return osStatus;
     }
     
-    *Memory = (void*)(Address + Offset);
-    *Length = Region->Length; // OBS: unsafe access to length
-    return Status;
+    *memoryOut = (void*)(address + offset);
+    *size      = region->Length; // OBS: unsafe access to length
+    return osStatus;
 }
 
 OsStatus_t
@@ -488,7 +493,7 @@ MemoryRegionGetSg(
     // how many entries it would take to fill a list
     // Assume that if both pointers are supplied we are trying to fill
     // the list with the requested amount, and thus skip this step.
-    if (SgCountOut && !SgListOut) {
+    if (!SgListOut) {
         int SgCount = 0;
         for (int i = 0; i < Region->PageCount; i++) {
             if (i == 0 || (Region->Pages[i - 1] + PageSize) != Region->Pages[i]) {
@@ -499,7 +504,7 @@ MemoryRegionGetSg(
     }
     
     // In order to get the list both counters must be filled
-    if (SgCountOut && SgListOut) {
+    if (SgListOut) {
         int SgCount = *SgCountOut;
         for (int i = 0, j = 0; (i < SgCount) && (j < Region->PageCount); i++) {
             struct dma_sg* Sg = &SgListOut[i];

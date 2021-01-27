@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -113,7 +114,7 @@ extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, unsigned i
 extern OsStatus_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
 extern OsStatus_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
 extern OsStatus_t ScDmaAttach(UUId_t, struct dma_attachment*);
-extern OsStatus_t ScDmaAttachmentMap(struct dma_attachment*);
+extern OsStatus_t ScDmaAttachmentMap(struct dma_attachment*, unsigned int);
 extern OsStatus_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
 extern OsStatus_t ScDmaAttachmentRefresh(struct dma_attachment*);
 extern OsStatus_t ScDmaAttachmentUnmap(struct dma_attachment*);

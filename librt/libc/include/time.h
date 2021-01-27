@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -103,14 +104,17 @@ typedef struct __tzinfo_struct {
 } __tzinfo_type;
 
 _CODE_BEGIN
-/* time
+/**
+ * time
  * Returns the current calendar time encoded as a time_t object, and 
- * also stores it in the time_t object pointed to by arg (unless arg is a null pointer). */
+ * also stores it in the time_t object pointed to by arg (unless arg is a null pointer).
+ */
 _CRTIMP time_t
 time(
     _Out_Opt_ time_t *arg);
 
-/* timespec_get
+/**
+ * timespec_get
  * 1. Modifies the timespec object pointed to by ts to hold the current calendar 
  *    time in the time base base.
  * 2. Expands to a value suitable for use as the base argument of timespec_get
@@ -119,7 +123,8 @@ time(
  * 1. ts->tv_sec is set to the number of seconds since an implementation defined epoch, 
  *    truncated to a whole value
  * 2. ts->tv_nsec member is set to the integral number of nanoseconds, rounded to the 
- *    resolution of the system clock*/
+ *    resolution of the system clock
+ */
 _CRTIMP
 int
 timespec_get(

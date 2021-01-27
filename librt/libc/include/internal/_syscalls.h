@@ -85,7 +85,7 @@ _CODE_END
 #define Syscall_DmaCreate(CreateInfo, Attachment)                          (OsStatus_t)syscall2(49, SCPARAM(CreateInfo), SCPARAM(Attachment))
 #define Syscall_DmaExport(Buffer, ExportInfo, Attachment)                  (OsStatus_t)syscall3(50, SCPARAM(Buffer), SCPARAM(ExportInfo), SCPARAM(Attachment))
 #define Syscall_DmaAttach(Handle, Attachment)                              (OsStatus_t)syscall2(51, SCPARAM(Handle), SCPARAM(Attachment))
-#define Syscall_DmaAttachmentMap(Attachment)                               (OsStatus_t)syscall1(52, SCPARAM(Attachment))
+#define Syscall_DmaAttachmentMap(Attachment, AccessFlags)                  (OsStatus_t)syscall2(52, SCPARAM(Attachment), SCPARAM(AccessFlags))
 #define Syscall_DmaAttachmentResize(Attachment, Length)                    (OsStatus_t)syscall2(53, SCPARAM(Attachment), SCPARAM(Length))
 #define Syscall_DmaAttachmentRefresh(Attachment)                           (OsStatus_t)syscall1(54, SCPARAM(Attachment))
 #define Syscall_DmaAttachmentUnmap(Attachment)                             (OsStatus_t)syscall1(55, SCPARAM(Attachment))

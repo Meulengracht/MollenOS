@@ -166,27 +166,27 @@ ScDmaExport(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
-    OsStatus_t Status;
-    unsigned int    Flags = 0;
+    OsStatus_t   osStatus;
+    unsigned int flags = 0;
 
     if (!buffer || !info || !attachment) {
         return OsInvalidParameters;
     }
     
     if (info->flags & DMA_PERSISTANT) {
-        Flags |= MAPPING_PERSISTENT;
+        flags |= MAPPING_PERSISTENT;
     }
     
     if (info->flags & DMA_UNCACHEABLE) {
-        Flags |= MAPPING_NOCACHE;
+        flags |= MAPPING_NOCACHE;
     }
     
     TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
-    
-    Status = MemoryRegionCreateExisting(buffer, info->length,
-        Flags, &attachment->handle);
-    if (Status != OsSuccess) {
-        return Status;
+
+    osStatus = MemoryRegionCreateExisting(buffer, info->length,
+                                          flags, &attachment->handle);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
 
     if (info->flags & DMA_CLEAN) {
@@ -195,7 +195,7 @@ ScDmaExport(
     
     attachment->buffer = buffer;
     attachment->length = info->length;
-    return Status;
+    return osStatus;
 }
 
 OsStatus_t
@@ -259,12 +259,18 @@ ScDmaGetMetrics(
 
 OsStatus_t
 ScDmaAttachmentMap(
-    _In_ struct dma_attachment* attachment)
+    _In_ struct dma_attachment* attachment,
+    _In_ unsigned int           accessFlags)
 {
+    unsigned int memoryFlags = 0;
     if (!attachment) {
         return OsInvalidParameters;
     }
-    return MemoryRegionInherit(attachment->handle, &attachment->buffer, &attachment->length);
+
+    if (!(accessFlags & DMA_ACCESS_WRITE))   { memoryFlags |= MAPPING_READONLY; }
+    if (!(accessFlags & DMA_ACCESS_EXECUTE)) { memoryFlags |= MAPPING_EXECUTABLE; }
+
+    return MemoryRegionInherit(attachment->handle, &attachment->buffer, &attachment->length, memoryFlags);
 }
 
 OsStatus_t

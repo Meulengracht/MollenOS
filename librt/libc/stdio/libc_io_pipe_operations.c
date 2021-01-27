@@ -94,7 +94,7 @@ OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
         return status;
     }
     
-    status = dma_attachment_map(&handle->object.data.pipe.attachment);
+    status = dma_attachment_map(&handle->object.data.pipe.attachment, DMA_ACCESS_WRITE);
     return status;
 }
 
