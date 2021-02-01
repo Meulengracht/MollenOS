@@ -59,6 +59,6 @@ __signalentry:
     pop r14
     pop r15
     
-    ; get the user-rsp from the stack, it will be offset 9
-    mov rsp, [rsp + (9 * 8)]
+    ; get the user-rsp from the stack, it will be offset 5
+    mov rsp, [rsp + (5 * 8)]
     ret
