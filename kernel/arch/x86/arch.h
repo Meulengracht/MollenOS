@@ -58,71 +58,64 @@
 #define X86_THREAD_USEDFPU              0x1
 
 #if defined(i386) || defined(__i386__)
-/* Architecture Memory Layout
+/**
+ * Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-32 platform in MollenOS 
  * 0x0               =>             0x10000000 (Kernel Memory Space 256 mb)
  * 0x10000000        =>             0xF0000000 (Application Memory Space 3.5gb)
  * 0xF0000000        =>             0xFF000000 (Thread specific storage 240 mb)
  * 0xFF000000        =>             0xFFFFFFFF (Thread specific stack 16mb)
  */
-#define MEMORY_LOCATION_KERNEL              0x100000    // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_RAMDISK             0x200000    // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_RESERVED            0x300000    // Driver Space: 240~ mB
-#define MEMORY_LOCATION_VIDEO               0x0F000000  // Video Space: 16 mB
-#define MEMORY_LOCATION_KERNEL_END          0x10000000
-#define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFF
+#define MEMORY_LOCATION_KERNEL              0x100000UL   // Kernel Image Space: 1024 kB
+#define MEMORY_LOCATION_RAMDISK             0x200000UL   // RamDisk Image Space: 1024 kB
+#define MEMORY_LOCATION_RESERVED            0x300000UL   // Driver Space: 240~ mB
+#define MEMORY_LOCATION_VIDEO               0x0F000000UL // Video Space: 16 mB
+#define MEMORY_LOCATION_KERNEL_END          0x10000000UL
+#define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFFUL
 
-#define MEMORY_LOCATION_RING3_CODE          0x20000000 // Base for ring3 code
-#define MEMORY_LOCATION_RING3_CODE_END      0x30000000
-#define MEMORY_LOCATION_RING3_HEAP          0x30000000 // Base for ring3 heap
-#define MEMORY_LOCATION_RING3_HEAP_END      0xF0000000
+#define MEMORY_LOCATION_RING3_CODE          0x20000000UL // Base for ring3 code
+#define MEMORY_LOCATION_RING3_CODE_END      0x30000000UL
+#define MEMORY_LOCATION_RING3_HEAP          0x30000000UL // Base for ring3 heap
+#define MEMORY_LOCATION_RING3_HEAP_END      0xF0000000UL
 
-#define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
-#define MEMORY_LOCATION_RING3_STACK_START   0xFFFE0000
-#define MEMORY_LOCATION_RING3_STACK_END     0xFE0000
-#define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFF
-#define MEMORY_SEGMENT_RING3_LIMIT          0xFFFFFFFF
+#define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000UL
+#define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFFUL
+#define MEMORY_SEGMENT_RING3_LIMIT          0xFFFFFFFFUL
 
-#define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START
-#define MEMORY_SEGMENT_SIGSTACK_SIZE        0x00010000
-#define MEMORY_SEGMENT_EXTRA_BASE           (MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE)
-#define MEMORY_SEGMENT_EXTRA_SIZE           0x00010000
+#define MEMORY_SEGMENT_EXTRA_BASE           MEMORY_LOCATION_RING3_THREAD_START
+#define MEMORY_SEGMENT_EXTRA_SIZE           0x00001000UL
 #elif defined(amd64) || defined(__amd64__)
-/* Architecture Memory Layout
+/**
+ * Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-64 platform in MollenOS 
- * 0x0              =>          0x10000000  (Kernel Memory Space 256 mb)
- * 0x10000000       =>          0xFF000000  (Empty 3.7gb)
- * 0xFF000000       =>          0xFFFFFFFF  (Application Stack Space, 16mb)
- * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
+ * 0x0                =>          0x10000000  (Kernel Memory Space 256 mb)
+ * 0x10000000         =>          0xFF000000  (Empty 3.7gb)
+ * 0x8000000000       =>          0xFFFFFF0000000000 (Application Memory Space - 260tb)
+ * 0xFFFFFFFF00000000 =>          0xFFFFFFFFFFFFFFFF (Thread specific region, 16mb)
  */
-#define MEMORY_LOCATION_KERNEL              0x100000    // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_RAMDISK             0x200000    // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_RESERVED            0x300000    // Driver Space: 240~ mB
-#define MEMORY_LOCATION_VIDEO               0x0F000000  // Video Space: 16 mB
-#define MEMORY_LOCATION_KERNEL_END          0x10000000
-
-#define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
-#define MEMORY_LOCATION_RING3_STACK_START   0xFFFE0000
-#define MEMORY_LOCATION_RING3_STACK_END       0xFE0000
-#define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFF
+#define MEMORY_LOCATION_KERNEL              0x100000ULL    // Kernel Image Space: 1024 kB
+#define MEMORY_LOCATION_RAMDISK             0x200000ULL    // RamDisk Image Space: 1024 kB
+#define MEMORY_LOCATION_RESERVED            0x300000ULL    // Driver Space: 240~ mB
+#define MEMORY_LOCATION_VIDEO               0x0F000000ULL  // Video Space: 16 mB
+#define MEMORY_LOCATION_KERNEL_END          0x10000000ULL
 
 // Every gigabyte in page size blocks is 131 Kb
 // Every gigabyte in 1mb page blocks is then 512 bytes
-#define MEMORY_LOCATION_RING3_CODE          0x200000000
-#define MEMORY_LOCATION_RING3_CODE_END      0x300000000 // 4gb code space
-#define MEMORY_LOCATION_RING3_HEAP          0x300000000
-#define MEMORY_LOCATION_RING3_HEAP_END      0x400000000 // 4gb heap memory space
-//#define MEMORY_LOCATION_RING3_HEAP_END    0xFFFFFFFFFFFFFFFF
+#define MEMORY_LOCATION_RING3_CODE          0x8000000000ULL // PML4[1]
+#define MEMORY_LOCATION_RING3_CODE_END      0x8100000000ULL // 4gb code space
+#define MEMORY_LOCATION_RING3_HEAP          0x8100000000ULL
+#define MEMORY_LOCATION_RING3_HEAP_END      0x8200000000ULL // 4gb heap memory space (for testing purposes...)
 
-#define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START
-#define MEMORY_SEGMENT_SIGSTACK_SIZE        0x00010000
-#define MEMORY_SEGMENT_EXTRA_BASE           (MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE)
-#define MEMORY_SEGMENT_EXTRA_SIZE           0x00010000
+#define MEMORY_LOCATION_RING3_THREAD_START  0xFFFFFFFF00000000ULL // PML4[511]
+#define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFFFFFFFFFFULL
+
+#define MEMORY_SEGMENT_GS_USER_BASE         MEMORY_LOCATION_RING3_THREAD_START
+#define MEMORY_SEGMENT_EXTRA_SIZE           0x1000ULL
 #else
 #error "Either i386 or amd64 must be defined for the x86 arch"
 #endif
 
-/* Special addresses must be between 0x11000000 -> 0x11001000 */
+// Special addresses must be between 0x11000000 -> 0x11001000
 #define MEMORY_LOCATION_SIGNAL_RET 0x110000DE // Signal return address
 
 // Task priorities go from (0x0 => 0x60)

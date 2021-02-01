@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -24,55 +25,73 @@
 
 #include <os/osdefs.h>
 
-/* Paging Definitions
- * Defines paging structure sizes for the different hardware paging structures. */
+/**
+ * Paging Definitions
+ * Defines paging structure sizes for the different hardware paging structures.
+ */
 #define ENTRIES_PER_PAGE        512
 #define PAGE_SIZE               0x1000U
 #define PAGE_MASK               0xFFFFFFFFFFFFF000ULL
 #define ATTRIBUTE_MASK          0x0000000000000FFFULL
 
-/* Table sizes, in 64 bit a table is 2mb 
- * and this means we need to identity map more than a single page-table. */
+/**
+ * Table sizes, in 64 bit a table is 2mb
+ * and this means we need to identity map more than a single page-table.
+ * PageTable - 2Mb
+ * PageDirectory - 1GB
+ * PageDirectoryTable - 512GB
+ * PML4 - 262.1TB
+ */
 #define TABLE_SPACE_SIZE           (PAGE_SIZE * ENTRIES_PER_PAGE)
 #define DIRECTORY_SPACE_SIZE       ((uint64_t)TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define DIRECTORY_TABLE_SPACE_SIZE ((uint64_t)DIRECTORY_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define PML4_SPACE_SIZE            ((uint64_t)DIRECTORY_TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define MEMORY_ALLOCATION_MASK     0x3FFFFFU
 
-/* Indices
- * 9 bits each are used for each part, with the first 12 bits reserved */
+/**
+ * Page directory indices
+ * 9 bits each are used for each part, with the first 12 bits reserved
+ */
 #define PAGE_LEVEL_4_INDEX(x)           (((x) >> 39U) & 0x1FFU)
 #define PAGE_DIRECTORY_POINTER_INDEX(x) (((x) >> 30U) & 0x1FFU)
 #define PAGE_DIRECTORY_INDEX(x)         (((x) >> 21U) & 0x1FFU)
 #define PAGE_TABLE_INDEX(x)             (((x) >> 12U) & 0x1FFU)
 
-/* Page Table Structure
- * Contains a table of pages (level 1) */
+/**
+ * Page table structure
+ * The lowest table structure, contains page-entries (level 1)
+ */
 PACKED_TYPESTRUCT(PageTable, {
-    _Atomic(uint64_t)   Pages[ENTRIES_PER_PAGE];
+    _Atomic(uint64_t) Pages[ENTRIES_PER_PAGE];
 });
 
-/* Page Directory Structure
- * Contains a table of page tables (level 2) */
+/**
+ * Page directory structure
+ * Contains a table of page tables (level 2)
+ */
 PACKED_TYPESTRUCT(PageDirectory, {
-    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t) pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t          vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
-/* Page Directory Table Structure
- * Contains a table of page directories (level 3) */
+/**
+ * Page directory Table Structure
+ * Contains a table of page directories (level 3)
+ */
 PACKED_TYPESTRUCT(PageDirectoryTable, {
-    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t) pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t          vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
-/* Page Master Table Structure
- * Contains a table of page directory tables (level 4) */
+/**
+ * Page Master Table Structure
+ * Contains a table of page directory tables (level 4)
+ */
 PACKED_TYPESTRUCT(PageMasterTable, {
-    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t) pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t          vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
 #define PAGE_MASTER_LEVEL PageMasterTable_t
 
-#endif //!__X86_32_PAGING__
+#endif //!__X86_64_PAGING__

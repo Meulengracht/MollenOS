@@ -75,50 +75,30 @@ __getcr2:
 	mov rax, cr2
 	ret
 
-%macro save_segments 0
-    sub rsp, 16
-    mov qword [rsp + 8], ds
-	mov qword [rsp], es
-	push fs
-	push gs
-%endmacro
-
-%macro restore_segments 0
-	pop gs
-	pop fs
-	mov es, qword [rsp]
-    mov ds, qword [rsp + 8]
-    add rsp, 16
-%endmacro
-
 %macro save_state 0
-	save_segments
+    ; swap gs before manipulating stack
+    test dword [rsp + 24], 3
+    jz .skipswapgsentry
+    swapgs
 
-	; Save Registers
-    push r15
-    push r14
-    push r13
-    push r12
-    push r11
-    push r10
-    push r9
-    push r8
+    .skipswapgsentry:
+        push r15
+        push r14
+        push r13
+        push r12
+        push r11
+        push r10
+        push r9
+        push r8
 
-    push rax
-    push rcx
-    push rdx
-    push rbx
-    push rsp
-    push rbp
-    push rsi
-    push rdi
-
-    ; Switch to kernel data segment
-	mov ax, 0x20
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
+        push rax
+        push rcx
+        push rdx
+        push rbx
+        push rsp
+        push rbp
+        push rsi
+        push rdi
 %endmacro
 
 %macro restore_state 0
@@ -140,11 +120,15 @@ __getcr2:
     pop r13
     pop r14
     pop r15
-	
-    restore_segments
+
+	; swapgs after restoring the stack
+    test dword [rsp + 24], 3
+    jz .skipswapgsexit
+    swapgs
     
 	; Cleanup irq & error code from stack
-	add rsp, 0x10
+	.skipswapgsexit:
+	    add rsp, 0x10
 %endmacro
 
 ;Common entry point for exceptions
@@ -168,7 +152,7 @@ irq_common:
 	; Set current stack as argument 1
 	; Set tableindex as argument 2
     mov rcx, rsp
-    mov rdx, [rsp + 160]
+    mov rdx, [rsp + 128] ; 16*8
     add rdx, 32
     sub rsp, 0x28 ; microsoft home-space + 8 to align
 	call InterruptHandle

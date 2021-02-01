@@ -23,7 +23,6 @@
 #define __MODULE "context"
 //#define __TRACE
 
-#include <arch.h>
 #include <assert.h>
 #include <cpu.h>
 #include <debug.h>
@@ -33,7 +32,6 @@
 #include <memory.h>
 #include <memoryspace.h>
 #include <string.h>
-#include <stdio.h>
 #include <threading.h>
 
 //Identifier to detect newly reset stacks
@@ -139,65 +137,56 @@ ContextPushInterceptor(
 
 void
 ContextReset(
-    _In_ Context_t* Context,
-    _In_ int        ContextType,
-    _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument)
+    _In_ Context_t* context,
+    _In_ int        contextType,
+    _In_ uintptr_t  address,
+    _In_ uintptr_t  argument)
 {
-    uint32_t DataSegment   = 0;
-    uint32_t ExtraSegment  = 0;
-    uint32_t CodeSegment   = 0;
-    uint32_t StackSegment  = 0;
-    uint32_t EbpInitial    = 0;
+    uint32_t dataSegment  = 0;
+    uint32_t extraSegment = 0;
+    uint32_t codeSegment  = 0;
+    uint32_t stackSegment = 0;
+    uint32_t ebpInitial   = (uint32_t)context + sizeof(Context_t);
     
 	// Reset context
-    memset(Context, 0, sizeof(Context_t));
+    memset(context, 0, sizeof(Context_t));
 
-    if (ContextType == THREADING_CONTEXT_LEVEL0) {
-		CodeSegment  = GDT_KCODE_SEGMENT;
-		DataSegment  = GDT_KDATA_SEGMENT;
-		ExtraSegment = GDT_KDATA_SEGMENT;
-		StackSegment = GDT_KDATA_SEGMENT;
-		EbpInitial   = ((uint32_t)Context + sizeof(Context_t));
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        codeSegment  = GDT_KCODE_SEGMENT;
+        dataSegment  = GDT_KDATA_SEGMENT;
+        extraSegment = GDT_KDATA_SEGMENT;
+        stackSegment = GDT_KDATA_SEGMENT;
     }
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
-        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
-        CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
-	    StackSegment = GDT_UDATA_SEGMENT + 0x03;
-	    DataSegment  = GDT_UDATA_SEGMENT + 0x03;
-        
-	    // Base should point to top of stack
-	    if (ContextType == THREADING_CONTEXT_LEVEL1) {
- 			EbpInitial = MEMORY_LOCATION_RING3_STACK_START;
-	    }
-	    else {
-	    	EbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
-	    }
-        
+    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
+        extraSegment = GDT_EXTRA_SEGMENT + 0x03;
+        codeSegment  = GDT_UCODE_SEGMENT + 0x03;
+        stackSegment = GDT_UDATA_SEGMENT + 0x03;
+        dataSegment  = GDT_UDATA_SEGMENT + 0x03;
+
 		// Either initialize the ring3 stuff or zero out the values
-	    Context->Eax = CONTEXT_RESET_IDENTIFIER;
+	    context->Eax = CONTEXT_RESET_IDENTIFIER;
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Setup segments for the stack
-    Context->Ds  = DataSegment;
-    Context->Es  = DataSegment;
-    Context->Fs  = DataSegment;
-    Context->Gs  = ExtraSegment;
-    Context->Ebp = EbpInitial;
+    context->Ds  = dataSegment;
+    context->Es  = dataSegment;
+    context->Fs  = dataSegment;
+    context->Gs  = extraSegment;
+    context->Ebp = ebpInitial;
 
     // Setup entry, eflags and the code segment
-    Context->Eip     = Address;
-    Context->Eflags  = CPU_EFLAGS_DEFAULT;
-    Context->Cs      = CodeSegment;
-    Context->UserEsp = (uint32_t)&Context->Arguments[0];
-    Context->UserSs  = StackSegment;
+    context->Eip     = address;
+    context->Eflags  = CPU_EFLAGS_DEFAULT;
+    context->Cs      = codeSegment;
+    context->UserEsp = (uint32_t)&context->Arguments[0];
+    context->UserSs  = stackSegment;
 
     // Setup arguments
-    Context->Arguments[0] = 0;  // Return address
-    Context->Arguments[1] = Argument;
+    context->Arguments[0] = 0;  // Return address
+    context->Arguments[1] = argument;
 }
 
 Context_t*
@@ -205,93 +194,87 @@ ContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
-	OsStatus_t           status;
-	uintptr_t            physicalContextAddress;
-    uintptr_t            contextAddress = 0;
-	MemorySpace_t * memorySpace = GetCurrentMemorySpace();
+    OsStatus_t     status;
+    uintptr_t      physicalContextAddress;
+    uintptr_t      contextAddress = 0;
+    unsigned int   placementFlags = 0;
+    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_GUARDPAGE;
+    MemorySpace_t* memorySpace    = GetCurrentMemorySpace();
 
-	// Select proper segments based on context type and run-mode
-	if (contextType == THREADING_CONTEXT_LEVEL0) {
-		// Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
-		// Reserve space for size + guard page
-		status = MemorySpaceMapReserved(memorySpace, &contextAddress,
-			contextSize + PAGE_SIZE, 0, MAPPING_VIRTUAL_GLOBAL);
-		if (status != OsSuccess) {
-			return NULL;
-		}
-		
-		// Fixup contextAddress and commit size to memory
-		status = MemorySpaceCommit(memorySpace, contextAddress + PAGE_SIZE,
-			&physicalContextAddress, contextSize, 0);
-		if (status != OsSuccess) {
-			MemorySpaceUnmap(memorySpace, contextAddress, contextSize + PAGE_SIZE);
-			return NULL;
-		}
-		
-		contextAddress += (PAGE_SIZE + contextSize) - sizeof(Context_t);
-	}
-    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
-    	// For both level1 and signal, we return a pointer to STACK_TOP_PAGE_BOTTOM
-        if (contextType == THREADING_CONTEXT_LEVEL1) {
-		    contextAddress = MEMORY_LOCATION_RING3_STACK_START - PAGE_SIZE;
-        }
-        else {
-		    contextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
-        }
-        
-        status = MemorySpaceCommit(memorySpace, contextAddress,
-        	&physicalContextAddress, contextSize, 0);
-        if (status != OsSuccess) {
-        	return NULL;
-        }
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        placementFlags = MAPPING_VIRTUAL_GLOBAL;
     }
-	else {
-		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
-	}
-	return (Context_t*)contextAddress;
+    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
+        placementFlags = MAPPING_VIRTUAL_THREAD;
+        memoryFlags |= MAPPING_USERSPACE;
+    }
+    else {
+        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+    }
+
+    // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
+    status = MemorySpaceMapReserved(memorySpace, &contextAddress, contextSize, memoryFlags, placementFlags);
+    if (status != OsSuccess) {
+        return NULL;
+    }
+
+    // Adjust pointer to top of stack and then commit the first stack page
+    status = MemorySpaceCommit(memorySpace, contextAddress + (contextSize - sizeof(Context_t)),
+                               &physicalContextAddress, PAGE_SIZE, 0);
+    if (status != OsSuccess) {
+        MemorySpaceUnmap(memorySpace, contextAddress, contextSize);
+        return NULL;
+    }
+
+    contextAddress += contextSize - sizeof(Context_t);
+
+    return (Context_t*)contextAddress;
 }
 
 void
 ContextDestroy(
-    _In_ Context_t* context,
-    _In_ int        contextType,
-    _In_ size_t     contextSize)
+        _In_ Context_t* context,
+        _In_ int        contextType,
+        _In_ size_t     contextSize)
 {
-    if (!context) {
+    uintptr_t contextAddress;
+
+    // do not touch LEVEL1+SIGNAL as they are mapped as thread memory in another space
+    if (!context || contextType != THREADING_CONTEXT_LEVEL0) {
         return;
     }
-    
-    // If it is kernel space contexts they are allocated in the kernel space,
-    // otherwise they are cleaned up by the memory space
-    if (contextType == THREADING_CONTEXT_LEVEL0) {
-        uintptr_t contextAddress = (uintptr_t)context + sizeof(Context_t);
-        MemorySpaceUnmap(GetCurrentMemorySpace(), 
-        	contextAddress - (contextSize + PAGE_SIZE),
-            contextSize + PAGE_SIZE);
-    }
+
+    TRACE("[ContextDestroy] 0x%llx", context);
+
+    // adjust for size of context_t and then adjust back to base address
+    contextAddress  = (uintptr_t)context;
+    contextAddress += sizeof(Context_t);
+    contextAddress -= contextSize;
+
+    MemorySpaceUnmap(GetCurrentMemorySpace(), contextAddress, contextSize);
 }
 
 OsStatus_t
 ArchDumpThreadContext(
-    _In_ Context_t *Context)
+    _In_ Context_t* context)
 {
     // Dump general registers
     WRITELINE("EAX: 0x%" PRIxIN ", EBX 0x%" PRIxIN ", ECX 0x%" PRIxIN ", EDX 0x%" PRIxIN "",
-        Context->Eax, Context->Ebx, Context->Ecx, Context->Edx);
+              context->Eax, context->Ebx, context->Ecx, context->Edx);
 
     // Dump stack registers
     WRITELINE("ESP 0x%" PRIxIN " (UserESP 0x%" PRIxIN "), EBP 0x%" PRIxIN ", Flags 0x%" PRIxIN "",
-        Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
+              context->Esp, context->UserEsp, context->Ebp, context->Eflags);
         
     // Dump copy registers
-    WRITELINE("ESI 0x%" PRIxIN ", EDI 0x%" PRIxIN "", Context->Esi, Context->Edi);
+    WRITELINE("ESI 0x%" PRIxIN ", EDI 0x%" PRIxIN "", context->Esi, context->Edi);
 
     // Dump segments
     WRITELINE("CS 0x%" PRIxIN ", DS 0x%" PRIxIN ", GS 0x%" PRIxIN ", ES 0x%" PRIxIN ", FS 0x%" PRIxIN "",
-        Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
+              context->Cs, context->Ds, context->Gs, context->Es, context->Fs);
 
     // Dump IRQ information
     WRITELINE("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
-        Context->Irq, Context->ErrorCode, Context->UserSs);
+              context->Irq, context->ErrorCode, context->UserSs);
     return OsSuccess;
 }

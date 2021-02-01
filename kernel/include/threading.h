@@ -63,14 +63,14 @@ typedef void(*ThreadEntry_t)(void*);
  * Bit 3: If it's currently in switch-mode */
 #define THREADING_KERNELMODE            0x00000000U
 #define THREADING_USERMODE              0x00000001U
-#define THREADING_MODEMASK              0x00000003U
+#define THREADING_MODEMASK              0x00000001U
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
 
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
-#define THREADING_KERNELENTRY           0x00000004U
-#define THREADING_IDLE                  0x00000008U
-#define THREADING_INHERIT               0x00000010U
+#define THREADING_KERNELENTRY           0x00000004U  // Mark this thread as requiring transition mode
+#define THREADING_IDLE                  0x00000008U  // Mark this thread as an idle thread
+#define THREADING_INHERIT               0x00000010U  // Inherit from creator
 #define THREADING_TRANSITION_USERMODE   0x10000000U
 
 #define THREAD_GET(Handle) (Thread_t*)LookupHandleOfType(Handle, HandleTypeThread)
@@ -82,12 +82,14 @@ typedef void(*ThreadEntry_t)(void*);
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadCreate(
-    _In_  const char*    name,
-    _In_  ThreadEntry_t  entry,
-    _In_  void*          arguments,
-    _In_  unsigned int   flags,
-    _In_  UUId_t         memorySpaceHandle,
-    _Out_ UUId_t*        handle);
+        _In_ const char*   name,
+        _In_ ThreadEntry_t entry,
+        _In_ void*         arguments,
+        _In_ unsigned int  flags,
+        _In_ UUId_t        memorySpaceHandle,
+        _In_ size_t        kernelMaxStackSize,
+        _In_ size_t        userMaxStackSize,
+        _In_ UUId_t*       handle);
 
 /**
  * ThreadTerminate
@@ -314,7 +316,7 @@ ThreadingEnable(void);
  * @param EntryPoint The entry point from where to execute code in usermode
  * @param Argument A pointer or value that should be passed to entry point as argument
  */
-KERNELAPI void KERNELABI
+KERNELAPI _Noreturn void KERNELABI
 ThreadingEnterUsermode(
         _In_ ThreadEntry_t EntryPoint,
         _In_ void*         Argument);
@@ -329,12 +331,5 @@ ThreadingAdvance(
         _In_  int     Preemptive,
         _In_  size_t  MillisecondsPassed,
         _Out_ size_t* NextDeadlineOut);
-
-/**
- * DisplayActiveThreads
- * Prints out debugging information about each thread in the system, only active threads
- */
-KERNELAPI void KERNELABI
-DisplayActiveThreads(void);
 
 #endif //!__THREADING_H__

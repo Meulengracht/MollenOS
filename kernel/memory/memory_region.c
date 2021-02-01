@@ -150,7 +150,7 @@ MemoryRegionCreate(
     }
     
     memset(Region, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * PageCount));
-    MutexConstruct(&Region->SyncObject, MUTEX_PLAIN);
+    MutexConstruct(&Region->SyncObject, MUTEX_FLAG_PLAIN);
     Region->Flags     = Flags;
     Region->Length    = Length;
     Region->Capacity  = Capacity;
@@ -201,7 +201,7 @@ MemoryRegionCreateExisting(
     }
     
     memset(region, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
-    MutexConstruct(&region->SyncObject, MUTEX_PLAIN);
+    MutexConstruct(&region->SyncObject, MUTEX_FLAG_PLAIN);
     region->Flags     = flags;
     region->Length    = capacityWithOffset;
     region->Capacity  = capacityWithOffset;

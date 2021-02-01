@@ -83,25 +83,24 @@ DebugPageFault(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    MemorySpace_t * Space = GetCurrentMemorySpace();
-    uintptr_t            PhysicalAddress;
-    OsStatus_t           Status;
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    uintptr_t      physicalAddress;
+    OsStatus_t     osStatus;
     
-    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", 
-        CONTEXT_IP(Context), Address);
+    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", CONTEXT_IP(Context), Address);
 
-    if (Space->Context != NULL) {
+    if (memorySpace->Context != NULL) {
         if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
     }
-    
-    Status = MemorySpaceCommit(Space, Address, &PhysicalAddress, 
-        GetMemorySpacePageSize(), 0);
-    if (Status == OsExists) {
-        Status = OsSuccess;
+
+    osStatus = MemorySpaceCommit(memorySpace, Address, &physicalAddress,
+                                 GetMemorySpacePageSize(), 0);
+    if (osStatus == OsExists) {
+        osStatus = OsSuccess;
     }
-    return Status;
+    return osStatus;
 }
 
 static OsStatus_t

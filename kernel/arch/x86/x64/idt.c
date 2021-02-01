@@ -27,104 +27,62 @@
 
 extern idt_stub_t IdtStubs[IDT_DESCRIPTOR_COUNT];
 
-IdtObject_t __IdtTableObject;
-static IdtEntry_t IdtDescriptors[IDT_DESCRIPTOR_COUNT] = { { 0 } };
+IdtObject_t       g_idtTable;
+static IdtEntry_t g_idtDescriptors[IDT_DESCRIPTOR_COUNT] = {{0 } };
 
 static void InterruptInstallDefaultGates(void);
+static int  SelectIdtStack(int idtIndex);
 
 static void
 IdtInstallDescriptor(
-    _In_ int      IntNum,
-    _In_ uint64_t Base,
-	_In_ uint16_t Selector,
-    _In_ uint8_t  Flags,
-    _In_ uint8_t  IstIndex)
+    _In_ int      idtIndex,
+    _In_ uint64_t handleAddress,
+	_In_ uint16_t codeSegment,
+    _In_ uint8_t  flags,
+    _In_ uint8_t  istIndex)
 {
-	IdtDescriptors[IntNum].BaseLow    = (uint16_t)(Base & 0xFFFF);
-	IdtDescriptors[IntNum].BaseMiddle = (uint16_t)((Base >> 16) & 0xFFFF);
-	IdtDescriptors[IntNum].BaseHigh   = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
-	IdtDescriptors[IntNum].Selector   = Selector;
-	IdtDescriptors[IntNum].Flags      = Flags;
-	IdtDescriptors[IntNum].IstIndex   = IstIndex;
-	IdtDescriptors[IntNum].Zero       = 0;
+    g_idtDescriptors[idtIndex].BaseLow    = (uint16_t)(handleAddress & 0xFFFF);
+    g_idtDescriptors[idtIndex].BaseMiddle = (uint16_t)((handleAddress >> 16) & 0xFFFF);
+    g_idtDescriptors[idtIndex].BaseHigh   = (uint32_t)((handleAddress >> 32) & 0xFFFFFFFF);
+    g_idtDescriptors[idtIndex].Selector   = codeSegment;
+    g_idtDescriptors[idtIndex].Flags      = flags;
+    g_idtDescriptors[idtIndex].IstIndex   = istIndex;
+    g_idtDescriptors[idtIndex].Zero       = 0;
 }
 
 void IdtInitialize(void)
 {
-	__IdtTableObject.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTOR_COUNT) - 1;
-	__IdtTableObject.Base  = (uint64_t)&IdtDescriptors[0];
+    g_idtTable.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTOR_COUNT) - 1;
+    g_idtTable.Base  = (uint64_t)&g_idtDescriptors[0];
 	InterruptInstallDefaultGates();
 
 	// Override ALL call gates that need on per-thread base
     // INTERRUPT_SYSCALL, INTERRUPT_LAPIC
 	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
-		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32, IDT_IST_INDEX_LEGACY);
+		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32,
+		SelectIdtStack(INTERRUPT_SYSCALL));
 	IdtInstallDescriptor(INTERRUPT_LAPIC, (uint64_t)IdtStubs[INTERRUPT_LAPIC], 
-        GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_LEGACY);
+        GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32,
+        SelectIdtStack(INTERRUPT_LAPIC));
 	IdtInstall();
 }
 
-static int
-SelectIdtStack(int IdtEntry)
+static int SelectIdtStack(int idtIndex)
 {
-	switch (IdtEntry) {
-		case 0:         // Div-By-Zero
-		case 14: {      // Page-Fault
-			return IDT_IST_INDEX_LEGACY;
-		};
-		
-		case 1: {       // Single-Step
-			return IDT_IST_INDEX_SS;
-		};
-		
-		case 2: {       // NMI
-			return IDT_IST_INDEX_NMI;
-		};
-		
-		case 3: {		// Breakpoint
-			return IDT_IST_INDEX_DBG;
-		};
-		
-		case 4:			// Overflow
-		case 5:			// Bound-Range Exceeded
-		case 6:			// Invalid Opcode
-		case 7:  		// DeviceNotAvailable
-		case 9:			// Coprocessor Segment Overrun
-		case 10:		// Invalid TSS
-		case 11:		// Segment Not Present
-		case 12:		// Stack Segment Fault
-		case 13:		// General Protection Fault
-		case 15:		//
-		case 16:		// FPU Exception
-		case 17:
-		case 19:		// SIMD Floating Point Exception
-		case 20:
-		case 21:
-		case 22:
-		case 23:
-		case 24:
-		case 25:
-		case 26:
-		case 27:
-		case 28:
-		case 29:
-		case 30:
-		case 31: {
-			return IDT_IST_INDEX_EXC;
-		};
-		
-		case 8: {		// Double Fault
-			return IDT_IST_INDEX_DBF;
-		};
-		
-		case 18: {
-			return IDT_IST_INDEX_MCE;
-		};
-		
+    // Handle exceptions that are suscibtle to stack issues
+	switch (idtIndex) {
+	    case 1:  { return IDT_IST_INDEX_DB;  }
+	    case 2:  { return IDT_IST_INDEX_NMI; }
+        case 8:  { return IDT_IST_INDEX_DBF; };
+        case 14: { return IDT_IST_INDEX_PF;  };
+        case 18: { return IDT_IST_INDEX_MCE; };
+
 		default:
 			break;
 	}
-	return IDT_IST_INDEX_ISR;
+
+	// Default to legacy stack switch mechanism
+	return IDT_IST_INDEX_LEGACY;
 }
 
 static void
@@ -134,15 +92,15 @@ InterruptInstallDefaultGates(void)
 	
 	// Install exception handlers
 	for (i = 0; i < 32; i++) {
-		int StackIndex = SelectIdtStack(i);
+		int stackIndex = SelectIdtStack(i);
 		IdtInstallDescriptor(i, (uint64_t)IdtStubs[i], GDT_KCODE_SEGMENT, 
-			IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, StackIndex);
+			IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, stackIndex);
 	}
 	
 	// Install interrupt routine handlers
 	for (; i < IDT_DESCRIPTOR_COUNT; i++) {
-		int StackIndex = SelectIdtStack(i);
+		int stackIndex = SelectIdtStack(i);
 		IdtInstallDescriptor(i, (uint64_t)IdtStubs[i], GDT_KCODE_SEGMENT,
-			IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, StackIndex);
+			IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, stackIndex);
 	}
 }

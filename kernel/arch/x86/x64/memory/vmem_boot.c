@@ -39,7 +39,7 @@
 #include <string.h>
 
 extern uintptr_t AllocateBootMemory(size_t);
-extern uintptr_t LastReservedAddress;
+extern uintptr_t g_lastReservedAddress;
 
 static uintptr_t PML4BootPhysicalAddress = 0;
 
@@ -196,7 +196,7 @@ CreateKernelVirtualMemorySpace(void)
     
     // Get the number of reserved bytes - this address is the NEXT page available for
     // allocation, so subtract a page
-    BytesToMap = READ_VOLATILE(LastReservedAddress) - PAGE_SIZE;
+    BytesToMap = READ_VOLATILE(g_lastReservedAddress) - PAGE_SIZE;
 
     // Do the identity map process for entire 2nd page - LastReservedAddress
     TRACE("[vmem] [boot_create] identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "", 

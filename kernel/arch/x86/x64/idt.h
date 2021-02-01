@@ -50,16 +50,17 @@
 #define IDT_STORAGE_SEGMENT         0x10
 #define IDT_PRESENT                 0x80
 
-/* IDT IST Indices
- * These are used to make use of the specific interrupt stack table in the TSS. */
-#define IDT_IST_INDEX_LEGACY        0
-#define IDT_IST_INDEX_DBG           1 // Shared with SS
-#define IDT_IST_INDEX_SS            1 // Shared with DBG
-#define IDT_IST_INDEX_NMI           2
-#define IDT_IST_INDEX_MCE           3
-#define IDT_IST_INDEX_DBF           4
-#define IDT_IST_INDEX_EXC           5
-#define IDT_IST_INDEX_ISR           6
+/**
+ * IDT IST Indices
+ * These are used to make use of the specific interrupt stack table in the TSS.
+ * 0 Index is the legacy stack switching method, we use that for normal interrupts.
+ */
+#define IDT_IST_INDEX_LEGACY 0 // Legacy switching (rsp from TSS ring 0)
+#define IDT_IST_INDEX_DBF    1 // Double fault stack
+#define IDT_IST_INDEX_PF     2 // Page fault stack
+#define IDT_IST_INDEX_MCE    3 // Machine check fault stack
+#define IDT_IST_INDEX_NMI    4 // Non-maskable interrupt stack
+#define IDT_IST_INDEX_DB     5 // Debug stack
 
 /* The IDT base structure, this is what the hardware
  * will poin to, that describes the memory range where

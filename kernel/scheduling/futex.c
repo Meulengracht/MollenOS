@@ -45,8 +45,8 @@ typedef struct FutexItem {
     spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
     
-    MemorySpaceContext_t * Context;
-    uintptr_t                   FutexAddress;
+    MemorySpaceContext_t* Context;
+    uintptr_t             FutexAddress;
 } FutexItem_t;
 
 // One per futex key
@@ -112,8 +112,8 @@ FutexGetNode(
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexCreateNode(
-        _In_ FutexBucket_t*              Bucket,
-        _In_ uintptr_t                   FutexAddress,
+        _In_ FutexBucket_t*        Bucket,
+        _In_ uintptr_t             FutexAddress,
         _In_ MemorySpaceContext_t* Context)
 {
     FutexItem_t* Existing;

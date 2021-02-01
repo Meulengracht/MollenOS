@@ -60,6 +60,11 @@
 #define CPU_EFLAGS_DEFAULT          0x202
 #define CPU_EFLAGS_SINGLESTEP       0x100
 
+#define CPU_MSR_LAPIC_BASE      0x0000001B
+#define CPU_MSR_FS_BASE         0xC0000100
+#define CPU_MSR_GS_BASE         0xC0000101
+#define CPU_MSR_KERNEL_GS_BASE  0xC0000102
+
 enum CpuFeatures {
 	//Features contained in ECX register
 	CPUID_FEAT_ECX_SSE3 = 1 << 0,
@@ -123,15 +128,9 @@ enum CpuFeatures {
 	CPUID_FEAT_EDX_PBE = 1 << 31
 };
 
-/* CpuInitializeFeatures
- * Initializes all onboard features on the running core. This can be extended features
- * as SSE, MMX, FPU, AVX etc */
-KERNELAPI void KERNELABI
-CpuInitializeFeatures(void);
-
-/* CpuHasFeatures
- * Determines if the cpu has the requested features */
-KERNELAPI OsStatus_t KERNELABI
-CpuHasFeatures(unsigned int Ecx, unsigned int Edx);
+KERNELAPI void KERNELABI       CpuInitializeFeatures(void); // call once for each cpu
+KERNELAPI OsStatus_t KERNELABI CpuHasFeatures(unsigned int Ecx, unsigned int Edx);
+KERNELAPI void KERNELABI       CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
+KERNELAPI void KERNELABI       CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
 
 #endif // !_x86_CPU_H_

@@ -81,10 +81,10 @@ ContextDestroy(
  * Resets an already existing context to new with the given parameters. */
 KERNELAPI void KERNELABI
 ContextReset(
-    _In_ Context_t* Context,
-    _In_ int        ContextType,
-    _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument); 
+    _In_ Context_t* context,
+    _In_ int        contextType,
+    _In_ uintptr_t  address,
+    _In_ uintptr_t  argument);
 
 /**
  * ContextPushInterceptor

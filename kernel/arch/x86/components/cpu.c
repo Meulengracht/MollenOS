@@ -58,6 +58,8 @@ extern void CpuEnableAvx(void);
 extern void CpuEnableSse(void);
 extern void CpuEnableGpe(void);
 extern void CpuEnableFpu(void);
+extern void _rdmsr(size_t reg, uint64_t* value);
+extern void _wrmsr(size_t reg, uint64_t* value);
 
 /* TrimWhitespaces
  * Trims leading and trailing whitespaces in-place on the given string. This is neccessary
@@ -228,6 +230,14 @@ CpuInitializeFeatures(void)
             CpuEnableAvx();
         }
     }
+
+#ifdef __amd64__
+    // In 64 bit mode we want to set the GS-base for the OS. The reason
+    // we fill the kernel GS base with the user-one is that we start in kernel mode
+    // and don't want the user-one swapped in untill later
+    uint64_t userGsBase = MEMORY_SEGMENT_GS_USER_BASE;
+    CpuWriteModelRegister(CPU_MSR_KERNEL_GS_BASE, &userGsBase);
+#endif
 }
 
 OsStatus_t
@@ -304,6 +314,26 @@ CpuInvalidateMemoryCache(
         for (; StartAddress < EndAddress; StartAddress += PAGE_SIZE) {
             memory_invalidate_addr(StartAddress);
         }
+    }
+}
+
+void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
+{
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsSuccess) {
+        _rdmsr(registerIndex, pointerToValue);
+    }
+    else {
+        ERROR("[read_msr] MSR is not supported on this cpu: %u", registerIndex);
+    }
+}
+
+void CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
+{
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsSuccess) {
+        _wrmsr(registerIndex, pointerToValue);
+    }
+    else {
+        ERROR("[write_msr] MSR is not supported on this cpu: %u", registerIndex);
     }
 }
 

@@ -29,8 +29,6 @@
 #include <modules/module.h>
 #include <arch/utils.h>
 #include <threading.h>
-#include <machine.h>
-#include <handle.h>
 #include <timers.h>
 #include <debug.h>
 
@@ -77,8 +75,9 @@ SpawnModule(
     Module->BaseDirectory    = MStringSubString(Module->Path, 0, index);
     moduleName               = MStringSubString(Module->Path, index + 1, -1);
     status                   = ThreadCreate(MStringRaw(moduleName), ModuleThreadEntry, Module,
-                                THREADING_KERNELENTRY | THREADING_USERMODE, UUID_INVALID,
-                                &Module->PrimaryThreadId);
+                                            THREADING_KERNELENTRY | THREADING_USERMODE, UUID_INVALID,
+                                            GetMemorySpacePageSize() * 2, // allow loader threads 8kb kernel stacks
+                                            0, &Module->PrimaryThreadId);
     MStringDestroy(moduleName);
     if (status != OsSuccess) {
         // @todo cleanup everything?

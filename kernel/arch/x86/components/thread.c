@@ -24,13 +24,10 @@
 //#define __TRACE
 
 #include <component/cpu.h>
-#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <threading.h>
 #include <interrupts.h>
-#include <memory.h>
-#include <handle.h>
 #include <debug.h>
 #include <heap.h>
 #include <apic.h>
@@ -39,7 +36,6 @@
 
 #include <assert.h>
 #include <string.h>
-#include <stdio.h>
 
 extern size_t GlbTimerQuantum;
 extern void load_fpu(uintptr_t *buffer);
@@ -77,8 +73,10 @@ ThreadingUnregister(
     if (!threadData) {
         return OsInvalidParameters;
     }
-    
-    kfree((void*)threadData[THREAD_DATA_MATHBUFFER]);
+
+    if (threadData[THREAD_DATA_MATHBUFFER]) {
+        kfree((void*)threadData[THREAD_DATA_MATHBUFFER]);
+    }
     return OsSuccess;
 }
 

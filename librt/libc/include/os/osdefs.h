@@ -83,7 +83,7 @@ typedef void*        Handle_t;
 #define HANDLE_INVALID (Handle_t)0
 #define HANDLE_GLOBAL  (Handle_t)1
 
-typedef enum {
+typedef enum OsStatus {
     OsSuccess = 0,
     OsError,                // Error - Generic
     OsExists,               // Error - Resource already exists
@@ -145,58 +145,58 @@ typedef union LargeUInteger {
 } LargeUInteger_t;
 
 static inline int
-FirstSetBit(size_t Value)
+FirstSetBit(size_t value)
 {
-    int bCount = 0;
-    size_t Cc = Value;
+    int    bitCount = 0;
+    size_t data     = value;
 
-    for (; Cc != 0;) {
-        bCount++;
-        Cc >>= 1;
+    for (; data != 0;) {
+        bitCount++;
+        data >>= 1;
     }
-    return bCount;
+    return bitCount;
 }
 
 static inline int
-LastSetBit(size_t Value)
+LastSetBit(size_t value)
 {
-    size_t _Val = Value;
-    int bIndex = 0;
+    size_t data     = value;
+    int    bitIndex = 0;
 
-    while (_Val >>= 1) {
-        bIndex++;
+    while (data >>= 1) {
+        bitIndex++;
     }
-    return bIndex;
+    return bitIndex;
 }
 
 static inline int
-IsPowerOfTwo(size_t Value)
+IsPowerOfTwo(size_t value)
 {
-    if (Value == 0) {
+    if (value == 0) {
         return 0;
     }
    
-    while (Value != 1) {
-        if (Value & 0x1) {
+    while (value != 1) {
+        if (value & 0x1) {
             return 0;
         }
-        Value >>= 1;
+        value >>= 1;
     }
     return 1;    
 }
 
 static inline size_t
-NextPowerOfTwo(size_t Value)
+NextPowerOfTwo(size_t value)
 {
-    size_t Next = 1;
-    if (Value >> (__BITS - 1) == 1) {
-        return Value;
+    size_t next = 1;
+    if (value >> (__BITS - 1) == 1) {
+        return value;
     }
     
-    while (Next < Value) {
-        Next <<= 1;
+    while (next < value) {
+        next <<= 1;
     }
-    return Next;
+    return next;
 }
 
 #define _MAXPATH                                512
@@ -223,6 +223,10 @@ NextPowerOfTwo(size_t Value)
 #define MSEC_PER_SEC                            1000L
 #define NSEC_PER_SEC                            1000000000L
 #define FSEC_PER_SEC                            1000000000000000LL
+
+#define BYTES_PER_KB 1024
+#define BYTES_PER_MB (BYTES_PER_KB * 1024)
+#define BYTES_PER_GB (BYTES_PER_MB * 1024)
 
 #ifndef LOWORD
 #define LOWORD(l)                               ((uint16_t)(uint32_t)(l))

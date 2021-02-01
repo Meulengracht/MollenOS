@@ -39,8 +39,11 @@
 #define MEMORY_SPACE_INHERIT            0x00000001U
 #define MEMORY_SPACE_APPLICATION        0x00000002U
 
-/* MemorySpace (Flags) Definitions
- * Definitions, bit definitions and magic constants for memory spaces */
+/**
+ * MemorySpace (Flags) Definitions
+ * Definitions, bit definitions and magic constants for memory spaces
+ * Default settings for mappings are READ|WRITE is set.
+ */
 #define MAPPING_USERSPACE               0x00000001U  // Userspace mapping
 #define MAPPING_NOCACHE                 0x00000002U  // Disable caching for mapping
 #define MAPPING_READONLY                0x00000004U  // Memory can only be read
@@ -50,13 +53,17 @@
 #define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
 #define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
 #define MAPPING_LOWFIRST                0x00000100U  // Memory resources should be allocated by low-addresses first
+#define MAPPING_GUARDPAGE               0x00000200U  // Memory resource is a stack and needs a guard page
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 
 #define MAPPING_VIRTUAL_GLOBAL          0x00000002U  // (Virtual) Mapping is done in global access memory
 #define MAPPING_VIRTUAL_PROCESS         0x00000004U  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_FIXED           0x00000008U  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x0000000EU
+#define MAPPING_VIRTUAL_THREAD          0x00000008U  // (Virtual) Mapping is thread specific
+#define MAPPING_VIRTUAL_FIXED           0x00000010U  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x0000001EU
+
+#define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
 
 typedef struct MemoryMappingHandler {
     element_t Header;
@@ -65,67 +72,58 @@ typedef struct MemoryMappingHandler {
     size_t    Length;
 } MemoryMappingHandler_t;
 
+// one per thread group [process]
 typedef struct MemorySpaceContext {
     DynamicMemoryPool_t Heap;
     list_t*             MemoryHandlers;
     uintptr_t           SignalHandler;
 } MemorySpaceContext_t;
 
+// one per thread
 typedef struct MemorySpace {
     UUId_t                ParentHandle;
     unsigned int          Flags;
     uintptr_t             Data[MEMORY_DATACOUNT];
     MemorySpaceContext_t* Context;
+    DynamicMemoryPool_t   ThreadMemory;
 } MemorySpace_t;
 
-/* InitializeMemorySpace
+/**
+ * InitializeMemorySpace
  * Initializes the system memory space. This initializes a static version of the
- * system memory space which is the default space the cpu should use for kernel operation. */
+ * system memory space which is the default space the cpu should use for kernel operation.
+ */
 KERNELAPI OsStatus_t KERNELABI
 InitializeMemorySpace(
         _In_ MemorySpace_t* SystemMemorySpace);
 
-/* CreateMemorySpace
+/**
+ * CreateMemorySpace
  * Initialize a new memory space, depending on what user is requesting we 
- * might recycle a already existing address space */
+ * might recycle a already existing address space
+ */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpace(
     _In_  unsigned int Flags,
     _Out_ UUId_t* Handle);
 
-/* DestroyMemorySpace
- * Callback invoked by the handle system when references on a process reaches zero */
-KERNELAPI void KERNELABI
-DestroyMemorySpace(
-    _In_ void* Resource);
-
-/* SwitchMemorySpace
+/**
+ * SwitchMemorySpace
  * Switches the current address space out with the the address space provided 
- * for the current cpu */
+ * for the current cpu.
+ */
 KERNELAPI void KERNELABI
 SwitchMemorySpace(
         _In_ MemorySpace_t*);
 
-/* GetCurrentMemorySpace
- * Returns the current address space if there is no active threads or threading
- * is not setup it returns the kernel address space */
-KERNELAPI MemorySpace_t* KERNELABI
-GetCurrentMemorySpace(void);
+KERNELAPI UUId_t KERNELABI         GetCurrentMemorySpaceHandle(void);
+KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
+KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 
-/* GetDomainMemorySpace
- * Retrieves the system's current copy of its memory space. If domains are active it will
- * be for the current domain, if system is uma-mode it's the machine wide. */
-KERNELAPI MemorySpace_t* KERNELABI
-GetDomainMemorySpace(void);
-
-/* GetCurrentMemorySpaceHandle
- * Returns the current address space if there is no active threads or threading
- * is not setup it returns the kernel address space */
-KERNELAPI UUId_t KERNELABI
-GetCurrentMemorySpaceHandle(void);
-
-/* AreMemorySpacesRelated 
- * Checks if two memory spaces are related to each other by sharing resources. */
+/**
+ * AreMemorySpacesRelated
+ * Checks if two memory spaces are related to each other by sharing resources.
+ */
 KERNELAPI OsStatus_t KERNELABI
 AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
@@ -172,50 +170,51 @@ MemorySpaceMapContiguous(
 /**
  * MemorySpaceMapReserved
  * * Marks a virtual region of memory as reserved
- * @param MemorySpace          [In]      The memory space where the mapping should be created.
- * @param Address              [In, Out] The virtual address that should be mapped. 
+ * @param memorySpace          [In]      The memory space where the mapping should be created.
+ * @param address              [In, Out] The virtual address that should be mapped.
  *                                       Can also be auto assigned if not provided.
- * @param MemoryFlags          [In]      Memory mapping configuration flags.
- * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ * @param memoryFlags          [In]      Memory mapping configuration flags.
+ * @param placementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMapReserved(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ VirtualAddress_t*    Address,
-        _In_    size_t               Length,
-        _In_    unsigned int              MemoryFlags,
-        _In_    unsigned int              PlacementFlags);
+        _In_    MemorySpace_t* memorySpace,
+        _InOut_ VirtualAddress_t*    address,
+        _In_    size_t               size,
+        _In_    unsigned int              memoryFlags,
+        _In_    unsigned int              placementFlags);
 
 /**
  * MemorySpaceUnmap
  * * Unmaps a virtual memory region from an address space.
- * @param MemorySpace
- * @param Address
- * @param Size 
+ * @param memorySpace
+ * @param address
+ * @param size
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceUnmap(
-        _In_ MemorySpace_t* MemorySpace,
-        _In_ VirtualAddress_t     Address,
-        _In_ size_t               Size);
+        _In_ MemorySpace_t* memorySpace,
+        _In_ VirtualAddress_t     address,
+        _In_ size_t               size);
 
 /** 
  * MemorySpaceCommit
- * * Commits/finishes an already present memory mapping. If a physical address
- * * is not already provided one will be allocated for the mapping.
- * @param MemorySpace           [In] The memory space where the mapping should be commited.
- * @param Address               [In] The virtual address that should be committed.
- * @param PhysicalAddressValues [In] The dma vector where the physical mappings should be provided.
- * @param Length                [In] Length that should be committed.
- * @param Placement             [In] Supports MAPPING_PHYSICAL_* flags.
+ * Commits/finishes an already present memory mapping. If a physical address
+ * is not already provided one will be allocated for the mapping.
+ * @param memorySpace           [In] The memory space where the mapping should be commited.
+ * @param address               [In] The virtual address that should be committed.
+ *                                   Any kind of offset into the given page address is ignored.
+ * @param physicalAddressValues [In] The dma vector where the physical mappings should be provided.
+ * @param size                  [In] Length that should be committed.
+ * @param placementFlags        [In] Supports MAPPING_PHYSICAL_* flags.
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceCommit(
-        _In_ MemorySpace_t* MemorySpace,
-        _In_ VirtualAddress_t     Address,
-        _In_ uintptr_t*           PhysicalAddressValues,
-        _In_ size_t               Length,
-        _In_ unsigned int              Placement);
+        _In_ MemorySpace_t*   memorySpace,
+        _In_ VirtualAddress_t address,
+        _In_ uintptr_t*       physicalAddressValues,
+        _In_ size_t           size,
+        _In_ unsigned int     placementFlags);
 
 /**
  * MemorySpaceChangeProtection
@@ -264,10 +263,10 @@ CloneMemorySpaceMapping(
  */
 KERNELAPI OsStatus_t KERNELABI
 GetMemorySpaceMapping(
-        _In_  MemorySpace_t* MemorySpace,
-        _In_  VirtualAddress_t     Address,
-        _In_  int                  PageCount,
-        _Out_ uintptr_t*           DmaVectorOut);
+        _In_  MemorySpace_t*   MemorySpace,
+        _In_  VirtualAddress_t Address,
+        _In_  int              PageCount,
+        _Out_ uintptr_t*       DmaVectorOut);
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */

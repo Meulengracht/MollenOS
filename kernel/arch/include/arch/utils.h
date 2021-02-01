@@ -33,7 +33,7 @@ typedef struct SystemCpu SystemCpu_t;
  * Dumps the contents of the given thread context for debugging. */
 KERNELAPI OsStatus_t KERNELABI
 ArchDumpThreadContext(
-    _In_ Context_t *Context);
+    _In_ Context_t *context);
 
 /* ArchGetProcessorCoreId 
  * Returns the current processor core id. */

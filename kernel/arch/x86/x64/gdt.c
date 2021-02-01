@@ -32,62 +32,57 @@
 
 extern void TssInstall(int GdtIndex);
 
-GdtObject_t __GdtTableObject; // Don't make static, used in asm
-static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS] = { { 0 } };
-static TssDescriptor_t *TssPointers[GDT_MAX_TSS]        = { 0 };
-static TssDescriptor_t BootTss                          = { 0 };
-static _Atomic(int) GdtIndicer                          = ATOMIC_VAR_INIT(0);
+GdtObject_t             g_gdtTable; // Don't make static, used in asm
+static GdtDescriptor_t  g_descriptorTable[GDT_MAX_DESCRIPTORS] = { { 0 } };
+static TssDescriptor_t* g_tssTable[GDT_MAX_TSS]   = { 0 };
+static TssDescriptor_t  g_bootTss                 = { 0 };
+static _Atomic(int)     g_nextGdtIndex            = ATOMIC_VAR_INIT(0);
 
 static int
 GdtInstallDescriptor(
-    _In_ uint64_t Base, 
-    _In_ uint32_t Limit,
-    _In_ uint8_t  Access, 
-    _In_ uint8_t  Grandularity)
+    _In_ uint64_t baseAddress,
+    _In_ uint32_t limit,
+    _In_ uint8_t  accessFlags,
+    _In_ uint8_t  upperFlags)
 {
-    int GdtIndex = atomic_fetch_add(&GdtIndicer, 1);
+    int i = atomic_fetch_add(&g_nextGdtIndex, 1);
 
 	// Fill descriptor
-	Descriptors[GdtIndex].BaseLow   = (uint16_t)(Base & 0xFFFF);
-	Descriptors[GdtIndex].BaseMid   = (uint8_t)((Base >> 16) & 0xFF);
-	Descriptors[GdtIndex].BaseHigh  = (uint8_t)((Base >> 24) & 0xFF);
-	Descriptors[GdtIndex].BaseUpper = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
-	Descriptors[GdtIndex].LimitLow  = (uint16_t)(Limit & 0xFFFF);
-	Descriptors[GdtIndex].Flags     = (uint8_t)((Limit >> 16) & 0x0F);
-	Descriptors[GdtIndex].Flags     |= (Grandularity & 0xF0);
-	Descriptors[GdtIndex].Access    = Access;
-    Descriptors[GdtIndex].Reserved  = 0;
-    return GdtIndex;
+	g_descriptorTable[i].BaseLow   = (uint16_t)(baseAddress & 0xFFFF);
+    g_descriptorTable[i].BaseMid   = (uint8_t)((baseAddress >> 16) & 0xFF);
+    g_descriptorTable[i].BaseHigh  = (uint8_t)((baseAddress >> 24) & 0xFF);
+    g_descriptorTable[i].BaseUpper = (uint32_t)((baseAddress >> 32) & 0xFFFFFFFF);
+    g_descriptorTable[i].LimitLow  = (uint16_t)(limit & 0xFFFF);
+    g_descriptorTable[i].Flags     = (uint8_t)((limit >> 16) & 0x0F);
+    g_descriptorTable[i].Flags     |= (upperFlags & 0xF0);
+    g_descriptorTable[i].Access    = accessFlags;
+    g_descriptorTable[i].Reserved  = 0;
+    return i;
 }
 
 void
 GdtInitialize(void)
 {
 	// Setup gdt-table object
-	__GdtTableObject.Limit  = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
-	__GdtTableObject.Base   = (uint64_t)&Descriptors[0];
+	g_gdtTable.Limit = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
+    g_gdtTable.Base  = (uint64_t)&g_descriptorTable[0];
 
 	// Install NULL descriptor
 	GdtInstallDescriptor(0, 0, 0, 0);
 
 	// Kernel segments
-	// Kernel segments span the entire virtual
-	// address space from 0 -> 0xFFFFFFFF
-	GdtInstallDescriptor(0, 0, GDT_RING0_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, 0, GDT_RING0_DATA, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, 0, GDT_RING0_CODE, GDT_FLAG_64BIT);
+	GdtInstallDescriptor(0, 0, GDT_RING0_DATA, GDT_FLAG_64BIT);
 
 	// Applications segments
-	// Application segments does not span entire address space
-	// but rather in their own subset
-	GdtInstallDescriptor(0, 0, GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, 0, GDT_RING3_DATA, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, 0, GDT_RING3_CODE, GDT_FLAG_64BIT);
+	GdtInstallDescriptor(0, 0, GDT_RING3_DATA, GDT_FLAG_64BIT);
 
 	// Shared segments
-	// Extra segment shared between drivers and applications
-	// which goes into the highest page-table
-	GdtInstallDescriptor(MEMORY_SEGMENT_EXTRA_BASE, 
-		(MEMORY_SEGMENT_EXTRA_SIZE - 1) / PAGE_SIZE,
-		GDT_RING3_DATA, GDT_GRANULARITY);
+	// So the GS base segment should be initialized with the kernel core gs address
+	// which is the one that will be loaded from swapgs
+	GdtInstallDescriptor(0, (MEMORY_SEGMENT_EXTRA_SIZE - 1) / PAGE_SIZE,
+		GDT_RING3_DATA, GDT_FLAG_64BIT | GDT_FLAG_PAGES);
 
 	// Prepare gdt and tss for boot cpu
 	GdtInstall();
@@ -98,27 +93,27 @@ void
 TssInitialize(
     _In_ int PrimaryCore)
 {
-	uint64_t tBase  = 0;
-	uint32_t tLimit = 0;
-    UUId_t   CoreId = ArchGetProcessorCoreId();
+    UUId_t   coreId = ArchGetProcessorCoreId();
+	uint64_t tssBase;
+	uint32_t tssLimit;
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {
-		TssPointers[CoreId] = &BootTss;
+        g_tssTable[coreId] = &g_bootTss;
 	}
 	else {
-		assert(CoreId < GDT_MAX_TSS);
-		TssPointers[CoreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
+		assert(coreId < GDT_MAX_TSS);
+        g_tssTable[coreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
 	}
 
 	// Initialize descriptor by zeroing and set default members
-	memset(TssPointers[CoreId], 0, sizeof(TssDescriptor_t));
-	tBase   = (uint64_t)TssPointers[CoreId];
-	tLimit  = tBase + sizeof(TssDescriptor_t);
-    TssPointers[CoreId]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+	memset(g_tssTable[coreId], 0, sizeof(TssDescriptor_t));
+    tssBase  = (uint64_t)g_tssTable[coreId];
+    tssLimit = tssBase + sizeof(TssDescriptor_t);
+    g_tssTable[coreId]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
 
 	// Install TSS into table and hardware
-	TssInstall(GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00));
+	TssInstall(GdtInstallDescriptor(tssBase, tssLimit, GDT_TSS_ENTRY, 0x00));
     if (PrimaryCore == 0) {
         TssCreateStacks();
     }
@@ -129,30 +124,32 @@ TssUpdateThreadStack(
     _In_ UUId_t     Cpu, 
     _In_ uintptr_t  Stack)
 {
-    assert(TssPointers[Cpu] != NULL);
-	TssPointers[Cpu]->StackTable[0] = Stack;
+    assert(g_tssTable[Cpu] != NULL);
+    g_tssTable[Cpu]->StackTable[0] = Stack;
 }
 
 /* TssCreateStacks 
- * Create safe stacks for #NMI, #DF, #DBG, #SS and #MCE. These are then
+ * Create safe stacks for #NMI, #DF, #DB, #PF and #MCE. These are then
  * used for certain interrupts to support nesting by providing safe-stacks. */
 void
 TssCreateStacks(void)
 {
-    uint64_t Stacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
-    memset((void*)Stacks, 0, PAGE_SIZE * 7);
-    Stacks += PAGE_SIZE * 7;
+    uint64_t allStacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
+    assert(allStacks != 0);
+
+    memset((void*)allStacks, 0, PAGE_SIZE * 7);
+    allStacks += PAGE_SIZE * 7;
 
     for (int i = 0; i < 7; i++) {
-        TssPointers[ArchGetProcessorCoreId()]->InterruptTable[i] = Stacks;
-        Stacks -= PAGE_SIZE;
+        g_tssTable[ArchGetProcessorCoreId()]->InterruptTable[i] = allStacks;
+        allStacks -= PAGE_SIZE;
     }
 }
 
 uintptr_t
 TssGetBootIoSpace(void)
 {
-	return (uintptr_t)&TssPointers[ArchGetProcessorCoreId()]->IoMap[0];
+	return (uintptr_t)&g_tssTable[ArchGetProcessorCoreId()]->IoMap[0];
 }
 
 void
@@ -160,8 +157,8 @@ TssUpdateIo(
     _In_ UUId_t   Cpu,
     _In_ uint8_t* IoMap)
 {
-    assert(TssPointers[Cpu] != NULL);
-	memcpy(&TssPointers[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
+    assert(g_tssTable[Cpu] != NULL);
+	memcpy(&g_tssTable[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
 void
@@ -169,12 +166,12 @@ TssEnableIo(
     _In_ UUId_t   Cpu,
     _In_ uint16_t Port)
 {
-	size_t  Block  = Port / 8;
-	size_t  Offset = Port % 8;
-	uint8_t Bit    = (1u << Offset);
+	size_t  block  = Port / 8;
+	size_t  offset = Port % 8;
+	uint8_t bit    = (1u << offset);
 	
-    assert(TssPointers[Cpu] != NULL);
-	TssPointers[Cpu]->IoMap[Block] &= ~(Bit);
+    assert(g_tssTable[Cpu] != NULL);
+    g_tssTable[Cpu]->IoMap[block] &= ~(bit);
 }
 
 void
@@ -182,10 +179,10 @@ TssDisableIo(
     _In_ UUId_t   Cpu,
     _In_ uint16_t Port)
 {
-	size_t  Block  = Port / 8;
-	size_t  Offset = Port % 8;
-	uint8_t Bit    = (1u << Offset);
+	size_t  block  = Port / 8;
+	size_t  offset = Port % 8;
+	uint8_t bit    = (1u << offset);
 	
-    assert(TssPointers[Cpu] != NULL);
-	TssPointers[Cpu]->IoMap[Block] |= (Bit);
+    assert(g_tssTable[Cpu] != NULL);
+    g_tssTable[Cpu]->IoMap[block] |= (bit);
 }

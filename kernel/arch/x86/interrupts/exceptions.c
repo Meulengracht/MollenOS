@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -40,8 +41,7 @@
 #define PAGE_FAULT_USER    0x4
 
 extern OsStatus_t ThreadingFpuException(Thread_t *Thread);
-extern OsStatus_t GetVirtualPageAttributes(MemorySpace_t*, VirtualAddress_t, unsigned int*);
-extern reg_t __getcr2(void);
+extern reg_t      __getcr2(void);
 
 static void
 HardFault(
@@ -223,7 +223,7 @@ ExceptionEntry(
                 issueFixed = 1;
             }
             else {
-                ERROR("%s: ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
+                ERROR("%s: ADDRESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                       thread != NULL ? ThreadName(thread) : "Null",
                       address, Registers->ErrorCode, CONTEXT_IP(Registers));
                 SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);

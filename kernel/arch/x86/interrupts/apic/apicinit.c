@@ -22,8 +22,8 @@
 #define __MODULE "APIC"
 #define __TRACE
 
-#include <component/domain.h>
 #include <component/cpu.h>
+#include <cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/io.h>
@@ -31,14 +31,10 @@
 #include <interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <string.h>
 #include <timers.h>
 #include <debug.h>
 #include <apic.h>
-#include <heap.h>
 #include <mp.h>
-
-extern void _rdmsr(size_t Register, uint64_t *Value);
 
 static SystemInterruptController_t* IoApicI8259Apic = NULL;
 static int                          IoApicI8259Pin  = 0;
@@ -424,14 +420,14 @@ ApicInitialize(void)
         if (MpGetLocalApicAddress(&OriginalApAddress) != OsSuccess) {
             // Fallback to msr
             uint64_t Value = 0;
-            _rdmsr(0x1B, &Value);
+            CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
             OriginalApAddress = (uintptr_t)Value;
         }
     }
     else {
         // Read from msr
         uint64_t Value = 0;
-        _rdmsr(0x1B, &Value);
+        CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
         OriginalApAddress = (uintptr_t)Value;
     }
 

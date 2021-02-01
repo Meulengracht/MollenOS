@@ -74,7 +74,7 @@ typedef struct Scheduler {
  * This must be done before the kernel scheduler is used for the thread. */
 KERNELAPI SchedulerObject_t* KERNELABI
 SchedulerCreateObject(
-    _In_ void*   Payload,
+    _In_ void*        Payload,
     _In_ unsigned int Flags);
 
 /* SchedulerDestroyObject
@@ -98,7 +98,7 @@ SchedulerExpediteObject(
 
 /**
  * SchedulerSleep
- * * Blocks the currently running thread for @Milliseconds. Can return different
+ * * Blocks the currently running thread for <Milliseconds>. Can return different
  * * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. 
  */
 KERNELAPI int KERNELABI

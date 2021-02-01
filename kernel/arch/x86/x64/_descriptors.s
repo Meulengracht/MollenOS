@@ -26,22 +26,27 @@ global GdtInstall
 global TssInstall
 global IdtInstall
 
-extern __GdtTableObject
-extern __IdtTableObject
+extern g_gdtTable
+extern g_idtTable
 
 ; void GdtInstall()
 ; Load the given gdt into gdtr
 GdtInstall:
 	; Install GDT
-	lgdt [__GdtTableObject]
+	lgdt [g_gdtTable]
 
-	; Jump into correct descriptor
+	; Setup null segments
 	xor rax, rax
-	mov ax, 0x20
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
+
+	; Setup gs, we set a limit on 1 page
+	mov ax, 0x50
 	mov gs, ax
+
+	; Setup stack segment
+	mov ax, 0x20
 	mov ss, ax
 
     ; Invoke a faux interrupt return to switch CS
@@ -73,5 +78,5 @@ TssInstall:
 ; Load the given TSS descriptor
 ; index
 IdtInstall:
-	lidt [__IdtTableObject]
+	lidt [g_idtTable]
 	ret

@@ -49,7 +49,7 @@ DestroyVirtualSpace(
  */
 KERNELAPI void KERNELABI
 ArchMmuSwitchMemorySpace(
-        _In_ MemorySpace_t*);
+        _In_ MemorySpace_t* memorySpace);
 
 /**
  * ArchMmuGetPageAttributes
@@ -81,7 +81,7 @@ ArchMmuGetPageAttributes(
  * @param Attributes     [In]  Replaces the attributes here with the previous attributes 
  * @param PagesUpdated   [Out]
  * 
- * @return Status of the page attribute update.
+ * @return OsSuccess if operation was fully completed, otherwise OsIncomplete
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuUpdatePageAttributes(
@@ -104,11 +104,11 @@ ArchMmuUpdatePageAttributes(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuCommitVirtualPage(
-        _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
-        _In_  PhysicalAddress_t*,
-        _In_  int,
-        _Out_ int*);
+        _In_  MemorySpace_t*           memorySpace,
+        _In_  VirtualAddress_t         startAddress,
+        _In_  const PhysicalAddress_t* physicalAddresses,
+        _In_  int                      pageCount,
+        _Out_ int*                     pagesComittedOut);
 
 /**
  * ArchMmuSetContiguousVirtualPages
@@ -167,29 +167,36 @@ ArchMmuReserveVirtualPages(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetVirtualPages(
-        _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
-        _In_  PhysicalAddress_t*,
-        _In_  int,
-        _In_  unsigned int,
-        _Out_ int*);
+        _In_  MemorySpace_t*           memorySpace,
+        _In_  VirtualAddress_t         startAddress,
+        _In_  const PhysicalAddress_t* physicalAddressValues,
+        _In_  int                      pageCount,
+        _In_  unsigned int             attributes,
+        _Out_ int*                     pagesUpdatedOut);
 
 /**
  * ArchMmuClearVirtualPages
- * * Removes @PageCount number of virtual memory mappings.
- * @param MemorySpace    [In]
- * @param VirtualAddress [In]
- * @param PageCount      [In]
- * @param PagesCleared   [Out]
+ * Removes <pageCount> number of virtual memory mappings, the physical pages that are available for freeing
+ * will be returned in <freedAddresses> array.
+ * @param memorySpace            [In]  The memory space to perform the unmapping in.
+ * @param startAddress           [In]  The start address from where to unmap from.
+ * @param pageCount              [In]  The number of pages that should be unmapped.
+ * @param freedAddresses         [In]  An array of size <pageCount> that will hold all freed physical addresses.
+ *                                     This array can contain less elements than the value returned in <pagesClearedOut>
+ *                                     if some of the physical pages were marked as non-freeable.
+ * @param freedAddressesCountOut [Out] The number of valid entries in <freedAddresses>.
+ * @param pagesClearedOut        [Out] The number of pages that was unmapped
  * 
  * @return Status of the address mapping removal.
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuClearVirtualPages(
-        _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
-        _In_  int,
-        _Out_ int*);
+        _In_  MemorySpace_t*     memorySpace,
+        _In_  VirtualAddress_t   startAddress,
+        _In_  int                pageCount,
+        _In_  PhysicalAddress_t* freedAddresses,
+        _Out_ int*               freedAddressesCountOut,
+        _Out_ int*               pagesClearedOut);
 
 /**
  * ArchMmuVirtualToPhysical

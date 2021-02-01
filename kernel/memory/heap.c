@@ -59,7 +59,7 @@ typedef struct MemoryAtomicCache {
 typedef struct MemoryCache {
     const char*      Name;
     Mutex_t          SyncObject;
-    unsigned int          Flags;
+    unsigned int     Flags;
 
     size_t           ObjectSize;
     size_t           ObjectAlignment;
@@ -80,13 +80,13 @@ typedef struct MemoryCache {
 } MemoryCache_t;
 
 // All the standard caches DO not use contigious memory
-static MemoryCache_t InitialCache = { 0 };
+static MemoryCache_t g_initialCache = { 0 };
 static struct FixedCache {
     size_t         ObjectSize;
     const char*    Name;
     MemoryCache_t* Cache;
-    unsigned int        InitializationFlags;
-} DefaultCaches[] = {
+    unsigned int   InitializationFlags;
+} g_defaultCaches[] = {
     { 32,     "size32_cache",     NULL, HEAP_CACHE_DEFAULT },
     { 64,     "size64_cache",     NULL, HEAP_CACHE_DEFAULT },
     { 128,    "size128_cache",    NULL, HEAP_CACHE_DEFAULT },
@@ -149,9 +149,9 @@ cache_find_fixed_size(
     int                i = 0;
 
     // Find a cache to do the allocation in
-    while (DefaultCaches[i].ObjectSize != 0) {
-        if (Size <= DefaultCaches[i].ObjectSize) {
-            Selected = &DefaultCaches[i];
+    while (g_defaultCaches[i].ObjectSize != 0) {
+        if (Size <= g_defaultCaches[i].ObjectSize) {
+            Selected = &g_defaultCaches[i];
             break;
         }
         i++;
@@ -576,7 +576,7 @@ MemoryCacheConstruct(
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
 
-    MutexConstruct(&Cache->SyncObject, MUTEX_RECURSIVE);
+    MutexConstruct(&Cache->SyncObject, MUTEX_FLAG_RECURSIVE);
     Cache->Name                = Name;
     Cache->Flags               = Flags;
     Cache->ObjectSize          = ObjectSize;
@@ -608,9 +608,6 @@ MemoryCacheConstruct(
     
     TRACE("[cache_construct] [%s] number of objects %i/%i", 
         Cache->Name, Cache->NumberOfFreeObjects, Cache->ObjectCount);
-    
-    // Flush writes to other cpus
-    smp_wmb();
 }
 
 MemoryCache_t*
@@ -623,7 +620,7 @@ MemoryCacheCreate(
     _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
-    MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
+    MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&g_initialCache);
     if (!Cache) {
         ERROR("[MemoryCacheCreate] failed to allocate a new cache object");
         return NULL;
@@ -678,7 +675,7 @@ MemoryCacheDestroy(
     cache_destroy_list(Cache, &Cache->FreeSlabs);
     cache_destroy_list(Cache, &Cache->PartialSlabs);
     cache_destroy_list(Cache, &Cache->FullSlabs);
-    MemoryCacheFree(&InitialCache, Cache);
+    MemoryCacheFree(&g_initialCache, Cache);
 }
 
 void*
@@ -800,7 +797,6 @@ FreeInSlab(
     
     Context->Element = Element;
     Context->Cache->NumberOfFreeObjects++;
-    smp_wmb();
     
     return Result;
 }
@@ -910,10 +906,10 @@ void kfree(void* Object)
     int                i = 0;
 
     // Find the cache that the allocation was done in
-    while (DefaultCaches[i].ObjectSize != 0) {
-        if (DefaultCaches[i].Cache != NULL) {
-            if (cache_contains_address(DefaultCaches[i].Cache, (uintptr_t)Object)) {
-                Selected = &DefaultCaches[i];
+    while (g_defaultCaches[i].ObjectSize != 0) {
+        if (g_defaultCaches[i].Cache != NULL) {
+            if (cache_contains_address(g_defaultCaches[i].Cache, (uintptr_t)Object)) {
+                Selected = &g_defaultCaches[i];
                 break;
             }
         }
@@ -941,9 +937,9 @@ MemoryCacheDump(
     }
     
     // Otherwise dump default caches
-    while (DefaultCaches[i].ObjectSize != 0) {
-        if (DefaultCaches[i].Cache != NULL) {
-            cache_dump_information(DefaultCaches[i].Cache);
+    while (g_defaultCaches[i].ObjectSize != 0) {
+        if (g_defaultCaches[i].Cache != NULL) {
+            cache_dump_information(g_defaultCaches[i].Cache);
         }
         i++;
     }
@@ -958,6 +954,6 @@ void
 MemoryCacheInitialize(void)
 {
     // Initialize the default cache and disable atomics for this one
-    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 
-        16, 0, HEAP_CACHE_DEFAULT, NULL, NULL);
+    MemoryCacheConstruct(&g_initialCache, "cache_cache", sizeof(MemoryCache_t),
+                         16, 0, HEAP_CACHE_DEFAULT, NULL, NULL);
 }

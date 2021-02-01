@@ -33,7 +33,6 @@ DECL_STRUCT(SystemProcess);
 DECL_STRUCT(SchedulerObject);
 DECL_STRUCT(streambuffer);
 
-
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
 typedef void(*ThreadEntry_t)(void*);
@@ -62,20 +61,21 @@ typedef struct Thread {
 
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
-    Semaphore_t             WaitObject;
     _Atomic(int)            References;
     clock_t                 StartedAt;
     struct Thread*          Children;
     struct Thread*          Sibling;
 
+    // configuration data
     const char*             Name;
     unsigned int            Flags;
     _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
-
     ThreadEntry_t           Function;
     void*                   Arguments;
     int                     RetCode;
+    size_t                  KernelStackSize;
+    size_t                  UserStackSize;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];

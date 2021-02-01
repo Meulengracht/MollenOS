@@ -28,8 +28,8 @@
 #include <os/spinlock.h>
 #include <threads.h>
 
-extern int _spinlock_acquire(spinlock_t* lock);
-extern int _spinlock_test(spinlock_t* lock);
+extern int  _spinlock_acquire(spinlock_t* lock);
+extern int  _spinlock_test(spinlock_t* lock);
 extern void _spinlock_release(spinlock_t* lock);
 
 #define IS_RECURSIVE(lock) (lock->type & spinlock_recursive)

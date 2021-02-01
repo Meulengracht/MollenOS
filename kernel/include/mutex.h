@@ -26,71 +26,77 @@
 #define __VALI_MUTEX_H__
 
 #include <os/osdefs.h>
+#include <ds/list.h>
+#include <os/spinlock.h>
 
 // We support recursive mutexes
-#define MUTEX_PLAIN     0
-#define MUTEX_RECURSIVE 0x1
-#define MUTEX_TIMED     0x2
+#define MUTEX_FLAG_PLAIN     0
+#define MUTEX_FLAG_RECURSIVE 0x1
+#define MUTEX_FLAG_TIMED     0x2
 
-typedef struct {
-    unsigned int      Flags;
-    UUId_t       Owner;
-    _Atomic(int) References;
-    _Atomic(int) Value;
+typedef struct Mutex {
+    _Atomic(unsigned int) flags;
+    _Atomic(UUId_t)       owner;
+    int                   referenceCount;
+    list_t                blockQueue;
+    spinlock_t            syncObject;
 } Mutex_t;
 
-#define OS_MUTEX_INIT(Flags) { Flags, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define OS_MUTEX_INIT(Flags) { ATOMIC_VAR_INIT(Flags), ATOMIC_VAR_INIT(UUID_INVALID), 0, LIST_INIT, SPINLOCK_INIT(spinlock_plain) }
 
 /**
- * * MutexConstruct
- * Initializes a mutex to default values, with the given configuration.
+ * Initializes a mutex to default values.
+ * @param mutex         [In] A pointer to a Mutex_t structure
+ * @param configuration [In] Which kind of mutex to initialize
  */
 KERNELAPI void KERNELABI
 MutexConstruct(
-    _In_ Mutex_t* Mutex,
-    _In_ unsigned int  Configuration);
+    _In_ Mutex_t*     mutex,
+    _In_ unsigned int configuration);
 
 /**
- * * MutexDestruct 
- * Wakes up all threads in the wait queue and attempts to clear out. This can
- * fail and is not guaranteed to work. If it fails, this need to be tried again.
+ * Resets the mutex to default values and wakes any thread up waiting for the mutex.
+ * The mutex is marked invalid and all threads waked will return OsInvalidParameters
+ * @param mutex [In] A pointer to a Mutex_t structure
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 MutexDestruct(
-    _In_ Mutex_t* Mutex);
+    _In_ Mutex_t* mutex);
 
 /**
- * * MutexTryLock
- * Tries to acquire the lock, does not block and returns immediately.
+ * Tries once to take the lock, and if it fails it does not block.
+ * @param mutex [In] A pointer to a Mutex_t structure
+ * @return
  */
 KERNELAPI OsStatus_t KERNELABI
 MutexTryLock(
-    _In_ Mutex_t* Mutex);
+    _In_ Mutex_t* mutex);
 
 /**
- * * MutexLock
- * Locks the mutex, blocks untill the lock is acquired.
+ * Attemps to lock the mutex, this is a blocking operation.
+ * @param mutex [In] A pointer to a Mutex_t structure
  */
 KERNELAPI void KERNELABI
 MutexLock(
-    _In_ Mutex_t* Mutex);
+    _In_ Mutex_t* mutex);
 
 /**
- * * MutexLockTimed
- * Tries to acquire the mutex in the period given, if it times out it 
- * returns OsTimeout. 
+ * Attemps to acquire the mutex in a given time-frame.
+ * @param mutex   [In] A pointer to a Mutex_t structure
+ * @param timeout [In] Timeout in milliseconds
+ * @return        Returns OsTimeout if it failed to acquire within the timeout
  */
 KERNELAPI OsStatus_t KERNELABI
 MutexLockTimed(
-    _In_ Mutex_t* Mutex,
-    _In_ size_t   Timeout);
+    _In_ Mutex_t* mutex,
+    _In_ size_t   timeout);
 
 /**
- * * MutexUnlock
- * Release a lock on the given mutex. 
+ * Releases the given mutex
+ * @param Mutex [In] A pointer to a Mutex_t structure
  */
 KERNELAPI void KERNELABI
 MutexUnlock(
-    _In_ Mutex_t* Mutex);
+    _In_ Mutex_t* mutex);
 
 #endif //!__VALI_MUTEX_H__

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -163,11 +164,11 @@ PeHandleSections(
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
-        uintptr_t VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
-        uint8_t*  FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
-        unsigned int   PageFlags          = MEMORY_READ;
-        size_t    SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
-        uint8_t*  Destination;
+        uintptr_t    VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
+        uint8_t*     FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
+        unsigned int PageFlags          = MEMORY_READ;
+        size_t       SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
+        uint8_t*     Destination;
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
@@ -407,7 +408,7 @@ PeHandleRelocations(
                 }
 #endif
 #if __BITS == 64
-                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x300000000) {
+                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x8100000000ULL) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
                     dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 

@@ -88,9 +88,6 @@ add_executable (vali-core
 	system_api/system_api.c
 	system_api/thread_api.c
 
-	# Tests
-    tests/test_manager.c
-    
 	# Utils
 	utils/crc32.c
 	utils/dynamic_memory_pool.c

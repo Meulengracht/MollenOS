@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System API - Threading calls
  */
 #define __MODULE "SCIF"
 //#define __TRACE
@@ -30,7 +31,6 @@
 #include <timers.h>
 #include <string.h>
 #include <debug.h>
-#include <heap.h>
 
 OsStatus_t
 ScThreadCreate(
@@ -57,7 +57,10 @@ ScThreadCreate(
     if (memorySpaceHandle == UUID_INVALID) {
         threadCurrentMode |= THREADING_INHERIT;
     }
-    return ThreadCreate(name, Entry, Arguments, threadCurrentMode, memorySpaceHandle, HandleOut);
+
+    // Assert max stack size
+    return ThreadCreate(name, Entry, Arguments, threadCurrentMode, memorySpaceHandle,
+                        0, 0, HandleOut);
 }
 
 OsStatus_t

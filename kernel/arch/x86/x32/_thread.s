@@ -31,6 +31,7 @@ global _clear_ts
 global _set_ts
 global __rdtsc
 global __rdmsr
+global __wrmsr
 global __yield
 
 ; void _yield(void)
@@ -110,4 +111,16 @@ __rdmsr:
 	mov ecx, [esp + 8]
 	mov [ecx], eax
 	mov [ecx + 4], edx
+	ret
+
+; void _wrmsr(size_t Register, uint64_t *value)
+; Gets the CPU model specific register
+__wrmsr:
+    push ebx
+    mov ecx, [esp + 4]
+    mov ebx, [esp + 8]
+	mov eax, [ebx]
+	mov edx, [ebx + 4]
+	wrmsr
+	pop ebx
 	ret

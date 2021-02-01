@@ -26,36 +26,34 @@
 
 #include <os/osdefs.h>
 
-/* Customization of TSS and GDT entry limits
- * we allow for 16 gdt descriptors and tss descriptors 
- * they are allocated using static storage since we have
- * no dynamic memory at the time we need them */
-#define GDT_MAX_TSS                 128
-#define GDT_MAX_DESCRIPTORS         (GDT_MAX_TSS + 8)
-#define GDT_IOMAP_SIZE              ((0xFFFF / 8) + 1)
+/**
+ * Customization of TSS and GDT entry limits we allow for 16 gdt descriptors and tss descriptors
+ * they are allocated using static storage since we have no dynamic memory at the time we need them
+ */
+#define GDT_MAX_TSS         128
+#define GDT_MAX_DESCRIPTORS (GDT_MAX_TSS + 8)
+#define GDT_IOMAP_SIZE      ((0xFFFF / 8) + 1)
 
-/* 8 Hardcoded system descriptors, we must have a 
- * null descriptor to catch cases where segment has
+/**
+ * 8 Hardcoded system descriptors, we must have a null descriptor to catch cases where segment has
  * been set to 0, and we need 2 for ring 0, and 4 for ring 3 */
-#define GDT_NULL_SEGMENT            0x00
-#define GDT_KCODE_SEGMENT           0x10    // Kernel
-#define GDT_KDATA_SEGMENT           0x20    // Kernel
-#define GDT_UCODE_SEGMENT           0x30    // Applications
-#define GDT_UDATA_SEGMENT           0x40    // Applications
-#define GDT_EXTRA_SEGMENT           0x50    // Shared
+#define GDT_NULL_SEGMENT  0x00
+#define GDT_KCODE_SEGMENT 0x10    // Kernel
+#define GDT_KDATA_SEGMENT 0x20    // Kernel
+#define GDT_UCODE_SEGMENT 0x30    // Applications
+#define GDT_UDATA_SEGMENT 0x40    // Applications
+#define GDT_EXTRA_SEGMENT 0x50    // Shared
 
-/* Gdt type codes, they set the appropriate bits
- * needed for our needs, both for code and data segments
+/**
+ * Gdt type codes, they set the appropriate bits needed for our needs, both for code and data segments
  * where kernel == ring0 and user == ring3 */
-#define GDT_GRANULARITY             0x20
-#define GDT_RING0_CODE              0x9A
-#define GDT_RING0_DATA              0x92
-#define GDT_RING3_CODE              0xFA
-#define GDT_RING3_DATA              0xF2
-#define GDT_TSS_ENTRY               0xE9
+#define GDT_RING0_CODE  0x9A
+#define GDT_RING0_DATA  0x92
+#define GDT_RING3_CODE  0xFA
+#define GDT_RING3_DATA  0xF2
+#define GDT_TSS_ENTRY   0xE9
 
-/* The GDT access flags, they define general information
- * about the code / data segment */
+/* The GDT access flags, they define general information about the code / data segment */
 
 /* Data Access */
 #define GDT_ACCESS_WRITABLE         0x02
@@ -72,6 +70,7 @@
 #define GDT_ACCESS_PRIV3            (0x20 | 0x40)
 #define GDT_ACCESS_PRESENT          0x80
 
+#define GDT_FLAG_64BIT              0x20
 #define GDT_FLAG_32BIT              0x40
 #define GDT_FLAG_PAGES              0x80
 
@@ -89,29 +88,34 @@ PACKED_TYPESTRUCT(GdtObject, {
  * in the gdt table, and keeps information about the ring
  * segment structure. */
 PACKED_TYPESTRUCT(GdtDescriptor, {
-    uint16_t                LimitLow;   /* Bits  0-15 */
-    uint16_t                BaseLow;    /* Bits  0-15 */
-    uint8_t                 BaseMid;    /* bits 16-23 */
+    uint16_t                LimitLow;   // Bits  0-15
+    uint16_t                BaseLow;    // Bits  0-15
+    uint8_t                 BaseMid;    // bits 16-23
 
-    /* Access Flags 
+    /**
+     * Access Flags
      * Bit 0: Accessed bit, is set by cpu when accessed
      * Bit 1: Readable (Code), Writable (Data). 
      * Bit 2: Direction Bit (Data), 0 (Grows up), 1 (Grows down)
      *        Conform Bit (Code), If 1 code in this segment can be executed from an equal or lower privilege level.
      *                            If 0 code in this segment can only be executed from the ring set in privl.
      * Bit 3: Executable, 1 (Code), 0 (Data) 
-     * Bit 4: Reserved, must be 1
+     * Bit 4: Must be 1 to indicate code or data segment type
      * Bit 5-6: Privilege, 0 (Ring 0 - Highest), 3 (Ring 3 - Lowest) 
-     * Bit 7: Present Bit, must be 1 */
+     * Bit 7: Present Bit, must be 1
+     */
     uint8_t                Access;
 
-    /* Limit 
+    /**
+     * Limit
      * Bit 0-3: Bits 16-19 of Limit
-     * Bit 4-5: Reserved, 0 
+     * Bit 4: Available for OS
+     * Bit 5: 64 Bit mode
      * Bit 6: 16 Bit Mode (0), 32 Bit Mode (1) 
-     * Bit 7: Limit is bytes (0), Limit is page-blocks (1) */
+     * Bit 7: Limit is bytes (0), Limit is page-blocks (1)
+     */
     uint8_t                Flags;
-    uint8_t                BaseHigh;    /* Base 24:31 */
+    uint8_t                BaseHigh;    // Base 24:31
     uint32_t               BaseUpper;
     uint32_t               Reserved;
 });

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -31,7 +32,6 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
 #include <ddk/utils.h>

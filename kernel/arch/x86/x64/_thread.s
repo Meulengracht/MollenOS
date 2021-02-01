@@ -31,6 +31,7 @@ global clear_ts
 global set_ts
 global _rdtsc
 global _rdmsr
+global _wrmsr
 global _yield
 
 ; void _yield(void)
@@ -98,13 +99,20 @@ _rdtsc:
     mov qword [rcx], rax
     ret
 
-; void _rdmsr(size_t Register, uint64_t *value)
-; Gets the CPU model specific register
+; Assembly routine to read msr
+; rcx => index
+; rdx => pointer to 64 bit value
 _rdmsr:
-    push rdx
-    rdmsr
-    shl rdx, 32
-    or rax, rdx
-    pop rdx
-    mov qword [rdx], rax
-    ret
+    rdmsr ; reads into edx:eax
+    mov dword [rdx], eax
+    mov dword [rdx + 4], edx
+	ret
+
+; Assembly routine to read msr
+; rcx => index
+; rdx => pointer to 64 bit value
+_wrmsr:
+    mov eax, dword [rdx]
+    mov edx, dword [rdx + 4]
+    wrmsr ; writes edx:eax
+	ret

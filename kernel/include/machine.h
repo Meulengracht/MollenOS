@@ -102,12 +102,12 @@ InitializeSystemTimers(void);
  */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemory(
-    _In_ Multiboot_t*        BootInformation,
-    _In_ bounded_stack_t*    Memory,
-    _In_ StaticMemoryPool_t* GlobalAccessMemory,
-    _In_ SystemMemoryMap_t*  MemoryMap,
-    _In_ size_t*             MemoryGranularity,
-    _In_ size_t*             NumberOfMemoryBlocks);
+    _In_ Multiboot_t*        bootInformation,
+    _In_ bounded_stack_t*    boundedStack,
+    _In_ StaticMemoryPool_t* globalAccessMemory,
+    _In_ SystemMemoryMap_t*  memoryMap,
+    _In_ size_t*             memoryGranularityOut,
+    _In_ size_t*             numberOfMemoryBlocksOut);
 
 /**
  * AllocatePhysicalMemory

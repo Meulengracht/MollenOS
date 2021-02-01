@@ -67,26 +67,6 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
     uint64_t Padding;
 });
 
-KERNELAPI OsStatus_t KERNELABI
-CreateKernelVirtualMemorySpace(void);
-
-/* ConvertSystemSpaceToPaging
- * Converts system memory-space generic flags to native x86 paging flags */
-KERNELAPI unsigned int KERNELABI
-ConvertSystemSpaceToPaging(
-    _In_ unsigned int Flags);
-
-/* ConvertPagingToSystemSpace
- * Converts native x86 paging flags to system memory-space generic flags */
-KERNELAPI unsigned int KERNELABI
-ConvertPagingToSystemSpace(
-    _In_ unsigned int Flags);
-
-/* ClearKernelMemoryAllocation
- * Clears the kernel memory allocation at the given address and size. */
-KERNELAPI OsStatus_t KERNELABI
-ClearKernelMemoryAllocation(
-    _In_ uintptr_t Address,
-    _In_ size_t    Size);
+KERNELAPI OsStatus_t KERNELABI CreateKernelVirtualMemorySpace(void);
 
 #endif // !_X86_MEMORY_H_

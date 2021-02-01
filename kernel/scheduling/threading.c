@@ -33,7 +33,6 @@
 #include <ds/streambuffer.h>
 #include <handle.h>
 #include <heap.h>
-#include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
@@ -42,223 +41,24 @@
 
 #include "threading_private.h"
 
-// Common entry point for everything
-static void
-ThreadingEntryPoint(void)
-{
-    Thread_t* thread;
-    UUId_t    coreId;
-
-    TRACE("ThreadingEntryPoint()");
-
-    coreId = ArchGetProcessorCoreId();
-    thread = ThreadCurrentForCore(coreId);
-    
-    if (thread->Flags & THREADING_IDLE) {
-        while (1) {
-            ArchProcessorIdle();
-        }
-    }
-    else if (THREADING_RUNMODE(thread->Flags) == THREADING_KERNELMODE ||
-             (thread->Flags & THREADING_KERNELENTRY)) {
-        thread->Flags &= ~(THREADING_KERNELENTRY);
-        thread->Function(thread->Arguments);
-        ThreadTerminate(thread->Handle, 0, 1);
-    }
-    else {
-        ThreadingEnterUsermode(thread->Function, thread->Arguments);
-    }
-    for (;;);
-}
-
-static void
-DestroyThread(
-    _In_ void* Resource)
-{
-    Thread_t* Thread = Resource;
-    int            References;
-    clock_t        Unused;
-
-    assert(Thread != NULL);
-    assert(atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 1);
-    TRACE("DestroyThread(%s)", Thread->Name);
-
-    // Make sure we are completely removed as reference
-    // from the entire system. We also signal all waiters for this
-    // thread again before continueing just in case
-    References = atomic_load(&Thread->References);
-    if (References != 0) {
-        int Timeout = 200;
-        SemaphoreSignal(&Thread->EventObject, References + 1);
-        while (Timeout > 0) {
-            SchedulerSleep(10, &Unused);
-            Timeout -= 10;
-            
-            References = atomic_load(&Thread->References);
-            if (!References) {
-                break;
-            }
-        }
-    }
-    
-    // Cleanup resources now that we have no external dependancies
-    SchedulerDestroyObject(Thread->SchedulerObject);
-    ThreadingUnregister(Thread);
-    
-    // Detroy the thread-contexts
-    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, THREADING_KERNEL_STACK_SIZE);    
-    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1, GetMemorySpacePageSize());
-    ContextDestroy(Thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, GetMemorySpacePageSize());
-
-    // Remove a reference to the memory space if not root, and remove the
-    // kernel mapping of the threads' ipc area
-    if (Thread->MemorySpaceHandle != UUID_INVALID) {
-        DestroyHandle(Thread->MemorySpaceHandle);
-    }
-    
-    kfree((void*)Thread->Name);
-    kfree(Thread);
-}
-
-static void
-CreateDefaultThreadContexts(
-    _In_ Thread_t* Thread)
-{
-    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0,
-        THREADING_KERNEL_STACK_SIZE);
-    assert(Thread->Contexts[THREADING_CONTEXT_LEVEL0] != NULL);
-    
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
-        (uintptr_t)&ThreadingEntryPoint, 0);
-
-    // TODO: Should we create user stacks immediately?
-}
-
-// Setup defaults for a new thread and creates appropriate resources
-static void
-InitializeDefaultThread(
-    _In_ Thread_t* Thread,
-    _In_ const char*    Name,
-    _In_ ThreadEntry_t  Function,
-    _In_ void*          Arguments,
-    _In_ unsigned int        Flags)
-{
-    OsStatus_t Status;
-    UUId_t     Handle;
-    char       NameBuffer[16];
-
-    // Reset thread structure
-    memset(Thread, 0, sizeof(Thread_t));
-    MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
-    SemaphoreConstruct(&Thread->EventObject, 0, 1);
-    
-    Handle = CreateHandle(HandleTypeThread, DestroyThread, Thread);
-    Thread->Handle       = Handle;
-    Thread->References   = ATOMIC_VAR_INIT(0);
-    Thread->Function     = Function;
-    Thread->Arguments    = Arguments;
-    Thread->Flags        = Flags;
-    Thread->ParentHandle = UUID_INVALID;
-    
-    Status = streambuffer_create(sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
-        STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
-        &Thread->Signaling.Signals);
-    if (Status != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate space for signal buffer");
-    }
-    
-    // Get the startup time
-    TimersGetSystemTick(&Thread->StartedAt);
-    
-    // Sanitize name, if NULL generate a new thread name of format 'thread x'
-    if (Name == NULL) {
-        memset(&NameBuffer[0], 0, sizeof(NameBuffer));
-        sprintf(&NameBuffer[0], "thread %" PRIuIN, Thread->Handle);
-        Thread->Name = strdup(&NameBuffer[0]);
-    }
-    else {
-        Thread->Name = strdup(Name);
-    }
-    
-    Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
-    Status = ThreadingRegister(Thread);
-    if (Status != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
-    }
-    
-    CreateDefaultThreadContexts(Thread);
-}
-
-static UUId_t
-CreateThreadCookie(
-    _In_ Thread_t* Thread,
-    _In_ Thread_t* Parent)
-{
-    UUId_t Cookie = Thread->StartedAt ^ Parent->StartedAt;
-    for (int i = 0; i < 5; i++) {
-        Cookie >>= i;
-        Cookie += Thread->StartedAt;
-        Cookie *= Parent->StartedAt;
-    }
-    return Cookie;
-}
-
-static void AddChild(
-    _In_ Thread_t* Parent,
-    _In_ Thread_t* Child)
-{
-    Thread_t* Previous;
-    Thread_t* Link;
-    
-    MutexLock(&Parent->SyncObject);
-    Link = Parent->Children;
-    if (!Link) {
-        Parent->Children = Child;
-    }
-    else {
-        while (Link) {
-            Previous = Link;
-            Link     = Link->Sibling;
-        }
-        
-        Previous->Sibling = Child;
-        Child->Sibling    = NULL;
-    }
-    MutexUnlock(&Parent->SyncObject);
-}
-
-static void RemoveChild(
-    _In_ Thread_t* Parent,
-    _In_ Thread_t* Child)
-{
-    Thread_t* Previous = NULL;
-    Thread_t* Link;
-    
-    MutexLock(&Parent->SyncObject);
-    Link = Parent->Children;
-
-    while (Link) {
-        if (Link == Child) {
-            if (!Previous) {
-                Parent->Children = Child->Sibling;
-            }
-            else {
-                Previous->Sibling = Child->Sibling;
-            }
-            break;
-        }
-        Previous = Link;
-        Link     = Link->Sibling;
-    }
-    MutexUnlock(&Parent->SyncObject);
-}
+_Noreturn static void ThreadingEntryPoint(void);
+static void           DestroyThread(void* resource);
+static OsStatus_t     CreateDefaultThreadContexts(Thread_t* thread);
+static OsStatus_t     InitializeDefaultThread(Thread_t* thread, const char* name,
+                                              ThreadEntry_t threadEntry, void* arguments,
+                                              unsigned int flags, size_t kernelStackSize,
+                                              size_t userStackSize);
+static size_t         GetDefaultStackSize(unsigned int threadFlags);
+static UUId_t         CreateThreadCookie(Thread_t* Thread, Thread_t* Parent);
+static void           AddChild(Thread_t* Parent, Thread_t* Child);
+static void           RemoveChild(Thread_t* Parent, Thread_t* Child);
 
 void
 ThreadingEnable(void)
 {
     Thread_t* thread = CpuCoreIdleThread(CpuCoreCurrent());
     InitializeDefaultThread(thread, "idle", NULL, NULL,
-        THREADING_KERNELMODE | THREADING_IDLE);
+        THREADING_KERNELMODE | THREADING_IDLE, THREADING_KERNEL_STACK_SIZE, 0);
     
     // Handle setup of memory space as that is not covered.
     thread->MemorySpace       = GetCurrentMemorySpace();
@@ -268,12 +68,14 @@ ThreadingEnable(void)
 
 OsStatus_t
 ThreadCreate(
-    _In_  const char*    name,
-    _In_  ThreadEntry_t  entry,
-    _In_  void*          arguments,
-    _In_  unsigned int   flags,
-    _In_  UUId_t         memorySpaceHandle,
-    _Out_ UUId_t*        handle)
+        _In_ const char*   name,
+        _In_ ThreadEntry_t entry,
+        _In_ void*         arguments,
+        _In_ unsigned int  flags,
+        _In_ UUId_t        memorySpaceHandle,
+        _In_ size_t        kernelMaxStackSize,
+        _In_ size_t        userMaxStackSize,
+        _In_ UUId_t*       handle)
 {
     Thread_t* thread;
     Thread_t* parent;
@@ -288,8 +90,13 @@ ThreadCreate(
     if (!thread) {
         return OsOutOfMemory;
     }
-    
-    InitializeDefaultThread(thread, name, entry, arguments, flags);
+
+    OsStatus_t status = InitializeDefaultThread(thread, name, entry, arguments,
+                                                flags, kernelMaxStackSize, userMaxStackSize);
+    if (status != OsSuccess) {
+        DestroyThread(thread);
+        return status;
+    }
     
     // Setup parent and cookie information
     thread->ParentHandle = parent->Handle;
@@ -301,11 +108,13 @@ ThreadCreate(
     }
 
     // Is a memory space given to us that we should run in? Determine run mode automatically
-    if (memorySpaceHandle != UUID_INVALID) {
-        MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(memorySpaceHandle, HandleTypeMemorySpace);
-        if (memorySpace == NULL) {
-            // TODO: cleanup
-            return OsDoesNotExist;
+    if (!(flags & THREADING_INHERIT) && memorySpaceHandle != UUID_INVALID) {
+        MemorySpace_t* memorySpace;
+
+        status = AcquireHandle(memorySpaceHandle, (void**)&memorySpace);
+        if (status != OsSuccess) {
+            DestroyThread(thread);
+            return status;
         }
 
         if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
@@ -313,8 +122,6 @@ ThreadCreate(
         }
         thread->MemorySpace        = memorySpace;
         thread->MemorySpaceHandle  = memorySpaceHandle;
-        thread->Cookie             = parent->Cookie;
-        AcquireHandle(memorySpaceHandle, NULL);
     }
     else {
         if (THREADING_RUNMODE(flags) == THREADING_KERNELMODE) {
@@ -323,39 +130,28 @@ ThreadCreate(
         }
         else {
             unsigned int memorySpaceFlags = 0;
+
             if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
                 memorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
             if (flags & THREADING_INHERIT) {
                 memorySpaceFlags |= MEMORY_SPACE_INHERIT;
             }
-            if (CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle) != OsSuccess) {
-                ERROR("Failed to create memory space for thread");
-                // TODO: cleanup
+
+            status = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
+            if (status != OsSuccess) {
+                DestroyThread(thread);
                 return OsError;
             }
-            thread->MemorySpace = (MemorySpace_t*)LookupHandleOfType(
-                    thread->MemorySpaceHandle, HandleTypeMemorySpace);
+            thread->MemorySpace = MEMORYSPACE_GET(thread->MemorySpaceHandle);
         }
     }
-    
-    // Create pre-mapped tls region for userspace threads, the area will be reserved
-    // but not physically allocated
-    if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
-        uintptr_t  threadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
-        size_t     threadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
-        OsStatus_t status            = MemorySpaceMapReserved(
-                thread->MemorySpace,
-                &threadRegionStart, threadRegionSize,
-                MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_VIRTUAL_FIXED);
-        if (status != OsSuccess) {
-            ERROR("[thread_create] failed to premap TLS area");
-        }
-    }
-    AddChild(parent, thread);
 
-    WARNING("[thread_create] new thread %s on core %u",
-            thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
+    if (flags & THREADING_INHERIT) {
+        AddChild(parent, thread);
+    }
+
+    TRACE("[thread_create] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
     SchedulerQueueObject(thread->SchedulerObject);
     *handle = thread->Handle;
     return OsSuccess;
@@ -463,27 +259,32 @@ ThreadJoin(
     return -1;
 }
 
-void
+_Noreturn void
 ThreadingEnterUsermode(
     _In_ ThreadEntry_t EntryPoint,
     _In_ void*         Argument)
 {
-    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    Thread_t*         thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    VirtualAddress_t  tlsAddress;
+    PhysicalAddress_t tlsPhysicalAddress;
 
-    // Create the userspace stack now that we need it 
-    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1,
-                                                               GetMemorySpacePageSize());
-    assert(thread->Contexts[THREADING_CONTEXT_LEVEL1] != NULL);
-    
-    ContextReset(thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-                 (uintptr_t)EntryPoint, (uintptr_t)Argument);
-        
-    // Create the signal stack in preparation.
-    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL,
-                                                               GetMemorySpacePageSize());
-    assert(thread->Contexts[THREADING_CONTEXT_SIGNAL] != NULL);
-    
-    // Initiate switch to userspace
+    // Allocate the TLS segment (1 page) (x86 only, should be another place)
+    MemorySpaceMap(GetCurrentMemorySpace(), &tlsAddress, &tlsPhysicalAddress, GetMemorySpacePageSize(),
+                   MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT, MAPPING_VIRTUAL_THREAD);
+
+    // Create the userspace stack(s) now that we will need it
+    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1, thread->UserStackSize);
+    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL, thread->UserStackSize);
+    if (!thread->Contexts[THREADING_CONTEXT_LEVEL1] || !thread->Contexts[THREADING_CONTEXT_SIGNAL]) {
+        assert(0);
+    }
+
+    // initiate the userspace stack with entry point and argument
+    ContextReset(
+            thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
+            (uintptr_t)EntryPoint, (uintptr_t)Argument);
+
+    // initiate switch to userspace
     thread->Flags |= THREADING_TRANSITION_USERMODE;
     ThreadingYield();
     for (;;);
@@ -671,27 +472,6 @@ ThreadContext(
     return Thread->Contexts[Context];
 }
 
-static void
-DumpActiceThread(
-    _In_ void* Resource,
-    _In_ void* Context)
-{
-    Thread_t* Thread = Resource;
-    int            Value;
-    
-    Value = atomic_load(&Thread->Cleanup);
-    if (!Value) {
-        WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
-            Thread->Handle, Thread->Name, Thread->ParentHandle, CONTEXT_IP(Thread->ContextActive));
-    }
-}
-
-void
-DisplayActiveThreads(void)
-{
-    // TODO
-}
-
 OsStatus_t
 ThreadingAdvance(
     _In_  int     Preemptive,
@@ -779,4 +559,254 @@ GetNextThread:
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
     return OsSuccess;
+}
+
+// Common entry point for everything
+_Noreturn static void
+ThreadingEntryPoint(void)
+{
+    UUId_t    coreId = ArchGetProcessorCoreId();
+    Thread_t* thread = ThreadCurrentForCore(coreId);
+
+    TRACE("ThreadingEntryPoint()");
+
+    if (thread->Flags & THREADING_IDLE) {
+        while (1) {
+            ArchProcessorIdle();
+        }
+    }
+    else if (THREADING_RUNMODE(thread->Flags) == THREADING_KERNELMODE ||
+             (thread->Flags & THREADING_KERNELENTRY)) {
+        thread->Flags &= ~(THREADING_KERNELENTRY);
+        thread->Function(thread->Arguments);
+        ThreadTerminate(thread->Handle, 0, 1);
+    }
+    else {
+        ThreadingEnterUsermode(thread->Function, thread->Arguments);
+    }
+    for (;;);
+}
+
+static void
+DestroyThread(
+        _In_ void* resource)
+{
+    Thread_t* thread = resource;
+    int       references;
+    clock_t   unused;
+
+    if (!thread) {
+        return;
+    }
+
+    TRACE("DestroyThread(%s)", thread->Name ? thread->Name : "<error>");
+
+    // Make sure we are completely removed as reference
+    // from the entire system. We also signal all waiters for this
+    // thread again before continueing just in case
+    references = atomic_load(&thread->References);
+    if (references != 0) {
+        int Timeout = 200;
+        SemaphoreSignal(&thread->EventObject, references + 1);
+        while (Timeout > 0) {
+            SchedulerSleep(10, &unused);
+            Timeout -= 10;
+
+            references = atomic_load(&thread->References);
+            if (!references) {
+                break;
+            }
+        }
+    }
+
+    // Cleanup resources now that we have no external dependancies
+    if (thread->SchedulerObject) {
+        SchedulerDestroyObject(thread->SchedulerObject);
+    }
+
+    // Detroy the thread-contexts
+    ContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
+    ContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1, thread->UserStackSize);
+    ContextDestroy(thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, thread->UserStackSize);
+
+    // Remove a reference to the memory space if not root, and remove the
+    // kernel mapping of the threads' ipc area
+    if (thread->MemorySpaceHandle != UUID_INVALID) {
+        DestroyHandle(thread->MemorySpaceHandle);
+    }
+
+    if (thread->Name) {
+        kfree((void*)thread->Name);
+    }
+
+    if (thread->Signaling.Signals) {
+        kfree(thread->Signaling.Signals);
+    }
+
+    ThreadingUnregister(thread);
+    kfree(thread);
+}
+
+static OsStatus_t
+CreateDefaultThreadContexts(
+        _In_ Thread_t* thread)
+{
+    // Create the kernel context, for a userspace thread this is always the default
+    thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
+    if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
+        return OsOutOfMemory;
+    }
+
+    ContextReset(
+            thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0,
+            (uintptr_t)&ThreadingEntryPoint, 0);
+
+    // We cannot at this time allocate userspace contexts as they need to be located inside
+    // the local thread memory. So they are created as a part of thread startup.
+    return OsSuccess;
+}
+
+// Setup defaults for a new thread and creates appropriate resources
+static OsStatus_t
+InitializeDefaultThread(
+        _In_ Thread_t*     thread,
+        _In_ const char*   name,
+        _In_ ThreadEntry_t threadEntry,
+        _In_ void*         arguments,
+        _In_ unsigned int  flags,
+        _In_ size_t        kernelStackSize,
+        _In_ size_t        userStackSize)
+{
+    OsStatus_t osStatus;
+    UUId_t     handle;
+    char       buffer[16];
+
+    if (!kernelStackSize) {
+        kernelStackSize = GetDefaultStackSize(THREADING_KERNELMODE);
+    }
+    if (!userStackSize) {
+        userStackSize = GetDefaultStackSize(THREADING_USERMODE);
+    }
+
+    // Reset thread structure
+    memset(thread, 0, sizeof(Thread_t));
+    MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
+    SemaphoreConstruct(&thread->EventObject, 0, 1);
+
+    handle = CreateHandle(HandleTypeThread, DestroyThread, thread);
+    thread->Handle          = handle;
+    thread->References      = ATOMIC_VAR_INIT(0);
+    thread->Function        = threadEntry;
+    thread->Arguments       = arguments;
+    thread->Flags           = flags;
+    thread->ParentHandle    = UUID_INVALID;
+    thread->KernelStackSize = kernelStackSize;
+    thread->UserStackSize   = userStackSize;
+    TimersGetSystemTick(&thread->StartedAt);
+
+    osStatus = streambuffer_create(
+            sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
+            STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
+            &thread->Signaling.Signals);
+    if (osStatus != OsSuccess) {
+        return OsOutOfMemory;
+    }
+
+    // Sanitize name, if NULL generate a new thread name of format 'thread x'
+    if (name == NULL) {
+        memset(&buffer[0], 0, sizeof(buffer));
+        sprintf(&buffer[0], "thread %" PRIuIN, thread->Handle);
+        thread->Name = strdup(&buffer[0]);
+    }
+    else {
+        thread->Name = strdup(name);
+    }
+
+    if (!thread->Name) {
+        return OsOutOfMemory;
+    }
+
+    thread->SchedulerObject = SchedulerCreateObject(thread, flags);
+    osStatus = ThreadingRegister(thread);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    return CreateDefaultThreadContexts(thread);
+}
+
+static UUId_t
+CreateThreadCookie(
+        _In_ Thread_t* Thread,
+        _In_ Thread_t* Parent)
+{
+    UUId_t Cookie = Thread->StartedAt ^ Parent->StartedAt;
+    for (int i = 0; i < 5; i++) {
+        Cookie >>= i;
+        Cookie += Thread->StartedAt;
+        Cookie *= Parent->StartedAt;
+    }
+    return Cookie;
+}
+
+static void AddChild(
+        _In_ Thread_t* Parent,
+        _In_ Thread_t* Child)
+{
+    Thread_t* Previous;
+    Thread_t* Link;
+
+    MutexLock(&Parent->SyncObject);
+    Link = Parent->Children;
+    if (!Link) {
+        Parent->Children = Child;
+    }
+    else {
+        while (Link) {
+            Previous = Link;
+            Link     = Link->Sibling;
+        }
+
+        Previous->Sibling = Child;
+        Child->Sibling    = NULL;
+    }
+    MutexUnlock(&Parent->SyncObject);
+}
+
+static void RemoveChild(
+        _In_ Thread_t* Parent,
+        _In_ Thread_t* Child)
+{
+    Thread_t* Previous = NULL;
+    Thread_t* Link;
+
+    MutexLock(&Parent->SyncObject);
+    Link = Parent->Children;
+
+    while (Link) {
+        if (Link == Child) {
+            if (!Previous) {
+                Parent->Children = Child->Sibling;
+            }
+            else {
+                Previous->Sibling = Child->Sibling;
+            }
+            break;
+        }
+        Previous = Link;
+        Link     = Link->Sibling;
+    }
+    MutexUnlock(&Parent->SyncObject);
+}
+
+static size_t GetDefaultStackSize(unsigned int threadFlags)
+{
+    if (THREADING_RUNMODE(threadFlags) == THREADING_KERNELMODE) {
+        return THREADING_KERNEL_STACK_SIZE;
+    }
+    else if (THREADING_RUNMODE(threadFlags) == THREADING_USERMODE) {
+        return BYTES_PER_MB * 8;
+    }
+    assert(0);
+    return 0;
 }

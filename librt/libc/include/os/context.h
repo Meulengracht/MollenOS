@@ -84,12 +84,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                R13;
 	uint64_t                R14;
 	uint64_t                R15;
-			                
-	uint64_t                Gs;
-	uint64_t                Fs;
-	uint64_t                Es;
-	uint64_t                Ds;
-			                
+
 	uint64_t                Irq;
 	uint64_t                ErrorCode;
 	uint64_t                Rip;

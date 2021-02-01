@@ -302,5 +302,8 @@ InitializeHandles(void)
 OsStatus_t
 InitializeHandleJanitor(void)
 {
-    return ThreadCreate("janitor", HandleJanitorThread, NULL, 0, UUID_INVALID, &JanitorHandle);
+    // Create the thread with all defaults
+    return ThreadCreate("janitor", HandleJanitorThread, NULL,
+                        0, UUID_INVALID, 0, 0,
+                        &JanitorHandle);
 }
