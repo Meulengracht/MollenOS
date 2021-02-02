@@ -26,34 +26,34 @@
 
 static int
 MStringConvertASCIIToUtf8(
-    _In_ MString_t*  Storage,
-    _In_ const char* Source)
+    _In_ MString_t*  destination,
+    _In_ const char* source)
 {
-    char *dPtr = NULL;
-    char *cPtr = (char*)Source;
-    size_t DataLength = 0;
+    char*  destData = NULL;
+    char*  srcData  = (char*)source;
+    size_t dataLength;
 
     // Get the length of the data
-    Storage->Length = 0;
-    while (*cPtr) {
-        Storage->Length += Utf8ByteSizeOfCharacterInUtf8((mchar_t)*cPtr);
-        cPtr++;
+    destination->Length = 0;
+    while (*srcData) {
+        destination->Length += Utf8ByteSizeOfCharacterInUtf8((mchar_t)*srcData);
+        srcData++;
     }
 
-    DataLength = DIVUP((Storage->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-    Storage->Data = (void*)dsalloc(DataLength);
-    Storage->MaxLength = DataLength;
-    memset(Storage->Data, 0, DataLength);
+    dataLength = DIVUP((destination->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
+    destination->Data      = (void*)dsalloc(dataLength);
+    destination->MaxLength = dataLength;
+    memset(destination->Data, 0, dataLength);
 
-    dPtr = Storage->Data;
-    cPtr = (char*)Source;
-    while (*cPtr) {
+    destData = destination->Data;
+    srcData  = (char*)source;
+    while (*srcData) {
         size_t Bytes = 0;
 
-        if (!Utf8ConvertCharacterToUtf8((mchar_t)*cPtr, dPtr, &Bytes)) {
-            dPtr += Bytes;
+        if (!Utf8ConvertCharacterToUtf8((mchar_t)*srcData, destData, &Bytes)) {
+            destData += Bytes;
         }
-        cPtr++;
+        srcData++;
     }
     return 0;
 }
@@ -164,20 +164,23 @@ MStringConvertUtf32ToUtf8(
 
 static int
 MStringCopyUtf8ToUtf8(
-    _In_ MString_t*  Storage,
-    _In_ const char* Source)
+    _In_ MString_t*  destination,
+    _In_ const char* source)
 {
-    size_t DataLength;
-    assert(Source != NULL);
+    size_t dataLength;
 
-    Storage->Length = strlen(Source);
-    DataLength      = DIVUP((Storage->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
+    if (!destination || !source) {
+        return -1;
+    }
 
-    Storage->Data       = (void*)dsalloc(DataLength);
-    Storage->MaxLength  = DataLength;
+    destination->Length = strlen(source);
+    dataLength = DIVUP((destination->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
 
-    memset(Storage->Data, 0, DataLength);
-    memcpy(Storage->Data, (const void*)Source, Storage->Length);
+    destination->Data      = (void*)dsalloc(dataLength);
+    destination->MaxLength = dataLength;
+
+    memset(destination->Data, 0, dataLength);
+    memcpy(destination->Data, (const void*)source, destination->Length);
     return 0;
 }
 
@@ -185,7 +188,7 @@ static void
 MStringNull(
     _In_ MString_t* Storage)
 {
-    if (Storage->Data == NULL) {
+    if (!Storage->Data) {
         Storage->Data      = dsalloc(MSTRING_BLOCK_SIZE);
         Storage->MaxLength = MSTRING_BLOCK_SIZE;
     }
@@ -199,7 +202,9 @@ MStringReset(
     _In_ const char*   NewString,
     _In_ MStringType_t DataType)
 {
-    assert(String != NULL);
+    if (!String) {
+        return;
+    }
 
     if (String->Data != NULL) {
         dsfree(String->Data);

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -36,44 +37,34 @@ MStringCopy(
     }
 
 	/* If -1, copy all from source */
-	if (Length == -1)
-	{
-		/* Is destination large enough? */
-		if (Source->Length >= Destination->MaxLength) {
-			MStringResize(Destination, Source->MaxLength);
-		}
+	if (Length == -1) {
+	    // ensure large enough buffer
+        MStringResize(Destination, Source->MaxLength);
 
-		/* Copy */
 		memcpy(Destination->Data, Source->Data, Source->Length);
-
-		/* Update length */
 		Destination->Length = Source->Length;
 	}
-	else
-	{
+	else {
 		/* Calculate byte length to copy */
-		char *DataPtr = (char*)Source->Data;
+		char*    srcData = (char*)Source->Data;
+        uint8_t* destData;
 		int Count = Length, Index = 0;
 
-		/* Iterate */
-		while (DataPtr[Index] && Count) {
-			mchar_t NextCharacter = Utf8GetNextCharacterInString(DataPtr, &Index);
+		while (srcData[Index] && Count) {
+			mchar_t NextCharacter = Utf8GetNextCharacterInString(srcData, &Index);
 			if (NextCharacter == MSTRING_EOS) {
 				break;
 			}
 			Count--;
 		}
 
-		/* Is destination large enough? */
-		if ((size_t)Index >= Destination->MaxLength) {
-			MStringResize(Destination, Index);
-		}
+		// ensure space enough for the copy
+        MStringResize(Destination, Index);
 
-		/* Copy */
+		// copy the data over and then we null terminate
 		memcpy(Destination->Data, Source->Data, Index);
 
-		/* Null Terminate */
-		uint8_t *NullPtr = (uint8_t*)Destination->Data;
-		NullPtr[Index] = '\0';
+		destData = (uint8_t*)Destination->Data;
+        destData[Index] = '\0';
 	}
 }

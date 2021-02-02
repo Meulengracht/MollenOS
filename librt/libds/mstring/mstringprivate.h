@@ -154,6 +154,6 @@ CRTDECL(size_t, Utf8ByteCountInString(const char *Str));
 /* Helper for internal functions
  * to automatically resize the buffer 
  * of a string to be able to fit a certain size */
-CRTDECL(void, MStringResize(MString_t *String, size_t Length));
+CRTDECL(void, MStringResize(MString_t * string, size_t size));
 
 #endif //!_MSTRING_PRIV_H_

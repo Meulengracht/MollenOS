@@ -288,6 +288,7 @@ VfsResolvePath(
         if (ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH) == OsError) {
             if (VfsGuessBasePath(path, &basePath[0]) == OsError) {
                 ERROR("Failed to guess the base path for path %s", path);
+                free(basePath);
                 return NULL;
             }
         }
@@ -296,6 +297,8 @@ VfsResolvePath(
         }
         strcat(basePath, path);
         resolvedPath = VfsPathCanonicalize(basePath);
+
+        free(basePath);
     }
     else {
         resolvedPath = VfsPathCanonicalize(path);

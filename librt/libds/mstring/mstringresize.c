@@ -23,23 +23,28 @@
 
 #include "mstringprivate.h"
 
-void MStringResize(MString_t *String, size_t Length)
+void MStringResize(
+        _In_ MString_t* string,
+        _In_ size_t     size)
 {
-	/* Calculate the new byte-count we 
-	 * need to encompass with blocks */
-	size_t DataLength = DIVUP(Length, MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
+    void*  data;
+	size_t dataLength;
 
-	/* Expand and reset buffer */
-	void *Data = dsalloc(DataLength);
-	memset(Data, 0, DataLength);
+	// add one to size to account for null terminator
+    dataLength = DIVUP(size + 1, MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
+	if (dataLength <= string->MaxLength) {
+	    return;
+	}
 
-	/* Copy old data over */
-	memcpy(Data, String->Data, String->Length);
+	data = dsalloc(dataLength);
+	if (!data) {
+	    return;
+	}
 
-	/* Free the old buffer */
-	dsfree(String->Data);
+	memset(data, 0, dataLength);
+	memcpy(data, string->Data, string->Length);
+	dsfree(string->Data);
 
-	/* Update string to new buffer */
-	String->MaxLength = DataLength;
-	String->Data = Data;
+    string->MaxLength = dataLength;
+    string->Data      = data;
 }

@@ -26,62 +26,65 @@
 
 void
 MStringAppend(
-    _In_ MString_t* Destination,
-    _In_ MString_t* String)
+    _In_ MString_t* destination,
+    _In_ MString_t* source)
 {
-    uint8_t *StringPtr;
-    size_t NewLength;
+    uint8_t* data;
+    size_t   newLength;
 
-    assert(Destination != NULL);
-    assert(String != NULL);
-
-    NewLength = Destination->Length + String->Length;
-
-    // Sanitize if destination has enough space for both buffers
-    if (NewLength >= Destination->MaxLength) {
-        MStringResize(Destination, NewLength);
+    if (!destination || !source) {
+        return;
     }
 
-    StringPtr = (uint8_t*)Destination->Data;
-    memcpy(StringPtr + Destination->Length, String->Data, String->Length);
-    StringPtr[NewLength] = '\0';
-    Destination->Length = NewLength;
+    // ensure that we have enough space in destination
+    newLength = destination->Length + source->Length;
+    MStringResize(destination, newLength);
+
+    data = (uint8_t*)destination->Data;
+    memcpy(data + destination->Length, source->Data, source->Length);
+    data[newLength] = '\0';
+    destination->Length = newLength;
 }
 
 void
 MStringAppendCharacter(
-    _In_ MString_t* String,
-    _In_ mchar_t    Character)
+    _In_ MString_t* string,
+    _In_ mchar_t    character)
 {
-    uint8_t*    StringPtr;
-    size_t      NewLength;
-    size_t      ExtraLength = 0;
-    int         i           = 0;
+    uint8_t* data;
+    size_t   newLength;
+    size_t   extraLength = 0;
+    int      i;
 
-    assert(String != NULL);
-
-    NewLength = String->Length + Utf8ByteSizeOfCharacterInUtf8(Character);
-    if (NewLength >= String->MaxLength) {
-        MStringResize(String, NewLength);
+    if (!string) {
+        return;
     }
-    StringPtr   = (uint8_t*)String->Data;
-    i           = String->Length;
 
-    Utf8ConvertCharacterToUtf8(Character, (void*)&StringPtr[i], &ExtraLength);
-    StringPtr[i + ExtraLength] = '\0';
-    String->Length += ExtraLength;
+    newLength = string->Length + Utf8ByteSizeOfCharacterInUtf8(character);
+    MStringResize(string, newLength);
+
+    data = (uint8_t*)string->Data;
+    i    = string->Length;
+
+    Utf8ConvertCharacterToUtf8(character, (void*)&data[i], &extraLength);
+    data[i + extraLength] = '\0';
+
+    string->Length += extraLength;
 }
 
 void
 MStringAppendCharacters(
-    _In_ MString_t*    String,
-    _In_ const char*   Characters,
-    _In_ MStringType_t DataType)
+    _In_ MString_t*    string,
+    _In_ const char*   characters,
+    _In_ MStringType_t dataType)
 {
-    assert(String != NULL);
-    assert(Characters != NULL);
+    MString_t* proxy;
 
-    MString_t* Proxy = MStringCreate(Characters, DataType);
-    MStringAppend(String, Proxy);
-    MStringDestroy(Proxy);
+    if (!string || !characters) {
+        return;
+    }
+
+    proxy = MStringCreate(characters, dataType);
+    MStringAppend(string, proxy);
+    MStringDestroy(proxy);
 }

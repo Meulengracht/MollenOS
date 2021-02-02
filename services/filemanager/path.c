@@ -212,7 +212,7 @@ VfsPathCanonicalize(
             }
             
             if (previousIndex != MSTRING_NOT_FOUND) {
-                TRACE("Going back in %s", MStringRaw(absolutePath));
+                TRACE("[vfs] [path] going back in %s", MStringRaw(absolutePath));
 				MString_t* subPath = MStringSubString(absolutePath, 0, previousIndex + 1); // Include the '/'
 				if (subPath) {
                     MStringDestroy(absolutePath);
@@ -223,8 +223,8 @@ VfsPathCanonicalize(
 		else {
             // Don't double add '/'
             if (IS_SEPERATOR(&path[i])) {
-                int Index = MStringFindReverse(absolutePath, '/', 0);
-                if ((Index + 1) != MStringLength(absolutePath)) {
+                int seperatorIndex = MStringFindReverse(absolutePath, '/', 0);
+                if ((seperatorIndex + 1) != MStringLength(absolutePath)) {
                     MStringAppendCharacter(absolutePath, '/');
                 }
             }
