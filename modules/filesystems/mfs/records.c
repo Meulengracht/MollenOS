@@ -299,7 +299,7 @@ MfsLocateFreeRecord(
                         Record->StartBucket         = Expansion.Link;
                         Record->StartLength         = Expansion.Length;
                         Record->AllocatedSize       = Mfs->SectorsPerBucket 
-                            * FileSystem->Disk.Descriptor.SectorSize;
+                            * FileSystem->Disk.descriptor.SectorSize;
 
                         // Write back record bucket
                         if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket),

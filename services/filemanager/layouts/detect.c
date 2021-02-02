@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * File Manager Service
@@ -37,10 +38,10 @@ ReadStorage(
 	_In_  size_t            sectorCount,
 	_Out_ size_t*           sectorsRead)
 {
-	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
+	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->driver_id);
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->device_id,
 			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
 			bufferHandle, 0, sectorCount);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
@@ -120,13 +121,13 @@ DiskDetectLayout(
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
 
-	TRACE("DiskDetectLayout(SectorSize %u)", disk->Descriptor.SectorSize);
+	TRACE("DiskDetectLayout(SectorSize %u)", disk->descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
 	dmaInfo.name     = "disk_temp_buffer";
-	dmaInfo.capacity = disk->Descriptor.SectorSize;
-	dmaInfo.length   = disk->Descriptor.SectorSize;
+	dmaInfo.capacity = disk->descriptor.SectorSize;
+	dmaInfo.length   = disk->descriptor.SectorSize;
 	dmaInfo.flags    = 0;
 	
 	status = dma_create(&dmaInfo, &dmaAttachment);

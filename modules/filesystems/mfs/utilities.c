@@ -38,11 +38,11 @@ MfsReadSectors(
     _In_ size_t                  Count,
     _In_ size_t*                 SectorsRead)
 {
-	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.Driver);
+	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.driver_id);
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.device_id,
 			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
@@ -59,11 +59,11 @@ MfsWriteSectors(
     _In_ size_t                  Count,
     _In_ size_t*                 SectorsWritten)
 {
-	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.Driver);
+	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.driver_id);
     uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.device_id,
 			__STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
@@ -80,7 +80,7 @@ MfsUpdateMasterRecord(
 
     TRACE("MfsUpdateMasterRecord()");
 
-    memset(Mfs->TransferBuffer.buffer, 0, FileSystem->Disk.Descriptor.SectorSize);
+    memset(Mfs->TransferBuffer.buffer, 0, FileSystem->Disk.descriptor.SectorSize);
     memcpy(Mfs->TransferBuffer.buffer, &Mfs->MasterRecord, sizeof(MasterRecord_t));
 
     if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, Mfs->MasterRecordSector, 1, &SectorsTransferred)       != OsSuccess || 
@@ -134,10 +134,10 @@ MfsSetBucketLink(
 
     // Calculate offset into buffer
     BufferOffset = (uint8_t*)Mfs->BucketMap;
-    BufferOffset += (SectorOffset * FileSystem->Disk.Descriptor.SectorSize);
+    BufferOffset += (SectorOffset * FileSystem->Disk.descriptor.SectorSize);
 
     // Copy a sector's worth of data into the buffer
-    memcpy(Mfs->TransferBuffer.buffer, BufferOffset, FileSystem->Disk.Descriptor.SectorSize);
+    memcpy(Mfs->TransferBuffer.buffer, BufferOffset, FileSystem->Disk.descriptor.SectorSize);
 
     // Flush buffer to disk
     if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, 
@@ -405,7 +405,7 @@ MfsFileRecordToVfsFile(
     _In_ MfsEntry_t*                VfsEntry)
 {
     // Skip the bucket placement and path
-    VfsEntry->Base.Descriptor.StorageId = (int)FileSystem->Disk.Device; // ???
+    VfsEntry->Base.Descriptor.StorageId = (int)FileSystem->Disk.device_id; // ???
     // VfsEntry->Base.Descriptor.Id = ??
     VfsEntry->Base.Name                     = MStringCreate((const char*)&NativeEntry->Name[0], StrUTF8);
     VfsEntry->NativeFlags                   = NativeEntry->Flags;
@@ -502,12 +502,12 @@ MfsEnsureRecordSpace(
     _In_ uint64_t                SpaceRequired)
 {
     MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize;
     TRACE("MfsEnsureRecordSpace(%u)", LODWORD(SpaceRequired));
 
     if (SpaceRequired > Entry->AllocatedSize) {
         // Calculate the number of sectors, then number of buckets
-        size_t      NumSectors = (size_t)(DIVUP((SpaceRequired - Entry->AllocatedSize), FileSystem->Disk.Descriptor.SectorSize));
+        size_t      NumSectors = (size_t)(DIVUP((SpaceRequired - Entry->AllocatedSize), FileSystem->Disk.descriptor.SectorSize));
         size_t      NumBuckets = DIVUP(NumSectors, Mfs->SectorsPerBucket);
         uint32_t    BucketPointer, PreviousBucketPointer;
         MapRecord_t Iterator, Link;

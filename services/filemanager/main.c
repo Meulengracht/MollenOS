@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,11 +24,9 @@
 
 #include <ctype.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 #include "include/vfs.h"
 #include <internal/_ipc.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <svc_file_protocol_server.h>
 
@@ -96,94 +95,10 @@ static gracht_protocol_function_t svc_storage_callbacks[4] = {
 };
 DEFINE_SVC_STORAGE_SERVER_PROTOCOL(svc_storage_callbacks, 4);
 
-// Static storage for the filemanager
-static int          DiskTable[__FILEMANAGER_MAXDISKS] = { 0 };
-static Collection_t ResolveQueue    = COLLECTION_INIT(KeyId);
-static Collection_t FileSystems     = COLLECTION_INIT(KeyId);
-static Collection_t OpenHandles     = COLLECTION_INIT(KeyId);
-static Collection_t OpenFiles       = COLLECTION_INIT(KeyId);
-static Collection_t Modules         = COLLECTION_INIT(KeyId);
-static Collection_t Disks           = COLLECTION_INIT(KeyId);
+static list_t g_fileSystems = LIST_INIT;
 
-//static UUId_t FileSystemIdGenerator = 0;
-static UUId_t FileIdGenerator = 0;
-
-Collection_t*
-VfsGetOpenFiles(void) {
-    return &OpenFiles;
-}
-
-Collection_t*
-VfsGetOpenHandles(void) {
-    return &OpenHandles;
-}
-
-Collection_t*
-VfsGetModules(void) {
-    return &Modules;
-}
-
-Collection_t*
-VfsGetDisks(void) {
-    return &Disks;
-}
-
-Collection_t*
-VfsGetFileSystems(void) {
-    return &FileSystems;
-}
-
-Collection_t*
-VfsGetResolverQueue(void) {
-    return &ResolveQueue;
-}
-
-UUId_t
-VfsIdentifierFileGet(void) {
-    return FileIdGenerator++;
-}
-
-UUId_t
-VfsIdentifierAllocate(
-    _In_ FileSystemDisk_t *Disk)
-{
-    int ArrayStartIndex = 0;
-    int ArrayEndIndex   = 0;
-    int i;
-
-    // Start out by determing start index
-    ArrayEndIndex = __FILEMANAGER_MAXDISKS / 2;
-    if (Disk->Flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) {
-        ArrayStartIndex = __FILEMANAGER_MAXDISKS / 2;
-        ArrayEndIndex = __FILEMANAGER_MAXDISKS;
-    }
-
-    // Now iterate the range for the type of disk
-    for (i = ArrayStartIndex; i < ArrayEndIndex; i++) {
-        if (DiskTable[i] == 0) {
-            DiskTable[i] = 1;
-            return (UUId_t)(i - ArrayStartIndex);
-        }
-    }
-    return UUID_INVALID;
-}
-
-OsStatus_t
-VfsIdentifierFree(
-    _In_ FileSystemDisk_t   *Disk,
-    _In_ UUId_t              Id)
-{
-    int ArrayIndex = (int)Id;
-    if (Disk->Flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) {
-        ArrayIndex += __FILEMANAGER_MAXDISKS / 2;
-    }
-    if (ArrayIndex < __FILEMANAGER_MAXDISKS) {
-        DiskTable[ArrayIndex] = 0;
-        return OsSuccess;
-    }
-    else {
-        return OsError;
-    }
+list_t* VfsGetFileSystems(void) {
+    return &g_fileSystems;
 }
 
 OsStatus_t OnUnload(void)
@@ -197,9 +112,11 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_FILE_PATH;
 }
 
-OsStatus_t
-OnLoad(void)
+OsStatus_t OnLoad(void)
 {
+    // Initialize subsystems
+    VfsCacheInitialize();
+
     // Register supported interfaces
     gracht_server_register_protocol(&svc_file_server_protocol);
     gracht_server_register_protocol(&svc_path_server_protocol);

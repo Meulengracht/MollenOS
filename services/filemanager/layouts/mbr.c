@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,10 +37,10 @@ ReadStorage(
 	_In_  size_t            sectorCount,
 	_Out_ size_t*           sectorsRead)
 {
-	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Driver);
+	struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->driver_id);
 	OsStatus_t               status;
 	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->Device,
+	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->device_id,
 			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
 			bufferHandle, 0, sectorCount);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
@@ -160,7 +161,7 @@ MbrEnumerate(
     // not there is a partition table available
     // otherwise we treat the entire disk as one partition
     if (mbrEnumeratePartitions(disk, bufferHandle, buffer, 0) != OsSuccess) {
-        return DiskDetectFileSystem(disk, bufferHandle, buffer, 0, disk->Descriptor.SectorCount);
+        return DiskDetectFileSystem(disk, bufferHandle, buffer, 0, disk->descriptor.SectorCount);
     }
     else {
         return OsSuccess;

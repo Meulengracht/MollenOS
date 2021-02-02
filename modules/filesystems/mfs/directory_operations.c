@@ -72,7 +72,7 @@ FsReadFromDirectory(
         size_t   Count      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength);
         size_t   Offset     = Position - Handle->BucketByteBoundary;
         uint8_t* Data       = (uint8_t*)Mfs->TransferBuffer.buffer;
-        size_t   BucketSize = Count * FileSystem->Disk.Descriptor.SectorSize;
+        size_t   BucketSize = Count * FileSystem->Disk.descriptor.SectorSize;
         size_t   SectorsRead;
         TRACE("read_metrics:: sector %u, count %u, offset %u, bucket-size %u",
             LODWORD(Sector), Count, Offset, BucketSize);
@@ -105,7 +105,7 @@ FsReadFromDirectory(
         if (Position == (Handle->BucketByteBoundary + BucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(Position), 
                 LODWORD(Handle->BucketByteBoundary + BucketSize));
-            Result = MfsSwitchToNextBucketLink(FileSystem, Handle, Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize);
+            Result = MfsSwitchToNextBucketLink(FileSystem, Handle, Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize);
             if (Result != OsSuccess) {
                 if (Result == OsDoesNotExist) {
                     Result = OsSuccess;
@@ -148,7 +148,7 @@ FsSeekInDirectory(
 
     // Step 1, if the new position is in
     // initial bucket, we need to do no actual seeking
-    InitialBucketMax = (Entry->StartLength * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+    InitialBucketMax = (Entry->StartLength * (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
     if (AbsolutePosition < InitialBucketMax) {
         Handle->DataBucketPosition   = Entry->StartBucket;
         Handle->DataBucketLength     = Entry->StartLength;
@@ -162,7 +162,7 @@ FsSeekInDirectory(
         // Calculate bucket boundaries
         OldBucketLow  = Handle->BucketByteBoundary;
         OldBucketHigh = OldBucketLow + (Handle->DataBucketLength 
-            * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+            * (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
 
         // If we are seeking inside the same bucket no need
         // to do anything else
@@ -207,7 +207,7 @@ FsSeekInDirectory(
                 BucketLength        = Link.Length;
                 PositionBoundLow    += PositionBoundHigh;
                 PositionBoundHigh   = (BucketLength * 
-                    (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+                    (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
             }
 
             // Update bucket pointer

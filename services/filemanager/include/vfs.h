@@ -25,20 +25,18 @@
 #define _VFS_INTERFACE_H_
 
 #include <ddk/filesystem.h>
-#include <os/types/path.h>
-#include <ds/collection.h>
-#include <os/mollenos.h>
 #include <ds/mstring.h>
+#include <ds/list.h>
+#include <os/types/path.h>
+#include <os/mollenos.h>
 
-/* VFS Definitions 
- * - General identifiers can be used in paths */
-#define __FILEMANAGER_MAXDISKS          64
+#define __FILEMANAGER_MAXDISKS 64
 
-#define __FILE_OPERATION_NONE           0x00000000
-#define __FILE_OPERATION_READ           0x00000001
-#define __FILE_OPERATION_WRITE          0x00000002
+#define __FILE_OPERATION_NONE  0x00000000
+#define __FILE_OPERATION_READ  0x00000001
+#define __FILE_OPERATION_WRITE 0x00000002
 
-typedef enum _FileSystemType {
+typedef enum FileSystemType {
     FSUnknown = 0,
     FSFAT,
     FSEXFAT,
@@ -49,14 +47,18 @@ typedef enum _FileSystemType {
     FSEXT
 } FileSystemType_t;
 
-/* VFS FileSystem Module 
- * Contains all the protocols implemented
- * by each filesystem module, also contains
- * the number of references the individual module */
-typedef struct _FileSystemModule {
-    FileSystemType_t    Type;
-    int                 References;
-    Handle_t            Handle;
+typedef enum FileSystemState {
+    FSCreated,
+    FSLoaded,
+    FSUnloaded,
+    FSError
+} FileSystemState_t;
+
+typedef struct FileSystemModule {
+    element_t           header;
+    FileSystemType_t    type;
+    int                 references;
+    Handle_t            handle;
 
     FsInitialize_t      Initialize;
     FsDestroy_t         Destroy;
@@ -72,17 +74,41 @@ typedef struct _FileSystemModule {
     FsSeekInEntry_t     SeekInEntry;
 } FileSystemModule_t;
 
-/* VFS FileSystem structure
- * this is the main file-system structure 
- * and contains everything related to a filesystem 
- * represented in MCore */
-typedef struct _FileSystem {
-    UUId_t                      Id;
-    FileSystemType_t            Type;
-    MString_t*                  Identifier;
-    FileSystemDescriptor_t      Descriptor;
-    FileSystemModule_t*         Module;
+typedef struct FileSystem {
+    element_t              header;
+    UUId_t                 id;
+    FileSystemType_t       type;
+    FileSystemState_t      state;
+    MString_t*             identifier;
+    FileSystemDescriptor_t descriptor;
+    FileSystemModule_t*    module;
 } FileSystem_t;
+
+/**
+ * Initializes the cache subsystem.
+ */
+__EXTERN void VfsCacheInitialize();
+
+/**
+ * Retrieves a file entry from cache, otherwise it is opened or created depending on options passed.
+ * @param path    [In]  Path of the entry to open/create
+ * @param options [In]  Open/creation options.
+ * @param fileOut [Out] Pointer to storage where the pointer will be stored.
+ * @return        Status of the operation
+ */
+__EXTERN OsStatus_t
+VfsCacheGetFile(
+        _In_  MString_t*          path,
+        _In_  unsigned int        options,
+        _Out_ FileSystemEntry_t** fileOut);
+
+/**
+ * Removes a file path from the cache if it exists.
+ * @param path [In] The path of the file to remove.
+ */
+__EXTERN void
+VfsCacheRemoveFile(
+        _In_ MString_t* path);
 
 /* DiskRegisterFileSystem 
  * Registers a new filesystem of the given type, on
@@ -90,10 +116,10 @@ typedef struct _FileSystem {
  * and assigns it an identifier */
 __EXTERN OsStatus_t
 DiskRegisterFileSystem(
-    _In_ FileSystemDisk_t*  Disk,
-    _In_ uint64_t           Sector,
-    _In_ uint64_t           SectorCount,
-    _In_ FileSystemType_t   Type);
+    _In_ FileSystemDisk_t*  disk,
+    _In_ uint64_t           sector,
+    _In_ uint64_t           sectorCount,
+    _In_ FileSystemType_t   type);
 
 /* DiskDetectFileSystem
  * Detectes the kind of filesystem at the given absolute sector 
@@ -108,54 +134,45 @@ __EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
  * OsError to indicate the entire disk is a FS */
 __EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
 
-/* VfsResolveFileSystem
- * Tries to resolve the given filesystem by locating
- * the appropriate driver library for the given type */
-__EXTERN FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem);
+/**
+ * Loads the appropriate filesystem driver for given type.
+ * @param type [In] The type of filesystem to load.
+ * @return     A handle for the given filesystem driver.
+ */
+__EXTERN FileSystemModule_t*
+VfsLoadModule(
+        _In_ FileSystemType_t type);
 
-/* VfsGetResolverQueue
- * Retrieves a list of all the current filesystems
- * that needs to be resolved, and is scheduled */
-__EXTERN Collection_t *VfsGetResolverQueue(void);
+/**
+ * Unloads the given module if its reference count reaches 0.
+ * @param module [In] The module to release a reference on.
+ */
+__EXTERN void
+VfsUnloadModule(
+        _In_ FileSystemModule_t* module);
 
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
-__EXTERN Collection_t *VfsGetFileSystems(void);
+__EXTERN list_t* VfsGetFileSystems(void);
 
-/* VfsGetModules
- * Retrieves a list of all the currently loaded
- * modules, provides access for manipulation */
-__EXTERN Collection_t *VfsGetModules(void);
-
-/* VfsGetDisks
- * Retrieves a list of all the currently registered
- * disks, provides access for manipulation */
-__EXTERN Collection_t *VfsGetDisks(void);
-
-/* VfsIdentifierFileGet
- * Retrieves a new identifier for a file-handle that
- * is system-wide unique */
-__EXTERN UUId_t VfsIdentifierFileGet(void);
-
-/* VfsGetOpenFiles / VfsGetOpenHandles
- * Retrieves the list of open files /handles and allows
- * access and manipulation of the list */
-__EXTERN Collection_t* VfsGetOpenFiles(void);
-__EXTERN Collection_t* VfsGetOpenHandles(void);
-
-/* VfsIdentifierAllocate 
- * Allocates a free identifier index for the
- * given disk, it varies based upon disk type */
+/**
+ * Allocates a new disk identifier.
+ * @param disk [In] The disk that should have an identifier allocated.
+ * @return          UUID_INVALID if system is out of identifiers.
+ */
 __EXTERN UUId_t
 VfsIdentifierAllocate(
-    _In_ FileSystemDisk_t* Disk);
+    _In_ FileSystemDisk_t* disk);
 
-/* VfsIdentifierFree 
- * Frees a given disk identifier index */
-__EXTERN OsStatus_t
+/**
+ * Frees an existing identifier that has been allocated
+ * @param disk [In] The disk that was allocated the identifier
+ * @param id   [In] The disk identifier to be freed
+ */
+__EXTERN void
 VfsIdentifierFree(
-    _In_ FileSystemDisk_t* Disk,
-    _In_ UUId_t            Id);
+    _In_ FileSystemDisk_t* disk,
+    _In_ UUId_t            id);
 
 #endif //!_VFS_INTERFACE_H_

@@ -125,8 +125,6 @@ MStringConvertUtf16ToUtf8(
         }
         sPtr++;
     }
-
-    /* Done! */
     return 0;
 }
 
@@ -137,7 +135,7 @@ MStringConvertUtf32ToUtf8(
 {
     uint32_t *sPtr = (uint32_t*)Source;
     char *dPtr = NULL;
-    size_t DataLength = 0;
+    size_t DataLength;
     
     // Get length of data
     Storage->Length = 0;
@@ -248,10 +246,14 @@ MStringCreate(
     _In_ const char*   Data,
     _In_ MStringType_t DataType)
 {
-    MString_t* String = (MString_t*)dsalloc(sizeof(MString_t));
-    memset((void*)String, 0, sizeof(MString_t));
-    MStringReset(String, Data, DataType);
-    return String;
+    MString_t* string = (MString_t*)dsalloc(sizeof(MString_t));
+    if (!string) {
+        return NULL;
+    }
+
+    memset((void*)string, 0, sizeof(MString_t));
+    MStringReset(string, Data, DataType);
+    return string;
 }
 
 MString_t*

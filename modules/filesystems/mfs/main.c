@@ -301,8 +301,8 @@ FsInitialize(
     memset(Mfs, 0, sizeof(MfsInstance_t));
     
     // Create a generic transferbuffer for us to use
-    DmaInfo.length   = Descriptor->Disk.Descriptor.SectorSize;
-    DmaInfo.capacity = Descriptor->Disk.Descriptor.SectorSize;
+    DmaInfo.length   = Descriptor->Disk.descriptor.SectorSize;
+    DmaInfo.capacity = Descriptor->Disk.descriptor.SectorSize;
     DmaInfo.flags    = 0;
     
     Status = dma_create(&DmaInfo, &Mfs->TransferBuffer);
@@ -339,7 +339,7 @@ FsInitialize(
     Mfs->BucketCount = Descriptor->SectorCount / Mfs->SectorsPerBucket;
     
     // Bucket entries are 64 bit (8 bytes) in map
-    Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
+    Mfs->BucketsPerSectorInMap = Descriptor->Disk.descriptor.SectorSize / 8;
 
     // Read the master-record
     if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0,
@@ -364,8 +364,8 @@ FsInitialize(
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
-    DmaInfo.length   = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE;
-    DmaInfo.capacity = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE;
+    DmaInfo.length   = Mfs->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
+    DmaInfo.capacity = Mfs->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
     Status           = dma_create(&DmaInfo, &Mfs->TransferBuffer);
     if (Status != OsSuccess) {
         free(Mfs);
@@ -377,18 +377,18 @@ FsInitialize(
         LODWORD(Mfs->MasterRecord.MapSize));
 
     // Load map
-    Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize);
+    Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize);
     bMap           = (uint8_t*)Mfs->BucketMap;
     BytesLeft      = Mfs->MasterRecord.MapSize;
     BytesRead      = 0;
     i              = 0;
-    imax           = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
+    imax           = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize));
 
 #ifdef CACHE_SEGMENTED
     while (BytesLeft) {
         uint64_t MapSector    = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
-        size_t   TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
-        size_t   SectorCount  = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
+        size_t   TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize), (size_t)BytesLeft);
+        size_t   SectorCount  = DIVUP(TransferSize, Descriptor->Disk.descriptor.SectorSize);
 
         if (MfsReadSectors(Descriptor, Mfs->TransferBuffer.handle, 0, 
                 MapSector, SectorCount, &SectorsTransferred) != OsSuccess) {

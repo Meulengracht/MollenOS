@@ -49,7 +49,7 @@ DSDECL(MString_t*, MStringClone(MString_t* String));
 DSDECL(void,       MStringZero(MString_t* String));
 DSDECL(void,       MStringReset(MString_t* String, const char* NewString, MStringType_t DataType));
 DSDECL(void,       MStringCopy(MString_t* Destination, MString_t* Source, int DestinationIndex, int SourceIndex, int Length));
-DSDECL(void,       MStringDestroy(MString_t* String));
+DSDECL(void,       MStringDestroy(MString_t * string));
 
 // Append Character to a given string the character is assumed to be either ASCII, UTF16 or UTF32
 DSDECL(void, MStringAppend(MString_t* Destination, MString_t* String));
@@ -76,8 +76,8 @@ DSDECL(mchar_t, MStringGetCharAt(MString_t* String, int Index));
 /* Iterate through a MString, it returns the next
  * character each time untill MSTRING_EOS. Call with Iterator = NULL
  * the first time, it holds the state. And Index = 0. */
-DSDECL(mchar_t,    MStringIterate(MString_t* String, char** Iterator, size_t* Index));
-DSDECL(MString_t*, MStringSubString(MString_t* String, int Index, int Length));
+DSDECL(mchar_t,    MStringIterate(MString_t* String, char      ** Iterator, size_t* Index));
+DSDECL(MString_t*, MStringSubString(MString_t * string, int    index, int length));
 DSDECL(int,        MStringReplace(MString_t* String, const char* SearchFor, const char* ReplaceWith));
 
 DSDECL(size_t,      MStringLength(MString_t* String)); // Number of characters

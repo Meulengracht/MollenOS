@@ -42,7 +42,7 @@ FsReadFromFile(
     MfsEntry_t*    Entry           = (MfsEntry_t*)Handle->Base.Entry;
     OsStatus_t     Result          = OsSuccess;
     uint64_t       Position        = Handle->Base.Position;
-    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize;
     size_t         BytesToRead     = UnitCount;
 
     TRACE("[mfs] [read_file] id 0x%x, position %u, length %u",
@@ -82,8 +82,8 @@ FsReadFromFile(
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
         uint64_t Sector       = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);    // Start-sector of current bucket
-        uint64_t SectorOffset = Position % FileSystem->Disk.Descriptor.SectorSize; // Byte-offset into the current sector
-        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize); // The sector-index into the current bucket
+        uint64_t SectorOffset = Position % FileSystem->Disk.descriptor.SectorSize; // Byte-offset into the current sector
+        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.descriptor.SectorSize); // The sector-index into the current bucket
         size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
         size_t   SectorCount;
         size_t   SectorsRead;
@@ -102,8 +102,8 @@ FsReadFromFile(
         // we should also have room for that. So to read directly into user provided buffer, we MUST
         // ensure that <SectorOffset> is 0 and that we can read atleast one entire sector to avoid
         // any form for discarding of data.
-        if (SectorOffset == 0 && BytesToRead >= FileSystem->Disk.Descriptor.SectorSize) {
-            SectorCount    = BytesToRead / FileSystem->Disk.Descriptor.SectorSize;
+        if (SectorOffset == 0 && BytesToRead >= FileSystem->Disk.descriptor.SectorSize) {
+            SectorCount    = BytesToRead / FileSystem->Disk.descriptor.SectorSize;
             SelectedHandle = BufferHandle;
             SelectedOffset = BufferOffset;
         }
@@ -112,11 +112,11 @@ FsReadFromFile(
         // We want this to happen when we can fit the entire read into our fs transfer buffer
         // that can act as an intermediate buffer. So calculate enough space for <BytesToRead>, with
         // room for <SectorOffset> and also the spill-over bytes thats left for the sector
-        else if ((SectorOffset + BytesToRead + (FileSystem->Disk.Descriptor.SectorSize - 
-                    ((SectorOffset + BytesToRead) % FileSystem->Disk.Descriptor.SectorSize))) <= 
+        else if ((SectorOffset + BytesToRead + (FileSystem->Disk.descriptor.SectorSize -
+                    ((SectorOffset + BytesToRead) % FileSystem->Disk.descriptor.SectorSize))) <=
                         Mfs->TransferBuffer.length) {
-            SectorCount = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
-            if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
+            SectorCount = DIVUP(BytesToRead, FileSystem->Disk.descriptor.SectorSize);
+            if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.descriptor.SectorSize)) {
                 SectorCount++; // Take into account the extra sector we have to read
             }
         }
@@ -136,7 +136,7 @@ FsReadFromFile(
         SectorCount = MIN(SectorCount, SectorsLeft);
         if (SectorCount != 0) {
             // Adjust for number of bytes already consumed in the active sector
-            ByteCount = MIN(BytesToRead, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
+            ByteCount = MIN(BytesToRead, (SectorCount * FileSystem->Disk.descriptor.SectorSize) - SectorOffset);
     
             // Ex pos 490 - length 50
             // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
@@ -156,7 +156,7 @@ FsReadFromFile(
             
             // Adjust for how many sectors we actually read
             if (SectorCount != SectorsRead) {
-                ByteCount = (FileSystem->Disk.Descriptor.SectorSize * SectorsRead) - SectorOffset;
+                ByteCount = (FileSystem->Disk.descriptor.SectorSize * SectorsRead) - SectorOffset;
             }
             
             // If we used the intermediate buffer for the transfer we now have to copy
@@ -206,7 +206,7 @@ FsWriteToFile(
     MfsEntry_t*    Entry           = (MfsEntry_t*)Handle->Base.Entry;
     OsStatus_t     Result          = OsSuccess;
     uint64_t       Position        = Handle->Base.Position;
-    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t         BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize;
     size_t         BytesToWrite    = UnitCount;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
@@ -234,8 +234,8 @@ FsWriteToFile(
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
         uint64_t Sector       = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
-        uint64_t SectorOffset = (Position - Handle->BucketByteBoundary) % FileSystem->Disk.Descriptor.SectorSize;
-        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize);
+        uint64_t SectorOffset = (Position - Handle->BucketByteBoundary) % FileSystem->Disk.descriptor.SectorSize;
+        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.descriptor.SectorSize);
         size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex;
         size_t   SectorCount;
         size_t   SectorsWritten;
@@ -252,8 +252,8 @@ FsWriteToFile(
         // If <SectorOffset> is 0, this means we can write directly to the disk
         // from <Buffer> + <BufferOffset>. We must also be able to write an entire
         // sector to avoid writing out of bounds from the buffer
-        if (SectorOffset == 0 && BytesToWrite >= FileSystem->Disk.Descriptor.SectorSize) {
-            SectorCount    = BytesToWrite / FileSystem->Disk.Descriptor.SectorSize;
+        if (SectorOffset == 0 && BytesToWrite >= FileSystem->Disk.descriptor.SectorSize) {
+            SectorCount    = BytesToWrite / FileSystem->Disk.descriptor.SectorSize;
             SelectedHandle = BufferHandle;
             SelectedOffset = BufferOffset;
         }
@@ -270,7 +270,7 @@ FsWriteToFile(
         // Adjust for bucket boundary
         SectorCount = MIN(SectorsLeft, SectorCount);
         if (SectorCount != 0) {
-            ByteCount = MIN(BytesToWrite, (SectorCount * FileSystem->Disk.Descriptor.SectorSize) - SectorOffset);
+            ByteCount = MIN(BytesToWrite, (SectorCount * FileSystem->Disk.descriptor.SectorSize) - SectorOffset);
     
             // Ex pos 490 - length 50
             // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
@@ -312,7 +312,7 @@ FsWriteToFile(
             
             // Adjust for how many sectors we actually read
             if (SectorCount != SectorsWritten) {
-                ByteCount = (FileSystem->Disk.Descriptor.SectorSize * SectorsWritten) - SectorOffset;
+                ByteCount = (FileSystem->Disk.descriptor.SectorSize * SectorsWritten) - SectorOffset;
             }
             
             *UnitsWritten += ByteCount;
@@ -370,7 +370,7 @@ FsSeekInFile(
 
     // Step 1, if the new position is in
     // initial bucket, we need to do no actual seeking
-    InitialBucketMax = (Entry->StartLength * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+    InitialBucketMax = (Entry->StartLength * (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
     if (AbsolutePosition < InitialBucketMax) {
         Handle->DataBucketPosition   = Entry->StartBucket;
         Handle->DataBucketLength     = Entry->StartLength;
@@ -385,7 +385,7 @@ FsSeekInFile(
         // Calculate bucket boundaries
         OldBucketLow  = Handle->BucketByteBoundary;
         OldBucketHigh = OldBucketLow + (Handle->DataBucketLength 
-            * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+            * (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
 
         // If we are seeking inside the same bucket no need
         // to do anything else
@@ -436,7 +436,7 @@ FsSeekInFile(
 
                 // Calculate bounds for the new bucket
                 PositionBoundLow += PositionBoundHigh;
-                PositionBoundHigh = (BucketLength * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+                PositionBoundHigh = (BucketLength * (Mfs->SectorsPerBucket * FileSystem->Disk.descriptor.SectorSize));
             }
 
             // Update handle positioning

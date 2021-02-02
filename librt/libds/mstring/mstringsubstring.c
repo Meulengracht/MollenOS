@@ -26,40 +26,48 @@
 
 MString_t*
 MStringSubString(
-    _In_ MString_t* String,
-    _In_ int        Index,
-    _In_ int        Length)
+    _In_ MString_t* string,
+    _In_ int        index,
+    _In_ int        length)
 {
-    MString_t*  SubString;
-    char*       StringPtr;
-    int         CurrentIndex    = 0;
-    int         i               = 0;
+    MString_t*  subString;
+    char*       stringPtr;
+    int         currentIndex = 0;
+    int         i            = 0;
+    int         cappedLength = length;
 
-    assert(String != NULL);
-
-    // Create the string target
-    SubString = MStringCreate(NULL, StrUTF8);
-    
-    // Santize the index/length given to make sure we don't hit bad lengths
-    if (Index > (int)String->Length || ((((Index + Length) > (int)String->Length)) && Length != -1)) {
-        return SubString;
+    // do not accept 0 length
+    if (!string || !length) {
+        return NULL;
     }
-    StringPtr = (char*)String->Data;
+
+    // Make sure index is within range and allowing for ATLEAST 1 character
+    if (index >= (int)string->Length) {
+        return NULL;
+    }
+
+    // Make sure index + length does not exceed the capacity. Lets cap it in that case
+    if (length < 0 || ((index + length) > (int)string->Length)) {
+        cappedLength = (int)string->Length - index;
+    }
 
     // Count how many bytes we actually need to copy
     // from the start-index, save start index
-    while (i < String->Length) {
-        mchar_t Character = Utf8GetNextCharacterInString(StringPtr, &i);
+    subString = MStringCreate(NULL, StrUTF8);
+    stringPtr = (char*)string->Data;
+
+    while (i < string->Length) {
+        mchar_t Character = Utf8GetNextCharacterInString(stringPtr, &i);
         if (Character == MSTRING_EOS) {
             break;
         }
 
         // Sanitize that we have entered
         // the index to record from, and make sure to record the start index 
-        if (CurrentIndex >= Index && (Length == -1 || (CurrentIndex < (Index + Length)))) {
-            MStringAppendCharacter(SubString, Character);
+        if (currentIndex >= index && (currentIndex < (index + cappedLength))) {
+            MStringAppendCharacter(subString, Character);
         }
-        CurrentIndex++;
+        currentIndex++;
     }
-    return SubString;
+    return subString;
 }

@@ -36,9 +36,12 @@ add_service_target(filemanager "-D__FILEMANAGER_IMPL"
     layouts/mbr.c
     layouts/gpt.c
 
+    storage/storage.c
+    storage/utils.c
+
+    cache.c
     functions.c
     modules.c
     path.c
-    storage.c
     main.c
 )

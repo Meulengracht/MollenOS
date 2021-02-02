@@ -177,7 +177,6 @@ void* hashtable_set(
         iterElement->probeCount++;
         index = (index + 1) & (hashtable->capacity - 1);
     }
-    return NULL;
 }
 
 void* hashtable_get(
@@ -210,7 +209,6 @@ void* hashtable_get(
 
         index = (index + 1) & (hashtable->capacity - 1);
     }
-    return NULL;
 }
 
 void* hashtable_remove(
@@ -249,7 +247,6 @@ void* hashtable_remove(
 
         index = (index + 1) & (hashtable->capacity - 1);
     }
-    return NULL;
 }
 
 void hashtable_enumerate(

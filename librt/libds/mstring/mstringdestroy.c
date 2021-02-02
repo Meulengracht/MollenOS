@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -23,19 +24,17 @@
 
 #include "mstringprivate.h"
 
-void MStringDestroy(MString_t *String)
+void
+MStringDestroy(
+        _In_ MString_t* string)
 {
-	/* Sanitize parameters */
-	if (String == NULL) {
+	if (string == NULL) {
 		return;
 	}
 
-	/* Free buffer 
-	 * make sure it's not null */
-	if (String->Data != NULL) {
-		dsfree(String->Data);
+	if (string->Data != NULL) {
+		dsfree(string->Data);
+		string->Data = NULL;
 	}
-
-	/* Free structure */
-	dsfree(String);
+	dsfree(string);
 }
