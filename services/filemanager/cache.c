@@ -21,7 +21,7 @@
  *   Handles caching of all file entries for quick retrieval
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include "include/vfs.h"
 #include <ddk/utils.h>

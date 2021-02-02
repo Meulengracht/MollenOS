@@ -21,7 +21,7 @@
  * - Handles all file related services and disk services
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ctype.h>
 #include <ddk/utils.h>
