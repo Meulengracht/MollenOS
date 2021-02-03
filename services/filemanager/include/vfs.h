@@ -125,8 +125,13 @@ DiskRegisterFileSystem(
  * Detectes the kind of filesystem at the given absolute sector 
  * with the given sector count. It then loads the correct driver
  * and installs it */
-__EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-    UUId_t BufferHandle, void* Buffer, uint64_t Sector, uint64_t SectorCount);
+__EXTERN OsStatus_t
+DiskDetectFileSystem(
+        _In_ FileSystemDisk_t *Disk,
+        _In_ UUId_t BufferHandle,
+        _In_ void* Buffer,
+        _In_ uint64_t Sector,
+        _In_ uint64_t SectorCount);
 
 /* DiskDetectLayout
  * Detects the kind of layout on the disk, be it

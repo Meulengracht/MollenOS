@@ -60,8 +60,7 @@ mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 	int Left = 0;
 
 	/* Sanitize */
-	if (String->Data == NULL
-		|| String->Length == 0) {
+	if (String->Data == NULL || String->Length == 0) {
 		return MSTRING_EOS;
 	}
 

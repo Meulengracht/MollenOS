@@ -282,7 +282,7 @@
                     <value name="path_common_doc"></value>
                     <value name="path_common_inc"></value>
                     <value name="path_common_lib"></value>
-                    <value name="path_common_media"></value>
+                    <value name="path_common_share"></value>
                     <value name="path_user_data"></value>
                     <value name="path_user_cache"></value>
                     <value name="path_app_data"></value>

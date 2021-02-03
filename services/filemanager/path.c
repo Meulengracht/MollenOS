@@ -43,9 +43,9 @@ static const char* g_environmentPaths[path_count] = {
     // Shared paths
 	":/shared/bin/",
 	":/shared/documents/",
-	":/shared/includes/",
-	":/shared/libraries/",
-	":/shared/media/",
+	":/shared/include/",
+	":/shared/lib/",
+	":/shared/share/",
 
     // User paths
 	":/users/$(user)/",
@@ -62,6 +62,7 @@ static struct VfsIdentifier {
 } g_vfsIdentifiers[] = {
 	{ "sys", path_system },
 	{ "bin", path_common_bin },
+    { "share", path_common_share },
 	{ NULL, path_count }
 };
 

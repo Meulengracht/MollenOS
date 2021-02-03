@@ -26,19 +26,21 @@ set (VALI_ARCH "i386" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
 set (ENV{VALI_ARCH} ${VALI_ARCH})
 
-# Set paths
+# Set paths and define the structure of the initial system image
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set (VALI_PATH_DEPLOY             ${CMAKE_BINARY_DIR}/deploy)
-set (VALI_PATH_DEPLOY_HDD         ${CMAKE_BINARY_DIR}/deploy/hdd)
-set (VALI_PATH_DEPLOY_SYSTEM      ${CMAKE_BINARY_DIR}/deploy/hdd/system)
-set (VALI_PATH_DEPLOY_SHARED      ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
-set (VALI_PATH_DEPLOY_SHARED_BIN  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
-set (VALI_PATH_DEPLOY_SHARED_LIB  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
-set (VALI_PATH_DEPLOY_SHARED_MAPS ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
-set (VALI_PATH_INITRD             ${CMAKE_BINARY_DIR}/initrd)
-set (VALI_PATH_APPLICATIONS       ${CMAKE_BINARY_DIR}/apps)
+set (VALI_PATH_DEPLOY               ${CMAKE_BINARY_DIR}/deploy)
+set (VALI_PATH_DEPLOY_HDD           ${CMAKE_BINARY_DIR}/deploy/hdd)
+set (VALI_PATH_DEPLOY_SYSTEM        ${CMAKE_BINARY_DIR}/deploy/hdd/system)
+set (VALI_PATH_DEPLOY_SHARED        ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
+set (VALI_PATH_DEPLOY_SHARED_BIN    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
+set (VALI_PATH_DEPLOY_SHARED_LIB    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
+set (VALI_PATH_DEPLOY_SHARED_INC    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/include)
+set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
+set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
+set (VALI_PATH_INITRD               ${CMAKE_BINARY_DIR}/initrd)
+set (VALI_PATH_APPLICATIONS         ${CMAKE_BINARY_DIR}/apps)
 
 if (DEFINED ENV{VALI_APPLICATION_PATH})
     set (VALI_PATH_APPLICATIONS $ENV{VALI_APPLICATION_PATH})
@@ -57,7 +59,9 @@ file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_BIN})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_INC})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_MAPS})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_SHARE})
 file (MAKE_DIRECTORY ${VALI_PATH_INITRD})
 file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
 
@@ -106,6 +110,9 @@ add_custom_target (install_applications
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/include/ ${VALI_PATH_DEPLOY_SHARED_INC}
+    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/lib/ ${VALI_PATH_DEPLOY_SHARED_LIB}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/share/ ${VALI_PATH_DEPLOY_SHARED_SHARE}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
