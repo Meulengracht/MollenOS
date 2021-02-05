@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -118,7 +119,7 @@ _fflags(
         mode++;
         while (*mode == ' ')
             mode++;
-        if (strncmp(ccs, mode, sizeof(ccs) / sizeof(ccs[0])))
+        if (strncmp(ccs, mode, sizeof(ccs) / sizeof(ccs[0])) != 0)
             return -1;
         mode += sizeof(ccs) / sizeof(ccs[0]);
         while (*mode == ' ')

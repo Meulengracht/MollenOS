@@ -25,12 +25,15 @@
 
 int stream_ensure_mode(int mode, FILE* stream)
 {
-    if (!(stream->_flag & mode)) {
-        if (stream->_flag & _IORW) {
-            stream->_flag |= mode;
-            return 0;
-        }
+    if (stream->_flag & mode) {
+        return 0;
     }
+
+    if (stream->_flag & _IORW) {
+        stream->_flag |= mode;
+        return 0;
+    }
+
     _set_errno(EACCES);
     return -1;
 }

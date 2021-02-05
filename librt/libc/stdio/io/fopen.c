@@ -64,12 +64,13 @@ FILE* fdopen(int fd, const char *mode)
 FILE *fopen(const char* filename, const char* mode)
 {
     int open_flags, stream_flags;
-    int fd = 0;
+    int fd;
 
     if (filename == NULL || mode == NULL) {
         _set_errno(EINVAL);
         return NULL;
     }
+
     _fflags(mode, &open_flags, &stream_flags);
 
     // Open file as file-descriptor

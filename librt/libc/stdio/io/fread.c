@@ -24,6 +24,7 @@
  */
 
 #ifndef __TEST
+//#define __TRACE
 #include <ddk/utils.h>
 #include <internal/_io.h>
 #include <io.h>
@@ -446,6 +447,8 @@ int
 read(int fd, void* buffer, unsigned int len)
 {
 	stdio_handle_t* handle = stdio_handle_get(fd);
+    TRACE("read(int fd=%i, buffer=0x%" PRIxIN ", len=%u)", fd, buffer, len);
+
     if (!handle) {
         _set_errno(EBADFD);
         return -1;
@@ -475,15 +478,17 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 	size_t rcnt = size * count;
 	size_t cread = 0;
 	size_t pread = 0;
+	TRACE("fread(vptr=0x%" PRIxIN ", size=%" PRIuIN ", count=%" PRIuIN ", stream=0x%" PRIxIN ", stream->_flag=%i)",
+       vptr, size, count, stream, stream ? stream->_flag : 0);
 
 	if (!rcnt) {
+	    _set_errno(EINVAL);
 		return 0;
 	}
 
 	_lock_file(stream);
 	if (stream_ensure_mode(_IOREAD, stream)) {
-	    _unlock_file(stream);
-	    return -1;
+	    goto exit;
 	}
     io_buffer_ensure(stream);
 
@@ -557,8 +562,9 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 	// Increase the number of bytes read
 	cread += pread;
 
-	// Unlock file and return amount read
-	_unlock_file(stream);
+exit:
+    _unlock_file(stream);
+    TRACE("fread returns=%" PRIuIN ", errno=%i", (cread / size), errno);
 	return (cread / size);
 }
 

@@ -35,7 +35,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
         initialValue = 1;
     }
 
-    status = stdio_handle_create(-1, WX_OPEN, &ioObject);
+    status = stdio_handle_create(-1, WX_OPEN | WX_DONTINHERIT, &ioObject);
     if (status) {
         return status;
     }

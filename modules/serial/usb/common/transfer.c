@@ -46,8 +46,8 @@ UsbManagerCreateTransfer(
     UUId_t                transferId;
     int                   i;
     
-    TRACE("[usb_create_transfer] client %i, transactions %i",
-        message->client, transfer->TransactionCount);
+    TRACE("UsbManagerCreateTransfer(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
+        transfer, message, deviceId);
     
     usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t) + VALI_MSG_DEFER_SIZE(message));
     if (!usbTransfer) {
@@ -71,20 +71,14 @@ UsbManagerCreateTransfer(
         if (usbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
             continue;
         }
-        TRACE("[usb_create_transfer] %i: length %" PRIuIN ", b_id %u, b_offset %" PRIuIN,
-            i, transfer->Transactions[i].Length,
-            transfer->Transactions[i].BufferHandle,
-            transfer->Transactions[i].BufferOffset);
         
         if (i != 0 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
                 usbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
-            TRACE("... reusing");
             memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 1],
                 sizeof(struct UsbManagerTransaction));
         }
         else if (i == 2 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
                 usbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
-            TRACE("... reusing");
             memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 2],
                 sizeof(struct UsbManagerTransaction));
         }
@@ -98,10 +92,6 @@ UsbManagerCreateTransfer(
             usbTransfer->Transfer.Transactions[i].BufferOffset,
             &usbTransfer->Transactions[i].SgIndex,
             &usbTransfer->Transactions[i].SgOffset);
-        TRACE("[usb_create_transfer] sg_count %i, sg_index %i, sg_offset %u",
-            usbTransfer->Transactions[i].DmaTable.count,
-            usbTransfer->Transactions[i].SgIndex,
-            LODWORD(usbTransfer->Transactions[i].SgOffset));
     }
     return usbTransfer;
 }
@@ -138,7 +128,7 @@ UsbManagerSendNotification(
 {
     size_t bytesTransferred;
     
-    TRACE("[usb] [manager] send notification");
+    TRACE("UsbManagerSendNotification(transfer=0x%" PRIxIN ")", transfer);
     
     // If user doesn't want, ignore
     if (transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
@@ -154,8 +144,9 @@ UsbManagerSendNotification(
         bytesTransferred = transfer->Transactions[0].BytesTransferred;
         bytesTransferred += transfer->Transactions[1].BytesTransferred;
         bytesTransferred += transfer->Transactions[2].BytesTransferred;
-        ctt_usbhost_queue_response(&transfer->DeferredMessage.recv_message, transfer->Status,
-                                   bytesTransferred);
+
+        TRACE("UsbManagerSendNotification is notifiyng");
+        ctt_usbhost_queue_response(&transfer->DeferredMessage.recv_message, transfer->Status, bytesTransferred);
     }
     else {
         // Forward data to the driver

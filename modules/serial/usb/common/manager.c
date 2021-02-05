@@ -33,9 +33,9 @@
 #include "hci.h"
 #include <ioset.h>
 #include <io.h>
+#include <ioctl.h>
 #include "manager.h"
 #include <stdlib.h>
-#include <threads.h>
 
 #include "ctt_driver_protocol_server.h"
 #include "ctt_usbhost_protocol_server.h"
@@ -95,6 +95,7 @@ UsbManagerCreateController(
     _In_ size_t              structureSize)
 {
     UsbManagerController_t* controller;
+    int                     opt = 1;
 
     controller = (UsbManagerController_t*)malloc(structureSize);
     if (!controller) {
@@ -117,9 +118,10 @@ UsbManagerCreateController(
         return NULL;
     }
 
-    // add the event descriptor to the gracht server
+    // add the event descriptor to the gracht server, and then we would like to set it non-blocking
     ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
         &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
+    ioctl(controller->event_descriptor, FIONBIO, &opt);
 
     // add indexes
     hashtable_set(&controllers, &(struct usb_controller_device_index) {
@@ -420,63 +422,64 @@ UsbManagerScheduleTransfers(
 
 int
 UsbManagerProcessTransfer(
-    _In_ UsbManagerController_t* Controller,
-    _In_ UsbManagerTransfer_t*   Transfer,
-    _In_ void*                   Context)
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer,
+    _In_ void*                   context)
 {
-    TRACE("UsbManagerProcessTransfer()");
+    TRACE("UsbManagerProcessTransfer(controller=0x%" PRIxIN ", transfer=0x%" PRIxIN ", flags=0x%x)",
+          controller, transfer, transfer ? transfer->Flags : 0);
     
     // Has the transfer been marked for cleanup?
-    if (Transfer->Flags & TransferFlagCleanup) {
-        if (Transfer->EndpointDescriptor != NULL) {
-            UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-                USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
-            Transfer->EndpointDescriptor = NULL; // Reset
+    if (transfer->Flags & TransferFlagCleanup) {
+        if (transfer->EndpointDescriptor != NULL) {
+            UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
+                                   USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, transfer);
+            transfer->EndpointDescriptor = NULL; // Reset
         }
-        if (UsbManagerFinalizeTransfer(Transfer) == OsSuccess) {
+        if (UsbManagerFinalizeTransfer(transfer) == OsSuccess) {
             return ITERATOR_REMOVE;
         }
         return ITERATOR_CONTINUE;
     }
 
     // No reason to check for any other processing if it's not queued
-    if (Transfer->Status != TransferQueued) {
+    if (transfer->Status != TransferQueued) {
         return ITERATOR_CONTINUE;
     }
     
     // Debug
-    TRACE("> Validation transfer(Id %u, Status %u)", Transfer->Id, Transfer->Status);
-    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_SCAN, HciProcessElement, Transfer);
-    TRACE("> Updated metrics (Id %u, Status %u, Flags 0x%x)", Transfer->Id, Transfer->Status, Transfer->Flags);
-    if (Transfer->Status == TransferQueued) {
+    TRACE("> Validation transfer(Id %u, Status %u)", transfer->Id, transfer->Status);
+    UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
+                           USB_CHAIN_DEPTH, USB_REASON_SCAN, HciProcessElement, transfer);
+    TRACE("> Updated metrics (Id %u, Status %u, Flags 0x%x)", transfer->Id, transfer->Status, transfer->Flags);
+    if (transfer->Status == TransferQueued) {
         return ITERATOR_CONTINUE;
     }
     
     // Do we need to fixup toggles?
-    if (Transfer->Flags & TransferFlagSync) {
-        UsbManagerIterateTransfers(Controller, UsbManagerSynchronizeTransfers, &Transfer->Transfer.Address);
+    if (transfer->Flags & TransferFlagSync) {
+        UsbManagerIterateTransfers(controller, UsbManagerSynchronizeTransfers, &transfer->Transfer.Address);
     }
 
     // Restart?
-    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
-        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-            USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, Transfer);
-        HciProcessEvent(Controller, USB_EVENT_RESTART_DONE, Transfer);
+    if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
+        UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
+                               USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, transfer);
+        HciProcessEvent(controller, USB_EVENT_RESTART_DONE, transfer);
 
         // Don't notify driver when recieving a NAK response. Simply means device had
         // no data to send us. I just wished that it would leave the data intact instead.
-        if (Transfer->Status != TransferNAK) {
-            UsbManagerSendNotification(Transfer);
+        if (transfer->Status != TransferNAK) {
+            UsbManagerSendNotification(transfer);
         }
-        Transfer->Status = TransferQueued;
-        Transfer->Flags  = TransferFlagNone;
+        transfer->Status = TransferQueued;
+        transfer->Flags  = TransferFlagNone;
     }
-    else if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
-        HciTransactionFinalize(Controller, Transfer, 0);
-        if (!(Controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
-            Transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(Transfer) == OsSuccess) {
+    else if (transfer->Transfer.Type == USB_TRANSFER_CONTROL || transfer->Transfer.Type == USB_TRANSFER_BULK) {
+        HciTransactionFinalize(controller, transfer, 0);
+        if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
+            transfer->EndpointDescriptor = NULL;
+            if (UsbManagerFinalizeTransfer(transfer) == OsSuccess) {
                 return ITERATOR_REMOVE;
             }
         }
@@ -488,6 +491,7 @@ void
 UsbManagerProcessTransfers(
     _In_ UsbManagerController_t* controller)
 {
+    TRACE("UsbManagerProcessTransfers(controller=0x%" PRIxIN ")", controller);
     UsbManagerIterateTransfers(controller, UsbManagerProcessTransfer, NULL);
     UsbManagerQueueWaitingTransfers(controller);
 }

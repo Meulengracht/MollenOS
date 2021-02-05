@@ -30,6 +30,7 @@
 #include <event.h>
 #include <ioset.h>
 #include <gracht/server.h>
+#include <ioctl.h>
 #include "ps2.h"
 
 uint8_t
@@ -276,7 +277,8 @@ OsStatus_t
 PS2PortInitialize(
     _In_ PS2Port_t* port)
 {
-    uint8_t Temp;
+    uint8_t tempValue;
+    int     opt = 1;
 
     TRACE("[PS2PortInitialize] %i", port->Index);
 
@@ -301,6 +303,7 @@ PS2PortInitialize(
     // register the event descriptor with the our server set
     ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, port->event_descriptor,
             &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
+    ioctl(port->event_descriptor, FIONBIO, &opt);
 
     // Initialize interrupt resources
     RegisterInterruptDescriptor(&port->Interrupt, port->event_descriptor);
@@ -318,17 +321,17 @@ PS2PortInitialize(
 
     // Get controller configuration
     PS2SendCommand(PS2_GET_CONFIGURATION);
-    Temp = PS2ReadData(0);
+    tempValue = PS2ReadData(0);
 
     // Check if the port is enabled - otherwise return error
-    if (Temp & (1 << (4 + port->Index))) {
+    if (tempValue & (1 << (4 + port->Index))) {
         return OsError; 
     }
-    Temp |= (1 << port->Index); // Enable IRQ
+    tempValue |= (1 << port->Index); // Enable IRQ
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
-    if (PS2WriteData(Temp) != OsSuccess) {
+    if (PS2WriteData(tempValue) != OsSuccess) {
         ERROR(" > ps2-port %i failed to update configuration", port->Index);
         return OsError;
     }

@@ -22,12 +22,15 @@
  */
 
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <event.h>
 #include <internal/_io.h>
 #include <internal/_syscalls.h>
-#include <ddk/utils.h>
+#include <ioctl.h>
 
-static OsStatus_t evt_lock(atomic_int* sync_address)
+#define EVT_OPTION_NON_BLOCKING 0x1
+
+static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     FutexParameters_t parameters;
     OsStatus_t        status = OsSuccess;
@@ -40,8 +43,11 @@ static OsStatus_t evt_lock(atomic_int* sync_address)
     while (1) {
         value = atomic_load(sync_address);
         while (value < 1) {
-            parameters._val0 = value;
+            if (options & EVT_OPTION_NON_BLOCKING) {
+                return OsBusy;
+            }
 
+            parameters._val0 = value;
             status = Syscall_FutexWait(&parameters);
             if (status != OsSuccess) {
                 break;
@@ -50,11 +56,9 @@ static OsStatus_t evt_lock(atomic_int* sync_address)
             value = atomic_load(sync_address);
         }
 
-        value = atomic_fetch_sub(sync_address, 1);
-        if (value >= 1) {
+        if (atomic_compare_exchange_strong(sync_address, &value, value - 1)) {
             break;
         }
-        atomic_fetch_add(sync_address, 1);
     }
     return status;
 }
@@ -103,7 +107,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
         }
     }
 
-    result = evt_lock(handle->object.data.evt.sync_address);
+    result = evt_lock(handle->object.data.evt.sync_address, handle->object.data.evt.options);
     if (result != OsSuccess) {
         return result;
     }
@@ -163,22 +167,41 @@ OsStatus_t stdio_evt_op_resize(stdio_handle_t* handle, long long resize_by)
 
 OsStatus_t stdio_evt_op_close(stdio_handle_t* handle, int options)
 {
-    if (handle->object.handle != UUID_INVALID) {
-        return handle_destroy(handle->object.handle);
+    if (options & STDIO_CLOSE_FULL) {
+        if (handle->object.handle != UUID_INVALID) {
+            return handle_destroy(handle->object.handle);
+        }
     }
-    return OsNotSupported;
+    return OsSuccess;
 }
 
 OsStatus_t stdio_evt_op_inherit(stdio_handle_t* handle)
 {
-    // When importing an event fd there is nothing to be done, the flags and options should
-    // just be inherrited fine, as they can be per-process no problem
-    return OsSuccess;
+    // we can't inherit them atm, we need the userspace mapping mapped into this process as well
+    return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    // implement support for FIONBIO
+    if ((unsigned int)request == FIONBIO) {
+        int* nonBlocking = va_arg(args, int*);
+        if (nonBlocking) {
+            if (*nonBlocking) {
+                handle->object.data.evt.options |= EVT_OPTION_NON_BLOCKING;
+            }
+            else {
+                handle->object.data.evt.options &= ~(EVT_OPTION_NON_BLOCKING);
+            }
+        }
+        return OsSuccess;
+    }
+    else if ((unsigned int)request == FIONREAD) {
+        int* bytesAvailableOut = va_arg(args, int*);
+        if (bytesAvailableOut) {
+            *bytesAvailableOut = atomic_load(handle->object.data.evt.sync_address);
+        }
+        return OsSuccess;
+    }
     return OsNotSupported;
 }
 

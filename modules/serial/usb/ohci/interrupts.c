@@ -18,17 +18,13 @@
  *
  *
  * Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include <threads.h>
-#include <string.h>
 #include <stdlib.h>
 
 #include "../common/manager.h"
@@ -93,9 +89,9 @@ HciInterruptCallback(
     OhciController_t* Controller = (OhciController_t*)baseController;
     reg32_t           InterruptStatus;
 
-ProcessInterrupt:
+    TRACE("HciInterruptCallback(baseController=0x%" PRIxIN ")", baseController);
     InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
-
+ProcessInterrupt:
     // Process Checks
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
         UsbManagerProcessTransfers(&Controller->Base);
@@ -135,7 +131,8 @@ ProcessInterrupt:
     }
 
     // Did another one fire?
-    if (atomic_load(&Controller->Base.InterruptStatus) != 0) {
+    InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
+    if (InterruptStatus != 0) {
         goto ProcessInterrupt;
     }
 }

@@ -30,6 +30,7 @@
 #include <event.h>
 #include <ioset.h>
 #include <gracht/server.h>
+#include <ioctl.h>
 #include "ahci.h"
 
 // Prototypes
@@ -41,10 +42,11 @@ AhciControllerCreate(
     _In_ BusDevice_t* Device)
 {
     AhciController_t* controller;
-    DeviceInterrupt_t Interrupt;
-    DeviceIo_t*       IoBase = NULL;
-    OsStatus_t        Status;
+    DeviceInterrupt_t interrupt;
+    DeviceIo_t*       ioBase = NULL;
+    OsStatus_t        osStatus;
     int               i;
+    int               opt = 1;
 
     controller = (AhciController_t*)malloc(sizeof(AhciController_t));
     if (!controller) {
@@ -67,52 +69,53 @@ AhciControllerCreate(
     // register it with the io set
     ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
                &(struct ioset_event) { .data.context = controller, .events = IOSETSYN });
+    ioctl(controller->event_descriptor, FIONBIO, &opt);
 
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one
     for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
         if (controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &controller->Device.IoSpaces[i];
+            ioBase = &controller->Device.IoSpaces[i];
             break;
         }
     }
 
     // Sanitize that we found the io-space
-    if (IoBase == NULL) {
+    if (ioBase == NULL) {
         ERROR("No memory space found for ahci-controller");
         free(controller);
         return NULL;
     }
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
+          ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Acquire the io-space
-    Status = AcquireDeviceIo(IoBase); 
-    if (Status != OsSuccess) {
+    osStatus = AcquireDeviceIo(ioBase);
+    if (osStatus != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(controller);
         return NULL;
     }
 
-    controller->IoBase = IoBase;
-    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
-    controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
+    controller->IoBase = ioBase;
+    TRACE("Io-Space was assigned virtual address 0x%x", ioBase->Access.Memory.VirtualBase);
+    controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
     
-    DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterInterruptDescriptor(&Interrupt, controller->event_descriptor);
-    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Interrupt,
+    DeviceInterruptInitialize(&interrupt, Device);
+    RegisterInterruptDescriptor(&interrupt, controller->event_descriptor);
+    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
+    RegisterFastInterruptIoResource(&interrupt, ioBase);
+    RegisterFastInterruptMemoryResource(&interrupt,
                                         (uintptr_t)&controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
 
     // Register interrupt
-    TRACE(" > ahci interrupt line is %u", Interrupt.Line);
-    controller->InterruptId = RegisterInterruptSource(&Interrupt, 0);
+    TRACE(" > ahci interrupt line is %u", interrupt.Line);
+    controller->InterruptId = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    Status = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-                         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (Status != OsSuccess || controller->InterruptId == UUID_INVALID) {
+    osStatus = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+                           (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    if (osStatus != OsSuccess || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(controller->InterruptId);
         ReleaseDeviceIo(controller->IoBase);

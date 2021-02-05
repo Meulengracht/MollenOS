@@ -259,9 +259,9 @@ ResolveFilePath(
 
 OsStatus_t
 LoadFile(
-        _In_  MString_t *FullPath,
-        _Out_ void **BufferOut,
-        _Out_ size_t *LengthOut)
+        _In_  MString_t* FullPath,
+        _Out_ void**     BufferOut,
+        _Out_ size_t*    LengthOut)
 {
     FILE   *file;
     long   fileSize;
