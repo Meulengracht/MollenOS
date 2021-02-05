@@ -21,6 +21,8 @@
  * - Standard IO pipe operation implementations.
  */
 
+#define __TRACE
+
 #include <ds/streambuffer.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
@@ -32,12 +34,12 @@ OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesRead;
-    if (handle->wxflag & WX_NULLPIPE) {
-        return OsNotSupported;
-    }
+    TRACE("stdio_pipe_op_read(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
+          handle, buffer, length);
 
     bytesRead = streambuffer_stream_in(stream, buffer, length, options);
     *bytes_read = bytesRead;
+    TRACE("stdio_pipe_op_read returns %" PRIuIN, bytesRead);
     return OsSuccess;
 }
 
@@ -46,16 +48,14 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesWritten;
-    if (handle->wxflag & WX_NULLPIPE) {
-        *bytes_written = length;
-        ERROR("%s", buffer);
-        return OsSuccess;
-    }
+    TRACE("stdio_pipe_op_write(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
+          handle, buffer, length);
 
     bytesWritten = streambuffer_stream_out(stream, (void*)buffer, length, options);
     stdio_handle_activity(handle, IOSETIN); // Mark pipe for recieved data
 
     *bytes_written = bytesWritten;
+    TRACE("stdio_pipe_op_write returns %" PRIuIN, bytesWritten);
     return OsSuccess;
 }
 

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -30,81 +31,43 @@
 
 extern Collection_t* stdio_get_handles(void);
 
-/* os_alloc_buffer
- * Allocates a transfer buffer for a stdio file stream */
-OsStatus_t
-os_alloc_buffer(
-    _In_ FILE *file)
+void io_buffer_allocate(FILE* stream)
 {
-    // Sanitize that it's not an std tty stream
-    if ((file->_fd == STDOUT_FILENO || file->_fd == STDERR_FILENO) && isatty(file->_fd)) {
-        return OsError;
+    if (!(stream->_flag & _IONBF)) {
+        stream->_base = calloc(1, BUFSIZ);
+        if (stream->_base) {
+            stream->_bufsiz = BUFSIZ;
+            stream->_flag |= _IOMYBUF;
+        }
+        else {
+            stream->_flag &= ~(_IONBF | _IOMYBUF | _USERBUF | _IOLBF);
+            stream->_flag |= _IONBF;
+        }
     }
 
-    // Allocate a transfer buffer
-    file->_base = calloc(1, INTERNAL_BUFSIZ);
-    if (file->_base) {
-        file->_bufsiz = INTERNAL_BUFSIZ;
-        file->_flag |= _IOMYBUF;
-    }
-    else {
-        file->_base = (char *)(&file->_charbuf);
-        file->_bufsiz = 2;
-        file->_flag |= _IONBF;
+    // ensure the buffer still set to charbuf
+    if (stream->_flag & _IONBF) {
+        stream->_base = (char *)(&stream->_charbuf);
+        stream->_bufsiz = 2;
     }
 
-    // Update pointer to base and 0 count
-    file->_ptr = file->_base;
-    file->_cnt = 0;
-    return OsSuccess;
+    stream->_ptr = stream->_base;
+    stream->_cnt = 0;
 }
 
-/* add_std_buffer
- * Allocate temporary buffer for stdout and stderr */
-OsStatus_t
-add_std_buffer(
-    _In_ FILE *file)
+void io_buffer_ensure(FILE* stream)
 {
-    // Static write buffers
-    static char buffers[2][BUFSIZ];
-
-    // Sanitize the file stream
-    if ((file->_fd != STDOUT_FILENO && file->_fd != STDERR_FILENO) 
-        || (file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
-        || !isatty(file->_fd)) {
-        return OsError;
+    if (stream->_base) {
+        return;
     }
-
-    // Update buffer pointers
-    file->_ptr = file->_base =
-        buffers[file->_fd == STDOUT_FILENO ? 0 : 1];
-    file->_bufsiz = file->_cnt = BUFSIZ;
-    file->_flag |= _USERBUF;
-    return OsSuccess;
+    io_buffer_allocate(stream);
 }
 
-/* remove_std_buffer
- * Removes temporary buffer from stdout or stderr
- * Only call this function when add_std_buffer returned Success */
-void
-remove_std_buffer(
-    _In_ FILE *file)
-{
-    os_flush_buffer(file);
-    file->_ptr    = file->_base = NULL;
-    file->_bufsiz = file->_cnt = 0;
-    file->_flag   &= ~_USERBUF;
-}
-
-/* os_flush_buffer
- * Flushes the number fo bytes stored in the buffer and resets
- * the buffer to initial state */
 OsStatus_t
-os_flush_buffer(
+io_buffer_flush(
     _In_ FILE* file)
 {
-    if ((file->_flag & (_IOREAD | _IOWRT)) == _IOWRT && 
-        file->_flag & (_IOMYBUF | _USERBUF)) {
+    if ((file->_flag & (_IOREAD | _IOWRT)) == _IOWRT && file->_flag & (_IOMYBUF | _USERBUF)) {
         int cnt = file->_ptr - file->_base;
 
         // Flush them
@@ -123,10 +86,8 @@ os_flush_buffer(
     return OsSuccess;
 }
 
-/* os_flush_all_buffers
- * Flush all stream buffer */
 int
-os_flush_all_buffers(
+io_buffer_flush_all(
     _In_ int mask)
 {
     stdio_handle_t*  Object;

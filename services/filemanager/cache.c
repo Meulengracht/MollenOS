@@ -59,65 +59,57 @@ VfsCacheGetFile(
         _Out_ FileSystemEntry_t** fileOut)
 {
     struct FileCacheEntry* cacheEntry;
-    FileSystem_t*          Filesystem;
-    FileSystemEntry_t*     entry   = NULL;
-    MString_t*             subPath = NULL;
+    FileSystem_t*          fileSystem;
     OsStatus_t             status;
     int                    created = 0;
 
     TRACE("[vfs] [cache_get] path %s", MStringRaw(path));
 
     cacheEntry = hashtable_get(&g_openFiles, &(struct FileCacheEntry) { .path = path });
-    if (cacheEntry) {
-        *fileOut = cacheEntry->file;
-        return OsSuccess;
-    }
+    if (!cacheEntry) {
+        FileSystemEntry_t* entry   = NULL;
+        MString_t*         subPath = NULL;
 
-    Filesystem  = __GetFileSystemFromPath(path, &subPath);
-    if (Filesystem == NULL) {
-        return OsDoesNotExist;
-    }
-
-    // Let the module do the rest
-    status = Filesystem->module->OpenEntry(&Filesystem->descriptor, subPath, &entry);
-    if (status == OsDoesNotExist && (options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
-        TRACE("[vfs] [cache_get] file was not found, but options are to create 0x%x", options);
-        status  = Filesystem->module->CreatePath(&Filesystem->descriptor, subPath, options, &entry);
-        created = 1;
-    }
-
-    // Sanitize the open otherwise we must cleanup
-    if (status == OsSuccess) {
-        // It's important here that we check if the flag
-        // __FILE_FAILONEXIST has been set, then we return
-        // the appropriate code instead of opening a new handle
-        // Also this is ok if file was just created
-        if ((options & __FILE_FAILONEXIST) && created == 0) {
-            ERROR("[vfs] [cache_get] entry already exists in path. FailOnExists has been specified.");
-            status = Filesystem->module->CloseEntry(&Filesystem->descriptor, entry);
-            entry  = NULL;
+        fileSystem = __GetFileSystemFromPath(path, &subPath);
+        if (fileSystem == NULL) {
+            return OsDoesNotExist;
         }
-        else {
-            entry->System     = (uintptr_t*)Filesystem;
-            entry->Path       = MStringCreate((void*)MStringRaw(path), StrUTF8);
-            entry->References = 0;
 
-            // Take care of truncation flag if file was not newly created. The entry type
-            // must equal to file otherwise we will ignore the flag
-            if ((options & __FILE_TRUNCATE) && created == 0 && __IsEntryFile(entry)) {
-                status = Filesystem->module->ChangeFileSize(&Filesystem->descriptor, entry, 0);
-            }
-
-            *fileOut = entry;
-            hashtable_set(&g_openFiles, &(struct FileCacheEntry) { .path = entry->Path, .file = entry });
+        // Let the module do the rest
+        status = fileSystem->module->OpenEntry(&fileSystem->descriptor, subPath, &entry);
+        if (status == OsDoesNotExist && (options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
+            TRACE("[vfs] [cache_get] file was not found, but options are to create 0x%x", options);
+            status  = fileSystem->module->CreatePath(&fileSystem->descriptor, subPath, options, &entry);
+            created = 1;
         }
+
+        if (status != OsSuccess) {
+            WARNING("[vfs] [cache_get] %s opening/creation failed with code: %i", MStringRaw(path), status);
+            return status;
+        }
+
+        entry->System     = (uintptr_t*)fileSystem;
+        entry->Path       = MStringCreate((void*)MStringRaw(path), StrUTF8);
+        entry->References = 0;
+
+        // Take care of truncation flag if file was not newly created. The entry type
+        // must equal to file otherwise we will ignore the flag
+        if ((options & __FILE_TRUNCATE) && created == 0 && __IsEntryFile(entry)) {
+            status = fileSystem->module->ChangeFileSize(&fileSystem->descriptor, entry, 0);
+        }
+
+        hashtable_set(&g_openFiles, &(struct FileCacheEntry) { .path = entry->Path, .file = entry });
+        cacheEntry = hashtable_get(&g_openFiles, &(struct FileCacheEntry) { .path = path });
+        MStringDestroy(subPath);
     }
-    else {
-        TRACE("[vfs] [cache_get] file opening/creation failed with code: %i", status);
-        entry = NULL;
+
+    if ((options & __FILE_FAILONEXIST) && created == 0) {
+        WARNING("[vfs] [cache_get] %s fail on exist was specified, path exists", MStringRaw(path), status);
+        return OsExists;
     }
-    MStringDestroy(subPath);
-    return status;
+
+    *fileOut = cacheEntry->file;
+    return OsSuccess;
 }
 
 void

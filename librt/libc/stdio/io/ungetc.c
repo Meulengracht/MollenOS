@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -34,8 +35,9 @@ int ungetc(
         return EOF;
 
     _lock_file(file);
-    if ((!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
-            && os_alloc_buffer(file) == OsSuccess) || (!file->_cnt && file->_ptr == file->_base))
+    io_buffer_ensure(file);
+
+    if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || (!file->_cnt && file->_ptr == file->_base))
         file->_ptr++;
 
     if (file->_ptr > file->_base) {

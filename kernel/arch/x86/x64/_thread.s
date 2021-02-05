@@ -103,16 +103,18 @@ _rdtsc:
 ; rcx => index
 ; rdx => pointer to 64 bit value
 _rdmsr:
+    mov r8, rdx
     rdmsr ; reads into edx:eax
-    mov dword [rdx], eax
-    mov dword [rdx + 4], edx
+    mov dword [r8], eax
+    mov dword [r8 + 4], edx
 	ret
 
 ; Assembly routine to read msr
 ; rcx => index
 ; rdx => pointer to 64 bit value
 _wrmsr:
-    mov eax, dword [rdx]
-    mov edx, dword [rdx + 4]
+    mov r8, rdx
+    mov eax, dword [r8]
+    mov edx, dword [r8 + 4]
     wrmsr ; writes edx:eax
 	ret

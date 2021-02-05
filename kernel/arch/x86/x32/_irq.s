@@ -25,7 +25,6 @@ segment .text
 global _exception_common
 global _irq_common
 global _syscall_entry
-global _ContextEnter
 global ___wbinvd
 global ___cli
 global ___sti
@@ -167,14 +166,6 @@ _syscall_entry:
     call _SyscallHandle ; (context_t*)
     add esp, 0x4
     
-    restore_state
-    iret
-
-; void ContextEnter(context_t* registers)
-; Switches stack and far jumps to next task
-_ContextEnter:
-    mov eax, [esp + 4]
-    mov esp, eax
     restore_state
     iret
 

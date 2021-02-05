@@ -27,21 +27,19 @@
 #include <assert.h>
 #include <stdio.h>
 
-static const char* MessageHeader = "LIBC";
-
 void
 SystemDebug(
 	_In_ int         Type,
 	_In_ const char* Format, ...)
 {
-	va_list Args;
-	char    Buffer[256];
+	va_list args;
+	char    buffer[256];
 
-	memset(&Buffer[0], 0, sizeof(Buffer));
-	va_start(Args, Format);
-	vsprintf(&Buffer[0], Format, Args);
-	va_end(Args);
-    Syscall_Debug(Type, MessageHeader, &Buffer[0]);
+	va_start(args, Format);
+	vsnprintf(&buffer[0], sizeof(buffer) - 1, Format, args);
+	va_end(args);
+
+    Syscall_Debug(Type, &buffer[0]);
 }
 
 void
@@ -51,14 +49,12 @@ MollenOSEndBoot(void)
 }
 
 OsStatus_t
-QueryDisplayInformation(
-    _In_ VideoDescriptor_t *Descriptor)
+QueryDisplayInformation(VideoDescriptor_t* Descriptor)
 {
     return Syscall_DisplayInformation(Descriptor);
 }
 
-void*
-CreateDisplayFramebuffer(void)
+void* CreateDisplayFramebuffer(void)
 {
     return Syscall_CreateDisplayFramebuffer();
 }

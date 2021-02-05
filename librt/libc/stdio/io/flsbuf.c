@@ -6,49 +6,69 @@
  * PROGRAMMER:      Timo Kreuzer
  */
 
-#include <stdio.h>
+#define __TRACE
+
+#include <ddk/utils.h>
 #include <io.h>
 #include <internal/_io.h>
+#include <stdio.h>
 
-int
-_flsbuf(
-    _In_ int ch, 
-    _In_ FILE *stream)
+static inline int __can_flush_otherwise_set_IOERR(FILE *stream)
 {
-    int count, written;
-
-    // Check if the stream supports flushing
     if ((stream->_flag & _IOSTRG) || !(stream->_flag & (_IORW|_IOWRT))) {
         stream->_flag |= _IOERR;
         return EOF;
     }
+    return 0;
+}
 
-    // lock file and reset count
-    _lock_file(stream);
+static int __prepare_flush_otherwise_set_IOERR(FILE *stream)
+{
     stream->_cnt = 0;
 
-    // Check if this was a read buffer
+    // Check if this was also a read buffer
     if (stream->_flag & _IOREAD) { // Must be at the end of the file
         if (!(stream->_flag & _IOEOF)) {
             stream->_flag |= _IOERR;
-            _unlock_file(stream);
             return EOF;
         }
         stream->_ptr = stream->_base;
     }
+
     stream->_flag &= ~(_IOREAD|_IOEOF);
     stream->_flag |= _IOWRT;
 
-    // Check if should get a buffer
-    if (!(stream->_flag & _IONBF) && stream != stdout && stream != stderr) {
-        if (!stream->_base) {
-            os_alloc_buffer(stream);
-        }
+    io_buffer_ensure(stream);
+    return 0;
+}
+
+int
+_flsbuf(
+    _In_ int   ch,
+    _In_ FILE* stream)
+{
+    int   count, written, res;
+    TCHAR charTyped = (TCHAR)(ch & (sizeof(TCHAR) > sizeof(char) ? 0xffff : 0xff));
+    TRACE("_flsbuf(ch=%i, stream=0x%" PRIxIN ", stream->_flag=%i)", ch, stream, stream->_flag);
+
+    // Check if the stream supports flushing
+    res = __can_flush_otherwise_set_IOERR(stream);
+    if (res) {
+        TRACE("_flsbuf return=%i", res);
+        return res;
     }
 
-    /* Check if we can use a buffer now */
+    // lock file and reset count
+    _lock_file(stream);
+    res = __prepare_flush_otherwise_set_IOERR(stream);
+    if (res) {
+        _unlock_file(stream);
+        TRACE("_flsbuf return=%i", res);
+        return res;
+    }
+
+    // did we get a buffer and is stream buffered?
     if (stream->_base && !(stream->_flag & _IONBF)) {
-        /* We can, check if there is something to write */
         count = (int)(stream->_ptr - stream->_base);
         if (count > 0)
             written = write(stream->_fd, stream->_base, count);
@@ -58,20 +78,21 @@ _flsbuf(
         /* Reset buffer and put the char into it */
         stream->_ptr = stream->_base + sizeof(TCHAR);
         stream->_cnt = stream->_bufsiz - sizeof(TCHAR);
-        *(TCHAR*)stream->_base = ch;
+        *(TCHAR*)stream->_base = charTyped;
     }
     else {
-        /* There is no buffer, write the char directly */
-        count = sizeof(TCHAR);
+        // no buffer, write directly
+        count   = sizeof(TCHAR);
         written = write(stream->_fd, &ch, sizeof(TCHAR));
     }
 
-    /* Check for failure */
+    // Did we not flush what was expected?
     if (written != count) {
         stream->_flag |= _IOERR;
-        _unlock_file(stream);
-        return EOF;
+        charTyped = EOF;
     }
+
     _unlock_file(stream);
-    return ch & (sizeof(TCHAR) > sizeof(char) ? 0xffff : 0xff);
+    TRACE("_flsbuf return=%i", (int)charTyped);
+    return charTyped;
 }

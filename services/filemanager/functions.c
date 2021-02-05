@@ -21,7 +21,7 @@
  * - Handles all file related services and disk services
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ctype.h>
 #include <ddk/utils.h>
@@ -186,12 +186,6 @@ VfsVerifyAccessToPath(
     if (status != OsSuccess) {
         ERROR("[vfs] [verify_access] failed to retrieve file: %u", status);
         return status;
-    }
-
-    // handle fail on exist
-    if (options & __FILE_FAILONEXIST) {
-        ERROR("File already exists - open mode specifies this to be failure.");
-        return OsExists;
     }
 
     // we should at this point check other handles to see how many have this file
@@ -515,7 +509,6 @@ ReadFile(
         return OsInvalidParameters;
     }
 
-    TRACE("[vfs_read] [module_read]");
     fileSystem   = (FileSystem_t*)entryHandle->Entry->System;
     status = fileSystem->module->ReadEntry(&fileSystem->descriptor, entryHandle, bufferHandle,
         dmaAttachment.buffer, offset, length, bytesRead);

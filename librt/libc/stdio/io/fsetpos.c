@@ -39,7 +39,7 @@ int fsetpos(
 
 	// If the input stream is buffered we flush it
 	if (stream->_flag & _IOWRT) {
-		os_flush_buffer(stream);
+        io_buffer_flush(stream);
 	}
 
 	// Discard buffered input

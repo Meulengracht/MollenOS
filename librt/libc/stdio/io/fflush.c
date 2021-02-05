@@ -31,11 +31,11 @@ int fflush(
 	// If fflush is called with NULL argument
 	// we need to flush all buffers present
 	if (!file) {
-		os_flush_all_buffers(_IOWRT);
+        io_buffer_flush_all(_IOWRT);
 	}
 	else if (file->_flag & _IOWRT) {
 		_lock_file(file);
-		Result = os_flush_buffer(file);
+		Result = io_buffer_flush(file);
 		/* @todo
         if(!res && (file->_flag & _IOCOMMIT))
             res = _commit(file->_file) ? EOF : 0; */

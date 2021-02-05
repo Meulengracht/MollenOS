@@ -56,14 +56,13 @@ void IdtInitialize(void)
     g_idtTable.Base  = (uint64_t)&g_idtDescriptors[0];
 	InterruptInstallDefaultGates();
 
-	// Override ALL call gates that need on per-thread base
-    // INTERRUPT_SYSCALL, INTERRUPT_LAPIC
+	// Override the system call entry, as also described in _irq.s when we are in 64 bit
+	// we want to still disable interrupts on entry for system calls, due to the nature of
+	// swapgs instruction. If we are interrupted before the swapgs instruction, we end up
+	// double swapping
 	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
-		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32,
+		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32,
 		SelectIdtStack(INTERRUPT_SYSCALL));
-	IdtInstallDescriptor(INTERRUPT_LAPIC, (uint64_t)IdtStubs[INTERRUPT_LAPIC], 
-        GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32,
-        SelectIdtStack(INTERRUPT_LAPIC));
 	IdtInstall();
 }
 

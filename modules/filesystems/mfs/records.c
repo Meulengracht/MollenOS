@@ -28,37 +28,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+// /test/ => [remainingPath ], [token ]
 OsStatus_t
 MfsExtractToken(
-    _In_  MString_t*    Path, 
-    _Out_ MString_t**   RemainingPath,
-    _Out_ MString_t**   Token)
+    _In_  MString_t*  path,
+    _Out_ MString_t** remainingPath,
+    _Out_ MString_t** token)
 {
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
-    int StrIndex    = MStringFind(Path, '/', 0);
-    int StrLength   = MStringLength(Path);
+    int strIndex  = MStringFind(path, '/', 0);
+    int strLength = MStringLength(path);
 
     // So, if StrIndex is MSTRING_NOT_FOUND now, we
     // can pretty much assume this was the last token
     // unless that StrIndex == Last character
-    if (StrIndex == MSTRING_NOT_FOUND || StrIndex == (int)(StrLength - 1)) {
-        if (StrIndex == (int)(StrLength - 1) && StrIndex != 0) {
-            *Token = MStringSubString(Path, 0, StrIndex);
+    if (strIndex == MSTRING_NOT_FOUND || strIndex == (int)(strLength - 1)) {
+        if (strIndex == (int)(strLength - 1) && strIndex != 0) {
+            *token = MStringSubString(path, 0, strIndex);
         }
-        else if (StrIndex != 0) {
-            *Token = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        else if (strIndex != 0) {
+            *token = MStringCreate((void*)MStringRaw(path), StrUTF8);
         }
         else {
-            *Token = NULL;
+            *token = NULL;
         }
         
-        *RemainingPath = NULL;
+        *remainingPath = NULL;
         return OsSuccess;
     }
 
-    *Token          = MStringSubString(Path, 0, StrIndex);
-    *RemainingPath  = MStringSubString(Path, StrIndex + 1, (StrLength - (StrIndex + 1)));
+    *token         = MStringSubString(path, 0, strIndex);
+    *remainingPath = MStringSubString(path, strIndex + 1, (strLength - (strIndex + 1)));
     return OsSuccess;
 }
 
@@ -69,15 +70,15 @@ MfsLocateRecord(
     _In_ MfsEntry_t*                Entry,
     _In_ MString_t*                 Path)
 {
-    MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t    Result          = OsSuccess;
-    MString_t*          Remaining       = NULL;
-    MString_t*          Token           = NULL;
-    uint32_t            CurrentBucket   = BucketOfDirectory;
-    int                 IsEndOfPath     = 0;
-    int                 IsEndOfFolder   = 0;
-    size_t              i;
-    size_t              SectorsTransferred;
+    MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    OsStatus_t     Result          = OsSuccess;
+    MString_t*     Remaining       = NULL;
+    MString_t*     Token           = NULL;
+    uint32_t       CurrentBucket   = BucketOfDirectory;
+    int            IsEndOfPath     = 0;
+    int            IsEndOfFolder   = 0;
+    size_t         i;
+    size_t         SectorsTransferred;
 
     TRACE("MfsLocateRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
 

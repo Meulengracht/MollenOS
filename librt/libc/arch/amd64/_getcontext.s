@@ -38,16 +38,12 @@ segment .text
 %define REGISTER_R14      112
 %define REGISTER_R15      120
 
-%define REGISTER_GS       128 ; Not saved
-%define REGISTER_FS       136
-%define REGISTER_ES       144 ; Not saved
-%define REGISTER_DS       152 ; Not saved
-%define REGISTER_IRQ      160 ; Not saved
-%define REGISTER_ERR      168 ; Not saved
-%define REGISTER_RIP      176
-%define REGISTER_CS       184 ; Not saved
-%define REGISTER_EFLAGS   192 ; Not saved
-%define REGISTER_USERESP  200 ; Not saved
+%define REGISTER_IRQ      128 ; Not saved
+%define REGISTER_ERR      136 ; Not saved
+%define REGISTER_RIP      144
+%define REGISTER_CS       152 ; Not saved
+%define REGISTER_EFLAGS   160 ; Not saved
+%define REGISTER_USERESP  168 ; Not saved
 
 ;Functions in this asm
 global GetContext
@@ -70,12 +66,7 @@ GetContext:
     mov [rcx + REGISTER_R13], r13
     mov [rcx + REGISTER_R14], r14
     mov [rcx + REGISTER_R15], r15
-    
-    ; store fs
-    xor rdx, rdx
-    mov dx, fs
-    mov [rcx + REGISTER_FS], rdx
-    
+
     ; store eip/esp
     lea rax, [rsp + 8]
     mov [rcx + REGISTER_RSP], rax

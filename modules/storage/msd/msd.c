@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Mass Storage Device Driver (Generic)
+ * Mass Storage Device Driver (Generic)
  */
 #define __TRACE
 
@@ -28,45 +29,39 @@
 #include <internal/_utils.h>
 #include <stdlib.h>
 
-static const char *DeviceTypeStrings[TypeCount] = {
+static const char* g_deviceTypeNames[TypeCount] = {
     "Unknown",
     "Floppy Drive",
     "Disk Drive",
     "Hard Drive"
 };
-static const char *DeviceProtocolStrings[ProtocolCount] = {
+static const char* g_deviceProtocolNames[ProtocolCount] = {
     "Unknown",
     "CB",
     "CBI",
     "Bulk"
 };
 
-static void
+static inline void
 RegisterStorage(
-    _In_ UUId_t       ProtocolServerId,
-    _In_ UUId_t       DeviceId,
-    _In_ unsigned int Flags)
+    _In_ UUId_t       protocolServerId,
+    _In_ UUId_t       deviceId,
+    _In_ unsigned int flags)
 {
-    int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    
-    status = svc_storage_register(GetGrachtClient(), &msg.base,
-        ProtocolServerId, DeviceId, Flags);
+    (void)svc_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
 }
 
-static void
+static inline void
 UnregisterStorage(
-    _In_ UUId_t       DeviceId,
-    _In_ unsigned int Flags)
+    _In_ UUId_t       deviceId,
+    _In_ unsigned int flags)
 {
-    int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    
-    status = svc_storage_unregister(GetGrachtClient(), &msg.base, DeviceId, Flags);
+    (void)svc_storage_unregister(GetGrachtClient(), &msg.base, deviceId, flags);
 }
 
-static void*
-memdup(void* mem, size_t size)
+static inline void* memdup(void* mem, size_t size)
 {
     void* dup = malloc(size);
     if (!dup) {
@@ -76,9 +71,7 @@ memdup(void* mem, size_t size)
     return dup;
 }
 
-static inline int
-IsSupportedInterface(
-    _In_ usb_device_interface_setting_t* interface)
+static inline int IsSupportedInterface(usb_device_interface_setting_t* interface)
 {
     // Verify class is MSD
     if (interface->base.Class != USB_CLASS_MSD) {
@@ -194,9 +187,9 @@ MsdDeviceCreate(
     GetDeviceConfiguration(Device);
     
     // Debug
-    TRACE("MSD Device of Type %s and Protocol %s", 
-        DeviceTypeStrings[Device->Type],
-        DeviceProtocolStrings[Device->Protocol]);
+    TRACE("MSD Device of Type %s and Protocol %s",
+          g_deviceTypeNames[Device->Type],
+          g_deviceProtocolNames[Device->Protocol]);
 
     // Initialize the kind of profile we discovered
     if (MsdDeviceInitialize(Device) != OsSuccess) {

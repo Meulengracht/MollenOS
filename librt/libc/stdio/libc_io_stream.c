@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2021, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,27 +17,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C Standard Library
- * - Writes the wide C string pointed by str to the standard output 
- *   (stdout) and appends a newline character ('\n').
+ * C Standard Library
+ * - Standard IO Support functions
  */
 
-#include <string.h>
-#include <stdio.h>
+#include <internal/_io.h>
 
-int puts(
-    _In_ __CONST char *s)
+int stream_ensure_mode(int mode, FILE* stream)
 {
-    size_t len = strlen(s);
-    int    ret;
-
-    _lock_file(stdout);
-    if (fwrite(s, sizeof(*s), len, stdout) != len) {
-        _unlock_file(stdout);
-        return EOF;
+    if (!(stream->_flag & mode)) {
+        if (stream->_flag & _IORW) {
+            stream->_flag |= mode;
+            return 0;
+        }
     }
-
-    ret = fwrite("\n",1,1,stdout) == 1 ? 0 : EOF;
-    _unlock_file(stdout);
-    return ret;
+    _set_errno(EACCES);
+    return -1;
 }

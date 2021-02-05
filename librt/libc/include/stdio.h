@@ -67,19 +67,22 @@ _CODE_BEGIN
 /* Stdio file modes and flags
  * Definitions and bit-flags for available IO modes */
 #define _IOFBF     0x0000
-#define _IOREAD	   0x0001
-#define _IOWRT     0x0002
-#define _IONBF     0x0004
-#define _IOMYBUF   0x0008
+#define _IONBF     0x0004 // no buffering
+#define _IOLBF     0x0040 // line buffering
+
+#define _IOREAD	   0x0001 // currently reading
+#define _IOWRT     0x0002 // currently writing
+
+#define _IOMYBUF   0x0008 // buffer is allocated by stdio
 #define _IOEOF     0x0010
 #define _IOERR     0x0020
-#define _IOLBF     0x0040
-#define _IOSTRG    0x0040
-#define _IORW      0x0080
-#define _USERBUF   0x0100
-#define _FWIDE     0x0200
-#define _FBYTE     0x0400
-#define _IOVRT     0x0800
+
+#define _IOSTRG    0x0080 // strange or no file descriptor
+#define _IORW      0x0100 // read/write
+#define _USERBUF   0x0200 // user-provided buffer
+#define _FWIDE     0x0400
+#define _FBYTE     0x0800
+#define _IOVRT     0x1000
 
 /*******************************
  *       File Structures       *

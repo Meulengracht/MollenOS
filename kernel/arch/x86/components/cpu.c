@@ -236,7 +236,9 @@ CpuInitializeFeatures(void)
     // we fill the kernel GS base with the user-one is that we start in kernel mode
     // and don't want the user-one swapped in untill later
     uint64_t userGsBase = MEMORY_SEGMENT_GS_USER_BASE;
+    uint64_t kernGsBase = 0;
     CpuWriteModelRegister(CPU_MSR_KERNEL_GS_BASE, &userGsBase);
+    CpuWriteModelRegister(CPU_MSR_GS_BASE, &kernGsBase);
 #endif
 }
 

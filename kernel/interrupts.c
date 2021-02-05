@@ -47,9 +47,9 @@ typedef struct InterruptTableEntry {
     int                Sharable;
 } InterruptTableEntry_t;
 
-static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
-static IrqSpinlock_t         InterruptTableSyncObject = OS_IRQ_SPINLOCK_INIT;
-static _Atomic(UUId_t)       InterruptIdGenerator     = ATOMIC_VAR_INIT(0);
+static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
+static IrqSpinlock_t   g_interruptTableLock                             = OS_IRQ_SPINLOCK_INIT;
+static _Atomic(UUId_t) g_nextInterruptId                                = ATOMIC_VAR_INIT(0);
 
 OsStatus_t
 InterruptIncreasePenalty(
@@ -59,7 +59,7 @@ InterruptIncreasePenalty(
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
         return INTERRUPT_NONE;
     }
-    InterruptTable[Source].Penalty++;
+    g_interruptTable[Source].Penalty++;
     return OsSuccess;
 }
 
@@ -71,7 +71,7 @@ InterruptDecreasePenalty(
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
         return INTERRUPT_NONE;
     }
-    InterruptTable[Source].Penalty--;
+    g_interruptTable[Source].Penalty--;
     return OsSuccess;
 }
 
@@ -85,10 +85,10 @@ InterruptGetPenalty(
     }
 
     // Sanitize that source is valid
-    if (InterruptTable[Source].Sharable == 0 && InterruptTable[Source].Penalty > 0) {
+    if (g_interruptTable[Source].Sharable == 0 && g_interruptTable[Source].Penalty > 0) {
         return INTERRUPT_NONE;
     }
-    return InterruptTable[Source].Penalty;
+    return g_interruptTable[Source].Penalty;
 }
 
 int
@@ -359,7 +359,7 @@ InterruptRegister(
     }
     
     // TODO: change this to use handle system
-    id = atomic_fetch_add(&InterruptIdGenerator, 1);
+    id = atomic_fetch_add(&g_nextInterruptId, 1);
     memset((void*)systemInterrupt, 0, sizeof(SystemInterrupt_t));
 
     systemInterrupt->Id           = (id << 16U);
@@ -392,14 +392,14 @@ InterruptRegister(
 
     // Check against sharing
     if (flags & INTERRUPT_EXCLUSIVE) {
-        if (InterruptTable[tableIndex].Descriptor != NULL) {
+        if (g_interruptTable[tableIndex].Descriptor != NULL) {
             // We failed to gain exclusive access
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
             kfree(systemInterrupt);
             return OsError;
         }
     }
-    else if (InterruptTable[tableIndex].Sharable != 1 && InterruptTable[tableIndex].Penalty > 0) {
+    else if (g_interruptTable[tableIndex].Sharable != 1 && g_interruptTable[tableIndex].Penalty > 0) {
         // Existing interrupt has exclusive access
         ERROR(" > existing interrupt has exclusive access");
         kfree(systemInterrupt);
@@ -420,16 +420,16 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-    IrqSpinlockAcquire(&InterruptTableSyncObject);
-    if (InterruptTable[tableIndex].Descriptor == NULL) {
-        InterruptTable[tableIndex].Descriptor = systemInterrupt;
-        InterruptTable[tableIndex].Penalty    = 1;
-        InterruptTable[tableIndex].Sharable   = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
+    IrqSpinlockAcquire(&g_interruptTableLock);
+    if (g_interruptTable[tableIndex].Descriptor == NULL) {
+        g_interruptTable[tableIndex].Descriptor = systemInterrupt;
+        g_interruptTable[tableIndex].Penalty    = 1;
+        g_interruptTable[tableIndex].Sharable   = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
     }
     else {
         // Insert and increase penalty
-        systemInterrupt->Link                 = InterruptTable[tableIndex].Descriptor;
-        InterruptTable[tableIndex].Descriptor = systemInterrupt;
+        systemInterrupt->Link                   = g_interruptTable[tableIndex].Descriptor;
+        g_interruptTable[tableIndex].Descriptor = systemInterrupt;
         if (InterruptIncreasePenalty(tableIndex) != OsSuccess) {
             ERROR("Failed to increase penalty for source %" PRIiIN "", systemInterrupt->Source);
         }
@@ -439,7 +439,7 @@ InterruptRegister(
     if (InterruptConfigure(systemInterrupt, 1) != OsSuccess) {
         ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
     }
-    IrqSpinlockRelease(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&g_interruptTableLock);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
           systemInterrupt->Id, systemInterrupt->Interrupt.ResourceTable.Handler, systemInterrupt->Interrupt.Context);
     return systemInterrupt->Id;
@@ -461,8 +461,8 @@ InterruptUnregister(
     }
     
     // Iterate handlers in that table index and unlink the given entry
-    IrqSpinlockAcquire(&InterruptTableSyncObject);
-    Entry = InterruptTable[TableIndex].Descriptor;
+    IrqSpinlockAcquire(&g_interruptTableLock);
+    Entry = g_interruptTable[TableIndex].Descriptor;
     while (Entry) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
@@ -476,7 +476,7 @@ InterruptUnregister(
             // Marked entry as found
             Found = 1;
             if (Previous == NULL) {
-                InterruptTable[TableIndex].Descriptor = Entry->Link;
+                g_interruptTable[TableIndex].Descriptor = Entry->Link;
             }
             else {
                 Previous->Link = Entry->Link;
@@ -486,7 +486,7 @@ InterruptUnregister(
         Previous = Entry;
         Entry    = Entry->Link;
     }
-    IrqSpinlockRelease(&InterruptTableSyncObject);
+    IrqSpinlockRelease(&g_interruptTableLock);
 
     // Sanitize if we were successfull
     if (!Found) {
@@ -499,7 +499,7 @@ InterruptUnregister(
     }
 
     // Entry is now unlinked, clean it up mask the interrupt again if neccessary
-    if (InterruptTable[Entry->Source].Penalty == 0) {
+    if (g_interruptTable[Entry->Source].Penalty == 0) {
         InterruptConfigure(Entry, 0);
     }
     if (Entry->ModuleHandle != UUID_INVALID) {
@@ -518,7 +518,7 @@ InterruptGet(
     SystemInterrupt_t* Iterator;
     uint16_t           TableIndex = LOWORD(Source);
 
-    Iterator = InterruptTable[TableIndex].Descriptor;
+    Iterator = g_interruptTable[TableIndex].Descriptor;
     while (Iterator != NULL) {
         if (Iterator->Id == Source) {
             return Iterator;
@@ -549,19 +549,19 @@ InterruptGetActiveStatus(void)
 
 Context_t*
 InterruptHandle(
-    _In_  Context_t* Context,
-    _In_  int        TableIndex)
+    _In_  Context_t* context,
+    _In_  int        tableIndex)
 {
     uint32_t           initialPriority = InterruptsGetPriority();
     int                interruptSource = INTERRUPT_NONE;
     InterruptStatus_t  interruptStatus;
     SystemInterrupt_t* entry;
 
-    InterruptsSetPriority(TableIndex);
-    CpuCoreEnterInterrupt(Context, initialPriority);
+    InterruptsSetPriority(tableIndex);
+    CpuCoreEnterInterrupt(context, initialPriority);
 
     // Update current status
-    entry = InterruptTable[TableIndex].Descriptor;
+    entry = g_interruptTable[tableIndex].Descriptor;
     while (entry != NULL) {
         if (entry->Flags & INTERRUPT_KERNEL) {
             interruptStatus = entry->Handler(GetFastInterruptTable(), entry->Context);
@@ -577,6 +577,6 @@ InterruptHandle(
         entry = entry->Link;
     }
     
-    InterruptsAcknowledge(interruptSource, TableIndex);
-    return CpuCoreExitInterrupt(Context, initialPriority);
+    InterruptsAcknowledge(interruptSource, tableIndex);
+    return CpuCoreExitInterrupt(context, initialPriority);
 }

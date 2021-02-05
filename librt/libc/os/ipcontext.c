@@ -40,6 +40,8 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     OsStatus_t      os_status;
     streambuffer_t* stream;
     UUId_t          handle;
+
+    TRACE("ipcontext(len=%u, addr=0x" PRIxIN ")", len, addr);
     
     if (!len) {
         _set_errno(EINVAL);
@@ -108,20 +110,26 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     unsigned int    state;
     streambuffer_t* stream;
     unsigned int    sb_options = 0;
+    int             status = 0;
+
+    TRACE("getmsg(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, msg, len, flags);
     
     if (!handle) {
         _set_errno(EBADF);
-        return -1;
+        status = -1;
+        goto exit;
     }
     
     if (!len || !msg) {
         _set_errno(EINVAL);
-        return -1;
+        status = -1;
+        goto exit;
     }
     
     if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
         _set_errno(EINVAL);
-        return -1;
+        status = -1;
+        goto exit;
     }
     
     if (flags & IPMSG_DONTWAIT) {
@@ -132,13 +140,17 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     bytesAvailable = streambuffer_read_packet_start(stream, sb_options, &base, &state);
     if (!bytesAvailable) {
         _set_errno(ENODATA);
-        return -1;
+        status = -1;
+        goto exit;
     }
     
-    TRACE("[ipcontext] [getmsg] message available, size %" PRIuIN, bytesAvailable);
+    TRACE("getmsg message, size=%" PRIuIN, bytesAvailable);
     streambuffer_read_packet_data(stream, msg, MIN(len, bytesAvailable), &state);
     streambuffer_read_packet_end(stream, base, bytesAvailable);
-    return 0;
+
+exit:
+    TRACE("getmsg return=%i", status);
+    return status;
 }
 
 int resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp)

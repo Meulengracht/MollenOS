@@ -74,7 +74,7 @@ int fseeki64(
 	// Lock access to stream
 	_lock_file(file);
 	if (file->_flag & _IOWRT) {
-		os_flush_buffer(file);
+        io_buffer_flush(file);
 	}
 
 	// Adjust for current position

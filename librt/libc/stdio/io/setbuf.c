@@ -8,7 +8,7 @@
 
 void setbuf(
     _In_ FILE* file, 
-    _In_ char *buf)
+    _In_ char* buf)
 {
     setvbuf(file, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
 }

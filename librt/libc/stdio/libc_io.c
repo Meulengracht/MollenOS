@@ -272,8 +272,7 @@ void StdioConfigureStandardHandles(
     // stdout/stderr handles.
     handle_out = stdio_handle_get(STDOUT_FILENO);
     if (!handle_out) {
-        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_out);
-        stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
+        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT, &handle_out);
     }
 
     handle_in = stdio_handle_get(STDIN_FILENO);
@@ -283,13 +282,12 @@ void StdioConfigureStandardHandles(
     
     handle_err = stdio_handle_get(STDERR_FILENO);
     if (!handle_err) {
-        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT | WX_NULLPIPE, &handle_err);
-        stdio_handle_set_ops_type(handle_out, STDIO_HANDLE_PIPE);
+        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
     }
-    
-    stdio_handle_set_buffered(handle_out, &g_stdout, _IOWRT);
-    stdio_handle_set_buffered(handle_in, &g_stdint, _IOREAD);
-    stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT);
+
+    stdio_handle_set_buffered(handle_out, &g_stdout, _IOWRT | _IOLBF); // we buffer stdout as default
+    stdio_handle_set_buffered(handle_in, &g_stdint, _IOREAD | _IOLBF); // we also buffer stdint as default
+    stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT | _IONBF);
 }
 
 static int
@@ -325,7 +323,7 @@ _CRTIMP void
 StdioCleanup(void)
 {
     // Flush all file buffers and close handles
-    os_flush_all_buffers(_IOWRT | _IOREAD);
+    io_buffer_flush_all(_IOWRT | _IOREAD);
     stdio_close_all_handles();
 }
 

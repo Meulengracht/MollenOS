@@ -93,8 +93,8 @@ InterruptGetActiveStatus(void);
  * Handles an interrupt by invoking the registered handlers on the given table-index. */
 KERNELAPI Context_t* KERNELABI
 InterruptHandle(
-    _In_  Context_t* Context,
-    _In_  int        TableIndex);
+    _In_  Context_t* context,
+    _In_  int        tableIndex);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. This affects how the system allocates

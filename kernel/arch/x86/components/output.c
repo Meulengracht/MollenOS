@@ -477,27 +477,34 @@ VideoDrawCharacter(
     return OsNotSupported;
 }
 
-OsStatus_t
+void
 VideoPutCharacter(
-    _In_ int Character)
+    _In_ int character)
 {
     // Start out by determining the kind of draw we want to do
     if (Terminal.AvailableOutputs & VIDEO_TEXT) {
-        TextPutCharacter(Character);
+        TextPutCharacter(character);
     }
     else if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
-        VesaPutCharacter(Character);
+        VesaPutCharacter(character);
     }
-    
-    if (Terminal.AvailableOutputs & VIDEO_UART) {
-        size_t LineStatus      = 0x0;
-        size_t CharacterBuffer = (size_t)(Character & 0xFF);
-        while (!(LineStatus & 0x20)) {
-            ReadDirectIo(DeviceIoPortBased, 0x3F8 + 5, 1, &LineStatus);
-        }
-        WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, CharacterBuffer);
+}
+
+void
+SerialPutCharacter(
+        _In_ int character)
+{
+    size_t lineStatus      = 0x0;
+    size_t characterBuffer = (size_t)(character & 0xFF);
+
+    if (!(Terminal.AvailableOutputs & VIDEO_UART)) {
+        return;
     }
-    return OsSuccess;
+
+    while (!(lineStatus & 0x20)) {
+        ReadDirectIo(DeviceIoPortBased, 0x3F8 + 5, 1, &lineStatus);
+    }
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, characterBuffer);
 }
 
 OsStatus_t

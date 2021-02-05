@@ -288,6 +288,7 @@ set (SOURCES_STDIO
     stdio/libc_io.c
     stdio/libc_io_bitmap.c
     stdio/libc_io_buffered.c
+    stdio/libc_io_stream.c
 
     stdio/libc_io_set_operations.c
     stdio/libc_io_file_operations.c

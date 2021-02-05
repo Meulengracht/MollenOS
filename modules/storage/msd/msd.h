@@ -176,7 +176,7 @@ MsdDeviceInitialize(
  * capabilities and features. */
 __EXTERN OsStatus_t
 MsdDeviceStart(
-    _In_ MsdDevice_t *Device);
+    _In_ MsdDevice_t *msdDevice);
 
 __EXTERN MsdDevice_t*
 MsdDeviceGet(

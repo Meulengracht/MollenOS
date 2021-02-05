@@ -95,15 +95,15 @@ SignalSend(
     _In_ int    Signal,
     _In_ void*  Argument)
 {
-    Thread_t* Target   = THREAD_GET(ThreadId);
-    UUId_t         TargetCore;
-    ThreadSignal_t SignalInfo = {
+    Thread_t*      target = THREAD_GET(ThreadId);
+    UUId_t         targetCore;
+    ThreadSignal_t signalInfo = {
         .Signal   = Signal,
         .Argument = Argument,
         .Flags    = 0
     };
     
-    if (!Target) {
+    if (!target) {
         ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
         return OsDoesNotExist;
     }
@@ -113,25 +113,24 @@ SignalSend(
         return OsInvalidParameters; // Invalid
     }
     
-    if (Target->Signaling.Mask & (1 << Signal)) {
+    if (target->Signaling.Mask & (1 << Signal)) {
         return OsBlocked;
     }
     
-    TRACE("[signal] [send] thread %s, signal %i", Target->Name, Signal);
-    streambuffer_stream_out(Target->Signaling.Signals, &SignalInfo,
-        sizeof(ThreadSignal_t), 0);
-    atomic_fetch_add(&Target->Signaling.Pending, 1);
+    TRACE("[signal] [send] thread %s, signal %i", target->Name, Signal);
+    streambuffer_stream_out(target->Signaling.Signals, &signalInfo, sizeof(ThreadSignal_t), 0);
+    atomic_fetch_add(&target->Signaling.Pending, 1);
     
     // Is the thread local or foreign? We only handle signals locally on core,
     // so if it is running on a different core, we want to send an IPI and let
     // the local core handle this.
-    TargetCore = SchedulerObjectGetAffinity(Target->SchedulerObject);
-    if (TargetCore == ArchGetProcessorCoreId()) {
-        ExecuteSignalOnCoreFunction(Target);
+    targetCore = SchedulerObjectGetAffinity(target->SchedulerObject);
+    if (targetCore == ArchGetProcessorCoreId()) {
+        ExecuteSignalOnCoreFunction(target);
         return OsSuccess;
     }
     else {
-        return TxuMessageSend(TargetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, Target, 1);
+        return TxuMessageSend(targetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, target, 1);
     }
 }
 
@@ -172,12 +171,12 @@ SignalExecuteLocalThreadTrap(
 
 void
 SignalProcessQueued(
-    _In_ Thread_t* Thread,
-    _In_ Context_t*     Context)
+    _In_ Thread_t*  Thread,
+    _In_ Context_t* Context)
 {
-    ThreadSignal_t Signal;
-    uintptr_t      AlternativeStack;
-    uintptr_t      Handler;
+    ThreadSignal_t threadSignal;
+    uintptr_t      alternativeStack;
+    uintptr_t      handler;
     //TRACE("[signal] [queue]");
     
     assert(Thread != NULL);
@@ -189,25 +188,25 @@ SignalProcessQueued(
         !Thread->MemorySpace->Context->SignalHandler) {
         return;
     }
-    
-    Handler = Thread->MemorySpace->Context->SignalHandler;
+
+    handler = Thread->MemorySpace->Context->SignalHandler;
     while (1) {
-        size_t BytesRead = streambuffer_stream_in(Thread->Signaling.Signals,
-            &Signal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
-        if (!BytesRead) {
+        size_t bytesRead = streambuffer_stream_in(Thread->Signaling.Signals,
+                                                  &threadSignal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
+        if (!bytesRead) {
             break;
         }
         
-        if (Signal.Flags & SIGNAL_SEPERATE_STACK) {
+        if (threadSignal.Flags & SIGNAL_SEPERATE_STACK) {
             // Missing implementation
             // AlternativeStack = Signal.Stack;
         }
         else {
-            AlternativeStack = 0;
+            alternativeStack = 0;
         }
         
-        ContextPushInterceptor(Context, AlternativeStack, Handler, Signal.Signal, 
-            (uintptr_t)Signal.Argument, Signal.Flags);
+        ContextPushInterceptor(Context, alternativeStack, handler, threadSignal.Signal,
+                               (uintptr_t)threadSignal.Argument, threadSignal.Flags);
         atomic_fetch_sub(&Thread->Signaling.Pending, 1);
     }
 }

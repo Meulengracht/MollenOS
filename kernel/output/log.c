@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -34,10 +35,10 @@
 #include <threading.h>
 
 typedef struct SystemLogLine {
-    int    Type;
-    UUId_t CoreId;
-    UUId_t ThreadHandle;
-    char   Data[128]; // Message
+    int    level;
+    UUId_t coreId;
+    UUId_t threadHandle;
+    char   data[128]; // Message
 } SystemLogLine_t;
 
 typedef struct SystemLog {
@@ -52,7 +53,7 @@ typedef struct SystemLog {
     int AllowRender;
 } SystemLog_t;
 
-static char* TypeDescriptions[] = {
+static char* g_typeNames[] = {
     "raw",
     "trace",
     "debug",
@@ -60,7 +61,7 @@ static char* TypeDescriptions[] = {
     "error"
 };
 
-static uint32_t TypeColors[] = {
+static uint32_t g_typeColors[] = {
     0x111111,
     0x99E600,
     0x2ECC71,
@@ -68,118 +69,145 @@ static uint32_t TypeColors[] = {
     0xFF392B
 };
 
-static SystemLog_t LogObject                 = { 0 };
-static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
+static SystemLog_t g_kernelLog                      = {0 };
+static char        g_bootLogSpace[LOG_INITIAL_SIZE] = {0 };
+
+static inline void __WriteMessageToScreen(const char* message)
+{
+    int index = 0;
+    while (message[index]) {
+        VideoPutCharacter(message[index]);
+        index++;
+    }
+}
+
+static inline void __WriteMessageToSerial(const char* message)
+{
+    int index = 0;
+    while (message[index]) {
+        SerialPutCharacter(message[index]);
+        index++;
+    }
+}
 
 void
 LogInitialize(void)
 {
     // Setup initial log space
-    LogObject.StartOfData   = (uintptr_t*)&StaticLogSpace[0];
-    LogObject.DataSize      = LOG_INITIAL_SIZE;
-    
-    LogObject.Lines         = (SystemLogLine_t*)&StaticLogSpace[0];
-    LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
+    g_kernelLog.StartOfData = (uintptr_t*)&g_bootLogSpace[0];
+    g_kernelLog.DataSize    = LOG_INITIAL_SIZE;
+
+    g_kernelLog.Lines         = (SystemLogLine_t*)&g_bootLogSpace[0];
+    g_kernelLog.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
 }
 
 void
 LogInitializeFull(void)
 {
-    void* UpgradeBuffer;
+    void* upgradeBuffer;
 
     // Upgrade the buffer
-    UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
-    memset(UpgradeBuffer, 0, LOG_PREFFERED_SIZE);
+    upgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
+    assert(upgradeBuffer != NULL);
 
-	IrqSpinlockAcquire(&LogObject.SyncObject);
-    memcpy(UpgradeBuffer, (const void*)LogObject.StartOfData, LogObject.DataSize);
-    LogObject.StartOfData   = (uintptr_t*)UpgradeBuffer;
-    LogObject.DataSize      = LOG_PREFFERED_SIZE;
-    LogObject.Lines         = (SystemLogLine_t*)UpgradeBuffer;
-    LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
-	IrqSpinlockRelease(&LogObject.SyncObject);
+    memset(upgradeBuffer, 0, LOG_PREFFERED_SIZE);
+
+	IrqSpinlockAcquire(&g_kernelLog.SyncObject);
+    memcpy(upgradeBuffer, (const void*)g_kernelLog.StartOfData, g_kernelLog.DataSize);
+    g_kernelLog.StartOfData   = (uintptr_t*)upgradeBuffer;
+    g_kernelLog.DataSize      = LOG_PREFFERED_SIZE;
+    g_kernelLog.Lines         = (SystemLogLine_t*)upgradeBuffer;
+    g_kernelLog.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
+	IrqSpinlockRelease(&g_kernelLog.SyncObject);
 }
 
 void
 LogRenderMessages(void)
 {
-    SystemLogLine_t* Line;
-    Thread_t*   Thread;
+    SystemLogLine_t* logLine;
+    Thread_t*        thread;
+    char             sprintBuffer[256];
     
-    if (!LogObject.AllowRender) {
+    if (!g_kernelLog.AllowRender) {
         return;
     }
 
-    while (LogObject.RenderIndex != LogObject.LineIndex) {
+    while (g_kernelLog.RenderIndex != g_kernelLog.LineIndex) {
 
         // Get next line to be rendered
-        Line = &LogObject.Lines[LogObject.RenderIndex++];
-        if (LogObject.RenderIndex == LogObject.NumberOfLines) {
-            LogObject.RenderIndex = 0;
+        logLine = &g_kernelLog.Lines[g_kernelLog.RenderIndex++];
+        if (g_kernelLog.RenderIndex == g_kernelLog.NumberOfLines) {
+            g_kernelLog.RenderIndex = 0;
         }
-        Thread = THREAD_GET(Line->ThreadHandle);
+        thread = THREAD_GET(logLine->threadHandle);
 
         // Don't give raw any special handling
-        if (Line->Type == LOG_RAW) {
+        if (logLine->level == LOG_RAW) {
             VideoGetTerminal()->FgColor = 0;
-            printf("%s", &Line->Data[0]);
+            __WriteMessageToSerial(&logLine->data[0]);
         }
         else {
-            VideoGetTerminal()->FgColor = TypeColors[Line->Type];
-            printf("[%s-%u-%s] ", TypeDescriptions[Line->Type], Line->CoreId, 
-                Thread ? ThreadName(Thread) : "boot");
-            if (Line->Type != LOG_ERROR) {
-                VideoGetTerminal()->FgColor = 0;
+            VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
+            snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
+                     "[%s-%u-%s] %s\n",
+                     g_typeNames[logLine->level],
+                     logLine->coreId,
+                     thread ? ThreadName(thread) : "boot",
+                     &logLine->data[0]);
+            __WriteMessageToSerial(&sprintBuffer[0]);
+            if (logLine->level >= LOG_DEBUG) {
+                __WriteMessageToScreen(&sprintBuffer[0]);
             }
-            printf("%s\n", &Line->Data[0]);
         }
     }
 }
 
 void
 LogSetRenderMode(
-    _In_ int Enable)
+    _In_ int enable)
 {
     // Update status, flush log
-    LogObject.AllowRender = Enable;
-    if (Enable) {
-	    IrqSpinlockAcquire(&LogObject.SyncObject);
+    g_kernelLog.AllowRender = enable;
+    if (enable) {
+	    IrqSpinlockAcquire(&g_kernelLog.SyncObject);
         LogRenderMessages();
-	    IrqSpinlockRelease(&LogObject.SyncObject);
+	    IrqSpinlockRelease(&g_kernelLog.SyncObject);
     }
 }
 
 void
 LogAppendMessage(
-    _In_ int         Type,
-    _In_ const char* Message,
+    _In_ int         level,
+    _In_ const char* format,
     ...)
 {
-    SystemLogLine_t* Line;
-	va_list          Arguments;
-	UUId_t           CoreId = ArchGetProcessorCoreId();
+    SystemLogLine_t* logLine;
+	va_list          arguments;
+	UUId_t           coreId = ArchGetProcessorCoreId();
 
-    assert(Message != NULL);
-    
+	if (!format) {
+	    return;
+	}
+
     // Get a new line object
-	IrqSpinlockAcquire(&LogObject.SyncObject);
-	if ((LogObject.LineIndex + 1) % LogObject.NumberOfLines == LogObject.RenderIndex) {
+	IrqSpinlockAcquire(&g_kernelLog.SyncObject);
+	if ((g_kernelLog.LineIndex + 1) % g_kernelLog.NumberOfLines == g_kernelLog.RenderIndex) {
 	    LogRenderMessages();
 	}
-	
-    Line = &LogObject.Lines[LogObject.LineIndex++];
-    if (LogObject.LineIndex == LogObject.NumberOfLines) {
-        LogObject.LineIndex = 0;
+
+    logLine = &g_kernelLog.Lines[g_kernelLog.LineIndex++];
+    if (g_kernelLog.LineIndex == g_kernelLog.NumberOfLines) {
+        g_kernelLog.LineIndex = 0;
     }
     
-    memset((void*)Line, 0, sizeof(SystemLogLine_t));
-    Line->Type         = Type;
-    Line->CoreId       = CoreId;
-    Line->ThreadHandle = ThreadCurrentHandle();
+    memset((void*)logLine, 0, sizeof(SystemLogLine_t));
+    logLine->level        = level;
+    logLine->coreId       = coreId;
+    logLine->threadHandle = ThreadCurrentHandle();
     
-	va_start(Arguments, Message);
-    vsnprintf(&Line->Data[0], sizeof(Line->Data) - 1, Message, Arguments);
-    va_end(Arguments);
+	va_start(arguments, format);
+    vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
+    va_end(arguments);
 	LogRenderMessages();
-	IrqSpinlockRelease(&LogObject.SyncObject);
+	IrqSpinlockRelease(&g_kernelLog.SyncObject);
 }

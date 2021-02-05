@@ -35,7 +35,6 @@
 
 #define WX_INHERITTED       0x4000U
 #define WX_PERSISTANT       0x8000U
-#define WX_NULLPIPE         0x10000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -114,11 +113,14 @@ extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern stdio_handle_t* stdio_handle_get(int iod);
 
 // io-buffer interface
-extern OsStatus_t os_alloc_buffer(FILE* file);
-extern OsStatus_t os_flush_buffer(FILE* file);
-extern int        os_flush_all_buffers(int mask);
-extern OsStatus_t add_std_buffer(FILE* file);
-extern void       remove_std_buffer(FILE* file);
+#define IO_IS_NOT_BUFFERED(stream) (stream->_flag & _IONBF)
+#define IO_IS_BUFFERED(stream) !IO_IS_NOT_BUFFERED(stream)
+#define IO_HAS_BUFFER_DATA(stream) (stream->_cnt > 0)
+
+extern void       io_buffer_ensure(FILE* stream);
+extern void       io_buffer_allocate(FILE* stream);
+extern OsStatus_t io_buffer_flush(FILE* file);
+extern int        io_buffer_flush_all(int mask);
 
 // io-operation types
 extern void stdio_get_null_operations(stdio_ops_t* ops);
@@ -135,6 +137,7 @@ extern int  stdio_bitmap_allocate(int fd);
 extern void stdio_bitmap_free(int fd);
 extern int  _flsbuf(int ch, FILE *stream);
 extern int  _flswbuf(int ch, FILE *stream);
+extern int  stream_ensure_mode(int mode, FILE* stream);
 
 // Must be reentrancy spinlocks (critical sections)
 #define LOCK_FILES() do { } while(0)

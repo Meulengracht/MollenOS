@@ -25,7 +25,6 @@ segment .text
 global exception_common
 global irq_common
 global syscall_entry
-global ContextEnter
 global __wbinvd
 global __cli
 global __sti
@@ -76,29 +75,23 @@ __getcr2:
 	ret
 
 %macro save_state 0
-    ; swap gs before manipulating stack
-    test dword [rsp + 24], 3
-    jz .skipswapgsentry
-    swapgs
+    push r15
+    push r14
+    push r13
+    push r12
+    push r11
+    push r10
+    push r9
+    push r8
 
-    .skipswapgsentry:
-        push r15
-        push r14
-        push r13
-        push r12
-        push r11
-        push r10
-        push r9
-        push r8
-
-        push rax
-        push rcx
-        push rdx
-        push rbx
-        push rsp
-        push rbp
-        push rsi
-        push rdi
+    push rax
+    push rcx
+    push rdx
+    push rbx
+    push rsp
+    push rbp
+    push rsi
+    push rdi
 %endmacro
 
 %macro restore_state 0
@@ -121,32 +114,41 @@ __getcr2:
     pop r14
     pop r15
 
-	; swapgs after restoring the stack
-    test dword [rsp + 24], 3
-    jz .skipswapgsexit
-    swapgs
-    
 	; Cleanup irq & error code from stack
-	.skipswapgsexit:
-	    add rsp, 0x10
+    add rsp, 0x10
 %endmacro
 
 ;Common entry point for exceptions
 exception_common:
+    test dword [rsp + 24], 3
+    jz .skipentry
+    swapgs
+
+.skipentry:
     save_state
-    
+
     ; Set current stack as argument 1
     mov rcx, rsp
     sub rsp, 0x28 ; microsoft home-space + 8 to align
-	call ExceptionEntry
-	add rsp, 0x28 ; cleanup microsoft home-space
+    call ExceptionEntry
+    add rsp, 0x28 ; cleanup microsoft home-space
 
-	; _IF_ we return, restore state
-	restore_state
-	iretq
+    restore_state
+
+	; swapgs after restoring the stack
+    test dword [rsp + 8], 3
+    jz .skipexit
+    swapgs
+.skipexit:
+    iretq
 
 ;Common entry point for interrupts
 irq_common:
+    test dword [rsp + 24], 3
+    jz .skipentry
+    swapgs
+
+.skipentry:
     save_state
 
 	; Set current stack as argument 1
@@ -158,13 +160,23 @@ irq_common:
 	call InterruptHandle
 	mov rsp, rax
 
-	; When we return, restore state
 	restore_state
+
+	; swapgs after restoring the stack
+    test dword [rsp + 8], 3
+    jz .skipexit
+    swapgs
+.skipexit:
 	iretq
 
 ; Entrypoint for syscall, this is directly refered to, and not called through
-; the wrappers below, which means we don't need to pop irq/error code from stack
+; the wrappers below, which means we don't need to pop irq/error code from stack.
+; System calls still has their interrupts disabled on entry, due to race-conditioning when
+; we swap GS. If we are interrupted before swapgs is executed, then we can double-swap
 syscall_entry:
+    swapgs
+    sti
+
 	; push fake error code and irq
 	push 0
 	push 0x60
@@ -176,16 +188,13 @@ syscall_entry:
 	call SyscallHandle
 	mov rsp, rax
 
-	; When we return, restore state
 	restore_state
-	iretq
 
-; void ContextEnter(context_t* registers)
-; Switches stack and far jumps to next task
-ContextEnter:
-    mov rsp, rcx
-    restore_state
-    iretq
+	; disable interrupts again before calling swapgs, we don't want to be
+	; interrupted between swapgs and iretq
+	cli
+	swapgs
+	iretq
 
 ; Macros
 

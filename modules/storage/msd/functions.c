@@ -282,35 +282,35 @@ MsdReadCapabilities(
 
 OsStatus_t
 MsdDeviceStart(
-    _In_ MsdDevice_t *Device)
+    _In_ MsdDevice_t* msdDevice)
 {
-    UsbTransferStatus_t Status  = TransferNotProcessed;
-    ScsiInquiry_t *InquiryData  = NULL;
+    UsbTransferStatus_t transferStatus;
+    ScsiInquiry_t*      inquiryData = NULL;
     int i;
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up
-    i = (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) ? 30 : 3;
+    i = (msdDevice->Protocol != ProtocolCB && msdDevice->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&InquiryData) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsSuccess) {
         ERROR("Failed to allocate buffer (inquiry)");
         return OsError;
     }
 
     // Perform inquiry
-    Status = MsdScsiCommand(Device, 0, SCSI_INQUIRY, 0, 
-        dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), InquiryData), sizeof(ScsiInquiry_t));
-    if (Status != TransferFinished) {
-        ERROR("Failed to perform the inquiry command on device: %u", Status);
-        dma_pool_free(UsbRetrievePool(), (void*)InquiryData);
+    transferStatus = MsdScsiCommand(msdDevice, 0, SCSI_INQUIRY, 0,
+                                    dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), inquiryData), sizeof(ScsiInquiry_t));
+    if (transferStatus != TransferFinished) {
+        ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
+        dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OsError;
     }
 
     // Perform the Test-Unit Ready command
-    while (Device->IsReady == 0 && i != 0) {
-        MsdDevicePrepare(Device);
-        if (Device->IsReady == 1) {
+    while (msdDevice->IsReady == 0 && i != 0) {
+        MsdDevicePrepare(msdDevice);
+        if (msdDevice->IsReady == 1) {
             break; 
         }
         thrd_sleepex(100);
@@ -319,13 +319,13 @@ MsdDeviceStart(
 
     // Sanitize the resulting ready state, we need it 
     // ready otherwise we can't use it
-    if (!Device->IsReady) {
+    if (!msdDevice->IsReady) {
         ERROR("Failed to ready device");
-        dma_pool_free(UsbRetrievePool(), (void*)InquiryData);
+        dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OsError;
     }
-    dma_pool_free(UsbRetrievePool(), (void*)InquiryData);
-    return MsdReadCapabilities(Device);
+    dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
+    return MsdReadCapabilities(msdDevice);
 }
 
 static void
@@ -360,10 +360,10 @@ MsdTransferSectors(
     _In_  size_t       sectorCount,
     _Out_ size_t*      sectorsTransferred)
 {
-    UsbTransferStatus_t Result;
-    size_t              SectorsToBeTransferred;
-    uint8_t             Command;
-    size_t              MaxSectorsPerCommand;
+    UsbTransferStatus_t transferStatus;
+    size_t              sectorsToBeTransferred;
+    uint8_t             command;
+    size_t              maxSectorsPerCommand;
 
     TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN, 
         direction, sector, sectorCount);
@@ -375,26 +375,37 @@ MsdTransferSectors(
 
     // Of course it's possible that the requester is requesting too much data in one
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
-    SectorsToBeTransferred = sectorCount;
-    if ((sector + SectorsToBeTransferred) >= device->Descriptor.SectorCount) {
-        SectorsToBeTransferred = device->Descriptor.SectorCount - sector;
+    sectorsToBeTransferred = sectorCount;
+    if ((sector + sectorsToBeTransferred) >= device->Descriptor.SectorCount) {
+        sectorsToBeTransferred = device->Descriptor.SectorCount - sector;
     }
     
     // Detect limits based on type of device and protocol
-    SelectScsiTransferCommand(device, direction, &Command, &MaxSectorsPerCommand);
-    SectorsToBeTransferred = MIN(SectorsToBeTransferred, MaxSectorsPerCommand);
+    SelectScsiTransferCommand(device, direction, &command, &maxSectorsPerCommand);
+    sectorsToBeTransferred = MIN(sectorsToBeTransferred, maxSectorsPerCommand);
 
-    TRACE("[msd_transfer] command %u, max sectors for command %u", Command, MaxSectorsPerCommand);
-    Result = MsdScsiCommand(device, direction == __STORAGE_OPERATION_WRITE, Command, 
-        sector, bufferHandle, bufferOffset, SectorsToBeTransferred * device->Descriptor.SectorSize);
-    if (Result != TransferFinished) {
+    // protect against zero reads
+    if (sectorsToBeTransferred == 0) {
+        return OsInvalidParameters;
+    }
+
+    TRACE("[msd_transfer] command %u, max sectors for command %u", command, maxSectorsPerCommand);
+    transferStatus = MsdScsiCommand(
+            device,
+            direction == __STORAGE_OPERATION_WRITE,
+            command,
+            sector,
+            bufferHandle,
+            bufferOffset,
+            sectorsToBeTransferred * device->Descriptor.SectorSize);
+    if (transferStatus != TransferFinished) {
         if (sectorsTransferred) {
             *sectorsTransferred = 0;
         }
         return OsError;
     }
     else if (sectorsTransferred) {
-        *sectorsTransferred = SectorsToBeTransferred;
+        *sectorsTransferred = sectorsToBeTransferred;
         if (device->StatusBlock->DataResidue) {
             // Data residue is in bytes not transferred as it does not seem
             // required that we transfer in sectors
@@ -406,7 +417,9 @@ MsdTransferSectors(
     return OsSuccess;
 }
 
-void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args* args)
+void ctt_storage_transfer_async_callback(
+        _In_ struct gracht_recv_message*             message,
+        _In_ struct ctt_storage_transfer_async_args* args)
 {
     MsdDevice_t*    device = MsdDeviceGet(args->device_id);
     OsStatus_t      status;
@@ -419,8 +432,9 @@ void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, st
     status = MsdTransferSectors(device, args->direction, sector.QuadPart,
         args->buffer_id, args->buffer_offset, args->sector_count,
         &sectorsTransferred);
-    
-    // status oh no
+    if (status != OsSuccess) {
+        // @todo
+    }
 }
 
 void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)

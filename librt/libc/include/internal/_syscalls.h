@@ -20,7 +20,7 @@ _CODE_END
 
 ///////////////////////////////////////////////
 // Operating System (Module) Interface
-#define Syscall_Debug(Type, Module, Message)                                                 (OsStatus_t)syscall3(0, SCPARAM(Type), SCPARAM(Module), SCPARAM(Message))
+#define Syscall_Debug(Type, Message)                                                         (OsStatus_t)syscall2(0, SCPARAM(Type), SCPARAM(Message))
 #define Syscall_SystemStart()                                                                (OsStatus_t)syscall0(1)
 #define Syscall_DisplayInformation(Descriptor)                                               (OsStatus_t)syscall1(2, SCPARAM(Descriptor))
 #define Syscall_CreateDisplayFramebuffer()                                                   (void*)syscall0(3)

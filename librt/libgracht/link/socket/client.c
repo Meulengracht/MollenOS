@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -224,10 +225,10 @@ static int socket_link_connect(struct socket_link_manager* linkManager)
 static int socket_link_recv(struct socket_link_manager* linkManager,
     void* messageBuffer, unsigned int flags, struct gracht_message** messageOut)
 {
-    unsigned int convertedFlags = 0;
+    unsigned int convertedFlags = MSG_WAITALL;
     
-    if (flags & GRACHT_WAIT_BLOCK) {
-        convertedFlags |= MSG_WAITALL;
+    if (!(flags & GRACHT_WAIT_BLOCK)) {
+        convertedFlags |= MSG_DONTWAIT;
     }
     
     if (linkManager->config.type == gracht_link_stream_based) {

@@ -34,7 +34,7 @@
 #include "ctt_driver_protocol_server.h"
 #include "ctt_usbhost_protocol_server.h"
 
-static UUId_t __GlbTransferId = 0;
+static UUId_t g_nextTransferId = 0;
 
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
@@ -58,7 +58,7 @@ UsbManagerCreateTransfer(
     memcpy(&usbTransfer->Transfer, transfer, sizeof(UsbTransfer_t));
     
     gracht_vali_message_defer_response(&usbTransfer->DeferredMessage, message);
-    transferId = __GlbTransferId++;
+    transferId = g_nextTransferId++;
 
     ELEMENT_INIT(&usbTransfer->header, (uintptr_t)transferId, usbTransfer);
     usbTransfer->DeviceId = deviceId;
@@ -134,30 +134,28 @@ UsbManagerDestroyTransfer(
 
 void
 UsbManagerSendNotification(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UUId_t id;
     size_t bytesTransferred;
     
     TRACE("[usb] [manager] send notification");
     
     // If user doesn't want, ignore
-    if (Transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
+    if (transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
         return;
     }
 
     // If notification has been sent on control/bulk do not send again
-    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
-        if ((Transfer->Flags & TransferFlagNotified)) {
+    if (transfer->Transfer.Type == USB_TRANSFER_CONTROL || transfer->Transfer.Type == USB_TRANSFER_BULK) {
+        if ((transfer->Flags & TransferFlagNotified)) {
             return;
         }
-        Transfer->Flags |= TransferFlagNotified;
-        id               = Transfer->Id;
-        bytesTransferred = Transfer->Transactions[0].BytesTransferred;
-        bytesTransferred += Transfer->Transactions[1].BytesTransferred;
-        bytesTransferred += Transfer->Transactions[2].BytesTransferred;
-        ctt_usbhost_queue_response(&Transfer->DeferredMessage.recv_message, Transfer->Status,
-            bytesTransferred);
+        transfer->Flags |= TransferFlagNotified;
+        bytesTransferred = transfer->Transactions[0].BytesTransferred;
+        bytesTransferred += transfer->Transactions[1].BytesTransferred;
+        bytesTransferred += transfer->Transactions[2].BytesTransferred;
+        ctt_usbhost_queue_response(&transfer->DeferredMessage.recv_message, transfer->Status,
+                                   bytesTransferred);
     }
     else {
         // Forward data to the driver
@@ -169,9 +167,9 @@ UsbManagerSendNotification(
         //    Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
 
         // Increase
-        if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
-            Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
-                Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
+        if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
+            transfer->CurrentDataIndex = ADDLIMIT(0, transfer->CurrentDataIndex,
+                                                  transfer->Transfer.Transactions[0].Length, transfer->Transfer.PeriodicBufferSize);
         }
     }
 }

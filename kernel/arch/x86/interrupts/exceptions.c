@@ -31,7 +31,6 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
-#include <interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
 #include <threading.h>
@@ -45,50 +44,50 @@ extern reg_t      __getcr2(void);
 
 static void
 HardFault(
-    _In_ Context_t* Registers,
-    _In_ uintptr_t  PFAddress)
+    _In_ Context_t* context,
+    _In_ uintptr_t  pfAddress)
 {
-    uintptr_t Base  = 0;
-    char *Name      = NULL;
+    uintptr_t moduleBase = 0;
+    char*     moduleName = NULL;
     LogSetRenderMode(1);
 
     // Was it a page-fault?
-    if (PFAddress != __MASK) {
+    if (pfAddress != __MASK) {
         // Bit 1 - present status 
         // Bit 2 - write access
         // Bit 4 - user/kernel
-        WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", PFAddress, Registers->ErrorCode);
-        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), PFAddress, 1, &Base) == OsSuccess) {
-            WRITELINE("existing mapping for address: 0x%" PRIxIN "", Base);
-            WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), PFAddress));
+        WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", pfAddress, context->ErrorCode);
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &moduleBase) == OsSuccess) {
+            WRITELINE("existing mapping for address: 0x%" PRIxIN "", moduleBase);
+            WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), pfAddress));
         }
     }
 
     // Locate which module
-    if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
-        uintptr_t Diff = CONTEXT_IP(Registers) - Base;
-        WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, Name);
+    if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(context), &moduleBase, &moduleName) == OsSuccess) {
+        uintptr_t Diff = CONTEXT_IP(context) - moduleBase;
+        WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, moduleName);
     }
     else {
-        WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(Registers));
+        WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(context));
     }
 
     // Enter panic handler
-    ArchDumpThreadContext(Registers);
+    ArchDumpThreadContext(context);
     WRITELINE("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
-        Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
-    if (Registers) {
+              context->Irq, context->ErrorCode, CONTEXT_IP(context));
+    if (context) {
         __asm { xchg bx, bx };
         return;
     }
-    DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
+    DebugPanic(FATAL_SCOPE_KERNEL, context, __MODULE,
         "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
-        Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
+               context->Irq, context->ErrorCode, CONTEXT_IP(context));
 }
 
 void
 ExceptionEntry(
-    _In_ Context_t* Registers)
+    _In_ Context_t* context)
 {
     uintptr_t        address    = __MASK;
     int              issueFixed = 0;
@@ -96,36 +95,36 @@ ExceptionEntry(
     Thread_t*        thread;
 
     // Handle IRQ
-    if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
+    if (context->Irq == 0) {      // Divide By Zero (Non-math instruction)
+        SignalExecuteLocalThreadTrap(context, SIGFPE, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 1) { // Single Step
-        if (DebugSingleStep(Registers) == OsSuccess) {
+    else if (context->Irq == 1) { // Single Step
+        if (DebugSingleStep(context) == OsSuccess) {
             // Re-enable single-step
         }
         issueFixed = 1;
     }
-    else if (Registers->Irq == 2) { // NMI
+    else if (context->Irq == 2) { // NMI
         // Fall-through to kernel fault
     }
-    else if (Registers->Irq == 3) { // Breakpoint
-        DebugBreakpoint(Registers);
+    else if (context->Irq == 3) { // Breakpoint
+        DebugBreakpoint(context);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 4) { // Overflow
-        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+    else if (context->Irq == 4) { // Overflow
+        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 5) { // Bound Range Exceeded
-        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+    else if (context->Irq == 5) { // Bound Range Exceeded
+        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 6) { // Invalid Opcode
-        SignalExecuteLocalThreadTrap(Registers, SIGILL, NULL);
+    else if (context->Irq == 6) { // Invalid Opcode
+        SignalExecuteLocalThreadTrap(context, SIGILL, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 7) { // DeviceNotAvailable 
+    else if (context->Irq == 7) { // DeviceNotAvailable
         // This might be because we need to restore fpu/sse state
         core = CpuCoreCurrent();
         thread = CpuCoreCurrentThread(core);
@@ -133,72 +132,72 @@ ExceptionEntry(
         assert(thread != NULL);
 
         if (ThreadingFpuException(thread) != OsSuccess) {
-            SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
+            SignalExecuteLocalThreadTrap(context, SIGFPE, NULL);
         }
         issueFixed = 1;
     }
-    else if (Registers->Irq == 8) { // Double Fault
+    else if (context->Irq == 8) { // Double Fault
         // Fall-through to kernel fault
     }
-    else if (Registers->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
+    else if (context->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
         // Fall-through to kernel fault
     }
-    else if (Registers->Irq == 10) { // Invalid TSS
+    else if (context->Irq == 10) { // Invalid TSS
         // Fall-through to kernel fault
     }
-    else if (Registers->Irq == 11) { // Segment Not Present
-        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+    else if (context->Irq == 11) { // Segment Not Present
+        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 12) { // Stack Segment Fault
-        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+    else if (context->Irq == 12) { // Stack Segment Fault
+        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 13) { // General Protection Fault
+    else if (context->Irq == 13) { // General Protection Fault
         core   = CpuCoreCurrent();
         thread = CpuCoreCurrentThread(core);
 
         ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "",
               thread != NULL ? ThreadName(thread) : "Null",
-              Registers->ErrorCode, CONTEXT_IP(Registers));
+              context->ErrorCode, CONTEXT_IP(context));
         if (core) {
             __asm { xchg bx, bx };
             return;
         }
-        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
         issueFixed = 1;
     }
-    else if (Registers->Irq == 14) {    // Page Fault
+    else if (context->Irq == 14) {    // Page Fault
         address = (uintptr_t)__getcr2();
         core    = CpuCoreCurrent();
         thread  = CpuCoreCurrentThread(core);
 
         // Debug the error code
-        if (Registers->ErrorCode & PAGE_FAULT_PRESENT) {
+        if (context->ErrorCode & PAGE_FAULT_PRESENT) {
             // Page access violation for a page that was present
             unsigned int attributes             = GetMemorySpaceAttributes(GetCurrentMemorySpace(), address);
-            int          invalidProtectionLevel = (Registers->ErrorCode & PAGE_FAULT_USER)
+            int          invalidProtectionLevel = (context->ErrorCode & PAGE_FAULT_USER)
                     && (attributes & MAPPING_USERSPACE) == 0;
             
             if (invalidProtectionLevel) {
                 ERROR("%s: ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                       thread != NULL ? ThreadName(thread) : "Null",
-                      address, Registers->ErrorCode, CONTEXT_IP(Registers));
-                if (Registers->ErrorCode & PAGE_FAULT_USER) {
-                    SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+                      address, context->ErrorCode, CONTEXT_IP(context));
+                if (context->ErrorCode & PAGE_FAULT_USER) {
+                    SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
                     issueFixed = 1;
                 }
             }
-            else if (Registers->ErrorCode & PAGE_FAULT_WRITE) {
+            else if (context->ErrorCode & PAGE_FAULT_WRITE) {
                 // Write access, so lets verify that write attributes are set, if they
                 // are not, then the thread tried to write to read-only memory
                 if (attributes & MAPPING_READONLY) {
                     // If it was a user-process, kill it, otherwise fall through to kernel crash
                     ERROR("%s: WRITE_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                           thread != NULL ? ThreadName(thread) : "Null",
-                          address, Registers->ErrorCode, CONTEXT_IP(Registers));
-                    if (Registers->ErrorCode & PAGE_FAULT_USER) {
-                        SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+                          address, context->ErrorCode, CONTEXT_IP(context));
+                    if (context->ErrorCode & PAGE_FAULT_USER) {
+                        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
                         issueFixed = 1;
                     }
                 }
@@ -213,33 +212,35 @@ ExceptionEntry(
                 // read access, so something terrible has happened. Fall through to kernel crash
                 ERROR("%s: READ_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                       thread != NULL ? ThreadName(thread) : "Null",
-                      address, Registers->ErrorCode, CONTEXT_IP(Registers));
+                      address, context->ErrorCode, CONTEXT_IP(context));
             }
         }
         else {
             // Page was not present, this could be because of lazy-comitting, lets try
             // to fix it by comitting the address. 
-            if (address > 0x1000 && DebugPageFault(Registers, address) == OsSuccess) {
+            if (address > 0x1000 && DebugPageFault(context, address) == OsSuccess) {
                 issueFixed = 1;
             }
             else {
                 ERROR("%s: ADDRESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                       thread != NULL ? ThreadName(thread) : "Null",
-                      address, Registers->ErrorCode, CONTEXT_IP(Registers));
-                SignalExecuteLocalThreadTrap(Registers, SIGSEGV, NULL);
+                      address, context->ErrorCode, CONTEXT_IP(context));
+                if (core) {
+                    __asm { xchg bx, bx };
+                    return;
+                }
+                SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL);
                 issueFixed = 1;
             }
         }
-
-
     }
-    else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        SignalExecuteLocalThreadTrap(Registers, SIGFPE, NULL);
+    else if (context->Irq == 16 || context->Irq == 19) {    // FPU & SIMD Floating Point Exception
+        SignalExecuteLocalThreadTrap(context, SIGFPE, NULL);
         issueFixed = 1;
     }
     
     // Was the exception handled?
     if (!issueFixed) {
-        HardFault(Registers, address);
+        HardFault(context, address);
     }
 }

@@ -82,10 +82,21 @@ VideoDrawCharacter(
     _In_ uint32_t     Bg, 
     _In_ uint32_t     Fg);
 
-/* VideoPutCharacter
- * Renders a character with default colors at the current terminal position */
-KERNELAPI OsStatus_t KERNELABI
+/**
+ * Displays a character to the default video output if available. Default colors will be used
+ * @param character [In] The character to display
+ * @return
+ */
+KERNELAPI void KERNELABI
 VideoPutCharacter(
-    _In_ int Character);
+    _In_ int character);
+
+/**
+ * Outputs a character to the default serial port if available.
+ * @param character [In] The character to write
+ */
+void
+SerialPutCharacter(
+        _In_ int character);
 
 #endif //!__VALI_OUTPUT_H__

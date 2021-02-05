@@ -35,23 +35,22 @@
 
 OsStatus_t
 ScSystemDebug(
-    _In_ int         Type,
-    _In_ const char* Module,
-    _In_ const char* Message)
+    _In_ int         level,
+    _In_ const char* message)
 {
-    if (Module == NULL || Message == NULL) {
-        return OsError;
+    if (message == NULL) {
+        return OsInvalidParameters;
     }
 
     // Switch based on type
-    if (Type == 0) {
-        LogAppendMessage(LOG_TRACE, Message);
+    if (level == 0) {
+        LogAppendMessage(LOG_TRACE, message);
     }
-    else if (Type == 1) {
-        LogAppendMessage(LOG_DEBUG, Message);
+    else if (level == 1) {
+        LogAppendMessage(LOG_WARNING, message);
     }
     else {
-        LogAppendMessage(LOG_ERROR, Message);
+        LogAppendMessage(LOG_ERROR, message);
     }
     return OsSuccess;
 }

@@ -417,11 +417,11 @@ FsInitialize(
     struct dma_attachment  mapAttachment;
     uint64_t               mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
     size_t                 sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
-        Descriptor->Disk.Descriptor.SectorSize);
+        Descriptor->Disk.descriptor.SectorSize);
     
     mapInfo.name     = "mfs_mapbuffer";
-    mapInfo.length   = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize;
-    mapInfo.capacity = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.Descriptor.SectorSize;
+    mapInfo.length   = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize;
+    mapInfo.capacity = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize;
     mapInfo.flags    = DMA_PERSISTANT;
     
     Status = dma_export(bMap, &mapInfo, &mapAttachment);

@@ -23,7 +23,8 @@
  */
 
 #define __MODULE "thread"
-//#define __TRACE
+#define __TRACE
+//#define __OSCONFIG_DEBUG_SCHEDULER
 
 #include <arch/thread.h>
 #include <arch/utils.h>
@@ -81,7 +82,9 @@ ThreadCreate(
     Thread_t* parent;
     UUId_t    coreId;
 
-    TRACE("ThreadCreate(%s, 0x%" PRIxIN ")", name, flags);
+    TRACE("ThreadCreate(name=%s, entry=0x%" PRIxIN ", argments=0x%" PRIxIN ", flags=0x%x, memorySpaceHandle=%u"
+          "kernelMaxStackSize=%" PRIuIN ", userMaxStackSize=%" PRIuIN ")",
+          name, entry, arguments, flags, memorySpaceHandle, kernelMaxStackSize, userMaxStackSize);
 
     coreId = ArchGetProcessorCoreId();
     parent = ThreadCurrentForCore(coreId);
@@ -151,7 +154,7 @@ ThreadCreate(
         AddChild(parent, thread);
     }
 
-    TRACE("[thread_create] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
+    TRACE("[ThreadCreate] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
     SchedulerQueueObject(thread->SchedulerObject);
     *handle = thread->Handle;
     return OsSuccess;
@@ -504,16 +507,20 @@ ThreadingAdvance(
             SchedulerExpediteObject(currentThread->SchedulerObject);
         }
     }
-    
+
+#ifdef __OSCONFIG_DEBUG_SCHEDULER
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
           core->Id, currentThread->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
+#endif
 GetNextThread:
     if ((currentThread->Flags & THREADING_IDLE) || cleanup == 1) {
         // If the thread is finished then add it to garbagecollector
         if (cleanup == 1) {
             DestroyHandle(currentThread->Handle);
         }
+#ifdef __OSCONFIG_DEBUG_SCHEDULER
         TRACE(" > (null-schedule) initial next thread: %s", (nextThread) ? nextThread->Name : "null");
+#endif
         currentThread = NULL;
     }
     
@@ -526,7 +533,9 @@ GetNextThread:
     // do a final check that we haven't just gotten ahold of a thread
     // marked for finish
     if (nextThread == NULL) {
+#ifdef __OSCONFIG_DEBUG_SCHEDULER
         TRACE("[threading] [switch] selecting idle");
+#endif
         nextThread = CpuCoreIdleThread(core);
     }
     else {
@@ -547,9 +556,12 @@ GetNextThread:
     if (nextThread->ContextActive == NULL) {
         nextThread->ContextActive = nextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
+
+#ifdef __OSCONFIG_DEBUG_SCHEDULER
     TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ")",
           core->Id, nextThread->Name, nextThread->ContextActive,
           CONTEXT_IP(nextThread->ContextActive));
+#endif
     
     // Set next active thread
     if (currentThread != nextThread) {
@@ -562,13 +574,12 @@ GetNextThread:
 }
 
 // Common entry point for everything
-_Noreturn static void
-ThreadingEntryPoint(void)
+_Noreturn static void ThreadingEntryPoint(void)
 {
     UUId_t    coreId = ArchGetProcessorCoreId();
     Thread_t* thread = ThreadCurrentForCore(coreId);
 
-    TRACE("ThreadingEntryPoint()");
+    TRACE("ThreadingEntryPoint(void)");
 
     if (thread->Flags & THREADING_IDLE) {
         while (1) {
@@ -595,11 +606,11 @@ DestroyThread(
     int       references;
     clock_t   unused;
 
+    TRACE("DestroyThread(resource=0x%" PRIxIN ")", resource);
+
     if (!thread) {
         return;
     }
-
-    TRACE("DestroyThread(%s)", thread->Name ? thread->Name : "<error>");
 
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
@@ -651,10 +662,14 @@ static OsStatus_t
 CreateDefaultThreadContexts(
         _In_ Thread_t* thread)
 {
+    OsStatus_t status = OsSuccess;
+    TRACE("CreateDefaultThreadContexts(thread=0x%" PRIxIN ")", thread);
+
     // Create the kernel context, for a userspace thread this is always the default
     thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
-        return OsOutOfMemory;
+        status = OsOutOfMemory;
+        goto exit;
     }
 
     ContextReset(
@@ -662,8 +677,10 @@ CreateDefaultThreadContexts(
             (uintptr_t)&ThreadingEntryPoint, 0);
 
     // We cannot at this time allocate userspace contexts as they need to be located inside
-    // the local thread memory. So they are created as a part of thread startup.
-    return OsSuccess;
+    // the local thread memory. So they are created as a part of thread startup.'
+exit:
+    TRACE("CreateDefaultThreadContexts returns=%u", status);
+    return status;
 }
 
 // Setup defaults for a new thread and creates appropriate resources

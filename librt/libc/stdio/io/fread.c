@@ -480,11 +480,15 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		return 0;
 	}
 
-	// Lock file access
 	_lock_file(stream);
+	if (stream_ensure_mode(_IOREAD, stream)) {
+	    _unlock_file(stream);
+	    return -1;
+	}
+    io_buffer_ensure(stream);
 
-	// Check if we have any buffered data already
-	if (stream->_cnt > 0) {
+	// so check the buffer for any data
+	if (IO_HAS_BUFFER_DATA(stream)) {
 		int pcnt = (rcnt > stream->_cnt) ? stream->_cnt : rcnt;
 		memcpy(vptr, stream->_ptr, pcnt);
 		
@@ -495,26 +499,13 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		rcnt -= pcnt;
 		vptr = (char *)vptr + pcnt;
 	}
-	// Detect if stream was opened in correct mode
-	else if (!(stream->_flag & _IOREAD)) {
-		if (stream->_flag & _IORW) {
-			stream->_flag |= _IOREAD;
-		}
-		else {
-			_unlock_file(stream);
-			return 0;
-		}
-	}
-
-	// Do we need to allocate a buffer?
-	if (rcnt > 0 && !(stream->_flag & (_IONBF | _IOMYBUF | _USERBUF))) {
-		os_alloc_buffer(stream);
-	}
 
 	// Keep reading untill all requested bytes are read, or EOF
 	while (rcnt > 0) {
 		int i;
-		if (!stream->_cnt && rcnt < BUFSIZ && (stream->_flag & (_IOMYBUF | _USERBUF))) {
+
+		// if buffer is empty and the data fits into the buffer, then we fill that instead
+		if (IO_IS_BUFFERED(stream) && !stream->_cnt && rcnt < BUFSIZ) {
 			stream->_cnt = read(stream->_fd, stream->_base, stream->_bufsiz);
 			stream->_ptr = stream->_base;
 			i = (stream->_cnt < rcnt) ? stream->_cnt : rcnt;
@@ -526,12 +517,6 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 			}
 			
 			if (i > 0) {
-                // Do we need to allocate a buffer?
-                if (rcnt > 0 && !(stream->_flag & (_IONBF | _IOMYBUF | _USERBUF))) {
-                    os_alloc_buffer(stream);
-                }
-
-                // Keep reading untill all reques
 				memcpy(vptr, stream->_ptr, i);
 				stream->_cnt -= i;
 				stream->_ptr += i;
@@ -547,7 +532,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 			i = read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
 		}
 
-		// Update iterators
+		// update iterators
 		pread += i;
 		rcnt -= i;
 		vptr = (char *)vptr + i;

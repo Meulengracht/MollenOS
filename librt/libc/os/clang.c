@@ -21,13 +21,14 @@
 
 //#define __TRACE
 
+#include <assert.h>
+#include <ddk/utils.h>
 #include <os/osdefs.h>
 #include <os/types/process.h>
-#include <ddk/utils.h>
-#include <threads.h>
-#include <stdlib.h>
-#include <assert.h>
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <threads.h>
 #include "../threads/tls.h"
 
 #ifndef __INTERNAL_FUNC_DEFINED
@@ -42,12 +43,12 @@ extern void StdioCleanup(void);
 extern void tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 extern void tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 
-static int        CleanupPerformed = 0;
-static uintptr_t* ModuleEntries    = NULL;
-static int        ModuleCount      = 0;
-static void       (*__cxa_primary_cleanup)(void);
-static void       (*__cxa_primary_tls_thread_init)(void);
-static void       (*__cxa_primary_tls_thread_finit)(void);
+static int       g_cleanupPerformed                  = 0;
+static uintptr_t g_moduleEntries[PROCESS_MAXMODULES] = { 0 };
+static int       g_moduleCount                       = 0;
+static void      (*__cxa_primary_cleanup)(void);
+static void      (*__cxa_primary_tls_thread_init)(void);
+static void      (*__cxa_primary_tls_thread_finit)(void);
 
 CRTDECL(void,
 __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
@@ -103,10 +104,10 @@ __cxa_exithandlers(
 {
     TRACE("__cxa_exithandlers()");
     // Avoid recursive calls or anything to this
-    if (CleanupPerformed != 0) {
+    if (g_cleanupPerformed != 0) {
         return;
     }
-    CleanupPerformed = 1;
+    g_cleanupPerformed = 1;
 
     // Run dynamic crt for primary application
     if (CleanupCrt != 0) {
@@ -118,8 +119,8 @@ __cxa_exithandlers(
     if (!Quick) {
         // Run at-exit lists for all the modules
         if (DoAtExit != 0) {
-            for (int i = 0; i < ModuleCount; i++) {
-                ((void (*)(int))ModuleEntries[i])(DLL_ACTION_FINALIZE);
+            for (int i = 0; i < g_moduleCount; i++) {
+                ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);
             }
             // Cleanup primary app
             __cxa_primary_cleanup();
@@ -140,8 +141,8 @@ CRTDECL(void, __cxa_threadinitialize(void))
     TRACE("__cxa_threadinitialize()");
     fpreset();
     
-    for (int i = 0; i < ModuleCount; i++) {
-        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_THREADATTACH);
+    for (int i = 0; i < g_moduleCount; i++) {
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADATTACH);
     }
     __cxa_primary_tls_thread_init();
 }
@@ -151,8 +152,8 @@ CRTDECL(void, __cxa_threadinitialize(void))
 CRTDECL(void, __cxa_threadfinalize(void))
 {
     TRACE("__cxa_threadfinalize()");
-    for (int i = 0; i < ModuleCount; i++) {
-        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_THREADDETACH);
+    for (int i = 0; i < g_moduleCount; i++) {
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
     }
     __cxa_primary_tls_thread_finit();
 }
@@ -219,14 +220,14 @@ CRTDECL(void, __cxa_runinitializers(
     __cxa_primary_cleanup          = module_cleanup;
     __cxa_primary_tls_thread_init  = module_thread_init;
     __cxa_primary_tls_thread_finit = module_thread_finit;
+
+    memcpy(&g_moduleEntries[0], processInformation->LibraryEntries, processInformation->LibraryEntriesLength);
+    g_moduleCount = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
     
-    ModuleEntries = (uintptr_t*)processInformation->LibraryEntries;
-    ModuleCount   = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
-    
-    TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, ModuleCount, ModuleEntries);
-    for (int i = 0; i < ModuleCount; i++) {
-        TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, ModuleEntries[i]);
-        ((void (*)(int))ModuleEntries[i])(DLL_ACTION_INITIALIZE);
+    TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, g_moduleCount, g_moduleEntries);
+    for (int i = 0; i < g_moduleCount; i++) {
+        TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, g_moduleEntries[i]);
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);
     }
 
     // Run global and primary thread setup for process

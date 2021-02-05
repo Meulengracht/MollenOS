@@ -84,7 +84,7 @@ UsbManagerDestroyTransfer(
  * * transaction has completed/failed. */
 __EXTERN void
 UsbManagerSendNotification(
-    _In_ UsbManagerTransfer_t* Transfer);
+    _In_ UsbManagerTransfer_t* transfer);
 
 #endif //!__USB_TRANSFER__
  

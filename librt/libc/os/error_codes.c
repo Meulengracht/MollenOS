@@ -26,7 +26,7 @@
 #include <os/osdefs.h>
 #include <errno.h>
 
-const int ErrorCodeTable[OsErrorCodeCount] = {
+const int g_errorCodeTable[OsErrorCodeCount] = {
     EOK,
     EINVAL,       // OsError                 Error - Generic
     EEXIST,       // OsExists                Error - Resource already exists
@@ -61,7 +61,7 @@ int
 OsStatusToErrno(
     _In_ OsStatus_t Status)
 {
-    int errno_code = ErrorCodeTable[Status];
+    int errno_code = g_errorCodeTable[Status];
     _set_errno(errno_code);
     if (Status == OsSuccess) {
         return 0;

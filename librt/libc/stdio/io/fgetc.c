@@ -37,27 +37,15 @@ int __fill_buffer(
 		return EOF;
 	}
 
-	// Allocate buffer if needed
 	_lock_file(file);
-	if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF))) {
-		os_alloc_buffer(file);
+	io_buffer_ensure(file);
+	if (stream_ensure_mode(_IOREAD, file)) {
+        _unlock_file(file);
+	    return EOF;
 	}
 
-	// If we don't have read access, then make sure we atleast
-	// have IORW
-	if (!(file->_flag & _IOREAD)) {
-		if (file->_flag & _IORW) {
-			file->_flag |= _IOREAD;
-		}
-		else {
-			_unlock_file(file);
-			return EOF;
-		}
-	}
-
-	// Is this even a buffered input? If not only read one
-	// byte at the time
-	if (!(file->_flag & (_IOMYBUF | _USERBUF))) {
+	// Is this even a buffered input? If not only read one byte at the time
+	if (IO_IS_NOT_BUFFERED(file)) {
 		int r;
 		
 		// Read a single byte
@@ -100,7 +88,6 @@ int __fill_buffer(
 int fgetc(
 	_In_ FILE *file)
 {
-	// Variables
 	unsigned char *i;
 	unsigned int j;
 

@@ -45,7 +45,7 @@ struct dma_attachment;
 // - Protected, services/modules
 
 // System system calls
-extern OsStatus_t ScSystemDebug(int Type, const char* Module, const char* Message);
+extern OsStatus_t ScSystemDebug(int level, const char* message);
 extern OsStatus_t ScEndBootSequence(void);
 extern OsStatus_t ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
 extern void*      ScCreateDisplayFramebuffer(void);
@@ -99,7 +99,6 @@ extern UUId_t     ScThreadGetCurrentId(void);
 extern UUId_t     ScThreadCookie(void);
 extern OsStatus_t ScThreadSetCurrentName(const char* ThreadName);
 extern OsStatus_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
-extern OsStatus_t ScThreadGetContext(Context_t* ContextOut);
 
 // Synchronization system calls
 extern OsStatus_t ScFutexWait(FutexParameters_t* parameters);
@@ -262,29 +261,29 @@ static struct SystemCallDescriptor {
 
 Context_t*
 SyscallHandle(
-    _In_ Context_t* Context)
+    _In_ Context_t* context)
 {
-    struct SystemCallDescriptor* Handler;
-    Thread_t*                    Thread;
-    size_t                       Index = CONTEXT_SC_FUNC(Context);
-    size_t                       ReturnValue;
-    
-    if (Index > SYSTEM_CALL_COUNT) {
-        CONTEXT_SC_RET0(Context) = (size_t)OsInvalidParameters;
-        return Context;
+    struct SystemCallDescriptor* handler;
+    Thread_t*                    thread;
+    size_t                       index = CONTEXT_SC_FUNC(context);
+    size_t                       returnValue;
+
+    if (index >= SYSTEM_CALL_COUNT) {
+        CONTEXT_SC_RET0(context) = (size_t)OsInvalidParameters;
+        return context;
     }
-    
-    Thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    Handler = &SystemCallsTable[Index];
-    
-    ReturnValue = ((SystemCallHandlerFn)Handler->HandlerAddress)(
-        (void*)CONTEXT_SC_ARG0(Context), (void*)CONTEXT_SC_ARG1(Context),
-        (void*)CONTEXT_SC_ARG2(Context), (void*)CONTEXT_SC_ARG3(Context),
-        (void*)CONTEXT_SC_ARG4(Context));
-    CONTEXT_SC_RET0(Context) = ReturnValue;
+
+    thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    handler = &SystemCallsTable[index];
+
+    returnValue = ((SystemCallHandlerFn)handler->HandlerAddress)(
+            (void*)CONTEXT_SC_ARG0(context), (void*)CONTEXT_SC_ARG1(context),
+            (void*)CONTEXT_SC_ARG2(context), (void*)CONTEXT_SC_ARG3(context),
+            (void*)CONTEXT_SC_ARG4(context));
+    CONTEXT_SC_RET0(context) = returnValue;
     
     // Before returning to userspace code, queue up any signals that might
     // have been queued up for us.
-    SignalProcessQueued(Thread, Context);
-    return Context;
+    SignalProcessQueued(thread, context);
+    return context;
 }

@@ -20,22 +20,30 @@
  *   - Write to io handles
  */
 
-#include <stdio.h>
+#define __TRACE
+
+#include <ddk/utils.h>
 #include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 #include <io.h>
 #include <internal/_io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 int write(int fd, const void* buffer, unsigned int length)
 {
 	stdio_handle_t* handle       = stdio_handle_get(fd);
-	size_t          BytesWritten = 0;
+	size_t          bytesWritten = 0;
+	int             res;
+	OsStatus_t      status;
+	TRACE("write(fd=%i, buffer=0x%" PRIxIN ", length=%u)", fd, buffer, length);
 
 	// Don't write uneven bytes in case of UTF8/16
 	if ((handle->wxflag & WX_UTF) == WX_UTF && (length & 1)) {
 		_set_errno(EINVAL);
-		return -1;
+		res = -1;
+		goto exit;
 	}
 
 	// If appending, go to EOF
@@ -44,12 +52,17 @@ int write(int fd, const void* buffer, unsigned int length)
 	}
 
 	// If we aren't in text mode, raw write the data without any text-processing
-	if (handle->ops.write(handle, (char*)buffer, length, &BytesWritten) == OsSuccess) {
-		return (int)BytesWritten;
+    status = handle->ops.write(handle, (char*)buffer, length, &bytesWritten);
+	if (status != OsSuccess) {
+	    res = OsStatusToErrno(status);
+	}
+	else {
+	    res = (int)bytesWritten;
 	}
 
-	_set_errno(ENOSPC);
-	return -1;
+exit:
+    TRACE("write return=%i (errno %i)", res, errno);
+	return res;
 }
 
 size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
@@ -108,7 +121,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 			pcnt = (wrcnt / bufsiz) * bufsiz;
 
 			// Flush stream buffer
-			if (os_flush_buffer(stream) != OsSuccess) {
+			if (io_buffer_flush(stream) != OsSuccess) {
 				break;
 			}
 
