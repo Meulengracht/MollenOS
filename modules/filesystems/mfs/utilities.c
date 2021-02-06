@@ -364,18 +364,18 @@ MfsZeroBucket(
 
 unsigned int
 MfsVfsFlagsToFileRecordFlags(
-    _In_ unsigned int Flags,
-    _In_ unsigned int Permissions)
+    _In_ unsigned int flags,
+    _In_ unsigned int permissions)
 {
-    unsigned int NativeFlags = 0;
+    unsigned int nativeFlags = 0;
 
-    if (Flags & __FILE_DIRECTORY) {
-        NativeFlags |= MFS_FILERECORD_DIRECTORY;
+    if (flags & __FILE_DIRECTORY) {
+        nativeFlags |= MFS_FILERECORD_DIRECTORY;
     }
-    else if (Flags & __FILE_LINK) {
-        NativeFlags |= MFS_FILERECORD_LINK;
+    else if (flags & __FILE_LINK) {
+        nativeFlags |= MFS_FILERECORD_LINK;
     }
-    return NativeFlags;
+    return nativeFlags;
 }
 
 void
@@ -396,27 +396,26 @@ MfsFileRecordFlagsToVfsFlags(
     }
 }
 
-/* MfsFileRecordToVfsFile
- * Converts a native MFS file record into the generic vfs representation. */
 void
 MfsFileRecordToVfsFile(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileRecord_t*              NativeEntry,
-    _In_ MfsEntry_t*                VfsEntry)
+    _In_ FileSystemDescriptor_t* fileSystem,
+    _In_ FileRecord_t*           nativeEntry,
+    _In_ MfsEntry_t*             mfsEntry)
 {
     // Skip the bucket placement and path
-    VfsEntry->Base.Descriptor.StorageId = (int)FileSystem->Disk.device_id; // ???
+    mfsEntry->Base.Descriptor.StorageId     = (int)fileSystem->Disk.device_id; // ???
     // VfsEntry->Base.Descriptor.Id = ??
-    VfsEntry->Base.Name                     = MStringCreate((const char*)&NativeEntry->Name[0], StrUTF8);
-    VfsEntry->NativeFlags                   = NativeEntry->Flags;
-    VfsEntry->Base.Descriptor.Size.QuadPart = NativeEntry->Size;
-    VfsEntry->AllocatedSize                 = NativeEntry->AllocatedSize;
-    VfsEntry->StartBucket                   = NativeEntry->StartBucket;
-    VfsEntry->StartLength                   = NativeEntry->StartLength;
+    mfsEntry->Base.Name                     = MStringCreate((const char*)&nativeEntry->Name[0], StrUTF8);
+    mfsEntry->NativeFlags                   = nativeEntry->Flags;
+    mfsEntry->Base.Descriptor.Size.QuadPart = nativeEntry->Size;
+    mfsEntry->AllocatedSize                 = nativeEntry->AllocatedSize;
+    mfsEntry->StartBucket                   = nativeEntry->StartBucket;
+    mfsEntry->StartLength                   = nativeEntry->StartLength;
 
     // Convert flags to generic vfs flags and permissions
-    MfsFileRecordFlagsToVfsFlags(NativeEntry, &VfsEntry->Base.Descriptor.Flags, 
-        &VfsEntry->Base.Descriptor.Permissions);
+    MfsFileRecordFlagsToVfsFlags(nativeEntry,
+                                 &mfsEntry->Base.Descriptor.Flags,
+                                 &mfsEntry->Base.Descriptor.Permissions);
 
     // Convert dates
     // VfsEntry->Base.DescriptorCreatedAt;
@@ -426,71 +425,65 @@ MfsFileRecordToVfsFile(
 
 OsStatus_t
 MfsUpdateRecord(
-    _In_ FileSystemDescriptor_t* FileSystem, 
-    _In_ MfsEntry_t*             Entry,
-    _In_ int                     Action)
+    _In_ FileSystemDescriptor_t* fileSystem,
+    _In_ MfsEntry_t*             entry,
+    _In_ int                     action)
 {
-    MfsInstance_t*      Mfs     = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t    Result  = OsSuccess;
-    FileRecord_t*       Record  = NULL;
-    size_t              i;
-    size_t              SectorsTransferred;
+    MfsInstance_t* mfs = (MfsInstance_t*)fileSystem->ExtensionData;
+    OsStatus_t     osStatus = OsSuccess;
+    FileRecord_t*  record;
+    size_t         sectorsTransferred;
 
-    TRACE("MfsUpdateEntry(File %s)", MStringRaw(Entry->Base.Name));
+    TRACE("MfsUpdateEntry(File %s)", MStringRaw(entry->Base.Name));
 
     // Read the stored data bucket where the record is
-    if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, 
-            MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
-            Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
-        ERROR("Failed to read bucket %u", Entry->DirectoryBucket);
-        Result = OsDeviceError;
+    if (MfsReadSectors(fileSystem, mfs->TransferBuffer.handle, 0,
+                       MFS_GETSECTOR(mfs, entry->DirectoryBucket),
+                       mfs->SectorsPerBucket * entry->DirectoryLength, &sectorsTransferred) != OsSuccess) {
+        ERROR("Failed to read bucket %u", entry->DirectoryBucket);
+        osStatus = OsDeviceError;
         goto Cleanup;
     }
-    
-    // Fast-forward to the correct entry
-    Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
-    for (i = 0; i < Entry->DirectoryIndex; i++) {
-        Record++;
-    }
+
+    record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * entry->DirectoryIndex));
 
     // We have two over-all cases here, as create/modify share
     // some code, and that is delete as the second. If we delete
     // we zero out the entry and set the status to deleted
-    if (Action == MFS_ACTION_DELETE) {
-        memset((void*)Record, 0, sizeof(FileRecord_t));
+    if (action == MFS_ACTION_DELETE) {
+        memset((void*)record, 0, sizeof(FileRecord_t));
     }
     else {
         // Now we have two sub cases, but create just needs some
         // extra updates otherwise they share
-        if (Action == MFS_ACTION_CREATE) {
-            Record->Flags = MFS_FILERECORD_INUSE;
-            memset(&Record->Integrated[0], 0, 512);
-            memset(&Record->Name[0], 0, 300);
-            memcpy(&Record->Name[0], MStringRaw(Entry->Base.Name), MStringSize(Entry->Base.Name));
+        if (action == MFS_ACTION_CREATE) {
+            memset(&record->Integrated[0], 0, 512);
+            memset(&record->Name[0], 0, 300);
+            memcpy(&record->Name[0], MStringRaw(entry->Base.Name), MStringSize(entry->Base.Name));
         }
 
         // Update stats that are modifiable
-        Record->Flags       = Entry->NativeFlags;
-        Record->StartBucket = Entry->StartBucket;
-        Record->StartLength = Entry->StartLength;
+        record->Flags       = entry->NativeFlags | MFS_FILERECORD_INUSE;
+        record->StartBucket = entry->StartBucket;
+        record->StartLength = entry->StartLength;
 
         // Update modified / accessed dates
 
         // Update sizes
-        Record->Size            = Entry->Base.Descriptor.Size.QuadPart;
-        Record->AllocatedSize   = Entry->AllocatedSize;
+        record->Size          = entry->Base.Descriptor.Size.QuadPart;
+        record->AllocatedSize = entry->AllocatedSize;
     }
     
     // Write the bucket back to the disk
-    if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
-        Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
-        ERROR("Failed to update bucket %u", Entry->DirectoryBucket);
-        Result = OsDeviceError;
+    if (MfsWriteSectors(fileSystem, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, entry->DirectoryBucket),
+                        mfs->SectorsPerBucket * entry->DirectoryLength, &sectorsTransferred) != OsSuccess) {
+        ERROR("Failed to update bucket %u", entry->DirectoryBucket);
+        osStatus = OsDeviceError;
     }
 
     // Cleanup and exit
 Cleanup:
-    return Result;
+    return osStatus;
 }
 
 /* MfsEnsureRecordSpace

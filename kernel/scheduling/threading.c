@@ -23,7 +23,7 @@
  */
 
 #define __MODULE "thread"
-#define __TRACE
+//#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
 
 #include <arch/thread.h>

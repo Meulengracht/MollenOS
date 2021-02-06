@@ -25,11 +25,17 @@
 
 const char*
 MStringRaw(
-    _In_ MString_t *String)
+    _In_ MString_t* string)
 {
-    uint8_t* StringPtr = (uint8_t*)String->Data;
-    if (String->Length < String->MaxLength) {
-        StringPtr[String->Length] = '\0';
+    uint8_t* data;
+
+    if (!string) {
+        return NULL;
     }
-	return (const char*)StringPtr;
+
+    data = (uint8_t*)string->Data;
+    if (string->Length < string->MaxLength) {
+        data[string->Length] = '\0';
+    }
+	return (const char*)data;
 }

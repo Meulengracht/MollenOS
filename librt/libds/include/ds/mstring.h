@@ -82,7 +82,7 @@ DSDECL(int,        MStringReplace(MString_t* String, const char* SearchFor, cons
 
 DSDECL(size_t,      MStringLength(MString_t* String)); // Number of characters
 DSDECL(size_t,      MStringSize(MString_t* String));   // Number of bytes
-DSDECL(const char*, MStringRaw(MString_t* String));
+DSDECL(const char*, MStringRaw(MString_t * string));
 DSDECL(size_t,      MStringHash(MString_t* String));
 
 /* MStringCompare

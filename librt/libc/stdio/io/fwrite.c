@@ -20,7 +20,7 @@
  *   - Write to io handles
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <errno.h>

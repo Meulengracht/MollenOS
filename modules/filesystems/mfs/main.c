@@ -69,27 +69,23 @@ OsStatus_t
 FsCreatePath(
     _In_  FileSystemDescriptor_t* FileSystem,
     _In_  MString_t*              Path,
-    _In_  unsigned int                 Options,
+    _In_  unsigned int            Options,
     _Out_ FileSystemEntry_t**     BaseEntry)
 {
-    MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t     Result;
-    MfsEntry_t*    Entry;
-    unsigned int        MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
+    MfsInstance_t* mfs;
+    OsStatus_t     osStatus;
+    MfsEntry_t*    entry;
 
-    Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
-    if (!Entry) {
+    if (!FileSystem || !BaseEntry) {
         return OsInvalidParameters;
     }
-    
-    memset(Entry, 0, sizeof(MfsEntry_t));
-    
-    Result = MfsCreateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path, MfsFlags);
-    *BaseEntry  = (FileSystemEntry_t*)Entry;
-    if (Result != OsSuccess) {
-        free(Entry);
+
+    mfs      = (MfsInstance_t*)FileSystem->ExtensionData;
+    osStatus = MfsCreateRecord(FileSystem, Options, mfs->MasterRecord.RootIndex, Path, &entry);
+    if (osStatus == OsSuccess) {
+        *BaseEntry = &entry->Base;
     }
-    return Result;
+    return osStatus;
 }
 
 OsStatus_t

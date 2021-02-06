@@ -26,19 +26,21 @@
 #include <ddk/utils.h>
 #include "mfs.h"
 #include <stdlib.h>
-#include <string.h>
 
 // /test/ => [remainingPath ], [token ]
-OsStatus_t
-MfsExtractToken(
+static void __ExtractPathToken(
     _In_  MString_t*  path,
     _Out_ MString_t** remainingPath,
     _Out_ MString_t** token)
 {
+    int strIndex;
+    int strLength;
+    TRACE("__ExtractPathToken(path=%s [0x%" PRIxIN "]", MStringRaw(path), path);
+
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
-    int strIndex  = MStringFind(path, '/', 0);
-    int strLength = MStringLength(path);
+    strIndex  = MStringFind(path, '/', 0);
+    strLength = MStringLength(path);
 
     // So, if StrIndex is MSTRING_NOT_FOUND now, we
     // can pretty much assume this was the last token
@@ -53,360 +55,469 @@ MfsExtractToken(
         else {
             *token = NULL;
         }
-        
+
         *remainingPath = NULL;
-        return OsSuccess;
+        TRACE("__ExtractPathToken returns remainingPath=NULL, token=%s [0x%" PRIxIN "]", MStringRaw(*token), token);
     }
 
     *token         = MStringSubString(path, 0, strIndex);
     *remainingPath = MStringSubString(path, strIndex + 1, (strLength - (strIndex + 1)));
-    return OsSuccess;
+    TRACE("__ExtractPathToken returns remainingPath=%s [0x%" PRIxIN "], token=%s [0x%" PRIxIN "]",
+          MStringRaw(*remainingPath), remainingPath, MStringRaw(*token), token);
+}
+
+static OsStatus_t __ReadCurrentBucket(
+        _In_ FileSystemDescriptor_t* fileSystem,
+        _In_ MfsInstance_t*          mfs,
+        _In_ uint32_t                currentBucket,
+        _In_ MapRecord_t*            mapRecord)
+{
+    OsStatus_t osStatus;
+    size_t     sectorsTransferred;
+
+    // Get the length of the bucket
+    osStatus = MfsGetBucketLink(fileSystem, currentBucket, mapRecord);
+    if (osStatus != OsSuccess) {
+        ERROR("__ReadCurrentBucket: failed to get length of bucket %u", currentBucket);
+        return osStatus;
+    }
+
+    if (!mapRecord->Length) {
+        ERROR("__ReadCurrentBucket: length of bucket %u was 0", currentBucket);
+        return OsError;
+    }
+
+    // Start out by loading the bucket buffer with data
+    osStatus = MfsReadSectors(fileSystem, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, currentBucket),
+                              mfs->SectorsPerBucket * mapRecord->Length, &sectorsTransferred);
+    if (osStatus != OsSuccess) {
+        ERROR("__ReadCurrentBucket: failed to read directory-bucket %u", currentBucket);
+    }
+
+    return osStatus;
 }
 
 OsStatus_t
 MfsLocateRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry,
-    _In_ MString_t*                 Path)
+    _In_ FileSystemDescriptor_t* fileSystem,
+    _In_ uint32_t                bucketOfDirectory,
+    _In_ MfsEntry_t*             entry,
+    _In_ MString_t*              path)
 {
-    MfsInstance_t* Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t     Result          = OsSuccess;
-    MString_t*     Remaining       = NULL;
-    MString_t*     Token           = NULL;
-    uint32_t       CurrentBucket   = BucketOfDirectory;
-    int            IsEndOfPath     = 0;
-    int            IsEndOfFolder   = 0;
+    MfsInstance_t* mfs;
+    OsStatus_t     osStatus;
+    MString_t*     remainingPath = NULL;
+    MString_t*     currentToken  = NULL;
+    uint32_t       currentBucket = bucketOfDirectory;
+    int            isEndOfPath   = 0;
+    int            isEndOfFolder = 0;
     size_t         i;
-    size_t         SectorsTransferred;
 
-    TRACE("MfsLocateRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
+    TRACE("MfsLocateRecord(fileSystem=0x%" PRIxIN ", bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%s [0x%" PRIxIN "])",
+          fileSystem, bucketOfDirectory, entry, MStringRaw(path), path);
 
-    if (MStringLength(Path) != 0) {
-        MfsExtractToken(Path, &Remaining, &Token);
-        if (Remaining == NULL) {
-            IsEndOfPath = 1;
-            if (Token == NULL) {
-                MfsFileRecordToVfsFile(FileSystem, &Mfs->RootRecord, Entry);
+    if (!fileSystem || !entry) {
+        return OsInvalidParameters;
+    }
+
+    mfs = (MfsInstance_t*)fileSystem->ExtensionData;
+
+    // Either get next part of the path, or end at this entry
+    if (MStringLength(path) != 0) {
+        __ExtractPathToken(path, &remainingPath, &currentToken);
+        if (remainingPath == NULL) {
+            isEndOfPath = 1;
+            if (currentToken == NULL) {
+                MfsFileRecordToVfsFile(fileSystem, &mfs->RootRecord, entry);
                 return OsSuccess;
             }
         }
     }
     else {
-        MfsFileRecordToVfsFile(FileSystem, &Mfs->RootRecord, Entry);
+        // end of path
+        MfsFileRecordToVfsFile(fileSystem, &mfs->RootRecord, entry);
         return OsSuccess;
     }
 
     // Iterate untill we reach end of folder
-    while (!IsEndOfFolder) {
-        FileRecord_t *Record = NULL;
-        MapRecord_t Link;
+    while (!isEndOfFolder) {
+        FileRecord_t* record = NULL;
+        MapRecord_t   link;
 
-        // Get the length of the bucket
-        if (MfsGetBucketLink(FileSystem, CurrentBucket, &Link) != OsSuccess) {
-            ERROR("Failed to get length of bucket %u", CurrentBucket);
-            Result = OsDeviceError;
-            goto Cleanup;
+        osStatus = __ReadCurrentBucket(fileSystem, mfs, currentBucket, &link);
+        if (osStatus != OsSuccess) {
+            break;
         }
-
-        TRACE("Reading bucket %u with length %u, link 0x%x", CurrentBucket, Link.Length, Link.Link);
-        
-        // Start out by loading the bucket buffer with data
-        if (!Link.Length || 
-                MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
-                    Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
-            ERROR("Failed to read directory-bucket %u", CurrentBucket);
-            Result = OsDeviceError;
-            goto Cleanup;
-        }
-        TRACE("Read done");
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
-        for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
-            MString_t* Filename;
-            int CompareResult;
+        record = (FileRecord_t*)mfs->TransferBuffer.buffer;
+        for (i = 0; i < ((mfs->SectorsPerBucket * link.Length) / 2); i++) {
+            MString_t* filename;
+            int        compareResult;
 
-            if (!(Record->Flags & MFS_FILERECORD_INUSE)) { // Skip unused records
-                Record++;
+            if (!(record->Flags & MFS_FILERECORD_INUSE)) { // Skip unused records
+                record++;
                 continue;
             }
 
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
-            Filename        = MStringCreate((const char*)&Record->Name[0], StrUTF8);
-            CompareResult   = MStringCompare(Token, Filename, 1);
-            TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
-            MStringDestroy(Filename);
+            filename      = MStringCreate((const char*)&record->Name[0], StrUTF8);
+            compareResult = MStringCompare(currentToken, filename, 1);
+            MStringDestroy(filename);
 
-            if (CompareResult == MSTRING_FULL_MATCH) {
+            TRACE("MfsLocateRecord matching token %s == %s: %i", MStringRaw(currentToken), MStringRaw(filename), compareResult);
+            if (compareResult == MSTRING_FULL_MATCH) {
                 // Two cases, if we are not at end of given path, then this
                 // entry must be a directory and it must have data
-                if (IsEndOfPath == 0) {
-                    if (!(Record->Flags & MFS_FILERECORD_DIRECTORY)) {
-                        Result = OsPathIsNotDirectory;
+                if (isEndOfPath == 0) {
+                    if (!(record->Flags & MFS_FILERECORD_DIRECTORY)) {
+                        osStatus = OsPathIsNotDirectory;
                         goto Cleanup;
                     }
-                    if (Record->StartBucket == MFS_ENDOFCHAIN) {
-                        Result = OsDoesNotExist;
+                    if (record->StartBucket == MFS_ENDOFCHAIN) {
+                        osStatus = OsDoesNotExist;
                         goto Cleanup;
                     }
 
-                    TRACE("Following the trail into bucket %u with the remaining path %s",
-                        Record->StartBucket, MStringRaw(Remaining));
-                    Result = MfsLocateRecord(FileSystem, Record->StartBucket, Entry, Remaining);
+                    osStatus = MfsLocateRecord(fileSystem, record->StartBucket, entry, remainingPath);
                     goto Cleanup;
                 }
                 else {
-                    MfsFileRecordToVfsFile(FileSystem, Record, Entry);
+                    MfsFileRecordToVfsFile(fileSystem, record, entry);
 
                     // Save where in the directory we found it
-                    Entry->DirectoryBucket  = CurrentBucket;
-                    Entry->DirectoryLength  = Link.Length;
-                    Entry->DirectoryIndex   = i;
-                    Result                  = OsSuccess;
+                    entry->DirectoryBucket = currentBucket;
+                    entry->DirectoryLength = link.Length;
+                    entry->DirectoryIndex  = i;
+                    osStatus = OsSuccess;
                     goto Cleanup;
                 }
             }
-            Record++;
+            record++;
         }
 
         // End of link?
-        if (Link.Link == MFS_ENDOFCHAIN) {
-            Result          = OsDoesNotExist;
-            IsEndOfFolder   = 1;
+        if (link.Link == MFS_ENDOFCHAIN) {
+            osStatus      = OsDoesNotExist;
+            isEndOfFolder = 1;
         }
         else {
-            CurrentBucket   = Link.Link;
+            currentBucket = link.Link;
         }
     }
 
 Cleanup:
     // Cleanup the allocated strings
-    if (Remaining != NULL) {
-        MStringDestroy(Remaining);
+    if (remainingPath != NULL) {
+        MStringDestroy(remainingPath);
     }
-    MStringDestroy(Token);
-    return Result;
+    MStringDestroy(currentToken);
+    return osStatus;
 }
 
-/* MfsLocateFreeRecord
- * Very alike to the MfsLocateRecord except instead of locating a file entry
- * it locates a free entry in the last token of the path, and validates the path as it goes */
-OsStatus_t
-MfsLocateFreeRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry,
-    _In_ MString_t*                 Path)
+static inline OsStatus_t __ExpandDirectory(
+        _In_ FileSystemDescriptor_t* fileSystem,
+        _In_ uint32_t                currentBucket,
+        _In_ MapRecord_t*            mapRecord)
 {
-    MfsInstance_t*      Mfs           = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t    Result        = OsSuccess;
-    MString_t*          Remaining     = NULL;
-    MString_t*          Token         = NULL;
-    uint32_t            CurrentBucket = BucketOfDirectory;
-    int                 Loop          = 1;
-    int                 IsEndOfPath   = 0;
-    size_t              i;
-    size_t              SectorsTransferred;
+    OsStatus_t osStatus;
 
-    TRACE("MfsLocateFreeRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
-
-    // Get next token
-    MfsExtractToken(Path, &Remaining, &Token);
-    if (Remaining == NULL) {
-        IsEndOfPath = 1;
+    // Allocate bucket
+    osStatus = MfsAllocateBuckets(fileSystem, MFS_DIRECTORYEXPANSION, mapRecord);
+    if (osStatus != OsSuccess) {
+        ERROR("__ExpandDirectory failed to allocate bucket for expansion");
+        return osStatus;
     }
 
-    // Iterate untill we reach end of folder
-    while (Loop) {
-        FileRecord_t *Record = NULL;
-        MapRecord_t Link;
+    // Update link
+    osStatus = MfsSetBucketLink(fileSystem, currentBucket, mapRecord, 1);
+    if (osStatus != OsSuccess) {
+        ERROR("__ExpandDirectory failed to update bucket-link for expansion");
+        return osStatus;
+    }
 
-        // Get the length of the bucket
-        if (MfsGetBucketLink(FileSystem, CurrentBucket, &Link) != OsSuccess) {
-            ERROR("Failed to get length of bucket %u", CurrentBucket);
-            Result = OsDeviceError;
-            goto Cleanup;
-        }
+    // Zero the bucket
+    osStatus = MfsZeroBucket(fileSystem, mapRecord->Link, mapRecord->Length);
+    if (osStatus != OsSuccess) {
+        ERROR("__ExpandDirectory failed to zero bucket %u", mapRecord->Link);
+    }
+    return osStatus;
+}
 
-        // Trace
-        TRACE("Reading bucket %u with length %u, link 0x%x", 
-            CurrentBucket, Link.Length, Link.Link);
-        
-        // Start out by loading the bucket buffer with data
-        if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket), 
-                Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
-            ERROR("Failed to read directory-bucket %u", CurrentBucket);
-            Result = OsDeviceError;
-            goto Cleanup;
+static inline OsStatus_t __InitiateDirectory(
+        _In_ FileSystemDescriptor_t* fileSystem,
+        _In_ MfsInstance_t*          mfs,
+        _In_ uint32_t                currentBucket,
+        _In_ FileRecord_t*           record)
+{
+    MapRecord_t expansion;
+    OsStatus_t  osStatus;
+    size_t      sectorsTransferred;
+
+    // Allocate bucket
+    osStatus = MfsAllocateBuckets(fileSystem, 1, &expansion);
+    if (osStatus != OsSuccess) {
+        ERROR("__InitiateDirectory failed to allocate bucket");
+        return osStatus;
+    }
+
+    // Update record information
+    record->StartBucket   = expansion.Link;
+    record->StartLength   = expansion.Length;
+    record->AllocatedSize = mfs->SectorsPerBucket * fileSystem->Disk.descriptor.SectorSize;
+
+    // Write back record bucket
+    osStatus = MfsWriteSectors(fileSystem, mfs->TransferBuffer.handle,
+                               0, MFS_GETSECTOR(mfs, currentBucket),
+                               mfs->SectorsPerBucket, &sectorsTransferred);
+    if (osStatus != OsSuccess) {
+        ERROR("__InitiateDirectory failed to update bucket %u", currentBucket);
+        return osStatus;
+    }
+
+    // Zero the bucket
+    osStatus = MfsZeroBucket(fileSystem, record->StartBucket, record->StartLength);
+    if (osStatus != OsSuccess) {
+        ERROR("__InitiateDirectory failed to zero bucket %u", record->StartBucket);
+    }
+
+    return osStatus;
+}
+
+static inline void __StoreRecord(
+        _In_ FileSystemDescriptor_t* fileSystem,
+        _In_ FileRecord_t*           record,
+        _In_ uint32_t                currentBucket,
+        _In_ uint32_t                bucketLength,
+        _In_ size_t                  bucketIndex,
+        _In_ MfsEntry_t*             entry)
+{
+    MfsFileRecordToVfsFile(fileSystem, record, entry);
+
+    // Save where in the directory we found it
+    entry->DirectoryBucket = currentBucket;
+    entry->DirectoryLength = bucketLength;
+    entry->DirectoryIndex  = bucketIndex;
+}
+
+static OsStatus_t __CreateEntryInDirectory(
+        _In_  FileSystemDescriptor_t* fileSystem,
+        _In_  MString_t*              name,
+        _In_  unsigned int            flags,
+        _In_  uint32_t                directoryBucket,
+        _In_  uint32_t                directoryLength,
+        _In_  size_t                  directoryIndex,
+        _Out_ MfsEntry_t**            entryOut)
+{
+    MfsEntry_t*  entry       = malloc(sizeof(MfsEntry_t));
+    unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
+    OsStatus_t   osStatus;
+
+    if (!entry) {
+        return OsOutOfMemory;
+    }
+
+    entry->Base.Name = name;
+    entry->StartBucket = MFS_ENDOFCHAIN;
+    entry->NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
+
+    entry->DirectoryBucket = directoryBucket;
+    entry->DirectoryLength = directoryLength;
+    entry->DirectoryIndex = directoryIndex;
+
+    osStatus = MfsUpdateRecord(fileSystem, entry, MFS_ACTION_CREATE);
+    if (osStatus != OsSuccess || !entryOut) {
+        free(entry);
+        return osStatus;
+    }
+
+    *entryOut = entry;
+    return OsSuccess;
+}
+
+OsStatus_t
+MfsCreateRecord(
+    _In_ FileSystemDescriptor_t* fileSystem,
+    _In_ unsigned int            flags,
+    _In_ uint32_t                bucketOfDirectory,
+    _In_ MString_t*              path,
+    _In_ MfsEntry_t**            entryOut)
+{
+    MfsInstance_t* mfs;
+    OsStatus_t     osStatus;
+    MfsEntry_t     nextEntry = { { { 0 } } };
+    MString_t*     remainingPath = NULL;
+    MString_t*     currentToken  = NULL;
+    uint32_t       currentBucket = bucketOfDirectory;
+    int            isEndOfPath = 0;
+
+    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN "flags=0x%x, bucketOfDirectory=%u, path=%s [0x%" PRIxIN "])",
+          fileSystem, flags, bucketOfDirectory, MStringRaw(path), path);
+
+    if (!fileSystem) {
+        return OsInvalidParameters;
+    }
+
+    mfs = (MfsInstance_t*)fileSystem->ExtensionData;
+
+    // Get next token
+    __ExtractPathToken(path, &remainingPath, &currentToken);
+    if (remainingPath == NULL) {
+        isEndOfPath = 1;
+    }
+
+    // iterate untill end of folder with two tasks in mind, either find matching entry
+    // or one thats free so we can create it
+    while (1) {
+        FileRecord_t* record = NULL;
+        MapRecord_t   link;
+        int           exitLoop = 0;
+
+        osStatus = __ReadCurrentBucket(fileSystem, mfs, currentBucket, &link);
+        if (osStatus != OsSuccess) {
+            ERROR("MfsCreateRecord failed to read directory bucket");
+            break;
         }
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        Record = (FileRecord_t*)Mfs->TransferBuffer.buffer;
-        for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
-            MString_t* Filename;
-            int CompareResult;
+        record = (FileRecord_t*)mfs->TransferBuffer.buffer;
+        for (size_t i = 0; i < ((mfs->SectorsPerBucket * link.Length) / 2); i++) {
+            MString_t* filename;
+            int        compareResult;
 
             // Look for a file-record that's either deleted or
             // if we encounter the end of the file-record table
-            if (!(Record->Flags & MFS_FILERECORD_INUSE)) {
-                // Are we at end of path? If we are - we have found our
-                // free entry in the file-record-table
-                if (IsEndOfPath) {
-                    // Store initial stuff, like name
-                    Entry->Base.Name        = MStringCreate((void*)MStringRaw(Token), StrUTF8);
-                    Entry->DirectoryBucket  = CurrentBucket;
-                    Entry->DirectoryLength  = Link.Length;
-                    Entry->DirectoryIndex   = i;
-
-                    Result = OsSuccess;
-                    goto Cleanup;
+            if (!(record->Flags & MFS_FILERECORD_INUSE)) {
+                if (nextEntry.DirectoryBucket == 0) {
+                    nextEntry.DirectoryBucket = currentBucket;
+                    nextEntry.DirectoryLength = link.Length;
+                    nextEntry.DirectoryIndex  = i;
                 }
-                else {
-                    Record++;
-                    continue;
-                }
+                record++;
+                continue;
             }
             
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
-            Filename        = MStringCreate((const char*)&Record->Name[0], StrUTF8);
-            CompareResult   = MStringCompare(Token, Filename, 1);
-            TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
-            MStringDestroy(Filename);
+            filename      = MStringCreate((const char*)&record->Name[0], StrUTF8);
+            compareResult = MStringCompare(currentToken, filename, 1);
+            TRACE("MfsCreateRecord matching token %s == %s: %i", MStringRaw(currentToken), MStringRaw(filename), compareResult);
+            MStringDestroy(filename);
 
-            if (CompareResult == MSTRING_FULL_MATCH) {
-                if (!IsEndOfPath) {
-                    if (!(Record->Flags & MFS_FILERECORD_DIRECTORY)) {
-                        Result = OsPathIsNotDirectory;
-                        goto Cleanup;
-                    }
-
-                    // If directory has no data-bucket allocated then extend the directory
-                    if (Record->StartBucket == MFS_ENDOFCHAIN) {
-                        MapRecord_t Expansion;
-
-                        // Allocate bucket
-                        if (MfsAllocateBuckets(FileSystem, 1, &Expansion) != OsSuccess) {
-                            ERROR("Failed to allocate bucket");
-                            Result = OsDeviceError;
-                            goto Cleanup;
-                        }
-
-                        // Update record information
-                        Record->StartBucket         = Expansion.Link;
-                        Record->StartLength         = Expansion.Length;
-                        Record->AllocatedSize       = Mfs->SectorsPerBucket 
-                            * FileSystem->Disk.descriptor.SectorSize;
-
-                        // Write back record bucket
-                        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(Mfs, CurrentBucket),
-                                Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
-                            ERROR("Failed to update bucket %u", CurrentBucket);
-                            Result = OsDeviceError;
-                            goto Cleanup;
-                        }
-
-                        // Zero the bucket
-                        if (MfsZeroBucket(FileSystem, Record->StartBucket, Record->StartLength) != OsSuccess) {
-                            ERROR("Failed to zero bucket %u", Record->StartBucket);
-                            Result = OsDeviceError;
-                            goto Cleanup;
-                        }
-                    }
-                    
-                    TRACE("Following the trail into bucket %u with the remaining path %s",
-                        Record->StartBucket, MStringRaw(Remaining));
-                    
-                    // Go recursive with the remaining path
-                    Result = MfsLocateFreeRecord(FileSystem, Record->StartBucket, Entry, Remaining);
-                    goto Cleanup;
-                }
-                else {
-                    MfsFileRecordToVfsFile(FileSystem, Record, Entry);
-
-                    // Save where in the directory we found it
-                    Entry->DirectoryBucket  = CurrentBucket;
-                    Entry->DirectoryLength  = Link.Length;
-                    Entry->DirectoryIndex   = i;
-                    Result                  = OsExists; // Can't create new entry here
-                    goto Cleanup;
-                }
+            if (compareResult == MSTRING_FULL_MATCH) {
+                // it was end of path, and the entry exists
+                __StoreRecord(fileSystem, record, currentBucket, link.Length, i, &nextEntry);
+                osStatus = OsExists;
+                exitLoop = 1;
+                break;
             }
-            Record++;
+            record++;
         }
 
-        // Retrieve the next part of the directory if
-        // we aren't at the end of directory
-        if (Link.Link == MFS_ENDOFCHAIN) {
-            // Allocate bucket
-            if (MfsAllocateBuckets(FileSystem, MFS_DIRECTORYEXPANSION, &Link) != OsSuccess) {
-                ERROR("Failed to allocate bucket for expansion");
-                Result = OsDeviceError;
-                goto Cleanup;
-            }
+        if (exitLoop) {
+            break;
+        }
 
-            // Update link
-            if (MfsSetBucketLink(FileSystem, CurrentBucket, &Link, 1) != OsSuccess) {
-                ERROR("Failed to update bucket-link for expansion");
-                Result = OsDeviceError;
-                goto Cleanup;
-            }
+        // OK when link == MFS_ENDOFCHAIN, then we are at the end of the current directory
+        // and we have to expand it. At this point we can assume that file/directory did not exist
+        // and can actually move on to creating the file. If we did not find a free entry while
+        // iterating, then we have to expand the directory
+        if (link.Link == MFS_ENDOFCHAIN) {
+            if (nextEntry.DirectoryBucket == 0) {
+                // Expand directory as we have not found a free record
+                osStatus = __ExpandDirectory(fileSystem, currentBucket, &link);
+                if (osStatus != OsSuccess) {
+                    ERROR("MfsCreateRecord failed to expand directory");
+                    break;
+                }
 
-            // Zero the bucket
-            if (MfsZeroBucket(FileSystem, Link.Link, Link.Length) != OsSuccess) {
-                ERROR("Failed to zero bucket %u", Link.Link);
-                Result = OsDeviceError;
-                goto Cleanup;
+                // update free record to reflect the first entry in new bucket
+                nextEntry.DirectoryBucket = link.Link;
+                nextEntry.DirectoryLength = link.Length;
+                nextEntry.DirectoryIndex  = 0;
             }
+            else {
+                osStatus = OsSuccess;
+            }
+            break;
         }
 
         // Update current bucket pointer
-        CurrentBucket = Link.Link;
+        currentBucket = link.Link;
     }
 
-Cleanup:
+    // OK so we reached out the loop, that means we've either found a free entry
+    // or we've found the next search entry
+    if (osStatus == OsSuccess) {
+        // if this is not the end of path, recursive create flag must be provided
+        if (!isEndOfPath && !(flags & __FILE_CREATE_RECURSIVE)) {
+            osStatus = OsDoesNotExist;
+            goto exit;
+        }
+
+        // create either a new directory entry
+        if (!isEndOfPath) {
+            FileRecord_t* record;
+
+            osStatus = __CreateEntryInDirectory(fileSystem, currentToken, MFS_FILERECORD_DIRECTORY,
+                                                nextEntry.DirectoryBucket, nextEntry.DirectoryLength,
+                                                nextEntry.DirectoryIndex, NULL);
+            if (osStatus != OsSuccess) {
+                ERROR("MfsCreateRecord failed to create directory record");
+                goto exit;
+            }
+
+            record   = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * nextEntry.DirectoryIndex));
+            osStatus = __InitiateDirectory(fileSystem, mfs, nextEntry.DirectoryBucket, record);
+            if (osStatus != OsSuccess) {
+                ERROR("MfsCreateRecord failed to initiate new directory record");
+                goto exit;
+            }
+
+            osStatus = MfsCreateRecord(fileSystem, flags, nextEntry.StartBucket, remainingPath, entryOut);
+        }
+        else {
+            // Last creation step.
+            osStatus = __CreateEntryInDirectory(fileSystem, currentToken, flags,
+                                                nextEntry.DirectoryBucket, nextEntry.DirectoryLength,
+                                                nextEntry.DirectoryIndex, entryOut);
+        }
+    }
+    else if (osStatus == OsExists) {
+        // The token of the path we were given already exists, now several cases here
+        // 1) We are at end of path, this means we should just exit with OsExists
+        if (isEndOfPath) {
+            goto exit;
+        }
+
+        // 2) We are still en-route of creation, this means we should follow down IFF
+        //    2.1) The entry is a directory
+        if (!(nextEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
+            osStatus = OsPathIsNotDirectory;
+            goto exit;
+        }
+
+        // If directory has no data-bucket allocated then initiate the directory
+        if (nextEntry.StartBucket == MFS_ENDOFCHAIN) {
+            FileRecord_t* record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * nextEntry.DirectoryIndex));
+            osStatus = __InitiateDirectory(fileSystem, mfs, nextEntry.DirectoryBucket, record);
+            if (osStatus != OsSuccess) {
+                ERROR("MfsCreateRecord failed to initiate directory");
+                goto exit;
+            }
+        }
+        osStatus = MfsCreateRecord(fileSystem, flags, nextEntry.StartBucket, remainingPath, entryOut);
+    }
+
+exit:
     // Cleanup the allocated strings
-    if (Remaining != NULL) {
-        MStringDestroy(Remaining);
+    if (remainingPath != NULL) {
+        MStringDestroy(remainingPath);
     }
-    MStringDestroy(Token);
-    return Result;
-}
-
-/* MfsCreateRecord
- * Creates a new file-record in a directory. It internally calls MfsLocateFreeRecord to
- * find a viable entry and validate the path */
-OsStatus_t
-MfsCreateRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry,
-    _In_ MString_t*                 Path,
-    _In_ unsigned int                    Flags)
-{
-    OsStatus_t Result;
-
-    TRACE("MfsCreateRecord(Bucket %u, Path %s, Flags %u)", 
-        BucketOfDirectory, MStringRaw(Path), Flags);
-
-    // Locate a free entry, and make sure file does not exist 
-    Result = MfsLocateFreeRecord(FileSystem, BucketOfDirectory, Entry, Path);
-
-    // If it failed either of two things happened 
-    // 1) Path was invalid 
-    // 2) File exists
-    if (Result != OsSuccess) {
-        return Result;
-    }
-
-    // Initialize the new file record
-    Entry->AllocatedSize    = 0;
-    Entry->StartBucket      = MFS_ENDOFCHAIN;
-    Entry->StartLength      = 0;
-    Entry->NativeFlags      = Flags | MFS_FILERECORD_INUSE;
-    return MfsUpdateRecord(FileSystem, Entry, MFS_ACTION_CREATE);
+    MStringDestroy(currentToken);
+    TRACE("MfsCreateRecord returns=%u", osStatus);
+    return osStatus;
 }

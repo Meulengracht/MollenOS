@@ -21,7 +21,7 @@
  * - Standard IO pipe operation implementations.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ds/streambuffer.h>
 #include <ddk/handle.h>

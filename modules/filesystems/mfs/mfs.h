@@ -40,7 +40,7 @@
  * Contains magic constant values and utility macros for conversion
  */
 #define MFS_ENDOFCHAIN                          0xFFFFFFFF
-#define MFS_GETSECTOR(mInstance, Bucket)        ((Mfs->SectorsPerBucket * Bucket))
+#define MFS_GETSECTOR(mInstance, Bucket)        ((mInstance->SectorsPerBucket * Bucket))
 #define MFS_ROOTSIZE                            8
 #define MFS_DIRECTORYEXPANSION                  4
 
@@ -330,47 +330,44 @@ MfsEnsureRecordSpace(
  * the disk, not data related to file, but the metadata */
 __EXTERN OsStatus_t
 MfsUpdateRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ MfsEntry_t*                Entry,
-    _In_ int                        Action);
+    _In_ FileSystemDescriptor_t*    fileSystem,
+    _In_ MfsEntry_t*                entry,
+    _In_ int                        action);
 
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
  * directories. File is only allocated and set if the function returns OsSuccess */
 __EXTERN OsStatus_t
 MfsLocateRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry, 
-    _In_ MString_t*                 Path);
+    _In_ FileSystemDescriptor_t*    fileSystem,
+    _In_ uint32_t                   bucketOfDirectory,
+    _In_ MfsEntry_t*                entry,
+    _In_ MString_t*                 path);
 
-/* MfsLocateFreeRecord
- * Very alike to the MfsLocateRecord except instead of locating a file entry
- * it locates a free entry in the last token of the path, and validates the path as it goes */
-__EXTERN OsStatus_t
-MfsLocateFreeRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry,
-    _In_ MString_t*                 Path);
-
-/* MfsCreateRecord
- * Creates a new file-record in a directory. It internally calls MfsLocateFreeRecord to
- * find a viable entry and validate the path */
+/**
+ * Creates one of multiple new records along path. The last record will be created with the provided
+ * <flags>. Other records created along the path will be created as directories with deduced permissions.
+ * @param fileSystem        [In]
+ * @param flags             [In]
+ * @param bucketOfDirectory [In]
+ * @param path              [In]
+ * @param entryOut          [Out]
+ * @return                  Status of the record creation
+ */
 __EXTERN OsStatus_t
 MfsCreateRecord(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   BucketOfDirectory,
-    _In_ MfsEntry_t*                Entry, 
-    _In_ MString_t*                 Path,
-    _In_ unsigned int                    Flags);
+        _In_ FileSystemDescriptor_t* fileSystem,
+        _In_ unsigned int            flags,
+        _In_ uint32_t                bucketOfDirectory,
+        _In_ MString_t*              path,
+        _In_ MfsEntry_t**            entryOut);
 
 /* MfsVfsFlagsToFileRecordFlags
  * Converts the generic vfs options/permissions to the native mfs representation. */
 __EXTERN unsigned int
 MfsVfsFlagsToFileRecordFlags(
-    _In_ unsigned int                    Flags,
-    _In_ unsigned int                    Permissions);
+    _In_ unsigned int                    flags,
+    _In_ unsigned int                    permissions);
 
 /* MfsFileRecordFlagsToVfsFlags
  * Converts the native MFS file flags into the generic vfs options/permissions. */
@@ -384,8 +381,8 @@ MfsFileRecordFlagsToVfsFlags(
  * Converts a native MFS file record into the generic vfs representation. */
 __EXTERN void
 MfsFileRecordToVfsFile(
-    _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ FileRecord_t*              NativeEntry,
-    _In_ MfsEntry_t*                VfsEntry);
+    _In_ FileSystemDescriptor_t*    fileSystem,
+    _In_ FileRecord_t*              nativeEntry,
+    _In_ MfsEntry_t*                mfsEntry);
 
 #endif //!_MFS_H_
