@@ -49,7 +49,7 @@ _flsbuf(
 {
     int   count, written, res;
     TCHAR charTyped = (TCHAR)(ch & (sizeof(TCHAR) > sizeof(char) ? 0xffff : 0xff));
-    TRACE("_flsbuf(ch=%i, stream=0x%" PRIxIN ", stream->_flag=%i)", ch, stream, stream->_flag);
+    TRACE("_flsbuf(ch=%i, stream=0x%" PRIxIN ", stream->_flag=0x%x)", ch, stream, stream->_flag);
 
     // Check if the stream supports flushing
     res = __can_flush_otherwise_set_IOERR(stream);

@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include "mfs.h"
@@ -203,8 +203,8 @@ static OsStatus_t __FindEntryOrFreeInDirectoryBucket(
             // and try to match it with our token (ignore case)
             filename      = MStringCreate((const char*)&record->Name[0], StrUTF8);
             compareResult = MStringCompare(entryName, filename, 1);
-            TRACE("__FindEntryOrFreeInDirectoryBucket matching token %s == %s: %i",
-                  MStringRaw(entryName), MStringRaw(filename), compareResult);
+            //TRACE("__FindEntryOrFreeInDirectoryBucket matching token %s == %s: %i",
+            //      MStringRaw(entryName), MStringRaw(filename), compareResult);
             MStringDestroy(filename);
 
             if (compareResult == MSTRING_FULL_MATCH) {
@@ -440,7 +440,7 @@ MfsCreateRecord(
     MString_t*     currentToken  = NULL;
     int            isEndOfPath = 0;
 
-    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN "flags=0x%x, bucketOfDirectory=%u, path=%s [0x%" PRIxIN "])",
+    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, bucketOfDirectory=%u, path=%s [0x%" PRIxIN "])",
           fileSystem, flags, bucketOfDirectory, MStringRaw(path), path);
 
     if (!fileSystem) {

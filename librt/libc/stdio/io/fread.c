@@ -36,16 +36,25 @@
 #include <stdlib.h>
 #include <limits.h>
 
+static inline void __set_eof(stdio_handle_t* handle)
+{
+    if (handle->object.type == STDIO_HANDLE_FILE) {
+        handle->wxflag |= WX_ATEOF;
+    }
+}
+
 static int
 __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
 {
-    char*  pointer = buf;
-    size_t bytesRead;
+    char*      pointer = buf;
+    size_t     bytesRead;
+    OsStatus_t status;
 
-    if (handle->ops.read(handle, pointer, count, &bytesRead) == OsSuccess) {
+    status = handle->ops.read(handle, pointer, count, &bytesRead);
+    if (status == OsSuccess) {
         // Test against EOF
         if (count != 0 && bytesRead == 0) {
-            handle->wxflag |= WX_ATEOF;
+            __set_eof(handle);
         }
         return (int)bytesRead;
     }
@@ -113,7 +122,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     if (count < 4) {
         if(!pos && handle->ops.read(handle, readbuf, 1, &bytesRead) == OsSuccess) {
             if(!bytesRead) {
-				handle->wxflag |= WX_ATEOF;
+                __set_eof(handle);
                 if (readbuf != &min_buf[0]) {
                     free(readbuf);
                 }
@@ -142,7 +151,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
 		// Check for ctrl-z
         if(readbuf[0] == 0x1a) {
-            handle->wxflag |= WX_ATEOF;
+            __set_eof(handle);
             if (readbuf != &min_buf[0]) {
                 free(readbuf);
             }
@@ -189,8 +198,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     if (handle->ops.read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OsSuccess) {
 		// EOF?
 		if (!pos && !bytesRead) {
-			handle->wxflag |= WX_ATEOF;
-
+            __set_eof(handle);
 			if (readbuf != &min_buf[0]) {
 				free(readbuf);
 			}
@@ -252,7 +260,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     for (i = 0, j = 0; i < pos; i++) {
 		// Check for ctrl-z
         if (readbuf[i] == 0x1a) {
-            handle->wxflag |= WX_ATEOF;
+            __set_eof(handle);
             break;
         }
 
@@ -347,7 +355,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 
         // Test against EOF
         if (count != 0 && bytesRead == 0) {
-            handle->wxflag |= WX_ATEOF;
+            __set_eof(handle);
         }
         else {
             size_t i, j;
@@ -364,7 +372,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
             {
                 // In text mode, a ctrl-z signals EOF
                 if (bufferPointer[i] == 0x1a && (!isUtf16 || bufferPointer[i + 1] == 0)) {
-                    handle->wxflag |= WX_ATEOF;
+                    __set_eof(handle);
                     break;
                 }
 

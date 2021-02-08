@@ -127,10 +127,6 @@ LogRenderMessages(void)
     SystemLogLine_t* logLine;
     Thread_t*        thread;
     char             sprintBuffer[256];
-    
-    if (!g_kernelLog.AllowRender) {
-        return;
-    }
 
     while (g_kernelLog.RenderIndex != g_kernelLog.LineIndex) {
 
@@ -155,7 +151,7 @@ LogRenderMessages(void)
                      thread ? ThreadName(thread) : "boot",
                      &logLine->data[0]);
             __WriteMessageToSerial(&sprintBuffer[0]);
-            if (logLine->level >= LOG_DEBUG) {
+            if (logLine->level >= LOG_DEBUG && g_kernelLog.AllowRender) {
                 __WriteMessageToScreen(&sprintBuffer[0]);
             }
         }
