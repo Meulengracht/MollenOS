@@ -80,8 +80,8 @@ DSDECL(mchar_t,    MStringIterate(MString_t* String, char      ** Iterator, size
 DSDECL(MString_t*, MStringSubString(MString_t * string, int    index, int length));
 DSDECL(int,        MStringReplace(MString_t* String, const char* SearchFor, const char* ReplaceWith));
 
-DSDECL(size_t,      MStringLength(MString_t* String)); // Number of characters
-DSDECL(size_t,      MStringSize(MString_t* String));   // Number of bytes
+DSDECL(size_t,      MStringLength(MString_t * string)); // Number of characters
+DSDECL(size_t,      MStringSize(MString_t * string));   // Number of bytes
 DSDECL(const char*, MStringRaw(MString_t * string));
 DSDECL(size_t,      MStringHash(MString_t* String));
 

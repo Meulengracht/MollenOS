@@ -26,22 +26,20 @@
 
 size_t
 MStringLength(
-    _In_ MString_t *String)
+    _In_ MString_t* string)
 {
-    assert(String != NULL);
-	if (String->Data == NULL || String->Length == 0) {
+    if (!string || !string->Data || !string->Length) {
         return 0;
     }
-	return Utf8CharacterCountInString((const char*)String->Data);
+	return Utf8CharacterCountInString((const char*)string->Data);
 }
 
 size_t
 MStringSize(
-    _In_ MString_t *String)
+    _In_ MString_t* string)
 {
-    assert(String != NULL);
-	if (String->Data == NULL || String->Length == 0) {
+    if (!string || !string->Data || !string->Length) {
         return 0;
     }
-	return String->Length;
+	return string->Length;
 }
