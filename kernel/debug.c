@@ -40,24 +40,7 @@ DebugPageMemorySpaceHandlers(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    MemorySpace_t * Space = GetCurrentMemorySpace();
-    OsStatus_t           Status = OsError;
-
-    if (Space->Context != NULL) {
-        foreach(i, Space->Context->MemoryHandlers) {
-            MemoryMappingHandler_t * Handler = (MemoryMappingHandler_t*)i->value;
-            if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-                ERROR("Implement support for MemorySpaceHandlers");
-                for(;;);
-                //SignalQueue(__FILEMANAGER_TARGET, SIGINT, Handler->Handle, (void*)Address);
-                // @todo manually switch to next thread
-                // ThreadingAdvance();
-                // ContextLoad();
-                break;
-            }
-        }
-    }
-    return Status;
+    return MemorySpaceHandlerTrigger(GetCurrentMemorySpace(), Address);
 }
 
 OsStatus_t

@@ -268,8 +268,8 @@ ThreadingEnterUsermode(
     _In_ void*         Argument)
 {
     Thread_t*         thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    VirtualAddress_t  tlsAddress;
-    PhysicalAddress_t tlsPhysicalAddress;
+    vaddr_t tlsAddress;
+    paddr_t tlsPhysicalAddress;
 
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
     MemorySpaceMap(GetCurrentMemorySpace(), &tlsAddress, &tlsPhysicalAddress, GetMemorySpacePageSize(),

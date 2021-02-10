@@ -544,10 +544,10 @@ InitializeFramebufferOutput(void)
         // VBE-Mode (Graphics)
         default: {
             if (GetMachine()->BootInformation.VbeModeInfo) {
-                size_t             backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
-                VirtualAddress_t   backBuffer;
-                int                pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
-                PhysicalAddress_t* pages = kmalloc(sizeof(PhysicalAddress_t) * pageCount);
+                size_t  backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+                vaddr_t backBuffer;
+                int     pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
+                paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
 
                 if (pages) {
                     OsStatus_t status = MemorySpaceMap(GetCurrentMemorySpace(), &backBuffer,

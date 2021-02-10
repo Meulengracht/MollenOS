@@ -107,8 +107,9 @@ extern OsStatus_t ScEventCreate(unsigned int, unsigned int, UUId_t*, atomic_int*
 
 // Memory system calls
 extern OsStatus_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
-extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
-extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, unsigned int Flags, unsigned int* PreviousFlags);
+extern OsStatus_t ScMemoryFree(uintptr_t  address, size_t length);
+extern OsStatus_t ScMemoryProtect(void* memoryPointer, size_t length, unsigned int flags, unsigned int* previousFlags);
+extern OsStatus_t ScMemoryQuery(void*, MemoryDescriptor_t*);
 
 extern OsStatus_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
 extern OsStatus_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
@@ -131,9 +132,8 @@ extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, unsigned int, void*);
 extern OsStatus_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
 
 // Support system calls
-extern OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
+extern OsStatus_t ScInstallSignalHandler(uintptr_t handler);
 extern OsStatus_t ScCreateMemoryHandler(unsigned int Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
-extern OsStatus_t ScDestroyMemoryHandler(UUId_t Handle);
 extern OsStatus_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
 extern OsStatus_t ScSystemQuery(SystemDescriptor_t* Descriptor);
 extern OsStatus_t ScSystemTime(SystemTime_t* systemTime);
@@ -141,7 +141,7 @@ extern OsStatus_t ScSystemTick(int tickBase, LargeUInteger_t* tick);
 extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 
-#define SYSTEM_CALL_COUNT 75
+#define SYSTEM_CALL_COUNT 76
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -226,31 +226,31 @@ static struct SystemCallDescriptor {
     DefineSyscall(46, ScMemoryAllocate),
     DefineSyscall(47, ScMemoryFree),
     DefineSyscall(48, ScMemoryProtect),
+    DefineSyscall(49, ScMemoryQuery),
     
-    DefineSyscall(49, ScDmaCreate),
-    DefineSyscall(50, ScDmaExport),
-    DefineSyscall(51, ScDmaAttach),
-    DefineSyscall(52, ScDmaAttachmentMap),
-    DefineSyscall(53, ScDmaAttachmentResize),
-    DefineSyscall(54, ScDmaAttachmentRefresh),
-    DefineSyscall(55, ScDmaAttachmentUnmap),
-    DefineSyscall(56, ScDmaDetach),
-    DefineSyscall(57, ScDmaGetMetrics),
+    DefineSyscall(50, ScDmaCreate),
+    DefineSyscall(51, ScDmaExport),
+    DefineSyscall(52, ScDmaAttach),
+    DefineSyscall(53, ScDmaAttachmentMap),
+    DefineSyscall(54, ScDmaAttachmentResize),
+    DefineSyscall(55, ScDmaAttachmentRefresh),
+    DefineSyscall(56, ScDmaAttachmentUnmap),
+    DefineSyscall(57, ScDmaDetach),
+    DefineSyscall(58, ScDmaGetMetrics),
     
-    DefineSyscall(58, ScCreateHandle),
-    DefineSyscall(59, ScDestroyHandle),
-    DefineSyscall(60, ScRegisterHandlePath),
-    DefineSyscall(61, ScLookupHandle),
-    DefineSyscall(62, ScSetHandleActivity),
+    DefineSyscall(59, ScCreateHandle),
+    DefineSyscall(60, ScDestroyHandle),
+    DefineSyscall(61, ScRegisterHandlePath),
+    DefineSyscall(62, ScLookupHandle),
+    DefineSyscall(63, ScSetHandleActivity),
 
-    DefineSyscall(63, ScCreateHandleSet),
-    DefineSyscall(64, ScControlHandleSet),
-    DefineSyscall(65, ScListenHandleSet),
+    DefineSyscall(64, ScCreateHandleSet),
+    DefineSyscall(65, ScControlHandleSet),
+    DefineSyscall(66, ScListenHandleSet),
     
     // Support system calls
-    DefineSyscall(66, ScInstallSignalHandler),
-    DefineSyscall(67, ScCreateMemoryHandler),
-    DefineSyscall(68, ScDestroyMemoryHandler),
+    DefineSyscall(67, ScInstallSignalHandler),
+    DefineSyscall(68, ScCreateMemoryHandler),
     DefineSyscall(69, ScFlushHardwareCache),
     DefineSyscall(70, ScSystemQuery),
     DefineSyscall(71, ScSystemTick),

@@ -157,14 +157,13 @@ SignalExecuteLocalThreadTrap(
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     WARNING("[signal] [execute_trap] signals are DISABLED");
 #else
-    assert(Thread->MemorySpace->Context != NULL);
-    assert(Thread->MemorySpace->Context->SignalHandler != 0);
+    assert(MemorySpaceSignalHandler(Thread->MemorySpace) != 0);
 
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
     ContextPushInterceptor(Context, 
-        (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL], 
-        Thread->MemorySpace->Context->SignalHandler, Signal, 
+        (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL],
+        MemorySpaceSignalHandler(Thread->MemorySpace), Signal,
         (uintptr_t)Argument, SIGNAL_SEPERATE_STACK | SIGNAL_HARDWARE_TRAP);
 #endif
 }
@@ -184,12 +183,11 @@ SignalProcessQueued(
     
     // Protect against signals received before the signal handler
     // has been installed
-    if (!Thread->MemorySpace->Context ||
-        !Thread->MemorySpace->Context->SignalHandler) {
+    handler = MemorySpaceSignalHandler(Thread->MemorySpace);
+    if (!handler) {
         return;
     }
 
-    handler = Thread->MemorySpace->Context->SignalHandler;
     while (1) {
         size_t bytesRead = streambuffer_stream_in(Thread->Signaling.Signals,
                                                   &threadSignal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);

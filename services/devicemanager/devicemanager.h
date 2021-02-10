@@ -65,10 +65,10 @@ DmIoctlDevice(
 __EXTERN
 OsStatus_t
 DmIoctlDeviceEx(
-	_In_ BusDevice_t* Device,
-	_In_ int          Direction,
+	_In_ BusDevice_t* device,
+	_In_ int          direction,
 	_In_ unsigned int Register,
-	_In_ size_t*      Value,
-	_In_ size_t       Width);
+	_In_ size_t*      value,
+	_In_ size_t       width);
 
 #endif //! __DEVICEMANAGER_INTERFACE__

@@ -890,8 +890,8 @@ void* kmalloc_p(size_t Size, uintptr_t* DmaOut)
 {
     void* Allocation = kmalloc(Size);
     if (Allocation != NULL && DmaOut != NULL) {
-        OsStatus_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(), 
-            (VirtualAddress_t)Allocation, 1, DmaOut);
+        OsStatus_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(),
+                                                  (vaddr_t)Allocation, 1, DmaOut);
         if (Status != OsSuccess) {
             // ehm what?
             assert(0);

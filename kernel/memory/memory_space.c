@@ -23,7 +23,8 @@
  */
 
 #define __MODULE "MEM2"
-//#define __TRACE
+
+#define __TRACE
 
 #include <arch/mmu.h>
 #include <arch/utils.h>
@@ -33,145 +34,169 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
-#include <memoryspace.h>
 #include <machine.h>
+#include <memoryspace.h>
+#include <mutex.h>
 #include <string.h>
 #include <threading.h>
 
-typedef struct MemorySynchronizationObject {
+struct MemorySpaceAllocation {
+    element_t                     Header;
+    MemorySpace_t*                MemorySpace;
+    vaddr_t                       Address;
+    size_t                        Length;
+    unsigned int                  Flags;
+    int                           References;
+    struct MemorySpaceAllocation* CloneOf;
+};
+
+struct MemorySynchronizationObject {
     _Atomic(int) CallsCompleted;
     UUId_t       MemorySpaceHandle;
     uintptr_t    Address;
     size_t       Length;
-} MemorySynchronizationObject_t;
+};
+
+// one per thread group [process]
+typedef struct MemorySpaceContext {
+    DynamicMemoryPool_t Heap;
+    list_t              MemoryHandlers;
+    list_t              Allocations;
+    uintptr_t           SignalHandler;
+    Mutex_t             SyncObject;
+} MemorySpaceContext_t;
 
 static void DestroyMemorySpace(void* resource);
 
-static void
-MemorySynchronizationHandler(
-    _In_ void* Context)
+static void __MemorySyncCallback(
+    _In_ void* context)
 {
-    MemorySynchronizationObject_t * Object            = (MemorySynchronizationObject_t*)Context;
-    MemorySpace_t                 *           Current = GetCurrentMemorySpace();
-    UUId_t                         CurrentHandle = GetCurrentMemorySpaceHandle();
+    struct MemorySynchronizationObject* object  = (struct MemorySynchronizationObject*)context;
+    MemorySpace_t*                      current = GetCurrentMemorySpace();
+    UUId_t                              currentHandle = GetCurrentMemorySpaceHandle();
 
     // Make sure the current address space is matching
     // If NULL => everyone must update
     // If it matches our parent, we must update
     // If it matches us, we must update
-    smp_mb();
-    if (Object->MemorySpaceHandle  == UUID_INVALID ||
-        Current->ParentHandle      == Object->MemorySpaceHandle || 
-        CurrentHandle              == Object->MemorySpaceHandle) {
-        CpuInvalidateMemoryCache((void*)Object->Address, Object->Length);
+    if (object->MemorySpaceHandle == UUID_INVALID || current->ParentHandle == object->MemorySpaceHandle ||
+        currentHandle == object->MemorySpaceHandle) {
+        CpuInvalidateMemoryCache((void*)object->Address, object->Length);
     }
-    atomic_fetch_add(&Object->CallsCompleted, 1);
+    atomic_fetch_add(&object->CallsCompleted, 1);
 }
 
-static void
-SynchronizeMemoryRegion(
-        _In_ MemorySpace_t* MemorySpace,
-        _In_ uintptr_t            Address,
-        _In_ size_t               Length)
+static void __SyncMemoryRegion(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ uintptr_t      address,
+        _In_ size_t         size)
 {
     // We can easily allocate this object on the stack as the stack is globally
     // visible to all kernel code. This spares us allocation on heap
-    MemorySynchronizationObject_t Object = { 
-        .Address        = Address,
-        .Length         = Length,
+    struct MemorySynchronizationObject Object = {
+        .Address        = address,
+        .Length         = size,
         .CallsCompleted = 0
     };
     
-    int     NumberOfCores;
-    int     NumberOfActiveCores;
-    clock_t InterruptedAt;
-    size_t  Timeout = 1000;
+    int     numberOfCores;
+    int     numberOfActiveCores;
+    clock_t interruptedAt;
+    size_t  timeout = 1000;
 
     // Skip this entire step if there is no multiple cores active
-    NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
-    if (NumberOfActiveCores <= 1) {
+    numberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
+    if (numberOfActiveCores <= 1) {
         return;
     }
 
     // Check for global address, in that case invalidate all cores
-    if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, Address)) {
+    if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, address)) {
         Object.MemorySpaceHandle = UUID_INVALID; // Everyone must update
     }
     else {
-        if (MemorySpace->ParentHandle == UUID_INVALID) {
+        if (memorySpace->ParentHandle == UUID_INVALID) {
             Object.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
         }
         else {
-            Object.MemorySpaceHandle = MemorySpace->ParentHandle; // Parent and siblings!
+            Object.MemorySpaceHandle = memorySpace->ParentHandle; // Parent and siblings!
         }
     }
-    
-    NumberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, MemorySynchronizationHandler, &Object, 1);
-    while (atomic_load(&Object.CallsCompleted) != NumberOfCores && Timeout > 0) {
-        SchedulerSleep(5, &InterruptedAt);
-        Timeout -= 5;
+
+    numberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, __MemorySyncCallback, &Object, 1);
+    while (atomic_load(&Object.CallsCompleted) != numberOfCores && timeout > 0) {
+        SchedulerSleep(5, &interruptedAt);
+        timeout -= 5;
     }
     
-    if (!Timeout) {
+    if (!timeout) {
         ERROR("[memory] [sync] timeout trying to synchronize with cores actual %i != target %i",
-            atomic_load(&Object.CallsCompleted), NumberOfCores);
+              atomic_load(&Object.CallsCompleted), numberOfCores);
     }
 }
 
-static OsStatus_t
-CreateMemorySpaceContext(
-        _In_ MemorySpace_t* MemorySpace)
+static OsStatus_t __CreateContext(
+        _In_ MemorySpace_t* memorySpace)
 {
-    MemorySpaceContext_t * Context = (MemorySpaceContext_t*)kmalloc(sizeof(MemorySpaceContext_t));
-    if (!Context) {
+    MemorySpaceContext_t* context = (MemorySpaceContext_t*)kmalloc(sizeof(MemorySpaceContext_t));
+    if (!context) {
         return OsOutOfMemory;
     }
-    
-    DynamicMemoryPoolConstruct(&Context->Heap, GetMachine()->MemoryMap.UserHeap.Start, 
-        GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
-    Context->SignalHandler  = 0;
-    Context->MemoryHandlers = kmalloc(sizeof(list_t));
-    if (!Context->MemoryHandlers) {
-        assert(0);
-    }
-    list_construct(Context->MemoryHandlers);
 
-    MemorySpace->Context = Context;
+    MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
+    DynamicMemoryPoolConstruct(&context->Heap, GetMachine()->MemoryMap.UserHeap.Start,
+                               GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
+    list_construct(&context->Allocations);
+    list_construct(&context->MemoryHandlers);
+    context->SignalHandler = 0;
+
+    memorySpace->Context = context;
     return OsSuccess;
 }
 
-static void
-CleanupMemoryHandler(
-    _In_ element_t* Element,
-    _In_ void*      Context)
+static void __CleanupMemoryHandler(
+    _In_ element_t* element,
+    _In_ void*      context)
 {
-    MemoryMappingHandler_t * Handler              = Element->value;
-    MemorySpace_t          *          MemorySpace = Context;
+    MemoryMappingHandler_t* handler     = element->value;
+    MemorySpace_t*          memorySpace = context;
     
-    DynamicMemoryPoolFree(&MemorySpace->Context->Heap, Handler->Address);
-    DestroyHandle(Handler->Handle);
+    DynamicMemoryPoolFree(&memorySpace->Context->Heap, handler->Address);
+    DestroyHandle(handler->Handle); // this frees the handler structure
 }
 
-static void
-DestroyMemorySpaceContext(
-        _In_ MemorySpace_t* MemorySpace)
+static void __CleanupMemoryAllocation(
+        _In_ element_t* element,
+        _In_ void*      context)
 {
-    assert(MemorySpace != NULL);
-    assert(MemorySpace->Context != NULL);
-    
-    list_clear(MemorySpace->Context->MemoryHandlers, CleanupMemoryHandler, MemorySpace);
-    DynamicMemoryPoolDestroy(&MemorySpace->Context->Heap);
-    kfree(MemorySpace->Context->MemoryHandlers);
-    kfree(MemorySpace->Context);
+    struct MemorySpaceAllocation* allocation = element->value;
+    MemorySpace_t*                memorySpace = context;
+
+    DynamicMemoryPoolFree(&memorySpace->Context->Heap, allocation->Address);
+    kfree(allocation);
+}
+
+static void __DestroyContext(
+        _In_ MemorySpace_t* memorySpace)
+{
+    if (!memorySpace || !memorySpace->Context) {
+        return;
+    }
+
+    MutexDestruct(&memorySpace->Context->SyncObject);
+    list_clear(&memorySpace->Context->MemoryHandlers, __CleanupMemoryHandler, memorySpace);
+    list_clear(&memorySpace->Context->Allocations, __CleanupMemoryAllocation, memorySpace);
+    DynamicMemoryPoolDestroy(&memorySpace->Context->Heap);
+    kfree(memorySpace->Context);
 }
 
 OsStatus_t
 InitializeMemorySpace(
-        _In_ MemorySpace_t* SystemMemorySpace)
+        _In_ MemorySpace_t* memorySpace)
 {
-    SystemMemorySpace->ParentHandle = UUID_INVALID;
-    SystemMemorySpace->Context      = NULL;
-    return InitializeVirtualSpace(SystemMemorySpace);
+    memorySpace->ParentHandle = UUID_INVALID;
+    memorySpace->Context      = NULL;
+    return InitializeVirtualSpace(memorySpace);
 }
 
 OsStatus_t
@@ -234,7 +259,7 @@ CreateMemorySpace(
         
         // If we are root, create the memory bitmaps
         if (memorySpace->ParentHandle == UUID_INVALID) {
-            CreateMemorySpaceContext(memorySpace);
+            __CreateContext(memorySpace);
         }
         CloneVirtualSpace(parent, memorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
         *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
@@ -247,6 +272,24 @@ CreateMemorySpace(
     return OsSuccess;
 }
 
+static void
+DestroyMemorySpace(
+        _In_ void* resource)
+{
+    MemorySpace_t* memorySpace = (MemorySpace_t*)resource;
+    if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+        DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
+        DestroyVirtualSpace(memorySpace);
+    }
+    if (memorySpace->ParentHandle == UUID_INVALID) {
+        __DestroyContext(memorySpace);
+    }
+    if (memorySpace->ParentHandle != UUID_INVALID) {
+        DestroyHandle(memorySpace->ParentHandle);
+    }
+    kfree(memorySpace);
+}
+
 void
 SwitchMemorySpace(
     _In_ MemorySpace_t* MemorySpace)
@@ -257,7 +300,6 @@ SwitchMemorySpace(
 MemorySpace_t*
 GetCurrentMemorySpace(void)
 {
-    // Lookup current thread
     Thread_t* currentThread = ThreadCurrentForCore(ArchGetProcessorCoreId());
 
     // if no threads are active return the kernel address space
@@ -296,16 +338,55 @@ AreMemorySpacesRelated(
     return (Space1->Context == Space2->Context) ? OsSuccess : OsError;
 }
 
-static VirtualAddress_t
-AllocateVirtualMemory(
+static OsStatus_t __CreateAllocation(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         length,
+        _In_ unsigned int   flags)
+{
+    struct MemorySpaceAllocation* allocation;
+    OsStatus_t                    osStatus = OsSuccess;
+
+    TRACE("__CreateAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
+          memorySpace, address, length, flags);
+
+    // We only support allocation tracking for spaces with context
+    if (!memorySpace || !memorySpace->Context) {
+        goto exit;
+    }
+
+    allocation = kmalloc(sizeof(struct MemorySpaceAllocation));
+    if (!allocation) {
+        osStatus = OsOutOfMemory;
+        goto exit;
+    }
+
+    ELEMENT_INIT(&allocation->Header, 0, allocation);
+    allocation->MemorySpace = memorySpace;
+    allocation->Address     = address;
+    allocation->Length      = length;
+    allocation->Flags       = flags;
+    allocation->References  = 1;
+    allocation->CloneOf     = NULL;
+
+    MutexLock(&memorySpace->Context->SyncObject);
+    list_append(&memorySpace->Context->Allocations, &allocation->Header);
+    MutexUnlock(&memorySpace->Context->SyncObject);
+
+exit:
+    TRACE("__CreateAllocation returns=%u", osStatus);
+    return osStatus;
+}
+
+static vaddr_t __AllocateVirtualMemory(
         _In_ MemorySpace_t* memorySpace,
         _In_ uintptr_t*     virtualAddress,
         _In_ size_t         size,
         _In_ unsigned int   memoryFlags,
         _In_ unsigned int   placementFlags)
 {
-    VirtualAddress_t virtualBase  = 0;
-    unsigned int     virtualFlags = placementFlags & MAPPING_VIRTUAL_MASK;
+    vaddr_t      virtualBase  = 0;
+    unsigned int virtualFlags = placementFlags & MAPPING_VIRTUAL_MASK;
 
     // Is this a stack allocation? Then we need to allocate another page
     // for the allocation, which will be the first page in the segment of memory.
@@ -326,6 +407,17 @@ AllocateVirtualMemory(
             virtualBase = DynamicMemoryPoolAllocate(&memorySpace->Context->Heap, size);
             if (virtualBase == 0) {
                 ERROR("Ran out of memory for allocation 0x%" PRIxIN " (heap)", size);
+            }
+            else {
+                // We only track user allocations, not kernel allocations. If we wanted to track ALL allocations
+                // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
+                // kmalloc
+                OsStatus_t osStatus = __CreateAllocation(memorySpace, virtualBase, size, memoryFlags);
+                if (osStatus != OsSuccess) {
+                    ERROR("__AllocateVirtualMemory failed to register allocation");
+                    DynamicMemoryPoolFree(&memorySpace->Context->Heap, size);
+                    virtualBase = 0;
+                }
             }
         } break;
 
@@ -350,12 +442,14 @@ AllocateVirtualMemory(
     }
 
     // Now fixup the allocated address if the allocation was a stack
-    if (memoryFlags & MAPPING_GUARDPAGE) {
-        virtualBase += GetMemorySpacePageSize();
-    }
+    if (virtualBase) {
+        if (memoryFlags & MAPPING_GUARDPAGE) {
+            virtualBase += GetMemorySpacePageSize();
+        }
 
-    if (virtualAddress) {
-        *virtualAddress = virtualBase;
+        if (virtualAddress) {
+            *virtualAddress = virtualBase;
+        }
     }
     return virtualBase;
 }
@@ -363,16 +457,16 @@ AllocateVirtualMemory(
 OsStatus_t
 MemorySpaceMap(
         _In_    MemorySpace_t* MemorySpace,
-        _InOut_ VirtualAddress_t*    Address,
-        _InOut_ uintptr_t*           PhysicalAddressValues,
-        _In_    size_t               Length,
-        _In_    unsigned int         MemoryFlags,
-        _In_    unsigned int         PlacementFlags)
+        _InOut_ vaddr_t*       Address,
+        _InOut_ uintptr_t*     PhysicalAddressValues,
+        _In_    size_t         Length,
+        _In_    unsigned int   MemoryFlags,
+        _In_    unsigned int   PlacementFlags)
 {
-    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    int              PagesUpdated;
-    VirtualAddress_t VirtualBase;
-    OsStatus_t       Status;
+    int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    int        PagesUpdated;
+    vaddr_t    VirtualBase;
+    OsStatus_t Status;
     TRACE("[memory_map] %u, 0x%x, 0x%x", LODWORD(Length), MemoryFlags, PlacementFlags);
     
     // If we are trying to reserve memory through this call, redirect it to the
@@ -398,7 +492,7 @@ MemorySpaceMap(
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    VirtualBase = AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
+    VirtualBase = __AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
     if (!VirtualBase) {
         // Cleanup physical mappings
         // TODO
@@ -418,17 +512,17 @@ MemorySpaceMap(
 
 OsStatus_t
 MemorySpaceMapContiguous(
-        _In_    MemorySpace_t*    MemorySpace,
-        _InOut_ VirtualAddress_t* Address,
-        _In_    uintptr_t         PhysicalStartAddress,
-        _In_    size_t            Length,
-        _In_    unsigned int      MemoryFlags,
-        _In_    unsigned int      PlacementFlags)
+        _In_    MemorySpace_t* MemorySpace,
+        _InOut_ vaddr_t*       Address,
+        _In_    uintptr_t      PhysicalStartAddress,
+        _In_    size_t         Length,
+        _In_    unsigned int   MemoryFlags,
+        _In_    unsigned int   PlacementFlags)
 {
-    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    int              PagesUpdated;
-    VirtualAddress_t VirtualBase;
-    OsStatus_t       Status;
+    int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    int        PagesUpdated;
+    vaddr_t    VirtualBase;
+    OsStatus_t Status;
     
     TRACE("[memory_map_contiguous] %u, 0x%x, 0x%x", 
         LODWORD(Length), MemoryFlags, PlacementFlags);
@@ -441,7 +535,7 @@ MemorySpaceMapContiguous(
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    VirtualBase = AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
+    VirtualBase = __AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
     if (!VirtualBase) {
         return OsInvalidParameters;
     }
@@ -458,16 +552,16 @@ MemorySpaceMapContiguous(
 
 OsStatus_t
 MemorySpaceMapReserved(
-        _In_    MemorySpace_t*    memorySpace,
-        _InOut_ VirtualAddress_t* address,
-        _In_    size_t            size,
-        _In_    unsigned int      memoryFlags,
-        _In_    unsigned int      placementFlags)
+        _In_    MemorySpace_t* memorySpace,
+        _InOut_ vaddr_t*       address,
+        _In_    size_t         size,
+        _In_    unsigned int   memoryFlags,
+        _In_    unsigned int   placementFlags)
 {
-    int              pageCount = DIVUP(size, GetMemorySpacePageSize());
-    int              pagesReserved;
-    VirtualAddress_t virtualBase;
-    OsStatus_t       osStatus;
+    int        pageCount = DIVUP(size, GetMemorySpacePageSize());
+    int        pagesReserved;
+    vaddr_t    virtualBase;
+    OsStatus_t osStatus;
     
     TRACE("[memory_map_reserve] %u, 0x%x, 0x%x", LODWORD(size), memoryFlags, placementFlags);
 
@@ -480,7 +574,7 @@ MemorySpaceMapReserved(
 
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    virtualBase = AllocateVirtualMemory(memorySpace, address, size, memoryFlags, placementFlags);
+    virtualBase = __AllocateVirtualMemory(memorySpace, address, size, memoryFlags, placementFlags);
     if (!virtualBase) {
         return OsInvalidParameters;
     }
@@ -496,11 +590,11 @@ MemorySpaceMapReserved(
 
 OsStatus_t
 MemorySpaceCommit(
-        _In_ MemorySpace_t*   memorySpace,
-        _In_ VirtualAddress_t address,
-        _In_ uintptr_t*       physicalAddressValues,
-        _In_ size_t           size,
-        _In_ unsigned int     placementFlags)
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ uintptr_t*     physicalAddressValues,
+        _In_ size_t         size,
+        _In_ unsigned int   placementFlags)
 {
     int        pageCount = DIVUP(size, GetMemorySpacePageSize());
     int        pagesComitted;
@@ -532,93 +626,100 @@ MemorySpaceCommit(
     return osStatus;
 }
 
-OsStatus_t
-CloneMemorySpaceMapping(
-        _In_        MemorySpace_t*    SourceSpace,
-        _In_        MemorySpace_t*    DestinationSpace,
-        _In_        VirtualAddress_t  SourceAddress,
-        _InOut_Opt_ VirtualAddress_t* DestinationAddress,
-        _In_        size_t            Length,
-        _In_        unsigned int      MemoryFlags,
-        _In_        unsigned int      PlacementFlags)
+static OsStatus_t __GetAndVerifyPhysicalMapping(
+        _In_  MemorySpace_t* sourceSpace,
+        _In_  vaddr_t        address,
+        _In_  int            pageCount,
+        _Out_ uintptr_t**    physicalAddressesOut,
+        _Out_ int*           pagesRetrievedOut)
 {
-    VirtualAddress_t VirtualBase;
-    int              PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    int              PagesRetrieved;
-    int              PagesUpdated;
-    uintptr_t*       PhysicalAddressValues;
-    OsStatus_t       Status;
-    
-    TRACE("[memory] [clone] ");
-    
-    assert(SourceSpace != NULL);
-    assert(DestinationSpace != NULL);
-    
-    PhysicalAddressValues = (uintptr_t*)kmalloc(PageCount * sizeof(uintptr_t));
-    if (!PhysicalAddressValues) {
+    uintptr_t* physicalAddresses;
+    OsStatus_t osStatus;
+    int        pagesRetrieved;
+    int        i;
+
+    // Get the physical mappings first and verify them. They _MUST_ be committed in order for us to clone
+    // the mapping, otherwise the mapping can get out of sync. And we do not want that.
+    physicalAddresses = (uintptr_t*)kmalloc(pageCount * sizeof(uintptr_t));
+    if (!physicalAddresses) {
         return OsOutOfMemory;
     }
-    
+
     // Allocate a temporary array to store physical mappings
-    Status = ArchMmuVirtualToPhysical(SourceSpace, SourceAddress, PageCount, 
-        &PhysicalAddressValues[0], &PagesRetrieved);
-    if (Status != OsSuccess) {
-        kfree(PhysicalAddressValues);
-        return Status; // Also if the status was OsIncomplete
+    osStatus = ArchMmuVirtualToPhysical(sourceSpace, address, pageCount, &physicalAddresses[0], &pagesRetrieved);
+    if (osStatus != OsSuccess) {
+        kfree(physicalAddresses);
+        return osStatus;
     }
 
-    // Get the virtual address space, this however may not end up as 0 if it the mapping
-    // is not provided already.
-    VirtualBase = AllocateVirtualMemory(DestinationSpace,
-                                        DestinationAddress, Length, MemoryFlags, PlacementFlags);
-    if (VirtualBase == 0) {
-        ERROR("[memory] [clone] failed to allocate virtual memory for the cloning of mappings");
-        kfree(PhysicalAddressValues);
-        return OsError;
+    // Verify mappings
+    for (i = 0; i < pagesRetrieved; i++) {
+        if (!physicalAddresses[i]) {
+            return OsError;
+        }
     }
 
-    // Add required memory flags
-    MemoryFlags |= MAPPING_PERSISTENT | MAPPING_COMMIT;
-    
-    Status = ArchMmuSetVirtualPages(DestinationSpace, VirtualBase, &PhysicalAddressValues[0], 
-        PagesRetrieved, MemoryFlags, &PagesUpdated);
-    if (Status == OsSuccess && PagesUpdated != PageCount) {
-        Status = OsIncomplete;
-    }
-    kfree(PhysicalAddressValues);
-    return Status;
+    *physicalAddressesOut = physicalAddresses;
+    *pagesRetrievedOut = pagesRetrieved;
+    return OsSuccess;
 }
 
-OsStatus_t
-MemorySpaceUnmap(
-        _In_ MemorySpace_t*   memorySpace,
-        _In_ VirtualAddress_t address,
-        _In_ size_t           size)
+static struct MemorySpaceAllocation* __FindAllocation(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address)
 {
-    int                pageCount = DIVUP(size, GetMemorySpacePageSize());
-    OsStatus_t         osStatus;
-    int                pagesCleared = 0;
-    int                pagesFreed = 0;
-    PhysicalAddress_t* addresses;
+    foreach(element, &memorySpace->Context->Allocations) {
+        struct MemorySpaceAllocation* allocation = element->value;
+        if (address >= allocation->Address && address < (allocation->Address + allocation->Length)) {
+            return allocation;
+        }
+    }
+    return NULL;
+}
 
-    if (!memorySpace || !size || !address) {
-        return OsInvalidParameters;
+static struct MemorySpaceAllocation* __AcquireAllocation(
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        address)
+{
+    struct MemorySpaceAllocation* allocation;
+
+    if (!memorySpace || !memorySpace->Context) {
+        return NULL;
     }
 
+    MutexLock(&memorySpace->Context->SyncObject);
+    allocation = __FindAllocation(memorySpace, address);
+    if (allocation) {
+        allocation->References++;
+    }
+    MutexUnlock(&memorySpace->Context->SyncObject);
+    return allocation;
+}
+
+static OsStatus_t __ClearPhysicalPages(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         size)
+{
+    paddr_t*   addresses;
+    OsStatus_t osStatus;
+    int        pageCount;
+    int        pagesCleared = 0;
+    int        pagesFreed = 0;
+    TRACE("__ClearPhysicalPages(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
+          memorySpace, address, size);
+
     // allocate memory for the physical pages
-    addresses = kmalloc(sizeof(PhysicalAddress_t) * pageCount);
+    pageCount = DIVUP(size, GetMemorySpacePageSize());
+    addresses = kmalloc(sizeof(paddr_t) * pageCount);
     if (!addresses) {
-        return OsOutOfMemory;
+        osStatus = OsOutOfMemory;
+        goto exit;
     }
 
     // Free the underlying resources first, before freeing the upper resources
     osStatus = ArchMmuClearVirtualPages(memorySpace, address, pageCount,
                                         &addresses[0], &pagesFreed, &pagesCleared);
-    if (osStatus != OsSuccess) {
-        WARNING("[memory] [unmap] failed to unmap region 0x%" PRIxIN " of length 0x%" PRIxIN ": %u",
-                address, size, osStatus);
-    }
-
     if (pagesCleared) {
         // free the physical memory
         if (pagesFreed) {
@@ -626,11 +727,172 @@ MemorySpaceUnmap(
             bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, (void**)&addresses[0], pagesFreed);
             IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
         }
-        SynchronizeMemoryRegion(memorySpace, address, size);
+        __SyncMemoryRegion(memorySpace, address, size);
+    }
+    kfree(addresses);
+
+exit:
+    TRACE("__ClearPhysicalPages returns=%u", osStatus);
+    return osStatus;
+}
+
+static OsStatus_t __ReleaseAllocation(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         size)
+{
+    struct MemorySpaceAllocation* allocation = NULL;
+    size_t                        storedSize = size;
+    OsStatus_t                    osStatus;
+
+    TRACE("__ReleaseAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
+          memorySpace, address, size);
+
+    // Support multiple references to an allocation, which means when we try to unmap physical pages
+    // we would like to make sure noone actually references them anymore
+    if (memorySpace->Context) {
+        MutexLock(&memorySpace->Context->SyncObject);
+        allocation = __FindAllocation(memorySpace, address);
+        if (allocation) {
+            allocation->References--;
+            if (allocation->References) {
+                // still has references so we just free virtual
+                MutexUnlock(&memorySpace->Context->SyncObject);
+                osStatus = OsSuccess;
+                goto exit;
+            }
+
+            storedSize = allocation->Length;
+            list_remove(&memorySpace->Context->Allocations, &allocation->Header);
+        }
+        MutexUnlock(&memorySpace->Context->SyncObject);
     }
 
-    // clean up the address array again
-    kfree(addresses);
+    // clear our copy first
+    osStatus = __ClearPhysicalPages(memorySpace, address, storedSize);
+
+    // then clear original copy if there was any
+    if (allocation) {
+        if (allocation->CloneOf) {
+            WARNING_IF(allocation->CloneOf->MemorySpace != memorySpace,
+                       "__ReleaseAllocation cross memory-space freeing!!! DANGEROUS!!");
+
+            __ReleaseAllocation(allocation->CloneOf->MemorySpace,
+                                allocation->CloneOf->Address,
+                                allocation->CloneOf->Length);
+        }
+        kfree(allocation);
+    }
+
+exit:
+    TRACE("__ReleaseAllocation returns=%u", osStatus);
+    return osStatus;
+}
+
+static void __LinkAllocations(
+        _In_ MemorySpace_t*                memorySpace,
+        _In_ vaddr_t                       address,
+        _In_ struct MemorySpaceAllocation* link)
+{
+    struct MemorySpaceAllocation* allocation;
+    TRACE("__LinkAllocations(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ")",
+          memorySpace, address);
+
+    MutexLock(&memorySpace->Context->SyncObject);
+    allocation = __FindAllocation(memorySpace, address);
+    if (allocation) {
+        allocation->CloneOf = link;
+    }
+    MutexUnlock(&memorySpace->Context->SyncObject);
+}
+
+OsStatus_t
+MemorySpaceCloneMapping(
+        _In_        MemorySpace_t* sourceSpace,
+        _In_        MemorySpace_t* destinationSpace,
+        _In_        vaddr_t        sourceAddress,
+        _InOut_Opt_ vaddr_t*       destinationAddress,
+        _In_        size_t         length,
+        _In_        unsigned int   memoryFlags,
+        _In_        unsigned int   placementFlags)
+{
+    struct MemorySpaceAllocation* sourceAllocation = NULL;
+    vaddr_t                       virtualBase;
+    int                           pageCount = DIVUP(length, GetMemorySpacePageSize());
+    int                           pagesRetrieved;
+    int                           pagesUpdated;
+    uintptr_t*                    physicalAddressValues = NULL;
+    OsStatus_t                    osStatus;
+    
+    TRACE("MemorySpaceCloneMapping(sourceSpace=0x%" PRIxIN ", destinationSpace=0x%" PRIxIN
+          ", sourceAddress=0x%" PRIxIN ", length=0x%" PRIxIN ", memoryFlags=0x%x)",
+          sourceSpace, destinationSpace, sourceAddress, length, memoryFlags);
+
+    if (!sourceSpace || !destinationSpace || !destinationAddress) {
+        return OsInvalidParameters;
+    }
+
+    // increase reference of the source allocation first, to "acquire" it.
+    sourceAllocation = __AcquireAllocation(sourceSpace, sourceAddress);
+
+    osStatus = __GetAndVerifyPhysicalMapping(sourceSpace, sourceAddress, pageCount,
+                                             &physicalAddressValues, &pagesRetrieved);
+    if (osStatus != OsSuccess) {
+        goto exit;
+    }
+
+    virtualBase = __AllocateVirtualMemory(destinationSpace, destinationAddress, length,
+                                          memoryFlags, placementFlags);
+    if (virtualBase == 0) {
+        osStatus = OsOutOfMemory;
+        goto exit;
+    }
+
+    // bind the source and destination allocation together
+    if (sourceAllocation) {
+        __LinkAllocations(destinationSpace, virtualBase, sourceAllocation);
+    }
+
+    osStatus = ArchMmuSetVirtualPages(destinationSpace, virtualBase, &physicalAddressValues[0],
+                                      pagesRetrieved, memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT,
+                                      &pagesUpdated);
+    if (osStatus == OsSuccess && pagesUpdated != pageCount) {
+        osStatus = OsIncomplete;
+    }
+
+exit:
+    if (physicalAddressValues) {
+        kfree(physicalAddressValues);
+    }
+
+    if (osStatus != OsSuccess && osStatus != OsIncomplete) {
+        if (sourceAllocation) {
+            __ReleaseAllocation(sourceSpace, sourceAddress, length);
+        }
+    }
+
+    TRACE("MemorySpaceCloneMapping returns=%u", osStatus);
+    return osStatus;
+}
+
+OsStatus_t
+MemorySpaceUnmap(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         size)
+{
+    OsStatus_t osStatus;
+    TRACE("MemorySpaceUnmap(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
+          memorySpace, address, size);
+
+    if (!memorySpace || !size || !address) {
+        return OsInvalidParameters;
+    }
+
+    osStatus = __ReleaseAllocation(memorySpace, address, size);
+    if (osStatus != OsSuccess) {
+        goto exit;
+    }
 
     // Free the range in either GAM or Process memory
     if (memorySpace->Context != NULL && DynamicMemoryPoolContains(&memorySpace->Context->Heap, address)) {
@@ -642,106 +904,162 @@ MemorySpaceUnmap(
     else if (DynamicMemoryPoolContains(&memorySpace->ThreadMemory, address)) {
         DynamicMemoryPoolFree(&memorySpace->ThreadMemory, address);
     }
-    return OsSuccess;
+
+exit:
+    TRACE("MemorySpaceUnmap returns=%u", osStatus);
+    return osStatus;
 }
 
 OsStatus_t
 MemorySpaceChangeProtection(
-        _In_        MemorySpace_t* SystemMemorySpace,
-        _InOut_Opt_ VirtualAddress_t     Address,
-        _In_        size_t               Length,
-        _In_        unsigned int              Attributes,
-        _Out_       unsigned int*             PreviousAttributes)
+        _In_    MemorySpace_t* memorySpace,
+        _InOut_ vaddr_t        address,
+        _In_    size_t         length,
+        _In_    unsigned int   attributes,
+        _Out_   unsigned int*  previousAttributes)
 {
-    int        PageCount = DIVUP((Length + (Address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
-    int        PagesUpdated;
-    OsStatus_t Status;
+    int        pageCount = DIVUP((length + (address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
+    int        pagesUpdated;
+    OsStatus_t osStatus;
 
-    assert(SystemMemorySpace != NULL);
-
-    *PreviousAttributes = Attributes;
-    Status = ArchMmuUpdatePageAttributes(SystemMemorySpace, Address, PageCount,
-        PreviousAttributes, &PagesUpdated);
-    if (Status != OsSuccess && Status != OsIncomplete) {
-        return Status;
+    if (!memorySpace || !length || !previousAttributes) {
+        return OsInvalidParameters;
     }
-    SynchronizeMemoryRegion(SystemMemorySpace, Address, Length);
-    return Status;
+
+    *previousAttributes = attributes;
+    osStatus = ArchMmuUpdatePageAttributes(memorySpace, address, pageCount,
+                                           previousAttributes, &pagesUpdated);
+    if (osStatus != OsSuccess && osStatus != OsIncomplete) {
+        return osStatus;
+    }
+    __SyncMemoryRegion(memorySpace, address, length);
+    return osStatus;
+}
+
+OsStatus_t
+MemorySpaceQuery(
+        _In_ MemorySpace_t*      memorySpace,
+        _In_ vaddr_t             address,
+        _In_ MemoryDescriptor_t* descriptor)
+{
+    struct MemorySpaceAllocation* allocation;
+
+    if (!memorySpace || !memorySpace->Context) {
+        return OsDoesNotExist;
+    }
+
+    MutexLock(&memorySpace->Context->SyncObject);
+    allocation = __FindAllocation(memorySpace, address);
+    MutexUnlock(&memorySpace->Context->SyncObject);
+
+    if (!allocation) {
+        return OsDoesNotExist;
+    }
+
+    descriptor->StartAddress = allocation->Address;
+    descriptor->AllocationSize = allocation->Length;
+    descriptor->Attributes = allocation->Flags;
+    return OsSuccess;
 }
 
 OsStatus_t
 GetMemorySpaceMapping(
-        _In_  MemorySpace_t* MemorySpace,
-        _In_  VirtualAddress_t     Address,
-        _In_  int                  PageCount,
-        _Out_ uintptr_t*           DmaVectorOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        address,
+        _In_  int            pageCount,
+        _Out_ uintptr_t*     dmaVectorOut)
 {
-    OsStatus_t Status;
-    int        PagesRetrieved;
+    OsStatus_t osStatus;
+    int        pagesRetrieved;
     
-    assert(MemorySpace != NULL);
-    assert(DmaVectorOut != NULL);
-    
-    Status = ArchMmuVirtualToPhysical(MemorySpace, Address, PageCount, 
-        DmaVectorOut, &PagesRetrieved);
-    return Status;
+    if (!memorySpace || !dmaVectorOut) {
+        return OsInvalidParameters;
+    }
+
+    osStatus = ArchMmuVirtualToPhysical(memorySpace, address, pageCount, dmaVectorOut, &pagesRetrieved);
+    return osStatus;
 }
 
 unsigned int
 GetMemorySpaceAttributes(
-        _In_ MemorySpace_t* SystemMemorySpace,
-        _In_ VirtualAddress_t     VirtualAddress)
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address)
 {
-    unsigned int Attributes;
-    int     PagesRetrieved;
-    
-    assert(SystemMemorySpace != NULL);
-    
-    if (ArchMmuGetPageAttributes(SystemMemorySpace, VirtualAddress, 1, 
-            &Attributes, &PagesRetrieved) != OsSuccess) {
+    unsigned int attributes;
+    int          pagesRetrieved;
+
+    if (!memorySpace) {
         return 0;
     }
-    return Attributes;
+
+    if (ArchMmuGetPageAttributes(memorySpace, address, 1,
+                                 &attributes, &pagesRetrieved) != OsSuccess) {
+        return 0;
+    }
+    return attributes;
 }
 
 OsStatus_t
 IsMemorySpacePageDirty(
-        _In_ MemorySpace_t* SystemMemorySpace,
-        _In_ VirtualAddress_t     Address)
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address)
 {
-    OsStatus_t Status = OsSuccess;
-    unsigned int    Flags  = 0;
-    int        PagesRetrieved;
-    
-    // Sanitize address space
-    assert(SystemMemorySpace != NULL);
-    Status = ArchMmuGetPageAttributes(SystemMemorySpace, Address, 1, &Flags, &PagesRetrieved);
+    OsStatus_t   osStatus;
+    unsigned int flags = 0;
+    int          pagesRetrieved;
 
-    // Check the flags if status was ok
-    if (Status == OsSuccess && !(Flags & MAPPING_ISDIRTY)) {
-        Status = OsError;
+    if (!memorySpace) {
+        return OsInvalidParameters;
     }
-    return Status;
+
+    osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
+    if (osStatus == OsSuccess && !(flags & MAPPING_ISDIRTY)) {
+        osStatus = OsError;
+    }
+    return osStatus;
 }
 
 OsStatus_t
 IsMemorySpacePagePresent(
-        _In_ MemorySpace_t* SystemMemorySpace,
-        _In_ VirtualAddress_t     Address)
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address)
 {
-    OsStatus_t Status = OsSuccess;
-    unsigned int    Flags  = 0;
-    int        PagesRetrieved;
-    
-    // Sanitize address space
-    assert(SystemMemorySpace != NULL);
-    Status = ArchMmuGetPageAttributes(SystemMemorySpace, Address, 1, &Flags, &PagesRetrieved);
+    OsStatus_t   osStatus;
+    unsigned int flags = 0;
+    int          pagesRetrieved;
 
-    // Check the flags if status was ok
-    if (Status == OsSuccess && !(Flags & MAPPING_COMMIT)) {
-        Status = OsDoesNotExist;
+    if (!memorySpace) {
+        return OsInvalidParameters;
     }
-    return Status;
+
+    osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
+    if (osStatus == OsSuccess && !(flags & MAPPING_COMMIT)) {
+        osStatus = OsDoesNotExist;
+    }
+    return osStatus;
+}
+
+OsStatus_t
+MemorySpaceSetSignalHandler(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        signalHandlerAddress)
+{
+    if (!memorySpace || !memorySpace->Context) {
+        return OsInvalidParameters;
+    }
+
+    memorySpace->Context->SignalHandler = signalHandlerAddress;
+    return OsSuccess;
+}
+
+vaddr_t
+MemorySpaceSignalHandler(
+        _In_ MemorySpace_t* memorySpace)
+{
+    if (!memorySpace || !memorySpace->Context) {
+        return 0;
+    }
+    return memorySpace->Context->SignalHandler;
 }
 
 size_t
@@ -751,19 +1069,74 @@ GetMemorySpacePageSize(void)
 }
 
 static void
-DestroyMemorySpace(
+MemorySpaceDestroyHandler(
         _In_ void* resource)
 {
-    MemorySpace_t* memorySpace = (MemorySpace_t*)resource;
-    if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-        DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
-        DestroyVirtualSpace(memorySpace);
+    MemoryMappingHandler_t* handler = resource;
+    if (!handler) {
+        return;
     }
-    if (memorySpace->ParentHandle == UUID_INVALID) {
-        DestroyMemorySpaceContext(memorySpace);
+
+    list_remove(&handler->MemorySpace->Context->MemoryHandlers, &handler->Header);
+    DynamicMemoryPoolFree(&handler->MemorySpace->Context->Heap, handler->Address);
+    kfree(handler);
+}
+
+OsStatus_t
+MemorySpaceCreateHandler(
+        _In_  MemorySpace_t* memorySpace,
+        _In_  unsigned int   flags,
+        _In_  size_t         length,
+        _Out_ UUId_t*        handleOut,
+        _Out_ uintptr_t*     addressBaseOut)
+{
+    MemoryMappingHandler_t* handler;
+
+    if (!memorySpace || !memorySpace->Context) {
+        return OsInvalidParameters;
     }
-    if (memorySpace->ParentHandle != UUID_INVALID) {
-        DestroyHandle(memorySpace->ParentHandle);
+
+    handler = (MemoryMappingHandler_t*)kmalloc(sizeof(MemoryMappingHandler_t));
+    if (!handler) {
+        return OsOutOfMemory;
     }
-    kfree(memorySpace);
+
+    ELEMENT_INIT(&handler->Header, 0, handler);
+    handler->MemorySpace = memorySpace;
+    handler->Handle  = CreateHandle(HandleTypeGeneric, MemorySpaceDestroyHandler, handler);
+    handler->Address = DynamicMemoryPoolAllocate(&memorySpace->Context->Heap, length);
+    if (!handler->Address) {
+        DestroyHandle(handler->Handle);
+        kfree(handler);
+        return OsOutOfMemory;
+    }
+    handler->Length = length;
+
+    *handleOut      = handler->Handle;
+    *addressBaseOut = handler->Address;
+    list_append(&memorySpace->Context->MemoryHandlers, &handler->Header);
+    return OsSuccess;
+}
+
+OsStatus_t
+MemorySpaceHandlerTrigger(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address)
+{
+    element_t* element;
+
+    if (!memorySpace || !memorySpace->Context) {
+        return OsInvalidParameters;
+    }
+
+    _foreach(element, &memorySpace->Context->MemoryHandlers) {
+        MemoryMappingHandler_t* handler = (MemoryMappingHandler_t*)element->value;
+        if (ISINRANGE(address, handler->Address, (handler->Address + handler->Length))) {
+            ERROR("Implement support for MemorySpaceHandlers");
+            for(;;);
+            //SignalQueue(__FILEMANAGER_TARGET, SIGINT, Handler->Handle, (void*)Address);
+            break;
+        }
+    }
+    return OsDoesNotExist;
 }

@@ -51,13 +51,24 @@ MemoryFree(
 
 OsStatus_t
 MemoryProtect(
-    _In_  void*     Memory,
-	_In_  size_t    Length,
-    _In_  unsigned int   Flags,
-    _Out_ unsigned int*  PreviousFlags)
+    _In_  void*         Memory,
+	_In_  size_t        Length,
+    _In_  unsigned int  Flags,
+    _Out_ unsigned int* PreviousFlags)
 {
 	if (!Length || !Memory) {
 		return OsInvalidParameters;
 	}
     return Syscall_MemoryProtect(Memory, Length, Flags, PreviousFlags);
+}
+
+OsStatus_t
+MemoryQuery(
+        _In_ void*               Memory,
+        _In_ MemoryDescriptor_t* DescriptorOut)
+{
+    if (!Memory || !DescriptorOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_MemoryQuery(Memory, DescriptorOut);
 }

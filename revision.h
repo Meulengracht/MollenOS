@@ -8,7 +8,7 @@
 #define BUILD_SYSTEM "clang"
 
 #define REVISION_MAJOR 0
-#define REVISION_MINOR 6
+#define REVISION_MINOR 7
 #define REVISION_BUILD 14905
 
 #endif //!_REVISION_H_

@@ -33,10 +33,11 @@
 #define MEMORY_LOWFIRST      0x00000002U                  // Allocate from low memory
 #define MEMORY_CLEAN         0x00000004U                  // Memory should be cleaned
 #define MEMORY_UNCHACHEABLE  0x00000008U                  // Memory must not be cached
+#define MEMORY_CLONE         0x00000010U                  // Clone the memory mapping passed in as hint
 
-#define MEMORY_READ          0x00000010U                  // Memory is readable
-#define MEMORY_WRITE         0x00000020U                  // Memory is writable
-#define MEMORY_EXECUTABLE    0x00000040U                  // Memory is executable
+#define MEMORY_READ          0x00000100U                  // Memory is readable
+#define MEMORY_WRITE         0x00000200U                  // Memory is writable
+#define MEMORY_EXECUTABLE    0x00000400U                  // Memory is executable
 
 typedef struct MemoryDescriptor {
     uintptr_t    StartAddress;

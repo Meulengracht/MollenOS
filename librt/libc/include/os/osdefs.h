@@ -57,16 +57,16 @@ typedef uint32_t reg32_t;
 typedef uint64_t reg64_t;
 
 #if defined(i386) || defined(__i386__)
-#define __BITS             32
-#define __MASK             0xFFFFFFFF
-typedef unsigned int       PhysicalAddress_t;
-typedef unsigned int       VirtualAddress_t;
-typedef reg32_t            reg_t;
+#define __BITS       32
+#define __MASK       0xFFFFFFFF
+typedef unsigned int paddr_t;
+typedef unsigned int vaddr_t;
+typedef reg32_t      reg_t;
 #elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 #define __BITS             64
 #define __MASK             0xFFFFFFFFFFFFFFFF
-typedef unsigned long long PhysicalAddress_t;
-typedef unsigned long long VirtualAddress_t;
+typedef unsigned long long paddr_t;
+typedef unsigned long long vaddr_t;
 typedef reg64_t            reg_t;
 #endif
 

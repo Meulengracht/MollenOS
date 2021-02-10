@@ -48,7 +48,7 @@ extern void memory_reload_cr3(void);
 PageDirectory_t*
 MmVirtualGetMasterTable(
         _In_  MemorySpace_t*    memorySpace,
-        _In_  VirtualAddress_t  address,
+        _In_  vaddr_t  address,
         _Out_ PageDirectory_t** parentDirectory,
         _Out_ int*              isCurrentOut)
 {

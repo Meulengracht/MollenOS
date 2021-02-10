@@ -46,7 +46,7 @@
 PageMasterTable_t*
 MmVirtualGetMasterTable(
         _In_  MemorySpace_t*      memorySpace,
-        _In_  VirtualAddress_t    address,
+        _In_  vaddr_t    address,
         _Out_ PageMasterTable_t** parentDirectory,
         _Out_ int*                isCurrentOut)
 {
@@ -76,7 +76,7 @@ static PageDirectoryTable_t*
 __GetPageDirectoryTable(
         _In_  PageMasterTable_t* parentPageMasterTable,
         _In_  PageMasterTable_t* pageMasterTable,
-        _In_  VirtualAddress_t   virtualAddress,
+        _In_  vaddr_t   virtualAddress,
         _In_  int                isCurrent,
         _In_  unsigned int       createFlags,
         _In_  int                createIfMissing,
@@ -152,12 +152,12 @@ SyncPmlWithParent:
 
 PageTable_t*
 MmVirtualGetTable(
-	_In_  PageMasterTable_t* parentPageMasterTable,
-	_In_  PageMasterTable_t* pageMasterTable,
-	_In_  VirtualAddress_t   virtualAddress,
-    _In_  int                isCurrent,
-    _In_  int                createIfMissing,
-    _Out_ int*               update)
+        _In_  PageMasterTable_t* parentPageMasterTable,
+        _In_  PageMasterTable_t* pageMasterTable,
+        _In_  vaddr_t   virtualAddress,
+        _In_  int                isCurrent,
+        _In_  int                createIfMissing,
+        _Out_ int*               update)
 {
     PageDirectoryTable_t* directoryTable;
     PageDirectory_t*      directory      = NULL;

@@ -203,7 +203,7 @@ OsStatus_t
 DestroyFileMapping(
     _In_ UUId_t Handle)
 {
-    OsStatus_t Status = Syscall_DestroyMemoryHandler(Handle);
+    OsStatus_t Status = Syscall_DestroyHandle(Handle);
     if (Status == OsSuccess) {
         // Status = UnregisterFileMapping(Handle);
     }

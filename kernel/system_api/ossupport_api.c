@@ -30,64 +30,10 @@
 #include <threading.h>
 
 OsStatus_t
-ScCreateMemoryHandler(
-    _In_  unsigned int Flags,
-    _In_  size_t       Length,
-    _Out_ UUId_t*      HandleOut,
-    _Out_ uintptr_t*   AddressBaseOut)
-{
-    MemoryMappingHandler_t * Handler;
-    MemorySpace_t          *          Space = GetCurrentMemorySpace();
-    assert(Space->Context != NULL);
-
-    Handler = (MemoryMappingHandler_t*)kmalloc(sizeof(MemoryMappingHandler_t));
-    if (!Handler) {
-        return OsOutOfMemory;
-    }
-    
-    ELEMENT_INIT(&Handler->Header, 0, Handler);
-    Handler->Handle  = CreateHandle(HandleTypeGeneric, NULL, Handler);
-    Handler->Address = DynamicMemoryPoolAllocate(&Space->Context->Heap, Length);
-    if (!Handler->Address) {
-        DestroyHandle(Handler->Handle);
-        kfree(Handler);
-        return OsOutOfMemory;
-    }
-    Handler->Length  = Length;
-    
-    *HandleOut       = Handler->Handle;
-    *AddressBaseOut  = Handler->Address;
-    list_append(Space->Context->MemoryHandlers, &Handler->Header);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScDestroyMemoryHandler(
-    _In_ UUId_t Handle)
-{
-    MemoryMappingHandler_t * Handler        = (MemoryMappingHandler_t*)LookupHandle(Handle);
-    MemorySpace_t          *          Space = GetCurrentMemorySpace();
-    assert(Space->Context != NULL);
-
-    if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
-        list_remove(Space->Context->MemoryHandlers, &Handler->Header);
-        DynamicMemoryPoolFree(&Space->Context->Heap, Handler->Address);
-        DestroyHandle(Handle);
-        kfree(Handler);
-        return OsSuccess;
-    }
-    return OsDoesNotExist;
-}
-
-OsStatus_t
 ScInstallSignalHandler(
-    _In_ uintptr_t Handler) 
+    _In_ uintptr_t handler)
 {
-    MemorySpace_t * Space = GetCurrentMemorySpace();
-    assert(Space->Context != NULL);
-
-    Space->Context->SignalHandler = Handler;
-    return OsSuccess;
+    return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
 }
 
 OsStatus_t

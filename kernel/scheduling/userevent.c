@@ -80,14 +80,14 @@ AllocateSyncAddress(
 
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
     status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
-                                         (VirtualAddress_t)kernelAddress, 1, &dmaAddress);
+                                         (vaddr_t)kernelAddress, 1, &dmaAddress);
     if (status != OsSuccess) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
 
-    status = MemorySpaceMap(GetCurrentMemorySpace(), (VirtualAddress_t*)&userAddress, &dmaAddress,
-                   GetMemorySpacePageSize(),
+    status = MemorySpaceMap(GetCurrentMemorySpace(), (vaddr_t*)&userAddress, &dmaAddress,
+                            GetMemorySpacePageSize(),
                    MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
                    MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
     if (status != OsSuccess) {

@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2015, Philip Meulengracht
  *
@@ -26,8 +27,7 @@
 
 #include <os/osdefs.h>
 #include <ddk/io.h>
-
-DECL_STRUCT(Collection);
+#include <ds/list.h>
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */
@@ -131,6 +131,8 @@ typedef struct PciBus {
  * Represents a device on the pci-bus, keeps information
  * about location, children, and a parent device/controller */
 typedef struct PciDevice {
+    element_t         list_header;
+    element_t         child_header;
     struct PciDevice* Parent;
     PciBus_t*         BusIo;
     int               IsBridge;
@@ -138,10 +140,10 @@ typedef struct PciDevice {
     unsigned int Bus;
     unsigned int Slot;
     unsigned int Function;
-    unsigned int      AcpiConform;
+    unsigned int AcpiConform;
 
     PciNativeHeader_t*  Header;
-    Collection_t*       Children;
+    list_t              children;
 } PciDevice_t;
 
 /* BusEnumerate

@@ -27,11 +27,11 @@
 #include <usb/usb.h>
 #include <ddk/bufferpool.h>
 #include <os/osdefs.h>
-#include <ds/collection.h>
+#include <ds/list.h>
 
-typedef struct _UsbHub UsbHub_t;
+typedef struct UsbHub UsbHub_t;
 
-typedef struct _UsbPortDevice {
+typedef struct UsbPortDevice {
     usb_device_context_t Base;
     uint16_t             VendorId;
     uint16_t             ProductId;
@@ -42,21 +42,22 @@ typedef struct _UsbPortDevice {
     UsbHub_t*            Hub;
 } UsbPortDevice_t;
 
-typedef struct _UsbPort {
+typedef struct UsbPort {
     uint8_t          Address;
-    uint8_t       Speed;
+    uint8_t          Speed;
     int              Enabled;
     int              Connected;
     UsbPortDevice_t* Device;
 } UsbPort_t;
 
-typedef struct _UsbHub {
+typedef struct UsbHub {
     uint8_t    Address;
     UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
 
-typedef struct _UsbController {
+typedef struct UsbController {
     Device_t            Device;
+    element_t           Header;
     UUId_t              DriverId;
     UsbControllerType_t Type;
     size_t              PortCount;

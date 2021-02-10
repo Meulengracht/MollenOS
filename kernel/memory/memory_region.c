@@ -59,7 +59,7 @@ CreateUserMapping(
     unsigned int requiredFlags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
     OsStatus_t   status = MemorySpaceMapReserved(
             memorySpace,
-            (VirtualAddress_t*)allocatedMapping, region->Capacity,
+            (vaddr_t*)allocatedMapping, region->Capacity,
             requiredFlags | region->Flags | accessFlags,
             MAPPING_VIRTUAL_PROCESS);
     if (status != OsSuccess) {
@@ -69,7 +69,7 @@ CreateUserMapping(
     // Now commit <Length> in pages, reuse the mappings from the kernel
     status = MemorySpaceCommit(
             memorySpace,
-            (VirtualAddress_t)*allocatedMapping,
+            (vaddr_t)*allocatedMapping,
             &region->Pages[0],
             region->Length,
             MAPPING_PHYSICAL_FIXED);
@@ -83,7 +83,7 @@ CreateKernelMapping(
 {
     OsStatus_t status = MemorySpaceMapReserved(
             memorySpace,
-            (VirtualAddress_t*)&region->KernelMapping, region->Capacity,
+            (vaddr_t*)&region->KernelMapping, region->Capacity,
             region->Flags, MAPPING_VIRTUAL_GLOBAL);
     if (status != OsSuccess) {
         return status;
@@ -91,7 +91,7 @@ CreateKernelMapping(
     
     // Now commit <Length> in pages, reuse the mappings from the kernel
     status = MemorySpaceCommit(
-            memorySpace, (VirtualAddress_t)region->KernelMapping,
+            memorySpace, (vaddr_t)region->KernelMapping,
             &region->Pages[0], region->Length, 0);
     return status;
 }

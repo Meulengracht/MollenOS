@@ -226,8 +226,9 @@ InterruptResolveMemoryResources(
                 pageFlags |= MAPPING_NOCACHE;
             }
 
-            success = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-                                              source->MemoryResources[i].Address, &updatedMapping, length, pageFlags, placementFlags);
+            success = MemorySpaceCloneMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
+                                              source->MemoryResources[i].Address, &updatedMapping, length, pageFlags,
+                                              placementFlags);
             if (success != OsSuccess) {
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
@@ -274,8 +275,8 @@ InterruptResolveResources(
     Length         = GetMemorySpacePageSize() + Offset;
     PageFlags      = MAPPING_COMMIT | MAPPING_EXECUTABLE | MAPPING_READONLY;
     PlacementFlags = MAPPING_VIRTUAL_GLOBAL;
-    Status         = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-        (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
+    Status         = MemorySpaceCloneMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
+                                             (vaddr_t) Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
     if (Status != OsSuccess) {
         ERROR(" > failed to clone interrupt handler mapping");
         return OsError;

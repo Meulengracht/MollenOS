@@ -66,7 +66,7 @@ ArchMmuSwitchMemorySpace(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuGetPageAttributes(
         _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
+        _In_  vaddr_t,
         _In_  int,
         _In_  unsigned int*,
         _Out_ int*);
@@ -86,7 +86,7 @@ ArchMmuGetPageAttributes(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuUpdatePageAttributes(
         _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
+        _In_  vaddr_t,
         _In_  int,
         _In_  unsigned int*,
         _Out_ int*);
@@ -105,8 +105,8 @@ ArchMmuUpdatePageAttributes(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuCommitVirtualPage(
         _In_  MemorySpace_t*           memorySpace,
-        _In_  VirtualAddress_t         startAddress,
-        _In_  const PhysicalAddress_t* physicalAddresses,
+        _In_  vaddr_t         startAddress,
+        _In_  const paddr_t* physicalAddresses,
         _In_  int                      pageCount,
         _Out_ int*                     pagesComittedOut);
 
@@ -126,8 +126,8 @@ ArchMmuCommitVirtualPage(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetContiguousVirtualPages(
         _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
-        _In_  PhysicalAddress_t,
+        _In_  vaddr_t,
+        _In_  paddr_t,
         _In_  int,
         _In_  unsigned int,
         _Out_ int*);
@@ -146,7 +146,7 @@ ArchMmuSetContiguousVirtualPages(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuReserveVirtualPages(
         _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
+        _In_  vaddr_t,
         _In_  int,
         _In_  unsigned int,
         _Out_ int*);
@@ -168,8 +168,8 @@ ArchMmuReserveVirtualPages(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuSetVirtualPages(
         _In_  MemorySpace_t*           memorySpace,
-        _In_  VirtualAddress_t         startAddress,
-        _In_  const PhysicalAddress_t* physicalAddressValues,
+        _In_  vaddr_t         startAddress,
+        _In_  const paddr_t* physicalAddressValues,
         _In_  int                      pageCount,
         _In_  unsigned int             attributes,
         _Out_ int*                     pagesUpdatedOut);
@@ -192,9 +192,9 @@ ArchMmuSetVirtualPages(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuClearVirtualPages(
         _In_  MemorySpace_t*     memorySpace,
-        _In_  VirtualAddress_t   startAddress,
+        _In_  vaddr_t   startAddress,
         _In_  int                pageCount,
-        _In_  PhysicalAddress_t* freedAddresses,
+        _In_  paddr_t* freedAddresses,
         _Out_ int*               freedAddressesCountOut,
         _Out_ int*               pagesClearedOut);
 
@@ -214,9 +214,9 @@ ArchMmuClearVirtualPages(
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuVirtualToPhysical(
         _In_  MemorySpace_t*,
-        _In_  VirtualAddress_t,
+        _In_  vaddr_t,
         _In_  int,
-        _In_  PhysicalAddress_t*,
+        _In_  paddr_t*,
         _Out_ int*);
 
 #endif //!__SYSTEM_MMU_INTEFACE_H__

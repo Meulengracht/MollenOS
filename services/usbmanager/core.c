@@ -63,17 +63,12 @@ static const struct {
     { 0xFF, "Vendor Specific (Usb)" }
 };
 
-OsStatus_t
-UsbDeviceDestroy(
-    _In_ UsbController_t* Controller,
-    _In_ UsbPort_t*       Port);
-OsStatus_t
-UsbCoreControllerUnregister(
-    _In_ UUId_t DeviceId);
+OsStatus_t UsbDeviceDestroy(UsbController_t* Controller, UsbPort_t* Port);
+OsStatus_t UsbCoreControllerUnregister(UUId_t DeviceId);
 
-static Collection_t *GlbUsbControllers  = NULL;
-static Collection_t *GlbUsbDevices      = NULL;
-static const char*   VendorSpecificString = "Vendor-specific device (Usb)";
+static list_t      g_controllers  = LIST_INIT;
+static list_t      g_devices      = LIST_INIT;
+static const char* g_vendorString = "Vendor-specific device (Usb)";
 
 static uint16_t
 GetMaxPacketSizeControl(
@@ -101,7 +96,7 @@ UsbGetIdentificationString(
             return DeviceIdentifications[i].IdentificationString;
         }
     }
-    return VendorSpecificString;
+    return g_vendorString;
 }
 
 /* UsbReserveAddress 
@@ -131,7 +126,7 @@ UsbReserveAddress(
  * Frees an given address in the controller for an usb-device */
 OsStatus_t
 UsbReleaseAddress(
-    _In_ UsbController_t*       Controller, 
+    _In_ UsbController_t*       Controller,
     _In_ int                    Address)
 {
     // Variables
@@ -146,34 +141,32 @@ UsbReleaseAddress(
     return OsSuccess;
 }
 
-/* UsbCoreInitialize
- * Initializes the usb-core stack driver. Allocates all neccessary resources
- * for managing usb controllers devices in the system. */
 OsStatus_t
 UsbCoreInitialize(void)
 {
-    GlbUsbControllers = CollectionCreate(KeyInteger);
-    GlbUsbDevices     = CollectionCreate(KeyInteger);
     return UsbInitialize();
 }
 
-/* UsbCoreDestroy
- * Cleans up and frees any resouces allocated by the usb-core stack */
+static void __CleanupControllerEntry(
+        _In_ element_t* element,
+        _In_ void*      context)
+{
+    UsbController_t* controller = (UsbController_t*)element->value;
+    UsbCoreControllerUnregister(controller->Device.Id);
+}
+
+static void __CleanupDeviceEntry(
+        _In_ element_t* element,
+        _In_ void*      context)
+{
+    // not really used
+}
+
 OsStatus_t
 UsbCoreDestroy(void)
 {
-    // Iterate all registered controllers
-    // and clean them up
-    foreach(cNode, GlbUsbControllers) {
-        // Instantiate a pointer of correct type
-        UsbController_t *Controller =
-            (UsbController_t*)cNode->Data;
-        UsbCoreControllerUnregister(Controller->Device.Id);
-    }
-
-    // Destroy lists
-    CollectionDestroy(GlbUsbControllers);
-    CollectionDestroy(GlbUsbDevices);
+    list_clear(&g_controllers, __CleanupControllerEntry, NULL);
+    list_clear(&g_devices, __CleanupDeviceEntry, NULL);
     return UsbCleanup();
 }
 
@@ -184,26 +177,27 @@ UsbCoreControllerRegister(
     _In_ UsbControllerType_t Type,
     _In_ int                 RootPorts)
 {
-    // Variables
-    UsbController_t *Controller = NULL;
-    DataKey_t Key = { 0 };
+    UsbController_t* controller;
 
     // Allocate a new instance and reset all members
-    Controller = (UsbController_t*)malloc(sizeof(UsbController_t));
-    if (!Controller) {
+    controller = (UsbController_t*)malloc(sizeof(UsbController_t));
+    if (!controller) {
         return OsOutOfMemory;
     }
-    memset(Controller, 0, sizeof(UsbController_t));
+    memset(controller, 0, sizeof(UsbController_t));
 
     // Store initial data
-    memcpy(&Controller->Device, Device, sizeof(Device_t));
-    Controller->DriverId    = DriverId;
-    Controller->Type        = Type;
-    Controller->PortCount   = RootPorts;
+    memcpy(&controller->Device, Device, sizeof(Device_t));
+    controller->DriverId  = DriverId;
+    controller->Type      = Type;
+    controller->PortCount = RootPorts;
+    ELEMENT_INIT(&controller->Header, 0, controller);
 
     // Reserve address 0, it's setup address
-    Controller->AddressMap[0] |= 0x1;
-    return CollectionAppend(GlbUsbControllers, CollectionCreateNode(Key, Controller));
+    controller->AddressMap[0] |= 0x1;
+
+    list_append(&g_controllers, &controller->Header);
+    return OsSuccess;
 }
 
 void svc_usb_register_callback(struct gracht_recv_message* message, struct svc_usb_register_args* args)
@@ -215,27 +209,26 @@ OsStatus_t
 UsbCoreControllerUnregister(
     _In_ UUId_t DeviceId)
 {
-    // Variables
-    UsbController_t *Controller = NULL;
-    int i;
+    UsbController_t* controller;
+    int              i;
 
     // Lookup controller and verify existance
-    Controller = UsbCoreGetController(DeviceId);
-    if (Controller == NULL) {
+    controller = UsbCoreGetController(DeviceId);
+    if (controller == NULL) {
         return OsError;
     }
 
     // Iterate ports that has connected devices and cleanup
     // @todo recursion
     for (i = 0; i < USB_MAX_PORTS; i++) {
-        if (Controller->RootHub.Ports[i] != NULL) {
-            if (Controller->RootHub.Ports[i]->Device != NULL) {
-                UsbDeviceDestroy(Controller, Controller->RootHub.Ports[i]);
+        if (controller->RootHub.Ports[i] != NULL) {
+            if (controller->RootHub.Ports[i]->Device != NULL) {
+                UsbDeviceDestroy(controller, controller->RootHub.Ports[i]);
             }
-            free(Controller->RootHub.Ports[i]);
+            free(controller->RootHub.Ports[i]);
         }
     }
-    free(Controller);
+    free(controller);
     return OsSuccess;
 }
 
@@ -476,11 +469,11 @@ UsbCoreGetController(
     _In_ UUId_t DeviceId)
 {
     // Iterate all registered controllers
-    foreach(cNode, GlbUsbControllers) {
+    foreach(element, &g_controllers) {
         // Cast data pointer to known type
-        UsbController_t *Controller = (UsbController_t*)cNode->Data;
-        if (Controller->Device.Id == DeviceId) {
-            return Controller;
+        UsbController_t* controller = (UsbController_t*)element->value;
+        if (controller->Device.Id == DeviceId) {
+            return controller;
         }
     }
     return NULL;
@@ -560,21 +553,19 @@ void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc
 int
 UsbCoreGetControllerCount(void)
 {
-    return CollectionLength(GlbUsbControllers);
+    return list_count(&g_controllers);
 }
 
 UsbController_t*
 UsbCoreGetControllerIndex(
     _In_ int Index)
 {
-    // Variables
-    CollectionItem_t *Item  = NULL;
-    int i                   = 0;
+    element_t* item;
+    int        i = 0;
 
-    // Find node
-    _foreach(Item, GlbUsbControllers) {
+    _foreach(item, &g_controllers) {
         if (i == Index) {
-            return (UsbController_t*)Item->Data;
+            return (UsbController_t*)item->value;
         } i++;
     }
     return NULL;

@@ -147,12 +147,12 @@ MapUntypedParameter(
         _In_ struct gracht_param* parameter,
         _In_ MemorySpace_t*       targetMemorySpace)
 {
-    VirtualAddress_t copyAddress;
-    size_t           offsetInPage = parameter->data.value % GetMemorySpacePageSize();
-    OsStatus_t       status       = CloneMemorySpaceMapping(
+    vaddr_t    copyAddress;
+    size_t     offsetInPage = parameter->data.value % GetMemorySpacePageSize();
+    OsStatus_t status       = MemorySpaceCloneMapping(
             GetCurrentMemorySpace(), targetMemorySpace,
-            (VirtualAddress_t)parameter->data.buffer, &copyAddress, parameter->length + offsetInPage,
-        MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
+            (vaddr_t) parameter->data.buffer, &copyAddress, parameter->length + offsetInPage,
+            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
             MAPPING_VIRTUAL_PROCESS);
     if (status != OsSuccess) {
         ERROR("[ipc] [map_untyped] Failed to clone ipc mapping");
@@ -248,7 +248,7 @@ CleanupMessage(
         if (message->base.params[i].type == GRACHT_PARAM_SHM && 
             message->base.params[i].length > 0) {
             OsStatus_t status = MemorySpaceUnmap(GetCurrentMemorySpace(),
-                (VirtualAddress_t)message->base.params[i].data.buffer,
+                (vaddr_t)message->base.params[i].data.buffer,
                 message->base.params[i].length);
             if (status != OsSuccess) {
                 // LOG

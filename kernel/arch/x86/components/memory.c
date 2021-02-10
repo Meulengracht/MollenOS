@@ -34,10 +34,10 @@
 #include <memory.h>
 
 // Interface to the arch-specific
-extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* memorySpace, VirtualAddress_t address,
+extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* memorySpace, vaddr_t address,
                                                   PAGE_MASTER_LEVEL** parentDirectory, int* isCurrentOut);
 extern PageTable_t* MmVirtualGetTable(PAGE_MASTER_LEVEL* parentPageDirectory, PAGE_MASTER_LEVEL* pageDirectory,
-                                      VirtualAddress_t address, int isCurrent, int createIfMissing, int* update);
+                                      vaddr_t address, int isCurrent, int createIfMissing, int* update);
 
 extern void memory_invalidate_addr(uintptr_t pda);
 extern void memory_load_cr3(uintptr_t pda);
@@ -264,7 +264,7 @@ ArchMmuSwitchMemorySpace(
 OsStatus_t
 ArchMmuGetPageAttributes(
         _In_  MemorySpace_t*   memorySpace,
-        _In_  VirtualAddress_t startAddress,
+        _In_  vaddr_t startAddress,
         _In_  int              pageCount,
         _In_  unsigned int*    attributeValues,
         _Out_ int*             pagesRetrievedOut)
@@ -303,7 +303,7 @@ ArchMmuGetPageAttributes(
 OsStatus_t
 ArchMmuUpdatePageAttributes(
         _In_  MemorySpace_t*   memorySpace,
-        _In_  VirtualAddress_t startAddress,
+        _In_  vaddr_t startAddress,
         _In_  int              pageCount,
         _In_  unsigned int*    attributes,
         _Out_ int*             pagesUpdatedOut)
@@ -366,8 +366,8 @@ ArchMmuUpdatePageAttributes(
 OsStatus_t
 ArchMmuCommitVirtualPage(
         _In_  MemorySpace_t*           memorySpace,
-        _In_  VirtualAddress_t         startAddress,
-        _In_  const PhysicalAddress_t* physicalAddresses,
+        _In_  vaddr_t         startAddress,
+        _In_  const paddr_t* physicalAddresses,
         _In_  int                      pageCount,
         _Out_ int*                     pagesComittedOut)
 {
@@ -432,8 +432,8 @@ ArchMmuCommitVirtualPage(
 OsStatus_t
 ArchMmuSetContiguousVirtualPages(
         _In_  MemorySpace_t*    memorySpace,
-        _In_  VirtualAddress_t  startAddress,
-        _In_  PhysicalAddress_t physicalStartAddress,
+        _In_  vaddr_t  startAddress,
+        _In_  paddr_t physicalStartAddress,
         _In_  int               pageCount,
         _In_  unsigned int      attributes,
         _Out_ int*              pagesUpdatedOut)
@@ -497,7 +497,7 @@ ArchMmuSetContiguousVirtualPages(
 OsStatus_t
 ArchMmuReserveVirtualPages(
         _In_  MemorySpace_t*   memorySpace,
-        _In_  VirtualAddress_t startAddress,
+        _In_  vaddr_t startAddress,
         _In_  int              pageCount,
         _In_  unsigned int     attributes,
         _Out_ int*             pagesReservedOut)
@@ -552,8 +552,8 @@ ArchMmuReserveVirtualPages(
 OsStatus_t
 ArchMmuSetVirtualPages(
         _In_  MemorySpace_t*           memorySpace,
-        _In_  VirtualAddress_t         startAddress,
-        _In_  const PhysicalAddress_t* physicalAddressValues,
+        _In_  vaddr_t         startAddress,
+        _In_  const paddr_t* physicalAddressValues,
         _In_  int                      pageCount,
         _In_  unsigned int             attributes,
         _Out_ int*                     pagesUpdatedOut)
@@ -616,9 +616,9 @@ ArchMmuSetVirtualPages(
 OsStatus_t
 ArchMmuClearVirtualPages(
         _In_  MemorySpace_t*     memorySpace,
-        _In_  VirtualAddress_t   startAddress,
+        _In_  vaddr_t   startAddress,
         _In_  int                pageCount,
-        _In_  PhysicalAddress_t* freedAddresses,
+        _In_  paddr_t* freedAddresses,
         _Out_ int*               freedAddressesCountOut,
         _Out_ int*               pagesClearedOut)
 {
@@ -671,9 +671,9 @@ ArchMmuClearVirtualPages(
 OsStatus_t
 ArchMmuVirtualToPhysical(
         _In_  MemorySpace_t*     memorySpace,
-        _In_  VirtualAddress_t   startAddress,
+        _In_  vaddr_t   startAddress,
         _In_  int                pageCount,
-        _In_  PhysicalAddress_t* physicalAddressValues,
+        _In_  paddr_t* physicalAddressValues,
         _Out_ int*               pagesRetrievedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
