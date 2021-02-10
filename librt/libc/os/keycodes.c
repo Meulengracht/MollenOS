@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -24,12 +25,12 @@
 
 #include <os/keycodes.h>
 
-extern char GetASCIIFromKeyCodeEnUs(KeyCode_t, KeyModifiers_t);
+extern char GetASCIIFromKeyCodeEnUs(uint8_t, uint16_t);
 
 char
 TranslateKeyCode(
-        _In_  KeyCode_t keyCode,
-        _In_  KeyModifiers_t keyModifiers)
+        _In_  uint8_t  keyCode,
+        _In_  uint16_t keyModifiers)
 {
     if (keyCode != VK_INVALID) {
         return GetASCIIFromKeyCodeEnUs(keyCode, keyModifiers);

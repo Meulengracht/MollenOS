@@ -3,11 +3,10 @@
     <types>
         <type name="size_t" header="stddef.h" />
         <type name="uint8_t" header="stdint.h" />
+        <type name="uint16_t" header="stdint.h" />
         <type name="uintptr_t" header="stdint.h" />
         <type name="UUId_t" header="os/osdefs.h" />
         <type name="OsStatus_t" header="os/osdefs.h" />
-        <type name="KeyCode_t" header="os/keycodes.h" />
-        <type name="KeyModifiers_t" header="os/keycodes.h" />
         <type name="StorageDescriptor_t" header="ddk/storage.h" />
         <type name="UsbTransferStatus_t" header="usb/usb.h" />
         <type name="UsbTransfer_t" header="usb/usb.h" />
@@ -235,8 +234,8 @@
                 </event>
                 <event name="button">
                     <param name="device_id" type="UUId_t" />
-                    <param name="key_code" type="KeyCode_t" />
-                    <param name="modifiers" type="KeyModifiers_t" />
+                    <param name="key_code" type="uint8_t" />
+                    <param name="modifiers" type="uint16_t" />
                 </event>
                 <event name="cursor">
                     <param name="device_id" type="UUId_t" />

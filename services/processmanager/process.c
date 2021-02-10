@@ -705,26 +705,23 @@ void svc_library_load_callback(struct gracht_recv_message*   message,
 
 uintptr_t
 ResolveProcessLibraryFunction(
-        _In_
-        Process_t *Process,
-        _In_
-        Handle_t Handle,
-        _In_
-        const char *Function)
+        _In_ Process_t*  process,
+        _In_ Handle_t    handle,
+        _In_ const char* function)
 {
-    PeExecutable_t *Image = Process->Executable;
+    PeExecutable_t* executable = process->Executable;
     TRACE("ResolveProcessLibraryFunction(%u, %s)",
-          (UUId_t) (uintptr_t) Process->Header.key, Function);
-    if (Handle != HANDLE_GLOBAL) {
-        Image = (PeExecutable_t *) Handle;
+          (UUId_t) (uintptr_t) process->Header.key, function);
+    if (handle != HANDLE_GLOBAL) {
+        executable = (PeExecutable_t *) handle;
     }
-    return PeResolveFunction(Image, Function);
+    return PeResolveFunction(executable, function);
 }
 
 void svc_library_get_function_callback(struct gracht_recv_message *message,
                                        struct svc_library_get_function_args *args)
 {
-    Process_t  *process = AcquireProcess(args->process_handle);
+    Process_t* process = AcquireProcess(args->process_handle);
     OsStatus_t status   = OsInvalidParameters;
     uintptr_t  address  = 0;
 
@@ -779,9 +776,10 @@ void
 svc_process_get_tick_base_callback(struct gracht_recv_message *message,
                                    struct svc_process_get_tick_base_args *args)
 {
-    Process_t       *process = AcquireProcess(args->handle);
+    Process_t*      process = AcquireProcess(args->handle);
     OsStatus_t      status   = OsInvalidParameters;
     LargeUInteger_t tick;
+
     if (process) {
         tick.QuadPart = clock() - process->StartedAt;
         status = OsSuccess;

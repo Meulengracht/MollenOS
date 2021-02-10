@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2018, Philip Meulengracht
  *
@@ -21,44 +22,41 @@
  *   the standard en-US keyboard. Supports Ascii for now
  */
 
-#include <ctt_input_protocol.h>
 #include <os/keycodes.h>
 
 // Keymap when modifier SHIFT is present
-static uint8_t AsciiShiftKeyMap[VK_KEYCOUNT] = {
+static uint8_t g_asciiShiftKeyMap[VK_KEYCOUNT] = {
     0, ')', '!', '\"', '#', '$', '%', '^', '&', '*', '(', '*',
     '+', '-', '-', ',', '/', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
     'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 
     'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '`', '~', 0, '\t', '>', 
-    '<', ':', 0, '\n', 0, 0, 0, 0, 0, '_', 0, ' ', '?', '|', 
-    '@', '+', '{', '}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+    '<', ':', 0, '\n', 0, 0, '_', 0, ' ', '?', '|', '@', '+',
+    '{', '}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 // Keymap when no modifier is present
-static uint8_t AsciiKeyMap[VK_KEYCOUNT] = {
+static uint8_t g_asciiKeyMap[VK_KEYCOUNT] = {
     0, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*',
     '+', '-', '-', ',', '/', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
     'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 
     't', 'u', 'v', 'w', 'x', 'y', 'z', '`', '`', 0, '\t', '.', 
-    ',', ';', 0, '\n', 0, 0, 0, 0, 0, '-', 0, ' ', '/', '\\', 
-    '\'', '=', '[', ']', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+    ',', ';', 0, '\n', 0, 0, '-', 0, ' ', '/', '\\', '\'', '=',
+    '[', ']', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 char
 GetASCIIFromKeyCodeEnUs(
-    _In_ KeyCode_t keyCode,
-    _In_ KeyModifiers_t keyModifiers)
+    _In_ uint8_t  keyCode,
+    _In_ uint16_t keyModifiers)
 {
-    char character       = '\0';
     int  shouldUpperCase = keyModifiers & (VK_MODIFIER_LSHIFT | VK_MODIFIER_RSHIFT);
+    char character;
 
     if (keyModifiers & VK_MODIFIER_CAPSLOCK) {
         if (shouldUpperCase != 0) {
@@ -71,10 +69,10 @@ GetASCIIFromKeyCodeEnUs(
 
     // Handle modifiers, caps lock negates shift as seen above
     if (shouldUpperCase) {
-        character = AsciiShiftKeyMap[keyCode];
+        character = g_asciiShiftKeyMap[keyCode];
     }
     else {
-        character = AsciiKeyMap[keyCode];
+        character = g_asciiKeyMap[keyCode];
     }
     return character;
 }

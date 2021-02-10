@@ -37,7 +37,7 @@ PS2MouseFastInterrupt(
     DeviceIo_t*   ioSpace = INTERRUPT_IOSPACE(ResourceTable, 0);
     PS2Port_t*    port = (PS2Port_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
     uint8_t       dataRecieved = (uint8_t)InterruptTable->ReadIoSpace(ioSpace, PS2_REGISTER_DATA, 1);
-    uint8_t       breakAtBytes = PS2_MOUSE_DATA_MODE(port) == 0 ? 3 : 4;
+    uint8_t       breakAtBytes = port->device_data.mouse.mode == 0 ? 3 : 4;
     PS2Command_t* command = &port->ActiveCommand;
 
     if (command->State != PS2Free) {
@@ -64,7 +64,7 @@ PS2MouseInterrupt(
     _In_ PS2Port_t* port)
 {
     struct ctt_input_cursor_event input;
-    uint8_t                       bytesRequired = PS2_MOUSE_DATA_MODE(port) == 0 ? 3 : 4;
+    uint8_t                       bytesRequired = port->device_data.mouse.mode == 0 ? 3 : 4;
     uint32_t                      index = port->ResponseReadIndex % PS2_RINGBUFFER_SIZE;
 
     // Update relative x and y
@@ -74,10 +74,10 @@ PS2MouseInterrupt(
     input.buttons_set = port->ResponseBuffer[0] & 0x7; // L-M-R buttons
 
     // Check extended data modes
-    if (PS2_MOUSE_DATA_MODE(port) == 1) {
+    if (port->device_data.mouse.mode == 1) {
         input.rel_z = (int16_t)(char)port->ResponseBuffer[index + 3];
     }
-    else if (PS2_MOUSE_DATA_MODE(port) == 2) {
+    else if (port->device_data.mouse.mode == 2) {
         // 4 bit signed value
         input.rel_z        = (int16_t)(char)(port->ResponseBuffer[index + 3] & 0xF);
         input.buttons_set |= (port->ResponseBuffer[index + 3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
@@ -161,8 +161,9 @@ PS2MouseInitialize(
     int                                status;
 
     // Set initial mouse sampling
-    PS2_MOUSE_DATA_SAMPLING(port) = 100;
-    PS2_MOUSE_DATA_MODE(port)     = 0;
+    memset(&port->device_data, 0, sizeof(port->device_data));
+    port->device_data.mouse.sampling = 100;
+    port->device_data.mouse.mode     = 0;
 
     // Open up the input socket so we can send input data to the OS.
     link_config.type = gracht_link_packet_based;
@@ -185,15 +186,15 @@ PS2MouseInitialize(
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
     if (PS2EnableScroll(port) == OsSuccess) {
-        PS2_MOUSE_DATA_MODE(port) = 1;
+        port->device_data.mouse.mode = 1;
         if (PS2EnableExtensions(port) == OsSuccess) {
-            PS2_MOUSE_DATA_MODE(port) = 2;
+            port->device_data.mouse.mode = 2;
         }
     }
 
     // Update sampling to 60, no need for faster updates
     if (PS2SetSampling(port, 60) == OsSuccess) {
-        PS2_MOUSE_DATA_SAMPLING(&controller->Ports[index]) = 100;
+        port->device_data.mouse.sampling = 100;
     }
 
     port->State = PortStateActive;

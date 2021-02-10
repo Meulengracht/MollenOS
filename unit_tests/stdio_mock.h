@@ -84,6 +84,14 @@ typedef struct stdio_handle {
 #define _FBYTE     0x0400
 #define _IOVRT     0x0800
 
+#define STDIO_HANDLE_INVALID    0
+#define STDIO_HANDLE_PIPE       1
+#define STDIO_HANDLE_FILE       2
+#define STDIO_HANDLE_SOCKET     3
+#define STDIO_HANDLE_IPCONTEXT  4
+#define STDIO_HANDLE_SET        5
+#define STDIO_HANDLE_EVENT      6
+
 #define EOF				(-1)
 #define SEEK_SET        0 /* Seek from beginning of file.  */
 #define SEEK_CUR        1 /* Seek from current position.  */

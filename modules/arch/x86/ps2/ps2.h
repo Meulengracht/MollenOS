@@ -90,6 +90,8 @@
 #define SIGNATURE_IS_KEYBOARD(sig) (sig == 0xAB41 || sig == 0xABC1 || sig == 0xAB83)
 #define SIGNATURE_IS_MOUSE(sig)    (sig != 0xFFFFFFFF && !SIGNATURE_IS_KEYBOARD(sig))
 
+#define PS2_KEYMAP_SIZE ((256) / (sizeof(uint8_t) * 8))
+
 typedef enum PS2CommandState {
     PS2Free             = 0,
     PS2InQueue          = 1,
@@ -124,10 +126,24 @@ typedef struct PS2Port {
     int               event_descriptor;
 
     // Device state information
-    uint8_t      DeviceData[6];
     uint8_t      ResponseBuffer[PS2_RINGBUFFER_SIZE];
     unsigned int ResponseWriteIndex;
     unsigned int ResponseReadIndex;
+
+    union {
+        struct {
+            uint8_t  xlation;
+            uint8_t  scancode_set;
+            uint8_t  repeat;
+            uint8_t  delay;
+            uint16_t modifiers;
+            uint8_t  key_map[PS2_KEYMAP_SIZE];
+        } keyboard;
+        struct {
+            uint8_t sampling;
+            uint8_t mode;
+        } mouse;
+    } device_data;
 } PS2Port_t;
 
 typedef struct PS2Controller {
@@ -200,16 +216,16 @@ PS2MouseInterrupt(
  * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2KeyboardInitialize(
-    _In_ PS2Controller_t* Controller,
-    _In_ int              port,
-    _In_ int              Translation);
+    _In_ PS2Controller_t* controller,
+    _In_ int              portIndex,
+    _In_ int              translation);
 
 /* PS2KeyboardCleanup 
  * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2KeyboardCleanup(
     _In_ PS2Controller_t* controller,
-    _In_ int              index);
+    _In_ int              portIndex);
 
 /* PS2KeyboardInterrupt 
  * Handles the ps2-keyboard interrupt and processes the captured data */

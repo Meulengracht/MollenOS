@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -41,8 +42,5 @@
 #define PS2_MOUSE_MBTN                  0x4
 #define PS2_MOUSE_4BTN                  0x10
 #define PS2_MOUSE_5BTN                  0x20
-
-#define PS2_MOUSE_DATA_SAMPLING(Port)   (Port)->DeviceData[0]
-#define PS2_MOUSE_DATA_MODE(Port)       (Port)->DeviceData[1]
 
 #endif //!_DRIVER_PS2_MOUSE_H_

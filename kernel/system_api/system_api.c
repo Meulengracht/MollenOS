@@ -98,42 +98,42 @@ ScFlushHardwareCache(
 
 OsStatus_t
 ScSystemTime(
-    _In_ SystemTime_t* SystemTime)
+    _In_ SystemTime_t* systemTime)
 {
-    if (SystemTime == NULL) {
+    if (systemTime == NULL) {
         return OsError;
     }
-    memcpy(SystemTime, &GetMachine()->SystemTime, sizeof(SystemTime_t));
+    memcpy(systemTime, &GetMachine()->SystemTime, sizeof(SystemTime_t));
     return OsSuccess;
 }
 
 OsStatus_t
 ScSystemTick(
-    _In_ int              TickBase,
-    _In_ LargeUInteger_t* Tick)
+    _In_ int              tickBase,
+    _In_ LargeUInteger_t* tick)
 {
-    if (Tick == NULL) {
+    if (tick == NULL) {
         return OsError;
     }
 
-    if (TimersGetSystemTick((clock_t*)&Tick->QuadPart) == OsSuccess) {
-        if (TickBase == TIME_PROCESS) {
+    if (TimersGetSystemTick((clock_t*)&tick->QuadPart) == OsSuccess) {
+        if (tickBase == TIME_PROCESS) {
             SystemModule_t* Module = GetCurrentModule();
             if (Module != NULL) {
-                Tick->QuadPart -= Module->StartedAt;
+                tick->QuadPart -= Module->StartedAt;
             }
         }
-        else if (TickBase == TIME_THREAD) {
+        else if (tickBase == TIME_THREAD) {
             Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
-                Tick->QuadPart -= ThreadStartTime(Thread);
+                tick->QuadPart -= ThreadStartTime(Thread);
             }
         }
         return OsSuccess;
     }
 
     // Default the result to 0 to indicate unsupported
-    Tick->QuadPart = 0;
+    tick->QuadPart = 0;
     return OsError;
 }
 

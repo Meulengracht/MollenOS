@@ -43,18 +43,11 @@
 #define PS2_DELAY_1000MS                    0x60
 #define KEY_MODIFIER_EXTENDED               0x8000
 
-#define PS2_KEYBOARD_DATA_XLATION(Port)     (Port)->DeviceData[0]
-#define PS2_KEYBOARD_DATA_SCANCODESET(Port) (Port)->DeviceData[1]
-#define PS2_KEYBOARD_DATA_REPEAT(Port)      (Port)->DeviceData[2]
-#define PS2_KEYBOARD_DATA_DELAY(Port)       (Port)->DeviceData[3]
-#define PS2_KEYBOARD_DATA_STATE_LO(Port)    (Port)->DeviceData[4]
-#define PS2_KEYBOARD_DATA_STATE_HI(Port)    (Port)->DeviceData[5]
-
 /* ScancodeSet2ToVKey
  * Converts a scancode 2 key to the standard-defined virtual key-layout */
 __EXTERN OsStatus_t 
 ScancodeSet2ToVKey(
-    _In_ struct ctt_input_button_event* KeyState,
-    _In_ uint8_t                        Scancode);
+    _In_ struct ctt_input_button_event* keyState,
+    _In_ uint8_t                        scancode);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

@@ -23,7 +23,7 @@
 #include "../keyboard.h"
 #include <os/keycodes.h>
 
-static uint8_t ScancodeSet2Table[132] = {
+static uint8_t g_scancodeSet2Table[132] = {
     VK_INVALID, VK_F9, VK_INVALID, VK_F5, VK_F3, VK_F1, VK_F2, VK_F12, VK_INVALID, VK_F10,
     VK_F8, VK_F6, VK_F4, VK_TAB, VK_BACKTICK, VK_INVALID, VK_INVALID, VK_LALT,
     VK_LSHIFT, VK_INVALID, VK_LCONTROL, VK_Q, VK_1, VK_INVALID, VK_INVALID,
@@ -41,7 +41,7 @@ static uint8_t ScancodeSet2Table[132] = {
     VK_SCROLL, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_F7
 };
 
-static uint8_t ScancodeSet2ExtendedTable[126] = {
+static uint8_t g_scancodeSet2ExtendedTable[126] = {
     VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID,
     VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID,
     VK_INVALID, VK_INVALID, VK_BROWSER_SEARCH, VK_RALT, VK_INVALID, VK_INVALID, VK_RCONTROL,
@@ -63,25 +63,25 @@ static uint8_t ScancodeSet2ExtendedTable[126] = {
 
 OsStatus_t
 ScancodeSet2ToVKey(
-    _In_ struct ctt_input_button_event* KeyState,
-    _In_ uint8_t                        Scancode)
+    _In_ struct ctt_input_button_event* keyState,
+    _In_ uint8_t                        scancode)
 {
     // Handle special cases
-    if (Scancode == PS2_CODE_EXTENDED) {
-        KeyState->modifiers |= KEY_MODIFIER_EXTENDED;
+    if (scancode == PS2_CODE_EXTENDED) {
+        keyState->modifiers |= KEY_MODIFIER_EXTENDED;
         return OsError;
     }
-    else if (Scancode == PS2_CODE_RELEASED) {
-        KeyState->modifiers |= VK_MODIFIER_RELEASED;
+    else if (scancode == PS2_CODE_RELEASED) {
+        keyState->modifiers |= VK_MODIFIER_RELEASED;
         return OsError;
     }
 
     // Get appropriate scancode
-    if (KeyState->modifiers & KEY_MODIFIER_EXTENDED) {
-        KeyState->key_code = ScancodeSet2ExtendedTable[Scancode];
+    if (keyState->modifiers & KEY_MODIFIER_EXTENDED) {
+        keyState->key_code = g_scancodeSet2ExtendedTable[scancode];
     }
     else {
-        KeyState->key_code = ScancodeSet2Table[Scancode];
+        keyState->key_code = g_scancodeSet2Table[scancode];
     }
     return OsSuccess;
 }
