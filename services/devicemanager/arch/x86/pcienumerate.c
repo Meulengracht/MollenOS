@@ -304,7 +304,7 @@ PciReadBars(
             space64 |= ((uint64_t)space32 << 32);
             size64  |= ((uint64_t)size32 << 32);
 #if defined(i386) || defined(__i386__)
-            if (sizeof(uintptr_t) < 8 && Space64 > SIZE_MAX) {
+            if (sizeof(uintptr_t) < 8 && space64 > SIZE_MAX) {
                 WARNING("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
                 return;
             }
