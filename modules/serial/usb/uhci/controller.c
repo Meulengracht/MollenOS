@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2011, Philip Meulengracht
  *
@@ -16,10 +17,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * Todo:
  * Power Management
  */
+
 //#define __TRACE
 
 #include <ddk/interrupt.h>
@@ -27,7 +29,6 @@
 #include "uhci.h"
 #include <threads.h>
 #include <stdlib.h>
-#include <string.h>
 
 OsStatus_t        UhciSetup(UhciController_t *Controller);
 InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
@@ -57,98 +58,98 @@ UhciControllerDump(
 
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ BusDevice_t* Device)
+    _In_ BusDevice_t* busDevice)
 {
-    UhciController_t* Controller;
-    DeviceInterrupt_t Interrupt;
-    DeviceIo_t*       IoBase     = NULL;
-    size_t            IoctlValue = 0;
+    UhciController_t* controller;
+    DeviceInterrupt_t deviceInterrupt;
+    DeviceIo_t*       ioBase = NULL;
+    size_t            ioctlValue = 0;
     int               i;
     
     // Debug
-    TRACE("UhciControllerCreate(%s)", &Device->Name[0]);
+    TRACE("UhciControllerCreate(device=0x%" PRIxIN ")", busDevice);
 
-    Controller = (UhciController_t*)UsbManagerCreateController(Device, UsbUHCI, sizeof(UhciController_t));
-    if (!Controller) {
+    controller = (UhciController_t*)UsbManagerCreateController(busDevice, UsbUHCI, sizeof(UhciController_t));
+    if (!controller) {
         return NULL;
     }
     
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoPortBased) {
+        if (controller->Base.Device.IoSpaces[i].Type == DeviceIoPortBased) {
             TRACE(" > found io-space at bar %i", i);
-            IoBase = &Controller->Base.Device.IoSpaces[i];
+            ioBase = &controller->Base.Device.IoSpaces[i];
             break;
         }
     }
 
     // Sanitize that we found the io-space
-    if (IoBase == NULL) {
+    if (ioBase == NULL) {
         ERROR("No memory space found for uhci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
+          ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Acquire the io-space
-    if (AcquireDeviceIo(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(ioBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for uhci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
     else {
         // Store information
-        Controller->Base.IoBase = IoBase;
+        controller->Base.IoBase = ioBase;
     }
 
     // Initialize the interrupt settings
-    DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterInterruptDescriptor(&Interrupt, Controller->Base.event_descriptor);
-    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
+    DeviceInterruptInitialize(&deviceInterrupt, busDevice);
+    RegisterInterruptDescriptor(&deviceInterrupt, controller->Base.event_descriptor);
+    RegisterFastInterruptHandler(&deviceInterrupt, (InterruptHandler_t)OnFastInterrupt);
+    RegisterFastInterruptIoResource(&deviceInterrupt, ioBase);
+    RegisterFastInterruptMemoryResource(&deviceInterrupt, (uintptr_t)controller, sizeof(UhciController_t), 0);
 
     // Register interrupt
-    Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
+    controller->Base.Interrupt = RegisterInterruptSource(&deviceInterrupt, 0);
 
     // Enable device
-    if (IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
+    if (IoctlDevice(controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+                    (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the uhci-controller");
-        UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
+        UnregisterInterruptSource(controller->Base.Interrupt);
+        ReleaseDeviceIo(controller->Base.IoBase);
+        free(controller);
         return NULL;
     }
 
     // Claim the BIOS ownership and enable pci interrupts
-    IoctlValue = 0x2000;
-    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
-            UHCI_USBLEGEACY, &IoctlValue, 2) != OsSuccess) {
+    ioctlValue = 0x2000;
+    if (IoctlDeviceEx(controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
+                      UHCI_USBLEGEACY, &ioctlValue, 2) != OsSuccess) {
         return NULL;
     }
 
     // If vendor is Intel we null out the intel register
-    if (Controller->Base.Device.Base.VendorId == 0x8086) {
-        IoctlValue = 0x00;
-        if (IoctlDeviceEx(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
-                UHCI_USBRES_INTEL, &IoctlValue, 1) != OsSuccess) {
+    if (controller->Base.Device.Base.VendorId == 0x8086) {
+        ioctlValue = 0x00;
+        if (IoctlDeviceEx(controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
+                          UHCI_USBRES_INTEL, &ioctlValue, 1) != OsSuccess) {
             return NULL;
         }
     }
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (UhciSetup(Controller) == OsSuccess) {
-        return &Controller->Base;
+    if (UhciSetup(controller) == OsSuccess) {
+        return &controller->Base;
     }
     else {
-        HciControllerDestroy(&Controller->Base);
+        HciControllerDestroy(&controller->Base);
         return NULL;
     }
 }

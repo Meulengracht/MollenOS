@@ -33,7 +33,7 @@
 __EXTERN
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ BusDevice_t* Device);
+    _In_ BusDevice_t* busDevice);
 
 /* HciControllerDestroy
  * Destroys an existing controller instance and cleans up

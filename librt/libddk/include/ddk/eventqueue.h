@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -31,27 +32,27 @@ typedef void(*EventQueueFunction)(void*);
 
 /* CreateEventQueue
  * Creates a new event queue that can be used to queue up events based on intervals and timeouts. */
-CRTDECL(void, CreateEventQueue(EventQueue_t** EventQueueOut));
+CRTDECL(OsStatus_t, CreateEventQueue(EventQueue_t** EventQueueOut));
 
 /* DestroyEventQueue
  * Stops the event queue handler, and cleans up resources. */
-CRTDECL(void, DestroyEventQueue(EventQueue_t* EventQueue));
+CRTDECL(void, DestroyEventQueue(EventQueue_t * eventQueue));
 
 /* QueueEvent
  * Queue up a single shot event that should fire as immediate as possible */
-CRTDECL(void, QueueEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context));
+CRTDECL(void, QueueEvent(EventQueue_t * eventQueue, EventQueueFunction callback, void* context));
 
 /* QueueDelayedEvent
  * Queue up a single shot event that should fire after the given delay. A delay of 0 will act as immediate. */
-CRTDECL(UUId_t, QueueDelayedEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context, size_t DelayMs));
+CRTDECL(UUId_t, QueueDelayedEvent(EventQueue_t * eventQueue, EventQueueFunction callback, void* context, size_t delayMs));
 
 /* QueuePeriodicEvent
  * Queue up a periodic event that should fire after the given delay. An interval of 0 is invalid and will not be queue up. */
-CRTDECL(UUId_t, QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context, size_t IntervalMs));
+CRTDECL(UUId_t, QueuePeriodicEvent(EventQueue_t * eventQueue, EventQueueFunction callback, void* context, size_t intervalMs));
 
 /* CancelEvent
  * Marks an event to be cancelled, this will cancel the next time the event would fire, and all subsequent occasions of that
  * event. It will not cancel an event in progress. */
-CRTDECL(OsStatus_t, CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle));
+CRTDECL(OsStatus_t, CancelEvent(EventQueue_t * eventQueue, UUId_t eventHandle));
 
 #endif //!__OS_EVENTQUEUE_H__

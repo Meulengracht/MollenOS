@@ -207,7 +207,11 @@ mtx_timedlock(
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
-    timespec_diff(time_point, &now, &result);
+    timespec_diff(&now, time_point, &result);
+    if (result.tv_sec < 0) {
+        return thrd_timedout;
+    }
+
     msec = result.tv_sec * MSEC_PER_SEC;
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;

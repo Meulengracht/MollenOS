@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -20,6 +21,7 @@
  * Todo:
  * Power Management
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>

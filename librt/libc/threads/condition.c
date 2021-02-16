@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -21,11 +22,11 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/futex.h>
 #include <threads.h>
-#include <errno.h>
 #include <time.h>
 
 int
@@ -121,30 +122,33 @@ cnd_timedwait(
     _In_ const struct timespec* restrict time_point)
 {
     FutexParameters_t parameters;
-	OsStatus_t        status = OsError;
-    time_t            msec   = 0;
+	OsStatus_t        status;
+    time_t            msec;
 	struct timespec   now, result;
 
-	// Sanitize input
-	if (cond == NULL || mutex == NULL) {
+	if (!cond || !mutex) {
 		return thrd_error;
 	}
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
-    timespec_diff(time_point, &now, &result);
+    timespec_diff(&now, time_point, &result);
+    if (result.tv_sec < 0) {
+        return thrd_timedout;
+    }
+
     msec = result.tv_sec * MSEC_PER_SEC;
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-    
+
     parameters._futex0  = &cond->syncobject;
     parameters._futex1  = &mutex->value;
     parameters._val0    = atomic_load(&cond->syncobject);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
-    parameters._timeout = 0;
+    parameters._timeout = msec;
     
     status = Syscall_FutexWait(&parameters);
     mtx_lock(mutex);

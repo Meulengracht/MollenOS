@@ -58,10 +58,10 @@ static int      default_dev_cmp(const void*, const void*);
 static uint64_t endpoint_hash(const void*);
 static int      endpoint_cmp(const void*, const void*);
 
-static EventQueue_t* eventQueue           = NULL;
-static int           hciCheckupRegistered = 0;
-static hashtable_t   controllers          = { 0 };
-static uint8_t       hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
+static EventQueue_t* g_eventQueue = NULL;
+static int           g_hciCheckupRegistered = 0;
+static uint8_t       g_hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
+static hashtable_t   g_controllers;
 
 OsStatus_t
 UsbManagerInitialize(void)
@@ -73,10 +73,10 @@ UsbManagerInitialize(void)
         return OsTimeout;
     }
 
-    CreateEventQueue(&eventQueue);
-    hashtable_construct(&controllers, 0,
-            sizeof(struct usb_controller_device_index),
-            default_dev_hash, default_dev_cmp);
+    CreateEventQueue(&g_eventQueue);
+    hashtable_construct(&g_controllers, 0,
+                        sizeof(struct usb_controller_device_index),
+                        default_dev_hash, default_dev_cmp);
 
     return OsSuccess;
 }
@@ -84,8 +84,8 @@ UsbManagerInitialize(void)
 void
 UsbManagerDestroy(void)
 {
-    DestroyEventQueue(eventQueue);
-    hashtable_destroy(&controllers);
+    DestroyEventQueue(g_eventQueue);
+    hashtable_destroy(&g_controllers);
 }
 
 UsbManagerController_t*
@@ -124,13 +124,13 @@ UsbManagerCreateController(
     ioctl(controller->event_descriptor, FIONBIO, &opt);
 
     // add indexes
-    hashtable_set(&controllers, &(struct usb_controller_device_index) {
+    hashtable_set(&g_controllers, &(struct usb_controller_device_index) {
         .deviceId = device->Base.Id, .pointer = controller });
 
     // UHCI does not support hub events, so we install a timer if not already
-    if (type == UsbUHCI && !hciCheckupRegistered) {
-        QueuePeriodicEvent(eventQueue, UsbManagerQueryUHCIPorts, NULL, MSEC_PER_SEC);
-        hciCheckupRegistered = 1;
+    if (type == UsbUHCI && !g_hciCheckupRegistered) {
+        QueuePeriodicEvent(g_eventQueue, UsbManagerQueryUHCIPorts, NULL, MSEC_PER_SEC);
+        g_hciCheckupRegistered = 1;
     }
     return controller;
 }
@@ -154,7 +154,7 @@ UsbManagerDestroyController(
     UsbManagerClearTransfers(controller);
 
     // remove the controller indexes
-    hashtable_remove(&controllers, &(struct usb_controller_device_index) {
+    hashtable_remove(&g_controllers, &(struct usb_controller_device_index) {
             .deviceId = controller->Device.Base.Id });
 
     // clean up resources
@@ -182,7 +182,7 @@ static void
 UsbManagerQueryUHCIPorts(
     _In_ void* unusedContext)
 {
-    hashtable_enumerate(&controllers, UsbManagerQueryUHCIController, unusedContext);
+    hashtable_enumerate(&g_controllers, UsbManagerQueryUHCIController, unusedContext);
 }
 
 void
@@ -215,7 +215,7 @@ UsbManagerController_t*
 UsbManagerGetController(
     _In_ UUId_t deviceId)
 {
-    struct usb_controller_device_index* index = hashtable_get(&controllers,
+    struct usb_controller_device_index* index = hashtable_get(&g_controllers,
             &(struct usb_controller_device_index) { .deviceId = deviceId });
     if (!index) {
         return NULL;
@@ -599,7 +599,7 @@ UsbManagerDumpSchedule(
 static uint64_t default_dev_hash(const void* deviceIndex)
 {
     const struct usb_controller_device_index* index = deviceIndex;
-    return siphash_64((const uint8_t*)&index->deviceId, sizeof(UUId_t), &hashKey[0]);
+    return siphash_64((const uint8_t*)&index->deviceId, sizeof(UUId_t), &g_hashKey[0]);
 }
 
 static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
@@ -612,7 +612,7 @@ static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
 static uint64_t endpoint_hash(const void* element)
 {
     const struct usb_controller_endpoint* endpoint = element;
-    return siphash_64((const uint8_t*)&endpoint->address, sizeof(UUId_t), &hashKey[0]);
+    return siphash_64((const uint8_t*)&endpoint->address, sizeof(UUId_t), &g_hashKey[0]);
 }
 
 static int endpoint_cmp(const void* element1, const void* element2)

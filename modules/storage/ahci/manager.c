@@ -23,7 +23,7 @@
  *    - Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>

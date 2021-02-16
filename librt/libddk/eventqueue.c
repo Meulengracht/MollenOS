@@ -21,208 +21,257 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <ddk/eventqueue.h>
-#include <ds/collection.h>
-#include <os/mollenos.h>
-#include <threads.h>
-#include <stdlib.h>
+//#define __TRACE
+
 #include <assert.h>
-#include <string.h>
+#include <ddk/eventqueue.h>
+#include <ddk/utils.h>
+#include <ds/list.h>
+#include <os/mollenos.h>
+#include <stdlib.h>
+#include <threads.h>
 
 #define EVENT_QUEUED    0
 #define EVENT_EXECUTED  1
 #define EVENT_CANCELLED 2
 
-typedef struct EventQueueEvent {
-    CollectionItem_t   Header;
+struct EventQueueEvent {
+    element_t          Header;
     EventQueueFunction Function;
     void*              Context;
     size_t             Timeout;
     size_t             Interval;
     int                State;
-} EventQueueEvent_t;
+};
 
 typedef struct EventQueue {
-    int           IsRunning;
-    UUId_t        NextEventId;
-    thrd_t        EventThread;
-    mtx_t         EventLock;
-    cnd_t         EventCondition;
-    Collection_t* Events;
+    int    IsRunning;
+    UUId_t NextEventId;
+    thrd_t EventThread;
+    mtx_t  EventLock;
+    cnd_t  EventCondition;
+    list_t Events;
 } EventQueue_t;
 
-static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Function, void* Context, size_t TimeoutMs, size_t IntervalMs);
-static int    EventQueueWorker(void* Context);
+static UUId_t __AddToEventQueue(EventQueue_t* eventQueue, EventQueueFunction function, void* context, size_t timeoutMs, size_t intervalMs);
+static int    EventQueueWorker(void* context);
 
-void CreateEventQueue(EventQueue_t** EventQueueOut)
+OsStatus_t CreateEventQueue(EventQueue_t** EventQueueOut)
 {
-    EventQueue_t* EventQueue = malloc(sizeof(EventQueue_t));
-    assert(EventQueue != NULL);
-    
-    EventQueue->Events       = CollectionCreate(KeyId);
-    EventQueue->IsRunning    = 1;
-    EventQueue->NextEventId  = 1;
-    
-    if (thrd_create(&EventQueue->EventThread, EventQueueWorker, EventQueue) != thrd_success) {
-        EventQueue->EventThread = UUID_INVALID;
-        DestroyEventQueue(EventQueue);
-        return;
+    EventQueue_t* eventQueue = malloc(sizeof(EventQueue_t));
+    if (!eventQueue) {
+        return OsOutOfMemory;
     }
+
+    eventQueue->IsRunning   = 1;
+    eventQueue->NextEventId = 1;
+    list_construct(&eventQueue->Events);
+    mtx_init(&eventQueue->EventLock, mtx_plain);
+    cnd_init(&eventQueue->EventCondition);
     
-    mtx_init(&EventQueue->EventLock, mtx_plain);
-    cnd_init(&EventQueue->EventCondition);
-    *EventQueueOut = EventQueue;
+    if (thrd_create(&eventQueue->EventThread, EventQueueWorker, eventQueue) != thrd_success) {
+        eventQueue->EventThread = UUID_INVALID;
+        DestroyEventQueue(eventQueue);
+        return OsOutOfMemory;
+    }
+
+    *EventQueueOut = eventQueue;
+    return OsSuccess;
 }
 
-void DestroyEventQueue(EventQueue_t* EventQueue)
+static void __CleanupEvent(element_t* element, void* context)
 {
-    int Unused;
+    _CRT_UNUSED(context);
+    free(element->value);
+}
+
+void DestroyEventQueue(EventQueue_t* eventQueue)
+{
+    int unused;
 
     // Kill the thread, then cleanup resources
-    if (EventQueue->EventThread != UUID_INVALID) {
-        EventQueue->IsRunning = 0;
-        cnd_signal(&EventQueue->EventCondition);
-        thrd_join(EventQueue->EventThread, &Unused);
-        mtx_destroy(&EventQueue->EventLock);
-        cnd_destroy(&EventQueue->EventCondition);
+    if (eventQueue->EventThread != UUID_INVALID) {
+        eventQueue->IsRunning = 0;
+        cnd_signal(&eventQueue->EventCondition);
+        thrd_join(eventQueue->EventThread, &unused);
+        mtx_destroy(&eventQueue->EventLock);
+        cnd_destroy(&eventQueue->EventCondition);
     }
-    CollectionDestroy(EventQueue->Events);
-    free(EventQueue);
+    list_clear(&eventQueue->Events, __CleanupEvent, NULL);
+    free(eventQueue);
 }
 
-void QueueEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context)
+void QueueEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context)
 {
-    AddToEventQueue(EventQueue, Callback, Context, 0, 0);
+    __AddToEventQueue(eventQueue, callback, context, 0, 0);
 }
 
-UUId_t QueueDelayedEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context, size_t DelayMs)
+UUId_t QueueDelayedEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t delayMs)
 {
-    return AddToEventQueue(EventQueue, Callback, Context, DelayMs, 0);
+    return __AddToEventQueue(eventQueue, callback, context, delayMs, 0);
 }
 
-UUId_t QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction Callback, void* Context, size_t IntervalMs)
+UUId_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t intervalMs)
 {
-    if (IntervalMs == 0) {
+    if (intervalMs == 0) {
         return UUID_INVALID;
     }
-    return AddToEventQueue(EventQueue, Callback, Context, IntervalMs, IntervalMs);
+    return __AddToEventQueue(eventQueue, callback, context, intervalMs, intervalMs);
 }
 
-OsStatus_t CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle)
+OsStatus_t CancelEvent(EventQueue_t* eventQueue, UUId_t eventHandle)
 {
-    DataKey_t          Key = { .Value.Id = EventHandle };
-    EventQueueEvent_t* Event;
-    OsStatus_t         Status = OsDoesNotExist;
+    element_t* element;
+    OsStatus_t osStatus = OsDoesNotExist;
     
-    mtx_lock(&EventQueue->EventLock);
-    Event = (EventQueueEvent_t*)CollectionGetNodeByKey(EventQueue->Events, Key, 0);
-    if (Event != NULL && Event->State != EVENT_EXECUTED) {
-        Event->State = EVENT_CANCELLED;
-        Status = OsSuccess;
+    mtx_lock(&eventQueue->EventLock);
+    element = list_find(&eventQueue->Events, (void*)(uintptr_t)eventHandle);
+    if (element) {
+        struct EventQueueEvent* event = element->value;
+        if (event->State != EVENT_EXECUTED) {
+            event->State = EVENT_CANCELLED;
+            osStatus = OsSuccess;
+        }
     }
-    mtx_unlock(&EventQueue->EventLock);
-    return Status;
+    mtx_unlock(&eventQueue->EventLock);
+    return osStatus;
 }
 
-static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Function, void* Context, size_t TimeoutMs, size_t IntervalMs)
+static UUId_t __AddToEventQueue(
+        _In_ EventQueue_t*      eventQueue,
+        _In_ EventQueueFunction function,
+        _In_ void*              context,
+        _In_ size_t             timeoutMs,
+        _In_ size_t             intervalMs)
 {
-    EventQueueEvent_t* Event = (EventQueueEvent_t*)malloc(sizeof(EventQueueEvent_t));
-    assert(Event != NULL);
-    
-    assert(EventQueue != NULL);
-    assert(Function != NULL);
+    struct EventQueueEvent* event;
+    UUId_t                  eventId = UUID_INVALID;
+    TRACE("__AddToEventQueue(eventQueue=0x%" PRIxIN ", timeoutMs=%" PRIuIN ", intervalMs=%" PRIuIN,
+          eventQueue, timeoutMs, intervalMs);
 
-    memset(Event, 0, sizeof(EventQueueEvent_t));
-    Event->Header.Key.Value.Id = EventQueue->NextEventId++;
+    if (!eventQueue || !function) {
+        goto exit;
+    }
 
-    Event->Function = Function;
-    Event->Context  = Context;
-    Event->Timeout  = TimeoutMs;
-    Event->Interval = IntervalMs;
+    event = (struct EventQueueEvent*)malloc(sizeof(struct EventQueueEvent));
+    if (!event) {
+        goto exit;
+    }
+
+    eventId = eventQueue->NextEventId++;
+
+    ELEMENT_INIT(&event->Header, (uintptr_t)eventId, event);
+    event->State    = EVENT_QUEUED;
+    event->Function = function;
+    event->Context  = context;
+    event->Timeout  = timeoutMs;
+    event->Interval = intervalMs;
     
-    mtx_lock(&EventQueue->EventLock);
-    CollectionAppend(EventQueue->Events, &Event->Header);
-    mtx_unlock(&EventQueue->EventLock);
-    cnd_signal(&EventQueue->EventCondition);
-    return Event->Header.Key.Value.Id;
+    mtx_lock(&eventQueue->EventLock);
+    list_append(&eventQueue->Events, &event->Header);
+    mtx_unlock(&eventQueue->EventLock);
+    cnd_signal(&eventQueue->EventCondition);
+
+exit:
+    TRACE("__AddToEventQueue returns=%u", eventId);
+    return eventId;
 }
 
-static EventQueueEvent_t* GetNearestEventQueueDeadline(EventQueue_t* EventQueue)
+static struct EventQueueEvent* __GetNearestDeadline(
+        _In_ EventQueue_t* eventQueue)
 {
-    EventQueueEvent_t* Nearest = NULL;
-    foreach(Node, EventQueue->Events) {
-        EventQueueEvent_t* Event = (EventQueueEvent_t*)Node;
-        if (Nearest == NULL) {
-            Nearest = Event;
+    struct EventQueueEvent* nearest = NULL;
+    TRACE("__GetNearestDeadline(eventQueue=0x%" PRIxIN ")");
+
+    foreach(element, &eventQueue->Events) {
+        struct EventQueueEvent* event = element->value;
+        if (nearest == NULL) {
+            nearest = event;
         }
         else {
-            if (Event->Timeout < Nearest->Timeout) {
-                Nearest = Event;
+            if (event->Timeout < nearest->Timeout) {
+                nearest = event;
             }
         }
     }
-    return Nearest;
+
+    TRACE("__GetNearestDeadline returns=%" PRIuIN " ms",
+          nearest ? nearest->Timeout : 0);
+    return nearest;
 }
 
-static int EventQueueWorker(void* Context)
+static int EventQueueWorker(void* context)
 {
-    EventQueueEvent_t* Event;
-    EventQueue_t*   EventQueue = (EventQueue_t*)Context;
-    struct timespec TimePoint;
-    struct timespec InterruptedAt;
-    struct timespec TimeSpent;
+    struct EventQueueEvent* event;
+    EventQueue_t*           eventQueue = (EventQueue_t*)context;
+    struct timespec         timePoint;
+    struct timespec         interruptedAt;
+    struct timespec         timeSpent;
+
     SetCurrentThreadName("event-pump");
 
-    mtx_lock(&EventQueue->EventLock);
-    while (EventQueue->IsRunning) {
-        Event = GetNearestEventQueueDeadline(EventQueue);
-        if (Event != NULL) {
-            timespec_get(&TimePoint, TIME_UTC);
-            TimePoint.tv_nsec += Event->Timeout * NSEC_PER_MSEC;
-            if (TimePoint.tv_nsec > NSEC_PER_SEC) {
-                TimePoint.tv_nsec -= NSEC_PER_SEC;
-                TimePoint.tv_sec++;
+    mtx_lock(&eventQueue->EventLock);
+    while (eventQueue->IsRunning) {
+        event = __GetNearestDeadline(eventQueue);
+        if (event) {
+            timespec_get(&timePoint, TIME_UTC);
+
+            timePoint.tv_nsec += (long)event->Timeout * NSEC_PER_MSEC;
+            if (timePoint.tv_nsec > NSEC_PER_SEC) {
+                timePoint.tv_nsec -= NSEC_PER_SEC;
+                timePoint.tv_sec++;
             }
 
-            if (cnd_timedwait(&EventQueue->EventCondition, &EventQueue->EventLock, &TimePoint) == thrd_timedout) {
+            TRACE("EventQueueWorker waiting");
+            if (cnd_timedwait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == thrd_timedout) {
+                if (!eventQueue->IsRunning) {
+                    break;
+                }
+                TRACE("EventQueueWorker timed out, invoking callback");
+
                 // We timedout, or in other words successfully waited
-                if (Event->State != EVENT_CANCELLED) {
-                    Event->State = EVENT_EXECUTED;
+                if (event->State != EVENT_CANCELLED) {
+                    event->State = EVENT_EXECUTED;
                     
-                    mtx_unlock(&EventQueue->EventLock);
-                    Event->Function(Event->Context);
-                    mtx_lock(&EventQueue->EventLock);
-                    if (Event->Interval != 0) {
-                        Event->Timeout = Event->Interval;
+                    mtx_unlock(&eventQueue->EventLock);
+                    event->Function(event->Context);
+                    mtx_lock(&eventQueue->EventLock);
+                    if (event->Interval != 0) {
+                        event->Timeout = event->Interval;
                     }
                 }
-                if (Event->State == EVENT_CANCELLED || !Event->Interval) {
-                    CollectionRemoveByNode(EventQueue->Events, &Event->Header);
-                    CollectionDestroyNode(EventQueue->Events, &Event->Header);
+
+                if (event->State == EVENT_CANCELLED || !event->Interval) {
+                    list_remove(&eventQueue->Events, &event->Header);
+                    __CleanupEvent(&event->Header, NULL);
                 }
             }
             else {
-                if (Event->State != EVENT_CANCELLED) {
+                if (event->State != EVENT_CANCELLED) {
+                    size_t ms;
                     // We were interrupted due to added events, calculate sleep time and subtract. Then
                     // start over
-                    timespec_get(&InterruptedAt, TIME_UTC);
-                    timespec_diff(&InterruptedAt, &TimePoint, &TimeSpent);
-                    size_t Milliseconds = TimeSpent.tv_sec * MSEC_PER_SEC;
-                    Milliseconds       += TimeSpent.tv_nsec / NSEC_PER_MSEC;
-                    Event->Timeout     -= Milliseconds;
+                    timespec_get(&interruptedAt, TIME_UTC);
+                    timespec_diff(&interruptedAt, &timePoint, &timeSpent);
+
+                    ms = timeSpent.tv_sec * MSEC_PER_SEC;
+                    ms += timeSpent.tv_nsec / NSEC_PER_MSEC;
+                    TRACE("EventQueueWorker interrupted, deducting %" PRIuIN "ms", ms);
+
+                    event->Timeout -= ms;
                 }
                 else {
-                    CollectionRemoveByNode(EventQueue->Events, &Event->Header);
-                    CollectionDestroyNode(EventQueue->Events, &Event->Header);
+                    list_remove(&eventQueue->Events, &event->Header);
+                    __CleanupEvent(&event->Header, NULL);
                 }
                 continue;
             }
         }
         else {
             // Wait for event to be added
-            cnd_wait(&EventQueue->EventCondition, &EventQueue->EventLock);
+            cnd_wait(&eventQueue->EventCondition, &eventQueue->EventLock);
         }
     }
-    mtx_unlock(&EventQueue->EventLock);
+    mtx_unlock(&eventQueue->EventLock);
     return 0;
 }

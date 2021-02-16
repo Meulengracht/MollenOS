@@ -77,9 +77,6 @@ timespec_get(
     return 0;
 }
 
-/* timespec_diff
- * The difference between two timespec with the same base. Result
- * is stored in static storage provided by user. */
 void
 timespec_diff(
     _In_ const struct timespec* start,
