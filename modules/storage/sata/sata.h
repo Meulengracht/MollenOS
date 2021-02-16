@@ -33,92 +33,89 @@
 #define	SATA_SIGNATURE_SEMB		0xC33C0101	/* Enclosure Management Bridge */
 #define	SATA_SIGNATURE_PM		0x96690101	/* Port Multiplier */
 
-/* The SATA specs specify these kinds of
- * FIS (Frame Information Structure) */
-typedef enum _AHCIFisType {
-	FISRegisterH2D = 0x27,		/* Register FIS - Host To Device */
-	FISRegisterD2H = 0x34,		/* Register FIS - Device To Host */
-	FISDmaActivate = 0x39,		/* DMA Activate FIS - Device To Host */
-	FISDmaSetup = 0x41,			/* DMA Setup FIS - Bidirectional */
-	FISData = 0x46,				/* Data FIS - Bidirectional */
-	FISBistActivate = 0x58,		/* BIST Activate FIS - Bidirectional */
-	FISPioSetup = 0x5F,			/* PIO Setup FIS - Device To Host */
-	FISDeviceBits = 0xA1		/* Set device bits FIS - Device To Host */
+/**
+ * Frame Information Structure type codes
+ */
+typedef enum AHCIFisType {
+	FISRegisterH2D = 0x27,		// Register FIS - Host To Device
+	FISRegisterD2H = 0x34,		// Register FIS - Device To Host
+	FISDmaActivate = 0x39,		// DMA Activate FIS - Device To Host
+	FISDmaSetup = 0x41,			// DMA Setup FIS - Bidirectional
+	FISData = 0x46,				// Data FIS - Bidirectional
+	FISBistActivate = 0x58,		// BIST Activate FIS - Bidirectional
+	FISPioSetup = 0x5F,			// PIO Setup FIS - Device To Host
+	FISDeviceBits = 0xA1		// Set device bits FIS - Device To Host
 } AHCIFisType_t;
 
-/* The FISRegisterH2D structure 
- * as described in the SATA Specification */
+/**
+ * For all types of FIS's these rules apply:
+ * In all of the following FIS structures the following rules shall apply:
+ * 1. All reserved fields shall be written or transmitted as all zeroes
+ * 2. All reserved fields shall be ignored during the reading or reception process.
+ */
+
+
 PACKED_TYPESTRUCT(FISRegisterH2D, {
 	uint8_t					Type;
-
-	/* Flags 
+	/**
+	 * Flags
 	 * Bits 0-3: Port Multiplier
-	 * Bits 4-6: Reserved, should be 0
+	 * Bits 4-6: Reserved, must be 0
 	 * Bit 7: (1) for Command, (0) for Control */
 	uint8_t					Flags;
+	uint8_t					Command;
+	uint8_t					FeaturesLow;
 
-	uint8_t					Command;		/* Command Register */
-	uint8_t					FeaturesLow;	/* Features 0:7 */
-	uint8_t					SectorNo;		/* Lba Register 0:7 */
+	uint8_t					SectorNo;     // LBA 0:7
+	uint8_t					CylinderLow;  // LBA 8:15
+	uint8_t					CylinderHigh; // LBA 16:23
 
-	/* Contents of the least significant 8 bits 
-	 * of Cylinder Number or LBA 15:8 */
-	uint8_t					CylinderLow;
-
-	/* Contents of the least significant 8 bits 
-	 * of Cylinder Number or LBA 23:16 */
-	uint8_t					CylinderHigh;
-
-	/* Device Register 
+	/**
+	 * Device Register
 	 * Bit 0-3: Head when using CHS 
-	 * Bit   4: Drive number, 0 or 1 */
+	 * Bit   4: Drive number, 0 or 1
+	 * Bit   6: 0 = CHS, 1 = LBA */
 	uint8_t					Device;
 
-	/* Contents of the upper 8 bits of the expandend 
-	 * sector number value (LBA 31:24) */
-	uint8_t					SectorNoExtended;
-	
-	/* Contents of the most significant 8 bits of 
-	 * the Cylinder number, or LBA 39:32 */
-	uint8_t					CylinderLowExtended;
+	uint8_t					SectorNoExtended;     // LBA 24:31
+	uint8_t					CylinderLowExtended;  // LBA 32:39
+	uint8_t					CylinderHighExtended; // LBA 40:47
 
-	/* Contents of the most significant 8 bits of 
-	 * the Cylinder number, or LBA 47:40 */
-	uint8_t					CylinderHighExtended;
-	uint8_t					FeaturesHigh;	/* Features 8:15 */
-	uint16_t				Count;	/* Only using bits 8-15 in LBA48 mode */
-	uint8_t					Icc;	/* Isochronous Command Completion */
+	uint8_t					FeaturesHigh;	// Features 8:15
+	uint16_t				Count;
+	uint8_t					Icc; // Time-limit if command supports
 	uint8_t					Control;
 	uint32_t				Reserved;
 });
 
-/* FISRegisterH2D Definitions 
- * - Flags */
-#define FIS_HOST_TO_DEVICE			0x80
+#define FIS_REGISTER_H2D_FLAG_COMMAND 0x80
+
+#define FIS_REGISTER_H2D_DEVICE_LBAMODE 0x40
 
 /* The FISRegisterD2H structure 
  * as described in the SATA Specification */
 PACKED_TYPESTRUCT(FISRegisterD2H, {
 	uint8_t					Type;
 
-	/* Flags 
+	/**
+	 * Flags
 	 * Bits 0-3: Port Multiplier
-	 * Bits 4-5: Reserved, should be 0
-	 * Bit 6: Interrupt Bit 
-	 * Bit 7: Reserved, should be 0 */
+	 * Bit 6: Interrupt Bit  */
 	uint8_t					Flags;
 	uint8_t					Status;
 	uint8_t					Error;
 
-	uint16_t				Lba0;			/* Lba Register 0:15 */
-	uint8_t					Lba1;			/* Lba Register 16:23 */
+	uint16_t				Lba0;			// Lba Register 0:15
+	uint8_t					Lba1;			// Lba Register 16:23
 	uint8_t					Device;
-	uint16_t				Lba2;			/* Lba Register 24:39 */
-	uint8_t					Lba3;			/* Lba Register 40:47 */
 
+	uint16_t				Lba2;			// Lba Register 24:39
+	uint8_t					Lba3;			// Lba Register 40:47
 	uint8_t					Reserved0;
-	uint16_t				Count;			/* Count Register */
+
+	uint16_t				Count;
 	uint16_t				Reserved1;
+
 	uint32_t				Reserved2;		/* DWORD 4: Reserved */
 });
 

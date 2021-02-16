@@ -34,19 +34,30 @@ AcpiQueryStatus(
 
 OsStatus_t
 AcpiQueryTable(
-    _In_  const char*         Signature, 
-    _Out_ ACPI_TABLE_HEADER** Table)
+    _In_  const char*         signature,
+    _Out_ ACPI_TABLE_HEADER** tableOut)
 {
-    ACPI_TABLE_HEADER Header;
-    OsStatus_t        Result;
-    
-    Result = Syscall_AcpiGetHeader(Signature, &Header);
-    if (Result != OsSuccess) {
-        return Result;
+    ACPI_TABLE_HEADER header;
+    ACPI_TABLE_HEADER* table;
+    OsStatus_t         osStatus;
+
+    osStatus = Syscall_AcpiGetHeader(signature, &header);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
 
-    *Table = (ACPI_TABLE_HEADER*)malloc(Header.Length);
-    return Syscall_AcpiGetTable(Signature, *Table);
+    table = (ACPI_TABLE_HEADER*)malloc(header.Length);
+    if (!table) {
+        return OsOutOfMemory;
+    }
+    osStatus = Syscall_AcpiGetTable(signature, table);
+    if (osStatus != OsSuccess) {
+        free(table);
+        return osStatus;
+    }
+
+    *tableOut = table;
+    return osStatus;
 }
 
 OsStatus_t AcpiQueryInterrupt(

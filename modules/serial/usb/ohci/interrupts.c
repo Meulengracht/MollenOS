@@ -32,7 +32,7 @@
 
 InterruptStatus_t
 OnFastInterrupt(
-        _In_ InterruptFunctionTable_t*     InterruptTable,
+        _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
 {
     OhciRegisters_t*  Registers  = (OhciRegisters_t*)INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;

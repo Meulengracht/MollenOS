@@ -24,7 +24,7 @@
 
 #define __MODULE "MEM2"
 
-#define __TRACE
+//#define __TRACE
 
 #include <arch/mmu.h>
 #include <arch/utils.h>

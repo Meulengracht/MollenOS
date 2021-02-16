@@ -94,45 +94,47 @@ PACKED_TYPESTRUCT(AcpiEcdt, {
     char                 NsPath[32];
 });
 
-PACKED_TYPESTRUCT(PciRoutingEntry, {
+typedef struct AcpiInterruptResource {
     element_t Header;
-    int       Irq;
+    uint32_t  Irq;
     uint8_t   AcType;
     uint8_t   Trigger;
     uint8_t   Shareable;
     uint8_t   Polarity;
-    uint8_t   Fixed;
-});
+} AcpiInterruptResource_t;
 
-PACKED_TYPESTRUCT(PciRoutingSource, {
-    element_t          Header;
-    ACPI_HANDLE        Handle;
-    list_t*            Entries;
-    PciRoutingEntry_t* ActiveEntry;
-});
+typedef struct AcpiInterruptSource {
+    element_t                Header;
+    ACPI_HANDLE              Handle;
+    list_t                   PossibleInterrupts; // list of AcpiInterruptResource_t
+    AcpiInterruptResource_t* CurrentInterrupt;
+} AcpiInterruptSource_t;
 
-PACKED_TYPESTRUCT(PciRoutings, {
-    list_t* Sources; // List of lists of irqs
-    list_t* InterruptEntries[128];
-    int     ActiveIrqs[128];
-});
+typedef struct AcpiRoutingEntry {
+    AcpiInterruptSource_t* InterruptSource;
+} AcpiRoutingEntry_t;
 
-/* AcpiDevicePower
- * ACPI Device Power information. This is needed in
- * order to control the power levels and states. */
-PACKED_TYPESTRUCT(AcpiDevicePower, {
+typedef struct AcpiBusRoutings {
+    list_t             Sources; // list of AcpiInterruptSource_t
+    AcpiRoutingEntry_t InterruptEntries[128]; // list of PciRoutingEntry_t
+} AcpiBusRoutings_t;
+
+/**
+ * Contains information extracted from ACPI to describe power management for acpi device
+ */
+typedef struct AcpiDevicePower {
     ACPI_HANDLE             GpeHandle;
     UINT32                  GpeBit;
     UINT32                  LowestWakeState; // Lowest state capable of wake
     
     UINT32                  PowerResourceCount;
     ACPI_OBJECT*            PowerResources[APCI_MAX_PRW_RESOURCES];
-});
+} AcpiDevicePower_t;
 
-/* AcpiDevice 
- * Generic ACPI device representation in MCore.
- * Contains all information neccessary to use the device. */
-PACKED_TYPESTRUCT(AcpiDevice, {
+/**
+ * Represents an acpi device in the kernel.
+ */
+typedef struct AcpiDevice {
     element_t                   Header;
     ACPI_HANDLE                 Handle;
     ACPI_HANDLE                 Parent;
@@ -147,41 +149,49 @@ PACKED_TYPESTRUCT(AcpiDevice, {
     ACPI_PCI_ID                 PciLocation;
     int                         GlobalBus;
     
-    size_t                      Features;   // Supported namespace functions
-    size_t                      FeaturesEx; // Type features
+    unsigned int                Features;   // Supported namespace functions
+    unsigned int                FeaturesEx; // Type features
     size_t                      Status;
     uint64_t                    Address;
 
-    // Feature data
-    PciRoutings_t*              Routings;
+    // Optional feature data, not required to be here
+    AcpiBusRoutings_t*          Routings;
     AcpiDevicePower_t           PowerSettings;
-});
+} AcpiDevice_t;
 
 /* AcpiInitializeEarly
  * Initializes Early Access and enumerates the APIC Table */
-KERNELAPI OsStatus_t KERNELABI
-AcpiInitializeEarly(void);
+KERNELAPI OsStatus_t KERNELABI AcpiInitializeEarly(void);
 
 /* Initializes the full access and functionality
  * of ACPICA / ACPI and allows for scanning of ACPI devices */
-KERNELAPI void KERNELABI
-AcpiInitialize(void);
+KERNELAPI void KERNELABI AcpiInitialize(void);
 
 /* AcpiDevicesScan
  * Scan the ACPI namespace for devices and irq-routings, 
  * this is very neccessary for getting correct irqs */
-KERNELAPI ACPI_STATUS KERNELABI
-AcpiDevicesScan(void);
+KERNELAPI ACPI_STATUS KERNELABI AcpiDevicesScan(void);
 
 /* This returns ACPI_NOT_AVAILABLE if ACPI is not available
  * on the system, or ACPI_AVAILABLE if acpi is available */
 __EXTERN int AcpiAvailable(void);
 
+/**
+ *
+ * @param bus
+ * @param slot
+ * @return
+ */
+KERNELAPI AcpiDevice_t* KERNELABI
+AcpiDeviceLookup(
+        _In_ int bus,
+        _In_ int slot);
+
 /* AcpiDeviceLookupBusRoutings
  * lookup a bridge device for the given bus that contains pci routings */
 KERNELAPI AcpiDevice_t* KERNELABI
 AcpiDeviceLookupBusRoutings(
-    _In_ int                Bus);
+    _In_ int                bus);
 
 /* AcpiDeviceAttachData
  * Stores custom context data for an individual acpi-device handle */
@@ -210,7 +220,11 @@ __EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
  * the ssdt information. */
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetIrqRoutings(
-    _In_ AcpiDevice_t *Device);
+    _In_ AcpiDevice_t *device);
+
+KERNELAPI ACPI_STATUS KERNELABI
+AcpiDeviceCurrentIrq(
+        _In_ AcpiDevice_t* device);
 
 /* AcpiDeviceGetHWInfo
  * Retrieves acpi-hardware information like Status, Address
@@ -226,6 +240,17 @@ AcpiDeviceGetHWInfo(
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceParsePower(
     _InOut_ AcpiDevice_t *Device);
+
+/**
+ *
+ * @param acpiHandle
+ * @param deviceStatusOut
+ * @return
+ */
+ACPI_STATUS
+AcpiDeviceQueryStatus(
+        _In_  ACPI_HANDLE   acpiHandle,
+        _Out_ unsigned int* deviceStatusOut);
 
 /* Device Type Helpers */
 __EXTERN ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device);

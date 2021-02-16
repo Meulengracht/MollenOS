@@ -73,6 +73,7 @@ typedef struct InterruptFunctionTable {
     OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
     OsStatus_t (*EventSignal)(UUId_t handle);
     OsStatus_t (*WriteStream)(UUId_t handle, const void* buffer, size_t length);
+    void       (*Trace)(const char* format, ...);
 } InterruptFunctionTable_t;
 
 #define INTERRUPT_IOSPACE(Resources, Index)     Resources->IoResources[Index]

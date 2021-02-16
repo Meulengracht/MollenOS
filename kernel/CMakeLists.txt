@@ -37,14 +37,14 @@ add_executable (vali-core
     ../librt/libddk/io.c
 
 	# ACPI
+	acpi/irq.c
 	acpi/functions.c
 	acpi/handlers.c
 	acpi/hpet.c
 	acpi/init.c
-	acpi/interrupts.c
 	acpi/osl.c
 	acpi/scan.c
-	acpi/tableparser.c
+	acpi/early_init.c
 
 	# Components
 	components/cpu.c

@@ -24,10 +24,13 @@
 
 #include <arch/io.h>
 #include <ddk/interrupt.h>
+#include <debug.h>
+#include <ds/streambuffer.h>
 #include <interrupts.h>
 #include <userevent.h>
-#include <ds/streambuffer.h>
 #include <memory_region.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 static InterruptFunctionTable_t FastInterruptTable = {0 };
 
@@ -38,8 +41,7 @@ GetFastInterruptTable(void)
 }
 
 // ReadIoSpace
-static size_t
-TableFunctionReadIoSpace(
+static size_t __FunctionReadIoSpace(
     _In_ DeviceIo_t* IoSpace,
     _In_ size_t      Offset,
     _In_ size_t      Length)
@@ -52,8 +54,7 @@ TableFunctionReadIoSpace(
 }
 
 // WriteIoSpace
-static OsStatus_t
-TableFunctionWriteIoSpace(
+static OsStatus_t __FunctionWriteIoSpace(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,
@@ -65,8 +66,7 @@ TableFunctionWriteIoSpace(
     return OsError;
 }
 
-static OsStatus_t
-TableFunctionWriteStreambuffer(
+static OsStatus_t __FunctionWriteStream(
         _In_ UUId_t      handle,
         _In_ const void* buffer,
         _In_ size_t      length)
@@ -79,11 +79,24 @@ TableFunctionWriteStreambuffer(
     return OsSuccess;
 }
 
+static void __FunctionTrace(const char* format, ...)
+{
+    char    buffer[128];
+    va_list arguments;
+
+    va_start(arguments, format);
+    vsnprintf(&buffer[0], sizeof(buffer) - 1, format, arguments);
+    va_end(arguments);
+
+    LogAppendMessage(LOG_TRACE, &buffer[0]);
+}
+
 void
 InitializeInterruptTable(void)
 {
-    FastInterruptTable.ReadIoSpace  = TableFunctionReadIoSpace;
-    FastInterruptTable.WriteIoSpace = TableFunctionWriteIoSpace;
+    FastInterruptTable.ReadIoSpace  = __FunctionReadIoSpace;
+    FastInterruptTable.WriteIoSpace = __FunctionWriteIoSpace;
     FastInterruptTable.EventSignal  = UserEventSignal;
-    FastInterruptTable.WriteStream  = TableFunctionWriteStreambuffer;
+    FastInterruptTable.WriteStream  = __FunctionWriteStream;
+    FastInterruptTable.Trace        = __FunctionTrace;
 }

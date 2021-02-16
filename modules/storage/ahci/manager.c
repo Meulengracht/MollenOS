@@ -22,7 +22,8 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -36,9 +37,9 @@
 #include "ctt_driver_protocol_server.h"
 #include "ctt_storage_protocol_server.h"
 
-static list_t devices           = LIST_INIT;
-static UUId_t deviceIdGenerator = 0;
-static size_t frameSize;
+static list_t devices        = LIST_INIT;
+static UUId_t g_nextDeviceId = 0;
+static size_t g_frameSize;
 
 static void
 FlipStringBuffer(
@@ -76,7 +77,7 @@ AhciManagerInitialize(void)
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
     if (Status == OsSuccess) {
-        frameSize = Descriptor.PageSizeBytes;
+        g_frameSize = Descriptor.PageSizeBytes;
     }
     return Status;
 }
@@ -98,7 +99,7 @@ AhciManagerDestroy(void)
 size_t
 AhciManagerGetFrameSize(void)
 {
-    return frameSize;
+    return g_frameSize;
 }
 
 AhciDevice_t*
@@ -108,32 +109,30 @@ AhciManagerGetDevice(
     return list_find_value(&devices, (void*)(uintptr_t)deviceId);
 }
 
-static AhciDevice_t*
-CreateInitialDevice(
-    _In_ AhciController_t* Controller, 
-    _In_ AhciPort_t*       Port,
-    _In_ DeviceType_t      Type)
+static AhciDevice_t* __CreateInitialDevice(
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port,
+    _In_ DeviceType_t      deviceType)
 {
     AhciDevice_t* device;
     UUId_t        deviceId;
 
-    TRACE("CreateInitialDevice(Controller %i, Port %i)",
-        Controller->Device.Id, Port->Id);
+    TRACE("__CreateInitialDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", deviceType=%u)",
+          controller, port, deviceType);
 
     device = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
     if (!device) {
         return NULL;
     }
 
-    deviceId = deviceIdGenerator++;
+    deviceId = g_nextDeviceId++;
 
     memset(device, 0, sizeof(AhciDevice_t));
-
     ELEMENT_INIT(&device->header, (uintptr_t)deviceId, device);
     device->Descriptor.Device = deviceId;
-    device->Controller = Controller;
-    device->Port       = Port;
-    device->Type       = Type;
+    device->Controller = controller;
+    device->Port       = port;
+    device->Type       = deviceType;
 
     // Set initial addressing mode + initial values
     device->AddressingMode = 1;
@@ -143,45 +142,50 @@ CreateInitialDevice(
 
 OsStatus_t
 AhciManagerRegisterDevice(
-    _In_ AhciController_t* Controller, 
-    _In_ AhciPort_t*       Port,
-    _In_ uint32_t          Signature)
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port,
+    _In_ uint32_t          signature)
 {
-    AhciDevice_t* Device;
-    DeviceType_t  Type;
-    OsStatus_t    Status;
+    AhciDevice_t* ahciDevice;
+    DeviceType_t  deviceType;
+    OsStatus_t    osStatus;
+
+    TRACE("AhciManagerRegisterDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", signature=0x%x)",
+          controller, port, signature);
     
-    switch (Signature) {
+    switch (signature) {
         case SATA_SIGNATURE_ATA: {
-            Type = DeviceATA;
+            deviceType = DeviceATA;
         } break;
         case SATA_SIGNATURE_ATAPI: {
-            Type = DeviceATAPI;
+            deviceType = DeviceATAPI;
         } break;
         
         // We don't support these device types yet
         case SATA_SIGNATURE_SEMB:
         case SATA_SIGNATURE_PM:
         default: {
-            WARNING("AHCI::Unsupported device type 0x%x on port %i",
-                Signature, Port->Id);
+            WARNING("AhciManagerRegisterDevice unsupported device type 0x%x on port %i",
+                    signature, port->Id);
             return OsNotSupported;
         };
     }
-    
-    Device = CreateInitialDevice(Controller, Port, Type);
-    if (!Device) {
+
+    ahciDevice = __CreateInitialDevice(controller, port, deviceType);
+    if (!ahciDevice) {
+        ERROR("AhciManagerRegisterDevice ahciDevice was null");
         return OsOutOfMemory;
     }
-    
-    Status = AhciTransactionControlCreate(Device, AtaPIOIdentifyDevice,
-        sizeof(ATAIdentify_t), AHCI_XACTION_IN);
-    if (Status != OsSuccess) {
-        free(Device);
-        return Status;
+
+    osStatus = AhciTransactionControlCreate(ahciDevice, AtaPIOIdentifyDevice,
+                                            sizeof(ATAIdentify_t), __STORAGE_OPERATION_READ);
+    if (osStatus != OsSuccess) {
+        ERROR("AhciManagerRegisterDevice osStatus=%u", osStatus);
+        free(ahciDevice);
+        return osStatus;
     }
 
-    list_append(&devices, &Device->header);
+    list_append(&devices, &ahciDevice->header);
     return OsSuccess;
 }
 
@@ -222,8 +226,8 @@ AhciManagerUnregisterDevice(
     AhciDevice_t* device = NULL;
     
     // Lookup device based on controller/port
-    foreach(node, &devices) {
-        AhciDevice_t* ahciDevice = (AhciDevice_t*)node;
+    foreach(element, &devices) {
+        AhciDevice_t* ahciDevice = (AhciDevice_t*)element->value;
         if (ahciDevice->Port == port) {
             device = ahciDevice;
             break;
@@ -303,32 +307,31 @@ HandleIdentifyCommand(
 
 void
 AhciManagerHandleControlResponse(
-    _In_ AhciPort_t*        Port,
-    _In_ AhciTransaction_t* Transaction)
+    _In_ AhciPort_t*        port,
+    _In_ AhciTransaction_t* transaction)
 {
-    AhciDevice_t* Device = NULL;
+    AhciDevice_t* device = NULL;
     
     // Lookup device based on controller/port
-    foreach(Node, &devices) {
-        AhciDevice_t* _Device = (AhciDevice_t*)Node;
-        if (_Device->Port == Port) {
-            Device = _Device;
+    foreach(element, &devices) {
+        AhciDevice_t* i = (AhciDevice_t*)element->value;
+        if (i->Port == port) {
+            device = i;
             break;
         }
     }
-    assert(Device != NULL);
+    assert(device != NULL);
     
-    switch (Transaction->Command) {
+    switch (transaction->Command) {
         case AtaPIOIdentifyDevice: {
-            HandleIdentifyCommand(Device);
+            HandleIdentifyCommand(device);
         } break;
         
         default: {
-            WARNING("Unsupported ATA command 0x%x", Transaction->Command);
+            WARNING("Unsupported ATA command 0x%x", transaction->Command);
         } break;
     }
 }
-
 
 void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args* args)
 {

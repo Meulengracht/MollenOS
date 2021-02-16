@@ -69,9 +69,9 @@ extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMapping
 
 // Driver system calls
 extern OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
-extern OsStatus_t ScAcpiQueryTableHeader(const char* Signature, ACPI_TABLE_HEADER* Header);
-extern OsStatus_t ScAcpiQueryTable(const char* Signature, ACPI_TABLE_HEADER* Table);
-extern OsStatus_t ScAcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin, int* Interrupt, unsigned int* AcpiConform);
+extern OsStatus_t ScAcpiQueryTableHeader(const char* signature, ACPI_TABLE_HEADER* header);
+extern OsStatus_t ScAcpiQueryTable(const char* signature, ACPI_TABLE_HEADER* table);
+extern OsStatus_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
 extern OsStatus_t ScIoSpaceRegister(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern OsStatus_t ScIoSpaceRelease(DeviceIo_t* IoSpace);
@@ -128,7 +128,7 @@ extern OsStatus_t ScLookupHandle(const char*, UUId_t*);
 extern OsStatus_t ScSetHandleActivity(UUId_t, unsigned int);
 
 extern OsStatus_t ScCreateHandleSet(unsigned int, UUId_t*);
-extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, unsigned int, void*);
+extern OsStatus_t ScControlHandleSet(UUId_t, int, UUId_t, unsigned int, struct ioset_event*);
 extern OsStatus_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
 
 // Support system calls

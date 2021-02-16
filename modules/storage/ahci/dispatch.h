@@ -43,8 +43,8 @@
  */
 __EXTERN OsStatus_t
 AhciDispatchRegisterFIS(
-    _In_ AhciController_t*  Controller,
-    _In_ AhciPort_t*        Port,
-    _In_ AhciTransaction_t* Transaction);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port,
+    _In_ AhciTransaction_t* transaction);
 
 #endif //!__AHCI_DISPATCH_H__

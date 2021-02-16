@@ -31,8 +31,8 @@
 extern ACPI_STATUS AcpiHwDerivePciId(ACPI_PCI_ID *PciId, ACPI_HANDLE RootPciDevice, ACPI_HANDLE PciRegion);
 
 // Static storage for the pci-acpi mappings
-static list_t PciToAcpiDevices = LIST_INIT;
-static int    BusCounter       = 0;
+static list_t g_acpiDevices = LIST_INIT;
+static int    g_busCounter  = 0;
 
 struct FindBusRoutings {
     int           Bus;
@@ -41,18 +41,18 @@ struct FindBusRoutings {
 
 static int
 BusRoutingLookupCallback(
-    _In_ int        Index,
-    _In_ element_t* Element,
-    _In_ void*      Context)
+    _In_ int        i,
+    _In_ element_t* element,
+    _In_ void*      context)
 {
-    AcpiDevice_t*           Device = Element->value;
-    struct FindBusRoutings* Result = Context;
+    AcpiDevice_t*           device      = element->value;
+    struct FindBusRoutings* findContext = context;
     
-    if (Device->Type == ACPI_BUS_ROOT_BRIDGE &&
-        Device->GlobalBus == Result->Bus && 
-        Device->Routings != NULL)
+    if (device->Type == ACPI_BUS_ROOT_BRIDGE &&
+        device->GlobalBus == findContext->Bus &&
+        device->Routings != NULL)
     {
-        Result->Device = Device;
+        findContext->Device = device;
         return LIST_ENUMERATE_STOP;
     }
     return LIST_ENUMERATE_CONTINUE;
@@ -60,102 +60,106 @@ BusRoutingLookupCallback(
 
 AcpiDevice_t*
 AcpiDeviceLookupBusRoutings(
-    _In_ int Bus)
+    _In_ int bus)
 {
-    struct FindBusRoutings Context = { 0 };
-    list_enumerate(&PciToAcpiDevices, BusRoutingLookupCallback, &Context);
-    return Context.Device;
+    struct FindBusRoutings context = { .Bus = bus };
+    list_enumerate(&g_acpiDevices, BusRoutingLookupCallback, &context);
+    return context.Device;
 }
 
 OsStatus_t
 AcpiDeviceCreate(
-    _In_ ACPI_HANDLE Handle,
-    _In_ ACPI_HANDLE Parent,
-    _In_ int Type)
+    _In_ ACPI_HANDLE deviceHandle,
+    _In_ ACPI_HANDLE parentHandle,
+    _In_ int         type)
 {
-    AcpiDevice_t *Device = NULL;
-    ACPI_BUFFER Buffer = { 0 };
-    ACPI_STATUS Status;
+    AcpiDevice_t* acpiDevice;
+    ACPI_BUFFER   acpiBuffer = { 0 };
+    ACPI_STATUS   acpiStatus;
     
-    TRACE("[acpi_device_create] creating new device of type %i", Type);
+    TRACE("AcpiDeviceCreate(deviceHandle=0x%" PRIxIN ", parentHandle=0x%" PRIxIN ", type=%i)",
+          deviceHandle, parentHandle, type);
 
-    Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
-    if (!Device) {
+    acpiDevice = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
+    if (!acpiDevice) {
         return OsOutOfMemory;
     }
     
-    memset(Device, 0, sizeof(AcpiDevice_t));
+    memset(acpiDevice, 0, sizeof(AcpiDevice_t));
 
     // Store initial members
-    Device->Handle  = Handle;
-    Device->Parent  = Parent;
-    Device->Type    = Type; 
-    ELEMENT_INIT(&Device->Header, Handle, Device);
+    acpiDevice->Handle = deviceHandle;
+    acpiDevice->Parent = parentHandle;
+    acpiDevice->Type   = type;
+    ELEMENT_INIT(&acpiDevice->Header, deviceHandle, acpiDevice);
 
     // Lookup identifiers, supported features and the bus-numbers
-    Status = AcpiDeviceGetBusId(Device, Type);
-    if (ACPI_FAILURE(Status)) {
+    acpiStatus = AcpiDeviceGetBusId(acpiDevice, type);
+    if (ACPI_FAILURE(acpiStatus)) {
         WARNING("Failed to retrieve bus-id");
     }
-    Status = AcpiDeviceGetFeatures(Device);
-    if (ACPI_FAILURE(Status)) {
+
+    acpiStatus = AcpiDeviceGetFeatures(acpiDevice);
+    if (ACPI_FAILURE(acpiStatus)) {
         WARNING("Failed to retrieve device-features");
     }
-    Status = AcpiDeviceGetBusAndSegment(Device);
-    if (ACPI_FAILURE(Status)) {
+
+    acpiStatus = AcpiDeviceGetBusAndSegment(acpiDevice);
+    if (ACPI_FAILURE(acpiStatus)) {
         WARNING("Failed to retrieve bus-location");
     }
 
     // Get the name, if it fails set to (null)
-    Buffer.Length   = 128;
-    Buffer.Pointer  = &Device->Name[0];
-    Status          = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
-    if (ACPI_FAILURE(Status)) {
-        memset(&Device->Name[0], 0, 128);
-        strcpy(&Device->Name[0], "(null)");
+    acpiBuffer.Length  = 128;
+    acpiBuffer.Pointer = &acpiDevice->Name[0];
+    acpiStatus = AcpiGetName(deviceHandle, ACPI_FULL_PATHNAME, &acpiBuffer);
+    if (ACPI_FAILURE(acpiStatus)) {
+        memset(&acpiDevice->Name[0], 0, 128);
+        strcpy(&acpiDevice->Name[0], "(null)");
     }
 
     // Handle their current status based on type
-    switch (Type) {
+    TRACE("AcpiDeviceCreate name=%s, features=0x%x", acpiDevice->Name, acpiDevice->Features);
+    switch (type) {
         case ACPI_BUS_TYPE_DEVICE:
         case ACPI_BUS_TYPE_PROCESSOR: {
-            Status = AcpiDeviceGetStatus(Device);
-            if (ACPI_FAILURE(Status)) {
-                ERROR("Device %s failed its dynamic status check", Device->BusId);
+            acpiStatus = AcpiDeviceGetStatus(acpiDevice);
+            if (ACPI_FAILURE(acpiStatus)) {
+                ERROR("Device %s failed its dynamic status check", acpiDevice->BusId);
             }
-            if (!(Device->Status & ACPI_STA_DEVICE_PRESENT) &&
-                !(Device->Status & ACPI_STA_DEVICE_FUNCTIONING)) {
-                ERROR("Device %s is not present or functioning", Device->BusId);
+            if (!(acpiDevice->Status & ACPI_STA_DEVICE_PRESENT) &&
+                !(acpiDevice->Status & ACPI_STA_DEVICE_FUNCTIONING)) {
+                ERROR("Device %s is not present or functioning", acpiDevice->BusId);
             }
         } break;
 
         default: {
-            Device->Status = ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED |
-                ACPI_STA_DEVICE_UI | ACPI_STA_DEVICE_FUNCTIONING;
+            acpiDevice->Status = ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED |
+                                 ACPI_STA_DEVICE_UI | ACPI_STA_DEVICE_FUNCTIONING;
         } break;
     }
 
     // Now retrieve the HID, UID and address
-    Status = AcpiDeviceGetHWInfo(Device, Parent, Type);
-    if (ACPI_FAILURE(Status)) {
-        ERROR("Failed to retrieve object information about device %s", Device->BusId);
+    acpiStatus = AcpiDeviceGetHWInfo(acpiDevice, parentHandle, type);
+    if (ACPI_FAILURE(acpiStatus)) {
+        ERROR("Failed to retrieve object information about device %s", acpiDevice->BusId);
     }
 
     // Convience function, attach our own device data with device
-    Status = AcpiDeviceAttachData(Device, Type);
-    if (ACPI_FAILURE(Status)) {
+    acpiStatus = AcpiDeviceAttachData(acpiDevice, type);
+    if (ACPI_FAILURE(acpiStatus)) {
         ERROR("Failed to attach device-data");
     }
 
     // Convert the address field to device-location
-    if (Device->Features & ACPI_FEATURE_ADR) {
-        Device->PciLocation.Device      = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
-        Device->PciLocation.Function    = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
-        if (Device->PciLocation.Device > 31) {
-            Device->PciLocation.Device = 0;
+    if (acpiDevice->Features & ACPI_FEATURE_ADR) {
+        acpiDevice->PciLocation.Device   = ACPI_HIWORD(ACPI_LODWORD(acpiDevice->Address));
+        acpiDevice->PciLocation.Function = ACPI_LOWORD(ACPI_LODWORD(acpiDevice->Address));
+        if (acpiDevice->PciLocation.Device > 31) {
+            acpiDevice->PciLocation.Device = 0;
         }
-        if (Device->PciLocation.Function > 8) {
-            Device->PciLocation.Function = 0;
+        if (acpiDevice->PciLocation.Function > 8) {
+            acpiDevice->PciLocation.Function = 0;
         }
     }
     
@@ -169,61 +173,60 @@ AcpiDeviceCreate(
     // Check for the following HId's:
     // PNP0A03 (PCI Bridge)
     // PNP0A08 (PCI Express Bridge)
-    if (strncmp(Device->HId, "PNP0A03", 7) == 0 ||
-        strncmp(Device->HId, "PNP0A08", 7) == 0) {
+    if (strncmp(acpiDevice->HId, "PNP0A03", 7) == 0 ||
+        strncmp(acpiDevice->HId, "PNP0A08", 7) == 0) {
         // Steps are: 
         // 1 NegotiateOsControl
         // 2 Install pci-config address handler
         // 3 Derive final pci-id
         // 4 Enumerate
         //pci_negiotiate_os_control(device);
-        if (strncmp(Device->HId, "PNP0A08", 7) == 0) {
+        if (strncmp(acpiDevice->HId, "PNP0A08", 7) == 0) {
             // No support in kernel for PCI-Express
             ERROR("Missing support for PCI-Express");
-            Status = AE_NOT_IMPLEMENTED;
+            acpiStatus = AE_NOT_IMPLEMENTED;
         }
         else {
-            Status = AcpiInstallAddressSpaceHandler(
-                Device->Handle, ACPI_ADR_SPACE_PCI_CONFIG, 
-                ACPI_DEFAULT_HANDLER, NULL, NULL);
+            acpiStatus = AcpiInstallAddressSpaceHandler(
+                    acpiDevice->Handle, ACPI_ADR_SPACE_PCI_CONFIG,
+                    ACPI_DEFAULT_HANDLER, NULL, NULL);
         }
-        Status = AcpiHwDerivePciId(&Device->PciLocation, Device->Handle, NULL);
+        acpiStatus = AcpiHwDerivePciId(&acpiDevice->PciLocation, acpiDevice->Handle, NULL);
         
         // Store correct bus-nr
-        Device->Type        = ACPI_BUS_ROOT_BRIDGE;
-        Device->GlobalBus   = BusCounter++;
+        acpiDevice->Type      = ACPI_BUS_ROOT_BRIDGE;
+        acpiDevice->GlobalBus = g_busCounter++;
     }
     else {
-        Device->Type = Type;
+        acpiDevice->Type = type;
     }
     
     // Feature data checks like _PRT
     // This must be run after initalizing of the bridge if
     // the device is a pci bridge
-    if (Device->Features & ACPI_FEATURE_PRT) {
-        Status = AcpiDeviceGetIrqRoutings(Device);
-        if (ACPI_FAILURE(Status)) {
-            ERROR("Failed to retrieve pci irq routings from device %s (%" PRIuIN ")", 
-                Device->BusId, Status);
+    if (acpiDevice->Features & ACPI_FEATURE_PRT) {
+        acpiStatus = AcpiDeviceGetIrqRoutings(acpiDevice);
+        if (ACPI_FAILURE(acpiStatus)) {
+            ERROR("Failed to retrieve pci irq routings from device %s (%" PRIuIN ")",
+                  acpiDevice->BusId, acpiStatus);
         }
     }
     
     // Setup GPE
-    if (Device->Features & ACPI_FEATURE_PRW) {
-        Status = AcpiDeviceParsePower(Device);
-        if (ACPI_FAILURE(Status)) {
-            ERROR("[acpi_device_create] parse_power_package failed for device %s (%" PRIuIN ")", 
-                Device->BusId, Status);
+    if (acpiDevice->Features & ACPI_FEATURE_PRW) {
+        acpiStatus = AcpiDeviceParsePower(acpiDevice);
+        if (ACPI_FAILURE(acpiStatus)) {
+            ERROR("AcpiDeviceCreate parse_power_package failed for device %s (%" PRIuIN ")",
+                  acpiDevice->BusId, acpiStatus);
         }
         else {
-            AcpiSetupGpeForWake(Device->Handle, 
-                Device->PowerSettings.GpeHandle, Device->PowerSettings.GpeBit);
+            AcpiSetupGpeForWake(acpiDevice->Handle,
+                                acpiDevice->PowerSettings.GpeHandle, acpiDevice->PowerSettings.GpeBit);
         }
     }
 
-    TRACE("[acpi_device_create] adding device to list");
-    list_append(&PciToAcpiDevices, &Device->Header);
-    TRACE("[acpi_device_create] done");
+    list_append(&g_acpiDevices, &acpiDevice->Header);
+    TRACE("AcpiDeviceCreate returns=0");
     return OsSuccess;
 }
 
@@ -293,9 +296,6 @@ AcpiDeviceScanCallback(
     return AE_OK;
 }
 
-/* AcpiDevicesScan
- * Scan the ACPI namespace for devices and irq-routings, 
- * this is very neccessary for getting correct irqs */
 ACPI_STATUS
 AcpiDevicesScan(void)
 {

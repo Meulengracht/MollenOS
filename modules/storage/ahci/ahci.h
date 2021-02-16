@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -44,7 +45,7 @@
 #define AHCI_MAX_PORTS                  32
 #define AHCI_RECIEVED_FIS_SIZE          256
 
-PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
+PACKED_TYPESTRUCT(AHCIGenericRegisters, {
     reg32_t                Capabilities;
     reg32_t                GlobalHostControl;
     reg32_t                InterruptStatus;
@@ -61,7 +62,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                OSControlAndStatus;
 });
 
-PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
+PACKED_TYPESTRUCT(AHCIPortRegisters, {
     reg32_t                CmdListBaseAddress;       // 1K Aligned
     reg32_t                CmdListBaseAddressUpper;
     reg32_t                FISBaseAddress;
@@ -74,13 +75,13 @@ PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
     reg32_t                TaskFileData;
     reg32_t                Signature;
     
-    reg32_t                AtaStatus;           // (SCR0: SStatus)
-    reg32_t                AtaControl;          // (SCR2: SControl)
-    reg32_t                AtaError;            // (SCR1: SError)
-    reg32_t                AtaActive;           // (SCR3: SActive)
-    
-    reg32_t                CommandIssue;
-    reg32_t                AtaNotification;     // (SCR4: SNotification)
+    reg32_t                STSS;                // (SCR0: SStatus)
+    reg32_t                SCTL;                // (SCR2: SControl)
+    reg32_t                SERR;                // (SCR1: SError)
+    reg32_t                SACT;                // (SCR3: SActive)
+
+    reg32_t                CI;                  // CommandIssue
+    reg32_t                SNTF;                // (SCR4: SNotification)
     
     reg32_t                FISControl;
     reg32_t                DeviceSleep;
@@ -88,16 +89,16 @@ PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
     reg32_t                VendorSpecifics[4];  // 16 Bytes, 4 registers
 });
 
-/* The Physical Region Descriptor Table 
- * Describes a scatter/gather list for data transfers. */
 PACKED_TYPESTRUCT(AHCIPrdtEntry, {
     reg32_t DataBaseAddress;       // Must be word aligned, bit 0 MUST be clear
     reg32_t DataBaseAddressUpper;
     reg32_t Reserved;
 
-    /* Descriptor Information 
+    /**
+     * Descriptor Information
      * Bits 00-21: Data Byte Count 
-     * Bit 31: Interrupt on Completion */
+     * Bit 31: Interrupt on Completion
+     */
     reg32_t Descriptor;
 });
 #define AHCI_PRDT_IOC (1 << 31)  // Interrupt on Completion
@@ -105,13 +106,12 @@ PACKED_TYPESTRUCT(AHCIPrdtEntry, {
 #define AHCI_COMMAND_TABLE_PRDT_SIZE    16 // == sizeof(AHCIPrdtEntry_t)
 #define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024) // Max number of bytes per PRDT
 
-/* The command table which is pointed to by a Command list header, 
- * and this table contains a given number of FIS, 128 bytes */
+// Contains a FIS-Command and a bunch of data-descriptors [AHCIPrdtEntry_t]
 PACKED_TYPESTRUCT(AHCICommandTable, {
     uint8_t         FISCommand[64];
     uint8_t         FISAtapi[16];
     uint8_t         Reserved[48];
-    AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries of PRDT
+    AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries
 });
 
 #define AHCI_COMMAND_TABLE_HEADER_SIZE  128 // == sizeof(AHCICommandTable_t)
@@ -146,10 +146,12 @@ PACKED_TYPESTRUCT(AHCICommandList, {
     AHCICommandHeader_t Headers[32];
 });
 
-/* Received FIS 
+/**
+ * Received FIS
  * There are four kinds of FIS which may be sent to the host 
- * by the device as indicated in the following structure declaration */
-PACKED_ATYPESTRUCT(volatile, AHCIFis, {
+ * by the device as indicated in the following structure declaration
+ */
+PACKED_TYPESTRUCT(AHCIFis, {
     FISDmaSetup_t    DmaSetup;
     uint8_t          Padding0[4];
     FISPioSetup_t    PioSetup;
@@ -163,31 +165,31 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 
 /* Capability Bits (Host Capabilities) 
  * - Generic Registers */
-#define AHCI_CAPABILITIES_NP(Caps)          ((Caps & 0x1F) + 1)             /* Number of ports */
-#define AHCI_CAPABILITIES_SXS               0x20            /* Supports External SATA */
-#define AHCI_CAPABILITIES_EMS               0x40            /* Supports Enclosure Management */
-#define AHCI_CAPABILITIES_CCCS              0x80            /* Supports Command Completion Coalescing */
-#define AHCI_CAPABILITIES_NCS(Caps)         (((Caps >> 8) & 0x1F) + 1)      /* Number of Command Slots */
-#define AHCI_CAPABILITIES_PSC               0x2000          /* Partial State Capable */
-#define AHCI_CAPABILITIES_SSC               0x4000          /* Slumber State Capable */
-#define AHCI_CAPABILITIES_PMD               0x8000          /* PIO Multiple DRQ Block */
-#define AHCI_CAPABILITIES_FBSS              0x10000         /* FIS-based Switching Supported */
-#define AHCI_CAPABILITIES_SPM               0x20000         /* Supports Port Multiplier */
-#define AHCI_CAPABILITIES_SAM               0x40000         /* Supports AHCI mode only */
+#define AHCI_CAPABILITIES_NP(Caps)          ((Caps & 0x1F) + 1)         // Number of ports
+#define AHCI_CAPABILITIES_SXS               0x20                        // Supports External SATA
+#define AHCI_CAPABILITIES_EMS               0x40                        // Supports Enclosure Management
+#define AHCI_CAPABILITIES_CCCS              0x80                        // Supports Command Completion Coalescing
+#define AHCI_CAPABILITIES_NCS(Caps)         (((Caps >> 8) & 0x1F) + 1)  // Number of Command Slots
+#define AHCI_CAPABILITIES_PSC               0x2000                      // Partial State Capable
+#define AHCI_CAPABILITIES_SSC               0x4000                      // Slumber State Capable
+#define AHCI_CAPABILITIES_PMD               0x8000                      // PIO Multiple DRQ Block
+#define AHCI_CAPABILITIES_FBSS              0x10000                     // FIS-based Switching Supported
+#define AHCI_CAPABILITIES_SPM               0x20000                     // Supports Port Multiplier
+#define AHCI_CAPABILITIES_SAM               0x40000                     // Supports AHCI mode only
 
-#define AHCI_CAPABILITIES_ISS(Caps)         ((Caps & 0xF00000) >> 20)       /* Interface Speed Support */
+#define AHCI_CAPABILITIES_ISS(Caps)         ((Caps & 0xF00000) >> 20)   // Interface Speed Support
 #define AHCI_SPEED_1_5GBPS                  0x1
 #define AHCI_SPEED_3_0GBPS                  0x2
 #define AHCI_SPEED_6_0GBPS                  0x3
 
-#define AHCI_CAPABILITIES_SCLO              0x1000000       /* Supports Command List Override */
-#define AHCI_CAPABILITIES_SAL               0x2000000       /* Supports Activity LED */
-#define AHCI_CAPABILITIES_SALP              0x4000000       /* Supports Aggressive Link Power Management */
-#define AHCI_CAPABILITIES_SSS               0x8000000       /* Supports Staggered Spin-up */
-#define AHCI_CAPABILITIES_SMPS              0x10000000      /* Supports Mechanical Presence Switch */
-#define AHCI_CAPABILITIES_SSNTF             0x20000000      /* Supports SNotification Register */
-#define AHCI_CAPABILITIES_SNCQ              0x40000000      /* Supports Native Command Queuing */
-#define AHCI_CAPABILITIES_S64A              0x80000000      /* Supports 64-bit Addressing */
+#define AHCI_CAPABILITIES_SCLO              0x1000000       // Supports Command List Override
+#define AHCI_CAPABILITIES_SAL               0x2000000       // Supports Activity LED
+#define AHCI_CAPABILITIES_SALP              0x4000000       // Supports Aggressive Link Power Management
+#define AHCI_CAPABILITIES_SSS               0x8000000       // Supports Staggered Spin-up
+#define AHCI_CAPABILITIES_SMPS              0x10000000      // Supports Mechanical Presence Switch
+#define AHCI_CAPABILITIES_SSNTF             0x20000000      // Supports SNotification Register
+#define AHCI_CAPABILITIES_SNCQ              0x40000000      // Supports Native Command Queuing
+#define AHCI_CAPABILITIES_S64A              0x80000000      // Supports 64-bit Addressing
 
 /* Global HBA Control (GlobalHostControl)
  * - Generic Registers */
@@ -265,23 +267,23 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 
 /* Port x Interrupt Enable (InterruptEnable)
  * - Port Registers */
-#define AHCI_PORT_IE_DHRE                   0x1             /* Device to Host Register FIS Interrupt Enable */
-#define AHCI_PORT_IE_PSE                    0x2             /* PIO Setup FIS Interrupt Enable */
-#define AHCI_PORT_IE_DSE                    0x4             /* DMA Setup FIS Interrupt Enable */
-#define AHCI_PORT_IE_SDBE                   0x8             /* Set Device Bits FIS Interrupt Enable */
-#define AHCI_PORT_IE_UFE                    0x10            /* Unknown FIS Interrupt Enable */
-#define AHCI_PORT_IE_DPE                    0x20            /* Descriptor Processed Interrupt Enable */
-#define AHCI_PORT_IE_PCE                    0x40            /* Port Change Interrupt Enable */
-#define AHCI_PORT_IE_DMPE                   0x80            /* Device Mechanical Presence Enable */
-#define AHCI_PORT_IE_PRCE                   0x800000        /* PhyRdy Change Interrupt Enable */
-#define AHCI_PORT_IE_IPME                   0x1000000       /* Incorrect Port Multiplier Enable */
-#define AHCI_PORT_IE_OFE                    0x2000000       /* Overflow Enable */
-#define AHCI_PORT_IE_INFE                   0x4000000       /* Interface Non-fatal Error Enable */
-#define AHCI_PORT_IE_IFE                    0x8000000       /* Interface Fatal Error Enable */
-#define AHCI_PORT_IE_HBDE                   0x10000000      /* Host Bus Data Error Enable */
-#define AHCI_PORT_IE_HBFE                   0x20000000      /* Host Bus Fatal Error Enable */
-#define AHCI_PORT_IE_TFEE                   0x40000000      /* Task File Error Enable */
-#define AHCI_PORT_IE_CPDE                   0x80000000      /* Cold Presence Detect Enable */
+#define AHCI_PORT_IE_DHRE                   0x1             // Device to Host Register FIS Interrupt Enable
+#define AHCI_PORT_IE_PSE                    0x2             // PIO Setup FIS Interrupt Enable
+#define AHCI_PORT_IE_DSE                    0x4             // DMA Setup FIS Interrupt Enable
+#define AHCI_PORT_IE_SDBE                   0x8             // Set Device Bits FIS Interrupt Enable
+#define AHCI_PORT_IE_UFE                    0x10            // Unknown FIS Interrupt Enable
+#define AHCI_PORT_IE_DPE                    0x20            // Descriptor Processed Interrupt Enable
+#define AHCI_PORT_IE_PCE                    0x40            // Port Change Interrupt Enable
+#define AHCI_PORT_IE_DMPE                   0x80            // Device Mechanical Presence Enable
+#define AHCI_PORT_IE_PRCE                   0x400000        // PhyRdy Change Interrupt Enable
+#define AHCI_PORT_IE_IPME                   0x800000        // Incorrect Port Multiplier Enable
+#define AHCI_PORT_IE_OFE                    0x1000000       // Overflow Enable
+#define AHCI_PORT_IE_INFE                   0x4000000       // Interface Non-fatal Error Enable
+#define AHCI_PORT_IE_IFE                    0x8000000       // Interface Fatal Error Enable
+#define AHCI_PORT_IE_HBDE                   0x10000000      // Host Bus Data Error Enable
+#define AHCI_PORT_IE_HBFE                   0x20000000      // Host Bus Fatal Error Enable
+#define AHCI_PORT_IE_TFEE                   0x40000000      // Task File Error Enable
+#define AHCI_PORT_IE_CPDE                   0x80000000      // Cold Presence Detect Enable
 
 /* Port x Task File Data (TaskFileData)
  * - Port Registers */
@@ -311,7 +313,11 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 #define AHCI_PORT_SSTS_DET_ENABLED          0x3
 #define AHCI_PORT_SSTS_DET_DISABLED         0x4
 
-typedef struct _AhciPort {
+// PORT SERR
+#define AHCI_PORT_SERR_ERROR(reg) (reg & 0xFFFF)
+#define AHCI_PORT_SERR_DIAG(reg)  ((reg >> 16) & 0xFFFF)
+
+typedef struct AhciPort {
     int                     Id;
     int                     Index;
     int                     MultiplierIndex;
@@ -332,11 +338,11 @@ typedef struct _AhciPort {
  * The shared interrupt resource that is used to store data from the fast interrupt
  * into process interrupt. */
 typedef struct AhciInterruptResource {
-    reg32_t ControllerInterruptStatus;
-    reg32_t PortInterruptStatus[AHCI_MAX_PORTS];
+    _Atomic(reg32_t) ControllerInterruptStatus;
+    _Atomic(reg32_t) PortInterruptStatus[AHCI_MAX_PORTS];
 } AhciInterruptResource_t;
 
-typedef struct _AhciController {
+typedef struct AhciController {
     BusDevice_t             Device;
     element_t               header;
     AhciInterruptResource_t InterruptResource;
@@ -350,7 +356,7 @@ typedef struct _AhciController {
     AhciPort_t*             Ports[AHCI_MAX_PORTS];
     uint32_t                ValidPorts;
     int                     PortCount;
-    size_t                  CommandSlotCount;
+    int                     CommandSlotCount;
 } AhciController_t;
 
 /* AhciControllerCreate
@@ -364,15 +370,15 @@ AhciControllerCreate(
  * any resources related to it */
 __EXTERN OsStatus_t
 AhciControllerDestroy(
-    _In_ AhciController_t*  Controller);
+    _In_ AhciController_t*  controller);
 
 /* AhciPortCreate
  * Initializes the port structure, but not memory structures yet */
 __EXTERN AhciPort_t*
 AhciPortCreate(
-    _In_ AhciController_t*  Controller, 
-    _In_ int                Port,
-    _In_ int                Index);
+    _In_ AhciController_t*  controller,
+    _In_ int                portIndex,
+    _In_ int                mapIndex);
 
 /* AhciPortCleanup
  * Destroys a port, cleans up device, cleans up memory and resources */
@@ -385,54 +391,55 @@ AhciPortCleanup(
  * Initiates the setup sequence, this function needs at-least 500ms to complete before calling finish setup. */
 __EXTERN void
 AhciPortInitiateSetup(
-    _In_ AhciController_t*  Controller,
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port);
 
 /* AhciPortFinishSetup
  * Finishes setup of port by completing a reset sequence. */
 __EXTERN OsStatus_t
 AhciPortFinishSetup(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port);
 
 /* AhciPortRebase
  * Rebases the port by setting up allocated memory tables and command memory. This can only be done
  * when the port is in a disabled state. */
 __EXTERN OsStatus_t
 AhciPortRebase(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port);
 
 /* AhciPortStart
  * Starts the port, the port must have been in a disabled state and must have been rebased at-least once. */
 __EXTERN OsStatus_t
 AhciPortStart(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port);
 
 OsStatus_t
 AhciPortAllocateCommandSlot(
-    _In_  AhciPort_t* Port,
-    _Out_ int*        SlotOut);
+    _In_  AhciPort_t* port,
+    _Out_ int*        slotOut);
 
 void
 AhciPortFreeCommandSlot(
-    _In_ AhciPort_t* Port,
-    _In_ int         Slot);
+    _In_ AhciPort_t* port,
+    _In_ int         slot);
 
 /* AhciPortStartCommandSlot
  * Starts a command slot on the given port */
 __EXTERN void
 AhciPortStartCommandSlot(
-    _In_ AhciPort_t*        Port, 
-    _In_ int                Slot);
+    _In_ AhciPort_t*        port,
+    _In_ int                slot,
+    _In_ int                nqc);
 
 /* AhciPortInterruptHandler
  * Handles port-specific interrupts. */
 __EXTERN void
 AhciPortInterruptHandler(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t*  controller,
+    _In_ AhciPort_t*        port);
 
 /* AhciDeviceIdentify 
  * Identifies the device and type on a port and sets it up accordingly */
@@ -444,6 +451,6 @@ AhciDeviceIdentify(
 /* PrintTaskDataErrorString
  * Converts the error of the task data to a user-readable string and prints it out. */
 __EXTERN void
-PrintTaskDataErrorString(uint8_t TaskDataError);
+PrintTaskDataErrorString(uint8_t taskDataError);
 
 #endif //!_AHCI_H_

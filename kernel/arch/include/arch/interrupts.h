@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -29,14 +30,27 @@
 
 /* InterruptInitialize
  * Initialize interrupts in the base system. */
-KERNELAPI OsStatus_t KERNELABI
-InterruptInitialize(void);
+KERNELAPI OsStatus_t KERNELABI InterruptInitialize(void);
 
+/**
+ * Specifies the current interrupt mode. This is currently used on X86 in conjunction with acpi.
+ * @param mode [In] 0 = Pic, 1 = Apic
+ */
+KERNELAPI void KERNELABI InterruptSetMode(
+        _In_ int mode);
+
+/**
+ *
+ * @param deviceInterrupt
+ * @param flags
+ * @param tableIndex
+ * @return
+ */
 KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
-    _In_    DeviceInterrupt_t* Interrupt,
-    _In_    unsigned int       Flags,
-    _Out_   UUId_t*            TableIndex);
+    _In_    DeviceInterrupt_t* deviceInterrupt,
+    _In_    unsigned int       flags,
+    _Out_   UUId_t*            tableIndex);
 
 /**
  * Initialize and enable/disable the interrupt described in systemInterrupt member.
@@ -49,14 +63,6 @@ InterruptConfigure(
     _In_ SystemInterrupt_t* systemInterrupt,
     _In_ int                enable);
 
-/* Interrupts
- * Used for manipulation of interrupt state. */
-KERNELAPI IntStatus_t KERNELABI InterruptDisable(void);
-KERNELAPI IntStatus_t KERNELABI InterruptEnable(void);
-KERNELAPI IntStatus_t KERNELABI InterruptRestoreState(IntStatus_t State);
-KERNELAPI IntStatus_t KERNELABI InterruptSaveState(void);
-KERNELAPI int         KERNELABI InterruptIsDisabled(void);
-
 /* InterruptsPriority
  * Set or get the current core task priority. Can be used to leverage hardware
  * prioritization for optimizing delivery of interrupts. */
@@ -67,5 +73,11 @@ KERNELAPI void     KERNELABI InterruptsSetPriority(uint32_t Priority);
  * Acknowledge interrupt with the source (interrupt line) and the table index, which
  * is the virtual table entry. */
 KERNELAPI void KERNELABI InterruptsAcknowledge(int Source, uint32_t TableIndex);
+
+KERNELAPI IntStatus_t KERNELABI InterruptDisable(void);
+KERNELAPI IntStatus_t KERNELABI InterruptEnable(void);
+KERNELAPI IntStatus_t KERNELABI InterruptRestoreState(IntStatus_t State);
+KERNELAPI IntStatus_t KERNELABI InterruptSaveState(void);
+KERNELAPI int         KERNELABI InterruptIsDisabled(void);
 
 #endif //!__VALI_ARCH_INTERRUPT_H__

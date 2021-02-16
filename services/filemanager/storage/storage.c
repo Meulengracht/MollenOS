@@ -79,7 +79,7 @@ DiskRegisterFileSystem(
     UUId_t        id;
     OsStatus_t    status;
 
-    TRACE("DiskRegisterFileSystem(Sector %u, Size %u, Type %u)",
+    TRACE("DiskRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
           LODWORD(sector), LODWORD(sectorCount), type);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));

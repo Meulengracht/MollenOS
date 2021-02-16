@@ -110,8 +110,11 @@ KERNELAPI OsStatus_t KERNELABI
 InterruptDecreasePenalty(
     _In_ int Source);
 
-/* InterruptGetPenalty
- * Retrieves the penalty for an interrupt source. If INTERRUPT_NONE is returned the source is unavailable. */
+/**
+ * Retrieves the penalty for an interrupt source.
+ * @param Source
+ * @return If INTERRUPT_NONE is returned the source is unavailable.
+ */
 KERNELAPI int KERNELABI
 InterruptGetPenalty(
     _In_ int Source);
@@ -127,37 +130,54 @@ InterruptGetLeastLoaded(
     _In_ int interruptVectors[],
     _In_ int count);
 
-/* AcpiGetPolarityMode
+/**
  * Returns whether or not the polarity is Active Low or Active High.
- * For Active Low = 1, Active High = 0 */
+ * @param intiFlags
+ * @param source
+ * @return  For Active Low = 1, Active High = 0
+ */
 KERNELAPI int KERNELABI
 AcpiGetPolarityMode(
-    _In_ uint16_t IntiFlags,
-    _In_ int      Source);
+    _In_ uint16_t intiFlags,
+    _In_ int      source);
 
-/* AcpiGetTriggerMode
+/**
  * Returns whether or not the trigger mode of the interrup is level or edge.
- * For Level = 1, Edge = 0 */
+ * @param intiFlags
+ * @param source
+ * @return For Level = 1, Edge = 0
+ */
 KERNELAPI int KERNELABI
 AcpiGetTriggerMode(
-    _In_ uint16_t IntiFlags,
-    _In_ int      Source);
+    _In_ uint16_t intiFlags,
+    _In_ int      source);
 
-/* ConvertAcpiFlagsToConformFlags
- * Converts acpi interrupt flags to the system interrupt conform flags. */
+/**
+ * Converts acpi interrupt flags to the system interrupt conform flags.
+ * @param intiFlags
+ * @param source
+ * @return
+ */
 KERNELAPI unsigned int KERNELABI
 ConvertAcpiFlagsToConformFlags(
-    _In_ uint16_t IntiFlags,
-    _In_ int      Source);
+    _In_ uint16_t intiFlags,
+    _In_ int      source);
 
-/* AcpiDeriveInterrupt
- * Derives an interrupt by consulting the bus of the device, and spits out flags in
- * AcpiConform and returns irq */
-KERNELAPI int KERNELABI
-AcpiDeriveInterrupt(
-    _In_  unsigned int  Bus,
-    _In_  unsigned int  Device,
-    _In_  int           Pin,
-    _Out_ unsigned int* AcpiConform);
+/**
+ * Derives an interrupt by extracting routings from the bus of the device
+ * @param bus
+ * @param device
+ * @param pciPin
+ * @param interruptOut
+ * @param acpiConformOut
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+AcpiDeviceGetInterrupt(
+        _In_  int           bus,
+        _In_  int           device,
+        _In_  int           pciPin,
+        _Out_ int*          interruptOut,
+        _Out_ unsigned int* acpiConformOut);
 
 #endif //!_MCORE_INTERRUPTS_H_

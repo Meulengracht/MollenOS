@@ -56,52 +56,55 @@ ScAcpiQueryStatus(
 
 OsStatus_t
 ScAcpiQueryTableHeader(
-    _In_ const char*        Signature,
-    _In_ ACPI_TABLE_HEADER* Header)
+    _In_ const char*        signature,
+    _In_ ACPI_TABLE_HEADER* header)
 {
-    ACPI_TABLE_HEADER *PointerToHeader = NULL;
+    if (!signature || !header) {
+        return OsInvalidParameters;
+    }
 
-    // Sanitize some statuses
     if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OsError;
-    }
-    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &PointerToHeader))) {
-        return OsError;
+        return OsNotSupported;
     }
 
-    memcpy(Header, PointerToHeader, sizeof(ACPI_TABLE_HEADER));
+    if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
+        return OsError;
+    }
     return OsSuccess;
 }
 
 OsStatus_t
 ScAcpiQueryTable(
-    _In_ const char*        Signature,
-    _In_ ACPI_TABLE_HEADER* Table)
+    _In_ const char*        signature,
+    _In_ ACPI_TABLE_HEADER* table)
 {
-    ACPI_TABLE_HEADER *Header = NULL;
+    ACPI_TABLE_HEADER* header = NULL;
 
-    // Sanitize some statuses
+    if (!signature || !table) {
+        return OsInvalidParameters;
+    }
+
     if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OsError;
+        return OsNotSupported;
     }
-    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &Header))) {
+
+    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)signature, 0, &header))) {
         return OsError;
     }
 
-    memcpy(Header, Table, Header->Length);
+    memcpy(table, header, header->Length);
     return OsSuccess;
 }
 
 OsStatus_t
 ScAcpiQueryInterrupt(
-    _In_  unsigned int         Bus,
-    _In_  unsigned int         Device,
-    _In_  int               Pin, 
-    _Out_ int*              Interrupt,
-    _Out_ unsigned int*          AcpiConform)
+    _In_  int           bus,
+    _In_  int           device,
+    _In_  int           pin,
+    _Out_ int*          interruptOut,
+    _Out_ unsigned int* acpiConformOut)
 {
-    *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
-    return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
+    return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
 }
 
 OsStatus_t

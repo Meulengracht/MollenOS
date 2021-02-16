@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,32 +25,26 @@
 #include "bus.h"
 #include <stddef.h>
 
-/* PciCalculateOffset
- * This function calculates the correct offset based upon the pci bus type */
 size_t
 PciCalculateOffset(
-	_In_ PciBus_t*	Io,
-	_In_ unsigned int 	Bus,
-	_In_ unsigned int 	Device,
-	_In_ unsigned int 	Function,
-	_In_ size_t 	Register)
+	_In_ PciBus_t*	  Io,
+	_In_ unsigned int Bus,
+	_In_ unsigned int Device,
+	_In_ unsigned int Function,
+	_In_ size_t 	  Register)
 {
 	if (Io->IsExtended) {
-		return (size_t)((Bus << 20) | (Device << 15) | (Function << 12) | Register);
+		return (size_t)(((Bus - Io->BusStart) << 20) | (Device << 15) | (Function << 12) | Register);
 	}
 	else {
 		return (size_t)(0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC));
 	}
 }
 
-/* PciRead32
- * Reads a 32 bit value from the pci-bus
- * at the specified location bus, device, function and register */
 uint32_t PciRead32(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io != NULL
-		&& Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		return ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
 	}
 	else {
@@ -58,14 +53,10 @@ uint32_t PciRead32(PciBus_t *Io,
 	}
 }
 
-/* PciRead16
- * Reads a 16 bit value from the pci-bus
- * at the specified location bus, device, function and register */
 uint16_t PciRead16(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io != NULL
-		&& Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		return (uint16_t)ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 2);
 	}
 	else {
@@ -74,13 +65,10 @@ uint16_t PciRead16(PciBus_t *Io,
 	}
 }
 
-/* PciRead8
- * Reads a 8 bit value from the pci-bus
- * at the specified location bus, device, function and register */
 uint8_t PciRead8(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io != NULL && Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		return (uint8_t)ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 1);
 	}
 	else {
@@ -89,13 +77,10 @@ uint8_t PciRead8(PciBus_t *Io,
 	}
 }
 
-/* PciWrite32
- * Writes a 32 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void PciWrite32(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value)
 {
-	if (Io != NULL && Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 4);
 	}
 	else {
@@ -104,13 +89,10 @@ void PciWrite32(PciBus_t *Io,
 	}
 }
 
-/* PciWrite16
- * Writes a 16 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void PciWrite16(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value)
 {
-	if (Io != NULL && Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 2);
 	}
 	else {
@@ -119,13 +101,10 @@ void PciWrite16(PciBus_t *Io,
 	}
 }
 
-/* PciWrite8
- * Writes a 8 bit value to the pci-bus
- * at the specified location bus, device, function and register */
 void PciWrite8(PciBus_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value)
 {
-	if (Io != NULL && Io->IsExtended) {
+	if (Io && Io->IsExtended) {
 		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 1);
 	}
 	else {
@@ -134,9 +113,6 @@ void PciWrite8(PciBus_t *Io,
 	}
 }
 
-/* PciDeviceRead
- * Reads a value of the given length from the given register
- * and this function takes care of the rest */
 uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length)
 {
 	if (Length == 1) {
@@ -150,9 +126,6 @@ uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length)
 	}
 }
 
-/* PciDeviceWrite
- * Writes a value of the given length to the given register
- * and this function takes care of the rest */
 void PciDeviceWrite(PciDevice_t *Device, size_t Register, uint32_t Value, size_t Length)
 {
 	if (Length == 1) {

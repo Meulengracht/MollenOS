@@ -76,12 +76,12 @@ typedef struct AhciDevice {
 #define AHCI_DEVICE_MODE_LBA48  2
 
 typedef struct AhciTransation {
-    element_t             header;
+    element_t             Header;
+    UUId_t                Id;
     int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
     AtaCommand_t          Command;
-    int                   Slot;
     int                   Direction;
     AHCIFis_t             Response;
     struct dma_attachment DmaAttachment;
@@ -91,6 +91,7 @@ typedef struct AhciTransation {
         DeviceType_t Type;
         size_t       SectorSize;
         int          AddressingMode;
+        unsigned int PortMultiplier;
     } Target;
 
     uint64_t              Sector;
@@ -129,30 +130,48 @@ AhciManagerGetDevice(
 
 /**
  * AhciTransactionControlCreate
- * @param Device  [In] The device that should handle the transaction.
- * @param Command [In] The transaction that should get queued up.
+ * @param ahciDevice  [In] The device that should handle the transaction.
+ * @param ataCommand [In] The transaction that should get queued up.
  */
 __EXTERN OsStatus_t
 AhciTransactionControlCreate(
-    _In_ AhciDevice_t* Device,
-    _In_ AtaCommand_t  Command,
-    _In_ size_t        Length,
-    _In_ int           Direction);
+    _In_ AhciDevice_t* ahciDevice,
+    _In_ AtaCommand_t  ataCommand,
+    _In_ size_t        length,
+    _In_ int           direction);
 
 /** 
  * AhciDeviceCancelTransaction
  */
 __EXTERN OsStatus_t
 AhciManagerCancelTransaction(
-    _In_ AhciTransaction_t* Transaction);
+    _In_ AhciTransaction_t* transaction);
 
 /**
- * AhciTransactionHandleResponse
+ * Handles response of a transfer
+ * @param controller
+ * @param port
+ * @param transaction
+ * @param bytesTransferred
  */
-OsStatus_t
+__EXTERN void
 AhciTransactionHandleResponse(
-    _In_ AhciController_t*  Controller,
-    _In_ AhciPort_t*        Port,
-    _In_ AhciTransaction_t* Transaction);
+        _In_ AhciController_t*  controller,
+        _In_ AhciPort_t*        port,
+        _In_ AhciTransaction_t* transaction,
+        _In_ size_t             bytesTransferred);
+
+static inline void __SetTransferKey(
+        _In_ AhciTransaction_t* transaction,
+        _In_ int                key)
+{
+    transaction->Header.key = (void*)(uintptr_t)key;
+}
+
+static inline int __GetTransferKey(
+        _In_ AhciTransaction_t* transaction)
+{
+    return (int)(uintptr_t)transaction->Header.key;
+}
 
 #endif //!_AHCI_MANAGER_H_

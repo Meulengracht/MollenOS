@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -21,16 +22,13 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
+
 //#define __TRACE
 
-#include <ddk/io.h>
 #include <ddk/utils.h>
 #include <ioset.h>
-#include <os/mollenos.h>
 #include "manager.h"
-#include <string.h>
 #include <stdlib.h>
-#include <signal.h>
 
 #include <ctt_driver_protocol_server.h>
 
@@ -59,34 +57,33 @@ static list_t controllers = LIST_INIT;
 
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ InterruptFunctionTable_t* InterruptTable,
-    _In_ InterruptResourceTable_t* ResourceTable)
+    _In_ InterruptFunctionTable_t* interruptTable,
+    _In_ InterruptResourceTable_t* resourceTable)
 {
-    AhciInterruptResource_t* Resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
-    AHCIGenericRegisters_t*  Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
-    reg32_t                  InterruptStatus;
-    int                      i;
+    AhciInterruptResource_t*         resource  = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(resourceTable, 0);
+    volatile AHCIGenericRegisters_t* registers = (volatile AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(resourceTable, 0)->Access.Memory.VirtualBase;
+    reg32_t                          interruptStatus;
+    int                              i;
 
     // Skip processing immediately if the interrupt was not for us
-    InterruptStatus = Registers->InterruptStatus;
-    if (!InterruptStatus) {
+    interruptStatus = registers->InterruptStatus;
+    if (!interruptStatus) {
         return InterruptNotHandled;
     }
 
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if ((InterruptStatus & (1 << i)) != 0) {
-            AHCIPortRegisters_t* PortRegister = (AHCIPortRegisters_t*)((uintptr_t)Registers + AHCI_REGISTER_PORTBASE(i));
-
-            Resource->PortInterruptStatus[i] |= PortRegister->InterruptStatus;
-            PortRegister->InterruptStatus     = PortRegister->InterruptStatus;
+        if ((interruptStatus & (1 << i)) != 0) {
+            volatile AHCIPortRegisters_t* portRegister = (volatile AHCIPortRegisters_t*)((uintptr_t)registers + AHCI_REGISTER_PORTBASE(i));
+            atomic_fetch_or(&resource->PortInterruptStatus[i], portRegister->InterruptStatus);
+            portRegister->InterruptStatus = portRegister->InterruptStatus;
         }
     }
 
     // Write clear interrupt register and return
-    Registers->InterruptStatus           = InterruptStatus;
-    Resource->ControllerInterruptStatus |= InterruptStatus;
-    InterruptTable->EventSignal(ResourceTable->HandleResource);
+    registers->InterruptStatus = interruptStatus;
+    atomic_fetch_or(&resource->ControllerInterruptStatus, interruptStatus);
+    interruptTable->EventSignal(resourceTable->HandleResource);
     return InterruptHandled;
 }
 
@@ -94,24 +91,22 @@ void
 OnInterrupt(
     _In_ AhciController_t* controller)
 {
-    reg32_t           InterruptStatus;
-    int               i;
+    reg32_t interruptStatus = atomic_exchange(&controller->InterruptResource.ControllerInterruptStatus, 0);
+    int     i;
+    TRACE("OnInterrupt(controller=0x%" PRIxIN ")", controller);
 
-HandleInterrupt:
-    InterruptStatus = controller->InterruptResource.ControllerInterruptStatus;
-    controller->InterruptResource.ControllerInterruptStatus = 0;
-    
+handler_loop:
     // Iterate the port-map and check if the interrupt
     // came from that port
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
+        if (controller->Ports[i] != NULL && ((interruptStatus & (1 << i)) != 0)) {
             AhciPortInterruptHandler(controller, controller->Ports[i]);
         }
     }
-    
-    // Re-handle?
-    if (controller->InterruptResource.ControllerInterruptStatus != 0) {
-        goto HandleInterrupt;
+
+    interruptStatus = atomic_exchange(&controller->InterruptResource.ControllerInterruptStatus, 0);
+    if (interruptStatus) {
+        goto handler_loop;
     }
 }
 
@@ -154,6 +149,7 @@ OnUnload(void)
 
 OsStatus_t OnEvent(struct ioset_event* event)
 {
+    TRACE("OnEvent(event->events=0x%x)", event->events);
     if (event->events & IOSETSYN) {
         AhciController_t* controller = event->data.context;
         unsigned int      value;

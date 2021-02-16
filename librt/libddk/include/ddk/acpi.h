@@ -82,7 +82,7 @@ DDKDECL(OsStatus_t, AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor));
  * Queries the full table information of the table that matches
  * the given signature, and copies the information to the supplied pointer
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
-DDKDECL(OsStatus_t, AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table));
+DDKDECL(OsStatus_t, AcpiQueryTable(const char*signature, ACPI_TABLE_HEADER **tableOut));
 
 /* AcpiQueryInterrupt
  * Queries the interrupt-line for the given bus, device and

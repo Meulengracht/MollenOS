@@ -120,8 +120,8 @@ InterruptGetApicConfiguration(
 
 static UUId_t
 AllocateSoftwareVector(
-    _In_    DeviceInterrupt_t*  Interrupt,
-    _In_    unsigned int             Flags)
+    _In_    DeviceInterrupt_t* Interrupt,
+    _In_    unsigned int       Flags)
 {
     UUId_t Result = 0;
     
@@ -154,51 +154,51 @@ AllocateSoftwareVector(
 
 OsStatus_t
 InterruptResolve(
-    _In_    DeviceInterrupt_t* Interrupt,
-    _In_    unsigned int       Flags,
-    _Out_   UUId_t*            TableIndex)
+    _In_    DeviceInterrupt_t* deviceInterrupt,
+    _In_    unsigned int       flags,
+    _Out_   UUId_t*            tableIndex)
 {
-    if (!(Flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
-        if (Flags & INTERRUPT_VECTOR) {
+    if (!(flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
+        if (flags & INTERRUPT_VECTOR) {
             int Vectors[INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE];
             int i;
             Vectors[INTERRUPT_MAXVECTORS] = INTERRUPT_NONE;
             for (i = 0; i < INTERRUPT_MAXVECTORS; i++) {
-                if (Interrupt->Vectors[i] == INTERRUPT_NONE
+                if (deviceInterrupt->Vectors[i] == INTERRUPT_NONE
                     || i == (INTERRUPT_MAXVECTORS - 1)) {
                     Vectors[i] = INTERRUPT_NONE;
                     break;
                 }
-                Vectors[i] = (INTERRUPT_PHYSICAL_BASE + Interrupt->Vectors[i]);
+                Vectors[i] = (INTERRUPT_PHYSICAL_BASE + deviceInterrupt->Vectors[i]);
             }
 
-            Interrupt->Line = InterruptGetLeastLoaded(Vectors, i);
+            deviceInterrupt->Line = InterruptGetLeastLoaded(Vectors, i);
 
             // Adjust to physical
-            if (Interrupt->Line != INTERRUPT_NONE) {
-                Interrupt->Line -= INTERRUPT_PHYSICAL_BASE;
+            if (deviceInterrupt->Line != INTERRUPT_NONE) {
+                deviceInterrupt->Line -= INTERRUPT_PHYSICAL_BASE;
             }
         }
 
         // Do we need to override the source?
-        if (Interrupt->Line != INTERRUPT_NONE) {
+        if (deviceInterrupt->Line != INTERRUPT_NONE) {
             // Now lookup in ACPI overrides if we should
             // change the global source
             for (int i = 0; i < GetMachine()->NumberOfOverrides; i++) {
-                if (GetMachine()->Overrides[i].SourceLine == Interrupt->Line) {
-                    Interrupt->Line         = GetMachine()->Overrides[i].DestinationLine;
-                    Interrupt->AcpiConform  = GetMachine()->Overrides[i].OverrideFlags;
+                if (GetMachine()->Overrides[i].SourceLine == deviceInterrupt->Line) {
+                    deviceInterrupt->Line        = GetMachine()->Overrides[i].DestinationLine;
+                    deviceInterrupt->AcpiConform = GetMachine()->Overrides[i].OverrideFlags;
                 }
             }
         }
-        *TableIndex = INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line;
+        *tableIndex = INTERRUPT_PHYSICAL_BASE + (UUId_t)deviceInterrupt->Line;
     }
     else {
-        *TableIndex = AllocateSoftwareVector(Interrupt, Flags);
+        *tableIndex = AllocateSoftwareVector(deviceInterrupt, flags);
     }
 
     // In case of MSI interrupt, update msi format
-    if (Flags & INTERRUPT_MSI) {
+    if (flags & INTERRUPT_MSI) {
         // Fill in MSI data
         // MSI Message Address Register (0xFEE00000 LAPIC)
         // Bits 31-20: Must be 0xFEE
@@ -207,7 +207,7 @@ InterruptResolve(
         // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
         // Bit      2: Destination Mode (1 Logical, 0 Physical)
         // Bits 00-01: X
-        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) | 0x8 | 0x4;
+        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) | 0x8 | 0x4;
 
         // Message Data Register Format
         // Bits 31-16: Reserved
@@ -216,9 +216,19 @@ InterruptResolve(
         // Bits 13-11: Reserved
         // Bits 10-08: Delivery Mode, standard
         // Bits 07-00: Vector
-        Interrupt->MsiValue = (0x100 | (*TableIndex & 0xFF));
+        deviceInterrupt->MsiValue = (0x100 | (*tableIndex & 0xFF));
     }
     return OsSuccess;
+}
+
+void InterruptSetMode(
+        _In_ int mode)
+{
+    // I don't know if we're supposed to be able to switch on the fly. The issue is that we've initialized
+    // interrupts before trying to set PIC or APIC mode at acpi. I guess we should assume we can always set
+    // APIC mode if there is any APIC present.
+    // @todo should we be able to switch interrupt-mode on demand?
+    _CRT_UNUSED(mode);
 }
 
 OsStatus_t
@@ -228,7 +238,7 @@ InterruptConfigure(
 {
     SystemInterruptController_t *Ic = NULL;
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
-    UUId_t TableIndex       = 0;
+    UUId_t TableIndex;
     union {
         struct {
             uint32_t Lo;

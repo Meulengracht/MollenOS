@@ -31,7 +31,7 @@
 #include <assert.h>
 
 // Static storage for acpi states
-static int AcpiStatus         = ACPI_NOT_AVAILABLE;
+static int g_acpiStatus       = ACPI_NOT_AVAILABLE;
 AcpiEcdt_t EmbeddedController = { 0 };
 
 OsStatus_t
@@ -354,38 +354,35 @@ AcpiEnumerateECDT(
     memcpy(&EmbeddedController.NsPath[0],       &EcdtTable->Id[0],   strlen((const char*)&(EcdtTable->Id[0])));
 }
 
-/* AcpiInitializeEarly
- * Initializes Early Access and enumerates the APIC Table */
 OsStatus_t
 AcpiInitializeEarly(void)
 {
-    // Variables
-    ACPI_TABLE_HEADER *Header   = NULL;
-    OsStatus_t Result           = OsSuccess;
-    ACPI_STATUS Status;
+    ACPI_TABLE_HEADER* header;
+    OsStatus_t         osStatus = OsSuccess;
+    ACPI_STATUS        acpiStatus;
 
     // Perform the initial setup of ACPICA
-    Status = AcpiInitializeSubsystem();
-    if (ACPI_FAILURE(Status)) {
-        ERROR(" > acpi is not available (acpi disabled %" PRIuIN ")", Status);
-        AcpiStatus = ACPI_NOT_AVAILABLE;
+    acpiStatus = AcpiInitializeSubsystem();
+    if (ACPI_FAILURE(acpiStatus)) {
+        ERROR(" > acpi is not available (acpi disabled %" PRIuIN ")", acpiStatus);
+        g_acpiStatus = ACPI_NOT_AVAILABLE;
         return OsError;
     }
 
     // Do the early table enumeration
-    Status = AcpiInitializeTables(NULL, ACPI_MAX_INIT_TABLES, TRUE);
-    if (ACPI_FAILURE(Status)) {
-        ERROR(" > failed to obtain acpi tables (acpi disabled %" PRIuIN ")", Status);
-        AcpiStatus = ACPI_NOT_AVAILABLE;
+    acpiStatus = AcpiInitializeTables(NULL, ACPI_MAX_INIT_TABLES, TRUE);
+    if (ACPI_FAILURE(acpiStatus)) {
+        ERROR(" > failed to obtain acpi tables (acpi disabled %" PRIuIN ")", acpiStatus);
+        g_acpiStatus = ACPI_NOT_AVAILABLE;
         return OsError;
     }
     else {
-        AcpiStatus = ACPI_AVAILABLE;
+        g_acpiStatus = ACPI_AVAILABLE;
     }
 
     // Check for MADT presence and enumerate
-    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
-        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &header))) {
+        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)header;
         void *MadtTableStart        = (void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT));
         void *MadtTableEnd          = (void*)((uintptr_t)MadtTable + MadtTable->Header.Length);
         int NumberOfDomains         = 0;
@@ -393,8 +390,8 @@ AcpiInitializeEarly(void)
 
         // If the MADT table is present we can check for multiple processors
         // before doing this we check for presence of multiple domains
-        if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header))) {
-            ACPI_TABLE_SRAT *SratTable  = (ACPI_TABLE_SRAT*)Header;
+        if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &header))) {
+            ACPI_TABLE_SRAT *SratTable  = (ACPI_TABLE_SRAT*)header;
             void *SratTableStart        = (void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_SRAT));
             void *SratTableEnd          = (void*)((uintptr_t)SratTable + SratTable->Header.Length);
             
@@ -459,40 +456,40 @@ AcpiInitializeEarly(void)
         AcpiPutTable((ACPI_TABLE_HEADER*)MadtTable);
     }
     else {
-        Result = OsError;
+        osStatus = OsError;
     }
 
     // Check for ECDT presence and enumerate. This table is not present on
     // any of the modern systems, they instead appear in the acpi namespace
-    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &Header))) {
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &header))) {
         ACPI_TABLE_ECDT *EcdtTable = NULL;
         TRACE("Enumerating the ECDT Table");
-        EcdtTable = (ACPI_TABLE_ECDT*)Header;
+        EcdtTable = (ACPI_TABLE_ECDT*)header;
         //AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
         //    (void*)((uintptr_t)EcdtTable + EcdtTable->Header.Length));
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later
-        AcpiPutTable(Header);
+        AcpiPutTable(header);
     }
 
     // Check for SBST presence and enumerate
     // @todo
-    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header))) {
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &header))) {
         ACPI_TABLE_SBST *BattTable = NULL;
         TRACE("Parsing the SBST Table");
-        BattTable = (ACPI_TABLE_SBST*)Header;
+        BattTable = (ACPI_TABLE_SBST*)header;
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later
-        AcpiPutTable(Header);
+        AcpiPutTable(header);
     }
-    return Result;
+    return osStatus;
 }
 
 /* This returns 0 if ACPI is not available
  * on the system, or 1 if acpi is available */
 int AcpiAvailable(void)
 {
-    return AcpiStatus;
+    return g_acpiStatus;
 }

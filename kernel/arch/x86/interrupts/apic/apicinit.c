@@ -36,9 +36,9 @@
 #include <apic.h>
 #include <mp.h>
 
-static SystemInterruptController_t* IoApicI8259Apic = NULL;
-static int                          IoApicI8259Pin  = 0;
-static SystemInterruptMode_t        InterruptMode   = InterruptModePic;
+static SystemInterruptController_t* g_ioApicI8259Apic = NULL;
+static int                          g_ioApicI8259Pin = 0;
+static SystemInterruptMode_t        g_interruptMode  = InterruptModePic;
 
 size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
 uintptr_t GlbLocalApicBase = 0;
@@ -48,7 +48,7 @@ GetSystemLvtByAcpi(
     _In_ uint8_t Lvt)
 {
     ACPI_TABLE_HEADER* Header   = NULL;
-    unsigned int            LvtSetup = 0;
+    unsigned int       LvtSetup = 0;
 
     // Check for MADT presence and enumerate
     if (AcpiAvailable() == ACPI_AVAILABLE && 
@@ -180,8 +180,8 @@ ParseIoApic(
         // Unmasked and ExtINT? 
         // - Then we found it, and should lock the interrupt route
         if ((Entry & (APIC_MASKED | APIC_EXTINT_ROUTE)) == APIC_EXTINT_ROUTE) {
-            IoApicI8259Apic = Controller;
-            IoApicI8259Pin  = i;
+            g_ioApicI8259Apic = Controller;
+            g_ioApicI8259Pin  = i;
             InterruptIncreasePenalty(i);
             break;
         }
@@ -469,9 +469,9 @@ ApicInitialize(void)
     // controllers and we should instead create it as PIC
     TRACE(" > initializing interrupt controllers");
     Ic = GetMachine()->InterruptController;
-    if (Ic != NULL) {
-        InterruptMode = InterruptModeApic;
-        while (Ic != NULL) {
+    if (Ic) {
+        g_interruptMode = InterruptModeApic;
+        while (Ic) {
             ParseIoApic(Ic);
             Ic = Ic->Link;
         }
@@ -488,7 +488,7 @@ ApicInitialize(void)
 SystemInterruptMode_t
 GetApicInterruptMode(void)
 {
-    return InterruptMode;
+    return g_interruptMode;
 }
 
 OsStatus_t

@@ -98,7 +98,7 @@ BusEnumerate(void* context)
         }
 
         // Check for PS2 controller presence
-        if (acpi.BootFlags & ACPI_IA_8042 || acpi.BootFlags == 0) {
+        if ((acpi.BootFlags & ACPI_IA_8042) || acpi.BootFlags == 0) {
             BusRegisterPS2Controller();
         }
     }
@@ -118,13 +118,16 @@ BusEnumerate(void* context)
 
         for (i = 0; i < entryCount; i++) {
             PciBus_t* bus = (PciBus_t*)malloc(sizeof(PciBus_t));
+            size_t length;
+
             if (!bus) {
                 return ENOMEM;
             }
 
             memset(bus, 0, sizeof(PciBus_t));
 
-            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, (1024 * 1024 * 256)) != OsSuccess) {
+            length = (mcfgEntry->EndBus - mcfgEntry->StartBus + 1) << 20;
+            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OsSuccess) {
                 ERROR(" > failed to create pcie address space");
                 return ENODEV;
             }
@@ -188,26 +191,10 @@ BusEnumerate(void* context)
     return EOK;
 }
 
-/*
-static uint32_t pci_mmcfg_readreg(uint32_t bdf, uint8_t reg)
-{
-    return virtbase[(bdf << 10) | (reg >> 2)];
-}
-
-static uint32_t pci_mmcfg_writereg(uint32_t bdf, uint8_t reg, uint32_t val)
-{
-    virtbase[(bdf << 10) | (reg >> 2)] = val;
-}
-*/
-
-/* PciToDevClass
- * Helper to construct the class from available pci-information */
 unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass) {
     return ((Class & 0xFFFF) << 16 | (SubClass & 0xFFFF));
 }
 
-/* PciToDevSubClass
- * Helper to construct the sub-class from available pci-information */
 unsigned int PciToDevSubClass(uint32_t Interface) {
     return ((Interface & 0xFFFF) << 16 | 0);
 }
@@ -330,7 +317,20 @@ PciReadBars(
     }
 }
 
-int __SwizzleInterruptPin(int device, int pin) {
+static inline void __UpdateInterruptLine(
+        _In_ PciDevice_t* parent,
+        _In_ int          bus,
+        _In_ int          slot,
+        _In_ int          function,
+        _In_ int          interruptLine,
+        _In_ PciDevice_t* pciDevice)
+{
+    PciWrite8(parent->BusIo, (unsigned int)bus, (unsigned int)slot,
+              (unsigned int)function, 0x3C, (uint8_t)interruptLine);
+    pciDevice->Header->InterruptLine = (uint8_t)interruptLine;
+}
+
+static inline int __SwizzleInterruptPin(int device, int pin) {
     return (((pin - 1) + device) % 4) + 1;
 }
 
@@ -341,14 +341,17 @@ static void __ResolveInterruptLineAndPin(
         _In_ int          function,
         _In_ PciDevice_t* pciDevice)
 {
-    TRACE("  * Initial Line %u, Pin %i", device->Header->InterruptLine, device->Header->InterruptPin);
+    TRACE("__ResolveInterruptLineAndPin(bus=%i, slot=%i, function=%i)",
+          bus, slot, function);
 
     // We do need acpi for this to query acpi interrupt information for device
     if (g_acpiAvailable == 1) {
         PciDevice_t* iterator      = pciDevice;
         unsigned int acpiConform   = 0;
-        int          interruptLine = INTERRUPT_NONE;
+        int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
+        OsStatus_t   hasRouting    = OsDoesNotExist;
+        TRACE("__ResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
         // Sanitize legals
         if (interruptPin > 4) {
@@ -366,30 +369,26 @@ static void __ResolveInterruptLineAndPin(
             //           -> Get parent device
             //           -> Go-To 1
             while (iterator && iterator != g_rootDevice) {
-                OsStatus_t hasFilter = AcpiQueryInterrupt(
+                hasRouting = AcpiQueryInterrupt(
                         iterator->Bus, iterator->Slot, interruptPin,
                         &interruptLine, &acpiConform);
 
                 // Did routing exist?
-                if (hasFilter == OsSuccess) {
-                    TRACE("  * Final Line %u - Final Pin %i", interruptLine, interruptPin);
+                if (hasRouting == OsSuccess) {
                     break;
                 }
 
                 // Nope, swizzle pin, move up the ladder
                 interruptPin = __SwizzleInterruptPin((int) iterator->Slot, interruptPin);
                 iterator     = iterator->Parent;
-
-                // Trace
-                TRACE("  * Derived Pin %i", interruptPin);
+                TRACE("__ResolveInterruptLineAndPin derived pin %i", interruptPin);
             }
 
             // Update the irq-line if we found a new line
-            if (interruptLine != INTERRUPT_NONE) {
-                PciWrite8(parent->BusIo, (unsigned int)bus, (unsigned int)slot,
-                          (unsigned int)function, 0x3C, (uint8_t)interruptLine);
-                pciDevice->Header->InterruptLine = (uint8_t)interruptLine;
-                pciDevice->AcpiConform           = acpiConform;
+            if (hasRouting == OsSuccess) {
+                TRACE("__ResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
+                __UpdateInterruptLine(parent, bus, slot, function, interruptLine, pciDevice);
+                pciDevice->AcpiConform = acpiConform;
             }
         }
     }
@@ -453,8 +452,8 @@ PciCheckFunction(
     // Ignore the spam of device_id 0x7a0 in VMWare
     // This is VIRTIO devices
     if (device->Header->DeviceId != 0x7a0) {
-        TRACE(" - [%x:%x:%x] %s", bus, Device, function,
-              PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
+        TRACE(" - [%x:%x:%x] %s", bus, slot, function,
+              PciToString(device->Header->Class, device->Header->Subclass, device->Header->Interface));
     }
 
     // Do some disabling, but NOT on the video or bridge
@@ -479,9 +478,6 @@ PciCheckFunction(
     return OsSuccess;
 }
 
-/* PciCheckDevice
- * Checks if there is any connection on the given
- * pci-location, and enumerates it's function if available */
 void
 PciCheckDevice(
     _In_ PciDevice_t* parent,

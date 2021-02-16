@@ -71,15 +71,14 @@ _Noreturn static void __crt_module_main(int setIod)
     while (1) {
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
-            // Check if the driver had any IRQs registered
-            if (OnEvent(&events[i]) == OsSuccess) {
-                continue;
-            }
-
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
             }
             else {
+                // Check if the driver had any IRQs registered
+                if (OnEvent(&events[i]) == OsSuccess) {
+                    continue;
+                }
                 gracht_server_handle_event(events[i].data.iod, events[i].events);
             }
         }
