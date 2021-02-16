@@ -10,30 +10,29 @@ enable_language(C)
 include_directories (
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
-    ../../librt/include
-    include
+    ../../../librt/libgracht/include
+    ../../../librt/libusb/include
+    ../../../librt/libddk/include
+    ../../../librt/libds/include
+    ../../../librt/libc/include
+    ../../../librt/include
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol.h
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include driver --server
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_input_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_input_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_input_protocol.h
+    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include driver,input --server
     DEPENDS ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
 )
 
 set (ADDITONAL_SOURCES
-    ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c)
+    ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c
+    ${CMAKE_CURRENT_BINARY_DIR}/ctt_input_protocol_server.c)
 
-add_module_target(ps2 ""
+add_module_target(hid ""
     ${ADDITONAL_SOURCES}
-    devices/scancodes/scancodes2.c
-    devices/keyboard.c
-    devices/mouse.c
-
+    collection.c
+    functions.c
+    hid.c
     main.c
-    port.c
 )
+target_link_libraries(hid libusb)

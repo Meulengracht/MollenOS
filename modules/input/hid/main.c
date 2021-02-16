@@ -17,18 +17,46 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Mass Storage Device Driver (Generic)
+ * Human Input Device Driver (Generic)
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include <ds/collection.h>
-#include <os/mollenos.h>
+#include <ds/list.h>
 #include "hid.h"
+#include <ioset.h>
+#include <os/mollenos.h>
 #include <string.h>
 #include <stdlib.h>
 
-static Collection_t *GlbHidDevices = NULL;
+#include <ctt_driver_protocol_server.h>
+#include <ctt_input_protocol_server.h>
+
+static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
+static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
+
+static gracht_protocol_function_t ctt_driver_callbacks[2] = {
+        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
+        { PROTOCOL_CTT_DRIVER_GET_DEVICE_PROTOCOLS_ID , ctt_driver_get_device_protocols_callback },
+};
+DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
+
+static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args*);
+
+static gracht_protocol_function_t ctt_input_callbacks[1] = {
+        { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
+};
+DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
+
+static list_t g_devices = LIST_INIT;
+
+HidDevice_t*
+HidDeviceGet(
+        _In_ UUId_t deviceId)
+{
+    return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
+}
 
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     unsigned int* class, unsigned int* subClass)
@@ -39,94 +67,90 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     *subClass = 0x30000;
 }
 
-/* OnInterrupt
- * Is called when one of the registered devices
- * produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt
- * won't be acknowledged */
-InterruptStatus_t
-OnInterrupt(
-    _In_Opt_ void *InterruptData,
+InterruptStatus_t OnInterrupt(
+    _In_Opt_ void*  InterruptData,
     _In_Opt_ size_t Arg0,
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    // We don't use all params
     _CRT_UNUSED(Arg2);
-    return HidInterrupt((HidDevice_t*)InterruptData, 
-        (UsbTransferStatus_t)Arg0, Arg1);
+    return HidInterrupt((HidDevice_t*)InterruptData, (UsbTransferStatus_t)Arg0, Arg1);
 }
 
-/* OnLoad
- * The entry-point of a driver, this is called
- * as soon as the driver is loaded in the system */
-OsStatus_t
-OnLoad(void)
+OsStatus_t OnEvent(struct ioset_event* event)
 {
-	// Initialize state for this driver
-    GlbHidDevices = CollectionCreate(KeyId);
+    return OsNotSupported;
+}
+
+OsStatus_t OnLoad(void)
+{
+    // Register supported protocols
+    gracht_server_register_protocol(&ctt_driver_server_protocol);
+
     return UsbInitialize();
 }
 
-/* OnUnload
- * This is called when the driver is being unloaded
- * and should free all resources allocated by the system */
+
+static void
+DestroyElement(
+        _In_ element_t* Element,
+        _In_ void*      Context)
+{
+    HidDeviceDestroy(Element->value);
+}
+
 OsStatus_t
 OnUnload(void)
 {
-	// Iterate registered controllers
-	foreach(cNode, GlbHidDevices) {
-		HidDeviceDestroy((HidDevice_t*)cNode->Data);
-	}
-
-	// Data is now cleaned up, destroy list
-    CollectionDestroy(GlbHidDevices);
+    list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-/* OnRegister
- * Is called when the device-manager registers a new
- * instance of this driver for the given device */
-OsStatus_t
-OnRegister(
+OsStatus_t OnRegister(
     _In_ Device_t *Device)
 {
-	HidDevice_t*    HidDevice = NULL;
-	DataKey_t       Key = { .Value.Id = Device->Id };
-	
-	// Register the new controller
-	HidDevice = HidDeviceCreate((UsbDevice_t*)Device);
+    HidDevice_t* hidDevice;
 
-	// Sanitize
-	if (HidDevice == NULL) {
-		return OsError;
-	}
-	CollectionAppend(GlbHidDevices, CollectionCreateNode(Key, HidDevice));
-	return OsSuccess;
+    hidDevice = HidDeviceCreate((UsbDevice_t*)Device);
+    if (hidDevice == NULL) {
+        return OsError;
+    }
+
+    list_append(&g_devices, &hidDevice->Header);
+    return OsSuccess;
 }
 
-/* OnUnregister
- * Is called when the device-manager wants to unload
- * an instance of this driver from the system */
-OsStatus_t
-OnUnregister(
-    _In_ Device_t *Device)
+void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
 {
-	HidDevice_t*    HidDevice = NULL;
-	DataKey_t       Key = { .Value.Id = Device->Id };
+    OnRegister(args->device);
+}
 
-	// Lookup controller
-	HidDevice = (HidDevice_t*)
-		CollectionGetDataByKey(GlbHidDevices, Key, 0);
+OsStatus_t OnUnregister(
+    _In_ Device_t* device)
+{
+    HidDevice_t* hidDevice = HidDeviceGet(device->Id);
+    if (hidDevice == NULL) {
+        return OsDoesNotExist;
+    }
 
-	// Sanitize lookup
-	if (HidDevice == NULL) {
-		return OsError;
-	}
+    list_remove(&g_devices, &hidDevice->Header);
+    return HidDeviceDestroy(hidDevice);
+}
 
-	// Remove node from list
-	CollectionRemoveByKey(GlbHidDevices, Key);
+static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
+{
+    ctt_driver_event_device_protocol_single(message->client, args->device_id,
+                                            "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
+}
 
-	// Destroy it
-	return HidDeviceDestroy(HidDevice);
+static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args* args)
+{
+    //if (port) {
+    //    if (port->Signature == 0xAB41 || port->Signature == 0xABC1 || port->Signature == 0xAB83) {
+    //        ctt_input_event_properties_single(message->client, args->device_id, input_type_keyboard);
+    //    }
+    //    else {
+    //        ctt_input_event_properties_single(message->client, args->device_id, input_type_mouse);
+    //    }
+    //}
 }

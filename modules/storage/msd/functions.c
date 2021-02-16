@@ -124,7 +124,7 @@ MsdScsiCommand(
     _In_ size_t       BufferOffset,
     _In_ size_t       DataLength)
 {
-    UsbTransferStatus_t Status         = { 0 };
+    UsbTransferStatus_t Status;
     size_t              DataToTransfer = DataLength;
     int                 RetryCount     = 3;
 

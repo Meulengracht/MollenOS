@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,38 +17,23 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Human Input Device Driver (Generic)
+ * Human Input Device Driver (Generic)
  */
 
 #ifndef __USB_HID_H__
 #define __USB_HID_H__
 
-#include <os/osdefs.h>
 #include <ddk/usbdevice.h>
+#include <ds/list.h>
+#include <os/osdefs.h>
 
-typedef enum _DeviceInputType {
-    DeviceInputKeyboard     = 0,
+typedef enum DeviceInputType {
+    DeviceInputKeyboard = 0,
     DeviceInputKeypad,
     DeviceInputPointer,
     DeviceInputJoystick,
     DeviceInputGamePad
 } DeviceInputType_t;
-
-PACKED_TYPESTRUCT(SystemKey, {
-    uint8_t     KeyAscii;
-    uint8_t     KeyCode;
-    uint16_t    Flags;
-    uint32_t    KeyUnicode;
-});
-
-PACKED_TYPESTRUCT(SystemInput, {
-    uint8_t     Type;
-    uint8_t     Flags;
-    int16_t     RelativeX;
-    int16_t     RelativeY;
-    int16_t     RelativeZ;
-    uint32_t    Buttons;
-});
 
 /* HID Class Definitions 
  * Contains generic magic constants and definitions */
@@ -156,9 +142,10 @@ PACKED_TYPESTRUCT(SystemInput, {
 #define HID_REPORT_USAGE_R_Z                0x35
 #define HID_REPORT_USAGE_WHEEL              0x36
 
-/* UsbHidDescriptor
- * A descriptor containing the setup of the HID device
- * and it's physical layout. */
+/**
+ * UsbHidDescriptor
+ * A descriptor containing the setup of the HID device and it's physical layout.
+ */
 PACKED_TYPESTRUCT(UsbHidDescriptor, {
     uint8_t                         Length;
     uint8_t                         Type;
@@ -169,9 +156,11 @@ PACKED_TYPESTRUCT(UsbHidDescriptor, {
     uint16_t                        ClassDescriptorLength;
 });
 
-/* UsbHidReportGlobalStats
+/**
+ * UsbHidReportGlobalStats
  * Global state variables that applies to all non-local state
- * items. Only other stats can overwrite the contained stats. */
+ * items. Only other stats can overwrite the contained stats.
+ */
 PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
     uint32_t                        UsagePage;
 
@@ -193,10 +182,11 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
     uint32_t                        ReportCount;
 });
 
-/* UsbHidReportItemStats
- * Describes an HID-item for which kind of usages, and
- * where in the report (bit index) its data is */
-typedef struct _UsbHidReportItemStats {
+/**
+ * UsbHidReportItemStats
+ * Describes an HID-item for which kind of usages, and where in the report (bit index) its data is
+ */
+typedef struct UsbHidReportItemStats {
     int                             Usages[16];
 
     uint32_t                        UsageMin;
@@ -205,53 +195,63 @@ typedef struct _UsbHidReportItemStats {
     uint32_t                        BitOffset;
 } UsbHidReportItemStats_t;
 
-/* UsbHidReportInputItem
- * List item for an report item. Also contains the above ItemStats. */
-typedef struct _UsbHidReportInputItem {
-    unsigned int                         Flags;
+/**
+ * UsbHidReportInputItem
+ * List item for an report item. Also contains the above ItemStats.
+ */
+typedef struct UsbHidReportInputItem {
+    unsigned int                    Flags;
     UsbHidReportItemStats_t         LocalState;
 } UsbHidReportInputItem_t;
 
-/* UsbHidReportInputItem::Flags
- * Contains definitions and bitfield definitions for UsbHidReportInputItem::Flags */
+/**
+ * UsbHidReportInputItem::Flags
+ * Contains definitions and bitfield definitions for UsbHidReportInputItem::Flags
+ */
 #define REPORT_INPUT_TYPE_CONSTANT          0x0
 #define REPORT_INPUT_TYPE_RELATIVE          0x1
 #define REPORT_INPUT_TYPE_ABSOLUTE          0x2
 #define REPORT_INPUT_TYPE_ARRAY             0x3
 
-/* UsbHidReportCollectionItem
- * Each of these items describe some form of physical input. */
-typedef struct _UsbHidReportCollectionItem {
+/**
+ * UsbHidReportCollectionItem
+ * Each of these items describe some form of physical input.
+ */
+typedef struct UsbHidReportCollectionItem {
     int                                 CollectionType;
     DeviceInputType_t                   InputType;
-    void                               *ItemPointer;
+    void*                               ItemPointer;
     UsbHidReportGlobalStats_t           Stats;
-    struct _UsbHidReportCollectionItem *Link;
+    struct UsbHidReportCollectionItem*  Link;
 } UsbHidReportCollectionItem_t;
 
-/* UsbHidReportCollectionItem::Type
- * Contains definitions and bitfield definitions for UsbHidReportCollectionItem::Type */
+/**
+ * UsbHidReportCollectionItem::Type
+ * Contains definitions and bitfield definitions for UsbHidReportCollectionItem::Type
+ */
 #define HID_TYPE_COLLECTION                 0x0
 #define HID_TYPE_INPUT                      0x1
 #define HID_TYPE_OUTPUT                     0x2
 #define HID_TYPE_FEATURE                    0x3
 
-/* UsbHidReportCollection
- * Represents a collection of hid-items that each describe
- * some form of input. */
-typedef struct _UsbHidReportCollection {
+/**
+ * UsbHidReportCollection
+ * Represents a collection of hid-items that each describe some form of input.
+ */
+typedef struct UsbHidReportCollection {
     size_t                           UsagePage;
     size_t                           Usage;
     
-    struct _UsbHidReportCollection  *Parent;
-    UsbHidReportCollectionItem_t    *Childs;
+    struct UsbHidReportCollection*   Parent;
+    UsbHidReportCollectionItem_t*    Childs;
 } UsbHidReportCollection_t;
 
 #define HID_DEVICE_PROTOCOL_BOOT   0
 #define HID_DEVICE_PROTOCOL_REPORT 1
 
-typedef struct _HidDevice {
+typedef struct HidDevice {
     UsbDevice_t   Base;
+    element_t     Header;
     UsbTransfer_t Transfer;
     UUId_t        TransferId;
 
@@ -270,7 +270,7 @@ typedef struct _HidDevice {
 __EXTERN
 HidDevice_t*
 HidDeviceCreate(
-    _In_ UsbDevice_t *UsbDevice);
+    _In_ UsbDevice_t *usbDevice);
 
 /* HidDeviceDestroy
  * Destroys an existing hid device instance and cleans up
@@ -285,7 +285,7 @@ HidDeviceDestroy(
 __EXTERN
 OsStatus_t
 HidSetupGeneric(
-    _In_ HidDevice_t *Device);
+    _In_ HidDevice_t *hidDevice);
 
 /* HidSetProtocol
  * Changes the current protocol of the device. 
@@ -293,8 +293,8 @@ HidSetupGeneric(
 __EXTERN
 OsStatus_t
 HidSetProtocol(
-    _In_ HidDevice_t *Device,
-    _In_ int Protocol);
+    _In_ HidDevice_t *hidDevice,
+    _In_ int protocol);
 
 /* HidSetIdle
  * Changes the current situation of the device to idle. 
@@ -304,9 +304,9 @@ HidSetProtocol(
 __EXTERN
 OsStatus_t
 HidSetIdle(
-    _In_ HidDevice_t *Device,
-    _In_ int ReportId,
-    _In_ int Duration);
+    _In_ HidDevice_t *hidDevice,
+    _In_ int reportId,
+    _In_ int duration);
 
 /* HidParseReportDescriptor
  * Parses the report descriptor and stores it as collection tree. The size
@@ -314,26 +314,24 @@ HidSetIdle(
 __EXTERN
 size_t
 HidParseReportDescriptor(
-    _In_ HidDevice_t *Device,
-    _In_ uint8_t *Descriptor,
-    _In_ size_t DescriptorLength);
+    _In_ HidDevice_t *hidDevice,
+    _In_ const uint8_t *descriptor,
+    _In_ size_t descriptorLength);
 
 /* HidParseReport
  * Recursive report-parser that applies the given report-data
  * to the parsed report collection. */
-__EXTERN
-OsStatus_t
+__EXTERN int
 HidParseReport(
-    _In_ HidDevice_t *Device,
-    _In_ UsbHidReportCollection_t *Collection,
-    _In_ size_t DataIndex);
+    _In_ HidDevice_t *hidDevice,
+    _In_ UsbHidReportCollection_t *reportCollection,
+    _In_ size_t dataIndex);
 
 /* HidCollectionCleanup
  * Cleans up any resources allocated by the collection parser. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 HidCollectionCleanup(
-    _In_ HidDevice_t *Device);
+    _In_ HidDevice_t *hidDevice);
 
 /* HidInterrupt
  * Should be called from the primary driver OnInterrupt

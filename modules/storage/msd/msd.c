@@ -71,7 +71,7 @@ static inline void* memdup(void* mem, size_t size)
     return dup;
 }
 
-static inline int IsSupportedInterface(usb_device_interface_setting_t* interface)
+static inline int __IsSupportedInterface(usb_device_interface_setting_t* interface)
 {
     // Verify class is MSD
     if (interface->base.Class != USB_CLASS_MSD) {
@@ -88,8 +88,7 @@ static inline int IsSupportedInterface(usb_device_interface_setting_t* interface
     return 0;
 }
 
-static inline void
-GetDeviceProtocol(
+static inline void __GetDeviceProtocol(
     _In_ MsdDevice_t*                    device,
     _In_ usb_device_interface_setting_t* interface)
 {
@@ -125,8 +124,7 @@ GetDeviceProtocol(
     }
 }
 
-static void
-GetDeviceConfiguration(
+static void __GetDeviceConfiguration(
     _In_ MsdDevice_t* device)
 {
     usb_device_configuration_t configuration;
@@ -135,14 +133,14 @@ GetDeviceConfiguration(
     
     status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
     if (status != TransferFinished) {
-        ERROR("[msd] [GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
+        ERROR("[msd] [__GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
         return;
     }
     
     // TODO support interface settings
     for (i = 0; i < configuration.base.NumInterfaces; i++) {
         usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
-        if (IsSupportedInterface(interface)) {
+        if (__IsSupportedInterface(interface)) {
             for (j = 0; j < interface->base.NumEndpoints; j++) {
                 usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
                 if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT) {
@@ -157,7 +155,7 @@ GetDeviceConfiguration(
                     }
                 }
             }
-            GetDeviceProtocol(device, interface);
+            __GetDeviceProtocol(device, interface);
             break;
         }
     }
@@ -167,49 +165,49 @@ GetDeviceConfiguration(
 
 MsdDevice_t*
 MsdDeviceCreate(
-    _In_ UsbDevice_t* UsbDevice)
+    _In_ UsbDevice_t* usbDevice)
 {
-    MsdDevice_t* Device;
+    MsdDevice_t* msdDevice;
 
     // Debug
-    TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.Id);
+    TRACE("MsdDeviceCreate(DeviceId %u)", usbDevice->Base.Id);
 
     // Allocate new resources
-    Device = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
-    if (!Device) {
+    msdDevice = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
+    if (!msdDevice) {
         return NULL;
     }
     
-    memset(Device, 0, sizeof(MsdDevice_t));
-    memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
-    ELEMENT_INIT(&Device->Header, (uintptr_t)UsbDevice->Base.Id, Device);
+    memset(msdDevice, 0, sizeof(MsdDevice_t));
+    memcpy(&msdDevice->Base, usbDevice, sizeof(UsbDevice_t));
+    ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
     
-    GetDeviceConfiguration(Device);
+    __GetDeviceConfiguration(msdDevice);
     
     // Debug
     TRACE("MSD Device of Type %s and Protocol %s",
-          g_deviceTypeNames[Device->Type],
-          g_deviceProtocolNames[Device->Protocol]);
+          g_deviceTypeNames[msdDevice->Type],
+          g_deviceProtocolNames[msdDevice->Protocol]);
 
     // Initialize the kind of profile we discovered
-    if (MsdDeviceInitialize(Device) != OsSuccess) {
+    if (MsdDeviceInitialize(msdDevice) != OsSuccess) {
         ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;
     }
 
     // Allocate reusable buffers
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
-        (void**)&Device->CommandBlock) != OsSuccess) {
+        (void**)&msdDevice->CommandBlock) != OsSuccess) {
         ERROR("Failed to allocate reusable buffer (command-block)");
         goto Error;
     }
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
-        (void**)&Device->StatusBlock) != OsSuccess) {
+        (void**)&msdDevice->StatusBlock) != OsSuccess) {
         ERROR("Failed to allocate reusable buffer (status-block)");
         goto Error;
     }
 
-    if (MsdDeviceStart(Device) != OsSuccess) {
+    if (MsdDeviceStart(msdDevice) != OsSuccess) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
@@ -218,17 +216,17 @@ MsdDeviceCreate(
     if (WaitForFileService(1000) != OsSuccess) {
         ERROR("[msd] disk ready but storage service did not start");
         // TODO: what do
-        return Device;
+        return msdDevice;
     }
 
     RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()),
-        Device->Base.Base.Id, SVC_STORAGE_REGISTER_FLAGS_REMOVABLE);
-    return Device;
+                    msdDevice->Base.Base.Id, SVC_STORAGE_REGISTER_FLAGS_REMOVABLE);
+    return msdDevice;
 
 Error:
     // Cleanup
-    if (Device != NULL) {
-        MsdDeviceDestroy(Device);
+    if (msdDevice != NULL) {
+        MsdDeviceDestroy(msdDevice);
     }
     return NULL;
 }

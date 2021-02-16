@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +17,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Human Input Device Driver (Generic)
+ * Human Input Device Driver (Generic)
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <usb/usb.h>
 #include <ddk/utils.h>
@@ -36,19 +38,23 @@ memdup(void* mem, size_t size)
     return dup;
 }
 
-static inline int
-IsSupportedInterface(
+static inline int __IsSupportedInterface(
     _In_ usb_device_interface_setting_t* interface)
 {
+    TRACE("__IsSupportedInterface(interface=0x%" PRIxIN ")", interface);
+
     // Verify class is HID
     if (interface->base.Class != USB_CLASS_HID) {
+        ERROR("__IsSupportedInterface interface->class 0x%x != 0x%x",
+              interface->base.Class, USB_CLASS_HID);
         return 0;
     }
     
     // Verify the subclass
     if (interface->base.Subclass != HID_SUBCLASS_NONE &&
         interface->base.Subclass != HID_SUBCLASS_BOOT) {
-        ERROR("Unsupported HID Subclass 0x%x", interface->base.Subclass);
+        ERROR("__IsSupportedInterface unsupported HID subclass 0x%x",
+              interface->base.Subclass);
         return 0;
     }
     
@@ -58,33 +64,34 @@ IsSupportedInterface(
         return 1;        
     }
 
-    ERROR("This HID uses an unimplemented protocol and needs external drivers");
-    ERROR("Unsupported HID Protocol 0x%x", interface->base.Protocol);
+    ERROR("__IsSupportedInterface this HID uses an unimplemented protocol and needs external drivers");
+    ERROR("__IsSupportedInterface unsupported HID Protocol 0x%x", interface->base.Protocol);
     return 0;
 }
 
-static inline void
-GetDeviceProtocol(
-    _In_ HidDevice_t*                    device,
+static inline void __GetDeviceProtocol(
+    _In_ HidDevice_t*                    hidDevice,
     _In_ usb_device_interface_setting_t* interface)
 {
-    device->InterfaceId = interface->base.NumInterface;
-    device->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
+    TRACE("__GetDeviceProtocol(hidDevice=0x%" PRIxIN ", interface=0x%" PRIxIN ")",
+          hidDevice, interface);
+    hidDevice->InterfaceId     = interface->base.NumInterface;
+    hidDevice->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
     
     if (interface->base.Subclass == HID_SUBCLASS_BOOT) {
-        device->CurrentProtocol = HID_DEVICE_PROTOCOL_BOOT;
+        hidDevice->CurrentProtocol = HID_DEVICE_PROTOCOL_BOOT;
     }
 }
 
-static void
-GetDeviceConfiguration(
-    _In_ HidDevice_t* device)
+static void __GetDeviceConfiguration(
+    _In_ HidDevice_t* hidDevice)
 {
     usb_device_configuration_t configuration;
     UsbTransferStatus_t        status;
     int                        i, j;
+    TRACE("__GetDeviceConfiguration(hidDevice=0x%" PRIxIN ")", hidDevice);
     
-    status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
+    status = UsbGetActiveConfigDescriptor(&hidDevice->Base.DeviceContext, &configuration);
     if (status != TransferFinished) {
         return;
     }
@@ -92,14 +99,14 @@ GetDeviceConfiguration(
     // TODO support interface settings
     for (i = 0; i < configuration.base.NumInterfaces; i++) {
         usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
-        if (IsSupportedInterface(interface)) {
+        if (__IsSupportedInterface(interface)) {
             for (j = 0; j < interface->base.NumEndpoints; j++) {
                 usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
                 if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT) {
-                    device->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                    hidDevice->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
                 }
             }
-            GetDeviceProtocol(device, interface);
+            __GetDeviceProtocol(hidDevice, interface);
             break;
         }
     }
@@ -109,67 +116,68 @@ GetDeviceConfiguration(
 
 HidDevice_t*
 HidDeviceCreate(
-    _In_ UsbDevice_t* UsbDevice)
+    _In_ UsbDevice_t* usbDevice)
 {
-    HidDevice_t* Device;
+    HidDevice_t* hidDevice;
 
-    // Debug
-    TRACE("HidDeviceCreate()");
+    TRACE("HidDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
-    // Allocate new resources
-    Device = (HidDevice_t*)malloc(sizeof(HidDevice_t));
-    memset(Device, 0, sizeof(HidDevice_t));
-    memcpy(&Device->Base, UsbDevice, sizeof(UsbDevice_t));
-    Device->TransferId = UUID_INVALID;
-    GetDeviceConfiguration(Device);
+    hidDevice = (HidDevice_t*)malloc(sizeof(HidDevice_t));
+    if (!hidDevice) {
+        return NULL;
+    }
+
+    memset(hidDevice, 0, sizeof(HidDevice_t));
+    memcpy(&hidDevice->Base, usbDevice, sizeof(UsbDevice_t));
+
+    ELEMENT_INIT(&hidDevice->Header, (uintptr_t)usbDevice->Base.Id, hidDevice);
+    hidDevice->TransferId = UUID_INVALID;
+
+    __GetDeviceConfiguration(hidDevice);
     
     // Make sure we at-least found an interrupt endpoint
-    if (Device->Interrupt == NULL) {
-        ERROR("HID Endpoint (In, Interrupt) did not exist.");
-        goto Error;
+    if (!hidDevice->Interrupt) {
+        ERROR("HidDeviceCreate HID endpoint (in, interrupt) did not exist");
+        goto error_exit;
     }
 
     // Setup device
-    if (HidSetupGeneric(Device) != OsSuccess) {
-        ERROR("Failed to setup the generic hid device.");
-        goto Error;
+    if (HidSetupGeneric(hidDevice) != OsSuccess) {
+        ERROR("HidDeviceCreate failed to setup the generic hid device");
+        goto error_exit;
     }
 
     // Reset interrupt ep
-    if (UsbEndpointReset(&Device->Base.DeviceContext,
-            USB_ENDPOINT_ADDRESS(Device->Interrupt->Address)) != OsSuccess) {
-        ERROR("Failed to reset endpoint (interrupt)");
-        goto Error;
+    if (UsbEndpointReset(&hidDevice->Base.DeviceContext,
+            USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address)) != OsSuccess) {
+        ERROR("HidDeviceCreate failed to reset endpoint (interrupt)");
+        goto error_exit;
     }
 
     // Allocate a ringbuffer for use
-    if (dma_pool_allocate(UsbRetrievePool(), 0x400, (void**)&Device->Buffer) != OsSuccess) {
-        ERROR("Failed to allocate reusable buffer (interrupt-buffer)");
-        goto Error;
+    if (dma_pool_allocate(UsbRetrievePool(), 0x400, (void**)&hidDevice->Buffer) != OsSuccess) {
+        ERROR("HidDeviceCreate failed to allocate reusable buffer (interrupt-buffer)");
+        goto error_exit;
     }
 
     // Install interrupt pipe
-    UsbTransferInitialize(&Device->Transfer, &Device->Base.DeviceContext, 
-        Device->Interrupt, USB_TRANSFER_INTERRUPT, 0);
-    UsbTransferPeriodic(&Device->Transfer, dma_pool_handle(UsbRetrievePool()), 
-        dma_pool_offset(UsbRetrievePool(), Device->Buffer), 0x400, 
-        Device->ReportLength, USB_TRANSACTION_IN, (const void*)Device);
-    if (UsbTransferQueuePeriodic(&Device->Base.DeviceContext, 
-        &Device->Transfer, &Device->TransferId) != TransferQueued) {
-        ERROR("Failed to install interrupt transfer");
-        goto Error;
+    UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base.DeviceContext,
+                          hidDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
+    UsbTransferPeriodic(&hidDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
+                        dma_pool_offset(UsbRetrievePool(), hidDevice->Buffer), 0x400,
+                        hidDevice->ReportLength, USB_TRANSACTION_IN, (const void*)hidDevice);
+    if (UsbTransferQueuePeriodic(&hidDevice->Base.DeviceContext,
+                                 &hidDevice->Transfer, &hidDevice->TransferId) != TransferQueued) {
+        ERROR("HidDeviceCreate failed to install interrupt transfer");
+        goto error_exit;
     }
 
-    // Done
-    return Device;
+    return hidDevice;
 
-Error:
-    // Cleanup
-    if (Device != NULL) {
-        HidDeviceDestroy(Device);
+error_exit:
+    if (hidDevice != NULL) {
+        HidDeviceDestroy(hidDevice);
     }
-
-    // No device
     return NULL;
 }
 

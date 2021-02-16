@@ -174,49 +174,49 @@ ScRegisterAliasId(
 
 OsStatus_t
 ScLoadDriver(
-    _In_ Device_t* Device,
-    _In_ const void*    DriverBuffer,
-    _In_ size_t         DriverBufferLength)
+    _In_ Device_t*   device,
+    _In_ const void* driverBuffer,
+    _In_ size_t      driverBufferLength)
 {
-    SystemModule_t* CurrentModule = GetCurrentModule();
-    SystemModule_t* Module;
-    OsStatus_t      Status;
+    SystemModule_t* currentModule = GetCurrentModule();
+    SystemModule_t* module;
+    OsStatus_t osStatus;
 
     TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
-        Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
-    if (CurrentModule == NULL || Device == NULL) {
-        if (CurrentModule == NULL) {
+          device->VendorId, device->DeviceId, device->Class, device->Subclass);
+    if (!currentModule || !device) {
+        if (!currentModule) {
             return OsInvalidPermissions;
         }
-        return OsError;
+        return OsInvalidParameters;
     }
 
     // First of all, if a server has already been spawned
     // for the specific driver, then call it's RegisterInstance
-    Module = GetModule(Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
-    if (Module == NULL) {
+    module = GetModule(device->VendorId, device->DeviceId, device->Class, device->Subclass);
+    if (!module) {
         // Look for matching driver first, then generic
-        Module = GetSpecificDeviceModule(Device->VendorId, Device->DeviceId);
-        Module = (Module == NULL) ? GetGenericDeviceModule(Device->Class, Device->Subclass) : Module;
+        module = GetSpecificDeviceModule(device->VendorId, device->DeviceId);
+        module = (module == NULL) ? GetGenericDeviceModule(device->Class, device->Subclass) : module;
 
         // We did not have any, did the driver provide one for us?
-        if (Module == NULL) {
-            if (DriverBuffer != NULL && DriverBufferLength != 0) {
-                Status = RegisterModule("custom_module", DriverBuffer, DriverBufferLength, ModuleResource, 
-                    Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
-                if (Status == OsSuccess) {
-                    Module = GetModule(Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
+        if (!module) {
+            if (driverBuffer && driverBufferLength ) {
+                osStatus = RegisterModule("custom_module", driverBuffer, driverBufferLength, ModuleResource,
+                                          device->VendorId, device->DeviceId, device->Class, device->Subclass);
+                if (osStatus == OsSuccess) {
+                    module = GetModule(device->VendorId, device->DeviceId, device->Class, device->Subclass);
                 }
             }
 
-            if (Module == NULL) {
-                return OsError;
+            if (!module) {
+                return OsDoesNotExist;
             }
         }
 
-        Status = SpawnModule(Module);
-        if (Status != OsSuccess) {
-            return Status;
+        osStatus = SpawnModule(module);
+        if (osStatus != OsSuccess) {
+            return osStatus;
         }
     }
     return OsSuccess;

@@ -50,13 +50,13 @@ static gracht_protocol_function_t ctt_storage_callbacks[3] = {
 };
 DEFINE_CTT_STORAGE_SERVER_PROTOCOL(ctt_storage_callbacks, 3);
 
-static list_t Devices = LIST_INIT;
+static list_t g_devices = LIST_INIT;
 
 MsdDevice_t*
 MsdDeviceGet(
     _In_ UUId_t deviceId)
 {
-    return list_find_value(&Devices, (void*)(uintptr_t)deviceId);
+    return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
 void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
@@ -88,7 +88,7 @@ DestroyElement(
 OsStatus_t
 OnUnload(void)
 {
-    list_clear(&Devices, DestroyElement, NULL);
+    list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
@@ -108,7 +108,7 @@ OnRegister(
         return OsError;
     }
 
-    list_append(&Devices, &MsdDevice->Header);
+    list_append(&g_devices, &MsdDevice->Header);
     return OsSuccess;
 }
 
@@ -126,7 +126,7 @@ OnUnregister(
         return OsError;
     }
 
-    list_remove(&Devices, &MsdDevice->Header);
+    list_remove(&g_devices, &MsdDevice->Header);
     return MsdDeviceDestroy(MsdDevice);
 }
 

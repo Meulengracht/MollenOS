@@ -104,7 +104,7 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
 #define MSD_CSW_FAIL			        0x1
 #define MSD_CSW_PHASE_ERROR		        0x2
 
-typedef enum _MsdDeviceType {
+typedef enum MsdDeviceType {
     TypeUnknown,
     TypeFloppy,
 	TypeDiskDrive,
@@ -112,7 +112,7 @@ typedef enum _MsdDeviceType {
     TypeCount
 } MsdDeviceType_t;
 
-typedef enum _MsdProtocolType {
+typedef enum MsdProtocolType {
     ProtocolUnknown,
     ProtocolCB,
 	ProtocolCBI,
@@ -155,7 +155,7 @@ typedef struct _MsdDevice {
  * Initializes a new msd-device from the given usb-device */
 __EXTERN MsdDevice_t*
 MsdDeviceCreate(
-    _In_ UsbDevice_t *UsbDevice);
+    _In_ UsbDevice_t *usbDevice);
 
 /* MsdDeviceDestroy
  * Destroys an existing msd device instance and cleans up

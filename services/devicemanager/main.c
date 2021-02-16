@@ -21,6 +21,7 @@
  * - Implementation of the device manager in the operating system.
  *   Keeps track of devices, their loaded drivers and bus management.
  */
+
 #define __TRACE
 
 #include <assert.h>
@@ -247,14 +248,14 @@ void svc_device_get_devices_by_protocol_callback(
     }
 }
 
-int
-DmLoadDeviceDriver(void* Context)
+static int __LoadDriverWorker(void* context)
 {
-    Device_t*  Device = Context;
-    OsStatus_t Status = InstallDriver(Device, Device->Length, NULL, 0);
-    
-    if (Status != OsSuccess) {
-        return OsStatusToErrno(Status);
+    Device_t*  device = context;
+    OsStatus_t osStatus;
+
+    osStatus = InstallDriver(device, device->Length, NULL, 0);
+    if (osStatus != OsSuccess) {
+        return OsStatusToErrno(osStatus);
     }
     return 0;
 }
@@ -308,7 +309,7 @@ DmRegisterDevice(
 #ifndef __OSCONFIG_NODRIVERS
     if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
         thrd_t thr;
-        if (thrd_create(&thr, DmLoadDeviceDriver, deviceNode->device) != thrd_success) {
+        if (thrd_create(&thr, __LoadDriverWorker, deviceNode->device) != thrd_success) {
             return OsError;
         }
         thrd_detach(thr);
