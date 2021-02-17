@@ -23,7 +23,6 @@
 //#define __TRACE
 //#define __DIAGNOSE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "uhci.h"
 

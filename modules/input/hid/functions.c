@@ -28,12 +28,6 @@
 #include <stdlib.h>
 #include "hid.h"
 
-void ctt_usbhost_event_queue_status_callback(
-    struct ctt_usbhost_queue_status_event* args)
-{
-    
-}
-
 static OsStatus_t __FillHidDescriptor(
     _In_ HidDevice_t*        hidDevice,
     _In_ UsbHidDescriptor_t* hidDescriptor)

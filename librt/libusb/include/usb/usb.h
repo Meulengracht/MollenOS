@@ -108,14 +108,14 @@ typedef struct usb_device_configuration {
 } usb_device_configuration_t;
 
 typedef struct usb_device_context {
-	UUId_t     device_id;
-	UUId_t     driver_id;
-    uint8_t    hub_address;
-    uint8_t    port_address;
-    uint8_t    device_address;
-    uint16_t   configuration_length;
-    uint16_t   device_mps;
-    uint8_t speed;
+	UUId_t   device_id;
+	UUId_t   driver_id;
+    uint8_t  hub_address;
+    uint8_t  port_address;
+    uint8_t  device_address;
+    uint16_t configuration_length;
+    uint16_t device_mps;
+    uint8_t  speed;
 } usb_device_context_t;
 
 typedef struct usb_transaction {

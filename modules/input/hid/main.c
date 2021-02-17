@@ -26,12 +26,10 @@
 #include <ds/list.h>
 #include "hid.h"
 #include <ioset.h>
-#include <os/mollenos.h>
-#include <string.h>
-#include <stdlib.h>
 
 #include <ctt_driver_protocol_server.h>
 #include <ctt_input_protocol_server.h>
+#include <ctt_usbhost_protocol_client.h>
 
 static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
@@ -48,6 +46,13 @@ static gracht_protocol_function_t ctt_input_callbacks[1] = {
         { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
 };
 DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
+
+static void ctt_usbhost_event_transfer_status_callback(struct ctt_usbhost_transfer_status_event*);
+
+static gracht_protocol_function_t ctt_usbhost_callbacks[1] = {
+   { PROTOCOL_CTT_USBHOST_EVENT_TRANSFER_STATUS_ID , ctt_usbhost_event_transfer_status_callback },
+};
+DEFINE_CTT_USBHOST_CLIENT_PROTOCOL(ctt_usbhost_callbacks, 1);
 
 static list_t g_devices = LIST_INIT;
 
@@ -67,16 +72,6 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     *subClass = 0x30000;
 }
 
-InterruptStatus_t OnInterrupt(
-    _In_Opt_ void*  InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
-{
-    _CRT_UNUSED(Arg2);
-    return HidInterrupt((HidDevice_t*)InterruptData, (UsbTransferStatus_t)Arg0, Arg1);
-}
-
 OsStatus_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
@@ -86,10 +81,10 @@ OsStatus_t OnLoad(void)
 {
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_usbhost_client_protocol);
 
     return UsbInitialize();
 }
-
 
 static void
 DestroyElement(
@@ -107,12 +102,12 @@ OnUnload(void)
 }
 
 OsStatus_t OnRegister(
-    _In_ Device_t *Device)
+    _In_ Device_t* device)
 {
     HidDevice_t* hidDevice;
 
-    hidDevice = HidDeviceCreate((UsbDevice_t*)Device);
-    if (hidDevice == NULL) {
+    hidDevice = HidDeviceCreate((UsbDevice_t*)device);
+    if (!hidDevice) {
         return OsError;
     }
 
@@ -120,7 +115,9 @@ OsStatus_t OnRegister(
     return OsSuccess;
 }
 
-void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+void ctt_driver_register_device_callback(
+        _In_ struct gracht_recv_message*             message,
+        _In_ struct ctt_driver_register_device_args* args)
 {
     OnRegister(args->device);
 }
@@ -134,7 +131,8 @@ OsStatus_t OnUnregister(
     }
 
     list_remove(&g_devices, &hidDevice->Header);
-    return HidDeviceDestroy(hidDevice);
+    HidDeviceDestroy(hidDevice);
+    return OsSuccess;
 }
 
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
@@ -143,14 +141,34 @@ static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message*
                                             "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
 }
 
-static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args* args)
+static void ctt_input_get_properties_callback(
+        _In_ struct gracht_recv_message*           message,
+        _In_ struct ctt_input_get_properties_args* args)
 {
-    //if (port) {
-    //    if (port->Signature == 0xAB41 || port->Signature == 0xABC1 || port->Signature == 0xAB83) {
-    //        ctt_input_event_properties_single(message->client, args->device_id, input_type_keyboard);
-    //    }
-    //    else {
-    //        ctt_input_event_properties_single(message->client, args->device_id, input_type_mouse);
-    //    }
-    //}
+    struct UsbHidReportCollectionItem* item;
+    HidDevice_t*                       hidDevice = HidDeviceGet(args->device_id);
+    if (!hidDevice || !hidDevice->Collection) {
+        ctt_input_event_properties_single(message->client, args->device_id, input_type_invalid);
+        return;
+    }
+
+    item = hidDevice->Collection->Childs;
+    while (item) {
+        if (item->InputType != input_type_invalid) {
+            ctt_input_event_properties_single(message->client, args->device_id, item->InputType);
+        }
+        item = item->Link;
+    }
+}
+
+static void ctt_usbhost_event_transfer_status_callback(
+        _In_ struct ctt_usbhost_transfer_status_event* event)
+{
+    foreach(element, &g_devices) {
+        HidDevice_t* hidDevice = element->value;
+        if (hidDevice->TransferId == event->id) {
+            HidInterrupt(hidDevice, event->status, event->bytes_transferred);
+            break;
+        }
+    }
 }

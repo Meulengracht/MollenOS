@@ -148,20 +148,15 @@ UsbManagerSendNotification(
         TRACE("UsbManagerSendNotification is notifiyng");
         ctt_usbhost_queue_response(&transfer->DeferredMessage.recv_message, transfer->Status, bytesTransferred);
     }
+    else if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
+        ctt_usbhost_event_transfer_status_single(transfer->DeferredMessage.recv_message.client,
+                                              transfer->Id, transfer->Status, transfer->CurrentDataIndex);
+        transfer->CurrentDataIndex = ADDLIMIT(0, transfer->CurrentDataIndex,
+                                              transfer->Transfer.Transactions[0].Length,
+                                              transfer->Transfer.PeriodicBufferSize);
+    }
     else {
-        // Forward data to the driver
-        // @todo
-        //InterruptDriver(
-        //    Transfer->ResponseAddress.Process,          // Process
-        //    (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
-        //    Transfer->Status,                           // Status of transfer
-        //    Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
-
-        // Increase
-        if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
-            transfer->CurrentDataIndex = ADDLIMIT(0, transfer->CurrentDataIndex,
-                                                  transfer->Transfer.Transactions[0].Length, transfer->Transfer.PeriodicBufferSize);
-        }
+        WARNING("UsbManagerSendNotification ISOCHRONOUS WHAT TO DO");
     }
 }
 
@@ -170,7 +165,7 @@ void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struc
     UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
     UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
     if (status != TransferQueued) {
-        // status event oh no
+        ctt_usbhost_event_transfer_status_single(message->client, args->transfer_id, status, 0);
     }
 }
 

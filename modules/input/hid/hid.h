@@ -27,14 +27,6 @@
 #include <ds/list.h>
 #include <os/osdefs.h>
 
-typedef enum DeviceInputType {
-    DeviceInputKeyboard = 0,
-    DeviceInputKeypad,
-    DeviceInputPointer,
-    DeviceInputJoystick,
-    DeviceInputGamePad
-} DeviceInputType_t;
-
 /* HID Class Definitions 
  * Contains generic magic constants and definitions */
 #define HID_CLASS                           0x3
@@ -219,7 +211,7 @@ typedef struct UsbHidReportInputItem {
  */
 typedef struct UsbHidReportCollectionItem {
     int                                 CollectionType;
-    DeviceInputType_t                   InputType;
+    uint8_t                             InputType;
     void*                               ItemPointer;
     UsbHidReportGlobalStats_t           Stats;
     struct UsbHidReportCollectionItem*  Link;
@@ -275,10 +267,9 @@ HidDeviceCreate(
 /* HidDeviceDestroy
  * Destroys an existing hid device instance and cleans up
  * any resources related to it */
-__EXTERN
-OsStatus_t
+__EXTERN void
 HidDeviceDestroy(
-    _In_ HidDevice_t *Device);
+    _In_ HidDevice_t *hidDevice);
 
 /* HidSetupGeneric 
  * Sets up a generic HID device like a mouse or a keyboard. */
@@ -336,11 +327,10 @@ HidCollectionCleanup(
 /* HidInterrupt
  * Should be called from the primary driver OnInterrupt
  * Performs the report-parsing and post-interrupt stuff */
-__EXTERN
-InterruptStatus_t
+__EXTERN void
 HidInterrupt(
-    _In_ HidDevice_t *Device, 
-    _In_ UsbTransferStatus_t Status,
-    _In_ size_t DataIndex);
+    _In_ HidDevice_t *hidDevice,
+    _In_ UsbTransferStatus_t transferStatus,
+    _In_ size_t dataIndex);
 
 #endif //!__USB_HID_H__

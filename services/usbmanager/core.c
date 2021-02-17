@@ -588,9 +588,3 @@ void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct
     }
     svc_usb_get_controller_response(message, &hcController);
 }
-
-void ctt_usbhost_event_queue_status_callback(
-    struct ctt_usbhost_queue_status_event* args)
-{
-    
-}

@@ -159,7 +159,7 @@
             </functions>
             
             <events>
-                <event name="queue_status">
+                <event name="transfer_status">
                     <param name="id" type="UUId_t" />
                     <param name="status" type="UsbTransferStatus_t" />
                     <param name="bytes_transferred" type="size_t" />
@@ -203,7 +203,7 @@
             </functions>
             
             <events>
-                <event name="queue_status">
+                <event name="port_status">
                     <param name="id" type="UUId_t" />
                     <param name="status" type="UsbTransferStatus_t" />
                     <param name="bytes_transferred" type="size_t" />
@@ -214,8 +214,12 @@
         <protocol name="input" id="0x13">
             <enums>
                 <enum name="type">
+                    <value name="input_type_invalid" value="0x0"></value>
                     <value name="input_type_mouse" value="0x1"></value>
-                    <value name="input_type_keyboard" value="0x2"></value>
+                    <value name="input_type_joystick" value="0x2"></value>
+                    <value name="input_type_gamepad" value="0x3"></value>
+                    <value name="input_type_keyboard" value="0x4"></value>
+                    <value name="input_type_keypad" value="0x5"></value>
                 </enum>
             </enums>
 

@@ -22,10 +22,19 @@
 
 #define __TRACE
 
-#include <usb/usb.h>
 #include <ddk/utils.h>
-#include <stdlib.h>
 #include "hid.h"
+#include <internal/_utils.h>
+#include <usb/usb.h>
+#include <stdlib.h>
+
+#include <gracht/link/vali.h>
+#include <ctt_usbhost_protocol_client.h>
+
+static struct {
+    UUId_t driverId;
+    int    references;
+} g_Subscriptions[16] = { { 0 } };
 
 static void*
 memdup(void* mem, size_t size)
@@ -36,6 +45,41 @@ memdup(void* mem, size_t size)
     }
     memcpy(dup, mem, size);
     return dup;
+}
+
+static void __SubscribeToController(UUId_t driverId)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
+    int    foundIndex = -1;
+
+    for (int i = 0; i < 16; i++) {
+        if (g_Subscriptions[i].driverId == driverId) {
+            return;
+        }
+        if (foundIndex == -1 && !g_Subscriptions[i].driverId) {
+            foundIndex = i;
+        }
+    }
+
+    ctt_usbhost_subscribe(GetGrachtClient(), &msg.base);
+    g_Subscriptions[foundIndex].driverId   = driverId;
+    g_Subscriptions[foundIndex].references = 1;
+}
+
+static void __UnsubscribeToController(UUId_t driverId)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
+
+    for (int i = 0; i < 16; i++) {
+        if (g_Subscriptions[i].driverId == driverId) {
+            g_Subscriptions[i].references--;
+            if (!g_Subscriptions[i].references) {
+                g_Subscriptions[i].driverId = 0;
+                ctt_usbhost_unsubscribe(GetGrachtClient(), &msg.base);
+            }
+            return;
+        }
+    }
 }
 
 static inline int __IsSupportedInterface(
@@ -160,6 +204,9 @@ HidDeviceCreate(
         goto error_exit;
     }
 
+    // Subscripe to the usb controller for events
+    __SubscribeToController(usbDevice->DeviceContext.driver_id);
+
     // Install interrupt pipe
     UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base.DeviceContext,
                           hidDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
@@ -181,45 +228,39 @@ error_exit:
     return NULL;
 }
 
-OsStatus_t
+void
 HidDeviceDestroy(
-    _In_ HidDevice_t *Device)
+    _In_ HidDevice_t* hidDevice)
 {
     // Destroy the interrupt channel
-    if (Device->TransferId != UUID_INVALID) {
-        UsbTransferDequeuePeriodic(&Device->Base.DeviceContext, Device->TransferId);
+    if (hidDevice->TransferId != UUID_INVALID) {
+        UsbTransferDequeuePeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
     }
 
-    // Cleanup collections
-    HidCollectionCleanup(Device);
-    
-    // Cleanup the buffer
-    if (Device->Buffer != NULL) {
-        dma_pool_free(UsbRetrievePool(), Device->Buffer);
-    }
+    __UnsubscribeToController(hidDevice->Base.DeviceContext.driver_id);
 
-    // Cleanup structure
-    free(Device);
-    return OsSuccess;
+    if (hidDevice->Buffer != NULL) {
+        dma_pool_free(UsbRetrievePool(), hidDevice->Buffer);
+    }
+    HidCollectionCleanup(hidDevice);
+    free(hidDevice);
 }
 
-InterruptStatus_t
+void
 HidInterrupt(
-    _In_ HidDevice_t *Device, 
-    _In_ UsbTransferStatus_t Status,
-    _In_ size_t DataIndex)
+    _In_ HidDevice_t*        hidDevice,
+    _In_ UsbTransferStatus_t transferStatus,
+    _In_ size_t              dataIndex)
 {
-    // Sanitize
-    if (Device->Collection == NULL || Status == TransferNAK) {
-        return InterruptHandled;
+    if (!hidDevice->Collection || transferStatus == TransferNAK) {
+        return;
     }
 
     // Perform the report parse
-    if (!HidParseReport(Device, Device->Collection, DataIndex)) {
-        return InterruptHandled;
+    if (!HidParseReport(hidDevice, hidDevice->Collection, dataIndex)) {
+        return;
     }
 
     // Store previous index
-    Device->PreviousDataIndex = DataIndex;
-    return InterruptHandled;
+    hidDevice->PreviousDataIndex = dataIndex;
 }

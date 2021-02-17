@@ -1,10 +1,12 @@
 #!/usr/bin/env python
-import os, sys
 import argparse
 import copy
+import os
+import sys
 import xml.etree.ElementTree as ET
-from languages.shared import *
+
 from languages.langc import CGenerator
+from languages.shared import *
 
 global_id = 0
 trace_enabled = 0
@@ -44,7 +46,7 @@ def is_valid_int(s):
         return False
 
 
-def get_dir_or_default(path, protocol_xml_path):
+def get_dir_or_default(path):
     if not path or not os.path.isdir(path):
         return os.getcwd()
     return path
@@ -211,15 +213,14 @@ def parse_event(xml_event):
     return None
 
 
-def parse_protocol(global_types, global_enums, namespace, xml_protocol):
+def parse_protocol(xml_dir, global_types, global_enums, namespace, xml_protocol):
     try:
-        reset_id()
-        name = xml_protocol.get("name")
-        p_id = xml_protocol.get("id")
         enums = copy.copy(global_enums)
         types = copy.copy(global_types)
         functions = []
         events = []
+        name = xml_protocol.get("name")
+        p_id = xml_protocol.get("id")
 
         # validation
         if name is None:
@@ -236,8 +237,8 @@ def parse_protocol(global_types, global_enums, namespace, xml_protocol):
             raise Exception("id of <protocol> " + name + " can not be higher than 255")
 
         trace("parsing protocol: " + name)
-        for xml_enum in xml_protocol.findall('enums/enum'):
-            enums.append(create_enum_from_xml(xml_enum, False))
+        types.extend(parse_types(xml_dir, xml_protocol, False))
+        enums.extend(parse_enums(xml_dir, xml_protocol, False))
 
         for xml_function in xml_protocol.findall('functions/function'):
             functions.append(parse_function(xml_function))
@@ -247,10 +248,9 @@ def parse_protocol(global_types, global_enums, namespace, xml_protocol):
         return Protocol(namespace, p_id, name, types, enums, functions, events)
     except Exception as e:
         error("could not parse protocol: " + str(e))
-    return None
 
 
-def parse_protocols(global_types, global_enums, root):
+def parse_protocols(xml_dir, global_types, global_enums, root):
     protocols = []
     xml_protocols_header = root.find("protocols")
     if xml_protocols_header is None:
@@ -262,29 +262,61 @@ def parse_protocols(global_types, global_enums, root):
 
     trace("parsed namespace: " + namespace)
     for xml_protocol in root.findall('protocols/protocol'):
-        protocols.append(parse_protocol(global_types, global_enums, namespace, xml_protocol))
+        reset_id()
+        protocol_src = xml_protocol.get("src")
+        if protocol_src is not None:
+            protocol_path = os.path.join(xml_dir, protocol_src)
+            protocol_et = ET.parse(protocol_path)
+            if protocol_et is None:
+                continue
+            protocols.append(parse_protocol(os.path.dirname(protocol_path), global_types, global_enums,
+                                            namespace, protocol_et.getroot().find('protocol')))
+        else:
+            protocols.append(parse_protocol(xml_dir, global_types, global_enums, namespace, xml_protocol))
     return protocols
 
 
-def parse_global_types(root):
+def parse_types(xml_dir, root, global_scope):
     types = []
-    for xml_type in root.findall('types/type'):
-        types.append(create_type_from_xml(xml_type, True))
+    for xml_types in root.findall('types'):
+        types_src = xml_types.get("src")
+        if types_src is not None:
+            types_path = os.path.join(xml_dir, types_src)
+            types_et = ET.parse(types_path)
+            if types_et is None:
+                continue
+            types.extend(parse_types(os.path.dirname(types_path), types_et.getroot(), global_scope))
+        else:
+            for xml_type in xml_types.findall('type'):
+                types.append(create_type_from_xml(xml_type, global_scope))
     return types
 
 
-def parse_global_enums(root):
+def parse_enums(xml_dir, root, global_scope):
     enums = []
-    for xml_enum in root.findall('enums/enum'):
-        enums.append(create_enum_from_xml(xml_enum, True))
+    for xml_enums in root.findall('enums'):
+        enums_src = xml_enums.get("src")
+        if enums_src is not None:
+            enums_path = os.path.join(xml_dir, enums_src)
+            enums_et = ET.parse(enums_path)
+            if enums_et is None:
+                continue
+            enums.extend(parse_enums(os.path.dirname(enums_path), enums_et.getroot(), global_scope))
+        else:
+            for xml_enum in xml_enums.findall('enum'):
+                enums.append(create_enum_from_xml(xml_enum, global_scope))
     return enums
 
 
 def parse_protocol_xml(protocol_xml_path):
     root = ET.parse(protocol_xml_path).getroot()
-    global_types = parse_global_types(root)
-    global_enums = parse_global_enums(root)
-    protocols = parse_protocols(global_types, global_enums, root)
+    if root is None:
+        return []
+
+    xml_dir_path = os.path.dirname(os.path.abspath(protocol_xml_path))
+    global_types = parse_types(xml_dir_path, root, True)
+    global_enums = parse_enums(xml_dir_path, root, True)
+    protocols = parse_protocols(xml_dir_path, global_types, global_enums, root)
     return protocols
 
 
@@ -296,7 +328,7 @@ def main(args):
     if args.trace:
         trace_enabled = 1
 
-    output_dir = get_dir_or_default(args.out, args.protocol)
+    output_dir = get_dir_or_default(args.out)
     protocols = parse_protocol_xml(args.protocol)
     include_protocols = []
     generator = None

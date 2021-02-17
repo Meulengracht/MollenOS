@@ -73,7 +73,7 @@ static UsbHidReportCollection_t* __CreateCollection(
 void __CreateCollectionChild(
     _In_ UsbHidReportCollection_t*  reportCollection,
     _In_ UsbHidReportGlobalStats_t* globalStats,
-    _In_ DeviceInputType_t          inputType,
+    _In_ uint8_t                    inputType,
     _In_ int                        collectionType,
     _In_ void*                      item)
 {
@@ -253,7 +253,7 @@ struct ReportParserContext {
     UsbHidReportGlobalStats_t GlobalStats;
     UsbHidReportItemStats_t   ItemStats;
 
-    DeviceInputType_t         InputType;
+    uint8_t                   InputType;
     int                       ParseDepth;
     int                       ReportIdsUsed;
     size_t                    LongestReport;
@@ -437,19 +437,19 @@ static void __ParseReportTypeLocal(
 
             // Determine the kind of input device
             if (packet == HID_REPORT_USAGE_POINTER || packet == HID_REPORT_USAGE_MOUSE) {
-                context->InputType = DeviceInputPointer;
+                context->InputType = input_type_mouse;
             }
             else if (packet == HID_REPORT_USAGE_KEYBOARD) {
-                context->InputType = DeviceInputKeyboard;
+                context->InputType = input_type_keyboard;
             }
             else if (packet == HID_REPORT_USAGE_KEYPAD) {
-                context->InputType = DeviceInputKeypad;
+                context->InputType = input_type_keypad;
             }
             else if (packet == HID_REPORT_USAGE_JOYSTICK) {
-                context->InputType = DeviceInputJoystick;
+                context->InputType = input_type_joystick;
             }
             else if (packet == HID_REPORT_USAGE_GAMEPAD) {
-                context->InputType = DeviceInputGamePad;
+                context->InputType = input_type_gamepad;
             }
 
             // There can be multiple usages for an descriptor
@@ -536,7 +536,7 @@ HidParseReportDescriptor(
 
     // Make sure we set the report id to not available
     context.GlobalStats.ReportId = UUID_INVALID;
-    context.InputType = DeviceInputPointer;
+    context.InputType = input_type_invalid;
 
     // Iterate the report descriptor
     for (i = 0; i < descriptorLength; /* Increase manually */) {
@@ -763,17 +763,17 @@ HidParseReportInput(
                 // Possible types are: Keyboard, keypad, mouse, gamepad or joystick
                 switch (collectionItem->InputType) {
                     // Mouse button event
-                    case DeviceInputPointer: {
+                    case input_type_mouse: {
 
                     } break;
 
                     // Gamepad button event
-                    case DeviceInputGamePad: {
+                    case input_type_gamepad: {
 
                     } break;
 
                     // Joystick button event
-                    case DeviceInputJoystick: {
+                    case input_type_joystick: {
 
                     } break;
 
@@ -800,11 +800,11 @@ HidParseReportInput(
     }
     
     // Create a new input report
-    if (collectionItem->InputType == DeviceInputKeyboard) {
+    if (collectionItem->InputType == input_type_keyboard) {
         // send something
         ctt_input_event_button_all(hidDevice->Base.Base.Id, 0, 0);
     }
-    else if (collectionItem->InputType == DeviceInputPointer) {
+    else if (collectionItem->InputType == input_type_mouse) {
         // send something else
         ctt_input_event_cursor_all(hidDevice->Base.Base.Id, 0, 0, 0, 0, 0);
     }

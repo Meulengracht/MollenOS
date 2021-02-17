@@ -452,9 +452,3 @@ void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct c
         &sectorsTransferred);
     ctt_storage_transfer_response(message, status, sectorsTransferred);
 }
-
-void ctt_usbhost_event_queue_status_callback(
-    struct ctt_usbhost_queue_status_event* args)
-{
-    
-}
