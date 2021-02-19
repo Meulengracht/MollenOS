@@ -83,6 +83,7 @@
  * Contains generic magic constants and definitions
  */
 #define DESCRIPTOR_TYPE_HUB                 0x29
+#define DESCRIPTOR_TYPE_HUB_SUPERSPEED      0x2A
 
 /**
  * UsbHubDescriptor
@@ -115,6 +116,23 @@ PACKED_TYPESTRUCT(UsbHubDescriptor, {
 #define HUB_CHARACTERISTICS_TTMODE_32FS          3
 
 #define HUB_CHARACTERISTICS_PORT_INDICATORS      0x80
+
+
+/**
+ * UsbHubSuperDescriptor
+ * A descriptor containing the setup of the super-speed HUB device
+ */
+PACKED_TYPESTRUCT(UsbHubSuperDescriptor, {
+    uint8_t                         Length;
+    uint8_t                         Type;
+    uint8_t                         NumberOfPorts;
+    uint16_t                        HubCharacteristics;
+    uint8_t                         PowerOnDelay;        // Time in 2ms units that are needed before power on is done
+    uint8_t                         MaxMilliAmpsDraw;
+    uint8_t                         HeaderDecLat;
+    uint16_t                        HubDelay;
+    uint8_t                         BitmapRemovable[8];  // Bit 0 is reserved. Not zero indexing
+});
 
 PACKED_TYPESTRUCT(HubStatus, {
     uint16_t Status;
@@ -155,9 +173,12 @@ typedef struct HubDevice {
     UsbTransfer_t Transfer;
     UUId_t        TransferId;
 
+    uint8_t       PortCount;
+    uint8_t       DescriptorLength;
+    uint16_t      HubCharacteristics;
+    unsigned int  PowerOnDelay;
+
     uintptr_t*                 Buffer;
-    size_t                     PreviousDataIndex;
-    
     uint8_t                    InterfaceId;
     usb_endpoint_descriptor_t* Interrupt;
 } HubDevice_t;
@@ -182,6 +203,17 @@ HubDeviceDestroy(
 /**
  *
  * @param hubDevice
+ * @param portIndex
+ * @return
+ */
+__EXTERN OsStatus_t
+HubPowerOnPort(
+        _In_ HubDevice_t*  hubDevice,
+        _In_ uint8_t       portIndex);
+
+/**
+ *
+ * @param hubDevice
  * @param status
  * @return
  */
@@ -189,6 +221,17 @@ __EXTERN OsStatus_t
 HubGetStatus(
         _In_ HubDevice_t* hubDevice,
         _In_ HubStatus_t* status);
+
+/**
+ *
+ * @param hubDevice
+ * @param change
+ * @return
+ */
+__EXTERN OsStatus_t
+HubClearChange(
+        _In_ HubDevice_t*  hubDevice,
+        _In_ uint8_t       change);
 
 /**
  *
@@ -203,10 +246,52 @@ HubGetPortStatus(
         _In_ uint8_t       portIndex,
         _In_ PortStatus_t* status);
 
+/**
+ *
+ * @param hubDevice
+ * @param portIndex
+ * @param change
+ * @return
+ */
+__EXTERN OsStatus_t
+HubPortClearChange(
+        _In_ HubDevice_t*  hubDevice,
+        _In_ uint8_t       portIndex,
+        _In_ uint8_t       change);
+
+/**
+ *
+ * @param hubDevice
+ * @param portIndex
+ * @return
+ */
+__EXTERN OsStatus_t
+HubResetPort(
+        _In_ HubDevice_t*  hubDevice,
+        _In_ uint8_t       portIndex);
+
 __EXTERN void
 HubInterrupt(
-    _In_ HubDevice_t*        hubDevice,
-    _In_ UsbTransferStatus_t transferStatus,
-    _In_ size_t              dataIndex);
+    _In_ HubDevice_t* hubDevice,
+    _In_ size_t       dataIndex);
+
+
+static inline int __IsHubPortsPoweredGlobal(
+        _In_ HubDevice_t* hubDevice)
+{
+    if (HUB_CHARACTERISTICS_POWERMODE(hubDevice->HubCharacteristics) == HUB_CHARACTERISTICS_POWERMODE_GLOBAL) {
+        return 1;
+    }
+    return 0;
+}
+
+static inline int __IsHubOverCurrentGlobal(
+        _In_ HubDevice_t* hubDevice)
+{
+    if (HUB_CHARACTERISTICS_OCMODE(hubDevice->HubCharacteristics) == HUB_CHARACTERISTICS_OCMODE_GLOBAL) {
+        return 1;
+    }
+    return 0;
+}
 
 #endif //!__USB_HUB_H__

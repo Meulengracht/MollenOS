@@ -43,14 +43,12 @@ DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
 
 static void ctt_usbhub_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_query_port_args*);
 static void ctt_usbhub_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_port_args*);
-static void ctt_usbhub_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_endpoint_args*);
 
-static gracht_protocol_function_t ctt_usbhub_callbacks[3] = {
+static gracht_protocol_function_t ctt_usbhub_callbacks[2] = {
     { PROTOCOL_CTT_USBHUB_QUERY_PORT_ID , ctt_usbhub_query_port_callback },
     { PROTOCOL_CTT_USBHUB_RESET_PORT_ID , ctt_usbhub_reset_port_callback },
-    { PROTOCOL_CTT_USBHUB_RESET_ENDPOINT_ID , ctt_usbhub_reset_endpoint_callback },
 };
-DEFINE_CTT_USBHUB_SERVER_PROTOCOL(ctt_usbhub_callbacks, 3);
+DEFINE_CTT_USBHUB_SERVER_PROTOCOL(ctt_usbhub_callbacks, 2);
 
 static void ctt_usbhost_event_transfer_status_callback(struct ctt_usbhost_transfer_status_event*);
 
@@ -162,29 +160,67 @@ static void ctt_usbhost_event_transfer_status_callback(
     foreach(element, &g_devices) {
         HubDevice_t* hubDevice = element->value;
         if (hubDevice->TransferId == event->id) {
-            HubInterrupt(hubDevice, event->status, event->bytes_transferred);
+            HubInterrupt(hubDevice, event->bytes_transferred);
             break;
         }
     }
+}
+
+static inline void __PortStatusToDescriptor(
+        _In_ PortStatus_t*          portStatus,
+        _In_ UsbHcPortDescriptor_t* descriptor)
+{
+    if (portStatus->Status & HUB_PORT_STATUS_CONNECTED)      { descriptor->Connected = 1; }
+    if (portStatus->Status & HUB_PORT_STATUS_ENABLED)        { descriptor->Enabled = 1; }
+
+    if (portStatus->Status & HUB_PORT_STATUS_LOWSPEED)       { descriptor->Speed = USB_SPEED_LOW; }
+    else if (portStatus->Status & HUB_PORT_STATUS_HIGHSPEED) { descriptor->Speed = USB_SPEED_HIGH; }
+    else                                                     { descriptor->Speed = USB_SPEED_FULL; }
 }
 
 static void ctt_usbhub_query_port_callback(
         _In_ struct gracht_recv_message*        message,
         _In_ struct ctt_usbhub_query_port_args* args)
 {
+    UsbHcPortDescriptor_t portDescriptor = { 0 };
+    HubDevice_t*          hubDevice;
+    PortStatus_t          portStatus;
+    OsStatus_t            osStatus;
 
+    hubDevice = HubDeviceGet(args->device_id);
+    if (!hubDevice) {
+        osStatus = OsInvalidParameters;
+        goto respond;
+    }
+
+    osStatus = HubGetPortStatus(hubDevice, args->port_id, &portStatus);
+    __PortStatusToDescriptor(&portStatus, &portDescriptor);
+respond:
+    ctt_usbhub_query_port_response(message, osStatus, &portDescriptor);
 }
 
 static void ctt_usbhub_reset_port_callback(
         _In_ struct gracht_recv_message*        message,
         _In_ struct ctt_usbhub_reset_port_args* args)
 {
+    UsbHcPortDescriptor_t portDescriptor = { 0 };
+    HubDevice_t*          hubDevice;
+    PortStatus_t          portStatus;
+    OsStatus_t            osStatus;
 
-}
+    hubDevice = HubDeviceGet(args->device_id);
+    if (!hubDevice) {
+        osStatus = OsInvalidParameters;
+        goto respond;
+    }
 
-static void ctt_usbhub_reset_endpoint_callback(
-        _In_ struct gracht_recv_message*            message,
-        _In_ struct ctt_usbhub_reset_endpoint_args* args)
-{
+    osStatus = HubResetPort(hubDevice, args->port_id);
+    if (osStatus != OsSuccess) {
+        goto respond;
+    }
 
+    osStatus = HubGetPortStatus(hubDevice, args->port_id, &portStatus);
+    __PortStatusToDescriptor(&portStatus, &portDescriptor);
+respond:
+    ctt_usbhub_reset_port_response(message, osStatus, &portDescriptor);
 }
