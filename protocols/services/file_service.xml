@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <protocol name="file" id="0x3">
+        <types src="../shared/types.xml" />
+        <functions>
+            <function name="open">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="path" type="string" />
+                    <param name="options" type="unsigned int" />
+                    <param name="access" type="unsigned int" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="handle" type="UUId_t" />
+                </response>
+            </function>
+            <function name="close">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="delete">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="path" type="string" />
+                    <param name="flags" type="unsigned int" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="transfer_async">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                    <param name="offset_lo" type="unsigned int" />
+                    <param name="offset_hi" type="unsigned int" />
+                    <param name="direction" type="int" />
+                    <param name="buffer_handle" type="UUId_t" />
+                    <param name="buffer_offset" type="size_t" />
+                    <param name="length" type="size_t" />
+                </request>
+            </function>
+            <function name="transfer">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                    <param name="direction" type="int" />
+                    <param name="buffer_handle" type="UUId_t" />
+                    <param name="buffer_offset" type="size_t" />
+                    <param name="length" type="size_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="bytes_transferred" type="size_t" />
+                </response>
+            </function>
+            <function name="seek">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                    <param name="seek_lo" type="unsigned int" />
+                    <param name="seek_hi" type="unsigned int" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="flush">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="move">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="from" type="string" />
+                    <param name="to" type="string" />
+                    <param name="copy" type="int" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="set_options">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                    <param name="options" type="unsigned int" />
+                    <param name="access" type="unsigned int" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                </response>
+            </function>
+            <function name="get_position">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="position_lo" type="unsigned int" />
+                    <param name="position_hi" type="unsigned int" />
+                </response>
+            </function>
+            <function name="get_options">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="options" type="unsigned int" />
+                    <param name="access" type="unsigned int" />
+                </response>
+            </function>
+            <function name="get_size">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="size_lo" type="unsigned int" />
+                    <param name="size_hi" type="unsigned int" />
+                </response>
+            </function>
+            <function name="get_path">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="path" type="string" />
+                </response>
+            </function>
+            <function name="fstat">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="descriptor" type="buffer" subtype="OsFileDescriptor_t" />
+                </response>
+            </function>
+            <function name="fsstat">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="handle" type="UUId_t" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="descriptor" type="buffer" subtype="OsFileSystemDescriptor_t" />
+                </response>
+            </function>
+            <function name="fstat_from_path">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="path" type="string" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="descriptor" type="buffer" subtype="OsFileDescriptor_t" />
+                </response>
+            </function>
+            <function name="fsstat_from_path">
+                <request>
+                    <param name="process_id" type="UUId_t" />
+                    <param name="path" type="string" />
+                </request>
+                <response>
+                    <param name="status" type="OsStatus_t" />
+                    <param name="descriptor" type="buffer" subtype="OsFileSystemDescriptor_t" />
+                </response>
+            </function>
+        </functions>
+
+        <events>
+            <event name="transfer_status">
+                <param name="id" type="UUId_t" />
+                <param name="status" type="OsStatus_t" />
+                <param name="bytes_transferred" type="size_t" />
+            </event>
+        </events>
+    </protocol>
+</root>

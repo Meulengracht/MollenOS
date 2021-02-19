@@ -97,7 +97,7 @@ HciTransactionFinalize(
 __EXTERN
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t* Transfer);
+    _In_ UsbManagerTransfer_t* transfer);
 
 /* HciQueueTransferIsochronous 
  * Queues a new isochronous transfer for the given driver and pipe. 
@@ -105,7 +105,7 @@ HciQueueTransferGeneric(
 __EXTERN
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t* Transfer);
+    _In_ UsbManagerTransfer_t* transfer);
 
 /* HciDequeueTransfer 
  * Removes a queued transfer from the controller's transfer list */

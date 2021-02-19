@@ -24,7 +24,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/report_parser.h>
 #include <internal/_io.h>
 #include <io.h>
 #include <stdlib.h>

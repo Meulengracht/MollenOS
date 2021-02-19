@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<root>
+    <types>
+        <type name="size_t" header="stddef.h" />
+        <type name="uintptr_t" header="stdint.h" />
+        <type name="UUId_t" header="os/osdefs.h" />
+        <type name="OsStatus_t" header="os/osdefs.h" />
+        <type name="struct sockaddr" header="inet/socket.h" />
+        <type name="OsFileDescriptor_t" header="os/types/file.h" />
+        <type name="OsFileSystemDescriptor_t" header="os/types/file.h" />
+        <type name="ProcessConfiguration_t" header="os/types/process.h" />
+        <type name="OsStorageDescriptor_t" header="os/types/storage.h" />
+        <type name="UsbHcController_t" header="usb/usb.h" />
+    </types>
+</root>

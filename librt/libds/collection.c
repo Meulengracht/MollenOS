@@ -21,7 +21,7 @@
  *  - Implements Collection and queue functionality
  */
 
-#include <ds/collection.h>
+#include <ds/report_parser.h>
 #include <ddk/io.h>
 #include <stddef.h>
 #include <string.h>

@@ -86,7 +86,7 @@ thrd_t thrd_current(void) {
 #include <assert.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/report_parser.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_io.h>

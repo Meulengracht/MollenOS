@@ -30,13 +30,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-UsbTransferStatus_t
+void
 EhciTransactionDispatch(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Update status
-    Transfer->Status        = TransferQueued;
+    Transfer->Status = TransferInProgress;
 #ifdef __TRACE
     UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
 #ifdef __DIAGNOSE
@@ -45,7 +45,6 @@ EhciTransactionDispatch(
 #endif
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
-    return TransferQueued;
 }
 
 OsStatus_t

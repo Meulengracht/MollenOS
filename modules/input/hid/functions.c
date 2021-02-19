@@ -79,15 +79,32 @@ static OsStatus_t __FillReportDescriptor(
 }
 
 OsStatus_t
+HidGetProtocol(
+        _In_ HidDevice_t* hidDevice,
+        _In_ uint8_t*     protocol)
+{
+    TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
+    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+                         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_IN,
+                         HID_GET_PROTOCOL, 0, 0,
+                         (uint16_t)hidDevice->InterfaceId, 1, protocol) != TransferFinished) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
+}
+
+OsStatus_t
 HidSetProtocol(
     _In_ HidDevice_t* hidDevice,
-    _In_ int          protocol)
+    _In_ uint8_t      protocol)
 {
     TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
     if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
-                         HID_SET_PROTOCOL, 0, protocol & 0xFF,
-                         (uint16_t)hidDevice->InterfaceId, 0, NULL) != TransferFinished) {
+                HID_SET_PROTOCOL, protocol & 0xFF, 0,
+                (uint16_t)hidDevice->InterfaceId, 0, NULL) != TransferFinished) {
         return OsError;
     }
     else {
@@ -98,8 +115,8 @@ HidSetProtocol(
 OsStatus_t
 HidSetIdle(
     _In_ HidDevice_t* hidDevice,
-    _In_ int          reportId,
-    _In_ int          duration)
+    _In_ uint8_t      reportId,
+    _In_ uint8_t      duration)
 {
     TRACE("HidSetIdle(hidDevice=0x%" PRIxIN ", reportId=%i, duration=%i)",
           hidDevice, reportId, duration);
@@ -107,7 +124,7 @@ HidSetIdle(
     // This request may stall, which means it's unsupported
     if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
-                         HID_SET_IDLE, duration & 0xFF, reportId & 0xFF,
+                         HID_SET_IDLE, reportId, duration,
                          (uint16_t)hidDevice->InterfaceId, 0, NULL) == TransferFinished) {
         return OsSuccess;
     }
@@ -134,10 +151,19 @@ HidSetupGeneric(
 
     // Switch to report protocol
     if (hidDevice->CurrentProtocol == HID_DEVICE_PROTOCOL_BOOT) {
-        osStatus = HidSetProtocol(hidDevice, HID_DEVICE_PROTOCOL_REPORT);
+        uint8_t currentProtocol;
+        osStatus = HidGetProtocol(hidDevice, &currentProtocol);
         if (osStatus != OsSuccess) {
-            ERROR("HidSetupGeneric failed to set the hid device into report protocol");
+            ERROR("HidSetupGeneric failed to get the current hid device protocol");
             return osStatus;
+        }
+
+        if (currentProtocol != HID_DEVICE_PROTOCOL_REPORT) {
+            osStatus = HidSetProtocol(hidDevice, HID_DEVICE_PROTOCOL_REPORT);
+            if (osStatus != OsSuccess) {
+                ERROR("HidSetupGeneric failed to set the hid device into report protocol");
+                return osStatus;
+            }
         }
         hidDevice->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
     }

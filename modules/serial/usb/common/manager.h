@@ -33,7 +33,7 @@
 #include "scheduler.h"
 #include "transfer.h"
 
-typedef struct _UsbManagerController {
+typedef struct UsbManagerController {
     UUId_t              Id;
     UsbControllerType_t Type;
     BusDevice_t         Device;

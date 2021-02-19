@@ -40,9 +40,10 @@ DECL_STRUCT(UsbDevice);
 
 typedef enum UsbTransferStatus {
     // HCD Error Codes
-    TransferNotProcessed,
+    TransferCreated,
     TransferQueued,
-	TransferFinished,
+    TransferInProgress,
+    TransferFinished,
     TransferInvalid,
     TransferNoBandwidth,
 

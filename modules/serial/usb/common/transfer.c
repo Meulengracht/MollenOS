@@ -34,36 +34,39 @@
 #include "ctt_driver_protocol_server.h"
 #include "ctt_usbhost_protocol_server.h"
 
-static UUId_t g_nextTransferId = 0;
-
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t*              transfer,
     _In_ struct gracht_recv_message* message,
+    _In_ UsbTransfer_t*              transfer,
+    _In_ UUId_t                      transferId,
     _In_ UUId_t                      deviceId)
 {
-    UsbManagerTransfer_t* usbTransfer;
-    UUId_t                transferId;
-    int                   i;
+    UsbManagerController_t* controller;
+    UsbManagerTransfer_t*   usbTransfer;
+    int                     i;
     
     TRACE("UsbManagerCreateTransfer(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
         transfer, message, deviceId);
-    
+
+    controller = (UsbManagerController_t*)UsbManagerGetController(deviceId);
+    if (!controller) {
+        return NULL;
+    }
+
     usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t) + VALI_MSG_DEFER_SIZE(message));
     if (!usbTransfer) {
         return NULL;
     }
     
     memset(usbTransfer, 0, sizeof(UsbManagerTransfer_t));
-    memcpy(&usbTransfer->Transfer, transfer, sizeof(UsbTransfer_t));
-    
-    gracht_vali_message_defer_response(&usbTransfer->DeferredMessage, message);
-    transferId = g_nextTransferId++;
 
-    ELEMENT_INIT(&usbTransfer->header, (uintptr_t)transferId, usbTransfer);
+    memcpy(&usbTransfer->Transfer, transfer, sizeof(UsbTransfer_t));
+    gracht_vali_message_defer_response(&usbTransfer->DeferredMessage, message);
+
+    ELEMENT_INIT(&usbTransfer->ListHeader, 0, usbTransfer);
     usbTransfer->DeviceId = deviceId;
     usbTransfer->Id       = transferId;
-    usbTransfer->Status   = TransferNotProcessed;
+    usbTransfer->Status   = TransferCreated;
     
     // When attaching to dma buffers make sure we don't attach
     // multiple times as we can then save a system call or two
@@ -93,33 +96,46 @@ UsbManagerCreateTransfer(
             &usbTransfer->Transactions[i].SgIndex,
             &usbTransfer->Transactions[i].SgOffset);
     }
+
+    list_append(&controller->TransactionList, &usbTransfer->ListHeader);
     return usbTransfer;
 }
 
 void
 UsbManagerDestroyTransfer(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    int i;
-    for (i = 0; i < Transfer->Transfer.TransactionCount; i++) {
-        if (Transfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+    UsbManagerController_t* controller;
+    int                     i;
+
+    if (!transfer) {
+        return;
+    }
+
+    controller = (UsbManagerController_t*)UsbManagerGetController(transfer->DeviceId);
+    if (controller) {
+        list_remove(&controller->TransactionList, &transfer->ListHeader);
+    }
+
+    for (i = 0; i < transfer->Transfer.TransactionCount; i++) {
+        if (transfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
             continue;
         }
         
-        if (i != 0 && Transfer->Transfer.Transactions[i].BufferHandle ==
-                Transfer->Transfer.Transactions[i - 1].BufferHandle) {
+        if (i != 0 && transfer->Transfer.Transactions[i].BufferHandle ==
+                      transfer->Transfer.Transactions[i - 1].BufferHandle) {
             // do nothing, we already freed
         }
-        else if (i == 2 && Transfer->Transfer.Transactions[i].BufferHandle ==
-                Transfer->Transfer.Transactions[i - 2].BufferHandle) {
+        else if (i == 2 && transfer->Transfer.Transactions[i].BufferHandle ==
+                           transfer->Transfer.Transactions[i - 2].BufferHandle) {
             // do nothing, we already freed
         }
         else {
-            free(Transfer->Transactions[i].DmaTable.entries);
-            dma_detach(&Transfer->Transactions[i].DmaAttachment);
+            free(transfer->Transactions[i].DmaTable.entries);
+            dma_detach(&transfer->Transactions[i].DmaAttachment);
         }
     }
-    free(Transfer);
+    free(transfer);
 }
 
 void
@@ -131,7 +147,9 @@ UsbManagerSendNotification(
     TRACE("UsbManagerSendNotification(transfer=0x%" PRIxIN ")", transfer);
     
     // If user doesn't want, ignore
+    TRACE("UsbManagerSendNotification transfer type=%u", transfer->Transfer.Type);
     if (transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
+        TRACE("UsbManagerSendNotification flags 0x%x requested no notification", transfer->Transfer.Flags);
         return;
     }
 
@@ -151,9 +169,11 @@ UsbManagerSendNotification(
     else if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
         ctt_usbhost_event_transfer_status_single(transfer->DeferredMessage.recv_message.client,
                                               transfer->Id, transfer->Status, transfer->CurrentDataIndex);
-        transfer->CurrentDataIndex = ADDLIMIT(0, transfer->CurrentDataIndex,
-                                              transfer->Transfer.Transactions[0].Length,
-                                              transfer->Transfer.PeriodicBufferSize);
+        if (transfer->Status == TransferFinished) {
+            transfer->CurrentDataIndex = ADDLIMIT(0, transfer->CurrentDataIndex,
+                                                  transfer->Transfer.Transactions[0].Length,
+                                                  transfer->Transfer.PeriodicBufferSize);
+        }
     }
     else {
         WARNING("UsbManagerSendNotification ISOCHRONOUS WHAT TO DO");
@@ -162,34 +182,39 @@ UsbManagerSendNotification(
 
 void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args* args)
 {
-    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(message, args->transfer, args->transfer_id, args->device_id);
     UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
-    if (status != TransferQueued) {
+    if (status != TransferInProgress && status != TransferQueued) {
+        UsbManagerDestroyTransfer(transfer);
         ctt_usbhost_event_transfer_status_single(message->client, args->transfer_id, status, 0);
     }
 }
 
 void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args* args)
 {
-    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(message, args->transfer, args->transfer_id, args->device_id);
     UsbTransferStatus_t   status   = HciQueueTransferGeneric(transfer);
-    if (status != TransferQueued) {
+    if (status != TransferInProgress && status != TransferQueued) {
+        UsbManagerDestroyTransfer(transfer);
         ctt_usbhost_queue_response(message, status, 0);
     }
 }
 
 void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args* args)
 {
-    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(args->transfer, message, args->device_id);
+    UsbManagerTransfer_t* transfer = UsbManagerCreateTransfer(message, args->transfer, args->transfer_id, args->device_id);
     UsbTransferStatus_t   status;
-    
+
     if (transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
         status = HciQueueTransferIsochronous(transfer);
     }
     else {
         status = HciQueueTransferGeneric(transfer);
     }
-    
+
+    if (status != TransferInProgress && status != TransferQueued) {
+        UsbManagerDestroyTransfer(transfer);
+    }
     ctt_usbhost_queue_periodic_response(message, status);
 }
 
@@ -202,7 +227,8 @@ void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ct
     // Lookup transfer by iterating through available transfers
     foreach(node, &controller->TransactionList) {
         UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->value;
-        if (itr->Id == args->transfer_id) {
+        if (itr->DeferredMessage.recv_message.client == message->client &&
+            itr->Id == args->transfer_id) {
             transfer = itr;
             break;
         }

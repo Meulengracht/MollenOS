@@ -196,9 +196,7 @@ UsbManagerIterateTransfers(
         int                   status = itemCallback(controller, transfer, context);
         if (status & ITERATOR_REMOVE) {
             element_t* next = node->next;
-            list_remove(&controller->TransactionList, node);
             UsbManagerDestroyTransfer(transfer);
-
             node = next;
         }
         else {
@@ -288,7 +286,7 @@ UsbManagerQueueWaitingTransfers(
     foreach(node, &controller->TransactionList) {
         UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)node->value;
 
-        if (transfer->Status == TransferNotProcessed) {
+        if (transfer->Status == TransferQueued) {
             if (transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
                 HciQueueTransferIsochronous(transfer);
             }
@@ -374,8 +372,8 @@ UsbManagerSynchronizeTransfers(
     TRACE("UsbManagerSynchronizeTransfers()");
 
     // Is this transfer relevant?
-    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess && 
-        Transfer->Status != TransferQueued && 
+    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess &&
+        Transfer->Status != TransferInProgress &&
         Transfer->Transfer.Type != USB_TRANSFER_BULK &&
         Transfer->Transfer.Type != USB_TRANSFER_INTERRUPT) {
         return ITERATOR_CONTINUE;
@@ -443,7 +441,7 @@ UsbManagerProcessTransfer(
     }
 
     // No reason to check for any other processing if it's not queued
-    if (transfer->Status != TransferQueued) {
+    if (transfer->Status != TransferInProgress) {
         return ITERATOR_CONTINUE;
     }
     
@@ -452,7 +450,7 @@ UsbManagerProcessTransfer(
     UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
                            USB_CHAIN_DEPTH, USB_REASON_SCAN, HciProcessElement, transfer);
     TRACE("> Updated metrics (Id %u, Status %u, Flags 0x%x)", transfer->Id, transfer->Status, transfer->Flags);
-    if (transfer->Status == TransferQueued) {
+    if (transfer->Status == TransferInProgress) {
         return ITERATOR_CONTINUE;
     }
     
@@ -472,7 +470,7 @@ UsbManagerProcessTransfer(
         if (transfer->Status != TransferNAK) {
             UsbManagerSendNotification(transfer);
         }
-        transfer->Status = TransferQueued;
+        transfer->Status = TransferInProgress;
         transfer->Flags  = TransferFlagNone;
     }
     else if (transfer->Transfer.Type == USB_TRANSFER_CONTROL || transfer->Transfer.Type == USB_TRANSFER_BULK) {

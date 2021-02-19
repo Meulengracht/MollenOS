@@ -32,7 +32,7 @@
 #include <os/spinlock.h>
 #include <threads.h>
 
-typedef enum _UsbManagerTransferFlags {
+typedef enum UsbManagerTransferFlags {
     TransferFlagNone        = 0,
     TransferFlagShort       = 0x1,
     TransferFlagSync        = 0x2,
@@ -45,7 +45,7 @@ typedef enum _UsbManagerTransferFlags {
 
 typedef struct UsbManagerTransfer {
     UsbTransfer_t Transfer;
-    element_t     header;
+    element_t     ListHeader;
 
     // Transfer Metadata
     UUId_t                    Id;
@@ -70,13 +70,15 @@ typedef struct UsbManagerTransfer {
     struct vali_link_deferred_response DeferredMessage;
 } UsbManagerTransfer_t;
 
+#define CREATE_TRANSFER_ID(client, id) ((UUId_t)client << 16) | id)
+
 /**
  * UsbManagerDestroyTransfer
  * * Cleans up a usb transfer and frees resources.
  */
 __EXTERN void
 UsbManagerDestroyTransfer(
-    _In_ UsbManagerTransfer_t* Transfer);
+    _In_ UsbManagerTransfer_t* transfer);
 
 /**
  * UsbManagerSendNotification

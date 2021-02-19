@@ -33,7 +33,7 @@
 //#define __TRACE
 
 #include <os/spinlock.h>
-#include <ds/collection.h>
+#include <ds/report_parser.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>

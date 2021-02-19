@@ -42,74 +42,74 @@ const char* UhciErrorMessages[] = {
 
 /* UhciFFS
  * This function calculates the first free set of bits in a value */
-size_t
-UhciFFS(
-    _In_ size_t Value)
+int __UhciGetFfs(
+    _In_ size_t value)
 {
-    size_t Set = 0;
+    int set = 0;
 
-    if (!(Value & 0xFFFF)) { // 16 Bits
-        Set += 16;
-        Value >>= 16;
+    if (!(value & 0xFFFF)) { // 16 Bits
+        set += 16;
+        value >>= 16;
     }
-    if (!(Value & 0xFF)) { // 8 Bits
-        Set += 8;
-        Value >>= 8;
+    if (!(value & 0xFF)) { // 8 Bits
+        set += 8;
+        value >>= 8;
     }
-    if (!(Value & 0xF)) { // 4 Bits
-        Set += 4;
-        Value >>= 4;
+    if (!(value & 0xF)) { // 4 Bits
+        set += 4;
+        value >>= 4;
     }
-    if (!(Value & 0x3)) { // 2 Bits
-        Set += 2;
-        Value >>= 2;
+    if (!(value & 0x3)) { // 2 Bits
+        set += 2;
+        value >>= 2;
     }
-    if (!(Value & 0x1)) { // 1 Bit
-        Set++;
+    if (!(value & 0x1)) { // 1 Bit
+        set++;
     }
-    return Set;
+    return set;
 }
 
 int
 UhciDetermineInterruptIndex(
-    _In_ size_t Frame)
+    _In_ size_t frame)
 {
-    int Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
+    int index = 8 - __UhciGetFfs(frame | UHCI_NUM_FRAMES);
 
     // If we are out of bounds then assume async queue
-    if (Index < 2 || Index > 8) {
-        Index = UHCI_POOL_QH_ASYNC;
+    if (index < 2 || index > 8) {
+        index = UHCI_POOL_QH_ASYNC;
     }
-    return Index;
+    return index;
 }
 
 UsbTransferStatus_t
 UhciGetStatusCode(
-    _In_ int ConditionCode)
+    _In_ int conditionCode)
 {
-    if (ConditionCode == 0) {
+    TRACE("UhciGetStatusCode(conditionCode=%i)", conditionCode);
+    if (conditionCode == 0) {
         return TransferFinished;
     }
-    else if (ConditionCode == 6) {
+    else if (conditionCode == 6) {
         return TransferStalled;
     }
-    else if (ConditionCode == 1) {
+    else if (conditionCode == 1) {
         return TransferInvalidToggles;
     }
-    else if (ConditionCode == 2) {
+    else if (conditionCode == 2) {
         return TransferNotResponding;
     }
-    else if (ConditionCode == 3) {
+    else if (conditionCode == 3) {
         return TransferNAK;
     }
-    else if (ConditionCode == 4) {
+    else if (conditionCode == 4) {
         return TransferBabble;
     }
-    else if (ConditionCode == 5) {
+    else if (conditionCode == 5) {
         return TransferBufferError;
     }
     else {
-        TRACE("Error: 0x%x (%s)", ConditionCode, UhciErrorMessages[ConditionCode]);
+        TRACE("Error: 0x%x (%s)", conditionCode, UhciErrorMessages[conditionCode]);
         return TransferInvalid;
     }
 }
@@ -245,34 +245,35 @@ UhciQueueDestroy(
 // This should be called regularly to keep the stored frame relevant
 void
 UhciUpdateCurrentFrame(
-    _In_ UhciController_t* Controller)
+    _In_ UhciController_t* controller)
 {
-    uint16_t FrameNo = 0;
-    int      Delta   = 0;
+    uint16_t frameNo;
+    int      delta;
 
     // Read the current frame, and use the last read frame to calculate the delta
     // then add to current frame
-    FrameNo             = UhciRead16(Controller, UHCI_REGISTER_FRNUM);
-    Delta               = (FrameNo - Controller->Frame) & UHCI_FRAME_MASK;
-    Controller->Frame   += Delta;
+    frameNo = UhciRead16(controller, UHCI_REGISTER_FRNUM);
+    delta   = (frameNo - controller->Frame) & UHCI_FRAME_MASK;
+    controller->Frame += delta;
 }
 
 int
 UhciConditionCodeToIndex(
-    _In_ int ConditionCode)
+    _In_ int conditionCode)
 {
-    int bCount = 0;
-    int Cc     = ConditionCode;
+    int counter = 0;
+    int cc      = conditionCode;
+    TRACE("UhciConditionCodeToIndex(conditionCode=%i)", conditionCode);
 
     // Keep bit-shifting and count which bit is set
-    for (; Cc != 0;) {
-        bCount++;
-        Cc >>= 1;
+    for (; cc != 0;) {
+        counter++;
+        cc >>= 1;
     }
-    if (bCount >= 8) {
-        bCount = 0;
+    if (counter >= 8) {
+        counter = 0;
     }
-    return bCount;
+    return counter;
 }
 
 int
@@ -381,5 +382,7 @@ HciProcessEvent(
                 UhciQhRestart((UhciController_t*)Controller, Transfer);
             }
         } break;
+
+        default: break;
     }
 }

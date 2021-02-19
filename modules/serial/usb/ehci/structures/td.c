@@ -165,7 +165,7 @@ EhciTdValidate(
     if (Td->Status & EHCI_TD_ACTIVE) {
         // If this one is still active, but it's an transfer that has
         // elements processed - resync toggles
-        if (Transfer->Status != TransferQueued) {
+        if (Transfer->Status != TransferInProgress) {
             Transfer->Flags |= TransferFlagSync;
         }
         return;
@@ -179,7 +179,7 @@ EhciTdValidate(
         Transfer->Status = EhciGetStatusCode(ErrorCode);
         return; // Skip bytes transferred
     }
-    else if (Transfer->Status == TransferQueued) {
+    else if (Transfer->Status == TransferInProgress) {
         Transfer->Status = TransferFinished;
     }
 

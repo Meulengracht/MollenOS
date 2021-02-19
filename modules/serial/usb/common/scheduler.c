@@ -499,10 +499,17 @@ UsbSchedulerAllocateBandwidth(
     OsStatus_t            result;
     UsbSchedulerObject_t* schedulerObject;
     UsbSchedulerPool_t*   schedulerPool = NULL;
+    TRACE("UsbSchedulerAllocateBandwidth(scheduler=0x%" PRIxIN ", interval=%u, mps=%u, transactionType=%u,",
+          scheduler, interval, mps, transactionType);
+    TRACE("         bytesToTransfer=%" PRIuIN ", transferType=%u, speed=%u, element=0x%" PRIxIN ")",
+          bytesToTransfer, transferType, speed, element);
 
     // Validate element and lookup pool
     result = UsbSchedulerGetPoolFromElement(scheduler, element, &schedulerPool);
-    assert(result == OsSuccess);
+    if (result != OsSuccess) {
+        return result;
+    }
+
     schedulerObject = USB_ELEMENT_OBJECT(schedulerPool, element);
 
     // Calculate the required number of transactions based on the MPS
@@ -513,11 +520,13 @@ UsbSchedulerAllocateBandwidth(
         speed, transactionType, transferType, bytesToTransfer));
     
     // If highspeed calculate period as 2^(Interval-1)
-    if (speed == USB_SPEED_HIGH) {
-        schedulerObject->FrameInterval = (1 << interval);
+    if (speed == USB_SPEED_LOW || speed == USB_SPEED_FULL) {
+        // low and full speed deal in 1ms frames
+        schedulerObject->FrameInterval = interval;
     }
     else {
-        schedulerObject->FrameInterval = interval;
+        // high and up only deal in subms frames
+        schedulerObject->FrameInterval = (1 << interval);
     }
     
     // Sanitize some bounds for period
@@ -542,16 +551,14 @@ UsbSchedulerAllocateBandwidth(
 
     // If we don't bandwidth for transfers with 1 interval, then try 2, 4, 8, 16, 32 etc
     if (exponent > 0) {
-        while (result != OsSuccess && --exponent >= 0) {
+        do {
             schedulerObject->FrameInterval = 1 << exponent;
-            result                         = UsbSchedulerTryAllocateBandwidth(
-                scheduler, schedulerObject, numberOfTransactions);
-        }
+            result = UsbSchedulerTryAllocateBandwidth(scheduler, schedulerObject, numberOfTransactions);
+        } while (result != OsSuccess && --exponent >= 0);
     }
     else {
         schedulerObject->FrameInterval = 1 << exponent;
-        result                         = UsbSchedulerTryAllocateBandwidth(
-            scheduler, schedulerObject, numberOfTransactions);
+        result = UsbSchedulerTryAllocateBandwidth(scheduler, schedulerObject, numberOfTransactions);
     }
 
     if (result == OsSuccess) {

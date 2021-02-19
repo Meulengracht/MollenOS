@@ -30,7 +30,8 @@ set (ADDITONAL_SOURCES
 
 add_module_target(hid ""
     ${ADDITONAL_SOURCES}
-    collection.c
+    report_parser.c
+    report_handler.c
     functions.c
     hid.c
     main.c

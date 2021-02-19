@@ -271,21 +271,36 @@ __EXTERN void
 HidDeviceDestroy(
     _In_ HidDevice_t *hidDevice);
 
-/* HidSetupGeneric 
- * Sets up a generic HID device like a mouse or a keyboard. */
-__EXTERN
-OsStatus_t
+/**
+ *
+ * @param hidDevice
+ * @return
+ */
+__EXTERN OsStatus_t
 HidSetupGeneric(
     _In_ HidDevice_t *hidDevice);
 
-/* HidSetProtocol
- * Changes the current protocol of the device. 
- * 0 = Boot Protocol, 1 = Report Protocol */
-__EXTERN
-OsStatus_t
+/**
+ *
+ * @param hidDevice
+ * @param protocol
+ * @return
+ */
+__EXTERN OsStatus_t
+HidGetProtocol(
+        _In_ HidDevice_t* hidDevice,
+        _In_ uint8_t*     protocol);
+
+/**
+ *
+ * @param hidDevice
+ * @param protocol
+ * @return
+ */
+__EXTERN OsStatus_t
 HidSetProtocol(
-    _In_ HidDevice_t *hidDevice,
-    _In_ int protocol);
+    _In_ HidDevice_t* hidDevice,
+    _In_ uint8_t      protocol);
 
 /* HidSetIdle
  * Changes the current situation of the device to idle. 
@@ -295,9 +310,9 @@ HidSetProtocol(
 __EXTERN
 OsStatus_t
 HidSetIdle(
-    _In_ HidDevice_t *hidDevice,
-    _In_ int reportId,
-    _In_ int duration);
+    _In_ HidDevice_t* hidDevice,
+    _In_ uint8_t      reportId,
+    _In_ uint8_t      duration);
 
 /* HidParseReportDescriptor
  * Parses the report descriptor and stores it as collection tree. The size
@@ -313,7 +328,7 @@ HidParseReportDescriptor(
  * Recursive report-parser that applies the given report-data
  * to the parsed report collection. */
 __EXTERN int
-HidParseReport(
+HidHandleReportEvent(
     _In_ HidDevice_t *hidDevice,
     _In_ UsbHidReportCollection_t *reportCollection,
     _In_ size_t dataIndex);

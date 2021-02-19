@@ -26,13 +26,13 @@
 #include <ddk/utils.h>
 #include "uhci.h"
 
-UsbTransferStatus_t
+void
 UhciTransactionDispatch(
     _In_ UhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Update status
-    Transfer->Status = TransferQueued;
+    Transfer->Status = TransferInProgress;
     UhciUpdateCurrentFrame(Controller);
     
 #ifdef __TRACE
@@ -44,7 +44,6 @@ UhciTransactionDispatch(
 
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
-    return TransferQueued;
 }
 
 OsStatus_t

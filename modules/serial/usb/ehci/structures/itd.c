@@ -155,7 +155,7 @@ EhciiTdValidate(
     int i;
 
     // Don't check more if there is an error condition
-    if (Transfer->Status != TransferFinished && Transfer->Status != TransferQueued) {
+    if (Transfer->Status != TransferFinished && Transfer->Status != TransferInProgress) {
         return;
     }
 

@@ -26,30 +26,28 @@
 
 #include <ddk/utils.h>
 #include "ehci.h"
-#include <string.h>
 #include <stdlib.h>
 
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    EhciIsochronousDescriptor_t* FirstTd    = NULL;
-    EhciIsochronousDescriptor_t* PreviousTd = NULL;
-    EhciController_t*            Controller;
-    size_t                       BytesToTransfer;
-    size_t                       MaxBytesPerDescriptor;
+    EhciIsochronousDescriptor_t* firstTd    = NULL;
+    EhciIsochronousDescriptor_t* previousTd = NULL;
+    EhciController_t*            controller;
+    size_t                       bytesToTransfer;
+    size_t                       maxBytesPerDescriptor;
     int                          i;
 
-    Controller       = (EhciController_t *) UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status = TransferNotProcessed;
-    BytesToTransfer  = Transfer->Transfer.Transactions[0].Length;
+    controller = (EhciController_t *) UsbManagerGetController(transfer->DeviceId);
+    bytesToTransfer = transfer->Transfer.Transactions[0].Length;
 
     // Calculate mpd
-    MaxBytesPerDescriptor  = 1024 * MAX(3, Transfer->Transfer.PeriodicBandwith);
-    MaxBytesPerDescriptor *= 8;
+    maxBytesPerDescriptor = 1024 * MAX(3, transfer->Transfer.PeriodicBandwith);
+    maxBytesPerDescriptor *= 8;
 
     // Allocate resources
-    while (BytesToTransfer) {
+    while (bytesToTransfer) {
         EhciIsochronousDescriptor_t* iTd;
         uintptr_t                    AddressPointer;
         size_t                       BytesStep;
@@ -57,18 +55,18 @@ HciQueueTransferIsochronous(
         // Out of three different limiters we must select the lowest one. Either
         // we must transfer lower bytes because of the requested amount, or the limit
         // of a descriptor, or the limit of the DMA table
-        BytesStep = MIN(BytesToTransfer, MaxBytesPerDescriptor);
-        BytesStep = MIN(BytesStep, Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].length - Transfer->Transactions[0].SgOffset);
+        BytesStep = MIN(bytesToTransfer, maxBytesPerDescriptor);
+        BytesStep = MIN(BytesStep, transfer->Transactions[0].DmaTable.entries[
+            transfer->Transactions[0].SgIndex].length - transfer->Transactions[0].SgOffset);
         
-        AddressPointer = Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].address + Transfer->Transactions[0].SgOffset;
+        AddressPointer = transfer->Transactions[0].DmaTable.entries[
+            transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
         
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OsSuccess) {
-            if (EhciTdIsochronous(Controller, &Transfer->Transfer, iTd, 
-                    AddressPointer, BytesStep, Transfer->Transfer.Transactions[0].Type,
-                    Transfer->Transfer.Address.DeviceAddress, 
-                    Transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OsSuccess) {
+            if (EhciTdIsochronous(controller, &transfer->Transfer, iTd,
+                                  AddressPointer, BytesStep, transfer->Transfer.Transactions[0].Type,
+                                  transfer->Transfer.Address.DeviceAddress,
+                                  transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
                 // TODO: Out of bandwidth
                 TRACE(" > Out of bandwidth");
                 for(;;);
@@ -82,37 +80,37 @@ HciQueueTransferIsochronous(
         }
 
         // Update pointers
-        if (FirstTd == NULL) {
-            FirstTd     = iTd;
-            PreviousTd  = iTd;
+        if (firstTd == NULL) {
+            firstTd    = iTd;
+            previousTd = iTd;
         }
         else {
-            UsbSchedulerChainElement(Controller->Base.Scheduler, EHCI_iTD_POOL, 
-                (uint8_t*)FirstTd, EHCI_iTD_POOL, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+            UsbSchedulerChainElement(controller->Base.Scheduler, EHCI_iTD_POOL,
+                                     (uint8_t*)firstTd, EHCI_iTD_POOL, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
             
             for (i = 0; i < 8; i++) {
-                if (PreviousTd->Transactions[i] & EHCI_iTD_IOC) {
-                    PreviousTd->Transactions[i] &= ~(EHCI_iTD_IOC);
-                    PreviousTd->TransactionsCopy[i] &= ~(EHCI_iTD_IOC);
+                if (previousTd->Transactions[i] & EHCI_iTD_IOC) {
+                    previousTd->Transactions[i] &= ~(EHCI_iTD_IOC);
+                    previousTd->TransactionsCopy[i] &= ~(EHCI_iTD_IOC);
                 }
             }
 
-            PreviousTd  = iTd;
+            previousTd = iTd;
         }
         
         // Increase the DmaTable metrics
-        Transfer->Transactions[0].SgOffset += BytesStep;
-        if (Transfer->Transactions[0].SgOffset == 
-                Transfer->Transactions[0].DmaTable.entries[
-                    Transfer->Transactions[0].SgIndex].length) {
-            Transfer->Transactions[0].SgIndex++;
-            Transfer->Transactions[0].SgOffset = 0;
+        transfer->Transactions[0].SgOffset += BytesStep;
+        if (transfer->Transactions[0].SgOffset ==
+            transfer->Transactions[0].DmaTable.entries[
+                    transfer->Transactions[0].SgIndex].length) {
+            transfer->Transactions[0].SgIndex++;
+            transfer->Transactions[0].SgOffset = 0;
         }
-        BytesToTransfer -= BytesStep;
+        bytesToTransfer -= BytesStep;
     }
 
-    Transfer->EndpointDescriptor = (void*)FirstTd;
-    
-    list_append(&Controller->Base.TransactionList, &Transfer->header);
-    return EhciTransactionDispatch(Controller, Transfer);
+    transfer->EndpointDescriptor = (void*)firstTd;
+
+    EhciTransactionDispatch(controller, transfer);
+    return TransferInProgress;
 }

@@ -21,6 +21,7 @@
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
@@ -28,119 +29,126 @@
 
 void
 UhciQhCalculateQueue(
-    _In_ UhciQueueHead_t* Qh)
+    _In_ UhciQueueHead_t* queueHead)
 {
-    int Exponent, Queue;
+    int exponent, queue;
 
     // Calculate the correct index
-    for (Exponent = 7; Exponent >= 0; --Exponent) {
-        if ((1 << Exponent) <= (int)Qh->Object.FrameInterval) {
+    for (exponent = 7; exponent >= 0; --exponent) {
+        if ((1 << exponent) <= (int)queueHead->Object.FrameInterval) {
             break;
         }
     }
 
-    Queue     = 9 - Exponent;
-    Qh->Queue = Queue & 0xFF;
-    TRACE("Queue for interrupt transfer: %i", Queue);
+    queue = 9 - exponent;
+    queueHead->Queue = queue & 0xFF;
+    TRACE("Queue for interrupt transfer: %i", queue);
 }
 
 OsStatus_t
 UhciQhInitialize(
-    _In_ UhciController_t*     Controller,
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciQueueHead_t* Qh     = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    OsStatus_t       Status = OsSuccess;
+    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
+    OsStatus_t       osStatus = OsSuccess;
 
-    Qh->Link          = UHCI_LINK_END;
-    Qh->Child         = UHCI_LINK_END;
-    Qh->Object.Flags |= UHCI_LINK_QH;
+    queueHead->Link  = UHCI_LINK_END;
+    queueHead->Child = UHCI_LINK_END;
+    queueHead->Object.Flags |= UHCI_LINK_QH;
 
     // Allocate bandwidth if int/isoc
-    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
-        Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
-            Transfer->Transfer.PeriodicInterval, Transfer->Transfer.Transactions[0].Type,
-            Transfer->Transfer.MaxPacketSize, Transfer->Transfer.Transactions[0].Length,
-            Transfer->Transfer.Type, Transfer->Transfer.Speed, (uint8_t*)Qh);
-        if (Status != OsError) {
-            UhciQhCalculateQueue(Qh);
+    if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
+        osStatus = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
+                                                 transfer->Transfer.PeriodicInterval,
+                                                 transfer->Transfer.Transactions[0].Type,
+                                                 transfer->Transfer.MaxPacketSize,
+                                                 transfer->Transfer.Transactions[0].Length,
+                                                 transfer->Transfer.Type,
+                                                 transfer->Transfer.Speed,
+                                                 (uint8_t*)queueHead);
+        if (osStatus != OsError) {
+            UhciQhCalculateQueue(queueHead);
         }
     }
     else {
-        Qh->Queue = UHCI_POOL_QH_ASYNC;
+        queueHead->Queue = UHCI_POOL_QH_ASYNC;
     }
-    return Status;
+    return osStatus;
 }
 
 void
 UhciQhDump(
-    _In_ UhciController_t* Controller,
-    _In_ UhciQueueHead_t*  Qh)
+    _In_ UhciController_t* controller,
+    _In_ UhciQueueHead_t*  queueHead)
 {
     uintptr_t PhysicalAddress = 0;
 
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
-        Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    WARNING("QH(0x%x): Flags 0x%x, Link 0x%x, Child 0x%x", 
-        PhysicalAddress, Qh->Object.Flags, Qh->Link, Qh->Child);
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_QH_POOL,
+                               queueHead->Object.Index & USB_ELEMENT_INDEX_MASK,
+                               NULL, &PhysicalAddress);
+    WARNING("QH(0x%x): Flags 0x%x, Link 0x%x, Child 0x%x",
+            PhysicalAddress, queueHead->Object.Flags, queueHead->Link, queueHead->Child);
 }
 
 void
 UhciQhRestart(
-    _In_ UhciController_t*     Controller,
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciQueueHead_t* Qh           = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    uintptr_t        LinkPhysical = 0;
+    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
+    uintptr_t        linkPhysical = 0;
     
     // Do some extra processing for periodics
-    Qh->BufferBase  = Transfer->Transactions[0].DmaTable.entries[
-        Transfer->Transactions[0].SgIndex].address;
-    Qh->BufferBase += Transfer->Transactions[0].SgOffset;
+    queueHead->BufferBase = transfer->Transactions[0].DmaTable.entries[
+        transfer->Transactions[0].SgIndex].address;
+    queueHead->BufferBase += transfer->Transactions[0].SgOffset;
 
     // Reinitialize the queue-head
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
-        Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkPhysical);
-    Qh->Child = LinkPhysical | UHCI_LINK_DEPTH;
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_TD_POOL,
+                               queueHead->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
+                               NULL, &linkPhysical);
+    queueHead->Child = linkPhysical | UHCI_LINK_DEPTH;
 }
 
 void
 UhciQhLink(
     _In_ UhciController_t* Controller,
-    _In_ UhciQueueHead_t*  Qh)
+    _In_ UhciQueueHead_t*  queueHead)
 {
-    UhciQueueHead_t* QueueQh = NULL;
-    uint16_t         Marker;
+    UhciQueueHead_t* listQh = NULL;
+    uint16_t         marker;
 
     // Get the queue for this queue-head
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
-        Qh->Queue, (uint8_t**)&QueueQh, NULL);
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL,
+                               queueHead->Queue, (uint8_t**)&listQh, NULL);
 
     // Handle async and interrupt a little differently
-    if (Qh->Queue >= UHCI_POOL_QH_ASYNC) {
-        Marker = USB_ELEMENT_NO_INDEX;
+    if (queueHead->Queue >= UHCI_POOL_QH_ASYNC) {
+        marker = USB_ELEMENT_NO_INDEX;
     }
     else {
-        Marker = USB_ELEMENT_CREATE_INDEX(UHCI_QH_POOL, UHCI_POOL_QH_ASYNC);
+        marker = USB_ELEMENT_CREATE_INDEX(UHCI_QH_POOL, UHCI_POOL_QH_ASYNC);
     }
     
     // Link it
     UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_QH_POOL,
-        (uint8_t*)QueueQh, UHCI_QH_POOL, (uint8_t*)Qh, Marker, USB_CHAIN_BREATH);
+                             (uint8_t*)listQh, UHCI_QH_POOL, (uint8_t*)queueHead, marker, USB_CHAIN_BREATH);
 }
 
 void
 UhciQhUnlink(
-    _In_ UhciController_t* Controller,
-    _In_ UhciQueueHead_t*  Qh)
+    _In_ UhciController_t* controller,
+    _In_ UhciQueueHead_t*  queueHead)
 {
-    UhciQueueHead_t* QueueQh = NULL;
+    UhciQueueHead_t* listQh = NULL;
 
     // Get the queue for this queue-head
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
-        Qh->Queue, (uint8_t**)&QueueQh, NULL);
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_QH_POOL,
+                               queueHead->Queue, (uint8_t**)&listQh, NULL);
 
     // Unlink it
-    UsbSchedulerUnchainElement(Controller->Base.Scheduler, 
-        UHCI_QH_POOL, (uint8_t*)QueueQh, UHCI_QH_POOL, (uint8_t*)Qh, USB_CHAIN_BREATH);
+    UsbSchedulerUnchainElement(controller->Base.Scheduler,
+                               UHCI_QH_POOL, (uint8_t*)listQh, UHCI_QH_POOL,
+                               (uint8_t*)queueHead, USB_CHAIN_BREATH);
 }

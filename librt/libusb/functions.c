@@ -408,12 +408,10 @@ UsbSetAddress(
 {
     UsbTransferStatus_t status;
 
-    // Debug
     TRACE("UsbSetAddress()");
 
-    // Sanitize current address
     if (deviceContext->device_address != 0) {
-        return TransferNotProcessed;
+        return TransferInvalid;
     }
 
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_OUT,

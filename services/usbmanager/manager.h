@@ -38,6 +38,7 @@ typedef struct UsbPortDevice {
     uint8_t              Class;
     uint8_t              Subclass;
     uint8_t              Protocol;
+    uint8_t              DefaultConfiguration;
     UUId_t               DeviceId;
     UsbHub_t*            Hub;
 } UsbPortDevice_t;

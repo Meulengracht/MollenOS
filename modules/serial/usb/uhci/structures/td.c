@@ -23,10 +23,8 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../uhci.h"
-#include <string.h>
 #include <stdlib.h>
 
 size_t
@@ -34,7 +32,7 @@ UhciTdSetup(
     _In_ UhciTransferDescriptor_t* Td,
     _In_ size_t                    Device, 
     _In_ size_t                    Endpoint,
-    _In_ uint8_t                Speed,
+    _In_ uint8_t                   Speed,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length)
 {
@@ -154,48 +152,48 @@ UhciTdDump(
 
 void
 UhciTdValidate(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  UhciTransferDescriptor_t* Td)
+    _In_  UsbManagerTransfer_t*     transfer,
+    _In_  UhciTransferDescriptor_t* td)
 {
-    int ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
+    int conditionCodeIndex = UhciConditionCodeToIndex(UHCI_TD_STATUS(td->Flags));
     int i;
 
     // Sanitize active status
-    if (Td->Flags & UHCI_TD_ACTIVE) {
+    if (td->Flags & UHCI_TD_ACTIVE) {
         // If this one is still active, but it's an transfer that has
         // elements processed - resync toggles
-        if (Transfer->Status != TransferQueued) {
-            Transfer->Flags |= TransferFlagSync;
+        if (transfer->Status != TransferInProgress) {
+            transfer->Flags |= TransferFlagSync;
         }
         return;
     }
 
     // Now validate the code
-    if (ErrorCode != 0) {
-        Transfer->Status = UhciGetStatusCode(ErrorCode);
+    if (conditionCodeIndex != 0) {
+        transfer->Status = UhciGetStatusCode(conditionCodeIndex);
         return; // Skip bytes transferred
     }
-    else if (Transfer->Status == TransferQueued) {
-        Transfer->Status = TransferFinished;
+    else if (transfer->Status == TransferInProgress) {
+        transfer->Status = TransferFinished;
     }
 
     // Calculate length transferred 
     // Take into consideration the N-1 
-    if (Td->Buffer != 0) {
-        int BytesTransferred = UHCI_TD_ACTUALLENGTH(Td->Flags) + 1;
-        int BytesRequested   = UHCI_TD_GET_LEN(Td->Header) + 1;
+    if (td->Buffer != 0) {
+        int BytesTransferred = UHCI_TD_ACTUALLENGTH(td->Flags) + 1;
+        int BytesRequested   = UHCI_TD_GET_LEN(td->Header) + 1;
         if (BytesTransferred < BytesRequested) {
-            Transfer->Flags |= TransferFlagShort;
+            transfer->Flags |= TransferFlagShort;
 
             // On short transfers we might have to sync, but only 
             // if there are un-processed td's after this one
-            if (Td->Object.DepthIndex != USB_ELEMENT_NO_INDEX) {
-                Transfer->Flags |= TransferFlagSync;
+            if (td->Object.DepthIndex != USB_ELEMENT_NO_INDEX) {
+                transfer->Flags |= TransferFlagSync;
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
-                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
+            if (transfer->Transfer.Transactions[i].Length > transfer->Transactions[i].BytesTransferred) {
+                transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
         }
@@ -247,7 +245,7 @@ UhciTdRestart(
         UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
         
         // Adjust buffer if not just restart
-        if (Transfer->Status != TransferNAK) {
+        if (Transfer->Status == TransferFinished) {
             BufferBaseUpdated = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
                 BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
             Td->Buffer     = LODWORD(BufferBaseUpdated);

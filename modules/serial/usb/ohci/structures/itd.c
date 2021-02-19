@@ -118,7 +118,7 @@ OhciiTdValidate(
     if (Td->Flags & OHCI_TD_ACTIVE) {
         // If this one is still active, but it's an transfer that has
         // elements processed - resync toggles
-        if (Transfer->Status != TransferQueued) {
+        if (Transfer->Status != TransferInProgress) {
             Transfer->Flags |= TransferFlagSync;
         }
         return;
@@ -134,7 +134,7 @@ OhciiTdValidate(
         if (ErrorCode != 0) {
             Transfer->Status = OhciGetStatusCode(ErrorCode);
         }
-        else if (Transfer->Status == TransferQueued) {
+        else if (Transfer->Status == TransferInProgress) {
             Transfer->Status = TransferFinished;
         }
     }

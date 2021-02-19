@@ -30,7 +30,7 @@
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 
-UsbTransferStatus_t
+void
 OhciTransactionDispatch(
     _In_ OhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
@@ -45,11 +45,10 @@ OhciTransactionDispatch(
 
     // Set the schedule flag on ED and
     // enable SOF, ED is not scheduled before this interrupt
-    Transfer->Status  = TransferQueued;
+    Transfer->Status  = TransferInProgress;
     Transfer->Flags  |= TransferFlagSchedule;
     WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
-    return TransferQueued;
 }
 
 void

@@ -23,290 +23,287 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "uhci.h"
 #include <assert.h>
-#include <string.h>
 
 static OsStatus_t
 UhciTransferFillIsochronous(
-    _In_ UhciController_t*     Controller,
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciTransferDescriptor_t* InitialTd  = NULL;
-    UhciTransferDescriptor_t* PreviousTd = NULL;
-    uintptr_t                 AddressPointer;
-    size_t                    BytesToTransfer;
-    uint8_t                   Type = Transfer->Transfer.Transactions[0].Type;
+    UhciTransferDescriptor_t* initialTd  = NULL;
+    UhciTransferDescriptor_t* previousTd = NULL;
+    uintptr_t                 addressPointer;
+    size_t                    bytesToTransfer;
+    uint8_t                   transactionType = transfer->Transfer.Transactions[0].Type;
     
     TRACE("UhciTransferFillIsochronous()");
 
-    BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
-    while (BytesToTransfer) {
-        UhciTransferDescriptor_t* Td;
-        size_t                    BytesStep;
+    bytesToTransfer = transfer->Transfer.Transactions[0].Length;
+    while (bytesToTransfer) {
+        UhciTransferDescriptor_t* td;
+        size_t                    bytesStep;
+
+        bytesStep = MIN(bytesToTransfer, transfer->Transfer.MaxPacketSize);
+        bytesStep = MIN(bytesStep, transfer->Transactions[0].DmaTable.entries[
+            transfer->Transactions[0].SgIndex].length - transfer->Transactions[0].SgOffset);
+
+        addressPointer = transfer->Transactions[0].DmaTable.entries[
+            transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
         
-        BytesStep = MIN(BytesToTransfer, Transfer->Transfer.MaxPacketSize);
-        BytesStep = MIN(BytesStep, Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].length - Transfer->Transactions[0].SgOffset);
-        
-        AddressPointer = Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].address + Transfer->Transactions[0].SgOffset;
-        
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
-            BytesStep = UhciTdIo(Td, Transfer->Transfer.Type, Type,
-                Transfer->Transfer.Address.DeviceAddress, 
-                Transfer->Transfer.Address.EndpointAddress,
-                Transfer->Transfer.Speed, AddressPointer, BytesStep, 0);
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsSuccess) {
+            bytesStep = UhciTdIo(td, transfer->Transfer.Type, transactionType,
+                                 transfer->Transfer.Address.DeviceAddress,
+                                 transfer->Transfer.Address.EndpointAddress,
+                                 transfer->Transfer.Speed, addressPointer, bytesStep, 0);
             
-            if (UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler,
-                Transfer->Transfer.PeriodicInterval, Transfer->Transfer.MaxPacketSize,
-                Type, BytesStep, USB_TRANSFER_ISOCHRONOUS,
-                Transfer->Transfer.Speed, (uint8_t*)Td) != OsSuccess) {
+            if (UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
+                                              transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
+                                              transactionType, bytesStep, USB_TRANSFER_ISOCHRONOUS,
+                                              transfer->Transfer.Speed, (uint8_t*)td) != OsSuccess) {
                 // Free element
-                UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)Td);
+                UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)td);
                 break;
             }
         }
 
         // If we didn't allocate a td, we ran out of 
         // resources, and have to wait for more. Queue up what we have
-        if (Td == NULL) {
+        if (td == NULL) {
             break;
         }
         else {
             // Store first
-            if (PreviousTd == NULL) {
-                InitialTd  = Td;
-                PreviousTd = Td;
+            if (previousTd == NULL) {
+                initialTd  = td;
+                previousTd = td;
             }
             else {
-                UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
-                    (uint8_t*)InitialTd, UHCI_TD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
-                PreviousTd = Td;
+                UsbSchedulerChainElement(controller->Base.Scheduler, UHCI_TD_POOL,
+                                         (uint8_t*)initialTd, UHCI_TD_POOL, (uint8_t*)td,
+                                         USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                previousTd = td;
             }
 
             // Increase the DmaTable metrics
-            Transfer->Transactions[0].SgOffset += BytesStep;
-            if (Transfer->Transactions[0].SgOffset == 
-                    Transfer->Transactions[0].DmaTable.entries[
-                        Transfer->Transactions[0].SgIndex].length) {
-                Transfer->Transactions[0].SgIndex++;
-                Transfer->Transactions[0].SgOffset = 0;
+            transfer->Transactions[0].SgOffset += bytesStep;
+            if (transfer->Transactions[0].SgOffset ==
+                transfer->Transactions[0].DmaTable.entries[
+                        transfer->Transactions[0].SgIndex].length) {
+                transfer->Transactions[0].SgIndex++;
+                transfer->Transactions[0].SgOffset = 0;
             }
-            BytesToTransfer -= BytesStep;
+            bytesToTransfer -= bytesStep;
         }
     }
 
     // End of <transfer>?
-    if (PreviousTd != NULL) {
-        PreviousTd->Flags           |= UHCI_TD_IOC;
-        Transfer->EndpointDescriptor = InitialTd;
+    if (previousTd != NULL) {
+        previousTd->Flags           |= UHCI_TD_IOC;
+        transfer->EndpointDescriptor = initialTd;
         return OsSuccess;
     }
-    
-    // Queue up for later
-    return OsError;
+
+    return OsBusy;
 }
 
 static OsStatus_t
 UhciTransferFill(
-    _In_ UhciController_t*     Controller,
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciTransferDescriptor_t* PreviousTd     = NULL;
-    UhciTransferDescriptor_t* Td             = NULL;
-    UhciQueueHead_t*          Qh             = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+    UhciTransferDescriptor_t* previousTd = NULL;
+    UhciTransferDescriptor_t* td = NULL;
+    UhciQueueHead_t*          qh = (UhciQueueHead_t*)transfer->EndpointDescriptor;
     
-    int OutOfResources = 0;
+    int outOfResources = 0;
     int i;
     
     TRACE("UhciTransferFill()");
 
     // Clear out the TransferFlagPartial
-    Transfer->Flags &= ~(TransferFlagPartial);
+    transfer->Flags &= ~(TransferFlagPartial);
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t Type            = Transfer->Transfer.Transactions[i].Type;
-        size_t  BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
-        int     PreviousToggle  = -1;
-        int     Toggle          = 0;
-        int     IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int     IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        uint8_t transactionType = transfer->Transfer.Transactions[i].Type;
+        size_t  bytesToTransfer = transfer->Transfer.Transactions[i].Length;
+        int     previousToggle = -1;
+        int     toggle      = 0;
+        int     isZlp       = transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     isHandshake = transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
 
         TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i, MPS %u)", i,
-            BytesToTransfer, Type, Transfer->Transfer.Endpoint.MaxPacketSize);
+              bytesToTransfer, transactionType, transfer->transfer.Endpoint.MaxPacketSize);
 
-        BytesToTransfer -= Transfer->Transactions[i].BytesTransferred;
-        if (BytesToTransfer == 0 && !IsZLP) {
+        bytesToTransfer -= transfer->Transactions[i].BytesTransferred;
+        if (bytesToTransfer == 0 && !isZlp) {
             TRACE(" > Skipping");
             continue;
         }
 
         // If it's a handshake package AND it's first td of package, then set toggle
-        if (Transfer->Transactions[i].BytesTransferred == 0 && IsHandshake) {
-            Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
-            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
+        if (transfer->Transactions[i].BytesTransferred == 0 && isHandshake) {
+            transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
+            previousToggle = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
+            UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, 1);
         }
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.MaxPacketSize) == 0 &&
-            Transfer->Transfer.Type == USB_TRANSFER_BULK &&
-            Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
-            Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
-            IsZLP = 1;
+        if ((transfer->Transfer.Transactions[i].Length % transfer->Transfer.MaxPacketSize) == 0 &&
+            transfer->Transfer.Type == USB_TRANSFER_BULK &&
+            transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
+            transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
+            isZlp = 1;
         }
 
         // Keep adding td's
-        TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
-        while (BytesToTransfer || IsZLP) {
+        TRACE(" > BytesToTransfer(%u)", bytesToTransfer);
+        while (bytesToTransfer || isZlp) {
             struct dma_sg* Dma     = NULL;
-            size_t         Length  = BytesToTransfer;
+            size_t         Length  = bytesToTransfer;
             uintptr_t      Address = 0;
             
-            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
-                Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
-                Address = Dma->address + Transfer->Transactions[i].SgOffset;
-                Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
-                Length  = MIN(Length, Transfer->Transfer.MaxPacketSize);
+            if (Length && transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+                Dma     = &transfer->Transactions[i].DmaTable.entries[transfer->Transactions[i].SgIndex];
+                Address = Dma->address + transfer->Transactions[i].SgOffset;
+                Length  = MIN(Length, Dma->length - transfer->Transactions[i].SgOffset);
+                Length  = MIN(Length, transfer->Transfer.MaxPacketSize);
             }
-            
-            Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
-                if (Type == USB_TRANSACTION_SETUP) {
+
+            toggle = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
+            if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsSuccess) {
+                if (transactionType == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
-                    Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
-                    Length = UhciTdSetup(Td,
-                        Transfer->Transfer.Address.DeviceAddress,
-                        Transfer->Transfer.Address.EndpointAddress, 
-                        Transfer->Transfer.Speed, Address, Length);
+                    toggle = 0; // Initial toggle must ALWAYS be 0 for setup
+                    Length = UhciTdSetup(td,
+                                         transfer->Transfer.Address.DeviceAddress,
+                                         transfer->Transfer.Address.EndpointAddress,
+                                         transfer->Transfer.Speed, Address, Length);
                 }
                 else {
                     TRACE(" > Creating io packet");
-                    Length = UhciTdIo(Td, Transfer->Transfer.Type, Type, 
-                        Transfer->Transfer.Address.DeviceAddress, 
-                        Transfer->Transfer.Address.EndpointAddress,
-                        Transfer->Transfer.Speed, Address, Length, Toggle);
+                    Length = UhciTdIo(td, transfer->Transfer.Type, transactionType,
+                                      transfer->Transfer.Address.DeviceAddress,
+                                      transfer->Transfer.Address.EndpointAddress,
+                                      transfer->Transfer.Speed, Address, Length, toggle);
                 }
             }
 
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
-            if (Td == NULL) {
+            if (td == NULL) {
                 TRACE(" > Failed to allocate descriptor");
-                if (PreviousToggle != -1) {
-                    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, PreviousToggle);
-                    Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+                if (previousToggle != -1) {
+                    UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, previousToggle);
+                    transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
                 }
-                OutOfResources = 1;
+                outOfResources = 1;
                 break;
             }
             else {
-                UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
-                        (uint8_t*)Qh, UHCI_TD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
-                PreviousTd = Td;
+                UsbSchedulerChainElement(controller->Base.Scheduler, UHCI_QH_POOL,
+                                         (uint8_t*)qh, UHCI_TD_POOL, (uint8_t*)td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                previousTd = td;
 
                 // Update toggle by flipping
-                UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+                UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, toggle ^ 1);
 
                 // We have two terminating conditions, either we run out of bytes
                 // or we had one ZLP that had to added. 
                 // Make sure we handle the one where we run out of bytes
                 if (Length) {
-                    BytesToTransfer                    -= Length;
-                    Transfer->Transactions[i].SgOffset += Length;
-                    if (Dma && Transfer->Transactions[i].SgOffset == Dma->length) {
-                        Transfer->Transactions[i].SgIndex++;
-                        Transfer->Transactions[i].SgOffset = 0;
+                    bytesToTransfer                    -= Length;
+                    transfer->Transactions[i].SgOffset += Length;
+                    if (Dma && transfer->Transactions[i].SgOffset == Dma->length) {
+                        transfer->Transactions[i].SgIndex++;
+                        transfer->Transactions[i].SgOffset = 0;
                     }
                 }
                 else {
-                    assert(IsZLP != 0);
+                    assert(isZlp != 0);
                     TRACE(" > Encountered zero-length");
-                    Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                    transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
                 }
             }
         }
 
         // Cancel?
-        if (OutOfResources == 1) {
-            Transfer->Flags |= TransferFlagPartial;
+        if (outOfResources == 1) {
+            transfer->Flags |= TransferFlagPartial;
             break;
         }
     }
     
     // End of <transfer>?
-    if (PreviousTd != NULL) {
-        PreviousTd->Flags |= UHCI_TD_IOC;
+    if (previousTd != NULL) {
+        previousTd->Flags |= UHCI_TD_IOC;
         return OsSuccess;
     }
-    
-    // Queue up for later
-    return OsError; 
+    return OsBusy;
 }
 
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciQueueHead_t*  EndpointDescriptor = NULL;
-    UhciController_t* Controller;
-    
-    Controller       = (UhciController_t*) UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status = TransferNotProcessed;
+    UhciQueueHead_t*    endpointDescriptor = NULL;
+    UhciController_t*   controller;
+    UsbTransferStatus_t status;
+
+    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
 
     // Step 1 - Allocate queue head
-    if (Transfer->EndpointDescriptor == NULL) {
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, 
-            UHCI_QH_POOL, (uint8_t**)&EndpointDescriptor) != OsSuccess) {
-            return TransferQueued;
+    if (transfer->EndpointDescriptor == NULL) {
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
+                                        UHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsSuccess) {
+            goto queued;
         }
-        assert(EndpointDescriptor != NULL);
-        Transfer->EndpointDescriptor = EndpointDescriptor;
+        assert(endpointDescriptor != NULL);
+        transfer->EndpointDescriptor = endpointDescriptor;
 
         // Store and initialize the qh
-        if (UhciQhInitialize(Controller, Transfer) != OsSuccess) {
+        if (UhciQhInitialize(controller, transfer) != OsSuccess) {
             // No bandwidth, serious.
-            UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
-            return TransferNoBandwidth;
+            UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
+            status = TransferNoBandwidth;
+            goto exit;
         }
-    }
-
-    // Store transaction in queue if it's not there already
-    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
-        list_append(&Controller->Base.TransactionList, &Transfer->header);
     }
 
     // If it fails to queue up => restore toggle
-    if (UhciTransferFill(Controller, Transfer) != OsSuccess) {
-        return TransferQueued;
+    if (UhciTransferFill(controller, transfer) != OsSuccess) {
+        goto queued;
     }
-    return UhciTransactionDispatch(Controller, Transfer);
+
+    UhciTransactionDispatch(controller, transfer);
+    status = TransferInProgress;
+    goto exit;
+
+queued:
+    transfer->Status = TransferQueued;
+    status = TransferQueued;
+
+exit:
+    return status;
 }
 
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciController_t* Controller;
+    UhciController_t* controller;
 
-    // Get Controller
-    Controller       = (UhciController_t*) UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status = TransferNotProcessed;
+    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
 
-    // Store transaction in queue if it's not there already
-    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
-        list_append(&Controller->Base.TransactionList, &Transfer->header);
-    }
-    
-    // Fill the transfer
-    if (UhciTransferFillIsochronous(Controller, Transfer) != OsSuccess) {
+    if (UhciTransferFillIsochronous(controller, transfer) != OsSuccess) {
+        transfer->Status = TransferQueued;
         return TransferQueued;
     }
-    return UhciTransactionDispatch(Controller, Transfer);
+
+    UhciTransactionDispatch(controller, transfer);
+    return TransferInProgress;
 }

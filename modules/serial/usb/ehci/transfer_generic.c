@@ -23,11 +23,9 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "ehci.h"
 #include <assert.h>
-#include <string.h>
 #include <stdlib.h>
 
 static OsStatus_t
@@ -159,48 +157,52 @@ EhciTransferFill(
         PreviousTd->OriginalToken |= EHCI_TD_IOC;
         return OsSuccess;
     }
-    
-    // Queue up for later
-    return OsError;
+    return OsBusy;
 }
 
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t* Transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    EhciQueueHead_t*  EndpointDescriptor = NULL;
-    EhciController_t* Controller;
+    EhciQueueHead_t*    endpointDescriptor = NULL;
+    EhciController_t*   controller;
+    UsbTransferStatus_t status;
 
-    Controller       = (EhciController_t*) UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status = TransferNotProcessed;
+    controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceId);
 
     // Step 1 - Allocate queue head
-    if (Transfer->EndpointDescriptor == NULL) {
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, 
-            EHCI_QH_POOL, (uint8_t**)&EndpointDescriptor) != OsSuccess) {
-            return TransferQueued;
+    if (!transfer->EndpointDescriptor) {
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
+                                        EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsSuccess) {
+            goto queued;
         }
-        assert(EndpointDescriptor != NULL);
-        Transfer->EndpointDescriptor = EndpointDescriptor;
+        assert(endpointDescriptor != NULL);
+        transfer->EndpointDescriptor = endpointDescriptor;
 
         // Store and initialize the qh
-        if (EhciQhInitialize(Controller, Transfer, 
-            Transfer->Transfer.Address.DeviceAddress, 
-            Transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
+        if (EhciQhInitialize(controller, transfer,
+                             transfer->Transfer.Address.DeviceAddress,
+                             transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
             // No bandwidth, serious.
-            UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
-            return TransferNoBandwidth;
+            UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
+            status = TransferNoBandwidth;
+            goto exit;
         }
-    }
-
-    // Store transaction in queue if it's not there already
-    if (list_find(&Controller->Base.TransactionList, (void*)(uintptr_t)Transfer->Id) == NULL) {
-        list_append(&Controller->Base.TransactionList, &Transfer->header);
     }
 
     // If it fails to queue up => restore toggle
-    if (EhciTransferFill(Controller, Transfer) != OsSuccess) {
-        return TransferQueued;
+    if (EhciTransferFill(controller, transfer) != OsSuccess) {
+        goto queued;
     }
-    return EhciTransactionDispatch(Controller, Transfer);
+
+    EhciTransactionDispatch(controller, transfer);
+    status = TransferInProgress;
+    goto exit;
+
+queued:
+    transfer->Status = TransferQueued;
+    status = TransferQueued;
+
+exit:
+    return status;
 }

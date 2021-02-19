@@ -793,8 +793,7 @@ EhciRingDoorbell(
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-__EXTERN
-UsbTransferStatus_t
+__EXTERN void
 EhciTransactionDispatch(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer);

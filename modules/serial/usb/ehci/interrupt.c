@@ -33,7 +33,6 @@ OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
 {
-    // Variables
     EchiOperationalRegisters_t* Registers;
     EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
     uintptr_t RegisterAddress = INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;

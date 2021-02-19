@@ -485,7 +485,7 @@ OhciReloadAsynchronous(
 /* OhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-__EXTERN UsbTransferStatus_t
+__EXTERN void
 OhciTransactionDispatch(
     _In_ OhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer);

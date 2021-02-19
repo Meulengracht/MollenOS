@@ -264,6 +264,69 @@ UsbDeviceLoadDrivers(
     return OsSuccess;
 }
 
+static UsbTransferStatus_t __GetDeviceDescriptor(
+        _In_ UsbPortDevice_t* device)
+{
+    usb_device_descriptor_t deviceDescriptor;
+    UsbTransferStatus_t     transferStatus;
+
+    transferStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
+    if (transferStatus != TransferFinished) {
+        transferStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
+        if (transferStatus != TransferFinished) {
+            return transferStatus;
+        }
+    }
+
+    // Debug Information
+    TRACE("__GetDeviceDescriptor descriptor length 0x%x, vendor id 0x%x, product id 0x%x",
+          deviceDescriptor.Length, deviceDescriptor.VendorId, deviceDescriptor.ProductId);
+    TRACE("__GetDeviceDescriptor configurations 0x%x, mps 0x%x",
+          deviceDescriptor.ConfigurationCount, deviceDescriptor.MaxPacketSize);
+
+
+    // Update information from the device descriptor
+    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
+    device->VendorId        = deviceDescriptor.VendorId;
+    device->ProductId       = deviceDescriptor.ProductId;
+    device->Class           = deviceDescriptor.Class;
+    device->Subclass        = deviceDescriptor.Subclass;
+    return transferStatus;
+}
+
+static UsbTransferStatus_t __GetConfiguration(
+        _In_ UsbPortDevice_t* device)
+{
+    usb_device_configuration_t configuration;
+    UsbTransferStatus_t        transferStatus;
+
+    transferStatus = UsbGetActiveConfigDescriptor(&device->Base, &configuration);
+    if (transferStatus == TransferFinished) {
+        TRACE("__GetConfiguration current configuration=%u", configuration.base.ConfigurationValue);
+        device->DefaultConfiguration = configuration.base.ConfigurationValue;
+
+        // If the Class is 0, then we retrieve the class/subclass from the first interface
+        if (device->Class == USB_CLASS_INTERFACE) {
+            device->Class    = configuration.interfaces[0].settings[0].base.Class;
+            device->Subclass = configuration.interfaces[0].settings[0].base.Subclass;
+        }
+        UsbFreeConfigDescriptor(&configuration);
+    }
+    return transferStatus;
+}
+
+static UsbTransferStatus_t __SetDefaultConfiguration(
+        _In_ UsbPortDevice_t* device)
+{
+    UsbTransferStatus_t transferStatus;
+
+    transferStatus = UsbSetConfiguration(&device->Base, device->DefaultConfiguration);
+    if (transferStatus != TransferFinished) {
+        transferStatus = UsbSetConfiguration(&device->Base, device->DefaultConfiguration);
+    }
+    return transferStatus;
+}
+
 OsStatus_t
 UsbDeviceSetup(
     _In_ UsbController_t* Controller,
@@ -271,7 +334,6 @@ UsbDeviceSetup(
     _In_ UsbPort_t*       Port)
 {
     UsbHcPortDescriptor_t   portDescriptor;
-    usb_device_descriptor_t deviceDescriptor;
     UsbTransferStatus_t     tStatus;
     UsbPortDevice_t*        device;
     int                     reservedAddress = 0;
@@ -299,12 +361,12 @@ UsbDeviceSetup(
             Port->Address, &portDescriptor) != OsSuccess) {
         ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
             Hub->Address, Port->Address, Controller->Device);
-        goto DevError;
+        goto device_error;
     }
 
     // Sanitize device is still present after reset
     if (portDescriptor.Connected != 1 && portDescriptor.Enabled != 1) {
-        goto DevError;
+        goto device_error;
     }
 
     // Update port
@@ -331,7 +393,7 @@ UsbDeviceSetup(
     if (UsbReserveAddress(Controller, &reservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
             Controller->Device, Hub->Address, Port->Address);
-        goto DevError;
+        goto device_error;
     }
 
     // Set device address for the new device
@@ -343,7 +405,7 @@ UsbDeviceSetup(
         if (tStatus != TransferFinished) {
             ERROR("[usb] [%u:%u] UsbSetAddress failed - %u", 
                 Hub->Address, Port->Address, (size_t)tStatus);
-            goto DevError;
+            goto device_error;
         }
     }
     
@@ -352,65 +414,29 @@ UsbDeviceSetup(
     thrd_sleepex(10);
 
     // Query Device Descriptor
-    tStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
+    tStatus = __GetDeviceDescriptor(device);
     if (tStatus != TransferFinished) {
-        tStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
-        if (tStatus != TransferFinished) {
-            ERROR("[usb] [%u:%u] UsbGetDeviceDescriptor failed", 
-                Hub->Address, Port->Address);
-            goto DevError;
-        }
+        ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", Hub->Address, Port->Address);
+        goto device_error;
     }
 
-    // Debug Information
-    TRACE("[usb] [%u:%u] descriptor length 0x%x, vendor id 0x%x, product id 0x%x", 
-        Hub->Address, Port->Address, deviceDescriptor.Length,
-        deviceDescriptor.VendorId, deviceDescriptor.ProductId);
-    TRACE("[usb] [%u:%u] configurations 0x%x, mps 0x%x",
-        Hub->Address, Port->Address, deviceDescriptor.ConfigurationCount,
-        deviceDescriptor.MaxPacketSize);
-
-    // Update information from the device descriptor
-    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
-    device->VendorId        = deviceDescriptor.VendorId;
-    device->ProductId       = deviceDescriptor.ProductId;
-    device->Class           = deviceDescriptor.Class;
-    device->Subclass        = deviceDescriptor.Subclass;
-    
-    // If the Class is 0, then we retrieve the class/subclass from the
-    // first interface
-    if (deviceDescriptor.Class == USB_CLASS_INTERFACE) {
-        usb_device_configuration_t configuration;
-        
-        tStatus = UsbGetActiveConfigDescriptor(&device->Base, &configuration);
-        if (tStatus == TransferFinished) {
-            device->Class    = configuration.interfaces[0].settings[0].base.Class;
-            device->Subclass = configuration.interfaces[0].settings[0].base.Subclass;
-            UsbFreeConfigDescriptor(&configuration);
-        }
-        else {
-            ERROR("[usb] [%u:%u] UsbGetActiveConfigDescriptor failed", 
-                Hub->Address, Port->Address);
-            goto DevError;
-        }
+    tStatus = __GetConfiguration(device);
+    if (tStatus != TransferFinished) {
+        ERROR("[usb] [%u:%u] __GetConfiguration failed", Hub->Address, Port->Address);
+        goto device_error;
     }
 
-    // Finish setup by selecting the default configuration (0)
-    tStatus = UsbSetConfiguration(&device->Base, 0);
+    tStatus = __SetDefaultConfiguration(device);
     if (tStatus != TransferFinished) {
-        tStatus = UsbSetConfiguration(&device->Base, 0);
-        if (tStatus != TransferFinished) {
-            ERROR("[usb] [%u:%u] UsbSetConfiguration failed", 
-                Hub->Address, Port->Address);
-            goto DevError;
-        }
+        ERROR("[usb] [%u:%u] __SetDefaultConfiguration failed", Hub->Address, Port->Address);
+        goto device_error;
     }
     
     TRACE("[usb] [%u:%u] setup success", Hub->Address, Port->Address);
     return UsbDeviceLoadDrivers(Controller, device);
 
     // All errors are handled here
-DevError:
+device_error:
     TRACE("[usb] [%u:%u] setup failed", Hub->Address, Port->Address);
     UsbDeviceDestroy(Controller, Port);
     return OsError;

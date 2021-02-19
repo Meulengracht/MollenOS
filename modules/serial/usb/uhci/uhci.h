@@ -234,7 +234,7 @@ UhciWrite32(
  * Retrieves a status-code from a given condition code */
 __EXTERN UsbTransferStatus_t
 UhciGetStatusCode(
-    _In_ int                        ConditionCode);
+    _In_ int                        conditionCode);
 
 /* UhciStart
  * Boots the controller, if it succeeds OsSuccess is returned. */
@@ -292,13 +292,13 @@ UhciPortsCheck(
  * OBS: Needs to be called regularly */
 __EXTERN void
 UhciUpdateCurrentFrame(
-    _In_ UhciController_t*          Controller);
+    _In_ UhciController_t*          controller);
 
 /* UhciConditionCodeToIndex
  * Converts the given condition-code in a TD to a string-index */
 __EXTERN int
 UhciConditionCodeToIndex(
-    _In_ int                        ConditionCode);
+    _In_ int                        conditionCode);
 
 /*******************************************************************************
  * Queue Head Methods
@@ -309,22 +309,22 @@ UhciConditionCodeToIndex(
  * hcd flags. Afterwards the queue head is ready for use. */
 __EXTERN OsStatus_t
 UhciQhInitialize(
-    _In_ UhciController_t*     Controller,
-    _In_ UsbManagerTransfer_t* Transfer);
+    _In_ UhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer);
 
 /* UhciQhDump
  * Dumps the information contained in the queue-head by writing it to stdout */
 __EXTERN void
 UhciQhDump(
-    _In_ UhciController_t*          Controller,
-    _In_ UhciQueueHead_t*           Qh);
+    _In_ UhciController_t*          controller,
+    _In_ UhciQueueHead_t*           queueHead);
 
 /* UhciQhRestart
  * Restarts an interrupt QH by resetting it to it's start state */
 __EXTERN void
 UhciQhRestart(
-    _In_ UhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer);
+    _In_ UhciController_t*          controller,
+    _In_ UsbManagerTransfer_t*      transfer);
 
 /* UhciQhLink 
  * Link a given queue head into the correct queue determined by Qh->Queue.
@@ -332,15 +332,15 @@ UhciQhRestart(
 __EXTERN void
 UhciQhLink(
     _In_ UhciController_t*          Controller,
-    _In_ UhciQueueHead_t*           Qh);
+    _In_ UhciQueueHead_t*           queueHead);
 
 /* UhciQhUnlink 
  * Unlinks a given queue head from the correct queue determined by Qh->Queue.
  * This can handle removal of async and interrupt transfers. */
 __EXTERN void
 UhciQhUnlink(
-    _In_ UhciController_t*          Controller,
-    _In_ UhciQueueHead_t*           Qh);
+    _In_ UhciController_t*          controller,
+    _In_ UhciQueueHead_t*           queueHead);
 
 /*******************************************************************************
  * Transfer Descriptor Methods
@@ -385,8 +385,8 @@ UhciTdDump(
  * with the bytes transferred and error status. */
 __EXTERN void
 UhciTdValidate(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  UhciTransferDescriptor_t* Td);
+    _In_  UsbManagerTransfer_t*     transfer,
+    _In_  UhciTransferDescriptor_t* td);
 
 /* UhciTdSynchronize
  * Synchronizes the toggle status of the transfer descriptor by retrieving
@@ -411,7 +411,7 @@ UhciTdRestart(
 /* UhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-__EXTERN UsbTransferStatus_t
+__EXTERN void
 UhciTransactionDispatch(
     _In_ UhciController_t*          Controller,
     _In_ UsbManagerTransfer_t*      Transfer);

@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2021, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,18 +17,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Human Input Device Driver (Generic)
+ * Usb Hub Device Driver
  */
 
 //#define __TRACE
 
 #include <ddk/utils.h>
 #include <ds/list.h>
-#include "hid.h"
 #include <ioset.h>
+#include "hub.h"
 
 #include <ctt_driver_protocol_server.h>
-#include <ctt_input_protocol_server.h>
+#include <ctt_usbhub_protocol_server.h>
 #include <ctt_usbhost_protocol_client.h>
 #include <internal/_utils.h>
 
@@ -41,12 +41,16 @@ static gracht_protocol_function_t ctt_driver_callbacks[2] = {
 };
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
 
-static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args*);
+static void ctt_usbhub_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_query_port_args*);
+static void ctt_usbhub_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_port_args*);
+static void ctt_usbhub_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_endpoint_args*);
 
-static gracht_protocol_function_t ctt_input_callbacks[1] = {
-        { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
+static gracht_protocol_function_t ctt_usbhub_callbacks[3] = {
+    { PROTOCOL_CTT_USBHUB_QUERY_PORT_ID , ctt_usbhub_query_port_callback },
+    { PROTOCOL_CTT_USBHUB_RESET_PORT_ID , ctt_usbhub_reset_port_callback },
+    { PROTOCOL_CTT_USBHUB_RESET_ENDPOINT_ID , ctt_usbhub_reset_endpoint_callback },
 };
-DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
+DEFINE_CTT_USBHUB_SERVER_PROTOCOL(ctt_usbhub_callbacks, 3);
 
 static void ctt_usbhost_event_transfer_status_callback(struct ctt_usbhost_transfer_status_event*);
 
@@ -57,8 +61,8 @@ DEFINE_CTT_USBHOST_CLIENT_PROTOCOL(ctt_usbhost_callbacks, 1);
 
 static list_t g_devices = LIST_INIT;
 
-HidDevice_t*
-HidDeviceGet(
+HubDevice_t*
+HubDeviceGet(
         _In_ UUId_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
@@ -70,7 +74,7 @@ void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
     *vendorId = 0;
     *deviceId = 0;
     *class    = 0xCABB;
-    *subClass = 0x30000;
+    *subClass = 0x90000;
 }
 
 OsStatus_t OnEvent(struct ioset_event* event)
@@ -82,6 +86,7 @@ OsStatus_t OnLoad(void)
 {
     // Register supported server protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_usbhub_server_protocol);
 
     // register supported client protocols
     gracht_client_register_protocol(GetGrachtClient(), &ctt_usbhost_client_protocol);
@@ -94,7 +99,7 @@ DestroyElement(
         _In_ element_t* Element,
         _In_ void*      Context)
 {
-    HidDeviceDestroy(Element->value);
+    HubDeviceDestroy(Element->value);
 }
 
 OsStatus_t
@@ -107,14 +112,14 @@ OnUnload(void)
 OsStatus_t OnRegister(
     _In_ Device_t* device)
 {
-    HidDevice_t* hidDevice;
+    HubDevice_t* hubDevice;
 
-    hidDevice = HidDeviceCreate((UsbDevice_t*)device);
-    if (!hidDevice) {
+    hubDevice = HubDeviceCreate((UsbDevice_t*)device);
+    if (!hubDevice) {
         return OsError;
     }
 
-    list_append(&g_devices, &hidDevice->Header);
+    list_append(&g_devices, &hubDevice->Header);
     return OsSuccess;
 }
 
@@ -128,40 +133,20 @@ void ctt_driver_register_device_callback(
 OsStatus_t OnUnregister(
     _In_ Device_t* device)
 {
-    HidDevice_t* hidDevice = HidDeviceGet(device->Id);
-    if (hidDevice == NULL) {
+    HubDevice_t* hubDevice = HubDeviceGet(device->Id);
+    if (hubDevice == NULL) {
         return OsDoesNotExist;
     }
 
-    list_remove(&g_devices, &hidDevice->Header);
-    HidDeviceDestroy(hidDevice);
+    list_remove(&g_devices, &hubDevice->Header);
+    HubDeviceDestroy(hubDevice);
     return OsSuccess;
 }
 
 static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
 {
     ctt_driver_event_device_protocol_single(message->client, args->device_id,
-                                            "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
-}
-
-static void ctt_input_get_properties_callback(
-        _In_ struct gracht_recv_message*           message,
-        _In_ struct ctt_input_get_properties_args* args)
-{
-    struct UsbHidReportCollectionItem* item;
-    HidDevice_t*                       hidDevice = HidDeviceGet(args->device_id);
-    if (!hidDevice || !hidDevice->Collection) {
-        ctt_input_event_properties_single(message->client, args->device_id, input_type_invalid);
-        return;
-    }
-
-    item = hidDevice->Collection->Childs;
-    while (item) {
-        if (item->InputType != input_type_invalid) {
-            ctt_input_event_properties_single(message->client, args->device_id, item->InputType);
-        }
-        item = item->Link;
-    }
+                                            "usbhub\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_USBHUB_ID);
 }
 
 static void ctt_usbhost_event_transfer_status_callback(
@@ -175,10 +160,31 @@ static void ctt_usbhost_event_transfer_status_callback(
     }
 
     foreach(element, &g_devices) {
-        HidDevice_t* hidDevice = element->value;
-        if (hidDevice->TransferId == event->id) {
-            HidInterrupt(hidDevice, event->status, event->bytes_transferred);
+        HubDevice_t* hubDevice = element->value;
+        if (hubDevice->TransferId == event->id) {
+            HubInterrupt(hubDevice, event->status, event->bytes_transferred);
             break;
         }
     }
+}
+
+static void ctt_usbhub_query_port_callback(
+        _In_ struct gracht_recv_message*        message,
+        _In_ struct ctt_usbhub_query_port_args* args)
+{
+
+}
+
+static void ctt_usbhub_reset_port_callback(
+        _In_ struct gracht_recv_message*        message,
+        _In_ struct ctt_usbhub_reset_port_args* args)
+{
+
+}
+
+static void ctt_usbhub_reset_endpoint_callback(
+        _In_ struct gracht_recv_message*            message,
+        _In_ struct ctt_usbhub_reset_endpoint_args* args)
+{
+
 }
