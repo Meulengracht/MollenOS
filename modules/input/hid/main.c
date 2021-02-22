@@ -82,6 +82,7 @@ OsStatus_t OnLoad(void)
 {
     // Register supported server protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
+    gracht_server_register_protocol(&ctt_input_server_protocol);
 
     // register supported client protocols
     gracht_client_register_protocol(GetGrachtClient(), &ctt_usbhost_client_protocol);
