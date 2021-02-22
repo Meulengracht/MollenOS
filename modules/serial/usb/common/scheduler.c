@@ -321,7 +321,7 @@ UsbSchedulerGetPoolFromElement(
 {
     for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
         uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPool;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount) - 1;
+        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
         if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
             return OsSuccess;

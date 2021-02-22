@@ -202,7 +202,7 @@ NextPowerOfTwo(size_t value)
 #define _MAXPATH                                512
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
-#define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) <= (max)))
+#define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))
 #define DIVUP(a, b)                             ((a / b) + (((a % b) > 0) ? 1 : 0))
 #define INCLIMIT(i, limit)                      i++; if (i == limit) i = 0;
 #define ADDLIMIT(Base, Current, Step, Limit)    ((Current + Step) >= Limit) ? Base : (Current + Step) 

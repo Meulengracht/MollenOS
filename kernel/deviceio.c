@@ -46,19 +46,62 @@ typedef struct SystemDeviceIo {
     uintptr_t  MappedAddress;
 } SystemDeviceIo_t;
 
-static list_t IoSpaces = LIST_INIT;
+static list_t g_ioSpaces = LIST_INIT;
 
-static int
-DetectOverlaps(
-    _In_ int        Index,
-    _In_ element_t* Element,
-    _In_ void*      Context)
+struct VerifyContext {
+    DeviceIo_t* IoSpace;
+    int         Valid;
+};
+
+static int __DetectIoOverlaps(
+    _In_ int        index,
+    _In_ element_t* element,
+    _In_ void*      context)
 {
-    //SystemDeviceIo_t* SystemIo = Element->value;
-    //DeviceIo_t*       Io       = Context;
-    
-    // check overlap
-    
+    SystemDeviceIo_t*     systemIo      = element->value;
+    struct VerifyContext* verifyContext = context;
+
+    if (verifyContext->IoSpace->Type != systemIo->Io.Type) {
+        return LIST_ENUMERATE_CONTINUE;
+    }
+
+    if (systemIo->Io.Type == DeviceIoPortBased) {
+        size_t systemIoStart = systemIo->Io.Access.Port.Base;
+        size_t systemIoLimit = systemIo->Io.Access.Port.Base + systemIo->Io.Access.Port.Length;
+        size_t verifyIoLimit = verifyContext->IoSpace->Access.Port.Base + verifyContext->IoSpace->Access.Port.Length;
+
+        verifyContext->Valid =
+                !(ISINRANGE(verifyContext->IoSpace->Access.Port.Base, systemIoStart, systemIoLimit) ||
+                        ISINRANGE(verifyIoLimit, systemIoStart, systemIoLimit));
+
+        if (!verifyContext->Valid) {
+            WARNING("__DetectIoOverlaps found overlap in io space 0x%" PRIxIN
+                            " => 0x%" PRIxIN " [overlap: 0x%" PRIxIN " => 0x%" PRIxIN "]",
+                    verifyContext->IoSpace->Access.Port.Base, verifyIoLimit,
+                    systemIoStart, systemIoLimit);
+        }
+    }
+    else if (systemIo->Io.Type == DeviceIoMemoryBased) {
+        size_t systemIoStart = systemIo->Io.Access.Memory.PhysicalBase;
+        size_t systemIoLimit = systemIo->Io.Access.Memory.PhysicalBase + systemIo->Io.Access.Memory.Length;
+        size_t verifyIoLimit = verifyContext->IoSpace->Access.Memory.PhysicalBase + verifyContext->IoSpace->Access.Memory.Length;
+
+        verifyContext->Valid =
+                !(ISINRANGE(verifyContext->IoSpace->Access.Memory.PhysicalBase, systemIoStart, systemIoLimit) ||
+                  ISINRANGE(verifyIoLimit, systemIoStart, systemIoLimit));
+
+        if (!verifyContext->Valid) {
+            WARNING("__DetectIoOverlaps found overlap in memory space 0x%" PRIxIN
+                    " => 0x%" PRIxIN " [overlap: 0x%" PRIxIN " => 0x%" PRIxIN "]",
+                    verifyContext->IoSpace->Access.Memory.PhysicalBase, verifyIoLimit,
+                    systemIoStart, systemIoLimit);
+        }
+    }
+
+    if (!verifyContext->Valid) {
+        WARNING("__DetectIoOverlaps found overlap in device io space");
+        return LIST_ENUMERATE_STOP;
+    }
     return LIST_ENUMERATE_CONTINUE;
 }
 
@@ -71,40 +114,48 @@ DestroySystemDeviceIo(
     
     TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
     if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         return;
     }
     
-    list_remove(&IoSpaces, list_find(&IoSpaces, VOID_KEY(IoSpace->Id)));
+    list_remove(&g_ioSpaces, list_find(&g_ioSpaces, VOID_KEY(IoSpace->Id)));
     kfree(SystemIo);
 }
 
 OsStatus_t
 RegisterSystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace)
+    _In_ DeviceIo_t* ioSpace)
 {
-    SystemDeviceIo_t* SystemIo;
-    TRACE("RegisterSystemDeviceIo(Type %" PRIuIN ")", IoSpace->Type);
+    SystemDeviceIo_t*    systemIo;
+    struct VerifyContext context = { .IoSpace = ioSpace, .Valid = 1 };
+    TRACE("RegisterSystemDeviceIo(ioSpace=0x%" PRIxIN ")", ioSpace);
+
+    if (!ioSpace) {
+        return OsInvalidParameters;
+    }
 
     // Before doing anything, we should do a over-lap
     // check before trying to register this
-    // list_enumerate(&IoSpaces, DetectOverlaps);
+    list_enumerate(&g_ioSpaces, __DetectIoOverlaps, &context);
+    if (!context.Valid) {
+        return OsBusy;
+    }
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
-    SystemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
-    if (!SystemIo) {
+    systemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
+    if (!systemIo) {
         return OsOutOfMemory;
     }
     
-    memset(SystemIo, 0, sizeof(SystemDeviceIo_t));
-    SystemIo->Owner = UUID_INVALID;
-    IoSpace->Id = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, SystemIo);
-    ELEMENT_INIT(&SystemIo->Header, VOID_KEY(IoSpace->Id), SystemIo);
-    memcpy(&SystemIo->Io, IoSpace, sizeof(DeviceIo_t));
+    memset(systemIo, 0, sizeof(SystemDeviceIo_t));
+    systemIo->Owner = UUID_INVALID;
+    ioSpace->Id     = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, systemIo);
+    ELEMENT_INIT(&systemIo->Header, VOID_KEY(ioSpace->Id), systemIo);
+    memcpy(&systemIo->Io, ioSpace, sizeof(DeviceIo_t));
     
-    return list_append(&IoSpaces, &SystemIo->Header);
+    return list_append(&g_ioSpaces, &systemIo->Header);
 }
 
 OsStatus_t
@@ -120,7 +171,7 @@ AcquireSystemDeviceIo(
     TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy
     if (Module == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
@@ -182,7 +233,7 @@ ReleaseSystemDeviceIo(
     assert(IoSpace != NULL);
     TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(IoSpace->Id));
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy and do some security checks
     if (Module == NULL || SystemIo == NULL || 
@@ -226,7 +277,7 @@ CreateKernelSystemDeviceIo(
 {
     SystemDeviceIo_t* SystemIo;
     
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(SourceIoSpace->Id));
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SourceIoSpace->Id));
     if (!SystemIo) {
         return OsError;
     }
@@ -260,7 +311,7 @@ ReleaseKernelSystemDeviceIo(
 {
     SystemDeviceIo_t* SystemIo;
     
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&IoSpaces, VOID_KEY(SystemIoSpace->Id));
+    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SystemIoSpace->Id));
     if (!SystemIo) {
         return OsError;
     }
@@ -294,7 +345,7 @@ ValidateDeviceIoMemoryAddress(
     }
     
     // Iterate and check each io-space if the process has this mapped in
-    foreach(i, &IoSpaces) {
+    foreach(i, &g_ioSpaces) {
         SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)i->value;
         uintptr_t         VirtualBase = IoSpace->MappedAddress;
 

@@ -33,7 +33,7 @@
  * overlaps any existing io range, this request will be denied by the system. */
 KERNELAPI OsStatus_t KERNELABI
 RegisterSystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace);
+    _In_ DeviceIo_t* ioSpace);
 
 /* AcquireSystemDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 

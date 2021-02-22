@@ -13,7 +13,7 @@ PhoenixFileHandler(
     Event->Result = OsError;
     foreach(Node, Event->MemorySpace->FileMappings) {
         Mapping = (SystemFileMapping_t*)Node->Data;
-        if (ISINRANGE(Event->Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
+        if (ISINRANGE(Event->Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length))) {
             unsigned int MappingFlags    = MAPPING_USERSPACE | MAPPING_FIXED | MAPPING_PROVIDED;
             size_t BytesIndex       = 0;
             size_t BytesRead        = 0;
@@ -123,7 +123,7 @@ ScDestroyFileMapping(
     // Iterate and find the node first
     _foreach(Node, Process->FileMappings) {
         Mapping = (MCoreAshFileMapping_t*)Node;
-        if (ISINRANGE((uintptr_t)MemoryPointer, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
+        if (ISINRANGE((uintptr_t)MemoryPointer, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length)) {
             break; // Continue to unmap process
         }
     }
