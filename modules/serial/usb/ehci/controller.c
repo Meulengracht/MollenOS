@@ -538,7 +538,7 @@ EhciSetup(
                     PortStatus |= EHCI_PORT_COLOR_AMBER;
                     WRITE_VOLATILE(Controller->OpRegisters->Ports[i], PortStatus);
                 }
-                UsbEventPort(Controller->Base.Device.Base.Id, 0, (uint8_t)(i & 0xFF));
+                UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(i & 0xFF));
             }
         }
     }

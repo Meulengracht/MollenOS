@@ -36,6 +36,7 @@ static gracht_protocol_function_t ctt_driver_callbacks[1] = {
 DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 
 #include <ctt_usbhost_protocol_server.h>
+#include <ctt_usbhub_protocol_server.h>
 #include <io.h>
 #include <ddk/utils.h>
 
@@ -43,20 +44,25 @@ extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message
 extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
 extern void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args*);
 extern void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args*);
-extern void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args*);
-extern void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args*);
 extern void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args*);
 
-static gracht_protocol_function_t ctt_usbhost_callbacks[7] = {
+static gracht_protocol_function_t ctt_usbhost_callbacks[5] = {
     { PROTOCOL_CTT_USBHOST_QUEUE_ASYNC_ID , ctt_usbhost_queue_async_callback },
     { PROTOCOL_CTT_USBHOST_QUEUE_ID , ctt_usbhost_queue_callback },
     { PROTOCOL_CTT_USBHOST_QUEUE_PERIODIC_ID , ctt_usbhost_queue_periodic_callback },
     { PROTOCOL_CTT_USBHOST_DEQUEUE_ID , ctt_usbhost_dequeue_callback },
-    { PROTOCOL_CTT_USBHOST_QUERY_PORT_ID , ctt_usbhost_query_port_callback },
-    { PROTOCOL_CTT_USBHOST_RESET_PORT_ID , ctt_usbhost_reset_port_callback },
     { PROTOCOL_CTT_USBHOST_RESET_ENDPOINT_ID , ctt_usbhost_reset_endpoint_callback },
 };
-DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 7);
+DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 5);
+
+static void ctt_usbhub_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_query_port_args*);
+static void ctt_usbhub_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_port_args*);
+
+static gracht_protocol_function_t ctt_usbhub_callbacks[2] = {
+    { PROTOCOL_CTT_USBHUB_QUERY_PORT_ID , ctt_usbhub_query_port_callback },
+    { PROTOCOL_CTT_USBHUB_RESET_PORT_ID , ctt_usbhub_reset_port_callback },
+};
+DEFINE_CTT_USBHUB_SERVER_PROTOCOL(ctt_usbhub_callbacks, 2);
 
 OsStatus_t
 OnLoad(void)
@@ -64,6 +70,7 @@ OnLoad(void)
     // Register supported protocols
     gracht_server_register_protocol(&ctt_driver_server_protocol);
     gracht_server_register_protocol(&ctt_usbhost_server_protocol);
+    gracht_server_register_protocol(&ctt_usbhub_server_protocol);
     
     return UsbManagerInitialize();
 }
@@ -124,20 +131,34 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-void ctt_usbhost_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_query_port_args* args)
+static void ctt_usbhub_query_port_callback(
+        _In_ struct gracht_recv_message*        message,
+        _In_ struct ctt_usbhub_query_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
     UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    if (!controller) {
+        ctt_usbhub_query_port_response(message, OsInvalidParameters, &descriptor);
+        return;
+    }
+
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);
-    ctt_usbhost_query_port_response(message, OsSuccess, &descriptor);
+    ctt_usbhub_query_port_response(message, OsSuccess, &descriptor);
 }
 
-void ctt_usbhost_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_port_args* args)
+static void ctt_usbhub_reset_port_callback(
+        _In_ struct gracht_recv_message*        message,
+        _In_ struct ctt_usbhub_reset_port_args* args)
 {
     UsbHcPortDescriptor_t   descriptor;
+    OsStatus_t              status;
     UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
-    OsStatus_t              status     = HciPortReset(controller, (int)args->port_id);
-    
+    if (!controller) {
+        ctt_usbhub_reset_port_response(message, OsInvalidParameters, &descriptor);
+        return;
+    }
+
+    status = HciPortReset(controller, (int)args->port_id);
     HciPortGetStatus(controller, (int)args->port_id, &descriptor);
-    ctt_usbhost_reset_port_response(message, status, &descriptor);
+    ctt_usbhub_reset_port_response(message, status, &descriptor);
 }

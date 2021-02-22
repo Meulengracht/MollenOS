@@ -40,7 +40,6 @@ typedef struct UsbPortDevice {
     uint8_t              Protocol;
     uint8_t              DefaultConfiguration;
     UUId_t               DeviceId;
-    UsbHub_t*            Hub;
 } UsbPortDevice_t;
 
 typedef struct UsbPort {
@@ -52,7 +51,11 @@ typedef struct UsbPort {
 } UsbPort_t;
 
 typedef struct UsbHub {
+    UUId_t     ControllerDeviceId;
+    UUId_t     DeviceId;
+    UUId_t     DriverId;
     uint8_t    Address;
+    size_t     PortCount;
     UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
 
@@ -61,30 +64,112 @@ typedef struct UsbController {
     element_t           Header;
     UUId_t              DriverId;
     UsbControllerType_t Type;
-    size_t              PortCount;
-
-    // Address Map 
-    // 4 x 32 bits = 128 possible addresses
-    // which match the max in usb-spec
-    uint32_t AddressMap[4];
-    UsbHub_t RootHub;
+    uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
 } UsbController_t;
 
-/* UsbCoreInitialize
- * Initializes the usb-core stack driver. Allocates all neccessary resources
- * for managing usb controllers devices in the system. */
-__EXTERN OsStatus_t
-UsbCoreInitialize(void);
+__EXTERN OsStatus_t UsbCoreInitialize(void);
+__EXTERN OsStatus_t UsbCoreDestroy(void);
 
-/* UsbCoreDestroy
- * Cleans up and frees any resouces allocated by the usb-core stack */
-__EXTERN OsStatus_t
-UsbCoreDestroy(void);
+__EXTERN void UsbCoreHubsInitialize(void);
+__EXTERN void UsbCoreHubsCleanup(void);
 
-/* UsbCoreGetController 
- * Looks up the controller that matches the device-identifier */
+__EXTERN void UsbCoreControllersCleanup(void);
+
+/**
+ *
+ * @param usbController
+ * @param usbHub
+ * @param usbPort
+ * @return
+ */
+__EXTERN OsStatus_t
+UsbCoreDevicesCreate(
+        _In_ UsbController_t* usbController,
+        _In_ UsbHub_t*        usbHub,
+        _In_ UsbPort_t*       usbPort);
+
+/**
+ *
+ * @param controller
+ * @param port
+ * @return
+ */
+__EXTERN OsStatus_t
+UsbCoreDevicesDestroy(
+        _In_ UsbController_t* controller,
+        _In_ UsbPort_t*       port);
+
+/**
+ *
+ * @param parentHubDeviceId
+ * @param hubDeviceId
+ * @param hubDriverId
+ * @param portCount
+ * @return
+ */
+__EXTERN OsStatus_t
+UsbCoreHubsRegister(
+        _In_ UUId_t  parentHubDeviceId,
+        _In_ UUId_t  hubDeviceId,
+        _In_ UUId_t  hubDriverId,
+        _In_ int     portCount);
+
+/**
+ *
+ * @param hubDeviceId
+ */
+__EXTERN void
+UsbCoreHubsUnregister(
+        _In_ UUId_t hubDeviceId);
+
+/**
+ *
+ * @param hub
+ * @param portIndex
+ * @return
+ */
+__EXTERN UsbPort_t*
+UsbCoreHubsGetPort(
+        _In_ UsbHub_t* hub,
+        _In_ uint8_t   portIndex);
+
+/**
+ *
+ * @param hubDeviceId
+ * @return
+ */
+__EXTERN UsbHub_t*
+UsbCoreHubsGet(
+        _In_ UUId_t hubDeviceId);
+
+/**
+ * Reserves an device address for the specified controller
+ * @param controller
+ * @param address
+ * @return
+ */
+__EXTERN OsStatus_t
+UsbCoreControllerReserveAddress(
+        _In_  UsbController_t* controller,
+        _Out_ int*             address);
+
+/**
+ * Releases an previously allocated device address
+ * @param controller
+ * @param address
+ */
+__EXTERN void
+UsbCoreControllerReleaseAddress(
+        _In_ UsbController_t* controller,
+        _In_ int              address);
+
+/**
+ * Retrieves an controller instance from a device id
+ * @param deviceId
+ * @return
+ */
 __EXTERN UsbController_t*
-UsbCoreGetController(
-    _In_ UUId_t DeviceId);
+UsbCoreControllerGet(
+    _In_ UUId_t deviceId);
 
 #endif //!__USBMANAGER_H__

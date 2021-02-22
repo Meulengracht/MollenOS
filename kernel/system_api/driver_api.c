@@ -193,19 +193,19 @@ ScLoadDriver(
 
     // First of all, if a server has already been spawned
     // for the specific driver, then call it's RegisterInstance
-    module = GetModule(device->VendorId, device->DeviceId, device->Class, device->Subclass);
+    module = GetModule(device->VendorId, device->ProductId, device->Class, device->Subclass);
     if (!module) {
         // Look for matching driver first, then generic
-        module = GetSpecificDeviceModule(device->VendorId, device->DeviceId);
+        module = GetSpecificDeviceModule(device->VendorId, device->ProductId);
         module = (module == NULL) ? GetGenericDeviceModule(device->Class, device->Subclass) : module;
 
         // We did not have any, did the driver provide one for us?
         if (!module) {
             if (driverBuffer && driverBufferLength ) {
                 osStatus = RegisterModule("custom_module", driverBuffer, driverBufferLength, ModuleResource,
-                                          device->VendorId, device->DeviceId, device->Class, device->Subclass);
+                                          device->VendorId, device->ProductId, device->Class, device->Subclass);
                 if (osStatus == OsSuccess) {
-                    module = GetModule(device->VendorId, device->DeviceId, device->Class, device->Subclass);
+                    module = GetModule(device->VendorId, device->ProductId, device->Class, device->Subclass);
                 }
             }
 

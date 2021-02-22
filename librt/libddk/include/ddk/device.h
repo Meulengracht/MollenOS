@@ -40,7 +40,7 @@ typedef struct Device {
     char   Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
 
     unsigned int VendorId;
-    unsigned int DeviceId;
+    unsigned int ProductId;
     unsigned int Class;
     unsigned int Subclass;
 } Device_t;

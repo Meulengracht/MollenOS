@@ -47,14 +47,14 @@ static void     so_enumerate(int index, const void* element, void* userContext);
 
 typedef void (*SOInitializer_t)(int);
 
-static hashtable_t libraries;
-static mtx_t       librariesLock;
+static hashtable_t g_libraries;
+static mtx_t       g_librariesLock;
 
 void
 StdSoInitialize(void)
 {
-    hashtable_construct(&libraries, 0, sizeof(struct library_element), so_hash, so_cmp);
-    mtx_init(&librariesLock, mtx_plain);
+    hashtable_construct(&g_libraries, 0, sizeof(struct library_element), so_hash, so_cmp);
+    mtx_init(&g_librariesLock, mtx_plain);
 }
 
 Handle_t 
@@ -71,12 +71,12 @@ SharedObjectLoad(
         return HANDLE_GLOBAL;
     }
 
-    mtx_lock(&librariesLock);
-    library = hashtable_get(&libraries, &(struct library_element) { .path = SharedObject });
+    mtx_lock(&g_librariesLock);
+    library = hashtable_get(&g_libraries, &(struct library_element) { .path = SharedObject });
     if (library) {
         atomic_fetch_add(library->references, 1);
         handle = library->handle;
-        mtx_unlock(&librariesLock);
+        mtx_unlock(&g_librariesLock);
         return handle;
     }
 
@@ -107,8 +107,8 @@ SharedObjectLoad(
 
         element.handle = handle;
         atomic_store(element.references, 1);
-        hashtable_set(&libraries, &element);
-        mtx_unlock(&librariesLock);
+        hashtable_set(&g_libraries, &element);
+        mtx_unlock(&g_librariesLock);
         
         // run initializer
         Initializer = (SOInitializer_t)SharedObjectGetFunction(handle, "__CrtLibraryEntry");
@@ -117,7 +117,7 @@ SharedObjectLoad(
         }
     }
     else {
-        mtx_unlock(&librariesLock);
+        mtx_unlock(&g_librariesLock);
     }
 
     OsStatusToErrno(Status);
@@ -179,10 +179,10 @@ SharedObjectUnload(
     enumContext.handle  = Handle;
     enumContext.library = NULL;
 
-    mtx_lock(&librariesLock);
-    hashtable_enumerate(&libraries, so_enumerate, &enumContext);
+    mtx_lock(&g_librariesLock);
+    hashtable_enumerate(&g_libraries, so_enumerate, &enumContext);
     if (!enumContext.library) {
-        mtx_unlock(&librariesLock);
+        mtx_unlock(&g_librariesLock);
         errno = ENOENT;
         return OsDoesNotExist;
     }
@@ -206,7 +206,7 @@ SharedObjectUnload(
         }
         OsStatusToErrno(status);
     }
-    mtx_unlock(&librariesLock);
+    mtx_unlock(&g_librariesLock);
     return status;
 }
 

@@ -179,6 +179,9 @@ HciQueueTransferGeneric(
     UsbTransferStatus_t status;
 
     controller = (OhciController_t*) UsbManagerGetController(transfer->DeviceId);
+    if (!controller) {
+        return TransferInvalid;
+    }
 
     // Step 1 - Allocate queue head
     if (transfer->EndpointDescriptor == NULL) {

@@ -109,17 +109,23 @@ HciPortReset(
 
 void
 HciPortGetStatus(
-    _In_  UsbManagerController_t* Controller,
-    _In_  int                     Index,
-    _Out_ UsbHcPortDescriptor_t*  Port)
+    _In_  UsbManagerController_t* controller,
+    _In_  int                     index,
+    _Out_ UsbHcPortDescriptor_t*  port)
 {
-    EhciController_t* EhciHci = (EhciController_t*)Controller;
-    reg32_t           Status  = READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]);
+    EhciController_t* ehciHci = (EhciController_t*)controller;
+    reg32_t           status;
+
+    if (!controller || !port) {
+        return;
+    }
+
+    status = READ_VOLATILE(ehciHci->OpRegisters->Ports[index]);
 
     // Is port connected?
-    Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
-    Port->Enabled   = (Status & EHCI_PORT_ENABLED) == 0 ? 0 : 1;
-    Port->Speed     = USB_SPEED_HIGH; // Ehci only has high-speed root ports
+    port->Connected = (status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
+    port->Enabled   = (status & EHCI_PORT_ENABLED) == 0 ? 0 : 1;
+    port->Speed     = USB_SPEED_HIGH; // Ehci only has high-speed root ports
 }
 
 OsStatus_t
@@ -154,7 +160,7 @@ EhciPortCheck(
                 return OsSuccess;
             }
         }
-        return UsbEventPort(Controller->Base.Device.Base.Id, 0, (uint8_t)(Index & 0xFF));
+        return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
     }
 
     // Enable event. This can only happen when it gets disabled due to something

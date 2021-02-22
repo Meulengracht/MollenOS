@@ -16,6 +16,7 @@
 #include <ctt_driver_protocol_client.h>
 #include <ctt_storage_protocol_client.h>
 #include <ctt_usbhost_protocol_client.h>
+#include <ctt_usbhub_protocol_client.h>
 
 #include <ddk/service.h>
 #include <gracht/link/vali.h>

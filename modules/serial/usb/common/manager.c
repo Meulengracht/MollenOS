@@ -103,7 +103,7 @@ UsbManagerCreateController(
     }
 
     memset(controller, 0, structureSize);
-    memcpy(&controller->Device, device, device->Base.Length);
+    memcpy(&controller->Device, device, sizeof(BusDevice_t));
 
     controller->Type = type;
     list_construct(&controller->TransactionList);

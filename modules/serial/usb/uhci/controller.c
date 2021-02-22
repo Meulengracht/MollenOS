@@ -67,7 +67,8 @@ HciControllerCreate(
     int               i;
     
     // Debug
-    TRACE("UhciControllerCreate(device=0x%" PRIxIN ")", busDevice);
+    TRACE("UhciControllerCreate(device=0x%" PRIxIN ", device->Length=%u, device->Id=%u)",
+          busDevice, LODWORD(busDevice->Base.Length), busDevice->Base.Id);
 
     controller = (UhciController_t*)UsbManagerCreateController(busDevice, UsbUHCI, sizeof(UhciController_t));
     if (!controller) {

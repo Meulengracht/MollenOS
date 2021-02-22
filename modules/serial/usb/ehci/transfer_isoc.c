@@ -39,7 +39,11 @@ HciQueueTransferIsochronous(
     size_t                       maxBytesPerDescriptor;
     int                          i;
 
-    controller = (EhciController_t *) UsbManagerGetController(transfer->DeviceId);
+    controller = (EhciController_t *)UsbManagerGetController(transfer->DeviceId);
+    if (!controller) {
+        return TransferInvalid;
+    }
+
     bytesToTransfer = transfer->Transfer.Transactions[0].Length;
 
     // Calculate mpd

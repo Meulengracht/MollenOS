@@ -23,6 +23,7 @@
  */
 
 #include <ddk/service.h>
+#include <ddk/usbdevice.h>
 #include <usb/usb.h>
 #include <internal/_ipc.h>
 #include <internal/_utils.h>
@@ -30,40 +31,75 @@
 
 OsStatus_t
 UsbControllerRegister(
-    _In_ Device_t*      Device,
-    _In_ UsbControllerType_t Type,
-    _In_ size_t              Ports)
+        _In_ Device_t*           device,
+        _In_ UsbControllerType_t type,
+        _In_ int                 portCount)
 {
-    int                      status;
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     UUId_t                   serverHandle = GetNativeHandle(gracht_server_get_dgram_iod());
     
-    status = svc_usb_register(GetGrachtClient(), &msg.base, serverHandle, 
-        Device, Device->Length, (int)Type, (int)Ports);
+    svc_usb_register_controller(GetGrachtClient(), &msg.base, serverHandle,
+                                device, device->Length, (int)type, (int)portCount);
     return OsSuccess;
 }
 
 OsStatus_t
 UsbControllerUnregister(
-    _In_ UUId_t DeviceId)
+    _In_ UUId_t deviceId)
 {
-    int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_unregister(GetGrachtClient(), &msg.base, DeviceId);
+    svc_usb_unregister_controller(GetGrachtClient(), &msg.base, deviceId);
+    return OsSuccess;
+}
+
+OsStatus_t
+UsbHubRegister(
+        _In_ UsbDevice_t* usbDevice,
+        _In_ int          portCount)
+{
+    struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
+    UUId_t                   serverHandle = GetNativeHandle(gracht_server_get_dgram_iod());
+
+    svc_usb_register_hub(GetGrachtClient(), &msg.base,
+                         usbDevice->DeviceContext.hub_device_id,
+                         usbDevice->Base.Id,
+                         serverHandle,
+                         portCount);
+    return OsSuccess;
+}
+
+OsStatus_t
+UsbHubUnregister(
+        _In_ UUId_t deviceId)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
+
+    svc_usb_unregister_hub(GetGrachtClient(), &msg.base, deviceId);
     return OsSuccess;
 }
 
 OsStatus_t
 UsbEventPort(
     _In_ UUId_t  DeviceId,
-    _In_ uint8_t HubAddress,
     _In_ uint8_t PortAddress)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = svc_usb_port_event(GetGrachtClient(), &msg.base, DeviceId, HubAddress, PortAddress);
+    status = svc_usb_port_event(GetGrachtClient(), &msg.base, DeviceId, PortAddress);
+    return OsSuccess;
+}
+
+OsStatus_t
+UsbPortError(
+        _In_ UUId_t  deviceId,
+        _In_ uint8_t portAddress)
+{
+    int                      status;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
+
+    status = svc_usb_port_error(GetGrachtClient(), &msg.base, deviceId, portAddress);
     return OsSuccess;
 }
 

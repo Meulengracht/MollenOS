@@ -117,7 +117,6 @@ PACKED_TYPESTRUCT(UsbHubDescriptor, {
 
 #define HUB_CHARACTERISTICS_PORT_INDICATORS      0x80
 
-
 /**
  * UsbHubSuperDescriptor
  * A descriptor containing the setup of the super-speed HUB device

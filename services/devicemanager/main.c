@@ -80,7 +80,7 @@ struct device_node {
 struct driver_node {
     element_t    header;
     unsigned int vendor_id;
-    unsigned int device_id;
+    unsigned int product_id;
     
     unsigned int class;
     unsigned int sub_class;
@@ -128,9 +128,9 @@ find_driver_for_device(
         struct driver_node* driverNode = node->value;
         
         // Check against vendor/device ids if nonne-zero
-        if (driverNode->vendor_id != 0 && driverNode->device_id != 0) {
+        if (driverNode->vendor_id != 0 && driverNode->product_id != 0) {
             if (device->VendorId == driverNode->vendor_id &&
-                device->DeviceId == driverNode->device_id) {
+                device->ProductId == driverNode->product_id) {
                 return driverNode;     
             }
         }
@@ -172,7 +172,7 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
     struct driver_node*      driverNode;
     
     TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
-        args->vendor_id, args->device_id, args->class, args->subclass);
+        args->vendor_id, args->product_id, args->class, args->subclass);
 
     driverNode = (struct driver_node*)malloc(sizeof(struct driver_node));
     if (!driverNode) {
@@ -182,7 +182,7 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
     
     ELEMENT_INIT(&driverNode->header, (uintptr_t)args->driver, driverNode);
     driverNode->vendor_id = args->vendor_id;
-    driverNode->device_id = args->device_id;
+    driverNode->product_id = args->product_id;
     driverNode->class = args->class;
     driverNode->sub_class = args->subclass;
     list_append(&Drivers, &driverNode->header);

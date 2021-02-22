@@ -255,6 +255,9 @@ HciQueueTransferGeneric(
     UsbTransferStatus_t status;
 
     controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
+    if (!controller) {
+        return TransferInvalid;
+    }
 
     // Step 1 - Allocate queue head
     if (transfer->EndpointDescriptor == NULL) {
@@ -298,6 +301,9 @@ HciQueueTransferIsochronous(
     UhciController_t* controller;
 
     controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
+    if (!controller) {
+        return TransferInvalid;
+    }
 
     if (UhciTransferFillIsochronous(controller, transfer) != OsSuccess) {
         transfer->Status = TransferQueued;

@@ -124,26 +124,6 @@
                         <param name="status" type="OsStatus_t" />
                     </response>
                 </function>
-                <function name="query_port">
-                    <request>
-                        <param name="device_id" type="UUId_t" />
-                        <param name="port_id" type="uint8_t" />
-                    </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
-                    </response>
-                </function>
-                <function name="reset_port">
-                    <request>
-                        <param name="device_id" type="UUId_t" />
-                        <param name="port_id" type="uint8_t" />
-                    </request>
-                    <response>
-                        <param name="status" type="OsStatus_t" />
-                        <param name="descriptor" type="buffer" subtype="UsbHcPortDescriptor_t" />
-                    </response>
-                </function>
                 <function name="reset_endpoint">
                     <request>
                         <param name="device_id" type="UUId_t" />
@@ -166,7 +146,7 @@
                 </event>
             </events>
         </protocol>
-        <protocol name="usbhub" id="0x12">
+        <protocol name="usbhub" id="0x13">
             <functions>
                 <function name="query_port">
                     <request>
@@ -199,7 +179,7 @@
             </events>
         </protocol>
 
-        <protocol name="input" id="0x13">
+        <protocol name="input" id="0x14">
             <enums>
                 <enum name="type">
                     <value name="input_type_invalid" value="0x0"></value>

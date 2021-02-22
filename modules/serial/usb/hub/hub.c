@@ -260,10 +260,7 @@ static void __EnumeratePorts(
             if (portStatus.Change & HUB_PORT_CHANGE_CONNECTED) {
                 HubPortClearChange(hubDevice, i, HUB_FEATURE_C_PORT_CONNECTION);
             }
-            UsbEventPort(
-                    hubDevice->Base.Base.DeviceId,
-                    hubDevice->Base.DeviceContext.device_address,
-                    i);
+            UsbEventPort(hubDevice->Base.Base.Id, i);
         }
     }
 }
@@ -314,7 +311,14 @@ HubDeviceCreate(
     }
 
     // Subscripe to the usb controller for events
-    __SubscribeToController(usbDevice->DeviceContext.driver_id);
+    __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
+
+    // Register us with the usb stack before enumerating ports
+    osStatus = UsbHubRegister(&hubDevice->Base, (int)hubDevice->PortCount);
+    if (osStatus != OsSuccess) {
+        ERROR("HubDeviceCreate failed to register hub with usb stack");
+        goto error_exit;
+    }
 
     // Enumerate the ports
     __EnumeratePorts(hubDevice);
@@ -345,15 +349,15 @@ void
 HubDeviceDestroy(
         _In_ HubDevice_t* hubDevice)
 {
-    // unregister all ports
-    // @todo
-
     // Destroy the interrupt channel
     if (hubDevice->TransferId != UUID_INVALID) {
         UsbTransferDequeuePeriodic(&hubDevice->Base.DeviceContext, hubDevice->TransferId);
     }
 
-    __UnsubscribeToController(hubDevice->Base.DeviceContext.driver_id);
+    // unregister all ports
+    UsbHubUnregister(hubDevice->Base.Base.Id);
+
+    __UnsubscribeToController(hubDevice->Base.DeviceContext.controller_driver_id);
 
     if (hubDevice->Buffer != NULL) {
         dma_pool_free(UsbRetrievePool(), hubDevice->Buffer);
@@ -367,8 +371,7 @@ static void __HandleConnectionChange(
 {
     HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_CONNECTION);
     UsbEventPort(
-            hubDevice->Base.Base.DeviceId,
-            hubDevice->Base.DeviceContext.device_address,
+            hubDevice->Base.Base.Id,
             portIndex);
 }
 
@@ -377,7 +380,7 @@ static void __HandleHubOverCurrentEvent(
 {
     // unregister all devices
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
-        // @todo
+        UsbPortError(hubDevice->Base.Base.Id, i);
     }
 
     // we have to wait for the overcurrent status bit to clear
@@ -399,6 +402,62 @@ static void __HandleHubOverCurrentEvent(
     }
 
     __EnumeratePorts(hubDevice);
+}
+
+static void __EnumerateSinglePort(
+        _In_ HubDevice_t* hubDevice,
+        _In_ uint8_t      portIndex)
+{
+    PortStatus_t portStatus;
+    OsStatus_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
+    if (osStatus != OsSuccess) {
+        ERROR("__EnumerateSinglePort failed to power on port %u", portIndex);
+        return;
+    }
+
+    // Wait for the specified power on delay
+    thrd_sleepex(hubDevice->PowerOnDelay);
+
+    osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
+    if (osStatus != OsSuccess) {
+        ERROR("__EnumerateSinglePort failed to get status for port %u", portIndex);
+        return;
+    }
+
+    TRACE("__EnumerateSinglePort port=%u, status=0x%x, change=0x%x",
+          portIndex, portStatus.Status, portStatus.Change);
+    if (portStatus.Status & HUB_PORT_STATUS_CONNECTED) {
+        if (portStatus.Change & HUB_PORT_CHANGE_CONNECTED) {
+            HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_CONNECTION);
+        }
+        UsbEventPort(hubDevice->Base.Base.Id, portIndex);
+    }
+}
+
+static void __HandlePortOverCurrentEvent(
+        _In_ HubDevice_t* hubDevice,
+        _In_ uint8_t      portIndex)
+{
+    UsbPortError(hubDevice->Base.Base.Id, portIndex);
+
+    // we have to wait for the overcurrent status bit to clear
+    while (1) {
+        PortStatus_t portStatus;
+        OsStatus_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
+        if (osStatus != OsSuccess) {
+            ERROR("__HandlePortOverCurrentEvent failed to get hub status");
+            return;
+        }
+
+        if (!(portStatus.Status & HUB_STATUS_OVERCURRENT_ACTIVE)) {
+            osStatus = HubPortClearChange(hubDevice, portIndex, HUB_PORT_CHANGE_OVERCURRENT);
+            if (osStatus != OsSuccess) {
+                ERROR("__HandlePortOverCurrentEvent failed to clear overcurrent change");
+            }
+            break;
+        }
+    }
+    __EnumerateSinglePort(hubDevice, portIndex);
 }
 
 void
@@ -445,8 +504,7 @@ HubInterrupt(
             }
             if (portStatus.Change & HUB_PORT_CHANGE_OVERCURRENT) {
                 if (!__IsHubOverCurrentGlobal(hubDevice)) {
-                    // unregister port, wait for status to 0, then reenumerate
-                    // @todo
+                    __HandlePortOverCurrentEvent(hubDevice, i);
                 }
             }
             if (portStatus.Change & HUB_PORT_CHANGE_SUSPEND) {
@@ -457,5 +515,4 @@ HubInterrupt(
             }
         }
     }
-
 }

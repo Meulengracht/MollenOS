@@ -29,20 +29,26 @@
 
 #include <svc_usb_protocol_server.h>
 
-extern void svc_usb_register_callback(struct gracht_recv_message* message, struct svc_usb_register_args*);
-extern void svc_usb_unregister_callback(struct gracht_recv_message* message, struct svc_usb_unregister_args*);
+extern void svc_usb_register_controller_callback(struct gracht_recv_message* message, struct svc_usb_register_controller_args*);
+extern void svc_usb_unregister_controller_callback(struct gracht_recv_message* message, struct svc_usb_unregister_controller_args*);
+extern void svc_usb_register_hub_callback(struct gracht_recv_message* message, struct svc_usb_register_hub_args*);
+extern void svc_usb_unregister_hub_callback(struct gracht_recv_message* message, struct svc_usb_unregister_hub_args*);
 extern void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc_usb_port_event_args*);
+extern void svc_usb_port_error_callback(struct gracht_recv_message* message, struct svc_usb_port_error_args*);
 extern void svc_usb_get_controller_count_callback(struct gracht_recv_message* message);
 extern void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args*);
 
-static gracht_protocol_function_t svc_usb_callbacks[5] = {
-    { PROTOCOL_SVC_USB_REGISTER_ID , svc_usb_register_callback },
-    { PROTOCOL_SVC_USB_UNREGISTER_ID , svc_usb_unregister_callback },
+static gracht_protocol_function_t svc_usb_callbacks[8] = {
+    { PROTOCOL_SVC_USB_REGISTER_CONTROLLER_ID , svc_usb_register_controller_callback },
+    { PROTOCOL_SVC_USB_UNREGISTER_CONTROLLER_ID , svc_usb_unregister_controller_callback },
+    { PROTOCOL_SVC_USB_REGISTER_HUB_ID , svc_usb_register_hub_callback },
+    { PROTOCOL_SVC_USB_UNREGISTER_HUB_ID , svc_usb_unregister_hub_callback },
     { PROTOCOL_SVC_USB_PORT_EVENT_ID , svc_usb_port_event_callback },
+    { PROTOCOL_SVC_USB_PORT_ERROR_ID , svc_usb_port_error_callback },
     { PROTOCOL_SVC_USB_GET_CONTROLLER_COUNT_ID , svc_usb_get_controller_count_callback },
     { PROTOCOL_SVC_USB_GET_CONTROLLER_ID , svc_usb_get_controller_callback },
 };
-DEFINE_SVC_USB_SERVER_PROTOCOL(svc_usb_callbacks, 5);
+DEFINE_SVC_USB_SERVER_PROTOCOL(svc_usb_callbacks, 8);
 
 OsStatus_t OnUnload(void)
 {

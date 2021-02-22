@@ -56,9 +56,9 @@ HciPortReset(
 __EXTERN
 void
 HciPortGetStatus(
-    _In_  UsbManagerController_t* Controller,
-    _In_  int                     Index,
-    _Out_ UsbHcPortDescriptor_t*  Port);
+    _In_  UsbManagerController_t* controller,
+    _In_  int                     index,
+    _Out_ UsbHcPortDescriptor_t*  port);
 
 /* HciProcessElement 
  * Proceses the element accordingly to the reason given. The transfer associated

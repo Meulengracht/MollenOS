@@ -544,7 +544,7 @@ CreateBusDeviceFromPciDevice(
     Device.Base.ParentId = UUID_INVALID;
     Device.Base.Length   = sizeof(BusDevice_t);
     Device.Base.VendorId = PciDevice->Header->VendorId;
-    Device.Base.DeviceId = PciDevice->Header->DeviceId;
+    Device.Base.ProductId = PciDevice->Header->DeviceId;
     Device.Base.Class    = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
     Device.Base.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
 
@@ -638,7 +638,7 @@ BusRegisterPS2Controller(void)
     OsStatus_t  Status;
 
     // Set default ps2 device settings
-    Device.Base.DeviceId = PCI_PS2_DEVICEID;
+    Device.Base.ProductId = PCI_PS2_DEVICEID;
 
     // Register io-spaces for the ps2 controller, it has two ports
     // Data port - 0x60

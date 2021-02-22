@@ -590,7 +590,7 @@
                     <request>
                         <param name="driver" type="UUId_t" />
                         <param name="vendor_id" type="unsigned int" />
-                        <param name="device_id" type="unsigned int" />
+                        <param name="product_id" type="unsigned int" />
                         <param name="class" type="unsigned int" />
                         <param name="subclass" type="unsigned int" />
                     </request>
@@ -657,7 +657,7 @@
         </protocol>
         <protocol name="usb" id="0x9">
             <functions>
-                <function name="register">
+                <function name="register_controller">
                     <request>
                         <param name="driver_id" type="UUId_t" />
                         <param name="device" type="buffer" />
@@ -665,15 +665,33 @@
                         <param name="port_count" type="int" />
                     </request>
                 </function>
-                <function name="unregister">
+                <function name="unregister_controller">
+                    <request>
+                        <param name="device_id" type="UUId_t" />
+                    </request>
+                </function>
+                <function name="register_hub">
+                    <request>
+                        <param name="parent_hub_device_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="driver_id" type="UUId_t" />
+                        <param name="port_count" type="int" />
+                    </request>
+                </function>
+                <function name="unregister_hub">
                     <request>
                         <param name="device_id" type="UUId_t" />
                     </request>
                 </function>
                 <function name="port_event">
                     <request>
-                        <param name="device_id" type="UUId_t" />
-                        <param name="hub_address" type="uint8_t" />
+                        <param name="hub_device_id" type="UUId_t" />
+                        <param name="port_address" type="uint8_t" />
+                    </request>
+                </function>
+                <function name="port_error">
+                    <request>
+                        <param name="hub_device_id" type="UUId_t" />
                         <param name="port_address" type="uint8_t" />
                     </request>
                 </function>

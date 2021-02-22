@@ -219,7 +219,7 @@ HidDeviceCreate(
     }
 
     // Subscripe to the usb controller for events
-    __SubscribeToController(usbDevice->DeviceContext.driver_id);
+    __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Install interrupt pipe
     UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base.DeviceContext,
@@ -252,7 +252,7 @@ HidDeviceDestroy(
         UsbTransferDequeuePeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
     }
 
-    __UnsubscribeToController(hidDevice->Base.DeviceContext.driver_id);
+    __UnsubscribeToController(hidDevice->Base.DeviceContext.controller_driver_id);
 
     if (hidDevice->Buffer != NULL) {
         dma_pool_free(UsbRetrievePool(), hidDevice->Buffer);
