@@ -461,17 +461,24 @@ UsbManagerProcessTransfer(
 
     // Restart?
     if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
-        UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
-                               USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, transfer);
-        HciProcessEvent(controller, USB_EVENT_RESTART_DONE, transfer);
+        // In case of stall we need should not restart the transfer, and instead let it sit untill host
+        // has reset the endpoint and cleared STALL condition.
+        if (transfer->Status != TransferStalled) {
+            UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
+                                   USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, transfer);
+            HciProcessEvent(controller, USB_EVENT_RESTART_DONE, transfer);
+        }
 
         // Don't notify driver when recieving a NAK response. Simply means device had
         // no data to send us. I just wished that it would leave the data intact instead.
         if (transfer->Status != TransferNAK) {
             UsbManagerSendNotification(transfer);
         }
-        transfer->Status = TransferInProgress;
-        transfer->Flags  = TransferFlagNone;
+
+        if (transfer->Status != TransferStalled) {
+            transfer->Status = TransferInProgress;
+            transfer->Flags  = TransferFlagNone;
+        }
     }
     else if (transfer->Transfer.Type == USB_TRANSFER_CONTROL || transfer->Transfer.Type == USB_TRANSFER_BULK) {
         HciTransactionFinalize(controller, transfer, 0);

@@ -20,7 +20,8 @@
  * TODO:
  * - Power Management
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
@@ -68,15 +69,14 @@ HciControllerCreate(
     }
 
     // Sanitize that we found the io-space
-    if (ioBase == NULL) {
+    if (!ioBase) {
         ERROR("No memory space found for ehci-controller");
         free(controller);
         return NULL;
     }
 
-    // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-          ioBase->Type, ioBase->PhysicalBase, ioBase->Size);
+          ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Acquire the io-space
     if (AcquireDeviceIo(ioBase) != OsSuccess) {
@@ -158,8 +158,8 @@ void
 EhciDisableLegacySupport(
     _In_ EhciController_t* Controller)
 {
-    reg32_t Cparams = READ_VOLATILE(Controller->CapRegisters->CParams);
-    reg32_t Eecp    = 0;
+    reg32_t cparams = READ_VOLATILE(Controller->CapRegisters->CParams);
+    reg32_t eecp;
 
     // Debug
     TRACE("EhciDisableLegacySupport()");
@@ -173,65 +173,64 @@ EhciDisableLegacySupport(
     // ???? + 4 - Usb Legacy Support Control And Status Register
     // The above means ???? = EECP. EECP Offset in PCI space where
     // we can find the above registers
-    Eecp = EHCI_CPARAM_EECP(Cparams);
+    eecp = EHCI_CPARAM_EECP(cparams);
 
     // If the eecp is valid ( >= 0x40), then there are a few
     // cases we can handle, but if its not valid, there is no legacy
-    if (Eecp >= 0x40) {
-        size_t Semaphore = 0;
-        size_t CapId     = 0;
-        size_t NextEecp  = 0;
-        int Run          = 1;
+    if (eecp >= 0x40) {
+        size_t semaphore = 0;
+        size_t capId    = 0;
+        size_t nextEecp = 0;
 
         // Get the extended capability register
         // We read the second byte, because it contains the BIOS Semaphore
-        while (Run) {
+        while (1) {
             // Retrieve capability id
-            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp, &CapId, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, eecp, &capId, 1) != OsSuccess) {
                 return;
             }
 
             // Legacy support?
-            if (CapId == 0x01) {
+            if (capId == 0x01) {
                 break;
             }
 
             // Nope, follow eecp link
-            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x1, &NextEecp, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, eecp + 0x1, &nextEecp, 1) != OsSuccess) {
                 return;
             }
 
             // Sanitize end of link
-            if (NextEecp == 0x00) {
+            if (nextEecp == 0x00) {
                 break;
             }
             else {
-                Eecp = NextEecp;
+                eecp = nextEecp;
             }
         }
 
         // Only continue if Id == 0x01
-        if (CapId == 0x01) {
+        if (capId == 0x01) {
             size_t Zero = 0;
-            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, eecp + 0x2, &semaphore, 1) != OsSuccess) {
                 return;
             }
 
             // Is it BIOS owned? First bit in second byte
-            if (Semaphore & 0x1) {
+            if (semaphore & 0x1) {
                 // Request for my hat back :/
                 // Third byte contains the OS Semaphore 
                 size_t One = 0x1;
-                if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, Eecp + 0x3, &One, 1) != OsSuccess) {
+                if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, eecp + 0x3, &One, 1) != OsSuccess) {
                     return;
                 }
 
                 // Now wait for bios to release the semaphore
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, eecp + 0x2, &semaphore, 1) != OsSuccess) {
                         return;
                     }
-                    if ((Semaphore & 0x1) == 0) {
+                    if ((semaphore & 0x1) == 0) {
                         break;
                     }
                     if (One >= 250) {
@@ -242,10 +241,10 @@ EhciDisableLegacySupport(
                 }
                 One = 1;
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, Eecp + 0x3, &Semaphore, 1) != OsSuccess) {
+                    if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 0, eecp + 0x3, &semaphore, 1) != OsSuccess) {
                         return;
                     }
-                    if ((Semaphore & 0x1) == 1) {
+                    if ((semaphore & 0x1) == 1) {
                         break;
                     }
                     if (One >= 250) {
@@ -257,7 +256,7 @@ EhciDisableLegacySupport(
             }
 
             // Disable SMI by setting all lower 16 bits to 0 of EECP+4
-            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, Eecp + 0x4, &Zero, 2) != OsSuccess) {
+            if (IoctlDeviceEx(Controller->Base.Device.Base.Id, 1, eecp + 0x4, &Zero, 2) != OsSuccess) {
                 return;
             }
         }
@@ -426,51 +425,54 @@ EhciRestart(
 
 OsStatus_t
 EhciWaitForCompanionControllers(
-    _In_ EhciController_t* Controller)
+    _In_ EhciController_t* controller)
 {
-    UsbHcController_t* HcController;
-    int                ControllerCount = 0;
-    int                CcStarted       = 0;
-    int                CcToStart       = 0;
-    int                Timeout         = 3000;
+    UsbHcController_t* hcController;
+    int                controllerCount = 0;
+    int                ccStarted       = 0;
+    int                ccToStart;
+    int                timeout = 3000;
+    TRACE("EhciWaitForCompanionControllers(controller=0x%" PRIxIN ")", controller);
 
-    HcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
-    if (!HcController) {
+    hcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
+    if (!hcController) {
         return OsOutOfMemory;
     }
-    
-    CcToStart = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
+
+    ccToStart = EHCI_SPARAM_CCCOUNT(controller->SParameters);
 
     // Wait
-    TRACE("Waiting for %i cc's to boot", CcToStart);
-    while (CcStarted < CcToStart && (Timeout > 0)) {
-        int UpdatedControllerCount = 0;
+    TRACE("EhciWaitForCompanionControllers waiting for %i cc's to boot", ccToStart);
+    while (ccStarted < ccToStart && (timeout > 0)) {
+        int updatedControllerCount = 0;
         thrd_sleepex(500);
-        Timeout -= 500;
-        if (UsbQueryControllerCount(&UpdatedControllerCount) != OsSuccess) {
-            WARNING("Failed to acquire controller count");
+        timeout -= 500;
+
+        if (UsbQueryControllerCount(&updatedControllerCount) != OsSuccess) {
+            WARNING("EhciWaitForCompanionControllers failed to acquire controller count");
             break;
         }
 
         // Check for new data?
-        if (UpdatedControllerCount != ControllerCount) {
-            for (int CheckCount = ControllerCount; CheckCount < UpdatedControllerCount; CheckCount++) {
-                if (UsbQueryController(UpdatedControllerCount - 1, HcController)) {
-                    WARNING("Failed to query the new controller");
+        if (updatedControllerCount != controllerCount) {
+            for (int checkCount = controllerCount; checkCount < updatedControllerCount; checkCount++) {
+                if (UsbQueryController(updatedControllerCount - 1, hcController)) {
+                    WARNING("EhciWaitForCompanionControllers failed to query the new controller");
                     break;
                 }
+
                 // Does controller belong to our bus?
-                if (HcController->Device.Bus == Controller->Base.Device.Bus
-                    && HcController->Device.Slot == Controller->Base.Device.Slot
-                    && (HcController->Type == UsbUHCI || HcController->Type == UsbOHCI)) {
-                    CcStarted++;
+                if (hcController->Device.Bus == controller->Base.Device.Bus
+                    && hcController->Device.Slot == controller->Base.Device.Slot
+                    && (hcController->Type == UsbUHCI || hcController->Type == UsbOHCI)) {
+                    ccStarted++;
                 }
             }
-            ControllerCount = UpdatedControllerCount;
+            controllerCount = updatedControllerCount;
         }
     }
-    free(HcController);
-    return (Timeout != 0) ? OsSuccess : OsError;
+    free(hcController);
+    return (timeout != 0) ? OsSuccess : OsError;
 }
 
 OsStatus_t

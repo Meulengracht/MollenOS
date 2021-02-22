@@ -265,6 +265,21 @@ UsbTransferQueuePeriodic(
 }
 
 OsStatus_t
+UsbTransferResetPeriodic(
+        _In_ usb_device_context_t* deviceContext,
+        _In_ UUId_t                transferId)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
+    OsStatus_t               status;
+
+    ctt_usbhost_reset_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
+                        deviceContext->controller_device_id, transferId);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    ctt_usbhost_reset_periodic_result(GetGrachtClient(), &msg.base, &status);
+    return status;
+}
+
+OsStatus_t
 UsbTransferDequeuePeriodic(
     _In_ usb_device_context_t* deviceContext,
 	_In_ UUId_t                transferId)

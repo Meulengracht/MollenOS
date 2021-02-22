@@ -168,18 +168,31 @@ static void ctt_input_get_properties_callback(
 static void ctt_usbhost_event_transfer_status_callback(
         _In_ struct ctt_usbhost_transfer_status_event* event)
 {
+    HidDevice_t* hidDevice = NULL;
+
     TRACE("ctt_usbhost_event_transfer_status_callback(event->status %u, event->bytes_transferred %" PRIuIN ")",
           event->status, event->bytes_transferred);
-    if (event->status != TransferFinished && !event->bytes_transferred) {
-        WARNING("ctt_usbhost_event_transfer_status_callback recieved error %u", event->status);
-        return;
-    }
 
     foreach(element, &g_devices) {
-        HidDevice_t* hidDevice = element->value;
-        if (hidDevice->TransferId == event->id) {
-            HidInterrupt(hidDevice, event->status, event->bytes_transferred);
+        HidDevice_t* i = element->value;
+        if (i->TransferId == event->id) {
+            hidDevice = i;
             break;
+        }
+    }
+
+    if (hidDevice) {
+        if (event->status == TransferStalled) {
+            WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
+            // we must clear stall condition and reset endpoint
+            UsbClearFeature(&hidDevice->Base.DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
+                            USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address), USB_FEATURE_HALT);
+            UsbEndpointReset(&hidDevice->Base.DeviceContext,
+                             USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address));
+            UsbTransferResetPeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
+        }
+        else {
+            HidInterrupt(hidDevice, event->status, event->bytes_transferred);
         }
     }
 }

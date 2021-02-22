@@ -43,17 +43,19 @@ DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
 extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
 extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
 extern void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args*);
+extern void ctt_usbhost_reset_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_periodic_args*);
 extern void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args*);
 extern void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args*);
 
-static gracht_protocol_function_t ctt_usbhost_callbacks[5] = {
+static gracht_protocol_function_t ctt_usbhost_callbacks[6] = {
     { PROTOCOL_CTT_USBHOST_QUEUE_ASYNC_ID , ctt_usbhost_queue_async_callback },
     { PROTOCOL_CTT_USBHOST_QUEUE_ID , ctt_usbhost_queue_callback },
     { PROTOCOL_CTT_USBHOST_QUEUE_PERIODIC_ID , ctt_usbhost_queue_periodic_callback },
+    { PROTOCOL_CTT_USBHOST_RESET_PERIODIC_ID , ctt_usbhost_reset_periodic_callback },
     { PROTOCOL_CTT_USBHOST_DEQUEUE_ID , ctt_usbhost_dequeue_callback },
     { PROTOCOL_CTT_USBHOST_RESET_ENDPOINT_ID , ctt_usbhost_reset_endpoint_callback },
 };
-DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 5);
+DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 6);
 
 static void ctt_usbhub_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_query_port_args*);
 static void ctt_usbhub_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_port_args*);

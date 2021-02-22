@@ -114,6 +114,16 @@
                         <param name="status" type="UsbTransferStatus_t" />
                     </response>
                 </function>
+                <function name="reset_periodic">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="device_id" type="UUId_t" />
+                        <param name="transfer_id" type="UUId_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                    </response>
+                </function>
                 <function name="dequeue">
                     <request>
                         <param name="process_id" type="UUId_t" />

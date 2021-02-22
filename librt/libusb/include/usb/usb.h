@@ -295,6 +295,17 @@ UsbTransferQueuePeriodic(
 	_Out_ UUId_t*               transferIdOut);
 
 /**
+ * Can be used to reset an interrupt or isochronous transfer after a stall condition has occurred and been cleared.
+ * @param deviceContext
+ * @param transferId
+ * @return
+ */
+__EXTERN OsStatus_t
+UsbTransferResetPeriodic(
+        _In_ usb_device_context_t* deviceContext,
+        _In_ UUId_t                transferId);
+
+/**
  * Dequeues an existing periodic transfer from the given controller. The transfer
  * and the controller must be valid. Returns TransferFinished on success.
  * @param deviceContext

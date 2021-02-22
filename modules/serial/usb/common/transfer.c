@@ -218,6 +218,36 @@ void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, st
     ctt_usbhost_queue_periodic_response(message, status);
 }
 
+void ctt_usbhost_reset_periodic_callback(
+        _In_ struct gracht_recv_message*             message,
+        _In_ struct ctt_usbhost_reset_periodic_args* args)
+{
+    OsStatus_t              status     = OsDoesNotExist;
+    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerTransfer_t*   transfer   = NULL;
+
+    // Lookup transfer by iterating through available transfers
+    foreach(node, &controller->TransactionList) {
+        UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->value;
+        if (itr->DeferredMessage.recv_message.client == message->client &&
+            itr->Id == args->transfer_id) {
+            transfer = itr;
+            break;
+        }
+    }
+
+    if (transfer != NULL) {
+        UsbManagerIterateChain(controller, transfer->EndpointDescriptor,
+                               USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, transfer);
+        HciProcessEvent(controller, USB_EVENT_RESTART_DONE, transfer);
+        transfer->Status = TransferInProgress;
+        transfer->Flags  = TransferFlagNone;
+        status = OsSuccess;
+    }
+
+    ctt_usbhost_reset_periodic_response(message, status);
+}
+
 void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args* args)
 {
     OsStatus_t              status     = OsDoesNotExist;
