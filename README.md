@@ -158,14 +158,4 @@ All documentation about design and implementation, and the theory behind is stor
 
 Showcase of MollenOS to get an idea of how the userspace will be once it's finished.
 
-### Boot <a name="ss-boot"></a>
-
-![Custom bootloader loading mollenos](docs/images/bootloader.png)
-
-![The usb stack enumerating an usb-port](docs/images/usbstack.png)
-
-### Usage <a name="ss-usage"></a>
-
-![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx1.png)
-![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx2.png)
-![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx4.png)
+BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
