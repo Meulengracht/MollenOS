@@ -27,7 +27,6 @@
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <signal.h>
 #include <stdlib.h>
 
 struct file_view {
@@ -252,62 +251,82 @@ CreateFileMapping(
     return osStatus;
 }
 
+OsStatus_t FlushFileMapping(
+        _In_ void*  MemoryPointer,
+        _In_ size_t Length)
+{
+    struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
+    LargeUInteger_t   fileOffset;
+    OsStatus_t        osStatus;
+    int               pageCount;
+    unsigned int*     attributes;
+    if (!fileView) {
+        return OsInvalidParameters;
+    }
+
+    if (!(fileView->flags & FILE_MAPPING_WRITE)) {
+        return OsNotSupported;
+    }
+
+    pageCount  = DIVUP(MIN(fileView->length, Length), __GetPageSize());
+    attributes = malloc(sizeof(unsigned int) * pageCount);
+    if (!attributes) {
+        osStatus = OsOutOfMemory;
+        goto exit;
+    }
+
+    osStatus = MemoryQueryAttributes(fileView->dmaAttachment.buffer, fileView->length, &attributes[0]);
+    if (osStatus != OsSuccess) {
+        goto exit;
+    }
+
+    fileOffset.QuadPart = fileView->offset;
+    for (int i = 0; i < pageCount;) {
+        int dirtyPageCount = 0;
+        int j              = i;
+
+        // detect sequential dirty pages to batch writes
+        while (attributes[j] & MEMORY_DIRTY) {
+            dirtyPageCount++;
+            j++;
+        }
+
+        if (dirtyPageCount) {
+            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+            size_t                   bytesTransferred;
+
+            svc_file_transfer_absolute(GetGrachtClient(), &msg.base, *GetInternalProcessId(), fileView->file_handle,
+                                       1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
+                                       i * __GetPageSize(), dirtyPageCount * __GetPageSize());
+            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+            svc_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &osStatus, &bytesTransferred);
+
+            // update iterator values and account for the auto inc
+            i = j;
+            fileOffset.QuadPart += dirtyPageCount * __GetPageSize();
+        }
+        else { i++; fileOffset.QuadPart += __GetPageSize(); }
+    }
+
+exit:
+    return osStatus;
+}
+
 OsStatus_t
 DestroyFileMapping(
         _In_ void* MemoryPointer)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    LargeUInteger_t   fileOffset;
-    int               pageCount;
     OsStatus_t        osStatus;
     if (!fileView) {
         return OsInvalidParameters;
     }
 
     // is the mapping write enabled, then flush pages
-    pageCount = DIVUP(fileView->length, __GetPageSize());
-    fileOffset.QuadPart = fileView->offset;
     if (fileView->flags & FILE_MAPPING_WRITE) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-        size_t                   bytesTransferred;
-        unsigned int*            attributes;
-
-        attributes = malloc(sizeof(unsigned int) * pageCount);
-        if (!attributes) {
-            goto cleanup_exit;
-        }
-
-        osStatus = MemoryQueryAttributes(fileView->dmaAttachment.buffer, fileView->length, &attributes[0]);
-        if (osStatus != OsSuccess) {
-            goto cleanup_exit;
-        }
-
-        for (int i = 0; i < pageCount;) {
-            int dirtyPageCount = 0;
-            int j              = i;
-
-            // detect sequential dirty pages to batch writes
-            while (attributes[j] & MEMORY_DIRTY) {
-                dirtyPageCount++;
-                j++;
-            }
-
-            if (dirtyPageCount) {
-                svc_file_transfer_absolute(GetGrachtClient(), &msg.base, *GetInternalProcessId(), fileView->file_handle,
-                                           1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
-                                           i * __GetPageSize(), dirtyPageCount * __GetPageSize());
-                gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-                svc_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &osStatus, &bytesTransferred);
-
-                // update iterator values and account for the auto inc
-                i = j;
-                fileOffset.QuadPart += dirtyPageCount * __GetPageSize();
-            }
-            else { i++; fileOffset.QuadPart += __GetPageSize(); }
-        }
+        (void)FlushFileMapping(MemoryPointer, fileView->length);
     }
 
-cleanup_exit:
     osStatus = dma_attachment_unmap(&fileView->dmaAttachment);
     if (osStatus != OsSuccess) {
         // ignore for now

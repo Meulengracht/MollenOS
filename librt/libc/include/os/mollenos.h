@@ -115,6 +115,7 @@ CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int FileDescriptor, OsFileSys
 CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer));
+CRTDECL(OsStatus_t, FlushFileMapping(void* MemoryPointer, size_t Length));
 CRTDECL(OsStatus_t, DestroyFileMapping(void* MemoryPointer));
 
 _CODE_END
