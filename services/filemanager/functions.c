@@ -661,6 +661,29 @@ void svc_file_seek_callback(struct gracht_recv_message* message, struct svc_file
     svc_file_seek_response(message, status);
 }
 
+void svc_file_transfer_absolute_callback(
+        _In_ struct gracht_recv_message*             message,
+        _In_ struct svc_file_transfer_absolute_args* args)
+{
+    size_t     bytesTransferred;
+    OsStatus_t status;
+
+    status = Seek(args->process_id, args->handle, args->pos_lo, args->pos_hi);
+    if (status != OsSuccess) {
+        svc_file_transfer_absolute_response(message, status, 0);
+    }
+
+    if (args->direction == 0) {
+        status = ReadFile(args->process_id, args->handle, args->buffer_handle,
+                          args->buffer_offset, args->length, &bytesTransferred);
+    }
+    else {
+        status = WriteFile(args->process_id, args->handle, args->buffer_handle,
+                           args->buffer_offset, args->length, &bytesTransferred);
+    }
+    svc_file_transfer_absolute_response(message, status, bytesTransferred);
+}
+
 static OsStatus_t
 Flush(
     _In_ UUId_t processId, 

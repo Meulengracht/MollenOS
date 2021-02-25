@@ -136,60 +136,65 @@ SignalSend(
 
 void
 SignalExecuteLocalThreadTrap(
-    _In_ Context_t* Context,
-    _In_ int        Signal,
-    _In_ void*      Argument)
+        _In_ Context_t* context,
+        _In_ int        signal,
+        _In_ void*      argument0,
+        _In_ void*      argument1)
 {
-    Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    
-    assert(Thread != NULL);
-    
-    TRACE("[signal] [execute_trap] signal %i", Signal);
+    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    size_t    flags  = ((uint32_t)signal << 16 | SIGNAL_SEPERATE_STACK | SIGNAL_HARDWARE_TRAP);
+
+    assert(thread != NULL);
+
+    TRACE("[signal] [execute_trap] signal %i", signal);
 
     // Do not support signals that occur in kernel code, those should __NOT__ occur
     // but rather we should protect against or fix why it fails.
-    // However if we wanted to support this, we could 
-    if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Context))) {
-        DebugPanic(FATAL_SCOPE_KERNEL, Context, "FAIL", 
-            "Crash at address 0x%" PRIxIN, CONTEXT_IP(Context));
+    // However if we wanted to support this, we could
+    if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(context))) {
+        DebugPanic(FATAL_SCOPE_KERNEL, context, "FAIL",
+                   "Crash at address 0x%" PRIxIN, CONTEXT_IP(context));
     }
 
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
-    WARNING("[signal] [execute_trap] signals are DISABLED");
+        WARNING("[signal] [execute_trap] signals are DISABLED");
 #else
-    assert(MemorySpaceSignalHandler(Thread->MemorySpace) != 0);
+    assert(MemorySpaceSignalHandler(thread->MemorySpace) != 0);
 
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
-    ContextPushInterceptor(Context, 
-        (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL],
-        MemorySpaceSignalHandler(Thread->MemorySpace), Signal,
-        (uintptr_t)Argument, SIGNAL_SEPERATE_STACK | SIGNAL_HARDWARE_TRAP);
+    ContextPushInterceptor(context,
+                           (uintptr_t)thread->Contexts[THREADING_CONTEXT_SIGNAL],
+                           MemorySpaceSignalHandler(thread->MemorySpace), flags,
+                           (uintptr_t)argument0, (uintptr_t)argument1);
 #endif
 }
 
 void
 SignalProcessQueued(
-    _In_ Thread_t*  Thread,
-    _In_ Context_t* Context)
+    _In_ Thread_t*  thread,
+    _In_ Context_t* context)
 {
     ThreadSignal_t threadSignal;
     uintptr_t      alternativeStack;
     uintptr_t      handler;
-    //TRACE("[signal] [queue]");
-    
-    assert(Thread != NULL);
-    assert(Context != NULL);
-    
+    size_t         flags;
+    TRACE("SignalProcessQueued(thread=0x%" PRIxIN ", context=" PRIxIN ")", thread, context);
+
+    if (!thread || !context) {
+        return;
+    }
+
+#ifndef __OSCONFIG_DISABLE_SIGNALLING
     // Protect against signals received before the signal handler
     // has been installed
-    handler = MemorySpaceSignalHandler(Thread->MemorySpace);
+    handler = MemorySpaceSignalHandler(thread->MemorySpace);
     if (!handler) {
         return;
     }
 
     while (1) {
-        size_t bytesRead = streambuffer_stream_in(Thread->Signaling.Signals,
+        size_t bytesRead = streambuffer_stream_in(thread->Signaling.Signals,
                                                   &threadSignal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
         if (!bytesRead) {
             break;
@@ -202,9 +207,11 @@ SignalProcessQueued(
         else {
             alternativeStack = 0;
         }
-        
-        ContextPushInterceptor(Context, alternativeStack, handler, threadSignal.Signal,
-                               (uintptr_t)threadSignal.Argument, threadSignal.Flags);
-        atomic_fetch_sub(&Thread->Signaling.Pending, 1);
+
+        flags = ((uint32_t)threadSignal.Signal << 16 | threadSignal.Flags);
+        ContextPushInterceptor(context, alternativeStack, handler, flags,
+                               (uintptr_t)threadSignal.Argument, 0);
+        atomic_fetch_sub(&thread->Signaling.Pending, 1);
     }
+#endif // !__OSCONFIG_DISABLE_SIGNALLING
 }

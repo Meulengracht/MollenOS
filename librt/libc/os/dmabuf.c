@@ -93,6 +93,18 @@ dma_attachment_refresh_map(
 }
 
 OsStatus_t
+dma_attachment_map_commit(
+        _In_ struct dma_attachment* attachment,
+        _In_ vaddr_t                address,
+        _In_ size_t                 length)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return Syscall_DmaAttachmentCommit(attachment, address, length);
+}
+
+OsStatus_t
 dma_attachment_unmap(
     struct dma_attachment* attachment)
 {

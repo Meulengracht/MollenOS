@@ -37,7 +37,7 @@ ___signalentry:
     push ebx
     push ecx
     push edx
-	call _StdInvokeSignal ; (context_t*, int, void*, unsigned int)
+	call _StdInvokeSignal ; (context_t*, unsigned, void*, void*)
     add esp, 16
     
     ; Restore initial state and switch the handler stack to next one stored

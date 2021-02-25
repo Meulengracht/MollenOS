@@ -20,7 +20,8 @@
  * - Contains the shared kernel debugging interface and tools
  *   available for tracing and debugging
  */
-#define __MODULE        "DBGI"
+
+#define __MODULE "DBGI"
 //#define __TRACE
 
 #include "../librt/libds/pe/pe.h"
@@ -28,20 +29,9 @@
 #include <arch/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>
-#include <deviceio.h>
 #include <machine.h>
-#include <handle.h>
 #include <stdio.h>
 #include <debug.h>
-#include <heap.h>
-
-static OsStatus_t
-DebugPageMemorySpaceHandlers(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
-{
-    return MemorySpaceHandlerTrigger(GetCurrentMemorySpace(), Address);
-}
 
 OsStatus_t
 DebugSingleStep(
@@ -63,26 +53,41 @@ DebugBreakpoint(
 
 OsStatus_t
 DebugPageFault(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
+    _In_ Context_t* context,
+    _In_ uintptr_t  address)
 {
-    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
-    uintptr_t      physicalAddress;
-    OsStatus_t     osStatus;
-    
-    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", CONTEXT_IP(Context), Address);
+    MemoryDescriptor_t descriptor;
+    MemorySpace_t*     memorySpace = GetCurrentMemorySpace();
+    uintptr_t          physicalAddress;
+    OsStatus_t         osStatus;
+    TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
 
-    if (memorySpace->Context != NULL) {
-        if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
-            return OsSuccess;
+    // get information about the allocation
+    osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
+    if (osStatus == OsSuccess) {
+        // userspace allocation, perform additional checks
+        // checks:
+        // 1) Was a guard page hit?
+        // 2) Should the exception be propegated (i.e memory handlers)
+        if (descriptor.Attributes & MAPPING_GUARDPAGE) {
+            // detect stack overflow
+        }
+        if (descriptor.Attributes & MAPPING_TRAPPAGE) {
+            TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
+            osStatus = OsError; // return error
+            goto exit;
         }
     }
 
-    osStatus = MemorySpaceCommit(memorySpace, Address, &physicalAddress,
+    // Otherwise commit the page and continue without anyone noticing, and handle race-conditions
+    // if two different threads have accessed a reserved page. OsExists will be returned.
+    osStatus = MemorySpaceCommit(memorySpace, address, &physicalAddress,
                                  GetMemorySpacePageSize(), 0);
     if (osStatus == OsExists) {
         osStatus = OsSuccess;
     }
+
+exit:
     return osStatus;
 }
 

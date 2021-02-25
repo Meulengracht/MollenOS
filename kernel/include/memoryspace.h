@@ -30,8 +30,8 @@
 #include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
 
-// from os/types/memory.h
-typedef struct MemoryDescriptor MemoryDescriptor_t;
+DECL_STRUCT(MemoryDescriptor);
+DECL_STRUCT(Context);
 
 /* MemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -46,6 +46,11 @@ typedef struct MemoryDescriptor MemoryDescriptor_t;
  * MemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces
  * Default settings for mappings are READ|WRITE is set.
+ *
+ * MAPPING_TRAPPAGE:
+ * Trap pages are purely (at this moment) to support memory fault handlers in userspace. These mappings
+ * will be marked MAPPING_TRAPPAGE and thus be not handled in kernel, and instead be sent to the thread as a signal
+ * of type SIGSEGV with the address as parameter.
  */
 #define MAPPING_USERSPACE               0x00000001U  // Userspace mapping
 #define MAPPING_NOCACHE                 0x00000002U  // Disable caching for mapping
@@ -57,6 +62,7 @@ typedef struct MemoryDescriptor MemoryDescriptor_t;
 #define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
 #define MAPPING_LOWFIRST                0x00000100U  // Memory resources should be allocated by low-addresses first
 #define MAPPING_GUARDPAGE               0x00000200U  // Memory resource is a stack and needs a guard page
+#define MAPPING_TRAPPAGE                0x00000400U  // Memory pages should trigger a trpap
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 
@@ -283,12 +289,16 @@ MemorySpaceQuery(
  * Retrieves the attributes for a specific virtual memory address in the given space.
  * @param memorySpace
  * @param address
+ * @param length
+ * @param attributesArray
  * @return
  */
-KERNELAPI unsigned int KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 GetMemorySpaceAttributes(
         _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address);
+        _In_ vaddr_t        address,
+        _In_ size_t         length,
+        _In_ unsigned int*  attributesArray);
 
 /**
  * Retrieves whether or not the page has been written to.
@@ -331,33 +341,5 @@ MemorySpaceSetSignalHandler(
 KERNELAPI vaddr_t KERNELABI
 MemorySpaceSignalHandler(
         _In_ MemorySpace_t* memorySpace);
-
-/**
- *
- * @param memorySpace
- * @param flags
- * @param length
- * @param handleOut
- * @param addressBaseOut
- * @return
- */
-KERNELAPI OsStatus_t KERNELABI
-MemorySpaceCreateHandler(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  unsigned int   flags,
-        _In_  size_t         length,
-        _Out_ UUId_t*        handleOut,
-        _Out_ uintptr_t*     addressBaseOut);
-
-/**
- *
- * @param memorySpace
- * @param address
- * @return
- */
-KERNELAPI OsStatus_t KERNELABI
-MemorySpaceHandlerTrigger(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address);
 
 #endif //!__MEMORY_SPACE_INTERFACE__

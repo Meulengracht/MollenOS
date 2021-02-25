@@ -283,15 +283,20 @@ SignalSend(
     _In_ void*  Argument);
 
 /**
- * SignalExecuteLocalThreadTrap
- * * Dispatches a signal to the current thread. This immediately loads the signal
- * * context and does not return from this function (i.e an exception).
+ * Dispatches a signal to the current thread. This immediately loads the signal
+ * context and does not return from this function (i.e an exception). This function does unconditionally
+ * use the seperate signal stack to avoid issues with current stack.
+ * @param context   [In] The faulting context
+ * @param signal    [In] The signal handler to execute in image
+ * @param argument0 [In] The first argument
+ * @param argument1 [In] The second argument
  */
 KERNELAPI void KERNELABI
 SignalExecuteLocalThreadTrap(
-    _In_ Context_t* Context,
-    _In_ int        Signal,
-    _In_ void*      Argument);
+        _In_ Context_t* context,
+        _In_ int        signal,
+        _In_ void*      argument0,
+        _In_ void*      argument1);
 
 /**
  * SignalProcessQueued
@@ -299,8 +304,8 @@ SignalExecuteLocalThreadTrap(
  */
 KERNELAPI void KERNELABI
 SignalProcessQueued(
-    _In_ Thread_t* Thread,
-    _In_ Context_t*     Context);
+    _In_ Thread_t* thread,
+    _In_ Context_t*     context);
 
 /**
  * ThreadingEnable

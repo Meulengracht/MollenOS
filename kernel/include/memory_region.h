@@ -30,33 +30,33 @@
 struct dma_sg;
 
 /**
- * MemoryRegionCreate
- * * Create a new page-aligned memory region that stretches over <Capacity>. The
- * * entire region is only committed directly to memory for <Length> bytes.
- * @param Length        [In]  The number of bytes that should be committed initially.
- * @param Capacity      [In]  The number of bytes that we should reserve for continuity.
- * @param Flags         [In]  Configuration of the memory region and behaviour.
- * @param KernelMapping [Out] The allocated virtual buffer address for the kernel mapping.
- * @param UserMapping   [Out] The allocated virtual buffer address for the user mapping.
- * @param Handle        [Out] The global handle for the memory region. 
+ * Create a new page-aligned memory region that stretches over <Capacity>. The
+ * entire region is only committed directly to memory for <Length> bytes.
+ * @param length        [In]  The number of bytes that should be committed initially.
+ * @param capacity      [In]  The number of bytes that we should reserve for continuity.
+ * @param flags         [In]  Configuration of the memory region and behaviour.
+ * @param kernelMapping [Out] The allocated virtual buffer address for the kernel mapping.
+ * @param userMapping   [Out] The allocated virtual buffer address for the user mapping.
+ * @param handleOut     [Out] The global handle for the memory region.
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreate(
-    _In_  size_t  Length,
-    _In_  size_t  Capacity,
-    _In_  unsigned int Flags,
-    _Out_ void**  KernelMapping,
-    _Out_ void**  UserMapping,
-    _Out_ UUId_t* Handle);
+    _In_  size_t  length,
+    _In_  size_t  capacity,
+    _In_  unsigned int flags,
+    _Out_ void**  kernelMapping,
+    _Out_ void**  userMapping,
+    _Out_ UUId_t* handleOut);
 
 /**
- * MemoryRegionCreateExisting
- * * Exports an existing memory region that stretches over <Length>. Makes sure
- * * all the memory from <Memory> to <Memory + Length> is committed.
- * @param memory   [In]  The buffer that should be exported.
+ * Exports an existing memory region that stretches over <Length>. Makes sure
+ * all the memory from <Memory> to <Memory + Length> is committed.
+ * @param memory [In]  The buffer that should be exported.
  * @param size   [In]  Length of the buffer.
- * @param flags    [In]  Configuration of the memory region and behaviour.
- * @param Handle   [Out] The global handle for the memory region. 
+ * @param flags  [In]  Configuration of the memory region and behaviour.
+ * @param Handle [Out] The global handle for the memory region.
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreateExisting(
@@ -66,11 +66,10 @@ MemoryRegionCreateExisting(
     _Out_ UUId_t* handleOut);
 
 /**
- * MemoryRegionAttach
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle [In]
- * @param Length [Out]
+ *
+ * @param Handle
+ * @param Length
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionAttach(
@@ -78,70 +77,84 @@ MemoryRegionAttach(
     _Out_ size_t* Length);
 
 /**
- * MemoryRegionInherit
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param regionHandle        [In]
- * @param memoryOut        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ *
+ * @param regionHandle
+ * @param memoryOut
+ * @param sizeOut
+ * @param accessFlags
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
-MemoryRegionInherit(UUId_t regionHandle, void** memoryOut, size_t* size, unsigned int accessFlags);
+MemoryRegionInherit(
+        _In_  UUId_t       regionHandle,
+        _Out_ void**       memoryOut,
+        _Out_ size_t*      sizeOut,
+        _In_  unsigned int accessFlags);
 
 /**
- * MemoryRegionUnherit
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ *
+ * @param handle
+ * @param memory
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionUnherit(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory);
+    _In_ UUId_t handle,
+    _In_ void*  memory);
 
 /**
- * MemoryRegionResize
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ * Resizes the committed memory portion of the memory region. This automatically
+ * commits any holes in the memory region.
+ * @param handle
+ * @param memory
+ * @param newLength
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionResize(
-    _In_ UUId_t Handle,
-    _In_ void*  Memory,
-    _In_ size_t NewLength);
+    _In_ UUId_t handle,
+    _In_ void*  memory,
+    _In_ size_t newLength);
 
 /**
- * MemoryRegionRefresh
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ * Refreshes the current memory mapping to align with the memory region.
+ * This is neccessary for all users of an memory region that has been resized.
+ * @param handle        [In]
+ * @param memory        [In]
+ * @param currentLength [In]
+ * @param newLength     [Out]
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionRefresh(
-    _In_  UUId_t  Handle,
-    _In_  void*   Memory,
-    _In_  size_t  CurrentLength,
-    _Out_ size_t* NewLength);
+    _In_  UUId_t  handle,
+    _In_  void*   memory,
+    _In_  size_t  currentLength,
+    _Out_ size_t* newLength);
 
 /**
- * MemoryRegionRead
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ * Commits a certain area of a memory region.
+ * @param handle     [In]
+ * @param memoryBase [In]
+ * @param memory     [In]
+ * @param length     [In]
+ * @return Status of the operation
+ */
+KERNELAPI OsStatus_t KERNELABI
+MemoryRegionCommit(
+        _In_ UUId_t handle,
+        _In_ void*  memoryBase,
+        _In_ void*  memory,
+        _In_ size_t length);
+
+/**
+ * Performs a DMA read from the memory region
+ * @param Handle
+ * @param Offset
+ * @param Buffer
+ * @param Length
+ * @param BytesRead
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionRead(
@@ -152,13 +165,13 @@ MemoryRegionRead(
     _Out_ size_t* BytesRead);
 
 /**
- * MemoryRegionWrite
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ * Performs a DMA write to the memory region
+ * @param Handle
+ * @param Offset
+ * @param Buffer
+ * @param Length
+ * @param BytesWritten
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionWrite(
@@ -169,19 +182,17 @@ MemoryRegionWrite(
     _Out_ size_t*     BytesWritten);
 
 /**
- * MemoryRegionGetSg
- * * Refreshes the current memory mapping to align with the memory region.
- * * This is neccessary for all users of an memory region that has been resized.
- * @param Handle        [In]
- * @param Memory        [In]
- * @param CurrentLength [In]
- * @param NewLength     [Out]
+ * Retrieves a scatter gather list of the physical memory blocks for the given memory region.
+ * @param handle
+ * @param sgCountOut
+ * @param sgListOut
+ * @return Status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionGetSg(
-    _In_  UUId_t         Handle,
-    _Out_ int*           SgCountOut,
-    _Out_ struct dma_sg* SgListOut);
+    _In_  UUId_t         handle,
+    _Out_ int*           sgCountOut,
+    _Out_ struct dma_sg* sgListOut);
 
 /**
  * Retrieves the kernel memory mapping for a given memory region handle

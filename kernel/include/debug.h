@@ -81,8 +81,8 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 KERNELAPI OsStatus_t KERNELABI
 DebugPageFault(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address);
+    _In_ Context_t* context,
+    _In_ uintptr_t  address);
 
 /* DebugPanic
  * Kernel panic function - Call this to enter panic mode

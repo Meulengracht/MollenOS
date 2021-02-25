@@ -80,6 +80,7 @@ typedef struct Thread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
 
+    // signal support
     ThreadSignals_t         Signaling;
 } Thread_t;
 

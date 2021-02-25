@@ -35,6 +35,7 @@ extern void svc_file_close_callback(struct gracht_recv_message* message, struct 
 extern void svc_file_delete_callback(struct gracht_recv_message* message, struct svc_file_delete_args*);
 extern void svc_file_transfer_async_callback(struct gracht_recv_message* message, struct svc_file_transfer_async_args*);
 extern void svc_file_transfer_callback(struct gracht_recv_message* message, struct svc_file_transfer_args*);
+extern void svc_file_transfer_absolute_callback(struct gracht_recv_message* message, struct svc_file_transfer_absolute_args*);
 extern void svc_file_seek_callback(struct gracht_recv_message* message, struct svc_file_seek_args*);
 extern void svc_file_flush_callback(struct gracht_recv_message* message, struct svc_file_flush_args*);
 extern void svc_file_move_callback(struct gracht_recv_message* message, struct svc_file_move_args*);
@@ -48,12 +49,13 @@ extern void svc_file_fsstat_callback(struct gracht_recv_message* message, struct
 extern void svc_file_fstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fstat_from_path_args*);
 extern void svc_file_fsstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fsstat_from_path_args*);
 
-static gracht_protocol_function_t svc_file_callbacks[17] = {
+static gracht_protocol_function_t svc_file_callbacks[18] = {
     { PROTOCOL_SVC_FILE_OPEN_ID , svc_file_open_callback },
     { PROTOCOL_SVC_FILE_CLOSE_ID , svc_file_close_callback },
     { PROTOCOL_SVC_FILE_DELETE_ID , svc_file_delete_callback },
     { PROTOCOL_SVC_FILE_TRANSFER_ASYNC_ID , svc_file_transfer_async_callback },
     { PROTOCOL_SVC_FILE_TRANSFER_ID , svc_file_transfer_callback },
+    { PROTOCOL_SVC_FILE_TRANSFER_ABSOLUTE_ID, svc_file_transfer_absolute_callback },
     { PROTOCOL_SVC_FILE_SEEK_ID , svc_file_seek_callback },
     { PROTOCOL_SVC_FILE_FLUSH_ID , svc_file_flush_callback },
     { PROTOCOL_SVC_FILE_MOVE_ID , svc_file_move_callback },
@@ -67,7 +69,7 @@ static gracht_protocol_function_t svc_file_callbacks[17] = {
     { PROTOCOL_SVC_FILE_FSTAT_FROM_PATH_ID , svc_file_fstat_from_path_callback },
     { PROTOCOL_SVC_FILE_FSSTAT_FROM_PATH_ID , svc_file_fsstat_from_path_callback },
 };
-DEFINE_SVC_FILE_SERVER_PROTOCOL(svc_file_callbacks, 17);
+DEFINE_SVC_FILE_SERVER_PROTOCOL(svc_file_callbacks, 18);
 
 #include <svc_path_protocol_server.h>
 

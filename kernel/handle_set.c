@@ -275,16 +275,16 @@ MarkHandleCallback(
 
 OsStatus_t
 MarkHandle(
-    _In_ UUId_t       Handle,
-    _In_ unsigned int Flags)
+    _In_ UUId_t       handle,
+    _In_ unsigned int flags)
 {
-    HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(Handle));
+    HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(handle));
     if (!Element) {
         return OsDoesNotExist;
     }
     
-    TRACE("[handle_set] [mark] handle %u - 0x%x", Handle, Flags);
-    list_enumerate(&Element->Sets, MarkHandleCallback, (void*)(uintptr_t)Flags);
+    TRACE("[handle_set] [mark] handle %u - 0x%x", handle, flags);
+    list_enumerate(&Element->Sets, MarkHandleCallback, (void*)(uintptr_t)flags);
     return OsSuccess;
 }
 

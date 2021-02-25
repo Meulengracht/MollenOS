@@ -37,7 +37,7 @@ __signalentry:
     
     .skip_padding:
     	sub rsp, rbx
-    	call StdInvokeSignal ; (context_t*, int, void*, unsigned)
+    	call StdInvokeSignal ; (context_t*, size_t, void*, void*)
     	add rsp, rbx
 	
     ; Restore initial state and switch the handler stack to next one stored
