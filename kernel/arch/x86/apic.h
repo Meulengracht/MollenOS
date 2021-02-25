@@ -54,7 +54,6 @@
 /* Interrupt Registers (Common) 
  * Common bit definitions used by the Local Apic register to configure. */
 #define APIC_VECTOR(Vector)         (Vector & 0xFF)
-#define APIC_DELIVERY_MODE(Mode)    ((Mode & 0x7) << 8)
 #define APIC_DESTINATION_PHYSICAL   0
 #define APIC_DESTINATION_LOGICAL    (1 << 11)
 #define APIC_DELIVERY_BUSY          (1 << 12)
@@ -64,6 +63,7 @@
 #define APIC_DESTINATION(Dest)      ((Dest & 0x7F) << 24)
 #define APIC_BROADCAST              0xFF000000
 
+#define APIC_DELIVERY_MODE(Mode)    ((Mode & 0x7) << 8)
 #define APIC_MODE_FIXED             0x0
 #define APIC_MODE_LOWEST_PRIORITY   0x1
 #define APIC_MODE_SMI               0x2
@@ -234,11 +234,6 @@ ApicPerformSIPI(
     _In_ UUId_t             CoreId,
     _In_ uintptr_t          Address);
 
-/* GetCoreIdentificationNumber
- * Retrieves the local apic id for the calling cpu through available mechanisms. */
-KERNELAPI UUId_t KERNELABI
-GetCoreIdentificationNumber(void);
-
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use
  * the integrated APIC */
@@ -249,8 +244,12 @@ __EXTERN int ApicIsIntegrated(void);
  * for the ESR among others */
 __EXTERN int ApicGetMaxLvt(void);
 
-/* ApicComputeLogicalDestination
- * Creates the correct bit index for the given cpu core */
+/**
+ * Divides all cpu into different groups. All cpu's get their first bit set which means
+ * that group 0 is targetting ALL cpus.
+ * @param CoreId [In] Takes the id of the cpu core
+ * @return            The groups the cpu belongs to
+ */
 KERNELAPI uint32_t KERNELABI 
 ApicComputeLogicalDestination(UUId_t CoreId);
 

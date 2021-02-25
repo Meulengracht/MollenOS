@@ -33,9 +33,9 @@
 // there is penalty to not accessing local memory instead of 
 // accessing foreign memory.
 typedef struct SystemDomain {
-    element_t           Header;
-    UUId_t              Id;
-    SystemCpu_t         CoreGroup;
+    element_t      Header;
+    UUId_t         Id;
+    SystemCpu_t    CoreGroup;
     SystemMemory_t Memory;
     MemorySpace_t  SystemSpace;
 } SystemDomain_t;

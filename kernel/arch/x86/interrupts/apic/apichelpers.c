@@ -62,8 +62,6 @@ int ApicGetMaxLvt(void) {
     return APIC_INTEGRATED((Version & 0xFF)) ? (((Version) >> 16) & 0xFF) : 2;
 }
 
-/* ApicComputeLogicalDestination
- * Creates the correct bit index for the given cpu core */
 uint32_t ApicComputeLogicalDestination(UUId_t CoreId) {
     return (1 << ((CoreId % 7) + 1)) | (1 << 0);
 }
