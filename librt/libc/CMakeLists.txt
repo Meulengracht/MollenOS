@@ -207,6 +207,8 @@ set (SOURCES_STDIO
     stdio/file/open.c
     stdio/file/remove.c
     stdio/file/rename.c
+    stdio/file/tmpnam.c
+    stdio/file/tmpfile.c
  
     stdio/inet/_socket.c
     stdio/inet/accept.c
@@ -266,6 +268,7 @@ set (SOURCES_STDIO
     stdio/io/getwchar.c
     stdio/io/ioctl.c
     stdio/io/ioset.c
+    stdio/io/marktty.c
     stdio/io/perror.c
     stdio/io/putc.c
     stdio/io/putchar.c
@@ -364,6 +367,7 @@ set (SOURCES_STDLIB
     stdlib/strtoul.c
     stdlib/strtoull.c
     stdlib/strtoumax.c
+    stdlib/system.c
 )
 
 set (SOURCES_OS

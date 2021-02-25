@@ -21,7 +21,7 @@
 #define WX_READNL           0x04U  // read started with \n
 #define WX_READEOF          0x04U  // like ATEOF, but for underlying file rather than buffer
 #define WX_PIPE             0x08U
-#define WX_READCR           0x10U  // underlying file is at \r
+#define WX_TEMP             0x10U  // delete underlying resource on close
 #define WX_DONTINHERIT      0x20U
 #define WX_APPEND           0x40U
 #define WX_TTY              0x80U
@@ -63,8 +63,8 @@ typedef struct stdio_object {
     } data;
 } stdio_object_t;
 
-#define STDIO_CLOSE_INHERIT 0
 #define STDIO_CLOSE_FULL    1
+#define STDIO_CLOSE_DELETE  2
 
 // Stdio descriptor operations
 typedef OsStatus_t(*stdio_inherit)(stdio_handle_t*);
@@ -138,6 +138,9 @@ extern void stdio_bitmap_free(int fd);
 extern int  _flsbuf(int ch, FILE *stream);
 extern int  _flswbuf(int ch, FILE *stream);
 extern int  stream_ensure_mode(int mode, FILE* stream);
+extern unsigned int _faccess(int oflags);
+extern unsigned int _fopts(int oflags);
+extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
 
 // Must be reentrancy spinlocks (critical sections)
 #define LOCK_FILES() do { } while(0)

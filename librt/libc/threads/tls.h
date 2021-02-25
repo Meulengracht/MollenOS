@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <os/osdefs.h>
 #include <os/dmabuf.h>
+#include <stdio.h>
 #include <threads.h>
 #include <wchar.h>
 
@@ -42,6 +43,7 @@ PACKED_TYPESTRUCT(thread_storage, {
     char*                 strtok_next;
     struct tm             tm_buffer;
     char                  asc_buffer[26];
+    char                  tmpname_buffer[L_tmpnam];
     struct dma_attachment transfer_buffer;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 });

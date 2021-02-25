@@ -79,10 +79,8 @@ struct DIRENT {
 };
 
 _CODE_BEGIN
-CRTDECL(unsigned int,    _faccess(int oflags));
-CRTDECL(unsigned int,    _fopts(int oflags));
-
 // shared io interface
+CRTDECL(int,        marktty(int iod));
 CRTDECL(int,        pipe(long size, int flags));
 CRTDECL(int,        dup(int iod));
 CRTDECL(int,        open(const char *file, int flags, ...));

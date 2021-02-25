@@ -78,7 +78,7 @@ OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     // to free the memory used, and destroy the handle.
     (void)dma_attachment_unmap(&handle->object.data.pipe.attachment);
     (void)dma_detach(&handle->object.data.pipe.attachment);
-    if (options == STDIO_CLOSE_FULL) {
+    if (options & STDIO_CLOSE_FULL) {
         handle_destroy(handle->object.handle);
     }
     return OsSuccess;

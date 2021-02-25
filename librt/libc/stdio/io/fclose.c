@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS - C Standard Library
- * - Closes a given file-handle and cleans up
  */
 
 #include <io.h>
@@ -32,7 +30,7 @@ int close(int fd)
 {
 	stdio_handle_t* handle;
 	int             result  = EOK;
-	int             options = STDIO_CLOSE_FULL;
+	int             options = 0;
 
 	handle = stdio_handle_get(fd);
 	if (!handle) {
@@ -42,9 +40,8 @@ int close(int fd)
 	
 	// The cases where we close is when the handle is
 	// not inheritted or the handle is not persistant
-	if (handle->wxflag & (WX_INHERITTED | WX_PERSISTANT)) {
-		options = STDIO_CLOSE_INHERIT;
-	}
+	if (!(handle->wxflag & (WX_INHERITTED | WX_PERSISTANT))) { options |= STDIO_CLOSE_FULL; }
+
 	result = handle->ops.close(handle, options);
 	stdio_handle_destroy(handle, 0);
     return result;

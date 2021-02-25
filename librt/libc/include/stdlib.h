@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +28,7 @@
 #include <locale.h>
 #include <wchar.h>
 
-#define EXIT_FAILURE    -1
+#define EXIT_FAILURE    (int)(-1)
 #define EXIT_SUCCESS    0
 
 #ifndef _SIZE_T_DEFINED

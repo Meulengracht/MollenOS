@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,7 +59,7 @@ _CODE_BEGIN
 	typedef long long off64_t;
 #endif
 #define OFF_T_DEFINED
-#endif 
+#endif
 
 /* Stdio errno String Definitions 
  * Definitions and symbols for error strings in standard C */
@@ -111,13 +112,13 @@ CRTDECL(FILE*,                      stdio_get_std(int n));
 #define stdout						stdio_get_std(STDOUT_FILENO)
 #define stdin						stdio_get_std(STDIN_FILENO)
 #define	stderr						stdio_get_std(STDERR_FILENO)
+#define L_tmpnam                    32
 
 /*******************************
  *       File Access           *
  *******************************/
 CRTDECL(OsStatus_t, _lock_file(FILE * stream));
 CRTDECL(OsStatus_t, _unlock_file(FILE * stream));
-CRTDECL(int,        _fflags(const char *mode, int *open_flags, int *stream_flags));
 CRTDECL(int,        fclose(FILE * stream));
 CRTDECL(FILE*,      fopen(const char * filename, const char * mode));
 CRTDECL(FILE*,      fdopen(int fd, const char *mode));
@@ -125,11 +126,11 @@ CRTDECL(FILE*,      freopen(const char * filename, const char * mode, FILE * str
 CRTDECL(int,        remove(const char * filename));
 CRTDECL(int,        rename(const char * oldname, const char * newname));
 CRTDECL(FILE*,      tmpfile(void));
-CRTDECL(char*,      tmpnam(char * str));
-CRTDECL(int,        fflush(FILE * stream));
+CRTDECL(char*,      tmpnam(char* str));
+CRTDECL(int,        fflush(FILE* stream));
 CRTDECL(void,       setbuf(FILE* file, char *buf));
 CRTDECL(int,        setvbuf(FILE* file, char *buf, int mode, size_t size));
-CRTDECL(int,        fileno(FILE * stream));
+CRTDECL(int,        fileno(FILE* stream));
 
 /*******************************
  *       Formatted IO          *
