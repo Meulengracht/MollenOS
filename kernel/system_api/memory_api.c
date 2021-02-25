@@ -66,12 +66,14 @@ static unsigned int __ConvertToUserMemoryFlags(
     if (memoryFlags & MAPPING_LOWFIRST)    { flags |= MEMORY_LOWFIRST; }
     if (!(memoryFlags & MAPPING_READONLY)) { flags |= MEMORY_WRITE; }
     if (memoryFlags & MAPPING_EXECUTABLE)  { flags |= MEMORY_EXECUTABLE; }
+    if (memoryFlags & MAPPING_ISDIRTY)     { flags |= MEMORY_DIRTY; }
 
     return flags;
 }
 
 static OsStatus_t __PerformAllocation(
         _In_  MemorySpace_t* memorySpace,
+        _In_  void*          hint,
         _In_  size_t         length,
         _In_  unsigned int   memoryFlags,
         _In_  unsigned int   placementFlags,
@@ -89,7 +91,15 @@ static OsStatus_t __PerformAllocation(
         return OsOutOfMemory;
     }
 
-    osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, memoryFlags, placementFlags);
+    // handle commit act
+    if (hint && ((memoryFlags & (MEMORY_COMMIT | MEMORY_FIXED)) == (MEMORY_COMMIT | MEMORY_FIXED))) {
+        osStatus = MemorySpaceCommit(memorySpace, (vaddr_t)hint, pages, length, placementFlags);
+        allocatedAddress = pages[0];
+    }
+    else {
+        osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, memoryFlags, placementFlags);
+    }
+
     if (osStatus == OsSuccess) {
         *memoryOut = (void*)allocatedAddress;
     }
@@ -134,7 +144,7 @@ ScMemoryAllocate(
         }
     }
     else {
-        osStatus = __PerformAllocation(memorySpace, length, memoryFlags, placementFlags, memoryOut);
+        osStatus = __PerformAllocation(memorySpace, hint, length, memoryFlags, placementFlags, memoryOut);
         if (osStatus == OsSuccess) {
             if ((flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
                 memset((void*)*memoryOut, 0, length);
@@ -172,7 +182,7 @@ ScMemoryProtect(
 }
 
 OsStatus_t
-ScMemoryQuery(
+ScMemoryQueryAllocation(
         _In_ void*               memoryPointer,
         _In_ MemoryDescriptor_t* descriptor)
 {
@@ -192,13 +202,30 @@ ScMemoryQuery(
 }
 
 OsStatus_t
-ScCreateMemoryHandler(
-        _In_  unsigned int Flags,
-        _In_  size_t       Length,
-        _Out_ UUId_t*      HandleOut,
-        _Out_ uintptr_t*   AddressBaseOut)
+ScMemoryQueryAttributes(
+        _In_ void*         memoryPointer,
+        _In_ size_t        length,
+        _In_ unsigned int* attributesArray)
 {
-    return MemorySpaceCreateHandler(GetCurrentMemorySpace(), Flags, Length, HandleOut, AddressBaseOut);
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    int            entries = DIVUP(length, GetMemorySpacePageSize());
+    uintptr_t      address = (uintptr_t)memoryPointer;
+    OsStatus_t     osStatus;
+    int            i;
+
+    if (!address || !entries || !attributesArray) {
+        return OsInvalidParameters;
+    }
+
+    osStatus = GetMemorySpaceAttributes(memorySpace, address, length, attributesArray);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    for (i = 0; i < entries; i++) {
+        attributesArray[i] = __ConvertToUserMemoryFlags(attributesArray[i]);
+    }
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -206,9 +233,9 @@ ScDmaCreate(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
-    OsStatus_t Status;
-    unsigned int    Flags = 0;
-    void*      KernelMapping;
+    OsStatus_t   osStatus;
+    unsigned int flags = 0;
+    void*        kernelMapping;
 
     if (!info || !attachment) {
         return OsInvalidParameters;
@@ -216,26 +243,23 @@ ScDmaCreate(
     
     TRACE("[sc_mem] [dma_create] %u, 0x%x", LODWORD(info->length), info->flags);
 
-    if (info->flags & DMA_PERSISTANT) {
-        Flags |= MAPPING_PERSISTENT;
+    if (info->flags & DMA_PERSISTANT)  { flags |= MAPPING_PERSISTENT; }
+    if (info->flags & DMA_UNCACHEABLE) { flags |= MAPPING_NOCACHE; }
+    if (info->flags & DMA_TRAP)        { flags |= MAPPING_TRAPPAGE; }
+
+    osStatus = MemoryRegionCreate(info->length, info->capacity,
+                                  flags, &kernelMapping, &attachment->buffer,
+                                  &attachment->handle);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
     
-    if (info->flags & DMA_UNCACHEABLE) {
-        Flags |= MAPPING_NOCACHE;
-    }
-    
-    Status = MemoryRegionCreate(info->length, info->capacity, 
-        Flags, &KernelMapping, &attachment->buffer, &attachment->handle);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    
-    if (info->flags & DMA_CLEAN) {
+    if (info->length && info->flags & DMA_CLEAN) {
         memset(attachment->buffer, 0, info->length);
     }
 
     attachment->length = info->length;
-    return Status;
+    return osStatus;
 }
 
 OsStatus_t
@@ -247,17 +271,14 @@ ScDmaExport(
     OsStatus_t   osStatus;
     unsigned int flags = 0;
 
-    if (!buffer || !info || !attachment) {
+    if (!info || !attachment) {
         return OsInvalidParameters;
     }
-    
-    if (info->flags & DMA_PERSISTANT) {
-        flags |= MAPPING_PERSISTENT;
-    }
-    
-    if (info->flags & DMA_UNCACHEABLE) {
-        flags |= MAPPING_NOCACHE;
-    }
+
+    // DMA_TRAP not supported for exported buffers. Different rules apply.
+    // DMA_CLEAN not supported for exported buffers. We will not touch preexisting ones.
+    if (info->flags & DMA_PERSISTANT)  { flags |= MAPPING_PERSISTENT; }
+    if (info->flags & DMA_UNCACHEABLE) { flags |= MAPPING_NOCACHE; }
     
     TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
 
@@ -267,10 +288,6 @@ ScDmaExport(
         return osStatus;
     }
 
-    if (info->flags & DMA_CLEAN) {
-        memset(buffer, 0, info->length);
-    }
-    
     attachment->buffer = buffer;
     attachment->length = info->length;
     return osStatus;
@@ -371,6 +388,18 @@ ScDmaAttachmentRefresh(
     }
     return MemoryRegionRefresh(attachment->handle, attachment->buffer, 
         attachment->length, &attachment->length);
+}
+
+OsStatus_t
+ScDmaAttachmentCommit(
+        _In_ struct dma_attachment* attachment,
+        _In_ void*                  address,
+        _In_ size_t                 length)
+{
+    if (!attachment) {
+        return OsInvalidParameters;
+    }
+    return MemoryRegionCommit(attachment->handle, attachment->buffer, address, length);
 }
 
 OsStatus_t

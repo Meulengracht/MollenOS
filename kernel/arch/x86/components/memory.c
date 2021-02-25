@@ -263,11 +263,11 @@ ArchMmuSwitchMemorySpace(
 
 OsStatus_t
 ArchMmuGetPageAttributes(
-        _In_  MemorySpace_t*   memorySpace,
-        _In_  vaddr_t startAddress,
-        _In_  int              pageCount,
-        _In_  unsigned int*    attributeValues,
-        _Out_ int*             pagesRetrievedOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
+        _In_  int            pageCount,
+        _In_  unsigned int*  attributeValues,
+        _Out_ int*           pagesRetrievedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
@@ -365,11 +365,11 @@ ArchMmuUpdatePageAttributes(
 
 OsStatus_t
 ArchMmuCommitVirtualPage(
-        _In_  MemorySpace_t*           memorySpace,
-        _In_  vaddr_t         startAddress,
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
         _In_  const paddr_t* physicalAddresses,
-        _In_  int                      pageCount,
-        _Out_ int*                     pagesComittedOut)
+        _In_  int            pageCount,
+        _Out_ int*           pagesComittedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;

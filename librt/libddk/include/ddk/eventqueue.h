@@ -32,7 +32,7 @@ typedef void(*EventQueueFunction)(void*);
 
 /* CreateEventQueue
  * Creates a new event queue that can be used to queue up events based on intervals and timeouts. */
-CRTDECL(OsStatus_t, CreateEventQueue(EventQueue_t** EventQueueOut));
+CRTDECL(OsStatus_t, CreateEventQueue(EventQueue_t** eventQueueOut));
 
 /* DestroyEventQueue
  * Stops the event queue handler, and cleans up resources. */

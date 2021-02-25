@@ -65,7 +65,8 @@ _CODE_BEGIN
 CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, unsigned int Flags, void** MemoryOut));
 CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
 CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, unsigned int Flags, unsigned int* PreviousFlags));
-CRTDECL(OsStatus_t, MemoryQuery(void* Memory, MemoryDescriptor_t* DescriptorOut));
+CRTDECL(OsStatus_t, MemoryQueryAllocation(void* Memory, MemoryDescriptor_t* DescriptorOut));
+CRTDECL(OsStatus_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned int* AttributeArray));
 
 /*******************************************************************************
  * System Extensions
@@ -113,8 +114,8 @@ CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *Path, OsFileSys
 CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int FileDescriptor, OsFileSystemDescriptor_t *Information));
 CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));
-CRTDECL(OsStatus_t, DestroyFileMapping(UUId_t Handle));
+CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer));
+CRTDECL(OsStatus_t, DestroyFileMapping(void* MemoryPointer));
 
 _CODE_END
 #endif //!__MOLLENOS_H__

@@ -4,7 +4,7 @@
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
 typedef	void (*__sa_handler_t)(int);
-typedef void (*__sa_process_t)(int, void*);
+typedef void (*__sa_process_t)(int, void*, void*);
 #endif
 
 #define SIGNAL_SEPERATE_STACK 0x00000001U

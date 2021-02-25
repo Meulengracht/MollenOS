@@ -86,7 +86,7 @@ thrd_t thrd_current(void) {
 #include <assert.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
-#include <ds/report_parser.h>
+#include <ds/collection.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_io.h>
@@ -161,7 +161,7 @@ StdioGetNumberOfInheritableHandles(
     return numberOfFiles;
 }
 
-static OsStatus_t
+OsStatus_t
 StdioCreateInheritanceBlock(
     _In_  ProcessConfiguration_t* configuration,
     _Out_ void**                  inheritationBlockOut,

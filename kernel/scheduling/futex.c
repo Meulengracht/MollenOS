@@ -382,13 +382,13 @@ FutexWake(
     _In_ int           Count,
     _In_ int           Flags)
 {
-    MemorySpaceContext_t * Context = NULL;
-    FutexBucket_t        *     Bucket;
-    FutexItem_t*       FutexItem;
-    OsStatus_t         Status = OsDoesNotExist;
-    uintptr_t          FutexAddress;
-    int                WaiterCount;
-    int                i;
+    MemorySpaceContext_t* Context = NULL;
+    FutexBucket_t*        Bucket;
+    FutexItem_t*          FutexItem;
+    OsStatus_t            Status = OsDoesNotExist;
+    uintptr_t             FutexAddress;
+    int                   WaiterCount;
+    int                   i;
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping

@@ -138,6 +138,22 @@
                         <param name="bytes_transferred" type="size_t" />
                     </response>
                 </function>
+                <function name="transfer_absolute">
+                    <request>
+                        <param name="process_id" type="UUId_t" />
+                        <param name="handle" type="UUId_t" />
+                        <param name="direction" type="int" />
+                        <param name="pos_lo" type="unsigned int" />
+                        <param name="pos_hi" type="unsigned int" />
+                        <param name="buffer_handle" type="UUId_t" />
+                        <param name="buffer_offset" type="size_t" />
+                        <param name="length" type="size_t" />
+                    </request>
+                    <response>
+                        <param name="status" type="OsStatus_t" />
+                        <param name="bytes_transferred" type="size_t" />
+                    </response>
+                </function>
                 <function name="seek">
                     <request>
                         <param name="process_id" type="UUId_t" />

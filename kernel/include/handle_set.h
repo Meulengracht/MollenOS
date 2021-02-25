@@ -77,12 +77,12 @@ WaitForHandleSet(
  * MarkHandle
  * * Marks a handle that an event has been completed. If the handle has any
  * * sets registered they will be notified.
- * @param Handle [In] The handle upon which an event has taken place
- * @param Flags  [In] The event flags which denote which kind of event.
+ * @param handle [In] The handle upon which an event has taken place
+ * @param flags  [In] The event flags that are defined in ioset.h.
  */
 KERNELAPI OsStatus_t KERNELABI
 MarkHandle(
-    _In_ UUId_t  Handle,
-    _In_ unsigned int Flags);
+    _In_ UUId_t       handle,
+    _In_ unsigned int flags);
 
 #endif //! __HANDLE_SET_H__

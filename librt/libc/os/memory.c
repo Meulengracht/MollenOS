@@ -63,12 +63,24 @@ MemoryProtect(
 }
 
 OsStatus_t
-MemoryQuery(
+MemoryQueryAllocation(
         _In_ void*               Memory,
         _In_ MemoryDescriptor_t* DescriptorOut)
 {
     if (!Memory || !DescriptorOut) {
         return OsInvalidParameters;
     }
-    return Syscall_MemoryQuery(Memory, DescriptorOut);
+    return Syscall_MemoryQueryAllocation(Memory, DescriptorOut);
+}
+
+OsStatus_t
+MemoryQueryAttributes(
+        _In_ void*         Memory,
+        _In_ size_t        Length,
+        _In_ unsigned int* AttributeArray)
+{
+    if (!Memory || !Length || !AttributeArray) {
+        return OsInvalidParameters;
+    }
+    return Syscall_MemoryQueryAttributes(Memory, Length, AttributeArray);
 }

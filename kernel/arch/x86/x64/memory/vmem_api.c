@@ -154,7 +154,7 @@ PageTable_t*
 MmVirtualGetTable(
         _In_  PageMasterTable_t* parentPageMasterTable,
         _In_  PageMasterTable_t* pageMasterTable,
-        _In_  vaddr_t   virtualAddress,
+        _In_  vaddr_t            virtualAddress,
         _In_  int                isCurrent,
         _In_  int                createIfMissing,
         _Out_ int*               update)

@@ -27,12 +27,13 @@
 #include <io.h>
 #include <os/dmabuf.h>
 #include <os/mollenos.h>
+#include <string.h>
 
 // Convert O_* flags to WX_* flags
 static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 {
     unsigned int wxflags = WX_PIPE | WX_APPEND;
-    unsigned int unsupp; // until we support everything
+    unsigned int unsupp;
 
     // detect options
     if (oflags & O_NOINHERIT) wxflags |= WX_DONTINHERIT;

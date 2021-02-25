@@ -31,9 +31,13 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <ddk/barrier.h>
+#include <ds/streambuffer.h>
 #include <debug.h>
+#include <futex.h>
 #include <handle.h>
+#include <handle_set.h>
 #include <heap.h>
+#include <ioset.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <mutex.h>
@@ -980,23 +984,20 @@ GetMemorySpaceMapping(
     return osStatus;
 }
 
-unsigned int
+OsStatus_t
 GetMemorySpaceAttributes(
         _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address)
+        _In_ vaddr_t        address,
+        _In_ size_t         length,
+        _In_ unsigned int*  attributesArray)
 {
-    unsigned int attributes;
-    int          pagesRetrieved;
+    int pageCount = DIVUP(length, GetMemorySpacePageSize());
+    int pagesRetrieved;
 
-    if (!memorySpace) {
-        return 0;
+    if (!memorySpace || !pageCount || !attributesArray) {
+        return OsInvalidParameters;
     }
-
-    if (ArchMmuGetPageAttributes(memorySpace, address, 1,
-                                 &attributes, &pagesRetrieved) != OsSuccess) {
-        return 0;
-    }
-    return attributes;
+    return ArchMmuGetPageAttributes(memorySpace, address, pageCount, attributesArray, &pagesRetrieved);
 }
 
 OsStatus_t
@@ -1066,77 +1067,4 @@ size_t
 GetMemorySpacePageSize(void)
 {
     return GetMachine()->MemoryGranularity;
-}
-
-static void
-MemorySpaceDestroyHandler(
-        _In_ void* resource)
-{
-    MemoryMappingHandler_t* handler = resource;
-    if (!handler) {
-        return;
-    }
-
-    list_remove(&handler->MemorySpace->Context->MemoryHandlers, &handler->Header);
-    DynamicMemoryPoolFree(&handler->MemorySpace->Context->Heap, handler->Address);
-    kfree(handler);
-}
-
-OsStatus_t
-MemorySpaceCreateHandler(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  unsigned int   flags,
-        _In_  size_t         length,
-        _Out_ UUId_t*        handleOut,
-        _Out_ uintptr_t*     addressBaseOut)
-{
-    MemoryMappingHandler_t* handler;
-
-    if (!memorySpace || !memorySpace->Context) {
-        return OsInvalidParameters;
-    }
-
-    handler = (MemoryMappingHandler_t*)kmalloc(sizeof(MemoryMappingHandler_t));
-    if (!handler) {
-        return OsOutOfMemory;
-    }
-
-    ELEMENT_INIT(&handler->Header, 0, handler);
-    handler->MemorySpace = memorySpace;
-    handler->Handle  = CreateHandle(HandleTypeGeneric, MemorySpaceDestroyHandler, handler);
-    handler->Address = DynamicMemoryPoolAllocate(&memorySpace->Context->Heap, length);
-    if (!handler->Address) {
-        DestroyHandle(handler->Handle);
-        kfree(handler);
-        return OsOutOfMemory;
-    }
-    handler->Length = length;
-
-    *handleOut      = handler->Handle;
-    *addressBaseOut = handler->Address;
-    list_append(&memorySpace->Context->MemoryHandlers, &handler->Header);
-    return OsSuccess;
-}
-
-OsStatus_t
-MemorySpaceHandlerTrigger(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address)
-{
-    element_t* element;
-
-    if (!memorySpace || !memorySpace->Context) {
-        return OsInvalidParameters;
-    }
-
-    _foreach(element, &memorySpace->Context->MemoryHandlers) {
-        MemoryMappingHandler_t* handler = (MemoryMappingHandler_t*)element->value;
-        if (ISINRANGE(address, handler->Address, (handler->Address + handler->Length))) {
-            ERROR("Implement support for MemorySpaceHandlers");
-            for(;;);
-            //SignalQueue(__FILEMANAGER_TARGET, SIGINT, Handler->Handle, (void*)Address);
-            break;
-        }
-    }
-    return OsDoesNotExist;
 }

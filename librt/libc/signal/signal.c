@@ -31,12 +31,15 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <threads.h>
+#include <string.h>
 
-typedef void (*__sa_process_t)(int, void*);
+typedef void (*__sa_process_t)(int, void*, void*);
 
-// Assembly entry points that handle the stack changes made
-// by the stack system in the kernel
+// Assembly entry points that handle the stack changes made by the stack system in the kernel
 extern void __signalentry(void);
+
+// Default handler for memory mapping events
+extern OsStatus_t HandleMemoryMappingEvent(int, void*);
 
 // The consequences of recieving the different signals
 char signal_fatality[NUMSIGNALS] = {
@@ -57,7 +60,6 @@ char signal_fatality[NUMSIGNALS] = {
 	1, /* SIGTERM */
 	0, /* SIGURG  */
     1, /* SIGSOCK */
-    1, /* SIGIPC  */
 };
 
 // Default interrupt handlers
@@ -79,11 +81,10 @@ static sig_element signal_list[] = {
     { SIGSOCK, "Socket transmission error", SIG_DFL }
 };
 
-static void
-DefaultCrashHandler(
-    _In_ Context_t*   Context,
-    _In_ sig_element* Signal,
-    _In_ size_t       Flags)
+static void __CrashHandler(
+    _In_ Context_t*   context,
+    _In_ sig_element* signal,
+    _In_ size_t       flags)
 {
     // Not supported by modules
     if (!IsProcessModule()) {
@@ -92,42 +93,50 @@ DefaultCrashHandler(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
         status = svc_process_report_crash(GetGrachtClient(), &msg.base, thrd_current(),
-            *GetInternalProcessId(), Context, sizeof(Context_t), Signal->signal);
+                                          *GetInternalProcessId(), context, sizeof(Context_t), signal->signal);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
     
     // Last thing is to exit application
-    ERROR("Received signal %i (%s). Terminating application", 
-        Signal->signal, Signal->name);
+    ERROR("Received signal %i (%s). Terminating application",
+          signal->signal, signal->name);
     _Exit(EXIT_FAILURE);
 }
 
-static void
-CreateSignalInformation(
-    _In_ int   Signal,
-    _In_ void* Argument)
+static void __CreateSignalInformation(
+    _In_ int   signal,
+    _In_ void* argument0,
+    _In_ void* argument1)
 {
     // Handle math errors in any case
-    if (Signal == SIGFPE) {
+    if (signal == SIGFPE) {
         int ExceptionType = fetestexcept(FE_ALL_EXCEPT);
         (void)ExceptionType;
     }
 }
 
+// Called by assembler functions in arch/_signal.s
 void
 StdInvokeSignal(
-    _In_ Context_t* Context,
-    _In_ int        Signal,
-    _In_ void*      Argument,
-    _In_ size_t     Flags)
+    _In_ Context_t* context,
+    _In_ size_t     flags,
+    _In_ void*      argument0,
+    _In_ void*      argument1)
 {
-    sig_element* sig   = NULL;
-    int          fatal = signal_fatality[Signal] || (Flags & SIGNAL_HARDWARE_TRAP);
+    sig_element* sig     = NULL;
+    int          sigNo   = (int)((flags >> 16) & 0xFFFF);
+    unsigned int options = flags & 0xFFFF;
+    int          fatal   = signal_fatality[sigNo] || (options & SIGNAL_HARDWARE_TRAP);
     int          i;
+
+    // SPECIAL CASE MEMORY HANDLERS
+    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OsSuccess) {
+        return;
+    }
     
     for (i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
-        if (signal_list[i].signal == Signal) {
+        if (signal_list[i].signal == sigNo) {
             sig = &signal_list[i];
             break;
         }
@@ -135,14 +144,14 @@ StdInvokeSignal(
     
     // Check against unsupported signal
     if (sig != NULL) {
-        CreateSignalInformation(Signal, Argument);
+        __CreateSignalInformation(sigNo, argument0, argument1);
         if (sig->handler != SIG_IGN) {
             if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
-                DefaultCrashHandler(Context, sig, Flags);
+                __CrashHandler(context, sig, options);
             }
             else {
                 __sa_process_t ext_handler = (__sa_process_t)sig->handler;
-                ext_handler(Signal, Argument);
+                ext_handler(sigNo, argument0, argument1);
             }
         }
     }
@@ -150,14 +159,14 @@ StdInvokeSignal(
     // Unhandled signal, or division by zero specifically?
     if (sig == NULL) {
         sig_element _static_sig = { 
-            .signal  = Signal,
+            .signal  = sigNo,
             .name    = "Unknown signal",
             .handler = NULL
         };
-        DefaultCrashHandler(Context, &_static_sig, Flags);
+        __CrashHandler(context, &_static_sig, options);
     }
     else if (fatal) {
-        DefaultCrashHandler(Context, sig, Flags);
+        __CrashHandler(context, sig, options);
     }
 }
 
@@ -246,14 +255,16 @@ int
 raise(
     _In_ int sig)
 {
-    Context_t Context;
+    Context_t context;
+    size_t    flags;
     
     if (sig <= 0 || sig >= NUMSIGNALS) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    GetContext(&Context);
-    StdInvokeSignal(&Context, sig, NULL, 0);
+
+    flags = ((uint32_t)sig << 16);
+    GetContext(&context);
+    StdInvokeSignal(&context, flags, NULL, NULL);
     return 0;
 }

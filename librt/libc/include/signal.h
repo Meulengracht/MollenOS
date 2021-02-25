@@ -50,8 +50,7 @@
 #define SIGTERM     13 /* Termination request, sent to the program */
 #define SIGURG      14 /* An URGENT! event (On a socket) */
 #define SIGSOCK     15 /* Socket transmission error */
-#define SIGIPC      16 /* IPC event */
-#define NUMSIGNALS  17
+#define NUMSIGNALS  16
 
 // Unsupported Vali signals
 #define SIGBUS      -1 /* Bus error (device error) */

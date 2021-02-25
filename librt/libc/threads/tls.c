@@ -33,7 +33,7 @@
 //#define __TRACE
 
 #include <os/spinlock.h>
-#include <ds/report_parser.h>
+#include <ds/collection.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -49,38 +49,38 @@
 #define TLS_ATEXIT_THREAD_CXA       2
 
 typedef struct TlsThreadInstance {
-    CollectionItem_t    ListHeader;
-    tss_t               Key;
-    void*               Value;
-    tss_dtor_t          Destructor;
+    CollectionItem_t ListHeader;
+    tss_t            Key;
+    void*            Value;
+    tss_dtor_t       Destructor;
 } TlsThreadInstance_t;
 
 typedef struct TlsAtExit {
-    CollectionItem_t    ListHeader;
-    int                 Type;
-    void*               DsoHandle;
-    void*               Argument;
+    CollectionItem_t ListHeader;
+    int              Type;
+    void*            DsoHandle;
+    void*            Argument;
     union {
-        void            (*Function)(void*, int);
-        tss_dtor_t      Destructor;
+        void       (*Function)(void*, int);
+        tss_dtor_t Destructor;
     } AtExit;
 } TlsAtExit_t;
 
 typedef struct TlsProcessInstance {
-    int             Keys[TLS_MAX_KEYS];
-    tss_dtor_t      Dss[TLS_MAX_KEYS];
-    Collection_t    Tls;                // List of TlsThreadInstance
-    Collection_t    TlsAtExit;          // List of TlsAtExit
-    Collection_t    TlsAtQuickExit;     // List of TlsAtExit
-    int             TlsAtExitHasRun;
+    int          Keys[TLS_MAX_KEYS];
+    tss_dtor_t   Dss[TLS_MAX_KEYS];
+    Collection_t Tls;                // List of TlsThreadInstance
+    Collection_t TlsAtExit;          // List of TlsAtExit
+    Collection_t TlsAtQuickExit;     // List of TlsAtExit
+    int          TlsAtExitHasRun;
 } TlsProcessInstance_t;
 
-static spinlock_t           TlsLock     = _SPN_INITIALIZER_NP(spinlock_plain);
-static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 }, 
-    COLLECTION_INIT(KeyId),
-    COLLECTION_INIT(KeyId),
-    COLLECTION_INIT(KeyId),
-    0
+static spinlock_t           g_tlsLock = _SPN_INITIALIZER_NP(spinlock_plain);
+static TlsProcessInstance_t g_tls     = { {0 }, { 0 },
+                                         COLLECTION_INIT(KeyId),
+                                         COLLECTION_INIT(KeyId),
+                                         COLLECTION_INIT(KeyId),
+                                         0
 };
 
 OsStatus_t 
@@ -145,21 +145,21 @@ tss_create(
     _In_ tss_t*     tss_key,
     _In_ tss_dtor_t destructor)
 {
-    tss_t   Result = TSS_KEY_INVALID;
-    int     i;
+    tss_t result = TSS_KEY_INVALID;
+    int   i;
 
-    spinlock_acquire(&TlsLock);
+    spinlock_acquire(&g_tlsLock);
     for (i = 0; i < TLS_MAX_KEYS; i++) {
-        if (TlsGlobal.Keys[i] == 0) {
-            TlsGlobal.Keys[i]   = 1;
-            TlsGlobal.Dss[i]    = destructor;
-            Result              = (tss_t)i;
+        if (g_tls.Keys[i] == 0) {
+            g_tls.Keys[i] = 1;
+            g_tls.Dss[i]  = destructor;
+            result = (tss_t)i;
             break;
         }
     }
-    spinlock_release(&TlsLock);
+    spinlock_release(&g_tlsLock);
 
-    if (Result != TSS_KEY_INVALID)  *tss_key = Result;
+    if (result != TSS_KEY_INVALID) *tss_key = result;
     else                            return thrd_error;
     return thrd_success;
 }
@@ -176,24 +176,24 @@ tss_delete(
     }
 
     // Iterate nodes without auto-linking, we do that manually
-    spinlock_acquire(&TlsLock);
-    _foreach_nolink(Node, &TlsGlobal.Tls) {
+    spinlock_acquire(&g_tlsLock);
+    _foreach_nolink(Node, &g_tls.Tls) {
         TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Node;
 
         // Make sure we delete all instances of the key
         // If we find one, we need to unlink it and get it's
         // successor before destroying the node
         if (Tls->Key == tss_id) {
-            Node = CollectionUnlinkNode(&TlsGlobal.Tls, Node);
+            Node = CollectionUnlinkNode(&g_tls.Tls, Node);
             free(Tls);
         }
         else {
             Node = Node->Link;
         }
     }
-    TlsGlobal.Keys[tss_id]  = 0;
-    TlsGlobal.Dss[tss_id]   = NULL;
-    spinlock_release(&TlsLock);
+    g_tls.Keys[tss_id] = 0;
+    g_tls.Dss[tss_id]  = NULL;
+    spinlock_release(&g_tlsLock);
 }
 
 /* tss_get
@@ -213,15 +213,15 @@ tss_get(
 
     // Iterate the list of TLS instances and 
     // find the one that contains the tls-key
-    spinlock_acquire(&TlsLock);
-    _foreach(Node, &TlsGlobal.Tls) {
+    spinlock_acquire(&g_tlsLock);
+    _foreach(Node, &g_tls.Tls) {
         TlsThreadInstance_t* Tls = (TlsThreadInstance_t*)Node;
         if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_key) {
             Result = Tls->Value;
             break;
         }
     }
-    spinlock_release(&TlsLock);
+    spinlock_release(&g_tlsLock);
     return Result;
 }
 
@@ -244,16 +244,16 @@ tss_set(
 
     // Iterate and find if it
     // exists, if exists we override
-    spinlock_acquire(&TlsLock);
-    _foreach(Node, &TlsGlobal.Tls) {
+    spinlock_acquire(&g_tlsLock);
+    _foreach(Node, &g_tls.Tls) {
         TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Node;
         if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_id) {
             Tls->Value = val;
-            spinlock_release(&TlsLock);
+            spinlock_release(&g_tlsLock);
             return thrd_success;
         }
     }
-    spinlock_release(&TlsLock);
+    spinlock_release(&g_tlsLock);
 
     NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
     if (NewTls == NULL) {
@@ -265,12 +265,12 @@ tss_set(
     NewTls->ListHeader.Data = NewTls;
     NewTls->Key             = tss_id;
     NewTls->Value           = val;
-    NewTls->Destructor      = TlsGlobal.Dss[tss_id];
+    NewTls->Destructor      = g_tls.Dss[tss_id];
 
     // Last thing is to append it to the tls-list
-    spinlock_acquire(&TlsLock);
-    CollectionAppend(&TlsGlobal.Tls, &NewTls->ListHeader);
-    spinlock_release(&TlsLock);
+    spinlock_acquire(&g_tlsLock);
+    CollectionAppend(&g_tls.Tls, &NewTls->ListHeader);
+    spinlock_release(&g_tlsLock);
     return thrd_success;
 }
 
@@ -282,8 +282,8 @@ tls_callback(
     _In_ int    Index, 
     _In_ void*  Context)
 {
-    TlsThreadInstance_t*    Tls         = (TlsThreadInstance_t*)Data;
-    int*                    ValuesLeft  = (int*)Context;
+    TlsThreadInstance_t* Tls         = (TlsThreadInstance_t*)Data;
+    int*                 ValuesLeft  = (int*)Context;
     _CRT_UNUSED(Index);
     TRACE("tls_callback()");
 
@@ -301,79 +301,69 @@ tls_callback(
     }
 }
 
-/* tls_register_atexit 
- * Registers a new atquickexit/atexit handler that will be invoked during thread
- * shutdown or process shutdown. If the thread-id is UUID_INVALID, it's registered
- * as process-shutdown. */
-void
-tls_register_atexit(
-    _In_ Collection_t*  List,
-    _In_ thrd_t         ThreadId,
-    _In_ void           (*Function)(void*),
-    _In_ void*          Argument,
-    _In_ void*          DsoHandle)
+static void __register_atexit(
+    _In_ Collection_t*  atExitList,
+    _In_ thrd_t         threadId,
+    _In_ void           (*function)(void*),
+    _In_ void*          argument,
+    _In_ void*          dsoHandle)
 {
-    TlsAtExit_t* AtExitFn;
+    TlsAtExit_t* atExitFn;
     
-    TRACE("tls_register_atexit(%u, 0x%x)", ThreadId, DsoHandle);
-    if (TlsGlobal.TlsAtExitHasRun != 0) {
+    TRACE("__register_atexit(%u, 0x%x)", threadId, dsoHandle);
+    if (g_tls.TlsAtExitHasRun != 0) {
         return;
     }
 
-    AtExitFn = (TlsAtExit_t*)malloc(sizeof(TlsAtExit_t));
-    if (AtExitFn == NULL) {
+    atExitFn = (TlsAtExit_t*)malloc(sizeof(TlsAtExit_t));
+    if (atExitFn == NULL) {
         return;
     }
-    memset(AtExitFn, 0, sizeof(TlsAtExit_t));
+    memset(atExitFn, 0, sizeof(TlsAtExit_t));
 
-    AtExitFn->ListHeader.Key.Value.Id   = ThreadId;
-    AtExitFn->Argument                  = Argument;
-    AtExitFn->DsoHandle                 = DsoHandle;
-    if (ThreadId == UUID_INVALID) {
-        AtExitFn->Type              = TLS_ATEXIT_CXA;
-        AtExitFn->AtExit.Function   = (void(*)(void*, int))Function;
+    atExitFn->ListHeader.Key.Value.Id = threadId;
+    atExitFn->Argument                = argument;
+    atExitFn->DsoHandle               = dsoHandle;
+    if (threadId == UUID_INVALID) {
+        atExitFn->Type            = TLS_ATEXIT_CXA;
+        atExitFn->AtExit.Function = (void(*)(void*, int))function;
     }
     else {
-        AtExitFn->Type              = TLS_ATEXIT_THREAD_CXA;
-        AtExitFn->AtExit.Destructor = Function;
+        atExitFn->Type              = TLS_ATEXIT_THREAD_CXA;
+        atExitFn->AtExit.Destructor = function;
     }
-    CollectionAppend(&TlsGlobal.TlsAtExit, &AtExitFn->ListHeader);
+    CollectionAppend(atExitList, &atExitFn->ListHeader);
 }
 
-/* tls_atexit
- * Registers a thread-specific at-exit handler. */
 void
 tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle)
 {
     TRACE("tls_atexit(%u, 0x%x)", thr, DsoHandle);
-    tls_register_atexit(&TlsGlobal.TlsAtExit, thr, Function, Argument, DsoHandle);
+    __register_atexit(&g_tls.TlsAtExit, thr, Function, Argument, DsoHandle);
 }
 
-/* tls_atexit_quick
- * Registers a thread-specific at-exit handler. */
 void
 tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle)
 {
     TRACE("tls_atexit_quick(%u, 0x%x)", thr, DsoHandle);
-    tls_register_atexit(&TlsGlobal.TlsAtQuickExit, thr, Function, Argument, DsoHandle);
+    __register_atexit(&g_tls.TlsAtQuickExit, thr, Function, Argument, DsoHandle);
 }
 
-void
-tls_callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHandle, _In_ int ExitCode)
+static void __callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHandle, _In_ int ExitCode)
 {
     CollectionItem_t*   Node;
     DataKey_t           Key = { .Value.Id = ThreadId };
     int                 Skip = 0;
 
-    TRACE("tls_callatexit(%u, 0x%x, %i)", ThreadId, DsoHandle, ExitCode);
-    if (TlsGlobal.TlsAtExitHasRun != 0) {
+    TRACE("__callatexit(%u, 0x%x, %i)", ThreadId, DsoHandle, ExitCode);
+    if (g_tls.TlsAtExitHasRun != 0) {
         return;
     }
 
     // To avoid recursive at exit calls due to shutdown failure, register that we have
     // now run exit for primary application.
     if (ThreadId == UUID_INVALID && DsoHandle == NULL) {
-        TlsGlobal.TlsAtExitHasRun = 1;
+        g_tls.TlsAtExitHasRun = 1;
     }
 
     Node = CollectionGetNodeByKey(List, Key, Skip);
@@ -410,18 +400,18 @@ tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
 
     // Execute all stored destructors untill there is no
     // more values left or we reach the maximum number of passes
-    CollectionExecuteOnKey(&TlsGlobal.Tls, tls_callback, Key, &NumberOfValsLeft);
+    CollectionExecuteOnKey(&g_tls.Tls, tls_callback, Key, &NumberOfValsLeft);
     while (NumberOfValsLeft != 0 && NumberOfPassesLeft) {
         NumberOfValsLeft = 0;
-        CollectionExecuteOnKey(&TlsGlobal.Tls, tls_callback, Key, &NumberOfValsLeft);
+        CollectionExecuteOnKey(&g_tls.Tls, tls_callback, Key, &NumberOfValsLeft);
         NumberOfPassesLeft--;
     }
 
     // Cleanup all stored tls-keys by this thread
-    spinlock_acquire(&TlsLock);
-    while (CollectionRemoveByKey(&TlsGlobal.Tls, Key) == OsSuccess);
-    spinlock_release(&TlsLock);
-    tls_callatexit(&TlsGlobal.TlsAtExit, thr, DsoHandle, ExitCode);
+    spinlock_acquire(&g_tlsLock);
+    while (CollectionRemoveByKey(&g_tls.Tls, Key) == OsSuccess);
+    spinlock_release(&g_tlsLock);
+    __callatexit(&g_tls.TlsAtExit, thr, DsoHandle, ExitCode);
 }
 
 /* tls_cleanup_quick
@@ -432,5 +422,5 @@ void
 tls_cleanup_quick(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
 {
     TRACE("tls_cleanup_quick(%u, 0x%x, %i)", thr, DsoHandle, ExitCode);
-    tls_callatexit(&TlsGlobal.TlsAtQuickExit, thr, DsoHandle, ExitCode);
+    __callatexit(&g_tls.TlsAtQuickExit, thr, DsoHandle, ExitCode);
 }
