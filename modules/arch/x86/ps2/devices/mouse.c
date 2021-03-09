@@ -59,35 +59,45 @@ PS2MouseFastInterrupt(
     return InterruptHandled;
 }
 
+static void __ParseMouseBuffer(
+        _In_ struct ctt_input_cursor_event* input,
+        _In_ const uint8_t*                 buffer,
+        _In_ uint8_t                        mouseMode)
+{
+    // Update relative x and y
+    input->rel_x       = (int16_t)(buffer[1] - ((buffer[0] << 4) & 0x100));
+    input->rel_y       = (int16_t)(buffer[2] - ((buffer[0] << 3) & 0x100));
+    input->buttons_set = buffer[0] & 0x7; // L-M-R buttons
+
+    // Check extended data modes
+    if (mouseMode == 1) {
+        input->rel_z = (int16_t)(char)buffer[3];
+    }
+    else if (mouseMode == 2) {
+        // 4 bit signed value
+        input->rel_z        = (int16_t)(char)(buffer[3] & 0xF);
+        input->buttons_set |= (buffer[3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
+    }
+}
+
 void
 PS2MouseInterrupt(
     _In_ PS2Port_t* port)
 {
-    struct ctt_input_cursor_event input;
-    uint8_t                       bytesRequired = port->device_data.mouse.mode == 0 ? 3 : 4;
-    uint32_t                      index = port->ResponseReadIndex % PS2_RINGBUFFER_SIZE;
+    uint8_t  bytesRequired = port->device_data.mouse.mode == 0 ? 3 : 4;
+    uint32_t index = port->ResponseReadIndex;
 
-    // Update relative x and y
+    // make sure there always are enough bytes to read
     smp_rmb();
-    input.rel_x       = (int16_t)(port->ResponseBuffer[index + 1] - ((port->ResponseBuffer[index] << 4) & 0x100));
-    input.rel_y       = (int16_t)(port->ResponseBuffer[index + 2] - ((port->ResponseBuffer[index] << 3) & 0x100));
-    input.buttons_set = port->ResponseBuffer[0] & 0x7; // L-M-R buttons
+    while (index <= (port->ResponseWriteIndex - bytesRequired)) {
+        struct ctt_input_cursor_event input = { 0 };
+        __ParseMouseBuffer(&input, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE], port->device_data.mouse.mode);
+        ctt_input_event_cursor_all(port->DeviceId, 0, input.rel_x, input.rel_y, input.rel_z, input.buttons_set);
 
-    // Check extended data modes
-    if (port->device_data.mouse.mode == 1) {
-        input.rel_z = (int16_t)(char)port->ResponseBuffer[index + 3];
-    }
-    else if (port->device_data.mouse.mode == 2) {
-        // 4 bit signed value
-        input.rel_z        = (int16_t)(char)(port->ResponseBuffer[index + 3] & 0xF);
-        input.buttons_set |= (port->ResponseBuffer[index + 3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
-    }
-    else {
-        input.rel_z = 0;
+        index += bytesRequired;
     }
 
-    port->ResponseReadIndex += bytesRequired;
-    ctt_input_event_cursor_all(port->DeviceId, 0, input.rel_x, input.rel_y, input.rel_z, input.buttons_set);
+    port->ResponseReadIndex = index;
 }
 
 OsStatus_t
