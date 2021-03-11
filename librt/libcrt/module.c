@@ -123,7 +123,7 @@ void __CrtModuleEntry(void)
                });
 
     __crt_module_load();
-    atexit((void (*)(void))OnUnload());
-    at_quick_exit((void (*)(void))OnUnload());
+    atexit((void (*)(void))OnUnload);
+    at_quick_exit((void (*)(void))OnUnload);
     __crt_module_main(config.set_descriptor);
 }

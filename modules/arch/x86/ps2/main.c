@@ -55,8 +55,7 @@ static PS2Controller_t* Ps2Controller = NULL;
 uint8_t
 PS2ReadStatus(void)
 {
-    return (uint8_t)ReadDeviceIo(
-        Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
+    return (uint8_t)ReadDeviceIo(Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
 }
 
 OsStatus_t
@@ -169,8 +168,7 @@ PS2Initialize(
     // Store a copy of the device
     memcpy(&Ps2Controller->Device, Device, sizeof(BusDevice_t));
 
-    // No problem, last thing is to acquire the
-    // io-spaces, and just return that as result
+    // No problem, last thing is to acquire the io-spaces, and just return that as result
     if (AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[0]) != OsSuccess ||
         AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[1]) != OsSuccess) {
         ERROR(" > failed to acquire ps2 io spaces");

@@ -90,7 +90,7 @@ void __CrtServiceEntry(void)
         exit(-1);
     }
 
-    atexit((void (*)(void))OnUnload());
-    at_quick_exit((void (*)(void))OnUnload());
+    atexit((void (*)(void))OnUnload);
+    at_quick_exit((void (*)(void))OnUnload);
     __crt_service_main(config.set_descriptor);
 }
