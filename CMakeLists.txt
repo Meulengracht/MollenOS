@@ -155,8 +155,8 @@ add_custom_target (run_bochs
 )
 
 add_custom_target(package
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --rev-path ${TOOL_RV} --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-sdk --zip-out vali-${VALI_VERSION}-sdk.zip
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --rev-path ${TOOL_RV} --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-ddk --zip-out vali-${VALI_VERSION}-ddk.zip
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-sdk --zip-out vali-${VALI_VERSION}-sdk.zip
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-ddk --zip-out vali-${VALI_VERSION}-ddk.zip
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/package_os
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_DEPLOY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern *.sys
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
@@ -165,7 +165,7 @@ add_custom_target(package
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/package_os/
     COMMAND ${CMAKE_COMMAND} -E copy ${TOOL_DU} ${CMAKE_BINARY_DIR}/package_os/
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern DiscUtils*
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --rev-path ${TOOL_RV} --zip-dir ${CMAKE_BINARY_DIR}/package_os --zip-out vali-${VALI_VERSION}.zip
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_BINARY_DIR}/package_os --zip-out vali-${VALI_VERSION}.zip
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/package_os
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
