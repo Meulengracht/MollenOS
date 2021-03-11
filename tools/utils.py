@@ -114,8 +114,6 @@ if __name__ == "__main__":
 
     czArguments = parser.add_argument_group('create-zip')
     czArguments.add_argument('--zip-dirs', default=None, help='source directory for create-zip')
-    czArguments.add_argument('--rev-path', default=None,
-                             help='path to revision tool, if not given defaults to no versioning')
     czArguments.add_argument('--zip-out', default=None, help='zip file output path')
 
     pargs = parser.parse_args()
@@ -132,13 +130,6 @@ if __name__ == "__main__":
         if pargs.zip_dirs and pargs.zip_out:
             zip_version = ""
             zip_out = pargs.zip_out
-            if pargs.rev_path:
-                stdoutput = subprocess.check_output([pargs.rev_path, 'print', 'all']).decode('utf-8')
-                print(stdoutput)
-                version_match = output_regex.match(stdoutput)
-                zip_version = version_match.group(1) + "." + version_match.group(2) + "." + version_match.group(3)
-                path_part1 = zip_out.replace(".zip", "")
-                zip_out = path_part1 + "-" + zip_version + ".zip"
             print("utils: creating zip file " + zip_out)
             zipf = zipfile.ZipFile(zip_out, 'w')
             zip_paths = pargs.zip_dirs.split(',')
