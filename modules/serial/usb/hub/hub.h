@@ -55,6 +55,7 @@
 #define HUB_REQUEST_RESET_TT        0x9
 #define HUB_REQUEST_GET_TT_STATE    0xA
 #define HUB_REQUEST_STOP_TT         0xB
+#define HUB_REQUEST_SET_DEPTH       0xC
 
 /**
  * HUB Class Features Definitions
@@ -128,8 +129,8 @@ PACKED_TYPESTRUCT(UsbHubSuperDescriptor, {
     uint16_t                        HubCharacteristics;
     uint8_t                         PowerOnDelay;        // Time in 2ms units that are needed before power on is done
     uint8_t                         MaxMilliAmpsDraw;
-    uint8_t                         HeaderDecLat;
-    uint16_t                        HubDelay;
+    uint8_t                         HeaderDecLat;        // Hub Packet Header Decode Latency
+    uint16_t                        HubDelay;            // This field defines the maximum delay in nanoseconds a hub introduces while forwarding packets in either direction.
     uint8_t                         BitmapRemovable[8];  // Bit 0 is reserved. Not zero indexing
 });
 
