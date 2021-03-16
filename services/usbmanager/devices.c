@@ -259,7 +259,7 @@ UsbCoreDevicesCreate(
     device->Base.controller_driver_id = usbController->DriverId;
     device->Base.hub_device_id        = usbHub->DeviceId;
     device->Base.hub_driver_id        = usbHub->DriverId;
-    device->Base.hub_address          = usbHub->Address;
+    device->Base.hub_address          = usbHub->DeviceAddress;
     device->Base.port_address         = usbPort->Address;
     device->Base.device_address       = 0;
     device->Base.speed                = usbPort->Speed;
