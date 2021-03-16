@@ -280,7 +280,7 @@ UsbCoreDevicesCreate(
 
     // Set device address for the new device
     TRACE("[usb] [%u:%u] new device address => %i",
-          usbHub->Address, usbPort->Address, reservedAddress);
+          usbHub->PortAddress, usbPort->Address, reservedAddress);
     tStatus = UsbSetAddress(&device->Base, reservedAddress);
     if (tStatus != TransferFinished) {
         tStatus = UsbSetAddress(&device->Base, reservedAddress);
