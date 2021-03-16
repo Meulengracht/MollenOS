@@ -220,7 +220,7 @@ UsbCoreDevicesCreate(
     UsbPortDevice_t*      device;
     int                   reservedAddress = 0;
 
-    TRACE("[usb] [%u:%u] setting up", usbHub->Address, usbPort->Address);
+    TRACE("[usb] [%u:%u] setting up", usbHub->PortAddress, usbPort->Address);
 
     // Make sure that there isn't already one device
     // setup on the port
@@ -240,7 +240,7 @@ UsbCoreDevicesCreate(
     // Initialize the port by resetting it
     if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OsSuccess) {
         ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
-              usbHub->Address, usbPort->Address, usbHub->DeviceId);
+              usbHub->PortAddress, usbPort->Address, usbHub->DeviceId);
         goto device_error;
     }
 
@@ -274,7 +274,7 @@ UsbCoreDevicesCreate(
     // Allocate a device-address
     if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
-              usbController->Device, usbHub->Address, usbPort->Address);
+              usbController->Device, usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
@@ -286,7 +286,7 @@ UsbCoreDevicesCreate(
         tStatus = UsbSetAddress(&device->Base, reservedAddress);
         if (tStatus != TransferFinished) {
             ERROR("[usb] [%u:%u] UsbSetAddress failed - %u",
-                  usbHub->Address, usbPort->Address, (size_t)tStatus);
+                  usbHub->PortAddress, usbPort->Address, (size_t)tStatus);
             goto device_error;
         }
     }
@@ -298,28 +298,28 @@ UsbCoreDevicesCreate(
     // Query Device Descriptor
     tStatus = __GetDeviceDescriptor(device);
     if (tStatus != TransferFinished) {
-        ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", usbHub->Address, usbPort->Address);
+        ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
     tStatus = __GetConfiguration(device);
     if (tStatus != TransferFinished) {
-        ERROR("[usb] [%u:%u] __GetConfiguration failed", usbHub->Address, usbPort->Address);
+        ERROR("[usb] [%u:%u] __GetConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
     tStatus = __SetDefaultConfiguration(device);
     if (tStatus != TransferFinished) {
-        ERROR("[usb] [%u:%u] __SetDefaultConfiguration failed", usbHub->Address, usbPort->Address);
+        ERROR("[usb] [%u:%u] __SetDefaultConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
     
-    TRACE("[usb] [%u:%u] setup success", usbHub->Address, usbPort->Address);
+    TRACE("[usb] [%u:%u] setup success", usbHub->PortAddress, usbPort->Address);
     return UsbDeviceLoadDrivers(usbController, device);
 
     // All errors are handled here
 device_error:
-    TRACE("[usb] [%u:%u] setup failed", usbHub->Address, usbPort->Address);
+    TRACE("[usb] [%u:%u] setup failed", usbHub->PortAddress, usbPort->Address);
     UsbCoreDevicesDestroy(usbController, usbPort);
     return OsError;
 }
