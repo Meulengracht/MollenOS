@@ -26,10 +26,27 @@
 
 #include "types.h"
 
+struct gracht_server_callbacks {
+    void (*clientConnected)(int client);    // invoked only when a new stream-based client has connected
+                                            // or when a new connectionless-client has subscribed to the server
+    void (*clientDisconnected)(int client); // invoked only when a new stream-based client has disconnected
+                                            // or when a connectionless-client has unsubscribed from the server
+};
+
 typedef struct gracht_server_configuration {
-    struct server_link_ops* link;
-    int                     set_descriptor;
-    int                     set_descriptor_provided;
+    // Link operations, which can be filled by any link-implementation under <link/*>
+    // these provide the underlying link implementation like a socket interface or a serial interface.
+    struct server_link_ops*        link;
+
+    // Callbacks are certain status updates the server can provide to the user of this library.
+    // For instance when clients connect/disconnect. They are only invoked when set to non-null.
+    struct gracht_server_callbacks callbacks;
+
+    // Server configuration parameters, in this case the set descriptor (select/poll descriptor) to use
+    // when the application wants control of the main loop and not use the gracht_server_main_loop function.
+    // Then the application can manually call gracht_server_handle_event with the fd's that it does not handle.
+    int                            set_descriptor;
+    int                            set_descriptor_provided;
 } gracht_server_configuration_t;
 
 #ifdef __cplusplus

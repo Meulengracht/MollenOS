@@ -56,7 +56,7 @@ _Noreturn static void __crt_service_main(int setIod)
 void __CrtServiceEntry(void)
 {
     thread_storage_t              threadStorage;
-    gracht_server_configuration_t config;
+    gracht_server_configuration_t config = { 0 };
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 

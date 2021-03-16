@@ -46,7 +46,7 @@ DEFINE_TEST_UTILS_SERVER_PROTOCOL(test_utils_callbacks, 1);
 int main(int argc, char **argv)
 {
     struct socket_server_configuration linkConfiguration;
-    struct gracht_server_configuration serverConfiguration;
+    struct gracht_server_configuration serverConfiguration = { 0 };
     int                                code;
     UUId_t                             processId;
     

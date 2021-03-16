@@ -88,7 +88,7 @@ _Noreturn static void __crt_module_main(int setIod)
 void __CrtModuleEntry(void)
 {
     thread_storage_t              threadStorage;
-    gracht_server_configuration_t config;
+    gracht_server_configuration_t config = { 0 };
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 

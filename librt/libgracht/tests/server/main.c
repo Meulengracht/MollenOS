@@ -50,7 +50,7 @@ void test_utils_print_callback(struct gracht_recv_message* message, struct test_
 int main(int argc, char **argv)
 {
     struct socket_server_configuration linkConfiguration = { 0 };
-    struct gracht_server_configuration serverConfiguration;
+    struct gracht_server_configuration serverConfiguration = { 0 };
     int                                code;
     
     struct sockaddr_un* dgramAddr = (struct sockaddr_un*)&linkConfiguration.dgram_address;
