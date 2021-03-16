@@ -60,7 +60,8 @@ UsbCoreHubsRegister(
 {
     UsbHub_t* parentHub;
     UUId_t    controllerDeviceId = parentHubDeviceId;
-    uint8_t   address = 0;
+    uint8_t   portAddress = 0;
+    uint8_t   deviceAddress = 0;
     TRACE("UsbCoreHubsRegister(parentHubDeviceId=%u, hubDeviceId=%u, hubDriverId=%u, portCount=%i)",
           parentHubDeviceId, hubDeviceId, hubDriverId, portCount);
 
@@ -74,7 +75,9 @@ UsbCoreHubsRegister(
            for (i = 0; i < USB_MAX_PORTS; i++) {
                if (parentHub->Ports[i] && parentHub->Ports[i]->Device &&
                         parentHub->Ports[i]->Device->DeviceId == hubDeviceId) {
-                   address = parentHub->Ports[i]->Address;
+                   // get the usb device address of this hub and the port address we recide on
+                   deviceAddress = parentHub->Ports[i]->Device->Base.device_address;
+                   portAddress   = parentHub->Ports[i]->Address;
                    break;
                }
            }
@@ -86,7 +89,8 @@ UsbCoreHubsRegister(
         .DeviceId = hubDeviceId,
         .DriverId = hubDriverId,
         .PortCount = portCount,
-        .Address = address,
+        .DeviceAddress = deviceAddress,
+        .PortAddress = portAddress,
         .Ports = { 0 }
     });
     return OsSuccess;
