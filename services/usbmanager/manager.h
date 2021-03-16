@@ -54,7 +54,8 @@ typedef struct UsbHub {
     UUId_t     ControllerDeviceId;
     UUId_t     DeviceId;
     UUId_t     DriverId;
-    uint8_t    Address;
+    uint8_t    DeviceAddress;  // the usb device address of this hub
+    uint8_t    PortAddress;    // the port 'index' this hub is located on
     size_t     PortCount;
     UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
