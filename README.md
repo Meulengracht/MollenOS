@@ -159,7 +159,7 @@ The current services that are implemented (and at some point when we implement R
 All documentation about design and implementation, and the theory behind is stored in the `/docs` folder. Right now there isn't any documentation, but it'll all come with the Documentation milestone.
 
 ### Architecture <a name="doc-system-arch"></a>
-[System Overview](https://github.com/Meulengracht/MollenOS/tree/master/docs/images/top_view.png)
+![](images/top_view.png.png?raw=true)
 
 ### Project structure <a name="doc-project-structure"></a>
 
