@@ -47,6 +47,7 @@ int __UhciGetFfs(
 {
     int set = 0;
 
+    // Count the consecutive zero bits (trailing) on the right by binary search
     if (!(value & 0xFFFF)) { // 16 Bits
         set += 16;
         value >>= 16;

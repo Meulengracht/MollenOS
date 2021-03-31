@@ -176,7 +176,19 @@ enum KeyCode {
     VK_PLAY                 = 0x86,
     VK_ZOOM                 = 0x87,
 
-    VK_KEYCOUNT             = 0x88
+    VK_LBUTTON              = 0x88,
+    VK_MBUTTON              = 0x89,
+    VK_RBUTTON              = 0x8A,
+    VK_XBUTTON0             = 0x8B,
+    VK_XBUTTON1             = 0x8C,
+    VK_XBUTTON2             = 0x8D,
+    VK_XBUTTON3             = 0x8E,
+    VK_XBUTTON4             = 0x8F,
+    VK_XBUTTON5             = 0x90,
+    VK_XBUTTON6             = 0x91,
+    VK_XBUTTON7             = 0x92,
+
+    VK_KEYCOUNT             = 0x93
 };
 
 enum KeyModifiers {

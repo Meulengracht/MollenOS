@@ -225,7 +225,6 @@
                     <param name="rel_x" type="int16_t" />
                     <param name="rel_y" type="int16_t" />
                     <param name="rel_z" type="int16_t" />
-                    <param name="buttons_set" type="uint32_t" />
                 </event>
             </events>
         </protocol>

@@ -142,6 +142,7 @@ typedef struct PS2Port {
         struct {
             uint8_t sampling;
             uint8_t mode;
+            uint8_t buttonState;
         } mouse;
     } device_data;
 } PS2Port_t;

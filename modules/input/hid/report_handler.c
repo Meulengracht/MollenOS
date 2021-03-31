@@ -257,7 +257,7 @@ static void __HandleInputItem(
         ctt_input_event_cursor_all(hidDevice->Base.Base.Id, 0,
                                    context.EventData.PointerEvent.rel_x,
                                    context.EventData.PointerEvent.rel_y,
-                                   context.EventData.PointerEvent.rel_z, 0);
+                                   context.EventData.PointerEvent.rel_z);
     }
 }
 

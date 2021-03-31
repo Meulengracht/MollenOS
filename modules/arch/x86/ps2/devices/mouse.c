@@ -28,6 +28,32 @@
 #include "../ps2.h"
 #include <string.h>
 #include <event.h>
+#include <os/keycodes.h>
+
+const int g_lsbTable[64] = {
+    63, 30,  3, 32, 59, 14, 11, 33,
+    60, 24, 50,  9, 55, 19, 21, 34,
+    61, 29,  2, 53, 51, 23, 41, 18,
+    56, 28,  1, 43, 46, 27,  0, 35,
+    62, 31, 58,  4,  5, 49, 54,  6,
+    15, 52, 12, 40,  7, 42, 45, 16,
+    25, 57, 48, 13, 10, 39,  8, 44,
+    20, 47, 38, 22, 17, 37, 36, 26
+};
+
+/**
+ * bitScanForward
+ * @author Matt Taylor (2003)
+ * @param bb bitboard to scan
+ * @precondition bb != 0
+ * @return index (0..63) of least significant one bit
+ */
+int bitScanForward(uint64_t bb) {
+    unsigned int folded;
+    bb ^= bb - 1;
+    folded = (int) bb ^ (bb >> 32);
+    return g_lsbTable[folded * 0x78291ACF >> 26];
+}
 
 InterruptStatus_t
 PS2MouseFastInterrupt(
@@ -59,24 +85,52 @@ PS2MouseFastInterrupt(
     return InterruptHandled;
 }
 
-static void __ParseMouseBuffer(
-        _In_ struct ctt_input_cursor_event* input,
-        _In_ const uint8_t*                 buffer,
-        _In_ uint8_t                        mouseMode)
+static void __ParseButtonData(
+        _In_ PS2Port_t*     port,
+        _In_ const uint8_t* buffer)
+{
+    unsigned int lastButtons = port->device_data.mouse.buttonState;
+    unsigned int buttons     = buffer[0] & 0x7; // L-M-R buttons
+    unsigned int changed;
+
+    if (port->device_data.mouse.mode == 2) {
+        buttons |= (buffer[3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
+    }
+
+    // was it a button event?
+    changed = buttons ^ lastButtons;
+    if (changed) {
+        uint16_t modifiers = 0;
+
+        if (changed & lastButtons) {
+            modifiers |= VK_MODIFIER_RELEASED;
+        }
+
+        port->device_data.mouse.buttonState = buttons;
+        ctt_input_event_button_all(port->DeviceId, VK_LBUTTON + bitScanForward(changed), modifiers);
+    }
+}
+
+static void __ParseCursorData(
+        _In_ PS2Port_t*     port,
+        _In_ const uint8_t* buffer)
 {
     // Update relative x and y
-    input->rel_x       = (int16_t)(buffer[1] - ((buffer[0] << 4) & 0x100));
-    input->rel_y       = (int16_t)(buffer[2] - ((buffer[0] << 3) & 0x100));
-    input->buttons_set = buffer[0] & 0x7; // L-M-R buttons
+    uint16_t rel_x = (int16_t)(buffer[1] - ((buffer[0] << 4) & 0x100));
+    uint16_t rel_y = (int16_t)(buffer[2] - ((buffer[0] << 3) & 0x100));
+    uint16_t rel_z = 0;
 
     // Check extended data modes
-    if (mouseMode == 1) {
-        input->rel_z = (int16_t)(char)buffer[3];
+    if (port->device_data.mouse.mode == 1) {
+        rel_z = (int16_t)(char)buffer[3];
     }
-    else if (mouseMode == 2) {
+    else if (port->device_data.mouse.mode == 2) {
         // 4 bit signed value
-        input->rel_z        = (int16_t)(char)(buffer[3] & 0xF);
-        input->buttons_set |= (buffer[3] & (PS2_MOUSE_4BTN | PS2_MOUSE_5BTN)) >> 1;
+        rel_z = (int16_t)(char)(buffer[3] & 0xF);
+    }
+
+    if (rel_x || rel_y || rel_z) {
+        ctt_input_event_cursor_all(port->DeviceId, 0, rel_x, rel_y, rel_z);
     }
 }
 
@@ -85,15 +139,13 @@ PS2MouseInterrupt(
     _In_ PS2Port_t* port)
 {
     uint8_t  bytesRequired = port->device_data.mouse.mode == 0 ? 3 : 4;
-    uint32_t index = port->ResponseReadIndex;
+    uint32_t index         = port->ResponseReadIndex;
 
     // make sure there always are enough bytes to read
     smp_rmb();
     while (index <= (port->ResponseWriteIndex - bytesRequired)) {
-        struct ctt_input_cursor_event input = { 0 };
-        __ParseMouseBuffer(&input, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE], port->device_data.mouse.mode);
-        ctt_input_event_cursor_all(port->DeviceId, 0, input.rel_x, input.rel_y, input.rel_z, input.buttons_set);
-
+        __ParseCursorData(port, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE]);
+        __ParseButtonData(port, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE]);
         index += bytesRequired;
     }
 
