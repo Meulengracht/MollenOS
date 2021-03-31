@@ -24,9 +24,11 @@
 4. [Features](#features)
     1. [Bootloader](#features-boot)
     2. [Kernel](#features-kernel)
-    3. [Drivers](#features-drivers)
+    3. [Services](#features-services)
+    4. [Drivers](#features-drivers)
 5. [Documentation](#documentation)
-    1. [Project structure](#doc-project-structure)
+    1. [Architecture](#doc-system-arch)
+    2. [Project structure](#doc-project-structure)
 6. [Screenshots](#screenshots)
     1. [Boot](#ss-boot)
     2. [Usage](#ss-usage)
@@ -55,6 +57,8 @@ Toolchain scripts are located [here](https://github.com/Meulengracht/vali-toolch
 - build-cross.sh
 
 ### Setting up for OS development <a name="setting-up-devenv"></a>
+Remember to checkout all the submodules with the command git submodule update --init --recursive
+
 The last step is now to run the depends.sh script that is located in this repository which installs
 the final pre-requisites (nasm, mono-complete, cmake platform script). The script is located in tools/depends.sh.
 
@@ -108,18 +112,31 @@ If you want to contribute as a developer on the project please fork the reposito
 
 ## Roadmap <a name="roadmap"></a>
 
-Progress so far is that the kernel has succesfully been converted to a hybrid micro-kernel. Drivers have all been fitted to the new driver framework and
-are compiling. The new toolchain has also been taken into use (llvm/clang/lld) and i am currently working on a native port of said toolchain. The focus
-for 2019 will be the userspace, and stability/robustness of the operating system. No new kernel features are planned for the OS at this moment,
-and no new drivers unless I should reach a point where they are highly required.
+The basic features of the kernel is completed, and the road to the 0.7 release will include mostly bugfixes to kernel or any missing implementations. Some implementations in relation to cleanup of resources and coordination of cleanup are postponed and we now seem to slowly encounter those issues as we continue to port applications and functionality to the operation system. The goal for the 0.7 release are described in the milestone [0.7 Pearl](https://github.com/Meulengracht/MollenOS/milestone/6).
 
 ## Features <a name="features"></a>
 
 ### Bootloader <a name="features-boot"></a>
-MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own advanced bootloader, which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
+MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own faily complete bootloader for BIOS (only atm, we are planning to implement UEFI soon), which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
 
 ### Kernel <a name="features-kernel"></a>
-MollenOS supports a wide array of features and has implementation for VFS, Processes, Pipes, an advanced PE loader (which is used as the file format in MollenOS), ACPICA built in and MollenOS natively uses UTF-8 in it's kernel. UTF-8 Is implemented in a library called MString which is written for MollenOS.
+The Vali kernel is far from feature-complete, but it currently is in a state where it supports our use-cases. The kernel itself provides some of the basic system management functions like;
+ - Memory management
+ - Thread management
+ - IPC
+ - Module support system
+ - ACPI
+
+Rest of the system functionality exists as drivers and services.
+
+## Services <a name="features-services"></a>
+The current services that are implemented (and at some point when we implement RiscV/ARM architectures) should be included as configurable in the build system, so we can choose exactly which services are relevant for the platform.
+ - Device manager (Handles discovery and management of devices on the platform)
+ - File manager (Is responsible for both storage and file management)
+ - Net manager (Network stack and management of sockets)
+ - Process manager (Provides the process protocol that allows spawning and management of processes on the system)
+ - Session manager (Provides management of user sessions)
+ - Usb manager (The usb stack implementation that manages usb devices, hubs and controllers)
 
 ## Drivers <a name="features-drivers"></a>
     - AHCI
@@ -127,6 +144,7 @@ MollenOS supports a wide array of features and has implementation for VFS, Proce
     - MFS
     - HPET
     - USB Stack (OHCI, UHCI, EHCI)
+    - USB Hub
     - USB MSD
     - USB HID
     - (x86) PCI/PCIe
@@ -140,22 +158,25 @@ MollenOS supports a wide array of features and has implementation for VFS, Proce
 
 All documentation about design and implementation, and the theory behind is stored in the `/docs` folder. Right now there isn't any documentation, but it'll all come with the Documentation milestone.
 
+### Architecture <a name="doc-system-arch"></a>
+![](docs/images/top_view.png?raw=true)
+
 ### Project structure <a name="doc-project-structure"></a>
 
 - /boot (Contains bootloaders and anything boot-related)
 - /cmake (CMake configuration files required to build the OS with cmake)
-- /config (Make configuration files required to build the OS with make)
 - /docs (Documentation and related resources about the project and the OS)
-- /kernel (Contains the MollenOS kernel source code)
-- /librt (Contains all support and runtime libraries needed for MollenOS)
-- /modules (Contains drivers for MollenOS)
-- /releases (Full releases of the OS)
-- /services (Contains system services like the filemanager for MollenOS)
+- /kernel (Contains the Vali kernel source code)
+- /librt (Contains all support and runtime libraries needed for Vali)
+- /modules (Contains drivers for Vali)
+- /protocols (All the libgracht protocols used in the OS for services and modules)
+- /services (Contains system services like the filemanager for Vali)
 - /resources (Contains the deploy folder for installing the OS)
 - /tools (Contains tools for building and manipulating)
+- /tests (Contains example applications for the OS)
 
 ## Screenshots <a name="screenshots"></a>
 
-Showcase of MollenOS to get an idea of how the userspace will be once it's finished.
+Showcase of Vali to get an idea of how the userspace will be once it's finished.
 
 BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
