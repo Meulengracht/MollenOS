@@ -97,6 +97,9 @@ static void __CrashHandler(
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
         svc_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
+    else {
+        ERROR("Faulting address is 0x%" PRIxIN, CONTEXT_IP(context));
+    }
     
     // Last thing is to exit application
     ERROR("Received signal %i (%s). Terminating application",

@@ -241,12 +241,18 @@ int gracht_client_wait_message(
 {
     struct gracht_message* message;
     int                    status;
+    uint32_t               messageId = 0;
     
     if (!client || !messageBuffer) {
         errno = (EINVAL);
         return -1;
     }
 
+    // We must acquire hold of the client mutex as the mutex must be thread-safe in case
+    // of multiple calling threads. Only one thread can listen for client events at a time, and that
+    // means all other threads must queue up and wait for the thread that listens for events to signal
+    // them. This means the listening thread is now the orchestrator for the rest.
+listenForMessage:
     if (mtx_trylock(&client->wait_object) != thrd_success) {
         if (!(flags & GRACHT_WAIT_BLOCK)) {
             errno = EBUSY;
@@ -270,22 +276,26 @@ int gracht_client_wait_message(
     status = client->ops->recv(client->ops, messageBuffer, flags, &message);
     mtx_unlock(&client->wait_object);
     if (status) {
+        // In case of any recieving errors we must exit immediately
         return status;
     }
     
-    // if the message is not an event, then do not invoke any actions
+    // If the message is not an event, then do not invoke any actions. In any case if a context is provided
+    // we expect the caller to wanting to listen for that specific message. That means any incoming event and/or
+    // response we recieve should be for that, or we should keep waiting.
     TRACE("[gracht] [client] invoking message type %u - %u/%u",
         message->header.flags, message->header.protocol, message->header.action);
     if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_EVENT) {
-        return client_invoke_action(&client->protocols, message);
+        status = client_invoke_action(&client->protocols, message);
     }
     else if (MESSAGE_FLAG_TYPE(message->header.flags) == MESSAGE_FLAG_RESPONSE) {
         struct gracht_message_descriptor* descriptor = (struct gracht_message_descriptor*)
             gracht_list_lookup(&client->messages, (int)message->header.id);
         if (!descriptor) {
             // what the heck?
-            ERROR("[gracht_client_wait_message] descriptor %u was not found", message->header.id);
-            return -1;
+            ERROR("[gracht_client_wait_message] no-one was listening for message %u", message->header.id);
+            status = -1;
+            goto listenOrExit;
         }
         
         // copy data over to message
@@ -293,13 +303,26 @@ int gracht_client_wait_message(
         
         // set status
         descriptor->status = GRACHT_MESSAGE_COMPLETED;
+
+        // set message id handled
+        messageId = message->header.id;
         
         // iterate awaiters and mark those that contain this message
         mtx_lock(&client->sync_object);
         mark_awaiters(client, message->header.id);
         mtx_unlock(&client->sync_object);
     }
-    return 0;
+
+listenOrExit:
+    if (context) {
+        // In case a context was provided the meaning is that we should wait
+        // for a specific message. Make sure that the message we've handled were
+        // the one that was requested.
+        if (context->message_id != messageId) {
+            goto listenForMessage;
+        }
+    }
+    return status;
 }
 
 int gracht_client_create(gracht_client_configuration_t* config, gracht_client_t** clientOut)

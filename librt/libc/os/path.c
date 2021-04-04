@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -20,7 +21,8 @@
  * - This header describes the path-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
-#define __TRACE
+
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
@@ -80,44 +82,57 @@ OsStatus_t
 SetWorkingDirectory(
     _In_ const char* Path)
 {
-    OsFileDescriptor_t FileInfo;
-	char               TempBuffer[_MAXPATH] = { 0 };
-    TRACE("SetWorkingDirectory(%s)", Path);
+    OsFileDescriptor_t fileInfo;
+	char               canonBuffer[_MAXPATH];
+    char               outBuffer[_MAXPATH];
+    OsStatus_t         osStatus;
+    TRACE("SetWorkingDirectory(Path=%s)", Path);
 
 	if (Path == NULL || strlen(Path) == 0) {
 		return OsError;
 	}
 
+	memset(&canonBuffer[0], 0, _MAXPATH);
     if (strstr(Path, ":/") != NULL || strstr(Path, ":\\") != NULL) {
-        memcpy(&TempBuffer[0], Path, strlen(Path));
+        TRACE("SetWorkingDirectory absolute path detected");
+        memcpy(&canonBuffer[0], Path, strnlen(Path, _MAXPATH - 1));
     }
     else {
-        if (GetWorkingDirectory(&TempBuffer[0], _MAXPATH) != OsSuccess) {
+        TRACE("SetWorkingDirectory relative path detected");
+        if (GetWorkingDirectory(&canonBuffer[0], _MAXPATH) != OsSuccess) {
             return OsError;
         }
-        strcat(&TempBuffer[0], Path);
+        strncat(&canonBuffer[0], Path, _MAXPATH);
     }
-    
-    if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) == OsSuccess) {
-        OsStatus_t Status = GetFileInformationFromPath(&TempBuffer[0], &FileInfo);
-        if (Status == OsSuccess && (FileInfo.Flags & FILE_FLAG_DIRECTORY)) {
-            size_t CurrentLength = strlen(&TempBuffer[0]);
-            if (TempBuffer[CurrentLength - 1] != '/') {
-                TempBuffer[CurrentLength] = '/';
+
+    TRACE("SetWorkingDirectory canonicalizing %s", &canonBuffer[0]);
+    memset(&outBuffer[0], 0, _MAXPATH);
+    osStatus = PathCanonicalize(&canonBuffer[0], &outBuffer[0], _MAXPATH);
+    if (osStatus == OsSuccess) {
+        TRACE("SetWorkingDirectory canonicalized path=%s", &outBuffer[0]);
+
+        osStatus = GetFileInformationFromPath(&outBuffer[0], &fileInfo);
+        if (osStatus == OsSuccess && (fileInfo.Flags & FILE_FLAG_DIRECTORY)) {
+            size_t currentLength;
+
+            TRACE("SetWorkingDirectory path exists and is a directory");
+            currentLength = strlen(&outBuffer[0]);
+            if (outBuffer[currentLength - 1] != '/') {
+                outBuffer[currentLength] = '/';
             }
 
             // Handle this differently based on a module or application
-            return ProcessSetWorkingDirectory(&TempBuffer[0]);
+            return ProcessSetWorkingDirectory(&outBuffer[0]);
         }
         else {
-            ERROR("GetFileInformationFromPath(%s) Result: %u, %u",
-                &TempBuffer[0], Status, FileInfo.Flags);
+            ERROR("SetWorkingDirectory path was not a directory: %u, %u",
+                  osStatus, fileInfo.Flags);
         }
     }
     else {
-        ERROR("Failed to canonicalize path for current path: %s", &TempBuffer[0]);
+        ERROR("SetWorkingDirectory failed to canonicalize path=%s", &canonBuffer[0]);
     }
-    return OsError;
+    return osStatus;
 }
 
 OsStatus_t

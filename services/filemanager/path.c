@@ -19,6 +19,7 @@
  * File Manager Service
  * - Handles all file related services and disk services
  */
+
 //#define __TRACE
 
 #include <ctype.h>
@@ -82,23 +83,28 @@ MString_t*
 VfsPathResolveEnvironment(
     _In_ enum svc_path_environment_path base)
 {
-	MString_t* resolvedPath;
+	MString_t* resolvedPath = NULL;
 	OsStatus_t status;
+	TRACE("VfsPathResolveEnvironment(base=%u)", base);
 
 	// Create a new string instance to store resolved in
 	resolvedPath = MStringCreate(NULL, StrUTF8);
 	if (!resolvedPath) {
-	    return NULL;
+	    goto exit;
 	}
 
 	status = __ResolveBootDriveIdentifier(resolvedPath);
 	if (status != OsSuccess) {
 	    MStringDestroy(resolvedPath);
-	    return NULL;
+        resolvedPath = NULL;
+        goto exit;
 	}
 
 	// Now append the special paths and return it
 	MStringAppendCharacters(resolvedPath, g_environmentPaths[(int)base], StrUTF8);
+
+exit:
+    TRACE("VfsPathResolveEnvironment returns=%s", MStringRaw(resolvedPath));
 	return resolvedPath;
 }
 
@@ -107,25 +113,28 @@ VfsExpandIdentifier(
     _In_ MString_t*  destination,
     _In_ const char* identifier)
 {
-    int        j = 0;
-    OsStatus_t status;
+    int        j        = 0;
+    OsStatus_t osStatus = OsDoesNotExist;
+    TRACE("VfsExpandIdentifier(identifier=%s)", identifier);
 
     while (g_vfsIdentifiers[j].identifier != NULL) { // Iterate all possible identifiers
-        struct VfsIdentifier* vfsIdentifier = &g_vfsIdentifiers[j];
+        struct VfsIdentifier* vfsIdentifier    = &g_vfsIdentifiers[j];
         size_t                identifierLength = strlen(vfsIdentifier->identifier);
 
         if (!strncasecmp(vfsIdentifier->identifier, (const char*)&identifier[1], identifierLength)) {
-            status = __ResolveBootDriveIdentifier(destination);
-            if (status != OsSuccess) {
-                return status;
+            osStatus = __ResolveBootDriveIdentifier(destination);
+            if (osStatus != OsSuccess) {
+                break;
             }
 
             MStringAppendCharacters(destination, g_environmentPaths[vfsIdentifier->resolve], StrUTF8);
-            return OsSuccess;
+            break;
         }
         j++;
     }
-    return OsDoesNotExist;
+
+    TRACE("VfsExpandIdentifier returns=%u", osStatus);
+    return osStatus;
 }
 
 MString_t*
@@ -135,7 +144,7 @@ VfsPathCanonicalize(
 	MString_t* absolutePath;
 	int        i = 0;
 
-    TRACE("[vfs] [canonicalize] %s", path);
+    TRACE("VfsPathCanonicalize(path=%s)", path);
 
 	// Iterate all characters and build a new string
 	// containing the canonicalized path simoultanously
@@ -235,13 +244,16 @@ VfsPathCanonicalize(
 		}
 		i++;
 	}
-    TRACE("=> %s", MStringRaw(absolutePath));
+    TRACE("VfsPathCanonicalize returns=%s", MStringRaw(absolutePath));
 	return absolutePath;
 }
 
 void svc_path_resolve_callback(struct gracht_recv_message* message, struct svc_path_resolve_args* args)
 {
-    MString_t* resolvedPath = VfsPathResolveEnvironment(args->base);
+    MString_t* resolvedPath;
+    TRACE("svc_path_resolve_callback(base=%u)", args->base);
+
+    resolvedPath = VfsPathResolveEnvironment(args->base);
     if (!resolvedPath) {
         svc_path_resolve_response(message, OsDoesNotExist, "");
         return;
@@ -253,7 +265,10 @@ void svc_path_resolve_callback(struct gracht_recv_message* message, struct svc_p
 
 void svc_path_canonicalize_callback(struct gracht_recv_message* message, struct svc_path_canonicalize_args* args)
 {
-    MString_t* canonicalizedPath = VfsPathCanonicalize(args->path);
+    MString_t* canonicalizedPath;
+    TRACE("svc_path_canonicalize_callback(path=%s)", args->path);
+
+    canonicalizedPath = VfsPathCanonicalize(args->path);
     if (!canonicalizedPath) {
         svc_path_canonicalize_response(message, OsDoesNotExist, "");
         return;

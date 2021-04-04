@@ -83,7 +83,7 @@ HardFault(
         __asm { xchg bx, bx };
         return;
     }
-    DebugPanic(FATAL_SCOPE_KERNEL, context, __MODULE,
+    DebugPanic(FATAL_SCOPE_KERNEL, context,
         "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
                context->Irq, context->ErrorCode, CONTEXT_IP(context));
 }

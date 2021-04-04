@@ -48,5 +48,6 @@ typedef struct SystemMemory {
 
 #define IS_KERNEL_CODE(mmap_ptr, addr) (ISINRANGE(addr, (mmap_ptr)->KernelRegion.Start, (mmap_ptr)->KernelRegion.Start + (mmap_ptr)->KernelRegion.Length))
 #define IS_USER_CODE(mmap_ptr, addr)   (ISINRANGE(addr, (mmap_ptr)->UserCode.Start, (mmap_ptr)->UserCode.Start + (mmap_ptr)->UserCode.Length))
+#define IS_USER_STACK(mmap_ptr, addr)  (ISINRANGE(addr, (mmap_ptr)->ThreadRegion.Start, (mmap_ptr)->ThreadRegion.Start + (mmap_ptr)->ThreadRegion.Length))
 
 #endif // !__COMPONENT_MEMORY__

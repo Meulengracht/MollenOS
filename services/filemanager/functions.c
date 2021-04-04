@@ -66,6 +66,7 @@ static FileSystem_t* __GetFileSystemFromPath(MString_t* path, MString_t** subPat
     MString_t* identifier;
     MString_t* subPath;
     int        index;
+    TRACE("__GetFileSystemFromPath(path=%s)", MStringRaw(path));
 
     // To open a new file we need to find the correct
     // filesystem identifier and seperate it from it's absolute path
@@ -107,20 +108,22 @@ VfsIsHandleValid(
 {
     element_t*               header = list_find(&g_fileHandles, (void*)(uintptr_t)handle);
     FileSystemEntryHandle_t* entry;
+    TRACE("VfsIsHandleValid(processId=%u, handle=%u, requiredAccess=0x%x)",
+          processId, handle, requiredAccess);
 
     if (!header) {
-        ERROR("[vfs] [check_handle] not found: %u", handle);
+        ERROR("VfsIsHandleValid not found: %u", handle);
         return OsInvalidParameters;
     }
 
     entry = (FileSystemEntryHandle_t*)header->value;
     if (entry->Owner != processId) {
-        ERROR("Owner of the handle did not match the requester. Access Denied.");
+        ERROR("VfsIsHandleValid Owner of the handle did not match the requester. Access Denied.");
         return OsInvalidPermissions;
     }
 
     if (requiredAccess != 0 && (entry->Access & requiredAccess) != requiredAccess) {
-        ERROR("handle was not opened with the required access parameter. Access Denied.");
+        ERROR("VfsIsHandleValid handle was not opened with the required access parameter. Access Denied.");
         return OsInvalidPermissions;
     }
 
@@ -133,15 +136,21 @@ VfsOpenHandleInternal(
     _In_  FileSystemEntry_t*        entry,
     _Out_ FileSystemEntryHandle_t** handleOut)
 {
-    FileSystem_t*            filesystem = (FileSystem_t*)entry->System;
+    FileSystem_t*            filesystem;
     FileSystemEntryHandle_t* handle;
     OsStatus_t               status;
 
-    TRACE("VfsOpenHandleInternal()");
+    TRACE("VfsOpenHandleInternal(entry=0x%" PRIxIN ", handleOut=0x%" PRIxIN ")",
+          entry, handleOut);
+    if (!entry || !handleOut) {
+        return OsInvalidParameters;
+    }
 
-    status = filesystem->module->OpenHandle(&filesystem->descriptor, entry, &handle);
+    TRACE("VfsOpenHandleInternal opening %s", MStringRaw(entry->Path));
+    filesystem = (FileSystem_t*)entry->System;
+    status     = filesystem->module->OpenHandle(&filesystem->descriptor, entry, &handle);
     if (status != OsSuccess) {
-        ERROR("Failed to initiate a new entry-handle, code %i", status);
+        ERROR("VfsOpenHandleInternal failed to initiate a new entry-handle, code %i", status);
         return status;
     }
 
@@ -153,6 +162,8 @@ VfsOpenHandleInternal(
 
     // handle file specific options
     if (__IsEntryFile(entry)) {
+        TRACE("VfsOpenHandleInternal entry is a file, validating options 0x%x", handle->Options);
+
         // Initialise buffering as long as the file
         // handle is not opened as volatile
         if (!(handle->Options & __FILE_VOLATILE)) {
@@ -171,8 +182,6 @@ VfsOpenHandleInternal(
     return status;
 }
 
-/* VfsVerifyAccessToPath
- * Verifies the requested user has access to the path. */
 OsStatus_t
 VfsVerifyAccessToPath(
         _In_  MString_t*          path,
@@ -182,9 +191,17 @@ VfsVerifyAccessToPath(
 {
     FileSystemEntry_t* fileEntry;
     element_t*         element;
-    OsStatus_t         status = VfsCacheGetFile(path, options, &fileEntry);
+    OsStatus_t         status;
+    TRACE("VfsVerifyAccessToPath(path=%s, options=0x%x, access=0x%x)",
+          MStringRaw(path), options, access);
+
+    if (!path || !existingEntry) {
+        return OsInvalidParameters;
+    }
+
+    status = VfsCacheGetFile(path, options, &fileEntry);
     if (status != OsSuccess) {
-        ERROR("[vfs] [verify_access] failed to retrieve file: %u", status);
+        ERROR("VfsVerifyAccessToPath failed to retrieve file: %u", status);
         return status;
     }
 
@@ -195,13 +212,13 @@ VfsVerifyAccessToPath(
         if (handle->Entry == fileEntry) {
             // Are we trying to open the file in exclusive mode?
             if (__IsAccessExclusive(access)) {
-                ERROR("[vfs] [validate_perm] can't get exclusive lock on file, it is already opened");
+                ERROR("VfsVerifyAccessToPath can't get exclusive lock on file, it is already opened");
                 return OsInvalidPermissions;
             }
 
             // Is the file already opened in exclusive mode
             if (__IsAccessExclusive(handle->Access)) {
-                ERROR("[vfs] [validate_perm] can't open file, it is locked");
+                ERROR("VfsVerifyAccessToPath can't open file, it is locked");
                 return OsInvalidPermissions;
             }
         }
@@ -221,7 +238,8 @@ VfsOpenFileInternal(
     FileSystemEntry_t* entry;
     OsStatus_t         status;
 
-    TRACE("VfsOpenInternal(Path %s)", MStringRaw(path));
+    TRACE("VfsOpenFileInternal(path=%s, options=0x%x, access=0x%x)",
+          MStringRaw(path), options, access);
 
     status = VfsVerifyAccessToPath(path, options, access, &entry);
     if (status == OsSuccess) {
@@ -232,20 +250,23 @@ VfsOpenFileInternal(
             entry->References++;
         }
     }
+    TRACE("VfsOpenFileInternal returns=%u", status);
     return status;
 }
 
-/* VfsGuessBasePath
- * Tries to guess the base path of the relative file path in case
- * the working directory cannot be resolved. */
 OsStatus_t
 VfsGuessBasePath(
     _In_ const char* path,
     _In_ char*       result)
 {
-    char* dot = strrchr(path, '.');
+    char* dot;
 
-    TRACE("VfsGuessBasePath(%s)", path);
+    TRACE("VfsGuessBasePath(path=%s)", path);
+    if (!path || !result) {
+        return OsInvalidParameters;
+    }
+
+    dot = strrchr(path, '.');
     if (dot) {
         // Binaries are found in common
         if (!strcmp(dot, ".app") || !strcmp(dot, ".dll")) {
@@ -260,7 +281,8 @@ VfsGuessBasePath(
     else {
         strcpy(result, "$sys/");
     }
-    TRACE("=> %s", result);
+
+    TRACE("VfsGuessBasePath returns=%s", result);
     return OsSuccess;
 }
 
@@ -270,18 +292,25 @@ VfsResolvePath(
     _In_ const char* path)
 {
     MString_t* resolvedPath = NULL;
+    OsStatus_t osStatus;
 
-    TRACE("VfsResolvePath(%s)", path);
+    TRACE("VfsResolvePath(processId=%u, path=%s)", processId, path);
+
     if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
         char* basePath = (char*)malloc(_MAXPATH);
         if (!basePath) {
+            ERROR("VfsResolvePath out of memory");
             return NULL;
         }
         memset(basePath, 0, _MAXPATH);
 
-        if (ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH) == OsError) {
-            if (VfsGuessBasePath(path, &basePath[0]) == OsError) {
-                ERROR("Failed to guess the base path for path %s", path);
+        osStatus = ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH);
+        if (osStatus != OsSuccess) {
+            WARNING("VfsResolvePath failed to get working directory [%u], guessing base path", osStatus);
+
+            osStatus = VfsGuessBasePath(path, &basePath[0]);
+            if (osStatus != OsSuccess) {
+                ERROR("VfsResolvePath failed to guess the base path: %u", osStatus);
                 free(basePath);
                 return NULL;
             }
@@ -297,6 +326,8 @@ VfsResolvePath(
     else {
         resolvedPath = VfsPathCanonicalize(path);
     }
+
+    TRACE("VfsResolvePath returns=%s", MStringRaw(resolvedPath));
     return resolvedPath;
 }
 
@@ -313,44 +344,46 @@ OpenFile(
     MString_t*               resolvedPath;
     UUId_t                   id;
 
-    TRACE("[vfs] [open] path %s, options 0x%x, access 0x%x", path, options, access);
-    if (path == NULL) {
+    TRACE("OpenFile path %s, options 0x%x, access 0x%x", path, options, access);
+    if (!path || !handleOut) {
         return OsInvalidParameters;
     }
 
-    // If path is not absolute or special, we 
-    // must try the working directory of caller
+    // If path is not absolute or special, we must try the working directory of caller
     resolvedPath = VfsResolvePath(processId, path);
-    if (resolvedPath != NULL) {
+    if (resolvedPath) {
         status = VfsOpenFileInternal(resolvedPath, options, access, &entry);
         MStringDestroy(resolvedPath);
     }
 
     // Sanitize code
     if (status != OsSuccess) {
-        TRACE("[vfs] [open] error opening entry, exited with code: %i", status);
+        TRACE("OpenFile error opening entry, exited with code: %i", status);
+        return status;
     }
-    else {
-        id = g_nextFileId++;
 
-        ELEMENT_INIT(&entry->header, (uintptr_t)id, entry);
-        entry->Id      = id;
-        entry->Owner   = processId;
-        entry->Access  = access;
-        entry->Options = options;
+    id = g_nextFileId++;
 
-        list_append(&g_fileHandles, &entry->header);
+    ELEMENT_INIT(&entry->header, (uintptr_t)id, entry);
+    entry->Id      = id;
+    entry->Owner   = processId;
+    entry->Access  = access;
+    entry->Options = options;
 
-        *handleOut = id;
-    }
+    list_append(&g_fileHandles, &entry->header);
+
+    *handleOut = id;
     return status;
 }
 
 void svc_file_open_callback(struct gracht_recv_message* message, struct svc_file_open_args* args)
 {
     UUId_t     handle = UUID_INVALID;
-    OsStatus_t status = OpenFile(args->process_id, args->path, args->options,
-        args->access, &handle);
+    OsStatus_t status;
+
+    TRACE("svc_file_open_callback()");
+    status = OpenFile(args->process_id, args->path, args->options, args->access, &handle);
+    TRACE("svc_file_open_callback returns=[status %u, handle %u]", status, handle);
     svc_file_open_response(message, status, handle);
 }
 
@@ -365,7 +398,7 @@ CloseFile(
     element_t*               header;
     FileSystem_t*            fileSystem;
 
-    TRACE("[vfs] [close] handle %u", handle);
+    TRACE("CloseFile handle %u", handle);
 
     status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
     if (status != OsSuccess) {

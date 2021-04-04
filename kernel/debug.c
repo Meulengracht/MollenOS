@@ -119,39 +119,39 @@ DebugPanic(
     _In_ Context_t*  Context,
     _In_ const char* Message, ...)
 {
-    Thread_t *CurrentThread;
-    char MessageBuffer[256];
-    va_list Arguments;
-    UUId_t CoreId;
+    Thread_t* currentThread;
+    char      messageBuffer[256];
+    va_list   arguments;
+    UUId_t    coreId;
 
     ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
-    CoreId = ArchGetProcessorCoreId();
+    coreId = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
         if (list_count(&GetMachine()->SystemDomains) != 0) {
             foreach(i, &GetMachine()->SystemDomains) {
                 SystemDomain_t* Domain = (SystemDomain_t*)i->value;
-                DebugHaltAllProcessorCores(CoreId, &Domain->CoreGroup);
+                DebugHaltAllProcessorCores(coreId, &Domain->CoreGroup);
             }
         }
         else {
-            DebugHaltAllProcessorCores(CoreId, &GetMachine()->Processor);
+            DebugHaltAllProcessorCores(coreId, &GetMachine()->Processor);
         }
     }
 
     // Format the debug information
-    va_start(Arguments, Message);
-    vsprintf(&MessageBuffer[0], Message, Arguments);
-    va_end(Arguments);
+    va_start(arguments, Message);
+    vsprintf(&messageBuffer[0], Message, arguments);
+    va_end(arguments);
     LogSetRenderMode(1);
-    LogAppendMessage(LOG_ERROR, &MessageBuffer[0]);
+    LogAppendMessage(LOG_ERROR, &messageBuffer[0]);
     
     // Log cpu and threads
-    CurrentThread = ThreadCurrentForCore(CoreId);
-    if (CurrentThread != NULL) {
+    currentThread = ThreadCurrentForCore(coreId);
+    if (currentThread != NULL) {
         LogAppendMessage(LOG_ERROR, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-            ThreadName(CurrentThread), ThreadHandle(CurrentThread), CoreId);
+                         ThreadName(currentThread), ThreadHandle(currentThread), coreId);
     }
     
     if (Context) {
@@ -219,27 +219,27 @@ DebugGetModuleByAddress(
 
 OsStatus_t
 DebugStackTrace(
-    _In_ Context_t* Context,
-    _In_ size_t     MaxFrames)
+    _In_ Context_t* context,
+    _In_ size_t     maxFrames)
 {
     // Derive stack pointer from the argument
     uintptr_t* StackPtr;
     uintptr_t  StackLmt;
     uintptr_t  PageMask = ~(GetMemorySpacePageSize() - 1);
-    size_t     Itr      = MaxFrames;
+    size_t     Itr      = maxFrames;
 
     // Use local or given?
-    if (Context == NULL) {
-        StackPtr = (uintptr_t*)&MaxFrames;
+    if (context == NULL) {
+        StackPtr = (uintptr_t*)&maxFrames;
         StackLmt = ((uintptr_t)StackPtr & PageMask) + GetMemorySpacePageSize();
     }
-    else if (CONTEXT_USERSP(Context) != 0) {
-        StackPtr = (uintptr_t*)CONTEXT_USERSP(Context);
-        StackLmt = (CONTEXT_USERSP(Context) & PageMask) + GetMemorySpacePageSize();
+    else if (IS_USER_STACK(&GetMachine()->MemoryMap, CONTEXT_USERSP(context))) {
+        StackPtr = (uintptr_t*)CONTEXT_USERSP(context);
+        StackLmt = (CONTEXT_USERSP(context) & PageMask) + GetMemorySpacePageSize();
     }
     else {
-        StackPtr = (uintptr_t*)CONTEXT_SP(Context);
-        StackLmt = (CONTEXT_SP(Context) & PageMask) + GetMemorySpacePageSize();
+        StackPtr = (uintptr_t*)CONTEXT_SP(context);
+        StackLmt = (CONTEXT_SP(context) & PageMask) + GetMemorySpacePageSize();
     }
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
@@ -250,20 +250,20 @@ DebugStackTrace(
         // Check for userspace code address
         if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
             Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
-            Context != NULL) {
+            context != NULL) {
             if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
-                WRITELINE("%" PRIuIN " - 0x%" PRIxIN " (%s)", MaxFrames - Itr, (Value - Base), Name);
+                WRITELINE("%" PRIuIN " - 0x%" PRIxIN " (%s)", maxFrames - Itr, (Value - Base), Name);
                 
             }
             else {
-                WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", MaxFrames - Itr, Value);
+                WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
             }
             Itr--;
         }
 
         // Check for kernelspace code address
-        if (Value >= 0x100000 && Value < 0x200000 && Context == NULL) {
-            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", MaxFrames - Itr, Value);
+        if (Value >= 0x100000 && Value < 0x200000 && context == NULL) {
+            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
             Itr--;
         }
         StackPtr++;

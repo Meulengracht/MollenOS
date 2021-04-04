@@ -20,9 +20,8 @@
  * - Standard IO file operation implementations.
  */
 
-#define __TRACE
+//#define __TRACE
 
-#include <assert.h>
 #include <svc_file_protocol_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
@@ -122,12 +121,25 @@ int open(const char* file, int flags, ...)
     // Try to open the file by directly communicating with the file-service
     status = svc_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
         file, _fopts(flags), _faccess(flags));
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-    svc_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
-    if (status || OsStatusToErrno(osStatus)) {
+    if (status) {
+        ERROR("open no communcation channel open");
+        _set_errno(ECOMM);
         return -1;
     }
-    
+
+    status = gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    if (status) {
+        ERROR("open failed to wait for answer: %i", status);
+        return -1;
+    }
+
+    svc_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
+    if (OsStatusToErrno(osStatus)) {
+        ERROR("open(path=%s) failed with code: %u", file, osStatus);
+        return -1;
+    }
+
+    TRACE("open retrieved handle %u", handle);
     if (stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object)) {
         svc_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);

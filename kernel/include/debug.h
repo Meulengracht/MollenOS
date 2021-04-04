@@ -107,8 +107,8 @@ DebugGetModuleByAddress(
  * Goes back a maximum of <MaxFrames> in the stack */
 KERNELAPI OsStatus_t KERNELABI
 DebugStackTrace(
-    _In_ Context_t* Context,
-    _In_ size_t     MaxFrames);
+    _In_ Context_t* context,
+    _In_ size_t     maxFrames);
 
 /* DebugMemory 
  * Dumps memory in the form of <data> <string> at the

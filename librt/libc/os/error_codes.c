@@ -25,6 +25,7 @@
 #include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <errno.h>
+#include <assert.h>
 
 const int g_errorCodeTable[OsErrorCodeCount] = {
     EOK,
@@ -61,10 +62,14 @@ int
 OsStatusToErrno(
     _In_ OsStatus_t Status)
 {
-    int errno_code = g_errorCodeTable[Status];
-    _set_errno(errno_code);
-    if (Status == OsSuccess) {
-        return 0;
+    int errnoCode;
+    if (Status >= OsErrorCodeCount) {
+        _set_errno(EINVAL);
+        return -1;
     }
-    return -1;
+
+
+    errnoCode = g_errorCodeTable[Status];
+    _set_errno(errnoCode);
+    return Status == OsSuccess ? 0 : -1;
 }

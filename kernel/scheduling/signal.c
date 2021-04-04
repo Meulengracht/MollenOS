@@ -151,8 +151,8 @@ SignalExecuteLocalThreadTrap(
     // Do not support signals that occur in kernel code, those should __NOT__ occur
     // but rather we should protect against or fix why it fails.
     // However if we wanted to support this, we could
-    if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(context))) {
-        DebugPanic(FATAL_SCOPE_KERNEL, context, "FAIL",
+    if (CONTEXT_IP(context) != 0 && IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(context))) {
+        DebugPanic(FATAL_SCOPE_KERNEL, context,
                    "Crash at address 0x%" PRIxIN, CONTEXT_IP(context));
     }
 
