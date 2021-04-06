@@ -29,7 +29,7 @@ _CODE_END
 #define Syscall_ModuleName(Buffer, MaxLength)                                                (OsStatus_t)syscall2(5, SCPARAM(Buffer), SCPARAM(MaxLength))
 #define Syscall_ModuleExit(ExitCode)                                                         (OsStatus_t)syscall1(6, SCPARAM(ExitCode))
 
-#define Syscall_LibraryLoad(Path, HandleOut)                                                 (OsStatus_t)syscall2(7, SCPARAM(Path), SCPARAM(HandleOut))
+#define Syscall_LibraryLoad(Path, HandleOut, EntryAddressOut)                                (OsStatus_t)syscall3(7, SCPARAM(Path), SCPARAM(HandleOut), SCPARAM(EntryAddressOut))
 #define Syscall_LibraryFunction(Handle, FunctionName)                                        (uintptr_t)syscall2(8, SCPARAM(Handle), SCPARAM(FunctionName))
 #define Syscall_LibraryUnload(Handle)                                                        (OsStatus_t)syscall1(9, SCPARAM(Handle))
 

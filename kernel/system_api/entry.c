@@ -55,7 +55,7 @@ extern OsStatus_t ScModuleGetStartupInformation(ProcessStartupInformation_t*, UU
 extern OsStatus_t ScModuleGetCurrentName(const char* Buffer, size_t MaxLength);
 extern OsStatus_t ScModuleExit(int ExitCode);
 
-extern OsStatus_t ScSharedObjectLoad(const char* SoName, Handle_t* HandleOut);
+extern OsStatus_t ScSharedObjectLoad(const char*, Handle_t*, uintptr_t*);
 extern uintptr_t  ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
 extern OsStatus_t ScSharedObjectUnload(Handle_t Handle);
 

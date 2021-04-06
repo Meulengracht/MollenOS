@@ -39,6 +39,7 @@ struct library_element {
     const char* path;
     atomic_int* references;
     Handle_t    handle;
+    uintptr_t   entryAddress;
 };
 
 static uint64_t so_hash(const void* element);
@@ -63,8 +64,9 @@ SharedObjectLoad(
 {
     SOInitializer_t          Initializer;
     struct library_element*  library;
-    Handle_t                 handle = HANDLE_INVALID;
-    OsStatus_t               Status = OsSuccess;
+    Handle_t                 handle   = HANDLE_INVALID;
+    OsStatus_t               osStatus = OsSuccess;
+    uintptr_t                entryAddress;
 
     // Special case
     if (SharedObject == NULL) {
@@ -81,16 +83,16 @@ SharedObjectLoad(
     }
 
     if (IsProcessModule()) {
-        Status = Syscall_LibraryLoad(SharedObject, &handle);
+        osStatus = Syscall_LibraryLoad(SharedObject, &handle, &entryAddress);
     }
     else {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         svc_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_library_load_result(GetGrachtClient(), &msg.base, &Status, &handle);
+        svc_library_load_result(GetGrachtClient(), &msg.base, &osStatus, &handle, &entryAddress);
     }
 
-    if (Status == OsSuccess && handle != HANDLE_INVALID) {
+    if (osStatus == OsSuccess && handle != HANDLE_INVALID) {
         struct library_element element;
         element.references = (atomic_int*)malloc(sizeof(atomic_int));
         if (!element.references) {
@@ -106,12 +108,13 @@ SharedObjectLoad(
         }
 
         element.handle = handle;
+        element.entryAddress = entryAddress;
         atomic_store(element.references, 1);
         hashtable_set(&g_libraries, &element);
         mtx_unlock(&g_librariesLock);
         
         // run initializer
-        Initializer = (SOInitializer_t)SharedObjectGetFunction(handle, "__CrtLibraryEntry");
+        Initializer = (SOInitializer_t)(void*)entryAddress;
         if (Initializer != NULL) {
             Initializer(DLL_ACTION_INITIALIZE);
         }
@@ -120,7 +123,7 @@ SharedObjectLoad(
         mtx_unlock(&g_librariesLock);
     }
 
-    OsStatusToErrno(Status);
+    OsStatusToErrno(osStatus);
     return handle;
 }
 
@@ -162,7 +165,7 @@ OsStatus_t
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
-    SOInitializer_t        Initialize = NULL;
+    SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
     OsStatus_t             status = OsSuccess;
@@ -190,9 +193,9 @@ SharedObjectUnload(
     references = atomic_fetch_sub(enumContext.library->references, 1);
     if (references == 1) {
         // Run finalizer before unload
-        Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
-        if (Initialize != NULL) {
-            Initialize(DLL_ACTION_FINALIZE);
+        initialize = (SOInitializer_t)(void*)enumContext.library->entryAddress;
+        if (initialize != NULL) {
+            initialize(DLL_ACTION_FINALIZE);
         }
         
         if (IsProcessModule()) {

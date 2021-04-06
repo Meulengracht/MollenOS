@@ -49,6 +49,8 @@ GetModuleAndOffset(
         _Out_ uintptr_t*   moduleBase)
 {
     if (address < process->Executable->CodeBase) {
+        *moduleBase = process->Executable->VirtualAddress;
+        *moduleName = (char*) MStringRaw(process->Executable->Name);
         return OsDoesNotExist;
     }
 

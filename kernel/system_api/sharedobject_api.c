@@ -28,28 +28,36 @@
 
 OsStatus_t
 ScSharedObjectLoad(
-    _In_  const char* SoName,
-    _Out_ Handle_t*   HandleOut)
+    _In_  const char* soName,
+    _Out_ Handle_t*   handleOut,
+    _Out_ uintptr_t*  entryAddressOut)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    MString_t*      Path;
-    OsStatus_t      Status;
+    SystemModule_t* currentModule = GetCurrentModule();
+    PeExecutable_t* executable;
+    MString_t*      path;
+    OsStatus_t      osStatus;
     
-    if (Module == NULL) {
+    if (currentModule == NULL) {
         return OsInvalidPermissions;
     }
 
     // Sanitize the given shared-object path
     // If null, get handle to current assembly
-    if (SoName == NULL) {
-        *HandleOut = HANDLE_GLOBAL;
+    if (soName == NULL) {
+        *handleOut = HANDLE_GLOBAL;
+        *entryAddressOut = currentModule->Executable->EntryAddress;
         return OsSuccess;
     }
 
-    Path   = MStringCreate(SoName, StrUTF8);
-    Status = PeLoadImage(UUID_INVALID, Module->Executable, Path, (PeExecutable_t**)HandleOut);
-    MStringDestroy(Path);
-    return Status;
+    path     = MStringCreate(soName, StrUTF8);
+    osStatus = PeLoadImage(UUID_INVALID, currentModule->Executable, path, &executable);
+    MStringDestroy(path);
+
+    if (osStatus == OsSuccess) {
+        *handleOut = executable;
+        *entryAddressOut = executable->EntryAddress;
+    }
+    return osStatus;
 }
 
 uintptr_t

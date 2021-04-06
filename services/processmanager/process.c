@@ -669,38 +669,47 @@ OsStatus_t
 LoadProcessLibrary(
         _In_  Process_t*  process,
         _In_  const char* path,
-        _Out_ Handle_t*   handleOut)
+        _Out_ Handle_t*   handleOut,
+        _Out_ uintptr_t*  entryAddressOut)
 {
-    MString_t* pathAsMString;
-    OsStatus_t osStatus;
+    PeExecutable_t* executable;
+    MString_t*      pathAsMString;
+    OsStatus_t      osStatus;
 
     TRACE("LoadProcessLibrary(%u, %s)", (UUId_t) (uintptr_t) process->Header.key,
           (path == NULL) ? "Global" : path);
     if (path == NULL) {
-        *handleOut = HANDLE_GLOBAL;
+        *handleOut       = HANDLE_GLOBAL;
+        *entryAddressOut = process->Executable->EntryAddress;
         return OsSuccess;
     }
 
-    // Create the neccessary strings
     pathAsMString = MStringCreate((void *) path, StrUTF8);
-    osStatus = PeLoadImage((UUId_t) (uintptr_t) process->Header.key,
-                           process->Executable, pathAsMString, (PeExecutable_t **) handleOut);
+    osStatus      = PeLoadImage((UUId_t) (uintptr_t) process->Header.key,
+                           process->Executable, pathAsMString, &executable);
     MStringDestroy(pathAsMString);
+
+    if (osStatus == OsSuccess) {
+        *handleOut = executable;
+        *entryAddressOut = executable->EntryAddress;
+    }
     return osStatus;
 }
 
 void svc_library_load_callback(struct gracht_recv_message*   message,
                                struct svc_library_load_args* args)
 {
-    Process_t* process = AcquireProcess(args->process_handle);
-    OsStatus_t status   = OsInvalidParameters;
-    Handle_t   handle   = HANDLE_INVALID;
+    Process_t* process;
+    OsStatus_t status       = OsInvalidParameters;
+    Handle_t   handle       = HANDLE_INVALID;
+    uintptr_t  entryAddress = 0;
 
+    process = AcquireProcess(args->process_handle);
     if (process) {
-        status = LoadProcessLibrary(process, args->path, &handle);
+        status = LoadProcessLibrary(process, args->path, &handle, &entryAddress);
         ReleaseProcess(process);
     }
-    svc_library_load_response(message, status, handle);
+    svc_library_load_response(message, status, handle, entryAddress);
 }
 
 uintptr_t

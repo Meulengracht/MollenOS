@@ -461,6 +461,7 @@
                     <response>
                         <param name="status" type="OsStatus_t" />
                         <param name="handle" type="void*" />
+                        <param name="entryAddress" type="uintptr_t" />
                     </response>
                 </function>
                 <function name="get_function">
