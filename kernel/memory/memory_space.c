@@ -659,6 +659,8 @@ static OsStatus_t __GetAndVerifyPhysicalMapping(
     // Verify mappings
     for (i = 0; i < pagesRetrieved; i++) {
         if (!physicalAddresses[i]) {
+            ERROR("__GetAndVerifyPhysicalMapping offset %i was 0 [0x%" PRIxIN "]",
+                  i, address + (i * GetMemorySpacePageSize()));
             return OsError;
         }
     }

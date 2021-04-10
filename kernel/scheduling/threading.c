@@ -205,39 +205,42 @@ ThreadTerminate(
     
     MutexLock(&thread->SyncObject);
     value = atomic_load(&thread->Cleanup);
-    if (value == 0) {
-        if (thread->ParentHandle != UUID_INVALID) {
-            Thread_t* Parent = THREAD_GET(thread->ParentHandle);
-            if (!Parent) {
-                // Parent does not exist anymore, it was terminated without terminating children
-                // which is very unusal. Log this. 
-                WARNING("[terminate_thread] orphaned child terminating %s", thread->Name);
-            }
-            else {
-                RemoveChild(Parent, thread);
-            }
+    if (value) {
+        MutexUnlock(&thread->SyncObject);
+        return OsSuccess;
+    }
+
+    if (thread->ParentHandle != UUID_INVALID) {
+        Thread_t* Parent = THREAD_GET(thread->ParentHandle);
+        if (!Parent) {
+            // Parent does not exist anymore, it was terminated without terminating children
+            // which is very unusal. Log this.
+            WARNING("[terminate_thread] orphaned child terminating %s", thread->Name);
         }
-        
-        if (TerminateChildren) {
-            Thread_t* ChildItr = thread->Children;
-            while (ChildItr) {
-                OsStatus_t Status = ThreadTerminate(ChildItr->Handle, ExitCode, TerminateChildren);
-                if (Status != OsSuccess) {
-                    ERROR("[terminate_thread] failed to terminate child %s of %s", ChildItr->Name, thread->Name);
-                }
-                ChildItr = ChildItr->Sibling;
-            }
-        }
-        thread->RetCode = ExitCode;
-        atomic_store(&thread->Cleanup, 1);
-    
-        // If the thread we are trying to kill is not this one, and is sleeping
-        // we must wake it up, it will be cleaned on next schedule
-        if (ThreadId != ThreadCurrentHandle()) {
-            SchedulerExpediteObject(thread->SchedulerObject);
+        else {
+            RemoveChild(Parent, thread);
         }
     }
+
+    if (TerminateChildren) {
+        Thread_t* ChildItr = thread->Children;
+        while (ChildItr) {
+            OsStatus_t Status = ThreadTerminate(ChildItr->Handle, ExitCode, TerminateChildren);
+            if (Status != OsSuccess) {
+                ERROR("[terminate_thread] failed to terminate child %s of %s", ChildItr->Name, thread->Name);
+            }
+            ChildItr = ChildItr->Sibling;
+        }
+    }
+    thread->RetCode = ExitCode;
+    atomic_store(&thread->Cleanup, 1);
     MutexUnlock(&thread->SyncObject);
+
+    // If the thread we are trying to kill is not this one, and is sleeping
+    // we must wake it up, it will be cleaned on next schedule
+    if (ThreadId != ThreadCurrentHandle()) {
+        SchedulerExpediteObject(thread->SchedulerObject);
+    }
     return OsSuccess;
 }
 
@@ -251,12 +254,17 @@ ThreadJoin(
     if (target != NULL && target->ParentHandle != UUID_INVALID) {
         MutexLock(&target->SyncObject);
         value = atomic_load(&target->Cleanup);
-        if (value != 1) {
-            value = atomic_fetch_add(&target->References, 1);
+        if (value == 1) {
+            value = target->RetCode;
             MutexUnlock(&target->SyncObject);
-            SemaphoreWait(&target->EventObject, 0);
-            value = atomic_fetch_sub(&target->References, 1);
+            return value;
         }
+
+        value = atomic_fetch_add(&target->References, 1);
+        MutexUnlock(&target->SyncObject);
+
+        SemaphoreWait(&target->EventObject, 0);
+        value = atomic_fetch_sub(&target->References, 1);
         return target->RetCode;
     }
     return -1;

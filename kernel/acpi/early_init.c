@@ -243,7 +243,7 @@ EnumerateSystemCoresMADT(
                 ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
                     TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
-                    //@todo
+                    TODO("missing support for X2 apics");
                 }
             } break;
 
@@ -474,11 +474,11 @@ AcpiInitializeEarly(void)
     }
 
     // Check for SBST presence and enumerate
-    // @todo
     if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &header))) {
         ACPI_TABLE_SBST *BattTable = NULL;
         TRACE("Parsing the SBST Table");
         BattTable = (ACPI_TABLE_SBST*)header;
+        TODO("missing implementation for ACPI SBST parsing");
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later

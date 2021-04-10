@@ -37,6 +37,7 @@
 #define WARNING(...)				SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)       { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
 #define ERROR(...)					SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
+#define TODO(str)                   SystemDebug(SYSTEM_DEBUG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, str)
 
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining

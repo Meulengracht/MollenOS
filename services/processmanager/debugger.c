@@ -106,13 +106,14 @@ HandleProcessCrashReport(
     // Print stack trace for application
     if (CONTEXT_USERSP(crashContext)) {
         void*      stack;
-        uintptr_t  offset      = CONTEXT_USERSP(crashContext) & 0xFFF;
-        size_t     upperLength = 0x1000 + offset;
-        OsStatus_t status      = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), upperLength, &stack);
+        void*      topOfStack;
+        OsStatus_t status;
+
+        status = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), &topOfStack, &stack);
         if (status == OsSuccess) {
             // Traverse the memory region up to stack max
-            uintptr_t* stackAddress = (uintptr_t*)((uintptr_t)stack + offset);
-            uintptr_t* stackLimit   = (uintptr_t*)((uint8_t*)stackAddress + 0x1000);
+            uintptr_t* stackAddress = (uintptr_t*)stack;
+            uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
             ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
@@ -132,8 +133,15 @@ HandleProcessCrashReport(
                 }
                 stackAddress++;
             }
-            MemoryFree(stack, upperLength);
+            ERROR("HandleProcessCrashReport end of stack trace");
+            MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
         }
+        else {
+            ERROR("HandleProcessCrashReport failed to map thread stack: %u", status);
+        }
+    }
+    else {
+        ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
     }
 
     return OsSuccess;

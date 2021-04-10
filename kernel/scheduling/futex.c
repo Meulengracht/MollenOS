@@ -19,7 +19,7 @@
  * Futex Synchronization
  *
  */
-#define __MODULE "FUTX"
+
 //#define __TRACE
 
 #include <arch/interrupts.h>
@@ -31,7 +31,7 @@
 #include <ddk/barrier.h>
 #include <futex.h>
 #include <heap.h>
-#include <os/spinlock.h>
+#include <irq_spinlock.h>
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <string.h>
@@ -40,10 +40,10 @@
 
 // One per memory context
 typedef struct FutexItem {
-    element_t    Header;
-    list_t       BlockQueue;
-    spinlock_t   BlockQueueSyncObject;
-    _Atomic(int) Waiters;
+    element_t     Header;
+    list_t        BlockQueue;
+    IrqSpinlock_t BlockQueueSyncObject;
+    _Atomic(int)  Waiters;
     
     MemorySpaceContext_t* Context;
     uintptr_t             FutexAddress;
@@ -51,14 +51,15 @@ typedef struct FutexItem {
 
 // One per futex key
 typedef struct FutexBucket {
-    spinlock_t   SyncObject;
-    list_t       Futexes;
+    IrqSpinlock_t SyncObject;
+    list_t        Futexes;
 } FutexBucket_t;
 
 static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 0 };
 
 static size_t
-GetIntegerHash(size_t x)
+GetIntegerHash(
+        _In_ size_t x)
 {
 #if __BITS == 32
     x = ((x >> 16) ^ x) * 0x45d9f3b;
@@ -74,9 +75,9 @@ GetIntegerHash(size_t x)
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-    _In_ UUId_t CoreId)
+        _In_ UUId_t coreId)
 {
-    Thread_t* currentThread = CpuCoreCurrentThread(GetProcessorCore(CoreId));
+    Thread_t* currentThread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!currentThread) {
         return NULL;
     }
@@ -86,61 +87,75 @@ SchedulerGetCurrentObject(
 
 static FutexBucket_t*
 FutexGetBucket(
-    _In_ uintptr_t FutexAddress)
+        _In_ uintptr_t futexAddress)
 {
-    size_t FutexHash = GetIntegerHash(FutexAddress);
-    return &FutexBuckets[FutexHash & (FUTEX_HASHTABLE_CAPACITY - 1)];
+    return &FutexBuckets[GetIntegerHash(futexAddress) & (FUTEX_HASHTABLE_CAPACITY - 1)];
 }
 
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexGetNode(
-        _In_ FutexBucket_t*              Bucket,
-        _In_ uintptr_t                   FutexAddress,
-        _In_ MemorySpaceContext_t* Context)
+        _In_ FutexBucket_t*        bucket,
+        _In_ uintptr_t             futexAddress,
+        _In_ MemorySpaceContext_t* context)
 {
-    foreach(i, &Bucket->Futexes) {
+    foreach(i, &bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
-        if (Item->FutexAddress == FutexAddress &&
-            Item->Context      == Context) {
+        if (Item->FutexAddress == futexAddress &&
+            Item->Context == context) {
             return Item;
         }
     }
     return NULL;
 }
 
+static FutexItem_t*
+FutexGetNodeLocked(
+        _In_ FutexBucket_t*        bucket,
+        _In_ uintptr_t             futexAddress,
+        _In_ MemorySpaceContext_t* context)
+{
+    FutexItem_t* item;
+
+    IrqSpinlockAcquire(&bucket->SyncObject);
+    item = FutexGetNode(bucket, futexAddress, context);
+    IrqSpinlockRelease(&bucket->SyncObject);
+
+    return item;
+}
+
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexCreateNode(
-        _In_ FutexBucket_t*        Bucket,
-        _In_ uintptr_t             FutexAddress,
-        _In_ MemorySpaceContext_t* Context)
+        _In_ FutexBucket_t*        bucket,
+        _In_ uintptr_t             futexAddress,
+        _In_ MemorySpaceContext_t* context)
 {
-    FutexItem_t* Existing;
-    FutexItem_t* Item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
-    if (!Item) {
+    FutexItem_t* existing;
+    FutexItem_t* item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
+    if (!item) {
         return NULL;
     }
     
-    memset(Item, 0, sizeof(FutexItem_t));
-    ELEMENT_INIT(&Item->Header, 0, Item);
-    list_construct(&Item->BlockQueue);
-    spinlock_init(&Item->BlockQueueSyncObject, spinlock_plain);
-    Item->FutexAddress = FutexAddress;
-    Item->Context      = Context;
+    memset(item, 0, sizeof(FutexItem_t));
+    ELEMENT_INIT(&item->Header, 0, item);
+    list_construct(&item->BlockQueue);
+    IrqSpinlockConstruct(&item->BlockQueueSyncObject);
+    item->FutexAddress = futexAddress;
+    item->Context      = context;
     
-    spinlock_acquire(&Bucket->SyncObject);
-    Existing = FutexGetNode(Bucket, FutexAddress, Context);
-    if (!Existing) {
-        list_append(&Bucket->Futexes, &Item->Header);
+    IrqSpinlockAcquire(&bucket->SyncObject);
+    existing = FutexGetNode(bucket, futexAddress, context);
+    if (!existing) {
+        list_append(&bucket->Futexes, &item->Header);
     }
-    spinlock_release(&Bucket->SyncObject);
+    IrqSpinlockRelease(&bucket->SyncObject);
     
-    if (Existing) {
-        kfree(Item);
-        Item = Existing;
+    if (existing) {
+        kfree(item);
+        item = existing;
     }
-    return Item;
+    return item;
 }
 
 static void
@@ -150,7 +165,7 @@ FutexPerformOperation(
 {
     int Op  = (Operation >> 28) & 0xF;
     int Val = (Operation >> 12) & 0xFFF;
-    int Old = 0;
+    int Old;
     
     switch (Op) {
         case FUTEX_OP_SET: {
@@ -225,7 +240,7 @@ FutexInitialize(void)
 {
     int i;
     for (i = 0; i < FUTEX_HASHTABLE_CAPACITY; i++) {
-        spinlock_init(&FutexBuckets[i].SyncObject, spinlock_plain);
+        IrqSpinlockConstruct(&FutexBuckets[i].SyncObject);
         list_construct(&FutexBuckets[i].Futexes);
     }
     smp_wmb();
@@ -273,11 +288,8 @@ FutexWait(
     // interrupted in this 'atomic' action. However when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
     CpuState = InterruptDisable();
-    
-    spinlock_acquire(&Bucket->SyncObject);
-    FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    spinlock_release(&Bucket->SyncObject);
-    
+
+    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
         FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
         if (!FutexItem) {
@@ -346,11 +358,8 @@ FutexWaitOperation(
     // interrupted in this 'atomic' action. However when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
     CpuState = InterruptDisable();
-    
-    spinlock_acquire(&Bucket->SyncObject);
-    FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    spinlock_release(&Bucket->SyncObject);
-    
+
+    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
         FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
         if (!FutexItem) {
@@ -405,10 +414,8 @@ FutexWake(
     }
     
     Bucket = FutexGetBucket(FutexAddress);
-    
-    spinlock_acquire(&Bucket->SyncObject);
-    FutexItem = FutexGetNode(Bucket, FutexAddress, Context);
-    spinlock_release(&Bucket->SyncObject);
+
+    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
         return OsDoesNotExist;
     }
@@ -419,7 +426,7 @@ WakeWaiters:
     for (i = 0; i < Count; i++) {
         element_t* Front;
         
-        spinlock_acquire(&FutexItem->BlockQueueSyncObject);
+        IrqSpinlockAcquire(&FutexItem->BlockQueueSyncObject);
         Front = list_front(&FutexItem->BlockQueue);
         if (Front) {
             // This is only neccessary while the list itself is thread-safe
@@ -429,7 +436,7 @@ WakeWaiters:
                 Front = NULL;
             }
         }
-        spinlock_release(&FutexItem->BlockQueueSyncObject);
+        IrqSpinlockRelease(&FutexItem->BlockQueueSyncObject);
         
         if (Front) {
             Status = SchedulerQueueObject(Front->value);

@@ -26,14 +26,14 @@
 #include <internal/_syscalls.h>
 
 OsStatus_t MapThreadMemoryRegion(
-        _In_  UUId_t threadHandle,
+        _In_  UUId_t    threadHandle,
         _In_  uintptr_t address,
-        _In_  size_t length,
-        _Out_ void **pointerOut)
+        _Out_ void**    topOfStack,
+        _Out_ void**    pointerOut)
 {
-    if (!pointerOut) {
+    if (!pointerOut || !topOfStack) {
         return OsInvalidParameters;
     }
 
-    return Syscall_MapThreadMemoryRegion(threadHandle, address, length, pointerOut);
+    return Syscall_MapThreadMemoryRegion(threadHandle, address, topOfStack, pointerOut);
 }

@@ -81,7 +81,7 @@ extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, unsigned int
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
 
-extern OsStatus_t ScMapThreadMemoryRegion(UUId_t, uintptr_t, size_t, void**);
+extern OsStatus_t ScMapThreadMemoryRegion(UUId_t, uintptr_t, void**, void**);
 
 ///////////////////////////////////////////////
 // Operating System Interface

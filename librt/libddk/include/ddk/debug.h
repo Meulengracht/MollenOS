@@ -35,7 +35,7 @@
 DDKDECL(OsStatus_t, MapThreadMemoryRegion(
         _In_  UUId_t threadHandle,
         _In_  uintptr_t address,
-        _In_  size_t length,
-        _Out_ void **pointerOut));
+        _Out_ void** topOfStack,
+        _Out_ void** pointerOut));
 
 #endif //__DDK_DEBUG_H__

@@ -54,7 +54,7 @@ _CODE_END
 #define Syscall_InterruptRemove(InterruptId)                                                 (OsStatus_t)syscall1(26, SCPARAM(InterruptId))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                        (OsStatus_t)syscall1(27, SCPARAM(BaseAddressOut))
 
-#define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, Length, PointerOut)             (OsStatus_t)syscall4(28, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(Length), SCPARAM(PointerOut))
+#define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, TopOfStack, PointerOut)         (OsStatus_t)syscall4(28, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(TopOfStack), SCPARAM(PointerOut))
 
 ///////////////////////////////////////////////
 //Operating System (Process) Interface

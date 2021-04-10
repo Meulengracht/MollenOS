@@ -104,8 +104,6 @@ static OsStatus_t __PerformAllocation(
         *memoryOut = (void*)allocatedAddress;
     }
 
-    TRACE("[sc_mem] [allocate] flags 0x%x, length 0x%" PRIxIN " == 0x%" PRIxIN,
-          flags, length, allocatedAddress);
     kfree(pages);
     return osStatus;
 }
@@ -121,6 +119,7 @@ ScMemoryAllocate(
     unsigned int   placementFlags;
     MemorySpace_t* memorySpace;
     OsStatus_t     osStatus;
+    TRACE("ScMemoryAllocate(length=0x%" PRIxIN ", flags=%u)", length, flags);
     
     if (!length || !memoryOut) {
         return OsInvalidParameters;
@@ -151,6 +150,7 @@ ScMemoryAllocate(
             }
         }
     }
+    TRACE("ScMemoryAllocate returns=0x%" PRIxIN, *memoryOut);
     return osStatus;
 }
 
@@ -159,10 +159,10 @@ ScMemoryFree(
     _In_ uintptr_t address,
     _In_ size_t    length)
 {
+    TRACE("ScMemoryFree(address=0x%" PRIxIN ", length=0x%" PRIxIN ")", address, length);
     if (!address || !length) {
         return OsInvalidParameters;
     }
-    TRACE("[sc_mem] [unmap] address 0x%" PRIxIN ", length 0x%" PRIxIN, address, length);
     return MemorySpaceUnmap(GetCurrentMemorySpace(), address, length);
 }
 
@@ -518,37 +518,39 @@ ScCreateMemorySpaceMapping(
 
 OsStatus_t
 ScMapThreadMemoryRegion(
-    _In_  UUId_t    ThreadHandle,
-    _In_  uintptr_t Address,
-    _In_  size_t    Length,
-    _Out_ void**    PointerOut)
+    _In_  UUId_t    threadHandle,
+    _In_  uintptr_t stackPointer,
+    _Out_ void**    topOfStack,
+    _Out_ void**    pointerOut)
 {
     Thread_t*       thread;
     SystemModule_t* module = GetCurrentModule();
     uintptr_t       copiedAddress;
     OsStatus_t      status;
+    size_t          correctLength;
 
     if (!module) {
         return OsInvalidPermissions;
     }
 
-    if (!Length) {
-        return OsInvalidParameters;
-    }
-
-    thread = THREAD_GET(ThreadHandle);
+    thread = THREAD_GET(threadHandle);
     if (!thread) {
         return OsDoesNotExist;
     }
 
-    status = MemorySpaceCloneMapping(ThreadMemorySpace(thread), GetCurrentMemorySpace(),
-                                     Address, &copiedAddress, Length,
+    correctLength = (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL1) - stackPointer;
+    status        = MemorySpaceCloneMapping(ThreadMemorySpace(thread), GetCurrentMemorySpace(),
+                                            stackPointer, &copiedAddress, correctLength,
                                      MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-                                     MAPPING_VIRTUAL_PROCESS);
+                                            MAPPING_VIRTUAL_PROCESS);
     if (status != OsSuccess) {
         return status;
     }
 
-    *PointerOut = (void*)copiedAddress;
+    // add the correct offset to the address
+    copiedAddress += stackPointer & 0xFFF;
+
+    *pointerOut = (void*)copiedAddress;
+    *topOfStack = (void*)(copiedAddress + correctLength);
     return OsSuccess;
 }

@@ -202,7 +202,7 @@ ACPI_STATUS AcpiDeviceGetMemConfigRange(AcpiDevice_t *Device)
 /* Set Device Data Callback */
 void AcpiDeviceSetDataCallback(ACPI_HANDLE Handle, void *Data)
 {
-    // @todo
+    TODO("AcpiDeviceSetDataCallback is not implemented");
     _CRT_UNUSED(Handle);
     _CRT_UNUSED(Data);
 }
