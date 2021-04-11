@@ -444,6 +444,9 @@ WakeWaiters:
                 break;
             }
         }
+        else {
+            break;
+        }
     }
     
     // Handle possible race-condition between wait/wake
