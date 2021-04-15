@@ -1,0 +1,1 @@
+All system themes go into this folder
