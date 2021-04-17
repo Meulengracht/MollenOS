@@ -19,15 +19,14 @@
  * C Standard Library
  * - Standard IO file operation implementations.
  */
+
 //#define __TRACE
 
-#include <assert.h>
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ipc.h>
 #include <io.h>
-#include <os/mollenos.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,29 +73,46 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     size_t     builtinLength = tls_current()->transfer_buffer.length;
     size_t     bytesRead;
     OsStatus_t status;
+    TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
-        
+        void*                  adjustedPointer = (void*)buffer;
+        size_t                 adjustedLength  = length;
+
         // enforce dword alignment on the buffer
-        assert(((uintptr_t)buffer % 0x4) == 0);
+        // which means if someone passes us a byte or word aligned
+        // buffer we must account for that
+        if ((uintptr_t)buffer & 0x3) {
+            size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+            status = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
+            if (status != OsSuccess) {
+                return status;
+            }
+            adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
+            adjustedLength -= bytesToAlign;
+        }
         
         info.name     = "stdio_transfer";
-        info.length   = length;
-        info.capacity = length;
+        info.length   = adjustedLength;
+        info.capacity = adjustedLength;
         info.flags    = DMA_PERSISTANT;
         
-        status = dma_export(buffer, &info, &attachment);
+        status = dma_export(adjustedPointer, &info, &attachment);
         if (status != OsSuccess) {
             return status;
         }
         
         // Pass the callers pointer directly here
         status = perform_transfer(handle->object.handle, attachment.handle,
-            0, length, 0, length, bytesReadOut);
+            0, adjustedLength, 0, adjustedLength, bytesReadOut);
+        if (*bytesReadOut == adjustedLength) {
+            *bytesReadOut = length;
+        }
+
         dma_detach(&attachment);
         return status;
     }
@@ -117,28 +133,45 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
     UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
     size_t     builtinLength = tls_current()->transfer_buffer.length;
     OsStatus_t status;
+    TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
         struct dma_buffer_info info;
         struct dma_attachment  attachment;
+        void*                  adjustedPointer = (void*)buffer;
+        size_t                 adjustedLength  = length;
         
         // enforce dword alignment on the buffer
-        assert(((uintptr_t)buffer % 0x4) == 0);
+        // which means if someone passes us a byte or word aligned
+        // buffer we must account for that
+        if ((uintptr_t)buffer & 0x3) {
+            size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+            status = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
+            if (status != OsSuccess) {
+                return status;
+            }
+            adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
+            adjustedLength -= bytesToAlign;
+        }
+
         
-        info.length   = length;
-        info.capacity = length;
+        info.length   = adjustedLength;
+        info.capacity = adjustedLength;
         info.flags    = DMA_PERSISTANT;
         
-        status = dma_export((void*)buffer, &info, &attachment);
+        status = dma_export(adjustedPointer, &info, &attachment);
         if (status != OsSuccess) {
             return status;
         }
         
         status = perform_transfer(handle->object.handle, attachment.handle,
-            1, length, 0, length, bytesWrittenOut);
+            1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
         dma_detach(&attachment);
+        if (*bytesWrittenOut == adjustedLength) {
+            *bytesWrittenOut = length;
+        }
         return status;
     }
     
@@ -152,24 +185,25 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     OsStatus_t               status;
-    LargeInteger_t           SeekFinal;
+    LargeInteger_t           seekFinal;
+    TRACE("stdio_file_op_seek(origin=%i, offset=%" PRIiIN ")", origin, offset);
 
     // If we search from SEEK_SET, just build offset directly
     if (origin != SEEK_SET) {
-        LargeInteger_t FileInitial;
+        LargeInteger_t currentOffset;
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
             svc_file_get_position(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-            svc_file_get_position_result(GetGrachtClient(), &msg.base, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            svc_file_get_position_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
             if (status != OsSuccess) {
                 ERROR("failed to get file position");
                 return status;
             }
 
             // Sanitize for overflow
-            if ((size_t)FileInitial.QuadPart != FileInitial.QuadPart) {
+            if ((size_t)currentOffset.QuadPart != currentOffset.QuadPart) {
                 ERROR("file-offset-overflow");
                 _set_errno(EOVERFLOW);
                 return OsError;
@@ -178,28 +212,35 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
         else {
             svc_file_get_size(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-            svc_file_get_size_result(GetGrachtClient(), &msg.base, &status, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            svc_file_get_size_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
             if (status != OsSuccess) {
                 ERROR("failed to get file size");
                 return status;
             }
         }
-        SeekFinal.QuadPart = FileInitial.QuadPart + offset;
+        seekFinal.QuadPart = currentOffset.QuadPart + offset;
     }
     else {
-        SeekFinal.QuadPart = offset;
+        seekFinal.QuadPart = offset;
+    }
+
+    // no reason to invoke the service
+    if (origin == SEEK_CUR && offset == 0) {
+        *position_out = seekFinal.QuadPart;
+        return OsSuccess;
     }
 
     // Now perform the seek
     svc_file_seek(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
-        handle->object.handle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
+                  handle->object.handle, seekFinal.u.LowPart, seekFinal.u.HighPart);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
     svc_file_seek_result(GetGrachtClient(), &msg.base, &status);
     if (status == OsSuccess) {
-        *position_out = SeekFinal.QuadPart;
+        *position_out = seekFinal.QuadPart;
         return OsSuccess;
     }
     TRACE("stdio::fseek::fail %u", status);
+    *position_out = (off_t)-1;
     return status;
 }
 

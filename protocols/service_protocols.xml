@@ -294,6 +294,7 @@
                 <enum name="environment_path">
                     <value name="path_root"></value>
                     <value name="path_system"></value>
+                    <value name="path_system_themes"></value>
                     <value name="path_common_bin"></value>
                     <value name="path_common_doc"></value>
                     <value name="path_common_inc"></value>

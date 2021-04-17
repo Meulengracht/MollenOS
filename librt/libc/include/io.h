@@ -75,7 +75,7 @@ struct DIR {
 struct DIRENT {
     unsigned int d_options;
     unsigned int d_perms;
-    char    d_name[256];
+    char         d_name[256];
 };
 
 _CODE_BEGIN

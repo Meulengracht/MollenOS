@@ -40,6 +40,7 @@ static const char* g_environmentPaths[path_count] = {
     // System paths
 	":/",
 	":/system/",
+    ":/system/themes/",
 
     // Shared paths
 	":/shared/bin/",
@@ -62,7 +63,9 @@ static struct VfsIdentifier {
 	enum svc_path_environment_path resolve;
 } g_vfsIdentifiers[] = {
 	{ "sys", path_system },
+    { "themes", path_system_themes },
 	{ "bin", path_common_bin },
+    { "lib", path_common_lib },
     { "share", path_common_share },
 	{ NULL, path_count }
 };
