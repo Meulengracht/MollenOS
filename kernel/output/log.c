@@ -33,12 +33,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <threading.h>
+#include <timers.h>
 
 typedef struct SystemLogLine {
-    int    level;
-    UUId_t coreId;
-    UUId_t threadHandle;
-    char   data[128]; // Message
+    int     level;
+    UUId_t  coreId;
+    UUId_t  threadHandle;
+    clock_t timeStamp;
+    char    data[128]; // Message
 } SystemLogLine_t;
 
 typedef struct SystemLog {
@@ -145,7 +147,8 @@ LogRenderMessages(void)
         else {
             VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
             snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
-                     "[%s-%u-%s] %s\n",
+                     "%09" PRIuIN " [%s-%u-%s] %s\n",
+                     logLine->timeStamp,
                      g_typeNames[logLine->level],
                      logLine->coreId,
                      thread ? ThreadName(thread) : "boot",
@@ -200,6 +203,7 @@ LogAppendMessage(
     logLine->level        = level;
     logLine->coreId       = coreId;
     logLine->threadHandle = ThreadCurrentHandle();
+    TimersGetSystemTick(&logLine->timeStamp);
     
 	va_start(arguments, format);
     vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);

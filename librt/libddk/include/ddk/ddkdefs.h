@@ -24,7 +24,7 @@
 #ifndef __DDK_DEFINITIONS_H__
 #define __DDK_DEFINITIONS_H__
 
-#include <os/osdefs.h>
+#include <os/mollenos.h>
 
 #define DDKDECL(ReturnType, Function) extern ReturnType Function
 #define DDKDECL_DATA(Type, Name) extern Type Name

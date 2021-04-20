@@ -31,11 +31,11 @@ static const char *GlbBootVideoWindowTitle = "Startup Debug Console";
 
 static void 
 VideoDrawLine(
-	_In_ unsigned StartX, 
-	_In_ unsigned StartY,
-	_In_ unsigned EndX, 
-	_In_ unsigned EndY, 
-	_In_ unsigned Color)
+	_In_ unsigned int StartX,
+	_In_ unsigned int StartY,
+	_In_ unsigned int EndX,
+	_In_ unsigned int EndY,
+	_In_ unsigned int Color)
 {
 	// Variables - clam some values
 	int dx = abs(EndX - StartX), sx = StartX < EndX ? 1 : -1;
@@ -54,15 +54,14 @@ VideoDrawLine(
 
 static void
 VideoDrawBootTerminal(
-	_In_ unsigned X, 
-	_In_ unsigned Y,
-	_In_ size_t Width, 
-	_In_ size_t Height)
+	_In_ unsigned int X,
+	_In_ unsigned int Y,
+	_In_ size_t       Width,
+	_In_ size_t       Height)
 {
-	// Variables
-	unsigned TitleStartX = X + 8 + 32 + 8;
-	unsigned TitleStartY = Y + 18;
-	int i;
+	unsigned int TitleStartX = X + 8 + 32 + 8;
+	unsigned int TitleStartY = Y + 18;
+	int          i;
 
 	// Instantiate a pointer to title
 	char *TitlePtr = (char*)GlbBootVideoWindowTitle;
@@ -125,8 +124,8 @@ InitializeConsole(void)
         VideoClear();
 #ifdef __OSCONFIG_DEBUGCONSOLE
 		if (VideoGetTerminal()->AvailableOutputs & VIDEO_GRAPHICS) {
-			VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325, 0, 
-				650, VideoGetTerminal()->Info.Height);
+			VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 375, 0,
+				MIN(750, VideoGetTerminal()->Info.Width), VideoGetTerminal()->Info.Height);
 		}
 #endif
     }

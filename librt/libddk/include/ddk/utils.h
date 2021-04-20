@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -39,13 +37,18 @@
 #define ERROR(...)					SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
 #define TODO(str)                   SystemDebug(SYSTEM_DEBUG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, str)
 
-/* Global <toggable> definitions
- * These can be turned on per-source file by pre-defining
- * the __TRACE before inclusion */
+/**
+ * Global <toggable> definitions
+ * These can be turned on per-source file by pre-defining the __TRACE before inclusion
+ */
 #ifdef __TRACE
 #define TRACE(...)					SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
+#define ENTRY(...)                  LargeUInteger_t start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); GetSystemTick(TIME_UTC, &start)
+#define EXIT(str)                   GetSystemTick(TIME_UTC, &end); SystemDebug(SYSTEM_DEBUG_TRACE, str " completed in %llu ms", end.QuadPart - start.QuadPart)
 #else
 #define TRACE(...)
+#define ENTRY(...)
+#define EXIT(str)
 #endif
 
 /* Threading Utility

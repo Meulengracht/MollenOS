@@ -211,69 +211,75 @@ GuessBasePath(
 
 OsStatus_t
 ResolveFilePath(
-        _In_  UUId_t ProcessId,
-        _In_  MString_t *Path,
-        _Out_ MString_t **FullPathOut)
+        _In_  UUId_t      processId,
+        _In_  MString_t*  path,
+        _Out_ MString_t** fullPathOut)
 {
-    OsStatus_t Status           = OsSuccess;
-    MString_t  *TemporaryResult = Path;
-    TRACE("[resolve] resolve %s", MStringRaw(Path));
+    OsStatus_t osStatus        = OsSuccess;
+    MString_t* temporaryResult = path;
+    ENTRY("ResolveFilePath(processId=%u, path=%s)", processId, MStringRaw(path));
 
-    if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND) {
+    if (MStringFind(path, ':', 0) == MSTRING_NOT_FOUND) {
         // If we don't even have an environmental identifier present, we
         // have to get creative and guess away
-        if (MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
-            Status = GuessBasePath(ProcessId, Path, &TemporaryResult);
+        if (MStringFind(path, '$', 0) == MSTRING_NOT_FOUND) {
+            osStatus = GuessBasePath(processId, path, &temporaryResult);
 
-            TRACE("[resolve] base path %s", MStringRaw(TemporaryResult));
+            TRACE("ResolveFilePath basePath=%s", MStringRaw(temporaryResult));
 
             // If we already deduced an absolute path skip the canonicalizing moment
-            if (Status == OsSuccess && MStringFind(TemporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
-                *FullPathOut = TemporaryResult;
-                return Status;
+            if (osStatus == OsSuccess && MStringFind(temporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
+                *fullPathOut = temporaryResult;
+                EXIT("ResolveFilePath");
+                return osStatus;
             }
         }
 
         // Take into account we might have failed to guess base path
-        if (Status == OsSuccess) {
-            char *CanonicalizedPath = (char *) malloc(_MAXPATH);
-            if (!CanonicalizedPath) {
+        if (osStatus == OsSuccess) {
+            char* canonicalizedPath = (char *)malloc(_MAXPATH);
+            if (!canonicalizedPath) {
+                ERROR("ResolveFilePath failed to allocate memory buffer for the canonicalized path");
+                EXIT("ResolveFilePath");
                 return OsOutOfMemory;
             }
-            memset(CanonicalizedPath, 0, _MAXPATH);
+            memset(canonicalizedPath, 0, _MAXPATH);
 
-            Status = PathCanonicalize(MStringRaw(TemporaryResult), CanonicalizedPath, _MAXPATH);
-            TRACE("[resolve] canon %s", CanonicalizedPath);
-            if (Status == OsSuccess) {
-                *FullPathOut = MStringCreate(CanonicalizedPath, StrUTF8);
+            osStatus = PathCanonicalize(MStringRaw(temporaryResult), canonicalizedPath, _MAXPATH);
+            TRACE("ResolveFilePath canonicalizedPath=%s", canonicalizedPath);
+            if (osStatus == OsSuccess) {
+                *fullPathOut = MStringCreate(canonicalizedPath, StrUTF8);
             }
-            free(CanonicalizedPath);
+            free(canonicalizedPath);
         }
     }
     else {
         // Assume absolute path
-        *FullPathOut = MStringClone(TemporaryResult);
+        *fullPathOut = MStringClone(temporaryResult);
     }
-    return Status;
+
+    EXIT("ResolveFilePath");
+    return osStatus;
 }
 
 OsStatus_t
 LoadFile(
-        _In_  MString_t* FullPath,
-        _Out_ void**     BufferOut,
-        _Out_ size_t*    LengthOut)
+        _In_  MString_t* fullPath,
+        _Out_ void**     bufferOut,
+        _Out_ size_t*    lengthOut)
 {
-    FILE   *file;
-    long   fileSize;
-    void   *fileBuffer;
-    size_t bytesRead;
+    FILE*      file;
+    long       fileSize;
+    void*      fileBuffer;
+    size_t     bytesRead;
+    OsStatus_t osStatus = OsSuccess;
+    ENTRY("LoadFile %s", MStringRaw(fullPath));
 
-    TRACE("[load_file] %s", MStringRaw(FullPath));
-
-    file = fopen(MStringRaw(FullPath), "rb");
+    file = fopen(MStringRaw(fullPath), "rb");
     if (!file) {
-        ERROR("[load_file] [open_file] failed: %i", errno);
-        return OsError;
+        ERROR("LoadFile fopen failed: %i", errno);
+        osStatus = OsDoesNotExist;
+        goto exit;
     }
 
     fseek(file, 0, SEEK_END);
@@ -283,27 +289,29 @@ LoadFile(
     TRACE("[load_file] size %" PRIuIN, fileSize);
     fileBuffer = malloc(fileSize);
     if (!fileBuffer) {
-        ERROR("[load_file] [malloc] null");
+        ERROR("LoadFile null");
         fclose(file);
-        return OsOutOfMemory;
+        osStatus = OsOutOfMemory;
+        goto exit;
     }
 
     bytesRead = fread(fileBuffer, 1, fileSize, file);
     fclose(file);
 
-    TRACE("[load_file] [transfer_file] read %" PRIuIN " bytes from file", bytesRead);
+    TRACE("LoadFile read %" PRIuIN " bytes from file", bytesRead);
 
-    *BufferOut = fileBuffer;
-    *LengthOut = fileSize;
-    return OsSuccess;
+    *bufferOut = fileBuffer;
+    *lengthOut = fileSize;
+
+exit:
+    EXIT("LoadFile");
+    return osStatus;
 }
 
 void
 UnloadFile(
-        _In_
-        MString_t *FullPath,
-        _In_
-        void *Buffer)
+        _In_ MString_t* FullPath,
+        _In_ void*      Buffer)
 {
     // So right now we will simply free the buffer, 
     // but when we implement caching we will check if it should stay cached
@@ -340,10 +348,13 @@ CreateProcess(
     int                index;
     UUId_t             handle;
     OsStatus_t         osStatus;
+    ENTRY("CreateProcess(path=%s, args=%s)", path, arguments);
 
-    assert(path != NULL);
-    assert(handleOut != NULL);
-    TRACE("[process] [spawn] path %s, args %s", path, arguments);
+    if (!path || !configuration || !handleOut) {
+        ERROR("CreateProcess invalid arguments provided");
+        osStatus = OsInvalidParameters;
+        goto exit;
+    }
 
     // check for null or empty
     if (arguments && strlen(arguments) > 0) {
@@ -353,14 +364,17 @@ CreateProcess(
 
     process = (Process_t *)malloc(sizeof(Process_t));
     if (!process) {
-        return OsOutOfMemory;
+        ERROR("CreateProcess failed to allocate memory for process");
+        osStatus = OsOutOfMemory;
+        goto exit;
     }
     memset(process, 0, sizeof(Process_t));
 
     osStatus = handle_create(&handle);
     if (osStatus != OsSuccess) {
+        ERROR("CreateProcess failed to allocate a system handle for process");
         free(process);
-        return osStatus;
+        goto exit;
     }
 
     ELEMENT_INIT(&process->Header, (uintptr_t) handle, process);
@@ -374,13 +388,13 @@ CreateProcess(
     osStatus      = PeLoadImage(UUID_INVALID, NULL, pathAsMString, &process->Executable);
     MStringDestroy(pathAsMString);
     if (osStatus != OsSuccess) {
-        ERROR(" > failed to load executable");
+        ERROR("CreateProcess failed to load executable");
         free(process);
-        return osStatus;
+        goto exit;
     }
 
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    TRACE("[process] [spawn] full path %s", MStringRaw(process->Executable->FullPath));
+    TRACE("CreateProcess full path=%s", MStringRaw(process->Executable->FullPath));
     process->Path = MStringCreate((void *) MStringRaw(process->Executable->FullPath), StrUTF8);
     index = MStringFindReverse(process->Path, '/', 0);
     process->Name              = MStringSubString(process->Path, index + 1, -1);
@@ -399,7 +413,8 @@ CreateProcess(
         MStringDestroy(process->WorkingDirectory);
         MStringDestroy(process->AssemblyDirectory);
         free(process);
-        return OsOutOfMemory;
+        osStatus = OsOutOfMemory;
+        goto exit;
     }
 
     // Build the argument string, remember to null terminate.
@@ -446,6 +461,9 @@ CreateProcess(
     }
     list_append(&g_processes, &process->Header);
     *handleOut = handle;
+
+exit:
+    EXIT("CreateProcess");
     return osStatus;
 }
 
@@ -676,12 +694,13 @@ LoadProcessLibrary(
     MString_t*      pathAsMString;
     OsStatus_t      osStatus;
 
-    TRACE("LoadProcessLibrary(%u, %s)", (UUId_t) (uintptr_t) process->Header.key,
+    ENTRY("LoadProcessLibrary(%u, %s)", (UUId_t) (uintptr_t) process->Header.key,
           (path == NULL) ? "Global" : path);
     if (path == NULL) {
         *handleOut       = HANDLE_GLOBAL;
         *entryAddressOut = process->Executable->EntryAddress;
-        return OsSuccess;
+        osStatus = OsSuccess;
+        goto exit;
     }
 
     pathAsMString = MStringCreate((void *) path, StrUTF8);
@@ -693,6 +712,9 @@ LoadProcessLibrary(
         *handleOut = executable;
         *entryAddressOut = executable->EntryAddress;
     }
+
+exit:
+    EXIT("LoadProcessLibrary");
     return osStatus;
 }
 
