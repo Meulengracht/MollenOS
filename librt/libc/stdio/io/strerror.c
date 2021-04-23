@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,25 +15,22 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library
+ * errno error string
  */
 
-/* Includes */
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
 
-__EXTERN const char** _errstrings;
+// important to declare as an array and not as a double pointer, it affects
+// how data is loaded
+extern const char* g_errnoStrings[];
 
-/* The strerror
- * converts an error code
- * to a string representation */
-char *strerror(int errnum)
+char* strerror(int errnum)
 {
 	if (errnum >= _MAX_ERRNO)
-		return (char*)_errstrings[126];
+		return (char*)g_errnoStrings[126];
 	if (errnum < 0)
-		return (char*)_errstrings[0];
-	return (char*)_errstrings[errnum];
+		return (char*)g_errnoStrings[0];
+	return (char*)g_errnoStrings[errnum];
 }
