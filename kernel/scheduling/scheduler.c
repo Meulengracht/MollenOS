@@ -379,35 +379,37 @@ SchedulerDestroyObject(
 
 int
 SchedulerSleep(
-    _In_  size_t   Milliseconds,
-    _Out_ clock_t* InterruptedAt)
+    _In_  size_t   milliseconds,
+    _Out_ clock_t* interruptedAt)
 {
-    SchedulerObject_t* Object;
-    TRACE("[scheduler] [sleep] %" PRIuIN, Milliseconds);
-    
-    Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    if (!Object) {
+    SchedulerObject_t* object;
+    TRACE("[scheduler] [sleep] %" PRIuIN, milliseconds);
+
+    object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
+    if (!object) {
         // Called by the idle threads
-        ArchStallProcessorCore(Milliseconds);
+        ArchStallProcessorCore(milliseconds);
         return SCHEDULER_SLEEP_OK;
     }
-    
-    Object->TimeLeft        = Milliseconds;
-    Object->TimeoutReason   = OsSuccess;
-    Object->InterruptedAt   = 0;
-    Object->WaitQueueHandle = NULL;
+
+    // Since we rely on this value not being zero in cases of timeouts
+    // we would a minimum value of 1
+    object->TimeLeft        = MAX(milliseconds, 1);
+    object->TimeoutReason   = OsSuccess;
+    object->InterruptedAt   = 0;
+    object->WaitQueueHandle = NULL;
     
     // We don't check return state here as we can only ever be in running
     // state at this point
-    (void)ExecuteEvent(Object, EVENT_BLOCK);
+    (void)ExecuteEvent(object, EVENT_BLOCK);
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
     ThreadingYield();
     
     smp_rmb();
-    if (Object->TimeoutReason != OsSuccess) {
-        *InterruptedAt = Object->InterruptedAt;
+    if (object->TimeoutReason != OsSuccess) {
+        *interruptedAt = object->InterruptedAt;
         return SCHEDULER_SLEEP_INTERRUPTED;
     }
     return SCHEDULER_SLEEP_OK;

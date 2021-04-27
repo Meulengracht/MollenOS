@@ -163,10 +163,6 @@ ExceptionEntry(
         ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "",
               thread != NULL ? ThreadName(thread) : "Null",
               context->ErrorCode, CONTEXT_IP(context));
-        if (core) {
-            __asm { xchg bx, bx };
-            return;
-        }
         SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     }

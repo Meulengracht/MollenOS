@@ -103,8 +103,8 @@ SchedulerExpediteObject(
  */
 KERNELAPI int KERNELABI
 SchedulerSleep(
-    _In_  size_t   Milliseconds,
-    _Out_ clock_t* InterruptedAt);
+    _In_  size_t   milliseconds,
+    _Out_ clock_t* interruptedAt);
 
 /**
  * SchedulerBlock

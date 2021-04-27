@@ -110,20 +110,20 @@ ScThreadSignal(
 
 OsStatus_t
 ScThreadSleep(
-    _In_  time_t  Milliseconds,
-    _Out_ time_t* MillisecondsSlept)
+    _In_  time_t  milliseconds,
+    _Out_ time_t* millisecondsSlept)
 {
-    clock_t Start   = 0;
-    clock_t End     = 0;
+    clock_t start = 0;
+    clock_t end   = 0;
 
-    TimersGetSystemTick(&Start);
-    if (SchedulerSleep(Milliseconds, &End) != SCHEDULER_SLEEP_INTERRUPTED) {
-        TimersGetSystemTick(&End);
+    TimersGetSystemTick(&start);
+    if (SchedulerSleep(milliseconds, &end) != SCHEDULER_SLEEP_INTERRUPTED) {
+        TimersGetSystemTick(&end);
     }
 
     // Update outs
-    if (MillisecondsSlept != NULL) {
-        *MillisecondsSlept = (time_t)(End - Start);
+    if (millisecondsSlept != NULL) {
+        *millisecondsSlept = (time_t)(end - start);
     }
     return OsSuccess;
 }

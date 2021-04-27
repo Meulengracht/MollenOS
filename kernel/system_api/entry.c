@@ -21,6 +21,8 @@
  *   - Table of calls
  */
 
+//#define __TRACE
+
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/video.h>
@@ -32,6 +34,7 @@
 #include <os/mollenos.h>
 #include <time.h>
 #include <threading.h>
+#include <debug.h>
 
 DECL_STRUCT(DeviceInterrupt);
 
@@ -93,7 +96,7 @@ extern OsStatus_t ScThreadExit(int ExitCode);
 extern OsStatus_t ScThreadJoin(UUId_t ThreadId, int* ExitCode);
 extern OsStatus_t ScThreadDetach(UUId_t ThreadId);
 extern OsStatus_t ScThreadSignal(UUId_t ThreadId, int SignalCode);
-extern OsStatus_t ScThreadSleep(time_t Milliseconds, time_t* MillisecondsSlept);
+extern OsStatus_t ScThreadSleep(time_t milliseconds, time_t* millisecondsSlept);
 extern OsStatus_t ScThreadYield(void);
 extern UUId_t     ScThreadGetCurrentId(void);
 extern UUId_t     ScThreadCookie(void);
@@ -146,12 +149,13 @@ extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
-#define DefineSyscall(Index, Fn) { Index, ((uintptr_t)&Fn) }
+#define DefineSyscall(Index, Fn) { Index, #Fn, ((uintptr_t)&(Fn)) }
 
 // The static system calls function table.
 static struct SystemCallDescriptor {
-    int          Index;
-    uintptr_t    HandlerAddress;
+    int         Index;
+    const char* Name;
+    uintptr_t   HandlerAddress;
 } SystemCallsTable[SYSTEM_CALL_COUNT] = {
     ///////////////////////////////////////////////
     // Operating System Interface
@@ -278,6 +282,7 @@ SyscallHandle(
     thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
     handler = &SystemCallsTable[index];
 
+    TRACE("%s: syscall %s", ThreadName(thread), handler->Name);
     returnValue = ((SystemCallHandlerFn)handler->HandlerAddress)(
             (void*)CONTEXT_SC_ARG0(context), (void*)CONTEXT_SC_ARG1(context),
             (void*)CONTEXT_SC_ARG2(context), (void*)CONTEXT_SC_ARG3(context),
