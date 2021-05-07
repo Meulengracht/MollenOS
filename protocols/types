@@ -1,0 +1,15 @@
+/**
+ * Shared system types that are reused through-out the system services and contracts.
+ * Contains some default structures also
+ */
+ 
+namespace sys
+
+define UUId_t from "os/osdefs.h"
+define OsStatus_t from "os/osdefs.h"
+define time_t from "time.h"
+
+struct timestamp {
+    time_t tv_sec;
+    uint32 tv_nsec;
+}
