@@ -5,7 +5,7 @@ set(MOLLENOS ON)
 set(VALI ON)
 
 set(CMAKE_EXECUTABLE_SUFFIX ".app")
-set(CMAKE_STATIC_LIBRARY_PREFIX "static_")
+set(CMAKE_STATIC_LIBRARY_PREFIX "")
 set(CMAKE_STATIC_LIBRARY_SUFFIX ".lib")
 set(CMAKE_SHARED_LIBRARY_PREFIX "")  # lib
 set(CMAKE_SHARED_LIBRARY_SUFFIX ".dll") # .so
@@ -33,12 +33,12 @@ if (VALI_BOOTSTRAP)
     set (LINK_LIBRARIES "")
     set (LINK_FLAGS_BASE "")
 else ()
-    set (INITIAL_C_LIBRARIES "c.lib m.lib static_libcrt.lib static_librt.lib")
+    set (INITIAL_C_LIBRARIES "c.lib m.lib libcrt.lib librt.lib")
 
     if (DEFINED ENV{LIBCXX_BOOTSTRAP})
         set (INITIAL_CXX_LIBRARIES ${INITIAL_C_LIBRARIES})
     else ()
-        set (INITIAL_CXX_LIBRARIES "static_c++.lib static_c++abi.lib unwind.lib ${INITIAL_C_LIBRARIES}")
+        set (INITIAL_CXX_LIBRARIES "c++.lib c++abi.lib unwind.lib ${INITIAL_C_LIBRARIES}")
     endif ()
 
     set (DLL_ENTRY_POINT "/entry:__CrtLibraryEntry")
