@@ -1,0 +1,26 @@
+/**
+ * Input Contract
+ * Provides input related functionality to the drivers that implement this. The contracts
+ * supported by each driver can be queried through the driver contract.
+ */
+ 
+import "../types"
+
+namespace ctt
+
+enum input_type {
+    INVALID,
+    MOUSE,
+    JOYSTICK,
+    GAMEPAD,
+    KEYBOARD,
+    KEYPAD
+}
+
+service input (20) {
+    func stat(UUId_t deviceId) : () = 1;
+    
+    event stats : (UUId_t deviceId, input_type type) = 2;
+    event button_event : (UUId_t deviceId, uint8 keyCode, uint16 modifiers) = 3;
+    event cursor_event : (UUId_t deviceId, uint16 flags, int16 relX, int16 relY, int16 relZ) = 4;
+}
