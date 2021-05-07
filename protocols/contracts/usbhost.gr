@@ -1,0 +1,17 @@
+/**
+ * UsbHost Contract
+ * Provides usb host related functionality to the drivers that implement this. The contracts
+ * supported by each driver can be queried through the driver contract.
+ */
+ 
+import "../types"
+
+namespace ctt
+ 
+service usbhost (18) {
+    func queue(UUId_t processId, UUId_t deviceId, UUId_t transferId, uint8[] transfer) : (OsStatus_t result, ulong bytesTransferred) = 1;
+    func queue_periodic(UUId_t processId, UUId_t deviceId, UUId_t transferId, uint8[] transfer) : (OsStatus_t result) = 2;
+    func reset_periodic(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (OsStatus_t result) = 3;
+    func dequeue(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (OsStatus_t result) = 4;
+    func reset_endpoint(UUId_t deviceId, uint8 hub, uint8 port, uint8 device, uint8 endpoint) : (OsStatus_t result) = 5;
+}
