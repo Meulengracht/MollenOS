@@ -7,6 +7,8 @@ namespace sys
 
 define UUId_t from "os/osdefs.h"
 define OsStatus_t from "os/osdefs.h"
+define size_t from "stddef.h"
+define uintptr_t from "stdint.h"
 define time_t from "time.h"
 
 struct timestamp {
