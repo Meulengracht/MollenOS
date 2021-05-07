@@ -15,3 +15,23 @@ struct timestamp {
     time_t tv_sec;
     uint32 tv_nsec;
 }
+
+enum storage_flags {
+    REMOVABLE = 1
+}
+
+struct disk_geometry {
+    uint   sector_size;
+    uint   sectors_per_cylinder;
+    uint64 sectors_total;
+    uint   lun_count;
+}
+
+struct disk_descriptor {
+    UUId_t         device_id;
+    UUId_t         driver_id;
+    string         model;
+    string         serial;
+    storage_flags  flags;
+    disk_geometry  geometry;
+}
