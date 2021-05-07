@@ -35,3 +35,8 @@ struct disk_descriptor {
     storage_flags  flags;
     disk_geometry  geometry;
 }
+
+enum transfer_direction {
+    READ,
+    WRITE
+}
