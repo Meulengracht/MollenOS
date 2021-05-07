@@ -9,18 +9,6 @@ import "types"
 
 namespace sys
 
-enum storage_flags {
-    REMOVABLE = 1
-}
-
-struct disk_descriptor {
-    long           id;
-    storage_flags  flags;
-    string         serial;
-    uint           sector_size;
-    uint64         sectors_total;
-}
-
 service storage (2) {
     func register(UUId_t driverId, UUId_t deviceId, storage_flags flags) : () = 1;
     func unregister(UUId_t deviceId, bool forced) : () = 2;
