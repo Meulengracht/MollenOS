@@ -1,0 +1,19 @@
+/**
+ * Session Service
+ * Provides session functionality for applications and services to verify the
+ * user and provide user functionality. The session service also orchestrates few
+ * of the system functionality.
+ */
+ 
+ import "types"
+ 
+ namespace sys
+ 
+ service session (1) {
+    func login(string user, string password) : (OsStatus_t result, string sessionId) = 1;
+    func logout(string sessionId) : (OsStatus_t result) = 2;
+    
+    // this should be replaced at some point by just listening to device manager events
+    func disk_connected(string identifier) : () = 3;
+ }
+ 
