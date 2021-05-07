@@ -1,0 +1,22 @@
+/**
+ * Device Service
+ * Provides the means to discover and manipulate devices in the system.
+ */
+ 
+import "types"
+
+namespace sys
+
+service device (7) {
+    func notify(UUId_t driverId, uint vendorId, uint productId, uint class, uint subclass) : () = 1;
+    
+    func register(uint8[] buffer, uint flags) : (OsStatus_t result, UUId_t id) = 2;
+    func unregister(UUId_t deviceId) : (OsStatus_t result) = 3;
+    func ioctl(UUId_t deviceId, uint command, uint flags) : (OsStatus_t result) = 4;
+    func ioctlex(UUId_t deviceId, int direction, uint command, ulong value, uint width) : (OsStatus_t result, ulong value) = 5;
+    
+    func get_devices_by_protocol(uint8 protocolId) : () = 6;
+    
+    event protocol_device : (UUId_t deviceId, UUId_t driverId, uint8 protocolId) = 7;
+    event device_update : (UUId_t deviceId, bool connected) = 8;
+}
