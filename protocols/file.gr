@@ -30,11 +30,6 @@ enum file_permissions {
     EXECUTE = 0x4
 }
 
-enum transfer_direction {
-    READ,
-    WRITE
-}
-
 struct file_descriptor {
     long             id;
     long             storageId;
