@@ -91,7 +91,7 @@ thrd_t thrd_current(void) {
 #include <internal/_syscalls.h>
 #include <internal/_io.h>
 #include <io.h>
-#include <ctt_input_protocol.h>
+#include <ctt_input_service.h>
 #include <os/keycodes.h>
 #include <os/mollenos.h>
 #include <stdio.h>

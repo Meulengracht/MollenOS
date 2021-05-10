@@ -31,8 +31,8 @@ endmacro ()
 # build os test applications
 # these test application can only run in a bare environment - they use the kernel logging API
 # to print information and this is not available when running vioarr (window manager)
-add_subdirectory(wm_client_test)
-add_subdirectory(wm_server_test)
+#add_subdirectory(wm_client_test)
+#add_subdirectory(wm_server_test)
 
 # we do not have any CPP test programs because the CPP runtime is built by the userspace
 # environment, where the full llvm/clang setup is built for the OS.

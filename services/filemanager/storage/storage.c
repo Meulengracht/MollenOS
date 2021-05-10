@@ -184,7 +184,7 @@ StorageInitialize(void* Context)
     OsStatus_t               status;
     
     ctt_storage_stat(GetGrachtClient(), &msg.base, disk->device_id);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &status, &disk->descriptor);
     if (status != OsSuccess) {
         // TODO: disk states

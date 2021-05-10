@@ -11,7 +11,7 @@ endif ()
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+	${CMAKE_BINARY_DIR}/protocols
     ../librt/include
     ../librt/libc/include
     ../librt/libds/include

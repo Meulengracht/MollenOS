@@ -34,7 +34,7 @@
  * sa_family member of sockaddr set to AF_UNSPEC.
  */
 
-#include <svc_socket_protocol_client.h>
+#include <sys_socket_service_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>
@@ -62,9 +62,9 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
     
     if (handle->object.data.socket.type == SOCK_STREAM ||
         handle->object.data.socket.type == SOCK_SEQPACKET) {
-        svc_socket_connect(GetGrachtClient(), &msg.base, handle->object.handle, address);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_socket_connect_result(GetGrachtClient(), &msg.base, &status);
+        sys_socket_connect(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_socket_connect_result(GetGrachtClient(), &msg.base, &status);
         if (status != OsSuccess) {
             OsStatusToErrno(status);
             return -1;

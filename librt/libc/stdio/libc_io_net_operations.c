@@ -64,9 +64,9 @@ OsStatus_t stdio_net_op_close(stdio_handle_t* handle, int options)
     
     if (options & STDIO_CLOSE_FULL) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-        svc_socket_close(GetGrachtClient(), &msg.base, handle->object.handle,
-            SVC_SOCKET_CLOSE_OPTIONS_DESTROY);
-        svc_socket_close_result(GetGrachtClient(), &msg.base, &status);
+        sys_socket_close(GetGrachtClient(), &msg.base, handle->object.handle,
+            SYS_CLOSE_OPTIONS_DESTROY);
+        sys_socket_close_result(GetGrachtClient(), &msg.base, &status);
     }
     
     if (handle->object.data.socket.send_buffer.buffer) {

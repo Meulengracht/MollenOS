@@ -35,11 +35,19 @@ extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 extern OsStatus_t OnEvent(struct ioset_event* event);
 
+static gracht_server_t*         g_server     = NULL;
+static struct gracht_link_vali* g_serverLink = NULL;
+
 extern char**
 __crt_init(
     _In_  thread_storage_t* threadStorage,
     _In_  int               isModule,
     _Out_ int*              argumentCount);
+
+int __crt_get_server_iod(void)
+{
+    return gracht_link_get_handle((struct gracht_link*)g_serverLink);
+}
 
 void __crt_module_load(void)
 {
@@ -58,8 +66,8 @@ void __crt_module_load(void)
     }
     
     if (vendorId != 0 || deviceId != 0 || class != 0 || subClass != 0) {
-        svc_device_notify(GetGrachtClient(), &msg.base,
-            GetNativeHandle(gracht_server_get_dgram_iod()),
+        sys_device_notify(GetGrachtClient(), &msg.base,
+            GetNativeHandle(__crt_get_server_iod()),
             vendorId, deviceId, class, subClass);
     }
 }
@@ -72,14 +80,14 @@ _Noreturn static void __crt_module_main(int setIod)
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
-                gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
+                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
             }
             else {
                 // Check if the driver had any IRQs registered
                 if (OnEvent(&events[i]) == OsSuccess) {
                     continue;
                 }
-                gracht_server_handle_event(events[i].data.iod, events[i].events);
+                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
             }
         }
     }
@@ -88,28 +96,26 @@ _Noreturn static void __crt_module_main(int setIod)
 void __CrtModuleEntry(void)
 {
     thread_storage_t              threadStorage;
-    gracht_server_configuration_t config = { 0 };
+    gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 
-    // Initialize environment
+    // initialize runtime environment
     __crt_init(&threadStorage, 1, NULL);
 
-    // Wait for the device-manager service, as all modules require the device-manager
-    // service to perform requests.
-    if (WaitForDeviceService(2000) != OsSuccess) {
-        exit(-1);
-    }
-    
-    status = gracht_link_vali_server_create(&config.link, &addr);
+    // initialize the link
+    status = gracht_link_vali_create(&g_serverLink);
     if (status) {
         exit(-1);
     }
+    gracht_link_vali_set_listen(g_serverLink, 1);
+    gracht_link_vali_set_address(g_serverLink, &addr);
 
-    config.set_descriptor          = ioset(0);
-    config.set_descriptor_provided = 1;
-    
-    status = gracht_server_initialize(&config);
+    // initialize configurations for server
+    gracht_server_configuration_init(&config);
+    gracht_server_configuration_set_aio_descriptor(&config, ioset(0));
+
+    status = gracht_server_create(&config, &g_server);
     if (status) {
         exit(status);
     }
@@ -121,6 +127,12 @@ void __CrtModuleEntry(void)
                        .data.iod = gracht_client_iod(GetGrachtClient()),
                        .events   = IOSETIN | IOSETCTL | IOSETLVT
                });
+
+    // Wait for the device-manager service, as all modules require the device-manager
+    // service to perform requests.
+    if (WaitForDeviceService(2000) != OsSuccess) {
+        exit(-1);
+    }
 
     __crt_module_load();
     atexit((void (*)(void))OnUnload);

@@ -45,7 +45,7 @@ PathResolveEnvironment(
 	}
 	
 	svc_path_resolve(GetGrachtClient(), &msg.base, (enum svc_path_environment_path)environment, maxLength);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	svc_path_resolve_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }
@@ -64,7 +64,7 @@ PathCanonicalize(
 	}
 	
 	svc_path_canonicalize(GetGrachtClient(), &msg.base, path, maxLength);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	svc_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
 	return status;
 }

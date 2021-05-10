@@ -5,59 +5,41 @@ enable_language (C)
 
 set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
 
-set (GENERATED_HEADERS
-    ${CMAKE_BINARY_DIR}/svc_session_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_session_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_storage_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_storage_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_file_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_file_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_path_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_path_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_process_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_process_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_library_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_library_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_socket_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_socket_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_device_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_device_protocol_client.h
-    ${CMAKE_BINARY_DIR}/svc_usb_protocol.h
-    ${CMAKE_BINARY_DIR}/svc_usb_protocol_client.h
-
-    ${CMAKE_BINARY_DIR}/ctt_driver_protocol.h
-    ${CMAKE_BINARY_DIR}/ctt_driver_protocol_client.h
-    ${CMAKE_BINARY_DIR}/ctt_storage_protocol.h
-    ${CMAKE_BINARY_DIR}/ctt_storage_protocol_client.h
-    ${CMAKE_BINARY_DIR}/ctt_usbhub_protocol.h
-    ${CMAKE_BINARY_DIR}/ctt_usbhub_protocol_client.h
-    ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol.h
-    ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol_client.h
-
-    ${CMAKE_BINARY_DIR}/ctt_input_protocol.h
-    ${CMAKE_BINARY_DIR}/ctt_input_protocol_client.h
-)
-
 set (GENERATED_SOURCES
-    ${CMAKE_BINARY_DIR}/svc_session_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_storage_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_file_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_path_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_process_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_library_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_socket_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_device_protocol_client.c
-    ${CMAKE_BINARY_DIR}/svc_usb_protocol_client.c
-    ${CMAKE_BINARY_DIR}/ctt_driver_protocol_client.c
-    ${CMAKE_BINARY_DIR}/ctt_storage_protocol_client.c
-    ${CMAKE_BINARY_DIR}/ctt_usbhub_protocol_client.c
-    ${CMAKE_BINARY_DIR}/ctt_usbhost_protocol_client.c
-    ${CMAKE_BINARY_DIR}/ctt_input_protocol_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_session_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_session_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_library_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_library_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_socket_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_socket_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_device_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_device_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_usb_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_usb_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_driver_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/ctt_driver_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_storage_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/ctt_storage_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_usbhub_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/ctt_usbhub_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_usbhost_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/ctt_usbhost_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_input_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/ctt_input_service_client.c
 )
+set_source_files_properties ( ${GENERATED_SOURCES} PROPERTIES GENERATED TRUE )
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/protocols
     ../../librt/libgracht/include
     ../../librt/libusb/include
     ../../librt/libds/include
@@ -73,13 +55,6 @@ set(ASM_SOURCES
 
 # Add support for .S extension
 set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
-
-add_custom_command(
-    OUTPUT ${GENERATED_SOURCES} ${GENERATED_HEADERS}
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_BINARY_DIR} --lang-c --client
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_BINARY_DIR} --lang-c --client
-    DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
-)
 
 add_library(libddk
     ${GENERATED_SOURCES}
@@ -101,6 +76,7 @@ add_library(libddk
     usb.c
     utils.c
 )
+add_dependencies(libddk service_clients contract_clients)
 install(TARGETS libddk
     ARCHIVE DESTINATION vali-ddk/lib
     LIBRARY DESTINATION vali-ddk/lib

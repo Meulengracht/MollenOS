@@ -57,7 +57,7 @@
  * the new socket. Currently only DECNet has these semantics on Linux.
  */
 
-#include <svc_process_protocol_client.h>
+#include <sys_process_service_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>
@@ -65,7 +65,6 @@
 #include <internal/_utils.h>
 #include <inet/local.h>
 #include <os/mollenos.h>
-#include <string.h>
 
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
@@ -93,9 +92,9 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         return -1;        
     }
     
-    svc_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-    svc_socket_accept_result(GetGrachtClient(), &msg.base, &status, address,
+    sys_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *address_length,
         &socket_handle, &recv_handle, &send_handle);
     if (status != OsSuccess) {
         OsStatusToErrno(status);

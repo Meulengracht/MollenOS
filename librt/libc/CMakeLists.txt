@@ -8,7 +8,7 @@ set (MATH_FLAGS "")
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/protocols
     ../libgracht/include
     ../libusb/include
     ../libddk/include

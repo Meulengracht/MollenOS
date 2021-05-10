@@ -18,18 +18,10 @@ include_directories (
     ../../librt/include
 )
 
-add_custom_command(
-    OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/svc_usb_protocol_server.c
-        ${CMAKE_CURRENT_BINARY_DIR}/svc_usb_protocol_server.h
-        ${CMAKE_CURRENT_BINARY_DIR}/svc_usb_protocol.h
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include usb --server
-    DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml
-)
-
 set (ADDITONAL_SOURCES
-        ${CMAKE_CURRENT_BINARY_DIR}/svc_usb_protocol_server.c
+        ${CMAKE_BINARY_DIR}/protocols/svc_usb_protocol_server.c
 )
+set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 add_service_target(usbmanager ""
         ${ADDITONAL_SOURCES}
@@ -40,3 +32,4 @@ add_service_target(usbmanager ""
         devices.c
         main.c
 )
+add_dependencies(usbmanager service_servers)

@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -30,11 +29,19 @@ extern void       GetServiceAddress(struct ipmsg_addr*);
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 
+static gracht_server_t*         g_server     = NULL;
+static struct gracht_link_vali* g_serverLink = NULL;
+
 extern char**
 __crt_init(
     _In_  thread_storage_t* threadStorage,
     _In_  int               isModule,
     _Out_ int*              argumentCount);
+
+int __crt_get_server_iod(void)
+{
+    return gracht_link_get_handle((struct gracht_link*)g_serverLink);
+}
 
 _Noreturn static void __crt_service_main(int setIod)
 {
@@ -44,10 +51,10 @@ _Noreturn static void __crt_service_main(int setIod)
         int num_events = ioset_wait(setIod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
-                gracht_client_wait_message(GetGrachtClient(), NULL, GetGrachtBuffer(), 0);
+                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
             }
             else {
-                gracht_server_handle_event(events[i].data.iod, events[i].events);
+                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
             }
         }
     }
@@ -56,22 +63,28 @@ _Noreturn static void __crt_service_main(int setIod)
 void __CrtServiceEntry(void)
 {
     thread_storage_t              threadStorage;
-    gracht_server_configuration_t config = { 0 };
+    gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     int                           status;
 
+    // initialize runtime environment
     __crt_init(&threadStorage, 1, NULL);
 
     GetServiceAddress(&addr);
-    status = gracht_link_vali_server_create(&config.link, &addr);
+
+    // initialize the link
+    status = gracht_link_vali_create(&g_serverLink);
     if (status) {
-        exit(status);
+        exit(-1);
     }
+    gracht_link_vali_set_listen(g_serverLink, 1);
+    gracht_link_vali_set_address(g_serverLink, &addr);
 
-    config.set_descriptor          = ioset(0);
-    config.set_descriptor_provided = 1;
+    // initialize configurations for server
+    gracht_server_configuration_init(&config);
+    gracht_server_configuration_set_aio_descriptor(&config, ioset(0));
 
-    status = gracht_server_initialize(&config);
+    status = gracht_server_create(&config, &g_server);
     if (status) {
         exit(status);
     }

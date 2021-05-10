@@ -18,14 +18,10 @@ include_directories (
     ../../librt/include
 )
 
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/svc_socket_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/svc_socket_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/svc_socket_protocol.h
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include socket --server
-    DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml
-)
-
 set (ADDITONAL_SOURCES
-    ${CMAKE_CURRENT_BINARY_DIR}/svc_socket_protocol_server.c)
+    ${CMAKE_BINARY_DIR}/protocols/sys_socket_protocol_server.c
+)
+set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 add_service_target(netmanager ""
     ${ADDITONAL_SOURCES}
@@ -39,3 +35,4 @@ add_service_target(netmanager ""
     socket.c
     main.c
 )
+add_dependencies(netmanager service_servers)

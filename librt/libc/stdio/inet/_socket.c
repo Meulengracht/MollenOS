@@ -22,14 +22,13 @@
  */
 #define __TRACE
 
-#include <svc_socket_protocol_client.h>
+#include <sys_socket_service_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <stdlib.h>
 
 int socket_create(int domain, int type, int protocol, UUId_t handle, 
     UUId_t send_handle, UUId_t recv_handle)
@@ -44,9 +43,9 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
         
         ERROR("[socket] stdio_handle_create failed with code %u", status);
-        svc_socket_close(GetGrachtClient(), &msg.base, handle, SVC_SOCKET_CLOSE_OPTIONS_DESTROY);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_socket_close_result(GetGrachtClient(), &msg.base, &osStatus);
+        sys_socket_close(GetGrachtClient(), &msg.base, handle, SYS_CLOSE_OPTIONS_DESTROY);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_socket_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;
     }
     

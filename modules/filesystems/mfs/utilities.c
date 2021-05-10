@@ -45,7 +45,7 @@ MfsReadSectors(
 	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.device_id,
 			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, SectorsRead);
 	return status;
 }
@@ -66,7 +66,7 @@ MfsWriteSectors(
 	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.device_id,
 			__STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
 			BufferHandle, BufferOffset, Count);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, SectorsWritten);
 	return status;
 }

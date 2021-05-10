@@ -43,7 +43,7 @@ ReadStorage(
 	ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->device_id,
 			__STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector), 
 			bufferHandle, 0, sectorCount);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, sectorsRead);
 	return status;
 }

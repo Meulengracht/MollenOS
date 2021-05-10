@@ -19,15 +19,11 @@ include_directories (
     ../sata
 )
 
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_storage_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_storage_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_storage_protocol.h
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --include driver,storage --server
-    DEPENDS ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
-)
-
 set (ADDITONAL_SOURCES
-    ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_server.c
-    ${CMAKE_CURRENT_BINARY_DIR}/ctt_storage_protocol_server.c)
+    ${CMAKE_BINARY_DIR}/protocols/ctt_driver_protocol_server.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_storage_protocol_server.c
+)
+set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 add_module_target(ahci ""
     ${ADDITONAL_SOURCES}
@@ -39,3 +35,4 @@ add_module_target(ahci ""
     port.c
     transactions.c
 )
+add_dependencies(ahci contract_servers)

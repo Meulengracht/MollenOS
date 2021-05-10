@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +19,7 @@
  * - Deletes the file specified by the path
  */
 
-#include <svc_file_protocol_client.h>
+#include <sys_file_service_client.h>
 #include <ddk/service.h>
 #include <errno.h>
 #include <gracht/link/vali.h>
@@ -41,9 +40,9 @@ int unlink(
     	return EOF;
     }
     
-    status = svc_file_delete(GetGrachtClient(), &msg.base, *GetInternalProcessId(), path, 0);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-    svc_file_delete_result(GetGrachtClient(), &msg.base, &osStatus);
+    status = sys_file_delete(GetGrachtClient(), &msg.base, *GetInternalProcessId(), path, 0);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_delete_result(GetGrachtClient(), &msg.base, &osStatus);
     if (status || OsStatusToErrno(osStatus)) {
     	return -1;
     }

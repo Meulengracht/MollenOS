@@ -18,24 +18,11 @@ include_directories (
     ../../librt/include
 )
 
-# Generate server protocols
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol_server.c ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol_server.h ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol.h
-    COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --include device --lang-c --server
-    DEPENDS ${CMAKE_SOURCE_DIR}/protocols/service_protocols.xml
-)
-
-# Generate client protocols
-add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_client.c ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_client.h ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol.h
-        COMMAND python ${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py --protocol ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml --out ${CMAKE_CURRENT_BINARY_DIR} --include driver --lang-c --client
-        DEPENDS ${CMAKE_SOURCE_DIR}/protocols/contract_protocols.xml
-)
-
 set (ADDITONAL_SOURCES
-    ${CMAKE_CURRENT_BINARY_DIR}/svc_device_protocol_server.c
-    ${CMAKE_CURRENT_BINARY_DIR}/ctt_driver_protocol_client.c
+    ${CMAKE_BINARY_DIR}/protocols/svc_device_protocol_server.c
+    ${CMAKE_BINARY_DIR}/protocols/ctt_driver_protocol_client.c
 )
+set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
     include_directories(arch/x86)
@@ -49,3 +36,4 @@ if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
 endif ()
 
 add_service_target(devicemanager "" main.c ${ADDITONAL_SOURCES})
+add_dependencies(devicemanager service_servers contract_clients)

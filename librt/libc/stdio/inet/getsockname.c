@@ -47,9 +47,9 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
         return -1;
     }
     
-    svc_socket_get_address(GetGrachtClient(), &msg.base, handle->object.handle, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-    svc_socket_get_address_result(GetGrachtClient(), &msg.base, &status, address_out);
+    sys_socket_get_address(GetGrachtClient(), &msg.base, handle->object.handle, SYS_ADDRESS_TYPE_THIS);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_socket_get_address_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address_out, *address_length_out);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

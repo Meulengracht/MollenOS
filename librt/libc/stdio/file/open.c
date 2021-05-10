@@ -22,7 +22,7 @@
 
 //#define __TRACE
 
-#include <svc_file_protocol_client.h>
+#include <sys_file_service_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
@@ -119,7 +119,7 @@ int open(const char* file, int flags, ...)
     }
     
     // Try to open the file by directly communicating with the file-service
-    status = svc_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
+    status = sys_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
         file, _fopts(flags), _faccess(flags));
     if (status) {
         ERROR("open no communcation channel open");
@@ -127,13 +127,13 @@ int open(const char* file, int flags, ...)
         return -1;
     }
 
-    status = gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    status = gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     if (status) {
         ERROR("open failed to wait for answer: %i", status);
         return -1;
     }
 
-    svc_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
+    sys_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
     if (OsStatusToErrno(osStatus)) {
         ERROR("open(path=%s) failed with code: %u", file, osStatus);
         return -1;
@@ -141,9 +141,9 @@ int open(const char* file, int flags, ...)
 
     TRACE("open retrieved handle %u", handle);
     if (stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object)) {
-        svc_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-        svc_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
+        sys_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;
     }
     

@@ -36,7 +36,7 @@ ProcessGetLibraryHandles(
     
     svc_process_get_modules(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
         sizeof(void*) * PROCESS_MAXMODULES);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     svc_process_get_modules_result(GetGrachtClient(), &msg.base, ModuleList, ModuleCountOut);
 }
 

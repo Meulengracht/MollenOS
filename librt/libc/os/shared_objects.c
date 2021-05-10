@@ -88,7 +88,7 @@ SharedObjectLoad(
     else {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         svc_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         svc_library_load_result(GetGrachtClient(), &msg.base, &osStatus, &handle, &entryAddress);
     }
 
@@ -146,7 +146,7 @@ SharedObjectGetFunction(
         uintptr_t AddressOfFunction;
         
         svc_library_get_function(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle, Function);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         svc_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
         OsStatusToErrno(Status);
         if (Status != OsSuccess) {
@@ -204,7 +204,7 @@ SharedObjectUnload(
         else {
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
             svc_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle);
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+            gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
             svc_library_unload_result(GetGrachtClient(), &msg.base, &status);
         }
         OsStatusToErrno(status);

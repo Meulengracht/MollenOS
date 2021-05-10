@@ -27,7 +27,7 @@
  * It is normally necessary to assign a local address using bind() before a SOCK_STREAM socket may receive connections (see accept(2)).
  */
 
-#include <svc_socket_protocol_client.h>
+#include <sys_socket_service_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
@@ -53,9 +53,9 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         return -1;
     }
     
-    svc_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, address);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
-    svc_socket_bind_result(GetGrachtClient(), &msg.base, &status);
+    sys_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_socket_bind_result(GetGrachtClient(), &msg.base, &status);
     if (status != OsSuccess) {
         OsStatusToErrno(status);
         return -1;

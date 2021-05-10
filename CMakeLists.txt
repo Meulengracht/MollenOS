@@ -93,6 +93,9 @@ include (cmake/${VALI_ARCH}PlatformConfig.cmake)
 # Configure bootloader
 add_subdirectory (boot)
 
+# Generate all the neccessary files for the builds
+add_subdirectory (protocols)
+
 # Configure the runtime libraries
 add_subdirectory (librt)
 

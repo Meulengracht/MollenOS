@@ -39,8 +39,7 @@ extern void StdSoInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
-static char             __crt_gclient_buffer[GRACHT_MAX_MESSAGE_SIZE] = { 0 };
-static gracht_client_t* __crt_gclient = NULL;
+static gracht_client_t* g_gclient = NULL;
 
 static char   __crt_raw_cmdline[1024] = { 0 };
 static int    __crt_is_module         = 0;
@@ -74,7 +73,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     }
 
     TRACE("[InitializeProcess] creating rpc client");
-    status = gracht_client_create(&clientConfig, &__crt_gclient);
+    status = gracht_client_create(&clientConfig, &g_gclient);
     if (status) {
         ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
         _Exit(status);
@@ -92,7 +91,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         size_t maxLength = tls_current()->transfer_buffer.length;
 
         svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), dmaHandle, maxLength);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GetGrachtBuffer(), GRACHT_WAIT_BLOCK);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
                                                    &osStatus, &__crt_process_id, &StartupInformation->ArgumentsLength,
                                                    &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength);
@@ -141,10 +140,5 @@ const char* GetInternalCommandLine(void)
 
 gracht_client_t* GetGrachtClient(void)
 {
-    return __crt_gclient;
-}
-
-void* GetGrachtBuffer(void)
-{
-    return (void*)&__crt_gclient_buffer[0];
+    return g_gclient;
 }
