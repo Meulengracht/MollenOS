@@ -32,7 +32,7 @@ service process (5) {
     func get_startup_information(UUId_t handle, UUId_t bufferHandle, ulong offset) : (OsStatus_t result, UUId_t handle, ulong argumentLength, ulong inheritationLength, ulong modulesLength) = 10;
     func get_modules(UUId_t handle) : (uintptr_t[] modules, int count) = 11;
     
-    func report_crash(UUId_t threadId, UUId_t processId, uint8[] context, int reason) : (OsStatus_t result) = 12;
+    func report_crash(UUId_t threadId, UUId_t processId, uint8[] crashContext, int reason) : (OsStatus_t result) = 12;
 }
 
 service library (6) {

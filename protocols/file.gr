@@ -57,6 +57,7 @@ service file (3) {
     func close(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 2;
     func delete(UUId_t processId, string path, uint flags) : (OsStatus_t result) = 3;
     func transfer(UUId_t processId, UUId_t handle, transfer_direction direction, UUId_t bufferHandle, ulong offset, ulong length) : (OsStatus_t result, ulong bytesTransferred) = 4;
+    func transfer_absolute(UUId_t processId, UUId_t handle, transfer_direction direction, uint seekLow, uint seekHigh, UUId_t bufferHandle, ulong offset, ulong length) : (OsStatus_t result, ulong bytesTransferred) = 4;
     func seek(UUId_t processId, UUId_t handle, uint seekLow, uint seekHigh) : (OsStatus_t result) = 5;
     func flush(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 6;
     func move(UUId_t processId, string source, string destination, bool copy) : (OsStatus_t result) = 7;
