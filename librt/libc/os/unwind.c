@@ -23,6 +23,7 @@
 
 #include <internal/_ipc.h>
 #include <internal/_utils.h>
+#include <os/types/process.h>
 #include <os/unwind.h>
 #include <os/pe.h>
 #include <string.h>
@@ -34,10 +35,10 @@ ProcessGetLibraryHandles(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     
-    svc_process_get_modules(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
-        sizeof(void*) * PROCESS_MAXMODULES);
+    sys_process_get_modules(GetGrachtClient(), &msg.base, *GetInternalProcessId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_get_modules_result(GetGrachtClient(), &msg.base, ModuleList, ModuleCountOut);
+    sys_process_get_modules_result(GetGrachtClient(), &msg.base, (uintptr_t*)ModuleList,
+                                   PROCESS_MAXMODULES, ModuleCountOut);
 }
 
 OsStatus_t
@@ -86,7 +87,7 @@ UnwindGetSection(
         for (unsigned j = 0; j < peHeader->NumSections; j++, peSection++) {
             uintptr_t begin = peSection->VirtualAddress + (uintptr_t)ModuleList[i];
             uintptr_t end = begin + peSection->VirtualSize;
-            if (!strncmp((const char *)peSection->Name, ".text", PE_SECTION_NAME_LENGTH)) {
+            if (!strcmp((const char *)peSection->Name, ".text")) {
                 if ((uintptr_t)MemoryAddress >= begin && (uintptr_t)MemoryAddress < end)
                     foundObj = 1;
             } else if (!strncmp((const char *)peSection->Name, ".eh_frame", PE_SECTION_NAME_LENGTH)) {

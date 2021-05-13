@@ -511,7 +511,7 @@ set_target_properties(c
     PROPERTIES
         LINK_FLAGS "/def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def /entry:__CrtLibraryEntry /lldmap"
 )
-target_link_libraries (c libgracht libds libddk libm librt)
+target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c
     ARCHIVE DESTINATION vali-sdk/lib
     LIBRARY DESTINATION vali-sdk/lib

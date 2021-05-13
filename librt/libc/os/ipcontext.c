@@ -78,31 +78,37 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     return io_object->fd;
 }
 
-int putmsg(int iod, struct ipmsg_header* msg, int timeout)
+int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len, int timeout)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     OsStatus_t      status;
+    struct ipmsg    msg;
     
     if (!handle) {
         _set_errno(EBADF);
         return -1;
     }
     
-    if (!msg) {
+    if (!addr || !data || !len) {
         _set_errno(EINVAL);
         return -1;
     }
     
     if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
-        _set_errno(EINVAL);
+        _set_errno(EBADFD);
         return -1;
     }
+
+    msg.from    = handle->object.handle;
+    msg.addr    = addr;
+    msg.payload = data;
+    msg.length  = len;
     
     status = Syscall_IpcContextSend(&msg, 1, timeout);
     return OsStatusToErrno(status);
 }
 
-int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
+int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandle)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     size_t          bytesAvailable;
@@ -111,6 +117,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     streambuffer_t* stream;
     unsigned int    sb_options = 0;
     int             status = 0;
+    UUId_t          sender;
 
     TRACE("getmsg(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, msg, len, flags);
     
@@ -120,7 +127,7 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
         goto exit;
     }
     
-    if (!len || !msg) {
+    if (!buffer || !len) {
         _set_errno(EINVAL);
         status = -1;
         goto exit;
@@ -145,34 +152,15 @@ int getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags)
     }
     
     TRACE("getmsg message, size=%" PRIuIN, bytesAvailable);
-    streambuffer_read_packet_data(stream, msg, MIN(len, bytesAvailable), &state);
+    streambuffer_read_packet_data(stream, &sender, sizeof(UUId_t), &state);
+    streambuffer_read_packet_data(stream, buffer, MIN(len, bytesAvailable - sizeof(UUId_t)), &state);
     streambuffer_read_packet_end(stream, base, bytesAvailable);
+
+    if (fromHandle) {
+        *fromHandle = sender;
+    }
 
 exit:
     TRACE("getmsg return=%i", status);
     return status;
-}
-
-int resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp)
-{
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    OsStatus_t      status;
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
-    if (!msg || !resp) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-    
-    if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-
-    status = Syscall_IpcContextRespond(&msg, &resp, 1);
-    return OsStatusToErrno(status);
 }

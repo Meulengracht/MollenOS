@@ -44,9 +44,9 @@ PathResolveEnvironment(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_resolve(GetGrachtClient(), &msg.base, (enum svc_path_environment_path)environment, maxLength);
+	sys_path_resolve(GetGrachtClient(), &msg.base, (enum sys_system_paths)environment);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	svc_path_resolve_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
+	sys_path_resolve_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
 	return status;
 }
 
@@ -63,9 +63,9 @@ PathCanonicalize(
 	    return OsInvalidParameters;
 	}
 	
-	svc_path_canonicalize(GetGrachtClient(), &msg.base, path, maxLength);
+	sys_path_canonicalize(GetGrachtClient(), &msg.base, path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	svc_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, &buffer[0]);
+	sys_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
 	return status;
 }
 

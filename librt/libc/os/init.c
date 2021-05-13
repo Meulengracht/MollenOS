@@ -28,6 +28,7 @@
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <os/types/process.h>
 #include <stdlib.h>
 #include <threads.h>
 #include "../threads/tls.h"
@@ -39,22 +40,23 @@ extern void StdSoInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
-static gracht_client_t* g_gclient = NULL;
+static gracht_client_t*         g_gclient = NULL;
+static struct gracht_link_vali* g_gclientLink = NULL;
 
-static char   __crt_raw_cmdline[1024] = { 0 };
-static int    __crt_is_module         = 0;
-static UUId_t __crt_process_id        = UUID_INVALID;
+static char   g_rawCommandLine[1024] = { 0 };
+static int    g_isModule             = 0;
+static UUId_t g_processId            = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
-    gracht_client_configuration_t clientConfig = { 0 };
-    struct vali_link_message      msg          = VALI_MSG_INIT_HANDLE(GetProcessService());
+    gracht_client_configuration_t clientConfig;
+    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t                    osStatus;
     int                           status;
     TRACE("[InitializeProcess]");
     
     // We must set IsModule before anything
-    __crt_is_module = IsModule;
+    g_isModule = IsModule;
 
     // Initialize the standard C library
     TRACE("[InitializeProcess] initializing stdio");
@@ -64,13 +66,17 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     TRACE("[InitializeProcess] initializing so");
     StdSoInitialize();
 
-    // Create the ipc client
+    // initialite the ipc link
     TRACE("[InitializeProcess] creating rpc link");
-    status = gracht_link_vali_client_create(&clientConfig.link);
+    status = gracht_link_vali_create(&g_gclientLink);
     if (status) {
-        ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
+        ERROR("[InitializeProcess] gracht_link_vali_create failed %i", status);
         _Exit(status);
     }
+
+    // configure the client
+    gracht_client_configuration_init(&clientConfig);
+    gracht_client_configuration_set_link(&clientConfig, (struct gracht_link*)g_gclientLink);
 
     TRACE("[InitializeProcess] creating rpc client");
     status = gracht_client_create(&clientConfig, &g_gclient);
@@ -82,18 +88,18 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     // Get startup information
     TRACE("[InitializeProcess] receiving startup configuration");
     if (IsModule) {
-        Syscall_ModuleGetStartupInfo(StartupInformation, &__crt_process_id, &__crt_raw_cmdline[0],
-                                     sizeof(__crt_raw_cmdline));
+        Syscall_ModuleGetStartupInfo(StartupInformation, &g_processId, &g_rawCommandLine[0],
+                                     sizeof(g_rawCommandLine));
     }
     else {
         UUId_t dmaHandle = tls_current()->transfer_buffer.handle;
         char*  dmaBuffer = tls_current()->transfer_buffer.buffer;
         size_t maxLength = tls_current()->transfer_buffer.length;
 
-        svc_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), dmaHandle, maxLength);
+        sys_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), dmaHandle, maxLength);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        svc_process_get_startup_information_result(GetGrachtClient(), &msg.base,
-                                                   &osStatus, &__crt_process_id, &StartupInformation->ArgumentsLength,
+        sys_process_get_startup_information_result(GetGrachtClient(), &msg.base,
+                                                   &osStatus, &g_processId, &StartupInformation->ArgumentsLength,
                                                    &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength);
         
         TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
@@ -116,7 +122,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
             StartupInformation->ArgumentsLength + StartupInformation->InheritationLength];
 
         // copy the arguments to the raw cmdline
-        memcpy(&__crt_raw_cmdline[0], StartupInformation->Arguments, StartupInformation->ArgumentsLength);
+        memcpy(&g_rawCommandLine[0], StartupInformation->Arguments, StartupInformation->ArgumentsLength);
     }
 
     // Parse the configuration information
@@ -125,17 +131,17 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
 
 int IsProcessModule(void)
 {
-    return __crt_is_module;
+    return g_isModule;
 }
 
 UUId_t* GetInternalProcessId(void)
 {
-    return &__crt_process_id;
+    return &g_processId;
 }
 
 const char* GetInternalCommandLine(void)
 {
-    return &__crt_raw_cmdline[0];
+    return &g_rawCommandLine[0];
 }
 
 gracht_client_t* GetGrachtClient(void)

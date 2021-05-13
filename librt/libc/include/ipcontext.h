@@ -40,26 +40,21 @@ struct ipmsg_addr {
     } data;
 };
 
-#define IPMSG_ADDR_INIT_HANDLE(handle) { IPMSG_ADDRESS_HANDLE, { handle } }
-
-struct ipmsg_header {
-    UUId_t                 sender;
-    struct ipmsg_addr*     address;
-    struct gracht_message* base;
-};
-
 struct ipmsg {
-    UUId_t                sender;
-    struct gracht_message base;
+    UUId_t             from;
+    struct ipmsg_addr* addr;
+    const void*        payload;
+    size_t             length;
 };
+
+#define IPMSG_ADDR_INIT_HANDLE(handle) { IPMSG_ADDRESS_HANDLE, { handle } }
 
 #define IPMSG_DONTWAIT 0x1
 
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int len, struct ipmsg_addr* addr));
-CRTDECL(int, putmsg(int iod, struct ipmsg_header* msg, int timeout));
-CRTDECL(int, getmsg(int iod, struct ipmsg* msg, unsigned int len, int flags));
-CRTDECL(int, resp(int iod, struct ipmsg* msg, struct ipmsg_header* resp));
+CRTDECL(int, ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len, int timeout));
+CRTDECL(int, iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandle));
 _CODE_END
 
 #endif //!__IPCONTEXT_H__

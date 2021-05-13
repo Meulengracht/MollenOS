@@ -87,9 +87,9 @@ SharedObjectLoad(
     }
     else {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        svc_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
+        sys_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        svc_library_load_result(GetGrachtClient(), &msg.base, &osStatus, &handle, &entryAddress);
+        sys_library_load_result(GetGrachtClient(), &msg.base, &osStatus, (uintptr_t*)&handle, &entryAddress);
     }
 
     if (osStatus == OsSuccess && handle != HANDLE_INVALID) {
@@ -145,9 +145,9 @@ SharedObjectGetFunction(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         uintptr_t AddressOfFunction;
         
-        svc_library_get_function(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle, Function);
+        sys_library_get_function(GetGrachtClient(), &msg.base, *GetInternalProcessId(), (uintptr_t)Handle, Function);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        svc_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
+        sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
         OsStatusToErrno(Status);
         if (Status != OsSuccess) {
             return NULL;
@@ -203,9 +203,9 @@ SharedObjectUnload(
         }
         else {
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-            svc_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Handle);
+            sys_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), (uintptr_t)Handle);
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-            svc_library_unload_result(GetGrachtClient(), &msg.base, &status);
+            sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
         }
         OsStatusToErrno(status);
     }
@@ -233,8 +233,10 @@ static uint64_t so_hash(const void* element)
         return 0;
     }
 
-	while ((character = tolower(*pointer++)) != 0)
-		hash = ((hash << 5) + hash) + character; /* hash * 33 + c */
+	while ((character = tolower(*pointer)) != 0) {
+        hash = ((hash << 5) + hash) + character; /* hash * 33 + c */
+	    pointer++;
+	}
 	return hash;
 }
 

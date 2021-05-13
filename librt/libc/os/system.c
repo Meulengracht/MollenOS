@@ -21,7 +21,6 @@
  */
 
 #include <internal/_ipc.h>
-#include <internal/_io.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
@@ -54,9 +53,9 @@ GetSystemTick(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         OsStatus_t               status;
         
-        svc_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
+        sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        svc_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status,
+        sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status,
             &Tick->u.LowPart, &Tick->u.HighPart);
         return status;
     }

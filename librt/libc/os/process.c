@@ -28,11 +28,11 @@
 #include <internal/_ipc.h>
 #include <internal/_io.h>
 #include <os/process.h>
-#include <os/context.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <threads.h>
+#include <ddk/convert.h>
 
 void
 ProcessConfigurationInitialize(
@@ -73,21 +73,25 @@ ProcessSpawnEx(
     _In_     ProcessConfiguration_t* Configuration,
     _Out_    UUId_t*                 HandleOut)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    void*                    inheritationBlock       = NULL;
-    size_t                   inheritationBlockLength = 0;
-    OsStatus_t               status;
+    struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    void*                            inheritationBlock       = NULL;
+    size_t                           inheritationBlockLength = 0;
+    OsStatus_t                       status;
+    struct sys_process_configuration gconfiguration;
     
     if (!Path || !Configuration || !HandleOut) {
         return OsInvalidParameters;
     }
     
     StdioCreateInheritanceBlock(Configuration, &inheritationBlock, &inheritationBlockLength);
+
+    // convert parameters
+    to_sys_process_configuration(Configuration, &gconfiguration);
     
-    svc_process_spawn(GetGrachtClient(), &msg.base, Path,
-        Arguments, inheritationBlock, inheritationBlockLength, Configuration);
+    sys_process_spawn(GetGrachtClient(), &msg.base, Path,
+        Arguments, inheritationBlock, inheritationBlockLength, &gconfiguration);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_spawn_result(GetGrachtClient(), &msg.base, &status, HandleOut);
+    sys_process_spawn_result(GetGrachtClient(), &msg.base, &status, HandleOut);
     
     if (inheritationBlock) {
         free(inheritationBlock);
@@ -104,9 +108,9 @@ ProcessJoin(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
     
-    svc_process_join(GetGrachtClient(), &msg.base, Handle, Timeout);
+    sys_process_join(GetGrachtClient(), &msg.base, Handle, Timeout);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_join_result(GetGrachtClient(), &msg.base, &status, ExitCode);
+    sys_process_join_result(GetGrachtClient(), &msg.base, &status, ExitCode);
     return status;
 }
 
@@ -117,9 +121,9 @@ ProcessKill(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
     
-    svc_process_kill(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Handle);
+    sys_process_kill(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_kill_result(GetGrachtClient(), &msg.base, &status);
+    sys_process_kill_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
 
@@ -141,9 +145,9 @@ ProcessGetTickBase(
         return OsInvalidParameters;
     }
     
-    svc_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
+    sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status, &tick.u.LowPart, &tick.u.HighPart);
+    sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status, &tick.u.LowPart, &tick.u.HighPart);
     
     *tickOut = (clock_t)tick.QuadPart;
     return status;
@@ -182,9 +186,9 @@ ProcessGetCurrentName(
         return Syscall_ModuleName(Buffer, MaxLength);
     }
     
-    svc_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), MaxLength);
+    sys_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_get_name_result(GetGrachtClient(), &msg.base, &status, Buffer);
+    sys_process_get_name_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
     return status;
 }
 
@@ -208,9 +212,9 @@ ProcessGetAssemblyDirectory(
         Handle = ProcessGetCurrentId();
     }
     
-    svc_process_get_assembly_directory(GetGrachtClient(), &msg.base, Handle, MaxLength);
+    sys_process_get_assembly_directory(GetGrachtClient(), &msg.base, Handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, Buffer);
+    sys_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
     return status;
 }
 
@@ -234,9 +238,9 @@ ProcessGetWorkingDirectory(
         Handle = ProcessGetCurrentId();
     }
 	
-    svc_process_get_working_directory(GetGrachtClient(), &msg.base, Handle, MaxLength);
+    sys_process_get_working_directory(GetGrachtClient(), &msg.base, Handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_get_working_directory_result(GetGrachtClient(), &msg.base, &status, Buffer);
+    sys_process_get_working_directory_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
     return status;
 }
 
@@ -255,8 +259,8 @@ ProcessSetWorkingDirectory(
         return Syscall_SetWorkingDirectory(Path);
     }
 	
-    svc_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Path);
+    sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    svc_process_set_working_directory_result(GetGrachtClient(), &msg.base, &status);
+    sys_process_set_working_directory_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
