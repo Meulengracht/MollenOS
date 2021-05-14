@@ -24,17 +24,14 @@
 
 #define __TRACE
 
-#include <ddk/usbdevice.h>
 #include <usb/usb.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
 #include "manager.h"
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 
-#include "svc_usb_protocol_server.h"
+#include "sys_usb_service_server.h"
 
 static list_t g_controllers = LIST_INIT;
 
@@ -174,34 +171,31 @@ static UsbController_t* __GetControllerIndex(
     return NULL;
 }
 
-void svc_usb_register_controller_callback(
-        _In_ struct gracht_recv_message*              message,
-        _In_ struct svc_usb_register_controller_args* args)
+void sys_usb_register_controller_invocation(struct gracht_message* message, const UUId_t driverId,
+        const uint8_t* device, const uint32_t device_count, const int type, const int portCount)
 {
-    UsbCoreControllerRegister(args->driver_id, args->device, (UsbControllerType_t)args->type, args->port_count);
+    UsbCoreControllerRegister(driverId, (Device_t*)device, (UsbControllerType_t)type, portCount);
 }
 
-void svc_usb_unregister_controller_callback(
-        _In_ struct gracht_recv_message*                message,
-        _In_ struct svc_usb_unregister_controller_args* args)
+void sys_usb_unregister_controller_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    UsbCoreControllerUnregister(args->device_id);
+    UsbCoreControllerUnregister(deviceId);
 }
 
-void svc_usb_get_controller_count_callback(struct gracht_recv_message* message)
+void sys_usb_get_controller_count_invocation(struct gracht_message* message)
 {
-    svc_usb_get_controller_count_response(message, __GetControllerCount());
+    sys_usb_get_controller_count_response(message, __GetControllerCount());
 }
 
-void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args* args)
+void sys_usb_get_controller_invocation(struct gracht_message* message, const int index)
 {
     UsbHcController_t hcController = { { { 0 } }, 0 };
     UsbController_t*  controller;
 
-    controller = __GetControllerIndex(args->index);
+    controller = __GetControllerIndex(index);
     if (controller != NULL) {
         memcpy(&hcController.Device, &controller->Device, sizeof(Device_t));
         hcController.Type = controller->Type;
     }
-    svc_usb_get_controller_response(message, &hcController);
+    sys_usb_get_controller_response(message, (uint8_t*)&hcController, sizeof(UsbHcController_t));
 }

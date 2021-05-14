@@ -145,7 +145,7 @@ extern OsStatus_t ScSystemTick(int tickBase, LargeUInteger_t* tick);
 extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 
-#define SYSTEM_CALL_COUNT 76
+#define SYSTEM_CALL_COUNT 75
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -225,44 +225,43 @@ static struct SystemCallDescriptor {
     // Communication system calls
     DefineSyscall(43, IpcContextCreate),
     DefineSyscall(44, IpcContextSendMultiple),
-    DefineSyscall(45, IpcContextRespondMultiple),
 
     // Memory system calls
-    DefineSyscall(46, ScMemoryAllocate),
-    DefineSyscall(47, ScMemoryFree),
-    DefineSyscall(48, ScMemoryProtect),
-    DefineSyscall(49, ScMemoryQueryAllocation),
-    DefineSyscall(50, ScMemoryQueryAttributes),
+    DefineSyscall(45, ScMemoryAllocate),
+    DefineSyscall(46, ScMemoryFree),
+    DefineSyscall(47, ScMemoryProtect),
+    DefineSyscall(48, ScMemoryQueryAllocation),
+    DefineSyscall(49, ScMemoryQueryAttributes),
     
-    DefineSyscall(51, ScDmaCreate),
-    DefineSyscall(52, ScDmaExport),
-    DefineSyscall(53, ScDmaAttach),
-    DefineSyscall(54, ScDmaAttachmentMap),
-    DefineSyscall(55, ScDmaAttachmentResize),
-    DefineSyscall(56, ScDmaAttachmentRefresh),
-    DefineSyscall(57, ScDmaAttachmentCommit),
-    DefineSyscall(58, ScDmaAttachmentUnmap),
-    DefineSyscall(59, ScDmaDetach),
-    DefineSyscall(60, ScDmaGetMetrics),
+    DefineSyscall(50, ScDmaCreate),
+    DefineSyscall(51, ScDmaExport),
+    DefineSyscall(52, ScDmaAttach),
+    DefineSyscall(53, ScDmaAttachmentMap),
+    DefineSyscall(54, ScDmaAttachmentResize),
+    DefineSyscall(55, ScDmaAttachmentRefresh),
+    DefineSyscall(56, ScDmaAttachmentCommit),
+    DefineSyscall(57, ScDmaAttachmentUnmap),
+    DefineSyscall(58, ScDmaDetach),
+    DefineSyscall(59, ScDmaGetMetrics),
     
-    DefineSyscall(61, ScCreateHandle),
-    DefineSyscall(62, ScDestroyHandle),
-    DefineSyscall(63, ScRegisterHandlePath),
-    DefineSyscall(64, ScLookupHandle),
-    DefineSyscall(65, ScSetHandleActivity),
+    DefineSyscall(60, ScCreateHandle),
+    DefineSyscall(61, ScDestroyHandle),
+    DefineSyscall(62, ScRegisterHandlePath),
+    DefineSyscall(63, ScLookupHandle),
+    DefineSyscall(64, ScSetHandleActivity),
 
-    DefineSyscall(66, ScCreateHandleSet),
-    DefineSyscall(67, ScControlHandleSet),
-    DefineSyscall(68, ScListenHandleSet),
+    DefineSyscall(65, ScCreateHandleSet),
+    DefineSyscall(66, ScControlHandleSet),
+    DefineSyscall(67, ScListenHandleSet),
     
     // Support system calls
-    DefineSyscall(69, ScInstallSignalHandler),
-    DefineSyscall(70, ScFlushHardwareCache),
-    DefineSyscall(71, ScSystemQuery),
-    DefineSyscall(72, ScSystemTick),
-    DefineSyscall(73, ScPerformanceFrequency),
-    DefineSyscall(74, ScPerformanceTick),
-    DefineSyscall(75, ScSystemTime)
+    DefineSyscall(68, ScInstallSignalHandler),
+    DefineSyscall(69, ScFlushHardwareCache),
+    DefineSyscall(70, ScSystemQuery),
+    DefineSyscall(71, ScSystemTick),
+    DefineSyscall(72, ScPerformanceFrequency),
+    DefineSyscall(73, ScPerformanceTick),
+    DefineSyscall(74, ScSystemTime)
 };
 
 Context_t*

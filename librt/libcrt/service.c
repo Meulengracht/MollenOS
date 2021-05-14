@@ -43,6 +43,11 @@ int __crt_get_server_iod(void)
     return gracht_link_get_handle((struct gracht_link*)g_serverLink);
 }
 
+gracht_server_t* __crt_get_service_server(void)
+{
+    return g_server;
+}
+
 _Noreturn static void __crt_service_main(int setIod)
 {
     struct ioset_event events[32];

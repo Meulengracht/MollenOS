@@ -34,7 +34,7 @@
 #include <string.h>
 #include <threads.h>
 
-#include "svc_usb_protocol_server.h"
+#include "sys_usb_service_server.h"
 
 void __HandlePortEvent(
         _In_ UUId_t  hubDeviceId,
@@ -125,12 +125,12 @@ void __HandlePortError(
     }
 }
 
-void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc_usb_port_event_args* args)
+void sys_usb_port_event_invocation(struct gracht_message* message, const UUId_t hubDeviceId, const uint8_t portAddress)
 {
-    __HandlePortEvent(args->hub_device_id, args->port_address);
+    __HandlePortEvent(hubDeviceId, portAddress);
 }
 
-void svc_usb_port_error_callback(struct gracht_recv_message* message, struct svc_usb_port_error_args* args)
+void sys_usb_port_error_invocation(struct gracht_message* message, const UUId_t hubDeviceId, const uint8_t portAddress)
 {
-    __HandlePortError(args->hub_device_id, args->port_address);
+    __HandlePortError(hubDeviceId, portAddress);
 }

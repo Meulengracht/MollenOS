@@ -27,28 +27,9 @@
 #include <internal/_ipc.h>
 #include "manager.h"
 
-#include <svc_usb_protocol_server.h>
+#include <sys_usb_service_server.h>
 
-extern void svc_usb_register_controller_callback(struct gracht_recv_message* message, struct svc_usb_register_controller_args*);
-extern void svc_usb_unregister_controller_callback(struct gracht_recv_message* message, struct svc_usb_unregister_controller_args*);
-extern void svc_usb_register_hub_callback(struct gracht_recv_message* message, struct svc_usb_register_hub_args*);
-extern void svc_usb_unregister_hub_callback(struct gracht_recv_message* message, struct svc_usb_unregister_hub_args*);
-extern void svc_usb_port_event_callback(struct gracht_recv_message* message, struct svc_usb_port_event_args*);
-extern void svc_usb_port_error_callback(struct gracht_recv_message* message, struct svc_usb_port_error_args*);
-extern void svc_usb_get_controller_count_callback(struct gracht_recv_message* message);
-extern void svc_usb_get_controller_callback(struct gracht_recv_message* message, struct svc_usb_get_controller_args*);
-
-static gracht_protocol_function_t svc_usb_callbacks[8] = {
-    { PROTOCOL_SVC_USB_REGISTER_CONTROLLER_ID , svc_usb_register_controller_callback },
-    { PROTOCOL_SVC_USB_UNREGISTER_CONTROLLER_ID , svc_usb_unregister_controller_callback },
-    { PROTOCOL_SVC_USB_REGISTER_HUB_ID , svc_usb_register_hub_callback },
-    { PROTOCOL_SVC_USB_UNREGISTER_HUB_ID , svc_usb_unregister_hub_callback },
-    { PROTOCOL_SVC_USB_PORT_EVENT_ID , svc_usb_port_event_callback },
-    { PROTOCOL_SVC_USB_PORT_ERROR_ID , svc_usb_port_error_callback },
-    { PROTOCOL_SVC_USB_GET_CONTROLLER_COUNT_ID , svc_usb_get_controller_count_callback },
-    { PROTOCOL_SVC_USB_GET_CONTROLLER_ID , svc_usb_get_controller_callback },
-};
-DEFINE_SVC_USB_SERVER_PROTOCOL(svc_usb_callbacks, 8);
+extern gracht_server_t* __crt_get_service_server(void);
 
 OsStatus_t OnUnload(void)
 {
@@ -65,6 +46,20 @@ OsStatus_t
 OnLoad(void)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_usb_server_protocol);
+    gracht_server_register_protocol(__crt_get_service_server(), &sys_usb_server_protocol);
     return UsbCoreInitialize();
 }
+
+
+// for some reason these are pulled in by libddk and don't really care to fix it,
+// because it happens due to my lazyness in libddk
+void ctt_usbhub_event_port_status_invocation(gracht_client_t* client, const UUId_t id, const OsStatus_t result, const size_t bytesTransferred) {
+
+}
+void sys_device_event_protocol_device_invocation(gracht_client_t* client, const UUId_t deviceId, const UUId_t driverId, const uint8_t protocolId) {
+
+}
+void sys_device_event_device_update_invocation(gracht_client_t* client, const UUId_t deviceId, const uint8_t connected) {
+
+}
+

@@ -59,14 +59,14 @@ NetworkManagerSocketBind(
 
 OsStatus_t
 NetworkManagerSocketConnect(
-    _In_ struct gracht_recv_message* message,
-    _In_ UUId_t                      handle,
-    _In_ const struct sockaddr*      address);
+    _In_ struct gracht_message* message,
+    _In_ UUId_t                 handle,
+    _In_ const struct sockaddr* address);
 
 OsStatus_t
 NetworkManagerSocketAccept(
-    _In_ struct gracht_recv_message* message,
-    _In_ UUId_t                      handle);
+    _In_ struct gracht_message* message,
+    _In_ UUId_t                 handle);
 
 OsStatus_t
 NetworkManagerSocketPair(

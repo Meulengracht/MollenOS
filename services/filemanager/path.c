@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -28,7 +27,7 @@
 #include <strings.h>
 #include <string.h>
 
-#include "svc_path_protocol_server.h"
+#include "sys_path_service_server.h"
 
 #define IS_SEPERATOR(str)     ((str)[0] == '/' || (str)[0] == '\\')
 #define IS_EOL(str)           ((str)[0] == '\0')
@@ -36,7 +35,7 @@
 #define IS_IDENTIFIER(str)    ((str)[0] == '$' && (str)[1] != '(')
 #define IS_VARIABLE(str)      ((str)[0] == '$' && (str)[1] == '(')
 
-static const char* g_environmentPaths[path_count] = {
+static const char* g_environmentPaths[SYS_SYSTEM_PATHS_PATH_COUNT] = {
     // System paths
 	":/",
 	":/system/",
@@ -44,8 +43,7 @@ static const char* g_environmentPaths[path_count] = {
 
     // Shared paths
 	":/shared/bin/",
-	":/shared/documents/",
-	":/shared/include/",
+    ":/shared/include/",
 	":/shared/lib/",
 	":/shared/share/",
 
@@ -59,15 +57,15 @@ static const char* g_environmentPaths[path_count] = {
 };
 
 static struct VfsIdentifier {
-	const char*                    identifier;
-	enum svc_path_environment_path resolve;
+	const char*           identifier;
+	enum sys_system_paths resolve;
 } g_vfsIdentifiers[] = {
-	{ "sys", path_system },
-    { "themes", path_system_themes },
-	{ "bin", path_common_bin },
-    { "lib", path_common_lib },
-    { "share", path_common_share },
-	{ NULL, path_count }
+	{ "sys", SYS_SYSTEM_PATHS_PATH_SYSTEM },
+    { "themes", SYS_SYSTEM_PATHS_PATH_SYSTEM_THEMES },
+	{ "bin", SYS_SYSTEM_PATHS_PATH_COMMON_BIN },
+    { "lib", SYS_SYSTEM_PATHS_PATH_COMMON_LIB },
+    { "share", SYS_SYSTEM_PATHS_PATH_COMMON_SHARE },
+	{ NULL, SYS_SYSTEM_PATHS_PATH_COUNT }
 };
 
 static inline OsStatus_t __ResolveBootDriveIdentifier(MString_t* destination)
@@ -84,7 +82,7 @@ static inline OsStatus_t __ResolveBootDriveIdentifier(MString_t* destination)
 
 MString_t*
 VfsPathResolveEnvironment(
-    _In_ enum svc_path_environment_path base)
+    _In_ enum sys_system_paths base)
 {
 	MString_t* resolvedPath = NULL;
 	OsStatus_t status;
@@ -251,32 +249,32 @@ VfsPathCanonicalize(
 	return absolutePath;
 }
 
-void svc_path_resolve_callback(struct gracht_recv_message* message, struct svc_path_resolve_args* args)
+void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)
 {
     MString_t* resolvedPath;
-    TRACE("svc_path_resolve_callback(base=%u)", args->base);
+    TRACE("svc_path_resolve_callback(base=%u)", path);
 
-    resolvedPath = VfsPathResolveEnvironment(args->base);
+    resolvedPath = VfsPathResolveEnvironment(path);
     if (!resolvedPath) {
-        svc_path_resolve_response(message, OsDoesNotExist, "");
+        sys_path_resolve_response(message, OsDoesNotExist, "");
         return;
     }
 
-    svc_path_resolve_response(message, OsSuccess, MStringRaw(resolvedPath));
+    sys_path_resolve_response(message, OsSuccess, MStringRaw(resolvedPath));
     MStringDestroy(resolvedPath);
 }
 
-void svc_path_canonicalize_callback(struct gracht_recv_message* message, struct svc_path_canonicalize_args* args)
+void sys_path_canonicalize_invocation(struct gracht_message* message, const char* path)
 {
     MString_t* canonicalizedPath;
-    TRACE("svc_path_canonicalize_callback(path=%s)", args->path);
+    TRACE("svc_path_canonicalize_callback(path=%s)", path);
 
-    canonicalizedPath = VfsPathCanonicalize(args->path);
+    canonicalizedPath = VfsPathCanonicalize(path);
     if (!canonicalizedPath) {
-        svc_path_canonicalize_response(message, OsDoesNotExist, "");
+        sys_path_canonicalize_response(message, OsDoesNotExist, "");
         return;
     }
     
-    svc_path_canonicalize_response(message, OsSuccess, MStringRaw(canonicalizedPath));
+    sys_path_canonicalize_response(message, OsSuccess, MStringRaw(canonicalizedPath));
     MStringDestroy(canonicalizedPath);
 }

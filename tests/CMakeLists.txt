@@ -16,7 +16,7 @@ macro (add_test_target)
                 COMPILE_FLAGS "${ARGV1}"
                 LINK_FLAGS "/lldmap /entry:__CrtConsoleEntry"
         )
-        target_link_libraries (${ARGV0} libgracht libds libddk c librt)
+        target_link_libraries (${ARGV0} gracht libds libddk c librt)
         
         if (DEFINED VALI_PATH_APPLICATIONS)
             add_custom_command (TARGET ${ARGV0} POST_BUILD

@@ -25,6 +25,8 @@
 #ifndef __DDK_CONVERT_H__
 #define __DDK_CONVERT_H__
 
+#include <ddk/storage.h>
+
 #include <os/mollenos.h>
 #include <os/process.h>
 
@@ -33,6 +35,12 @@
 #include <sys_process_service.h>
 
 static void from_sys_timestamp(struct sys_timestamp* in, struct timespec* out)
+{
+    out->tv_sec = in->tv_sec;
+    out->tv_nsec = in->tv_nsec;
+}
+
+static void to_sys_timestamp(struct timespec* in, struct sys_timestamp* out)
 {
     out->tv_sec = in->tv_sec;
     out->tv_nsec = in->tv_nsec;
@@ -49,6 +57,25 @@ static void from_sys_disk_descriptor(struct sys_disk_descriptor* in, OsStorageDe
 
     memcpy(&out->SerialNumber[0], in->serial, len);
     out->SerialNumber[len] = 0;
+}
+
+static void from_sys_disk_descriptor_dkk(struct sys_disk_descriptor* in, StorageDescriptor_t* out)
+{
+    size_t serialLen = strnlen(in->serial, sizeof(out->Serial) - 1);
+    size_t modelLen  = strnlen(in->model, sizeof(out->Model) - 1);
+
+    out->Device = in->device_id;
+    out->Driver = in->driver_id;
+    out->Flags = (unsigned int)in->flags;
+    out->SectorSize = in->geometry.sector_size;
+    out->SectorCount = in->geometry.sectors_total;
+    out->LUNCount = in->geometry.lun_count;
+    out->SectorsPerCylinder = in->geometry.sectors_per_cylinder;
+
+    memcpy(&out->Serial[0], in->serial, serialLen);
+    out->Serial[serialLen] = 0;
+    memcpy(&out->Model[0], in->model, modelLen);
+    out->Model[modelLen] = 0;
 }
 
 static void from_sys_filesystem_descriptor(struct sys_filesystem_descriptor* in, OsFileSystemDescriptor_t* out)
@@ -78,6 +105,28 @@ static void from_sys_file_descriptor(struct sys_file_descriptor* in, OsFileDescr
     from_sys_timestamp(&in->created, &out->CreatedAt);
     from_sys_timestamp(&in->accessed, &out->AccessedAt);
     from_sys_timestamp(&in->modified, &out->ModifiedAt);
+}
+
+static void to_sys_file_descriptor(OsFileDescriptor_t* in, struct sys_file_descriptor* out)
+{
+    out->id = in->Id;
+    out->storageId = in->StorageId;
+    out->flags = (enum sys_file_flags)in->Flags;
+    out->permissions = (enum sys_file_permissions)in->Permissions;
+    out->size = in->Size.QuadPart;
+
+    to_sys_timestamp(&in->CreatedAt, &out->created);
+    to_sys_timestamp(&in->AccessedAt, &out->accessed);
+    to_sys_timestamp(&in->ModifiedAt, &out->modified);
+}
+
+static void from_sys_process_configuration(const struct sys_process_configuration* in, ProcessConfiguration_t* out)
+{
+    out->InheritFlags = in->inherit_flags;
+    out->MemoryLimit = in->memory_limit;
+    out->StdOutHandle = in->stdout_handle;
+    out->StdErrHandle = in->stderr_handle;
+    out->StdInHandle = in->stdin_handle;
 }
 
 static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_process_configuration* out)

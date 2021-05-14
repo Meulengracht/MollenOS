@@ -8,7 +8,7 @@ enable_language(C)
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/protocols
     ${CMAKE_CURRENT_BINARY_DIR}
     ../../librt/libgracht/include
     ../../librt/libusb/include
@@ -20,9 +20,9 @@ include_directories (
 )
 
 set (ADDITONAL_SOURCES
-    ${CMAKE_BINARY_DIR}/protocols/sys_file_protocol_server.c
-    ${CMAKE_BINARY_DIR}/protocols/sys_path_protocol_server.c
-    ${CMAKE_BINARY_DIR}/protocols/sys_storage_protocol_server.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_file_service_server.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_server.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_server.c
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 

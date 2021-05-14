@@ -4,7 +4,7 @@ enable_language (C)
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/protocols
     ../libgracht/include
     ../libddk/include
     ../libds/include

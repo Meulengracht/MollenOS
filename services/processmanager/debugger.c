@@ -28,11 +28,10 @@
 #include <os/context.h>
 #include <ddk/debug.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
 #include <os/mollenos.h>
 #include "../../librt/libds/pe/pe.h"
 #include "process.h"
-#include "svc_process_protocol_server.h"
+#include "sys_process_service_server.h"
 #include "symbols.h"
 
 void
@@ -147,13 +146,15 @@ HandleProcessCrashReport(
     return OsSuccess;
 }
 
-void svc_process_report_crash_callback(struct gracht_recv_message* message,
-                                       struct svc_process_report_crash_args* args)
+void sys_process_report_crash_invocation(struct gracht_message* message, const UUId_t threadId,
+        const UUId_t processId, const uint8_t* crashContext, const uint32_t crashContext_count, const int reason)
 {
-    Process_t  * process = AcquireProcess(args->process_handle);
-    OsStatus_t status    = HandleProcessCrashReport(process, args->thread_handle, args->crash_context, args->reason);
+    Process_t* process = AcquireProcess(processId);
+    OsStatus_t status  = HandleProcessCrashReport(process, threadId, (Context_t*)crashContext, reason);
+    (void)crashContext_count;
+
     if (process) {
         ReleaseProcess(process);
     }
-    svc_process_report_crash_response(message, status);
+    sys_process_report_crash_response(message, status);
 }

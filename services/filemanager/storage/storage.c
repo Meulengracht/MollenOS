@@ -22,6 +22,7 @@
 #define __TRACE
 
 #include <ctype.h>
+#include <ddk/convert.h>
 #include <ddk/filesystem.h>
 #include <ddk/utils.h>
 #include "../include/vfs.h"
@@ -31,21 +32,15 @@
 #include <string.h>
 #include <threads.h>
 
-#include "svc_storage_protocol_server.h"
+#include "sys_storage_service_server.h"
 
 static int    g_initHasRun = 0;
 static list_t g_disks      = LIST_INIT;
 
-void ctt_storage_event_transfer_status_callback(
-    struct ctt_storage_transfer_status_event* args)
-{
-    
-}
-
 static void __NotifySessionManager(char* identifier)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
-    svc_session_new_device(GetGrachtClient(), &msg.base, identifier);
+    sys_session_disk_connected(GetGrachtClient(), &msg.base, identifier);
 }
 
 static void __LoadDelayedFileSystems(void)
@@ -92,7 +87,7 @@ DiskRegisterFileSystem(
 
     // Copy the storage ident over
     // We use "st" for hard media, and "rm" for removables
-    strcpy(&buffer[0], (disk->flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) ? "rm" : "st");
+    strcpy(&buffer[0], (disk->flags & SYS_STORAGE_FLAGS_REMOVABLE) ? "rm" : "st");
     itoa((int)id, &buffer[2], 10);
 
     ELEMENT_INIT(&fileSystem->header, (uintptr_t)disk->device_id, fileSystem);
@@ -179,18 +174,21 @@ StorageUnloadFilesystem(
 static int
 StorageInitialize(void* Context)
 {
-    FileSystemDisk_t*        disk = Context;
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(disk->driver_id);
-    OsStatus_t               status;
+    FileSystemDisk_t*          disk = Context;
+    struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(disk->driver_id);
+    OsStatus_t                 status;
+    struct sys_disk_descriptor gdescriptor;
     
     ctt_storage_stat(GetGrachtClient(), &msg.base, disk->device_id);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &status, &disk->descriptor);
+    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
     if (status != OsSuccess) {
         // TODO: disk states
         // Disk->State = Crashed
         return OsStatusToErrno(status);
     }
+
+    from_sys_disk_descriptor_dkk(&gdescriptor, &disk->descriptor);
     
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
@@ -243,32 +241,27 @@ StorageDestroy(
     }
 }
 
-void svc_storage_register_callback(
-        _In_ struct gracht_recv_message*       message,
-        _In_ struct svc_storage_register_args* args)
+void sys_storage_register_invocation(struct gracht_message* message,
+        const UUId_t driverId, const UUId_t deviceId, const enum sys_storage_flags flags)
 {
-    StorageCreate(args->device_id, args->driver_id, args->flags);
+    StorageCreate(deviceId, driverId, (unsigned int)flags);
 }
 
-void svc_storage_unregister_callback(
-        _In_ struct gracht_recv_message*         message,
-        _In_ struct svc_storage_unregister_args* args)
+void sys_storage_unregister_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t forced)
 {
-    StorageDestroy(args->device_id, args->flags);
+    StorageDestroy(deviceId, forced);
 }
 
-void svc_storage_get_descriptor_callback(
-        struct gracht_recv_message*             message,
-        struct svc_storage_get_descriptor_args* args)
+void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
 {
-    OsStorageDescriptor_t descriptor = { 0 };
-    svc_storage_get_descriptor_response(message, OsNotSupported, &descriptor);
+    struct sys_disk_descriptor gdescriptor = { 0 };
+
+    sys_storage_get_descriptor_response(message, OsNotSupported, &gdescriptor);
 }
 
-void svc_storage_get_descriptor_from_path_callback(
-        struct gracht_recv_message*                       message,
-        struct svc_storage_get_descriptor_from_path_args* args)
+void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath)
 {
-    OsStorageDescriptor_t descriptor = { 0 };
-    svc_storage_get_descriptor_from_path_response(message, OsNotSupported, &descriptor);
+    struct sys_disk_descriptor gdescriptor = { 0 };
+
+    sys_storage_get_descriptor_path_response(message, OsNotSupported, &gdescriptor);
 }

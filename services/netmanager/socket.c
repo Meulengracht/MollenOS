@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "svc_socket_protocol_server.h"
+#include "sys_socket_service_server.h"
 
 // TODO send pipe should have STREAMBUFFER_MULTIPLE_WRITERS only
 // TODO recv pipe should have STREAMBUFFER_MULTIPLE_READERS only
@@ -165,7 +165,7 @@ SocketShutdownImpl(
     _In_ int       Options)
 {
     mtx_lock(&Socket->SyncObject);
-    if (Options & SVC_SOCKET_CLOSE_OPTIONS_DESTROY) {
+    if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
         if (Socket->Configuration.Connected) {
             DomainDisconnect(Socket);
         }
@@ -179,12 +179,12 @@ SocketShutdownImpl(
         return OsSuccess;
     }
     else {
-        if (Options & SVC_SOCKET_CLOSE_OPTIONS_WRITE) {
+        if (Options & SYS_CLOSE_OPTIONS_WRITE) {
             // Disable pipe
             // TODO
         }
         
-        if (Options & SVC_SOCKET_CLOSE_OPTIONS_READ) {
+        if (Options & SYS_CLOSE_OPTIONS_READ) {
             // Disable pipe
             // TODO
         }

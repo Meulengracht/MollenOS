@@ -37,9 +37,9 @@ typedef struct SocketDomain SocketDomain_t;
 typedef OsStatus_t (*DomainAllocateAddressFn)(Socket_t*);
 typedef void       (*DomainFreeAddressFn)(Socket_t*);
 typedef OsStatus_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainConnectFn)(struct gracht_recv_message*, Socket_t*, const struct sockaddr*);
+typedef OsStatus_t (*DomainConnectFn)(struct gracht_message*, Socket_t*, const struct sockaddr*);
 typedef OsStatus_t (*DomainDisconnectFn)(Socket_t*);
-typedef OsStatus_t (*DomainAcceptFn)(struct gracht_recv_message*, Socket_t*);
+typedef OsStatus_t (*DomainAcceptFn)(struct gracht_message*, Socket_t*);
 typedef OsStatus_t (*DomainSendFn)(Socket_t*);
 typedef OsStatus_t (*DomainReceiveFn)(Socket_t*);
 typedef OsStatus_t (*DomainPairFn)(Socket_t*, Socket_t*);
@@ -84,9 +84,9 @@ DomainFreeAddress(
 
 OsStatus_t
 DomainConnect(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket,
-    _In_ const struct sockaddr*      address);
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket,
+    _In_ const struct sockaddr* address);
 
 OsStatus_t
 DomainDisconnect(
@@ -94,8 +94,8 @@ DomainDisconnect(
 
 OsStatus_t
 DomainAccept(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket);
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket);
 
 OsStatus_t
 DomainPair(

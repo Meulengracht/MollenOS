@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <ctype.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include "include/vfs.h"
 #include <os/dmabuf.h>
@@ -32,7 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "svc_file_protocol_server.h"
+#include "sys_file_service_server.h"
 
 extern MString_t* VfsPathCanonicalize(const char* path);
 
@@ -376,15 +377,17 @@ OpenFile(
     return status;
 }
 
-void svc_file_open_callback(struct gracht_recv_message* message, struct svc_file_open_args* args)
+void sys_file_open_invocation(struct gracht_message* message,
+        const UUId_t processId, const char* path,
+        const unsigned int options, const unsigned int access)
 {
     UUId_t     handle = UUID_INVALID;
     OsStatus_t status;
 
     TRACE("svc_file_open_callback()");
-    status = OpenFile(args->process_id, args->path, args->options, args->access, &handle);
+    status = OpenFile(processId, path, options, access, &handle);
     TRACE("svc_file_open_callback returns=[status %u, handle %u]", status, handle);
-    svc_file_open_response(message, status, handle);
+    sys_file_open_response(message, status, handle);
 }
 
 static OsStatus_t
@@ -433,10 +436,10 @@ CloseFile(
     return status;
 }
 
-void svc_file_close_callback(struct gracht_recv_message* message, struct svc_file_close_args* args)
+void sys_file_close_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
-    OsStatus_t status = CloseFile(args->process_id, args->handle);
-    svc_file_close_response(message, status);
+    OsStatus_t status = CloseFile(processId, handle);
+    sys_file_close_response(message, status);
 }
 
 static OsStatus_t
@@ -491,10 +494,11 @@ DeletePath(
     return status;
 }
 
-void svc_file_delete_callback(struct gracht_recv_message* message, struct svc_file_delete_args* args)
+void sys_file_delete_invocation(struct gracht_message* message,
+        const UUId_t processId, const char* path, const unsigned int flags)
 {
-    OsStatus_t status = DeletePath(args->process_id, args->path, args->flags);
-    svc_file_delete_response(message, status);
+    OsStatus_t status = DeletePath(processId, path, flags);
+    sys_file_delete_response(message, status);
 }
 
 static OsStatus_t
@@ -617,26 +621,23 @@ WriteFile(
     return status;
 }
 
-void svc_file_transfer_async_callback(struct gracht_recv_message* message, struct svc_file_transfer_async_args* args)
-{
-    
-}
-
-void svc_file_transfer_callback(struct gracht_recv_message* message, struct svc_file_transfer_args* args)
+void sys_file_transfer_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle,
+        const enum sys_transfer_direction direction, const UUId_t bufferHandle,
+        const size_t offset, const size_t length)
 {
     size_t     bytesTransferred;
     OsStatus_t status;
     
-    if (args->direction == 0) {
-        status = ReadFile(args->process_id, args->handle, args->buffer_handle,
-            args->buffer_offset, args->length, &bytesTransferred);
+    if (direction == SYS_TRANSFER_DIRECTION_READ) {
+        status = ReadFile(processId, handle, bufferHandle,
+                          offset, length, &bytesTransferred);
     }
     else {
-        status = WriteFile(args->process_id, args->handle, args->buffer_handle,
-            args->buffer_offset, args->length, &bytesTransferred);
+        status = WriteFile(processId, handle, bufferHandle,
+                           offset, length, &bytesTransferred);
     }
     
-    svc_file_transfer_response(message, status, bytesTransferred);
+    sys_file_transfer_response(message, status, bytesTransferred);
 }
 
 static OsStatus_t
@@ -688,33 +689,35 @@ Seek(
     return status;
 }
 
-void svc_file_seek_callback(struct gracht_recv_message* message, struct svc_file_seek_args* args)
+void sys_file_seek_invocation(struct gracht_message* message, const UUId_t processId,
+        const UUId_t handle, const unsigned int seekLow, const unsigned int seekHigh)
 {
-    OsStatus_t status = Seek(args->process_id, args->handle, args->seek_lo, args->seek_hi);
-    svc_file_seek_response(message, status);
+    OsStatus_t status = Seek(processId, handle, seekLow, seekHigh);
+    sys_file_seek_response(message, status);
 }
 
-void svc_file_transfer_absolute_callback(
-        _In_ struct gracht_recv_message*             message,
-        _In_ struct svc_file_transfer_absolute_args* args)
+void sys_file_transfer_absolute_invocation(struct gracht_message* message, const UUId_t processId,
+        const UUId_t handle, const enum sys_transfer_direction direction,
+        const unsigned int seekLow, const unsigned int seekHigh,
+        const UUId_t bufferHandle, const size_t offset, const size_t length)
 {
     size_t     bytesTransferred;
     OsStatus_t status;
 
-    status = Seek(args->process_id, args->handle, args->pos_lo, args->pos_hi);
+    status = Seek(processId, handle, seekLow, seekHigh);
     if (status != OsSuccess) {
-        svc_file_transfer_absolute_response(message, status, 0);
+        sys_file_transfer_absolute_response(message, status, 0);
     }
 
-    if (args->direction == 0) {
-        status = ReadFile(args->process_id, args->handle, args->buffer_handle,
-                          args->buffer_offset, args->length, &bytesTransferred);
+    if (direction == SYS_TRANSFER_DIRECTION_READ) {
+        status = ReadFile(processId, handle, bufferHandle,
+                          offset, length, &bytesTransferred);
     }
     else {
-        status = WriteFile(args->process_id, args->handle, args->buffer_handle,
-                           args->buffer_offset, args->length, &bytesTransferred);
+        status = WriteFile(processId, handle, bufferHandle,
+                           offset, length, &bytesTransferred);
     }
-    svc_file_transfer_absolute_response(message, status, bytesTransferred);
+    sys_file_transfer_absolute_response(message, status, bytesTransferred);
 }
 
 static OsStatus_t
@@ -752,10 +755,10 @@ Flush(
 }
 
 
-void svc_file_flush_callback(struct gracht_recv_message* message, struct svc_file_flush_args* args)
+void sys_file_flush_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
-    OsStatus_t status = Flush(args->process_id, args->handle);
-    svc_file_flush_response(message, status);
+    OsStatus_t status = Flush(processId, handle);
+    sys_file_flush_response(message, status);
 }
 
 static OsStatus_t
@@ -773,10 +776,11 @@ Move(
     return OsNotSupported;
 }
 
-void svc_file_move_callback(struct gracht_recv_message* message, struct svc_file_move_args* args)
+void sys_file_move_invocation(struct gracht_message* message, const UUId_t processId,
+        const char* source, const char* destination, const uint8_t copy)
 {
-    OsStatus_t status = Move(args->process_id, args->from, args->to, args->copy);
-    svc_file_move_response(message, status);
+    OsStatus_t status = Move(processId, source, destination, copy);
+    sys_file_move_response(message, status);
 }
 
 static OsStatus_t
@@ -797,11 +801,11 @@ GetPosition(
     return status;
 }
 
-void svc_file_get_position_callback(struct gracht_recv_message* message, struct svc_file_get_position_args* args)
+void sys_file_get_position_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     LargeUInteger_t position;
-    OsStatus_t      status = GetPosition(args->process_id, args->handle, &position);
-    svc_file_get_position_response(message, status, position.u.LowPart, position.u.HighPart);
+    OsStatus_t      status = GetPosition(processId, handle, &position);
+    sys_file_get_position_response(message, status, position.u.LowPart, position.u.HighPart);
 }
 
 static OsStatus_t
@@ -824,11 +828,11 @@ GetOptions(
     return status;
 }
 
-void svc_file_get_options_callback(struct gracht_recv_message* message, struct svc_file_get_options_args* args)
+void sys_file_get_options_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     unsigned int options, access;
-    OsStatus_t   status = GetOptions(args->process_id, args->handle, &options, &access);
-    svc_file_get_position_response(message, status, options, access);
+    OsStatus_t   status = GetOptions(processId, handle, &options, &access);
+    sys_file_get_position_response(message, status, options, access);
 }
 
 static OsStatus_t
@@ -851,10 +855,11 @@ SetOptions(
     return status;
 }
 
-void svc_file_set_options_callback(struct gracht_recv_message* message, struct svc_file_set_options_args* args)
+void sys_file_set_options_invocation(struct gracht_message* message, const UUId_t processId,
+        const UUId_t handle, const unsigned int options, const unsigned int access)
 {
-    OsStatus_t status = SetOptions(args->process_id, args->handle, args->options, args->access);
-    svc_file_set_options_response(message, status);
+    OsStatus_t status = SetOptions(processId, handle, options, access);
+    sys_file_set_options_response(message, status);
 }
 
 OsStatus_t
@@ -875,11 +880,11 @@ GetSize(
     return status;
 }
 
-void svc_file_get_size_callback(struct gracht_recv_message* message, struct svc_file_get_size_args* args)
+void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     LargeUInteger_t size;
-    OsStatus_t      status = GetSize(args->process_id, args->handle, &size);
-    svc_file_get_size_response(message, status, size.u.LowPart, size.u.HighPart);
+    OsStatus_t      status = GetSize(processId, handle, &size);
+    sys_file_get_size_response(message, status, size.u.LowPart, size.u.HighPart);
 }
 
 static OsStatus_t
@@ -900,15 +905,15 @@ GetAbsolutePathOfHandle(
     return OsSuccess;
 }
 
-void svc_file_get_path_callback(struct gracht_recv_message* message, struct svc_file_get_path_args* args)
+void sys_file_get_path_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     MString_t* path;
-    OsStatus_t status = GetAbsolutePathOfHandle(args->process_id, args->handle, &path);
+    OsStatus_t status = GetAbsolutePathOfHandle(processId, handle, &path);
     if (status == OsSuccess) {
-        svc_file_get_path_response(message, status, MStringRaw(path));
+        sys_file_get_path_response(message, status, MStringRaw(path));
     }
     else {
-        svc_file_get_path_response(message, status, "");
+        sys_file_get_path_response(message, status, "");
     }
 }
 
@@ -928,11 +933,15 @@ StatFromHandle(
     return status;
 }
 
-void svc_file_fstat_callback(struct gracht_recv_message* message, struct svc_file_fstat_args* args)
+void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
-    OsFileDescriptor_t descriptor;
-    OsStatus_t         status = StatFromHandle(args->process_id, args->handle, &descriptor);
-    svc_file_fstat_response(message, status, &descriptor);
+    OsFileDescriptor_t         descriptor;
+    struct sys_file_descriptor gdescriptor;
+    OsStatus_t                 status = StatFromHandle(processId, handle, &descriptor);
+    if (status == OsSuccess) {
+        to_sys_file_descriptor(&descriptor, &gdescriptor);
+    }
+    sys_file_fstat_response(message, status, &gdescriptor);
 }
 
 OsStatus_t
@@ -952,21 +961,25 @@ StatFromPath(
     return status;
 }
 
-void svc_file_fstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fstat_from_path_args* args)
+void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
 {
-    OsFileDescriptor_t descriptor;
-    OsStatus_t         status = StatFromPath(args->process_id, args->path, &descriptor);
-    svc_file_fstat_from_path_response(message, status, &descriptor);
+    OsFileDescriptor_t         descriptor;
+    struct sys_file_descriptor gdescriptor;
+    OsStatus_t                 status = StatFromPath(processId, path, &descriptor);
+    if (status == OsSuccess) {
+        to_sys_file_descriptor(&descriptor, &gdescriptor);
+    }
+    sys_file_fstat_path_response(message, status, &gdescriptor);
 }
 
-void svc_file_fsstat_callback(struct gracht_recv_message* message, struct svc_file_fsstat_args* args)
+void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
-    OsFileSystemDescriptor_t descriptor = { 0 };
-    svc_file_fsstat_response(message, OsNotSupported, &descriptor);
+    struct sys_filesystem_descriptor gdescriptor = { 0 };
+    sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
 }
 
-void svc_file_fsstat_from_path_callback(struct gracht_recv_message* message, struct svc_file_fsstat_from_path_args* args)
+void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
 {
-    OsFileSystemDescriptor_t descriptor = { 0 };
-    svc_file_fsstat_from_path_response(message, OsNotSupported, &descriptor);
+    struct sys_filesystem_descriptor gdescriptor = { 0 };
+    sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
 }

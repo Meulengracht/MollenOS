@@ -239,7 +239,7 @@ UsbTransferQueue(
     UsbTransferStatus_t      status;
     
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
-        deviceContext->controller_device_id, transferId, transfer);
+        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &status, bytesTransferred);
     return status;
@@ -256,7 +256,7 @@ UsbTransferQueuePeriodic(
     UsbTransferStatus_t      status;
     
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
-        deviceContext->controller_device_id, transferId, transfer);
+        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &status);
     
@@ -306,7 +306,7 @@ UsbHubResetPort(
     
     ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, portDescriptor);
+    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(UsbHcPortDescriptor_t));
     return status;
 }
 
@@ -322,7 +322,7 @@ UsbHubQueryPort(
     
     ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, portDescriptor);
+    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(UsbHcPortDescriptor_t));
     return status;
 }
 

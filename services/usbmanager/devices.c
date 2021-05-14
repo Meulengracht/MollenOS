@@ -34,7 +34,7 @@
 #include <string.h>
 #include <threads.h>
 
-#include "svc_usb_protocol_server.h"
+#include "sys_usb_service_server.h"
 
 static const struct {
     uint8_t     Class;

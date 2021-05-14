@@ -38,32 +38,10 @@
 #include <string.h>
 #include <threads.h>
 
-#include <svc_device_protocol_server.h>
-static void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args*);
-static void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args*);
-static void svc_device_unregister_callback(struct gracht_recv_message* message, struct svc_device_unregister_args*);
-static void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args*);
-static void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args*);
-static void svc_device_get_devices_by_protocol_callback(struct gracht_recv_message* message, struct svc_device_get_devices_by_protocol_args*);
+#include <sys_device_service_server.h>
+#include <ctt_driver_service_client.h>
 
-static gracht_protocol_function_t svc_device_functions[6] = {
-    { PROTOCOL_SVC_DEVICE_NOTIFY_ID , svc_device_notify_callback },
-    { PROTOCOL_SVC_DEVICE_REGISTER_ID , svc_device_register_callback },
-    { PROTOCOL_SVC_DEVICE_UNREGISTER_ID , svc_device_unregister_callback },
-    { PROTOCOL_SVC_DEVICE_IOCTL_ID , svc_device_ioctl_callback },
-    { PROTOCOL_SVC_DEVICE_IOCTL_EX_ID , svc_device_ioctl_ex_callback },
-    { PROTOCOL_SVC_DEVICE_GET_DEVICES_BY_PROTOCOL_ID , svc_device_get_devices_by_protocol_callback },
-};
-DEFINE_SVC_DEVICE_SERVER_PROTOCOL(svc_device_functions, 6);
-
-#include <ctt_driver_protocol_client.h>
-
-static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event*);
-
-static gracht_protocol_function_t ctt_driver_callbacks[1] = {
-    { PROTOCOL_CTT_DRIVER_EVENT_DEVICE_PROTOCOL_ID , ctt_driver_event_device_protocol_callback },
-};
-DEFINE_CTT_DRIVER_CLIENT_PROTOCOL(ctt_driver_callbacks, 1);
+extern gracht_server_t* __crt_get_service_server(void);
 
 struct device_protocol {
     element_t header;
@@ -107,7 +85,7 @@ OnLoad(void)
     thrd_t thr;
     
     // Register supported interfaces
-    gracht_server_register_protocol(&svc_device_server_protocol);
+    gracht_server_register_protocol(__crt_get_service_server(), &sys_device_server_protocol);
 
     // Register the client control protocol
     gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
@@ -156,7 +134,7 @@ update_device_drivers(void)
                 struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(handle);
                 TRACE("[devicemanager] [notify] found device for driver: %s",
                     &deviceNode->device->Name[0]);
-                ctt_driver_register_device(GetGrachtClient(), &msg.base, deviceNode->device,
+                ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)deviceNode->device,
                     deviceNode->device->Length);
                 ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, deviceNode->device->Id);
                 
@@ -166,13 +144,16 @@ update_device_drivers(void)
     }
 }
 
-void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_device_notify_args* args)
+void sys_device_notify_invocation(struct gracht_message* message,
+        const UUId_t driverId, const unsigned int vendorId,
+        const unsigned int productId, const unsigned int class,
+        const unsigned int subclass)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(args->driver);
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
     struct driver_node*      driverNode;
     
     TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
-        args->vendor_id, args->product_id, args->class, args->subclass);
+        vendorId, productId, class, subclass);
 
     driverNode = (struct driver_node*)malloc(sizeof(struct driver_node));
     if (!driverNode) {
@@ -180,11 +161,11 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
         return;
     }
     
-    ELEMENT_INIT(&driverNode->header, (uintptr_t)args->driver, driverNode);
-    driverNode->vendor_id = args->vendor_id;
-    driverNode->product_id = args->product_id;
-    driverNode->class = args->class;
-    driverNode->sub_class = args->subclass;
+    ELEMENT_INIT(&driverNode->header, (uintptr_t)driverId, driverNode);
+    driverNode->vendor_id = vendorId;
+    driverNode->product_id = productId;
+    driverNode->class = class;
+    driverNode->sub_class = subclass;
     list_append(&Drivers, &driverNode->header);
 
     // Subscribe to events from this source
@@ -194,55 +175,56 @@ void svc_device_notify_callback(struct gracht_recv_message* message, struct svc_
     update_device_drivers();
 }
 
-void svc_device_register_callback(struct gracht_recv_message* message, struct svc_device_register_args* args)
+void sys_device_register_invocation(struct gracht_message* message, const uint8_t* buffer, const uint32_t buffer_count, const unsigned int flags)
 {
     UUId_t     result = UUID_INVALID;
-    OsStatus_t status = DmRegisterDevice(args->device, NULL, args->flags, &result);
-    svc_device_register_response(message, status, result);
+    OsStatus_t status = DmRegisterDevice((Device_t*)buffer, NULL, flags, &result);
+    sys_device_register_response(message, status, result);
 }
 
-void svc_device_unregister_callback(struct gracht_recv_message* message, struct svc_device_unregister_args* args)
+void sys_device_unregister_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    svc_device_unregister_response(message, OsNotSupported);
+    sys_device_unregister_response(message, OsNotSupported);
 }
 
-void svc_device_ioctl_callback(struct gracht_recv_message* message, struct svc_device_ioctl_args* args)
+void sys_device_ioctl_invocation(struct gracht_message* message, const UUId_t deviceId, const unsigned int command, const unsigned int flags)
 {
-    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)deviceId);
     OsStatus_t          result     = OsInvalidParameters;
 
     if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDevice((BusDevice_t*)deviceNode->device, args->command, args->flags);
+        result = DmIoctlDevice((BusDevice_t*)deviceNode->device, command, flags);
     }
     
-    svc_device_ioctl_response(message, result);
+    sys_device_ioctl_response(message, result);
 }
 
-void svc_device_ioctl_ex_callback(struct gracht_recv_message* message, struct svc_device_ioctl_ex_args* args)
+void sys_device_ioctlex_invocation(struct gracht_message* message, const UUId_t deviceId,
+        const int direction, const unsigned int command,
+        const size_t value, const unsigned int width)
 {
-    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)deviceId);
     OsStatus_t          result     = OsInvalidParameters;
+    uint64_t            storage    = (uint64_t)value;
     
     if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDeviceEx((BusDevice_t*)deviceNode->device, args->direction,
-            args->command, &args->value, args->width);
+        result = DmIoctlDeviceEx((BusDevice_t*)deviceNode->device, direction, command, &storage, width);
     }
     
-    svc_device_ioctl_ex_response(message, result, args->value);
+    sys_device_ioctlex_response(message, result, (size_t)storage);
 }
 
-void svc_device_get_devices_by_protocol_callback(
-        struct gracht_recv_message* message,
-        struct svc_device_get_devices_by_protocol_args* args)
+void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
 {
-    TRACE("[svc_device_get_devices_by_protocol_callback] %u", args->protocol_id);
+    TRACE("[svc_device_get_devices_by_protocol_callback] %u", protocolId);
     foreach(node, &Devices) {
         struct device_node* deviceNode = node->value;
         foreach(protoNode, &deviceNode->protocols) {
             struct device_protocol* protocol = protoNode->value;
-            if ((uintptr_t)protocol->header.key == (uintptr_t)args->protocol_id) {
-                svc_device_event_protocol_device_single(message->client, deviceNode->device->Id,
-                    deviceNode->driver_id, args->protocol_id);
+            if ((uintptr_t)protocol->header.key == (uintptr_t)protocolId) {
+                sys_device_event_protocol_device_single(__crt_get_service_server(),
+                                                        message->client, deviceNode->device->Id,
+                                                        deviceNode->driver_id, protocolId);
             }
         }
     }
@@ -318,19 +300,22 @@ DmRegisterDevice(
     return OsSuccess;
 }
 
-static void ctt_driver_event_device_protocol_callback(struct ctt_driver_device_protocol_event* args)
+static void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
+                                                        const UUId_t deviceId,
+                                                        const char* protocolName,
+                                                        const uint8_t protocolId)
 {
-    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)args->device_id);
+    struct device_node* deviceNode = (struct device_node*)list_find(&Devices, (void*)(uintptr_t)deviceId);
 
-    TRACE("[ctt_driver_event_device_protocol_callback] %u => %s", args->device_id, args->protocol_name);
+    TRACE("[ctt_driver_event_device_protocol_callback] %u => %s", deviceId, protocolName);
     if (deviceNode) {
         struct device_protocol* protocol = malloc(sizeof(struct device_protocol));
         if (!protocol) {
             return;
         }
 
-        ELEMENT_INIT(&protocol->header, (uintptr_t)args->protocol_id, protocol);
-        protocol->name = strdup(&args->protocol_name[0]);
+        ELEMENT_INIT(&protocol->header, (uintptr_t)protocolId, protocol);
+        protocol->name = strdup(&protocolName[0]);
         list_append(&deviceNode->protocols, &protocol->header);
     }
 }

@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify

@@ -28,6 +28,7 @@
 #include <os/process.h>
 #include <os/spinlock.h>
 #include <ds/list.h>
+#include <gracht/server.h>
 #include <threads.h>
 #include <time.h>
 
@@ -61,14 +62,15 @@ typedef struct Process {
 } Process_t;
 
 typedef struct ProcessJoiner {
-    element_t                          Header;
-    Process_t*                         Process;
-    UUId_t                             EventHandle;
-    struct vali_link_deferred_response DeferredResponse;
+    element_t             Header;
+    Process_t*            Process;
+    UUId_t                EventHandle;
+    struct gracht_message DeferredResponse[];
 } ProcessJoiner_t;
 
-/* InitializeProcessManager
- * Initializes the subsystems for managing the running processes, providing manipulations and optimizations. */
+/**
+ * Initializes the subsystems for managing the running processes, providing manipulations and optimizations.
+ */
 __EXTERN OsStatus_t
 InitializeProcessManager(void);
 

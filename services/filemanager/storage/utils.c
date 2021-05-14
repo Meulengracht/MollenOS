@@ -21,7 +21,7 @@
  */
 
 #include "../include/vfs.h"
-#include <svc_storage_protocol.h>
+#include <sys_storage_service.h>
 
 static int g_diskTable[__FILEMANAGER_MAXDISKS] = { 0 };
 
@@ -35,7 +35,7 @@ VfsIdentifierAllocate(
 
     // Start out by determing start index
     indexEnd = __FILEMANAGER_MAXDISKS / 2;
-    if (disk->flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) {
+    if (disk->flags & SYS_STORAGE_FLAGS_REMOVABLE) {
         indexBegin = __FILEMANAGER_MAXDISKS / 2;
         indexEnd   = __FILEMANAGER_MAXDISKS;
     }
@@ -56,7 +56,7 @@ VfsIdentifierFree(
         _In_ UUId_t            id)
 {
     int index = (int)id;
-    if (disk->flags & SVC_STORAGE_REGISTER_FLAGS_REMOVABLE) {
+    if (disk->flags & SYS_STORAGE_FLAGS_REMOVABLE) {
         index += __FILEMANAGER_MAXDISKS / 2;
     }
     if (index < __FILEMANAGER_MAXDISKS) {

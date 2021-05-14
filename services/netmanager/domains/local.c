@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <svc_socket_protocol_server.h>
+#include <sys_socket_service_server.h>
 
 typedef struct AddressRecord {
     element_t Header;
@@ -51,14 +51,14 @@ typedef struct SocketDomain {
 } SocketDomain_t;
 
 typedef struct ConnectionRequest {
-    element_t                          Header;
-    UUId_t                             SourceSocketHandle;
-    struct vali_link_deferred_response Response;
+    element_t             Header;
+    UUId_t                SourceSocketHandle;
+    struct gracht_message Response[];
 } ConnectionRequest_t;
 
 typedef struct AcceptRequest {
-    element_t                          Header;
-    struct vali_link_deferred_response Response;
+    element_t             Header;
+    struct gracht_message Response[];
 } AcceptRequest_t;
 
 // TODO: should be hashtable
@@ -113,7 +113,7 @@ DomainLocalGetAddress(
     LcAddress->slc_family = AF_LOCAL;
     
     switch (Source) {
-        case SVC_SOCKET_GET_ADDRESS_SOURCE_THIS: {
+        case SYS_ADDRESS_TYPE_THIS: {
             if (!Record) {
                 return OsDoesNotExist;
             }
@@ -121,13 +121,14 @@ DomainLocalGetAddress(
             return OsSuccess;
         } break;
         
-        case SVC_SOCKET_GET_ADDRESS_SOURCE_PEER: {
+        case SYS_ADDRESS_TYPE_PEER: {
             Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
             if (!PeerSocket) {
                 return OsDoesNotExist;
             }
-            return DomainLocalGetAddress(PeerSocket, 
-                SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, Address);
+            return DomainLocalGetAddress(PeerSocket,
+                                         SYS_ADDRESS_TYPE_THIS,
+                                         Address);
         } break;
     }
     return OsInvalidParameters;
@@ -181,7 +182,7 @@ HandleSocketStreamData(
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
-                handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
+                handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
                 return OsOutOfMemory;
             }
             
@@ -194,7 +195,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
+    handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
     return OsSuccess;
 }
 
@@ -231,7 +232,7 @@ ProcessSocketPacket(
     
     // We must set the client address at this point. Replace the target address with
     // the source address for the reciever.
-    DomainLocalGetAddress(Socket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)Pointer);
+    DomainLocalGetAddress(Socket, SYS_ADDRESS_TYPE_THIS, (struct sockaddr*)Pointer);
     Pointer += Packet->addresslen;
     
     if (Packet->controllen) {
@@ -297,7 +298,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            handle_post_notification((UUId_t)TargetSocket->Header.key, IOSETIN);
+            handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -417,39 +418,39 @@ DomainLocalBind(
 
 static ConnectionRequest_t*
 CreateConnectionRequest(
-    _In_ UUId_t                      sourceSocketHandle,
-    _In_ struct gracht_recv_message* message)
+    _In_ UUId_t                 sourceSocketHandle,
+    _In_ struct gracht_message* message)
 {
-    ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t) + VALI_MSG_DEFER_SIZE(message));
+    ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
     if (!request) {
         return NULL;
     }
     
     ELEMENT_INIT(&request->Header, 0, request);
     request->SourceSocketHandle = sourceSocketHandle;
-    gracht_vali_message_defer_response(&request->Response, message);
+    gracht_server_defer_message(message, &request->Response[0]);
     return request;
 }
 
 static AcceptRequest_t*
 CreateAcceptRequest(
-    _In_ struct gracht_recv_message* message)
+    _In_ struct gracht_message* message)
 {
-    AcceptRequest_t* request = malloc(sizeof(AcceptRequest_t) + VALI_MSG_DEFER_SIZE(message));
+    AcceptRequest_t* request = malloc(sizeof(AcceptRequest_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
     if (!request) {
         return NULL;
     }
     
     ELEMENT_INIT(&request->Header, 0, request);
-    gracht_vali_message_defer_response(&request->Response, message);
+    gracht_server_defer_message(message, &request->Response[0]);
     return request;
 }
 
 static void
 AcceptConnectionRequest(
-    _In_ struct gracht_recv_message* acceptMessage,
-    _In_ Socket_t*                   connectSocket,
-    _In_ struct gracht_recv_message* connectMessage)
+    _In_ struct gracht_message* acceptMessage,
+    _In_ Socket_t*              connectSocket,
+    _In_ struct gracht_message* connectMessage)
 {
     UUId_t                  handle, recv_handle, send_handle;
     struct sockaddr_storage address;
@@ -458,7 +459,7 @@ AcceptConnectionRequest(
     TRACE("[net_manager] [accept_request]");
     
     // Get address of the connector socket
-    DomainLocalGetAddress(connectSocket, SVC_SOCKET_GET_ADDRESS_SOURCE_THIS, (struct sockaddr*)&address);
+    DomainLocalGetAddress(connectSocket, SYS_ADDRESS_TYPE_THIS, (struct sockaddr*)&address);
     
     // Create a new socket for the acceptor. This socket will be paired with
     // the connector socket.
@@ -470,18 +471,18 @@ AcceptConnectionRequest(
     }
     
     // Reply to the connector (the thread that called connect())
-    svc_socket_connect_response(connectMessage, status);
+    sys_socket_connect_response(connectMessage, status);
     
     // Reply to the accepter (the thread that called accept())
-    svc_socket_accept_response(acceptMessage, status, (struct sockaddr*)&address,
+    sys_socket_accept_response(acceptMessage, status, (uint8_t*)&address, address.__ss_len,
         handle, recv_handle, send_handle);
 }
 
 static OsStatus_t
 HandleLocalConnectionRequest(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   sourceSocket,
-    _In_ Socket_t*                   targetSocket)
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              sourceSocket,
+    _In_ Socket_t*              targetSocket)
 {
     ConnectionRequest_t* connectionRequest;
     AcceptRequest_t*     acceptRequest;
@@ -514,8 +515,7 @@ HandleLocalConnectionRequest(
     // has called accept() on the socket and is actively waiting
     if (element) {
         acceptRequest = element->value;
-        AcceptConnectionRequest(&acceptRequest->Response.recv_message,
-            sourceSocket, message);
+        AcceptConnectionRequest(&acceptRequest->Response[0], sourceSocket, message);
         free(acceptRequest);
     }
     return OsSuccess;
@@ -523,9 +523,9 @@ HandleLocalConnectionRequest(
 
 static OsStatus_t
 DomainLocalConnect(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket,
-    _In_ const struct sockaddr*      address)
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket,
+    _In_ const struct sockaddr* address)
 {
     Socket_t* target = GetSocketFromAddress(address);
     TRACE("[domain] [local] [connect] %s", &address->sa_data[0]);
@@ -572,8 +572,8 @@ DomainLocalDisconnect(
 
 static OsStatus_t
 DomainLocalAccept(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket)
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket)
 {
     Socket_t*            connectSocket;
     ConnectionRequest_t* connectionRequest;
@@ -593,7 +593,7 @@ DomainLocalAccept(
         connectSocket = NetworkManagerSocketGet(connectionRequest->SourceSocketHandle);
         if (connectSocket) {
             AcceptConnectionRequest(message, connectSocket,
-                &connectionRequest->Response.recv_message);
+                &connectionRequest->Response[0]);
         }
         else {
             status = OsConnectionAborted;

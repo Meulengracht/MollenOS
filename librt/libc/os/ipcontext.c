@@ -119,7 +119,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     int             status = 0;
     UUId_t          sender;
 
-    TRACE("getmsg(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, msg, len, flags);
+    TRACE("iprecv(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, buffer, len, flags);
     
     if (!handle) {
         _set_errno(EBADF);
@@ -151,7 +151,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
         goto exit;
     }
     
-    TRACE("getmsg message, size=%" PRIuIN, bytesAvailable);
+    TRACE("iprecv message, size=%" PRIuIN, bytesAvailable);
     streambuffer_read_packet_data(stream, &sender, sizeof(UUId_t), &state);
     streambuffer_read_packet_data(stream, buffer, MIN(len, bytesAvailable - sizeof(UUId_t)), &state);
     streambuffer_read_packet_end(stream, base, bytesAvailable);
@@ -161,6 +161,6 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     }
 
 exit:
-    TRACE("getmsg return=%i", status);
+    TRACE("iprecv return=%i", status);
     return status;
 }

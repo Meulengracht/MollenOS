@@ -19,7 +19,7 @@ macro (add_filesystem_target)
                 LINK_FLAGS "/noentry /lldmap"
                 
         )
-        target_link_libraries (${ARGV0} libgracht libds libddk c librt)
+        target_link_libraries (${ARGV0} gracht libds libddk c librt)
 
         if (DEFINED VALI_PATH_INITRD)
             add_custom_command (TARGET ${ARGV0} POST_BUILD
@@ -47,7 +47,7 @@ macro (add_module_target)
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__DRIVER_IMPL ${ARGV1}"
                 LINK_FLAGS "/entry:__CrtModuleEntry /lldmap"
         )
-        target_link_libraries (${ARGV0} libgracht libds libddk c librt)
+        target_link_libraries (${ARGV0} gracht libds libddk c librt)
 
         if (DEFINED VALI_PATH_INITRD)
             add_custom_command (TARGET ${ARGV0} POST_BUILD

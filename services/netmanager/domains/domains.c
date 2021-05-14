@@ -106,9 +106,9 @@ DomainFreeAddress(
 
 OsStatus_t
 DomainConnect(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket,
-    _In_ const struct sockaddr*      address)
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket,
+    _In_ const struct sockaddr* address)
 {
     if (!socket->Domain) {
         return OsInvalidParameters;
@@ -128,8 +128,8 @@ DomainDisconnect(
 
 OsStatus_t
 DomainAccept(
-    _In_ struct gracht_recv_message* message,
-    _In_ Socket_t*                   socket)
+    _In_ struct gracht_message* message,
+    _In_ Socket_t*              socket)
 {
     if (!socket->Domain) {
         return OsInvalidParameters;

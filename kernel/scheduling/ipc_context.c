@@ -42,13 +42,6 @@ typedef struct IpcContext {
     streambuffer_t* KernelStream;
 } IpcContext_t;
 
-static inline Thread_t*
-GetContextThread(
-    _In_ IpcContext_t* context)
-{
-    return THREAD_GET(context->CreatorThreadHandle);
-}
-
 static void
 IpcContextDestroy(
     _In_ void* resource)
@@ -102,173 +95,81 @@ struct message_state {
 
 static OsStatus_t
 AllocateMessage(
-    _In_  struct ipmsg_header*   message,
+    _In_  struct ipmsg*          message,
     _In_  size_t                 timeout,
     _In_  struct message_state*  state,
     _Out_ IpcContext_t**         targetContext)
 {
-    IpcContext_t* Context;
-    size_t        BytesAvailable;
-    size_t        BytesToAllocate = sizeof(UUId_t) + message->base->header.length;
-    TRACE("[ipc] [allocate] %u/%u", SourceMessage->base->header.protocol, SourceMessage->base->header.action);
+    IpcContext_t* ipcContext;
+    size_t        bytesAvailable;
+    size_t        bytesToAllocate = sizeof(UUId_t) + message->length;
+    TRACE("AllocateMessage %u", bytesToAllocate);
     
-    if (message->address->type == IPMSG_ADDRESS_HANDLE) {
-        Context = LookupHandleOfType(message->address->data.handle, HandleTypeIpcContext);
+    if (message->addr->type == IPMSG_ADDRESS_HANDLE) {
+        ipcContext = LookupHandleOfType(message->addr->data.handle, HandleTypeIpcContext);
     }
     else {
-        UUId_t     Handle;
-        OsStatus_t Status = LookupHandleByPath(message->address->data.path, &Handle);
-        if (Status != OsSuccess) {
-            ERROR("[ipc] [allocate] could not find target path %s", message->address->data.path);
-            return Status;
+        UUId_t     handle;
+        OsStatus_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
+        if (osStatus != OsSuccess) {
+            ERROR("AllocateMessage could not find target path %s", message->addr->data.path);
+            return osStatus;
         }
-        
-        Context = LookupHandleOfType(Handle, HandleTypeIpcContext);
+
+        ipcContext = LookupHandleOfType(handle, HandleTypeIpcContext);
     }
     
-    if (!Context) {
-        ERROR("[ipc] [allocate] could not find target handle %u", message->address->data.handle);
+    if (!ipcContext) {
+        ERROR("AllocateMessage could not find target handle %u", message->addr->data.handle);
         return OsDoesNotExist;
     }
-    
-    BytesAvailable = streambuffer_write_packet_start(Context->KernelStream,
-        BytesToAllocate, 0, &state->base, &state->state);
-    if (!BytesAvailable) {
-        ERROR("[ipc] [allocate] timeout allocating space for message");
+
+    bytesAvailable = streambuffer_write_packet_start(ipcContext->KernelStream,
+                                                     bytesToAllocate, 0,
+                                                     &state->base, &state->state);
+    if (!bytesAvailable) {
+        ERROR("AllocateMessage timeout allocating space for message");
         return OsTimeout;
     }
     
-    *targetContext = Context;
+    *targetContext = ipcContext;
     return OsSuccess;
 }
 
-static OsStatus_t
-MapUntypedParameter(
-        _In_ struct gracht_param* parameter,
-        _In_ MemorySpace_t*       targetMemorySpace)
-{
-    vaddr_t    copyAddress;
-    size_t     offsetInPage = parameter->data.value % GetMemorySpacePageSize();
-    OsStatus_t status       = MemorySpaceCloneMapping(
-            GetCurrentMemorySpace(), targetMemorySpace,
-            (vaddr_t) parameter->data.buffer, &copyAddress, parameter->length + offsetInPage,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY | MAPPING_PERSISTENT,
-            MAPPING_VIRTUAL_PROCESS);
-    if (status != OsSuccess) {
-        ERROR("[ipc] [map_untyped] Failed to clone ipc mapping");
-        return status;
-    }
-    
-    // Update buffer pointer in untyped argument
-    parameter->data.buffer = (void*)(copyAddress + offsetInPage);
-    smp_wmb();
-    
-    return OsSuccess;
-}
-
-static OsStatus_t
+static void
 WriteMessage(
     _In_ IpcContext_t*         context,
-    _In_ struct ipmsg_header*  message,
+    _In_ struct ipmsg*         message,
     _In_ struct message_state* state)
 {
-    int i;
+    TRACE("WriteMessage()");
     
-    TRACE("[ipc] [write] %u/%u [%u, %u]", Message->base->header.protocol,
-        Message->base->header.action, sizeof(struct ipmsg_resp),
-        sizeof(struct gracht_message) + (
-            (Message->base->header.param_in + Message->base->header.param_out)
-                * sizeof(struct gracht_param)));
-    
-    // Write all members in the order of ipmsg
-    streambuffer_write_packet_data(context->KernelStream,
-        &message->sender, sizeof(UUId_t), &state->state);
-    
-    // Fixup all SHM buffer values before writing the base message
-    for (i = 0; i < message->base->header.param_in; i++) {
-        if (message->base->params[i].type == GRACHT_PARAM_SHM &&
-            message->base->params[i].length > 0) {
-            Thread_t*  thread = GetContextThread(context);
-            OsStatus_t status = MapUntypedParameter(&message->base->params[i],
-                                                    ThreadMemorySpace(thread));
-            if (status != OsSuccess) {
-                // WHAT DO
-                //CleanupMessage(Target, &IpcContext->Message);
-                //atomic_store(&IpcContext->WriteSyncObject, 0);
-                //(void)FutexWake(&IpcContext->WriteSyncObject, 1, 0);
-                ERROR("[ipc] [initialize_message] failed to map parameter");
-                return status;
-            }
-        }
-    }
-    
-    streambuffer_write_packet_data(context->KernelStream,
-        message->base, sizeof(struct gracht_message) +
-            ((message->base->header.param_in + message->base->header.param_out)
-                * sizeof(struct gracht_param)),
-        &state->state);
-    
-    // Handle all the buffer/shm parameters
-    for (i = 0; i < message->base->header.param_in; i++) {
-        if (message->base->params[i].type == GRACHT_PARAM_BUFFER &&
-            message->base->params[i].length > 0) {
-            streambuffer_write_packet_data(context->KernelStream,
-                message->base->params[i].data.buffer,
-                message->base->params[i].length,
-                &state->state);
-        }
-    }
-    return OsSuccess;
+    // write the header (senders handle)
+    streambuffer_write_packet_data(context->KernelStream, &message->from, sizeof(UUId_t), &state->state);
+
+    // write the actual payload
+    streambuffer_write_packet_data(context->KernelStream, (void*)message->payload, message->length, &state->state);
 }
 
 static inline void
 SendMessage(
     _In_ IpcContext_t*         context,
-    _In_ struct ipmsg_header*  message,
+    _In_ struct ipmsg*         message,
     _In_ struct message_state* state)
 {
-    TRACE("[ipc] [send] %u/%u => %u",
-        message->base->header.protocol, message->base->header.action,
-        sizeof(struct ipmsg_resp) + message->base->header.length);
-    
-    streambuffer_write_packet_end(context->KernelStream, state->base,
-        sizeof(UUId_t) + message->base->header.length);
+    size_t bytesToCommit;
+    TRACE("SendMessage()");
+
+    bytesToCommit = sizeof(UUId_t) + message->length;
+    streambuffer_write_packet_end(context->KernelStream, state->base, bytesToCommit);
     MarkHandle(context->Handle, IOSETIN);
 }
 
-static inline void
-CleanupMessage(
-    _In_ struct ipmsg* message)
-{
-    int i;
-    TRACE("[ipc] [cleanup]");
-
-    // Flush all the mappings granted in the argument phase
-    for (i = 0; i < message->base.header.param_in; i++) {
-        if (message->base.params[i].type == GRACHT_PARAM_SHM && 
-            message->base.params[i].length > 0) {
-            OsStatus_t status = MemorySpaceUnmap(GetCurrentMemorySpace(),
-                (vaddr_t)message->base.params[i].data.buffer,
-                message->base.params[i].length);
-            if (status != OsSuccess) {
-                // LOG
-            }
-        }
-    }
-}
-
-// THIS STRUCTURE MUST MATCH THE STRUCTURE IN libgracht/client.c
-struct gracht_message_descriptor {
-    gracht_object_header_t header;
-    int                    status;
-    struct gracht_message  message;
-};
-
 OsStatus_t
 IpcContextSendMultiple(
-    _In_ struct ipmsg_header** messages,
-    _In_ int                   messageCount,
-    _In_ size_t                timeout)
+    _In_ struct ipmsg** messages,
+    _In_ int            messageCount,
+    _In_ size_t         timeout)
 {
     struct message_state state;
     TRACE("[ipc] [send] count %i, timeout %u", MessageCount, LODWORD(Timeout));
@@ -286,35 +187,6 @@ IpcContextSendMultiple(
         }
         WriteMessage(targetContext, messages[i], &state);
         SendMessage(targetContext, messages[i], &state);
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-IpcContextRespondMultiple(
-    _In_ struct ipmsg**        messages,
-    _In_ struct ipmsg_header** responses,
-    _In_ int                   count)
-{
-    struct message_state state;
-    int                  i;
-
-    TRACE("[ipc] [respond]");
-    if (!messages || !responses || !count) {
-        ERROR("[ipc] [respond] input was null");
-        return OsInvalidParameters;
-    }
-    
-    for (i = 0; i < count; i++) {
-        IpcContext_t* targetContext;
-        OsStatus_t    status = AllocateMessage(responses[i], 0, &state, &targetContext);
-        if (status != OsSuccess) {
-            // todo store status in context and return incomplete
-            return OsIncomplete;
-        }
-        WriteMessage(targetContext, responses[i], &state);
-        SendMessage(targetContext, responses[i], &state);
-        CleanupMessage(messages[i]);
     }
     return OsSuccess;
 }

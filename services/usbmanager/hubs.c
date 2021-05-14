@@ -176,20 +176,16 @@ static int hub_cmp(const void* element1, const void* element2)
     return hub1->DeviceId == hub2->DeviceId ? 0 : 1;
 }
 
-void svc_usb_register_hub_callback(
-        _In_ struct gracht_recv_message*       message,
-        _In_ struct svc_usb_register_hub_args* args)
+void sys_usb_register_hub_invocation(struct gracht_message* message, const UUId_t parentHubDeviceId,
+        const UUId_t deviceId, const UUId_t driverId, const int portCount)
 {
-    OsStatus_t osStatus = UsbCoreHubsRegister(args->parent_hub_device_id, args->device_id,
-                                              args->driver_id, args->port_count);
+    OsStatus_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
     if (osStatus != OsSuccess) {
         // log
     }
 }
 
-void svc_usb_unregister_hub_callback(
-        _In_ struct gracht_recv_message*         message,
-        _In_ struct svc_usb_unregister_hub_args* args)
+void sys_usb_unregister_hub_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    UsbCoreHubsUnregister(args->device_id);
+    UsbCoreHubsUnregister(deviceId);
 }

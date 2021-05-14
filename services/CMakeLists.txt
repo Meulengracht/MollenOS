@@ -20,7 +20,7 @@ macro (add_service_target)
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL ${ARGV1}"
                 LINK_FLAGS "/lldmap /entry:__CrtServiceEntry"
         )
-        target_link_libraries (${ARGV0} libgracht libusb libds libddk c librt)
+        target_link_libraries (${ARGV0} gracht libusb libds libddk c librt)
 
         if (DEFINED VALI_PATH_INITRD)
             add_custom_command (TARGET ${ARGV0} POST_BUILD

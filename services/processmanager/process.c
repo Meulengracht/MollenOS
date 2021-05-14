@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
+#include <ddk/convert.h>
 #include <ddk/eventqueue.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
@@ -41,8 +42,8 @@
 #include <string.h>
 #include <signal.h>
 
-#include "svc_library_protocol_server.h"
-#include "svc_process_protocol_server.h"
+#include "sys_library_service_server.h"
+#include "sys_process_service_server.h"
 
 struct process_history_entry {
     UUId_t process_id;
@@ -142,7 +143,7 @@ HandleJoinProcess(
         exitCode = waitContext->Process->ExitCode;
     }
 
-    svc_process_join_response(&waitContext->DeferredResponse.recv_message, status, exitCode);
+    sys_process_join_response(&waitContext->DeferredResponse[0], status, exitCode);
     DestroyProcess(waitContext->Process);
     free(waitContext);
 }
@@ -467,34 +468,39 @@ exit:
     return osStatus;
 }
 
-void svc_process_spawn_callback(struct gracht_recv_message *message,
-                                struct svc_process_spawn_args *args)
+void sys_process_spawn_invocation(struct gracht_message* message, const char* path, const char* arguments,
+        const uint8_t* inheritBlock, const uint32_t inheritBlock_count,
+        const struct sys_process_configuration* configuration)
 {
-    UUId_t     handle;
-    OsStatus_t status = CreateProcess(args->path, args->arguments,
-                                      args->inheritation_block, args->configuration, &handle);
-    svc_process_spawn_response(message, status, handle);
+    UUId_t                 handle;
+    ProcessConfiguration_t pconf;
+    OsStatus_t             status;
+
+    from_sys_process_configuration(configuration, &pconf);
+
+    status = CreateProcess(path, arguments, (void*)inheritBlock, &pconf, &handle);
+    sys_process_spawn_response(message, status, handle);
 }
 
-void svc_process_get_startup_information_callback(struct gracht_recv_message *message,
-                                                  struct svc_process_get_startup_information_args *args)
+void sys_process_get_startup_information_invocation(struct gracht_message* message, const UUId_t handle,
+        const UUId_t bufferHandle, const size_t offset)
 {
-    Process_t* process            = GetProcessByPrimaryThread(args->process_handle);
+    Process_t* process            = GetProcessByPrimaryThread(handle);
     OsStatus_t status             = OsDoesNotExist;
-    UUId_t     handle             = UUID_INVALID;
+    UUId_t     processHandle      = UUID_INVALID;
     size_t     argumentLength     = 0;
     size_t     inheritationLength = 0;
     int        moduleCount        = PROCESS_MAXMODULES;
 
     if (process) {
         struct dma_attachment dmaAttachment;
-        status = dma_attach(args->dmabuf_handle, &dmaAttachment);
+        status = dma_attach(bufferHandle, &dmaAttachment);
         if (status == OsSuccess) {
             status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
             if (status == OsSuccess) {
                 char* buffer = dmaAttachment.buffer;
 
-                handle             = (UUId_t) (uintptr_t) process->Header.key;
+                processHandle      = (UUId_t) (uintptr_t) process->Header.key;
                 argumentLength     = process->ArgumentsLength;
                 inheritationLength = process->InheritationBlockLength;
 
@@ -514,10 +520,10 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message *me
         }
     }
 
-    svc_process_get_startup_information_response(
+    sys_process_get_startup_information_response(
             message,
             status,
-            handle,
+            processHandle,
             argumentLength,
             inheritationLength,
             moduleCount * sizeof(Handle_t));
@@ -525,11 +531,11 @@ void svc_process_get_startup_information_callback(struct gracht_recv_message *me
 
 OsStatus_t
 JoinProcess(
-        _In_ Process_t*                  process,
-        _In_ struct gracht_recv_message* message,
-        _In_ size_t                      timeout)
+        _In_ Process_t*             process,
+        _In_ struct gracht_message* message,
+        _In_ size_t                 timeout)
 {
-    size_t           waitContextSize = sizeof(ProcessJoiner_t) + VALI_MSG_DEFER_SIZE(message);
+    size_t           waitContextSize = sizeof(ProcessJoiner_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message);
     ProcessJoiner_t* waitContext;
 
     if (!process) {
@@ -543,7 +549,7 @@ JoinProcess(
 
     memset(waitContext, 0, waitContextSize);
     ELEMENT_INIT(&waitContext->Header, process->Header.key, waitContext);
-    gracht_vali_message_defer_response(&waitContext->DeferredResponse, message);
+    gracht_server_defer_message(message, &waitContext->DeferredResponse[0]);
     waitContext->Process = process;
     if (timeout != 0) {
         waitContext->EventHandle = QueueDelayedEvent(g_eventQueue, HandleJoinProcess, waitContext, timeout);
@@ -556,10 +562,9 @@ JoinProcess(
     return OsSuccess;
 }
 
-void svc_process_join_callback(struct gracht_recv_message*   message,
-                               struct svc_process_join_args* args)
+void sys_process_join_invocation(struct gracht_message* message, const UUId_t handle, const unsigned int timeout)
 {
-    Process_t* process = AcquireProcess(args->handle);
+    Process_t* process = AcquireProcess(handle);
     OsStatus_t status;
 
     // If the process is no longer alive, then we look in our archive for a history lesson
@@ -568,20 +573,20 @@ void svc_process_join_callback(struct gracht_recv_message*   message,
         struct process_history_entry* entry;
 
         entry = hashtable_get(&g_processHistory, &(struct process_history_entry) {
-            .process_id = args->handle
+            .process_id = handle
         });
         if (entry) {
-            svc_process_join_response(message, OsSuccess, entry->exit_code);
+            sys_process_join_response(message, OsSuccess, entry->exit_code);
         }
 
         // otherwise fall through and let normal error handling code take-over
     }
 
     // Only respond directly if the join didn't attach
-    status = JoinProcess(process, message, args->timeout);
+    status = JoinProcess(process, message, timeout);
     if (status != OsSuccess) {
         ReleaseProcess(process);
-        svc_process_join_response(message, status, 0);
+        sys_process_join_response(message, status, 0);
     }
 }
 
@@ -628,15 +633,14 @@ TerminateProcess(
     return OsSuccess;
 }
 
-void svc_process_terminate_callback(struct gracht_recv_message*        message,
-                                    struct svc_process_terminate_args* args)
+void sys_process_terminate_invocation(struct gracht_message* message, const UUId_t handle, const int exitCode)
 {
-    Process_t* process = AcquireProcess(args->handle);
-    OsStatus_t status  = TerminateProcess(process, args->exit_code);
+    Process_t* process = AcquireProcess(handle);
+    OsStatus_t status  = TerminateProcess(process, exitCode);
     if (process) {
         ReleaseProcess(process);
     }
-    svc_process_terminate_response(message, status);
+    sys_process_terminate_response(message, status);
 }
 
 OsStatus_t
@@ -665,11 +669,10 @@ KillProcess(
     return OsSuccess;
 }
 
-void svc_process_kill_callback(struct gracht_recv_message*   message,
-                               struct svc_process_kill_args* args)
+void sys_process_kill_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
-    Process_t* process = AcquireProcess(args->handle);
-    Process_t* target  = AcquireProcess(args->target_handle);
+    Process_t* process = AcquireProcess(processId);
+    Process_t* target  = AcquireProcess(handle);
     OsStatus_t status  = KillProcess(process, target);
 
     if (process) {
@@ -680,7 +683,7 @@ void svc_process_kill_callback(struct gracht_recv_message*   message,
         ReleaseProcess(target);
     }
 
-    svc_process_kill_response(message, status);
+    sys_process_kill_response(message, status);
 }
 
 OsStatus_t
@@ -718,20 +721,19 @@ exit:
     return osStatus;
 }
 
-void svc_library_load_callback(struct gracht_recv_message*   message,
-                               struct svc_library_load_args* args)
+void sys_library_load_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
 {
     Process_t* process;
     OsStatus_t status       = OsInvalidParameters;
     Handle_t   handle       = HANDLE_INVALID;
     uintptr_t  entryAddress = 0;
 
-    process = AcquireProcess(args->process_handle);
+    process = AcquireProcess(processId);
     if (process) {
-        status = LoadProcessLibrary(process, args->path, &handle, &entryAddress);
+        status = LoadProcessLibrary(process, path, &handle, &entryAddress);
         ReleaseProcess(process);
     }
-    svc_library_load_response(message, status, handle, entryAddress);
+    sys_library_load_response(message, status, (uintptr_t)handle, entryAddress);
 }
 
 uintptr_t
@@ -749,19 +751,19 @@ ResolveProcessLibraryFunction(
     return PeResolveFunction(executable, function);
 }
 
-void svc_library_get_function_callback(struct gracht_recv_message *message,
-                                       struct svc_library_get_function_args *args)
+void sys_library_get_function_invocation(struct gracht_message* message, const UUId_t processId,
+        const uintptr_t handle, const char* name)
 {
-    Process_t* process = AcquireProcess(args->process_handle);
+    Process_t* process = AcquireProcess(processId);
     OsStatus_t status   = OsInvalidParameters;
     uintptr_t  address  = 0;
 
     if (process) {
-        address = ResolveProcessLibraryFunction(process, args->handle, args->function);
+        address = ResolveProcessLibraryFunction(process, (Handle_t)handle, name);
         status  = OsSuccess;
         ReleaseProcess(process);
     }
-    svc_library_get_function_response(message, status, address);
+    sys_library_get_function_response(message, status, address);
 }
 
 OsStatus_t
@@ -776,23 +778,21 @@ UnloadProcessLibrary(
     return PeUnloadLibrary(process->Executable, (PeExecutable_t *) handle);
 }
 
-void svc_library_unload_callback(struct gracht_recv_message *message,
-                                 struct svc_library_unload_args *args)
+void sys_library_unload_invocation(struct gracht_message* message, const UUId_t processId, const uintptr_t handle)
 {
-    Process_t* process = AcquireProcess(args->process_handle);
+    Process_t* process = AcquireProcess(processId);
     OsStatus_t status   = OsInvalidParameters;
 
     if (process) {
-        status = UnloadProcessLibrary(process, args->handle);
+        status = UnloadProcessLibrary(process, (Handle_t)handle);
         ReleaseProcess(process);
     }
-    svc_library_unload_response(message, status);
+    sys_library_unload_response(message, status);
 }
 
-void svc_process_get_modules_callback(struct gracht_recv_message *message,
-                                      struct svc_process_get_modules_args *args)
+void sys_process_get_modules_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    Process_t* process    = AcquireProcess(args->handle);
+    Process_t* process     = AcquireProcess(handle);
     int        moduleCount = PROCESS_MAXMODULES;
     Handle_t   buffer[PROCESS_MAXMODULES];
 
@@ -800,14 +800,12 @@ void svc_process_get_modules_callback(struct gracht_recv_message *message,
         PeGetModuleHandles(process->Executable, &buffer[0], &moduleCount);
         ReleaseProcess(process);
     }
-    svc_process_get_modules_response(message, &buffer[0], moduleCount * sizeof(Handle_t), moduleCount);
+    sys_process_get_modules_response(message, (uintptr_t*)&buffer[0], moduleCount, moduleCount);
 }
 
-void
-svc_process_get_tick_base_callback(struct gracht_recv_message *message,
-                                   struct svc_process_get_tick_base_args *args)
+void sys_process_get_tick_base_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    Process_t*      process = AcquireProcess(args->handle);
+    Process_t*      process = AcquireProcess(handle);
     OsStatus_t      status   = OsInvalidParameters;
     LargeUInteger_t tick;
 
@@ -816,13 +814,12 @@ svc_process_get_tick_base_callback(struct gracht_recv_message *message,
         status = OsSuccess;
         ReleaseProcess(process);
     }
-    svc_process_get_tick_base_response(message, status, tick.u.LowPart, tick.u.HighPart);
+    sys_process_get_tick_base_response(message, status, tick.u.LowPart, tick.u.HighPart);
 }
 
-void svc_process_get_assembly_directory_callback(struct gracht_recv_message *message,
-                                                 struct svc_process_get_assembly_directory_args *args)
+void sys_process_get_assembly_directory_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    Process_t  *process = AcquireProcess(args->handle);
+    Process_t  *process = AcquireProcess(handle);
     OsStatus_t status   = OsInvalidParameters;
     const char *path    = NULL;
     if (process) {
@@ -830,13 +827,12 @@ void svc_process_get_assembly_directory_callback(struct gracht_recv_message *mes
         status = OsSuccess;
         ReleaseProcess(process);
     }
-    svc_process_get_assembly_directory_response(message, status, path);
+    sys_process_get_assembly_directory_response(message, status, path);
 }
 
-void svc_process_get_working_directory_callback(struct gracht_recv_message *message,
-                                                struct svc_process_get_working_directory_args *args)
+void sys_process_get_working_directory_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    Process_t*  process = AcquireProcess(args->handle);
+    Process_t*  process = AcquireProcess(handle);
     OsStatus_t  status  = OsInvalidParameters;
     const char* path    = NULL;
     if (process) {
@@ -846,30 +842,28 @@ void svc_process_get_working_directory_callback(struct gracht_recv_message *mess
 
         TRACE("[get_cwd] %s", path);
     }
-    svc_process_get_working_directory_response(message, status, path);
+    sys_process_get_working_directory_response(message, status, path);
 }
 
-void svc_process_set_working_directory_callback(struct gracht_recv_message *message,
-                                                struct svc_process_set_working_directory_args *args)
+void sys_process_set_working_directory_invocation(struct gracht_message* message, const UUId_t handle, const char* path)
 {
-    Process_t* process = AcquireProcess(args->handle);
+    Process_t* process = AcquireProcess(handle);
     OsStatus_t status   = OsInvalidParameters;
     if (process) {
-        if (args->path != NULL) {
+        if (path != NULL) {
             TRACE("[set_cwd] %s", args->path);
             MStringDestroy(process->WorkingDirectory);
-            process->WorkingDirectory = MStringCreate((void *) args->path, StrUTF8);
+            process->WorkingDirectory = MStringCreate((void *)path, StrUTF8);
             status = OsSuccess;
         }
         ReleaseProcess(process);
     }
-    svc_process_set_working_directory_response(message, status);
+    sys_process_set_working_directory_response(message, status);
 }
 
-void svc_process_get_name_callback(struct gracht_recv_message *message,
-                                   struct svc_process_get_name_args *args)
+void sys_process_get_name_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    Process_t  *process = AcquireProcess(args->handle);
+    Process_t  *process = AcquireProcess(handle);
     OsStatus_t status   = OsInvalidParameters;
     const char *name    = NULL;
     if (process) {
@@ -877,7 +871,7 @@ void svc_process_get_name_callback(struct gracht_recv_message *message,
         status = OsSuccess;
         ReleaseProcess(process);
     }
-    svc_process_get_name_response(message, status, name);
+    sys_process_get_name_response(message, status, name);
 }
 
 Process_t *

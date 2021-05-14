@@ -1,8 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.8.2)
-    include(../cmake/SetupEnvironment.cmake)
-    project(ValiRuntimeLibraries)
-endif ()
 
 string(TOLOWER "${CMAKE_C_COMPILER_ID}-${CMAKE_C_COMPILER_VERSION}" VALI_COMPILER_ID)
 

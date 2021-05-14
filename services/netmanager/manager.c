@@ -35,7 +35,7 @@
 #include <string.h>
 #include <threads.h>
 
-#include "svc_socket_protocol_server.h"
+#include "sys_socket_service_server.h"
 
 // This socket tree contains all the local system sockets that were created by
 // this machine. All remote sockets are maintained by the domains
@@ -229,12 +229,12 @@ NetworkManagerSocketCreate(
     return Status;
 }
 
-void svc_socket_create_callback(struct gracht_recv_message* message, struct svc_socket_create_args* args)
+void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
 {
     UUId_t     handle, recv_handle, send_handle;
-    OsStatus_t status = NetworkManagerSocketCreate(args->domain, args->type, args->protocol,
+    OsStatus_t status = NetworkManagerSocketCreate(domain, type, protocol,
         &handle, &recv_handle, &send_handle);
-    svc_socket_create_response(message, status, handle, recv_handle, send_handle);
+    sys_socket_create_response(message, status, handle, recv_handle, send_handle);
 }
 
 OsStatus_t
@@ -254,7 +254,7 @@ NetworkManagerSocketShutdown(
     }
     
     // Before initiating the actual destruction, remove it from our handle list.
-    if (Options & SVC_SOCKET_CLOSE_OPTIONS_DESTROY) {
+    if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
         // If removing it failed, then assume that it was already destroyed, and we just
         // encountered a race condition
         if (!rb_tree_remove(&Sockets, (void*)(uintptr_t)Handle)) {
@@ -269,10 +269,10 @@ NetworkManagerSocketShutdown(
     return SocketShutdownImpl(Socket, Options);
 }
 
-void svc_socket_close_callback(struct gracht_recv_message* message, struct svc_socket_close_args* args)
+void sys_socket_close_invocation(struct gracht_message* message, const UUId_t handle, const enum sys_close_options options)
 {
-    OsStatus_t status = NetworkManagerSocketShutdown(args->handle, args->options);
-    svc_socket_close_response(message, status);
+    OsStatus_t status = NetworkManagerSocketShutdown(handle, options);
+    sys_socket_close_response(message, status);
 }
 
 OsStatus_t
@@ -302,19 +302,20 @@ NetworkManagerSocketBind(
     return Status;
 }
 
-void svc_socket_bind_callback(struct gracht_recv_message* message, struct svc_socket_bind_args* args)
+void sys_socket_bind_invocation(struct gracht_message* message, const UUId_t handle,
+        const uint8_t* address, const uint32_t address_count)
 {
-    OsStatus_t status = NetworkManagerSocketBind(args->handle, args->address);
-    svc_socket_bind_response(message, status);
+    OsStatus_t status = NetworkManagerSocketBind(handle, (const struct sockaddr*)address);
+    sys_socket_bind_response(message, status);
 }
 
 // Asynchronous operation, does not send a reply on success, but instead a reply will
 // be sent by Domain 
 OsStatus_t
 NetworkManagerSocketConnect(
-    _In_ struct gracht_recv_message* message,
-    _In_ UUId_t                      handle,
-    _In_ const struct sockaddr*      address)
+    _In_ struct gracht_message* message,
+    _In_ UUId_t                 handle,
+    _In_ const struct sockaddr* address)
 {
     Socket_t*  socket;
     OsStatus_t status;
@@ -358,11 +359,12 @@ NetworkManagerSocketConnect(
     return status;
 }
 
-void svc_socket_connect_callback(struct gracht_recv_message* message, struct svc_socket_connect_args* args)
+void sys_socket_connect_invocation(struct gracht_message* message, const UUId_t handle,
+        const uint8_t* address, const uint32_t address_count)
 {
-    OsStatus_t status = NetworkManagerSocketConnect(message, args->handle, args->address);
+    OsStatus_t status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
     if (status != OsSuccess) {
-        svc_socket_connect_response(message, status);
+        sys_socket_connect_response(message, status);
     }
 }
 
@@ -370,8 +372,8 @@ void svc_socket_connect_callback(struct gracht_recv_message* message, struct svc
 // be sent by Domain. 
 OsStatus_t
 NetworkManagerSocketAccept(
-    _In_ struct gracht_recv_message* message,
-    _In_ UUId_t                      handle)
+    _In_ struct gracht_message* message,
+    _In_ UUId_t                 handle)
 {
     Socket_t* socket;
     
@@ -389,11 +391,11 @@ NetworkManagerSocketAccept(
     return DomainAccept(message, socket);
 }
 
-void svc_socket_accept_callback(struct gracht_recv_message* message, struct svc_socket_accept_args* args)
+void sys_socket_accept_invocation(struct gracht_message* message, const UUId_t handle)
 {
-    OsStatus_t status = NetworkManagerSocketAccept(message, args->handle);
+    OsStatus_t status = NetworkManagerSocketAccept(message, handle);
     if (status != OsSuccess) {
-        svc_socket_accept_response(message, status, NULL, UUID_INVALID, UUID_INVALID, UUID_INVALID);
+        sys_socket_accept_response(message, status, NULL, 0, UUID_INVALID, UUID_INVALID, UUID_INVALID);
     }
 }
 
@@ -418,10 +420,10 @@ NetworkManagerSocketListen(
     return SocketListenImpl(Socket, ConnectionCount);
 }
 
-void svc_socket_listen_callback(struct gracht_recv_message* message, struct svc_socket_listen_args* args)
+void sys_socket_listen_invocation(struct gracht_message* message, const UUId_t handle, const int backlog)
 {
-    OsStatus_t status = NetworkManagerSocketListen(args->handle, args->conn_queue_size);
-    svc_socket_listen_response(message, status);
+    OsStatus_t status = NetworkManagerSocketListen(handle, backlog);
+    sys_socket_listen_response(message, status);
 }
 
 OsStatus_t
@@ -471,10 +473,10 @@ NetworkManagerSocketPair(
     return Status;
 }
 
-void svc_socket_pair_callback(struct gracht_recv_message* message, struct svc_socket_pair_args* args)
+void sys_socket_pair_invocation(struct gracht_message* message, const UUId_t handle1, const UUId_t handle2)
 {
-    OsStatus_t status = NetworkManagerSocketPair(args->handle1, args->handle2);
-    svc_socket_pair_response(message, status);
+    OsStatus_t status = NetworkManagerSocketPair(handle1, handle2);
+    sys_socket_pair_response(message, status);
 }
 
 OsStatus_t
@@ -494,11 +496,11 @@ NetworkManagerSocketSetOption(
     return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
 }
 
-void svc_socket_set_option_callback(struct gracht_recv_message* message, struct svc_socket_set_option_args* args)
+void sys_socket_set_option_invocation(struct gracht_message* message, const UUId_t handle, const int protocol,
+        const unsigned int option, const uint8_t* data, const uint32_t data_count, const int length)
 {
-    OsStatus_t status = NetworkManagerSocketSetOption(args->handle, args->protocol,
-        args->option, args->data, args->length);
-    svc_socket_set_option_response(message, status);
+    OsStatus_t status = NetworkManagerSocketSetOption(handle, protocol, option, data, length);
+    sys_socket_set_option_response(message, status);
 }
 
 OsStatus_t
@@ -518,13 +520,13 @@ NetworkManagerSocketGetOption(
     return GetSocketOptionImpl(Socket, Protocol, Option, Data, DataLengthOut);
 }
 
-void svc_socket_get_option_callback(struct gracht_recv_message* message, struct svc_socket_get_option_args* args)
+void sys_socket_get_option_invocation(struct gracht_message* message, const UUId_t handle,
+        const int protocol, const unsigned int option)
 {
     char       buffer[32];
     socklen_t  length;
-    OsStatus_t status = NetworkManagerSocketGetOption(args->handle, args->protocol, args->option,
-        &buffer[0], &length);
-    svc_socket_get_option_response(message, status, &buffer[0], (size_t)length, (int)length);
+    OsStatus_t status = NetworkManagerSocketGetOption(handle, protocol, option,&buffer[0], &length);
+    sys_socket_get_option_response(message, status, (uint8_t*)&buffer[0], (size_t)length, (int)length);
 }
 
 OsStatus_t
@@ -542,13 +544,12 @@ NetworkManagerSocketGetAddress(
     return DomainGetAddress(Socket, Source, Address);
 }
 
-void svc_socket_get_address_callback(struct gracht_recv_message* message,
-    struct svc_socket_get_address_args* args)
+void sys_socket_get_address_invocation(struct gracht_message* message,
+        const UUId_t handle, const enum sys_address_type type)
 {
     struct sockaddr_storage address;
-    OsStatus_t              status = NetworkManagerSocketGetAddress(args->handle,
-        args->source, (struct sockaddr*)&address);
-    svc_socket_get_address_response(message, status, (struct sockaddr*)&address);
+    OsStatus_t              status = NetworkManagerSocketGetAddress(handle, type, (struct sockaddr*)&address);
+    sys_socket_get_address_response(message, status, (uint8_t*)&address, address.__ss_len);
 }
 
 Socket_t*
