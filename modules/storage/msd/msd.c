@@ -29,6 +29,8 @@
 #include <internal/_utils.h>
 #include <stdlib.h>
 
+extern int __crt_get_server_iod(void);
+
 static const char* g_deviceTypeNames[TypeCount] = {
     "Unknown",
     "Floppy Drive",
@@ -49,16 +51,16 @@ RegisterStorage(
     _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    (void)svc_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
+    (void)sys_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
 }
 
 static inline void
 UnregisterStorage(
-    _In_ UUId_t       deviceId,
-    _In_ unsigned int flags)
+    _In_ UUId_t  deviceId,
+    _In_ uint8_t forced)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    (void)svc_storage_unregister(GetGrachtClient(), &msg.base, deviceId, flags);
+    (void)sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
 }
 
 static inline void* memdup(void* mem, size_t size)
@@ -219,8 +221,8 @@ MsdDeviceCreate(
         return msdDevice;
     }
 
-    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()),
-                    msdDevice->Base.Base.Id, SVC_STORAGE_REGISTER_FLAGS_REMOVABLE);
+    RegisterStorage(GetNativeHandle(__crt_get_server_iod()),
+                    msdDevice->Base.Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
     return msdDevice;
 
 Error:
@@ -236,7 +238,7 @@ MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
     // Notify diskmanager
-    UnregisterStorage(Device->Base.Base.Id, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
+    UnregisterStorage(Device->Base.Base.Id, 1);
 
     // Flush existing requests?
     // @todo

@@ -26,7 +26,9 @@
 #include <ddk/utils.h>
 #include <stdlib.h>
 
-#include <ctt_input_protocol_server.h>
+#include <ctt_input_service_server.h>
+
+extern gracht_server_t* __crt_get_module_server(void);
 
 /**
  * Retrieves a value from a buffer by the given bit-offset and the for a certain
@@ -54,8 +56,15 @@ struct ReportHandleContext {
     UsbHidReportCollectionItem_t* CollectionItem;
     UsbHidReportInputItem_t*      InputItem;
     union {
-        struct ctt_input_cursor_event PointerEvent;
-        struct ctt_input_button_event ButtonEvent;
+        struct {
+            int16_t rel_x;
+            int16_t rel_y;
+            int16_t rel_z;
+        } PointerEvent;
+        struct {
+            uint8_t  keycode;
+            uint16_t modifiers;
+        } ButtonEvent;
     } EventData;
 };
 
@@ -213,17 +222,17 @@ static void __HandleInputItem(
                 // Possible types are: Keyboard, keypad, mouse, gamepad or joystick
                 switch (collectionItem->InputType) {
                     // Mouse button event
-                    case input_type_mouse: {
+                    case CTT_INPUT_TYPE_MOUSE: {
 
                     } break;
 
                     // Gamepad button event
-                    case input_type_gamepad: {
+                    case CTT_INPUT_TYPE_GAMEPAD: {
 
                     } break;
 
                     // Joystick button event
-                    case input_type_joystick: {
+                    case CTT_INPUT_TYPE_JOYSTICK: {
 
                     } break;
 
@@ -250,11 +259,11 @@ static void __HandleInputItem(
     }
 
     // Create a new input report
-    if (collectionItem->InputType == input_type_keyboard) {
-        ctt_input_event_button_all(hidDevice->Base.Base.Id, 0, 0);
+    if (collectionItem->InputType == CTT_INPUT_TYPE_KEYBOARD) {
+        ctt_input_event_button_event_all(__crt_get_module_server(), hidDevice->Base.Base.Id, 0, 0);
     }
-    else if (collectionItem->InputType == input_type_mouse) {
-        ctt_input_event_cursor_all(hidDevice->Base.Base.Id, 0,
+    else if (collectionItem->InputType == CTT_INPUT_TYPE_MOUSE) {
+        ctt_input_event_cursor_event_all(__crt_get_module_server(), hidDevice->Base.Base.Id, 0,
                                    context.EventData.PointerEvent.rel_x,
                                    context.EventData.PointerEvent.rel_y,
                                    context.EventData.PointerEvent.rel_z);

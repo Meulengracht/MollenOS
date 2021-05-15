@@ -27,33 +27,12 @@
 #include "hid.h"
 #include <ioset.h>
 
-#include <ctt_driver_protocol_server.h>
-#include <ctt_input_protocol_server.h>
-#include <ctt_usbhost_protocol_client.h>
+#include <ctt_driver_service_server.h>
+#include <ctt_input_service_server.h>
+#include <ctt_usbhost_service_client.h>
 #include <internal/_utils.h>
 
-static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
-static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
-
-static gracht_protocol_function_t ctt_driver_callbacks[2] = {
-        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
-        { PROTOCOL_CTT_DRIVER_GET_DEVICE_PROTOCOLS_ID , ctt_driver_get_device_protocols_callback },
-};
-DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
-
-static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args*);
-
-static gracht_protocol_function_t ctt_input_callbacks[1] = {
-        { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
-};
-DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
-
-static void ctt_usbhost_event_transfer_status_callback(struct ctt_usbhost_transfer_status_event*);
-
-static gracht_protocol_function_t ctt_usbhost_callbacks[1] = {
-   { PROTOCOL_CTT_USBHOST_EVENT_TRANSFER_STATUS_ID , ctt_usbhost_event_transfer_status_callback },
-};
-DEFINE_CTT_USBHOST_CLIENT_PROTOCOL(ctt_usbhost_callbacks, 1);
+extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t g_devices = LIST_INIT;
 
@@ -81,8 +60,8 @@ OsStatus_t OnEvent(struct ioset_event* event)
 OsStatus_t OnLoad(void)
 {
     // Register supported server protocols
-    gracht_server_register_protocol(&ctt_driver_server_protocol);
-    gracht_server_register_protocol(&ctt_input_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_input_server_protocol);
 
     // register supported client protocols
     gracht_client_register_protocol(GetGrachtClient(), &ctt_usbhost_client_protocol);
@@ -119,11 +98,9 @@ OsStatus_t OnRegister(
     return OsSuccess;
 }
 
-void ctt_driver_register_device_callback(
-        _In_ struct gracht_recv_message*             message,
-        _In_ struct ctt_driver_register_device_args* args)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
 {
-    OnRegister(args->device);
+    OnRegister((Device_t*)device);
 }
 
 OsStatus_t OnUnregister(
@@ -139,34 +116,33 @@ OsStatus_t OnUnregister(
     return OsSuccess;
 }
 
-static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    ctt_driver_event_device_protocol_single(message->client, args->device_id,
-                                            "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
+    ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
+                                            "input\0\0\0\0\0\0\0\0\0\0",
+                                            SERVICE_CTT_INPUT_ID);
 }
 
-static void ctt_input_get_properties_callback(
-        _In_ struct gracht_recv_message*           message,
-        _In_ struct ctt_input_get_properties_args* args)
+void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     struct UsbHidReportCollectionItem* item;
-    HidDevice_t*                       hidDevice = HidDeviceGet(args->device_id);
+    HidDevice_t*                       hidDevice = HidDeviceGet(deviceId);
     if (!hidDevice || !hidDevice->Collection) {
-        ctt_input_event_properties_single(message->client, args->device_id, input_type_invalid);
+        ctt_input_event_stats_single(__crt_get_module_server(), message->client, deviceId, CTT_INPUT_TYPE_INVALID);
         return;
     }
 
     item = hidDevice->Collection->Childs;
     while (item) {
-        if (item->InputType != input_type_invalid) {
-            ctt_input_event_properties_single(message->client, args->device_id, item->InputType);
+        if (item->InputType != CTT_INPUT_TYPE_INVALID) {
+            ctt_input_event_stats_single(__crt_get_module_server(), message->client, deviceId, item->InputType);
         }
         item = item->Link;
     }
 }
 
-static void ctt_usbhost_event_transfer_status_callback(
-        _In_ struct ctt_usbhost_transfer_status_event* event)
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const UUId_t transferId,
+                                                  const UsbTransferStatus_t status, const size_t dataIndex)
 {
     HidDevice_t* hidDevice = NULL;
 
@@ -175,14 +151,14 @@ static void ctt_usbhost_event_transfer_status_callback(
 
     foreach(element, &g_devices) {
         HidDevice_t* i = element->value;
-        if (i->TransferId == event->id) {
+        if (i->TransferId == transferId) {
             hidDevice = i;
             break;
         }
     }
 
     if (hidDevice) {
-        if (event->status == TransferStalled) {
+        if (status == TransferStalled) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
             UsbClearFeature(&hidDevice->Base.DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
@@ -192,7 +168,12 @@ static void ctt_usbhost_event_transfer_status_callback(
             UsbTransferResetPeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
         }
         else {
-            HidInterrupt(hidDevice, event->status, event->bytes_transferred);
+            HidInterrupt(hidDevice, status, dataIndex);
         }
     }
 }
+
+// lazyness by libddk
+void sys_device_event_protocol_device_invocation(void) { }
+void sys_device_event_device_update_invocation(void) { }
+void ctt_usbhub_event_port_status_invocation(void) { }

@@ -21,6 +21,7 @@
  */
 //#define __TRACE
 
+#include <ddk/convert.h>
 #include <ddk/storage.h>
 #include <ddk/utils.h>
 #include <ioset.h>
@@ -28,27 +29,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <ctt_driver_protocol_server.h>
+#include <ctt_driver_service_server.h>
+#include <ctt_storage_service_server.h>
 
-static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
-
-static gracht_protocol_function_t ctt_driver_callbacks[1] = {
-        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
-};
-DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
-
-#include <ctt_storage_protocol_server.h>
-
-extern void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args*);
-extern void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args*);
-extern void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args*);
-
-static gracht_protocol_function_t ctt_storage_callbacks[3] = {
-    { PROTOCOL_CTT_STORAGE_STAT_ID , ctt_storage_stat_callback },
-    { PROTOCOL_CTT_STORAGE_TRANSFER_ASYNC_ID , ctt_storage_transfer_async_callback },
-    { PROTOCOL_CTT_STORAGE_TRANSFER_ID , ctt_storage_transfer_callback },
-};
-DEFINE_CTT_STORAGE_SERVER_PROTOCOL(ctt_storage_callbacks, 3);
+extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t g_devices = LIST_INIT;
 
@@ -72,8 +56,8 @@ OsStatus_t
 OnLoad(void)
 {
     // Register supported protocols
-    gracht_server_register_protocol(&ctt_driver_server_protocol);
-    gracht_server_register_protocol(&ctt_storage_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_storage_server_protocol);
     return UsbInitialize();
 }
 
@@ -112,9 +96,9 @@ OnRegister(
     return OsSuccess;
 }
 
-void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
 {
-    OnRegister(args->device);
+    OnRegister((Device_t*)device);
 }
 
 OsStatus_t
@@ -130,20 +114,27 @@ OnUnregister(
     return MsdDeviceDestroy(MsdDevice);
 }
 
-void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args* args)
+void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    StorageDescriptor_t descriptor = { 0 };
-    OsStatus_t          status     = OsDoesNotExist;
-    MsdDevice_t*        device     = MsdDeviceGet(args->device_id);
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    OsStatus_t                 status     = OsDoesNotExist;
+    MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
     if (device) {
         TRACE("[msd] [stat] sectorCount %llu, sectorSize %u",
             device->Descriptor.SectorCount,
             device->Descriptor.SectorSize);
-        memcpy(&descriptor, &device->Descriptor, sizeof(StorageDescriptor_t));
+        to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
         status = OsSuccess;
     }
     
-    ctt_storage_stat_response(message, status, &descriptor);
+    ctt_storage_stat_response(message, status, &gdescriptor);
 }
+
+// lazyness
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId) { }
+void sys_device_event_protocol_device_invocation(void) { }
+void sys_device_event_device_update_invocation(void) { }
+void ctt_usbhost_event_transfer_status_invocation(void) { }
+void ctt_usbhub_event_port_status_invocation(void) { }

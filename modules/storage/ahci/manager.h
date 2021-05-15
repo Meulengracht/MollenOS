@@ -102,7 +102,7 @@ typedef struct AhciTransation {
     int                   SgIndex;
     size_t                SgOffset;
     
-    struct vali_link_deferred_response DeferredMessage;
+    struct gracht_message DeferredMessage[];
 } AhciTransaction_t;
 
 #define AHCI_XACTION_IN     0

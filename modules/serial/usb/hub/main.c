@@ -208,3 +208,8 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
 respond:
     ctt_usbhub_reset_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(UsbHcPortDescriptor_t));
 }
+
+// Caught by lazyness in libddk where all clients are gathered, and thus events need definitions.
+void sys_device_event_protocol_device_invocation(void) { }
+void sys_device_event_device_update_invocation(void) { }
+void ctt_usbhub_event_port_status_invocation(void) { }

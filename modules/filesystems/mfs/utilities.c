@@ -542,9 +542,3 @@ MfsEnsureRecordSpace(
     }
     return OsSuccess;
 }
-
-void ctt_storage_event_transfer_status_callback(
-    struct ctt_storage_transfer_status_event* args)
-{
-    
-}

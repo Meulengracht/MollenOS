@@ -27,7 +27,7 @@
 #include <ddk/utils.h>
 #include <stdlib.h>
 
-#include <ctt_input_protocol_server.h>
+#include <ctt_input_service_server.h>
 
 static UsbHidReportCollection_t* __CreateCollection(
     _In_ UsbHidReportGlobalStats_t* globalState,
@@ -415,19 +415,19 @@ static void __ParseReportTypeLocal(
 
             // Determine the kind of input device
             if (packet == HID_REPORT_USAGE_POINTER || packet == HID_REPORT_USAGE_MOUSE) {
-                context->InputType = input_type_mouse;
+                context->InputType = CTT_INPUT_TYPE_MOUSE;
             }
             else if (packet == HID_REPORT_USAGE_KEYBOARD) {
-                context->InputType = input_type_keyboard;
+                context->InputType = CTT_INPUT_TYPE_KEYBOARD;
             }
             else if (packet == HID_REPORT_USAGE_KEYPAD) {
-                context->InputType = input_type_keypad;
+                context->InputType = CTT_INPUT_TYPE_KEYPAD;
             }
             else if (packet == HID_REPORT_USAGE_JOYSTICK) {
-                context->InputType = input_type_joystick;
+                context->InputType = CTT_INPUT_TYPE_JOYSTICK;
             }
             else if (packet == HID_REPORT_USAGE_GAMEPAD) {
-                context->InputType = input_type_gamepad;
+                context->InputType = CTT_INPUT_TYPE_GAMEPAD;
             }
 
             // There can be multiple usages for an descriptor
@@ -514,7 +514,7 @@ HidParseReportDescriptor(
 
     // Make sure we set the report id to not available
     context.GlobalStats.ReportId = UUID_INVALID;
-    context.InputType = input_type_invalid;
+    context.InputType = CTT_INPUT_TYPE_INVALID;
 
     // Iterate the report descriptor
     for (i = 0; i < descriptorLength; /* Increase manually */) {

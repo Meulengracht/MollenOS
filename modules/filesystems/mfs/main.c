@@ -235,7 +235,7 @@ FsDestroy(
     }
 
     // Which kind of unmount is it?
-    if (!(UnmountFlags & SVC_STORAGE_UNREGISTER_FLAGS_FORCED)) {
+    if (!(UnmountFlags & 0x1)) {
         // Flush everything
         // @todo
     }

@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/server.h>
 #include <internal/_ipc.h>
@@ -34,8 +35,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_storage_protocol_server.h"
+#include "ctt_driver_service_server.h"
+#include "ctt_storage_service_server.h"
+
+extern int __crt_get_server_iod(void);
 
 static list_t devices        = LIST_INIT;
 static UUId_t g_nextDeviceId = 0;
@@ -198,7 +201,7 @@ RegisterStorage(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
-    status = svc_storage_register(GetGrachtClient(), &msg.base, ProtocolServerId, DeviceId, Flags);
+    status = sys_storage_register(GetGrachtClient(), &msg.base, ProtocolServerId, DeviceId, Flags);
     if (status) {
         // @todo log message
     }
@@ -206,13 +209,13 @@ RegisterStorage(
 
 static void
 UnregisterStorage(
-    _In_ UUId_t       DeviceId,
-    _In_ unsigned int Flags)
+    _In_ UUId_t  deviceId,
+    _In_ uint8_t forced)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     
-    status = svc_storage_unregister(GetGrachtClient(), &msg.base, DeviceId, Flags);
+    status = sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
     if (status) {
         // @todo log message
     }
@@ -235,7 +238,7 @@ AhciManagerUnregisterDevice(
     }
     assert(device != NULL);
     
-    UnregisterStorage(device->Descriptor.Device, SVC_STORAGE_UNREGISTER_FLAGS_FORCED);
+    UnregisterStorage(device->Descriptor.Device, 1);
     list_remove(&devices, &device->header);
 }
 
@@ -302,7 +305,7 @@ HandleIdentifyCommand(
     // Copy string data
     memcpy(&device->Descriptor.Model[0], (const void*)&deviceInformation->ModelNo[0], 40);
     memcpy(&device->Descriptor.Serial[0], (const void*)&deviceInformation->SerialNo[0], 20);
-    RegisterStorage(GetNativeHandle(gracht_server_get_dgram_iod()), device->Descriptor.Device, device->Descriptor.Flags);
+    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.Device, device->Descriptor.Flags);
 }
 
 void
@@ -333,15 +336,15 @@ AhciManagerHandleControlResponse(
     }
 }
 
-void ctt_storage_stat_callback(struct gracht_recv_message* message, struct ctt_storage_stat_args* args)
+void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
-    StorageDescriptor_t descriptor = { 0 };
-    OsStatus_t          status     = OsDoesNotExist;
-    AhciDevice_t*       device     = AhciManagerGetDevice(args->device_id);
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    OsStatus_t                 status = OsDoesNotExist;
+    AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
-        memcpy(&descriptor, &device->Descriptor, sizeof(StorageDescriptor_t));
+        to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
         status = OsSuccess;
     }
     
-    ctt_storage_stat_response(message, status, &descriptor);
+    ctt_storage_stat_response(message, status, &gdescriptor);
 }

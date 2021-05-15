@@ -35,6 +35,8 @@
 #include <ioctl.h>
 #include "ahci.h"
 
+extern gracht_server_t* __crt_get_module_server(void);
+
 // Prototypes
 InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 OsStatus_t        AhciSetup(AhciController_t* controller);
@@ -69,7 +71,8 @@ AhciControllerCreate(
     }
 
     // register it with the io set
-    ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
+    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+               IOSET_ADD, controller->event_descriptor,
                &(struct ioset_event) { .data.context = controller, .events = IOSETSYN });
     ioctl(controller->event_descriptor, FIONBIO, &opt);
 

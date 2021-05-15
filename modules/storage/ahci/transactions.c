@@ -32,8 +32,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_storage_protocol_server.h"
+#include "ctt_driver_service_server.h"
+#include "ctt_storage_service_server.h"
 
 static UUId_t g_nextTransactionId = 0;
 
@@ -144,17 +144,17 @@ AhciTransactionDestroy(
 }
 
 static AhciTransaction_t* __CreateTransaction(
-        _In_ AhciDevice_t*               device,
-        _In_ struct gracht_recv_message* message,
-        _In_ int                         direction,
-        _In_ uint64_t                    sector,
-        _In_ struct dma_attachment*      dmaAttachment,
-        _In_ unsigned int                bufferOffset)
+        _In_ AhciDevice_t*          device,
+        _In_ struct gracht_message* message,
+        _In_ int                    direction,
+        _In_ uint64_t               sector,
+        _In_ struct dma_attachment* dmaAttachment,
+        _In_ unsigned int           bufferOffset)
 {
     UUId_t             transactionId;
     AhciTransaction_t* transaction;
     size_t             transactionSize = message ?
-            sizeof(AhciTransaction_t) + VALI_MSG_DEFER_SIZE(message) :
+            sizeof(AhciTransaction_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message) :
             sizeof(AhciTransaction_t);
 
     transaction = (AhciTransaction_t*)malloc(transactionSize);
@@ -186,7 +186,7 @@ static AhciTransaction_t* __CreateTransaction(
     }
 
     if (message) {
-        gracht_vali_message_defer_response(&transaction->DeferredMessage, message);
+        gracht_server_defer_message(message, &transaction->DeferredMessage[0]);
     }
 
     // Do not bother to check return code again, things should go ok now
@@ -226,7 +226,7 @@ AhciTransactionControlCreate(
         goto exit;
     }
 
-    // setup extra members for control
+    // setup extra members for controlrecv_message
     transaction->Internal  = 1;
     transaction->Command   = ataCommand;
     transaction->BytesLeft = length;
@@ -262,13 +262,13 @@ static inline struct __AhciCommandTableEntry* __GetCommand(
 
 OsStatus_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*               device,
-    _In_ struct gracht_recv_message* message,
-    _In_ int                         direction,
-    _In_ uint64_t                    sector,
-    _In_ UUId_t                      bufferHandle,
-    _In_ unsigned int                bufferOffset,
-    _In_ size_t                      sectorCount)
+    _In_ AhciDevice_t*          device,
+    _In_ struct gracht_message* message,
+    _In_ int                    direction,
+    _In_ uint64_t               sector,
+    _In_ UUId_t                 bufferHandle,
+    _In_ unsigned int           bufferOffset,
+    _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
     struct dma_attachment           dmaAttachment;
@@ -323,33 +323,19 @@ exit:
     return status;
 }
 
-void ctt_storage_transfer_async_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_async_args* args)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
+        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
 {
-    AhciDevice_t*   device = AhciManagerGetDevice(args->device_id);
+    AhciDevice_t*   device = AhciManagerGetDevice(deviceId);
     OsStatus_t      status;
     LargeUInteger_t sector;
     
-    sector.u.LowPart = args->sector_lo;
-    sector.u.HighPart = args->sector_hi;
+    sector.u.LowPart = sectorLow;
+    sector.u.HighPart = sectorHigh;
     
-    status = AhciTransactionStorageCreate(device, message, args->direction, sector.QuadPart,
-        args->buffer_id, args->buffer_offset, args->sector_count);
-    if (status != OsSuccess) {
-        // event oh no
-    }
-}
-
-void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)
-{
-    AhciDevice_t*   device = AhciManagerGetDevice(args->device_id);
-    OsStatus_t      status;
-    LargeUInteger_t sector;
-    
-    sector.u.LowPart = args->sector_lo;
-    sector.u.HighPart = args->sector_hi;
-    
-    status = AhciTransactionStorageCreate(device, message, args->direction, sector.QuadPart,
-        args->buffer_id, args->buffer_offset, args->sector_count);
+    status = AhciTransactionStorageCreate(device, message, (int)direction, sector.QuadPart,
+        bufferId, offset, sectorCount);
     if (status != OsSuccess) {
         ctt_storage_transfer_response(message, status, 0);
     }
@@ -402,7 +388,7 @@ static void __FinishTransaction(
         AhciManagerHandleControlResponse(port, transaction);
     }
     else {
-        ctt_storage_transfer_response(&transaction->DeferredMessage.recv_message,
+        ctt_storage_transfer_response(&transaction->DeferredMessage[0],
                                       status, transaction->SectorsTransferred);
     }
     AhciTransactionDestroy(port, transaction);

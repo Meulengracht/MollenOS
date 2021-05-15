@@ -8,7 +8,7 @@ enable_language(C)
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/protocols
     ../../../librt/libgracht/include
     ../../../librt/libusb/include
     ../../../librt/libddk/include

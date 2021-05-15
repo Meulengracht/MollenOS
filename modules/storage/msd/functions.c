@@ -27,12 +27,12 @@
 #include <internal/_ipc.h>
 #include <threads.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_storage_protocol_server.h"
+#include "ctt_driver_service_server.h"
+#include "ctt_storage_service_server.h"
 
-extern MsdOperations_t BulkOperations;
-extern MsdOperations_t UfiOperations;
-static MsdOperations_t *ProtocolOperations[ProtocolCount] = {
+extern MsdOperations_t  BulkOperations;
+extern MsdOperations_t  UfiOperations;
+static MsdOperations_t* ProtocolOperations[ProtocolCount] = {
     NULL,
     &UfiOperations,
     &UfiOperations,
@@ -417,38 +417,20 @@ MsdTransferSectors(
     return OsSuccess;
 }
 
-void ctt_storage_transfer_async_callback(
-        _In_ struct gracht_recv_message*             message,
-        _In_ struct ctt_storage_transfer_async_args* args)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
+        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
 {
-    MsdDevice_t*    device = MsdDeviceGet(args->device_id);
+    MsdDevice_t*    device = MsdDeviceGet(deviceId);
     OsStatus_t      status;
     LargeUInteger_t sector;
     size_t          sectorsTransferred;
     
-    sector.u.LowPart = args->sector_lo;
-    sector.u.HighPart = args->sector_hi;
+    sector.u.LowPart = sectorLow;
+    sector.u.HighPart = sectorHigh;
     
-    status = MsdTransferSectors(device, args->direction, sector.QuadPart,
-        args->buffer_id, args->buffer_offset, args->sector_count,
-        &sectorsTransferred);
-    if (status != OsSuccess) {
-        // @todo
-    }
-}
-
-void ctt_storage_transfer_callback(struct gracht_recv_message* message, struct ctt_storage_transfer_args* args)
-{
-    MsdDevice_t*    device = MsdDeviceGet(args->device_id);
-    OsStatus_t      status;
-    LargeUInteger_t sector;
-    size_t          sectorsTransferred;
-    
-    sector.u.LowPart = args->sector_lo;
-    sector.u.HighPart = args->sector_hi;
-    
-    status = MsdTransferSectors(device, args->direction, sector.QuadPart,
-        args->buffer_id, args->buffer_offset, args->sector_count,
+    status = MsdTransferSectors(device, (int)direction, sector.QuadPart,
+        bufferId, offset, sectorCount,
         &sectorsTransferred);
     ctt_storage_transfer_response(message, status, sectorsTransferred);
 }
