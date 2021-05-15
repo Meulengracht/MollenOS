@@ -26,53 +26,21 @@
 #include <ioset.h>
 #include "hci.h"
 
-#include <ctt_driver_protocol_server.h>
-
-static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
-
-static gracht_protocol_function_t ctt_driver_callbacks[1] = {
-        { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
-};
-DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 1);
-
-#include <ctt_usbhost_protocol_server.h>
-#include <ctt_usbhub_protocol_server.h>
+#include <ctt_driver_service_server.h>
+#include <ctt_usbhost_service_server.h>
+#include <ctt_usbhub_service_server.h>
 #include <io.h>
 #include <ddk/utils.h>
 
-extern void ctt_usbhost_queue_async_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_async_args*);
-extern void ctt_usbhost_queue_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_args*);
-extern void ctt_usbhost_queue_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_queue_periodic_args*);
-extern void ctt_usbhost_reset_periodic_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_periodic_args*);
-extern void ctt_usbhost_dequeue_callback(struct gracht_recv_message* message, struct ctt_usbhost_dequeue_args*);
-extern void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args*);
-
-static gracht_protocol_function_t ctt_usbhost_callbacks[6] = {
-    { PROTOCOL_CTT_USBHOST_QUEUE_ASYNC_ID , ctt_usbhost_queue_async_callback },
-    { PROTOCOL_CTT_USBHOST_QUEUE_ID , ctt_usbhost_queue_callback },
-    { PROTOCOL_CTT_USBHOST_QUEUE_PERIODIC_ID , ctt_usbhost_queue_periodic_callback },
-    { PROTOCOL_CTT_USBHOST_RESET_PERIODIC_ID , ctt_usbhost_reset_periodic_callback },
-    { PROTOCOL_CTT_USBHOST_DEQUEUE_ID , ctt_usbhost_dequeue_callback },
-    { PROTOCOL_CTT_USBHOST_RESET_ENDPOINT_ID , ctt_usbhost_reset_endpoint_callback },
-};
-DEFINE_CTT_USBHOST_SERVER_PROTOCOL(ctt_usbhost_callbacks, 6);
-
-static void ctt_usbhub_query_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_query_port_args*);
-static void ctt_usbhub_reset_port_callback(struct gracht_recv_message* message, struct ctt_usbhub_reset_port_args*);
-
-static gracht_protocol_function_t ctt_usbhub_callbacks[2] = {
-    { PROTOCOL_CTT_USBHUB_QUERY_PORT_ID , ctt_usbhub_query_port_callback },
-    { PROTOCOL_CTT_USBHUB_RESET_PORT_ID , ctt_usbhub_reset_port_callback },
-};
-DEFINE_CTT_USBHUB_SERVER_PROTOCOL(ctt_usbhub_callbacks, 2);
+extern gracht_server_t* __crt_get_module_server(void);
 
 OsStatus_t
 OnLoad(void)
 {
     // Register supported protocols
-    gracht_server_register_protocol(&ctt_driver_server_protocol);
-    gracht_server_register_protocol(&ctt_usbhost_server_protocol);
-    gracht_server_register_protocol(&ctt_usbhub_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_usbhost_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_usbhub_server_protocol);
     
     return UsbManagerInitialize();
 }
@@ -117,9 +85,10 @@ OnRegister(
     return OsSuccess;
 }
 
-void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+void ctt_driver_register_device_invocation(struct gracht_message* message,
+        const uint8_t* device, const uint32_t device_count)
 {
-    OnRegister(args->device);
+    OnRegister((Device_t*)device);
 }
 
 OsStatus_t
@@ -133,34 +102,43 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-static void ctt_usbhub_query_port_callback(
-        _In_ struct gracht_recv_message*        message,
-        _In_ struct ctt_usbhub_query_port_args* args)
+void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
-    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     if (!controller) {
-        ctt_usbhub_query_port_response(message, OsInvalidParameters, &descriptor);
+        ctt_usbhub_query_port_response(message, OsInvalidParameters, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
         return;
     }
 
-    HciPortGetStatus(controller, (int)args->port_id, &descriptor);
-    ctt_usbhub_query_port_response(message, OsSuccess, &descriptor);
+    HciPortGetStatus(controller, (int)portId, &descriptor);
+    ctt_usbhub_query_port_response(message, OsSuccess, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-static void ctt_usbhub_reset_port_callback(
-        _In_ struct gracht_recv_message*        message,
-        _In_ struct ctt_usbhub_reset_port_args* args)
+void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
     OsStatus_t              status;
-    UsbManagerController_t* controller = UsbManagerGetController(args->device_id);
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     if (!controller) {
-        ctt_usbhub_reset_port_response(message, OsInvalidParameters, &descriptor);
+        ctt_usbhub_reset_port_response(message, OsInvalidParameters, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
         return;
     }
 
-    status = HciPortReset(controller, (int)args->port_id);
-    HciPortGetStatus(controller, (int)args->port_id, &descriptor);
-    ctt_usbhub_reset_port_response(message, status, &descriptor);
+    status = HciPortReset(controller, (int)portId);
+    HciPortGetStatus(controller, (int)portId, &descriptor);
+    ctt_usbhub_reset_port_response(message, status, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+}
+
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+{
+    //
+}
+
+// again lazyness in libddk causing this
+void sys_device_event_protocol_device_invocation(void) {
+
+}
+void sys_device_event_device_update_invocation(void) {
+
 }

@@ -29,7 +29,7 @@
 #include <stdlib.h>
 
 #include <gracht/link/vali.h>
-#include <ctt_usbhost_protocol_client.h>
+#include <ctt_usbhost_service_client.h>
 
 static struct {
     UUId_t driverId;

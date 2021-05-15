@@ -33,6 +33,8 @@
 #include <ioctl.h>
 #include "ps2.h"
 
+extern gracht_server_t* __crt_get_module_server(void);
+
 uint8_t
 SendPS2PortCommand(
     _In_ int     Index,
@@ -301,8 +303,9 @@ PS2PortInitialize(
     }
 
     // register the event descriptor with the our server set
-    ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, port->event_descriptor,
-            &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
+    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+               IOSET_ADD, port->event_descriptor,
+               &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
     ioctl(port->event_descriptor, FIONBIO, &opt);
 
     // Initialize interrupt resources

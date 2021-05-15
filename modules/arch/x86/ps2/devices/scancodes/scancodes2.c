@@ -63,8 +63,8 @@ static uint8_t g_scancodeSet2ExtendedTable[126] = {
 
 OsStatus_t
 ScancodeSet2ToVKey(
-    _In_ struct ctt_input_button_event* keyState,
-    _In_ uint8_t                        scancode)
+    _In_ struct key_state* keyState,
+    _In_ uint8_t           scancode)
 {
     // Handle special cases
     if (scancode == PS2_CODE_EXTENDED) {
@@ -78,10 +78,10 @@ ScancodeSet2ToVKey(
 
     // Get appropriate scancode
     if (keyState->modifiers & KEY_MODIFIER_EXTENDED) {
-        keyState->key_code = g_scancodeSet2ExtendedTable[scancode];
+        keyState->keycode = g_scancodeSet2ExtendedTable[scancode];
     }
     else {
-        keyState->key_code = g_scancodeSet2Table[scancode];
+        keyState->keycode = g_scancodeSet2Table[scancode];
     }
     return OsSuccess;
 }

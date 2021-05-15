@@ -67,7 +67,7 @@ typedef struct UsbManagerTransfer {
     size_t CurrentDataIndex;
     
     // Deferred message for async responding
-    struct vali_link_deferred_response DeferredMessage;
+    struct gracht_message DeferredMessage[];
 } UsbManagerTransfer_t;
 
 #define CREATE_TRANSFER_ID(client, id) ((UUId_t)client << 16) | id)

@@ -24,7 +24,7 @@
 #ifndef _DRIVER_PS2_MOUSE_H_
 #define _DRIVER_PS2_MOUSE_H_
 
-#include <ctt_input_protocol_server.h>
+#include <ctt_input_service_server.h>
 
 // PS2 mouse specific commands
 #define PS2_MOUSE_SETRESOLUTION         0xE8

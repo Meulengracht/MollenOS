@@ -25,30 +25,15 @@
 #include <ddk/utils.h>
 #include <ioset.h>
 #include <string.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <threads.h>
 
 #include "ps2.h"
 
-#include <ctt_driver_protocol_server.h>
-#include <ctt_input_protocol_server.h>
+#include <ctt_driver_service_server.h>
+#include <ctt_input_service_server.h>
 
-static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args*);
-static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args*);
-
-static gracht_protocol_function_t ctt_driver_callbacks[2] = {
-    { PROTOCOL_CTT_DRIVER_REGISTER_DEVICE_ID , ctt_driver_register_device_callback },
-    { PROTOCOL_CTT_DRIVER_GET_DEVICE_PROTOCOLS_ID , ctt_driver_get_device_protocols_callback },
-};
-DEFINE_CTT_DRIVER_SERVER_PROTOCOL(ctt_driver_callbacks, 2);
-
-static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args*);
-
-static gracht_protocol_function_t ctt_input_callbacks[1] = {
-    { PROTOCOL_CTT_INPUT_GET_PROPERTIES_ID , ctt_input_get_properties_callback },
-};
-DEFINE_CTT_INPUT_SERVER_PROTOCOL(ctt_input_callbacks, 1);
+extern gracht_server_t* __crt_get_module_server(void);
 
 static PS2Controller_t* Ps2Controller = NULL;
 
@@ -134,7 +119,7 @@ PS2SetScanning(
     }
 
     if (PS2WriteData(Status)    != OsSuccess ||
-        PS2ReadData(0)          != PS2_ACK) {
+        PS2ReadData(0)   != PS2_ACK) {
         return OsError;
     }
     return OsSuccess;
@@ -234,8 +219,8 @@ OsStatus_t
 OnLoad(void)
 {
     // Install supported protocols
-    gracht_server_register_protocol(&ctt_driver_server_protocol);
-    gracht_server_register_protocol(&ctt_input_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
+    gracht_server_register_protocol(__crt_get_module_server(), &ctt_input_server_protocol);
 
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
@@ -339,37 +324,39 @@ OnRegister(
     return Result;
 }
 
-static void ctt_driver_register_device_callback(struct gracht_recv_message* message, struct ctt_driver_register_device_args* args)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
 {
-    OnRegister(args->device);
+    OnRegister((Device_t*)device);
 }
 
-static void ctt_driver_get_device_protocols_callback(struct gracht_recv_message* message, struct ctt_driver_get_device_protocols_args* args)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     // announce the protocols we support for the individual devices
-    if (args->device_id != Ps2Controller->Device.Base.Id) {
-        ctt_driver_event_device_protocol_single(message->client, args->device_id,
-                "input\0\0\0\0\0\0\0\0\0\0", PROTOCOL_CTT_INPUT_ID);
+    if (deviceId != Ps2Controller->Device.Base.Id) {
+        ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
+                "input\0\0\0\0\0\0\0\0\0\0", SERVICE_CTT_INPUT_ID);
     }
 }
 
-static void ctt_input_get_properties_callback(struct gracht_recv_message* message, struct ctt_input_get_properties_args* args)
+void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     PS2Port_t* port = NULL;
 
-    if (Ps2Controller->Ports[0].DeviceId == args->device_id) {
+    if (Ps2Controller->Ports[0].DeviceId == deviceId) {
         port = &Ps2Controller->Ports[0];
     }
-    else if (Ps2Controller->Ports[1].DeviceId == args->device_id) {
+    else if (Ps2Controller->Ports[1].DeviceId == deviceId) {
         port = &Ps2Controller->Ports[1];
     }
 
     if (port) {
         if (port->Signature == 0xAB41 || port->Signature == 0xABC1 || port->Signature == 0xAB83) {
-            ctt_input_event_properties_single(message->client, args->device_id, input_type_keyboard);
+            ctt_input_event_stats_single(__crt_get_module_server(), message->client,
+                                         deviceId, CTT_INPUT_TYPE_KEYBOARD);
         }
         else {
-            ctt_input_event_properties_single(message->client, args->device_id, input_type_mouse);
+            ctt_input_event_stats_single(__crt_get_module_server(), message->client,
+                                         deviceId, CTT_INPUT_TYPE_MOUSE);
         }
     }
 }
@@ -404,4 +391,13 @@ OnUnregister(
         Result = PS2MouseCleanup(Ps2Controller, Port->Index);
     }
     return Result;
+}
+
+// again define some stupid functions that are drawn in by libddk due to my lazy-ass approach.
+void sys_device_event_protocol_device_invocation(void) {
+
+}
+
+void sys_device_event_device_update_invocation(void) {
+
 }

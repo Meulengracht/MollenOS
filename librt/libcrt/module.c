@@ -49,6 +49,11 @@ int __crt_get_server_iod(void)
     return gracht_link_get_handle((struct gracht_link*)g_serverLink);
 }
 
+gracht_server_t* __crt_get_module_server(void)
+{
+    return g_server;
+}
+
 void __crt_module_load(void)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());

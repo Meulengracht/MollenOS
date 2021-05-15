@@ -24,7 +24,7 @@
 #define _DRIVER_PS2_KEYBOARD_H_
 
 #include <os/osdefs.h>
-#include <ctt_input_protocol_server.h>
+#include <ctt_input_service_server.h>
 
 // PS2 keyboard specific commands
 #define PS2_KEYBOARD_SETLEDS                0xED
@@ -43,11 +43,16 @@
 #define PS2_DELAY_1000MS                    0x60
 #define KEY_MODIFIER_EXTENDED               0x8000
 
+struct key_state {
+    uint8_t  keycode;
+    uint16_t modifiers;
+};
+
 /* ScancodeSet2ToVKey
  * Converts a scancode 2 key to the standard-defined virtual key-layout */
 __EXTERN OsStatus_t 
 ScancodeSet2ToVKey(
-    _In_ struct ctt_input_button_event* keyState,
-    _In_ uint8_t                        scancode);
+    _In_ struct key_state* keyState,
+    _In_ uint8_t           scancode);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

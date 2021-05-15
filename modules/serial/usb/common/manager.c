@@ -37,8 +37,10 @@
 #include "manager.h"
 #include <stdlib.h>
 
-#include "ctt_driver_protocol_server.h"
-#include "ctt_usbhost_protocol_server.h"
+#include "ctt_driver_service_server.h"
+#include "ctt_usbhost_service_server.h"
+
+extern gracht_server_t* __crt_get_module_server(void);
 
 struct usb_controller_device_index {
     UUId_t                  deviceId;
@@ -119,8 +121,9 @@ UsbManagerCreateController(
     }
 
     // add the event descriptor to the gracht server, and then we would like to set it non-blocking
-    ioset_ctrl(gracht_server_get_set_iod(), IOSET_ADD, controller->event_descriptor,
-        &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
+    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+               IOSET_ADD, controller->event_descriptor,
+               &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
     ioctl(controller->event_descriptor, FIONBIO, &opt);
 
     // add indexes
@@ -161,7 +164,8 @@ UsbManagerDestroyController(
     hashtable_destroy(&controller->Endpoints);
 
     // remove the event descriptor to the gracht server
-    ioset_ctrl(gracht_server_get_set_iod(), IOSET_DEL, controller->event_descriptor, NULL);
+    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+               IOSET_DEL, controller->event_descriptor, NULL);
     close(controller->event_descriptor);
 
     // Unregister controller with usbmanager service
@@ -272,10 +276,11 @@ UsbManagerSetToggle(
     return OsSuccess;
 }
 
-void ctt_usbhost_reset_endpoint_callback(struct gracht_recv_message* message, struct ctt_usbhost_reset_endpoint_args* args)
+void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const UUId_t deviceId,
+        const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
-    UsbHcAddress_t address = { args->hub_address, args->port_address, args->device_address, args->endpoint_address };
-    OsStatus_t     status  = UsbManagerSetToggle(args->device_id, &address, 0);
+    UsbHcAddress_t address = { hub, port, device, endpoint };
+    OsStatus_t     status  = UsbManagerSetToggle(deviceId, &address, 0);
     ctt_usbhost_reset_endpoint_response(message, status);
 }
 

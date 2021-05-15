@@ -32,7 +32,8 @@
 #include "keyboard.h"
 #include "../ps2.h"
 #include <string.h>
-#include <stdlib.h>
+
+extern gracht_server_t* __crt_get_module_server(void);
 
 #define IS_SWITCH(keyCode) (keyCode == VK_CAPSLOCK || keyCode == VK_SCROLL || keyCode == VK_NUMLOCK)
 
@@ -110,23 +111,23 @@ static inline uint16_t __GetModifierFlag(
 }
 
 static void __HandleKeyCode(
-    _In_ PS2Port_t*                     port,
-    _In_ struct ctt_input_button_event* buttonEvent)
+    _In_ PS2Port_t*        port,
+    _In_ struct key_state* buttonEvent)
 {
     uint16_t modifiers = 0;
-    uint16_t flag = __GetModifierFlag(buttonEvent->key_code);
+    uint16_t flag = __GetModifierFlag(buttonEvent->keycode);
 
     // set key pressed if pressed
     if (buttonEvent->modifiers & VK_MODIFIER_RELEASED) {
         // release event
-        if (IS_SWITCH(buttonEvent->key_code)) {
+        if (IS_SWITCH(buttonEvent->keycode)) {
             // Only clear it if it has been cleared with the second press
             if (!(port->device_data.keyboard.modifiers & flag)) {
-                __ClearKey(port, buttonEvent->key_code);
+                __ClearKey(port, buttonEvent->keycode);
             }
         }
         else {
-            __ClearKey(port, buttonEvent->key_code);
+            __ClearKey(port, buttonEvent->keycode);
             if (flag) {
                 port->device_data.keyboard.modifiers &= ~(flag);
             }
@@ -135,18 +136,18 @@ static void __HandleKeyCode(
     }
     else {
         // press event - we handle lock-keys a bit different as they are switches
-        if (IS_SWITCH(buttonEvent->key_code)) {
+        if (IS_SWITCH(buttonEvent->keycode)) {
             port->device_data.keyboard.modifiers ^= flag;
             if (port->device_data.keyboard.modifiers & flag) {
-                __SetKey(port, buttonEvent->key_code);
+                __SetKey(port, buttonEvent->keycode);
             }
         }
         else {
-            if (__IsKeySet(port, buttonEvent->key_code)) {
+            if (__IsKeySet(port, buttonEvent->keycode)) {
                 modifiers |= VK_MODIFIER_REPEATED;
             }
             else {
-                __SetKey(port, buttonEvent->key_code);
+                __SetKey(port, buttonEvent->keycode);
                 if (flag) {
                     port->device_data.keyboard.modifiers |= flag;
                 }
@@ -160,10 +161,10 @@ static void __HandleKeyCode(
 }
 
 static inline OsStatus_t __ParseKeyCode(
-        _In_ PS2Port_t*                     port,
-        _In_ uint8_t                        scancodeSet,
-        _In_ uint32_t*                      readIndexReference,
-        _In_ struct ctt_input_button_event* event)
+        _In_ PS2Port_t*        port,
+        _In_ uint8_t           scancodeSet,
+        _In_ uint32_t*         readIndexReference,
+        _In_ struct key_state* event)
 {
     OsStatus_t osStatus  = OsError;
     uint32_t   readIndex = *readIndexReference;
@@ -194,21 +195,22 @@ PS2KeyboardInterrupt(
 
     smp_rmb(); // wait for all loads to be done before reading write_index
     while (readIndex < port->ResponseWriteIndex) {
-        struct ctt_input_button_event buttonEvent = { 0 };
+        struct key_state buttonEvent = { 0 };
 
         status = __ParseKeyCode(port, scancodeSet, &readIndex, &buttonEvent);
         if (status == OsSuccess) {
             port->ResponseReadIndex = readIndex;
 
             // we do not handle invalid key-codes
-            if (buttonEvent.key_code == VK_INVALID) {
+            if (buttonEvent.keycode == VK_INVALID) {
                 continue;
             }
 
             buttonEvent.modifiers &= ~(KEY_MODIFIER_EXTENDED);
 
             __HandleKeyCode(port, &buttonEvent);
-            ctt_input_event_button_all(port->DeviceId, buttonEvent.key_code, buttonEvent.modifiers);
+            ctt_input_event_button_event_all(__crt_get_module_server(), port->DeviceId,
+                                             buttonEvent.keycode, buttonEvent.modifiers);
         }
     }
 }
@@ -297,10 +299,7 @@ PS2KeyboardInitialize(
     _In_ int              portIndex,
     _In_ int              translation)
 {
-    gracht_client_configuration_t      client_config;
-    struct socket_client_configuration link_config;
-    PS2Port_t*                         port = &controller->Ports[portIndex];
-    int                                status;
+    PS2Port_t* port = &controller->Ports[portIndex];
     TRACE("PS2KeyboardInitialize(portIndex=%i, translation=%i)", portIndex, translation);
 
     // Initialize keyboard defaults
@@ -309,19 +308,6 @@ PS2KeyboardInitialize(
     port->device_data.keyboard.scancode_set = 2;
     port->device_data.keyboard.repeat       = PS2_REPEATS_PERSEC(16);
     port->device_data.keyboard.delay        = PS2_DELAY_500MS;
-
-    // Open up the input socket so we can send input data to the OS.
-    link_config.type = gracht_link_packet_based;
-    gracht_os_get_server_packet_address(&link_config.address, &link_config.address_length);
-    
-    status = gracht_link_socket_client_create(&client_config.link, &link_config);
-    if (status) {
-        ERROR("PS2KeyboardInitialize gracht_link_socket_client_create failed %i", errno);
-    }
-    
-    if (status && gracht_client_create(&client_config, &port->GrachtClient)) {
-        ERROR("PS2KeyboardInitialize gracht_client_create failed %i", errno);
-    }
 
     // Initialize interrupt
     RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
@@ -358,8 +344,7 @@ PS2KeyboardCleanup(
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(port->InterruptId);
-    
-    gracht_client_shutdown(port->GrachtClient);
+
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
     return OsSuccess;

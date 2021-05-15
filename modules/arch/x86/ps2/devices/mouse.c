@@ -30,6 +30,8 @@
 #include <event.h>
 #include <os/keycodes.h>
 
+extern gracht_server_t* __crt_get_module_server(void);
+
 const int g_lsbTable[64] = {
     63, 30,  3, 32, 59, 14, 11, 33,
     60, 24, 50,  9, 55, 19, 21, 34,
@@ -107,7 +109,8 @@ static void __ParseButtonData(
         }
 
         port->device_data.mouse.buttonState = buttons;
-        ctt_input_event_button_all(port->DeviceId, VK_LBUTTON + bitScanForward(changed), modifiers);
+        ctt_input_event_button_event_all(__crt_get_module_server(), port->DeviceId,
+                                         VK_LBUTTON + bitScanForward(changed), modifiers);
     }
 }
 
@@ -130,7 +133,7 @@ static void __ParseCursorData(
     }
 
     if (rel_x || rel_y || rel_z) {
-        ctt_input_event_cursor_all(port->DeviceId, 0, rel_x, rel_y, rel_z);
+        ctt_input_event_cursor_event_all(__crt_get_module_server(), port->DeviceId, 0, rel_x, rel_y, rel_z);
     }
 }
 
@@ -217,28 +220,12 @@ PS2MouseInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              index)
 {
-    gracht_client_configuration_t      client_config;
-    struct socket_client_configuration link_config;
-    PS2Port_t*                         port = &controller->Ports[index];
-    int                                status;
+    PS2Port_t* port = &controller->Ports[index];
 
     // Set initial mouse sampling
     memset(&port->device_data, 0, sizeof(port->device_data));
     port->device_data.mouse.sampling = 100;
     port->device_data.mouse.mode     = 0;
-
-    // Open up the input socket so we can send input data to the OS.
-    link_config.type = gracht_link_packet_based;
-    gracht_os_get_server_packet_address(&link_config.address, &link_config.address_length);
-    
-    status = gracht_link_socket_client_create(&client_config.link, &link_config);
-    if (status) {
-        ERROR("... [ps2] [mouse] [initialize] gracht_link_socket_client_create failed %i", errno);
-    }
-    
-    if (status && gracht_client_create(&client_config, &port->GrachtClient)) {
-        ERROR("... [ps2] [mouse] [initialize] gracht_client_create failed %i", errno);
-    }
 
     // Initialize interrupt
     RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
@@ -274,7 +261,6 @@ PS2MouseCleanup(
     PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(port->InterruptId);
 
-    gracht_client_shutdown(port->GrachtClient);
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
     return OsSuccess;
