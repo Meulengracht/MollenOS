@@ -116,7 +116,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     unsigned int    state;
     streambuffer_t* stream;
     unsigned int    sb_options = 0;
-    int             status = 0;
+    int             status;
     UUId_t          sender;
 
     TRACE("iprecv(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, buffer, len, flags);
@@ -159,6 +159,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     if (fromHandle) {
         *fromHandle = sender;
     }
+    status = (int)bytesAvailable;
 
 exit:
     TRACE("iprecv return=%i", status);
