@@ -9,7 +9,8 @@
 
 ## Table of Contents
 
-1. [Getting started](#getting-started)
+1. [About](#about)
+2. [Getting started](#getting-started)
     1. [Environmental variables](#env-variables)
     2. [Setting up the toolchain](#setting-up-toolchain)
     3. [Setting up for OS development](#setting-up-devenv)
@@ -17,21 +18,32 @@
     5. [The build options for cmake](#build-options)
     6. [The build commands](#build-commands)
     7. [Known issues](#known-issues)
-2. [Contributing](#contributing)
+3. [Contributing](#contributing)
     1. [Submitting issues](#contrib-issues)
     2. [PRs](#contrib-pr)
-3. [Roadmap](#roadmap)
-4. [Features](#features)
+4. [Roadmap](#roadmap)
+5. [Features](#features)
     1. [Bootloader](#features-boot)
     2. [Kernel](#features-kernel)
     3. [Services](#features-services)
     4. [Drivers](#features-drivers)
-5. [Documentation](#documentation)
+6. [Documentation](#documentation)
     1. [Architecture](#doc-system-arch)
     2. [Project structure](#doc-project-structure)
-6. [Screenshots](#screenshots)
-    1. [Boot](#ss-boot)
-    2. [Usage](#ss-usage)
+
+## About <a name="about"></a>
+
+Showcase of Vali to get an idea of how the userspace will be once it's finished.
+
+BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
+
+
+### Noteable projects
+
+| Project               | Link                                                 | Description             |
+| --------------------- |:---------------------------------------------------- |:-----------------------:|
+| Gracht                | [github](https://github.com/Meulengracht/libgracht)  | Open source protocol library heavily featured in MollenOS/Vali. |
+| Vioarr                | [github](https://github.com/Meulengracht/vioarr)     | Open source window manager with terminal and launcher built ontop of Gracht. |
 
 ## Getting started <a name="getting-started"></a>
 
@@ -174,9 +186,3 @@ All documentation about design and implementation, and the theory behind is stor
 - /resources (Contains the deploy folder for installing the OS)
 - /tools (Contains tools for building and manipulating)
 - /tests (Contains example applications for the OS)
-
-## Screenshots <a name="screenshots"></a>
-
-Showcase of Vali to get an idea of how the userspace will be once it's finished.
-
-BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
