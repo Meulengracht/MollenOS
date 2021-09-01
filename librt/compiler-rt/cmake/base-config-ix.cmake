@@ -161,6 +161,15 @@ if(WIN32 AND NOT MINGW AND NOT CYGWIN)
   set(CMAKE_STATIC_LIBRARY_SUFFIX_CXX ".lib")
 endif()
 
+if(VALI)
+    set(CMAKE_SHARED_LIBRARY_PREFIX_C "")
+    set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "")
+    set(CMAKE_STATIC_LIBRARY_PREFIX_C "")
+    set(CMAKE_STATIC_LIBRARY_PREFIX_CXX "")
+    set(CMAKE_STATIC_LIBRARY_SUFFIX_C ".sll")
+    set(CMAKE_STATIC_LIBRARY_SUFFIX_CXX ".sll")
+endif()
+
 macro(test_targets)
   # Find and run MSVC (not clang-cl) and get its version. This will tell clang-cl
   # what version of MSVC to pretend to be so that the STL works.
