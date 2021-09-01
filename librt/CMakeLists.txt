@@ -73,7 +73,7 @@ endmacro ()
 
 # COMPILER-RT
 ExternalProject_Add(compiler-rt
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libclang
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compiler-rt
     CMAKE_ARGS
         -DCMAKE_SYSTEM_NAME=vali-cross
         -DCOMPILER_RT_STANDALONE_BUILD=ON
