@@ -115,6 +115,8 @@ install (TARGETS librt
 
 # Libraries used by building of everything
 add_subdirectory (libacpi)
+
+set (GRACHT_C_LINK_VALI ON CACHE BOOL "Enable vali ipc link")
 add_subdirectory (libgracht)
 add_subdirectory (libusb)
 
