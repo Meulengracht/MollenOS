@@ -10,7 +10,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libacpi" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/librt/libclang" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libgracht" vcs="Git" />
   </component>
 </project>
