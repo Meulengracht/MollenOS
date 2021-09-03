@@ -33,7 +33,7 @@ if (VALI_BOOTSTRAP)
     set (LINK_LIBRARIES "")
     set (LINK_FLAGS_BASE "")
 else ()
-    set (INITIAL_C_LIBRARIES "c.lib m.lib libcrt.lib librt.lib")
+    set (INITIAL_C_LIBRARIES "c.lib m.lib libcrt.sll librt.sll")
 
     if (DEFINED ENV{LIBCXX_BOOTSTRAP})
         set (INITIAL_CXX_LIBRARIES ${INITIAL_C_LIBRARIES})
