@@ -13,12 +13,12 @@ macro (merge_libraries)
     # Get a list of libraries and their full path
     foreach (LIB ${LIB_LIST})
         if (TARGET ${LIB})
-            set(LIB_LOCATION ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${LIB}.sll)
+            set(LIB_LOCATION ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${LIB}.lib)
             
             set (STATIC_LIBS ${STATIC_LIBS} ${LIB_LOCATION})
             add_dependencies(${TARGET} ${LIB})
         else ()
-            list (APPEND STATIC_LIBS ${LIB}.sll)
+            list (APPEND STATIC_LIBS ${LIB}.lib)
         endif ()
     endforeach ()
     
@@ -41,7 +41,7 @@ macro (merge_libraries)
             PROPERTIES
                 STATIC_LIBRARY_FLAGS "${LINKER_EXTRA_FLAGS}")
     else ()
-        set (TARGET_LOCATION ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${TARGET}.sll)  
+        set (TARGET_LOCATION ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${TARGET}.lib)
         if (APPLE)
           # Use OSX's libtool to merge archives (ihandles universal 
           # binaries properly)

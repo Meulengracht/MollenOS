@@ -129,7 +129,6 @@ add_custom_target (install_prepare
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYSTEM}/syskrnl.mos
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.sll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

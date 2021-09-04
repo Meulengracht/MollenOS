@@ -6,7 +6,7 @@ set(VALI ON)
 
 set(CMAKE_EXECUTABLE_SUFFIX ".run")
 set(CMAKE_STATIC_LIBRARY_PREFIX "")
-set(CMAKE_STATIC_LIBRARY_SUFFIX ".sll")
+set(CMAKE_STATIC_LIBRARY_SUFFIX ".lib")
 set(CMAKE_SHARED_LIBRARY_PREFIX "")  # lib
 set(CMAKE_SHARED_LIBRARY_SUFFIX ".dll") # .so
 set(CMAKE_IMPORT_LIBRARY_PREFIX "")
@@ -33,7 +33,7 @@ if (VALI_BOOTSTRAP)
     set (LINK_LIBRARIES "")
     set (LINK_FLAGS_BASE "")
 else ()
-    set (INITIAL_C_LIBRARIES "c.lib m.lib libcrt.sll librt.sll")
+    set (INITIAL_C_LIBRARIES "c.lib m.lib libcrt.lib librt.lib")
 
     if (DEFINED ENV{LIBCXX_BOOTSTRAP})
         set (INITIAL_CXX_LIBRARIES ${INITIAL_C_LIBRARIES})
