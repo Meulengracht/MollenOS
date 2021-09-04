@@ -68,7 +68,7 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
 
     // initialite the ipc link
     TRACE("[InitializeProcess] creating rpc link");
-    status = gracht_link_vali_create(&g_gclientLsink);
+    status = gracht_link_vali_create(&g_gclientLink);
     if (status) {
         ERROR("[InitializeProcess] gracht_link_vali_create failed %i", status);
         _Exit(status);
