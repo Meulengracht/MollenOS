@@ -1,6 +1,6 @@
 [submodule "librt/libacpi"]
 	path = librt/libacpi
-	url = https://github.com/Meulengracht/acpica
+	url = ../acpica
 [submodule "librt/libgracht"]
 	path = librt/libgracht
-	url = https://github.com/meulengracht/libgracht
+	url = ../libgracht
