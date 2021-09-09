@@ -33,6 +33,7 @@ if (${VALI_ARCH} STREQUAL "i386")
         ld80/core_sinl.c
         ld80/core_tanl.c
         ld80/sinl.c
+        ld80/cosl.c
     )
 elseif (${VALI_ARCH} STREQUAL "amd64")
     set (MATH_FLAGS "-D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL")
