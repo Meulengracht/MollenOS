@@ -11,9 +11,6 @@
  * From: @(#)s_floor.c 5.1 93/09/24
  */
 
-#include "cdefs-compat.h"
-//__FBSDID("$FreeBSD: src/lib/msun/src/s_floorl.c,v 1.8 2008/02/14 15:10:34 bde Exp $");
-
 /*
  * floorl(x)
  * Return x rounded toward -inf to integral value
@@ -24,11 +21,8 @@
  */
 
 #include <float.h>
-#include <openlibm_math.h>
-#include <stdint.h>
-
-#include "fpmath.h"
-#include "math_private.h"
+#include <math.h>
+#include "../private.h"
 
 #ifdef LDBL_IMPLICIT_NBIT
 #define	MANH_SIZE	(LDBL_MANH_SIZE + 1)
@@ -52,7 +46,7 @@
 
 static const long double huge = 1.0e300;
 
-OLM_DLLEXPORT long double
+long double
 floorl(long double x)
 {
 	union IEEEl2bits u = { .e = x };
