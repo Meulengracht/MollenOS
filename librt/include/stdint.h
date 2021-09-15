@@ -1,29 +1,66 @@
 /*===---- stdint.h - Standard header for sized integer types --------------===*\
  *
- * Copyright (c) 2009 Chris Lattner
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
 \*===----------------------------------------------------------------------===*/
 
 #ifndef __CLANG_STDINT_H
+// AIX system headers need stdint.h to be re-enterable while _STD_TYPES_T
+// is defined until an inclusion of it without _STD_TYPES_T occurs, in which
+// case the header guard macro is defined.
+#if !defined(_AIX) || !defined(_STD_TYPES_T) || !defined(__STDC_HOSTED__)
 #define __CLANG_STDINT_H
+#endif
+
+/* If we're hosted, fall back to the system's stdint.h, which might have
+ * additional definitions.
+ */
+#if __STDC_HOSTED__ && __has_include_next(<stdint.h>)
+
+// C99 7.18.3 Limits of other integer types
+//
+//  Footnote 219, 220: C++ implementations should define these macros only when
+//  __STDC_LIMIT_MACROS is defined before <stdint.h> is included.
+//
+//  Footnote 222: C++ implementations should define these macros only when
+//  __STDC_CONSTANT_MACROS is defined before <stdint.h> is included.
+//
+// C++11 [cstdint.syn]p2:
+//
+//  The macros defined by <cstdint> are provided unconditionally. In particular,
+//  the symbols __STDC_LIMIT_MACROS and __STDC_CONSTANT_MACROS (mentioned in
+//  footnotes 219, 220, and 222 in the C standard) play no role in C++.
+//
+// C11 removed the problematic footnotes.
+//
+// Work around this inconsistency by always defining those macros in C++ mode,
+// so that a C library implementation which follows the C99 standard can be
+// used in C++.
+# ifdef __cplusplus
+#  if !defined(__STDC_LIMIT_MACROS)
+#   define __STDC_LIMIT_MACROS
+#   define __STDC_LIMIT_MACROS_DEFINED_BY_CLANG
+#  endif
+#  if !defined(__STDC_CONSTANT_MACROS)
+#   define __STDC_CONSTANT_MACROS
+#   define __STDC_CONSTANT_MACROS_DEFINED_BY_CLANG
+#  endif
+# endif
+
+# include_next <stdint.h>
+
+# ifdef __STDC_LIMIT_MACROS_DEFINED_BY_CLANG
+#  undef __STDC_LIMIT_MACROS
+#  undef __STDC_LIMIT_MACROS_DEFINED_BY_CLANG
+# endif
+# ifdef __STDC_CONSTANT_MACROS_DEFINED_BY_CLANG
+#  undef __STDC_CONSTANT_MACROS
+#  undef __STDC_CONSTANT_MACROS_DEFINED_BY_CLANG
+# endif
+
+#else
 
 #if defined(MOLLENOS) && defined(__clang__)
 #pragma clang diagnostic push
@@ -660,4 +697,6 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 #if defined(MOLLENOS) && defined(__clang__)
 #pragma clang diagnostic pop
 #endif
+
+#endif /* __STDC_HOSTED__ */
 #endif /* __CLANG_STDINT_H */

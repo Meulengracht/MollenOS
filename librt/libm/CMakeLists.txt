@@ -33,6 +33,7 @@ if (${VALI_ARCH} STREQUAL "i386")
         ld80/core_sinl.c
         ld80/core_tanl.c
         ld80/sinl.c
+        ld80/cosl.c
     )
 elseif (${VALI_ARCH} STREQUAL "amd64")
     set (MATH_FLAGS "-D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL")
@@ -46,6 +47,11 @@ elseif (${VALI_ARCH} STREQUAL "amd64")
         ld80/core_tanl.c
         ld80/logl.c
         ld80/log10l.c
+        ld80/sinl.c
+        ld80/cosl.c
+        ld80/floorl.c
+        ld80/truncl.c
+        ld80/ceill.c
     )
     set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-D_MICROSOFT_LIBM")
 endif ()

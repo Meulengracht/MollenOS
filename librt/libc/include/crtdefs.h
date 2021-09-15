@@ -22,8 +22,8 @@
 #define __STDC_CRTDEF__
 
 #ifdef _USE_32BIT_TIME_T
-#ifdef _WIN64
-#error You cannot use 32-bit time_t (_USE_32BIT_TIME_T) with _WIN64
+#ifdef __VALI64
+#error You cannot use 32-bit time_t (_USE_32BIT_TIME_T) with __VALI64
 #undef _USE_32BIT_TIME_T
 #endif
 #else
@@ -195,14 +195,6 @@
 #define PACKED_ATYPESTRUCT(opts, name, body) __pragma(pack(push, 1)) typedef opts struct name body name##_t __pragma(pack(pop))
 #else
 #error Please define packed struct for the used compiler
-#endif
-
-#ifndef _W64
- #if !defined(_midl) && defined(_X86_) && _MSC_VER >= 1300
-  #define _W64 __w64
- #else
-  #define _W64
- #endif
 #endif
 
 #ifndef _Check_return_

@@ -42,6 +42,11 @@
 #pragma warning(disable:4305)
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-const-int-float-conversion"
+#endif
+
 /*
 * If type has more precision than dtype, the endpoints dtype_(min|max) are
 * of the form xxx.5; they are "out of range" because lround() rounds away
@@ -66,6 +71,10 @@ dtype fn(type x)
 		return (DTYPE_MAX);
 	}
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #ifdef _MSC_VER
 #pragma warning(default:4305)

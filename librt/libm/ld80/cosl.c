@@ -24,18 +24,14 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "cdefs-compat.h"
-//__FBSDID("$FreeBSD: src/lib/msun/src/s_cosl.c,v 1.3 2011/05/30 19:41:28 kargl Exp $");
-
 /*
  * Limited testing on pseudorandom numbers drawn within [-2e8:4e8] shows
  * an accuracy of <= 0.7412 ULP.
  */
 
-#include <float.h>
-#include <openlibm_math.h>
+#include <math.h>
+#include "../private.h"
 
-#include "math_private.h"
 #if LDBL_MANT_DIG == 64 || LDBL_MANT_DIG == 53
 #include "../ld80/e_rem_pio2l.h"
 #elif LDBL_MANT_DIG == 113
@@ -44,7 +40,7 @@
 #error "Unsupported long double format"
 #endif
 
-OLM_DLLEXPORT long double
+long double
 cosl(long double x)
 {
 	union IEEEl2bits z;
