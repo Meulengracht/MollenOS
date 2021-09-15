@@ -1,5 +1,5 @@
 # Now we setup the environment for using the cross-compiler
-FROM valios/vali-toolchain:latest
+FROM valios/vali-toolchain:v1.4
 
 # Build configuration arguments
 # CROSS_PATH must match what is set in the toolchain image
