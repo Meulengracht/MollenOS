@@ -1,5 +1,5 @@
 # Now we setup the environment for using the cross-compiler
-FROM valios/vali-toolchain:latest
+FROM valios/vali-toolchain:v1.4
 
 # This Dockerfile's base image has a non-root user with sudo access. Use the "remoteUser"
 # property in devcontainer.json to use it. On Linux, the container user's GID/UIDs
