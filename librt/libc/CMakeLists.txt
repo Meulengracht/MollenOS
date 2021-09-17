@@ -268,6 +268,7 @@ set (SOURCES_STDIO
     stdio/io/getwchar.c
     stdio/io/ioctl.c
     stdio/io/ioset.c
+    stdio/io/lock.c
     stdio/io/marktty.c
     stdio/io/perror.c
     stdio/io/putc.c
