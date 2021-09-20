@@ -61,7 +61,7 @@ int setvbuf(
         return -1;
     }
 
-    _lock_file(file);
+    _lock_stream(file);
     __flush_existing(file);
 
     file->_flag &= ~(_IONBF | _IOMYBUF | _USERBUF | _IOLBF);
@@ -78,6 +78,6 @@ int setvbuf(
         // no buffer provided, allocate a new
         io_buffer_allocate(file);
     }
-    _unlock_file(file);
+    _unlock_stream(file);
     return 0;
 }

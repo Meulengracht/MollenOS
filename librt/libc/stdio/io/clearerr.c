@@ -19,12 +19,13 @@
 * MollenOS C Library - Clear Error
 */
 
+#include <internal/_io.h>
 #include <stdio.h>
 
 void clearerr(
 	_In_ FILE *file)
 {
-	_lock_file(file);
+	_lock_stream(file);
 	file->_flag &= ~(_IOERR | _IOEOF);
-	_unlock_file(file);
+	_unlock_stream(file);
 }

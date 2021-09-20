@@ -108,25 +108,31 @@ io_buffer_flush_all(
 }
 
 OsStatus_t
-_lock_file(
+_lock_stream(
     _In_ FILE *file)
 {
-    TRACE("_lock_file(0x%" PRIxIN ")", file);
+    TRACE("_lock_stream(0x%" PRIxIN ")", file);
+    if (!file) {
+        return OsInvalidParameters;
+    }
+
     if (!(file->_flag & _IOSTRG)) {
-        assert(stdio_handle_get(file->_fd) != NULL);
-        spinlock_acquire(&stdio_handle_get(file->_fd)->lock);
+        return iolock(file->_fd) == 0 ? OsSuccess : OsBusy;
     }
     return OsSuccess;
 }
 
 OsStatus_t
-_unlock_file(
+_unlock_stream(
     _In_ FILE *file)
 {
-    TRACE("_unlock_file(0x%" PRIxIN ")", file);
+    TRACE("_unlock_stream(0x%" PRIxIN ")", file);
+    if (!file) {
+        return OsInvalidParameters;
+    }
+
     if (!(file->_flag & _IOSTRG)) {
-        assert(stdio_handle_get(file->_fd) != NULL);
-        spinlock_release(&stdio_handle_get(file->_fd)->lock);
+        return iounlock(file->_fd) == 0 ? OsSuccess : OsError;
     }
     return OsSuccess;
 }

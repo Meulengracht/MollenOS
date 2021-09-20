@@ -20,6 +20,7 @@
  * - Writes a character to the stream and advances the position indicator.
  */
 
+#include <internal/_io.h>
 #include <stdio.h>
 #include <io.h>
 
@@ -29,15 +30,15 @@ int putw(
 {
     int len;
 
-    _lock_file(file);
+    _lock_stream(file);
     len = write(file->_fd, &val, sizeof(val));
     if (len == sizeof(val))
     {
-        _unlock_file(file);
+        _unlock_stream(file);
         return val;
     }
 
     file->_flag |= _IOERR;
-    _unlock_file(file);
+    _unlock_stream(file);
     return EOF;
 }

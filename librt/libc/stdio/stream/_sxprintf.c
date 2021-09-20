@@ -6,6 +6,7 @@
  * PROGRAMMER:      Timo Kreuzer
  */
 
+#include <internal/_io.h>
 #include <os/osdefs.h>
 #include <stdio.h>
 #include <stdarg.h>

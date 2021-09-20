@@ -59,10 +59,10 @@ _flsbuf(
     }
 
     // lock file and reset count
-    _lock_file(stream);
+    _lock_stream(stream);
     res = __prepare_flush_otherwise_set_IOERR(stream);
     if (res) {
-        _unlock_file(stream);
+        _unlock_stream(stream);
         TRACE("_flsbuf return=%i", res);
         return res;
     }
@@ -92,7 +92,7 @@ _flsbuf(
         charTyped = EOF;
     }
 
-    _unlock_file(stream);
+    _unlock_stream(stream);
     TRACE("_flsbuf return=%i", (int)charTyped);
     return charTyped;
 }

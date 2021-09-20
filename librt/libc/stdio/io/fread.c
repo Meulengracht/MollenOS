@@ -494,7 +494,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		return 0;
 	}
 
-	_lock_file(stream);
+	_lock_stream(stream);
 	if (stream_ensure_mode(_IOREAD, stream)) {
 	    goto exit;
 	}
@@ -571,7 +571,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 	cread += pread;
 
 exit:
-    _unlock_file(stream);
+    _unlock_stream(stream);
     TRACE("fread returns=%" PRIuIN ", errno=%i", (cread / size), errno);
 	return (cread / size);
 }

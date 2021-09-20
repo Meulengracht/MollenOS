@@ -127,28 +127,49 @@ typedef struct MString {
     size_t MaxLength;
 } MString_t;
 
-/* Converts a single char (ASCII, UTF16, UTF32) to UTF8 
- * and returns the number of bytes the new utf8 
- * 'string' takes up. Returns 0 if conversion was good */
+/**
+ * @brief Converts an character to an UTF8 sequence.
+ * 
+ * @param character  The character that should be converted to utf8 encoding
+ * @param utf8buffer The buffer where the utf8 sequence will be written to. The buffer should be 6 bytes wide atleast to support all sequences.
+ * @param length     The length of the utf8 buffer.
+ * @return int       Returns 0 on successful conversion.
+ */
 CRTDECL(int, Utf8ConvertCharacterToUtf8(mchar_t Character, void* oBuffer, size_t *Length));
 
-/* Bytes used by given (ASCII, UTF16, UTF32) character in UTF-8 Encoding
- * If 0 is returned the character was invalid */
-CRTDECL(size_t, Utf8ByteSizeOfCharacterInUtf8(mchar_t Character));
+/**
+ * @brief Returns the number of bytes required to encode the given character
+ * in UTF8
+ * 
+ * @param character The character that should be encoded in utf8
+ * @return size_t   The number of bytes required
+ */
+CRTDECL(size_t, Utf8ByteSizeOfCharacterInUtf8(uint32_t Character));
 
-/* Reads the next utf-8 sequence out of a string, updating an index 
- * the index keeps track of how many characters into the string
- * we are. Returns MSTRING_EOS on errors */
+/**
+ * @brief Reads the next utf-8 sequence out of a string. Uses the index pointer
+ * to keep track of where to parse the next character.
+ * 
+ * @param string   Zero terminated string
+ * @param indexp   A pointer to an index variable. This will be modified upon parse exit.
+ * @return mchar_t The character parsed. Returns MSTRING_EOS on errors.
+ */
 CRTDECL(mchar_t, Utf8GetNextCharacterInString(const char *Str, int *Index));
 
-/* Character Count of UTF8-String 
- * Returns the size of an UTF8 string in char-count 
- * this is used to tell how long strings are */
+/**
+ * @brief Retrieve the number of utf8 characters present in the given 0 terminated string
+ * 
+ * @param string  The zero-terminated utf8 string to count characters in
+ * @return size_t Character count
+ */
 CRTDECL(size_t, Utf8CharacterCountInString(const char *Str));
 
-/* Byte Count of UTF8-String 
- * Returns the size of an UTF8 string in bytes 
- * this is used to tell how long strings are */
+/**
+ * @brief Get the byte count of the utf8 string. This does not include the 0 termination byte.
+ * 
+ * @param string  The zero-terminated utf8 string
+ * @return size_t The number of bytes it occupies.
+ */
 CRTDECL(size_t, Utf8ByteCountInString(const char *Str));
 
 /* Helper for internal functions

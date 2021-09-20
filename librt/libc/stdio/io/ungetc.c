@@ -34,7 +34,7 @@ int ungetc(
     if (character == EOF || !(file->_flag & _IOREAD || (file->_flag & _IORW && !(file->_flag & _IOWRT))))
         return EOF;
 
-    _lock_file(file);
+    _lock_stream(file);
     io_buffer_ensure(file);
 
     if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || (!file->_cnt && file->_ptr == file->_base))
@@ -46,7 +46,7 @@ int ungetc(
         if (file->_flag & _IOSTRG) {
             if (*file->_ptr != character) {
                 file->_ptr++;
-                _unlock_file(file);
+                _unlock_stream(file);
                 return EOF;
             }
         }
@@ -57,10 +57,10 @@ int ungetc(
         file->_cnt++;
         clearerr(file);
         file->_flag |= _IOREAD;
-        _unlock_file(file);
+        _unlock_stream(file);
         return character;
     }
 
-    _unlock_file(file);
+    _unlock_stream(file);
     return EOF;
 }

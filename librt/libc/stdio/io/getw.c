@@ -20,6 +20,7 @@
  * - Returns the next character from the given stream.
  */
 
+#include <internal/_io.h>
 #include <stdio.h>
 
 int getw(
@@ -30,16 +31,16 @@ int getw(
     unsigned int j;
     ch = (char *)&i;
 
-    _lock_file(file);
+    _lock_stream(file);
     for (j = 0; j < sizeof(int); j++) {
         k = fgetc(file);
         if (k == EOF) {
             file->_flag |= _IOEOF;
-            _unlock_file(file);
+            _unlock_stream(file);
             return EOF;
         }
         ch[j] = k;
     }
-    _unlock_file(file);
+    _unlock_stream(file);
     return i;
 }

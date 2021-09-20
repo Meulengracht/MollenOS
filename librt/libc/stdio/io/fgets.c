@@ -19,6 +19,7 @@
 * MollenOS C Library - File Get String
 */
 
+#include <internal/_io.h>
 #include <stdio.h>
 
 char *fgets(
@@ -29,19 +30,19 @@ char *fgets(
 	int cc = EOF;
 	char *buf_start = s;
 
-	_lock_file(file);
+	_lock_stream(file);
 	while ((size > 1) && (cc = fgetc(file)) != EOF && cc != '\n') {
 		*s++ = (char)cc;
 		size--;
 	}
 	if ((cc == EOF) && (s == buf_start)) { // If nothing read, return 0
-		_unlock_file(file);
+		_unlock_stream(file);
 		return NULL;
 	}
 	if ((cc != EOF) && (size > 1))
 		*s++ = cc;
 	*s = '\0';
 	
-	_unlock_file(file);
+	_unlock_stream(file);
 	return buf_start;
 }

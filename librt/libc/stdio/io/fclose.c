@@ -53,7 +53,7 @@ int fclose(FILE *stream)
 
     assert(stream != NULL);
     
-	_lock_file(stream);
+	_lock_stream(stream);
 	if (stream->_flag & _IOWRT) {
 		fflush(stream);
 	}

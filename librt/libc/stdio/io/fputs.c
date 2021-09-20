@@ -23,6 +23,7 @@
  *   This terminating null-character is not copied to the stream.
  */
 
+#include <internal/_io.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -33,8 +34,8 @@ int fputs(
     size_t len = strlen(s);
     int ret;
 
-    _lock_file(file);
+    _lock_stream(file);
     ret = fwrite(s, sizeof(*s), len, file) == len ? 0 : EOF;
-    _unlock_file(file);
+    _unlock_stream(file);
     return ret;
 }

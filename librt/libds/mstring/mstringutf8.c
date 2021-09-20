@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -23,14 +22,14 @@
 
 #include "mstringprivate.h"
 
-#define IsUTF8(Character) (((Character) & 0xC0) == 0x80)
+#define IsUTF8(c) (((c) & 0xC0) == 0x80)
 
-uint32_t GlbUtf8Offsets[6] = {
+uint32_t g_utf8OffsetTable[6] = {
 	0x00000000UL, 0x00003080UL, 0x000E2080UL,
 	0x03C82080UL, 0xFA082080UL, 0x82082080UL
 };
 
-char GlbUtf8ExtraBytes[256] = {
+char g_utf8TrailingBytesTable[256] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -41,188 +40,188 @@ char GlbUtf8ExtraBytes[256] = {
 	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5
 };
 
-/* Converts a single char (ASCII, UTF16, UTF32) to UTF8 
- * and returns the number of bytes the new utf8 
- * 'string' takes up. Returns 0 if conversion was good */
-int Utf8ConvertCharacterToUtf8(mchar_t Character, void* oBuffer, size_t *Length)
+size_t Utf8ByteSizeOfCharacterInUtf8(uint32_t character)
 {
-	/* Encode Buffer */
-	char TmpBuffer[10] = { 0 };
-	char* BufPtr = &TmpBuffer[0];
-
-	size_t NumBytes = 0;
-	int Error = 0;
-
-	if (Character <= 0x7F)  /* 0XXX XXXX one byte */
-    {
-		TmpBuffer[0] = (char)Character;
-		NumBytes = 1;
-    }
-	else if (Character <= 0x7FF)  /* 110X XXXX  two bytes */
-    {
-		TmpBuffer[0] = (char)(0xC0 | (Character >> 6));
-		TmpBuffer[1] = (char)(0x80 | (Character & 0x3F));
-		NumBytes = 2;
-    }
-	else if (Character <= 0xFFFF)  /* 1110 XXXX  three bytes */
-    {
-		TmpBuffer[0] = (char)(0xE0 | (Character >> 12));
-		TmpBuffer[1] = (char)(0x80 | ((Character >> 6) & 0x3F));
-		TmpBuffer[2] = (char)(0x80 | (Character & 0x3F));
-		NumBytes = 3;
-        
-		/* Sanity no special characters */
-		if (Character == 0xFFFE || Character == 0xFFFF)
-			Error = 1;
-    }
-	else if (Character <= 0x1FFFFF)  /* 1111 0XXX  four bytes */
-    {
-		TmpBuffer[0] = (char)(0xF0 | (Character >> 18));
-		TmpBuffer[1] = (char)(0x80 | ((Character >> 12) & 0x3F));
-		TmpBuffer[2] = (char)(0x80 | ((Character >> 6) & 0x3F));
-		TmpBuffer[3] = (char)(0x80 | (Character & 0x3F));
-		NumBytes = 4;
-        
-		if (Character > 0x10FFFF)
-			Error = 1;
-    }
-	else if (Character <= 0x3FFFFFF)  /* 1111 10XX  five bytes */
-    {
-		TmpBuffer[0] = (char)(0xF8 | (Character >> 24));
-		TmpBuffer[1] = (char)(0x80 | (Character >> 18));
-		TmpBuffer[2] = (char)(0x80 | ((Character >> 12) & 0x3F));
-		TmpBuffer[3] = (char)(0x80 | ((Character >> 6) & 0x3F));
-		TmpBuffer[4] = (char)(0x80 | (Character & 0x3F));
-		NumBytes = 5;
-		Error = 1;
-    }
-	else if (Character <= 0x7FFFFFFF)  /* 1111 110X  six bytes */
-    {
-		TmpBuffer[0] = (char)(0xFC | (Character >> 30));
-		TmpBuffer[1] = (char)(0x80 | ((Character >> 24) & 0x3F));
-		TmpBuffer[2] = (char)(0x80 | ((Character >> 18) & 0x3F));
-		TmpBuffer[3] = (char)(0x80 | ((Character >> 12) & 0x3F));
-		TmpBuffer[4] = (char)(0x80 | ((Character >> 6) & 0x3F));
-		TmpBuffer[5] = (char)(0x80 | (Character & 0x3F));
-		NumBytes = 6;
-		Error = 1;
-    }
-	else
-		Error = 1;
-
-	/* Write buffer only if it's a valid byte sequence */
-	if (!Error && oBuffer != NULL)
-		memcpy(oBuffer, BufPtr, NumBytes);
-
-	/* We want the length */
-	*Length = NumBytes;
-	
-	/* Sanity */
-	if (Error)
-		return -1;
-	else
-		return 0;
- }
-
-/* Bytes used by given (ASCII, UTF16, UTF32) character in UTF-8 Encoding
- * If 0 is returned the character was invalid */
-size_t Utf8ByteSizeOfCharacterInUtf8(mchar_t Character)
-{
-	/* Simple length check */
-	if (Character < 0x80)
+	if (character < 0x80)
 		return 1;
-	else if (Character < 0x800)
+	else if (character < 0x800)
 		return 2;
-	else if (Character < 0x10000)
+	else if (character < 0x10000)
 		return 3;
-	else if (Character < 0x110000)
+	else if (character < 0x110000)
 		return 4;
-
-	/* Invalid! */
 	return 0;
 }
 
-/* Reads the next utf-8 sequence out of a string, updating an index 
- * the index keeps track of how many characters into the string
- * we are. Returns MSTRING_EOS on errors */
-mchar_t Utf8GetNextCharacterInString(const char *Str, int *Index)
+size_t Utf8GetSequenceLength(const char* string)
 {
-	/* We'll need these to keep track */
-	mchar_t Character = MSTRING_EOS;
-	int Size = 0, lIndex = *Index;
-
-	/* Sanitize that index is within bounds 
-	 * otherwise the index is invalid 
-	 * and string is done */
-	if (Str == NULL || strlen(Str) <= (size_t)lIndex) {
-		goto Done;
-	}
-
-	/* Iterate while string is not EOS and 
-	 * while the given character is UTF8 flagged */
-	while (Str[lIndex] && IsUTF8(Str[lIndex])) {
-		/* Add byte to character and advance */
-		Character <<= 6;
-		Character += (unsigned char)Str[lIndex++];
-		Size++;
-	}
-
-	/* Sanitize size
-	 * If size is 0, but string is valid 
-	 * then the first character was below 0x80 */
-	if (Size == 0 && Str[lIndex]) {
-		Character = (mchar_t)Str[lIndex];
-		lIndex++; Size++;
-	}
-
-	/* Modify by the UTF8 offset table 
-	 * but do a sanity check again */
-	if (Size != 0) {
-		Character -= GlbUtf8Offsets[Size - 1];
-	}
-
-Done:
-	/* Update index */
-	*Index = lIndex;
-
-	/* Simply return the character */
-	return Character;
+    return g_utf8TrailingBytesTable[(unsigned char)string[0]] + 1;
 }
 
-/* Character Count of UTF8-String 
- * Returns the size of an UTF8 string in char-count 
- * this is used to tell how long strings are */
-size_t Utf8CharacterCountInString(const char *Str)
+size_t Utf8GetWideStringLengthInUtf8(uint32_t* wideString, size_t count)
 {
-	/* The count of characters 
-	 * and index tracker */
-	size_t Length = 0;
-	int Index = 0;
+    size_t i;
+    size_t length = 0;
 
-	/* Sanitize the parameters */
-	if (Str == NULL) {
+    for (i = 0; i < count; i++) {
+        length += Utf8ByteSizeOfCharacterInUtf8(wideString[i]);
+    }
+    return length;
+}
+
+int Utf8ConvertCharacterToUTF32(const char* utf8string, mchar_t* result)
+{
+    mchar_t character;
+    int     byteCount;
+    int     index = 0;
+
+    if (!utf8string || !utf8string[0]) {
+        return -1;
+    }
+
+    byteCount = g_utf8TrailingBytesTable[(unsigned char)utf8string[0]];
+    switch (byteCount) {
+        default:
+            return -1;
+        case 3:
+            character += (unsigned char)utf8string[index++];
+            character <<= 6;
+        case 2:
+            character += (unsigned char)utf8string[index++];
+            character <<= 6;
+        case 1:
+            character += (unsigned char)utf8string[index++];
+            character <<= 6;
+        case 0:
+            character += (unsigned char)utf8string[index++];
+            character <<= 6;
+    }
+    character -= g_utf8OffsetTable[byteCount];
+    *result = character;
+    return 0;
+}
+
+int Utf8ConvertCharacterToUtf8(uint32_t character, void* utf8buffer, size_t* length)
+{
+	char   encodingBuffer[10] = { 0 };
+	size_t byteCount = 0;
+	int    result = 0;
+
+	if (character <= 0x7F)  /* 0XXX XXXX one byte */
+    {
+		encodingBuffer[0] = (char)character;
+		byteCount = 1;
+    }
+	else if (character <= 0x7FF)  /* 110X XXXX  two bytes */
+    {
+		encodingBuffer[0] = (char)(0xC0 | (character >> 6));
+		encodingBuffer[1] = (char)(0x80 | (character & 0x3F));
+		byteCount = 2;
+    }
+	else if (character <= 0xFFFF)  /* 1110 XXXX  three bytes */
+    {
+		encodingBuffer[0] = (char)(0xE0 | (character >> 12));
+		encodingBuffer[1] = (char)(0x80 | ((character >> 6) & 0x3F));
+		encodingBuffer[2] = (char)(0x80 | (character & 0x3F));
+		byteCount = 3;
+        
+		/* Sanity no special characters */
+		if (character == 0xFFFE || character == 0xFFFF)
+			result = -1;
+    }
+	else if (character <= 0x1FFFFF)  /* 1111 0XXX  four bytes */
+    {
+		encodingBuffer[0] = (char)(0xF0 | (character >> 18));
+		encodingBuffer[1] = (char)(0x80 | ((character >> 12) & 0x3F));
+		encodingBuffer[2] = (char)(0x80 | ((character >> 6) & 0x3F));
+		encodingBuffer[3] = (char)(0x80 | (character & 0x3F));
+		byteCount = 4;
+        
+		if (character > 0x10FFFF)
+			result = -1;
+    }
+	else if (character <= 0x3FFFFFF)  /* 1111 10XX  five bytes */
+    {
+		encodingBuffer[0] = (char)(0xF8 | (character >> 24));
+		encodingBuffer[1] = (char)(0x80 | (character >> 18));
+		encodingBuffer[2] = (char)(0x80 | ((character >> 12) & 0x3F));
+		encodingBuffer[3] = (char)(0x80 | ((character >> 6) & 0x3F));
+		encodingBuffer[4] = (char)(0x80 | (character & 0x3F));
+		byteCount = 5;
+		result = -1;
+    }
+	else if (character <= 0x7FFFFFFF)  /* 1111 110X  six bytes */
+    {
+		encodingBuffer[0] = (char)(0xFC | (character >> 30));
+		encodingBuffer[1] = (char)(0x80 | ((character >> 24) & 0x3F));
+		encodingBuffer[2] = (char)(0x80 | ((character >> 18) & 0x3F));
+		encodingBuffer[3] = (char)(0x80 | ((character >> 12) & 0x3F));
+		encodingBuffer[4] = (char)(0x80 | ((character >> 6) & 0x3F));
+		encodingBuffer[5] = (char)(0x80 | (character & 0x3F));
+		byteCount = 6;
+		result = -1;
+    }
+	else
+		result = -1;
+
+	// Write buffer only if it's a valid byte sequence
+	if (!result && utf8buffer)
+		memcpy(utf8buffer, &encodingBuffer, byteCount);
+
+	*length = byteCount;
+    return result;
+ }
+
+mchar_t Utf8GetNextCharacterInString(const char* string, int* indexp)
+{
+	mchar_t currentChar = MSTRING_EOS;
+	int     size = 0;
+    int     currentIndex = *indexp;
+
+    // make sure we are iterating within our means as we do no 0 checks on
+    // the first iteration
+	if (!string || strlen(string) <= (size_t)currentIndex) {
+		goto exit;
+	}
+
+	/**
+	 * UTF8 is encoded so that the first byte can be anything, but
+     * the following bytes in the sequence will be continuation-byte formatted (b & 0xC0 == 80).
+	 * That means the first byte will always be valid, and thus we should only check from byte 2.
+	 */
+	do {
+		currentChar <<= 6;
+		currentChar += (unsigned char)string[currentIndex++];
+		size++;
+	} while (string[currentIndex] && IsUTF8(string[currentIndex]));
+
+    // size will never be 0, and thus this is perfectly valid
+    currentChar -= g_utf8OffsetTable[size - 1];
+
+exit:
+	*indexp = currentIndex;
+	return currentChar;
+}
+
+size_t Utf8CharacterCountInString(const char* string)
+{
+	size_t length = 0;
+	int    index = 0;
+
+	if (!string) {
 		return 0;
 	}
 
-	/* Keep iterating untill end */
-	while (Utf8GetNextCharacterInString(Str, &Index) != MSTRING_EOS) {
-		Length++;
+	while (Utf8GetNextCharacterInString(string, &index) != MSTRING_EOS) {
+		length++;
 	}
-
-	/* Done! */
-	return Length;
+	return length;
 }
 
-/* Byte Count of UTF8-String 
- * Returns the size of an UTF8 string in bytes 
- * this is used to tell how long strings are */
-size_t Utf8ByteCountInString(const char *Str)
+size_t Utf8ByteCountInString(const char* string)
 {
-	/* Sanitize the parameters */
-	if (Str == NULL) {
+	if (!string) {
 		return 0;
 	}
-
-	/* Simply use strlen for counting */
-	return strlen(Str);
+	return strlen(string);
 }

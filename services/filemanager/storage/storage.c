@@ -255,13 +255,13 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const UUI
 void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-
+    // @todo not implemented
     sys_storage_get_descriptor_response(message, OsNotSupported, &gdescriptor);
 }
 
 void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-
+    // @todo not implemented
     sys_storage_get_descriptor_path_response(message, OsNotSupported, &gdescriptor);
 }

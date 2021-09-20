@@ -31,9 +31,13 @@ spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP(spinlock_plain);
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 OsStatus_t
-_lock_file(
+_lock_stream(
     _In_ FILE *file)
 {
+    if (!file) {
+        return OsInvalidParameters;
+    }
+
     if (!(file->_flag & _IOSTRG)) {
         spinlock_acquire(&__GlbPrintLock);
     }
@@ -41,9 +45,13 @@ _lock_file(
 }
 
 OsStatus_t
-_unlock_file(
+_unlock_stream(
     _In_ FILE *file)
 {
+    if (!file) {
+        return OsInvalidParameters;
+    }
+    
     if (!(file->_flag & _IOSTRG)) {
         spinlock_release(&__GlbPrintLock);
     }

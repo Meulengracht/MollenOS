@@ -1,3 +1,5 @@
+
+#include <internal/_io.h>
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -8,9 +10,9 @@ int vfwprintf(
 {
     int ret;
 
-    _lock_file(file);
+    _lock_stream(file);
     ret = wstreamout(file, format, argptr);
-    _unlock_file(file);
+    _unlock_stream(file);
 
     return ret;
 }

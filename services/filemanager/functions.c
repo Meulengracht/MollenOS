@@ -784,6 +784,23 @@ void sys_file_move_invocation(struct gracht_message* message, const UUId_t proce
 }
 
 static OsStatus_t
+Link(
+    _In_ const char* source,
+    _In_ const char* destination,
+    _In_ int         symbolic)
+{
+    // @todo not implemented
+    return OsNotSupported;
+}
+
+void sys_file_link_invocation(struct gracht_message* message, const UUId_t processId, 
+    const char* source, const char* destination, const uint8_t symbolic)
+{
+    OsStatus_t status = Link(source, destination, symbolic);
+    sys_file_link_response(message, status);
+}
+
+static OsStatus_t
 GetPosition(
     _In_  UUId_t           processId,
     _In_  UUId_t           handle,
@@ -888,6 +905,37 @@ void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t p
 }
 
 static OsStatus_t
+SetSize(
+    _In_ UUId_t          processId,
+    _In_ UUId_t          handle,
+    _In_ LargeUInteger_t size)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+
+    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
+    if (status != OsSuccess) {
+        return status;
+    }
+
+    // @todo not implemented
+    return OsNotSupported;
+}
+
+void sys_file_set_size_invocation(struct gracht_message* message, const UUId_t processId, 
+    const UUId_t handle, const unsigned int sizeLow, const unsigned int sizeHigh)
+{
+    LargeUInteger_t size;
+    OsStatus_t      status;
+
+    size.u.LowPart = sizeLow;
+    size.u.HighPart = sizeHigh;
+
+    status = SetSize(processId, handle, size);
+    sys_file_set_size_response(message, status);
+}
+
+static OsStatus_t
 GetAbsolutePathOfHandle(
     _In_  UUId_t      processId,
     _In_  UUId_t      handle,
@@ -972,14 +1020,32 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t
     sys_file_fstat_path_response(message, status, &gdescriptor);
 }
 
+static OsStatus_t
+StatLinkPathFromPath(
+    _In_  const char* path,
+    _Out_ const char* linkTargetPath)
+{
+    // @todo not implemented
+    return OsNotSupported;
+}
+
+void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
+{
+    char       temp[_MAXPATH] = { 0 };
+    OsStatus_t status = StatLinkPathFromPath(path, &temp[0]);
+    sys_file_fstat_link_response(message, status, &temp[0]);
+}
+
 void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
+    // @todo not implemented
     sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
 }
 
 void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
+    // @todo not implemented
     sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
 }

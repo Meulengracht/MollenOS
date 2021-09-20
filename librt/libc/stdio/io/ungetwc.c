@@ -41,7 +41,7 @@ wint_t ungetwc(
         _set_errno(EINVAL);
         return WEOF;
     }
-    _lock_file(file);
+    _lock_stream(file);
     
     handle = stdio_handle_get(file->_fd);
     if ((handle->wxflag & WX_UTF) || !(handle->wxflag & WX_TEXT)) {
@@ -50,7 +50,7 @@ wint_t ungetwc(
 
         for (i = sizeof(wchar_t) - 1; i >= 0; i--) {
             if (pp[i] != ungetc(pp[i], file)) {
-                _unlock_file(file);
+                _unlock_stream(file);
                 return WEOF;
             }
         }
@@ -61,17 +61,17 @@ wint_t ungetwc(
 
         len = wctomb(mbs, mwc);
         if (len == -1) {
-            _unlock_file(file);
+            _unlock_stream(file);
             return WEOF;
         }
 
         for (len--; len >= 0; len--) {
             if (mbs[len] != ungetc(mbs[len], file)) {
-                _unlock_file(file);
+                _unlock_stream(file);
                 return WEOF;
             }
         }
     }
-    _unlock_file(file);
+    _unlock_stream(file);
     return mwc;
 }

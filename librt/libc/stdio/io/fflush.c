@@ -34,20 +34,20 @@ int fflush(
         io_buffer_flush_all(_IOWRT);
 	}
 	else if (file->_flag & _IOWRT) {
-		_lock_file(file);
+		_lock_stream(file);
 		Result = io_buffer_flush(file);
 		/* @todo
         if(!res && (file->_flag & _IOCOMMIT))
             res = _commit(file->_file) ? EOF : 0; */
-		_unlock_file(file);
+		_unlock_stream(file);
 		return (Result == OsSuccess) ? 0 : 1;
 	}
 	// Flushing read files is just resetting the buffer pointer
 	else if (file->_flag & _IOREAD) {
-		_lock_file(file);
+		_lock_stream(file);
 		file->_cnt = 0;
 		file->_ptr = file->_base;
-		_unlock_file(file);
+		_unlock_stream(file);
 	}
 	return 0;
 }

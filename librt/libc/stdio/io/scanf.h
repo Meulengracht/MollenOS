@@ -48,8 +48,8 @@
 #ifdef CONSOLE
 #define _GETC_(file) (consumed++, getchar())
 #define _UNGETC_(nch, file) do { ungetc(nch, stdin); consumed--; } while(0)
-#define _LOCK_FILE_(file) _lock_file(stdin)
-#define _UNLOCK_FILE_(file) _unlock_file(stdin)
+#define _LOCK_FILE_(file) _lock_stream(stdin)
+#define _UNLOCK_FILE_(file) _unlock_stream(stdin)
 #ifdef WIDE_SCANF
 #ifdef SECURE
 #define _FUNCTION_ static int vcwscanf_s_l(const wchar_t *format, locale_t locale, va_list ap)
@@ -108,8 +108,8 @@
 #ifdef WIDE_SCANF
 #define _GETC_(file) (consumed++, fgetwc(file))
 #define _UNGETC_(nch, file) do { ungetwc(nch, file); consumed--; } while(0)
-#define _LOCK_FILE_(file) _lock_file(file)
-#define _UNLOCK_FILE_(file) _unlock_file(file)
+#define _LOCK_FILE_(file) _lock_stream(file)
+#define _UNLOCK_FILE_(file) _unlock_stream(file)
 #ifdef SECURE
 #define _FUNCTION_ static int vfwscanf_s_l(FILE* file, const wchar_t *format, locale_t locale, va_list ap)
 #else  /* SECURE */
@@ -118,8 +118,8 @@
 #else /* WIDE_SCANF */
 #define _GETC_(file) (consumed++, fgetc(file))
 #define _UNGETC_(nch, file) do { ungetc(nch, file); consumed--; } while(0)
-#define _LOCK_FILE_(file) _lock_file(file)
-#define _UNLOCK_FILE_(file) _unlock_file(file)
+#define _LOCK_FILE_(file) _lock_stream(file)
+#define _UNLOCK_FILE_(file) _unlock_stream(file)
 #ifdef SECURE
 #define _FUNCTION_ static int vfscanf_s_l(FILE* file, const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */

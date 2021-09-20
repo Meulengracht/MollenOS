@@ -117,273 +117,122 @@ CRTDECL(FILE*,                      stdio_get_std(int n));
 /*******************************
  *       File Access           *
  *******************************/
-CRTDECL(OsStatus_t, _lock_file(FILE * stream));
-CRTDECL(OsStatus_t, _unlock_file(FILE * stream));
-CRTDECL(int,        fclose(FILE * stream));
-CRTDECL(FILE*,      fopen(const char * filename, const char * mode));
-CRTDECL(FILE*,      fdopen(int fd, const char *mode));
-CRTDECL(FILE*,      freopen(const char * filename, const char * mode, FILE * stream));
-CRTDECL(int,        remove(const char * filename));
-CRTDECL(int,        rename(const char * oldname, const char * newname));
-CRTDECL(FILE*,      tmpfile(void));
-CRTDECL(char*,      tmpnam(char* str));
-CRTDECL(int,        fflush(FILE* stream));
-CRTDECL(void,       setbuf(FILE* file, char *buf));
-CRTDECL(int,        setvbuf(FILE* file, char *buf, int mode, size_t size));
-CRTDECL(int,        fileno(FILE* stream));
+CRTDECL(int,   fclose(FILE * stream));
+CRTDECL(FILE*, fopen(const char * filename, const char * mode));
+CRTDECL(FILE*, fdopen(int fd, const char *mode));
+CRTDECL(FILE*, freopen(const char * filename, const char * mode, FILE * stream));
+CRTDECL(int,   remove(const char * filename));
+CRTDECL(int,   rename(const char * oldname, const char * newname));
+CRTDECL(FILE*, tmpfile(void));
+CRTDECL(char*, tmpnam(char* str));
+CRTDECL(int,   fflush(FILE* stream));
+CRTDECL(void,  setbuf(FILE* file, char *buf));
+CRTDECL(int,   setvbuf(FILE* file, char *buf, int mode, size_t size));
+CRTDECL(int,   fileno(FILE* stream));
+CRTDECL(int,   fwide(FILE *stream, int mode));
 
 /*******************************
  *       Formatted IO          *
  *******************************/
-CRTDECL(int,        printf(const char *format, ...));
-CRTDECL(int,        vprintf(const char *format, va_list argptr));
-CRTDECL(int,        sprintf(char *buffer, const char *format, ...));
-CRTDECL(int,        snprintf(char *str, size_t size, const char *format, ...));
-CRTDECL(int,        vsprintf(char *buffer, const char *format, va_list argptr));
-CRTDECL(int,        vsnprintf(char *str, size_t size, const char *format, va_list ap));
-CRTDECL(int,        asprintf(char **ret, const char *format, ...));
-CRTDECL(int,        vasprintf(char **ret, const char *format, va_list ap));
+CRTDECL(int, printf(const char *format, ...));
+CRTDECL(int, vprintf(const char *format, va_list argptr));
+CRTDECL(int, sprintf(char *buffer, const char *format, ...));
+CRTDECL(int, snprintf(char *str, size_t size, const char *format, ...));
+CRTDECL(int, vsprintf(char *buffer, const char *format, va_list argptr));
+CRTDECL(int, vsnprintf(char *str, size_t size, const char *format, va_list ap));
+CRTDECL(int, asprintf(char **ret, const char *format, ...));
+CRTDECL(int, vasprintf(char **ret, const char *format, va_list ap));
 
-_CRTIMP int scanf(
-    _In_ const char *format, 
-    ...);
-_CRTIMP int wscanf(
-    _In_ const wchar_t *format, 
-    ...);
-_CRTIMP int sscanf(
-    _In_ const char *str, 
-    _In_ const char *format, 
-    ...);
-_CRTIMP int swscanf(
-    _In_ const wchar_t *str, 
-    _In_ const wchar_t *format, 
-    ...);
+CRTDECL(int, scanf(const char *format, ...));
+CRTDECL(int, wscanf(const wchar_t *format, ...));
+CRTDECL(int, sscanf(const char *str, const char *format, ...));
+CRTDECL(int, swscanf(const wchar_t *str, const wchar_t *format, ...));
+CRTDECL(int, vscanf(const char *format, va_list vlist));
+CRTDECL(int, vfscanf(FILE *stream, const char *format,  va_list vlist));
+CRTDECL(int, vsscanf(const char *buffer, const char *format,  va_list vlist));
+CRTDECL(int, vwscanf(const wchar_t *format, va_list vlist));
+CRTDECL(int, vfwscanf(FILE *stream, const wchar_t *format, va_list vlist));
+CRTDECL(int, vswscanf(const wchar_t *buffer, const wchar_t *format, va_list vlist));
 
-_CRTIMP int vscanf(
-    _In_ const char *format,
-    _In_ va_list vlist);
-_CRTIMP int vfscanf(
-    FILE *stream,
-    const char *format, 
-    va_list vlist);
-_CRTIMP int vsscanf(
-    const char *buffer,
-    const char *format, 
-    va_list vlist);
-_CRTIMP int vwscanf(
-    const wchar_t *format,
-    va_list vlist);
-_CRTIMP int vfwscanf(
-    FILE *stream,
-    const wchar_t *format,
-    va_list vlist);
-_CRTIMP int vswscanf(
-    const wchar_t *buffer,
-    const wchar_t *format,
-    va_list vlist);
-
-_CRTIMP int fprintf(
-    _In_ FILE *file, 
-    _In_ const char *format,
-    ...);
-_CRTIMP int vfprintf(
-    _In_ FILE *file, 
-    _In_ const char *format, 
-    _In_ va_list argptr);
-_CRTIMP int fscanf(
-    _In_ FILE *file, 
-    _In_ const char *format, 
-    ...);
-_CRTIMP int fwscanf(
-    _In_ FILE *file, 
-    _In_ const wchar_t *format, 
-    ...);
-
-_CRTIMP int wprintf(
-    _In_ const wchar_t *format, 
-    ...);
-_CRTIMP int vwprintf(
-    _In_ const wchar_t *format, 
-    _In_ va_list valist);
-_CRTIMP int swprintf(
-    _In_ wchar_t *restrict buffer,
-    _In_ size_t len,
-    _In_ const wchar_t *restrict format,
-    ...);
-_CRTIMP int swnprintf(
-    _In_ wchar_t *buffer,
-    _In_ size_t count,
-    _In_ const wchar_t *format,
-	...);
-_CRTIMP int vswprintf(
-    _In_ wchar_t *buffer,
-    _In_ const wchar_t *format,
-	_In_ va_list argptr);
-
-_CRTIMP int vfwprintf(
-    _In_ FILE* file, 
-    _In_ const wchar_t *format, 
-	_In_ va_list argptr);
-_CRTIMP int fwprintf(
-    _In_ FILE* file, 
-    _In_ const wchar_t *format, 
-    ...);
-
-_CRTIMP int streamout(
-    _In_ FILE *stream, 
-    _In_ const char *format, 
-    _In_ va_list argptr);
-_CRTIMP int wstreamout(
-    _In_ FILE *stream, 
-    _In_ const wchar_t *format, 
-    _In_ va_list argptr);
+CRTDECL(int, fprintf(FILE *file, const char *format, ...));
+CRTDECL(int, vfprintf(FILE *file, const char *format, va_list argptr));
+CRTDECL(int, fscanf(FILE *file, const char *format, ...));
+CRTDECL(int, fwscanf(FILE *file, const wchar_t *format, ...));
+CRTDECL(int, wprintf(const wchar_t *format, ...));
+CRTDECL(int, vwprintf(const wchar_t *format, va_list valist));
+CRTDECL(int, swprintf(wchar_t *restrict buffer, size_t len, const wchar_t *restrict format, ...));
+CRTDECL(int, swnprintf(wchar_t *buffer, size_t count, const wchar_t *format, ...));
+CRTDECL(int, vswprintf(wchar_t *buffer, const wchar_t *format, va_list argptr));
+CRTDECL(int, vfwprintf(FILE* file, const wchar_t *format, va_list argptr));
+CRTDECL(int, fwprintf(FILE* file, const wchar_t *format, ...));
 
 /*******************************
  *       Character IO          *
  *******************************/
-_CRTIMP int ungetc(
-    _In_ int character, 
-    _In_ FILE *file);
-_CRTIMP int getchar(void);
-_CRTIMP int putchar(
-    _In_ int character);
-_CRTIMP int getc(
-    _In_ FILE* file);
-_CRTIMP int putc(
-    _In_ int character, 
-    _In_ FILE* file);
-_CRTIMP char *gets(
-    _In_ char *buf);
-_CRTIMP int puts(
-    _In_ const char *s);
+CRTDECL(int,   ungetc(int character, FILE *file));
+CRTDECL(int,   getchar(void));
+CRTDECL(int,   putchar(int character));
+CRTDECL(int,   getc(FILE* file));
+CRTDECL(int,   putc(int character, FILE* file));
+CRTDECL(char*, gets(char *buf));
+CRTDECL(int,   puts(const char *s));
 
-_CRTIMP int fgetchar(void);
-_CRTIMP int fputchar(
-    _In_ int character);
-_CRTIMP int fputc(
-	_In_ int character,
-	_In_ FILE* file);
-_CRTIMP int fputs(
-	_In_ const char *s, 
-    _In_ FILE* file);
-_CRTIMP int fgetc(
-	_In_ FILE *file);
-_CRTIMP char *fgets(
-	_In_ char *s, 
-	_In_ int size, 
-	_In_ FILE *file);
+CRTDECL(int,   fgetchar(void));
+CRTDECL(int,   fputchar(int character));
+CRTDECL(int,   fputc(int character, FILE* file));
+CRTDECL(int,   fputs(const char *s, FILE* file));
+CRTDECL(int,   fgetc(FILE *file));
+CRTDECL(char*, fgets(char *s, int size, FILE *file));
 
-_CRTIMP wint_t ungetwc(
-    _In_ wint_t wc, 
-    _In_ FILE *file);
-_CRTIMP wint_t getwchar(void);
-_CRTIMP int getw(
-    _In_ FILE *file);
-_CRTIMP wint_t getwc(
-    _In_ FILE* file);
-_CRTIMP int putw(
-    _In_ int val, 
-    _In_ FILE *file);
+/*******************************
+ *      Wide Character IO      *
+ *******************************/
+CRTDECL(wint_t, ungetwc(wint_t wc, FILE *file));
+CRTDECL(wint_t, getwchar(void));
+CRTDECL(int,    getw(FILE *file));
+CRTDECL(wint_t, getwc(FILE* file));
+CRTDECL(int,    putw(int val, FILE *file));
 
-/* putwc
- * Writes a wide character ch to the given output stream stream. putwc() may be implemented as a 
- * macro and may evaluate stream more than once. */
-CRTDECL(wint_t, putwc(
-    _In_ wchar_t ch,
-    _In_ FILE *stream));
-_CRTIMP wint_t putwch(
-    _In_ wchar_t character);
-_CRTIMP int putws(
-    _In_ const wchar_t *s);
-_CRTIMP wchar_t* getws(
-    _In_ wchar_t* buf);
-CRTDECL(int, fwide(
-    _In_ FILE *stream,
-    _In_ int mode));
+CRTDECL(wint_t,   putwc(wchar_t ch, FILE *stream));
+CRTDECL(wint_t,   putwch(wchar_t character));
+CRTDECL(int,      putws(const wchar_t *s));
+CRTDECL(wchar_t*, getws(wchar_t* buf));
+CRTDECL(wint_t,   fgetwchar(void));
+CRTDECL(wint_t,   fputwchar(wint_t wc));
+CRTDECL(wint_t,   putwchar(wchar_t ch));
 
-_CRTIMP wint_t fgetwchar(void);
-_CRTIMP wint_t fputwchar(
-    _In_ wint_t wc);
-
-/* putwchar 
- * Writes a wide character ch to stdout */
-CRTDECL(wint_t, putwchar(
-    _In_ wchar_t ch));
-
-/* fputwc
- * Writes a wide character ch to the given output stream stream. putwc() may be implemented as a 
- * macro and may evaluate stream more than once. */
-CRTDECL(wint_t, fputwc(
-    _In_ wchar_t c, 
-    _In_ FILE* stream));
-_CRTIMP wint_t fgetwc(
-    _In_ FILE *file);
-_CRTIMP int fputws(
-    _In_ const wchar_t *str,
-    _In_ FILE *stream);
-_CRTIMP wchar_t *fgetws(
-    _In_ wchar_t *s,
-    _In_ int size,
-    _In_ FILE *file);
+CRTDECL(wint_t,   fputwc(wchar_t c, FILE* stream));
+CRTDECL(wint_t,   fgetwc(FILE *file));
+CRTDECL(int,      fputws(const wchar_t *str, FILE *stream));
+CRTDECL(wchar_t*, fgetws(wchar_t *s, int size, FILE *file));
 
 /*******************************
  *         Direct IO           *
  *******************************/
-_CRTIMP size_t fread(
-	_In_ void *vptr, 
-	_In_ size_t size, 
-	_In_ size_t count, 
-	_In_ FILE *stream);
-_CRTIMP size_t fwrite(
-	_In_ const void *vptr,
-	_In_ size_t size,
-	_In_ size_t count,
-	_In_ FILE *stream);
+CRTDECL(size_t, fread(void *vptr, size_t size, size_t count, FILE *stream));
+CRTDECL(size_t, fwrite(const void *vptr, size_t size, size_t count, FILE *stream));
 
 /*******************************
  *     File Positioning        *
  *******************************/
-_CRTIMP int fgetpos(
-	_In_ FILE *stream, 
-	_Out_ fpos_t *pos);
-_CRTIMP int fsetpos(
-	_In_ FILE *stream, 
-	_In_ const fpos_t *pos);
-_CRTIMP int fseek(
-	_In_ FILE *stream, 
-	_In_ long int offset, 
-    _In_ int origin);
-_CRTIMP int fseeki64(
-	_In_ FILE *file, 
-	_In_ long long offset, 
-    _In_ int whence);
-_CRTIMP long ftell(
-    _In_ FILE *stream);
-_CRTIMP long long ftelli64(
-	_In_ FILE *stream);
-_CRTIMP void rewind(
-	_In_ FILE *file);
-_CRTIMP int feof(
-	_In_ FILE* file);
-
-_CRTIMP off_t ftello(
-	_In_ FILE *stream);
-_CRTIMP int fseeko(
-	_In_ FILE *stream, 
-	_In_ off_t offset, 
-	_In_ int origin);
+CRTDECL(int,       fgetpos(FILE *stream, fpos_t *pos));
+CRTDECL(int,       fsetpos(FILE *stream, const fpos_t *pos));
+CRTDECL(int,       fseek(FILE *stream, long int offset, int origin));
+CRTDECL(int,       fseeki64(FILE *file, long long offset, int whence));
+CRTDECL(long,      ftell(FILE *stream));
+CRTDECL(long long, ftelli64(FILE *stream));
+CRTDECL(void,      rewind(FILE *file));
+CRTDECL(int,       feof(FILE* file));
+CRTDECL(off_t,     ftello(FILE *stream));
+CRTDECL(int,       fseeko(FILE *stream, off_t offset, int origin));
 
 /*******************************
  *       Error Handling        *
  *******************************/
-_CRTIMP void clearerr(
-	_In_ FILE *file);
-_CRTIMP int ferror(
-	_In_ FILE* file);
-_CRTIMP void perror(
-    _In_ const char * str);
-_CRTIMP void wperror(
-	_In_ const wchar_t *str);
+CRTDECL(void, clearerr(FILE *file));
+CRTDECL(int,  ferror(FILE* file));
+CRTDECL(void, perror(const char * str));
+CRTDECL(void, wperror(const wchar_t *str));
 _CODE_END
 
 #endif //!__STDC_STDIO__

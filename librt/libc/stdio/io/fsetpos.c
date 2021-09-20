@@ -35,7 +35,7 @@ int fsetpos(
 		_set_errno(EINVAL);
 		return -1;
 	}
-	_lock_file(stream);
+	_lock_stream(stream);
 
 	// If the input stream is buffered we flush it
 	if (stream->_flag & _IOWRT) {
@@ -55,6 +55,6 @@ int fsetpos(
 	ret = (lseeki64(stream->_fd, *pos, SEEK_SET) == -1) ? -1 : 0;
 
 	// Unlock and return
-	_unlock_file(stream);
+	_unlock_stream(stream);
 	return ret;
 }

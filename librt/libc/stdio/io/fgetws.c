@@ -20,6 +20,7 @@
  * - Writes a string to the stream and advances the position indicator.
  */
 
+#include <internal/_io.h>
 #include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,19 +33,19 @@ wchar_t *fgetws(
     int cc = WEOF;
     wchar_t *buf_start = s;
 
-    _lock_file(file);
+    _lock_stream(file);
     while ((size > 1) && (cc = fgetwc(file)) != WEOF && cc != '\n') {
         *s++ = (char)cc;
         size--;
     }
     if ((cc == WEOF) && (s == buf_start)) { // If nothing read, return 0
-        _unlock_file(file);
+        _unlock_stream(file);
         return NULL;
     }
     if ((cc != WEOF) && (size > 1))
         *s++ = cc;
     *s = 0;
 
-    _unlock_file(file);
+    _unlock_stream(file);
     return buf_start;
 }

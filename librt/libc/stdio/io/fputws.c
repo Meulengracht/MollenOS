@@ -23,6 +23,7 @@
  *   This terminating null-character is not copied to the stream.
  */
 
+#include <internal/_io.h>
 #include <wchar.h>
 #include <string.h>
 #include <stdio.h>
@@ -36,13 +37,13 @@ int fputws(
     size_t len = wcslen(str);
     int ret;
 
-    _lock_file(stream);
+    _lock_stream(stream);
     if(fwrite(str, sizeof(*str), len, stream) != len) {
-        _unlock_file(stream);
+        _unlock_stream(stream);
         return EOF;
     }
 
     ret = fwrite(&nl,sizeof(nl),1,stream) == 1 ? 0 : EOF;
-    _unlock_file(stream);
+    _unlock_stream(stream);
     return ret;
 }

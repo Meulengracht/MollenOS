@@ -23,6 +23,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include <internal/_io.h>
 #include <ds/bitmap.h>
 #include <wchar.h>
 #include <stdarg.h>

@@ -72,7 +72,7 @@ int fseeki64(
 	int ret;
 
 	// Lock access to stream
-	_lock_file(file);
+	_lock_stream(file);
 	if (file->_flag & _IOWRT) {
         io_buffer_flush(file);
 	}
@@ -94,7 +94,7 @@ int fseeki64(
 	file->_flag &= ~_IOEOF;
 	ret = (lseeki64(file->_fd, offset, whence) == -1) ? -1 : 0;
 
-	_unlock_file(file);
+	_unlock_stream(file);
 	return ret;
 }
 

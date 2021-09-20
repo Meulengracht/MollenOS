@@ -23,6 +23,7 @@
  * - The newline character, if found, is not copied into str.
  */
 
+#include <internal/_io.h>
 #include <wchar.h>
 #include <stdio.h>
  
@@ -32,14 +33,14 @@ char *gets(
   int    cc;
   char * buf_start = buf;
 
-  _lock_file(stdin);
+  _lock_stream(stdin);
   for(cc = fgetc(stdin); cc != EOF && cc != '\n';
       cc = fgetc(stdin))
   if(cc != '\r') *buf++ = (char)cc;
 
   *buf = '\0';
   
-  _unlock_file(stdin);
+  _unlock_stream(stdin);
   return buf_start;
 }
  

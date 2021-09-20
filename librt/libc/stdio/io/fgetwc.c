@@ -38,10 +38,10 @@ wint_t fgetwc(FILE *stream)
         return WEOF;
     }
 
-    _lock_file(stream);
+    _lock_stream(stream);
     handle = stdio_handle_get(stream->_fd);
     if (!handle) {
-        _unlock_file(stream);
+        _unlock_stream(stream);
         _set_errno(EBADFD);
         return WEOF;
     }
@@ -81,6 +81,6 @@ wint_t fgetwc(FILE *stream)
         if (!len || mbtowc((wchar_t*)&Result, mbs, len) == -1)
             Result = WEOF;
     }
-    _unlock_file(stream);
+    _unlock_stream(stream);
     return Result;
 }

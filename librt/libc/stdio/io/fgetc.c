@@ -37,10 +37,10 @@ int __fill_buffer(
 		return EOF;
 	}
 
-	_lock_file(file);
+	_lock_stream(file);
 	io_buffer_ensure(file);
 	if (stream_ensure_mode(_IOREAD, file)) {
-        _unlock_file(file);
+        _unlock_stream(file);
 	    return EOF;
 	}
 
@@ -51,12 +51,12 @@ int __fill_buffer(
 		// Read a single byte
 		if ((r = read(file->_fd, &c, 1)) != 1) {
 			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
-			_unlock_file(file);
+			_unlock_stream(file);
 			return EOF;
 		}
 
 		// Unlock and return
-		_unlock_file(file);
+		_unlock_stream(file);
 		return c;
 	}
 	else {
@@ -70,7 +70,7 @@ int __fill_buffer(
 			file->_cnt = 0;
 			
 			// Unlock and return
-			_unlock_file(file);
+			_unlock_stream(file);
 			return EOF;
 		}
 
@@ -80,7 +80,7 @@ int __fill_buffer(
 		c = *(unsigned char *)file->_base;
 
 		// Unlock and return
-		_unlock_file(file);
+		_unlock_stream(file);
 		return c;
 	}
 }
@@ -92,7 +92,7 @@ int fgetc(
 	unsigned int j;
 
 	// Check buffer before filling/raw-reading
-    _lock_file(file);
+    _lock_stream(file);
 	if (file->_cnt > 0) {
 		file->_cnt--;
 		i = (unsigned char *)file->_ptr++;
@@ -101,6 +101,6 @@ int fgetc(
 	else {
 		j = __fill_buffer(file);
 	}
-	_unlock_file(file);
+	_unlock_stream(file);
 	return j;
 }

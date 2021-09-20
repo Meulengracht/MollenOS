@@ -107,16 +107,21 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t Ma
 #define FILE_MAPPING_WRITE      0x00000002U
 #define FILE_MAPPING_EXECUTE    0x00000004U
 
-CRTDECL(OsStatus_t, GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, OsStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetStorageInformationFromFd(int FileDescriptor, OsStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *Path, OsFileSystemDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int FileDescriptor, OsFileSystemDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer));
-CRTDECL(OsStatus_t, FlushFileMapping(void* MemoryPointer, size_t Length));
-CRTDECL(OsStatus_t, DestroyFileMapping(void* MemoryPointer));
+CRTDECL(OsStatus_t, SetFileSizeFromPath(const char* path, size_t size));
+CRTDECL(OsStatus_t, SetFileSizeFromFd(int fileDescriptor, size_t size));
+CRTDECL(OsStatus_t, ChangeFilePermissionsFromPath(const char* path, unsigned int permissions));
+CRTDECL(OsStatus_t, ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissions));
+CRTDECL(OsStatus_t, GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLength));
+CRTDECL(OsStatus_t, GetFilePathFromFd(int fileDescriptor, char *pathBuffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *path, OsStorageDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetStorageInformationFromFd(int fileDescriptor, OsStorageDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *path, OsFileSystemDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int fileDescriptor, OsFileSystemDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *path, OsFileDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileInformationFromFd(int fileDescriptor, OsFileDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, CreateFileMapping(int fileDescriptor, int flags, uint64_t offset, size_t length, void** mapping));
+CRTDECL(OsStatus_t, FlushFileMapping(void* mapping, size_t length));
+CRTDECL(OsStatus_t, DestroyFileMapping(void* mapping));
 
 _CODE_END
 #endif //!__MOLLENOS_H__

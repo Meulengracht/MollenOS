@@ -61,15 +61,18 @@ service file (3) {
     func seek(UUId_t processId, UUId_t handle, uint seekLow, uint seekHigh) : (OsStatus_t result) = 6;
     func flush(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 7;
     func move(UUId_t processId, string source, string destination, bool copy) : (OsStatus_t result) = 8;
-    func set_options(UUId_t processId, UUId_t handle, uint options, uint access) : (OsStatus_t result) = 9;
-    func get_options(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint options, uint access) = 10;
-    func get_position(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 11;
-    func get_size(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 12;
-    func get_path(UUId_t processId, UUId_t handle) : (OsStatus_t result, string path) = 13;
-    func fstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, file_descriptor descriptor) = 14;
-    func fsstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, filesystem_descriptor descriptor) = 15;
-    func fstat_path(UUId_t processId, string path) : (OsStatus_t result, file_descriptor descriptor) = 16;
-    func fsstat_path(UUId_t processId, string path) : (OsStatus_t result, filesystem_descriptor descriptor) = 17;
+    func link(UUId_t processId, string source, string destination, bool symbolic) : (OsStatus_t result) = 9;
+    func set_options(UUId_t processId, UUId_t handle, uint options, uint access) : (OsStatus_t result) = 10;
+    func get_options(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint options, uint access) = 11;
+    func get_position(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 12;
+    func set_size(UUId_t processId, UUId_t handle, uint sizeLow, uint sizeHigh) : (OsStatus_t result) = 13;
+    func get_size(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 14;
+    func get_path(UUId_t processId, UUId_t handle) : (OsStatus_t result, string path) = 15;
+    func fstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, file_descriptor descriptor) = 16;
+    func fstat_link(UUId_t processId, string path) : (OsStatus_t result, string path) = 17;
+    func fsstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, filesystem_descriptor descriptor) = 19;
+    func fstat_path(UUId_t processId, string path) : (OsStatus_t result, file_descriptor descriptor) = 20;
+    func fsstat_path(UUId_t processId, string path) : (OsStatus_t result, filesystem_descriptor descriptor) = 21;
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status

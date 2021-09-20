@@ -50,17 +50,17 @@ long long ftelli64(
 		return -1LL;
 	}
 	
-	_lock_file(stream);
+	_lock_stream(stream);
 	handle = stdio_handle_get(stream->_fd);
     if (handle == NULL) {
-		_unlock_file(stream);
+		_unlock_stream(stream);
         _set_errno(EBADFD);
         return -1;
     }
 
 	position = telli64(stream->_fd);
 	if (position == -1) {
-		_unlock_file(stream);
+		_unlock_stream(stream);
 		return -1;
 	}
 
@@ -104,7 +104,7 @@ long long ftelli64(
 
 			// Restore stream cursor in case we seeked to end
 			if (lseeki64(stream->_fd, position, SEEK_SET) != position) {
-				_unlock_file(stream);
+				_unlock_stream(stream);
 				return -1;
 			}
 
@@ -126,7 +126,7 @@ long long ftelli64(
 			}
 		}
 	}
-	_unlock_file(stream);
+	_unlock_stream(stream);
 	return position;
 }
 

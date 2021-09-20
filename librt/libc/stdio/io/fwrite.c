@@ -77,7 +77,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 	
 	// Write the bytes in a loop in case we can't
 	// flush it all at once
-	_lock_file(stream);
+	_lock_stream(stream);
 	while (wrcnt) {
 
 		// Sanitize output buffer count
@@ -150,6 +150,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 	}
 
 	// Unlock stream and return member-count written
-	_unlock_file(stream);
+	_unlock_stream(stream);
 	return written / size;
 }

@@ -13,6 +13,8 @@
  wasn't possible, or some other error occurs, these functions 
  will return -1, and the contents of strp is undefined.
 */
+
+#include <internal/_io.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>

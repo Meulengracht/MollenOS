@@ -21,6 +21,7 @@
  *   (stdout) and appends a newline character ('\n').
  */
 
+#include <internal/_io.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -30,13 +31,13 @@ int puts(
     size_t len = strlen(s);
     int    ret;
 
-    _lock_file(stdout);
+    _lock_stream(stdout);
     if (fwrite(s, sizeof(*s), len, stdout) != len) {
-        _unlock_file(stdout);
+        _unlock_stream(stdout);
         return EOF;
     }
 
     ret = fwrite("\n",1,1,stdout) == 1 ? 0 : EOF;
-    _unlock_file(stdout);
+    _unlock_stream(stdout);
     return ret;
 }

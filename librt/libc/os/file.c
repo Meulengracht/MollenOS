@@ -27,6 +27,7 @@
 #include <internal/_io.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
+#include <io.h>
 #include <os/mollenos.h>
 #include <stdlib.h>
 
@@ -41,6 +42,120 @@ struct file_view {
 
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
+
+OsStatus_t SetFileSizeFromPath(const char* path, size_t size)
+{
+    OsStatus_t status;
+    int        fd;
+    
+    if (!path) {
+        return OsInvalidParameters;
+    }
+
+    fd = open(path, O_RDWR);
+    if (fd == -1) {
+        return OsStatusToErrno(fd);
+    }
+
+    status = SetFileSizeFromFd(fd, size);
+
+    close(fd);
+    return status;
+}
+
+OsStatus_t SetFileSizeFromFd(int fileDescriptor, size_t size)
+{
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
+    OsStatus_t               status;
+    LargeUInteger_t          value;
+
+    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+        return OsInvalidParameters;
+    }
+
+    value.QuadPart = size;
+    
+    sys_file_set_size(
+        GetGrachtClient(), 
+        &msg.base, 
+        *GetInternalProcessId(), 
+        handle->object.handle,
+        value.u.LowPart,
+        value.u.HighPart
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_set_size_result(GetGrachtClient(), &msg.base, &status);
+    return status;
+}
+
+OsStatus_t ChangeFilePermissionsFromPath(const char* path, unsigned int permissions)
+{
+    OsStatus_t status;
+    int        fd;
+    
+    if (!path) {
+        return OsInvalidParameters;
+    }
+
+    fd = open(path, O_RDWR);
+    if (fd == -1) {
+        return OsStatusToErrno(fd);
+    }
+
+    status = ChangeFilePermissionsFromFd(fd, permissions);
+    
+    close(fd);
+    return status;
+}
+
+OsStatus_t ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissions)
+{
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
+    OsStatus_t               status;
+    unsigned int             opts, access;
+
+    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_get_options(
+        GetGrachtClient(),
+        &msg.base,
+        *GetInternalProcessId(),
+        handle->object.handle
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_get_options_result(GetGrachtClient(), &msg.base, &status, &opts, &access);
+    
+    sys_file_set_options(
+        GetGrachtClient(),
+        &msg.base,
+        *GetInternalProcessId(),
+        handle->object.handle,
+        permissions,
+        access
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_set_options_result(GetGrachtClient(), &msg.base, &status);
+    return status;
+}
+
+OsStatus_t GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLength)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+    
+    if (!path || !linkPathBuffer || bufferLength == 0) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_fstat_link(GetGrachtClient(), &msg.base, *GetInternalProcessId(), path);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_fstat_link_result(GetGrachtClient(), &msg.base, &status, linkPathBuffer, bufferLength);
+    return status;
+}
 
 OsStatus_t
 GetFilePathFromFd(

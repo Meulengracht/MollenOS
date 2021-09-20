@@ -38,9 +38,9 @@ typedef enum {
     FsDiskError
 } FileSystemCode_t;
 
-typedef struct {
+typedef struct OsFileSystemDescriptor {
     long            Id;
-    unsigned int         Flags;
+    unsigned int    Flags;
     size_t          MaxFilenameLength;
     char            SerialNumber[32];
     unsigned long   BlockSize;
@@ -49,11 +49,11 @@ typedef struct {
     LargeUInteger_t SegmentsFree;
 } OsFileSystemDescriptor_t;
 
-typedef struct {
+typedef struct OsFileDescriptor {
     long            Id;
     long            StorageId;
-    unsigned int         Flags;
-    unsigned int         Permissions;
+    unsigned int    Flags;
+    unsigned int    Permissions;
     LargeUInteger_t Size;
     struct timespec CreatedAt;
     struct timespec ModifiedAt;
@@ -71,11 +71,11 @@ typedef struct {
 #define FILE_PERMISSION_EXECUTE 0x00000004
 
 PACKED_TYPESTRUCT(FileMappingParameters, {
-    UUId_t    MemoryHandle;
-    unsigned int   Flags;
-    uint64_t  FileOffset;
-    uintptr_t VirtualAddress;
-    size_t    Length;
+    UUId_t       MemoryHandle;
+    unsigned int Flags;
+    uint64_t     FileOffset;
+    uintptr_t    VirtualAddress;
+    size_t       Length;
 });
 
 // Access flags

@@ -156,8 +156,8 @@ _CRTIMP_NORETURN(void exit(int));                   // Normal termination, clean
 
 /* Search and sort functions, a custom sorting 
  * comparator function can be provided for the sort */
-_CRTIMP void *bsearch(__CONST void *key, __CONST void *base, size_t nmemb, 
-    size_t size, int(*compar)(__CONST void *, __CONST void *));
+_CRTIMP void *bsearch(const void *key, const void *base, size_t nmemb, 
+    size_t size, int(*compar)(const void *, const void *));
 CRTDECL(void, qsort(void *base, size_t num, size_t width, int(*comp)(const void*, const void*)));
 
 /* Integer Arethmetic functions 
@@ -189,10 +189,10 @@ CRTDECL(intmax_t,  imaxabs(intmax_t j));
 /* Multibyte functions
  * Used for multibyte string support */
 _CRTIMP int mblen( 
-    __CONST char *s,
+    const char *s,
     size_t n);
 _CRTIMP size_t mbrlen(
-    __CONST char *__restrict s, 
+    const char *__restrict s, 
     size_t n, 
     mbstate_t *__restrict ps);
 _CRTIMP size_t mbrtowc(
@@ -202,17 +202,17 @@ _CRTIMP size_t mbrtowc(
     mbstate_t *__restrict ps);
 _CRTIMP size_t mbstowcs(
     wchar_t *__restrict pwcs,
-    __CONST char *__restrict s,
+    const char *__restrict s,
     size_t n);
 _CRTIMP size_t mbsnrtowcs(
     wchar_t *__restrict dst,
-    __CONST char **__restrict src,
+    const char **__restrict src,
     size_t nms,
     size_t len,
     mbstate_t *__restrict ps);
 _CRTIMP size_t mbsrtowcs(
     wchar_t *__restrict dst,
-    __CONST char **__restrict src,
+    const char **__restrict src,
     size_t len,
     mbstate_t *__restrict ps);
 
@@ -224,46 +224,46 @@ CRTDECL(size_t, wcrtomb(char *__restrict, wchar_t, mbstate_t *__restrict));
 CRTDECL(size_t, wcsnrtombs(char *__restrict, const wchar_t **__restrict, size_t, size_t, mbstate_t *__restrict));
 _CRTIMP size_t wcsrtombs(
     char *__restrict dst,
-    __CONST wchar_t **__restrict src,
+    const wchar_t **__restrict src,
     size_t len,
     mbstate_t *__restrict ps);
 _CRTIMP size_t wcstombs(
     char *__restrict s,
-    __CONST wchar_t *__restrict pwcs,
+    const wchar_t *__restrict pwcs,
     size_t n);
 _CRTIMP int mbtowc(
     wchar_t *__restrict pwc,
-    __CONST char *__restrict s,
+    const char *__restrict s,
     size_t n);
 _CRTIMP int wctomb(
     char *s,
     wchar_t wchar);
 
 _CRTIMP float wcstof(
-    __CONST wchar_t *__restrict nptr,
+    const wchar_t *__restrict nptr,
     wchar_t **__restrict endptr);
 _CRTIMP double wcstod(
-    __CONST wchar_t *__restrict nptr,
+    const wchar_t *__restrict nptr,
     wchar_t **__restrict endptr);
 _CRTIMP long double wcstold(
-    __CONST wchar_t *__restrict nptr, 
+    const wchar_t *__restrict nptr, 
     wchar_t **__restrict endptr);
 CRTDECL(intmax_t,  wcstoimax(const wchar_t *__restrict, wchar_t **__restrict, int));
 CRTDECL(uintmax_t, wcstoumax(const wchar_t *__restrict, wchar_t **__restrict, int));
 _CRTIMP long wcstol(
-    __CONST wchar_t *__restrict s,
+    const wchar_t *__restrict s,
     wchar_t **__restrict ptr,
     int base);
 _CRTIMP long long wcstoll(
-    __CONST wchar_t *__restrict s,
+    const wchar_t *__restrict s,
     wchar_t **__restrict ptr,
     int base);
 _CRTIMP unsigned long wcstoul(
-    __CONST wchar_t *__restrict s,
+    const wchar_t *__restrict s,
     wchar_t **__restrict ptr,
     int base);
 _CRTIMP unsigned long long wcstoull(
-    __CONST wchar_t *__restrict s,
+    const wchar_t *__restrict s,
     wchar_t **__restrict ptr,
     int base);
 _CODE_END

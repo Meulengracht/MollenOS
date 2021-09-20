@@ -19,13 +19,14 @@
 * MollenOS C Library - File Rewind
 */
 
+#include <internal/_io.h>
 #include <stdio.h>
 
 void rewind(
 	_In_ FILE *file)
 {
-	_lock_file(file);
+	_lock_stream(file);
 	fseek(file, 0L, SEEK_SET);
 	clearerr(file);
-	_unlock_file(file);
+	_unlock_stream(file);
 }

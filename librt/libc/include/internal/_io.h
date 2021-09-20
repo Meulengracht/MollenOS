@@ -132,15 +132,20 @@ extern void stdio_get_set_operations(stdio_ops_t* ops);
 extern void stdio_get_evt_operations(stdio_ops_t* ops);
 
 // helpers
-extern int  stdio_bitmap_initialize(void);
-extern int  stdio_bitmap_allocate(int fd);
-extern void stdio_bitmap_free(int fd);
-extern int  _flsbuf(int ch, FILE *stream);
-extern int  _flswbuf(int ch, FILE *stream);
-extern int  stream_ensure_mode(int mode, FILE* stream);
+extern int          stdio_bitmap_initialize(void);
+extern int          stdio_bitmap_allocate(int fd);
+extern void         stdio_bitmap_free(int fd);
+extern int          _flsbuf(int ch, FILE *stream);
+extern int          _flswbuf(int ch, FILE *stream);
+extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
+extern OsStatus_t   _lock_stream(FILE * stream);
+extern OsStatus_t   _unlock_stream(FILE * stream);
+extern int          streamout(FILE *stream, const char *format, va_list argptr);
+extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
+
 
 // Must be reentrancy spinlocks (critical sections)
 #define LOCK_FILES() do { } while(0)

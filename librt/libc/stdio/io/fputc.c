@@ -30,7 +30,7 @@ int fputc(
 {
     int res = 0;
 
-    _lock_file(file);
+    _lock_stream(file);
     if (file->_cnt > 0) {
         file->_cnt--;
         *file->_ptr++ = (char)(character & 0xFF);
@@ -43,6 +43,6 @@ int fputc(
         res = _flsbuf(character, file);
     }
 
-    _unlock_file(file);
+    _unlock_stream(file);
     return res ? res : character;
 }
