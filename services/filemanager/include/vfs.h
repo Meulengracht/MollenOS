@@ -109,6 +109,30 @@ __EXTERN void
 VfsCacheRemoveFile(
         _In_ MString_t* path);
 
+/**
+ * @brief Retrieves filesystem information about a currently open file handle.
+ * 
+ * @param fileHandle  A file handle to query filesystem information from.
+ * @param fileSystem  A pointer to where the filesystem pointer will be stored.
+ * @return OsStatus_t Status of the lookup operation 
+ */
+__EXTERN OsStatus_t
+VfsGetFileSystemByFileHandle(
+        _In_  UUId_t         fileHandle,
+        _Out_ FileSystem_t** fileSystem);
+
+/**
+ * @brief Queries filesystem information from a filesystem path.
+ * 
+ * @param path        A zero terminated string
+ * @param fileSystem  A pointer to where the filesystem pointer will be stored.
+ * @return OsStatus_t Status of the lookup operation 
+ */
+__EXTERN OsStatus_t
+VfsGetFileSystemByPath(
+        _In_  const char*    path,
+        _Out_ FileSystem_t** fileSystem);
+
 /* DiskRegisterFileSystem 
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 

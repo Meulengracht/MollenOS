@@ -255,13 +255,25 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const UUI
 void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    // @todo not implemented
-    sys_storage_get_descriptor_response(message, OsNotSupported, &gdescriptor);
+    FileSystem_t*              fileSystem;
+    OsStatus_t                 status;
+
+    status = VfsGetFileSystemByFileHandle(fileHandle, &fileSystem);
+    if (status == OsSuccess) {
+        to_sys_disk_descriptor_dkk(&fileSystem->descriptor.Disk.descriptor, &gdescriptor);
+    }
+    sys_storage_get_descriptor_response(message, status, &gdescriptor);
 }
 
 void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    // @todo not implemented
+    FileSystem_t*              fileSystem;
+    OsStatus_t                 status;
+
+    status = VfsGetFileSystemByPath(filePath, &fileSystem);
+    if (status == OsSuccess) {
+        to_sys_disk_descriptor_dkk(&fileSystem->descriptor.Disk.descriptor, &gdescriptor);
+    }
     sys_storage_get_descriptor_path_response(message, OsNotSupported, &gdescriptor);
 }

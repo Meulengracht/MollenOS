@@ -37,35 +37,35 @@
 
 static const char* g_environmentPaths[SYS_SYSTEM_PATHS_PATH_COUNT] = {
     // System paths
-	":/",
-	":/system/",
+    ":/",
+    ":/system/",
     ":/system/themes/",
 
     // Shared paths
-	":/shared/bin/",
+    ":/shared/bin/",
     ":/shared/include/",
-	":/shared/lib/",
-	":/shared/share/",
+    ":/shared/lib/",
+    ":/shared/share/",
 
     // User paths
-	":/users/$(user)/",
+    ":/users/$(user)/",
     ":/users/$(user)/cache",
 
     // Application paths
-	":/shared/appdata/$(app)/",
+    ":/shared/appdata/$(app)/",
     ":/shared/appdata/$(app)/temp/"
 };
 
 static struct VfsIdentifier {
-	const char*           identifier;
-	enum sys_system_paths resolve;
+    const char*           identifier;
+    enum sys_system_paths resolve;
 } g_vfsIdentifiers[] = {
-	{ "sys", SYS_SYSTEM_PATHS_PATH_SYSTEM },
+    { "sys", SYS_SYSTEM_PATHS_PATH_SYSTEM },
     { "themes", SYS_SYSTEM_PATHS_PATH_SYSTEM_THEMES },
-	{ "bin", SYS_SYSTEM_PATHS_PATH_COMMON_BIN },
+    { "bin", SYS_SYSTEM_PATHS_PATH_COMMON_BIN },
     { "lib", SYS_SYSTEM_PATHS_PATH_COMMON_LIB },
     { "share", SYS_SYSTEM_PATHS_PATH_COMMON_SHARE },
-	{ NULL, SYS_SYSTEM_PATHS_PATH_COUNT }
+    { NULL, SYS_SYSTEM_PATHS_PATH_COUNT }
 };
 
 static inline OsStatus_t __ResolveBootDriveIdentifier(MString_t* destination)
@@ -84,29 +84,29 @@ MString_t*
 VfsPathResolveEnvironment(
     _In_ enum sys_system_paths base)
 {
-	MString_t* resolvedPath = NULL;
-	OsStatus_t status;
-	TRACE("VfsPathResolveEnvironment(base=%u)", base);
+    MString_t* resolvedPath = NULL;
+    OsStatus_t status;
+    TRACE("VfsPathResolveEnvironment(base=%u)", base);
 
-	// Create a new string instance to store resolved in
-	resolvedPath = MStringCreate(NULL, StrUTF8);
-	if (!resolvedPath) {
-	    goto exit;
-	}
+    // Create a new string instance to store resolved in
+    resolvedPath = MStringCreate(NULL, StrUTF8);
+    if (!resolvedPath) {
+        goto exit;
+    }
 
-	status = __ResolveBootDriveIdentifier(resolvedPath);
-	if (status != OsSuccess) {
-	    MStringDestroy(resolvedPath);
+    status = __ResolveBootDriveIdentifier(resolvedPath);
+    if (status != OsSuccess) {
+        MStringDestroy(resolvedPath);
         resolvedPath = NULL;
         goto exit;
-	}
+    }
 
-	// Now append the special paths and return it
-	MStringAppendCharacters(resolvedPath, g_environmentPaths[(int)base], StrUTF8);
+    // Now append the special paths and return it
+    MStringAppendCharacters(resolvedPath, g_environmentPaths[(int)base], StrUTF8);
 
 exit:
     TRACE("VfsPathResolveEnvironment returns=%s", MStringRaw(resolvedPath));
-	return resolvedPath;
+    return resolvedPath;
 }
 
 static OsStatus_t
@@ -142,28 +142,28 @@ MString_t*
 VfsPathCanonicalize(
     _In_ const char* path)
 {
-	MString_t* absolutePath;
-	int        i = 0;
+    MString_t* absolutePath;
+    int        i = 0;
 
     TRACE("VfsPathCanonicalize(path=%s)", path);
 
-	// Iterate all characters and build a new string
-	// containing the canonicalized path simoultanously
+    // Iterate all characters and build a new string
+    // containing the canonicalized path simoultanously
     absolutePath = MStringCreate(NULL, StrUTF8);
     if (!absolutePath) {
         return NULL;
     }
 
-	while (path[i]) {
-		if (IS_SEPERATOR(&path[i]) && i == 0) { // Always skip initial '/'
-			i++;
-			continue;
-		}
+    while (path[i]) {
+        if (IS_SEPERATOR(&path[i]) && i == 0) { // Always skip initial '/'
+            i++;
+            continue;
+        }
 
-		// Special case 1 - Identifier
+        // Special case 1 - Identifier
         // To avoid abuse, we clear the string before expanding an identifier
         // in ANY case
-		if (IS_IDENTIFIER(&path[i])) {
+        if (IS_IDENTIFIER(&path[i])) {
             MStringZero(absolutePath);
             /* OsStatus_t Status = */ VfsExpandIdentifier(absolutePath, &path[i]);
             while (!IS_EOL(&path[i]) && !IS_SEPERATOR(&path[i])) {
@@ -173,7 +173,7 @@ VfsPathCanonicalize(
                 i++; // Skip seperator
             }
             continue;
-		}
+        }
 
         // Special case 2 - variables
         if (IS_VARIABLE(&path[i])) {
@@ -188,21 +188,21 @@ VfsPathCanonicalize(
             continue;
         }
 
-		// Special case 3, 4 and 5
-		// 3 - If it's ./ or .\ ignore it
-		// 4 - If it's ../ or ..\ go back 
-		// 5 - Normal case, copy
-		if (path[i] == '.' && IS_SEPERATOR(&path[i + 1])) {
-			i += 2;
-			continue;
-		}
-		else if (path[i] == '.' && path[i + 1] == '\0') {
+        // Special case 3, 4 and 5
+        // 3 - If it's ./ or .\ ignore it
+        // 4 - If it's ../ or ..\ go back 
+        // 5 - Normal case, copy
+        if (path[i] == '.' && IS_SEPERATOR(&path[i + 1])) {
+            i += 2;
+            continue;
+        }
+        else if (path[i] == '.' && path[i + 1] == '\0') {
             break;
         }
-		else if (path[i] == '.' && path[i + 1] == '.' && (IS_SEPERATOR(&path[i + 2]) || path[i + 2] == '\0')) {
+        else if (path[i] == '.' && path[i + 1] == '.' && (IS_SEPERATOR(&path[i + 2]) || path[i + 2] == '\0')) {
             int previousIndex = 0;
 
-		    // find the previous path segment
+            // find the previous path segment
             while (previousIndex != MSTRING_NOT_FOUND) {
                 previousIndex = MStringFindReverse(absolutePath, '/', 0);
 
@@ -224,14 +224,14 @@ VfsPathCanonicalize(
             
             if (previousIndex != MSTRING_NOT_FOUND) {
                 TRACE("[vfs] [path] going back in %s", MStringRaw(absolutePath));
-				MString_t* subPath = MStringSubString(absolutePath, 0, previousIndex + 1); // Include the '/'
-				if (subPath) {
+                MString_t* subPath = MStringSubString(absolutePath, 0, previousIndex + 1); // Include the '/'
+                if (subPath) {
                     MStringDestroy(absolutePath);
                     absolutePath = subPath;
-				}
+                }
             }
-		}
-		else {
+        }
+        else {
             // Don't double add '/'
             if (IS_SEPERATOR(&path[i])) {
                 int seperatorIndex = MStringFindReverse(absolutePath, '/', 0);
@@ -240,13 +240,13 @@ VfsPathCanonicalize(
                 }
             }
             else {
-				MStringAppendCharacter(absolutePath, path[i]);
-			}
-		}
-		i++;
-	}
+                MStringAppendCharacter(absolutePath, path[i]);
+            }
+        }
+        i++;
+    }
     TRACE("VfsPathCanonicalize returns=%s", MStringRaw(absolutePath));
-	return absolutePath;
+    return absolutePath;
 }
 
 void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)

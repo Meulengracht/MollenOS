@@ -89,7 +89,12 @@ static FileSystem_t* __GetFileSystemFromPath(MString_t* path, MString_t** subPat
             MStringDestroy(identifier);
 
             // set path out and return
-            *subPathOut = subPath;
+            if (subPathOut) {
+                *subPathOut = subPath;
+            }
+            else {
+                MStringDestroy(subPath);
+            }
             return fileSystem;
         }
     }
@@ -118,7 +123,7 @@ VfsIsHandleValid(
     }
 
     entry = (FileSystemEntryHandle_t*)header->value;
-    if (entry->Owner != processId) {
+    if (requiredAccess != 0 && entry->Owner != processId) {
         ERROR("VfsIsHandleValid Owner of the handle did not match the requester. Access Denied.");
         return OsInvalidPermissions;
     }
@@ -1048,4 +1053,36 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     // @todo not implemented
     sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
+}
+
+OsStatus_t
+VfsGetFileSystemByFileHandle(
+        _In_  UUId_t         fileHandle,
+        _Out_ FileSystem_t** fileSystem)
+{
+    FileSystemEntryHandle_t* entryHandle = NULL;
+    OsStatus_t               status;
+
+    status = VfsIsHandleValid(HANDLE_INVALID, fileHandle, 0, &entryHandle);
+    if (status == OsSuccess) {
+        *fileSystem = (FileSystem_t*)entryHandle->Entry->System;
+    }
+    return status;
+}
+
+OsStatus_t
+VfsGetFileSystemByPath(
+        _In_  const char*    path,
+        _Out_ FileSystem_t** fileSystem)
+{
+    MString_t* fspath = MStringCreate(path, StrUTF8);
+    if (!fspath) {
+        return OsInvalidParameters;
+    }
+
+    *fileSystem = __GetFileSystemFromPath(fspath, NULL);
+    if (!(*fileSystem)) {
+        return OsDoesNotExist;
+    }
+    return OsSuccess;
 }

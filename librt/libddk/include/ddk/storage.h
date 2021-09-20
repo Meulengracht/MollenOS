@@ -31,15 +31,15 @@
 #define __STORAGE_OPERATION_WRITE           0x00000002
 
 typedef struct StorageDescriptor {
-    UUId_t   Device;
-    UUId_t   Driver;
-    unsigned int  Flags;
-    char     Model[64];
-    char     Serial[32];
-    size_t   SectorSize;
-    uint64_t SectorCount;
-    size_t   SectorsPerCylinder;
-    size_t   LUNCount;
+    UUId_t       Device;
+    UUId_t       Driver;
+    unsigned int Flags;
+    char         Model[64];
+    char         Serial[32];
+    size_t       SectorSize;
+    uint64_t     SectorCount;
+    size_t       SectorsPerCylinder;
+    size_t       LUNCount;
 } StorageDescriptor_t;
 
 #endif //!__DDK_STORAGE_H__
