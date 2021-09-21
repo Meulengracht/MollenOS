@@ -56,6 +56,10 @@
 #define __x86_64__ 1
 #endif
 
+#if !defined(__STDC_VERSION__)
+#define __STDC_VERSION__ 199901L
+#endif
+
 #if defined(__i386__)
 #define __STDC_CONVENTION __cdecl
 #define ASMDECL(ReturnType, Function) ReturnType __cdecl Function
@@ -107,7 +111,10 @@
 #endif //!__OSLIB_C_SHAREDLIBRARY
 #endif //!__OSLIB_C_IMPLEMENTATION
 #define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
-#define CRTDECL_DATA(Type, Name) __STDC_DECORATION Type Name
+#define CRTDECL_DATA(Type, Name)      __STDC_DECORATION Type Name
+#if __STDC_VERSION__ >= 201112L
+#define CRTDECL_NORETURN(Function)    __STDC_DECORATION _Noreturn void Function
+#endif
 #ifdef __STDC_LIB_EXT1__
 #define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function;
 #else
@@ -248,29 +255,6 @@
 #define CRT_UNALIGNED
 #endif
 #endif
-
-#if !defined(__STDC_VERSION__)
-#define __STDC_VERSION__ 199901L
-#endif
-
-#if __STDC_VERSION__ >= 201112L
-#define DECLSPEC_NORETURN(X) _Noreturn X
-#else
-#ifdef _MSC_VER
-#define DECLSPEC_NORETURN(X) __declspec(noreturn) X
-#else
-#define DECLSPEC_NORETURN(X) X __attribute__((noreturn))
-#endif
-#endif
-#define _CRTIMP_NORETURN(X) DECLSPEC_NORETURN(X)
-
-#ifndef DECLSPEC_ADDRSAFE
-#if defined(_MSC_VER) && (defined(_M_ALPHA) || defined(_M_AXP64))
-#define DECLSPEC_ADDRSAFE __declspec(address_safe)
-#else
-#define DECLSPEC_ADDRSAFE
-#endif
-#endif /* DECLSPEC_ADDRSAFE */
 
 #ifndef DECLSPEC_NOTHROW
 #if !defined(MIDL_PASS)
