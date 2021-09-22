@@ -20,37 +20,43 @@
  * MollenOS C Library - Get Environment Variable
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* A NULL environment, the day we support env
- * variables this should be in TLS and initialized from the session manager */
-static char* NullEnvironment[] = {
+// should be located in tls data and instantiated from session
+static char* g_nullEnvironment[] = {
         NULL
 };
 
 // A pointer to the current environment
-char** CurrentEnvironment = &NullEnvironment[0];
+static char** g_currentEnvironment = &g_nullEnvironment[0];
 
-char* getenv(const char *name)
+static char*** get_tls_environment()
 {
-	char***         environment = &CurrentEnvironment;
+	// @todo
+	return &g_currentEnvironment;
+}
+
+char* getenv(const char* name)
+{
+	char***         environment = get_tls_environment();
 	register int    length;
 	register char** p;
 	const char*     c;
 
-	/* Sanitize the env variable, the first entry
-	 * may not be null actually */
+	// sanitize that we have an environment installed currently
 	if (!*environment) {
 		return NULL;
 	}
 
-	/* Set inital state */
+	// skip to end of name, making sure that name does not contain an '='
 	c = name;
-	while (*c && *c != '=')  c++;
+	while (*c && *c != '=') {
+		 c++;
+	}
 
-	/* Identifiers may not contain an '=', so cannot match if does */
 	if (*c != '=') {
         length = c - name;
 		for (p = *environment; *p; ++p) {
@@ -62,4 +68,32 @@ char* getenv(const char *name)
 		}
 	}
 	return NULL;
+}
+
+int setenv(const char* name, const char* value, int override)
+{
+	char*** environment = get_tls_environment();
+
+	// sanitize that we have an environment installed currently
+	if (!*environment) {
+		_set_errno(ENOTSUP);
+		return -1;
+	}
+
+	// @todo
+	return 0;
+}
+
+int unsetenv(const char* name)
+{
+	char*** environment = get_tls_environment();
+
+	// sanitize that we have an environment installed currently
+	if (!*environment) {
+		_set_errno(ENOTSUP);
+		return -1;
+	}
+
+	// @todo
+	return 0;
 }

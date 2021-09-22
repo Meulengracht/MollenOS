@@ -141,8 +141,10 @@ CRTDECL(void*, aligned_alloc(size_t alignment, size_t size));
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
 CRTDECL_NORETURN(abort(void));
-CRTDECL(char*,   getenv(const char*));
-CRTDECL(int,     system(const char*));
+CRTDECL(int,     system(const char* cmd));
+CRTDECL(char*,   getenv(const char* name));
+CRTDECL(int,     setenv(const char* name, const char* value, int override));
+CRTDECL(int,     unsetenv(const char* name));
 
 CRTDECL(int,     at_quick_exit(void(*Function)(void))); // Register quick termination handler
 CRTDECL_NORETURN(quick_exit(int));                      // Quick termination, No cleanup

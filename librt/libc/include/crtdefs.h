@@ -32,6 +32,11 @@
 #endif
 #endif
 
+// default to c11 if not set (usually not in c++)
+#if !defined(__STDC_VERSION__)
+#define __STDC_VERSION__ 201112L
+#endif
+
 /** Properties ***************************************************************/
 
 #ifndef _CRT_STRINGIZE
@@ -112,8 +117,10 @@
 #endif //!__OSLIB_C_IMPLEMENTATION
 #define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #define CRTDECL_DATA(Type, Name)      __STDC_DECORATION Type Name
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112L || __cplusplus >= 201103L
 #define CRTDECL_NORETURN(Function)    __STDC_DECORATION _Noreturn void Function
+#else
+#define CRTDECL_NORETURN(Function)    __STDC_DECORATION void Function
 #endif
 #ifdef __STDC_LIB_EXT1__
 #define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function;
