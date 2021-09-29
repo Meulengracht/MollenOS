@@ -183,6 +183,49 @@ ThreadDetach(
     return Status;
 }
 
+static OsStatus_t
+TerminateThreadWithChildren(
+        _In_ Thread_t* thread,
+        _In_ int       exitCode)
+{
+    Thread_t* child;
+    int       value;
+
+    TRACE("TerminateThreadWithChildren(%s, %i)", thread->Name, exitCode);
+
+    // Never, ever kill system idle threads
+    if (thread->Flags & THREADING_IDLE) {
+        return OsInvalidPermissions;
+    }
+
+    MutexLock(&thread->SyncObject);
+    value = atomic_load(&thread->Cleanup);
+    if (value) {
+        MutexUnlock(&thread->SyncObject);
+        return OsSuccess;
+    }
+
+    child = thread->Children;
+    while (child) {
+        OsStatus_t Status = TerminateThreadWithChildren(child, exitCode);
+        if (Status != OsSuccess) {
+            ERROR("TerminateThreadWithChildren failed to terminate child %s of %s", child->Name, thread->Name);
+        }
+        child = child->Sibling;
+    }
+
+    thread->RetCode = exitCode;
+    atomic_store(&thread->Cleanup, 1);
+    MutexUnlock(&thread->SyncObject);
+
+    // If the thread we are trying to kill is not this one, and is sleeping
+    // we must wake it up, it will be cleaned on next schedule
+    if (thread->Handle != ThreadCurrentHandle()) {
+        SchedulerExpediteObject(thread->SchedulerObject);
+    }
+    return OsSuccess;
+}
+
 OsStatus_t
 ThreadTerminate(
     _In_ UUId_t ThreadId,
@@ -211,25 +254,25 @@ ThreadTerminate(
     }
 
     if (thread->ParentHandle != UUID_INVALID) {
-        Thread_t* Parent = THREAD_GET(thread->ParentHandle);
-        if (!Parent) {
+        Thread_t* parent = THREAD_GET(thread->ParentHandle);
+        if (!parent) {
             // Parent does not exist anymore, it was terminated without terminating children
             // which is very unusal. Log this.
             WARNING("[terminate_thread] orphaned child terminating %s", thread->Name);
         }
         else {
-            RemoveChild(Parent, thread);
+            RemoveChild(parent, thread);
         }
     }
 
     if (TerminateChildren) {
-        Thread_t* ChildItr = thread->Children;
-        while (ChildItr) {
-            OsStatus_t Status = ThreadTerminate(ChildItr->Handle, ExitCode, TerminateChildren);
-            if (Status != OsSuccess) {
-                ERROR("[terminate_thread] failed to terminate child %s of %s", ChildItr->Name, thread->Name);
+        Thread_t* child = thread->Children;
+        while (child) {
+            OsStatus_t osStatus = TerminateThreadWithChildren(child, ExitCode);
+            if (osStatus != OsSuccess) {
+                ERROR("[terminate_thread] failed to terminate child %s of %s", child->Name, thread->Name);
             }
-            ChildItr = ChildItr->Sibling;
+            child = child->Sibling;
         }
     }
     thread->RetCode = ExitCode;
@@ -275,9 +318,9 @@ ThreadingEnterUsermode(
     _In_ ThreadEntry_t EntryPoint,
     _In_ void*         Argument)
 {
-    Thread_t*         thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    vaddr_t tlsAddress;
-    paddr_t tlsPhysicalAddress;
+    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    vaddr_t   tlsAddress;
+    paddr_t   tlsPhysicalAddress;
 
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
     MemorySpaceMap(GetCurrentMemorySpace(), &tlsAddress, &tlsPhysicalAddress, GetMemorySpacePageSize(),
@@ -503,13 +546,12 @@ ThreadingAdvance(
     cleanup = atomic_load(&currentThread->Cleanup);
     currentThread->ContextActive = CpuCoreInterruptContext(core);
     
-    // Perform pre-liminary actions only if the we are not going to 
-    // cleanup and destroy the thread
+    // Perform pre-liminary actions only if we are not going to clean up and destroy the thread
     if (!cleanup) {
         SaveThreadState(currentThread);
         
         // Handle any received signals during runtime in system calls, this must be handled
-        // here after any blocking operations has been queued so we can cancel it.
+        // here after any blocking operations has been queued, so we can cancel it.
         signalsPending = atomic_load(&currentThread->Signaling.Pending);
         if (signalsPending) {
             SchedulerExpediteObject(currentThread->SchedulerObject);
