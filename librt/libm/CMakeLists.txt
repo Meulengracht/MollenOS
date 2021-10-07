@@ -72,7 +72,7 @@ add_library(m SHARED ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURC
 set_target_properties(m
     PROPERTIES
         COMPILE_FLAGS "-D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL"
-        LINK_FLAGS "/lldmap /def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def /noentry"
+        LINK_FLAGS "-Xlinker -def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def -Xlinker -noentry"
         #LINK_LIBRARIES ""
         #VERSION ${PROJECT_VERSION}
         #PUBLIC_HEADER include/mylib.h

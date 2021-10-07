@@ -75,7 +75,10 @@ endmacro ()
 ExternalProject_Add(compiler-rt
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compiler-rt
     CMAKE_ARGS
-        -DCMAKE_SYSTEM_NAME=vali-cross
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ToolchainFile.cmake
+        -DCMAKE_C_FLAGS=${VALI_COMPILER_RT_C_FLAGS}
+        -DCMAKE_CXX_FLAGS=${VALI_COMPILER_RT_CXX_FLAGS}
+        -DCMAKE_ASM_FLAGS=${VALI_COMPILER_RT_ASM_FLAGS}
         -DCOMPILER_RT_STANDALONE_BUILD=ON
         -DCOMPILER_RT_BUILD_BUILTINS=ON
         -DCOMPILER_RT_BUILD_SANITIZERS=OFF
@@ -84,20 +87,12 @@ ExternalProject_Add(compiler-rt
         -DCOMPILER_RT_BUILD_PROFILE=OFF
         -DCOMPILER_RT_BAREMETAL_BUILD=ON
         -DCOMPILER_RT_EXCLUDE_ATOMIC_BUILTIN=OFF
-        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        -DCMAKE_C_FLAGS=${VALI_COMPILER_RT_C_FLAGS}
-        -DCMAKE_CXX_FLAGS=${VALI_COMPILER_RT_CXX_FLAGS}
-        -DCMAKE_ASM_FLAGS=${VALI_COMPILER_RT_ASM_FLAGS}
-        -DCMAKE_AR=${CMAKE_AR}
-        -DCMAKE_RANLIB=${CMAKE_RANLIB}
-        -DCMAKE_LINKER=${CMAKE_LINKER}
-        -DLLVM_CONFIG_PATH=$ENV{CROSS}/bin/llvm-config
         -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
         -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
+        -DVALI_ARCH=${VALI_ARCH}
 )
 
-LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/vali-cross)
+LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/valicc)
 install(DIRECTORY include/ DESTINATION vali-sdk/include/${VALI_COMPILER_ID})
 
 # Runtime libraries
@@ -105,7 +100,7 @@ add_subdirectory (libcrt)
 add_subdirectory (libds)
 add_subdirectory (libddk)
 
-merge_libraries (librt libcrt ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/vali-cross/${VALI_COMPILER_RT_TARGET})
+merge_libraries (librt libcrt ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/valicc/${VALI_COMPILER_RT_TARGET})
 add_dependencies (librt compiler-rt)
 install (TARGETS librt
     ARCHIVE DESTINATION vali-sdk/lib

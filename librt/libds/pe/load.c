@@ -38,9 +38,10 @@ typedef struct SectionMapping {
     size_t            Size;
 } SectionMapping_t;
 
-#define OFFSET_IN_SECTION(Section, _RVA) (uintptr_t)(Section->BasePointer + ((_RVA) - Section->RVA))
+#define OFFSET_IN_SECTION(Section, _RVA) (uintptr_t)((Section)->BasePointer + ((_RVA) - (Section)->RVA))
 
 // Directory handlers
+OsStatus_t PeHandleRuntimeRelocations(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 OsStatus_t PeHandleRelocations(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 OsStatus_t PeHandleExports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 OsStatus_t PeHandleImports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
@@ -51,6 +52,7 @@ static struct {
     DataDirectoryHandler Handler;
 } DataDirectoryHandlers[] = {
     { PE_SECTION_BASE_RELOCATION, PeHandleRelocations },
+    { PE_SECTION_GLOBAL_PTR, PeHandleRuntimeRelocations },
     { PE_SECTION_EXPORT, PeHandleExports },
 
     // Always handle import table last
@@ -353,7 +355,7 @@ PeHandleRelocations(
         uint16_t*         RelocationTable;
         uint32_t          NumRelocs;
         SectionMapping_t* Section;
-        uintptr_t         SectionBase;
+        uintptr_t sectionOffset;
 
         // Get the next block
         uint32_t PageRVA   = RelocationPointer[0];
@@ -375,8 +377,8 @@ PeHandleRelocations(
             assert(0);
         }
 
-        Section     = GetSectionFromRVA(Sections, SectionCount, PageRVA);
-        SectionBase = OFFSET_IN_SECTION(Section, PageRVA);
+        Section       = GetSectionFromRVA(Sections, SectionCount, PageRVA);
+        sectionOffset = OFFSET_IN_SECTION(Section, PageRVA);
 
         if (BlockSize > BytesLeft) {
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
@@ -394,7 +396,7 @@ PeHandleRelocations(
             // 32/64 Bit Relative
             if (Type == PE_RELOCATION_HIGHLOW || Type == PE_RELOCATION_RELATIVE64) { 
                 // Create a pointer, the low 12 bits have an offset into the PageRVA
-                volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(SectionBase + Value);
+                volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(sectionOffset + Value);
                 uintptr_t           UpdatedAddress = *AddressPointer + ImageDelta;
 #if __BITS == 32
                 if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000) {
@@ -411,8 +413,8 @@ PeHandleRelocations(
                 if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x8100000000ULL) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
-                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
-                        Section->BasePointer, SectionBase, AddressPointer, *AddressPointer);
+                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x",
+                            Section->BasePointer, sectionOffset, AddressPointer, *AddressPointer);
                     dserror("Relocation caused invalid pointer: 0x%llx, 0x%llx, New Base 0x%llx, Old Base 0x%llx",
                         UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
                     assert(0);
@@ -432,6 +434,134 @@ PeHandleRelocations(
         RelocationPointer += (BlockSize / sizeof(uint32_t));
         BytesLeft         -= BlockSize;
     }
+    return OsSuccess;
+}
+
+PACKED_TYPESTRUCT(RuntimeRelocationHeader, {
+    uint32_t Magic0;
+    uint32_t Magic1;
+    uint32_t Version;
+});
+
+PACKED_TYPESTRUCT(RuntimeRelocationEntryV1, {
+    uint32_t Value;
+    uint32_t Offset;
+});
+
+PACKED_TYPESTRUCT(RuntimeRelocationEntryV2, {
+    uint32_t Symbol;
+    uint32_t Offset;
+    uint32_t Flags;
+});
+
+#define RP_VERSION_1 0
+#define RP_VERSION_2 1
+
+static void HandleRelocationsV1(
+        _In_ SectionMapping_t* Sections,
+        _In_ int               SectionCount,
+        _In_ uint8_t*          RelocationEntries,
+        _In_ const uint8_t*    RelocationsEnd)
+{
+    RuntimeRelocationEntryV1_t* entry = (RuntimeRelocationEntryV1_t*)RelocationEntries;
+    while ((uint8_t*)entry < RelocationsEnd) {
+        uintptr_t sectionOffset = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Offset);
+        *((uintptr_t*)sectionOffset) += entry->Value;
+        entry++;
+    }
+}
+
+static OsStatus_t HandleRelocationsV2(
+        _In_ SectionMapping_t* Sections,
+        _In_ int               SectionCount,
+        _In_ uint8_t*          RelocationEntries,
+        _In_ const uint8_t*    RelocationsEnd)
+{
+    RuntimeRelocationEntryV2_t* entry = (RuntimeRelocationEntryV2_t*)RelocationEntries;
+    while ((uint8_t*)entry < RelocationsEnd) {
+        uintptr_t symbolSectionAddress = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Symbol);
+        uintptr_t targetSectionAddress = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Offset);
+        intptr_t  symbolValue = *((intptr_t*)symbolSectionAddress);
+        uint8_t   relocSize = (uint8_t)(entry->Flags & 0xFF);
+        intptr_t  relocData;
+
+        switch (relocSize) {
+            case 8: {
+                relocData = (intptr_t)*((uint8_t*)targetSectionAddress);
+                if (relocData & 0x80) {
+                    relocData |= ~((intptr_t) 0xFF);
+                }
+            } break;
+            case 16: {
+                relocData = (intptr_t)*((uint16_t*)targetSectionAddress);
+                if (relocData & 0x8000) {
+                    relocData |= ~((intptr_t) 0xFFFF);
+                }
+            } break;
+            case 32: {
+                relocData = (intptr_t)*((uint32_t*)targetSectionAddress);
+#if defined(__amd64__)
+                if (relocData & 0x80000000) {
+                    relocData |= ~((intptr_t) 0xFFFFFFFF);
+                }
+#endif
+            } break;
+#if defined(__amd64__)
+            case 64: {
+                relocData = (intptr_t)*((uint64_t*)targetSectionAddress);
+            } break;
+#endif
+            default: {
+                dserror("HandleRelocationsV2 invalid relocation size %u", relocSize);
+                return OsError;
+            }
+        }
+
+        relocData -= (intptr_t)symbolSectionAddress;
+        relocData += symbolValue;
+
+        switch (relocSize) {
+            case 8: *((uint8_t*)targetSectionAddress) = (uint8_t)((uintptr_t)relocData & 0xFF); break;
+            case 16: *((uint16_t*)targetSectionAddress) = (uint16_t)((uintptr_t)relocData & 0xFFFF); break;
+            case 32: *((uint32_t*)targetSectionAddress) = (uint32_t)((uintptr_t)relocData & 0xFFFFFFFF); break;
+#if defined(__amd64__)
+            case 64: *((uint64_t*)targetSectionAddress) = (uint64_t)relocData; break;
+#endif
+            default: break;
+        }
+        entry++;
+    }
+    return OsSuccess;
+}
+
+OsStatus_t PeHandleRuntimeRelocations(
+        _In_ PeExecutable_t*    ParentImage,
+        _In_ PeExecutable_t*    Image,
+        _In_ SectionMapping_t*  Sections,
+        _In_ int                SectionCount,
+        _In_ uint8_t*           DirectoryContent,
+        _In_ size_t             DirectorySize)
+{
+    RuntimeRelocationHeader_t* header = (RuntimeRelocationHeader_t*)DirectoryContent;
+    uint8_t*                   endOfEntries = DirectoryContent + DirectorySize;
+
+    if (DirectorySize < 8) {
+        return OsInvalidParameters;
+    }
+
+    if (DirectorySize >= 12 && header->Magic0 == 0 && header->Magic1 == 0) {
+        uint8_t* entries = DirectoryContent + sizeof(RuntimeRelocationHeader_t);
+        if (header->Version == RP_VERSION_1) {
+            HandleRelocationsV1(Sections, SectionCount, entries, endOfEntries);
+        }
+        else if (header->Version == RP_VERSION_2) {
+            return HandleRelocationsV2(Sections, SectionCount, entries, endOfEntries);
+        }
+        else {
+            return OsInvalidParameters;
+        }
+    }
+    HandleRelocationsV1(Sections, SectionCount, DirectoryContent, endOfEntries);
     return OsSuccess;
 }
 
@@ -478,7 +608,7 @@ PeHandleExports(
     FunctionNamesTable    = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfNames);
     FunctionOrdinalsTable = (uint16_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfOrdinals);
     FunctionAddressTable  = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfFunctions);
-    OrdinalBase           = ExportTable->OrdinalBase;
+    OrdinalBase           = (int)(ExportTable->OrdinalBase);
 
     // Allocate array for exports
     Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfNames;

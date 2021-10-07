@@ -102,7 +102,7 @@
 #define PE_SECTION_BASE_RELOCATION          0x5
 #define PE_SECTION_DEBUG                    0x6
 #define PE_SECTION_ARCHITECTURE             0x7
-#define PE_SECTION_GLOBAL_PTR               0x8
+#define PE_SECTION_GLOBAL_PTR               0x8 // VPE uses this for auto-relocations
 #define PE_SECTION_TLS                      0x9
 #define PE_SECTION_LOAD_CONFIG              0xA
 #define PE_SECTION_BOUND_IMPORT             0xB

@@ -40,6 +40,7 @@ add_library(libcrt
     crt/argparse.c
     crt/crtinit.c
     crt/crtcoff.c
+    crt/crtrelocs.c
 
     console.c
     library.c

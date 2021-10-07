@@ -16,7 +16,7 @@ macro (add_filesystem_target)
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         set_target_properties (${ARGV0}
             PROPERTIES
-                LINK_FLAGS "/noentry /lldmap"
+                LINK_FLAGS "-Xlinker -noentry"
                 
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
@@ -45,7 +45,7 @@ macro (add_module_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__DRIVER_IMPL ${ARGV1}"
-                LINK_FLAGS "/entry:__CrtModuleEntry /lldmap"
+                LINK_FLAGS "-Xlinker -entry:__CrtModuleEntry"
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
 

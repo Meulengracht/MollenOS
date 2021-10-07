@@ -18,7 +18,7 @@ macro (add_service_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL ${ARGV1}"
-                LINK_FLAGS "/lldmap /entry:__CrtServiceEntry"
+                LINK_FLAGS "-Xlinker -entry:__CrtServiceEntry"
         )
         target_link_libraries (${ARGV0} gracht libusb libds libddk c librt)
 

@@ -4,7 +4,7 @@ if (NOT DEFINED VALI_BUILD)
     message (FATAL_ERROR "You must invoke the root cmake file, not the individual platform files")
 endif ()
 
-set (ARCH_FLAGS "-march=i686 -m32 --target=i386-uml-vali")
+set (ARCH_FLAGS "--target=i386-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")
 set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3")
 
@@ -35,8 +35,4 @@ set (VALI_COMPILER_RT_TARGET clang_rt.builtins-i386)
 
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} some other flags")
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-
-set (CMAKE_SHARED_LINKER_FLAGS "/lldvpe")
-set (CMAKE_EXE_LINKER_FLAGS "/lldvpe")
-
 #if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

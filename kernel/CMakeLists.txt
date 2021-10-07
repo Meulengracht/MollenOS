@@ -110,7 +110,7 @@ add_dependencies (vali-core vali-platform vali-${VALI_ARCH})
 set_target_properties (
 	vali-core
 	PROPERTIES
-        LINK_FLAGS "/entry:kentry /fixed /base:\"0x100000\" /manifest:no /lldmap"
+        LINK_FLAGS "-Xlinker -entry:kentry -Xlinker -fixed -Xlinker -base:\"0x100000\" -Xlinker -manifest:no"
 		OUTPUT_NAME "syskrnl"
         SUFFIX ".mos"
 )

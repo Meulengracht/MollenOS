@@ -510,7 +510,7 @@ target_compile_options(c
 )
 set_target_properties(c
     PROPERTIES
-        LINK_FLAGS "/def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def /entry:__CrtLibraryEntry /lldmap"
+        LINK_FLAGS "-Xlinker -def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def"
 )
 target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c

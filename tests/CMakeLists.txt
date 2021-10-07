@@ -14,7 +14,7 @@ macro (add_test_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 COMPILE_FLAGS "${ARGV1}"
-                LINK_FLAGS "/lldmap /entry:__CrtConsoleEntry"
+                LINK_FLAGS "-Xlinker -entry:__CrtConsoleEntry"
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
         
