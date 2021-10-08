@@ -18,10 +18,10 @@
  *
  * MollenOS - Generic Data Structures (Shared)
  */
+
 #define __TRACE
 
 #include <os/mollenos.h>
-#include <ds/mstring.h>
 #include <ds/ds.h>
 #include "../pe/pe.h"
 #include <string.h>
@@ -47,8 +47,8 @@ extern OsStatus_t ScFutexWake(FutexParameters_t*);
 #include <stdio.h>
 #include <time.h>
 
-static SystemDescriptor_t __SystemInformation = { 0 };
-static uintptr_t          __SystemBaseAddress = 0;
+static SystemDescriptor_t g_systemInformation = { 0 };
+static uintptr_t          g_systemBaseAddress = 0;
 #endif
 
 typedef struct MemoryMappingState {
@@ -128,24 +128,24 @@ void dswake(FutexParameters_t* params)
 
 void dstrace(const char* fmt, ...)
 {
-    char Buffer[256] = { 0 };
-    va_list Arguments;
+    char    buffer[256] = { 0 };
+    va_list args;
 
-    va_start(Arguments, fmt);
-    vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
-    va_end(Arguments);
-    TRACE(&Buffer[0]);
+    va_start(args, fmt);
+    vsnprintf(&buffer[0], sizeof(buffer), fmt, args);
+    va_end(args);
+    TRACE(&buffer[0]);
 }
 
 void dswarning(const char* fmt, ...)
 {
-    char Buffer[256] = { 0 };
-    va_list Arguments;
+    char    buffer[256] = {0 };
+    va_list args;
 
-    va_start(Arguments, fmt);
-    vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
-    va_end(Arguments);
-    WARNING(&Buffer[0]);
+    va_start(args, fmt);
+    vsnprintf(&buffer[0], sizeof(buffer), fmt, args);
+    va_end(args);
+    WARNING(&buffer[0]);
 }
 
 void dserror(const char* fmt, ...)
@@ -213,10 +213,10 @@ uintptr_t GetPageSize(void)
 #ifdef LIBC_KERNEL
     return GetMemorySpacePageSize();
 #else
-    if (__SystemInformation.PageSizeBytes == 0) {
-        SystemQuery(&__SystemInformation);
+    if (g_systemInformation.PageSizeBytes == 0) {
+        SystemQuery(&g_systemInformation);
     }
-    return __SystemInformation.PageSizeBytes;
+    return g_systemInformation.PageSizeBytes;
 #endif
 }
 
@@ -225,10 +225,10 @@ uintptr_t GetBaseAddress(void)
 #ifdef LIBC_KERNEL
     return GetMachine()->MemoryMap.UserCode.Start;
 #else
-    if (__SystemBaseAddress == 0) {
-        Syscall_GetProcessBaseAddress(&__SystemBaseAddress);
+    if (g_systemBaseAddress == 0) {
+        Syscall_GetProcessBaseAddress(&g_systemBaseAddress);
     }
-    return __SystemBaseAddress;
+    return g_systemBaseAddress;
 #endif
 }
 

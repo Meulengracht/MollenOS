@@ -57,15 +57,15 @@ MStringSubString(
     stringPtr = (char*)string->Data;
 
     while (i < string->Length) {
-        mchar_t Character = Utf8GetNextCharacterInString(stringPtr, &i);
-        if (Character == MSTRING_EOS) {
+        mchar_t next = Utf8GetNextCharacterInString(stringPtr, &i);
+        if (next == MSTRING_EOS) {
             break;
         }
 
         // Sanitize that we have entered
         // the index to record from, and make sure to record the start index 
         if (currentIndex >= index && (currentIndex < (index + cappedLength))) {
-            MStringAppendCharacter(subString, Character);
+            MStringAppendCharacter(subString, next);
         }
         currentIndex++;
     }

@@ -67,7 +67,7 @@ void __crt_module_load(void)
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        exit(-1);
+        exit(-2001);
     }
     
     if (vendorId != 0 || deviceId != 0 || class != 0 || subClass != 0) {
@@ -111,7 +111,7 @@ void __CrtModuleEntry(void)
     // initialize the link
     status = gracht_link_vali_create(&g_serverLink);
     if (status) {
-        exit(-1);
+        exit(-2010);
     }
     gracht_link_vali_set_listen(g_serverLink, 1);
     gracht_link_vali_set_address(g_serverLink, &addr);
@@ -122,7 +122,13 @@ void __CrtModuleEntry(void)
 
     status = gracht_server_create(&config, &g_server);
     if (status) {
-        exit(status);
+        exit(-2010 - status);
+    }
+
+    // after initializing the server we need to add the links we want to listen on
+    status = gracht_server_add_link(g_server, (struct gracht_link*)g_serverLink);
+    if (status) {
+        exit(-2020 - status);
     }
 
     // listen to client events as well
@@ -136,7 +142,7 @@ void __CrtModuleEntry(void)
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.
     if (WaitForDeviceService(2000) != OsSuccess) {
-        exit(-1);
+        exit(-2002);
     }
 
     __crt_module_load();

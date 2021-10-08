@@ -21,6 +21,7 @@
  *    - Implements support for loading and processing pe/coff image formats
  *      and implemented as a part of libds to share between services and kernel
  */
+
 //#define __TRACE
 
 #include <ds/ds.h>
@@ -403,7 +404,7 @@ PeHandleRelocations(
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
                     dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
-                        Section->BasePointer, SectionBase, AddressPointer, *AddressPointer);
+                        Section->BasePointer, sectionOffset, AddressPointer, *AddressPointer);
                     dserror("Relocation caused invalid pointer: 0x%x, 0x%x, New Base 0x%x, Old Base 0x%x",
                         UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
                     assert(0);

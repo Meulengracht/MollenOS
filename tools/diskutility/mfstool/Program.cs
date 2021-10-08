@@ -141,7 +141,7 @@ namespace DiskUtility
         }
 
         /* DiskUtility Entry 
-         * Handles all command line switches and initializes the utility */
+         * g_handles all command line switches and initializes the utility */
         static int Main(string[] args)
         {
             // Variables

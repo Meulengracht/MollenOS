@@ -56,29 +56,25 @@ enum
     FLAG_LONG =          0x200,
     FLAG_WIDECHAR =      FLAG_LONG,
     FLAG_INT64 =         0x400,
-#ifdef _WIN64
     FLAG_INTPTR =        FLAG_INT64,
-#else
-    FLAG_INTPTR =        0,
-#endif
     FLAG_LONGDOUBLE =    0x800,
 };
 
 #define va_arg_f(argptr, flags) \
-    (flags & FLAG_INT64) ? va_arg(argptr, int64_t) : \
-    (flags & FLAG_SHORT) ? (short)va_arg(argptr, int) : \
+    ((flags) & FLAG_INT64) ? va_arg(argptr, int64_t) : \
+    ((flags) & FLAG_SHORT) ? (short)va_arg(argptr, int) : \
     va_arg(argptr, int)
 
 #define va_arg_fu(argptr, flags) \
-    (flags & FLAG_INT64) ? va_arg(argptr, uint64_t) : \
-    (flags & FLAG_SHORT) ? (unsigned short)va_arg(argptr, int) : \
+    ((flags) & FLAG_INT64) ? va_arg(argptr, uint64_t) : \
+    ((flags) & FLAG_SHORT) ? (unsigned short)va_arg(argptr, int) : \
     va_arg(argptr, unsigned int)
 
 #define va_arg_ffp(argptr, flags) \
-    (flags & FLAG_LONGDOUBLE) ? va_arg(argptr, long double) : \
+    ((flags) & FLAG_LONGDOUBLE) ? va_arg(argptr, long double) : \
     va_arg(argptr, double)
 
-#define get_exp(f) (int)floor(f == 0 ? 0 : (f >= 0 ? log10(f) : log10(-f)))
+#define get_exp(f) (int)floor((f) == 0 ? 0 : ((f) >= 0 ? log10(f) : log10(-(f))))
 #define round(x) floor((x) + 0.5)
 
 #ifndef LIBC_KERNEL
@@ -460,7 +456,7 @@ int streamout(
                 if (flags & FLAG_INT64)
                     *va_arg(argptr, int64_t*) = written_all;
                 else if (flags & FLAG_SHORT)
-                    *va_arg(argptr, short*) = written_all;
+                    *va_arg(argptr, short*) = (short)written_all;
                 else
                     *va_arg(argptr, int*) = written_all;
                 continue;

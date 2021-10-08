@@ -71,8 +71,8 @@ static uint32_t g_typeColors[] = {
     0xFF392B
 };
 
-static SystemLog_t g_kernelLog                      = {0 };
-static char        g_bootLogSpace[LOG_INITIAL_SIZE] = {0 };
+static SystemLog_t g_kernelLog                      = { 0 };
+static char        g_bootLogSpace[LOG_INITIAL_SIZE] = { 0 };
 
 static inline void __WriteMessageToScreen(const char* message)
 {
@@ -96,6 +96,7 @@ void
 LogInitialize(void)
 {
     // Setup initial log space
+    IrqSpinlockConstruct(&g_kernelLog.SyncObject);
     g_kernelLog.StartOfData = (uintptr_t*)&g_bootLogSpace[0];
     g_kernelLog.DataSize    = LOG_INITIAL_SIZE;
 

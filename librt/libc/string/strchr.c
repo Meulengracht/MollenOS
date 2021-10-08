@@ -38,7 +38,7 @@ QUICKREF
 #include <limits.h>
 
 /* Nonzero if X is not aligned on a "long" boundary.  */
-#define _strchrUNALIGNED(X) ((long)X & (sizeof (long) - 1))
+#define _strchrUNALIGNED(X) ((long)(intptr_t)(X) & (sizeof (long) - 1))
 
 /* How many bytes are loaded each iteration of the word copy loop.  */
 #define LBLOCKSIZE (sizeof (long))

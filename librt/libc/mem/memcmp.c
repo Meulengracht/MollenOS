@@ -39,7 +39,7 @@ QUICKREF
 
 /* Nonzero if either X or Y is not aligned on a "long" boundary.  */
 #define MEMCMP_UNALIGNED(X, Y) \
-	(((long)X & (sizeof (long) - 1)) | ((long)Y & (sizeof (long) - 1)))
+	(((long)(intptr_t)(X) & (sizeof (long) - 1)) | ((long)(intptr_t)(Y) & (sizeof (long) - 1)))
 
 /* How many bytes are copied each iteration of the word copy loop.  */
 #define LBLOCKSIZE (sizeof (long))

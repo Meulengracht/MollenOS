@@ -8,7 +8,7 @@
 
 /* Nonzero if X is aligned on a "long" boundary.  */
 #define ALIGNED(X) \
-	(((long)X & (sizeof (long) - 1)) == 0)
+	(((long)(intptr_t)(X) & (sizeof (long) - 1)) == 0)
 
 /* DETECTNULL returns nonzero if (long)X contains a NULL byte. */
 #if LONG_MAX == 2147483647L

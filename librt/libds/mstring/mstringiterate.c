@@ -23,8 +23,6 @@
 
 #include "mstringprivate.h"
 
-/* Get character at the given index and 
- * return the character found as UTF32 */
 mchar_t MStringGetCharAt(MString_t *String, int Index)
 {
 	char* sPtr   = (char*)String->Data;
@@ -47,12 +45,8 @@ mchar_t MStringGetCharAt(MString_t *String, int Index)
 	return MSTRING_EOS;
 }
 
-/* Iterate through a MString, it returns the next
- * character each time untill MSTRING_EOS. Call with Iterator = NULL
- * the first time, it holds the state. And Index = 0. */
 mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 {
-	/* Variables for iteration */
 	uint8_t *Ptr = NULL;
 	mchar_t Character = MSTRING_EOS;
 	int Overlong = 0;
@@ -70,9 +64,7 @@ mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 		*Index = String->Length;
 	}
 
-	/* Cast pointer */
 	Ptr = *(uint8_t**)Iterator;
-
 	if (Ptr[0] >= 0xFC) {
 		if ((Ptr[0] & 0xFE) == 0xFC) {
 			if (Ptr[0] == 0xFC && (Ptr[1] & 0xFC) == 0x80) {
@@ -162,14 +154,16 @@ mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 	of allowing overlong sequences (e.g. string compares failing, etc.)
 	See bug 1931 for sample input that triggers this.
 	*/
+    if (Overlong) {
+        // return MSTRING_INVALID;
+    }
 
-	/*if (overlong) return UNKNOWN_UNICODE;*/
 	if (Underflow == 1 ||
 		(Character >= 0xD800 && Character <= 0xDFFF) ||
 		(Character == 0xFFFE || Character == 0xFFFF) || Character > 0x10FFFF) {
 		Character = MSTRING_EOS;
 	}
 
-	/* Done! */
+
 	return Character;
 }

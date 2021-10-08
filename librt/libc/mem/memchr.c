@@ -41,7 +41,7 @@ QUICKREF
 #include <stddef.h>
 
 /* Nonzero if either X or Y is not aligned on a "long" boundary.  */
-#define _memchrUNALIGNED(X) ((long)X & (sizeof (long) - 1))
+#define _memchrUNALIGNED(X) ((long)(intptr_t)(X) & (sizeof (long) - 1))
 
 /* How many bytes are loaded each iteration of the word copy loop.  */
 #define LBLOCKSIZE (sizeof (long))

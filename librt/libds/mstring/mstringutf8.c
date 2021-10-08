@@ -71,7 +71,7 @@ size_t Utf8GetWideStringLengthInUtf8(uint32_t* wideString, size_t count)
 
 int Utf8ConvertCharacterToUTF32(const char* utf8string, mchar_t* result)
 {
-    mchar_t character;
+    mchar_t character = 0;
     int     byteCount;
     int     index = 0;
 
@@ -79,7 +79,7 @@ int Utf8ConvertCharacterToUTF32(const char* utf8string, mchar_t* result)
         return -1;
     }
 
-    byteCount = g_utf8TrailingBytesTable[(unsigned char)utf8string[0]];
+    byteCount = (unsigned char)g_utf8TrailingBytesTable[(unsigned char)utf8string[0]];
     switch (byteCount) {
         default:
             return -1;
@@ -174,15 +174,13 @@ int Utf8ConvertCharacterToUtf8(uint32_t character, void* utf8buffer, size_t* len
 
 mchar_t Utf8GetNextCharacterInString(const char* string, int* indexp)
 {
-	mchar_t currentChar = MSTRING_EOS;
+	mchar_t currentChar = 0;
 	int     size = 0;
     int     currentIndex = *indexp;
 
-    // make sure we are iterating within our means as we do no 0 checks on
-    // the first iteration
-	if (!string || strlen(string) <= (size_t)currentIndex) {
-		goto exit;
-	}
+    if (!string || !*string) {
+        return MSTRING_EOS;
+    }
 
 	/**
 	 * UTF8 is encoded so that the first byte can be anything, but
@@ -198,7 +196,6 @@ mchar_t Utf8GetNextCharacterInString(const char* string, int* indexp)
     // size will never be 0, and thus this is perfectly valid
     currentChar -= g_utf8OffsetTable[size - 1];
 
-exit:
 	*indexp = currentIndex;
 	return currentChar;
 }

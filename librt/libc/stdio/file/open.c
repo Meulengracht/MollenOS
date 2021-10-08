@@ -117,6 +117,11 @@ int open(const char* file, int flags, ...)
         pmode = va_arg(ap, int);
         va_end(ap);
     }
+
+    // handle pmode flags
+    if (pmode) {
+        // @todo check permission flags for creation
+    }
     
     // Try to open the file by directly communicating with the file-service
     status = sys_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),

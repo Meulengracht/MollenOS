@@ -44,18 +44,18 @@ typedef struct ResourceHandle {
     element_t          Header;
 } ResourceHandle_t;
 
-static Semaphore_t     EventHandle   = SEMAPHORE_INIT(0, 1);
-static queue_t         CleanQueue    = QUEUE_INIT;
-static list_t          Handles       = LIST_INIT;                      // TODO: hashtable
-static list_t          PathRegister  = LIST_INIT_CMP(list_cmp_string); // TODO: hashtable
-static UUId_t          JanitorHandle = UUID_INVALID;
-static _Atomic(UUId_t) HandleIdGen   = ATOMIC_VAR_INIT(1); // 0 is reserved for invalid
+static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
+static queue_t         g_cleanQueue    = QUEUE_INIT;
+static list_t          g_handles       = LIST_INIT;                      // TODO: hashtable
+static list_t          g_handlePaths   = LIST_INIT_CMP(list_cmp_string); // TODO: hashtable
+static UUId_t          g_janitorHandle = UUID_INVALID;
+static _Atomic(UUId_t) g_nextHandleId  = ATOMIC_VAR_INIT(1); // 0 is reserved for invalid
 
 static inline ResourceHandle_t*
 LookupHandleInstance(
     _In_ UUId_t Handle)
 {
-    return (ResourceHandle_t*)list_find_value(&Handles, (void*)(uintptr_t)Handle);
+    return (ResourceHandle_t*)list_find_value(&g_handles, (void*)(uintptr_t)Handle);
 }
 
 static inline ResourceHandle_t*
@@ -111,7 +111,7 @@ CreateHandle(
         return UUID_INVALID;
     }
     
-    HandleId = atomic_fetch_add(&HandleIdGen, 1);
+    HandleId = atomic_fetch_add(&g_nextHandleId, 1);
     memset(Instance, 0, sizeof(ResourceHandle_t));
     
     ELEMENT_INIT(&Instance->Header, (uintptr_t)HandleId, Instance);
@@ -121,7 +121,7 @@ CreateHandle(
     Instance->References = ATOMIC_VAR_INIT(1);
     smp_wmb();
     
-    list_append(&Handles, &Instance->Header);
+    list_append(&g_handles, &Instance->Header);
     
     TRACE("[create_handle] => id %u", HandleId);
     return HandleId;
@@ -187,7 +187,7 @@ RegisterHandlePath(
     ELEMENT_INIT(Instance->PathHeader, PathKey, Instance);
     smp_wmb();
     
-    list_append(&PathRegister, Instance->PathHeader);
+    list_append(&g_handlePaths, Instance->PathHeader);
     return OsSuccess;
 }
 
@@ -199,7 +199,7 @@ LookupHandleByPath(
     ResourceHandle_t* Instance;
     TRACE("[handle_lookup_by_path] %s", Path);
     
-    Instance = list_find_value(&PathRegister, (void*)Path);
+    Instance = list_find_value(&g_handlePaths, (void*)Path);
     if (!Instance) {
         return OsDoesNotExist;
     }
@@ -254,41 +254,40 @@ DestroyHandle(
     if ((References - 1) == 0) {
         TRACE("[destroy_handle] cleaning up %u", Handle);
         if (Instance->PathHeader) {
-            list_remove(&PathRegister, Instance->PathHeader);
+            list_remove(&g_handlePaths, Instance->PathHeader);
         }
         
-        list_remove(&Handles, &Instance->Header);
-        queue_push(&CleanQueue, &Instance->Header);
-        SemaphoreSignal(&EventHandle, 1);
+        list_remove(&g_handles, &Instance->Header);
+        queue_push(&g_cleanQueue, &Instance->Header);
+        SemaphoreSignal(&g_eventHandle, 1);
     }
 }
 
-static void
+_Noreturn static void
 HandleJanitorThread(
-    _In_Opt_ void* Args)
+    _In_Opt_ void* arg)
 {
-    element_t*        Element;
-    ResourceHandle_t* Instance;
-    int               Run = 1;
-    _CRT_UNUSED(Args);
+    element_t*        element;
+    ResourceHandle_t* resourceHandle;
+    _CRT_UNUSED(arg);
     
-    while (Run) {
-        SemaphoreWait(&EventHandle, 0);
-        
-        Element = queue_pop(&CleanQueue);
-        while (Element) {
+    while (1) {
+        SemaphoreWait(&g_eventHandle, 0);
+
+        element = queue_pop(&g_cleanQueue);
+        while (element) {
             smp_rmb();
-            Instance = (ResourceHandle_t*)Element->value;
-            if (Instance->Destructor) {
-                Instance->Destructor(Instance->Resource);
+            resourceHandle = (ResourceHandle_t*)element->value;
+            if (resourceHandle->Destructor) {
+                resourceHandle->Destructor(resourceHandle->Resource);
             }
-            if (Instance->PathHeader) {
-                kfree((void*)Instance->PathHeader->key);
-                kfree((void*)Instance->PathHeader);
+            if (resourceHandle->PathHeader) {
+                kfree((void*)resourceHandle->PathHeader->key);
+                kfree((void*)resourceHandle->PathHeader);
             }
-            kfree(Instance);
-            
-            Element = queue_pop(&CleanQueue);
+            kfree(resourceHandle);
+
+            element = queue_pop(&g_cleanQueue);
         }
     }
 }
@@ -305,5 +304,5 @@ InitializeHandleJanitor(void)
     // Create the thread with all defaults
     return ThreadCreate("janitor", HandleJanitorThread, NULL,
                         0, UUID_INVALID, 0, 0,
-                        &JanitorHandle);
+                        &g_janitorHandle);
 }

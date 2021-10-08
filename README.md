@@ -143,7 +143,7 @@ Rest of the system functionality exists as drivers and services.
 
 ## Services <a name="features-services"></a>
 The current services that are implemented (and at some point when we implement RiscV/ARM architectures) should be included as configurable in the build system, so we can choose exactly which services are relevant for the platform.
- - Device manager (Handles discovery and management of devices on the platform)
+ - Device manager (g_handles discovery and management of devices on the platform)
  - File manager (Is responsible for both storage and file management)
  - Net manager (Network stack and management of sockets)
  - Process manager (Provides the process protocol that allows spawning and management of processes on the system)

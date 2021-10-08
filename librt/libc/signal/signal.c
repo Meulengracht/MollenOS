@@ -95,6 +95,10 @@ static void __CrashHandler(
         status = sys_process_report_crash(GetGrachtClient(), &msg.base, thrd_current(),
                                           *GetInternalProcessId(), (const uint8_t*)context,
                                           sizeof(Context_t), signal->signal);
+        if (status) {
+            // @todo log and return
+            return;
+        }
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
