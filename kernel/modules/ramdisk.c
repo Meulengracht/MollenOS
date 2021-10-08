@@ -61,6 +61,7 @@ ParseInitialRamdisk(
     TRACE("Parsing %" PRIiIN " number of files in the ramdisk", Counter);
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
+            TRACE("Entry %s type: %" PRIuIN "", &Entry->Name[0], Entry->Type);
             SystemRamdiskModuleHeader_t* Header =
                 (SystemRamdiskModuleHeader_t*)(
                     (uintptr_t)BootInformation->RamdiskAddress + (uintptr_t)Entry->DataHeaderOffset);

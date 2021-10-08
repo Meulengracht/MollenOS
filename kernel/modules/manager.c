@@ -20,6 +20,7 @@
  * Kernel Module System
  *   - Implements loading and management of modules that exists on the initrd. 
  */
+
 #define __MODULE "MODS"
 //#define __TRACE
 
@@ -32,10 +33,11 @@
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
 #include <ds/mstring.h>
+#include <scheduler.h>
 #include <threading.h>
 #include <string.h>
 
-static list_t Modules = LIST_INIT;
+static list_t g_modules = LIST_INIT;
 
 OsStatus_t
 RegisterModule(
@@ -48,28 +50,29 @@ RegisterModule(
     _In_ unsigned int          DeviceClass,
     _In_ unsigned int          DeviceSubclass)
 {
-    SystemModule_t* Module;
+    SystemModule_t* module;
+    TRACE("RegisterModule(path=%s, len=%" PRIuIN ", type=%i)", Path, Length, Type);
 
-    Module = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
-    if (!Module) {
+    module = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
+    if (!module) {
         return OsOutOfMemory;
     }
     
-    memset(Module, 0, sizeof(SystemModule_t));
-    ELEMENT_INIT(&Module->ListHeader, Type, Module);
+    memset(module, 0, sizeof(SystemModule_t));
+    ELEMENT_INIT(&module->ListHeader, Type, module);
 
-    Module->Handle = CreateHandle(HandleTypeGeneric, NULL, Module);
-    Module->Data   = Data;
-    Module->Length = Length;
-    Module->Path   = MStringCreate("rd:/", StrUTF8);
-    MStringAppendCharacters(Module->Path, Path, StrUTF8);
+    module->Handle = CreateHandle(HandleTypeGeneric, NULL, module);
+    module->Data   = Data;
+    module->Length = Length;
+    module->Path   = MStringCreate("rd:/", StrUTF8);
+    MStringAppendCharacters(module->Path, Path, StrUTF8);
 
-    Module->VendorId        = VendorId;
-    Module->DeviceId        = DeviceId;
-    Module->DeviceClass     = DeviceClass;
-    Module->DeviceSubclass  = DeviceSubclass;
-    Module->PrimaryThreadId = UUID_INVALID;
-    list_append(&Modules, &Module->ListHeader);
+    module->VendorId        = VendorId;
+    module->DeviceId        = DeviceId;
+    module->DeviceClass     = DeviceClass;
+    module->DeviceSubclass  = DeviceSubclass;
+    module->PrimaryThreadId = UUID_INVALID;
+    list_append(&g_modules, &module->ListHeader);
     return OsSuccess;
 }
 
@@ -82,19 +85,23 @@ SpawnServices(void)
     // we are still the idle thread -> as soon as a new
     // work is spawned we hardly ever return to this
     IrqState = InterruptDisable();
+    SchedulerDisable();
 
     // Iterate module list and spawn all servers
     // then they will "run" the system for us
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
+        TRACE("SpawnServices checking key %i", (int)(uintptr_t)i->key);
         if ((int)(uintptr_t)i->key == (int)ServiceResource) {
-            SystemModule_t* Module = (SystemModule_t*)i->value;
-            OsStatus_t      Status = SpawnModule((SystemModule_t*)i->value);
-            if (Status != OsSuccess) {
-                FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %" PRIuIN "", MStringRaw(Module->Path), Status);
+            SystemModule_t* module   = (SystemModule_t*)i->value;
+            OsStatus_t      osStatus = SpawnModule(module);
+            if (osStatus != OsSuccess) {
+                FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %" PRIuIN "", MStringRaw(module->Path), osStatus);
             }
         }
     }
+
     InterruptRestoreState(IrqState);
+    SchedulerEnable();
 }
 
 OsStatus_t
@@ -106,7 +113,7 @@ GetModuleDataByPath(
     OsStatus_t Result = OsError;
     TRACE("GetModuleDataByPath(%s)", MStringRaw(Path));
 
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Path != NULL) {
             TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
@@ -127,7 +134,7 @@ GetGenericDeviceModule(
     _In_ unsigned int DeviceClass, 
     _In_ unsigned int DeviceSubclass)
 {
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->DeviceClass       == DeviceClass
             && Module->DeviceSubclass == DeviceSubclass) {
@@ -145,7 +152,7 @@ GetSpecificDeviceModule(
     if (VendorId == 0) {
         return NULL;
     }
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
             return Module;
@@ -161,7 +168,7 @@ GetModule(
     _In_  unsigned int DeviceClass,
     _In_  unsigned int DeviceSubclass)
 {
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->PrimaryThreadId != UUID_INVALID) {
             // Should we check vendor-id && device-id?
@@ -186,7 +193,7 @@ SystemModule_t*
 GetCurrentModule(void)
 {
     Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Executable != NULL && 
             AreMemorySpacesRelated(Module->Executable->MemorySpace, 
@@ -213,7 +220,7 @@ SystemModule_t*
 GetModuleByHandle(
     _In_ UUId_t Handle)
 {
-    foreach(i, &Modules) {
+    foreach(i, &g_modules) {
         SystemModule_t* Module = (SystemModule_t*)i->value;
         if (Module->Handle == Handle || Module->Alias == Handle) {
             return Module;

@@ -83,6 +83,7 @@ int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len,
     stdio_handle_t* handle = stdio_handle_get(iod);
     OsStatus_t      status;
     struct ipmsg    msg;
+    struct ipmsg*   msgArray = &msg;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -104,7 +105,7 @@ int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len,
     msg.payload = data;
     msg.length  = len;
     
-    status = Syscall_IpcContextSend(&msg, 1, timeout);
+    status = Syscall_IpcContextSend(&msgArray, 1, timeout);
     return OsStatusToErrno(status);
 }
 
@@ -120,21 +121,15 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     UUId_t          sender;
 
     TRACE("iprecv(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, buffer, len, flags);
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        status = -1;
-        goto exit;
-    }
-    
-    if (!buffer || !len) {
+
+    if (!handle || !buffer || !len) {
         _set_errno(EINVAL);
         status = -1;
         goto exit;
     }
     
     if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
-        _set_errno(EINVAL);
+        _set_errno(EBADF);
         status = -1;
         goto exit;
     }

@@ -59,6 +59,7 @@ typedef struct SchedulerQueue {
 } SchedulerQueue_t;
 
 typedef struct Scheduler {
+    int                    Enabled;
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
@@ -67,7 +68,7 @@ typedef struct Scheduler {
     clock_t                LastBoost;
 } Scheduler_t;
 
-#define SCHEDULER_INIT { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
+#define SCHEDULER_INIT { 1, { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
 /* SchedulerCreateObject
  * Creates a new scheduling object and allocates a cpu core for the object.
@@ -139,5 +140,17 @@ SchedulerObjectGetQueue(
 KERNELAPI UUId_t KERNELABI
 SchedulerObjectGetAffinity(
     _In_ SchedulerObject_t*);
+
+/**
+ * Disables scheduling for the current core. This can be used in cases where we want to
+ * schedule a number of threads without being interrupted before the end.
+ */
+KERNELAPI void KERNELABI SchedulerDisable(void);
+
+/**
+ * Enables scheduling for the current core. This immediately yields the current thread if
+ * the current thread is marked as an idle thread.
+ */
+KERNELAPI void KERNELABI SchedulerEnable(void);
 
 #endif // !__VALI_SCHEDULER_H__

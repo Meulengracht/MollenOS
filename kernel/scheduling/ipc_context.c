@@ -60,6 +60,7 @@ IpcContextCreate(
     IpcContext_t* Context;
     OsStatus_t    Status;
     void*         KernelMapping;
+    TRACE("IpcContextCreate(%u)", Size);
     
     if (!HandleOut || !UserContextOut) {
         return OsInvalidParameters;
@@ -69,16 +70,16 @@ IpcContextCreate(
     if (!Context) {
         return OsOutOfMemory;
     }
-    
+
     Context->CreatorThreadHandle = ThreadCurrentHandle();
-    
+
     Status = MemoryRegionCreate(Size, Size, 0, &KernelMapping, UserContextOut,
         &Context->MemoryRegionHandle);
     if (Status != OsSuccess) {
         kfree(Context);
         return Status;
     }
-    
+
     Context->Handle       = CreateHandle(HandleTypeIpcContext, IpcContextDestroy, Context);
     Context->KernelStream = (streambuffer_t*)KernelMapping;
     streambuffer_construct(Context->KernelStream, Size - sizeof(streambuffer_t), 
@@ -103,7 +104,7 @@ AllocateMessage(
     IpcContext_t* ipcContext;
     size_t        bytesAvailable;
     size_t        bytesToAllocate = sizeof(UUId_t) + message->length;
-    TRACE("AllocateMessage %u", bytesToAllocate);
+    TRACE("AllocateMessage(target=%u, len=%" PRIuIN ")", message->addr->data.handle, bytesToAllocate);
     
     if (message->addr->type == IPMSG_ADDRESS_HANDLE) {
         ipcContext = LookupHandleOfType(message->addr->data.handle, HandleTypeIpcContext);
@@ -172,7 +173,7 @@ IpcContextSendMultiple(
     _In_ size_t         timeout)
 {
     struct message_state state;
-    TRACE("[ipc] [send] count %i, timeout %u", MessageCount, LODWORD(Timeout));
+    TRACE("[ipc] [send] count %i, timeout %u", messageCount, LODWORD(timeout));
     
     if (!messages || !messageCount) {
         return OsInvalidParameters;

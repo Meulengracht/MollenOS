@@ -84,6 +84,13 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         ERROR("[InitializeProcess] gracht_link_vali_client_create failed %i", status);
         _Exit(status);
     }
+
+    TRACE("[InitializeProcess] connecting client");
+    status = gracht_client_connect(g_gclient);
+    if (status) {
+        ERROR("[InitializeProcess] gracht_client_connect failed %i", status);
+        _Exit(status);
+    }
     
     // Get startup information
     TRACE("[InitializeProcess] receiving startup configuration");

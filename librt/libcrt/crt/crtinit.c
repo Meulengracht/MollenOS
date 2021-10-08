@@ -54,11 +54,6 @@ __crt_init(
 	tls_create(threadStorage);
     InitializeProcess(isModule, &startupInformation);
 
-    // If msc, initialize the vectored-eh
-#ifndef __clang__
-    __CppInitVectoredEH();
-#endif
-
     // Handle process arguments
     if (argumentCount != NULL) {
         int argc = 0;

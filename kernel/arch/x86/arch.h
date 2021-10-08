@@ -67,8 +67,8 @@
  * 0xFF000000        =>             0xFFFFFFFF (Thread specific stack 16mb)
  */
 #define MEMORY_LOCATION_KERNEL              0x100000UL   // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_RAMDISK             0x200000UL   // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_RESERVED            0x300000UL   // Driver Space: 240~ mB
+#define MEMORY_LOCATION_RAMDISK             0x200000UL   // RamDisk Image Space: 2048 kB
+#define MEMORY_LOCATION_RESERVED            0x400000UL   // Driver Space: 240~ mB
 #define MEMORY_LOCATION_VIDEO               0x0F000000UL // Video Space: 16 mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000UL
 #define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFFUL
@@ -94,8 +94,8 @@
  * 0xFFFFFFFF00000000 =>          0xFFFFFFFFFFFFFFFF (Thread specific region, 16mb)
  */
 #define MEMORY_LOCATION_KERNEL              0x100000ULL    // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_RAMDISK             0x200000ULL    // RamDisk Image Space: 1024 kB
-#define MEMORY_LOCATION_RESERVED            0x300000ULL    // Driver Space: 240~ mB
+#define MEMORY_LOCATION_RAMDISK             0x200000ULL    // RamDisk Image Space: 2048 kB
+#define MEMORY_LOCATION_RESERVED            0x400000ULL    // Driver Space: 240~ mB
 #define MEMORY_LOCATION_VIDEO               0x0F000000ULL  // Video Space: 16 mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000ULL
 

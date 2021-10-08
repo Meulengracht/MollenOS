@@ -38,6 +38,7 @@
 #include <scheduler.h>
 #include <string.h>
 #include <timers.h>
+#include <arch/interrupts.h>
 
 #define EVENT_EXECUTE      0
 #define EVENT_QUEUE        1
@@ -253,6 +254,7 @@ QueueOnCoreFunction(
     Scheduler_t*       scheduler = CpuCoreScheduler(CpuCoreCurrent());
     SchedulerObject_t* object    = (SchedulerObject_t*)Context;
     QueueForScheduler(scheduler, object, 1);
+
     if (ThreadIsCurrentIdle(object->CoreId)) {
         ThreadingYield();
     }
@@ -270,7 +272,9 @@ QueueObjectImmediately(
         IrqSpinlockAcquire(&scheduler->SyncObject);
         QueueForScheduler(scheduler, Object, 1);
         IrqSpinlockRelease(&scheduler->SyncObject);
-        if (ThreadIsCurrentIdle(CpuCoreId(core))) {
+
+        // If we are running on the idle thread, we can switch immediately, unless
+        if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {
             ThreadingYield();
         }
         return OsSuccess;
@@ -520,6 +524,27 @@ SchedulerGetTimeoutReason(void)
     assert(Object != NULL);
     
     return Object->TimeoutReason;
+}
+
+void SchedulerDisable(void)
+{
+    Scheduler_t* scheduler = SchedulerGetFromCore(ArchGetProcessorCoreId());
+
+    scheduler->Enabled = 0;
+}
+
+void SchedulerEnable(void)
+{
+    UUId_t       coreId    = ArchGetProcessorCoreId();
+    Scheduler_t* scheduler = SchedulerGetFromCore(coreId);
+    if (scheduler->Enabled) {
+        return;
+    }
+
+    scheduler->Enabled = 1;
+    if (ThreadIsCurrentIdle(coreId)) {
+        ThreadingYield();
+    }
 }
 
 static void
