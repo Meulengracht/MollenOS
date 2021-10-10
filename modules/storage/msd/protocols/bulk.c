@@ -474,22 +474,22 @@ BulkReadData(
     _In_  size_t       DataLength,
     _Out_ size_t*      BytesRead)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage;
-    size_t              bytesTransferred;
+    UsbTransferStatus_t transferStatus;
+    UsbTransfer_t       dataStage;
+    size_t              bytesTransferred = 0;
 
     // Perform the transfer
-    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
-        Device->In, USB_TRANSFER_BULK, 0);
-    UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, &bytesTransferred);
+    UsbTransferInitialize(&dataStage, &Device->Base.DeviceContext,
+                          Device->In, USB_TRANSFER_BULK, 0);
+    UsbTransferIn(&dataStage, BufferHandle, BufferOffset, DataLength, 0);
+    transferStatus = UsbTransferQueue(&Device->Base.DeviceContext, &dataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result != TransferFinished) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result);
-        if (Result == TransferStalled) {
+    if (transferStatus != TransferFinished) {
+        ERROR("Data-stage failed with status %i, cleaning up bulk-in", transferStatus);
+        if (transferStatus == TransferStalled) {
             BulkResetRecovery(Device, BULK_RESET_IN);
         }
         else {
@@ -500,7 +500,7 @@ BulkReadData(
 
     // Return state and update out
     *BytesRead = bytesTransferred;
-    return Result;
+    return transferStatus;
 }
 
 UsbTransferStatus_t 

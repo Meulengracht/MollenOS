@@ -25,13 +25,10 @@
 
 #include <usb/usb.h>
 #include <ddk/bufferpool.h>
-#include <ddk/usbdevice.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <os/mollenos.h>
 #include <os/process.h>
 #include <os/dmabuf.h>
-#include <threads.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -235,14 +232,14 @@ UsbTransferQueue(
 	_Out_ size_t*               bytesTransferred)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
-    UsbTransferStatus_t      status;
-    
+    UUId_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
+    UsbTransferStatus_t      transferStatus = TransferInvalid;
+
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &status, bytesTransferred);
-    return status;
+    ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &transferStatus, bytesTransferred);
+    return transferStatus;
 }
 
 UsbTransferStatus_t
@@ -353,7 +350,7 @@ UsbExecutePacket(
     _In_ uint16_t              length,
     _In_ void*                 buffer)
 {
-    UsbTransferStatus_t status;
+    UsbTransferStatus_t transferStatus;
     size_t              bytesTransferred;
     uint8_t             dataDirection;
     void*               dmaStorage = NULL;
@@ -367,8 +364,8 @@ UsbExecutePacket(
     }
 
     if (length != 0) {
-        OsStatus_t status = dma_pool_allocate(DmaPool, length, &dmaStorage);
-        if (status  != OsSuccess) {
+        OsStatus_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
+        if (osStatus != OsSuccess) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(DmaPool, dmaPacketStorage);
             return TransferInvalid;
@@ -400,12 +397,12 @@ UsbExecutePacket(
         dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, dmaStorage), length, dataDirection);
 
     // Execute the transaction and cleanup the buffer
-    status = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
-    if (status != TransferFinished) {
-        ERROR("Usb transfer returned error %u", status);
+    transferStatus = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
+    if (transferStatus != TransferFinished) {
+        ERROR("Usb transfer returned error %u", transferStatus);
     }
 
-    if (status == TransferFinished && length != 0 && 
+    if (transferStatus == TransferFinished && length != 0 &&
         buffer != NULL && dataDirection == USB_TRANSACTION_IN) {
         memcpy(buffer, dmaStorage, length);
     }
@@ -414,7 +411,7 @@ UsbExecutePacket(
         dma_pool_free(DmaPool, dmaStorage);
     }
     dma_pool_free(DmaPool, dmaPacketStorage);
-    return status;
+    return transferStatus;
 }
 
 UsbTransferStatus_t

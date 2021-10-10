@@ -20,7 +20,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-//#define __TRACE
+#define __TRACE
 #define CACHE_SEGMENTED
 
 #include <ddk/utils.h>
@@ -344,7 +344,7 @@ FsInitialize(
         osStatus = OsError;
         goto error_exit;
     }
-    masterRecord                       = (MasterRecord_t*)mfsInstance->TransferBuffer.buffer;
+    masterRecord = (MasterRecord_t*)mfsInstance->TransferBuffer.buffer;
 
     // Process the master-record
     if (masterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -353,7 +353,7 @@ FsInitialize(
         osStatus = OsInvalidParameters;
         goto error_exit;
     }
-    TRACE("Partition-name: %s", &MasterRecord->PartitionName[0]);
+    TRACE("Partition-name: %s", &masterRecord->PartitionName[0]);
     memcpy(&mfsInstance->MasterRecord, masterRecord, sizeof(MasterRecord_t));
     dma_attachment_unmap(&mfsInstance->TransferBuffer);
     dma_detach(&mfsInstance->TransferBuffer);

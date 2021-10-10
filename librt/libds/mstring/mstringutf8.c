@@ -204,12 +204,17 @@ size_t Utf8CharacterCountInString(const char* string)
 {
 	size_t length = 0;
 	int    index = 0;
+    size_t limit;
 
 	if (!string) {
 		return 0;
 	}
 
-	while (Utf8GetNextCharacterInString(string, &index) != MSTRING_EOS) {
+    limit = strlen(string);
+	while (index < limit) {
+        if (Utf8GetNextCharacterInString(string, &index) == MSTRING_EOS) {
+            break;
+        }
 		length++;
 	}
 	return length;

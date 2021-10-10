@@ -227,9 +227,7 @@ MsdDeviceCreate(
 
 Error:
     // Cleanup
-    if (msdDevice != NULL) {
-        MsdDeviceDestroy(msdDevice);
-    }
+    MsdDeviceDestroy(msdDevice);
     return NULL;
 }
 

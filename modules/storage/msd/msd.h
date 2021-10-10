@@ -120,8 +120,8 @@ typedef enum MsdProtocolType {
     ProtocolCount
 } MsdProtocolType_t;
 
-typedef struct _MsdDevice MsdDevice_t;
-typedef struct _MsdOperations {
+typedef struct MsdDevice MsdDevice_t;
+typedef struct MsdOperations {
     OsStatus_t          (*Initialize)(MsdDevice_t*);
     UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, UUId_t, size_t, size_t);
     UsbTransferStatus_t (*ReadData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
@@ -129,13 +129,13 @@ typedef struct _MsdOperations {
     UsbTransferStatus_t (*GetStatus)(MsdDevice_t*);
 } MsdOperations_t;
 
-typedef struct _MsdDevice {
-    UsbDevice_t         Base;
-    element_t           Header;
-    StorageDescriptor_t Descriptor;
-    MsdDeviceType_t     Type;
-    MsdProtocolType_t   Protocol;
-    MsdOperations_t*    Operations;
+typedef struct MsdDevice {
+    UsbDevice_t            Base;
+    element_t              Header;
+    StorageDescriptor_t    Descriptor;
+    MsdDeviceType_t        Type;
+    MsdProtocolType_t      Protocol;
+    const MsdOperations_t* Operations;
 
 	int IsReady;
 	int IsExtended;

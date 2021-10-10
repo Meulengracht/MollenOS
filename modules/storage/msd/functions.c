@@ -32,7 +32,7 @@
 
 extern MsdOperations_t  BulkOperations;
 extern MsdOperations_t  UfiOperations;
-static MsdOperations_t* ProtocolOperations[ProtocolCount] = {
+static const MsdOperations_t* g_protocolOperations[ProtocolCount] = {
     NULL,
     &UfiOperations,
     &UfiOperations,
@@ -80,12 +80,12 @@ OsStatus_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device)
 {
-    // Install operations
-    if (ProtocolOperations[Device->Protocol] == NULL) {
+    if (!g_protocolOperations[Device->Protocol]) {
         ERROR("Support is not implemented for the protocol.");
         return OsNotSupported;
     }
-    Device->Operations = ProtocolOperations[Device->Protocol];
+
+    Device->Operations = g_protocolOperations[Device->Protocol];
     return Device->Operations->Initialize(Device);
 }
 
@@ -365,7 +365,7 @@ MsdTransferSectors(
     uint8_t             command;
     size_t              maxSectorsPerCommand;
 
-    TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN, 
+    TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN,
         direction, sector, sectorCount);
 
     // Protect against bad start sector
@@ -375,6 +375,7 @@ MsdTransferSectors(
 
     // Of course it's possible that the requester is requesting too much data in one
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
+    TRACE("msd_transfer max sector available: %" PRIuIN, device->Descriptor.SectorCount);
     sectorsToBeTransferred = sectorCount;
     if ((sector + sectorsToBeTransferred) >= device->Descriptor.SectorCount) {
         sectorsToBeTransferred = device->Descriptor.SectorCount - sector;

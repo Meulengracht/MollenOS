@@ -39,11 +39,13 @@ MfsReadSectors(
     _In_ size_t*                 SectorsRead)
 {
 	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(FileSystem->Disk.driver_id);
-    uint64_t                 absoluteSector = FileSystem->SectorStart + Sector;
 	OsStatus_t               status;
+    LargeUInteger_t          absoluteSector;
+
+    absoluteSector.QuadPart = FileSystem->SectorStart + Sector;
 	
 	ctt_storage_transfer(GetGrachtClient(), &msg.base, FileSystem->Disk.device_id,
-			__STORAGE_OPERATION_READ, LODWORD(absoluteSector), HIDWORD(absoluteSector), 
+			__STORAGE_OPERATION_READ, absoluteSector.u.LowPart, absoluteSector.u.HighPart,
 			BufferHandle, BufferOffset, Count);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, SectorsRead);
