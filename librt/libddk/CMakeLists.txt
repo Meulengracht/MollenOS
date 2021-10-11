@@ -44,7 +44,6 @@ include_directories (
     ../../librt/libusb/include
     ../../librt/libds/include
     ../../librt/libc/include
-    ../../librt/include
     ../../include
     ./include
 )

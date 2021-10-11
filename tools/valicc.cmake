@@ -42,10 +42,22 @@ else()
 endif()
 
 ##################################################
+# LANGUAGE (ASM)
+##################################################
+set(CMAKE_ASM_COMPILE_OPTIONS_PIC "")
+set(CMAKE_ASM_COMPILE_OPTIONS_PIE "")
+set(_CMAKE_ASM_PIE_MAY_BE_SUPPORTED_BY_LINKER NO)
+set(CMAKE_ASM_LINK_OPTIONS_PIE "")
+set(CMAKE_ASM_LINK_OPTIONS_NO_PIE "")
+
+##################################################
 # LANGUAGE (C)
 ##################################################
 set(CMAKE_C_COMPILE_OPTIONS_PIC "")
 set(CMAKE_C_COMPILE_OPTIONS_PIE "")
+set(_CMAKE_C_PIE_MAY_BE_SUPPORTED_BY_LINKER NO)
+set(CMAKE_C_LINK_OPTIONS_PIE "")
+set(CMAKE_C_LINK_OPTIONS_NO_PIE "")
 set(CMAKE_SHARED_LIBRARY_C_FLAGS "-D_DLL")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 string(APPEND CMAKE_C_FLAGS_INIT " ${VALI_COMPILE_FLAGS}")
@@ -59,6 +71,9 @@ set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LI
 ##################################################
 set(CMAKE_CXX_COMPILE_OPTIONS_PIC "")
 set(CMAKE_CXX_COMPILE_OPTIONS_PIE "")
+set(_CMAKE_CXX_PIE_MAY_BE_SUPPORTED_BY_LINKER NO)
+set(CMAKE_CXX_LINK_OPTIONS_PIE "")
+set(CMAKE_CXX_LINK_OPTIONS_NO_PIE "")
 set(CMAKE_SHARED_LIBRARY_CXX_FLAGS "-D_DLL")
 set(CMAKE_CXX_STANDARD_LIBRARIES "")
 string(APPEND CMAKE_CXX_FLAGS_INIT " ${VALI_COMPILE_FLAGS}")

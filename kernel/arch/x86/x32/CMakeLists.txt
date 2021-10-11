@@ -7,7 +7,6 @@ set (CMAKE_ASM_NASM_OBJECT_FORMAT win32)
 
 # Configure include paths
 include_directories (
-    ../../../../librt/include
     ../../../../librt/libc/include
     ../../../../librt/libds/include
     ../../../../librt/libddk/include

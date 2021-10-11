@@ -13,14 +13,14 @@ endif ()
 include_directories (
 	${CMAKE_BINARY_DIR}
 	${CMAKE_BINARY_DIR}/protocols
-    ../librt/include
+	arch/include
+	include
     ../librt/libc/include
     ../librt/libds/include
     ../librt/libddk/include
     ../librt/libgracht/include
     ../librt/libacpi/source/include
-    arch/include
-    include)
+)
 
 # Copy config file
 configure_file(../revision.h ${CMAKE_BINARY_DIR}/revision.h COPYONLY)

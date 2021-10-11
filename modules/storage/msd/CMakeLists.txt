@@ -15,7 +15,6 @@ include_directories (
     ../../../librt/libddk/include
     ../../../librt/libds/include
     ../../../librt/libc/include
-    ../../../librt/include
     ../sata
 )
 

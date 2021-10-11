@@ -93,7 +93,6 @@ ExternalProject_Add(compiler-rt
 )
 
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/valicc)
-install(DIRECTORY include/ DESTINATION vali-sdk/include/${VALI_COMPILER_ID})
 
 # Runtime libraries
 add_subdirectory (libcrt)
