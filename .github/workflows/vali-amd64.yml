@@ -16,5 +16,14 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
-    - name: Building image
-      run: docker build --build-arg ARCH=amd64 . --file Dockerfile --tag vali-amd64:$(date +%s)
+    - name: Build and push
+      uses: docker/build-push-action@v1.1.0
+      with:
+        build_args: ARCH=amd64
+        # Username used to log in to a Docker registry. If not set then no login will occur
+        username: fadekraft
+        # Password or personal access token used to log in to a Docker registry. If not set then no login will occur
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        # Docker repository to tag the image with
+        repository: valios/os-base-amd64
+        tags: latest

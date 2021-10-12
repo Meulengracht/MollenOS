@@ -20,7 +20,7 @@ option (VALI_ENABLE_EHCI_64BIT "Enter the debug console mode after boot instead 
 
 option (VALI_RUN_KERNEL_TESTS "Enable kernel-mode testing suites of the operating system" OFF)
 
-set (VALI_INIT_APP "vioarr.app" CACHE STRING "The application to execute for system initialization")
+set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
 
 set (VALI_ARCH "i386" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
