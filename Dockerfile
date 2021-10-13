@@ -3,18 +3,17 @@ FROM valios/vali-toolchain:v1.8
 
 # Build configuration arguments
 # CROSS_PATH must match what is set in the toolchain image
-ARG WORSPACE_DIR=/usr/workspace
-ARG CROSS_PATH=$WORSPACE_DIR/toolchain-out
+ARG CROSS_PATH=/usr/workspace/toolchain-out
 ARG ARCH
 
 # Setup required environmental variables
 ENV CROSS=$CROSS_PATH
-ENV VALI_INSTALL_DIR=$WORKSPACE_DIR
+ENV VALI_INSTALL_DIR=/usr/workspace
 ENV VALI_ARCH=$ARCH
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the directory
-WORKDIR $WORKSPACE_DIR/vali
+WORKDIR /usr/workspace/vali
 
 # Copy all repository files to image
 COPY . .
