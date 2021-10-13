@@ -35,15 +35,15 @@
 
 Showcase of Vali to get an idea of how the userspace will be once it's finished.
 
-BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON 
+BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
 
 
 ### Noteable projects
 
 | Project               | Link                                                 | Description             |
 | --------------------- |:---------------------------------------------------- |:-----------------------:|
-| Gracht                | [github](https://github.com/Meulengracht/libgracht)  | Open source protocol library heavily featured in MollenOS/Vali. |
-| Vioarr                | [github](https://github.com/Meulengracht/vioarr)     | Open source window manager with terminal and launcher built ontop of Gracht. |
+| Gracht                | [github](https://github.com/Meulengracht/libgracht)  | Protocol library heavily featured in MollenOS/Vali. |
+| Vioarr                | [github](https://github.com/Meulengracht/vioarr)     | Window manager with terminal and launcher built ontop of Gracht. |
 
 ## Getting started <a name="getting-started"></a>
 
@@ -78,7 +78,14 @@ After this, you are essentially ready to start developing on the operating syste
 when contributing, please follow the pull template that is provided.
 
 ### Setting up for application development <a name="setting-up-app-devenv"></a>
-If you want to build applications for Vali, you will need to install the sdk and ddk by using make install. This will install the required headers and libraries in a shared location that you specify during cmake configuration by using the CMAKE_INSTALL_PREFIX. 
+If you want to build applications for Vali, you will need to install the sdk and ddk by using make install. This will install the required headers and libraries in a shared location that you specify during cmake configuration by using the CMAKE_INSTALL_PREFIX.
+You also need to setup some environmental variables that are required for the userspace build process to
+correctly find dependencies:
+
+| Option        | Description |
+| ------------- |:-----------:|
+| VALI_SDK_PATH | The path to the installed SDK, usually where Vali is installed with /vali-sdk |
+| VALI_DDK_PATH | The path to the installed DDK, usually where Vali is installed with /valk-ddk |
 
 Then follow the instructions located [here](https://github.com/Meulengracht/vali-userspace) to get the sources for the applications.
 
