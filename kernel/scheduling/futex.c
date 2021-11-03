@@ -160,28 +160,27 @@ FutexCreateNode(
 
 static void
 FutexPerformOperation(
-    _In_ _Atomic(int)* Futex,
-    _In_ int           Operation)
+    _In_ _Atomic(int)* futex,
+    _In_ int           futexOperation)
 {
-    int Op  = (Operation >> 28) & 0xF;
-    int Val = (Operation >> 12) & 0xFFF;
-    int Old;
+    int operation = (futexOperation >> 28) & 0xF;
+    int value     = (futexOperation >> 12) & 0xFFF;
     
-    switch (Op) {
+    switch (operation) {
         case FUTEX_OP_SET: {
-            atomic_store(Futex, Val);
+            atomic_store(futex, value);
         } break;
         case FUTEX_OP_ADD: {
-            Old = atomic_fetch_add(Futex, Val);
+            (void)atomic_fetch_add(futex, value);
         } break;
         case FUTEX_OP_OR: {
-            Old = atomic_fetch_or(Futex, Val);
+            (void)atomic_fetch_or(futex, value);
         } break;
         case FUTEX_OP_ANDN: {
-            Old = atomic_fetch_and(Futex, ~Val);
+            (void)atomic_fetch_and(futex, ~value);
         } break;
         case FUTEX_OP_XOR: {
-            Old = atomic_fetch_xor(Futex, Val);
+            (void)atomic_fetch_xor(futex, value);
         } break;
         
         default:

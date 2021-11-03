@@ -79,16 +79,16 @@ service file (3) {
 }
 
 enum system_paths {
-    PATH_ROOT,
     PATH_SYSTEM,
     PATH_SYSTEM_THEMES,
-    PATH_COMMON_BIN,
-    PATH_COMMON_INC,
-    PATH_COMMON_LIB,
-    PATH_COMMON_SHARE,
-    PATH_USER_DATA,
+    PATH_DATA,
+    PATH_DATA_BIN,
+    PATH_DATA_INC,
+    PATH_DATA_LIB,
+    PATH_DATA_SHARE,
+    PATH_USER,
     PATH_USER_CACHE,
-    PATH_APP_DATA,
+    PATH_APP,
     PATH_APP_TEMP,
     PATH_COUNT
 }

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -17,27 +15,22 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
-//#define __TRACE
 
-#include <ctype.h>
-#include <ds/list.h>
-#include "include/vfs.h"
+#define __TRACE
+
 #include <internal/_ipc.h>
+#include <vfs/filesystem.h>
+#include <vfs/handle.h>
+#include <vfs/storage.h>
 
 #include <sys_file_service_server.h>
 #include <sys_path_service_server.h>
 #include <sys_storage_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
-
-static list_t g_fileSystems = LIST_INIT;
-
-list_t* VfsGetFileSystems(void) {
-    return &g_fileSystems;
-}
 
 OsStatus_t OnUnload(void)
 {
@@ -53,7 +46,9 @@ void GetServiceAddress(struct ipmsg_addr* address)
 OsStatus_t OnLoad(void)
 {
     // Initialize subsystems
-    VfsCacheInitialize();
+    VfsHandleInitialize();
+    VfsStorageInitialize();
+    VfsFileSystemInitialize();
 
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);

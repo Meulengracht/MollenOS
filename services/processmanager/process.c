@@ -191,13 +191,13 @@ GuessBasePath(
     // At this point we have to run through all PATH values
     // Look at the type of file we are trying to load. .app? .dll? 
     // for other types its most likely resource load
-    IsApp = MStringFindCString(Path, ".app");
+    IsApp = MStringFindCString(Path, ".run");
     IsDll = MStringFindCString(Path, ".dll");
     if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
         MStringReset(Result, "$bin/", StrUTF8);
     }
     else {
-        MStringReset(Result, "$sys/", StrUTF8);
+        MStringReset(Result, "$data/", StrUTF8);
     }
     MStringAppend(Result, Path);
     if (TestFilePath(Result) == OsSuccess) {
@@ -472,7 +472,7 @@ void sys_process_spawn_invocation(struct gracht_message* message, const char* pa
         const uint8_t* inheritBlock, const uint32_t inheritBlock_count,
         const struct sys_process_configuration* configuration)
 {
-    UUId_t                 handle;
+    UUId_t                 handle = UUID_INVALID;
     ProcessConfiguration_t pconf;
     OsStatus_t             status;
 

@@ -181,9 +181,6 @@ SetupMemory:
 	pushad
 
 	; Print
-	mov 	esi, szPrefix
-	call 	Print
-
 	mov 	esi, szMemorySetup
 	call 	Print
 
@@ -235,6 +232,6 @@ SetupMemory:
 ; ********************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szMemorySetup 						db 		"Retrieving Memory Information", 0x00
+szMemorySetup db "querying memory stats", 0x00
 
 %endif

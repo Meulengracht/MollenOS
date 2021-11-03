@@ -376,6 +376,10 @@ set (SOURCES_OS
     os/synchronization/spinlock.c
     os/synchronization/event.c
 
+    os/scheduler/scheduler.c
+    os/scheduler/mutex.c
+    os/scheduler/cond.c
+
     os/keymaps/en-us.c
 
     os/clang.c

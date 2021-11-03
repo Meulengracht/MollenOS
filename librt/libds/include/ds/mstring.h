@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -44,17 +43,17 @@ struct MString;
 typedef struct MString MString_t;
 
 _CODE_BEGIN
-DSDECL(MString_t*, MStringCreate(const char                                   * Data, MStringType_t DataType));
+DSDECL(MString_t*, MStringCreate(const char* Data, MStringType_t DataType));
 DSDECL(MString_t*, MStringClone(MString_t* String));
 DSDECL(void,       MStringZero(MString_t* String));
-DSDECL(void,       MStringReset(MString_t* String, const char                 * NewString, MStringType_t DataType));
+DSDECL(void,       MStringReset(MString_t* String, const char* NewString, MStringType_t DataType));
 DSDECL(void,       MStringCopy(MString_t* Destination, MString_t* Source, int DestinationIndex, int SourceIndex, int Length));
-DSDECL(void,       MStringDestroy(MString_t * string));
+DSDECL(void,       MStringDestroy(MString_t* string));
 
 // Append Character to a given string the character is assumed to be either ASCII, UTF16 or UTF32
-DSDECL(void, MStringAppend(MString_t * destination, MString_t * source));
-DSDECL(void, MStringAppendCharacter(MString_t * string, mchar_t character));
-DSDECL(void, MStringAppendCharacters(MString_t * string, const char           * characters, MStringType_t dataType));
+DSDECL(void, MStringAppend(MString_t* destination, MString_t* source));
+DSDECL(void, MStringAppendCharacter(MString_t* string, mchar_t character));
+DSDECL(void, MStringAppendCharacters(MString_t* string, const char* characters, MStringType_t dataType));
 DSDECL(void, MStringAppendInt32(MString_t* String, int32_t Value));
 DSDECL(void, MStringAppendUInt32(MString_t* String, uint32_t Value));
 DSDECL(void, MStringAppendHex32(MString_t* String, uint32_t Value));
@@ -62,7 +61,7 @@ DSDECL(void, MStringAppendInt64(MString_t* String, int64_t Value));
 DSDECL(void, MStringAppendUInt64(MString_t* String, uint64_t Value));
 DSDECL(void, MStringAppendHex64(MString_t* String, uint64_t Value));
 
-/* MStringFind/MStringFindReverse
+/*
  * Retrieves the index of the first occurence of the given character. Optionally a start-index
  * can be given to set the start position of the search. */
 DSDECL(int, MStringFind(MString_t* String, mchar_t Character, int StartIndex));

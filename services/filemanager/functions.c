@@ -21,1068 +21,1072 @@
  * - Handles all file related services and disk services
  */
 
-//#define __TRACE
+#define __TRACE
 
+#include <assert.h>
 #include <ctype.h>
-#include <ddk/convert.h>
 #include <ddk/utils.h>
-#include "include/vfs.h"
 #include <os/dmabuf.h>
 #include <os/types/file.h>
-#include <os/process.h>
 #include <stdlib.h>
-#include <string.h>
+#include <vfs/cache.h>
+#include <vfs/filesystem.h>
+#include <vfs/handle.h>
+#include <vfs/utils.h>
+#include <ddk/convert.h>
 
 #include "sys_file_service_server.h"
 
-extern MString_t* VfsPathCanonicalize(const char* path);
+static OsStatus_t FlushInternal(FileSystemHandle_t* handle);
 
-static OsStatus_t Flush(UUId_t processId, UUId_t handle);
-
-static list_t g_fileHandles = LIST_INIT;
-static UUId_t g_nextFileId  = 10000;
-
-static inline int __IsEntryFile(FileSystemEntry_t* entry)
+static inline int __IsEntryFile(FileSystemHandle_t* handle)
 {
-    return (entry->Descriptor.Flags & FILE_FLAG_DIRECTORY) == 0 ? 1 : 0;
-}
-
-static inline int __IsAccessExclusive(unsigned int access)
-{
-    // Exclusive read access?
-    if ((access & (__FILE_READ_ACCESS | __FILE_READ_SHARE)) == __FILE_READ_ACCESS) {
-        return 1;
-    }
-
-    // Exclusive write access?
-    if ((access & (__FILE_WRITE_ACCESS | __FILE_WRITE_SHARE)) == __FILE_WRITE_ACCESS) {
-        return 1;
-    }
-    return 0;
-}
-
-static FileSystem_t* __GetFileSystemFromPath(MString_t* path, MString_t** subPathOut)
-{
-    element_t* header;
-    MString_t* identifier;
-    MString_t* subPath;
-    int        index;
-    TRACE("__GetFileSystemFromPath(path=%s)", MStringRaw(path));
-
-    // To open a new file we need to find the correct
-    // filesystem identifier and seperate it from it's absolute path
-    index = MStringFind(path, ':', 0);
-    if (index == MSTRING_NOT_FOUND) {
-        return NULL;
-    }
-
-    identifier = MStringSubString(path, 0, index);
-    subPath    = MStringSubString(path, index + 2, -1);
-
-    _foreach(header, VfsGetFileSystems()) {
-        FileSystem_t* fileSystem = (FileSystem_t*)header->value;
-        if (fileSystem->state != FSLoaded) {
-            continue;
-        }
-
-        if (MStringCompare(identifier, fileSystem->identifier, 1)) {
-            MStringDestroy(identifier);
-
-            // set path out and return
-            if (subPathOut) {
-                *subPathOut = subPath;
-            }
-            else {
-                MStringDestroy(subPath);
-            }
-            return fileSystem;
-        }
-    }
-
-    // clean up, not found
-    MStringDestroy(identifier);
-    MStringDestroy(subPath);
-    return NULL;
-}
-
-static OsStatus_t
-VfsIsHandleValid(
-    _In_  UUId_t                    processId,
-    _In_  UUId_t                    handle,
-    _In_  unsigned int              requiredAccess,
-    _Out_ FileSystemEntryHandle_t** handleOut)
-{
-    element_t*               header = list_find(&g_fileHandles, (void*)(uintptr_t)handle);
-    FileSystemEntryHandle_t* entry;
-    TRACE("VfsIsHandleValid(processId=%u, handle=%u, requiredAccess=0x%x)",
-          processId, handle, requiredAccess);
-
-    if (!header) {
-        ERROR("VfsIsHandleValid not found: %u", handle);
-        return OsInvalidParameters;
-    }
-
-    entry = (FileSystemEntryHandle_t*)header->value;
-    if (requiredAccess != 0 && entry->Owner != processId) {
-        ERROR("VfsIsHandleValid Owner of the handle did not match the requester. Access Denied.");
-        return OsInvalidPermissions;
-    }
-
-    if (requiredAccess != 0 && (entry->Access & requiredAccess) != requiredAccess) {
-        ERROR("VfsIsHandleValid handle was not opened with the required access parameter. Access Denied.");
-        return OsInvalidPermissions;
-    }
-
-    *handleOut = entry;
-    return OsSuccess;
-}
-
-OsStatus_t 
-VfsOpenHandleInternal(
-    _In_  FileSystemEntry_t*        entry,
-    _Out_ FileSystemEntryHandle_t** handleOut)
-{
-    FileSystem_t*            filesystem;
-    FileSystemEntryHandle_t* handle;
-    OsStatus_t               status;
-
-    TRACE("VfsOpenHandleInternal(entry=0x%" PRIxIN ", handleOut=0x%" PRIxIN ")",
-          entry, handleOut);
-    if (!entry || !handleOut) {
-        return OsInvalidParameters;
-    }
-
-    TRACE("VfsOpenHandleInternal opening %s", MStringRaw(entry->Path));
-    filesystem = (FileSystem_t*)entry->System;
-    status     = filesystem->module->OpenHandle(&filesystem->descriptor, entry, &handle);
-    if (status != OsSuccess) {
-        ERROR("VfsOpenHandleInternal failed to initiate a new entry-handle, code %i", status);
-        return status;
-    }
-
-    handle->LastOperation     = __FILE_OPERATION_NONE;
-    handle->OutBuffer         = NULL;
-    handle->OutBufferPosition = 0;
-    handle->Position          = 0;
-    handle->Entry             = entry;
-
-    // handle file specific options
-    if (__IsEntryFile(entry)) {
-        TRACE("VfsOpenHandleInternal entry is a file, validating options 0x%x", handle->Options);
-
-        // Initialise buffering as long as the file
-        // handle is not opened as volatile
-        if (!(handle->Options & __FILE_VOLATILE)) {
-            handle->OutBuffer = malloc(filesystem->descriptor.Disk.descriptor.SectorSize);
-            memset(handle->OutBuffer, 0, filesystem->descriptor.Disk.descriptor.SectorSize);
-        }
-
-        // Now comes the step where we handle options 
-        // - but only options that are handle-specific
-        if (handle->Options & __FILE_APPEND) {
-            status = filesystem->module->SeekInEntry(&filesystem->descriptor, handle, entry->Descriptor.Size.QuadPart);
-        }
-    }
-
-    *handleOut = handle;
-    return status;
-}
-
-OsStatus_t
-VfsVerifyAccessToPath(
-        _In_  MString_t*          path,
-        _In_  unsigned int        options,
-        _In_  unsigned int        access,
-        _Out_ FileSystemEntry_t** existingEntry)
-{
-    FileSystemEntry_t* fileEntry;
-    element_t*         element;
-    OsStatus_t         status;
-    TRACE("VfsVerifyAccessToPath(path=%s, options=0x%x, access=0x%x)",
-          MStringRaw(path), options, access);
-
-    if (!path || !existingEntry) {
-        return OsInvalidParameters;
-    }
-
-    status = VfsCacheGetFile(path, options, &fileEntry);
-    if (status != OsSuccess) {
-        ERROR("VfsVerifyAccessToPath failed to retrieve file: %u", status);
-        return status;
-    }
-
-    // we should at this point check other handles to see how many have this file
-    // opened, and see if there is any other handles using it
-    _foreach(element, &g_fileHandles) {
-        FileSystemEntryHandle_t* handle = element->value;
-        if (handle->Entry == fileEntry) {
-            // Are we trying to open the file in exclusive mode?
-            if (__IsAccessExclusive(access)) {
-                ERROR("VfsVerifyAccessToPath can't get exclusive lock on file, it is already opened");
-                return OsInvalidPermissions;
-            }
-
-            // Is the file already opened in exclusive mode
-            if (__IsAccessExclusive(handle->Access)) {
-                ERROR("VfsVerifyAccessToPath can't open file, it is locked");
-                return OsInvalidPermissions;
-            }
-        }
-    }
-
-    *existingEntry = fileEntry;
-    return OsSuccess;
+    return (handle->entry->base->Descriptor.Flags & FILE_FLAG_DIRECTORY) == 0 ? 1 : 0;
 }
 
 OsStatus_t
 VfsOpenFileInternal(
-        _In_  MString_t*                path,
-        _In_  unsigned int              options,
-        _In_  unsigned int              access,
-        _Out_ FileSystemEntryHandle_t** handle)
+        _In_  UUId_t        processId,
+        _In_  FileSystem_t* filesystem,
+        _In_  MString_t*    subPath,
+        _In_  unsigned int  options,
+        _In_  unsigned int  access,
+        _Out_ UUId_t*       handleId)
 {
-    FileSystemEntry_t* entry;
-    OsStatus_t         status;
+    FileSystemCacheEntry_t* entry;
+    FileSystemHandle_t*     handle;
+    OsStatus_t              osStatus;
 
-    TRACE("VfsOpenFileInternal(path=%s, options=0x%x, access=0x%x)",
-          MStringRaw(path), options, access);
+    TRACE("VfsOpenFileInternal(subPath=%s, options=0x%x, access=0x%x)",
+          MStringRaw(subPath), options, access);
 
-    status = VfsVerifyAccessToPath(path, options, access, &entry);
-    if (status == OsSuccess) {
-        // Now we can open the handle
-        // Open handle Internal takes care of these flags APPEND/VOLATILE/BINARY
-        status = VfsOpenHandleInternal(entry, handle);
-        if (status == OsSuccess) {
-            entry->References++;
-        }
+    // First take care of the actual file entry from the filesystem, this is the
+    // first of two layers. This layer keeps track of open files and how many
+    // references they. This is smart as we can then clean up all handles when
+    // a filesystem is closed, or we can deny an exclusive handle if handles
+    // already exist.
+    osStatus = VfsFileSystemCacheGet(filesystem, subPath, options, &entry);
+    if (osStatus != OsSuccess) {
+        goto exit;
     }
-    TRACE("VfsOpenFileInternal returns=%u", status);
-    return status;
+
+    // Next is the handle layer, this is a per instance version of a file-entry and keeps
+    // track of single-instance data like file positioning or access control.
+    osStatus = VfsHandleCreate(processId, entry, options, access, &handle);
+    if (osStatus == OsSuccess) {
+        *handleId = handle->id;
+    }
+
+exit:
+    TRACE("VfsOpenFileInternal returns=%u", osStatus);
+    return osStatus;
 }
 
-OsStatus_t
-VfsGuessBasePath(
-    _In_ const char* path,
-    _In_ char*       result)
+void OpenFile(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    char* dot;
+    FileSystem_t* fileSystem;
+    OsStatus_t    osStatus;
+    MString_t*    resolvedPath;
+    MString_t*    subPath;
+    UUId_t        fileHandle;
 
-    TRACE("VfsGuessBasePath(path=%s)", path);
-    if (!path || !result) {
-        return OsInvalidParameters;
-    }
-
-    dot = strrchr(path, '.');
-    if (dot) {
-        // Binaries are found in common
-        if (!strcmp(dot, ".app") || !strcmp(dot, ".dll")) {
-            strcpy(result, "$bin/");
-        }
-        // Resources are found in system folder
-        else {
-            strcpy(result, "$sys/");
-        }
-    }
-    // Assume we are looking for folders in system folder
-    else {
-        strcpy(result, "$sys/");
-    }
-
-    TRACE("VfsGuessBasePath returns=%s", result);
-    return OsSuccess;
-}
-
-MString_t*
-VfsResolvePath(
-    _In_ UUId_t      processId,
-    _In_ const char* path)
-{
-    MString_t* resolvedPath = NULL;
-    OsStatus_t osStatus;
-
-    TRACE("VfsResolvePath(processId=%u, path=%s)", processId, path);
-
-    if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
-        char* basePath = (char*)malloc(_MAXPATH);
-        if (!basePath) {
-            ERROR("VfsResolvePath out of memory");
-            return NULL;
-        }
-        memset(basePath, 0, _MAXPATH);
-
-        osStatus = ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH);
-        if (osStatus != OsSuccess) {
-            WARNING("VfsResolvePath failed to get working directory [%u], guessing base path", osStatus);
-
-            osStatus = VfsGuessBasePath(path, &basePath[0]);
-            if (osStatus != OsSuccess) {
-                ERROR("VfsResolvePath failed to guess the base path: %u", osStatus);
-                free(basePath);
-                return NULL;
-            }
-        }
-        else {
-            strcat(basePath, "/");
-        }
-        strcat(basePath, path);
-        resolvedPath = VfsPathCanonicalize(basePath);
-
-        free(basePath);
-    }
-    else {
-        resolvedPath = VfsPathCanonicalize(path);
-    }
-
-    TRACE("VfsResolvePath returns=%s", MStringRaw(resolvedPath));
-    return resolvedPath;
-}
-
-static OsStatus_t
-OpenFile(
-    _In_  UUId_t       processId,
-    _In_  const char*  path,
-    _In_  unsigned int options,
-    _In_  unsigned int access,
-    _Out_ UUId_t*      handleOut)
-{
-    FileSystemEntryHandle_t* entry;
-    OsStatus_t               status = OsDoesNotExist;
-    MString_t*               resolvedPath;
-    UUId_t                   id;
-
-    TRACE("OpenFile path %s, options 0x%x, access 0x%x", path, options, access);
-    if (!path || !handleOut) {
-        return OsInvalidParameters;
-    }
+    TRACE("OpenFile(path=%s, options=0x%x, access=0x%x)",
+          request->parameters.open.path,
+          request->parameters.open.options,
+          request->parameters.open.access);
 
     // If path is not absolute or special, we must try the working directory of caller
-    resolvedPath = VfsResolvePath(processId, path);
-    if (resolvedPath) {
-        status = VfsOpenFileInternal(resolvedPath, options, access, &entry);
-        MStringDestroy(resolvedPath);
+    resolvedPath = VfsPathResolve(request->processId, request->parameters.open.path);
+    if (!resolvedPath) {
+        sys_file_open_response(request->message, OsDoesNotExist, UUID_INVALID);
+        goto cleanup;
     }
 
-    // Sanitize code
-    if (status != OsSuccess) {
-        TRACE("OpenFile error opening entry, exited with code: %i", status);
-        return status;
+    fileSystem = VfsFileSystemGetByPath(resolvedPath, &subPath);
+    MStringDestroy(resolvedPath);
+    if (!fileSystem) {
+        sys_file_open_response(request->message, OsDoesNotExist, UUID_INVALID);
+        goto cleanup;
     }
+    VfsFileSystemRegisterRequest(fileSystem, request);
 
-    id = g_nextFileId++;
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsOpenFileInternal(request->processId, fileSystem, subPath,
+                                   request->parameters.open.options,
+                                   request->parameters.open.access,
+                                   &fileHandle);
+    if (osStatus != OsSuccess) {
+        TRACE("OpenFile error opening entry, exited with code: %i", osStatus);
+    }
+    sys_file_open_response(request->message, osStatus, fileHandle);
 
-    ELEMENT_INIT(&entry->header, (uintptr_t)id, entry);
-    entry->Id      = id;
-    entry->Owner   = processId;
-    entry->Access  = access;
-    entry->Options = options;
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
 
-    list_append(&g_fileHandles, &entry->header);
-
-    *handleOut = id;
-    return status;
-}
-
-void sys_file_open_invocation(struct gracht_message* message,
-        const UUId_t processId, const char* path,
-        const unsigned int options, const unsigned int access)
-{
-    UUId_t     handle = UUID_INVALID;
-    OsStatus_t status;
-
-    TRACE("svc_file_open_callback()");
-    status = OpenFile(processId, path, options, access, &handle);
-    TRACE("svc_file_open_callback returns=[status %u, handle %u]", status, handle);
-    sys_file_open_response(message, status, handle);
+cleanup:
+    free((void*)request->parameters.open.path);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t
-CloseFile(
-    _In_ UUId_t processId,
-    _In_ UUId_t handle)
+CloseHandleInternal(
+        _In_ UUId_t              processId,
+        _In_ FileSystemHandle_t* handle)
 {
-    FileSystemEntryHandle_t* entryHandle;
-    FileSystemEntry_t*       entry;
-    OsStatus_t               status;
-    element_t*               header;
-    FileSystem_t*            fileSystem;
-
-    TRACE("CloseFile handle %u", handle);
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
-
-    entry = entryHandle->Entry;
+    OsStatus_t osStatus;
 
     // handle file specific flags
-    if (__IsEntryFile(entryHandle->Entry)) {
+    if (__IsEntryFile(handle)) {
         // If there has been allocated any buffers they should
-        // be flushed and cleaned up 
-        if (!(entryHandle->Options & __FILE_VOLATILE)) {
-            Flush(processId, handle);
-            free(entryHandle->OutBuffer);
+        // be flushed and cleaned up
+        if (!(handle->base->Options & __FILE_VOLATILE)) {
+            FlushInternal(handle);
+            free(handle->base->OutBuffer);
         }
     }
 
-    // remove the entry after flushing
-    header = list_find(&g_fileHandles, (void*)(uintptr_t)handle);
-    if (header) {
-        list_remove(&g_fileHandles, header);
-    }
-
-    // Call the filesystem close-handle to cleanup
-    fileSystem = (FileSystem_t*)entryHandle->Entry->System;
-    status     = fileSystem->module->CloseHandle(&fileSystem->descriptor, entryHandle);
-
-    // Take care of any entry cleanup / reduction
-    entry->References--;
-
-    return status;
+    osStatus = VfsHandleDestroy(processId, handle);
+    return osStatus;
 }
 
-void sys_file_close_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void CloseFile(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    OsStatus_t status = CloseFile(processId, handle);
-    sys_file_close_response(message, status);
+    FileSystemHandle_t* handle;
+    FileSystem_t*       fileSystem;
+    OsStatus_t          osStatus;
+
+    TRACE("CloseFile(handle=%u)", request->parameters.close.fileHandle);
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.close.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_close_response(request->message, osStatus);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                                request->parameters.close.fileHandle,
+                                0, &handle);
+    if (osStatus == OsSuccess) {
+        osStatus = CloseHandleInternal(request->processId, handle);
+    }
+
+    sys_file_close_response(request->message, osStatus);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
-static OsStatus_t
-DeletePath(
-    _In_ UUId_t       processId,
-    _In_ const char*  path,
-    _In_ unsigned int options)
+void DeletePath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    FileSystemEntryHandle_t* entryHandle;
-    OsStatus_t               status;
-    FileSystem_t*            fileSystem;
-    MString_t*               subPath;
-    MString_t*               resolvedPath;
-    UUId_t                   handle;
+    FileSystemHandle_t* handle;
+    OsStatus_t          status;
+    FileSystem_t*       fileSystem;
+    MString_t*          subPath;
+    MString_t*          resolvedPath;
+    UUId_t              handleId;
 
-    TRACE("VfsDeletePath(Path %s, Options 0x%x)", path, options);
-    if (path == NULL) {
-        return OsInvalidParameters;
-    }
+    TRACE("DeletePath(path=%s, options=0x%x)",
+          request->parameters.delete_path.path,
+          request->parameters.delete_path.options);
 
     // If path is not absolute or special, we should ONLY try either
     // the current working directory.
-    resolvedPath = VfsResolvePath(processId, path);
-    if (resolvedPath == NULL) {
-        return OsDoesNotExist;
+    resolvedPath = VfsPathResolve(request->processId, request->parameters.delete_path.path);
+    if (!resolvedPath) {
+        sys_file_delete_response(request->message, OsDoesNotExist);
+        goto cleanup;
     }
     
-    fileSystem = __GetFileSystemFromPath(resolvedPath, &subPath);
-    MStringDestroy(resolvedPath);
-    if (fileSystem == NULL) {
-        return OsDoesNotExist;
+    fileSystem = VfsFileSystemGetByPath(resolvedPath, &subPath);
+    if (!fileSystem) {
+        sys_file_delete_response(request->message, OsDoesNotExist);
+        goto cleanup;
     }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
 
     // First step is to open the path in exclusive mode
-    status = OpenFile(processId, path, __FILE_VOLATILE, __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &handle);
+    status = VfsOpenFileInternal(request->processId, fileSystem, resolvedPath,
+                                 __FILE_VOLATILE, __FILE_READ_ACCESS | __FILE_WRITE_ACCESS,
+                                 &handleId);
     if (status == OsSuccess) {
-        status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-        if (status != OsSuccess) {
-            return status;
+        status = VfsHandleAccess(request->processId, handleId, 0, &handle);
+        if (status == OsSuccess) {
+            status = fileSystem->module->DeleteEntry(&fileSystem->base, handle->entry->base);
         }
-
-        status = fileSystem->module->DeleteEntry(&fileSystem->descriptor, entryHandle);
-        (void)CloseFile(processId, handle);
+        (void)CloseHandleInternal(request->processId, handle);
     }
+    MStringDestroy(resolvedPath);
 
-    // remove it after closing the handle so we don't keep any references
-    if (status == OsSuccess) {
-        MString_t* pathAsMstring = MStringCreate(path, StrUTF8);
-        VfsCacheRemoveFile(pathAsMstring);
-        MStringDestroy(pathAsMstring);
-    }
-    return status;
-}
+    sys_file_delete_response(request->message, status);
 
-void sys_file_delete_invocation(struct gracht_message* message,
-        const UUId_t processId, const char* path, const unsigned int flags)
-{
-    OsStatus_t status = DeletePath(processId, path, flags);
-    sys_file_delete_response(message, status);
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+
+cleanup:
+    free((void*)request->parameters.delete_path.path);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t
-ReadFile(
-    _In_  UUId_t  processId,
-    _In_  UUId_t  handle,
-    _In_  UUId_t  bufferHandle,
-    _In_  size_t  offset,
-    _In_  size_t  length,
-    _Out_ size_t* bytesRead)
+ReadInternal(
+        _In_  FileSystem_t*       fileSystem,
+        _In_  FileSystemHandle_t* handle,
+        _In_  UUId_t              bufferHandle,
+        _In_  size_t              offset,
+        _In_  size_t              length,
+        _Out_ size_t*             bytesRead)
 {
-    FileSystemEntryHandle_t* entryHandle;
-    OsStatus_t               status;
-    FileSystem_t*            fileSystem;
-    struct dma_attachment    dmaAttachment;
-
-    TRACE("[vfs_read] pid => %u, id => %u, b_id => %u, len => %u", 
-        processId, handle, bufferHandle, LODWORD(length));
-    
-    if (bufferHandle == UUID_INVALID || length == 0) {
-        ERROR("[vfs_read] error invalid parameters, length 0 or invalid b_id");
-        return OsInvalidParameters;
-    }
-
-    status = VfsIsHandleValid(processId, handle, __FILE_READ_ACCESS, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
+    struct dma_attachment dmaAttachment;
+    OsStatus_t            osStatus;
 
     // Sanity -> Flush if we wrote and now read
-    if ((entryHandle->LastOperation != __FILE_OPERATION_READ) && __IsEntryFile(entryHandle->Entry)) {
-        (void)Flush(processId, handle);
+    if ((handle->last_operation != __FILE_OPERATION_READ) && __IsEntryFile(handle)) {
+        (void)FlushInternal(handle);
     }
 
-    status = dma_attach(bufferHandle, &dmaAttachment);
-    if (status != OsSuccess) {
-        ERROR("[vfs_read] [dma_attach] failed: %u", status);
-        return OsInvalidParameters;
+    osStatus = dma_attach(bufferHandle, &dmaAttachment);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
-    
-    status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
-    if (status != OsSuccess) {
-        ERROR("[vfs_read] [dma_attachment_map] failed: %u", status);
+
+    osStatus = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
+    if (osStatus != OsSuccess) {
+        ERROR("ReadFile [dma_attachment_map] failed: %u", osStatus);
         dma_detach(&dmaAttachment);
-        return OsInvalidParameters;
+        return osStatus;
     }
 
-    fileSystem   = (FileSystem_t*)entryHandle->Entry->System;
-    status = fileSystem->module->ReadEntry(&fileSystem->descriptor, entryHandle, bufferHandle,
-        dmaAttachment.buffer, offset, length, bytesRead);
-    if (status == OsSuccess) {
-        entryHandle->LastOperation  = __FILE_OPERATION_READ;
-        entryHandle->Position       += *bytesRead;
+    osStatus = fileSystem->module->ReadEntry(&fileSystem->base, handle->entry->base, handle->base,
+                                             bufferHandle, dmaAttachment.buffer, offset, length,
+                                             bytesRead);
+    if (osStatus == OsSuccess) {
+        handle->last_operation = __FILE_OPERATION_READ;
+        handle->base->Position += *bytesRead;
     }
-    
-    // Unregister the dma buffer
+
     dma_attachment_unmap(&dmaAttachment);
     dma_detach(&dmaAttachment);
-    return status;
+    return osStatus;
+}
+
+void ReadFile(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    FileSystem_t*       fileSystem;
+    size_t              bytesRead = 0;
+
+    TRACE("ReadFile(pid=%u, id=%u, b_id=%u, len=%u)",
+          request->processId,
+          request->parameters.transfer.fileHandle,
+          request->parameters.transfer.bufferHandle,
+          LODWORD(request->parameters.transfer.length));
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.transfer.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_transfer_response(request->message, osStatus, 0);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                                request->parameters.transfer.fileHandle,
+                                __FILE_READ_ACCESS, &handle);
+    if (osStatus != OsSuccess) {
+        goto respond;
+    }
+
+    osStatus = ReadInternal(fileSystem, handle,
+                            request->parameters.transfer.bufferHandle,
+                            request->parameters.transfer.offset,
+                            request->parameters.transfer.length,
+                            &bytesRead);
+
+respond:
+    sys_file_transfer_response(request->message, osStatus, bytesRead);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t
-WriteFile(
-    _In_  UUId_t  processId,
-    _In_  UUId_t  handle,
-    _In_  UUId_t  bufferHandle,
-    _In_  size_t  offset,
-    _In_  size_t  length,
-    _Out_ size_t* bytesWritten)
+WriteInternal(
+        _In_  FileSystem_t*       fileSystem,
+        _In_  FileSystemHandle_t* handle,
+        _In_  UUId_t              bufferHandle,
+        _In_  size_t              offset,
+        _In_  size_t              length,
+        _Out_ size_t*             bytesWritten)
 {
-    FileSystemEntryHandle_t* entryHandle;
-    OsStatus_t               status;
-    FileSystem_t*            fileSystem;
-    struct dma_attachment    dmaAttachment;
-
-    TRACE("[vfs_write] pid => %u, id => %u, b_id => %u", processId, handle, bufferHandle);
-
-    if (bufferHandle == UUID_INVALID || length == 0) {
-        ERROR("[vfs_write] error invalid parameters, length 0 or invalid b_id");
-        return OsInvalidParameters;
-    }
-
-    status = VfsIsHandleValid(processId, handle, __FILE_WRITE_ACCESS, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
+    struct dma_attachment dmaAttachment;
+    OsStatus_t            osStatus;
 
     // Sanity -> Clear read buffer if we are writing
-    if ((entryHandle->LastOperation != __FILE_OPERATION_WRITE) && __IsEntryFile(entryHandle->Entry)) {
-        (void)Flush(processId, handle);
+    if ((handle->last_operation != __FILE_OPERATION_WRITE) && __IsEntryFile(handle)) {
+        (void)FlushInternal(handle);
     }
 
-    status = dma_attach(bufferHandle, &dmaAttachment);
-    if (status != OsSuccess) {
-        ERROR("[vfs_write] [dma_attach] failed: %u", status);
-        return OsInvalidParameters;
+    osStatus = dma_attach(bufferHandle, &dmaAttachment);
+    if (osStatus != OsSuccess) {
+        ERROR("WriteFile [dma_attach] failed: %u", osStatus);
+        return osStatus;
     }
-    
-    status = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
-    if (status != OsSuccess) {
-        ERROR("[vfs_write] [dma_attachment_map] failed: %u", status);
+
+    osStatus = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
+    if (osStatus != OsSuccess) {
+        ERROR("WriteFile [dma_attachment_map] failed: %u", osStatus);
         dma_detach(&dmaAttachment);
-        return OsInvalidParameters;
+        return osStatus;
     }
 
-    fileSystem   = (FileSystem_t*)entryHandle->Entry->System;
-    status = fileSystem->module->WriteEntry(&fileSystem->descriptor, entryHandle, bufferHandle,
-        dmaAttachment.buffer, offset, length, bytesWritten);
-    if (status == OsSuccess) {
-        entryHandle->LastOperation  = __FILE_OPERATION_WRITE;
-        entryHandle->Position       += *bytesWritten;
-        if (entryHandle->Position > entryHandle->Entry->Descriptor.Size.QuadPart) {
-            entryHandle->Entry->Descriptor.Size.QuadPart = entryHandle->Position;
+    osStatus = fileSystem->module->WriteEntry(&fileSystem->base, handle->entry->base, handle->base,
+                                              bufferHandle, dmaAttachment.buffer, offset, length,
+                                              bytesWritten);
+    if (osStatus == OsSuccess) {
+        handle->last_operation = __FILE_OPERATION_WRITE;
+        handle->base->Position += *bytesWritten;
+        if (handle->base->Position > handle->entry->base->Descriptor.Size.QuadPart) {
+            handle->entry->base->Descriptor.Size.QuadPart = handle->base->Position;
         }
     }
-    
-    // Unregister the dma buffer
+
     dma_attachment_unmap(&dmaAttachment);
     dma_detach(&dmaAttachment);
-    return status;
+    return osStatus;
 }
 
-void sys_file_transfer_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle,
-        const enum sys_transfer_direction direction, const UUId_t bufferHandle,
-        const size_t offset, const size_t length)
+void WriteFile(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    size_t     bytesTransferred;
-    OsStatus_t status;
-    
-    if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        status = ReadFile(processId, handle, bufferHandle,
-                          offset, length, &bytesTransferred);
+    FileSystemHandle_t*   handle;
+    OsStatus_t            osStatus;
+    FileSystem_t*         fileSystem;
+    size_t                bytesWritten = 0;
+
+    TRACE("WriteFile(pid=%u, id=%u, b_id=%u)",
+          request->processId,
+          request->parameters.transfer.fileHandle,
+          request->parameters.transfer.bufferHandle);
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.transfer.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_transfer_response(request->message, osStatus, 0);
+        VfsRequestDestroy(request);
+        return;
     }
-    else {
-        status = WriteFile(processId, handle, bufferHandle,
-                           offset, length, &bytesTransferred);
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.transfer.fileHandle,
+                               __FILE_WRITE_ACCESS,
+                               &handle);
+    if (osStatus != OsSuccess) {
+        goto respond;
     }
-    
-    sys_file_transfer_response(message, status, bytesTransferred);
+
+    osStatus = WriteInternal(fileSystem, handle,
+                             request->parameters.transfer.bufferHandle,
+                             request->parameters.transfer.offset,
+                             request->parameters.transfer.length,
+                             &bytesWritten);
+
+respond:
+    sys_file_transfer_response(request->message, osStatus, bytesWritten);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t
-Seek(
-    _In_ UUId_t   processId,
-    _In_ UUId_t   handle, 
-    _In_ uint32_t seekLo, 
-    _In_ uint32_t seekHi)
+SeekInternal(
+        _In_ FileSystem_t*       fileSystem,
+        _In_ FileSystemHandle_t* handle,
+        _In_ LargeUInteger_t*    position)
 {
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-    FileSystem_t*            fileSystem;
-
-    // Combine two u32 to form one big u64 
-    // This is just the declaration
-    union {
-        struct {
-            uint32_t Lo;
-            uint32_t Hi;
-        } Parts;
-        uint64_t Full;
-    } seekOffsetAbs;
-    seekOffsetAbs.Parts.Lo = seekLo;
-    seekOffsetAbs.Parts.Hi = seekHi;
-
-    TRACE("Seek(handle %u, seekLo 0x%x, seekHi 0x%x)", handle, seekLo, seekHi);
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
+    OsStatus_t osStatus;
 
     // Flush buffers before seeking
-    if (!(entryHandle->Options & __FILE_VOLATILE) && __IsEntryFile(entryHandle->Entry)) {
-        status = Flush(processId, handle);
-        if (status != OsSuccess) {
-            TRACE("Failed to flush file before seek");
-            return status;
+    if (!(handle->base->Options & __FILE_VOLATILE) && __IsEntryFile(handle)) {
+        osStatus = FlushInternal(handle);
+        if (osStatus != OsSuccess) {
+            TRACE("SeekInternal Failed to flush file before seek");
+            return osStatus;
         }
     }
 
-    // Perform the seek on a file-system level
-    fileSystem = (FileSystem_t*)entryHandle->Entry->System;
-    status     = fileSystem->module->SeekInEntry(&fileSystem->descriptor, entryHandle, seekOffsetAbs.Full);
-    if (status == OsSuccess) {
-        entryHandle->LastOperation      = __FILE_OPERATION_NONE;
-        entryHandle->OutBufferPosition  = 0;
+    osStatus = fileSystem->module->SeekInEntry(&fileSystem->base,
+                                               handle->entry->base,
+                                               handle->base,
+                                               position->QuadPart);
+    if (osStatus == OsSuccess) {
+        handle->last_operation          = __FILE_OPERATION_NONE;
+        handle->base->OutBufferPosition = 0;
     }
-    return status;
+    return osStatus;
 }
 
-void sys_file_seek_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t handle, const unsigned int seekLow, const unsigned int seekHigh)
+void Seek(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    OsStatus_t status = Seek(processId, handle, seekLow, seekHigh);
-    sys_file_seek_response(message, status);
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    FileSystem_t*       fileSystem;
+    LargeUInteger_t     position;
+
+    position.u.LowPart  = request->parameters.seek.position_low;
+    position.u.HighPart = request->parameters.seek.position_high;
+
+    TRACE("Seek(handle %u, seekLo 0x%x, seekHi 0x%x)",
+          request->parameters.seek.fileHandle,
+          request->parameters.seek.position_low,
+          request->parameters.seek.position_high);
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.seek.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_seek_response(request->message, osStatus);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.seek.fileHandle,
+                               0, &handle);
+    if (osStatus != OsSuccess) {
+        goto respond;
+    }
+
+    osStatus = SeekInternal(fileSystem, handle, &position);
+
+respond:
+    sys_file_seek_response(request->message, osStatus);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
-void sys_file_transfer_absolute_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t handle, const enum sys_transfer_direction direction,
-        const unsigned int seekLow, const unsigned int seekHigh,
-        const UUId_t bufferHandle, const size_t offset, const size_t length)
+
+void ReadFileAbsolute(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    size_t     bytesTransferred;
-    OsStatus_t status;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    FileSystem_t*       fileSystem;
+    size_t              bytesRead = 0;
+    LargeUInteger_t     position;
 
-    status = Seek(processId, handle, seekLow, seekHigh);
-    if (status != OsSuccess) {
-        sys_file_transfer_absolute_response(message, status, 0);
+    position.u.LowPart  = request->parameters.transfer_absolute.position_low;
+    position.u.HighPart = request->parameters.transfer_absolute.position_high;
+
+    TRACE("ReadFileAbsolute(pid=%u, id=%u, b_id=%u, len=%u)",
+          request->processId,
+          request->parameters.transfer_absolute.fileHandle,
+          request->parameters.transfer_absolute.bufferHandle,
+          LODWORD(request->parameters.transfer_absolute.length));
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.transfer_absolute.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_transfer_absolute_response(request->message, osStatus, 0);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.transfer_absolute.fileHandle,
+                               __FILE_READ_ACCESS, &handle);
+    if (osStatus != OsSuccess) {
+        goto respond;
     }
 
-    if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        status = ReadFile(processId, handle, bufferHandle,
-                          offset, length, &bytesTransferred);
+    osStatus = SeekInternal(fileSystem, handle, &position);
+    if (osStatus != OsSuccess) {
+        goto respond;
     }
-    else {
-        status = WriteFile(processId, handle, bufferHandle,
-                           offset, length, &bytesTransferred);
+
+    osStatus = ReadInternal(fileSystem, handle,
+                            request->parameters.transfer_absolute.bufferHandle,
+                            request->parameters.transfer_absolute.offset,
+                            request->parameters.transfer_absolute.length,
+                            &bytesRead);
+
+respond:
+    sys_file_transfer_absolute_response(request->message, osStatus, bytesRead);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void WriteFileAbsolute(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    FileSystem_t*       fileSystem;
+    size_t              bytesWritten = 0;
+    LargeUInteger_t     position;
+
+    position.u.LowPart  = request->parameters.transfer_absolute.position_low;
+    position.u.HighPart = request->parameters.transfer_absolute.position_high;
+
+    TRACE("WriteFileAbsoulte(pid=%u, id=%u, b_id=%u)",
+          request->processId,
+          request->parameters.transfer_absolute.fileHandle,
+          request->parameters.transfer_absolute.bufferHandle);
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.transfer_absolute.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_transfer_absolute_response(request->message, osStatus, 0);
+        VfsRequestDestroy(request);
+        return;
     }
-    sys_file_transfer_absolute_response(message, status, bytesTransferred);
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.transfer_absolute.fileHandle,
+                               __FILE_WRITE_ACCESS,
+                               &handle);
+    if (osStatus != OsSuccess) {
+        goto respond;
+    }
+
+    osStatus = SeekInternal(fileSystem, handle, &position);
+    if (osStatus != OsSuccess) {
+        goto respond;
+    }
+
+    osStatus = WriteInternal(fileSystem, handle,
+                             request->parameters.transfer_absolute.bufferHandle,
+                             request->parameters.transfer_absolute.offset,
+                             request->parameters.transfer_absolute.length,
+                             &bytesWritten);
+
+respond:
+    sys_file_transfer_absolute_response(request->message, osStatus, bytesWritten);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t
-Flush(
-    _In_ UUId_t processId, 
-    _In_ UUId_t handle)
+FlushInternal(
+        _In_ FileSystemHandle_t* handle)
 {
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-    //FileSystem_t *fileSystem;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
+    OsStatus_t osStatus = OsSuccess;
 
     // If no buffering enabled skip, or if not a file skip
-    if ((entryHandle->Options & __FILE_VOLATILE) || !__IsEntryFile(entryHandle->Entry)) {
+    if ((handle->base->Options & __FILE_VOLATILE) || !__IsEntryFile(handle)) {
         return OsSuccess;
     }
 
-    // Empty output buffer 
+    // Empty output buffer
     // - But sanitize the buffers first
-    if (entryHandle->OutBuffer != NULL && entryHandle->OutBufferPosition != 0) {
+    if (handle->base->OutBuffer != NULL && handle->base->OutBufferPosition != 0) {
         size_t BytesWritten = 0;
 #if 0
         fileSystem = (FileSystem_t*)entryHandle->File->System;
         status     = fileSystem->Module->WriteFile(&fileSystem->Descriptor, entryHandle, NULL, &BytesWritten);
 #endif
-        if (BytesWritten != entryHandle->OutBufferPosition) {
+        if (BytesWritten != handle->base->OutBufferPosition) {
             return OsDeviceError;
         }
     }
-    return status;
+    return osStatus;
 }
 
-
-void sys_file_flush_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void Flush(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    OsStatus_t status = Flush(processId, handle);
-    sys_file_flush_response(message, status);
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.flush.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_flush_response(request->message, osStatus);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.flush.fileHandle,
+                               0,
+                               &handle);
+    if (osStatus == OsSuccess) {
+        osStatus = FlushInternal(handle);
+    }
+
+    sys_file_flush_response(request->message, osStatus);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
-static OsStatus_t
-Move(
-    _In_ UUId_t      processId,
-    _In_ const char* source, 
-    _In_ const char* destination,
-    _In_ int         copy)
+void Move(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
+    FileSystem_t* fileSystem;
+    OsStatus_t    osStatus;
+
+    osStatus = VfsFileSystemGetByPathSafe(request->parameters.move.from, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_move_response(request->message, osStatus);
+        goto cleanup;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+
     // @todo implement using existing fs functions
-    _CRT_UNUSED(processId);
-    _CRT_UNUSED(source);
-    _CRT_UNUSED(destination);
-    _CRT_UNUSED(copy);
-    return OsNotSupported;
+    _CRT_UNUSED(request);
+    _CRT_UNUSED(cancellationToken);
+
+    sys_file_move_response(request->message, OsNotSupported);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+
+cleanup:
+    free((void*)request->parameters.move.from);
+    free((void*)request->parameters.move.to);
+    VfsRequestDestroy(request);
 }
 
-void sys_file_move_invocation(struct gracht_message* message, const UUId_t processId,
-        const char* source, const char* destination, const uint8_t copy)
+void Link(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    OsStatus_t status = Move(processId, source, destination, copy);
-    sys_file_move_response(message, status);
-}
+    FileSystem_t* fileSystem;
+    OsStatus_t    osStatus;
 
-static OsStatus_t
-Link(
-    _In_ const char* source,
-    _In_ const char* destination,
-    _In_ int         symbolic)
-{
-    // @todo not implemented
-    return OsNotSupported;
-}
-
-void sys_file_link_invocation(struct gracht_message* message, const UUId_t processId, 
-    const char* source, const char* destination, const uint8_t symbolic)
-{
-    OsStatus_t status = Link(source, destination, symbolic);
-    sys_file_link_response(message, status);
-}
-
-static OsStatus_t
-GetPosition(
-    _In_  UUId_t           processId,
-    _In_  UUId_t           handle,
-    _Out_ LargeUInteger_t* Position)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
+    osStatus = VfsFileSystemGetByPathSafe(request->parameters.link.from, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_link_response(request->message, osStatus);
+        goto cleanup;
     }
+    VfsFileSystemRegisterRequest(fileSystem, request);
 
-    Position->QuadPart = entryHandle->Position;
-    return status;
-}
-
-void sys_file_get_position_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
-{
-    LargeUInteger_t position;
-    OsStatus_t      status = GetPosition(processId, handle, &position);
-    sys_file_get_position_response(message, status, position.u.LowPart, position.u.HighPart);
-}
-
-static OsStatus_t
-GetOptions(
-    _In_  UUId_t        processId,
-    _In_  UUId_t        handle,
-    _Out_ unsigned int* options,
-    _Out_ unsigned int* access)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
-
-    *options = entryHandle->Options;
-    *access  = entryHandle->Access;
-    return status;
-}
-
-void sys_file_get_options_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
-{
-    unsigned int options, access;
-    OsStatus_t   status = GetOptions(processId, handle, &options, &access);
-    sys_file_get_position_response(message, status, options, access);
-}
-
-static OsStatus_t
-SetOptions(
-    _In_ UUId_t       processId,
-    _In_ UUId_t       handle,
-    _In_ unsigned int options,
-    _In_ unsigned int access)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
-
-    entryHandle->Options = options;
-    entryHandle->Access  = access;
-    return status;
-}
-
-void sys_file_set_options_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t handle, const unsigned int options, const unsigned int access)
-{
-    OsStatus_t status = SetOptions(processId, handle, options, access);
-    sys_file_set_options_response(message, status);
-}
-
-OsStatus_t
-GetSize(
-    _In_ UUId_t           processId,
-    _In_ UUId_t           handle,
-    _In_ LargeUInteger_t* size)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
-
-    size->QuadPart = entryHandle->Entry->Descriptor.Size.QuadPart;
-    return status;
-}
-
-void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
-{
-    LargeUInteger_t size;
-    OsStatus_t      status = GetSize(processId, handle, &size);
-    sys_file_get_size_response(message, status, size.u.LowPart, size.u.HighPart);
-}
-
-static OsStatus_t
-SetSize(
-    _In_ UUId_t          processId,
-    _In_ UUId_t          handle,
-    _In_ LargeUInteger_t size)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return status;
-    }
+    // START OF REQUEST
+    // ********************
 
     // @todo not implemented
-    return OsNotSupported;
+    _CRT_UNUSED(request);
+    _CRT_UNUSED(cancellationToken);
+
+    sys_file_link_response(request->message, osStatus);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+
+cleanup:
+    free((void*)request->parameters.link.from);
+    free((void*)request->parameters.link.to);
+    VfsRequestDestroy(request);
 }
 
-void sys_file_set_size_invocation(struct gracht_message* message, const UUId_t processId, 
-    const UUId_t handle, const unsigned int sizeLow, const unsigned int sizeHigh)
+void GetPosition(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    LargeUInteger_t size;
-    OsStatus_t      status;
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    LargeUInteger_t     value;
 
-    size.u.LowPart = sizeLow;
-    size.u.HighPart = sizeHigh;
-
-    status = SetSize(processId, handle, size);
-    sys_file_set_size_response(message, status);
-}
-
-static OsStatus_t
-GetAbsolutePathOfHandle(
-    _In_  UUId_t      processId,
-    _In_  UUId_t      handle,
-    _Out_ MString_t** path)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status != OsSuccess) {
-        return OsError;
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.get_position.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_get_position_response(request->message, osStatus, 0, 0);
+        VfsRequestDestroy(request);
+        return;
     }
-    
-    *path = entryHandle->Entry->Path;
-    return OsSuccess;
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    value.QuadPart = 0;
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.get_position.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        value.QuadPart = handle->base->Position;
+    }
+
+    sys_file_get_position_response(request->message, osStatus,
+                                   value.u.LowPart,
+                                   value.u.HighPart);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
 }
 
-void sys_file_get_path_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void GetOptions(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
-    MString_t* path;
-    OsStatus_t status = GetAbsolutePathOfHandle(processId, handle, &path);
-    if (status == OsSuccess) {
-        sys_file_get_path_response(message, status, MStringRaw(path));
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    unsigned int        options = 0;
+    unsigned int        access = 0;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.get_options.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_get_options_response(request->message, osStatus, 0, 0);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.get_position.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        options = handle->base->Options;
+        access  = handle->base->Access;
+    }
+
+    sys_file_get_options_response(request->message, osStatus, options, access);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void SetOptions(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.set_options.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_set_options_response(request->message, osStatus);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.get_position.fileHandle,
+                               0, &handle);
+    if (osStatus != OsSuccess) {
+        handle->base->Options = request->parameters.set_options.options;
+        handle->base->Access  = request->parameters.set_options.access;
+    }
+
+    sys_file_set_options_response(request->message, osStatus);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void GetSize(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    LargeUInteger_t     value;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.get_size.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_get_size_response(request->message, osStatus, 0, 0);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    value.QuadPart = 0;
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.get_position.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        value.QuadPart = handle->entry->base->Descriptor.Size.QuadPart;
+    }
+
+    sys_file_get_size_response(request->message, osStatus,
+                               value.u.LowPart,
+                               value.u.HighPart);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void SetSize(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.set_size.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_set_size_response(request->message, osStatus);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.get_position.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        // @todo not implemented
+    }
+
+    sys_file_set_size_response(request->message, OsNotSupported);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void GetFullPath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    MString_t*          fullPath;
+    char                zero[1] = { 0 };
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_get_path_response(request->message, osStatus, &zero[0]);
+        VfsRequestDestroy(request);
+        return;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.stat_handle.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        fullPath = MStringCreate(NULL, StrUTF8);
+        if (fullPath) {
+            MStringAppend(fullPath, fileSystem->mount_point);
+            MStringAppendCharacter(fullPath, '/');
+            MStringAppend(fullPath, handle->entry->path);
+
+            sys_file_get_path_response(request->message, osStatus, MStringRaw(fullPath));
+            MStringDestroy(fullPath);
+        }
+        else {
+            sys_file_get_path_response(request->message, osStatus, &zero[0]);
+        }
     }
     else {
-        sys_file_get_path_response(message, status, "");
-    }
-}
-
-OsStatus_t
-StatFromHandle(
-    _In_ UUId_t              processId,
-    _In_ UUId_t              handle,
-    _In_ OsFileDescriptor_t* descriptor)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(processId, handle, 0, &entryHandle);
-    if (status == OsSuccess) {
-        memcpy((void*)descriptor, (const void*)&entryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
-    }
-    return status;
-}
-
-void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
-{
-    OsFileDescriptor_t         descriptor;
-    struct sys_file_descriptor gdescriptor;
-    OsStatus_t                 status = StatFromHandle(processId, handle, &descriptor);
-    if (status == OsSuccess) {
-        to_sys_file_descriptor(&descriptor, &gdescriptor);
-    }
-    sys_file_fstat_response(message, status, &gdescriptor);
-}
-
-OsStatus_t
-StatFromPath(
-    _In_ UUId_t              processId,
-    _In_ const char*         path,
-    _In_ OsFileDescriptor_t* descriptor)
-{
-    OsStatus_t status;
-    UUId_t     handle;
-
-    status = OpenFile(processId, path, 0, __FILE_READ_ACCESS | __FILE_READ_SHARE, &handle);
-    if (status == OsSuccess) {
-        status = StatFromHandle(processId, handle, descriptor);
-        (void)CloseFile(processId, handle);
-    }
-    return status;
-}
-
-void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
-{
-    OsFileDescriptor_t         descriptor;
-    struct sys_file_descriptor gdescriptor;
-    OsStatus_t                 status = StatFromPath(processId, path, &descriptor);
-    if (status == OsSuccess) {
-        to_sys_file_descriptor(&descriptor, &gdescriptor);
-    }
-    sys_file_fstat_path_response(message, status, &gdescriptor);
-}
-
-static OsStatus_t
-StatLinkPathFromPath(
-    _In_  const char* path,
-    _Out_ const char* linkTargetPath)
-{
-    // @todo not implemented
-    return OsNotSupported;
-}
-
-void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
-{
-    char       temp[_MAXPATH] = { 0 };
-    OsStatus_t status = StatLinkPathFromPath(path, &temp[0]);
-    sys_file_fstat_link_response(message, status, &temp[0]);
-}
-
-void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
-{
-    struct sys_filesystem_descriptor gdescriptor = { 0 };
-    // @todo not implemented
-    sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
-}
-
-void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
-{
-    struct sys_filesystem_descriptor gdescriptor = { 0 };
-    // @todo not implemented
-    sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
-}
-
-OsStatus_t
-VfsGetFileSystemByFileHandle(
-        _In_  UUId_t         fileHandle,
-        _Out_ FileSystem_t** fileSystem)
-{
-    FileSystemEntryHandle_t* entryHandle = NULL;
-    OsStatus_t               status;
-
-    status = VfsIsHandleValid(HANDLE_INVALID, fileHandle, 0, &entryHandle);
-    if (status == OsSuccess) {
-        *fileSystem = (FileSystem_t*)entryHandle->Entry->System;
-    }
-    return status;
-}
-
-OsStatus_t
-VfsGetFileSystemByPath(
-        _In_  const char*    path,
-        _Out_ FileSystem_t** fileSystem)
-{
-    MString_t* fspath = MStringCreate(path, StrUTF8);
-    if (!fspath) {
-        return OsInvalidParameters;
+        sys_file_get_path_response(request->message, osStatus, &zero[0]);
     }
 
-    *fileSystem = __GetFileSystemFromPath(fspath, NULL);
-    if (!(*fileSystem)) {
-        return OsDoesNotExist;
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void StatFromHandle(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct sys_file_descriptor gdescriptor = { 0 };
+
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
+    if (osStatus != OsSuccess) {
+        sys_file_fstat_response(request->message, osStatus, &gdescriptor);
+        VfsRequestDestroy(request);
+        return;
     }
-    return OsSuccess;
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsHandleAccess(request->processId,
+                               request->parameters.stat_handle.fileHandle,
+                               0, &handle);
+    if (osStatus == OsSuccess) {
+        to_sys_file_descriptor(&handle->entry->base->Descriptor, &gdescriptor);
+    }
+    sys_file_fstat_response(request->message, osStatus, &gdescriptor);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+    VfsRequestDestroy(request);
+}
+
+void StatFromPath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct sys_file_descriptor gdescriptor = { 0 };
+
+    FileSystem_t*       fileSystem;
+    FileSystemHandle_t* handle;
+    OsStatus_t          osStatus;
+    MString_t*          resolvedPath;
+    MString_t*          subPath;
+    UUId_t              handleId;
+
+    // If path is not absolute or special, we should ONLY try either
+    // the current working directory.
+    resolvedPath = VfsPathResolve(request->processId, request->parameters.stat_path.path);
+    if (!resolvedPath) {
+        sys_file_fstat_path_response(request->message, OsDoesNotExist, &gdescriptor);
+        goto cleanup;
+    }
+
+    fileSystem = VfsFileSystemGetByPath(resolvedPath, &subPath);
+    if (!fileSystem) {
+        sys_file_fstat_path_response(request->message, OsDoesNotExist, &gdescriptor);
+        goto cleanup;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    osStatus = VfsOpenFileInternal(request->processId,
+                                   fileSystem,
+                                   subPath,
+                                   0,
+                                   __FILE_READ_ACCESS | __FILE_READ_SHARE,
+                                   &handleId);
+    if (osStatus == OsSuccess) {
+        osStatus = VfsHandleAccess(request->processId,
+                                   request->parameters.stat_handle.fileHandle,
+                                   0, &handle);
+        if (osStatus == OsSuccess) {
+            to_sys_file_descriptor(&handle->entry->base->Descriptor, &gdescriptor);
+            (void)CloseHandleInternal(request->processId, handle);
+        }
+    }
+    sys_file_fstat_path_response(request->message, osStatus, &gdescriptor);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+
+cleanup:
+    free((void*)request->parameters.stat_path.path);
+    VfsRequestDestroy(request);
+}
+
+void StatLinkPathFromPath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    FileSystem_t*       fileSystem;
+    MString_t*          resolvedPath;
+    MString_t*          subPath;
+    char                zero[1] = { 0 };
+
+    // If path is not absolute or special, we should ONLY try either
+    // the current working directory.
+    resolvedPath = VfsPathResolve(request->processId, request->parameters.stat_path.path);
+    if (!resolvedPath) {
+        sys_file_fstat_link_response(request->message, OsDoesNotExist, &zero[0]);
+        goto cleanup;
+    }
+
+    fileSystem = VfsFileSystemGetByPath(resolvedPath, &subPath);
+    if (!fileSystem) {
+        sys_file_fstat_link_response(request->message, OsDoesNotExist, &zero[0]);
+        goto cleanup;
+    }
+    VfsFileSystemRegisterRequest(fileSystem, request);
+
+    // START OF REQUEST
+    // ********************
+    // @todo missing implementation
+    sys_file_fstat_link_response(request->message, OsNotSupported, &zero[0]);
+
+    // END OF REQUEST
+    // ********************
+    VfsFileSystemUnregisterRequest(fileSystem, request);
+
+cleanup:
+    free((void*)request->parameters.stat_path.path);
+    VfsRequestDestroy(request);
 }

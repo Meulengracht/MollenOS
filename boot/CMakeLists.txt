@@ -21,6 +21,14 @@ else ()
     set (SRCS stage1/mfs/stage1.asm)
 endif ()
 
+add_custom_target(mbr ALL DEPENDS mbr.sys)
+add_custom_command(OUTPUT mbr.sys POST_BUILD
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMAND nasm ARGS -f bin -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o ${VALI_PATH_DEPLOY}/mbr.sys stage1/mbr.asm
+    COMMENT "Compiling bootloader (mbr)"
+    DEPENDS stage1/mbr.asm
+)
+
 add_custom_target(stage1 ALL DEPENDS stage1.sys)
 add_custom_command(OUTPUT stage1.sys POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

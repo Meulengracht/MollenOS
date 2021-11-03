@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.8.2)
-    include(../../cmake/SetupEnvironment.cmake)
-    project(ValiFileManager)
-endif ()
-
 enable_language(C)
 
 # Configure include paths
@@ -11,11 +5,40 @@ include_directories (
     ${CMAKE_BINARY_DIR}/protocols
     ${CMAKE_CURRENT_BINARY_DIR}
     ../../librt/libgracht/include
-    ../../librt/libusb/include
     ../../librt/libddk/include
     ../../librt/libds/include
     ../../librt/libc/include
     include
+)
+
+set (SERVICE_HEADERS
+        include/vfs/cache.h
+        include/vfs/filesystem.h
+        include/vfs/filesystem_module.h
+        include/vfs/filesystem_types.h
+        include/vfs/gpt.h
+        include/vfs/mbr.h
+        include/vfs/storage.h
+        include/vfs/requests.h
+        include/vfs/utils.h
+)
+
+set (SERVICE_SOURCES
+        storage/layouts/detect.c
+        storage/layouts/mbr.c
+        storage/layouts/gpt.c
+
+        storage/storage.c
+        storage/utils.c
+
+        cache.c
+        filesystem.c
+        functions.c
+        handle.c
+        modules.c
+        path.c
+        main.c
+        requests.c
 )
 
 set (ADDITONAL_SOURCES
@@ -26,18 +49,8 @@ set (ADDITONAL_SOURCES
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 add_service_target(filemanager "-D__FILEMANAGER_IMPL"
-    ${ADDITONAL_SOURCES}
-    layouts/detect.c
-    layouts/mbr.c
-    layouts/gpt.c
-
-    storage/storage.c
-    storage/utils.c
-
-    cache.c
-    functions.c
-    modules.c
-    path.c
-    main.c
+        ${SERVICE_HEADERS}
+        ${SERVICE_SOURCES}
+        ${ADDITONAL_SOURCES}
 )
 add_dependencies(filemanager service_servers)

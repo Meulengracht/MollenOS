@@ -23,9 +23,11 @@
 
 #include <ctype.h>
 #include <ddk/utils.h>
-#include "include/vfs.h"
+#include <vfs/filesystem.h>
 #include <strings.h>
 #include <string.h>
+#include <stdlib.h>
+#include <os/process.h>
 
 #include "sys_path_service_server.h"
 
@@ -35,25 +37,28 @@
 #define IS_IDENTIFIER(str)    ((str)[0] == '$' && (str)[1] != '(')
 #define IS_VARIABLE(str)      ((str)[0] == '$' && (str)[1] == '(')
 
-static const char* g_environmentPaths[SYS_SYSTEM_PATHS_PATH_COUNT] = {
-    // System paths
-    ":/",
-    ":/system/",
-    ":/system/themes/",
+static struct EnvironmentalPathSettings {
+    const char*  identifier;
+    unsigned int flags;
+} g_environmentPaths[SYS_SYSTEM_PATHS_PATH_COUNT] = {
+        // System drive paths [$sys]
+        { ":/", __FILESYSTEM_BOOT },
+        { ":/themes/", __FILESYSTEM_BOOT },
 
-    // Shared paths
-    ":/shared/bin/",
-    ":/shared/include/",
-    ":/shared/lib/",
-    ":/shared/share/",
+        // System data paths [$data]
+        { ":/", __FILESYSTEM_DATA },
+        { ":/bin/", __FILESYSTEM_DATA },
+        { ":/include/", __FILESYSTEM_DATA },
+        { ":/lib/", __FILESYSTEM_DATA },
+        { ":/share/", __FILESYSTEM_DATA },
 
-    // User paths
-    ":/users/$(user)/",
-    ":/users/$(user)/cache",
+        // User paths [$home]
+        { ":/users/$(user)/", __FILESYSTEM_USER },
+        { ":/users/$(user)/cache", __FILESYSTEM_USER },
 
-    // Application paths
-    ":/shared/appdata/$(app)/",
-    ":/shared/appdata/$(app)/temp/"
+        // Application paths [$app]
+        { ":/users/$(user)/appdata/$(app)/", __FILESYSTEM_USER },
+        { ":/users/$(user)/appdata/$(app)/temp/", __FILESYSTEM_USER }
 };
 
 static struct VfsIdentifier {
@@ -62,20 +67,19 @@ static struct VfsIdentifier {
 } g_vfsIdentifiers[] = {
     { "sys", SYS_SYSTEM_PATHS_PATH_SYSTEM },
     { "themes", SYS_SYSTEM_PATHS_PATH_SYSTEM_THEMES },
-    { "bin", SYS_SYSTEM_PATHS_PATH_COMMON_BIN },
-    { "lib", SYS_SYSTEM_PATHS_PATH_COMMON_LIB },
-    { "share", SYS_SYSTEM_PATHS_PATH_COMMON_SHARE },
+    { "data", SYS_SYSTEM_PATHS_PATH_DATA },
+    { "bin", SYS_SYSTEM_PATHS_PATH_DATA_BIN },
+    { "lib", SYS_SYSTEM_PATHS_PATH_DATA_LIB },
+    { "share", SYS_SYSTEM_PATHS_PATH_DATA_SHARE },
     { NULL, SYS_SYSTEM_PATHS_PATH_COUNT }
 };
 
-static inline OsStatus_t __ResolveBootDriveIdentifier(MString_t* destination)
+static inline OsStatus_t __ResolveDriveIdentifier(MString_t* destination, unsigned int flags)
 {
-    foreach(element, VfsGetFileSystems()) {
-        FileSystem_t *Fs = (FileSystem_t*)element->value;
-        if (Fs->descriptor.Flags & __FILESYSTEM_BOOT) {
-            MStringAppend(destination, Fs->identifier);
-            return OsSuccess;
-        }
+    FileSystem_t* fileSystem = VfsFileSystemGetByFlags(flags);
+    if (fileSystem) {
+        MStringAppend(destination, fileSystem->mount_point);
+        return OsSuccess;
     }
     return OsDoesNotExist;
 }
@@ -84,8 +88,9 @@ MString_t*
 VfsPathResolveEnvironment(
     _In_ enum sys_system_paths base)
 {
-    MString_t* resolvedPath = NULL;
-    OsStatus_t status;
+    MString_t*   resolvedPath;
+    unsigned int requiredDiskFlags;
+    OsStatus_t   status;
     TRACE("VfsPathResolveEnvironment(base=%u)", base);
 
     // Create a new string instance to store resolved in
@@ -94,7 +99,9 @@ VfsPathResolveEnvironment(
         goto exit;
     }
 
-    status = __ResolveBootDriveIdentifier(resolvedPath);
+    // get which type of resolvement this is
+    requiredDiskFlags = g_environmentPaths[(int)base].flags;
+    status            = __ResolveDriveIdentifier(resolvedPath, requiredDiskFlags);
     if (status != OsSuccess) {
         MStringDestroy(resolvedPath);
         resolvedPath = NULL;
@@ -102,7 +109,7 @@ VfsPathResolveEnvironment(
     }
 
     // Now append the special paths and return it
-    MStringAppendCharacters(resolvedPath, g_environmentPaths[(int)base], StrUTF8);
+    MStringAppendCharacters(resolvedPath, g_environmentPaths[(int)base].identifier, StrUTF8);
 
 exit:
     TRACE("VfsPathResolveEnvironment returns=%s", MStringRaw(resolvedPath));
@@ -121,14 +128,16 @@ VfsExpandIdentifier(
     while (g_vfsIdentifiers[j].identifier != NULL) { // Iterate all possible identifiers
         struct VfsIdentifier* vfsIdentifier    = &g_vfsIdentifiers[j];
         size_t                identifierLength = strlen(vfsIdentifier->identifier);
+        unsigned int          requiredDiskFlags;
 
         if (!strncasecmp(vfsIdentifier->identifier, (const char*)&identifier[1], identifierLength)) {
-            osStatus = __ResolveBootDriveIdentifier(destination);
+            requiredDiskFlags = g_environmentPaths[vfsIdentifier->resolve].flags;
+            osStatus = __ResolveDriveIdentifier(destination, requiredDiskFlags);
             if (osStatus != OsSuccess) {
                 break;
             }
 
-            MStringAppendCharacters(destination, g_environmentPaths[vfsIdentifier->resolve], StrUTF8);
+            MStringAppendCharacters(destination, g_environmentPaths[vfsIdentifier->resolve].identifier, StrUTF8);
             break;
         }
         j++;
@@ -277,4 +286,81 @@ void sys_path_canonicalize_invocation(struct gracht_message* message, const char
     
     sys_path_canonicalize_response(message, OsSuccess, MStringRaw(canonicalizedPath));
     MStringDestroy(canonicalizedPath);
+}
+
+static OsStatus_t
+VfsGuessBasePath(
+        _In_ const char* path,
+        _In_ char*       result)
+{
+    char* dot;
+
+    TRACE("VfsGuessBasePath(path=%s)", path);
+    if (!path || !result) {
+        return OsInvalidParameters;
+    }
+
+    dot = strrchr(path, '.');
+    if (dot) {
+        // Binaries are found in common
+        if (!strcmp(dot, ".run") || !strcmp(dot, ".dll")) {
+            strcpy(result, "$bin/");
+        }
+            // Resources are found in system folder
+        else {
+            strcpy(result, "$data/");
+        }
+    }
+        // Assume we are looking for folders in data folder
+    else {
+        strcpy(result, "$data/");
+    }
+
+    TRACE("VfsGuessBasePath returns=%s", result);
+    return OsSuccess;
+}
+
+MString_t*
+VfsPathResolve(
+        _In_ UUId_t      processId,
+        _In_ const char* path)
+{
+    MString_t* resolvedPath = NULL;
+    OsStatus_t osStatus;
+
+    TRACE("VfsPathResolve(processId=%u, path=%s)", processId, path);
+
+    if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
+        char* basePath = (char*)malloc(_MAXPATH);
+        if (!basePath) {
+            ERROR("VfsPathResolve out of memory");
+            return NULL;
+        }
+        memset(basePath, 0, _MAXPATH);
+
+        osStatus = ProcessGetWorkingDirectory(processId, &basePath[0], _MAXPATH);
+        if (osStatus != OsSuccess) {
+            WARNING("VfsPathResolve failed to get working directory [%u], guessing base path", osStatus);
+
+            osStatus = VfsGuessBasePath(path, &basePath[0]);
+            if (osStatus != OsSuccess) {
+                ERROR("VfsPathResolve failed to guess the base path: %u", osStatus);
+                free(basePath);
+                return NULL;
+            }
+        }
+        else {
+            strcat(basePath, "/");
+        }
+        strcat(basePath, path);
+        resolvedPath = VfsPathCanonicalize(basePath);
+
+        free(basePath);
+    }
+    else {
+        resolvedPath = VfsPathCanonicalize(path);
+    }
+
+    TRACE("VfsPathResolve returns=%s", MStringRaw(resolvedPath));
+    return resolvedPath;
 }

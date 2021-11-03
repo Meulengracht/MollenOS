@@ -283,9 +283,6 @@ VesaSetup:
 	pushad
 
 	; Print
-	mov 	esi, szPrefix
-	call 	Print
-
 	mov 	esi, szVesaSetup
 	call 	Print
 
@@ -378,21 +375,20 @@ VesaSetup:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szVesaSetup 					db 		"Retrieving Optimal Video Modes", 0x00
-szVesaModeSpace					db 		" [", 0x00
-szVesaModeSeperator				db 		"x", 0x00
-szVesaModeEnd					db 		"]", 0x0D, 0x0A, 0x00
-szModeFailed					db		" [VBE NO SUPPORT]", 0x0D, 0x0A, 0x00
-szNoAvailModesFailed				db		" [VBE NO 24/32B MODES]", 0x0D, 0x0A, 0x00
+szVesaSetup 		 db "query video stats", 0x00
+szVesaModeSpace		 db " [", 0x00
+szVesaModeSeperator	 db "x", 0x00
+szVesaModeEnd		 db "]", 0x0D, 0x0A, 0x00
+szModeFailed		 db	" [VBE NO SUPPORT]", 0x0D, 0x0A, 0x00
+szNoAvailModesFailed db	" [VBE NO 24/32B MODES]", 0x0D, 0x0A, 0x00
 
-; Etc
 %ifdef __OSCONFIG_HAS_VIDEO
-wOptimizedVesaMode 				dw 		1
+wOptimizedVesaMode dw 1
 %else
-wOptimizedVesaMode 				dw 		0
+wOptimizedVesaMode dw 0
 %endif
-wCurrentResX					dw 		0
-wCurrentResY 					dw 		0
+wCurrentResX dw 0
+wCurrentResY dw 0
 
 ; ****************************
 ; VBE Structures

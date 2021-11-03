@@ -22,7 +22,7 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ds/ds.h>
 #include <ds/list.h>
@@ -53,11 +53,11 @@ static struct {
     DataDirectoryHandler Handler;
 } DataDirectoryHandlers[] = {
     { PE_SECTION_BASE_RELOCATION, PeHandleRelocations },
-    { PE_SECTION_GLOBAL_PTR, PeHandleRuntimeRelocations },
     { PE_SECTION_EXPORT, PeHandleExports },
 
-    // Always handle import table last
+    // Delay handling of import, and make sure RuntimeRelocations is handled after that
     { PE_SECTION_IMPORT, PeHandleImports },
+    { PE_SECTION_GLOBAL_PTR, PeHandleRuntimeRelocations },
 
     // EOL marker
     { PE_NUM_DIRECTORIES, NULL }
@@ -465,26 +465,43 @@ static void HandleRelocationsV1(
         _In_ const uint8_t*    RelocationsEnd)
 {
     RuntimeRelocationEntryV1_t* entry = (RuntimeRelocationEntryV1_t*)RelocationEntries;
+    dstrace("HandleRelocationsV1(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
+
     while ((uint8_t*)entry < RelocationsEnd) {
         uintptr_t sectionOffset = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Offset);
+        dstrace("HandleRelocationsV1 sectionOffset=0x%" PRIxIN " from entry->Offset=0x%x",
+                sectionOffset, entry->Offset);
+        dstrace("HandleRelocationsV1 value=0x%" PRIxIN " += 0x%x",
+                *((uintptr_t*)sectionOffset), entry->Value);
+
         *((uintptr_t*)sectionOffset) += entry->Value;
         entry++;
     }
 }
 
 static OsStatus_t HandleRelocationsV2(
+        _In_ PeExecutable_t*   Image,
         _In_ SectionMapping_t* Sections,
         _In_ int               SectionCount,
         _In_ uint8_t*          RelocationEntries,
         _In_ const uint8_t*    RelocationsEnd)
 {
     RuntimeRelocationEntryV2_t* entry = (RuntimeRelocationEntryV2_t*)RelocationEntries;
+    dstrace("HandleRelocationsV2(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
+
     while ((uint8_t*)entry < RelocationsEnd) {
         uintptr_t symbolSectionAddress = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Symbol);
         uintptr_t targetSectionAddress = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Offset);
         intptr_t  symbolValue = *((intptr_t*)symbolSectionAddress);
         uint8_t   relocSize = (uint8_t)(entry->Flags & 0xFF);
         intptr_t  relocData;
+
+        dstrace("HandleRelocationsV2 symbolSectionAddress=0x%" PRIxIN " from entry->Symbol=0x%x",
+                symbolSectionAddress, entry->Symbol);
+        dstrace("HandleRelocationsV2 targetSectionAddress=0x%" PRIxIN " from entry->Offset=0x%x",
+                targetSectionAddress, entry->Offset);
+        dstrace("HandleRelocationsV2 symbolValue=0x%" PRIxIN ", relocSize=0x%x",
+                symbolValue, relocSize);
 
         switch (relocSize) {
             case 8: {
@@ -518,8 +535,11 @@ static OsStatus_t HandleRelocationsV2(
             }
         }
 
-        relocData -= (intptr_t)symbolSectionAddress;
+        dstrace("HandleRelocationsV2 relocData=0x%" PRIxIN ", Image->VirtualAddress=0x%" PRIxIN,
+                relocData, Image->VirtualAddress);
+        relocData -= ((intptr_t)Image->VirtualAddress + entry->Symbol);
         relocData += symbolValue;
+        dstrace("HandleRelocationsV2 relocData=0x%" PRIxIN, relocData);
 
         switch (relocSize) {
             case 8: *((uint8_t*)targetSectionAddress) = (uint8_t)((uintptr_t)relocData & 0xFF); break;
@@ -545,6 +565,7 @@ OsStatus_t PeHandleRuntimeRelocations(
 {
     RuntimeRelocationHeader_t* header = (RuntimeRelocationHeader_t*)DirectoryContent;
     uint8_t*                   endOfEntries = DirectoryContent + DirectorySize;
+    dstrace("PeHandleRuntimeRelocations(size=%" PRIuIN ")", DirectorySize);
 
     if (DirectorySize < 8) {
         return OsInvalidParameters;
@@ -556,7 +577,7 @@ OsStatus_t PeHandleRuntimeRelocations(
             HandleRelocationsV1(Sections, SectionCount, entries, endOfEntries);
         }
         else if (header->Version == RP_VERSION_2) {
-            return HandleRelocationsV2(Sections, SectionCount, entries, endOfEntries);
+            return HandleRelocationsV2(Image, Sections, SectionCount, entries, endOfEntries);
         }
         else {
             return OsInvalidParameters;
@@ -713,16 +734,16 @@ PeParseAndMapImage(
     uintptr_t          VirtualAddress = Image->VirtualAddress;
     uint8_t*           DirectoryContents[PE_NUM_DIRECTORIES] = { 0 };
     SectionMapping_t*  SectionMappings;
-    MemoryMapHandle_t  MapHandle;
-    OsStatus_t         Status;
-    clock_t            Timing;
+    MemoryMapHandle_t MapHandle;
+    OsStatus_t        osStatus;
+    clock_t           Timing;
     int                i, j;
     dswarning("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Copy metadata of image to base address
-    Status = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
+    osStatus = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
         MEMORY_READ | MEMORY_WRITE, &MapHandle);
-    if (Status != OsSuccess) {
+    if (osStatus != OsSuccess) {
         dserror("Failed to map pe's metadata, out of memory?");
         return OsError;
     }
@@ -735,8 +756,8 @@ PeParseAndMapImage(
 
     // Now we want to handle all the directories and sections in the image
     dstrace("Handling sections and data directory mappings");
-    Status = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount, SectionMappings);
-    if (Status != OsSuccess) {
+    osStatus = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount, SectionMappings);
+    if (osStatus != OsSuccess) {
         return OsError;
     }
     
@@ -766,21 +787,22 @@ PeParseAndMapImage(
 
     // Handle all the data directories, if they are present
     for (i = 0; i < PE_NUM_DIRECTORIES; i++) {
-        int DataDirectoryIndex = DataDirectoryHandlers[i].Index;
-        if (DataDirectoryIndex == PE_NUM_DIRECTORIES) {
+        int dataDirectoryIndex = DataDirectoryHandlers[i].Index;
+        if (dataDirectoryIndex == PE_NUM_DIRECTORIES) {
             break; // End of list of handlers
         }
 
         // Is there any directory available for the handler?
-        if (DirectoryContents[DataDirectoryIndex] != NULL) {
-            dstrace("parsing data-directory[%i]", DataDirectoryIndex);
+        if (DirectoryContents[dataDirectoryIndex] != NULL) {
+            dstrace("parsing data-directory[%i]", dataDirectoryIndex);
             Timing = GetTimestamp();
-            Status = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount, 
-                DirectoryContents[DataDirectoryIndex], Directories[DataDirectoryIndex].Size);
-            if (Status != OsSuccess) {
-                dserror("handling of data-directory failed, status %u", Status);
+            osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
+                                                        DirectoryContents[dataDirectoryIndex],
+                                                        Directories[dataDirectoryIndex].Size);
+            if (osStatus != OsSuccess) {
+                dserror("handling of data-directory failed, status %u", osStatus);
             }
-            dstrace("directory[%i]: %u ms", DataDirectoryIndex, GetTimestamp() - Timing);
+            dstrace("directory[%i]: %u ms", dataDirectoryIndex, GetTimestamp() - Timing);
         }
     }
 
@@ -791,7 +813,7 @@ PeParseAndMapImage(
         }
     }
     dsfree(SectionMappings);
-    return Status;
+    return osStatus;
 }
 
 static OsStatus_t

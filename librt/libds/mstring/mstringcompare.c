@@ -35,21 +35,21 @@ MStringCompare(
     _In_ MString_t* String2,
     _In_ int        IgnoreCase)
 {
-    char*   StringPtr1;
-    char*   StringPtr2;
-    int     i1 = 0;
-    int     i2 = 0;
+    char* StringPtr1;
+    char* StringPtr2;
+    int   i1 = 0;
+    int   i2 = 0;
 
-    if (String1 == NULL || String1->Data == NULL || String1->Length == 0 ||
-        String2 == NULL || String2->Data == NULL || String2->Length == 0) {
+    if (!String1 || !String1->Data || String1->Length == 0 ||
+        !String2 || !String2->Data || String2->Length == 0) {
         return MSTRING_NO_MATCH;
     }
     StringPtr1 = (char*)String1->Data;
     StringPtr2 = (char*)String2->Data;
 
     while ((i1 < String1->Length) && (i2 < String2->Length)) {
-        mchar_t First   = Utf8GetNextCharacterInString(StringPtr1, &i1);
-        mchar_t Second  = Utf8GetNextCharacterInString(StringPtr2, &i2);
+        mchar_t First  = Utf8GetNextCharacterInString(StringPtr1, &i1);
+        mchar_t Second = Utf8GetNextCharacterInString(StringPtr2, &i2);
         if (First == MSTRING_EOS || Second == MSTRING_EOS) {
             return MSTRING_PARTIAL_MATCH;
         }

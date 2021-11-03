@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +15,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include "include/vfs.h"
+#include <vfs/filesystem_module.h>
 #include <os/sharedobject.h>
 #include <stdlib.h>
-
 
 static list_t      g_modulesLoaded = LIST_INIT;
 static const char* g_fsModules[] = {
@@ -39,7 +38,7 @@ static const char* g_fsModules[] = {
 	"$sys/drivers/filesystems/ext.dll"
 };
 
-static inline FileSystemModule_t* __GetLoadedModule(FileSystemType_t type)
+static inline FileSystemModule_t* __GetLoadedModule(enum FileSystemType type)
 {
     element_t* header = list_find(&g_modulesLoaded, (void*)(uintptr_t)type);
     return header ? header->value : NULL;
@@ -47,12 +46,12 @@ static inline FileSystemModule_t* __GetLoadedModule(FileSystemType_t type)
 
 FileSystemModule_t*
 VfsLoadModule(
-        _In_ FileSystemType_t type)
+        _In_ enum FileSystemType type)
 {
 	FileSystemModule_t* module;
 	Handle_t            handle;
 
-	if (type == FSUnknown) {
+	if (type == FileSystemType_UNKNOWN) {
 	    return NULL;
 	}
 

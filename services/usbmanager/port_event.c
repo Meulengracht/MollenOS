@@ -42,7 +42,7 @@ void __HandlePortEvent(
 {
     UsbController_t*      controller = NULL;
     UsbHcPortDescriptor_t portDescriptor;
-    OsStatus_t            osStatus = OsSuccess;
+    OsStatus_t            osStatus;
     UsbHub_t*             hub;
     UsbPort_t*            port = NULL;
 
@@ -79,11 +79,18 @@ void __HandlePortEvent(
         // Connected event
         // This function updates port-status after reset
         osStatus = UsbCoreDevicesCreate(controller, hub, port);
+        if (osStatus != OsSuccess) {
+            // TODO
+        }
     }
     else if (portDescriptor.Connected == 0 && port->Connected == 1) {
         // Disconnected event, remember that the descriptor pointer
         // becomes unavailable the moment we call the destroy device
         osStatus = UsbCoreDevicesDestroy(controller, port);
+        if (osStatus != OsSuccess) {
+            // TODO
+        }
+
         port->Speed     = portDescriptor.Speed;              // TODO: invalid
         port->Enabled   = portDescriptor.Enabled;            // TODO: invalid
         port->Connected = portDescriptor.Connected;          // TODO: invalid

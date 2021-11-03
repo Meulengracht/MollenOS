@@ -147,10 +147,6 @@ EnableA20:
 	pushad
 
 %ifndef __BOOT_SILENCE
-	; Print
-	mov 	esi, szPrefix
-	call 	Print
-
 	mov 	esi, szA20Setup
 	call 	Print
 %endif
@@ -205,7 +201,7 @@ EnableA20:
 
 %ifndef __BOOT_SILENCE
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szA20Setup 							db 		"Enabling A20 Gate", 0x00
+szA20Setup db "enabling A20 gate", 0x00
 %endif
 
 %endif

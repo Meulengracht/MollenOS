@@ -49,53 +49,56 @@ BITS 16
 ReadSector:
 	pushad
 
-	; Set initial 
-	mov 	word [DiskPackage.Segment], es
-	mov 	word [DiskPackage.Offset], bx
-	mov 	dword [DiskPackage.Sector], eax
-	mov		dword [DiskPackage.Sector + 4], esi
+	; add base sector onto start-sector
+	add eax, dword [dBaseSector]
+	adc edx, 0
 
-	.sLoop:
+	; store values into disk package
+	mov word [DiskPackage.Segment], es
+	mov word [DiskPackage.Offset], bx
+	mov dword [DiskPackage.Sector], eax
+	mov	dword [DiskPackage.Sector + 4], esi
+
+	.ReadLoop:
 		; Setup Package
-		mov 	word [DiskPackage.SectorsToRead], 1
+		mov word [DiskPackage.SectorsToRead], 1
 
 		; Setup INT
-		push 	edx
-		mov 	al, 0
-		mov 	ah, 0x42
-		mov 	dl, byte [bDriveNumber]
-		mov 	si, DiskPackage
-		int 	0x13
+		push edx
+		mov ax, 0x4200
+		mov dl, byte [bDriveNumber]
+		mov si, DiskPackage
+		int 0x13
 
 		; It's important we check for offset overflow
-		pop 	edx
-		mov 	ax, word [DiskPackage.Offset]
-		add 	ax, dx
-		mov 	word [DiskPackage.Offset], ax
-		test 	ax, ax
-		jne 	.NoOverflow
+		pop edx
+		mov ax, word [DiskPackage.Offset]
+		add ax, dx
+		mov word [DiskPackage.Offset], ax
+		test ax, ax
+		jne .NoOverflow
 
 	.Overflow:
 		; So overflow happened
-		add 	word [DiskPackage.Segment], 0x1000
-		mov 	word [DiskPackage.Offset], 0x0000
+		add word [DiskPackage.Segment], 0x1000
+		mov word [DiskPackage.Offset], 0x0000
 
 	.NoOverflow:
 		; Loop
-		inc 	dword [DiskPackage.Sector]
-		loop 	.sLoop
+		inc dword [DiskPackage.Sector]
+		loop .ReadLoop
 
 	.End:
 	; Restore registers 
 	popad
 
 	; Save position
-	push 	eax
-	xor 	eax, eax
-	mov 	ax, word [DiskPackage.Segment]
-	mov 	es, ax
-	mov 	bx, word [DiskPackage.Offset]
-	pop 	eax
+	push eax
+	xor eax, eax
+	mov ax, word [DiskPackage.Segment]
+	mov es, ax
+	mov bx, word [DiskPackage.Offset]
+	pop eax
 	ret
 
 ; ****************************
@@ -170,10 +173,6 @@ SetupFS:
 
 	; Save
 	mov 	byte [bFileSysType], al
-
-	; Print
-	mov 	esi, szPrefix
-	call 	Print
 
 	; 0, 1 => MFS (Old)
 	cmp 	al, 0
@@ -284,9 +283,9 @@ SetupFS:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szFsSetup						db		"Setting up ", 0x00
-szFsLoading						db 		"Loading Kernel", 0x00
-szNotSupported					db 		"Filesystem is not supported", 0x00
+szFsSetup						db		"initializing ", 0x00
+szFsLoading						db 		"loading kernel image", 0x00
+szNotSupported					db 		"filesystem is not supported", 0x00
 szMfs							db 		"MFS-1", 0x00
 szFat12							db		"FAT 12", 0x00
 szFat16							db		"FAT 16", 0x00

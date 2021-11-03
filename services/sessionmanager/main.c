@@ -67,11 +67,12 @@ void sys_session_logout_invocation(struct gracht_message* message, const char* s
 void sys_session_disk_connected_invocation(struct gracht_message* message, const char* identifier)
 {
     char pathBuffer[64];
+    TRACE("sys_session_disk_connected_invocation");
     
     if (WindowingSystemId == UUID_INVALID) {
         // Clear up buffer and spawn app
         memset(&pathBuffer[0], 0, sizeof(pathBuffer));
-        sprintf(&pathBuffer[0], "%s:/shared/bin/" __OSCONFIG_INIT_APP, identifier);
+        sprintf(&pathBuffer[0], "%s:/bin/" __OSCONFIG_INIT_APP, identifier);
         TRACE("Spawning %s", &pathBuffer[0]);
         ProcessSpawn(&pathBuffer[0], NULL, &WindowingSystemId);
     }

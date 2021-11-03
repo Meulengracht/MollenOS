@@ -33,272 +33,275 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-OsStatus_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-OsStatus_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-OsStatus_t FsSeekInFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
+OsStatus_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 // Directory specific operation handlers
-OsStatus_t FsReadFromDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*);
-OsStatus_t FsSeekInDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
+OsStatus_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsSeekInDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 OsStatus_t 
 FsOpenEntry(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MString_t*                Path,
-    _Out_ FileSystemEntry_t**       BaseEntry)
+        _In_  FileSystemBase_t*       fileSystemBase,
+        _In_  MString_t*              path,
+        _Out_ FileSystemEntryBase_t** baseOut)
 {
-    MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
-    OsStatus_t     Result;
-    MfsEntry_t*    Entry;
+    FileSystemMFS_t*      mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
+    OsStatus_t            osStatus;
+    FileSystemEntryMFS_t* mfsEntry;
 
-    Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
-    if (!Entry) {
-        return OsInvalidParameters;
+    mfsEntry = (FileSystemEntryMFS_t*)malloc(sizeof(FileSystemEntryMFS_t));
+    if (!mfsEntry) {
+        return OsOutOfMemory;
     }
     
-    memset(Entry, 0, sizeof(MfsEntry_t));
-    Result     = MfsLocateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path);
-    *BaseEntry = (FileSystemEntry_t*)Entry;
-    if (Result != OsSuccess) {
-        free(Entry);
+    memset(mfsEntry, 0, sizeof(FileSystemEntryMFS_t));
+    osStatus = MfsLocateRecord(fileSystemBase, mfs->MasterRecord.RootIndex, mfsEntry, path);
+    *baseOut = (FileSystemEntryBase_t*)mfsEntry;
+    if (osStatus != OsSuccess) {
+        free(mfsEntry);
     }
-    return Result;
+    return osStatus;
 }
 
 OsStatus_t 
 FsCreatePath(
-    _In_  FileSystemDescriptor_t* FileSystem,
-    _In_  MString_t*              Path,
-    _In_  unsigned int            Options,
-    _Out_ FileSystemEntry_t**     BaseEntry)
+        _In_  FileSystemBase_t*       fileSystemBase,
+        _In_  MString_t*              path,
+        _In_  unsigned int            options,
+        _Out_ FileSystemEntryBase_t** baseOut)
 {
-    MfsInstance_t* mfs;
-    OsStatus_t     osStatus;
-    MfsEntry_t*    entry;
+    FileSystemMFS_t*      mfs;
+    OsStatus_t            osStatus;
+    FileSystemEntryMFS_t* entry;
 
-    if (!FileSystem || !BaseEntry) {
+    if (!fileSystemBase || !baseOut) {
         return OsInvalidParameters;
     }
 
-    mfs      = (MfsInstance_t*)FileSystem->ExtensionData;
-    osStatus = MfsCreateRecord(FileSystem, Options, mfs->MasterRecord.RootIndex, Path, &entry);
+    mfs      = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
+    osStatus = MfsCreateRecord(fileSystemBase, options, mfs->MasterRecord.RootIndex, path, &entry);
     if (osStatus == OsSuccess) {
-        *BaseEntry = &entry->Base;
+        *baseOut = &entry->Base;
     }
     return osStatus;
 }
 
 OsStatus_t
 FsCloseEntry(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileSystemEntry_t*         BaseEntry)
+        _In_ FileSystemBase_t*      fileSystemBase,
+        _In_ FileSystemEntryBase_t* entryBase)
 {
-    OsStatus_t  Code  = OsSuccess;
-    MfsEntry_t* Entry = (MfsEntry_t*)BaseEntry;
+    OsStatus_t            osStatus = OsSuccess;
+    FileSystemEntryMFS_t* entry = (FileSystemEntryMFS_t*)entryBase;
     
-    TRACE("FsCloseEntry(%i)", Entry->ActionOnClose);
-    if (Entry->ActionOnClose) {
-        Code = MfsUpdateRecord(FileSystem, Entry, Entry->ActionOnClose);
+    TRACE("FsCloseEntry(%i)", entry->ActionOnClose);
+    if (entry->ActionOnClose) {
+        osStatus = MfsUpdateRecord(fileSystemBase, entry, entry->ActionOnClose);
     }
-    if (BaseEntry->Name != NULL) { MStringDestroy(BaseEntry->Name); }
-    if (BaseEntry->Path != NULL) { MStringDestroy(BaseEntry->Path); }
-    free(Entry);
-    return Code;
+    if (entryBase->Name != NULL) { MStringDestroy(entryBase->Name); }
+    free(entry);
+    return osStatus;
 }
 
 OsStatus_t
 FsDeleteEntry(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileSystemEntryHandle_t*   BaseHandle)
+        _In_ FileSystemBase_t*      fileSystemBase,
+        _In_ FileSystemEntryBase_t* entryBase)
 {
-    MfsEntryHandle_t* Handle  = (MfsEntryHandle_t*)BaseHandle;
-    MfsEntry_t*       Entry   = (MfsEntry_t*)Handle->Base.Entry;
-    OsStatus_t        Code;
-    OsStatus_t        Status;
+    FileSystemEntryMFS_t*  entry = (FileSystemEntryMFS_t*)entryBase;
+    OsStatus_t             osStatus;
 
-    Status = MfsFreeBuckets(FileSystem, Entry->StartBucket, Entry->StartLength);
-    if (Status != OsSuccess) {
+    osStatus = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
+    if (osStatus != OsSuccess) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
-            Entry->StartBucket, Entry->StartLength);
+              entry->StartBucket, entry->StartLength);
         return OsDeviceError;
     }
 
-    Code = MfsUpdateRecord(FileSystem, Entry, MFS_ACTION_DELETE);
-    if (Code == OsSuccess) {
-        Code = FsCloseHandle(FileSystem, BaseHandle);
-        if (Code == OsSuccess) {
-            Code = FsCloseEntry(FileSystem, &Entry->Base);
-        }
+    osStatus = MfsUpdateRecord(fileSystemBase, entry, MFS_ACTION_DELETE);
+    if (osStatus == OsSuccess) {
+        osStatus = FsCloseEntry(fileSystemBase, &entry->Base);
     }
-    return Code;
+    return osStatus;
 }
 
 OsStatus_t
 FsOpenHandle(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  FileSystemEntry_t*        BaseEntry,
-    _Out_ FileSystemEntryHandle_t** BaseHandle)
+        _In_  FileSystemBase_t*        fileSystemBase,
+        _In_  FileSystemEntryBase_t*   entryBase,
+        _Out_ FileSystemHandleBase_t** handleBaseOut)
 {
-    MfsEntry_t*         Entry   = (MfsEntry_t*)BaseEntry;
-    MfsEntryHandle_t*   Handle;
+    FileSystemEntryMFS_t*  entry = (FileSystemEntryMFS_t*)entryBase;
+    FileSystemHandleMFS_t* handle;
 
-    Handle = (MfsEntryHandle_t*)malloc(sizeof(MfsEntryHandle_t));
-    if (!Handle) {
-        return OsInvalidParameters;
+    handle = (FileSystemHandleMFS_t*)malloc(sizeof(FileSystemHandleMFS_t));
+    if (!handle) {
+        return OsOutOfMemory;
     }
     
-    memset(Handle, 0, sizeof(MfsEntryHandle_t));
-    Handle->BucketByteBoundary = 0;
-    Handle->DataBucketPosition = Entry->StartBucket;
-    Handle->DataBucketLength   = Entry->StartLength;
-    *BaseHandle                = &Handle->Base;
+    memset(handle, 0, sizeof(FileSystemHandleMFS_t));
+    handle->BucketByteBoundary = 0;
+    handle->DataBucketPosition = entry->StartBucket;
+    handle->DataBucketLength   = entry->StartLength;
+    *handleBaseOut = &handle->Base;
     return OsSuccess;
 }
 
 OsStatus_t
 FsCloseHandle(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileSystemEntryHandle_t*   BaseHandle)
+        _In_ FileSystemBase_t*       fileSystemBase,
+        _In_ FileSystemHandleBase_t* handleBase)
 {
-    MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
+    FileSystemHandleMFS_t* Handle = (FileSystemHandleMFS_t*)handleBase;
     free(Handle);
     return OsSuccess;
 }
 
 OsStatus_t
 FsReadEntry(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  void*                     Buffer,
-    _In_  size_t                    BufferOffset,
-    _In_  size_t                    UnitCount,
-    _Out_ size_t*                   UnitsRead)
+        _In_  FileSystemBase_t*       fileSystemBase,
+        _In_  FileSystemEntryBase_t*  entryBase,
+        _In_  FileSystemHandleBase_t* handleBase,
+        _In_  UUId_t                  bufferHandle,
+        _In_  void*                   buffer,
+        _In_  size_t                  bufferOffset,
+        _In_  size_t                  unitCount,
+        _Out_ size_t*                 unitsRead)
 {
-    MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
-    TRACE("FsReadEntry(flags 0x%x, length %u)", Handle->Base.Entry->Descriptor.Flags, UnitCount);
-    if (Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
-        return FsReadFromDirectory(FileSystem, Handle, BufferHandle, Buffer, BufferOffset, UnitCount, UnitsRead);
+    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
+    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+    TRACE("FsReadEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
+
+    if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
+        return FsReadFromDirectory(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);
     }
     else {
-        return FsReadFromFile(FileSystem, Handle, BufferHandle, Buffer, BufferOffset, UnitCount, UnitsRead);
+        return FsReadFromFile(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);
     }
 }
 
 OsStatus_t
 FsWriteEntry(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  void*                     Buffer,
-    _In_  size_t                    BufferOffset,
-    _In_  size_t                    UnitCount,
-    _Out_ size_t*                   UnitsWritten)
+        _In_  FileSystemBase_t*       fileSystemBase,
+        _In_  FileSystemEntryBase_t*  entryBase,
+        _In_  FileSystemHandleBase_t* handleBase,
+        _In_  UUId_t                  bufferHandle,
+        _In_  void*                   buffer,
+        _In_  size_t                  bufferOffset,
+        _In_  size_t                  unitCount,
+        _Out_ size_t*                 unitsWritten)
 {
-    MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
-    TRACE("FsWriteEntry(flags 0x%x, length %u)", Handle->Base.Entry->Descriptor.Flags, UnitCount);
-    if (!(Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
-        return FsWriteToFile(FileSystem, Handle, BufferHandle, Buffer, BufferOffset, UnitCount, UnitsWritten);
+    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
+    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+    TRACE("FsWriteEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
+
+    if (!(entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
+        return FsWriteToFile(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsWritten);
     }
     return OsInvalidParameters;
 }
 
 OsStatus_t
 FsSeekInEntry(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileSystemEntryHandle_t*   BaseHandle,
-    _In_ uint64_t                   AbsolutePosition)
+        _In_ FileSystemBase_t*       fileSystemBase,
+        _In_ FileSystemEntryBase_t*  entryBase,
+        _In_ FileSystemHandleBase_t* handleBase,
+        _In_ uint64_t                absolutePosition)
 {
-    MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
-    if (Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
-        return FsSeekInDirectory(FileSystem, Handle, AbsolutePosition);
+    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
+    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+
+    if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
+        return FsSeekInDirectory(fileSystemBase, entry, handle, absolutePosition);
     }
     else {
-        return FsSeekInFile(FileSystem, Handle, AbsolutePosition);
+        return FsSeekInFile(fileSystemBase, entry, handle, absolutePosition);
     }
 }
 
 OsStatus_t
 FsDestroy(
-    _In_ FileSystemDescriptor_t* Descriptor,
-    _In_ unsigned int                 UnmountFlags)
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ unsigned int      unmountFlags)
 {
-    MfsInstance_t *Mfs;
+    FileSystemMFS_t* fileSystem;
 
-    if (!Descriptor) {
+    if (!fileSystemBase) {
         return OsInvalidParameters;
     }
 
-    Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-    if (Mfs == NULL) {
+    fileSystem = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
+    if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
 
     // Which kind of unmount is it?
-    if (!(UnmountFlags & 0x1)) {
+    if (!(unmountFlags & 0x1)) {
         // Flush everything
         // @todo
     }
 
     // Cleanup all allocated resources
-    if (Mfs->TransferBuffer.buffer != NULL) {
-        dma_attachment_unmap(&Mfs->TransferBuffer);
-        dma_detach(&Mfs->TransferBuffer);
+    if (fileSystem->TransferBuffer.buffer != NULL) {
+        dma_attachment_unmap(&fileSystem->TransferBuffer);
+        dma_detach(&fileSystem->TransferBuffer);
     }
 
     // Free the bucket-map
-    if (Mfs->BucketMap != NULL) {
-        free(Mfs->BucketMap);
+    if (fileSystem->BucketMap != NULL) {
+        free(fileSystem->BucketMap);
     }
 
     // Free structure and return
-    free(Mfs);
-    Descriptor->ExtensionData = NULL;
+    free(fileSystem);
+    fileSystemBase->ExtensionData = NULL;
     return OsSuccess;
 }
 
 void
 FsInitializeRootRecord(
-    _In_ MfsInstance_t* FileSystem)
+        _In_ FileSystemMFS_t* fileSystem)
 {
-    memset(&FileSystem->RootRecord, 0, sizeof(FileRecord_t));
-    memcpy(&FileSystem->RootRecord.Name[0], RootEntryName, strlen(RootEntryName));
-    
-    FileSystem->RootRecord.Flags = MFS_FILERECORD_INUSE | MFS_FILERECORD_LOCKED | 
-        MFS_FILERECORD_SYSTEM | MFS_FILERECORD_DIRECTORY;
-    FileSystem->RootRecord.StartBucket = FileSystem->MasterRecord.RootIndex;
-    FileSystem->RootRecord.StartLength = MFS_ROOTSIZE;
+    memset(&fileSystem->RootRecord, 0, sizeof(FileRecord_t));
+    memcpy(&fileSystem->RootRecord.Name[0], RootEntryName, strlen(RootEntryName));
+
+    fileSystem->RootRecord.Flags       = MFS_FILERECORD_INUSE | MFS_FILERECORD_LOCKED |
+                                         MFS_FILERECORD_SYSTEM | MFS_FILERECORD_DIRECTORY;
+    fileSystem->RootRecord.StartBucket = fileSystem->MasterRecord.RootIndex;
+    fileSystem->RootRecord.StartLength = MFS_ROOTSIZE;
 }
 
 OsStatus_t
 FsInitialize(
-    _In_ FileSystemDescriptor_t* Descriptor)
+        _In_ FileSystemBase_t* fileSystemBase)
 {
-    MasterRecord_t* masterRecord;
-    BootRecord_t*   bootRecord;
-    MfsInstance_t*  mfsInstance;
-    uint8_t*        bMap;
-    uint64_t        bytesRead;
-    uint64_t        bytesLeft;
-    OsStatus_t      osStatus;
-    size_t          i, imax;
-    size_t          sectorsTransferred;
+    MasterRecord_t*  masterRecord;
+    BootRecord_t*    bootRecord;
+    FileSystemMFS_t* mfsInstance;
+    uint8_t*         bMap;
+    uint64_t         bytesRead;
+    uint64_t         bytesLeft;
+    OsStatus_t       osStatus;
+    size_t           i, imax;
+    size_t           sectorsTransferred;
     
     struct dma_buffer_info bufferInfo = { 0 };
 
     TRACE("FsInitialize()");
 
-    mfsInstance = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
+    mfsInstance = (FileSystemMFS_t*)malloc(sizeof(FileSystemMFS_t));
     if (!mfsInstance) {
         ERROR("Failed to allocate memory for mfs variable");
         osStatus = OsOutOfMemory;
         goto error_exit;
     }
-    memset(mfsInstance, 0, sizeof(MfsInstance_t));
+    memset(mfsInstance, 0, sizeof(FileSystemMFS_t));
     
     // Create a generic transferbuffer for us to use
-    bufferInfo.length   = Descriptor->Disk.descriptor.SectorSize;
-    bufferInfo.capacity = Descriptor->Disk.descriptor.SectorSize;
+    bufferInfo.length   = fileSystemBase->Disk.descriptor.SectorSize;
+    bufferInfo.capacity = fileSystemBase->Disk.descriptor.SectorSize;
     bufferInfo.flags    = 0;
 
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
@@ -308,13 +311,13 @@ FsInitialize(
     }
 
     // Read the boot-sector
-    if (MfsReadSectors(Descriptor, mfsInstance->TransferBuffer.handle, 0, 0,
-                       1, &sectorsTransferred) != OsSuccess) {
+    if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle,
+                       0, 0, 1, &sectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs boot-sector record");
         goto error_exit;
     }
 
-    Descriptor->ExtensionData = (uintptr_t*)mfsInstance;
+    fileSystemBase->ExtensionData = (uintptr_t*)mfsInstance;
     bootRecord = (BootRecord_t*)mfsInstance->TransferBuffer.buffer;
     if (bootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
         ERROR("Failed to validate boot-record signature (0x%x, expected 0x%x)",
@@ -330,15 +333,16 @@ FsInitialize(
     mfsInstance->MasterRecordSector       = bootRecord->MasterRecordSector;
     mfsInstance->MasterRecordMirrorSector = bootRecord->MasterRecordMirror;
     mfsInstance->SectorsPerBucket         = bootRecord->SectorsPerBucket;
+    mfsInstance->ReservedSectorCount      = bootRecord->ReservedSectors;
 
     // Calculate where our map sector is
-    mfsInstance->BucketCount = Descriptor->SectorCount / mfsInstance->SectorsPerBucket;
+    mfsInstance->BucketCount = fileSystemBase->SectorCount / mfsInstance->SectorsPerBucket;
     
     // Bucket entries are 64 bit (8 bytes) in map
-    mfsInstance->BucketsPerSectorInMap = Descriptor->Disk.descriptor.SectorSize / 8;
+    mfsInstance->BucketsPerSectorInMap = fileSystemBase->Disk.descriptor.SectorSize / 8;
 
     // Read the master-record
-    if (MfsReadSectors(Descriptor, mfsInstance->TransferBuffer.handle, 0,
+    if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
                        mfsInstance->MasterRecordSector, 1, &sectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs master-sectofferfferr record");
         osStatus = OsError;
@@ -355,13 +359,26 @@ FsInitialize(
     }
     TRACE("Partition-name: %s", &masterRecord->PartitionName[0]);
     memcpy(&mfsInstance->MasterRecord, masterRecord, sizeof(MasterRecord_t));
+
+    // Parse the master record
+    if (masterRecord->Flags & MFS_MASTERRECORD_SYSTEM_DRIVE) {
+        fileSystemBase->Flags |= __FILESYSTEM_BOOT;
+    }
+    if (masterRecord->Flags & MFS_MASTERRECORD_DATA_DRIVE) {
+        fileSystemBase->Flags |= __FILESYSTEM_DATA;
+    }
+    if (masterRecord->Flags & MFS_MASTERRECORD_USER_DRIVE) {
+        fileSystemBase->Flags |= __FILESYSTEM_USER;
+    }
+    TRACE("Partition flags: 0x%x", fileSystemBase->Flags);
+
     dma_attachment_unmap(&mfsInstance->TransferBuffer);
     dma_detach(&mfsInstance->TransferBuffer);
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
-    bufferInfo.length   = mfsInstance->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
-    bufferInfo.capacity = mfsInstance->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
+    bufferInfo.length   = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
+    bufferInfo.capacity = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
     if (osStatus != OsSuccess) {
         free(mfsInstance);
@@ -373,20 +390,20 @@ FsInitialize(
         LODWORD(mfsInstance->MasterRecord.MapSize));
 
     // Load map
-    mfsInstance->BucketMap = (uint32_t*)malloc((size_t)mfsInstance->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize);
+    mfsInstance->BucketMap = (uint32_t*)malloc((size_t)mfsInstance->MasterRecord.MapSize + fileSystemBase->Disk.descriptor.SectorSize);
     bMap      = (uint8_t*)mfsInstance->BucketMap;
     bytesLeft = mfsInstance->MasterRecord.MapSize;
     bytesRead = 0;
     i         = 0;
-    imax      = DIVUP(bytesLeft, (mfsInstance->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize));
+    imax      = DIVUP(bytesLeft, (mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize));
 
 #ifdef CACHE_SEGMENTED
     while (bytesLeft) {
         uint64_t mapSector    = mfsInstance->MasterRecord.MapSector + (i * mfsInstance->SectorsPerBucket);
-        size_t   transferSize = MIN((mfsInstance->SectorsPerBucket * Descriptor->Disk.descriptor.SectorSize), (size_t)bytesLeft);
-        size_t   sectorCount  = DIVUP(transferSize, Descriptor->Disk.descriptor.SectorSize);
+        size_t   transferSize = MIN((mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize), (size_t)bytesLeft);
+        size_t   sectorCount  = DIVUP(transferSize, fileSystemBase->Disk.descriptor.SectorSize);
 
-        osStatus = MfsReadSectors(Descriptor, mfsInstance->TransferBuffer.handle, 0,
+        osStatus = MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
                                   mapSector, sectorCount, &sectorsTransferred);
         if (osStatus != OsSuccess) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
@@ -394,8 +411,10 @@ FsInitialize(
         }
 
         if (sectorsTransferred != sectorCount) {
-            ERROR("Read %u sectors instead of %u from sector %u",
-                  LODWORD(sectorsTransferred), LODWORD(sectorCount), LODWORD(mapSector));
+            ERROR("Read %u sectors instead of %u from sector %u [bytesleft %u]",
+                  LODWORD(sectorsTransferred), LODWORD(sectorCount),
+                  LODWORD(fileSystemBase->SectorStart + mapSector),
+                  LODWORD(bytesLeft));
             osStatus = OsDeviceError;
             goto error_exit;
         }
@@ -407,9 +426,10 @@ FsInitialize(
         bMap      += transferSize;
         i++;
         if (i == (imax / 4) || i == (imax / 2) || i == ((imax / 4) * 3)) {
-            WARNING("Cached %u/%u bytes of sector-map", LODWORD(bytesRead), LODWORD(mfsInstance->MasterRecord.MapSize));
+            TRACE("Cached %u/%u bytes of sector-map", LODWORD(bytesRead), LODWORD(mfsInstance->MasterRecord.MapSize));
         }
     }
+    TRACE("Bucket map was cached");
 #else
     struct dma_buffer_info mapInfo;
     struct dma_attachment  mapAttachment;
@@ -447,6 +467,6 @@ FsInitialize(
     return OsSuccess;
 
 error_exit:
-    FsDestroy(Descriptor, 0);
+    FsDestroy(fileSystemBase, 0);
     return osStatus;
 }

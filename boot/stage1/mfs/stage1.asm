@@ -1,6 +1,6 @@
 ; MollenOS
 ;
-; Copyright 2011 - 2016, Philip Meulengracht
+; Copyright 2011, Philip Meulengracht
 ;
 ; This program is free software : you can redistribute it and / or modify
 ; it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ ORG 0x7C00
 
 
 ; Jump Code, 3 Bytes
-jmp short Main
+jmp short entry
 nop
 
 ; *************************
@@ -63,31 +63,31 @@ szVolumeLabel				db		"MollenOS"
 
 ; *************************
 ; Bootloader Entry Point
+; dl = drive number
+; si = partition table entry
 ; *************************
 
-Main:
-	; Disable Interrupts, unsafe passage
-	cli
+entry:
+	cli ; disable irqs while modifying stack
+	jmp 0x0:fix_cs ; far jump to fix segment registers
 
-	; Far jump to fix segment registers
-	jmp 	0x0:FixCS
+fix_cs:
+	xor ax, ax
+	mov ss, ax
+	mov	ds, ax
+	mov	es, ax
 
-FixCS:
-	; Fix segment registers to 0
-	xor 	ax, ax
-	mov		ds, ax
-	mov		es, ax
+    ; setup stack to point just below this boot-code
+	mov	ax, 0x7C00
+	mov	sp, ax
+    sti
+    cld
 
-	; Set stack
-	mov		ss, ax
-	mov		ax, 0x7C00
-	mov		sp, ax
-
-	; Done, now we need interrupts again
-	sti
-
-	; Step 0. Save DL
+	; Step 0. Save DL and the partition information
 	mov 	byte [bPhysicalDriveNum], dl
+    mov     di, PartitionData
+    mov     cx, 0x0008 ; 8 words = 16 bytes
+    repnz movsw
 	
 	; Step 1. Initialize the UART
 	xor		eax, eax
@@ -129,12 +129,14 @@ FixCS:
 	xor		eax, eax
 	mov		es, ax
 	mov		bx, 0x0500
-	mov		ax, 1
+	mov     eax, dword [dBaseSector] ; load the base sector for the partition we are on
+	inc		eax                      ; set pointer to the sector after this one
 	mov		cx, word [wReservedSectorCount]
 	call	ReadSector
 
 	; Done, jump
 	mov 	dl, byte [bPhysicalDriveNum]
+	mov     si, PartitionData
 	mov 	dh, 5
 	jmp 	0x0:0x500
 
@@ -146,8 +148,8 @@ FixCS:
 ; BIOS ReadSector 
 ; IN:
 ; 	- ES:BX: Buffer
-;	- AX: Sector start
-; 	- CX: Sector count
+;	- EAX: Sector start
+; 	- CX:  Sector count
 ;
 ; Registers:
 ; 	- Conserves all but ES:BX
@@ -155,43 +157,42 @@ FixCS:
 ReadSector:
 	; Error Counter
 	.Start:
-		mov 	di, 5
+		mov di, 5
 
 	.sLoop:
 		; Save states
-		push 	ax
-		push 	bx
-		push 	cx
+		push eax
+		push bx
+		push cx
 
 		; Convert LBA to CHS
-		xor     dx, dx
-        div     WORD [wSectorsPerTrack]
-        inc     dl ; adjust for sector 0
-        mov     cl, dl ;Absolute Sector
-        xor     dx, dx
-        div     WORD [wHeadsPerCylinder]
-        mov     dh, dl ;Absolute Head
-        mov     ch, al ;Absolute Track
+		xor dx, dx
+        div WORD [wSectorsPerTrack]
+        inc dl ; adjust for sector 0
+        mov cl, dl ;Absolute Sector
+        xor dx, dx
+        div WORD [wHeadsPerCylinder]
+        mov dh, dl ;Absolute Head
+        mov ch, al ;Absolute Track
 
         ; Bios Disk Read -> 01 sector
-		mov 	ax, 0x0201
-		mov 	dl, byte [bPhysicalDriveNum]
-		int 	0x13
-		jnc 	.Success
+		mov ax, 0x0201
+		mov dl, byte [bPhysicalDriveNum]
+		int 0x13
+		jnc .Success
 
 	.Fail:
-		; HAHA fuck you
-		xor 	ax, ax
-		int 	0x13
-		dec 	di
-		pop 	cx
-		pop 	bx
-		pop 	ax
-		jnz 	.sLoop
+		xor ax, ax
+		int 0x13
+		dec di
+		pop cx
+		pop bx
+		pop eax
+		jnz .sLoop
 		
 		; Give control to next OS, we failed 
-		mov 	eax, 2
-		call 	PrintNumber
+		mov eax, 2
+		call PrintNumber
 		cli 
 		hlt
 
@@ -199,7 +200,7 @@ ReadSector:
 		; Next sector
 		pop 	cx
 		pop 	bx
-		pop 	ax
+		pop 	eax
 
 		add 	bx, word [wBytesPerSector]
 		jnc 	.SkipEs
@@ -210,8 +211,6 @@ ReadSector:
 	.SkipEs:
 		inc 	ax
 		loop 	.Start
-
-	; Done
 	ret
 
 ; ********************************
@@ -256,8 +255,8 @@ PrintNumber:
 	pushad
 
 	; Loops
-	; xor 	bx, bx
-    mov 	ecx, 10
+	; xor bx, bx
+    mov ecx, 10
 
 	.DigitLoop:
 	    xor 	edx, edx
@@ -300,10 +299,13 @@ PrintNumber:
 ; **************************
 ; Variables
 ; **************************
-bPhysicalDriveNum				db		0
+bPhysicalDriveNum db 0
 
-; Fill out bootloader
+; store the partition entry from the mbr
+PartitionData     dq 0
+dBaseSector       dd 0
+dSectorCount      dd 0
+
+; epilogue of the boot sector 
 times 510-($-$$) db 0
-
-; Boot Signature
 db 0x55, 0xAA

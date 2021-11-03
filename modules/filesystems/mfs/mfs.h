@@ -39,10 +39,10 @@
  * MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion
  */
-#define MFS_ENDOFCHAIN                          0xFFFFFFFF
-#define MFS_GETSECTOR(mInstance, Bucket)        ((mInstance->SectorsPerBucket * Bucket))
-#define MFS_ROOTSIZE                            8
-#define MFS_DIRECTORYEXPANSION                  4
+#define MFS_ENDOFCHAIN                   0xFFFFFFFF
+#define MFS_GETSECTOR(mInstance, Bucket) ((mInstance)->ReservedSectorCount + ((mInstance)->SectorsPerBucket * (Bucket)))
+#define MFS_ROOTSIZE                     8
+#define MFS_DIRECTORYEXPANSION           4
 
 #define MFS_ACTION_NONE     0x0
 #define MFS_ACTION_UPDATE   0x1
@@ -77,15 +77,14 @@ PACKED_TYPESTRUCT(BootRecord, {
  * MFS Magic Value 
  * The signature value that must be present in BootRecord::Magic
  */
-#define MFS_BOOTRECORD_MAGIC            0x3153464D // 1SFM
+#define MFS_BOOTRECORD_MAGIC 0x3153464D // 1SFM
 
 /**
  * MFS Boot-Record flags
  * The possible values that can be present in BootRecord::Flags
  */
-#define MFS_BOOTRECORD_SYSDRIVE         0x1
-#define MFS_BOOTRECORD_DIRTY            0x2
-#define MFS_BOOTRECORD_ENCRYPTED        0x4
+#define MFS_BOOTRECORD_SYSDRIVE  0x1  // Boot Partition
+#define MFS_BOOTRECORD_ENCRYPTED 0x2  // Partition is protected by encryption
 
 /**
  * The master-record structure
@@ -106,6 +105,12 @@ PACKED_TYPESTRUCT(MasterRecord, {
     uint64_t MapSector;          // Start sector of bucket-map
     uint64_t MapSize;            // Size of bucket map
 });
+
+#define MFS_MASTERRECORD_SYSTEM_DRIVE 0x1  // Partition is system drive
+#define MFS_MASTERRECORD_DATA_DRIVE   0x2  // Partition is system data drive
+#define MFS_MASTERRECORD_USER_DRIVE   0x4  // Partition is system user drive
+#define MFS_MASTERRECORD_HIDDEN       0x8  // Partition is marked as hidden
+#define MFS_MASTERRECORD_DIRTY        0x10 // Journal must be checked on startup
 
 /* The bucket-map record
  * A map entry consists of the length of the bucket, and it's link
@@ -177,7 +182,7 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_DIRECTORY        0x1
 #define MFS_FILERECORD_LINK             0x2
 #define MFS_FILERECORD_RESERVED         0x3
-#define MFS_FILERECORD_TYPE(Flags)      (Flags & 0x3)
+#define MFS_FILERECORD_TYPE(Flags)      ((Flags) & 0x3)
 
 #define MFS_FILERECORD_SECURITY         0x4         // User must possess the right key to unlock
 #define MFS_FILERECORD_SYSTEM           0x8         // Readable, nothing else
@@ -190,10 +195,10 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_SPARSE           0x40000000  // Record-sparse map is in use
 #define MFS_FILERECORD_INUSE            0x80000000  // Record is in use
 
-PACKED_TYPESTRUCT(MfsEntry, {
-    FileSystemEntry_t Base;
-    uint32_t          NativeFlags;
-    int               ActionOnClose;
+typedef struct FileSystemEntryMFS {
+    FileSystemEntryBase_t Base;
+    uint32_t              NativeFlags;
+    int                   ActionOnClose;
     
     // The initial bucket and length of that bucket
     uint32_t StartBucket;
@@ -209,24 +214,25 @@ PACKED_TYPESTRUCT(MfsEntry, {
     uint32_t DirectoryBucket;
     uint32_t DirectoryLength;
     size_t   DirectoryIndex;
-});
+} FileSystemEntryMFS_t;
 
-PACKED_TYPESTRUCT(MfsEntryHandle, {
-    FileSystemEntryHandle_t Base;
+typedef struct FileSystemHandleMFS {
+    FileSystemHandleBase_t Base;
     
     // Current position for this file handle. We store the bucket
     // and the length of that bucket.
     uint32_t DataBucketPosition;
     uint32_t DataBucketLength;
     uint64_t BucketByteBoundary;  // Support variadic bucket sizes
-});
+} FileSystemHandleMFS_t;
 
-typedef struct MfsInstance {
+typedef struct FileSystemMFS {
     unsigned int          Flags;
     int                   Version;
     size_t                SectorsPerBucket;
     struct dma_attachment TransferBuffer;
-    
+
+    uint16_t ReservedSectorCount;
     uint64_t MasterRecordSector;
     uint64_t MasterRecordMirrorSector;
     uint64_t BucketCount;
@@ -236,153 +242,153 @@ typedef struct MfsInstance {
     uint32_t*      BucketMap;
     MasterRecord_t MasterRecord;
     FileRecord_t   RootRecord;
-} MfsInstance_t;
+} FileSystemMFS_t;
 
 /* MfsReadSectors 
  * A wrapper for reading sectors from the disk associated
  * with the file-system descriptor */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsReadSectors(
-    _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ UUId_t                     BufferHandle,
-    _In_ size_t                     BufferOffset,
-    _In_ uint64_t                   Sector,
-    _In_ size_t                     Count,
-    _In_ size_t*                    SectorsRead);
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  UUId_t            bufferHandle,
+        _In_  size_t            bufferOffset,
+        _In_  uint64_t          sector,
+        _In_  size_t            count,
+        _Out_ size_t*           sectorsReadOut);
 
 /* MfsWriteSectors 
  * A wrapper for writing sectors to the disk associated
  * with the file-system descriptor */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsWriteSectors(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ UUId_t                     BufferHandle,
-    _In_ size_t                     BufferOffset,
-    _In_ uint64_t                   Sector,
-    _In_ size_t                     Count,
-    _In_ size_t*                    SectorsWritten);
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  UUId_t            bufferHandle,
+        _In_  size_t            bufferOffset,
+        _In_  uint64_t          sector,
+        _In_  size_t            count,
+        _Out_ size_t*           sectorsWrittenOut);
 
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached
  * in-memory version of the bucketmap */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsGetBucketLink(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  uint32_t                  Bucket, 
-    _Out_ MapRecord_t*              Link);
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ uint32_t          bucket,
+        _In_ MapRecord_t*      link);
 
 /* MfsSetBucketLink
  * Updates the next link for the given bucket and flushes
  * the changes to disk */
-__EXTERN OsStatus_t 
+extern OsStatus_t
 MfsSetBucketLink(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   Bucket, 
-    _In_ MapRecord_t*               Link,
-    _In_ int                        UpdateLength);
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ uint32_t          bucket,
+        _In_ MapRecord_t*      link,
+        _In_ int               updateLength);
 
 /* MfsSwitchToNextBucketLink
  * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsDoesNotExist
  * when end-of-chain. */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsSwitchToNextBucketLink(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ MfsEntryHandle_t*          Handle,
-    _In_ size_t                     BucketSizeBytes);
+        _In_ FileSystemBase_t*      fileSystemBase,
+        _In_ FileSystemHandleMFS_t* handle,
+        _In_ size_t                 bucketSizeBytes);
 
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
  * useful for clearing clusters of sectors */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsZeroBucket(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ uint32_t                   Bucket,
-    _In_ size_t                     Count);
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ uint32_t          bucket,
+        _In_ size_t            count);
 
 /* MfsAllocateBuckets
  * Allocates the number of requested buckets in the bucket-map
  * if the allocation could not be done, it'll return OsError */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsAllocateBuckets(
-    _In_  FileSystemDescriptor_t*   FileSystem, 
-    _In_  size_t                    BucketCount, 
-    _Out_ MapRecord_t*              RecordResult);
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  size_t            bucketCount,
+        _Out_ MapRecord_t*      mapRecord);
 
 /* MfsFreeBucketsMfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for 
  * a file-record */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsFreeBuckets(
-    _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ uint32_t                   StartBucket,
-    _In_ uint32_t                   StartLength);
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ uint32_t          startBucket,
+        _In_ uint32_t          startLength);
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsEnsureRecordSpace(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ MfsEntry_t*                Entry,
-    _In_ uint64_t                   SpaceRequired);
+        _In_ FileSystemBase_t*     fileSystemBase,
+        _In_ FileSystemEntryMFS_t* entry,
+        _In_ uint64_t              spaceRequired);
 
 /* MfsUpdateRecord
  * Conveniance function for updating a given file on
  * the disk, not data related to file, but the metadata */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsUpdateRecord(
-    _In_ FileSystemDescriptor_t*    fileSystem,
-    _In_ MfsEntry_t*                entry,
-    _In_ int                        action);
+        _In_ FileSystemBase_t*     fileSystemBase,
+        _In_ FileSystemEntryMFS_t* entry,
+        _In_ int                   action);
 
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
  * directories. File is only allocated and set if the function returns OsSuccess */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsLocateRecord(
-    _In_ FileSystemDescriptor_t*    fileSystem,
-    _In_ uint32_t                   bucketOfDirectory,
-    _In_ MfsEntry_t*                entry,
-    _In_ MString_t*                 path);
+        _In_ FileSystemBase_t*     fileSystemBase,
+        _In_ uint32_t              bucketOfDirectory,
+        _In_ FileSystemEntryMFS_t* entry,
+        _In_ MString_t*            path);
 
 /**
  * Creates one of multiple new records along path. The last record will be created with the provided
  * <flags>. Other records created along the path will be created as directories with deduced permissions.
- * @param fileSystem        [In]
+ * @param fileSystemBase        [In]
  * @param flags             [In]
  * @param bucketOfDirectory [In]
  * @param path              [In]
  * @param entryOut          [Out]
  * @return                  Status of the record creation
  */
-__EXTERN OsStatus_t
+extern OsStatus_t
 MfsCreateRecord(
-        _In_ FileSystemDescriptor_t* fileSystem,
-        _In_ unsigned int            flags,
-        _In_ uint32_t                bucketOfDirectory,
-        _In_ MString_t*              path,
-        _In_ MfsEntry_t**            entryOut);
+        _In_ FileSystemBase_t*      fileSystemBase,
+        _In_ unsigned int           flags,
+        _In_ uint32_t               bucketOfDirectory,
+        _In_ MString_t*             path,
+        _In_ FileSystemEntryMFS_t** entryOut);
 
 /* MfsVfsFlagsToFileRecordFlags
  * Converts the generic vfs options/permissions to the native mfs representation. */
-__EXTERN unsigned int
+extern unsigned int
 MfsVfsFlagsToFileRecordFlags(
-    _In_ unsigned int                    flags,
-    _In_ unsigned int                    permissions);
+    _In_ unsigned int flags,
+    _In_ unsigned int permissions);
 
 /* MfsFileRecordFlagsToVfsFlags
  * Converts the native MFS file flags into the generic vfs options/permissions. */
-__EXTERN void
+extern void
 MfsFileRecordFlagsToVfsFlags(
-    _In_  FileRecord_t*             NativeEntry,
-    _Out_ unsigned int*                  Flags,
-    _Out_ unsigned int*                  Permissions);
+    _In_  FileRecord_t* fileRecord,
+    _Out_ unsigned int* flags,
+    _Out_ unsigned int* permissions);
 
 /* MfsFileRecordToVfsFile
  * Converts a native MFS file record into the generic vfs representation. */
-__EXTERN void
+extern void
 MfsFileRecordToVfsFile(
-    _In_ FileSystemDescriptor_t*    fileSystem,
-    _In_ FileRecord_t*              nativeEntry,
-    _In_ MfsEntry_t*                mfsEntry);
+        _In_ FileSystemBase_t*     fileSystemBase,
+        _In_ FileRecord_t*         nativeEntry,
+        _In_ FileSystemEntryMFS_t* mfsEntry);
 
 #endif //!_MFS_H_

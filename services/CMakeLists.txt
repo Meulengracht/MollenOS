@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.8.2)
-    include(../cmake/SetupEnvironment.cmake)
-    project(ValiServices)
-endif ()
-
 macro (add_service_target)
     if (${ARGC} GREATER_EQUAL 3)
         set (SERVICE_SOURCES "${ARGN}")

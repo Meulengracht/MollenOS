@@ -51,7 +51,7 @@ endif ()
 # Setup tools
 set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
 set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
-set (TOOL_DU ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/diskutility)
+set (TOOL_DU ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/diskutility/osbuilder)
 set (TOOL_RV ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision)
 
 # Create neccessary directories
@@ -119,7 +119,7 @@ add_custom_target (install_applications
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.run
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/maps --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/include/ ${VALI_PATH_DEPLOY_SHARED_INC}
     #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/lib/ ${VALI_PATH_DEPLOY_SHARED_LIB}
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/share/ ${VALI_PATH_DEPLOY_SHARED_SHARE}
@@ -139,13 +139,13 @@ add_custom_target (install_prepare
 add_dependencies(install_prepare tools)
 
 add_custom_target (install_img
-    COMMAND mono ${TOOL_DU} -auto -target img -scheme mbr
+    COMMAND ${TOOL_DU} -auto -target img -scheme mbr
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_img install_prepare install_applications)
 
 add_custom_target (install_vmdk
-    COMMAND mono ${TOOL_DU} -auto -target vmdk -scheme mbr
+    COMMAND ${TOOL_DU} -auto -target vmdk -scheme mbr
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare install_applications)

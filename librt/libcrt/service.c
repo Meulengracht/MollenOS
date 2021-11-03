@@ -14,13 +14,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS C Library - Server Entry 
+ * Service Initialization procedure. Contains entry point and environmental
+ * setup sequence for all OS services.
  */
 
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
 #include <internal/_utils.h>
+#include <os/usched/usched.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 #include <ioset.h>
@@ -62,6 +63,9 @@ _Noreturn static void __crt_service_main(int setIod)
                 gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
             }
         }
+
+        // handle all tasks after events
+        usched_yield();
     }
 }
 
@@ -107,6 +111,10 @@ void __CrtServiceEntry(void)
                        .data.iod = gracht_client_iod(GetGrachtClient()),
                        .events   = IOSETIN | IOSETCTL | IOSETLVT
                });
+
+    // initialize the userspace scheduler to support request based
+    // services in an async matter
+    usched_init();
 
     // Call the driver load function
     // - This will be run once, before loop

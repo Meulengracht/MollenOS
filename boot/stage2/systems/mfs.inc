@@ -123,10 +123,10 @@ GetNextBucket:
 ; **************************
 ; MFS ReadBucket
 ; IN: 
-; 	- EAX BucketLength
-;	- EDX BucketIndex
-;	- ESI Bucket
-;	- ES:BX Buffer
+; 	- EAX BucketLength Length of the bucket
+;	- EDX BucketIndex  Which bucket of the chain to read
+;	- ESI Bucket       Bucket to read
+;	- ES:BX Buffer     Buffer for the bucket contents
 ;
 ; OUT:
 ; 	- EAX BucketLength
@@ -135,21 +135,25 @@ GetNextBucket:
 ReadBucket:
 	pushad
 
-	; Save vars
-	push	esi
-	push 	bx
-	push 	eax
+	push esi
+	push bx
+	push eax
 
 	; Calculate Sector
-	; Sector = (Bucket + Index) * SectorsPerBucket
-	mov		eax, esi
-	add 	eax, edx
-	xor		esi, esi
-	mov		si, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
-	xor		ecx, ecx
-	call	Mul64
+	; Sector = ReservedCount +  (Bucket + Index) * SectorsPerBucket
+	mov	eax, esi
+	add eax, edx
+	xor	esi, esi
+	mov	si, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+	xor	ecx, ecx
+	call Mul64
+
 	; eax is low dword
 	; edx is high dword
+	xor ecx, ecx
+	mov cx, word [MfsBootSector + MfsBootSectorStruct.ReservedSectors]
+	add eax, ecx
+	adc edx, 0
 
 	; Calculate sector count
 	pop 	ecx
@@ -212,27 +216,26 @@ ReadBucket:
 ; ****************************
 MfsLoadFile:
 	; Save arguments, we dont need them yet
-	; xchg 	bx, bx
-	mov 	ax, es
-	mov 	word [wMFSLoadFileFSegment], ax
-	mov 	word [wMFSLoadFileFOffset], bx
-	mov 	dword [dMFSLoadFileFName], esi
-	mov		byte [bMfsEndOfString], 0
+	mov ax, es
+	mov word [wMFSLoadFileFSegment], ax
+	mov word [wMFSLoadFileFOffset], bx
+	mov dword [dMFSLoadFileFName], esi
+	mov	byte [bMfsEndOfString], 0
 
 	; Step 1. Read root directory
-	mov 	esi, dword [dRootBucket]
+	mov esi, dword [dRootBucket]
 
 	; Read Loop
 	.cLoop:
-		mov 	bx, 0x0000
-		mov 	es, bx
-		mov 	bx, MEMLOCATION_FAT_FATTABLE
+		mov bx, 0x0000
+		mov es, bx
+		mov bx, MEMLOCATION_FAT_FATTABLE
 
 		; Calculate length of what we are looking for
-		xor		eax, eax
-		xor		ecx, ecx
-		push	esi
-		mov		esi, dword [dMFSLoadFileFName]
+		xor	 eax, eax
+		xor	 ecx, ecx
+		push esi
+		mov	 esi, dword [dMFSLoadFileFName]
 
 		.CountLoop:
 			mov	al, [ds:esi]
@@ -250,18 +253,18 @@ MfsLoadFile:
 			pop esi
 		
 		; ReadCluster returns next cluster in chain
-		push	ecx
+		push ecx
 
 		; Get length of the current bucket first by saving
 		; the current bucket, length is retrieved in eax
-		push 	esi
-		call 	GetNextBucket
-		pop 	esi
+		push esi
+		call GetNextBucket
+		pop  esi
 
 		; Give an index each time due to the fact we can only load 1 bucket at the time
 		; But always reduce to take 0 indexing into account
-		dec 	eax
-		mov 	byte [bMfsBucketIndex], al
+		dec eax
+		mov byte [bMfsBucketIndex], al
 
 		.LoadNextIndex:
 			mov 	eax, 0x1
@@ -276,92 +279,88 @@ MfsLoadFile:
 			jmp 	.MoveOn
 
 			.ReadNormal:
-			call 	ReadBucket
+			call ReadBucket
 
 			.MoveOn:
-			pop 	edx
-			pop		ecx		
-			push 	esi
+			pop edx
+			pop	ecx
+			push esi
 
 			; Step 3. Parse entries and look for esi
-			mov 	edi, MEMLOCATION_FAT_FATTABLE
-			mov 	esi, dword [dMFSLoadFileFName]
+			mov edi, MEMLOCATION_FAT_FATTABLE
+			mov esi, dword [dMFSLoadFileFName]
 
 			; Entry Count (dx)
 			; Length of name in CX
-			xor 	eax, eax
-			xor 	ebx, ebx
-			push	ecx
-			xor		ecx, ecx
-			mov 	bx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
-			shr		ebx, 1
-			mov 	edx, ebx
-			pop		ecx
+			xor eax, eax
+			xor ebx, ebx
+			push ecx
+			xor	ecx, ecx
+			mov bx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+			shr	ebx, 1
+			mov edx, ebx
+			pop	ecx
 
 			; End of root?
 			; Unused entries have 0
 			.EntryLoop:
-				cmp 	byte [es:edi], 0
-				je		.Next
+				test byte [es:edi + 3], 0x80 ; bit 31 is set when the entry is in use
+				jz .Next
 
 				; No, phew, lets check if filename matches
 				pushad
-				add		edi, 0x44
-        		repe    cmpsb
+				add	edi, 0x44
+        		repe cmpsb
         		popad
-        		jne 	.Next
+        		jne .Next
 
-        		; YAY WE FOUND IT!
-        		; Get bucket
-        		mov	    esi, dword [es:edi + 0x4]
-        		mov 	eax, dword [es:edi + 0x8]
+        		; We found an entry that matched the filename we were looking for
+        		; lets get the bucket data
+        		mov	esi, dword [es:edi + 0x4]
+        		mov eax, dword [es:edi + 0x8]
 
 				; Was it end of chain?
-				cmp		byte [bMfsEndOfString], 1
-				je		.LoadKernel
+				cmp	byte [bMfsEndOfString], 1
+				je .LoadKernel
 
 				; Ok, so go deeper, set bucket as next
-				mov		eax, esi
-				pop		esi
-				mov		esi, dword [dMFSLoadFileFName]
-				add		esi, ecx
-				inc		esi
-				mov		dword [dMFSLoadFileFName], esi
-				mov		esi, eax
-				jmp		.cLoop
+				mov	eax, esi
+				pop	esi
+				mov	esi, dword [dMFSLoadFileFName]
+				add	esi, ecx
+				inc	esi
+				mov	dword [dMFSLoadFileFName], esi
+				mov	esi, eax
+				jmp	.cLoop
 
 			.LoadKernel:
         		; Get filesize 
-        		push 	eax
-        		mov 	eax, dword [es:di + 0x30]
-        		mov 	dword [dMFSLoadFileFSize], eax
+        		push eax
+        		mov eax, dword [es:di + 0x30]
+        		mov dword [dMFSLoadFileFSize], eax
 
         		; Lets load the fuck out of this file
-				mov 	ax, word [wMFSLoadFileFSegment]
-				mov 	es, ax
-				mov 	bx, word [wMFSLoadFileFOffset]
-				pop 	eax
+				mov ax, word [wMFSLoadFileFSegment]
+				mov es, ax
+				mov bx, word [wMFSLoadFileFOffset]
+				pop eax
 
 				; Load 
 				.dLoop:
-					; Clustertime
-					xor 	edx, edx
-					call 	ReadBucket
-
-					; Check
-					cmp 	esi, 0xFFFFFFFF
-					jne		.dLoop
-
+					xor edx, edx
+					call ReadBucket
+					cmp esi, 0xFFFFFFFF
+					jne	.dLoop
 
         	; We are done, end this
-        	pop 	eax 		; Fix stack
-        	jmp 	.Success
+        	pop eax 		; Fix stack
+        	jmp .Success
 
         	; Next entry
         	.Next:
-        		add     di, 0x400
-        		dec 	dx
-        		jnz 	.EntryLoop
+        		add di, 0x400
+        		dec dx
+        		jnz .EntryLoop
 
         ; If index is zero - next
         cmp 	byte [bMfsBucketIndex], 0
@@ -376,23 +375,23 @@ MfsLoadFile:
 
     .OutOfIndex:
 		; Dont loop if esi is 0xFFFFFFFF
-		pop 	esi
-		cmp 	esi, 0xFFFFFFFF
-		jne		.cLoop
-		jmp 	.NotFound
+		pop	esi
+		cmp	esi, 0xFFFFFFFF
+		jne	.cLoop
+		jmp	.NotFound
 
 	.ExitLoop:
-		pop 	esi
-		jmp 	.NotFound
+		pop esi
+		jmp .NotFound
 
 	.Success:
 		; Move filesize
-		mov 	eax, dword [dMFSLoadFileFSize]
+		mov eax, dword [dMFSLoadFileFSize]
 		ret
 
 	.NotFound:
 		; 0 Filesize
-		mov 	eax, 0
+		mov eax, 0
 		ret
 
 ; ****************************

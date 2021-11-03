@@ -41,39 +41,41 @@ jmp Entry
 
 ; *****************************
 ; Entry Point
+; dl = drive number
+; dh = stage1 type
+; si = partition table entry
 ; *****************************
 Entry:
-	; Clear interrupts
 	cli
 
-	; Clear registers (Not EDX, it contains stuff!)
-	xor 	eax, eax
-	xor 	ebx, ebx
-	xor 	ecx, ecx
-	xor 	esi, esi
-	xor 	edi, edi
+	; Clear registers (Not EDX or ESI, it contains stuff!)
+	xor eax, eax
+	xor ebx, ebx
+	xor ecx, ecx
+	xor edi, edi
 
 	; Setup segments
-	mov		ds, ax
-	mov		es, ax
-	mov		fs, ax
-	mov		gs, ax
+	mov	ds, ax
+	mov	es, ax
+	mov	fs, ax
+	mov	gs, ax
 
 	; Setup stack
-	mov		ss, ax
-	mov		ax, MEMLOCATION_INITIALSTACK
-	mov		sp, ax
-	xor 	ax, ax
-
-	; Enable interrupts
+	mov	ss, ax
+	mov	ax, MEMLOCATION_INITIALSTACK
+	mov	sp, ax
+	xor ax, ax
 	sti
 
 	; Save information passed by Stage1
-	mov 	byte [bDriveNumber], dl
-	mov 	byte [bStage1Type], dh
+	mov byte [bDriveNumber], dl
+	mov byte [bStage1Type], dh
+	mov esi, dword [si + 8]
+	mov dword [dBaseSector], esi
 
 	; Now we can clear EDX
-	xor 	edx, edx
+	xor edx, edx
+	xor esi, esi
 
 	; Set video mode to 80x25 (Color Mode)
 	mov 	al, 0x03
@@ -87,15 +89,6 @@ Entry:
 
 	; Print Message
 	mov 	esi, szWelcome0
-	call 	Print
-
-	mov 	esi, szWelcome1
-	call 	Print
-
-	mov 	esi, szWelcome2
-	call 	Print
-
-	mov 	esi, szWelcome3
 	call 	Print
 
 	; Set basic
@@ -123,9 +116,6 @@ Entry:
 	call 	SetupFS
 
 	; Load Kernel
-	mov 	esi, szPrefix
-	call 	Print
-
 	mov 	esi, szLoadingKernel
 	call 	Print
 
@@ -205,9 +195,6 @@ LeaveProtected:
 	sti
 
 	; Print load ramdisk
-	mov 	esi, szPrefix
-	call 	Print
-
 	mov 	esi, szLoadingRamDisk
 	call 	Print
 
@@ -241,10 +228,7 @@ Finish16Bit:
 	mov 	esi, szSuccess
 	call 	Print
 
-	; Print last message 
-	mov 	esi, szPrefix
-	call 	Print
-
+	; Print last message
 	mov 	esi, szFinishBootMsg
 	call 	Print
 
@@ -419,28 +403,25 @@ EndOfStage64:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szBootloaderName				db 		"mBoot Version 1.0.0-dev", 0x00
-szWelcome0 						db 		"                ***********************************************", 0x0D, 0x0A, 0x00
-szWelcome1						db 		"                * MollenOS Stage 2 Bootloader (Version 1.0.0) *", 0x0D, 0x0A, 0x00
-szWelcome2						db 		"                * Author: Philip Meulengracht                 *", 0x0D, 0x0A, 0x00
-szWelcome3 						db 		"                ***********************************************", 0x0D, 0x0A, 0x0A, 0x00
-szPrefix 						db 		"                   - ", 0x00
-szSuccess						db 		" [OK]", 0x0D, 0x0A, 0x00
-szFailed						db 		" [FAIL]", 0x0D, 0x0A, 0x00
-szLoadingKernel					db 		"Loading System Kernel", 0x00
-szLoadingRamDisk				db 		"Loading System Ramdisk", 0x00
-szFinishBootMsg 				db 		"Finishing Boot Sequence", 0x0D, 0x0A, 0x00
+szBootloaderName				db 		"mboot 1.0.0-dev", 0x00
+szWelcome0 						db 		"starting mboot 1.0.0-dev", 0x0D, 0x0A, 0x00
+szSuccess						db 		" [ok]", 0x0D, 0x0A, 0x00
+szFailed						db 		" [err]", 0x0D, 0x0A, 0x00
+szLoadingKernel					db 		"loading vali kernel image", 0x00
+szLoadingRamDisk				db 		"loading kernel ramdisk", 0x00
+szFinishBootMsg 				db 		"initializing hardware", 0x0D, 0x0A, 0x00
 
 szKernel						db 		"MCORE   MOS"
 szRamDisk						db		"INITRD  MOS"
-szKernelUtf						db		"system/syskrnl.mos", 0x0
-szRamDiskUtf					db		"system/initrd.mos", 0x0
+szKernelUtf						db		"syskrnl.mos", 0x0
+szRamDiskUtf					db		"initrd.mos", 0x0
 
 ; Practical stuff
-bDriveNumber 					db 		0
-dKernelSize						dd 		0
-dKernelEntry					dd		0
+bDriveNumber db 0
+dBaseSector  dd 0
+dKernelSize	 dd 0
+dKernelEntry dd	0
 
 ; 2 -> FAT12, 3 -> FAT16, 4 -> FAT32
 ; 5 -> MFS1
-bStage1Type						db 		0
+bStage1Type	db 0
