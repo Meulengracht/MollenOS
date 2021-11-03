@@ -28,9 +28,9 @@
 #include <threads.h>
 #include "private.h"
 
-static struct Scheduler g_scheduler;
+static struct usched_scheduler g_scheduler;
 
-struct Scheduler* __usched_get_scheduler(void) {
+struct usched_scheduler* __usched_get_scheduler(void) {
     return &g_scheduler;
 }
 
@@ -42,12 +42,12 @@ void usched_init(void)
 
     // initialize the global scheduler, there will always only exist one
     // scheduler instance, unless we implement multiple executors
-    memset(&g_scheduler, 0, sizeof(struct Scheduler));
+    memset(&g_scheduler, 0, sizeof(struct usched_scheduler));
     mtx_init(&g_scheduler.lock, mtx_plain);
     g_scheduler.magic = SCHEDULER_MAGIC;
 }
 
-static struct usched_job* GetNextReady(struct Scheduler* scheduler)
+static struct usched_job* GetNextReady(struct usched_scheduler* scheduler)
 {
     struct usched_job* next = scheduler->ready;
 
@@ -103,6 +103,27 @@ static void SwitchTask(struct usched_job* current, struct usched_job* next)
 #endif
 }
 
+static void TaskDestroy(struct usched_job* job)
+{
+    free(job->stack);
+    free(job);
+}
+
+static void EmptyGarbageBin(void)
+{
+    struct usched_job* i;
+
+    mtx_lock(&g_scheduler.lock);
+    i = g_scheduler.garbage_bin;
+    while (i) {
+        struct usched_job* next = i->next;
+        TaskDestroy(i);
+        i = next;
+    }
+    g_scheduler.garbage_bin = NULL;
+    mtx_unlock(&g_scheduler.lock);
+}
+
 void usched_yield(void)
 {
     struct usched_job* current;
@@ -115,10 +136,10 @@ void usched_yield(void)
         }
 
         // we are running in scheduler context, make sure we store
-        // this context so we can return to here when we run out of tasks
+        // this context, so we can return to here when we run out of tasks
         // to execute
         if (setjmp(g_scheduler.context)) {
-            // trigger task cleanup here
+            EmptyGarbageBin();
             return;
         }
     }
@@ -131,7 +152,7 @@ void usched_yield(void)
             AppendJob(&g_scheduler.ready, current);
         }
         else if (current->state == JobState_FINISHING) {
-            // cleanup: todo
+            AppendJob(&g_scheduler.garbage_bin, current);
         }
     }
     next = GetNextReady(&g_scheduler);

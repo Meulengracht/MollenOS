@@ -58,7 +58,7 @@ typedef struct SchedulerQueue {
     SchedulerObject_t* Tail;
 } SchedulerQueue_t;
 
-typedef struct Scheduler {
+typedef struct usched_scheduler {
     int                    Enabled;
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;

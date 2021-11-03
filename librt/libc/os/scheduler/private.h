@@ -48,13 +48,14 @@ struct usched_job {
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
 
-struct Scheduler {
+struct usched_scheduler {
     int     magic;
     mtx_t   lock;
     jmp_buf context;
 
     struct usched_job* current;
     struct usched_job* ready;
+    struct usched_job* garbage_bin;
 };
 
 static inline void AppendJob(struct usched_job** list, struct usched_job* job)
@@ -71,6 +72,6 @@ static inline void AppendJob(struct usched_job** list, struct usched_job* job)
     i->next = job;
 }
 
-extern struct Scheduler* __usched_get_scheduler(void);
+extern struct usched_scheduler* __usched_get_scheduler(void);
 
 #endif //!__USCHED_PRIVATE_H__
