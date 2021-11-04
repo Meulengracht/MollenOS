@@ -35,8 +35,8 @@ MStringCompare(
     _In_ MString_t* String2,
     _In_ int        IgnoreCase)
 {
-    char* StringPtr1;
-    char* StringPtr2;
+    char* data1;
+    char* data2;
     int   i1 = 0;
     int   i2 = 0;
 
@@ -44,33 +44,29 @@ MStringCompare(
         !String2 || !String2->Data || String2->Length == 0) {
         return MSTRING_NO_MATCH;
     }
-    StringPtr1 = (char*)String1->Data;
-    StringPtr2 = (char*)String2->Data;
+    data1 = (char*)String1->Data;
+    data2 = (char*)String2->Data;
 
     while ((i1 < String1->Length) && (i2 < String2->Length)) {
-        mchar_t First  = Utf8GetNextCharacterInString(StringPtr1, &i1);
-        mchar_t Second = Utf8GetNextCharacterInString(StringPtr2, &i2);
-        if (First == MSTRING_EOS || Second == MSTRING_EOS) {
+        mchar_t first  = Utf8GetNextCharacterInString(data1, &i1);
+        mchar_t second = Utf8GetNextCharacterInString(data2, &i2);
+        if (first == MSTRING_EOS || second == MSTRING_EOS) {
             return MSTRING_PARTIAL_MATCH;
         }
 
         // We only support case-insensitivity on ascii characters
         if (IgnoreCase) {
-            if (First < 0x80 && isalpha(First)) {
-                First = tolower((uint8_t)First);
+            if (first < 0x80 && isalpha(first)) {
+                first = tolower((uint8_t)first);
             }
-            if (Second < 0x80 && isalpha(Second)) {
-                Second = tolower((uint8_t)Second);
+            if (second < 0x80 && isalpha(second)) {
+                second = tolower((uint8_t)second);
             }
         }
 
-        if (First != Second) {
+        if (first != second) {
             return MSTRING_NO_MATCH;
         }
-    }
-
-    if (StringPtr1[i1] != StringPtr2[i2]) {
-        return MSTRING_NO_MATCH;
     }
 
     if (String1->Length != String2->Length) {

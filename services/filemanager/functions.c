@@ -1028,15 +1028,12 @@ void StatFromPath(
     // START OF REQUEST
     // ********************
     osStatus = VfsOpenFileInternal(request->processId,
-                                   fileSystem,
-                                   subPath,
+                                   fileSystem, subPath,
                                    0,
                                    __FILE_READ_ACCESS | __FILE_READ_SHARE,
                                    &handleId);
     if (osStatus == OsSuccess) {
-        osStatus = VfsHandleAccess(request->processId,
-                                   request->parameters.stat_handle.fileHandle,
-                                   0, &handle);
+        osStatus = VfsHandleAccess(request->processId, handleId, 0, &handle);
         if (osStatus == OsSuccess) {
             to_sys_file_descriptor(&handle->entry->base->Descriptor, &gdescriptor);
             (void)CloseHandleInternal(request->processId, handle);

@@ -113,6 +113,12 @@ typedef struct FileSystemRequest {
         struct {
             const char* path;
         } stat_path;
+        struct {
+            int base;
+        } resolve;
+        struct {
+            const char* path;
+        } canonicalize;
     } parameters;
 
     // must be last member of struct

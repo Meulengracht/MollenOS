@@ -258,34 +258,43 @@ VfsPathCanonicalize(
     return absolutePath;
 }
 
-void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)
+void ResolvePath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
     MString_t* resolvedPath;
-    TRACE("svc_path_resolve_callback(base=%u)", path);
 
-    resolvedPath = VfsPathResolveEnvironment(path);
+    resolvedPath = VfsPathResolveEnvironment((enum sys_system_paths)request->parameters.resolve.base);
     if (!resolvedPath) {
-        sys_path_resolve_response(message, OsDoesNotExist, "");
+        sys_path_resolve_response(request->message, OsDoesNotExist, "");
+        VfsRequestDestroy(request);
         return;
     }
 
-    sys_path_resolve_response(message, OsSuccess, MStringRaw(resolvedPath));
+    sys_path_resolve_response(request->message, OsSuccess, MStringRaw(resolvedPath));
     MStringDestroy(resolvedPath);
+    VfsRequestDestroy(request);
 }
 
-void sys_path_canonicalize_invocation(struct gracht_message* message, const char* path)
+void CanonicalizePath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
 {
     MString_t* canonicalizedPath;
-    TRACE("svc_path_canonicalize_callback(path=%s)", path);
 
-    canonicalizedPath = VfsPathCanonicalize(path);
+    // we do not register these requests, they go about anonoumously
+    canonicalizedPath = VfsPathCanonicalize(request->parameters.canonicalize.path);
     if (!canonicalizedPath) {
-        sys_path_canonicalize_response(message, OsDoesNotExist, "");
-        return;
+        sys_path_canonicalize_response(request->message, OsDoesNotExist, "");
+        goto cleanup_request;
     }
-    
-    sys_path_canonicalize_response(message, OsSuccess, MStringRaw(canonicalizedPath));
+
+    sys_path_canonicalize_response(request->message, OsSuccess, MStringRaw(canonicalizedPath));
     MStringDestroy(canonicalizedPath);
+
+cleanup_request:
+    free((void*)request->parameters.canonicalize.path);
+    VfsRequestDestroy(request);
 }
 
 static OsStatus_t

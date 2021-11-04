@@ -20,7 +20,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -31,6 +31,7 @@
 #include <vfs/requests.h>
 
 #include "sys_file_service_server.h"
+#include "sys_path_service_server.h"
 
 extern void OpenFile(FileSystemRequest_t* request, void*);
 extern void CloseFile(FileSystemRequest_t* request, void*);
@@ -52,6 +53,8 @@ extern void StatFromHandle(FileSystemRequest_t* request, void*);
 extern void StatFromPath(FileSystemRequest_t* request, void*);
 extern void StatLinkPathFromPath(FileSystemRequest_t* request, void*);
 extern void GetFullPath(FileSystemRequest_t* request, void*);
+extern void CanonicalizePath(FileSystemRequest_t* request, void*);
+extern void ResolvePath(FileSystemRequest_t* request, void*);
 
 static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
 
@@ -430,7 +433,13 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t
 void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
+    FileSystemRequest_t*             request;
     TRACE("sys_file_fsstat_invocation()");
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_file_fsstat_response(message, OsOutOfMemory, &gdescriptor);
+        return;
+    }
 
     // @todo not implemented
     sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
@@ -439,8 +448,46 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t pro
 void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
+    FileSystemRequest_t*             request;
     TRACE("sys_file_fsstat_path_invocation()");
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_file_fsstat_path_response(message, OsOutOfMemory, &gdescriptor);
+        return;
+    }
 
     // @todo not implemented
     sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
+}
+
+void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)
+{
+    FileSystemRequest_t* request;
+    TRACE("svc_path_resolve_callback(base=%u)", path);
+
+    request = CreateRequest(message, UUID_INVALID);
+    if (!request) {
+        char zero[1] = { 0 };
+        sys_path_resolve_response(message, OsOutOfMemory, &zero[0]);
+        return;
+    }
+
+    request->parameters.resolve.base = (int)path;
+    usched_task_queue((usched_task_fn)ResolvePath, request);
+}
+
+void sys_path_canonicalize_invocation(struct gracht_message* message, const char* path)
+{
+    FileSystemRequest_t* request;
+    TRACE("svc_path_canonicalize_callback(path=%s)", path);
+
+    request = CreateRequest(message, UUID_INVALID);
+    if (!request) {
+        char zero[1] = { 0 };
+        sys_path_canonicalize_response(message, OsOutOfMemory, &zero[0]);
+        return;
+    }
+
+    request->parameters.canonicalize.path = strdup(path);
+    usched_task_queue((usched_task_fn)CanonicalizePath, request);
 }

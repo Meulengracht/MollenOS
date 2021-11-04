@@ -16,7 +16,7 @@
  *
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ds/hashtable.h>
 #include <ddk/utils.h>
@@ -26,6 +26,11 @@
 #include <string.h>
 #include <assert.h>
 #include <vfs/cache.h>
+
+struct handle_wrapper {
+    UUId_t              id;
+    FileSystemHandle_t* handle;
+};
 
 static uint64_t vfs_handle_hash(const void* element);
 static int      vfs_handle_cmp(const void* element1, const void* element2);
@@ -38,7 +43,7 @@ void VfsHandleInitialize(void)
 {
     usched_mtx_init(&g_handlesLock);
     hashtable_construct(&g_handles, 0,
-                        sizeof(FileSystemHandle_t*),
+                        sizeof(struct handle_wrapper),
                         vfs_handle_hash,
                         vfs_handle_cmp);
 }
@@ -74,7 +79,7 @@ RegisterHandle(
 
     // then add it to our registry of handles
     usched_mtx_lock(&g_handlesLock);
-    hashtable_set(&g_handles, handle);
+    hashtable_set(&g_handles, &(struct handle_wrapper) { .id = handle->id, .handle = handle });
     usched_mtx_unlock(&g_handlesLock);
 }
 
@@ -206,7 +211,7 @@ VfsHandleDestroy(
 
     // remove the entry after flushing
     usched_mtx_lock(&g_handlesLock);
-    hashtable_remove(&g_handles, handle);
+    hashtable_remove(&g_handles, &(struct handle_wrapper) { .id = handle->id });
     usched_mtx_unlock(&g_handlesLock);
 
     osStatus = fileSystem->module->CloseHandle(&fileSystem->base, handle->base);
@@ -227,31 +232,31 @@ VfsHandleAccess(
         _In_  unsigned int         requiredAccess,
         _Out_ FileSystemHandle_t** handleOut)
 {
-    FileSystemHandle_t* handle;
+    struct handle_wrapper* wrapper;
 
     TRACE("VfsIsHandleValid(processId=%u, handleId=%u, requiredAccess=0x%x)",
           processId, handleId, requiredAccess);
 
     usched_mtx_lock(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(FileSystemHandle_t) { .id = handleId });
+    wrapper = hashtable_get(&g_handles, &(struct handle_wrapper) { .id = handleId });
     usched_mtx_unlock(&g_handlesLock);
 
-    if (!handle) {
+    if (!wrapper) {
         ERROR("VfsIsHandleValid not found: %u", handleId);
         return OsInvalidParameters;
     }
 
-    if (requiredAccess != 0 && handle->owner != processId) {
+    if (requiredAccess != 0 && wrapper->handle->owner != processId) {
         ERROR("VfsIsHandleValid Owner of the handle did not match the requester. Access Denied.");
         return OsInvalidPermissions;
     }
 
-    if (requiredAccess != 0 && (handle->base->Access & requiredAccess) != requiredAccess) {
+    if (requiredAccess != 0 && (wrapper->handle->base->Access & requiredAccess) != requiredAccess) {
         ERROR("VfsIsHandleValid handle was not opened with the required access parameter. Access Denied.");
         return OsInvalidPermissions;
     }
 
-    *handleOut = handle;
+    *handleOut = wrapper->handle;
     return OsSuccess;
 }
 
@@ -260,14 +265,14 @@ VfsFileSystemGetByFileHandle(
         _In_  UUId_t         handleId,
         _Out_ FileSystem_t** fileSystem)
 {
-    FileSystemHandle_t* handle;
+    struct handle_wrapper* wrapper;
 
     usched_mtx_lock(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(FileSystemHandle_t) { .id = handleId });
+    wrapper = hashtable_get(&g_handles, &(struct handle_wrapper) { .id = handleId });
     usched_mtx_unlock(&g_handlesLock);
 
-    if (handle) {
-        *fileSystem = handle->entry->filesystem;
+    if (wrapper) {
+        *fileSystem = wrapper->handle->entry->filesystem;
         return OsSuccess;
     }
     return OsDoesNotExist;
@@ -275,13 +280,13 @@ VfsFileSystemGetByFileHandle(
 
 static uint64_t vfs_handle_hash(const void* element)
 {
-    const FileSystemHandle_t* handle = element;
+    const struct handle_wrapper* handle = element;
     return handle->id;
 }
 
 static int vfs_handle_cmp(const void* element1, const void* element2)
 {
-    const FileSystemHandle_t* lh = element1;
-    const FileSystemHandle_t* rh = element2;
+    const struct handle_wrapper* lh = element1;
+    const struct handle_wrapper* rh = element2;
     return lh->id != rh->id;
 }

@@ -28,6 +28,12 @@
 #include <ds/hash_sip.h>
 #include <vfs/cache.h>
 #include <vfs/filesystem.h>
+#include <stdlib.h>
+
+struct cache_entry_wrapper {
+    struct FileSystemCacheEntry* entry;
+    MString_t*                   path;
+};
 
 static uint64_t file_hash(const void*);
 static int      file_cmp(const void*, const void*);
@@ -45,31 +51,40 @@ VfsFileSystemCacheInitialize(
 {
     hashtable_construct(&fileSystem->cache,
                         HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct FileSystemCacheEntry*),
+                        sizeof(struct cache_entry_wrapper),
                         file_hash, file_cmp);
 }
 
-static struct FileSystemCacheEntry*
+static struct cache_entry_wrapper*
 AddEntryToCache(
         _In_ FileSystem_t*          fileSystem,
         _In_ FileSystemEntryBase_t* base,
         _In_ MString_t*             path)
 {
-    struct FileSystemCacheEntry  entry;
-    struct FileSystemCacheEntry* result;
+    struct FileSystemCacheEntry* entry;
+    struct cache_entry_wrapper*  result;
 
-    entry.filesystem = fileSystem;
-    entry.base       = base;
-    entry.path       = path;
-    entry.references = 0;
-    usched_mtx_init(&entry.lock);
-    list_construct(&entry.handles);
+    entry = malloc(sizeof(struct FileSystemCacheEntry));
+    if (!entry) {
+        return NULL;
+    }
+
+    entry->filesystem = fileSystem;
+    entry->base       = base;
+    entry->path       = MStringClone(path);
+    entry->references = 0;
+    usched_mtx_init(&entry->lock);
+    list_construct(&entry->handles);
 
     usched_mtx_lock(&fileSystem->lock);
-    result = hashtable_get(&fileSystem->cache, &(struct FileSystemCacheEntry) { .path = path });
-    if (result == NULL) {
-        hashtable_set(&fileSystem->cache, &entry);
-        result = hashtable_get(&fileSystem->cache, &(struct FileSystemCacheEntry) { .path = path });
+    result = hashtable_get(&fileSystem->cache, &(struct cache_entry_wrapper) { .path = path });
+    if (!result) {
+        hashtable_set(&fileSystem->cache, &(struct cache_entry_wrapper) { .entry = entry, .path = path });
+        result = hashtable_get(&fileSystem->cache, &(struct cache_entry_wrapper) { .path = path });
+    }
+    else {
+        // entry was already added
+        free(entry);
     }
     usched_mtx_unlock(&fileSystem->lock);
     return result;
@@ -82,14 +97,14 @@ VfsFileSystemCacheGet(
         _In_  unsigned int             options,
         _Out_ FileSystemCacheEntry_t** entryOut)
 {
-    struct FileSystemCacheEntry* cacheEntry;
-    OsStatus_t                   status;
-    int                          created = 0;
+    struct cache_entry_wrapper* cacheEntry;
+    OsStatus_t                  status;
+    int                         created = 0;
 
     TRACE("VfsFileSystemCacheGet path %s", MStringRaw(path));
 
     usched_mtx_lock(&fileSystem->lock);
-    cacheEntry = hashtable_get(&fileSystem->cache, &(struct FileSystemCacheEntry) { .path = subPath });
+    cacheEntry = hashtable_get(&fileSystem->cache, &(struct cache_entry_wrapper) { .path = subPath });
     usched_mtx_unlock(&fileSystem->lock);
 
     if (!cacheEntry) {
@@ -122,7 +137,7 @@ VfsFileSystemCacheGet(
         return OsExists;
     }
 
-    *entryOut = cacheEntry;
+    *entryOut = (cacheEntry ? cacheEntry->entry : NULL);
     return OsSuccess;
 }
 
@@ -131,29 +146,30 @@ VfsFileSystemCacheRemove(
         _In_  FileSystem_t* fileSystem,
         _In_  MString_t*    subPath)
 {
-    struct FileSystemCacheEntry* entry;
+    struct cache_entry_wrapper* wrapper;
 
     TRACE("VfsCacheRemoveFile(path=%s)", MStringRaw(path));
 
     // just remove it from the hash-table
     usched_mtx_lock(&fileSystem->lock);
-    entry = hashtable_remove(&fileSystem->cache, &(struct FileSystemCacheEntry) { .path = subPath });
-    if (entry) {
-        fileSystem->module->CloseEntry(&fileSystem->base, entry->base);
-        MStringDestroy(entry->path);
+    wrapper = hashtable_remove(&fileSystem->cache, &(struct cache_entry_wrapper) { .path = subPath });
+    if (wrapper) {
+        fileSystem->module->CloseEntry(&fileSystem->base, wrapper->entry->base);
+        MStringDestroy(wrapper->entry->path);
+        free(wrapper->entry);
     }
     usched_mtx_unlock(&fileSystem->lock);
 }
 
 static uint64_t file_hash(const void* element)
 {
-    const struct FileSystemCacheEntry* cacheEntry = element;
+    const struct cache_entry_wrapper* cacheEntry = element;
     return siphash_64((const uint8_t*)MStringRaw(cacheEntry->path), MStringLength(cacheEntry->path), &g_hashKey[0]);
 }
 
 static int file_cmp(const void* element1, const void* element2)
 {
-    const struct FileSystemCacheEntry* cacheEntry1 = element1;
-    const struct FileSystemCacheEntry* cacheEntry2 = element2;
+    const struct cache_entry_wrapper* cacheEntry1 = element1;
+    const struct cache_entry_wrapper* cacheEntry2 = element2;
     return MStringCompare(cacheEntry1->path, cacheEntry2->path, 0) == MSTRING_FULL_MATCH ? 0 : 1;
 }

@@ -19,7 +19,7 @@
  * - Handles all file related services and disk services
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/convert.h>
@@ -258,6 +258,7 @@ VfsFileSystemGetByPath(MString_t* path, MString_t** subPathOut)
     element_t*    header;
     int           index;
     FileSystem_t* result = NULL;
+    TRACE("VfsFileSystemGetByPath(path=%s)", MStringRaw(path));
 
     // To open a new file we need to find the correct
     // filesystem identifier and seperate it from its absolute path
@@ -272,10 +273,13 @@ VfsFileSystemGetByPath(MString_t* path, MString_t** subPathOut)
 
         // accept partial matches
         index = MStringCompare(mount->path, path, 0);
+        TRACE("VfsFileSystemGetByPath comparing %s==%s", MStringRaw(mount->path), MStringRaw(path));
         if (index != MSTRING_NO_MATCH) {
             index = (int)MStringLength(mount->path);
             if (subPathOut) {
+                // we skip ':/' here
                 *subPathOut = MStringSubString(path, index + 2, -1);
+                TRACE("VfsFileSystemGetByPath subpath=%s", MStringRaw(*subPathOut));
             }
             result = mount->filesystem;
             break;
