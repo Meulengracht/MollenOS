@@ -1,6 +1,6 @@
 #!/bin/bash
 SCRIPT=`realpath $0`
-SCRIPTPATH=`dirname $SCRIPT`
+SCRIPTPATH=`dirname "$SCRIPT"`
 
 # Dev-libraries
 echo "** installing build dependencies"
@@ -10,7 +10,7 @@ apt-get -y -qq install git cmake gcc g++ zip nasm make python python3
 # Install dotnet core
 if ! [ -x "$(command -v dotnet)" ]; then
   echo "** installing dotnet core"
-  ./dotnet-install.sh
+  "$SCRIPTPATH"/dotnet-install.sh
 fi
 
 # Install the cmake platform template
@@ -23,10 +23,10 @@ if [[ $CMAKE_VERSION =~ $CMAKE_REGEX ]]
         echo "** found cmake version ${regex_match}"
         if [ -d "/usr/share/cmake-${regex_match}" ]; then
             echo "** updating cmake platform in path /usr/share/cmake-${regex_match}"
-            cp --verbose $SCRIPTPATH/*.cmake /usr/share/cmake-${regex_match}/Modules/Platform/
+            cp --verbose "$SCRIPTPATH"/*.cmake /usr/share/cmake-"${regex_match}"/Modules/Platform/
         elif [ -d "/usr/local/share/cmake-${regex_match}" ]; then
             echo "** updating cmake platform in path /usr/local/share/cmake-${regex_match}"
-            cp --verbose $SCRIPTPATH/*.cmake /usr/local/share/cmake-${regex_match}/Modules/Platform/
+            cp --verbose "$SCRIPTPATH"/*.cmake /usr/local/share/cmake-"${regex_match}"/Modules/Platform/
         fi
 else
     echo "** ERROR: unknown cmake version that regex did not match ${CMAKE_VERSION}"
