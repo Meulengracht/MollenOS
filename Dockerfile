@@ -11,6 +11,7 @@ ENV CROSS=$CROSS_PATH
 ENV VALI_INSTALL_DIR=/usr/workspace
 ENV VALI_ARCH=$ARCH
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/root/.dotnet:${PATH}"
 
 # Set the directory
 WORKDIR /usr/workspace/vali
