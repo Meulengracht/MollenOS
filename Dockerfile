@@ -19,7 +19,7 @@ WORKDIR /usr/workspace/vali
 COPY . .
 
 # Build the operating system
-RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && ./tools/depends.sh && \
-    mkdir -p /usr/workspace/vali-build && cd /usr/workspace/vali-build && \
+RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && chmod +x ./tools/dotnet-install && \
+    ./tools/depends.sh && mkdir -p /usr/workspace/vali-build && cd /usr/workspace/vali-build && \
     cmake -G "Unix Makefiles" -DVALI_ARCH=$VALI_ARCH -DCMAKE_INSTALL_PREFIX=$VALI_INSTALL_DIR ../vali && \
     make && make install

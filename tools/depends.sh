@@ -5,19 +5,12 @@ SCRIPTPATH=`dirname $SCRIPT`
 # Dev-libraries
 echo "** installing build dependencies"
 apt-get update -yqq
-apt-get -y -qq install git cmake gcc g++ zip nasm make python python3 snapd
+apt-get -y -qq install git cmake gcc g++ zip nasm make python python3
 
 # Install dotnet core
 if ! [ -x "$(command -v dotnet)" ]; then
   echo "** installing dotnet core"
-  snap install dotnet-sdk --classic --channel=lts/stable # 3.1
-  snap install dotnet-runtime-31 --classic # 3.1
-  snap alias dotnet-runtime-31.dotnet dotnet
-  echo "*************************************************"
-  echo "** DOTNET CORE HAS BEEN INSTALLED              **"
-  echo "** PLEASE ADD THIS TO YOUR ~/.profile          **"
-  echo "** export DOTNET_ROOT=/snap/dotnet-sdk/current **"
-  echo "*************************************************"
+  ./dotnet-install.sh
 fi
 
 # Install the cmake platform template
