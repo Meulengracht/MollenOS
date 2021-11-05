@@ -1,0 +1,3 @@
+# Build objects and binaries
+build/
+venv/
