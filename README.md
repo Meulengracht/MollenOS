@@ -49,7 +49,7 @@ BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
 
 ### Environment variables <a name="env-variables"></a>
 Before you setup anything you must setup environmental variables that are used by
-the project.
+the project. This is only true if you do not do development with a docker container.
 
 | Variable              | Required | Description             |
 | --------------------- |:-------- |:-----------------------:|
@@ -59,7 +59,14 @@ the project.
 \* Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain <a name="setting-up-toolchain"></a>
-The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
+
+#### Docker
+
+Fully prepared docker images with a toolchain installed are provided from valios/vali-toolchain. This repository
+comes with a Dockerfile that you can use to build the OS with.
+
+#### Local (from source)
+The only thing you need to get started is a succesfully built (custom) toolchain of llvm/clang/lld. To help make this easier
 I have made a fully automated script, which downloads all the neccessary components, and initiates a full build of llvm/lld/clang.
 Make note that a full build of llvm/clang/lld need to run, and that this takes a couple of hours.
 
@@ -68,19 +75,33 @@ Toolchain scripts are located [here](https://github.com/Meulengracht/vali-toolch
 - checkout.sh
 - build-cross.sh
 
+If you are not on Linux, you should download the llvm-project git and build it yourself using the cmake command
+```
+cmake -S llvm -B build -G "Unix Makefiles" 
+   -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN=True
+   -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;libcxx;libcxxabi;libunwind;lldb;compiler-rt;lld'
+   -DCMAKE_BUILD_TYPE=Release
+   -DLLVM_INCLUDE_TESTS=Off
+   -DLLVM_INCLUDE_EXAMPLES=Off
+   -DCMAKE_INSTALL_PREFIX=/path/to/install
+   -DLLVM_DEFAULT_TARGET_TRIPLE=amd64-uml-vali
+```
+
 ### Setting up for OS development <a name="setting-up-devenv"></a>
-Remember to checkout all the submodules with the command git submodule update --init --recursive
+Remember to check out all the submodules with the command git submodule update --init --recursive
 
 The last step is now to run the depends.sh script that is located in this repository which installs
-the final pre-requisites (nasm, mono-complete, cmake platform script). The script is located in tools/depends.sh.
+the final pre-requisites (nasm, dotnet, cmake platform script). The script is located in tools/depends.sh.
 
 After this, you are essentially ready to start developing on the operating system. When/if you make pull requests
 when contributing, please follow the pull template that is provided.
 
 ### Setting up for application development <a name="setting-up-app-devenv"></a>
-If you want to build applications for Vali, you will need to install the sdk and ddk by using make install. This will install the required headers and libraries in a shared location that you specify during cmake configuration by using the CMAKE_INSTALL_PREFIX.
-You also need to setup some environmental variables that are required for the userspace build process to
-correctly find dependencies:
+Just building this repository is not enough for the full OS experience. You need to checkout the userspace
+repository that contains C++ runtime and applications and build those as well. For this you need to have the
+SDK/DDK installed (```make install``` - remember to set CMAKE_INSTALL_PREFIX when configuring) and
+the appropriate environmental variables' setup. Then the command ```make install_{img,vmdk}``` will automatically
+pull in all built applications and libraries into the OS image.
 
 | Option        | Description |
 | ------------- |:-----------:|
