@@ -29,6 +29,9 @@
 #include <stdlib.h>
 #include <vfs/storage.h>
 #include <vfs/filesystem.h>
+#include <vfs/requests.h>
+
+#include "sys_storage_service_server.h"
 
 struct VfsRemoveDiskRequest {
     UUId_t       disk_id;
@@ -197,4 +200,40 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const UUI
     request->disk_id = deviceId;
     request->flags = forced;
     usched_task_queue((usched_task_fn)StorageDestroy, request);
+}
+
+void
+StatStorageByHandle(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    FileSystem_t*              fileSystem;
+    OsStatus_t                 status;
+
+    status = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
+    if (status == OsSuccess) {
+        to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
+    }
+    sys_storage_get_descriptor_response(request->message, status, &gdescriptor);
+    VfsRequestDestroy(request);
+}
+
+void
+StatStorageByPath(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    FileSystem_t*              fileSystem;
+    OsStatus_t                 status;
+
+    status = VfsFileSystemGetByPathSafe(request->parameters.stat_path.path, &fileSystem);
+    if (status == OsSuccess) {
+        to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
+    }
+    sys_storage_get_descriptor_path_response(request->message, OsNotSupported, &gdescriptor);
+
+    free((void*)request->parameters.stat_path.path);
+    VfsRequestDestroy(request);
 }

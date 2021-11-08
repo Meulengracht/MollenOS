@@ -32,6 +32,7 @@
 
 #include "sys_file_service_server.h"
 #include "sys_path_service_server.h"
+#include "sys_storage_service_server.h"
 
 extern void OpenFile(FileSystemRequest_t* request, void*);
 extern void CloseFile(FileSystemRequest_t* request, void*);
@@ -52,6 +53,8 @@ extern void SetSize(FileSystemRequest_t* request, void*);
 extern void StatFromHandle(FileSystemRequest_t* request, void*);
 extern void StatFromPath(FileSystemRequest_t* request, void*);
 extern void StatLinkPathFromPath(FileSystemRequest_t* request, void*);
+extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
+extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPath(FileSystemRequest_t* request, void*);
 extern void CanonicalizePath(FileSystemRequest_t* request, void*);
 extern void ResolvePath(FileSystemRequest_t* request, void*);
@@ -490,4 +493,34 @@ void sys_path_canonicalize_invocation(struct gracht_message* message, const char
 
     request->parameters.canonicalize.path = strdup(path);
     usched_task_queue((usched_task_fn)CanonicalizePath, request);
+}
+
+void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
+{
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    FileSystemRequest_t*       request;
+    TRACE("sys_storage_get_descriptor_invocation()");
+    request = CreateRequest(message, UUID_INVALID);
+    if (!request) {
+        sys_storage_get_descriptor_response(message, OsOutOfMemory, &gdescriptor);
+        return;
+    }
+
+    request->parameters.stat_handle.fileHandle = fileHandle;
+    usched_task_queue((usched_task_fn)StatStorageByHandle, request);
+}
+
+void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath)
+{
+    struct sys_disk_descriptor gdescriptor = { 0 };
+    FileSystemRequest_t*       request;
+    TRACE("sys_storage_get_descriptor_path_invocation()");
+    request = CreateRequest(message, UUID_INVALID);
+    if (!request) {
+        sys_storage_get_descriptor_path_response(message, OsOutOfMemory, &gdescriptor);
+        return;
+    }
+
+    request->parameters.stat_path.path = strdup(filePath);
+    usched_task_queue((usched_task_fn)StatStorageByPath, request);
 }

@@ -1,5 +1,5 @@
 # Now we setup the environment for using the cross-compiler
-FROM valios/vali-toolchain:v1.8
+FROM valios/vali-toolchain:v1.9
 
 # This Dockerfile's base image has a non-root user with sudo access. Use the "remoteUser"
 # property in devcontainer.json to use it. On Linux, the container user's GID/UIDs
@@ -25,7 +25,9 @@ RUN apt-get update \
     #
     # Install vali dependencies for development
     && ls \
-    && sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && ./tools/depends.sh \
+    && sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh \
+    && sed -i 's/\r$//' ./tools/dotnet-install.sh && chmod +x ./tools/dotnet-install.sh \
+    && ./tools/depends.sh \
     #
     # [Optional] Update UID/GID if needed
     && if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then \
