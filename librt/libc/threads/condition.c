@@ -33,9 +33,10 @@ int
 cnd_init(
     _In_ cnd_t* cond)
 {
-    if (cond == NULL) {
+    if (!cond) {
         return thrd_error;
     }
+
     atomic_store(&cond->syncobject, 0);
     return thrd_success;
 }
@@ -44,7 +45,7 @@ void
 cnd_destroy(
     _In_ cnd_t* cond)
 {
-	if (cond == NULL) {
+	if (!cond) {
 		return;
 	}
 	cnd_broadcast(cond);
@@ -77,7 +78,7 @@ cnd_broadcast(
 {
     FutexParameters_t parameters;
     
-	if (cond == NULL) {
+	if (!cond) {
 		return thrd_error;
 	}
 	
@@ -95,7 +96,7 @@ cnd_wait(
 {
     FutexParameters_t parameters;
     OsStatus_t        status;
-	if (cond == NULL || mutex == NULL) {
+	if (!cond || !mutex) {
 		return thrd_error;
 	}
 

@@ -252,11 +252,11 @@ FutexWait(
     _In_ int           Flags,
     _In_ size_t        Timeout)
 {
-    MemorySpaceContext_t * Context = NULL;
-    FutexBucket_t        *              Bucket;
-    FutexItem_t*                FutexItem;
-    uintptr_t                   FutexAddress;
-    IntStatus_t                 CpuState;
+    MemorySpaceContext_t* Context = NULL;
+    FutexBucket_t*        Bucket;
+    FutexItem_t*          FutexItem;
+    uintptr_t             FutexAddress;
+    IntStatus_t           CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {

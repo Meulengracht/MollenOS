@@ -35,7 +35,7 @@
 
 extern gracht_server_t* __crt_get_module_server(void);
 
-#define IS_SWITCH(keyCode) (keyCode == VK_CAPSLOCK || keyCode == VK_SCROLL || keyCode == VK_NUMLOCK)
+#define IS_SWITCH(keyCode) ((keyCode) == VK_CAPSLOCK || (keyCode) == VK_SCROLL || (keyCode) == VK_NUMLOCK)
 
 InterruptStatus_t
 PS2KeyboardFastInterrupt(

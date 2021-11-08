@@ -21,7 +21,6 @@
  * http://wiki.osdev.org/PS2
  */
 
-#include <ddk/utils.h>
 #include <io.h>
 #include "mouse.h"
 #include <gracht/link/vali.h>
@@ -119,9 +118,9 @@ static void __ParseCursorData(
         _In_ const uint8_t* buffer)
 {
     // Update relative x and y
-    uint16_t rel_x = (int16_t)(buffer[1] - ((buffer[0] << 4) & 0x100));
-    uint16_t rel_y = (int16_t)(buffer[2] - ((buffer[0] << 3) & 0x100));
-    uint16_t rel_z = 0;
+    int16_t rel_x = (int16_t)(buffer[1] - ((buffer[0] << 4) & 0x100));
+    int16_t rel_y = (int16_t)(buffer[2] - ((buffer[0] << 3) & 0x100));
+    int16_t rel_z = 0;
 
     // Check extended data modes
     if (port->device_data.mouse.mode == 1) {

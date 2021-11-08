@@ -216,12 +216,13 @@ void sys_device_ioctlex_invocation(struct gracht_message* message, const UUId_t 
 
 void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
 {
-    TRACE("[svc_device_get_devices_by_protocol_callback] %u", protocolId);
+    TRACE("sys_device_get_devices_by_protocol_invocation %u", protocolId);
     foreach(node, &Devices) {
         struct device_node* deviceNode = node->value;
         foreach(protoNode, &deviceNode->protocols) {
             struct device_protocol* protocol = protoNode->value;
-            if ((uintptr_t)protocol->header.key == (uintptr_t)protocolId) {
+            uint8_t                 id = (uint8_t)(uintptr_t)protocol->header.key;
+            if (id == protocolId) {
                 sys_device_event_protocol_device_single(__crt_get_service_server(),
                                                         message->client, deviceNode->device->Id,
                                                         deviceNode->driver_id, protocolId);

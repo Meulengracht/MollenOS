@@ -20,14 +20,12 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 #define CACHE_SEGMENTED
 
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 #include "mfs.h"
 
 static const char* RootEntryName = "<root>";

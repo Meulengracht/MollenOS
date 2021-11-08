@@ -334,7 +334,7 @@ void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, 
     // announce the protocols we support for the individual devices
     if (deviceId != Ps2Controller->Device.Base.Id) {
         ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
-                "input\0\0\0\0\0\0\0\0\0\0", SERVICE_CTT_INPUT_ID);
+                "input", SERVICE_CTT_INPUT_ID);
     }
 }
 
