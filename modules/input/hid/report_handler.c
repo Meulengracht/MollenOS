@@ -150,21 +150,15 @@ static void __HandleInputItem(
     TRACE("__HandleInputItem(hidDevice=0x%" PRIxIN ", collectionItem=0x%" PRIxIN ", dataIndex=%" PRIuIN ")",
           hidDevice, collectionItem, dataIndex);
 
-    if (!hidDevice || !collectionItem) {
-        return;
-    }
-
-    // Cast the input-item from the ItemPointer
     inputItem = (UsbHidReportInputItem_t*)collectionItem->ItemPointer;
-
-    // Initiate pointers to new and previous data
-    data         = &((uint8_t*)hidDevice->Buffer)[dataIndex];
-    previousData = &((uint8_t*)hidDevice->Buffer)[hidDevice->PreviousDataIndex];
-
     // Sanitize the type of input, if we are constant, it's padding
     if (inputItem->Flags == REPORT_INPUT_TYPE_CONSTANT) {
         return;
     }
+
+    data         = &((uint8_t*)hidDevice->Buffer)[dataIndex];
+    previousData = &((uint8_t*)hidDevice->Buffer)[hidDevice->PreviousDataIndex];
+
 
     // If report-ids are active, we must make sure this data-packet
     // is actually for this report
@@ -198,11 +192,13 @@ static void __HandleInputItem(
             } break;
 
             // Describes keyboard or keypad events
+            // See values in hid_keycodes.h
             case HID_REPORT_USAGE_PAGE_KEYBOARD: {
 
             } break;
 
-            // Generic Button events
+            // Generic button event (Mouse)
+            // Possible values go through 1..65535 (determined by logical min/max)
             case HID_REPORT_USAGE_PAGE_BUTTON: {
                 uint8_t keystateChanged = 0;
 

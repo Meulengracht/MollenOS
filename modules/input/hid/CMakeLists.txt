@@ -23,13 +23,19 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
+set (MODULE_HEADERS
+        hid.h
+        hid_keycodes.h
+)
+
 add_module_target(hid ""
-    ${ADDITONAL_SOURCES}
-    report_parser.c
-    report_handler.c
-    functions.c
-    hid.c
-    main.c
+        ${MODULE_HEADERS}
+        ${ADDITONAL_SOURCES}
+        report_parser.c
+        report_handler.c
+        functions.c
+        hid.c
+        main.c
 )
 add_dependencies(hid contract_servers)
 target_link_libraries(hid libusb)
