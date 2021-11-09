@@ -9,6 +9,8 @@ namespace OSBuilder.FileSystems.MFS
 {
     public class FileSystem : IFileSystem
     {
+        public static readonly byte TYPE = 0x61;
+
         // File flags for mfs
         //uint32_t Flags;             // 0x00 - Record Flags
         //uint32_t StartBucket;       // 0x04 - First data bucket
@@ -111,7 +113,7 @@ namespace OSBuilder.FileSystems.MFS
                 Byte[] directoryBuffer = _disk.Read(BucketToSector(currentDirectoryBucket), _bucketSize * currentBucketLength);
 
                 // Iterate the bucket and find a free entry
-                for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * currentBucketLength); i++) {
+                for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * currentBucketLength); i += 1024) {
                     if (directoryBuffer[i] == 0) {
                         // Variables
                         ulong NumBuckets = 0;
@@ -195,9 +197,6 @@ namespace OSBuilder.FileSystems.MFS
                         );
                         return;
                     }
-
-                    // Entries are 1K, skip with 1024-1
-                    i += 1023;
                 }
 
                 // Store previous and get link
@@ -268,9 +267,8 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i++) {
+                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
-                            i += 1023;
                             continue;
                         }
 
@@ -311,9 +309,6 @@ namespace OSBuilder.FileSystems.MFS
                             }
                             
                         }
-
-                        // Advance to next entry
-                        i += 1023;
                     }
 
                     // Get next bucket link
@@ -345,9 +340,8 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i++) {
+                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
-                            i += 1023;
                             continue;
                         }
 
@@ -386,9 +380,6 @@ namespace OSBuilder.FileSystems.MFS
                             // Go further down the rabbit-hole
                             return ListRecursive(nEntry.Bucket, mPath.Substring(LookFor.Length), Verbose);
                         }
-
-                        // Advance to next entry
-                        i += 1023;
                     }
 
                     // Get next bucket link
@@ -438,7 +429,7 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i++) {
+                    for (i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
                             End = 1;
                             break;
@@ -456,9 +447,6 @@ namespace OSBuilder.FileSystems.MFS
                             Console.WriteLine("Creation - Entry did exist already");
                             return null;
                         }
-
-                        // Advance to next entry
-                        i += 1023;
                     }
 
                     // Handle the case where we found free entry
@@ -499,17 +487,16 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i++) {
+                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
-                            i += 1023;
                             continue;
                         }
 
                         // Do some name matching to see if we have found token
-                        int Len = 0;
-                        while (directoryBuffer[i + 68 + Len] != 0)
-                            Len++;
-                        String Name = Encoding.UTF8.GetString(directoryBuffer, i + 68, Len);
+                        int nameLength = 0;
+                        while (directoryBuffer[i + 68 + nameLength] != 0)
+                            nameLength++;
+                        String Name = Encoding.UTF8.GetString(directoryBuffer, i + 68, nameLength);
                         RecordFlags Flags = (RecordFlags)BitConverter.ToUInt32(directoryBuffer, i);
 
                         // Have we found the record we were looking for?
@@ -578,9 +565,6 @@ namespace OSBuilder.FileSystems.MFS
                             // Go further down the rabbit hole
                             return CreateRecursive(nEntry.Bucket, mPath.Substring(LookFor.Length));
                         }
-
-                        // Advance to next entry
-                        i += 1023;
                     }
 
                     // Get next bucket link
@@ -600,6 +584,37 @@ namespace OSBuilder.FileSystems.MFS
             return null;
         }
         
+        public FileSystem(Disk disk, ulong startSector, ulong sectorCount)
+        {
+            _disk = disk;
+            _sector = startSector;
+
+            // parse the virtual boot record for info we need
+            // name, bootable, partition type, etc
+            byte[] vbr = disk.Read(startSector, 1);
+
+            _bootable = vbr[8] != 0;
+            _sectorCount = BitConverter.ToUInt64(vbr, 16);
+            _reservedSectorCount = BitConverter.ToUInt16(vbr, 24);
+            _bucketSize = BitConverter.ToUInt16(vbr, 26);
+            
+            // parse the master boot record
+            var masterRecordOffset = BitConverter.ToUInt64(vbr, 28);
+            byte[] masterRecord = disk.Read(startSector + masterRecordOffset, 1);
+
+            _partitionFlags = (PartitionFlags)BitConverter.ToUInt32(masterRecord, 4);
+            _partitionName = Encoding.UTF8.GetString(masterRecord, 12, 64);
+
+            var bucketMapOffset = BitConverter.ToUInt64(masterRecord, 92);
+            var freeBucketIndex = BitConverter.ToUInt32(masterRecord, 76);
+
+            _bucketMap = new BucketMap(_disk, 
+                (_sector + _reservedSectorCount), 
+                (_sectorCount - _reservedSectorCount),
+                _bucketSize);
+            _bucketMap.Open(bucketMapOffset, freeBucketIndex);
+        }
+
         public FileSystem(string partitionName, bool bootable, PartitionFlags partitionFlags)
         {
             _partitionName = partitionName;
@@ -631,7 +646,7 @@ namespace OSBuilder.FileSystems.MFS
             else
                 return 64;
         }
-
+        
         private void BuildMasterRecord(uint rootBucket, uint journalBucket, uint badListBucket, 
             ulong masterRecordSector, ulong masterRecordMirrorSector)
         {
@@ -646,7 +661,7 @@ namespace OSBuilder.FileSystems.MFS
             //uint32_t BadBucketIndex;    // Pointer to list of bad buckets
             //uint32_t JournalIndex;  // Pointer to journal file
 
-            //uint64_t MapSector;     // Start sector of bucket-map
+            //uint64_t MapSector;     // Start sector of bucket-map_sector
             //uint64_t MapSize;		// Size of bucket map
             byte[] masterRecord = new byte[512];
             masterRecord[0] = 0x4D;
@@ -660,7 +675,7 @@ namespace OSBuilder.FileSystems.MFS
             masterRecord[5] = (byte)((flagsAsUInt >> 8) & 0xFF);
 
             // Initialize partition name
-            Byte[] NameBytes = Encoding.UTF8.GetBytes(_partitionName);
+            byte[] NameBytes = Encoding.UTF8.GetBytes(_partitionName);
             Array.Copy(NameBytes, 0, masterRecord, 12, NameBytes.Length);
 
             // Initialize free pointer
@@ -763,8 +778,8 @@ namespace OSBuilder.FileSystems.MFS
             bootsector[13] = (Byte)((_disk.SectorsPerTrack >> 8) & 0xFF);
 
             // Heads per cylinder
-            bootsector[14] = (Byte)(_disk.TracksPerCylinder & 0xFF);
-            bootsector[15] = (Byte)((_disk.TracksPerCylinder >> 8) & 0xFF);
+            bootsector[14] = (Byte)(_disk.Heads & 0xFF);
+            bootsector[15] = (Byte)((_disk.Heads >> 8) & 0xFF);
 
             // Total sectors on partition
             bootsector[16] = (Byte)(_sectorCount & 0xFF);
@@ -1128,7 +1143,7 @@ namespace OSBuilder.FileSystems.MFS
 
         public byte GetFileSystemType()
         {
-            return 0x61;
+            return TYPE;
         }
 
         public Guid GetFileSystemGuid()
@@ -1144,6 +1159,11 @@ namespace OSBuilder.FileSystems.MFS
         public ulong GetSectorCount()
         {
             return _sectorCount;
+        }
+        
+        public string GetName()
+        {
+            return _partitionName;
         }
 
         /* File record cache structure

@@ -323,6 +323,10 @@ GetFileInformationFromFd(
 
 static struct file_view* __GetFileView(uintptr_t virtualBase)
 {
+    if (!virtualBase) {
+        return NULL;
+    }
+
     foreach(element, &g_fileViews) {
         struct file_view* fileView = element->value;
         if (ISINRANGE(virtualBase,

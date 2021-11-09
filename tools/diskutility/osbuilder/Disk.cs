@@ -12,10 +12,21 @@ namespace OSBuilder
 {
     public class Disk
     {
-        public UInt32 BytesPerSector;
-        public UInt32 SectorsPerTrack;
-        public UInt32 TracksPerCylinder;
-        public UInt64 TotalSectors;
+        private static readonly uint KILOBYTE = 1024;
+        private static readonly uint MEGABYTE = (KILOBYTE * 1024);
+        private static readonly ulong GIGABYTE = (MEGABYTE * 1024);
+
+        public uint BytesPerSector { get { return _bytesPerSector; }  }
+        public ulong SectorCount { get { return _totalSectors; }  }
+        public uint SectorsPerTrack { get { return _sectorsPerTrack; }  }
+        public uint Heads { get { return _heads; }  }
+        public uint Cylinders { get { return _cylinders; }  }
+
+        private uint _bytesPerSector = 0;
+        private uint _sectorsPerTrack = 0;
+        private uint _heads = 0;
+        private uint _cylinders = 0;
+        private ulong _totalSectors = 0;
 
         private String _deviceId;
         private Object _diskHandle = null;
@@ -82,71 +93,143 @@ namespace OSBuilder
               [In, Out] ref int lpDistanceToMoveHigh,
               [In] EMoveMethod dwMoveMethod);
 
-        public Disk(string deviceId, UInt32 bytesPerSector, UInt32 sectorsPerTrack, 
-            UInt32 tracksPerCylinder, UInt64 totalSectors)
+        public Disk(string deviceId, uint bytesPerSector, ulong sectorCount)
         {
             _deviceId = deviceId;
-            BytesPerSector = bytesPerSector;
-            SectorsPerTrack = sectorsPerTrack;
-            TracksPerCylinder = tracksPerCylinder;
-            TotalSectors = totalSectors;
+            _bytesPerSector = bytesPerSector;
+            _totalSectors = sectorCount;
+
+            ulong sizeOfHdd = _bytesPerSector * _totalSectors;
+            CalculateGeometry(sizeOfHdd);
         }
 
-        public bool Open()
+        public Disk(string deviceId)
+        {
+            _deviceId = deviceId;
+        }
+
+        internal void CalculateGeometry(ulong diskSize)
+        {
+            if (diskSize < GIGABYTE)
+            {
+                _heads = 64;
+                _sectorsPerTrack = 32;
+            }
+            else if (diskSize < (2UL * GIGABYTE))
+            {
+                _heads = 128;
+                _sectorsPerTrack = 32;
+            }
+            else
+            {
+                _heads = 255;
+                _sectorsPerTrack = 63;
+            }
+
+            _cylinders = (uint)(diskSize / (_heads * _sectorsPerTrack * _bytesPerSector));
+        }
+
+        public bool Create()
+        {
+            // make sure we do not reopen the disk handle
+            if (_diskHandle != null || _nativeHandle != null)
+                return true;
+            
+            ulong sizeOfHdd = _bytesPerSector * _totalSectors;
+
+            try
+            {
+                var imageName = "mollenos." + _deviceId.ToLower();
+
+                // Always create the image with this name
+                if (File.Exists(imageName))
+                    File.Delete(imageName);
+
+                if (_deviceId.ToUpper() == "VMDK")
+                    _diskHandle =  DiscUtils.Vmdk.Disk.Initialize(imageName, (long)sizeOfHdd, 
+                        DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
+                else if (_deviceId.ToUpper() == "IMG") {
+                    _fileStream = File.Create(imageName);
+                    _diskHandle = DiscUtils.Raw.Disk.Initialize(_fileStream, DiscUtils.Streams.Ownership.None, (long)sizeOfHdd);
+                }
+                else {
+                    throw new Exception("Unsupported image type");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return false;
+            }
+            CalculateGeometry(sizeOfHdd);
+            return true;
+        }
+
+        public bool OpenImage()
+        {
+            Console.WriteLine("Initializing disk image on target " + _deviceId);
+            try
+            {
+                if (_deviceId.ToLower().EndsWith("vmdk")) {
+                    _diskHandle = DiscUtils.Vmdk.Disk.OpenDisk(_deviceId, FileAccess.ReadWrite);
+                    _bytesPerSector = (uint)((DiscUtils.Vmdk.Disk)_diskHandle).Geometry.BytesPerSector;
+                    _sectorsPerTrack = (uint)((DiscUtils.Vmdk.Disk)_diskHandle).Geometry.SectorsPerTrack;
+                    _heads = (uint)((DiscUtils.Vmdk.Disk)_diskHandle).Geometry.HeadsPerCylinder;
+                    _totalSectors = (ulong)((DiscUtils.Vmdk.Disk)_diskHandle).Geometry.TotalSectorsLong;
+                    return true;
+                }
+                else if (_deviceId.ToLower().EndsWith("img")) {
+                    _diskHandle = DiscUtils.Raw.Disk.OpenDisk(_deviceId, FileAccess.ReadWrite);
+                    _bytesPerSector = (uint)((DiscUtils.Raw.Disk)_diskHandle).Geometry.BytesPerSector;
+                    _sectorsPerTrack = (uint)((DiscUtils.Raw.Disk)_diskHandle).Geometry.SectorsPerTrack;
+                    _heads = (uint)((DiscUtils.Raw.Disk)_diskHandle).Geometry.HeadsPerCylinder;
+                    _totalSectors = (ulong)((DiscUtils.Raw.Disk)_diskHandle).Geometry.TotalSectorsLong;
+                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            return false;
+        }
+
+        public bool OpenDevice()
         {
             // make sure we do not reopen the disk handle
             if (_diskHandle != null || _nativeHandle != null)
                 return true;
 
-            Console.WriteLine("Initializing disk image on target " + _deviceId);
-            if (_deviceId == "VMDK" || _deviceId == "IMG")
+            uint lpBytesReturned = 0;
+
+            // Assume direct-disk
+            _nativeHandle = CreateFile(_deviceId,
+                GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero,
+                OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, new SafeFileHandle(IntPtr.Zero, true));
+            if (_nativeHandle.IsInvalid)
             {
-                // Calculate size of harddisk in bytes
-                ulong sizeOfHdd = BytesPerSector * TotalSectors;
-
-                // Always create the image with this name
-                if (File.Exists("mollenos." + _deviceId.ToLower()))
-                    File.Delete("mollenos." + _deviceId.ToLower());
-
-                if (_deviceId == "VMDK")
-                    _diskHandle =  DiscUtils.Vmdk.Disk.Initialize("mollenos." + _deviceId.ToLower(), (long)sizeOfHdd, 
-                        DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
-                else if (_deviceId == "IMG") {
-                    _fileStream = File.Create("mollenos." + _deviceId.ToLower());
-                    _diskHandle = DiscUtils.Raw.Disk.Initialize(_fileStream, DiscUtils.Streams.Ownership.None, (long)sizeOfHdd);
-                }
-
-                SectorsPerTrack = 63;
-                TracksPerCylinder = 255;
+                Console.WriteLine("Failed to open disk with id " + _deviceId);
+                return false;
             }
-            else
+
+            // Lock disk and unmount
+            if (!DeviceIoControl(_nativeHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
             {
-                uint lpBytesReturned = 0;
-
-                // Assume direct-disk
-                _nativeHandle = CreateFile(_deviceId,
-                    GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero,
-                    OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, new SafeFileHandle(IntPtr.Zero, true));
-                if (_nativeHandle.IsInvalid)
-                {
-                    Console.WriteLine("Failed to open disk with id " + _deviceId);
-                    return false;
-                }
-
-                // Lock disk and unmount
-                if (!DeviceIoControl(_nativeHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
-                {
-                    Console.WriteLine("Failed to lock disk with id " + _deviceId);
-                    return false;
-                }
-                    
-                if (!DeviceIoControl(_nativeHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
-                {
-                    Console.WriteLine("Failed to unmount disk with id " + _deviceId);
-                    return false;
-                }
+                Console.WriteLine("Failed to lock disk with id " + _deviceId);
+                return false;
+            }
+                
+            if (!DeviceIoControl(_nativeHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
+            {
+                Console.WriteLine("Failed to unmount disk with id " + _deviceId);
+                return false;
             }
             return true;
+        }
+
+        public bool IsOpen()
+        {
+            return _diskHandle != null || _nativeHandle != null;
         }
 
         public void Close()
@@ -163,7 +246,8 @@ namespace OSBuilder
                 }
                 else if (_deviceId == "IMG") {
                     ((DiscUtils.Raw.Disk)_diskHandle).Dispose();
-                    _fileStream.Close();
+                    if (_fileStream != null)
+                        _fileStream.Close();
                 }
             }
             else
@@ -202,7 +286,7 @@ namespace OSBuilder
             // If we asked to seek, then handle the case
             if (seekFirst) {
                 // Calculate the absolute offset
-                ulong seekOffset = atSector * BytesPerSector;
+                ulong seekOffset = atSector * _bytesPerSector;
                 Seek((long)seekOffset);
             }
 
@@ -226,22 +310,32 @@ namespace OSBuilder
             if (_diskHandle == null && _nativeHandle == null)
                 throw new Exception("Disk not open");
 
-            byte[] buffer = new Byte[sectorCount * BytesPerSector];
-            ulong seekOffset = sector * BytesPerSector;
+            byte[] buffer = new Byte[sectorCount * _bytesPerSector];
+            ulong seekOffset = sector * _bytesPerSector;
 
             // Prepare disk access by seeking to position
             Seek((long)seekOffset);
 
             // Handle each output case differently
-            if (_deviceId == "VMDK") {
-                ((DiscUtils.Vmdk.Disk)_diskHandle).Content.Read(buffer, 0, buffer.Length);
+            try
+            {
+                if (_deviceId == "VMDK") {
+                    ((DiscUtils.Vmdk.Disk)_diskHandle).Content.Read(buffer, 0, buffer.Length);
+                }
+                else if (_deviceId == "IMG") {
+                    ((DiscUtils.Raw.Disk)_diskHandle).Content.Read(buffer, 0, buffer.Length);
+                }
+                else {
+                    uint bRead = 0;
+                    ReadFile(_nativeHandle.DangerousGetHandle(), buffer, (uint)buffer.Length, out bRead, IntPtr.Zero);
+                }
             }
-            else if (_deviceId == "IMG") {
-                ((DiscUtils.Raw.Disk)_diskHandle).Content.Read(buffer, 0, buffer.Length);
-            }
-            else {
-                uint bRead = 0;
-                ReadFile(_nativeHandle.DangerousGetHandle(), buffer, (uint)buffer.Length, out bRead, IntPtr.Zero);
+            catch (Exception e)
+            {
+                Console.WriteLine($"Read(ulong sector={sector}, ulong sectorCount={sectorCount})");
+                Console.WriteLine("Failed to read disk with id " + _deviceId);
+                Console.WriteLine(e.Message);
+                throw e;
             }
             return buffer;
         }

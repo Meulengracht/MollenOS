@@ -33,6 +33,8 @@
 
 ## About <a name="about"></a>
 
+MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
+
 Showcase of Vali to get an idea of how the userspace will be once it's finished.
 
 BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON

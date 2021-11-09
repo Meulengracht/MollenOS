@@ -65,12 +65,17 @@ namespace OSBuilder
         static void LaunchCLI(Hashtable drives)
         {
             Console.WriteLine("\nAvailable Commands:");
-            Console.WriteLine("format <drive>");
-            Console.WriteLine("write <file> <drive>");
-            Console.WriteLine("ls <path> <drive>");
-            Console.WriteLine("install <drive>");
+            Console.WriteLine("open <path>");
+            Console.WriteLine("select <filesystem>");
+            Console.WriteLine("write <source> <target>");
+            Console.WriteLine("ls <path>");
+            Console.WriteLine("close");
             Console.WriteLine("quit");
             Console.WriteLine("");
+
+            Disk currentDisk = null;
+            DiskLayouts.IDiskScheme currentScheme = null;
+            FileSystems.IFileSystem currentFileSystem = null;
 
             while (true)
             {
@@ -81,45 +86,68 @@ namespace OSBuilder
 
                 switch (inputTokens[0].ToLower())
                 {
-                    case "format":
-                        {
-                            if (!int.TryParse(inputTokens[1], out int drive)) {
-                                Console.WriteLine("Invalid drive number");
-                                continue;
-                            }
-                            //Format((MfsDisk)Drives[Option]);
-                        }
-                        break;
-                    case "write":
-                        {
-                            string path = inputTokens[1];
-                            if (!int.TryParse(inputTokens[2], out int drive)) {
-                                Console.WriteLine("Invalid drive number");
-                                continue;
-                            }
-                            //WriteToMfs((MfsDisk)Drives[Option], Path, "");
-                        }
-                        break;
-                    case "ls":
-                        {
-                            string path = inputTokens[1];
-                            if (!int.TryParse(inputTokens[2], out int drive)) {
-                                Console.WriteLine("Invalid drive number");
-                                continue;
-                            }
-                            //ListDirectory((MfsDisk)Drives[Option], Path);
-                        }
-                        break;
-                    case "install":
-                        {
-                            if (!int.TryParse(inputTokens[1], out int drive)) {
-                                Console.WriteLine("Invalid drive number");
-                                continue;
-                            }
-                            //InstallMOS((MfsDisk)Drives[Option]);
+                    case "open":
+                    {
+                        string path = inputTokens[1];
 
+                        // open disk
+                        currentDisk = new Disk(path);
+                        if (!currentDisk.OpenImage())
+                        {
+                            Console.WriteLine("Failed to open disk: " + path);
+                            currentDisk = null;
+                            break;
                         }
-                        break;
+                        
+                        Console.WriteLine("Opened disk: " + path);
+                        
+                        // open partitioning scheme
+                        currentScheme = new DiskLayouts.MBR();
+                        if (!currentScheme.Open(currentDisk))
+                        {
+                            Console.WriteLine("Failed to open disk layout: MBR");
+                            currentScheme = null;
+                            currentDisk = null;
+                        }
+                        
+                        var index = 0;
+                        foreach (var fileSystem in currentScheme.GetFileSystems())
+                        {
+                            Console.WriteLine($"{index++}: " + fileSystem.GetName());
+                        }
+                    }
+                    break;
+                    case "select":
+                    {
+                        int index = int.Parse(inputTokens[1]);
+                        if (index < 0 || index >= currentScheme.GetFileSystems().Count())
+                        {
+                            Console.WriteLine("Invalid filesystem index");
+                            break;
+                        }
+                        
+                        currentFileSystem = currentScheme.GetFileSystems().ElementAt(index);
+                        Console.WriteLine("Selected filesystem: " + currentFileSystem.GetName());
+                    } break;
+                    case "write":
+                    {
+                        string sourcePath = inputTokens[1];
+                        string targetPath = inputTokens[2];
+                        if (currentFileSystem == null) {
+                            Console.WriteLine("No filesystem selected");
+                            continue;
+                        }
+                        currentFileSystem.WriteFile(targetPath, FileSystems.FileFlags.None, File.ReadAllBytes(sourcePath));
+                    } break;
+                    case "ls":
+                    {
+                        string path = inputTokens[1];
+                        if (currentFileSystem == null) {
+                            Console.WriteLine("No filesystem selected");
+                            continue;
+                        }
+                        currentFileSystem.ListDirectory(path);
+                    } break;
                     case "quit":
                         return;
 
@@ -186,9 +214,9 @@ namespace OSBuilder
             if (installationType.ToLower() == "live" && drives.Count > 0)
                 disk = (Disk)drives[0];
             else if (installationType.ToLower() == "vmdk")
-                disk = new Disk("VMDK", 512, 63, 255, diskSectorCount);
+                disk = new Disk("VMDK", 512, diskSectorCount);
             else if (installationType.ToLower() == "img")
-                disk = new Disk("IMG", 512, 63, 255, diskSectorCount);
+                disk = new Disk("IMG", 512, diskSectorCount);
             else {
                 Console.WriteLine("Invalid option for -target");
                 return -1;
@@ -208,6 +236,12 @@ namespace OSBuilder
                 FileSystems.MFS.PartitionFlags.SystemDrive);
             dataFileSystem = new FileSystems.MFS.FileSystem("vali-data", false, 
                 FileSystems.MFS.PartitionFlags.DataDrive | FileSystems.MFS.PartitionFlags.UserDrive);
+
+            // Create the disk
+            if (!disk.Create()) {
+                Console.WriteLine("Failed to create disk");
+                return -1;
+            }
 
             // Setup disk partition layout
             diskScheme.Create(disk);

@@ -20,8 +20,12 @@ namespace OSBuilder.DiskLayouts
             // Store disk
             _disk = disk;
 
-            // TODO not supported
-            return false;
+            // ensure disk is open for read/write
+            if (!_disk.IsOpen())
+                return false;
+            
+            ParseMBR();
+            return true;
         }
 
         /**
@@ -39,8 +43,7 @@ namespace OSBuilder.DiskLayouts
             }
 
             // ensure disk is open for read/write
-            var diskAccessible = _disk.Open();
-            if (!diskAccessible)
+            if (!_disk.IsOpen())
                 return false;
 
             return true;
@@ -57,15 +60,16 @@ namespace OSBuilder.DiskLayouts
 
             // determine data to write
             byte status = (byte)(fileSystem.IsBootable() ? 0x80 : 0x00);
-            
-            ulong headOfStart = (partitionStart / 63) % 16;
-            ulong headOfEnd = (partitionEnd / 63) % 16;
+            var sectorsPerTrack = _disk.SectorsPerTrack;
 
-            ushort cylinderOfStart = Math.Min((ushort)(partitionStart / (63 * 16)), (ushort)1023);
-            ushort cylinderOfEnd = Math.Min((ushort)(partitionEnd / (63 * 16)), (ushort)1023);
+            ulong headOfStart = (partitionStart / sectorsPerTrack) % 16;
+            ulong headOfEnd = (partitionEnd / sectorsPerTrack) % 16;
 
-            ulong sectorInCylinderStart = (fileSystem.GetSectorStart() % 63) + 1;
-            ulong sectorInCylinderEnd = (fileSystem.GetSectorStart() % 63) + 1;
+            ushort cylinderOfStart = Math.Min((ushort)(partitionStart / (sectorsPerTrack * 16)), (ushort)1023);
+            ushort cylinderOfEnd = Math.Min((ushort)(partitionEnd / (sectorsPerTrack * 16)), (ushort)1023);
+
+            ulong sectorInCylinderStart = (fileSystem.GetSectorStart() % sectorsPerTrack) + 1;
+            ulong sectorInCylinderEnd = (fileSystem.GetSectorStart() % sectorsPerTrack) + 1;
             Console.WriteLine("partiton CHS start - " + cylinderOfStart.ToString() +
                 "/" + headOfStart.ToString() + "/" + sectorInCylinderStart.ToString());
             Console.WriteLine("partiton CHS end   - " + cylinderOfEnd.ToString() +
@@ -163,15 +167,51 @@ namespace OSBuilder.DiskLayouts
             _sectorsAllocated += partitionSize;
             return fileSystem.Format();
         }
-
-        /** 
-         * Retrieves the number of free sectors available for the next partition
-         */
+        
         public ulong GetFreeSectorCount()
         {
             if (_disk == null)
                 return 0;
-            return _disk.TotalSectors - _sectorsAllocated;
+            return _disk.SectorCount - _sectorsAllocated;
+        }
+
+        public IEnumerable<FileSystems.IFileSystem> GetFileSystems()
+        {
+            return _fileSystems;
+        }
+
+        public void ParseMBR()
+        {
+            var initialSet = false;
+            byte[] mbr = _disk.Read(0, 1);
+            for (int i = 0; i < MAX_PARTITONS; i++)
+            {
+                byte status = mbr[446 + (i * 16)];
+                byte type = mbr[446 + (i * 16) + 4];
+                if (status == 0x00 && type == 0x00)
+                    break; // reached end of table
+                
+                uint start = (uint)(mbr[446 + (i * 16) + 8] |
+                    (mbr[446 + (i * 16) + 9] << 8) |
+                    (mbr[446 + (i * 16) + 10] << 16) |
+                    (mbr[446 + (i * 16) + 11] << 24));
+                uint size = (uint)(mbr[446 + (i * 16) + 12] |
+                    (mbr[446 + (i * 16) + 13] << 8) |
+                    (mbr[446 + (i * 16) + 14] << 16) |
+                    (mbr[446 + (i * 16) + 15] << 24));
+
+                // Create supported filesystems
+                if (type == FileSystems.MFS.FileSystem.TYPE)
+                    _fileSystems.Add(new FileSystems.MFS.FileSystem(_disk, (ulong)start, (ulong)size));
+                
+                // Reserve the sectors
+                if (!initialSet)
+                {
+                    _sectorsAllocated = start;
+                    initialSet = true;
+                }
+                _sectorsAllocated += size;
+            }
         }
     }
 }

@@ -89,8 +89,20 @@ namespace OSBuilder.FileSystems.MFS
             return true;
         }
 
+        public void Open(ulong mapSector, uint nextFreeBucket)
+        {
+            _mapSector = mapSector;
+            _nextFreeBucket = nextFreeBucket;
+        }
+
         public uint AllocateBuckets(uint bucketCount, out uint sizeOfFirstBucket)
         {
+            if (bucketCount == 0)
+            {
+                sizeOfFirstBucket = 0;
+                return MFS_ENDOFCHAIN;
+            }
+
             uint mapEntriesPerSector = _disk.BytesPerSector / 8;
             uint allocation = _nextFreeBucket;
             
@@ -151,18 +163,21 @@ namespace OSBuilder.FileSystems.MFS
             }
 
             // Update BucketPrevPtr to MFS_ENDOFCHAIN
-            uint __sectorOffset = bucketLinkPrevious / mapEntriesPerSector;
-            uint __sectorIndex = bucketLinkPrevious % mapEntriesPerSector;
-            byte[] __sectorBuffer = _disk.Read(_mapSector + __sectorOffset, 1);
+            if (bucketLinkPrevious != MFS_ENDOFCHAIN)
+            {
+                uint __sectorOffset = bucketLinkPrevious / mapEntriesPerSector;
+                uint __sectorIndex = bucketLinkPrevious % mapEntriesPerSector;
+                byte[] __sectorBuffer = _disk.Read(_mapSector + __sectorOffset, 1);
 
-            // Modify link
-            __sectorBuffer[__sectorIndex * 8] = 0xFF;
-            __sectorBuffer[(__sectorIndex * 8) + 1] = 0xFF;
-            __sectorBuffer[(__sectorIndex * 8) + 2] = 0xFF;
-            __sectorBuffer[(__sectorIndex * 8) + 3] = 0xFF;
-            _disk.Write(__sectorBuffer, _mapSector + __sectorOffset, true);
-
-            _nextFreeBucket = NextFreeBucket;
+                // Modify link
+                __sectorBuffer[__sectorIndex * 8] = 0xFF;
+                __sectorBuffer[(__sectorIndex * 8) + 1] = 0xFF;
+                __sectorBuffer[(__sectorIndex * 8) + 2] = 0xFF;
+                __sectorBuffer[(__sectorIndex * 8) + 3] = 0xFF;
+                _disk.Write(__sectorBuffer, _mapSector + __sectorOffset, true);
+            }
+            
+            _nextFreeBucket = bucketLink;
             sizeOfFirstBucket = firstFreeSize;
             return allocation;
         }

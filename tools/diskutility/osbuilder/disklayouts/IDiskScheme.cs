@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 
 namespace OSBuilder.DiskLayouts
 {
@@ -30,5 +30,10 @@ namespace OSBuilder.DiskLayouts
          * Retrieves the number of free sectors available for the next partition
          */
         ulong GetFreeSectorCount();
+
+        /**
+         * Retrieves a list of the partitions on the disk
+         */
+        IEnumerable<FileSystems.IFileSystem> GetFileSystems();
     }
 }

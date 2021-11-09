@@ -34,5 +34,6 @@ namespace OSBuilder.FileSystems
         Guid GetFileSystemGuid();
         ulong GetSectorStart();
         ulong GetSectorCount();
+        string GetName();
     }
 }
