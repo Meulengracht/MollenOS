@@ -107,7 +107,7 @@ static OsStatus_t __ReadCurrentBucket(
 
     // Start out by loading the bucket buffer with data
     osStatus = MfsReadSectors(fileSystem, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, currentBucket),
-                              mfs->SectorsPerBucket * mapRecord->Length, &sectorsTransferred);
+                              MFS_SECTORCOUNT(mfs, mapRecord->Length), &sectorsTransferred);
     if (osStatus != OsSuccess) {
         ERROR("__ReadCurrentBucket: failed to read directory-bucket %u", currentBucket);
     }
@@ -355,10 +355,10 @@ static OsStatus_t __CreateDirectory(
 
 OsStatus_t
 MfsLocateRecord(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ uint32_t                bucketOfDirectory,
-        _In_ FileSystemEntryMFS_t*             entry,
-        _In_ MString_t*              path)
+        _In_ FileSystemBase_t*     fileSystemBase,
+        _In_ uint32_t              bucketOfDirectory,
+        _In_ FileSystemEntryMFS_t* entry,
+        _In_ MString_t*            path)
 {
     FileSystemMFS_t* mfs;
     OsStatus_t     osStatus;

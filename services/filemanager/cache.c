@@ -23,6 +23,7 @@
 
 //#define __TRACE
 
+#include <assert.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <ds/hash_sip.h>
@@ -101,7 +102,10 @@ VfsFileSystemCacheGet(
     OsStatus_t                  status;
     int                         created = 0;
 
-    TRACE("VfsFileSystemCacheGet path %s", MStringRaw(path));
+    TRACE("VfsFileSystemCacheGet(subPath=%s)", MStringRaw(subPath));
+    if (!fileSystem || !subPath || !entryOut) {
+        return OsInvalidParameters;
+    }
 
     usched_mtx_lock(&fileSystem->lock);
     cacheEntry = hashtable_get(&fileSystem->cache, &(struct cache_entry_wrapper) { .path = subPath });
@@ -147,8 +151,10 @@ VfsFileSystemCacheRemove(
         _In_  MString_t*    subPath)
 {
     struct cache_entry_wrapper* wrapper;
+    assert(fileSystem != NULL);
+    assert(subPath != NULL);
 
-    TRACE("VfsCacheRemoveFile(path=%s)", MStringRaw(path));
+    TRACE("VfsCacheRemoveFile(subPath=%s)", MStringRaw(subPath));
 
     // just remove it from the hash-table
     usched_mtx_lock(&fileSystem->lock);
@@ -164,6 +170,9 @@ VfsFileSystemCacheRemove(
 static uint64_t file_hash(const void* element)
 {
     const struct cache_entry_wrapper* cacheEntry = element;
+    if (!MStringLength(cacheEntry->path)) {
+        return 0;
+    }
     return siphash_64((const uint8_t*)MStringRaw(cacheEntry->path), MStringLength(cacheEntry->path), &g_hashKey[0]);
 }
 

@@ -102,6 +102,11 @@ void sys_file_open_invocation(struct gracht_message* message,
     FileSystemRequest_t* request;
 
     TRACE("svc_file_open_callback()");
+    if (!strlen(path)) {
+        sys_file_open_response(message, OsInvalidParameters, UUID_INVALID);
+        return;
+    }
+
     request = CreateRequest(message, processId);
     if (!request) {
         sys_file_open_response(message, OsOutOfMemory, UUID_INVALID);
@@ -258,6 +263,11 @@ void sys_file_move_invocation(struct gracht_message* message, const UUId_t proce
     FileSystemRequest_t* request;
 
     TRACE("sys_file_move_invocation()");
+    if (!strlen(source) || !strlen(destination)) {
+        sys_file_move_response(message, OsInvalidParameters);
+        return;
+    }
+
     request = CreateRequest(message, processId);
     if (!request) {
         sys_file_move_response(message, OsOutOfMemory);
@@ -276,6 +286,11 @@ void sys_file_link_invocation(struct gracht_message* message, const UUId_t proce
     FileSystemRequest_t* request;
 
     TRACE("sys_file_link_invocation()");
+    if (!strlen(source) || !strlen(destination)) {
+        sys_file_link_response(message, OsInvalidParameters);
+        return;
+    }
+
     request = CreateRequest(message, processId);
     if (!request) {
         sys_file_link_response(message, OsOutOfMemory);
@@ -407,6 +422,11 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t
     FileSystemRequest_t* request;
 
     TRACE("sys_file_fstat_path_invocation()");
+    if (!strlen(path)) {
+        sys_file_fstat_path_response(message, OsInvalidParameters, &gdescriptor);
+        return;
+    }
+
     request = CreateRequest(message, processId);
     if (!request) {
         sys_file_fstat_path_response(message, OsOutOfMemory, &gdescriptor);
@@ -422,10 +442,14 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t
     FileSystemRequest_t* request;
 
     TRACE("sys_file_fstat_link_invocation()");
+    if (!strlen(path)) {
+        sys_file_fstat_link_response(message, OsInvalidParameters, "");
+        return;
+    }
+
     request = CreateRequest(message, processId);
     if (!request) {
-        char zero[1] = { 0 };
-        sys_file_fstat_link_response(message, OsOutOfMemory, &zero[0]);
+        sys_file_fstat_link_response(message, OsOutOfMemory, "");
         return;
     }
 
@@ -437,6 +461,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t pro
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*             request;
+
     TRACE("sys_file_fsstat_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
@@ -452,6 +477,7 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*             request;
+
     TRACE("sys_file_fsstat_path_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
@@ -466,12 +492,11 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_
 void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)
 {
     FileSystemRequest_t* request;
-    TRACE("svc_path_resolve_callback(base=%u)", path);
 
+    TRACE("svc_path_resolve_callback(base=%u)", path);
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        char zero[1] = { 0 };
-        sys_path_resolve_response(message, OsOutOfMemory, &zero[0]);
+        sys_path_resolve_response(message, OsOutOfMemory, "");
         return;
     }
 
@@ -482,12 +507,16 @@ void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_
 void sys_path_canonicalize_invocation(struct gracht_message* message, const char* path)
 {
     FileSystemRequest_t* request;
+
     TRACE("svc_path_canonicalize_callback(path=%s)", path);
+    if (!strlen(path)) {
+        sys_path_canonicalize_response(message, OsInvalidParameters, "");
+        return;
+    }
 
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        char zero[1] = { 0 };
-        sys_path_canonicalize_response(message, OsOutOfMemory, &zero[0]);
+        sys_path_canonicalize_response(message, OsOutOfMemory, "");
         return;
     }
 
@@ -499,6 +528,7 @@ void sys_storage_get_descriptor_invocation(struct gracht_message* message, const
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
+
     TRACE("sys_storage_get_descriptor_invocation()");
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
@@ -514,7 +544,13 @@ void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, 
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
+
     TRACE("sys_storage_get_descriptor_path_invocation()");
+    if (!strlen(filePath)) {
+        sys_storage_get_descriptor_path_response(message, OsInvalidParameters, &gdescriptor);
+        return;
+    }
+
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
         sys_storage_get_descriptor_path_response(message, OsOutOfMemory, &gdescriptor);

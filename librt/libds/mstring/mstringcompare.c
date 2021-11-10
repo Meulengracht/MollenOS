@@ -40,8 +40,8 @@ MStringCompare(
     int   i1 = 0;
     int   i2 = 0;
 
-    if (!String1 || !String1->Data || String1->Length == 0 ||
-        !String2 || !String2->Data || String2->Length == 0) {
+    // verify data is atleast available
+    if (!String1 || !String1->Data || !String2 || !String2->Data) {
         return MSTRING_NO_MATCH;
     }
     data1 = (char*)String1->Data;

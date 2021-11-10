@@ -30,20 +30,16 @@ MStringSubString(
     _In_ int        index,
     _In_ int        length)
 {
-    MString_t*  subString;
-    char*       stringPtr;
-    int         currentIndex = 0;
-    int         i            = 0;
-    int         cappedLength = length;
+    MString_t* subString = MStringCreate(NULL, StrUTF8);
+    char*      stringPtr;
+    int        currentIndex = 0;
+    int        i            = 0;
+    int        cappedLength = length;
 
-    // do not accept 0 length
-    if (!string || !length) {
-        return NULL;
-    }
-
+    // Do not accept 0 length
     // Make sure index is within range and allowing for ATLEAST 1 character
-    if (index >= (int)string->Length) {
-        return NULL;
+    if (!string || !length || index >= (int)string->Length) {
+        return subString;
     }
 
     // Make sure index + length does not exceed the capacity. Lets cap it in that case
@@ -53,7 +49,6 @@ MStringSubString(
 
     // Count how many bytes we actually need to copy
     // from the start-index, save start index
-    subString = MStringCreate(NULL, StrUTF8);
     stringPtr = (char*)string->Data;
 
     while (i < string->Length) {

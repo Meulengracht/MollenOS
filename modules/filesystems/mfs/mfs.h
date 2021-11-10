@@ -39,10 +39,11 @@
  * MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion
  */
-#define MFS_ENDOFCHAIN                   0xFFFFFFFF
-#define MFS_GETSECTOR(mInstance, Bucket) ((mInstance)->ReservedSectorCount + ((mInstance)->SectorsPerBucket * (Bucket)))
-#define MFS_ROOTSIZE                     8
-#define MFS_DIRECTORYEXPANSION           4
+#define MFS_ENDOFCHAIN                    0xFFFFFFFF
+#define MFS_SECTORCOUNT(mfs, bucketCount) ((mfs)->SectorsPerBucket * (bucketCount))
+#define MFS_GETSECTOR(mfs, bucket)        ((mfs)->ReservedSectorCount + MFS_SECTORCOUNT(mfs, bucket))
+#define MFS_ROOTSIZE                      8
+#define MFS_DIRECTORYEXPANSION            4
 
 #define MFS_ACTION_NONE     0x0
 #define MFS_ACTION_UPDATE   0x1

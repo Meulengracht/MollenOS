@@ -82,7 +82,7 @@ FsReadFromFile(
         uint64_t Sector       = MFS_GETSECTOR(Mfs, handle->DataBucketPosition);    // Start-sector of current bucket
         uint64_t SectorOffset = position % fileSystemBase->Disk.descriptor.SectorSize; // Byte-offset into the current sector
         size_t   SectorIndex  = (size_t)((position - handle->BucketByteBoundary) / fileSystemBase->Disk.descriptor.SectorSize); // The sector-index into the current bucket
-        size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
+        size_t   SectorsLeft  = MFS_SECTORCOUNT(Mfs, handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
         size_t   SectorCount;
         size_t   SectorsRead;
         size_t   ByteCount;
@@ -202,10 +202,10 @@ FsWriteToFile(
         _Out_ size_t*                unitsWritten)
 {
     FileSystemMFS_t* mfs             = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t       osStatus        = OsSuccess;
     uint64_t         position        = handle->Base.Position;
     size_t           bucketSizeBytes = mfs->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize;
     size_t           bytesToWrite    = unitCount;
+    OsStatus_t       osStatus;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
           handle->Base.Id, LODWORD(position), unitCount);
@@ -234,7 +234,7 @@ FsWriteToFile(
         uint64_t Sector       = MFS_GETSECTOR(mfs, handle->DataBucketPosition);
         uint64_t SectorOffset = (position - handle->BucketByteBoundary) % fileSystemBase->Disk.descriptor.SectorSize;
         size_t   SectorIndex  = (size_t)((position - handle->BucketByteBoundary) / fileSystemBase->Disk.descriptor.SectorSize);
-        size_t   SectorsLeft  = MFS_GETSECTOR(mfs, handle->DataBucketLength) - SectorIndex;
+        size_t   SectorsLeft  = MFS_SECTORCOUNT(mfs, handle->DataBucketLength) - SectorIndex;
         size_t   SectorCount;
         size_t   SectorsWritten;
         size_t   ByteCount;
@@ -360,9 +360,9 @@ FsSeekInFile(
         _In_ FileSystemHandleMFS_t* handle,
         _In_ uint64_t               absolutePosition)
 {
-    FileSystemMFS_t* mfs              = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    size_t           initialBucketMax = 0;
-    int              constantLoop     = 1;
+    FileSystemMFS_t* mfs          = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
+    int              constantLoop = 1;
+    size_t           initialBucketMax;
 
     TRACE("FsSeekInFile(Id 0x%x, Position 0x%x)", handle->Base.Id, LODWORD(absolutePosition));
 

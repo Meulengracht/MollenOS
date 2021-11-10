@@ -527,7 +527,6 @@ namespace OSBuilder.FileSystems.MFS
                                 // Load some data (master-record and bucket-size)
                                 ulong MasterRecordSector = BitConverter.ToUInt64(Bootsector, 28);
                                 ulong MasterRecordMirrorSector = BitConverter.ToUInt64(Bootsector, 36);
-                                _bucketSize = BitConverter.ToUInt16(Bootsector, 26);
 
                                 // Read master-record
                                 byte[] MasterRecord = _disk.Read(_sector + MasterRecordSector, 1);
@@ -949,7 +948,6 @@ namespace OSBuilder.FileSystems.MFS
 
             // Load some data (master-record and bucket-size)
             ulong MasterRecordSector = BitConverter.ToUInt64(Bootsector, 28);
-            _bucketSize = BitConverter.ToUInt16(Bootsector, 26);
 
             // Read master-record
             Byte[] MasterRecord = _disk.Read(_sector + MasterRecordSector, 1);
@@ -976,7 +974,6 @@ namespace OSBuilder.FileSystems.MFS
             // Load some data (master-record and bucket-size)
             ulong MasterRecordSector = BitConverter.ToUInt64(bootsector, 28);
             ulong MasterRecordMirrorSector = BitConverter.ToUInt64(bootsector, 36);
-            _bucketSize = BitConverter.ToUInt16(bootsector, 26);
 
             // Read master-record
             byte[] masterRecord = _disk.Read(_sector + MasterRecordSector, 1);

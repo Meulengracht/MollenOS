@@ -36,7 +36,7 @@ OsStatus_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHan
 OsStatus_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 // Directory specific operation handlers
-OsStatus_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+OsStatus_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
 OsStatus_t FsSeekInDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 OsStatus_t 
@@ -173,7 +173,7 @@ FsReadEntry(
     TRACE("FsReadEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
 
     if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
-        return FsReadFromDirectory(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);
+        return FsReadFromDirectory(fileSystemBase, entry, handle, buffer, bufferOffset, unitCount, unitsRead);
     }
     else {
         return FsReadFromFile(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);

@@ -232,7 +232,7 @@ VfsPathCanonicalize(
             }
             
             if (previousIndex != MSTRING_NOT_FOUND) {
-                TRACE("[vfs] [path] going back in %s", MStringRaw(absolutePath));
+                TRACE("VfsPathCanonicalize going back in %s", MStringRaw(absolutePath));
                 MString_t* subPath = MStringSubString(absolutePath, 0, previousIndex + 1); // Include the '/'
                 if (subPath) {
                     MStringDestroy(absolutePath);

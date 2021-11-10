@@ -31,29 +31,32 @@
 
 size_t strlen(const char *str)
 {
-	const char *start = str;
-	unsigned long *aligned_addr;
+	const char*    start = str;
+	unsigned long* aligned_addr;
+    if (!str) {
+        return 0;
+    }
 
-	/* Align the pointer, so we can search a word at a time.  */
-	while (UNALIGNED (str))
-	{
-		if (!*str)
-			return str - start;
+	// align the pointer, so we can search a word at a time.
+	while (UNALIGNED (str)) {
+		if (!*str) {
+            return str - start;
+        }
 		str++;
 	}
 
-	/* If the string is word-aligned, we can check for the presence of
-		a null in each word-sized block.  */
+	// if the string is word-aligned, we can check for the presence of
+	// a null in each word-sized block.
 	aligned_addr = (unsigned long *)str;
-	while (!DETECTNULL (*aligned_addr))
-	aligned_addr++;
+	while (!DETECTNULL (*aligned_addr)) {
+        aligned_addr++;
+    }
 
-	/* Once a null is detected, we check each byte in that block for a
-		precise position of the null.  */
+	// once a null is detected, we check each byte in that block for a
+	// precise position of the null.
 	str = (char *) aligned_addr;
-
-	while (*str)
-		str++;
-
+	while (*str) {
+        str++;
+    }
 	return str - start;
 }
