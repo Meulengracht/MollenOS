@@ -33,12 +33,10 @@
 
 ## About <a name="about"></a>
 
+![Desktop - Terminal](docs/images/desktop_terminal.png)
+![Desktop - Launcher](docs/images/desktop_launcher.png)
+
 MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
-
-Showcase of Vali to get an idea of how the userspace will be once it's finished.
-
-BIG UPDATE TO LAYOUT AND FEATURES - NEW IMAGES COMING SOON
-
 
 ### Noteable projects
 
