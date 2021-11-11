@@ -292,19 +292,19 @@ static OsStatus_t __InitiateDirectory(
 }
 
 static OsStatus_t __CreateEntryInDirectory(
-        _In_  FileSystemBase_t* fileSystem,
+        _In_  FileSystemBase_t*       fileSystem,
         _In_  MString_t*              name,
         _In_  unsigned int            flags,
         _In_  uint32_t                directoryBucket,
         _In_  uint32_t                directoryLength,
         _In_  size_t                  directoryIndex,
-        _Out_ FileSystemEntryMFS_t**            entryOut)
+        _Out_ FileSystemEntryMFS_t**  entryOut)
 {
     FileSystemEntryMFS_t entry       = {{{0 } } };
     unsigned int         nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
-    OsStatus_t   osStatus;
+    OsStatus_t           osStatus;
 
-    entry.Base.Name = name;
+    entry.Base.Name = MStringClone(name);
     entry.StartBucket = MFS_ENDOFCHAIN;
     entry.NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
 
@@ -360,10 +360,10 @@ MfsLocateRecord(
         _In_ FileSystemEntryMFS_t* entry,
         _In_ MString_t*            path)
 {
-    FileSystemMFS_t* mfs;
-    OsStatus_t     osStatus;
-    MString_t*     remainingPath = NULL;
-    MString_t*     currentToken  = NULL;
+    FileSystemMFS_t*     mfs;
+    OsStatus_t           osStatus;
+    MString_t*           remainingPath = NULL;
+    MString_t*           currentToken  = NULL;
     FileSystemEntryMFS_t nextEntry   = {{{0 } } };
     int                  isEndOfPath = 0;
 
@@ -427,18 +427,18 @@ exit:
 
 OsStatus_t
 MfsCreateRecord(
-        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ FileSystemBase_t*       fileSystemBase,
         _In_ unsigned int            flags,
         _In_ uint32_t                bucketOfDirectory,
         _In_ MString_t*              path,
-        _In_ FileSystemEntryMFS_t**            entryOut)
+        _In_ FileSystemEntryMFS_t**  entryOut)
 {
-    FileSystemMFS_t* mfs;
+    FileSystemMFS_t*     mfs;
     OsStatus_t           osStatus;
     FileSystemEntryMFS_t nextEntry = {{{0 } } };
-    MString_t*     remainingPath = NULL;
-    MString_t*     currentToken  = NULL;
-    int            isEndOfPath = 0;
+    MString_t*           remainingPath = NULL;
+    MString_t*           currentToken  = NULL;
+    int                  isEndOfPath = 0;
 
     TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, bucketOfDirectory=%u, path=%s [0x%" PRIxIN "])",
           fileSystemBase, flags, bucketOfDirectory, MStringRaw(path), path);

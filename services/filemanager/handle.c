@@ -203,6 +203,7 @@ VfsHandleDestroy(
     FileSystem_t* fileSystem;
     OsStatus_t    osStatus;
 
+    TRACE("VfsHandleDestroy(processId=%u)", processId);
     if (!handle) {
         return OsInvalidParameters;
     }
@@ -222,6 +223,7 @@ VfsHandleDestroy(
             VfsFileSystemCacheRemove(fileSystem, handle->entry->path);
         }
     }
+    TRACE("VfsHandleDestroy returns=%u", osStatus);
     return osStatus;
 }
 

@@ -98,7 +98,9 @@ FsCloseEntry(
     if (entry->ActionOnClose) {
         osStatus = MfsUpdateRecord(fileSystemBase, entry, entry->ActionOnClose);
     }
-    if (entryBase->Name != NULL) { MStringDestroy(entryBase->Name); }
+    if (entryBase->Name != NULL) {
+        MStringDestroy(entryBase->Name);
+    }
     free(entry);
     return osStatus;
 }
@@ -152,8 +154,8 @@ FsCloseHandle(
         _In_ FileSystemBase_t*       fileSystemBase,
         _In_ FileSystemHandleBase_t* handleBase)
 {
-    FileSystemHandleMFS_t* Handle = (FileSystemHandleMFS_t*)handleBase;
-    free(Handle);
+    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
+    free(handle);
     return OsSuccess;
 }
 
