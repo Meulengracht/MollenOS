@@ -35,6 +35,7 @@
 
 ![Desktop - Terminal](docs/images/desktop_terminal.png)
 ![Desktop - Launcher](docs/images/desktop_launcher.png)
+![Desktop - Doom](docs/images/desktop_doom.png)
 
 MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
 
