@@ -48,6 +48,16 @@ CRTDECL(void, usched_cnd_init(struct usched_cnd* condition));
 CRTDECL(void, usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex));
 
 /**
+ * @brief Blocks the current running task until the condition variable has been signalled.
+ *
+ * @param condition The condition variable that should be waited for.
+ * @param mutex     A mutex protecting the condition variable, this will be unlocked before blocking.
+ * @param timeout   The timeout in milliseconds before returning if condition has not been signalled. 0 means infinite.
+ * @return          Returns -1 (ETIME) if timeout was reached. Returns 0 if condition was signalled.
+ */
+CRTDECL(int, usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex, unsigned int timeout));
+
+/**
  * @brief Notifies one task that is currently blocked by the condition variable, and wakes it up.
  *
  * @param condition The condition variable that should be signalled.

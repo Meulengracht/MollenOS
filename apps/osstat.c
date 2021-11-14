@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2018, Philip Meulengracht
+/**
+ * Copyright 2021, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,21 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS
+ * Operating System Statistics Application
  */
 
-#ifdef TESTLIB
-#define DLLDECL   __declspec( dllexport )
-#else
-#define DLLDECL   __declspec( dllexport )
-#endif
+#include <stdio.h>
 
-class DLLDECL CTestLib {  
-public:
-    CTestLib();
-    int callme();
-private:
-    int _val;
-};
-
+int main(int argc, char** argv)
+{
+    printf("mollenos vali operating system\n");
+    printf("version: v" OS_VERSION "\n");
+    printf("build: " OS_BUILD "-" OS_BUILD_DATE "\n");
+    printf("arch: " OS_ARCH "\n");
+    return 0;
+}

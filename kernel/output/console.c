@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -27,28 +26,32 @@
 #include <math.h>
 #include <log.h>
 
-static const char *GlbBootVideoWindowTitle = "Startup Debug Console";
+#define COLOR_BG     0xFF000000
+#define COLOR_FG     0xFFFFFFFF
+#define COLOR_BORDER 0xFFFFFFFF
+
+static const char* g_bootConsoleTitle = "Startup Debug Console";
 
 static void 
 VideoDrawLine(
-	_In_ unsigned int StartX,
-	_In_ unsigned int StartY,
-	_In_ unsigned int EndX,
-	_In_ unsigned int EndY,
-	_In_ unsigned int Color)
+	_In_ unsigned int startX,
+	_In_ unsigned int startY,
+	_In_ unsigned int endX,
+	_In_ unsigned int endY,
+	_In_ unsigned int color)
 {
 	// Variables - clam some values
-	int dx = abs(EndX - StartX), sx = StartX < EndX ? 1 : -1;
-	int dy = abs(EndY - StartY), sy = StartY < EndY ? 1 : -1;
+	int dx  = abs(endX - startX), sx = startX < endX ? 1 : -1;
+	int dy  = abs(endY - startY), sy = startY < endY ? 1 : -1;
 	int err = (dx > dy ? dx : -dy) / 2, e2;
 
 	// Draw the line by brute force
 	for (;;) {
-		VideoDrawPixel(StartX, StartY, Color);
-		if (StartX == EndX && StartY == EndY) break;
+		VideoDrawPixel(startX, startY, color);
+		if (startX == endX && startY == endY) break;
 		e2 = err;
-		if (e2 >-dx) { err -= dy; StartX += sx; }
-		if (e2 < dy) { err += dx; StartY += sy; }
+		if (e2 >-dx) { err -= dy; startX += sx; }
+		if (e2 < dy) { err += dx; startY += sy; }
 	}
 }
 
@@ -64,21 +67,21 @@ VideoDrawBootTerminal(
 	int          i;
 
 	// Instantiate a pointer to title
-	char *TitlePtr = (char*)GlbBootVideoWindowTitle;
+	char *TitlePtr = (char*)g_bootConsoleTitle;
 
 	// Draw the header
 	for (i = 0; i < 48; i++) {
-		VideoDrawLine(X, Y + i, X + Width, Y + i, 0x2980B9);
+		VideoDrawLine(X, Y + i, X + Width, Y + i, COLOR_BORDER);
 	}
 	
 	// Draw remaining borders
-	VideoDrawLine(X, Y, X, Y + Height, 0x2980B9);
-	VideoDrawLine(X + Width, Y, X + Width, Y + Height, 0x2980B9);
-	VideoDrawLine(X, Y + Height, X + Width, Y + Height, 0x2980B9);
+	VideoDrawLine(X, Y, X, Y + Height, COLOR_BORDER);
+	VideoDrawLine(X + Width, Y, X + Width, Y + Height, COLOR_BORDER);
+	VideoDrawLine(X, Y + Height, X + Width, Y + Height, COLOR_BORDER);
 
 	// Render title in middle of header
 	while (*TitlePtr) {
-		VideoDrawCharacter(TitleStartX, TitleStartY, *TitlePtr, 0x2980B9, 0xFFFFFF);
+		VideoDrawCharacter(TitleStartX, TitleStartY, *TitlePtr, COLOR_FG, COLOR_BG);
 		TitleStartX += 10;
 		TitlePtr++;
 	}
@@ -88,13 +91,14 @@ VideoDrawBootTerminal(
 	VideoGetTerminal()->CursorLimitX = X + Width - 1;
 	VideoGetTerminal()->CursorY = VideoGetTerminal()->CursorStartY = Y + 49;
 	VideoGetTerminal()->CursorLimitY = Y + Height - 17;
+    VideoGetTerminal()->BgColor = COLOR_BG;
+    VideoGetTerminal()->FgColor = COLOR_FG;
 }
 
 OsStatus_t
 VideoQuery(
 	_Out_ VideoDescriptor_t *Descriptor)
 {
-	// Sanitize
 	if (Descriptor == NULL || VideoGetTerminal() == NULL) {
 		return OsError;
 	}
@@ -110,18 +114,21 @@ VideoQuery(
 OsStatus_t 
 InitializeConsole(void)
 {
-    OsStatus_t Status;
+    OsStatus_t osStatus;
 
     // Initialize the serial interface if any
 #ifdef __OSCONFIG_HAS_UART
-    Status = InitializeSerialOutput();
+    osStatus = InitializeSerialOutput();
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 #endif
 
     // Initialize visual representation by framebuffer
 #ifdef __OSCONFIG_HAS_VIDEO
-    Status = InitializeFramebufferOutput();
-    if (Status == OsSuccess) {
-        VideoClear();
+    osStatus = InitializeFramebufferOutput();
+    if (osStatus == OsSuccess) {
+        VideoClear(COLOR_BG);
 #ifdef __OSCONFIG_DEBUGCONSOLE
 		if (VideoGetTerminal()->AvailableOutputs & VIDEO_GRAPHICS) {
 			VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 375, 0,

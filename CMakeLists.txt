@@ -111,8 +111,12 @@ add_subdirectory (services)
 # Build modules
 add_subdirectory (modules)
 
-# Build tests
-add_subdirectory (tests)
+# Build userspace applications
+# these are not the entire userspace that exists, most of these applications
+# are just utility apps and small test programs that exists only to test a single
+# feature or implementation. To run these you must have the entire userspace up and
+# running as we have no terminal environment builtin.
+add_subdirectory (apps)
 
 # Installation and utility targets
 add_custom_target (install_applications

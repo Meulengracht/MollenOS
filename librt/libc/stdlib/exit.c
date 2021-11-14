@@ -23,6 +23,10 @@
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
+#include <internal/_ipc.h>
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
+
 /* exit
  * Causes normal program termination to occur.
  * Several cleanup steps are performed:
@@ -44,10 +48,25 @@ atexit(
 }
 void
 exit(
-    _In_ int Status)
+    _In_ int exitCode)
 {
-    __cxa_exithandlers(Status, 0, 1, 1);
-	_Exit(Status);
+    int isModule = IsProcessModule();
+
+    // important here that we use the gracht client BEFORE cleaning up the entire C runtime
+    if (!isModule) {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+        OsStatus_t               status;
+        sys_process_terminate(GetGrachtClient(), &msg.base, *GetInternalProcessId(), exitCode);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
+    }
+
+    __cxa_exithandlers(exitCode, 0, 1, 1);
+    if (!isModule) {
+        Syscall_ModuleExit(exitCode);
+    }
+    Syscall_ThreadExit(exitCode);
+    for(;;);
 }
 #else
 __EXTERN void __CppFinit(void);

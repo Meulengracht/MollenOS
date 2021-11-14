@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,17 +27,17 @@ void
 _Exit(
     _In_ int exitCode)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
-    
     if (IsProcessModule()) {
         Syscall_ModuleExit(exitCode);
     }
     else {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+        OsStatus_t               status;
         sys_process_terminate(GetGrachtClient(), &msg.base, *GetInternalProcessId(), exitCode);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
     }
+
     Syscall_ThreadExit(exitCode);
     for(;;);
 }

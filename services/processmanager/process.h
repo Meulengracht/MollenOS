@@ -24,80 +24,78 @@
 #ifndef __PROCESS_INTERFACE__
 #define __PROCESS_INTERFACE__
 
-#include <os/osdefs.h>
-#include <os/process.h>
-#include <os/spinlock.h>
 #include <ds/list.h>
 #include <gracht/server.h>
-#include <threads.h>
+#include <os/osdefs.h>
+#include <os/process.h>
+#include <os/usched/mutex.h>
 #include <time.h>
+#include "requests.h"
 
 // Forward declarations
 DECL_STRUCT(PeExecutable);
 DECL_STRUCT(MString);
 
-#define PROCESS_RUNNING     0
-#define PROCESS_TERMINATING 1
+enum ProcessState {
+    ProcessState_RUNNING,
+    ProcessState_TERMINATING
+};
 
 typedef struct Process {
-    element_t              Header;
-    UUId_t                 PrimaryThreadId;
-    clock_t                StartedAt;
-    atomic_int             References;
-    int                    State;
-    spinlock_t             SyncObject;
+    UUId_t                 handle;
+    UUId_t                 primary_thread_id;
+    clock_t                tick_base;
+    enum ProcessState      state;
+    struct usched_mtx      lock;
+    list_t                 requests;
+    PeExecutable_t*        image;
+    ProcessConfiguration_t config;
+    int                    exit_code;
 
-    MString_t*             Name;
-    MString_t*             Path;
-    MString_t*             WorkingDirectory;
-    MString_t*             AssemblyDirectory;
-    const char*            Arguments;
-    size_t                 ArgumentsLength;
-    void*                  InheritationBlock;
-    size_t                 InheritationBlockLength;
-    ProcessConfiguration_t Configuration;
+    MString_t* name;
+    MString_t* path;
+    MString_t* working_directory;
+    MString_t* assembly_directory;
 
-    PeExecutable_t*        Executable;
-    int                    ExitCode;
+    const char* arguments;
+    size_t      arguments_length;
+    void*       inheritation_block;
+    size_t      inheritation_block_length;
 } Process_t;
 
-typedef struct ProcessJoiner {
-    element_t             Header;
-    Process_t*            Process;
-    UUId_t                EventHandle;
-    struct gracht_message DeferredResponse[];
-} ProcessJoiner_t;
+/**
+ * @brief Initializes the subsystems for managing the running processes.
+ */
+extern void InitializeProcessManager(void);
 
 /**
- * Initializes the subsystems for managing the running processes, providing manipulations and optimizations.
+ * @brief Initializes the debugger functionality in the process manager
  */
-__EXTERN OsStatus_t
-InitializeProcessManager(void);
+extern void DebuggerInitialize(void);
 
 /**
- * DebuggerInitialize
- * Initializes the debugger functionality in the process manager
+ * @brief Registers a request to the process. As long as a request is registered to a process the process
+ * termination will not complete before all requests has been handled.
+ *
+ * @param handle  A handle for the process to register the request for
+ * @param request The request that should be registered.
+ * @return
  */
-__EXTERN void
-DebuggerInitialize(void);
+extern Process_t*
+RegisterProcessRequest(
+        _In_ UUId_t     handle,
+        _In_ Request_t* request);
 
-/* AcquireProcess
- * Acquires a reference to a process and allows safe access to the structure. */
-__EXTERN Process_t*
-AcquireProcess(
-    _In_ UUId_t Handle);
-
-/* ReleaseProcess
- * Releases a reference to a process and unlocks the process structure for other threads. */
-void
-ReleaseProcess(
-    _In_ Process_t* process);
-
-/* GetProcessByPrimaryThread
- * Looks up a process instance by its primary thread. This can be used by the
- * primary thread to obtain its process id. */
-__EXTERN Process_t*
-GetProcessByPrimaryThread(
-    _In_ UUId_t ThreadId);
+/**
+ * @brief Unregisters a registered request, if the process is terminating and the number of requests reach 0,
+ * then process destruction will also occur.
+ *
+ * @param process A process instance that the request is registered too
+ * @param request The request that should be unregistered.
+ */
+extern void
+UnregisterProcessRequest(
+        _In_ Process_t* process,
+        _In_ Request_t* request);
 
 #endif //!__PROCESS_INTERFACE__

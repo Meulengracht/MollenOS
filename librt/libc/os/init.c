@@ -108,7 +108,8 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         sys_process_get_startup_information_result(GetGrachtClient(), &msg.base,
                                                    &osStatus, &g_processId, &StartupInformation->ArgumentsLength,
                                                    &StartupInformation->InheritationLength, &StartupInformation->LibraryEntriesLength);
-        
+        assert(osStatus == OsSuccess);
+
         TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
             StartupInformation->ArgumentsLength,
             StartupInformation->InheritationLength,

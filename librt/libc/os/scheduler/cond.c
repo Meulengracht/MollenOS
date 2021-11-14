@@ -38,6 +38,7 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
 {
     struct usched_job* current;
     assert(condition != NULL);
+    assert(mutex != NULL);
 
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
@@ -46,6 +47,26 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     usched_mtx_unlock(mutex);
     usched_yield();
     usched_mtx_lock(mutex);
+}
+
+int usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex, unsigned int timeout)
+{
+    struct usched_job* current;
+    int                timer;
+    int                status;
+    assert(condition != NULL);
+    assert(mutex != NULL);
+
+    current = __usched_get_scheduler()->current;
+    current->state = JobState_BLOCKED;
+    AppendJob(&condition->queue, current);
+
+    usched_mtx_unlock(mutex);
+    timer = __usched_timeout_start(timeout, condition);
+    usched_yield();
+    status = __usched_timeout_finish(timer);
+    usched_mtx_lock(mutex);
+    return status;
 }
 
 void usched_cnd_notify_one(struct usched_cnd* condition)
@@ -73,5 +94,32 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
 
         job->state = JobState_RUNNING;
         AppendJob(&__usched_get_scheduler()->ready, job);
+    }
+}
+
+void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* job)
+{
+    assert(condition != NULL);
+    assert(job != NULL);
+
+    if (condition->queue) {
+        struct usched_job* i = condition->queue, *previous = NULL;
+        while (i) {
+            if (i == job) {
+                if (!previous) {
+                    condition->queue = i->next;
+                }
+                else {
+                    previous->next = i->next;
+                }
+
+                job->next = NULL;
+                job->state = JobState_RUNNING;
+                AppendJob(&__usched_get_scheduler()->ready, job);
+            }
+
+            previous = i;
+            i = i->next;
+        }
     }
 }

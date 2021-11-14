@@ -425,16 +425,25 @@ VideoGetTerminal(void)
     return &Terminal;
 }
 
+static inline void memset32(uint32_t* out, uint32_t value, size_t byteCount)
+{
+    size_t count = byteCount >> 2;
+    while (count) {
+        *(out++) = value;
+        count--;
+    }
+}
+
 void
-VideoClear(void)
+VideoClear(uint32_t color)
 {
     if (Terminal.AvailableOutputs & (VIDEO_TEXT | VIDEO_GRAPHICS)) {
         size_t byteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
 
         if (Terminal.BackBufferAddress) {
-            memset((void*)Terminal.BackBufferAddress, 0xFF, byteCount);
+            memset32((void*)Terminal.BackBufferAddress, color, byteCount);
         }
-        memset((void*)Terminal.FrameBufferAddress, 0xFF, byteCount);
+        memset32((void*)Terminal.FrameBufferAddress, color, byteCount);
     }
 }
 

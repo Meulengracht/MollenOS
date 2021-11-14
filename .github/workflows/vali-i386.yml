@@ -5,13 +5,11 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
       with:
@@ -20,6 +18,7 @@ jobs:
       uses: docker/build-push-action@v1.1.0
       with:
         build_args: ARCH=i386
+        dockerfile: build.Dockerfile
         # Username used to log in to a Docker registry. If not set then no login will occur
         username: fadekraft
         # Password or personal access token used to log in to a Docker registry. If not set then no login will occur

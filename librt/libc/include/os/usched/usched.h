@@ -40,8 +40,9 @@ CRTDECL(void,usched_init(void));
 /**
  * @brief Yields control of the current task and executes the next task in line. If no tasks
  * are ready to execute, control is returned to original caller of this function.
+ * @return Returns the number of milliseconds untill the next timed event should occur.
  */
-CRTDECL(void,usched_yield(void));
+CRTDECL(int,usched_yield(void));
 
 /**
  * @brief Schedules a new task in the scheduler for current execution unit.

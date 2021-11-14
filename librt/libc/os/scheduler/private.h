@@ -35,18 +35,27 @@ enum JobState {
 };
 
 struct usched_job {
-    void*         stack;
-    unsigned int  stack_size;
-    jmp_buf       context;
+    void*          stack;
+    unsigned int   stack_size;
+    jmp_buf        context;
     enum JobState  state;
     usched_task_fn entry;
-    void*         argument;
-    int           cancelled;
+    void*          argument;
+    int            cancelled;
 
     struct usched_job* next;
 };
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
+
+struct usched_timeout {
+    int                    id;
+    clock_t                deadline;
+    int                    active;
+    struct usched_job*     job;
+    struct usched_cnd*     signal;
+    struct usched_timeout* next;
+};
 
 struct usched_scheduler {
     int     magic;
@@ -56,7 +65,23 @@ struct usched_scheduler {
     struct usched_job* current;
     struct usched_job* ready;
     struct usched_job* garbage_bin;
+
+    struct usched_timeout* timers;
 };
+
+static inline void AppendTimer(struct usched_timeout** list, struct usched_timeout* timer)
+{
+    struct usched_timeout* i = *list;
+    if (!i) {
+        *list = timer;
+        return;
+    }
+
+    while (i->next) {
+        i = i->next;
+    }
+    i->next = timer;
+}
 
 static inline void AppendJob(struct usched_job** list, struct usched_job* job)
 {
@@ -73,5 +98,8 @@ static inline void AppendJob(struct usched_job** list, struct usched_job* job)
 }
 
 extern struct usched_scheduler* __usched_get_scheduler(void);
+extern int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);
+extern int __usched_timeout_finish(int id);
+extern void __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
 
 #endif //!__USCHED_PRIVATE_H__

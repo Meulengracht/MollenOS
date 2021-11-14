@@ -47,17 +47,17 @@ GetModuleAndOffset(
         _Out_ const char** moduleName,
         _Out_ uintptr_t*   moduleBase)
 {
-    if (address < process->Executable->CodeBase) {
-        *moduleBase = process->Executable->VirtualAddress;
-        *moduleName = (char*) MStringRaw(process->Executable->Name);
+    if (address < process->image->CodeBase) {
+        *moduleBase = process->image->VirtualAddress;
+        *moduleName = (char*)MStringRaw(process->image->Name);
         return OsDoesNotExist;
     }
 
     // Was it not main executable?
-    if (address > (process->Executable->CodeBase + process->Executable->CodeSize)) {
+    if (address > (process->image->CodeBase + process->image->CodeSize)) {
         // Iterate libraries to find the sinner
-        if (process->Executable->Libraries != NULL) {
-            foreach(i, process->Executable->Libraries) {
+        if (process->image->Libraries != NULL) {
+            foreach(i, process->image->Libraries) {
                 PeExecutable_t* Library = (PeExecutable_t*) i->value;
                 if (address >= Library->CodeBase && address < (Library->CodeBase + Library->CodeSize)) {
                     *moduleName = MStringRaw(Library->Name);
@@ -70,32 +70,31 @@ GetModuleAndOffset(
         return OsDoesNotExist;
     }
 
-    *moduleBase = process->Executable->VirtualAddress;
-    *moduleName = (char*) MStringRaw(process->Executable->Name);
+    *moduleBase = process->image->VirtualAddress;
+    *moduleName = (char*) MStringRaw(process->image->Name);
     return OsSuccess;
 }
 
 static OsStatus_t
 HandleProcessCrashReport(
-        _In_ Process_t* process,
-        _In_ UUId_t     threadHandle,
-        _In_ Context_t* crashContext,
-        _In_ int        crashReason)
+        _In_ Process_t*       process,
+        _In_ UUId_t           threadHandle,
+        _In_ const Context_t* crashContext,
+        _In_ int              crashReason)
 {
     uintptr_t   moduleBase;
     const char* moduleName;
     const char* programName;
     uintptr_t   crashAddress;
     int         i = 0, max = 12;
+    TRACE("HandleProcessCrashReport(%i)", crashReason);
 
-    if (!process || !crashContext) {
+    if (!crashContext) {
         return OsInvalidParameters;
     }
 
     crashAddress = CONTEXT_IP(crashContext);
-    programName  = MStringRaw(process->Executable->Name);
-
-    TRACE("HandleProcessCrashReport(%i)", crashReason);
+    programName  = MStringRaw(process->image->Name);
 
     // Debug
     GetModuleAndOffset(process, crashAddress, &moduleName, &moduleBase);
@@ -146,15 +145,30 @@ HandleProcessCrashReport(
     return OsSuccess;
 }
 
-void sys_process_report_crash_invocation(struct gracht_message* message, const UUId_t threadId,
-        const UUId_t processId, const uint8_t* crashContext, const uint32_t crashContext_count, const int reason)
+void PmHandleCrash(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
 {
-    Process_t* process = AcquireProcess(processId);
-    OsStatus_t status  = HandleProcessCrashReport(process, threadId, (Context_t*)crashContext, reason);
-    (void)crashContext_count;
+    Process_t* process;
+    OsStatus_t osStatus;
+    TRACE("PmHandleCrash(process=%u)", request->parameters.crash.process_handle);
 
-    if (process) {
-        ReleaseProcess(process);
+    process = RegisterProcessRequest(request->parameters.crash.process_handle, request);
+    if (!process) {
+        // what the *?
+        sys_process_report_crash_response(request->message, OsDoesNotExist);
+        goto cleanup;
     }
-    sys_process_report_crash_response(message, status);
+
+    osStatus = HandleProcessCrashReport(process,
+                                        request->parameters.crash.thread_handle,
+                                        request->parameters.crash.context,
+                                        request->parameters.crash.reason);
+
+    sys_process_report_crash_response(request->message, osStatus);
+    UnregisterProcessRequest(process, request);
+
+cleanup:
+    free((void*)request->parameters.crash.context);
+    RequestDestroy(request);
 }

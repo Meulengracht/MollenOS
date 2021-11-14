@@ -52,9 +52,10 @@ gracht_server_t* __crt_get_service_server(void)
 _Noreturn static void __crt_service_main(int setIod)
 {
     struct ioset_event events[32];
+    int                timeout = 0;
 
     while (1) {
-        int num_events = ioset_wait(setIod, &events[0], 32, 0);
+        int num_events = ioset_wait(setIod, &events[0], 32, timeout);
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
@@ -65,7 +66,14 @@ _Noreturn static void __crt_service_main(int setIod)
         }
 
         // handle all tasks after events
-        usched_yield();
+        do {
+            timeout = usched_yield();
+        } while (timeout == 0);
+
+        // convert INT_MAX result to infinite result
+        if (timeout == INT_MAX) {
+            timeout = 0;
+        }
     }
 }
 

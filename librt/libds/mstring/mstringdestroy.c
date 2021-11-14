@@ -28,11 +28,11 @@ void
 MStringDestroy(
         _In_ MString_t* string)
 {
-	if (string == NULL) {
+	if (!string) {
 		return;
 	}
 
-	if (string->Data != NULL) {
+	if (string->Data) {
 		dsfree(string->Data);
 		string->Data = NULL;
 	}

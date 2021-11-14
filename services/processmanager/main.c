@@ -45,11 +45,12 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_PROCESS_PATH;
 }
 
-OsStatus_t
-OnLoad(void)
+OsStatus_t OnLoad(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_library_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_process_server_protocol);
-    return InitializeProcessManager();
+
+    InitializeProcessManager();
+    DebuggerInitialize();
 }

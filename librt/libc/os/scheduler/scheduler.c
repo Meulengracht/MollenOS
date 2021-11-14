@@ -29,6 +29,7 @@
 #include "private.h"
 
 static struct usched_scheduler g_scheduler;
+static atomic_int g_timerid = ATOMIC_VAR_INIT(1);
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return &g_scheduler;
@@ -124,15 +125,60 @@ static void EmptyGarbageBin(void)
     mtx_unlock(&g_scheduler.lock);
 }
 
-void usched_yield(void)
+static void UpdateTimers(void)
+{
+    clock_t                currentTime;
+    struct usched_timeout* timer;
+
+    mtx_lock(&g_scheduler.lock);
+    currentTime = clock();
+    timer = g_scheduler.timers;
+    while (timer) {
+        if (timer->deadline <= currentTime) {
+            timer->active = 0;
+            __usched_cond_notify_job(timer->signal, timer->job);
+        }
+        timer = timer->next;
+    }
+    mtx_unlock(&g_scheduler.lock);
+}
+
+static int GetTimeUntillNextDeadline()
+{
+    clock_t                currentTime;
+    struct usched_timeout* timer;
+    int                    shortest = INT_MAX;
+
+    mtx_lock(&g_scheduler.lock);
+    currentTime = clock();
+    timer = g_scheduler.timers;
+    while (timer) {
+        if (timer->active) {
+            int diff = (int)(timer->deadline > currentTime ? (timer->deadline - currentTime) : 0);
+            shortest = MIN(diff, shortest);
+            if (!shortest) {
+                break;
+            }
+        }
+        timer = timer->next;
+    }
+    mtx_unlock(&g_scheduler.lock);
+    return shortest;
+}
+
+int usched_yield(void)
 {
     struct usched_job* current;
     struct usched_job* next;
 
+    // update timers before we check the scheduler as we might trigger a job to
+    // be ready
+    UpdateTimers();
+
     if (!g_scheduler.current) {
         // if no active thread and no ready threads then we can safely just return
         if (!g_scheduler.ready) {
-            return;
+            return GetTimeUntillNextDeadline();
         }
 
         // we are running in scheduler context, make sure we store
@@ -140,7 +186,7 @@ void usched_yield(void)
         // to execute
         if (setjmp(g_scheduler.context)) {
             EmptyGarbageBin();
-            return;
+            return GetTimeUntillNextDeadline();
         }
     }
 
@@ -167,6 +213,7 @@ void usched_yield(void)
 
     // Should always be the last call
     SwitchTask(current, next);
+    return 0;
 }
 
 void* usched_task_queue(usched_task_fn entry, void* argument)
@@ -213,4 +260,69 @@ int usched_ct_is_cancelled(void* cancellationToken)
     }
 
     return ((struct usched_job*)cancellationToken)->cancelled;
+}
+
+int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
+{
+    struct usched_timeout* timer;
+
+    if (!timeout) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    timer = malloc(sizeof(struct usched_timeout));
+    if (!timer) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    timer->id = atomic_fetch_add(&g_timerid, 1);
+    timer->deadline = clock() + timeout;
+    timer->signal = cond;
+    timer->next = NULL;
+
+    mtx_lock(&g_scheduler.lock);
+    timer->job = g_scheduler.current;
+    AppendTimer(&g_scheduler.timers, timer);
+    mtx_unlock(&g_scheduler.lock);
+
+    return timer->id;
+}
+
+int __usched_timeout_finish(int id)
+{
+    struct usched_timeout* timer;
+    struct usched_timeout* previousTimer = NULL;
+    int                    result = 0;
+    if (id == -1) {
+        // an invalid id was provided, ignore it
+        return 0;
+    }
+
+    mtx_lock(&g_scheduler.lock);
+    timer = g_scheduler.timers;
+    while (timer) {
+        if (timer->id == id) {
+            if (previousTimer) {
+                previousTimer->next = timer->next;
+            }
+            else {
+                g_scheduler.timers = timer->next;
+            }
+
+            // return -1 if timer was signalled.
+            if (!timer->active) {
+                errno = ETIME;
+                result = -1;
+            }
+            free(timer);
+            break;
+        }
+
+        previousTimer = timer;
+        timer = timer->next;
+    }
+    mtx_unlock(&g_scheduler.lock);
+    return result;
 }

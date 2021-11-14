@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.8.2)
-    include(../../cmake/SetupEnvironment.cmake)
-    project(ValiProcessManager)
-endif ()
-
 enable_language(C)
 
 # Configure include paths
@@ -31,6 +25,7 @@ add_service_target(processmanager ""
     main.c
     map_parser.c
     process.c
+    requests.c
     symbol_loader.c
 )
 add_dependencies(processmanager service_servers)

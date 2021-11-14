@@ -56,13 +56,11 @@ typedef struct BootTerminal {
 
 /* VideoGetTerminal
  * Retrieves the current terminal information */
-KERNELAPI BootTerminal_t* KERNELABI
-VideoGetTerminal(void);
+KERNELAPI BootTerminal_t* KERNELABI VideoGetTerminal(void);
 
 /* VideoClear
  * Clears the video framebuffer by initializing it to a default color. */
-KERNELAPI void KERNELABI
-VideoClear(void);
+KERNELAPI void KERNELABI VideoClear(uint32_t color);
 
 /* VideoDrawPixel
  * Draws a pixel of the given color at the specifiedpixel-position */

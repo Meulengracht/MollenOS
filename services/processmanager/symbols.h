@@ -53,8 +53,8 @@ void
 SymbolInitialize(void);
 
 /**
- * SymbolLookup
- * Retrieves the symbol name given an offset into a binary file. Will try to locate any matching symbol file.
+ * @brief Retrieves the symbol name given an offset into a binary file. Will try to locate any matching symbol file.
+ *
  * @param binaryName   Name of the binary file, ex processmanager.dll
  * @param binaryOffset Address offset into the binary file
  * @param symbolName   A pointer where the resulting symbol name can be stored, does not need to be freed
@@ -69,8 +69,8 @@ SymbolLookup(
         _Out_ uintptr_t*   symbolOffset);
 
 /**
- * SymbolParseMapFile
- * Parses the provided map file data and stores all information into the provided symbol context
+ * @brief Parses the provided map file data and stores all information into the provided symbol context
+ *
  * @param symbolContext
  * @param fileBuffer
  * @param fileLength
