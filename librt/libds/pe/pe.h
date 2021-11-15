@@ -105,24 +105,24 @@ PeValidateImageBuffer(
  * the next address is available for load */
 __EXTERN OsStatus_t
 PeLoadImage(
-    _In_  UUId_t           Owner,
-    _In_  PeExecutable_t*  Parent,
-    _In_  MString_t*       Path,
-    _Out_ PeExecutable_t** ImageOut);
+    _In_  UUId_t           owner,
+    _In_  PeExecutable_t*  parent,
+    _In_  MString_t*       path,
+    _Out_ PeExecutable_t** imageOut);
 
 /* PeUnloadImage
  * Unload executables, all it's dependancies and free it's resources */
 __EXTERN OsStatus_t
 PeUnloadImage(
-    _In_ PeExecutable_t* Image);
+    _In_ PeExecutable_t* image);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
  * This only cleans up in the case there are no more references */
 __EXTERN OsStatus_t
 PeUnloadLibrary(
-    _In_ PeExecutable_t* Parent, 
-    _In_ PeExecutable_t* Library);
+    _In_ PeExecutable_t* parent,
+    _In_ PeExecutable_t* library);
 
 /* PeResolveLibrary
  * Resolves a dependancy or a given module path, a load address must be provided

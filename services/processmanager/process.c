@@ -22,7 +22,7 @@
  *   of running applications.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ds/mstring.h>

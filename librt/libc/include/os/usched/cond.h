@@ -24,11 +24,13 @@
 #define __OS_USCHED_COND_H__
 
 #include <os/spinlock.h>
+#include <os/usched/mutex.h>
 
 struct usched_job;
 struct usched_mtx;
 
 struct usched_cnd {
+    struct usched_mtx  lock;
     struct usched_job* queue;
 };
 

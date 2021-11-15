@@ -20,7 +20,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>

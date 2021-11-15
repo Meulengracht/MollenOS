@@ -30,7 +30,7 @@
 void usched_cnd_init(struct usched_cnd* condition)
 {
     assert(condition != NULL);
-
+    usched_mtx_init(&condition->lock);
     condition->queue = NULL;
 }
 
@@ -40,9 +40,11 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     assert(condition != NULL);
     assert(mutex != NULL);
 
+    usched_mtx_lock(&condition->lock);
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
     AppendJob(&condition->queue, current);
+    usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
     usched_yield();
@@ -57,9 +59,11 @@ int usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex
     assert(condition != NULL);
     assert(mutex != NULL);
 
+    usched_mtx_lock(&condition->lock);
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
     AppendJob(&condition->queue, current);
+    usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
     timer = __usched_timeout_start(timeout, condition);
@@ -73,6 +77,7 @@ void usched_cnd_notify_one(struct usched_cnd* condition)
 {
     assert(condition != NULL);
 
+    usched_mtx_lock(&condition->lock);
     if (condition->queue) {
         struct usched_job* job = condition->queue;
         condition->queue = job->next;
@@ -81,12 +86,14 @@ void usched_cnd_notify_one(struct usched_cnd* condition)
         job->state = JobState_RUNNING;
         AppendJob(&__usched_get_scheduler()->ready, job);
     }
+    usched_mtx_unlock(&condition->lock);
 }
 
 void usched_cnd_notify_all(struct usched_cnd* condition)
 {
     assert(condition != NULL);
 
+    usched_mtx_lock(&condition->lock);
     while (condition->queue) {
         struct usched_job* job = condition->queue;
         condition->queue = job->next;
@@ -95,6 +102,7 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
         job->state = JobState_RUNNING;
         AppendJob(&__usched_get_scheduler()->ready, job);
     }
+    usched_mtx_unlock(&condition->lock);
 }
 
 void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* job)
@@ -102,6 +110,7 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
     assert(condition != NULL);
     assert(job != NULL);
 
+    usched_mtx_lock(&condition->lock);
     if (condition->queue) {
         struct usched_job* i = condition->queue, *previous = NULL;
         while (i) {
@@ -122,4 +131,5 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
             i = i->next;
         }
     }
+    usched_mtx_unlock(&condition->lock);
 }

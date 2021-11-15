@@ -80,6 +80,11 @@ static void SwitchTask(struct usched_job* current, struct usched_job* next)
         }
     }
 
+    // return to scheduler context if we have no next
+    if (!next) {
+        longjmp(g_scheduler.context, 1);
+    }
+
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
     if (next->state != JobState_CREATED) {
@@ -202,14 +207,8 @@ int usched_yield(void)
         }
     }
     next = GetNextReady(&g_scheduler);
-    mtx_unlock(&g_scheduler.lock);
-
     g_scheduler.current = next;
-
-    // if we run out of tasks to execute we want to return exit the scheduler
-    if (!g_scheduler.current) {
-        longjmp(g_scheduler.context, 1);
-    }
+    mtx_unlock(&g_scheduler.lock);
 
     // Should always be the last call
     SwitchTask(current, next);

@@ -781,7 +781,6 @@ PeParseAndMapImage(
 
     // Add us to parent before handling data-directories
     if (Parent != NULL) {
-        ELEMENT_INIT(&Image->Header, 0, Image);
         list_append(Parent->Libraries, &Image->Header);
     }
 
@@ -850,174 +849,181 @@ ResolvePeImagePath(
 
 OsStatus_t
 PeLoadImage(
-    _In_  UUId_t           Owner,
-    _In_  PeExecutable_t*  Parent,
-    _In_  MString_t*       Path,
-    _Out_ PeExecutable_t** ImageOut)
+    _In_  UUId_t           owner,
+    _In_  PeExecutable_t*  parent,
+    _In_  MString_t*       path,
+    _Out_ PeExecutable_t** imageOut)
 {
-    MzHeader_t*           DosHeader;
-    PeHeader_t*           BaseHeader;
-    PeOptionalHeader_t*   OptHeader;
-    PeOptionalHeader32_t* OptHeader32;
-    PeOptionalHeader64_t* OptHeader64;
+    MzHeader_t*           dosHeader;
+    PeHeader_t*           peHeader;
+    PeOptionalHeader_t*   optionalHeader;
+    PeOptionalHeader32_t* optionalHeader32;
+    PeOptionalHeader64_t* optionalHeader64;
 
-    MString_t*         FullPath = NULL;
-    uintptr_t          SectionAddress;
-    uintptr_t          ImageBase;
-    size_t             SizeOfMetaData;
-    PeDataDirectory_t* DirectoryPtr;
-    PeExecutable_t*    Image;
-    OsStatus_t         Status;
-    uint8_t*           Buffer;
-    int                Index;
+    MString_t*         fullPath = NULL;
+    uintptr_t          sectionAddress;
+    uintptr_t          imageBase;
+    size_t             sizeOfMetaData;
+    PeDataDirectory_t* directoryPtr;
+    PeExecutable_t*    image;
+    OsStatus_t         osStatus;
+    uint8_t*           buffer;
+    int                index;
 
     dstrace("PeLoadImage(Path %s, Parent %s)",
-        MStringRaw(Path), (Parent == NULL) ? "None" : MStringRaw(Parent->Name));
-    
-    Status = ResolvePeImagePath(Owner, Path, &Buffer, &FullPath);
-    if (Status != OsSuccess) {
-        if (FullPath != NULL) {
-            MStringDestroy(FullPath);
+            MStringRaw(path), (parent == NULL) ? "None" : MStringRaw(parent->Name));
+
+    osStatus = ResolvePeImagePath(owner, path, &buffer, &fullPath);
+    if (osStatus != OsSuccess) {
+        if (fullPath != NULL) {
+            MStringDestroy(fullPath);
         }
-        return Status;
+        return osStatus;
     }
 
-    DosHeader  = (MzHeader_t*)Buffer;
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
-    OptHeader  = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-    if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
+    dosHeader             = (MzHeader_t*)buffer;
+    peHeader              = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
+    optionalHeader        = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    if (peHeader->Machine != PE_CURRENT_MACHINE) {
         dserror("The image as built for machine type 0x%x, "
-                "which is not the current machine type.", 
-                BaseHeader->Machine);
+                "which is not the current machine type.",
+                peHeader->Machine);
         return OsError;
     }
 
     // Validate the current architecture,
     // again we don't load 32 bit modules for 64 bit
-    if (OptHeader->Architecture != PE_CURRENT_ARCH) {
+    if (optionalHeader->Architecture != PE_CURRENT_ARCH) {
         dserror("The image was built for architecture 0x%x, "
-                "and was not supported by the current architecture.", 
-                OptHeader->Architecture);
+                "and was not supported by the current architecture.",
+                optionalHeader->Architecture);
         return OsError;
     }
 
     // We need to re-cast based on architecture 
     // and handle them differnetly
-    if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
-        OptHeader32     = (PeOptionalHeader32_t*)(Buffer 
-            + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        ImageBase       = OptHeader32->BaseAddress;
-        SizeOfMetaData  = OptHeader32->SizeOfHeaders;
-        SectionAddress  = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
-            + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
-        DirectoryPtr    = (PeDataDirectory_t*)&OptHeader32->Directories[0];
+    if (optionalHeader->Architecture == PE_ARCHITECTURE_32) {
+        optionalHeader32 = (PeOptionalHeader32_t*)(buffer
+                                                   + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+        imageBase      = optionalHeader32->BaseAddress;
+        sizeOfMetaData = optionalHeader32->SizeOfHeaders;
+        sectionAddress = (uintptr_t)(buffer + dosHeader->PeHeaderAddress
+                                     + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
+        directoryPtr   = (PeDataDirectory_t*)&optionalHeader32->Directories[0];
     }
-    else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
-        OptHeader64     = (PeOptionalHeader64_t*)(Buffer 
-            + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        ImageBase       = (uintptr_t)OptHeader64->BaseAddress;
-        SizeOfMetaData  = OptHeader64->SizeOfHeaders;
-        SectionAddress  = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
-            + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
-        DirectoryPtr    = (PeDataDirectory_t*)&OptHeader64->Directories[0];
+    else if (optionalHeader->Architecture == PE_ARCHITECTURE_64) {
+        optionalHeader64 = (PeOptionalHeader64_t*)(buffer
+                                                   + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+        imageBase      = (uintptr_t)optionalHeader64->BaseAddress;
+        sizeOfMetaData = optionalHeader64->SizeOfHeaders;
+        sectionAddress = (uintptr_t)(buffer + dosHeader->PeHeaderAddress
+                                     + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
+        directoryPtr   = (PeDataDirectory_t*)&optionalHeader64->Directories[0];
     }
     else {
-        dserror("Unsupported architecture %u", OptHeader->Architecture);
+        dserror("Unsupported architecture %u", optionalHeader->Architecture);
         return OsError;
     }
 
-    Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
-    if (!Image) {
+    image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
+    if (!image) {
         return OsOutOfMemory;
     }
     
-    memset(Image, 0, sizeof(PeExecutable_t));
-    Index                    = MStringFindReverse(FullPath, '/', 0);
-    Image->Name              = MStringSubString(FullPath, Index + 1, -1);
-    Image->Owner             = Owner;
-    Image->FullPath          = FullPath;
-    Image->Architecture      = OptHeader->Architecture;
-    Image->VirtualAddress    = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
-    Image->Libraries         = dsalloc(sizeof(list_t));
-    Image->References        = 1;
-    Image->OriginalImageBase = ImageBase;
-    list_construct(Image->Libraries);
-    dstrace("library (%s) => 0x%x", MStringRaw(Image->Name), Image->VirtualAddress);
+    memset(image, 0, sizeof(PeExecutable_t));
+    ELEMENT_INIT(&image->Header, 0, image);
+    index = MStringFindReverse(fullPath, '/', 0);
+    image->Name              = MStringSubString(fullPath, index + 1, -1);
+    image->Owner             = owner;
+    image->FullPath          = fullPath;
+    image->Architecture      = optionalHeader->Architecture;
+    image->VirtualAddress    = (parent == NULL) ? GetBaseAddress() : parent->NextLoadingAddress;
+    image->Libraries         = dsalloc(sizeof(list_t));
+    image->References        = 1;
+    image->OriginalImageBase = imageBase;
+    list_construct(image->Libraries);
+    dstrace("library (%s) => 0x%x", MStringRaw(image->Name), image->VirtualAddress);
 
     // Set the entry point if there is any
-    if (OptHeader->EntryPoint != 0) {
-        Image->EntryAddress = Image->VirtualAddress + OptHeader->EntryPoint;
+    if (optionalHeader->EntryPoint != 0) {
+        image->EntryAddress = image->VirtualAddress + optionalHeader->EntryPoint;
     }
 
-    if (Parent == NULL) {
-        Status = CreateImageSpace(&Image->MemorySpace);
-        if (Status != OsSuccess) {
+    if (parent == NULL) {
+        osStatus = CreateImageSpace(&image->MemorySpace);
+        if (osStatus != OsSuccess) {
             dserror("Failed to create pe's memory space");
-            MStringDestroy(Image->Name);
-            MStringDestroy(Image->FullPath);
-            dsfree(Image->Libraries);
-            dsfree(Image);
+            MStringDestroy(image->Name);
+            MStringDestroy(image->FullPath);
+            dsfree(image->Libraries);
+            dsfree(image);
             return OsError;
         }
     }
     else {
-        Image->MemorySpace = Parent->MemorySpace;
+        image->MemorySpace = parent->MemorySpace;
     }
 
     // Parse the headers, directories and handle them.
-    Status = PeParseAndMapImage(Parent, Image, Buffer, SizeOfMetaData, SectionAddress, 
-        (int)BaseHeader->NumSections, DirectoryPtr);
-    UnloadFile(FullPath, (void*)Buffer);
-    if (Status != OsSuccess) {
-        PeUnloadLibrary(Parent, Image);
+    osStatus = PeParseAndMapImage(parent, image, buffer, sizeOfMetaData, sectionAddress,
+                                  (int)peHeader->NumSections, directoryPtr);
+    UnloadFile(fullPath, (void*)buffer);
+    if (osStatus != OsSuccess) {
+        PeUnloadLibrary(parent, image);
         return OsError;
     }
-    *ImageOut = Image;
+    *imageOut = image;
     return OsSuccess;
 }
 
 OsStatus_t
 PeUnloadImage(
-    _In_ PeExecutable_t* Image)
+    _In_ PeExecutable_t* image)
 {
-    element_t* Element;
-    if (Image != NULL) {
-        MStringDestroy(Image->Name);
-        MStringDestroy(Image->FullPath);
-        if (Image->ExportedFunctions != NULL) {
-            dsfree(Image->ExportedFunctions);
-        }
-        if (Image->Libraries != NULL) {
-            _foreach(Element, Image->Libraries) {
-                PeUnloadImage(Element->value);
-            }
-        }
-        dsfree(Image);
-        return OsSuccess;
+    if (!image) {
+        return OsInvalidParameters;
     }
-    return OsError;
+
+    dstrace("PeUnloadImage(image=%s)", MStringRaw(image->Name));
+    MStringDestroy(image->Name);
+    MStringDestroy(image->FullPath);
+    if (image->ExportedFunctions) {
+        dsfree(image->ExportedFunctions);
+    }
+
+    if (image->Libraries != NULL) {
+        element_t* i = list_front(image->Libraries);
+        while (i) {
+            list_remove(image->Libraries, i);
+            PeUnloadImage(i->value);
+
+            i = list_front(image->Libraries);
+        }
+    }
+    dsfree(image);
+    return OsSuccess;
 }
 
 OsStatus_t
 PeUnloadLibrary(
-    _In_ PeExecutable_t* Parent, 
-    _In_ PeExecutable_t* Library)
+    _In_ PeExecutable_t* parent,
+    _In_ PeExecutable_t* library)
 {
-    Library->References--;
+    library->References--;
 
     // Sanitize the ref count
     // we might have to unload it if there are no more references
-    if (Library->References <= 0)  {
-        if (Parent != NULL) {
-            foreach(i, Parent->Libraries) {
-                PeExecutable_t* lLib = i->value;
-                if (lLib == Library) {
-                    list_remove(Parent->Libraries, i);
+    if (library->References <= 0)  {
+        if (parent != NULL) {
+            foreach(i, parent->Libraries) {
+                PeExecutable_t* libraryEntry = i->value;
+                if (libraryEntry == library) {
+                    list_remove(parent->Libraries, i);
                     break;
                 }
             }
         }
-        return PeUnloadImage(Library);
+        return PeUnloadImage(library);
     }
     return OsSuccess;
 }
