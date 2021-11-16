@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -64,34 +62,34 @@ typedef struct HandleSetElement {
     UUId_t                   Handle;
     _Atomic(int)             ActiveEvents;
     struct HandleSetElement* Link;
-    union ioset_data Context;
-    unsigned int     Configuration;
+    union ioset_data         Context;
+    unsigned int             Configuration;
 } HandleSetElement_t;
 
 static OsStatus_t DestroySetElement(HandleSetElement_t*);
 static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, struct ioset_event*);
 
-static list_t  HandleElements = LIST_INIT; // Sets per Handle TODO hashtable
+static list_t g_handleSets = LIST_INIT; // Sets per Handle TODO hashtable
 //static Mutex_t HandleElementsSyncObject;
 
 static void
 DestroyHandleSet(
-    _In_ void* Resource)
+    _In_ void* resource)
 {
-    HandleSet_t* Set = Resource;
-    rb_leaf_t*   Leaf;
-    TRACE("[handle_set] [destroy]");
+    HandleSet_t* set = resource;
+    rb_leaf_t*   leaf;
+    TRACE("DestroyHandleSet()");
     
     do {
-        Leaf = rb_tree_minimum(&Set->Handles);
-        if (!Leaf) {
+        leaf = rb_tree_minimum(&set->Handles);
+        if (!leaf) {
             break;
         }
         
-        rb_tree_remove(&Set->Handles, Leaf->key);
-        DestroySetElement(Leaf->value);
-    } while (Leaf);
-    kfree(Set);
+        rb_tree_remove(&set->Handles, leaf->key);
+        DestroySetElement(leaf->value);
+    } while (leaf);
+    kfree(set);
 }
 
 UUId_t
@@ -278,7 +276,7 @@ MarkHandle(
     _In_ UUId_t       handle,
     _In_ unsigned int flags)
 {
-    HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(handle));
+    HandleElement_t* Element = list_find_value(&g_handleSets, VOID_KEY(handle));
     if (!Element) {
         return OsDoesNotExist;
     }
@@ -292,7 +290,7 @@ static OsStatus_t
 DestroySetElement(
     _In_ HandleSetElement_t* SetElement)
 {
-    HandleElement_t* Element = list_find_value(&HandleElements, VOID_KEY(SetElement->Handle));
+    HandleElement_t* Element = list_find_value(&g_handleSets, VOID_KEY(SetElement->Handle));
     if (Element) {
         list_remove(&Element->Sets, &SetElement->SetHeader);
         if (!list_count(&Element->Sets)) {
@@ -328,7 +326,7 @@ AddHandleToSet(
         return OsDoesNotExist;
     }
     
-    element = list_find_value(&HandleElements, VOID_KEY(handle));
+    element = list_find_value(&g_handleSets, VOID_KEY(handle));
     if (!element) {
         element = (HandleElement_t*)kmalloc(sizeof(HandleElement_t));
         if (!element) {
@@ -338,7 +336,7 @@ AddHandleToSet(
         ELEMENT_INIT(&element->Header, VOID_KEY(handle), element);
         list_construct(&element->Sets);
         
-        list_append(&HandleElements, &element->Header);
+        list_append(&g_handleSets, &element->Header);
     }
     
     // Now we have access to the handle-set and the target handle, so we can go ahead

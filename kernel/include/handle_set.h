@@ -74,9 +74,8 @@ WaitForHandleSet(
     _Out_ int*                numEventsOut);
 
 /** 
- * MarkHandle
- * * Marks a handle that an event has been completed. If the handle has any
- * * sets registered they will be notified.
+ * @brief Marks a handle that an event has been completed. If the handle has any
+ * sets registered they will be notified.
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags that are defined in ioset.h.
  */

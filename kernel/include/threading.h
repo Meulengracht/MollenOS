@@ -311,8 +311,7 @@ SignalProcessQueued(
  * ThreadingEnable
  * Enables the threading system for the given cpu calling the function.
  */
-KERNELAPI void KERNELABI
-ThreadingEnable(void);
+KERNELAPI void KERNELABI ThreadingEnable(void);
 
 /**
  * ThreadingEnterUsermode

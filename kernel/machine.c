@@ -81,7 +81,7 @@ void
 InitializeMachine(
     _In_ Multiboot_t* BootInformation)
 {
-    OsStatus_t Status;
+    OsStatus_t osStatus;
 
     // Boot information must be supplied
     if (BootInformation == NULL) {
@@ -105,17 +105,17 @@ InitializeMachine(
     PrintHeader(&Machine.BootInformation);
 
     // Initialize machine memory
-    Status = InitializeSystemMemory(&Machine.BootInformation, &Machine.PhysicalMemory,
-        &Machine.GlobalAccessMemory, &Machine.MemoryMap, &Machine.MemoryGranularity, 
-        &Machine.NumberOfMemoryBlocks);
-    if (Status != OsSuccess) {
+    osStatus = InitializeSystemMemory(&Machine.BootInformation, &Machine.PhysicalMemory,
+                                      &Machine.GlobalAccessMemory, &Machine.MemoryMap, &Machine.MemoryGranularity,
+                                      &Machine.NumberOfMemoryBlocks);
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         goto StopAndShowError;
     }
 
 #ifdef __OSCONFIG_HAS_MMIO
-    Status = InitializeMemorySpace(&Machine.SystemSpace);
-    if (Status != OsSuccess) {
+    osStatus = InitializeMemorySpace(&Machine.SystemSpace);
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory space");
         goto StopAndShowError;
     }
@@ -123,18 +123,18 @@ InitializeMachine(
 #error "Kernel does not support non-mmio platforms"
 #endif
     MemoryCacheInitialize();
-    Status = InitializeConsole();
-    if (Status != OsSuccess) {
+    osStatus = InitializeConsole();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }
-    
+
     // Build system topology by enumerating the SRAT table if present.
     // If ACPI is not present or the SRAT is missing the system is running in UMA
     // mode and there is no hardware seperation
 #ifdef __OSCONFIG_ACPI_SUPPORT
-    Status = AcpiInitializeEarly();
-    if (Status != OsSuccess) {
+    osStatus = AcpiInitializeEarly();
+    if (osStatus != OsSuccess) {
         // Assume UMA machine and put the machine into UMA modKERNELAPI e
         SetMachineUmaMode();
     }
@@ -143,24 +143,24 @@ InitializeMachine(
 #endif
 
     // Create the rest of the OS systems
-    Status = InitializeHandles();
-    if (Status != OsSuccess) {
+    osStatus = InitializeHandles();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize the handle subsystem.");
         ArchProcessorIdle();
     }
-    
+
     ThreadingEnable();
     InitializeInterruptTable();
     InitializeInterruptHandlers();
-    Status = InterruptInitialize();
-    if (Status != OsSuccess) {
+    osStatus = InterruptInitialize();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
         ArchProcessorIdle();
     }
     LogInitializeFull();
-    
-    Status = InitializeHandleJanitor();
-    if (Status != OsSuccess) {
+
+    osStatus = InitializeHandleJanitor();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize system janitor.");
         ArchProcessorIdle();
     }
@@ -177,8 +177,8 @@ InitializeMachine(
 #endif
 
     // Last step is to enable timers that kickstart all other threads
-    Status = InitializeSystemTimers();
-    if (Status != OsSuccess) {
+    osStatus = InitializeSystemTimers();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
         ArchProcessorHalt();
     }
@@ -195,8 +195,8 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    Status = ParseInitialRamdisk(&Machine.BootInformation);
-    if (Status != OsSuccess) {
+    osStatus = ParseInitialRamdisk(&Machine.BootInformation);
+    if (osStatus != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");
         ArchProcessorHalt();
     }
@@ -209,8 +209,8 @@ InitializeMachine(
     goto IdleProcessor;
 
 StopAndShowError:
-    Status = InitializeConsole();
-    if (Status != OsSuccess) {
+    osStatus = InitializeConsole();
+    if (osStatus != OsSuccess) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }

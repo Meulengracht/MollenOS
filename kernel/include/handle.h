@@ -39,77 +39,65 @@ typedef enum HandleType {
 
 typedef void (*HandleDestructorFn)(void*);
 
-KERNELAPI OsStatus_t KERNELABI
-InitializeHandles(void);
-
-KERNELAPI OsStatus_t KERNELABI
-InitializeHandleJanitor(void);
+KERNELAPI OsStatus_t KERNELABI InitializeHandles(void);
+KERNELAPI OsStatus_t KERNELABI InitializeHandleJanitor(void);
 
 /**
- * CreateHandle
- * * Allocates a new handle for a system resource with a reference of 1.
+ * @brief Allocates a new handle for a system resource with a reference of 1.
  */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
-    _In_ HandleType_t       Type,
-    _In_ HandleDestructorFn Destructor,
-    _In_ void*              Resource);
+    _In_ HandleType_t       handleType,
+    _In_ HandleDestructorFn destructor,
+    _In_ void*              resource);
 
 /**
- * DestroyHandle
- * * Reduces the reference count of the given handle, and cleans up the handle on
- * * reaching 0 references.
+ * @brief Reduces the reference count of the given handle, and cleans up the handle on
+ * reaching 0 references.
  */
 KERNELAPI void KERNELABI
 DestroyHandle(
-    _In_ UUId_t Handle);
+    _In_ UUId_t handleId);
 
 /**
- * RegisterHandlePath
- * * Registers a global handle path that can be used to look up the handle.
- * @param Handle [In] The handle to register the path with.
- * @param Path   [In] The path at which the handle should reside.
+ * @brief Registers a global handle path that can be used to look up the handle.
+ *
+ * @param handleId [In] The handle to register the path with.
+ * @param path   [In] The path at which the handle should reside.
  */
 KERNELAPI OsStatus_t KERNELABI
 RegisterHandlePath(
-    _In_ UUId_t      Handle,
-    _In_ const char* Path);
+    _In_ UUId_t      handleId,
+    _In_ const char* path);
 
 /**
- * LookupHandleByPath
- * * Tries to resolve a handle from the given path.
- * @param Path      [In]  The path to resolve a handle for.
- * @param HandleOut [Out] A pointer to handle storage.
+ * @brief Tries to resolve a handle from the given path.
+ *
+ * @param path      [In]  The path to resolve a handle for.
+ * @param handleOut [Out] A pointer to handle storage.
  */
 KERNELAPI OsStatus_t KERNELABI
 LookupHandleByPath(
-    _In_  const char* Path,
-    _Out_ UUId_t*     HandleOut);
+    _In_  const char* path,
+    _Out_ UUId_t*     handleOut);
 
 /**
- * AcquireHandle
- * * Acquires the handle given for the calling process. This can fail if the handle
- * * turns out to be invalid, otherwise the resource will be returned. 
- * @param Handle [In] The handle that should be acquired.
+ * @brief Acquires the handle given for the calling process. This can fail if the handle
+ * turns out to be invalid, otherwise the resource will be returned.
+ * @param handleId [In] The handle that should be acquired.
  */
 KERNELAPI OsStatus_t KERNELABI
 AcquireHandle(
-    _In_  UUId_t Handle,
-    _Out_ void** ResourceOut);
+    _In_  UUId_t handleId,
+    _Out_ void** resourceOut);
 
-/* LookupHandle
- * Retrieves the handle given. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
-KERNELAPI void* KERNELABI
-LookupHandle(
-    _In_ UUId_t Handle);
-
-/* LookupHandleOfType
+/**
  * Retrieves the handle given, while also performing type validation of the handle. 
- * This can fail if the handle turns out to be invalid, otherwise the resource will be returned. */
+ * This can fail if the handle turns out to be invalid, otherwise the resource will be returned.
+ */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-    _In_ UUId_t       Handle,
-    _In_ HandleType_t Type);
+    _In_ UUId_t       handleId,
+    _In_ HandleType_t handleType);
 
 #endif //! __HANDLE_H__

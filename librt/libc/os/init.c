@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
+#include <internal/_io.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/types/process.h>
@@ -46,6 +47,15 @@ static struct gracht_link_vali* g_gclientLink = NULL;
 static char   g_rawCommandLine[1024] = { 0 };
 static int    g_isModule             = 0;
 static UUId_t g_processId            = UUID_INVALID;
+
+static void __mark_iod_priority(int iod)
+{
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    if (!handle) {
+        return;
+    }
+    stdio_handle_flag(handle, WX_PRIORITY);
+}
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
@@ -91,6 +101,10 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
         ERROR("[InitializeProcess] gracht_client_connect failed %i", status);
         _Exit(status);
     }
+
+    // mark the client priority as we need the client for shutting
+    // down during crt finalizing
+    __mark_iod_priority(gracht_client_iod(g_gclient));
     
     // Get startup information
     TRACE("[InitializeProcess] receiving startup configuration");

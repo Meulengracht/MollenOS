@@ -90,21 +90,21 @@ int
 io_buffer_flush_all(
     _In_ int mask)
 {
-    stdio_handle_t*  Object;
-    int             FilesFlushes = 0;
-    FILE*           File;
+    stdio_handle_t* stdioHandle;
+    int             filesFlushes = 0;
+    FILE*           file;
 
     LOCK_FILES();
     foreach(Node, stdio_get_handles()) {
-        Object  = (stdio_handle_t*)Node->Data;
-        File    = Object->buffered_stream;
-        if (File != NULL && (File->_flag & mask)) {
-            fflush(File);
-            FilesFlushes++;
+        stdioHandle = (stdio_handle_t*)Node->Data;
+        file        = stdioHandle->buffered_stream;
+        if (file && (file->_flag & mask)) {
+            fflush(file);
+            filesFlushes++;
         }
     }
     UNLOCK_FILES();
-    return FilesFlushes;
+    return filesFlushes;
 }
 
 OsStatus_t

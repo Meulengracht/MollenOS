@@ -237,12 +237,10 @@ FutexCompareOperation(
 void
 FutexInitialize(void)
 {
-    int i;
-    for (i = 0; i < FUTEX_HASHTABLE_CAPACITY; i++) {
+    for (int i = 0; i < FUTEX_HASHTABLE_CAPACITY; i++) {
         IrqSpinlockConstruct(&FutexBuckets[i].SyncObject);
         list_construct(&FutexBuckets[i].Futexes);
     }
-    smp_wmb();
 }
 
 OsStatus_t

@@ -33,8 +33,9 @@
 #define WX_BIGENDIAN        0x2000U
 #define WX_TEXT_FLAGS       (WX_TEXT | WX_WIDE | WX_UTF | WX_UTF16 | WX_UTF32 | WX_BIGENDIAN)
 
-#define WX_INHERITTED       0x4000U
-#define WX_PERSISTANT       0x8000U
+#define WX_INHERITTED       0x00004000U
+#define WX_PERSISTANT       0x00008000U
+#define WX_PRIORITY         0x00010000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -110,12 +111,13 @@ extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
+extern void            stdio_handle_flag(stdio_handle_t*, unsigned int);
 extern stdio_handle_t* stdio_handle_get(int iod);
 
 // io-buffer interface
-#define IO_IS_NOT_BUFFERED(stream) (stream->_flag & _IONBF)
-#define IO_IS_BUFFERED(stream) !IO_IS_NOT_BUFFERED(stream)
-#define IO_HAS_BUFFER_DATA(stream) (stream->_cnt > 0)
+#define IO_IS_NOT_BUFFERED(stream) ((stream)->_flag & _IONBF)
+#define IO_IS_BUFFERED(stream)     !IO_IS_NOT_BUFFERED(stream)
+#define IO_HAS_BUFFER_DATA(stream) ((stream)->_cnt > 0)
 
 extern void       io_buffer_ensure(FILE* stream);
 extern void       io_buffer_allocate(FILE* stream);

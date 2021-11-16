@@ -111,9 +111,10 @@ static FILE         g_stdout = { 0 };
 static FILE         g_stdint = { 0 };
 static FILE         g_stderr = { 0 };
 
-/* StdioIsHandleInheritable
+/**
  * Returns whether or not the handle should be inheritted by sub-processes based on the requested
- * startup information and the handle settings. */
+ * startup information and the handle settings.
+ */
 static OsStatus_t
 StdioIsHandleInheritable(
     _In_ ProcessConfiguration_t* configuration,
@@ -298,16 +299,23 @@ void StdioConfigureStandardHandles(
     stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT | _IONBF);
 }
 
-static int
-stdio_close_all_handles(void)
+static int __close_io_descriptors(unsigned int excludeFlags)
 {
-    stdio_handle_t* handle;
-    int             files_closed = 0;
+    CollectionItem_t* node;
+    stdio_handle_t*   handle;
+    int               filesClosed = 0;
     
     LOCK_FILES();
-    while (CollectionBegin(&g_stdioObjects) != NULL) {
-        CollectionItem_t* Node = CollectionBegin(&g_stdioObjects);
-        handle = (stdio_handle_t*)Node->Data;
+    node = CollectionBegin(&g_stdioObjects);
+    while (node) {
+        handle = (stdio_handle_t*)node->Data;
+        if (excludeFlags && (handle->wxflag & excludeFlags)) {
+            node = CollectionNext(node);
+            continue;
+        }
+
+        // Load next node before closing, as it will be removed
+        node = CollectionNext(node);
         
         // Is it a buffered stream or raw?
         if (handle->buffered_stream) {
@@ -316,10 +324,10 @@ stdio_close_all_handles(void)
         else {
             close(handle->fd);
         }
-        files_closed++;
+        filesClosed++;
     }
     UNLOCK_FILES();
-    return files_closed;
+    return filesClosed;
 }
 
 void StdioInitialize(void)
@@ -327,12 +335,15 @@ void StdioInitialize(void)
     stdio_bitmap_initialize();
 }
 
-_CRTIMP void
-StdioCleanup(void)
+_CRTIMP void StdioCleanup(void)
 {
-    // Flush all file buffers and close handles
+    // flush all file buffers and close handles
     io_buffer_flush_all(_IOWRT | _IOREAD);
-    stdio_close_all_handles();
+
+    // close all handles that are not marked _PRIO, and then lastly
+    // close the _PRIO handles
+    __close_io_descriptors(WX_PRIORITY);
+    __close_io_descriptors(0);
 }
 
 int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
@@ -480,6 +491,12 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
     return 0;
 }
 
+void stdio_handle_flag(stdio_handle_t* handle, unsigned int flag)
+{
+    assert(handle != NULL);
+    handle->wxflag |= flag;
+}
+
 stdio_handle_t* stdio_handle_get(int iod)
 {
     DataKey_t Key = { .Value.Integer = iod };
@@ -517,7 +534,6 @@ Collection_t* stdio_get_handles(void)
 {
     return &g_stdioObjects;
 }
-
 
 UUId_t GetNativeHandle(int iod)
 {
