@@ -22,7 +22,8 @@
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/handle.h>
@@ -53,45 +54,48 @@ static thrd_t    SocketMonitorHandle;
 // streambuffers, which are read and written by the network service.
 static void
 HandleSocketEvent(
-    _In_ struct ioset_event* Event)
+    _In_ struct ioset_event* event)
 {
-    Socket_t* Socket;
-    TRACE("[socket monitor] data from %u", Event->data.handle);
-    
-    Socket = NetworkManagerSocketGet(Event->data.handle);
-    if (!Socket) {
+    Socket_t* socket;
+    TRACE("HandleSocketEvent(handle=%u, events=%u)", event->data.handle, event->events);
+
+    socket = NetworkManagerSocketGet(event->data.handle);
+    if (!socket) {
         // Process is probably in the process of removing this, ignore this
+        WARNING("HandleSocketEvent socket handle was not found!!");
         return;
     }
     
     // Sanitize the number of pending packets, it must be 0 for us to continue
-    if (mtx_lock(&Socket->SyncObject) != thrd_success) {
+    if (mtx_lock(&socket->SyncObject) != thrd_success) {
+        WARNING("HandleSocketEvent socket lock was not acquired!!");
         return;
     }
     
-    if (atomic_load(&Socket->PendingPackets)) {
+    if (atomic_load(&socket->PendingPackets)) {
         // Already packets pending, ignore the event
-        WARNING("[socket_monitor] socket already has data pending");
+        WARNING("HandleSocketEvent socket already has data pending");
         goto Exit;
     }
     
     // Data has been sent to the socket, process it and forward
-    if (Event->events & IOSETOUT) {
+    if (event->events & IOSETOUT) {
         // Make sure the socket is not passive, they are not allowed to send data
-        if (Socket->Configuration.Passive) {
+        if (socket->Configuration.Passive) {
             ERROR("[socket_monitor] passive socket sent data, this is no-go");
             goto Exit;
         }
     
-        OsStatus_t Status = DomainSend(Socket);
-        if (Status != OsSuccess) {
+        OsStatus_t osStatus = DomainSend(socket);
+        if (osStatus != OsSuccess) {
+            ERROR("HandleSocketEvent failed to send message");
             // TODO deliver ESOCKPIPE signal to process
             // proc_signal()
         }
     }
     
 Exit:
-    mtx_unlock(&Socket->SyncObject);
+    mtx_unlock(&socket->SyncObject);
 }
 
 // socket_monitor thread:

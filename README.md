@@ -172,7 +172,7 @@ Rest of the system functionality exists as drivers and services.
 
 ## Services <a name="features-services"></a>
 The current services that are implemented (and at some point when we implement RiscV/ARM architectures) should be included as configurable in the build system, so we can choose exactly which services are relevant for the platform.
- - Device manager (Handles discovery and management of devices on the platform)
+ - Device manager (handles discovery and management of devices on the platform)
  - File manager (Is responsible for both storage and file management)
  - Net manager (Network stack and management of sockets)
  - Process manager (Provides the process protocol that allows spawning and management of processes on the system)
@@ -204,6 +204,7 @@ All documentation about design and implementation, and the theory behind is stor
 
 ### Project structure <a name="doc-project-structure"></a>
 
+- /apps (Contains userspace utilities that are bound to the OS)
 - /boot (Contains bootloaders and anything boot-related)
 - /cmake (CMake configuration files required to build the OS with cmake)
 - /docs (Documentation and related resources about the project and the OS)
@@ -214,4 +215,3 @@ All documentation about design and implementation, and the theory behind is stor
 - /services (Contains system services like the filemanager for Vali)
 - /resources (Contains the deploy folder for installing the OS)
 - /tools (Contains tools for building and manipulating)
-- /tests (Contains example applications for the OS)

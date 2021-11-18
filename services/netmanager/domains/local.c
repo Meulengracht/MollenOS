@@ -22,7 +22,8 @@
  *   manager. There a lot of different types of sockets, like internet, ipc
  *   and bluetooth to name the popular ones.
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include "domains.h"
 #include "../socket.h"
@@ -102,44 +103,47 @@ HandleInvalidType(
 
 static OsStatus_t
 DomainLocalGetAddress(
-    _In_ Socket_t*        Socket,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address)
+    _In_ Socket_t*        socket,
+    _In_ int              source,
+    _In_ struct sockaddr* address)
 {
-    struct sockaddr_lc* LcAddress = (struct sockaddr_lc*)Address;
-    AddressRecord_t*    Record    = Socket->Domain->Record;
+    struct sockaddr_lc* lcAddress = (struct sockaddr_lc*)address;
+    AddressRecord_t*    record    = socket->Domain->Record;
+
+    lcAddress->slc_len    = sizeof(struct sockaddr_lc);
+    lcAddress->slc_family = AF_LOCAL;
     
-    LcAddress->slc_len    = sizeof(struct sockaddr_lc);
-    LcAddress->slc_family = AF_LOCAL;
-    
-    switch (Source) {
+    switch (source) {
         case SYS_ADDRESS_TYPE_THIS: {
-            if (!Record) {
+            if (!record) {
                 return OsDoesNotExist;
             }
-            strcpy(&LcAddress->slc_addr[0], (const char*)Record->Header.key);
+            strcpy(&lcAddress->slc_addr[0], (const char*)record->Header.key);
             return OsSuccess;
         } break;
         
         case SYS_ADDRESS_TYPE_PEER: {
-            Socket_t* PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
-            if (!PeerSocket) {
+            Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+            if (!peerSocket) {
                 return OsDoesNotExist;
             }
-            return DomainLocalGetAddress(PeerSocket,
+            return DomainLocalGetAddress(peerSocket,
                                          SYS_ADDRESS_TYPE_THIS,
-                                         Address);
+                                         address);
         } break;
+
+        default:
+            break;
     }
     return OsInvalidParameters;
 }
 
 static OsStatus_t
 HandleSocketStreamData(
-    _In_ Socket_t* Socket)
+    _In_ Socket_t* socket)
 {
     int             DoRead       = 1;
-    streambuffer_t* SourceStream = GetSocketSendStream(Socket);
+    streambuffer_t* SourceStream = GetSocketSendStream(socket);
     streambuffer_t* TargetStream;
     Socket_t*       TargetSocket;
     size_t          BytesRead;
@@ -148,15 +152,15 @@ HandleSocketStreamData(
     void*           StoredBuffer;
     TRACE("[socket] [local] [send_stream]");
     
-    TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+    TargetSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
     if (!TargetSocket) {
         TRACE("[socket] [local] [send_stream] target socket %u was not found",
-            LODWORD(Socket->Domain->ConnectedSocket));
+            LODWORD(socket->Domain->ConnectedSocket));
         return OsDoesNotExist;
     }
     
     TargetStream = GetSocketRecvStream(TargetSocket);
-    BytesRead    = SocketGetQueuedPacket(Socket, &StoredBuffer);
+    BytesRead    = SocketGetQueuedPacket(socket, &StoredBuffer);
     if (BytesRead) {
         memcpy(&TemporaryBuffer, StoredBuffer, BytesRead);
         free(StoredBuffer);
@@ -187,7 +191,7 @@ HandleSocketStreamData(
             }
             
             memcpy(StoredBuffer, &TemporaryBuffer[BytesWritten], BytesRead - BytesWritten);
-            SocketSetQueuedPacket(Socket, StoredBuffer, BytesRead - BytesWritten);
+            SocketSetQueuedPacket(socket, StoredBuffer, BytesRead - BytesWritten);
             break;
         }
         
@@ -341,7 +345,7 @@ DomainLocalAllocateAddress(
     AddressRecord_t* Record;
     char             AddressBuffer[16];
     TRACE("[socket] [local] allocate address 0x%" PRIxIN " [%u]", 
-        Socket, (UUId_t)Socket->Header.key);
+        Socket, (UUId_t)(uintptr_t)Socket->Header.key);
     
     if (Socket->Domain->Record) {
         ERROR("[socket] [local] domain address 0x%" PRIxIN " already registered",
@@ -552,22 +556,26 @@ DomainLocalConnect(
 
 static OsStatus_t
 DomainLocalDisconnect(
-    _In_ Socket_t* Socket)
+    _In_ Socket_t* socket)
 {
-    Socket_t*  PeerSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
-    OsStatus_t Status     = OsHostUnreachable;
-    TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(Socket->Header.key),
-        LODWORD(Socket->Domain->ConnectedSocket));
+    Socket_t*  peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+    OsStatus_t osStatus   = OsNotConnected;
+    TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
+        LODWORD(socket->Domain->ConnectedSocket));
     
     // Send a disconnect request if socket was valid
-    if (PeerSocket) {
-        handle_post_notification(Socket->Domain->ConnectedSocket, IOSETCTL);
-        Status = OsSuccess;
+    if (peerSocket) {
+        // disconnect peer-socket as-well, and notify them of the disconnect
+        peerSocket->Domain->ConnectedSocket = UUID_INVALID;
+        peerSocket->Configuration.Connected = 0;
+        handle_post_notification(socket->Domain->ConnectedSocket, IOSETCTL);
+        osStatus = OsSuccess;
     }
-    
-    Socket->Domain->ConnectedSocket = UUID_INVALID;
-    Socket->Configuration.Connected = 0;
-    return Status;
+
+    // update our stats
+    socket->Domain->ConnectedSocket = UUID_INVALID;
+    socket->Configuration.Connected = 0;
+    return osStatus;
 }
 
 static OsStatus_t

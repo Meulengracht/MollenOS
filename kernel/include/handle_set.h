@@ -29,14 +29,16 @@
 
 struct ioset_event;
 
+KERNELAPI void KERNELABI HandleSetsInitialize(void);
+
 /**
  * CreateHandleSet
  * * Creates a new handle set that can be used for asynchronus events.
- * @param Flags [In] Creation flags that configure the new handle set behaviour. 
+ * @param flags [In] Creation flags that configure the new handle set behaviour.
  */
 KERNELAPI UUId_t KERNELABI
 CreateHandleSet(
-    _In_  unsigned int Flags);
+    _In_  unsigned int flags);
 
 /**
  * ControlHandleSet

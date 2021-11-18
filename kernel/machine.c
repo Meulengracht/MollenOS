@@ -37,6 +37,7 @@
 #include <modules/ramdisk.h>
 #include <modules/manager.h>
 #include <handle.h>
+#include <handle_set.h>
 #include <heap.h>
 #include <interrupts.h>
 #include <scheduler.h>
@@ -149,6 +150,7 @@ InitializeMachine(
         ArchProcessorIdle();
     }
 
+    HandleSetsInitialize();
     ThreadingEnable();
     InitializeInterruptTable();
     InitializeInterruptHandlers();

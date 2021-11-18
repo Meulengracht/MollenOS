@@ -33,89 +33,100 @@
 #include <heap.h>
 #include <ioset.h>
 #include <string.h>
+#include <mutex.h>
+#include <ds/hashtable.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
 
 // The HandleSet is the set that is created and contains a list of handles registered
 // with the set (HandleItems), and also contains a list of registered events
+struct handle_sets {
+    UUId_t id;
+    list_t sets;
+};
 
-typedef struct HandleElement {
-    element_t Header;
-    list_t    Sets;
-} HandleElement_t;
-
-typedef struct HandleSet {
-    _Atomic(int) Pending;
-    list_t       Events;
-    rb_tree_t    Handles;
-    unsigned int Flags;
-} HandleSet_t;
+struct handle_set {
+    _Atomic(int) events_pending;
+    list_t       events;
+    rb_tree_t    handles;
+    unsigned int flags;
+};
 
 // A set element is a handle descriptor and an event descriptor
-typedef struct HandleSetElement {
-    element_t     SetHeader;    // This is the header in the Set
-    rb_leaf_t     HandleHeader; // This is a handle header
-    element_t     EventHeader;  // This is an event header
-    HandleSet_t*  Set;          // This is a pointer back to the set it belongs
+struct handleset_element {
+    element_t          set_header;    // This is the header in the Set
+    rb_leaf_t          handle_header; // This is a handle header
+    element_t          event_header;  // This is an event header
+    struct handle_set* set;           // This is a pointer back to the set it belongs
     
     // Event data
-    UUId_t                   Handle;
-    _Atomic(int)             ActiveEvents;
-    struct HandleSetElement* Link;
-    union ioset_data         Context;
-    unsigned int             Configuration;
-} HandleSetElement_t;
+    UUId_t                    Handle;
+    _Atomic(int)              ActiveEvents;
+    struct handleset_element* Link;
+    union ioset_data          Context;
+    unsigned int              Configuration;
+};
 
-static OsStatus_t DestroySetElement(HandleSetElement_t*);
-static OsStatus_t AddHandleToSet(HandleSet_t*, UUId_t, struct ioset_event*);
+static uint64_t handleset_hash(const void* element);
+static int      handleset_cmp(const void* element1, const void* element2);
 
-static list_t g_handleSets = LIST_INIT; // Sets per Handle TODO hashtable
-//static Mutex_t HandleElementsSyncObject;
+static OsStatus_t DestroySetElement(struct handleset_element*);
+static OsStatus_t AddHandleToSet(struct handle_set*, UUId_t, struct ioset_event*);
+
+static hashtable_t g_handleSets;
+static Mutex_t     g_handleSetsLock;
+
+void HandleSetsInitialize(void)
+{
+    hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
+                        sizeof(struct handle_sets), handleset_hash,
+                        handleset_cmp);
+    MutexConstruct(&g_handleSetsLock, MUTEX_FLAG_PLAIN);
+}
 
 static void
 DestroyHandleSet(
     _In_ void* resource)
 {
-    HandleSet_t* set = resource;
-    rb_leaf_t*   leaf;
+    struct handle_set* set = resource;
+    rb_leaf_t*         leaf;
     TRACE("DestroyHandleSet()");
-    
-    do {
-        leaf = rb_tree_minimum(&set->Handles);
-        if (!leaf) {
-            break;
-        }
-        
-        rb_tree_remove(&set->Handles, leaf->key);
+
+    leaf = rb_tree_minimum(&set->handles);
+    while (leaf) {
+        rb_tree_remove(&set->handles, leaf->key);
         DestroySetElement(leaf->value);
-    } while (leaf);
+        leaf = rb_tree_minimum(&set->handles);
+    }
     kfree(set);
 }
 
 UUId_t
 CreateHandleSet(
-    _In_  unsigned int Flags)
+    _In_  unsigned int flags)
 {
-    HandleSet_t* Set;
-    UUId_t       Handle;
-    TRACE("[handle_set] [create] 0x%x", Flags);
-    
-    Set = (HandleSet_t*)kmalloc(sizeof(HandleSet_t));
-    if (!Set) {
+    struct handle_set* handleSet;
+    UUId_t             handleId;
+    TRACE("CreateHandleSet(flags=0x%x)", flags);
+
+    handleSet = (struct handle_set*)kmalloc(sizeof(struct handle_set));
+    if (!handleSet) {
         return UUID_INVALID;
     }
-    
-    list_construct(&Set->Events);
-    rb_tree_construct(&Set->Handles);
-    Set->Pending = ATOMIC_VAR_INIT(0);
-    Set->Flags   = Flags;
-    
-    // CreateHandle implies a write memory barrier
-    Handle = CreateHandle(HandleTypeSet, DestroyHandleSet, Set);
-    if (Handle == UUID_INVALID) {
-        kfree(Set);
+
+    handleId = CreateHandle(HandleTypeSet, DestroyHandleSet, handleSet);
+    if (handleId == UUID_INVALID) {
+        kfree(handleSet);
+        return UUID_INVALID;
     }
-    return Handle;
+
+    // initialize the handle set
+    list_construct(&handleSet->events);
+    rb_tree_construct(&handleSet->handles);
+    handleSet->events_pending = ATOMIC_VAR_INIT(0);
+    handleSet->flags          = flags;
+
+    return handleId;
 }
 
 OsStatus_t
@@ -125,10 +136,10 @@ ControlHandleSet(
     _In_ UUId_t              handle,
     _In_ struct ioset_event* event)
 {
-    HandleSet_t*        set = LookupHandleOfType(setHandle, HandleTypeSet);
-    HandleSetElement_t* setElement;
-    OsStatus_t          status;
-    TRACE("[handle_set] [control] %u, %i, %u", setHandle, operation, handle);
+    struct handle_set*        set = LookupHandleOfType(setHandle, HandleTypeSet);
+    struct handleset_element* setElement;
+    OsStatus_t                osStatus;
+    TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
 
     if (!set) {
         return OsDoesNotExist;
@@ -138,8 +149,8 @@ ControlHandleSet(
         if (!event) {
             return OsInvalidParameters;
         }
-        
-        status = AddHandleToSet(set, handle, event);
+
+        osStatus = AddHandleToSet(set, handle, event);
     }
     else if (operation == IOSET_MOD) {
         rb_leaf_t* leaf;
@@ -148,7 +159,7 @@ ControlHandleSet(
             return OsInvalidParameters;
         }
         
-        leaf = rb_tree_lookup(&set->Handles, VOID_KEY(handle));
+        leaf = rb_tree_lookup(&set->handles, VOID_KEY(handle));
         if (!leaf) {
             return OsDoesNotExist;
         }
@@ -156,21 +167,21 @@ ControlHandleSet(
         setElement                = leaf->value;
         setElement->Configuration = event->events;
         setElement->Context       = event->data;
-        status                    = OsSuccess;
+        osStatus                  = OsSuccess;
     }
     else if (operation == IOSET_DEL) {
-        rb_leaf_t* leaf = rb_tree_remove(&set->Handles, VOID_KEY(handle));
+        rb_leaf_t* leaf = rb_tree_remove(&set->handles, VOID_KEY(handle));
         if (!leaf) {
             return OsDoesNotExist;
         }
         
         setElement = leaf->value;
-        status     = DestroySetElement(setElement);
+        osStatus   = DestroySetElement(setElement);
     }
     else {
-        status = OsInvalidParameters;
+        osStatus = OsInvalidParameters;
     }
-    return status;
+    return osStatus;
 }
 
 OsStatus_t
@@ -182,12 +193,12 @@ WaitForHandleSet(
     _In_  size_t              timeout,
     _Out_ int*                numEventsOut)
 {
-    HandleSet_t* set = LookupHandleOfType(handle, HandleTypeSet);
-    int          numberOfEvents;
-    list_t       spliced;
-    element_t*   i;
-    int          j, k = pollEvents;
-    TRACE("[handle_set] [wait] %u, %i, %i, %" PRIuIN, handle, maxEvents, pollEvents, timeout);
+    struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
+    int                numberOfEvents;
+    list_t             spliced;
+    element_t*         i;
+    int                j, k = pollEvents;
+    TRACE("WaitForHandleSet(%u, %i, %i, %" PRIuIN ")", handle, maxEvents, pollEvents, timeout);
 
     if (!set) {
         return OsDoesNotExist;
@@ -195,7 +206,7 @@ WaitForHandleSet(
     
     // If there are no queued events, but there were pollEvents, let the user
     // handle those first.
-    numberOfEvents = atomic_exchange(&set->Pending, 0);
+    numberOfEvents = atomic_exchange(&set->events_pending, 0);
     if (!numberOfEvents && pollEvents > 0) {
         *numEventsOut = pollEvents;
         return OsSuccess;
@@ -203,23 +214,24 @@ WaitForHandleSet(
     
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
-        OsStatus_t Status = FutexWait(&set->Pending, numberOfEvents, 0, timeout);
-        if (Status != OsSuccess) {
-            return Status;
+        OsStatus_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
+        if (osStatus != OsSuccess) {
+            return osStatus;
         }
-        numberOfEvents = atomic_exchange(&set->Pending, 0);
+        numberOfEvents = atomic_exchange(&set->events_pending, 0);
     }
 
-    // @todo add the unhandled event count back
     numberOfEvents = MIN(numberOfEvents, maxEvents);
     list_construct(&spliced);
-    list_splice(&set->Events, numberOfEvents, &spliced);
+    list_splice(&set->events, numberOfEvents, &spliced);
+    if (numberOfEvents > maxEvents) {
+        // add the event count back that we are not handling
+        atomic_fetch_add(&set->events_pending, numberOfEvents - maxEvents);
+    }
     
-    TRACE("[handle_set] [wait] num events %i", numberOfEvents);
-
-    smp_rmb();
+    TRACE("WaitForHandleSet numberOfEvents=%i", numberOfEvents);
     _foreach(i, &spliced) {
-        HandleSetElement_t* element = i->value;
+        struct handleset_element* element = i->value;
         
         // reuse an existing structure (combine events)?
         if (pollEvents) {
@@ -237,7 +249,7 @@ WaitForHandleSet(
             }
         }
         
-        // otherwise append the event
+        // otherwise, append the event
         events[k].events = atomic_exchange(&element->ActiveEvents, 0);
         events[k].data   = element->Context;
         k++;
@@ -252,19 +264,19 @@ MarkHandleCallback(
     _In_ element_t* element,
     _In_ void*      context)
 {
-    HandleSetElement_t* setElement     = element->value;
-    unsigned int        flags          = (unsigned int)(uintptr_t)context;
-    unsigned int        acceptedEvents = setElement->Configuration & flags;
-    TRACE("[handle_set] [mark_cb] 0x%x, 0x%x", setElement->Configuration, acceptedEvents);
+    struct handleset_element* setElement     = element->value;
+    unsigned int              flags          = (unsigned int)(uintptr_t)context;
+    unsigned int              acceptedEvents = setElement->Configuration & flags;
+    TRACE("MarkHandleCallback(config=0x%x, accept=0x%x)", setElement->Configuration, acceptedEvents);
     
     if (acceptedEvents) {
         int previousEvents = atomic_fetch_or(&setElement->ActiveEvents, (int)acceptedEvents);
         if (!previousEvents) {
-            list_append(&setElement->Set->Events, &setElement->EventHeader);
+            list_append(&setElement->set->events, &setElement->event_header);
 
-            previousEvents = atomic_fetch_add(&setElement->Set->Pending, 1);
+            previousEvents = atomic_fetch_add(&setElement->set->events_pending, 1);
             if (!previousEvents) {
-                (void)FutexWake(&setElement->Set->Pending, 1, 0);
+                (void)FutexWake(&setElement->set->events_pending, 1, 0);
             }
         }
     }
@@ -276,104 +288,111 @@ MarkHandle(
     _In_ UUId_t       handle,
     _In_ unsigned int flags)
 {
-    HandleElement_t* Element = list_find_value(&g_handleSets, VOID_KEY(handle));
-    if (!Element) {
+    struct handle_sets* element;
+    TRACE("MarkHandle(handle=%u, flags=0x%x)", handle, flags);
+
+    MutexLock(&g_handleSetsLock);
+    element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
+    MutexUnlock(&g_handleSetsLock);
+
+    if (!element) {
         return OsDoesNotExist;
     }
-    
-    TRACE("[handle_set] [mark] handle %u - 0x%x", handle, flags);
-    list_enumerate(&Element->Sets, MarkHandleCallback, (void*)(uintptr_t)flags);
+
+    list_enumerate(&element->sets, MarkHandleCallback, (void*)(uintptr_t)flags);
     return OsSuccess;
 }
 
 static OsStatus_t
 DestroySetElement(
-    _In_ HandleSetElement_t* SetElement)
+    _In_ struct handleset_element* setElement)
 {
-    HandleElement_t* Element = list_find_value(&g_handleSets, VOID_KEY(SetElement->Handle));
-    if (Element) {
-        list_remove(&Element->Sets, &SetElement->SetHeader);
-        if (!list_count(&Element->Sets)) {
-            // remove?
+    struct handle_sets* element;
+
+    MutexLock(&g_handleSetsLock);
+    element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
+    MutexUnlock(&g_handleSetsLock);
+
+    if (element) {
+        list_remove(&element->sets, &setElement->set_header);
+        if (!list_count(&element->sets)) {
+            MutexLock(&g_handleSetsLock);
+            hashtable_remove(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
+            MutexUnlock(&g_handleSetsLock);
         }
     }
-    else {
-        // well this is wierd if we get here, log this inconsistency?
-    }
-    
+
     // If we have an event queued up, we should now remove it
-    list_remove(&SetElement->Set->Events, &SetElement->EventHeader);
-    
-    // At this point we should now not exist in any of the 3 lists
-    DestroyHandle(SetElement->Handle);
-    kfree(SetElement);
+    list_remove(&setElement->set->events, &setElement->event_header);
+    kfree(setElement);
     return OsSuccess;
 }
 
 static OsStatus_t
 AddHandleToSet(
-    _In_ HandleSet_t*        set,
+    _In_ struct handle_set*  set,
     _In_ UUId_t              handle,
     _In_ struct ioset_event* event)
 {
-    HandleElement_t*    element;
-    HandleSetElement_t* setElement;
-    OsStatus_t          osStatus;
-    
-    // Start out by acquiring an reference on the handle
-    if (AcquireHandle(handle, NULL) != OsSuccess) {
-        ERROR("[AddHandleToSet] failed to acquire handle %u", handle);
-        return OsDoesNotExist;
-    }
-    
-    element = list_find_value(&g_handleSets, VOID_KEY(handle));
+    struct handle_sets*       element;
+    struct handleset_element* setElement;
+    OsStatus_t                osStatus;
+
+    MutexLock(&g_handleSetsLock);
+    element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     if (!element) {
-        element = (HandleElement_t*)kmalloc(sizeof(HandleElement_t));
-        if (!element) {
-            return OsOutOfMemory;
-        }
-        
-        ELEMENT_INIT(&element->Header, VOID_KEY(handle), element);
-        list_construct(&element->Sets);
-        
-        list_append(&g_handleSets, &element->Header);
+        hashtable_set(&g_handleSets, &(struct handle_sets) { .id = handle, .sets = LIST_INIT });
+        element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     }
-    
+    MutexUnlock(&g_handleSetsLock);
+
     // Now we have access to the handle-set and the target handle, so we can go ahead
     // and add the target handle to the set-tree and then create the set element for
     // the handle
     
     // For each handle added we must allocate a SetElement and add it to the
     // handle instance
-    setElement = (HandleSetElement_t*)kmalloc(sizeof(HandleSetElement_t));
+    setElement = (struct handleset_element*)kmalloc(sizeof(struct handleset_element));
     if (!setElement) {
-        DestroyHandle(handle);
         return OsOutOfMemory;
     }
     
-    memset(setElement, 0, sizeof(HandleSetElement_t));
-    ELEMENT_INIT(&setElement->SetHeader, 0, setElement);
-    ELEMENT_INIT(&setElement->EventHeader, 0, setElement);
-    RB_LEAF_INIT(&setElement->HandleHeader, handle, setElement);
+    memset(setElement, 0, sizeof(struct handleset_element));
+    ELEMENT_INIT(&setElement->set_header, 0, setElement);
+    ELEMENT_INIT(&setElement->event_header, 0, setElement);
+    RB_LEAF_INIT(&setElement->handle_header, handle, setElement);
     
-    setElement->Set           = set;
+    setElement->set           = set;
     setElement->Handle        = handle;
     setElement->Context       = event->data;
     setElement->Configuration = event->events;
-    smp_mb();
     
     // Append to the list of sets on the target handle we are going to listen
     // too. 
-    list_append(&element->Sets, &setElement->SetHeader);
+    list_append(&element->sets, &setElement->set_header);
     
     // Register the target handle in the current set, so we can clean up again
-    osStatus = rb_tree_append(&set->Handles, &setElement->HandleHeader);
+    osStatus = rb_tree_append(&set->handles, &setElement->handle_header);
     if (osStatus != OsSuccess) {
-        ERROR("[handle_set] [AddHandleToSet] rb_tree_append failed with %u", osStatus);
-        list_remove(&element->Sets, &setElement->SetHeader);
-        DestroyHandle(handle);
+        ERROR("AddHandleToSet rb_tree_append failed with %u", osStatus);
+        list_remove(&element->sets, &setElement->set_header);
         kfree(setElement);
         return osStatus;
     }
     return OsSuccess;
+}
+
+static uint64_t handleset_hash(const void* element)
+{
+    const struct handle_sets* entry = element;
+    return entry->id; // already unique identifier
+}
+
+static int handleset_cmp(const void* element1, const void* element2)
+{
+    const struct handle_sets* lh = element1;
+    const struct handle_sets* rh = element2;
+
+    // return 0 on true, 1 on false
+    return lh->id == rh->id ? 0 : 1;
 }
