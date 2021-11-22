@@ -38,10 +38,10 @@ typedef struct list list_t;
 #define SCHEDULER_LEVEL_CRITICAL        60
 #define SCHEDULER_LEVEL_COUNT           61
 
-// Boosts happen every 10 seconds to prevent starvation in the scheduler
+// Boosts happen every 5 seconds to prevent starvation in the scheduler
 // Timeslices go from initial => initial + (2 * SCHEDULER_LEVEL_COUNT)
 #define SCHEDULER_TIMESLICE_INITIAL     10
-#define SCHEDULER_BOOST                 10000
+#define SCHEDULER_BOOST                 5000
 
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0

@@ -62,7 +62,7 @@ static int      handle_cmp(const void* element1, const void* element2);
 
 static hashtable_t     g_handlemappings;
 static hashtable_t     g_handles;
-static IrqSpinlock_t   g_handlesLock;
+static IrqSpinlock_t   g_handlesLock; // use irq lock as we use the handles from interrupts
 static _Atomic(UUId_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
 static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
 static queue_t         g_cleanQueue    = QUEUE_INIT;

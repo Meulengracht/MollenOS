@@ -23,7 +23,7 @@
  *   and bluetooth to name the popular ones.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/handle.h>

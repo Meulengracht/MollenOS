@@ -33,7 +33,6 @@
 #include <heap.h>
 #include <ioset.h>
 #include <string.h>
-#include <mutex.h>
 #include <ds/hashtable.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
@@ -73,15 +72,15 @@ static int      handleset_cmp(const void* element1, const void* element2);
 static OsStatus_t DestroySetElement(struct handleset_element*);
 static OsStatus_t AddHandleToSet(struct handle_set*, UUId_t, struct ioset_event*);
 
-static hashtable_t g_handleSets;
-static Mutex_t     g_handleSetsLock;
+static hashtable_t   g_handleSets;
+static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
 
 void HandleSetsInitialize(void)
 {
     hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct handle_sets), handleset_hash,
                         handleset_cmp);
-    MutexConstruct(&g_handleSetsLock, MUTEX_FLAG_PLAIN);
+    IrqSpinlockConstruct(&g_handleSetsLock);
 }
 
 static void
@@ -291,9 +290,9 @@ MarkHandle(
     struct handle_sets* element;
     TRACE("MarkHandle(handle=%u, flags=0x%x)", handle, flags);
 
-    MutexLock(&g_handleSetsLock);
+    IrqSpinlockAcquire(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
-    MutexUnlock(&g_handleSetsLock);
+    IrqSpinlockRelease(&g_handleSetsLock);
 
     if (!element) {
         return OsDoesNotExist;
@@ -309,16 +308,16 @@ DestroySetElement(
 {
     struct handle_sets* element;
 
-    MutexLock(&g_handleSetsLock);
+    IrqSpinlockAcquire(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-    MutexUnlock(&g_handleSetsLock);
+    IrqSpinlockRelease(&g_handleSetsLock);
 
     if (element) {
         list_remove(&element->sets, &setElement->set_header);
         if (!list_count(&element->sets)) {
-            MutexLock(&g_handleSetsLock);
+            IrqSpinlockAcquire(&g_handleSetsLock);
             hashtable_remove(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-            MutexUnlock(&g_handleSetsLock);
+            IrqSpinlockRelease(&g_handleSetsLock);
         }
     }
 
@@ -338,13 +337,13 @@ AddHandleToSet(
     struct handleset_element* setElement;
     OsStatus_t                osStatus;
 
-    MutexLock(&g_handleSetsLock);
+    IrqSpinlockAcquire(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     if (!element) {
         hashtable_set(&g_handleSets, &(struct handle_sets) { .id = handle, .sets = LIST_INIT });
         element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     }
-    MutexUnlock(&g_handleSetsLock);
+    IrqSpinlockRelease(&g_handleSetsLock);
 
     // Now we have access to the handle-set and the target handle, so we can go ahead
     // and add the target handle to the set-tree and then create the set element for
