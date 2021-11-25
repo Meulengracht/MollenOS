@@ -24,9 +24,8 @@ COPY . .
 #
 # Build the operating system
 RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && chmod +x ./tools/dotnet-install.sh && \
-    ./tools/depends.sh && mkdir -p $VALI_APPLICATION_PATH && cd $VALI_APPLICATION_PATH && \
-    mv /usr/workspace/vali/vali-apps-nightly-$VALI_ARCH.zip . && unzip vali-apps-nightly-$VALI_ARCH.zip && \
-    tar -xvf vali-apps.tar.gz && cd /usr/workspace/vali && mkdir -p build && cd build && \
+    chmod +x ./tools/ci-nightly.sh && ./tools/depends.sh && mkdir -p $VALI_APPLICATION_PATH && cd $VALI_APPLICATION_PATH && \
+    ./tools/ci-nightly.sh && cd /usr/workspace/vali && mkdir -p build && cd build && \
     cmake -G "Unix Makefiles" -DVALI_ARCH=$VALI_ARCH -DCMAKE_INSTALL_PREFIX=$VALI_INSTALL_DIR .. && \
     make && make install_img && tar -czvf vali-$VALI_ARCH.tar.gz ./mollenos.img
 
