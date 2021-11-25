@@ -21,15 +21,14 @@ WORKDIR /usr/workspace/vali
 # Copy all repository files to image
 COPY . .
 
-#
 # Build the operating system
 RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && chmod +x ./tools/dotnet-install.sh && \
     chmod +x ./tools/ci-nightly.sh && ./tools/depends.sh && mkdir -p $VALI_APPLICATION_PATH && cd $VALI_APPLICATION_PATH && \
     /usr/workspace/vali/tools/ci-nightly.sh && cd /usr/workspace/vali && mkdir -p build && cd build && \
     cmake -G "Unix Makefiles" -DVALI_ARCH=$VALI_ARCH -DCMAKE_INSTALL_PREFIX=$VALI_INSTALL_DIR .. && \
-    make && make install_img && tar -czvf vali-$VALI_ARCH.tar.gz ./mollenos.img
+    make && make install_img && tar -czvf vali-nightly.tar.gz ./mollenos.img
 
 # Make an artifact stage specifically for building output with the command
 # DOCKER_BUILDKIT=1 docker build --target artifact --output type=local,dest=. .
 FROM scratch AS artifact
-COPY --from=build /usr/workspace/vali/build/vali-$VALI_ARCH.tar.gz /vali-$VALI_ARCH.tar.gz
+COPY --from=build /usr/workspace/vali/build/vali-nightly.tar.gz /vali-nightly.tar.gz
