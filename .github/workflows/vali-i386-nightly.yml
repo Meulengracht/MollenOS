@@ -1,0 +1,32 @@
+name: Vali I386 Nightly Image CI
+
+on:
+  # Nightly builds
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Download vali applications
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        workflow: nightly-i386.yml
+        workflow_conclusion: success
+        branch: master
+        repo: Meulengracht/vali-userspace
+        check_artifacts: true
+    - name: Build and push
+      uses: docker/build-push-action@v1.1.0
+      with:
+        build_args: ARCH=i386
+        dockerfile: nightly.Dockerfile
+    - uses: actions/upload-artifact@v2
+      with:
+        name: vali-nightly-i386
+        path: ./vali-i386.tar.gz
