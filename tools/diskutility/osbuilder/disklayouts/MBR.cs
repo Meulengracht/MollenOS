@@ -11,11 +11,11 @@ namespace OSBuilder.DiskLayouts
     {
         static readonly int MAX_PARTITONS = 4;
 
-        private Disk _disk = null;
+        private IDisk _disk = null;
         private List<FileSystems.IFileSystem> _fileSystems = new List<FileSystems.IFileSystem>();
         private ulong _sectorsAllocated = 1; // MBR
 
-        public bool Open(Disk disk)
+        public bool Open(IDisk disk)
         {
             // Store disk
             _disk = disk;
@@ -32,7 +32,7 @@ namespace OSBuilder.DiskLayouts
          * Initializes a disk with the disk-scheme and formats the disk
          * for usage with <AddPartition>, this action wipes the disk
          */
-        public bool Create(Disk disk)
+        public bool Create(IDisk disk)
         {
             _disk = disk;
 
@@ -139,7 +139,6 @@ namespace OSBuilder.DiskLayouts
             }
 
             _disk.Write(mbr, 0, true);
-            _disk.Close();
             return true;
         }
 
@@ -159,9 +158,8 @@ namespace OSBuilder.DiskLayouts
             }
 
             // Initialize the file-system
-            if (!fileSystem.Initialize(_disk, _sectorsAllocated, partitionSize))
-                return false;
-
+            fileSystem.Initialize(_disk, _sectorsAllocated, partitionSize);
+            
             // Add sectors allocated
             _fileSystems.Add(fileSystem);
             _sectorsAllocated += partitionSize;

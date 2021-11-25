@@ -51,6 +51,7 @@ set (SHARED_SOURCES
     bitmap.c
     bounded_stack.c
     collection.c
+    guid.c
     hashtable.c
     hash_sip.c
     list.c

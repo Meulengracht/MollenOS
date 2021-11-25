@@ -7,17 +7,12 @@ namespace OSBuilder.FileSystems
         /**
          * Initializes the filesystem instance at the given position on the given disk
          */
-        bool Initialize(Disk disk, ulong startSector, ulong sectorCount);
+        void Initialize(IDisk disk, ulong startSector, ulong sectorCount);
 
         /**
          * Formats the partition with the filesystem - wipes all data from the partition
          */
         bool Format();
-
-        /**
-         * Readies the filesystem for being the primary bootable filesystem by preparing a bootsector
-         */
-        void MakeBoot();
 
         /**
          * List's the contents of the given path - that must be a directory path
@@ -31,6 +26,7 @@ namespace OSBuilder.FileSystems
 
         bool IsBootable();
         byte GetFileSystemType();
+        Guid GetFileSystemTypeGuid();
         Guid GetFileSystemGuid();
         ulong GetSectorStart();
         ulong GetSectorCount();

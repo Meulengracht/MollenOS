@@ -24,37 +24,57 @@
 #include <arch/interrupts.h>
 #include <assert.h>
 #include <irq_spinlock.h>
+#include <threading.h>
+
+extern int  _spinlock_acquire(IrqSpinlock_t* lock);
+extern int  _spinlock_test(IrqSpinlock_t* lock);
+extern void _spinlock_release(IrqSpinlock_t* lock);
 
 void
 IrqSpinlockConstruct(
-    _In_ IrqSpinlock_t* Spinlock)
+    _In_ IrqSpinlock_t* spinlock)
 {
-    assert(Spinlock != NULL);
-    
-    spinlock_init(&Spinlock->SyncObject, spinlock_plain);
-    Spinlock->Flags = 0;
+    assert(spinlock != NULL);
+
+    spinlock->value = 0;
+    spinlock->owner = 0xFFFFFFFF;
+    spinlock->original_flags = 0;
+    spinlock->references = 0;
 }
 
 void
 IrqSpinlockAcquire(
-    _In_ IrqSpinlock_t* Spinlock)
+    _In_ IrqSpinlock_t* spinlock)
 {
-    IntStatus_t Flags;
-    assert(Spinlock != NULL);
-    
-    Flags = InterruptDisable();
-    spinlock_acquire(&Spinlock->SyncObject);
-    Spinlock->Flags = Flags;
+    IntStatus_t flags;
+    assert(spinlock != NULL);
+
+    if (spinlock->owner == ThreadCurrentHandle()) {
+        spinlock->references++;
+        return;
+    }
+
+    flags = InterruptDisable();
+    _spinlock_acquire(spinlock);
+    spinlock->original_flags = flags;
+    spinlock->references = 1;
+    spinlock->owner = ThreadCurrentHandle();
 }
 
 void
 IrqSpinlockRelease(
-    _In_ IrqSpinlock_t* Spinlock)
+    _In_ IrqSpinlock_t* spinlock)
 {
-    IntStatus_t Flags;
-    assert(Spinlock != NULL);
-    
-    Flags = Spinlock->Flags;
-    spinlock_release(&Spinlock->SyncObject);
-    InterruptRestoreState(Flags);
+    IntStatus_t flags;
+
+    assert(spinlock != NULL);
+    assert(spinlock->owner == ThreadCurrentHandle());
+
+    flags = spinlock->original_flags;
+    spinlock->references--;
+    if (!spinlock->references) {
+        spinlock->owner = 0;
+        _spinlock_release(spinlock);
+        InterruptRestoreState(flags);
+    }
 }

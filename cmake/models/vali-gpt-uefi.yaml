@@ -1,0 +1,32 @@
+# options: MBR; GPT
+scheme: GPT
+
+# options: BIOS, UEFI
+bootloader: UEFI
+size: 2GB
+
+# initialize partitions for disk
+partitions:
+  - label: vali-efi
+    type: FAT
+    attributes:
+      - efi
+      - system
+    size: 128MB
+    sources:
+      - deploy/hdd/system
+  - label: vali-system
+    type: MFS
+    attributes:
+      - boot
+      - system
+    size: 128MB
+    sources:
+      - deploy/hdd/system
+  - label: vali-data
+    type: MFS
+    attributes:
+      - data
+      - user
+    sources:
+      - deploy/hdd/shared

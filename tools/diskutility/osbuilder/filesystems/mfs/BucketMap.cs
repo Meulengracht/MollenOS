@@ -15,7 +15,7 @@ namespace OSBuilder.FileSystems.MFS
         public uint NextFreeBucket { get { return _nextFreeBucket; } }
         public ulong MapStartSector { get { return _mapSector; } }
 
-        private Disk _disk = null;
+        private IDisk _disk = null;
         private ulong _sector = 0;
         private ulong _sectorCount = 0;
         private ushort _sectorsPerBucket = 0;
@@ -30,7 +30,7 @@ namespace OSBuilder.FileSystems.MFS
         /// <param name="sectorCount">Size of the partition</param>
         /// <param name="sectorsPerBucket">Sectors per bucket</param>
 
-        public BucketMap(Disk disk, ulong sector, ulong sectorCount, ushort sectorsPerBucket)
+        public BucketMap(IDisk disk, ulong sector, ulong sectorCount, ushort sectorsPerBucket)
         {
             _disk = disk;
             _sector = sector;

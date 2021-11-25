@@ -27,6 +27,7 @@
 #include "storage.h"
 
 #define GPT_SIGNATURE "EFI PART"
+#define GPT_REVISION  0x00010000
 
 #define GPT_ENTRY_RESERVED	0x0000000000000001 // Platform required (required by the computer to function properly)
 #define GPT_ENTRY_EFIIGNORE	0x0000000000000002
@@ -65,9 +66,8 @@ typedef struct GptPartitionEntry {
 	uint64_t StartLBA;
 	uint64_t EndLBA;			// Including this sector, eg: 0-755
 	uint64_t Attributes;
-	uint8_t  NameUTF16[72];	    // Partition name (36 UTF-16LE code units)
+	uint8_t  Name[72];	    // Partition name (36 UTF-16LE code units)
 } GptPartitionEntry_t;
-
 
 /**
  * @brief Tries to parse the storage as GPT partitioned.

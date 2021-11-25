@@ -1,8 +1,5 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace OSBuilder.FileSystems.MFS
@@ -34,9 +31,10 @@ namespace OSBuilder.FileSystems.MFS
         private static readonly ulong GIGABYTE = (MEGABYTE * 1024);
 
         private String _partitionName;
-        private bool _bootable;
-        private PartitionFlags _partitionFlags;
-        private Disk _disk = null;
+        private Guid _partitionGuid = Guid.NewGuid();
+        private bool _bootable = false;
+        private PartitionFlags _partitionFlags = 0;
+        private IDisk _disk = null;
         private BucketMap _bucketMap = null;
         private ulong _sector = 0;
         private ulong _sectorCount = 0;
@@ -583,7 +581,7 @@ namespace OSBuilder.FileSystems.MFS
             return null;
         }
         
-        public FileSystem(Disk disk, ulong startSector, ulong sectorCount)
+        public FileSystem(IDisk disk, ulong startSector, ulong sectorCount)
         {
             _disk = disk;
             _sector = startSector;
@@ -614,19 +612,31 @@ namespace OSBuilder.FileSystems.MFS
             _bucketMap.Open(bucketMapOffset, freeBucketIndex);
         }
 
-        public FileSystem(string partitionName, bool bootable, PartitionFlags partitionFlags)
+        public FileSystem(string partitionName, FileSystemAttributes attributes)
         {
             _partitionName = partitionName;
-            _bootable = bootable;
-            _partitionFlags = partitionFlags;
+            if (attributes.HasFlag(FileSystemAttributes.Boot)) {
+                _bootable = true;
+            }
+            if (attributes.HasFlag(FileSystemAttributes.System)) {
+                _partitionFlags |= PartitionFlags.SystemDrive;
+            }
+            if (attributes.HasFlag(FileSystemAttributes.Data)) {
+                _partitionFlags |= PartitionFlags.DataDrive;
+            }
+            if (attributes.HasFlag(FileSystemAttributes.User)) {
+                _partitionFlags |= PartitionFlags.UserDrive;
+            }
+            if (attributes.HasFlag(FileSystemAttributes.Hidden)) {
+                _partitionFlags |= PartitionFlags.HiddenDrive;
+            }
         }
 
-        public bool Initialize(Disk disk, ulong startSector, ulong sectorCount)
+        public void Initialize(IDisk disk, ulong startSector, ulong sectorCount)
         {
             _disk = disk;
             _sector = startSector;
             _sectorCount = sectorCount;
-            return true;
         }
 
         private ulong BucketToSector(uint bucket)
@@ -823,6 +833,34 @@ namespace OSBuilder.FileSystems.MFS
             _disk.Write(bootsector, _sector, true);
         }
 
+        public void InstallBootloaders()
+        {
+            // Load up boot-sector
+            Console.WriteLine("MakeBoot - loading bootsector (stage1.sys)");
+            byte[] bootsector = File.ReadAllBytes("deploy/stage1.sys");
+
+            // Modify boot-sector by preserving the header 44
+            byte[] existingSectorContent = _disk.Read(_sector, 1);
+            Buffer.BlockCopy(existingSectorContent, 3, bootsector, 3, 41);
+
+            // Mark the partition as os-partition
+            bootsector[8] = 0x1;
+
+            // Flush the modified sector back to disk
+            Console.WriteLine("MakeBoot - writing bootsector to disk");
+            _disk.Write(bootsector, _sector, true);
+
+            // Write stage2 to disk
+            Console.WriteLine("MakeBoot - loading stage2 (stage2.sys)");
+            byte[] stage2Data = File.ReadAllBytes("deploy/stage2.sys");
+            byte[] sectorAlignedBuffer = new Byte[((stage2Data.Length / _disk.BytesPerSector) + 1) * _disk.BytesPerSector];
+            stage2Data.CopyTo(sectorAlignedBuffer, 0);
+
+            // Make sure we allocate a sector-aligned buffer
+            Console.WriteLine("MakeBoot - writing stage2 to disk");
+            _disk.Write(sectorAlignedBuffer, _sector + 1, true);
+        }
+
         public bool Format()
         {
             _reservedSectorCount = 1; // VBR
@@ -894,46 +932,18 @@ namespace OSBuilder.FileSystems.MFS
             Console.WriteLine("Format - Installing Master Records");
             BuildMasterRecord(rootIndex, journalIndex, badBucketIndex, masterBucketSector, mirrorMasterBucketSector);
 
-            // Last step is to install the vbr
+            // install vbr
             Console.WriteLine("Format - Installing VBR");
             BuildVBR(masterBucketSector, mirrorMasterBucketSector);
+
+            // make bootable if requested
+            if (_bootable)
+            {
+                InstallBootloaders();
+            }
             return true;
         }
 
-        /* MakeBoot
-         * Readies the filesystem for being the primary bootable filesystem by preparing a bootsector */
-        public void MakeBoot()
-        {
-            if (_disk == null)
-                throw new Exception("MakeBoot - no disk is provided");
-            if (!_bootable)
-                throw new Exception("MakeBoot - the filesystem is not marked as bootable");
-
-            // Load up boot-sector
-            Console.WriteLine("MakeBoot - loading bootsector (stage1.sys)");
-            byte[] bootsector = File.ReadAllBytes("deploy/stage1.sys");
-
-            // Modify boot-sector by preserving the header 44
-            byte[] existingSectorContent = _disk.Read(_sector, 1);
-            Buffer.BlockCopy(existingSectorContent, 3, bootsector, 3, 41);
-
-            // Mark the partition as os-partition
-            bootsector[8] = 0x1;
-
-            // Flush the modified sector back to disk
-            Console.WriteLine("MakeBoot - writing bootsector to disk");
-            _disk.Write(bootsector, _sector, true);
-
-            // Write stage2 to disk
-            Console.WriteLine("MakeBoot - loading stage2 (stage2.sys)");
-            byte[] stage2Data = File.ReadAllBytes("deploy/stage2.sys");
-            byte[] sectorAlignedBuffer = new Byte[((stage2Data.Length / _disk.BytesPerSector) + 1) * _disk.BytesPerSector];
-            stage2Data.CopyTo(sectorAlignedBuffer, 0);
-
-            // Make sure we allocate a sector-aligned buffer
-            Console.WriteLine("MakeBoot - writing stage2 to disk");
-            _disk.Write(sectorAlignedBuffer, _sector + 1, true);
-        }
 
         /* ListDirectory
          * List's the contents of the given path - that must be a directory path */
@@ -1142,10 +1152,15 @@ namespace OSBuilder.FileSystems.MFS
         {
             return TYPE;
         }
+        
+        public Guid GetFileSystemTypeGuid()
+        {
+            return DiskLayouts.GPTGuids.Mfs;
+        }
 
         public Guid GetFileSystemGuid()
         {
-            return Guid.Empty;
+            return _partitionGuid;
         }
 
         public ulong GetSectorStart()

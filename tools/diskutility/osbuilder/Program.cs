@@ -50,14 +50,27 @@ namespace OSBuilder
             }
         }
 
-        static void InstallMollenOS(FileSystems.IFileSystem systemFileSystem, FileSystems.IFileSystem dataFileSystem)
+        static IDisk DetectDiskType(string diskPath)
         {
-            // Install neccessary boot stuff
-            systemFileSystem.MakeBoot();
+            if (diskPath.ToLower().EndsWith("img"))
+                return new ImgDisk(diskPath);
+            else if (diskPath.ToLower().EndsWith("vmdk"))
+                return new VmdkDisk(diskPath);
+            else
+                return null;
+        }
 
-            // Install files into each partition
-            InstallFolder(systemFileSystem, "deploy/hdd/system", FileSystems.FileFlags.System);
-            InstallFolder(dataFileSystem, "deploy/hdd/shared", FileSystems.FileFlags.None);
+        static DiskLayouts.IDiskScheme DetectDiskScheme(IDisk disk)
+        {
+            byte[] sector = disk.Read(1, 1);
+            DiskLayouts.IDiskScheme scheme;
+            
+            var gptSignature = System.Text.Encoding.ASCII.GetString(sector, 0, 8);
+            if (gptSignature == "EFI PART")
+                scheme = new DiskLayouts.GPT();
+            else
+                scheme = new DiskLayouts.MBR();
+            return scheme;
         }
 
         /* LaunchCLI
@@ -73,7 +86,7 @@ namespace OSBuilder
             Console.WriteLine("quit");
             Console.WriteLine("");
 
-            Disk currentDisk = null;
+            IDisk currentDisk = null;
             DiskLayouts.IDiskScheme currentScheme = null;
             FileSystems.IFileSystem currentFileSystem = null;
 
@@ -91,8 +104,8 @@ namespace OSBuilder
                         string path = inputTokens[1];
 
                         // open disk
-                        currentDisk = new Disk(path);
-                        if (!currentDisk.OpenImage())
+                        currentDisk = DetectDiskType(path);
+                        if (!currentDisk.Open())
                         {
                             Console.WriteLine("Failed to open disk: " + path);
                             currentDisk = null;
@@ -102,10 +115,10 @@ namespace OSBuilder
                         Console.WriteLine("Opened disk: " + path);
                         
                         // open partitioning scheme
-                        currentScheme = new DiskLayouts.MBR();
+                        currentScheme = DetectDiskScheme(currentDisk);
                         if (!currentScheme.Open(currentDisk))
                         {
-                            Console.WriteLine("Failed to open disk layout: MBR");
+                            Console.WriteLine("Failed to open disk layout");
                             currentScheme = null;
                             currentDisk = null;
                         }
@@ -200,42 +213,97 @@ namespace OSBuilder
                 return ulong.Parse(size); // assume MB
         }
 
-        static int SilentInstall(Hashtable drives, string installationType, string diskLayout, string diskSize)
+        static FileSystems.FileSystemAttributes GetFileSystemAttributes(
+            System.Collections.Generic.List<string> attributes)
         {
-            FileSystems.IFileSystem systemFileSystem, dataFileSystem;
+            FileSystems.FileSystemAttributes attr = FileSystems.FileSystemAttributes.None;
+            foreach (var attribute in attributes)
+            {
+                switch (attribute.ToLower())
+                {
+                    case "efi":
+                        attr |= FileSystems.FileSystemAttributes.EFI;
+                        break;
+                    case "boot":
+                        attr |= FileSystems.FileSystemAttributes.Boot;
+                        break;
+                    case "system":
+                        attr |= FileSystems.FileSystemAttributes.System;
+                        break;
+                    case "data":
+                        attr |= FileSystems.FileSystemAttributes.Data;
+                        break;
+                    case "user":
+                        attr |= FileSystems.FileSystemAttributes.User;
+                        break;
+                    case "hidden":
+                        attr |= FileSystems.FileSystemAttributes.Hidden;
+                        break;
+                    case "readonly":
+                        attr |= FileSystems.FileSystemAttributes.ReadOnly;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return attr;
+        }
+
+        static FileSystems.IFileSystem CreateFileSystem(ProjectPartition partition)
+        {
+            FileSystems.IFileSystem fileSystem;
+            var attributes = GetFileSystemAttributes(partition.Attributes);
+            
+            switch (partition.Type.ToLower())
+            {
+                case "fat":
+                    fileSystem = new FileSystems.FAT.FileSystem(partition.Label, attributes);
+                    break;
+                case "mfs":
+                    fileSystem = new FileSystems.MFS.FileSystem(partition.Label, attributes);
+                    break;
+                default:
+                    return null;
+            }
+            return fileSystem;
+        }
+
+        static int SilentInstall(Hashtable drives, string installationType, ProjectConfiguration config)
+        {
             DiskLayouts.IDiskScheme diskScheme;
-            Disk disk;
-            ulong diskSizeInMBytes = GetMByteCountFromString(diskSize);
+            IDisk disk;
+            
+            ulong diskSizeInMBytes = GetMByteCountFromString(config.Size);
             ulong diskSectorCount = GetSectorCountFromMB(512, diskSizeInMBytes);
             Console.WriteLine("size of disk: " + diskSizeInMBytes.ToString() + "mb");
             Console.WriteLine("sector count: " + diskSectorCount.ToString());
+            if (diskSizeInMBytes < 512)
+            {
+                Console.WriteLine("Disk size must be at least 512MB");
+                return -1;
+            }
 
             // Which kind of target?
             if (installationType.ToLower() == "live" && drives.Count > 0)
-                disk = (Disk)drives[0];
+                disk = (Win32Disk)drives[0];
             else if (installationType.ToLower() == "vmdk")
-                disk = new Disk("VMDK", 512, diskSectorCount);
+                disk = new VmdkDisk(512, diskSectorCount);
             else if (installationType.ToLower() == "img")
-                disk = new Disk("IMG", 512, diskSectorCount);
+                disk = new ImgDisk(512, diskSectorCount);
             else {
                 Console.WriteLine("Invalid option for -target");
                 return -1;
             }
 
             // Which kind of disk-scheme?
-            if (diskLayout.ToLower() == "mbr")
+            if (config.Scheme.ToLower() == "mbr")
                 diskScheme = new DiskLayouts.MBR();
-            else if (diskLayout.ToLower() == "gpt")
-                diskScheme = null;
+            else if (config.Scheme.ToLower() == "gpt")
+                diskScheme = new DiskLayouts.GPT();
             else {
                 Console.WriteLine("Invalid option for -scheme");
                 return -1;
             }
-
-            systemFileSystem = new FileSystems.MFS.FileSystem("vali-system", true, 
-                FileSystems.MFS.PartitionFlags.SystemDrive);
-            dataFileSystem = new FileSystems.MFS.FileSystem("vali-data", false, 
-                FileSystems.MFS.PartitionFlags.DataDrive | FileSystems.MFS.PartitionFlags.UserDrive);
 
             // Create the disk
             if (!disk.Create()) {
@@ -243,58 +311,65 @@ namespace OSBuilder
                 return -1;
             }
 
-            // Setup disk partition layout
             diskScheme.Create(disk);
+            foreach (var partition in config.Partitions)
+            {
+                var fileSystem = CreateFileSystem(partition);
+                if (diskScheme.GetFreeSectorCount() == 0)
+                    throw new Exception($"No free sectors left for partition {partition.Label}");
 
-            // reserve 128mb for the system partition
-            diskScheme.AddPartition(systemFileSystem, GetSectorCountFromMB((int)disk.BytesPerSector, 128));
+                if (!string.IsNullOrEmpty(partition.Size))
+                {
+                    var partitionSizeMb = GetMByteCountFromString(partition.Size);
+                    var partitionSizeSectors = GetSectorCountFromMB((int)disk.BytesPerSector, partitionSizeMb);
+                    if (diskScheme.GetFreeSectorCount() < partitionSizeSectors)
+                        throw new Exception($"Not enough free space for partition {partition.Label}");
 
-            // add rest to the data partition
-            diskScheme.AddPartition(dataFileSystem, diskScheme.GetFreeSectorCount());
+                    diskScheme.AddPartition(fileSystem, partitionSizeSectors);
+                }
+                else
+                    diskScheme.AddPartition(fileSystem, diskScheme.GetFreeSectorCount());
+                
+                foreach (var source in partition.Sources)
+                {
+                    InstallFolder(fileSystem, source, 0);
+                }
+            }
 
-            // install the OS
-            InstallMollenOS(systemFileSystem, dataFileSystem);
-
-            // finalize the disk layout
             diskScheme.Finalize();
+            disk.Close();
             return 0;
         }
 
         static void Main(string[] args)
         {
             var installationType = "live";
-            var diskLayout = "mbr";
-            var diskSize = "2gb";
-            var silentInstall = false;
+            var projectFile = "";
 
             // Initialize DiscUtils
             DiscUtils.Complete.SetupHelper.SetupComplete();
 
             // Debug print header
-            Console.WriteLine("MFS Utility Software");
-            Console.WriteLine("Software Capabilities include formatting, read, write to/from MFS.\n");
+            Console.WriteLine("OS Installation Utility Software");
+            Console.WriteLine(" - use this tool to read, write and install MollenOS.\n");
 
             // Parse arguments
             if (args != null && args.Length > 0) {
                 for (int i = 0; i < args.Length; i++) {
                     switch (args[i].ToLower()) {
-                        case "-auto":
-                        case "-a": {
-                                silentInstall = true;
-                            } break;
-
-                        case "-target": {
-                                installationType = args[i + 1];
+                        case "--project": {
+                                if (i + 1 < args.Length)
+                                    projectFile = args[i + 1];
+                                else
+                                    Console.WriteLine("Missing argument for --project");
                                 i++;
                             } break;
 
-                        case "-scheme": {
-                                diskLayout = args[i + 1];
-                                i++;
-                            } break;
-
-                        case "-size": {
-                                diskSize = args[i + 1];
+                        case "--target": {
+                                if (i + 1 < args.Length)
+                                    installationType = args[i + 1];
+                                else
+                                    Console.WriteLine("Missing argument for --target");
                                 i++;
                             } break;
                     }
@@ -303,8 +378,9 @@ namespace OSBuilder
             
             // get a list of available drives for installation
             var drives = GetDrives();
-            if (silentInstall)
-                SilentInstall(drives, installationType, diskLayout, diskSize.ToUpper());
+            var configuration = ProjectConfiguration.Parse(projectFile);
+            if (configuration != null)
+                SilentInstall(drives, installationType, configuration);
             else
                 LaunchCLI(drives);
         }

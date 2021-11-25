@@ -91,9 +91,7 @@ OsStatus_t
 VfsStorageParse(
 	_In_ FileSystemStorage_t* storage)
 {
-	GptHeader_t* gpt;
-	size_t       sectorsRead;
-	OsStatus_t   status;
+	OsStatus_t osStatus;
 	
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
@@ -106,33 +104,19 @@ VfsStorageParse(
 	dmaInfo.capacity = storage->storage.descriptor.SectorSize;
 	dmaInfo.length   = storage->storage.descriptor.SectorSize;
 	dmaInfo.flags    = 0;
-	
-	status = dma_create(&dmaInfo, &dmaAttachment);
-	if (status != OsSuccess) {
-		return status;
+
+    osStatus = dma_create(&dmaInfo, &dmaAttachment);
+	if (osStatus != OsSuccess) {
+		return osStatus;
 	}
-	
-	// In order to detect the schema that is used
-	// for the disk - we can easily just read sector LBA 1
-	// and look for the GPT signature
-	status = VfsStorageReadHelper(storage, dmaAttachment.handle, 1, 1, &sectorsRead);
-	if (status != OsSuccess) {
-		dma_attachment_unmap(&dmaAttachment);
-		dma_detach(&dmaAttachment);
-		return status;
-	}
-	
-	// Check the GPT signature if it matches 
-	// - If it doesn't match, it can only be a MBR disk
-	gpt = (GptHeader_t*)dmaAttachment.buffer;
-	if (!strncmp((const char*)&gpt->Signature[0], GPT_SIGNATURE, 8)) {
-		status = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
-	}
-	else {
-		status = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
-	}
+
+    // Always check for GPT table first
+    osStatus = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+    if (osStatus == OsDoesNotExist) {
+        osStatus = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+    }
 
 	dma_attachment_unmap(&dmaAttachment);
 	dma_detach(&dmaAttachment);
-	return status;
+	return osStatus;
 }

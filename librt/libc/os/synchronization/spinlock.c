@@ -52,11 +52,12 @@ int
 spinlock_try_acquire(
 	_In_ spinlock_t* lock)
 {
-    int references;
+    int    references;
+    thrd_t currentThread = thrd_current();
     
     assert(lock != NULL);
 
-    if (IS_RECURSIVE(lock) && lock->owner == thrd_current()) {
+    if (IS_RECURSIVE(lock) && lock->owner == currentThread) {
         references = atomic_fetch_add(&lock->references, 1);
         assert(references != 0);
         return spinlock_acquired;

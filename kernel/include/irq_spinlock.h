@@ -24,25 +24,25 @@
 #ifndef __VALI_IRQ_SPINLOCK_H__
 #define __VALI_IRQ_SPINLOCK_H__
 
-#include <os/spinlock.h>
-
 typedef struct IrqSpinlock {
-    spinlock_t  SyncObject;
-    IntStatus_t Flags;
+    int         value;
+    int         references;
+    IntStatus_t original_flags;
+    UUId_t      owner;
 } IrqSpinlock_t;
 
-#define OS_IRQ_SPINLOCK_INIT { _SPN_INITIALIZER_NP(spinlock_plain), 0 }
+#define OS_IRQ_SPINLOCK_INIT { 0, 0, 0, 0xFFFFFFFF }
 
 KERNELAPI void KERNELABI
 IrqSpinlockConstruct(
-    _In_ IrqSpinlock_t* Spinlock);
+    _In_ IrqSpinlock_t* spinlock);
 
 KERNELAPI void KERNELABI
 IrqSpinlockAcquire(
-    _In_ IrqSpinlock_t* Spinlock);
+    _In_ IrqSpinlock_t* spinlock);
 
 KERNELAPI void KERNELABI
 IrqSpinlockRelease(
-    _In_ IrqSpinlock_t* Spinlock);
+    _In_ IrqSpinlock_t* spinlock);
 
 #endif //!__VALI_IRQ_SPINLOCK_H__

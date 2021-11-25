@@ -28,15 +28,19 @@
 #include <ds/shared.h>
 
 typedef struct guid {
-    uint8_t data[16];
+    uint32_t data0;
+    uint16_t data1;
+    uint16_t data2;
+    uint8_t  data3[8];
 } guid_t;
 
-#define GUID_INIT_EMPTY { 0 };
+#define GUID_EMPTY { 0, 0, 0, { 0 } };
 
 _CODE_BEGIN
 
 DSDECL(void, guid_new(guid_t*));
-DSDECL(void, guid_parse(guid_t*, const char* string));
+DSDECL(void, guid_parse_raw(guid_t*, const uint8_t*));
+DSDECL(void, guid_parse_string(guid_t*, const char* string));
 DSDECL(int,  guid_cmp(guid_t*, guid_t*));
 DSDECL(void, guid_format(guid_t*, char* buffer, size_t len));
 
