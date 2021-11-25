@@ -19,7 +19,7 @@ jobs:
         workflow: nightly-amd64.yml
         workflow_conclusion: success
         branch: master
-        repo: https://github.com/Meulengracht/vali-userspace
+        repo: Meulengracht/vali-userspace
         check_artifacts: true
     - name: Build and push
       uses: docker/build-push-action@v1.1.0
