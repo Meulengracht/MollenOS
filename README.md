@@ -1,10 +1,10 @@
 
 # The Mollen(/Vali) Operating System 
 
-| Build Configuration   | Status   |
-| --------------------- |:-------- |
-| I386                  | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg) |
-| AMD64                 | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
+| Build Configuration   | Nightly Image (.img) | Status   |
+| --------------------- | -------------------- |:-------- |
+| I386                  | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-i386-nightly.yml) | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg) |
+| AMD64                 | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-amd64-nightly.yml) | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
 
 
 ## Table of Contents

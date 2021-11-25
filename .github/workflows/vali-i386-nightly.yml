@@ -21,6 +21,7 @@ jobs:
         branch: master
         repo: Meulengracht/vali-userspace
         check_artifacts: true
+        path: ${{ github.workspace }}
     - name: Build and push
       uses: docker/build-push-action@v1.1.0
       with:
