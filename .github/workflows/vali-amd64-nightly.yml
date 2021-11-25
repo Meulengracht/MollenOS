@@ -1,0 +1,32 @@
+name: Vali AMD64 Nightly Image CI
+
+on:
+  # Nightly builds
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Download vali applications
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        workflow: nightly-amd64.yml
+        workflow_conclusion: success
+        branch: master
+        repo: https://github.com/Meulengracht/vali-userspace
+        check_artifacts: true
+    - name: Build and push
+      uses: docker/build-push-action@v1.1.0
+      with:
+        build_args: ARCH=amd64
+        dockerfile: nightly.Dockerfile
+    - uses: actions/upload-artifact@v2
+      with:
+        name: vali-nightly-amd64
+        path: ./vali-amd64.tar.gz

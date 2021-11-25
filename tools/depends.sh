@@ -5,12 +5,12 @@ SCRIPTPATH=`dirname "$SCRIPT"`
 # Dev-libraries
 echo "** installing build dependencies"
 apt-get update -yqq
-apt-get -y -qq install git cmake gcc g++ zip nasm make python python3 curl
+apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python python3 curl
 
 # Install dotnet core
 if ! [ -x "$(command -v dotnet)" ]; then
   echo "** installing dotnet core"
-  "$SCRIPTPATH"/dotnet-install.sh
+  "$SCRIPTPATH"/dotnet-install.sh --channel 3.1
 fi
 
 # Install the cmake platform template
