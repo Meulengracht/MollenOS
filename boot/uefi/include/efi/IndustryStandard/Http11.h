@@ -146,7 +146,11 @@
 /// is a property of the message, not of the entity.
 ///
 #define HTTP_HEADER_TRANSFER_ENCODING  "Transfer-Encoding"
-
+#define HTTP_HEADER_TRANSFER_ENCODING_CHUNKED "chunked"
+#define CHUNKED_TRANSFER_CODING_CR '\r'
+#define CHUNKED_TRANSFER_CODING_LF '\n'
+#define CHUNKED_TRANSFER_CODING_LAST_CHUNK '0'
+#define CHUNKED_TRANSFER_CODING_EXTENSION_SEPARATOR ';'
 
 ///
 /// User Agent Request Header

@@ -1,8 +1,9 @@
 /** @file
-  Industry Standard Definitions of SMBIOS Table Specification v3.2.0.
+  Industry Standard Definitions of SMBIOS Table Specification v3.3.0.
 
-Copyright (c) 2006 - 2018, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2021, Intel Corporation. All rights reserved.<BR>
 (C) Copyright 2015-2017 Hewlett Packard Enterprise Development LP<BR>
+(C) Copyright 2015 - 2019 Hewlett Packard Enterprise Development LP<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -46,7 +47,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #define SMBIOS_3_0_TABLE_MAX_LENGTH 0xFFFFFFFF
 
 //
-// SMBIOS type macros which is according to SMBIOS 2.7 specification.
+// SMBIOS type macros which is according to SMBIOS 3.3.0 specification.
 //
 #define SMBIOS_TYPE_BIOS_INFORMATION                     0
 #define SMBIOS_TYPE_SYSTEM_INFORMATION                   1
@@ -92,6 +93,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #define SMBIOS_TYPE_ONBOARD_DEVICES_EXTENDED_INFORMATION 41
 #define SMBIOS_TYPE_MANAGEMENT_CONTROLLER_HOST_INTERFACE 42
 #define SMBIOS_TYPE_TPM_DEVICE                           43
+#define SMBIOS_TYPE_PROCESSOR_ADDITIONAL_INFORMATION     44
 
 ///
 /// Inactive type is added from SMBIOS 2.2. Reference SMBIOS 2.6, chapter 3.3.43.
@@ -727,7 +729,10 @@ typedef enum {
   ProcessorFamilyMII                   = 0x012E,
   ProcessorFamilyWinChip               = 0x0140,
   ProcessorFamilyDSP                   = 0x015E,
-  ProcessorFamilyVideoProcessor        = 0x01F4
+  ProcessorFamilyVideoProcessor        = 0x01F4,
+  ProcessorFamilyRiscvRV32             = 0x0200,
+  ProcessorFamilyRiscVRV64             = 0x0201,
+  ProcessorFamilyRiscVRV128            = 0x0202
 } PROCESSOR_FAMILY2_DATA;
 
 ///
@@ -805,7 +810,10 @@ typedef enum {
   ProcessorUpgradeSocketLGA2066   = 0x39,
   ProcessorUpgradeSocketBGA1392   = 0x3A,
   ProcessorUpgradeSocketBGA1510   = 0x3B,
-  ProcessorUpgradeSocketBGA1528   = 0x3C
+  ProcessorUpgradeSocketBGA1528   = 0x3C,
+  ProcessorUpgradeSocketLGA4189   = 0x3D,
+  ProcessorUpgradeSocketLGA1200   = 0x3E,
+  ProcessorUpgradeSocketLGA4677   = 0x3F
 } PROCESSOR_UPGRADE;
 
 ///
@@ -857,6 +865,33 @@ typedef struct {
 } PROCESSOR_FEATURE_FLAGS;
 
 typedef struct {
+  UINT16  ProcessorReserved1              :1;
+  UINT16  ProcessorUnknown                :1;
+  UINT16  Processor64BitCapable           :1;
+  UINT16  ProcessorMultiCore              :1;
+  UINT16  ProcessorHardwareThread         :1;
+  UINT16  ProcessorExecuteProtection      :1;
+  UINT16  ProcessorEnhancedVirtualization :1;
+  UINT16  ProcessorPowerPerformanceCtrl   :1;
+  UINT16  Processor128BitCapable          :1;
+  UINT16  ProcessorArm64SocId             :1;
+  UINT16  ProcessorReserved2              :6;
+} PROCESSOR_CHARACTERISTIC_FLAGS;
+
+///
+/// Processor Information - Status
+///
+typedef union {
+  struct {
+    UINT8 CpuStatus       :3; ///< Indicates the status of the processor.
+    UINT8 Reserved1       :3; ///< Reserved for future use. Must be set to zero.
+    UINT8 SocketPopulated :1; ///< Indicates if the processor socket is populated or not.
+    UINT8 Reserved2       :1; ///< Reserved for future use. Must be set to zero.
+  } Bits;
+  UINT8 Data;
+} PROCESSOR_STATUS_DATA;
+
+typedef struct {
   PROCESSOR_SIGNATURE     Signature;
   PROCESSOR_FEATURE_FLAGS FeatureFlags;
 } PROCESSOR_ID_DATA;
@@ -875,7 +910,7 @@ typedef struct {
   SMBIOS_TABLE_STRING   Socket;
   UINT8                 ProcessorType;          ///< The enumeration value from PROCESSOR_TYPE_DATA.
   UINT8                 ProcessorFamily;        ///< The enumeration value from PROCESSOR_FAMILY_DATA.
-  SMBIOS_TABLE_STRING   ProcessorManufacture;
+  SMBIOS_TABLE_STRING   ProcessorManufacturer;
   PROCESSOR_ID_DATA     ProcessorId;
   SMBIOS_TABLE_STRING   ProcessorVersion;
   PROCESSOR_VOLTAGE     Voltage;
@@ -1267,6 +1302,7 @@ typedef enum {
   SlotTypePciExpressMini52pinWithBSKO  = 0x21,      ///< PCI Express Mini 52-pin (CEM spec. 2.0) with bottom-side keep-outs.
   SlotTypePciExpressMini52pinWithoutBSKO = 0x22,    ///< PCI Express Mini 52-pin (CEM spec. 2.0) without bottom-side keep-outs.
   SlotTypePciExpressMini76pin          = 0x23,      ///< PCI Express Mini 76-pin (CEM spec. 2.0) Corresponds to Display-Mini card.
+  SlotTypeCXLFlexbus10                 = 0x30,
   SlotTypePC98C20                      = 0xA0,
   SlotTypePC98C24                      = 0xA1,
   SlotTypePC98E                        = 0xA2,
@@ -1289,7 +1325,13 @@ typedef enum {
   SlotTypePciExpressGen3X2             = 0xB3,
   SlotTypePciExpressGen3X4             = 0xB4,
   SlotTypePciExpressGen3X8             = 0xB5,
-  SlotTypePciExpressGen3X16            = 0xB6
+  SlotTypePciExpressGen3X16            = 0xB6,
+  SlotTypePciExpressGen4               = 0xB8,
+  SlotTypePciExpressGen4X1             = 0xB9,
+  SlotTypePciExpressGen4X2             = 0xBA,
+  SlotTypePciExpressGen4X4             = 0xBB,
+  SlotTypePciExpressGen4X8             = 0xBC,
+  SlotTypePciExpressGen4X16            = 0xBD
 } MISC_SLOT_TYPE;
 
 ///
@@ -1354,7 +1396,10 @@ typedef struct {
   UINT8  HotPlugDevicesSupported :1;
   UINT8  SmbusSignalSupported    :1;
   UINT8  BifurcationSupported    :1;
-  UINT8  Reserved                :4;  ///< Set to 0.
+  UINT8  AsyncSurpriseRemoval    :1;
+  UINT8  FlexbusSlotCxl10Capable :1;
+  UINT8  FlexbusSlotCxl20Capable :1;
+  UINT8  Reserved                :1;  ///< Set to 0.
 } MISC_SLOT_CHARACTERISTICS2;
 
 ///
@@ -1396,6 +1441,12 @@ typedef struct {
   UINT8                       DataBusWidth;
   UINT8                       PeerGroupingCount;
   MISC_SLOT_PEER_GROUP        PeerGroups[1];
+  //
+  // Add for smbios 3.4
+  //
+  UINT8                       SlotInformation;
+  UINT8                       SlotPhysicalWidth;
+  UINT16                      SlotPitch;
 } SMBIOS_TABLE_TYPE9;
 
 ///
@@ -1588,7 +1639,8 @@ typedef enum {
   MemoryArrayLocationPc98C20AddonCard      = 0xA0,
   MemoryArrayLocationPc98C24AddonCard      = 0xA1,
   MemoryArrayLocationPc98EAddonCard        = 0xA2,
-  MemoryArrayLocationPc98LocalBusAddonCard = 0xA3
+  MemoryArrayLocationPc98LocalBusAddonCard = 0xA3,
+  MemoryArrayLocationCXLAddonCard          = 0xA4
 } MEMORY_ARRAY_LOCATION;
 
 ///
@@ -1655,7 +1707,8 @@ typedef enum {
   MemoryFormFactorRimm                     = 0x0C,
   MemoryFormFactorSodimm                   = 0x0D,
   MemoryFormFactorSrimm                    = 0x0E,
-  MemoryFormFactorFbDimm                   = 0x0F
+  MemoryFormFactorFbDimm                   = 0x0F,
+  MemoryFormFactorDie                      = 0x10
 } MEMORY_FORM_FACTOR;
 
 ///
@@ -1689,7 +1742,11 @@ typedef enum {
   MemoryTypeLpddr2                         = 0x1C,
   MemoryTypeLpddr3                         = 0x1D,
   MemoryTypeLpddr4                         = 0x1E,
-  MemoryTypeLogicalNonVolatileDevice       = 0x1F
+  MemoryTypeLogicalNonVolatileDevice       = 0x1F,
+  MemoryTypeHBM                            = 0x20,
+  MemoryTypeHBM2                           = 0x21,
+  MemoryTypeDdr5                           = 0x22,
+  MemoryTypeLpddr5                         = 0x23
 } MEMORY_DEVICE_TYPE;
 
 ///
@@ -1718,13 +1775,18 @@ typedef struct {
 /// Memory Device - Memory Technology
 ///
 typedef enum {
-  MemoryTechnologyOther                     = 0x01,
-  MemoryTechnologyUnknown                   = 0x02,
-  MemoryTechnologyDram                      = 0x03,
-  MemoryTechnologyNvdimmN                   = 0x04,
-  MemoryTechnologyNvdimmF                   = 0x05,
-  MemoryTechnologyNvdimmP                   = 0x06,
-  MemoryTechnologyIntelPersistentMemory     = 0x07
+  MemoryTechnologyOther                          = 0x01,
+  MemoryTechnologyUnknown                        = 0x02,
+  MemoryTechnologyDram                           = 0x03,
+  MemoryTechnologyNvdimmN                        = 0x04,
+  MemoryTechnologyNvdimmF                        = 0x05,
+  MemoryTechnologyNvdimmP                        = 0x06,
+  //
+  // This definition is updated to represent Intel
+  // Optane DC Persistent Memory in SMBIOS spec 3.4.0
+  //
+  MemoryTechnologyIntelOptanePersistentMemory    = 0x07
+
 } MEMORY_DEVICE_TECHNOLOGY;
 
 ///
@@ -1801,7 +1863,7 @@ typedef struct {
   //
   UINT8                                     MemoryTechnology;   ///< The enumeration value from MEMORY_DEVICE_TECHNOLOGY
   MEMORY_DEVICE_OPERATING_MODE_CAPABILITY   MemoryOperatingModeCapability;
-  SMBIOS_TABLE_STRING                       FirwareVersion;
+  SMBIOS_TABLE_STRING                       FirmwareVersion;
   UINT16                                    ModuleManufacturerID;
   UINT16                                    ModuleProductID;
   UINT16                                    MemorySubsystemControllerManufacturerID;
@@ -1810,6 +1872,11 @@ typedef struct {
   UINT64                                    VolatileSize;
   UINT64                                    CacheSize;
   UINT64                                    LogicalSize;
+  //
+  // Add for smbios 3.3.0
+  //
+  UINT32                                    ExtendedSpeed;
+  UINT32                                    ExtendedConfiguredMemorySpeed;
 } SMBIOS_TABLE_TYPE17;
 
 ///
@@ -2466,6 +2533,15 @@ typedef struct {
 } SMBIOS_TABLE_TYPE41;
 
 ///
+///  Management Controller Host Interface - Protocol Record Data Format.
+///
+typedef struct {
+  UINT8                        ProtocolType;
+  UINT8                        ProtocolTypeDataLen;
+  UINT8                        ProtocolTypeData[1];
+} MC_HOST_INTERFACE_PROTOCOL_RECORD;
+
+///
 /// Management Controller Host Interface - Interface Types.
 /// 00h - 3Fh: MCTP Host Interfaces
 ///
@@ -2507,6 +2583,57 @@ typedef struct {
   UINT8                             InterfaceTypeSpecificDataLength;
   UINT8                             InterfaceTypeSpecificData[4];   ///< This field has a minimum of four bytes
 } SMBIOS_TABLE_TYPE42;
+
+
+///
+/// Processor Specific Block - Processor Architecture Type
+///
+typedef enum{
+  ProcessorSpecificBlockArchTypeReserved   = 0x00,
+  ProcessorSpecificBlockArchTypeIa32       = 0x01,
+  ProcessorSpecificBlockArchTypeX64        = 0x02,
+  ProcessorSpecificBlockArchTypeItanium    = 0x03,
+  ProcessorSpecificBlockArchTypeAarch32    = 0x04,
+  ProcessorSpecificBlockArchTypeAarch64    = 0x05,
+  ProcessorSpecificBlockArchTypeRiscVRV32  = 0x06,
+  ProcessorSpecificBlockArchTypeRiscVRV64  = 0x07,
+  ProcessorSpecificBlockArchTypeRiscVRV128 = 0x08
+} PROCESSOR_SPECIFIC_BLOCK_ARCH_TYPE;
+
+///
+/// Processor Specific Block is the standard container of processor-specific data.
+///
+typedef struct {
+  UINT8                              Length;
+  UINT8                              ProcessorArchType;
+  ///
+  /// Below followed by Processor-specific data
+  ///
+  ///
+} PROCESSOR_SPECIFIC_BLOCK;
+
+///
+/// Processor Additional Information(Type 44).
+///
+/// The information in this structure defines the processor additional information in case
+/// SMBIOS type 4 is not sufficient to describe processor characteristics.
+/// The SMBIOS type 44 structure has a reference handle field to link back to the related
+/// SMBIOS type 4 structure. There may be multiple SMBIOS type 44 structures linked to the
+/// same SMBIOS type 4 structure. For example, when cores are not identical in a processor,
+/// SMBIOS type 44 structures describe different core-specific information.
+///
+/// SMBIOS type 44 defines the standard header for the processor-specific block, while the
+/// contents of processor-specific data are maintained by processor
+/// architecture workgroups or vendors in separate documents.
+///
+typedef struct {
+  SMBIOS_STRUCTURE                  Hdr;
+  SMBIOS_HANDLE                     RefHandle;                 ///< This field refer to associated SMBIOS type 4
+  ///
+  /// Below followed by Processor-specific block
+  ///
+  PROCESSOR_SPECIFIC_BLOCK          ProcessorSpecificBlock;
+} SMBIOS_TABLE_TYPE44;
 
 ///
 /// TPM Device (Type 43).
@@ -2586,6 +2713,7 @@ typedef union {
   SMBIOS_TABLE_TYPE41   *Type41;
   SMBIOS_TABLE_TYPE42   *Type42;
   SMBIOS_TABLE_TYPE43   *Type43;
+  SMBIOS_TABLE_TYPE44   *Type44;
   SMBIOS_TABLE_TYPE126  *Type126;
   SMBIOS_TABLE_TYPE127  *Type127;
   UINT8                 *Raw;

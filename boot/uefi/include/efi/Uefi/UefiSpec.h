@@ -5,7 +5,9 @@
   If a code construct is defined in the UEFI 2.7 specification it must be included
   by this include file.
 
-Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2021, Intel Corporation. All rights reserved.<BR>
+Portions Copyright (c) 2020, Hewlett Packard Enterprise Development LP. All rights reserved.<BR>
+
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -82,10 +84,37 @@ typedef enum {
 // If all memory has the same reliability, then this bit is not used.
 //
 #define EFI_MEMORY_MORE_RELIABLE    0x0000000000010000ULL
+
+//
+// Note: UEFI spec 2.8 and following:
+//
+// Specific-purpose memory (SPM). The memory is earmarked for
+// specific purposes such as for specific device drivers or applications.
+// The SPM attribute serves as a hint to the OS to avoid allocating this
+// memory for core OS data or code that can not be relocated.
+//
+#define EFI_MEMORY_SP               0x0000000000040000ULL
+//
+// If this flag is set, the memory region is capable of being
+// protected with the CPU's memory cryptographic
+// capabilities. If this flag is clear, the memory region is not
+// capable of being protected with the CPU's memory
+// cryptographic capabilities or the CPU does not support CPU
+// memory cryptographic capabilities.
+//
+#define EFI_MEMORY_CPU_CRYPTO       0x0000000000080000ULL
+
 //
 // Runtime memory attribute
 //
 #define EFI_MEMORY_RUNTIME          0x8000000000000000ULL
+
+//
+// Attributes bitmasks, grouped by type
+//
+#define EFI_CACHE_ATTRIBUTE_MASK (EFI_MEMORY_UC | EFI_MEMORY_WC | EFI_MEMORY_WT | EFI_MEMORY_WB | EFI_MEMORY_UCE | EFI_MEMORY_WP)
+#define EFI_MEMORY_ACCESS_MASK (EFI_MEMORY_RP | EFI_MEMORY_XP | EFI_MEMORY_RO)
+#define EFI_MEMORY_ATTRIBUTE_MASK (EFI_MEMORY_ACCESS_MASK | EFI_MEMORY_SP | EFI_MEMORY_CPU_CRYPTO)
 
 ///
 /// Memory descriptor version number.
@@ -189,7 +218,7 @@ EFI_STATUS
                                          On output, it is the size of the buffer returned by the firmware if
                                          the buffer was large enough, or the size of the buffer needed to contain
                                          the map if the buffer was too small.
-  @param[in, out]  MemoryMap             A pointer to the buffer in which firmware places the current memory
+  @param[out]      MemoryMap             A pointer to the buffer in which firmware places the current memory
                                          map.
   @param[out]      MapKey                A pointer to the location in which firmware returns the key for the
                                          current memory map.
@@ -210,7 +239,7 @@ typedef
 EFI_STATUS
 (EFIAPI *EFI_GET_MEMORY_MAP)(
   IN OUT UINTN                       *MemoryMapSize,
-  IN OUT EFI_MEMORY_DESCRIPTOR       *MemoryMap,
+  OUT    EFI_MEMORY_DESCRIPTOR       *MemoryMap,
   OUT    UINTN                       *MapKey,
   OUT    UINTN                       *DescriptorSize,
   OUT    UINT32                      *DescriptorVersion
@@ -1534,7 +1563,7 @@ EFI_STATUS
   @param[in]       Protocol     Provides the protocol to search by.
                                 This parameter is only valid for a SearchType of ByProtocol.
   @param[in]       SearchKey    Supplies the search key depending on the SearchType.
-  @param[in, out]  NoHandles    The number of handles returned in Buffer.
+  @param[out]      NoHandles    The number of handles returned in Buffer.
   @param[out]      Buffer       A pointer to the buffer to return the requested array of handles that
                                 support Protocol.
 
@@ -1552,7 +1581,7 @@ EFI_STATUS
   IN     EFI_LOCATE_SEARCH_TYPE       SearchType,
   IN     EFI_GUID                     *Protocol,      OPTIONAL
   IN     VOID                         *SearchKey,     OPTIONAL
-  IN OUT UINTN                        *NoHandles,
+  OUT    UINTN                        *NoHandles,
   OUT    EFI_HANDLE                   **Buffer
   );
 
@@ -1761,11 +1790,13 @@ EFI_STATUS
 #define EFI_OS_INDICATIONS_FMP_CAPSULE_SUPPORTED            0x0000000000000008
 #define EFI_OS_INDICATIONS_CAPSULE_RESULT_VAR_SUPPORTED     0x0000000000000010
 #define EFI_OS_INDICATIONS_START_PLATFORM_RECOVERY          0x0000000000000040
+#define EFI_OS_INDICATIONS_JSON_CONFIG_DATA_REFRESH         0x0000000000000080
 
 //
 // EFI Runtime Services Table
 //
 #define EFI_SYSTEM_TABLE_SIGNATURE      SIGNATURE_64 ('I','B','I',' ','S','Y','S','T')
+#define EFI_2_80_SYSTEM_TABLE_REVISION  ((2 << 16) | (80))
 #define EFI_2_70_SYSTEM_TABLE_REVISION  ((2 << 16) | (70))
 #define EFI_2_60_SYSTEM_TABLE_REVISION  ((2 << 16) | (60))
 #define EFI_2_50_SYSTEM_TABLE_REVISION  ((2 << 16) | (50))
@@ -2178,7 +2209,9 @@ typedef struct {
 #define EFI_REMOVABLE_MEDIA_FILE_NAME_X64     L"\\EFI\\BOOT\\BOOTX64.EFI"
 #define EFI_REMOVABLE_MEDIA_FILE_NAME_ARM     L"\\EFI\\BOOT\\BOOTARM.EFI"
 #define EFI_REMOVABLE_MEDIA_FILE_NAME_AARCH64 L"\\EFI\\BOOT\\BOOTAA64.EFI"
+#define EFI_REMOVABLE_MEDIA_FILE_NAME_RISCV64 L"\\EFI\\BOOT\\BOOTRISCV64.EFI"
 
+#if !defined(EFI_REMOVABLE_MEDIA_FILE_NAME)
 #if   defined (MDE_CPU_IA32)
   #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_IA32
 #elif defined (MDE_CPU_X64)
@@ -2188,8 +2221,11 @@ typedef struct {
   #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_ARM
 #elif defined (MDE_CPU_AARCH64)
   #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_AARCH64
+#elif defined (MDE_CPU_RISCV64)
+  #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_RISCV64
 #else
   #error Unknown Processor Type
+#endif
 #endif
 
 //

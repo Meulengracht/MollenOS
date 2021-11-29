@@ -10,8 +10,8 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 #include <Uefi.h>
 
-EFI_HANDLE gImageHandle;
-EFI_SYSTEM_TABLE *gST;
-EFI_BOOT_SERVICES *gBS;
+extern EFI_HANDLE         gImageHandle;
+extern EFI_SYSTEM_TABLE*  gSystemTable;
+extern EFI_BOOT_SERVICES* gBootServices;
 
 #endif

@@ -1,7 +1,7 @@
 /** @file
   Processor or Compiler specific defines and types x64 (Intel 64, AMD64).
 
-  Copyright (c) 2006 - 2018, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -21,7 +21,7 @@
 #pragma pack()
 #endif
 
-#if defined(__GNUC__) && defined(__pic__) && !defined(USING_LTO)
+#if defined(__GNUC__) && defined(__pic__) && !defined(USING_LTO)  && !defined(__APPLE__)
 //
 // Mark all symbol declarations and references as hidden, meaning they will
 // not be subject to symbol preemption. This allows the compiler to refer to
@@ -101,7 +101,7 @@
 //
 #pragma warning ( disable : 4206 )
 
-#if _MSC_VER == 1800 || _MSC_VER == 1900 || _MSC_VER >= 1910
+#if defined(_MSC_VER) && _MSC_VER >= 1800
 
 //
 // Disable these warnings for VS2013.
@@ -313,7 +313,7 @@ typedef INT64   INTN;
   #define EFIAPI
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) || defined(__clang__)
   ///
   /// For GNU assembly code, .global or .globl can declare global symbols.
   /// Define this macro to unify the usage.

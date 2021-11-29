@@ -87,7 +87,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 //
 #pragma warning ( disable : 4206 )
 
-#if _MSC_VER == 1800 || _MSC_VER == 1900 || _MSC_VER >= 1910
+#if defined(_MSC_VER) && _MSC_VER >= 1800
 
 //
 // Disable these warnings for VS2013.
@@ -281,7 +281,7 @@ typedef INT32   INTN;
   /// Microsoft* compiler specific method for EFIAPI calling convention.
   ///
   #define EFIAPI __cdecl
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__clang__)
   ///
   /// GCC specific method for EFIAPI calling convention.
   ///
@@ -294,7 +294,7 @@ typedef INT32   INTN;
   #define EFIAPI
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) || defined(__clang__)
   ///
   /// For GNU assembly code, .global or .globl can declare global symbols.
   /// Define this macro to unify the usage.

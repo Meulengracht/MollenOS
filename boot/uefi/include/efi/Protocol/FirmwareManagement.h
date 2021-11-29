@@ -8,7 +8,7 @@
   CheckImage(), GetPackageInfo(), and SetPackageInfo() shall return
   EFI_UNSUPPORTED if not supported by the driver.
 
-  Copyright (c) 2009 - 2018, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2020, Intel Corporation. All rights reserved.<BR>
   Copyright (c) 2013 - 2014, Hewlett-Packard Development Company, L.P.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -27,6 +27,31 @@
   }
 
 typedef struct _EFI_FIRMWARE_MANAGEMENT_PROTOCOL EFI_FIRMWARE_MANAGEMENT_PROTOCOL;
+
+///
+/// Dependency Expression Opcode
+///
+#define EFI_FMP_DEP_PUSH_GUID        0x00
+#define EFI_FMP_DEP_PUSH_VERSION     0x01
+#define EFI_FMP_DEP_VERSION_STR      0x02
+#define EFI_FMP_DEP_AND              0x03
+#define EFI_FMP_DEP_OR               0x04
+#define EFI_FMP_DEP_NOT              0x05
+#define EFI_FMP_DEP_TRUE             0x06
+#define EFI_FMP_DEP_FALSE            0x07
+#define EFI_FMP_DEP_EQ               0x08
+#define EFI_FMP_DEP_GT               0x09
+#define EFI_FMP_DEP_GTE              0x0A
+#define EFI_FMP_DEP_LT               0x0B
+#define EFI_FMP_DEP_LTE              0x0C
+#define EFI_FMP_DEP_END              0x0D
+
+///
+/// Image Attribute - Dependency
+///
+typedef struct {
+  UINT8 Dependencies[1];
+} EFI_FIRMWARE_IMAGE_DEP;
 
 ///
 /// EFI_FIRMWARE_IMAGE_DESCRIPTOR
@@ -111,6 +136,7 @@ typedef struct {
   /// present in version 3 or higher.
   ///
   UINT64                           HardwareInstance;
+  EFI_FIRMWARE_IMAGE_DEP           *Dependencies;
 } EFI_FIRMWARE_IMAGE_DESCRIPTOR;
 
 
@@ -143,6 +169,11 @@ typedef struct {
 /// The attribute IMAGE_ATTRIBUTE_UEFI_IMAGE indicates that this image is an EFI compatible image.
 ///
 #define    IMAGE_ATTRIBUTE_UEFI_IMAGE              0x0000000000000010
+///
+/// The attribute IMAGE_ATTRIBUTE_DEPENDENCY indicates that there is an EFI_FIRMWARE_IMAGE_DEP
+/// section associated with the image.
+///
+#define    IMAGE_ATTRIBUTE_DEPENDENCY              0x0000000000000020
 
 
 //
@@ -158,7 +189,7 @@ typedef struct {
 ///
 /// Descriptor Version exposed by GetImageInfo() function
 ///
-#define   EFI_FIRMWARE_IMAGE_DESCRIPTOR_VERSION   3
+#define   EFI_FIRMWARE_IMAGE_DESCRIPTOR_VERSION   4
 
 
 ///
@@ -314,7 +345,7 @@ EFI_STATUS
   @param[in]      This           A pointer to the EFI_FIRMWARE_MANAGEMENT_PROTOCOL instance.
   @param[in]      ImageIndex     A unique number identifying the firmware image(s) within the device.
                                  The number is between 1 and DescriptorCount.
-  @param[in, out] Image          Points to the buffer where the current image is copied to.
+  @param[out]     Image          Points to the buffer where the current image is copied to.
   @param[in, out] ImageSize      On entry, points to the size of the buffer pointed to by Image, in bytes.
                                  On return, points to the length of the image, in bytes.
 
@@ -333,7 +364,7 @@ EFI_STATUS
 (EFIAPI *EFI_FIRMWARE_MANAGEMENT_PROTOCOL_GET_IMAGE)(
   IN  EFI_FIRMWARE_MANAGEMENT_PROTOCOL  *This,
   IN  UINT8                             ImageIndex,
-  IN  OUT  VOID                         *Image,
+  OUT  VOID                             *Image,
   IN  OUT  UINTN                        *ImageSize
   );
 

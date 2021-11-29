@@ -2,6 +2,7 @@
   This file contains AML code definition in the latest ACPI spec.
 
   Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2019 - 2021, Arm Limited. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -30,6 +31,7 @@
 #define AML_PACKAGE_OP               0x12
 #define AML_VAR_PACKAGE_OP           0x13
 #define AML_METHOD_OP                0x14
+#define AML_EXTERNAL_OP              0x15
 #define AML_DUAL_NAME_PREFIX         0x2e
 #define AML_MULTI_NAME_PREFIX        0x2f
 #define AML_NAME_CHAR_A              0x41
@@ -165,5 +167,18 @@
 #define AML_EXT_INDEX_FIELD_OP       0x86
 #define AML_EXT_BANK_FIELD_OP        0x87
 #define AML_EXT_DATA_REGION_OP       0x88
+
+//
+// FieldElement OpCode
+//
+#define AML_FIELD_RESERVED_OP        0x00
+#define AML_FIELD_ACCESS_OP          0x01
+#define AML_FIELD_CONNECTION_OP      0x02
+#define AML_FIELD_EXT_ACCESS_OP      0x03
+
+//
+// AML Name segment definitions
+//
+#define AML_NAME_SEG_SIZE            4
 
 #endif

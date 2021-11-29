@@ -462,6 +462,24 @@ EfiTestChildHandle (
   );
 
 /**
+  This function checks the supported languages list for a target language,
+  This only supports RFC 4646 Languages.
+
+  @param  SupportedLanguages  The supported languages
+  @param  TargetLanguage      The target language
+
+  @retval Returns EFI_SUCCESS if the language is supported,
+          EFI_UNSUPPORTED otherwise
+
+**/
+EFI_STATUS
+EFIAPI
+IsLanguageSupported (
+  IN CONST CHAR8 *SupportedLanguages,
+  IN CONST CHAR8 *TargetLanguage
+  );
+
+/**
   This function looks up a Unicode string in UnicodeStringTable.
 
   If Language is a member of SupportedLanguages and a Unicode string is found in
@@ -661,59 +679,6 @@ EFIAPI
 FreeUnicodeStringTable (
   IN EFI_UNICODE_STRING_TABLE  *UnicodeStringTable
   );
-
-#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
-
-/**
-  [ATTENTION] This function will be deprecated for security reason.
-
-  Returns a pointer to an allocated buffer that contains the contents of a
-  variable retrieved through the UEFI Runtime Service GetVariable().  The
-  returned buffer is allocated using AllocatePool().  The caller is responsible
-  for freeing this buffer with FreePool().
-
-  If Name is NULL, then ASSERT().
-  If Guid is NULL, then ASSERT().
-
-  @param[in]  Name  The pointer to a Null-terminated Unicode string.
-  @param[in]  Guid  The pointer to an EFI_GUID structure.
-
-  @retval NULL   The variable could not be retrieved.
-  @retval NULL   There are not enough resources available for the variable contents.
-  @retval Other  A pointer to allocated buffer containing the variable contents.
-
-**/
-VOID *
-EFIAPI
-GetVariable (
-  IN CONST CHAR16    *Name,
-  IN CONST EFI_GUID  *Guid
-  );
-
-/**
-  [ATTENTION] This function will be deprecated for security reason.
-
-  Returns a pointer to an allocated buffer that contains the contents of a
-  variable retrieved through the UEFI Runtime Service GetVariable().  This
-  function always uses the EFI_GLOBAL_VARIABLE GUID to retrieve variables.
-  The returned buffer is allocated using AllocatePool().  The caller is
-  responsible for freeing this buffer with FreePool().
-
-  If Name is NULL, then ASSERT().
-
-  @param[in]  Name  The pointer to a Null-terminated Unicode string.
-
-  @retval NULL   The variable could not be retrieved.
-  @retval NULL   There are not enough resources available for the variable contents.
-  @retval Other  A pointer to allocated buffer containing the variable contents.
-
-**/
-VOID *
-EFIAPI
-GetEfiGlobalVariable (
-  IN CONST CHAR16  *Name
-  );
-#endif
 
 
 /**
