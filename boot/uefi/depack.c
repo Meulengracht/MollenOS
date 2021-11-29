@@ -108,8 +108,9 @@ unsigned int aP_depack_safe(const void *source,
 		return APLIB_ERROR;
 	}
 
-	ud.source = (const unsigned char *) source;
-	ud.srclen = srclen;
+	// skip header
+	ud.source = ((const unsigned char *)source) + 24;
+	ud.srclen = (srclen - 24);
 	ud.destination = (unsigned char *) destination;
 	ud.dstlen = dstlen;
 	ud.bitcount = 0;

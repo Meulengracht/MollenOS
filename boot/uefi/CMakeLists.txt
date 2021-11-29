@@ -34,7 +34,7 @@ make_directory(${CMAKE_BINARY_DIR}/image)
 file(WRITE ${CMAKE_BINARY_DIR}/image/startup.nsh "fs0:VBOOT.efi")
 
 # initialize compiler environment
-add_compile_definitions(VALI_ARCH=${VALI_ARCH})
+add_compile_definitions(__${VALI_ARCH}__)
 
 # initialize Pcds
 add_compile_definitions(_PCD_GET_MODE_32_PcdMaximumUnicodeStringLength=1000000)
@@ -223,6 +223,8 @@ set_target_properties(vboot
         OUTPUT_NAME "VBOOT.efi"
         LINK_FLAGS "-Xlinker -subsystem:efi_application -Xlinker -nodefaultlib -Xlinker -entry:EfiMain"
 )
+
+install(TARGETS vboot)
 
 # initialize a qemu-target that helps us test faster
 add_custom_target (test

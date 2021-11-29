@@ -38,9 +38,7 @@ EFI_STATUS LibraryInitialize(
 EFI_STATUS LibraryCleanup(void)
 {
     EFI_STATUS Status;
-
-    // Disable the watchdog timer
-    gBootServices->SetWatchdogTimer(0, 0, 0, NULL);
+    
     Status = gBootServices->ExitBootServices(gImageHandle, gMemoryMapKey);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to exit boot services: %r\n", Status);
@@ -124,6 +122,8 @@ enum VBootMemoryType __ConvertEfiType(
     switch (Type) {
         case EfiLoaderCode:
         case EfiLoaderData:
+            return VBootMemoryType_Available;
+
         case EfiBootServicesCode:
         case EfiBootServicesData:
         case EfiRuntimeServicesCode:
@@ -189,6 +189,7 @@ EFI_STATUS LibraryGetMemoryMap(
         
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;
+        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].VirtualBase  = MemoryDescriptor->VirtualStart;
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Length       = MemoryDescriptor->NumberOfPages * EFI_PAGE_SIZE;
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Attributes   = MemoryDescriptor->Attribute;
         VBoot->Memory.NumberOfEntries++;

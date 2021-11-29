@@ -13,8 +13,7 @@ endif ()
 
 # Configure options
 option (X86_BOOTLOADER_BIOS "Enable BIOS bootloader" ON)
-option (X86_BOOTLOADER_UEFI "Enable UEFI bootloader" ON)
-
+option (BOOTLOADER_UEFI "Enable UEFI bootloader" ON)
 
 add_custom_target(ap ALL DEPENDS ap.sys)
 add_custom_command(OUTPUT ap.sys POST_BUILD
@@ -28,3 +27,15 @@ if (X86_BOOTLOADER_BIOS)
     add_subdirectory(bios)
 endif ()
 
+if (BOOTLOADER_UEFI)
+    # We unfortunately need to provide a different compiler environment
+    # so we need to include this as an external project
+    include(ExternalProject)
+    ExternalProject_Add(uefi
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/uefi
+            CMAKE_ARGS
+                -DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}
+                -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}
+                -DVALI_ARCH=${VALI_ARCH}
+    )
+endif ()

@@ -26,7 +26,6 @@
 
 static struct VBoot* gBootDescriptor = NULL;
 
-
 BOOLEAN __CompareGUID(EFI_GUID lh, EFI_GUID rh)
 {
     return (
@@ -77,12 +76,31 @@ static EFI_STATUS __InitializeBootDescriptor(void)
     return Status;
 }
 
+static void __BREAK(void)
+{
+    for(;;);
+}
+
+// Jump into kernel fun-land :-)
 static void __JumpToKernel(
-    IN EFI_PHYSICAL_ADDRESS EntryPoint)
+    IN EFI_PHYSICAL_ADDRESS EntryPoint,
+    IN VOID*                KernelStack)
 {
     BASE_LIBRARY_JUMP_BUFFER JumpBuffer = { 0 };
-    SetJump(&JumpBuffer);
+
+#if defined(__amd64__)
+    JumpBuffer.Rbx = (UINTN)gBootDescriptor;
     JumpBuffer.Rip = EntryPoint;
+    JumpBuffer.Rsp = (UINTN)KernelStack;
+    JumpBuffer.Rbp = (UINTN)KernelStack;
+#elif defined(__i386__)
+    JumpBuffer.Ebx = (UINTN)gBootDescriptor;
+    JumpBuffer.Eip = EntryPoint;
+    JumpBuffer.Esp = (UINTN)KernelStack;
+    JumpBuffer.Ebp = (UINTN)KernelStack;
+#else
+#error "Unsupported architecture"
+#endif
     LongJump(&JumpBuffer, 1);
 }
 
@@ -92,6 +110,7 @@ EFI_STATUS EFIAPI EfiMain (
 {
     EFI_STATUS           Status;
     EFI_PHYSICAL_ADDRESS EntryPoint;
+    VOID*                KernelStack;
 
     // Initialize bootloader systems
     Status = LibraryInitialize(ImageHandle, SystemTable);
@@ -107,7 +126,7 @@ EFI_STATUS EFIAPI EfiMain (
     
     // Print header
     ConsoleWrite(L"Vali UEFI Loader\n");
-    ConsoleWrite(L"- architecture amd64\n\n");
+    ConsoleWrite(L"- implementing vboot functionality\n\n");
 
     // Initialize boot descriptor
     Status = __InitializeBootDescriptor();
@@ -123,7 +142,7 @@ EFI_STATUS EFIAPI EfiMain (
         return Status;
     }
 
-    Status = LoadKernel(gBootDescriptor, &EntryPoint);
+    Status = LoadKernel(gBootDescriptor, &EntryPoint, &KernelStack);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to load kernel or ramdisk\n");
         return Status;
@@ -143,8 +162,10 @@ EFI_STATUS EFIAPI EfiMain (
         return Status;
     }
 
+    __BREAK();
+
     // Cleanup bootloader systems
     LibraryCleanup();
-    __JumpToKernel(EntryPoint);
+    __JumpToKernel(EntryPoint, KernelStack);
     return EFI_SUCCESS;
 }

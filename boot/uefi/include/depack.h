@@ -20,6 +20,17 @@ extern "C" {
 # define APLIB_ERROR ((unsigned int) (-1))
 #endif
 
+// header format:
+//
+//  offs  size    data
+// --------------------------------------
+//    0   dword   tag ('AP32')
+//    4   dword   header_size (24 bytes)
+//    8   dword   packed_size
+//   12   dword   packed_crc
+//   16   dword   orig_size
+//   20   dword   orig_crc
+
 /* function prototype */
 unsigned int aP_get_orig_size(const void *source);
 unsigned int aP_depack_safe(const void *source,

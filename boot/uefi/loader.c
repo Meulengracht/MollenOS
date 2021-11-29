@@ -16,8 +16,10 @@
  *
  */
 
-#include <library.h>
+#include <console.h>
 #include <depack.h>
+#include <library.h>
+#include <loader.h>
 
 #include <Guid/FileInfo.h>
 #include <Library/BaseMemoryLib.h>
@@ -76,14 +78,18 @@ EFI_STATUS __LoadFile(
     UINTN              BufferSize = sizeof(Buffer);
     UINTN              ReadSize;
     UINT8*             CompressedData;
+    ConsoleWrite(L"__LoadFile(FileName=%s, IsCompressed=%d)\n",
+        FileName, IsCompressed);
 
     Status = gRoot->Open(gRoot, &File, FileName, EFI_FILE_MODE_READ, 0);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadFile Failed to open file: %s\n", FileName);
         return Status;
     }
 
     Status = File->GetInfo(File, &gFileInfoGuid, &BufferSize, (VOID**)&Buffer[0]);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadFile Failed to get file info: %s\n", FileName);
         goto cleanup;
     }
 
@@ -92,11 +98,13 @@ EFI_STATUS __LoadFile(
 
     Status = LibraryAllocateMemory(ReadSize, (VOID**)&CompressedData);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadFile Failed to allocate memory: %s\n", FileName);
         goto cleanup;
     }
 
     Status = File->Read(File, &ReadSize, CompressedData);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadFile Failed to read file: %s\n", FileName);
         goto cleanup;
     }
 
@@ -107,6 +115,11 @@ EFI_STATUS __LoadFile(
         VOID*  DecompressedData;
 
         if (!DecompressedSize) {
+            ConsoleWrite(L"__LoadFile Compression header was incorrect: %s\n", FileName);
+            ConsoleWrite(L"__LoadFile 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
+                ((UINT32*)CompressedData)[0], ((UINT32*)CompressedData)[1], 
+                ((UINT32*)CompressedData)[2], ((UINT32*)CompressedData)[3],
+                ((UINT32*)CompressedData)[4]);
             LibraryFreeMemory(CompressedData);
             Status = EFI_COMPROMISED_DATA;
             goto cleanup;
@@ -114,6 +127,7 @@ EFI_STATUS __LoadFile(
 
         Status = LibraryAllocateMemory(DecompressedSize, &DecompressedData);
         if (EFI_ERROR(Status)) {
+            ConsoleWrite(L"__LoadFile Failed to allocate memory for decompression: %s\n", FileName);
             LibraryFreeMemory(CompressedData);
             goto cleanup;
         }
@@ -127,6 +141,7 @@ EFI_STATUS __LoadFile(
         LibraryFreeMemory(CompressedData);
         
         if (DecompressStatus == APLIB_ERROR) {
+            ConsoleWrite(L"__LoadFile Failed to decompress file: %s\n", FileName);
             LibraryFreeMemory(DecompressedData);
             Status = EFI_COMPROMISED_DATA;
             goto cleanup;
@@ -147,13 +162,37 @@ cleanup:
     return Status;
 }
 
+EFI_STATUS __AllocateKernelStack(
+    IN  UINTN  Size,
+    OUT VOID** Stack)
+{
+    EFI_STATUS           Status;
+    EFI_PHYSICAL_ADDRESS StackBase;
+
+    Status = gBootServices->AllocatePages(
+        AllocateAnyPages,
+        EfiRuntimeServicesData,
+        EFI_SIZE_TO_PAGES(Size),
+        &StackBase
+    );
+    if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__AllocateKernelStack Failed to allocate stack\n");
+        return Status;
+    }
+
+    *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
+    return EFI_SUCCESS;
+}
+
 EFI_STATUS LoadKernel(
     IN  struct VBoot*         VBoot,
-    OUT EFI_PHYSICAL_ADDRESS* EntryPoint)
+    OUT EFI_PHYSICAL_ADDRESS* EntryPoint,
+    OUT VOID**                KernelStack)
 {
     EFI_STATUS Status;
     VOID*      Buffer;
     UINTN      BufferSize;
+    ConsoleWrite(L"LoadKernel()\n");
 
     PE_COFF_LOADER_IMAGE_CONTEXT ImageContext;
 
@@ -175,7 +214,6 @@ EFI_STATUS LoadKernel(
     }
 
     // We would like to request the kernel loaded at 1mb mark
-    ImageContext.ImageAddress = 0x100000;
     Status = PeCoffLoaderLoadImage(&ImageContext);
     if (EFI_ERROR(Status)) {
         return Status;
@@ -189,16 +227,32 @@ EFI_STATUS LoadKernel(
 
     // Flush not needed for all architectures. We could have a processor specific
     // function in this library that does the no-op if needed.
-    InvalidateInstructionCacheRange((VOID *)(UINTN)ImageContext.ImageAddress, ImageContext.ImageSize);
+    InvalidateInstructionCacheRange(
+        (VOID *)(UINTN)ImageContext.ImageAddress, 
+        ImageContext.ImageSize
+    );
+    ConsoleWrite(L"LoadKernel Loaded kernel at 0x%x, Size=0x%x\n", 
+        ImageContext.ImageAddress, ImageContext.ImageSize);
 
     // Load and relocate the ramdisk
     Status = __LoadFile(L"\\EFI\\VALI\\initrd.mos", 1, &Buffer, &BufferSize);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
 
-    // Copy the ramdisk into memory at 0x2000000
-    CopyMem((VOID*)0x2000000, Buffer, BufferSize);
+    VBoot->Ramdisk.Data   = (VOID*)LOADER_RAMDISK_BASE;
+    VBoot->Ramdisk.Length = (UINT32)BufferSize;
+    ConsoleWrite(L"LoadKernel Loaded ramdisk at 0x%x, Size=0x%x\n", 
+        VBoot->Ramdisk.Data, BufferSize);
 
-    // Cleanup allocated buffer
+    CopyMem(VBoot->Ramdisk.Data, Buffer, BufferSize);
     LibraryFreeMemory(Buffer);
+
+    // Allocate a stack for the kernel
+    Status = __AllocateKernelStack(LOADER_KERNEL_STACK_SIZE, KernelStack);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
 
     *EntryPoint = ImageContext.EntryPoint;
     return EFI_SUCCESS;

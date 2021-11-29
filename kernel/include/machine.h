@@ -74,6 +74,14 @@ typedef struct SystemMachine {
 } SystemMachine_t;
 
 /**
+ *
+ * @param BootInformation
+ */
+void
+InitializeMachine(
+        _In_ Multiboot_t* BootInformation);
+
+/**
  * GetMachine
  * Retrieves a pointer for the machine structure.
  */
