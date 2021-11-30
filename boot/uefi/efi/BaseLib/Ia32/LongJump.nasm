@@ -17,8 +17,6 @@
 
     SECTION .text
 
-extern ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))
-
 ;------------------------------------------------------------------------------
 ; VOID
 ; EFIAPI
@@ -27,10 +25,10 @@ extern ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))
 ;   IN      UINTN                     Value
 ;   );
 ;------------------------------------------------------------------------------
-global ASM_PFX(InternalLongJump)
-ASM_PFX(InternalLongJump):
+global _InternalLongJump
+_InternalLongJump:
 
-    mov     eax, [ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))]
+    mov     eax, _PCD_GET_MODE_32_PcdControlFlowEnforcementPropertyMask
     test    eax, eax
     jz      CetDone
     mov     eax, cr4

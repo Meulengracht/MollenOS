@@ -28,8 +28,8 @@
 ;    OUT  UINT32  *RegisterOutEdx  OPTIONAL
 ;    );
 ;------------------------------------------------------------------------------
-global ASM_PFX(AsmCpuid)
-ASM_PFX(AsmCpuid):
+global _AsmCpuid
+_AsmCpuid:
     push    ebx
     push    ebp
     mov     ebp, esp

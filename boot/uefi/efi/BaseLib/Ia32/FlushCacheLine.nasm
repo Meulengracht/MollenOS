@@ -24,8 +24,8 @@
 ;   IN      VOID                      *LinearAddress
 ;   );
 ;------------------------------------------------------------------------------
-global ASM_PFX(AsmFlushCacheLine)
-ASM_PFX(AsmFlushCacheLine):
+global _AsmFlushCacheLine
+_AsmFlushCacheLine:
     ;
     ; If the CPU does not support CLFLUSH instruction,
     ; then promote flush range to flush entire cache.
@@ -35,7 +35,7 @@ ASM_PFX(AsmFlushCacheLine):
     cpuid
     pop     ebx
     mov     eax, [esp + 4]
-    test    edx, BIT19
+    test    edx, 0x80000
     jz      .0
     clflush [eax]
     ret

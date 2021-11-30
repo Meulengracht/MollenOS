@@ -114,6 +114,7 @@ add_compile_options(-Wall -Werror -Wno-format -Wno-microsoft-static-assert)
 add_compile_options(-mno-red-zone)
 add_compile_options(-fshort-wchar)
 add_compile_options(-fno-stack-protector)
+add_compile_options(-ffreestanding)
 
 include_directories(include)
 include_directories(include/efi)
@@ -150,6 +151,20 @@ elseif ("${VALI_ARCH}" STREQUAL "i386")
     add_compile_options(--target=i386-pc-win32-coff)
 
     include_directories(include/efi/Ia32)
+
+    set(ASM_SRCS
+            efi/BaseLib/Ia32/CpuId.nasm
+            efi/BaseLib/Ia32/FlushCacheLine.nasm
+            efi/BaseLib/Ia32/Invd.nasm
+            efi/BaseLib/Ia32/LongJump.nasm
+            efi/BaseLib/Ia32/SetJump.nasm
+            efi/BaseLib/Ia32/Wbinvd.nasm
+
+            efi/BaseLib/MsIntrinsincs/_aulldiv.nasm
+            efi/BaseLib/MsIntrinsincs/_aullrem.nasm
+            efi/BaseLib/MsIntrinsincs/_alldiv.nasm
+            efi/BaseLib/MsIntrinsincs/_allrem.nasm
+    )
 
     set(SRCS
         efi/BaseCacheMaintenanceLib/X86Cache.c
@@ -192,6 +207,7 @@ set(SRCS
     efi/BaseMemoryLib/MemLibGeneric.c
     efi/BaseMemoryLib/MemLibGuid.c
     efi/BaseMemoryLib/SetMem.c
+    efi/BaseMemoryLib/SetMem32Wrapper.c
     efi/BaseMemoryLib/SetMem64Wrapper.c
     efi/BaseMemoryLib/SetMemWrapper.c
     efi/BaseMemoryLib/ZeroMemWrapper.c
@@ -221,7 +237,7 @@ add_executable(vboot ${SRCS} ${ASM_SRCS})
 set_target_properties(vboot
     PROPERTIES
         OUTPUT_NAME "VBOOT.efi"
-        LINK_FLAGS "-Xlinker -subsystem:efi_application -Xlinker -nodefaultlib -Xlinker -entry:EfiMain"
+        LINK_FLAGS "-Xlinker -subsystem:efi_application -Xlinker -entry:EfiMain -nostdlib"
 )
 
 install(TARGETS vboot)

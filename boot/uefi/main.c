@@ -86,7 +86,8 @@ static void __JumpToKernel(
     IN EFI_PHYSICAL_ADDRESS EntryPoint,
     IN VOID*                KernelStack)
 {
-    BASE_LIBRARY_JUMP_BUFFER JumpBuffer = { 0 };
+    BASE_LIBRARY_JUMP_BUFFER JumpBuffer;
+    SetMem(&JumpBuffer, sizeof(BASE_LIBRARY_JUMP_BUFFER), 0);
 
 #if defined(__amd64__)
     JumpBuffer.Rbx = (UINTN)gBootDescriptor;

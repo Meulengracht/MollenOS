@@ -24,8 +24,8 @@
 ;   VOID
 ;   );
 ;------------------------------------------------------------------------------
-global ASM_PFX(AsmInvd)
-ASM_PFX(AsmInvd):
+global _AsmInvd
+_AsmInvd:
     invd
     ret
 

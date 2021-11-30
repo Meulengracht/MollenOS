@@ -17,8 +17,7 @@
 
     SECTION .text
 
-extern ASM_PFX(InternalAssertJumpBuffer)
-extern ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))
+extern _InternalAssertJumpBuffer
 
 ;------------------------------------------------------------------------------
 ; UINTN
@@ -27,10 +26,10 @@ extern ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))
 ;   OUT     BASE_LIBRARY_JUMP_BUFFER  *JumpBuffer
 ;   );
 ;------------------------------------------------------------------------------
-global ASM_PFX(SetJump)
-ASM_PFX(SetJump):
+global _SetJump
+_SetJump:
     push    DWORD [esp + 4]
-    call    ASM_PFX(InternalAssertJumpBuffer)    ; To validate JumpBuffer
+    call    _InternalAssertJumpBuffer    ; To validate JumpBuffer
     pop     ecx
     pop     ecx                         ; ecx <- return address
     mov     edx, [esp]
@@ -38,7 +37,7 @@ ASM_PFX(SetJump):
     xor     eax, eax
     mov     [edx + 24], eax        ; save 0 to SSP
 
-    mov     eax, [ASM_PFX(PcdGet32 (PcdControlFlowEnforcementPropertyMask))]
+    mov     eax, _PCD_GET_MODE_32_PcdControlFlowEnforcementPropertyMask
     test    eax, eax
     jz      CetDone
     mov     eax, cr4
