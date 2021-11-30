@@ -32,18 +32,15 @@ global CpuEnableSse
 global CpuEnableFpu
 global CpuEnableGpe
 
-; No matter what, this is booted by multiboot, and thus
+; No matter what, this is booted by vboot, and thus
 ; We can assume the state when this point is reached.
-; RAX - Multiboot Magic
-; RBX - Contains address of the multiboot structure, but
-;		it should be located in stack aswell.
+; RBX - Contains address of the vboot structure.
 
 kentry:
 	;We disable interrupts, we have no IDT installed
 	cli
     
-	;Now, we place multiboot structure and kernel
-	;size information on the stack.
+	; Place the vboot header into first argument for InitializeMachine
 	mov rcx, rbx
 
 	;Now call the init function

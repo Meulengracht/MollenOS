@@ -23,7 +23,7 @@
 #define __RAMDISK_H__
 
 #include <os/osdefs.h>
-#include <multiboot.h>
+#include <vboot.h>
 
 /* Definitions for the MollenOS ramdisk
  * This is the magic signature, must be present in the ramdisk image file */
@@ -79,6 +79,6 @@ PACKED_TYPESTRUCT(SystemRamdiskModuleHeader, {
  * functionality will be available. */
 KERNELAPI OsStatus_t KERNELABI
 ParseInitialRamdisk(
-    _In_ Multiboot_t* BootInformation);
+    _In_ struct VBoot* bootInformation);
 
 #endif //!__RAMDISK_H__

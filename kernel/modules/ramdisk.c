@@ -30,7 +30,7 @@
 
 OsStatus_t
 ParseInitialRamdisk(
-    _In_ Multiboot_t* BootInformation)
+    _In_ struct VBoot* bootInformation)
 {
     SystemRamdiskHeader_t* Ramdisk;
     SystemRamdiskEntry_t*  Entry;
@@ -38,13 +38,13 @@ ParseInitialRamdisk(
     SystemModuleType_t     Type;
 
     TRACE("ParseInitialRamdisk(Address 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
-        BootInformation->RamdiskAddress, BootInformation->RamdiskSize);
-    if (BootInformation->RamdiskAddress == 0 || BootInformation->RamdiskSize == 0) {
+          bootInformation->Ramdisk.Data, bootInformation->Ramdisk.Length);
+    if (bootInformation->Ramdisk.Data == 0 || bootInformation->Ramdisk.Length == 0) {
         return OsError;
     }
     
     // Initialize the pointer and read the signature value, must match
-    Ramdisk = (SystemRamdiskHeader_t*)(uintptr_t)BootInformation->RamdiskAddress;
+    Ramdisk = (SystemRamdiskHeader_t*)(uintptr_t)bootInformation->Ramdisk.Data;
     if (Ramdisk->Magic != RAMDISK_MAGIC) {
         ERROR("Invalid magic in ramdisk - 0x%" PRIxIN "", Ramdisk->Magic);
         return OsError;
@@ -54,7 +54,7 @@ ParseInitialRamdisk(
         return OsError;
     }
     Entry   = (SystemRamdiskEntry_t*)
-        (BootInformation->RamdiskAddress + sizeof(SystemRamdiskHeader_t));
+        ((uintptr_t)bootInformation->Ramdisk.Data + sizeof(SystemRamdiskHeader_t));
     Counter = Ramdisk->FileCount;
 
     // Keep iterating untill we reach the end of counter
@@ -64,7 +64,7 @@ ParseInitialRamdisk(
             TRACE("Entry %s type: %" PRIuIN "", &Entry->Name[0], Entry->Type);
             SystemRamdiskModuleHeader_t* Header =
                 (SystemRamdiskModuleHeader_t*)(
-                    (uintptr_t)BootInformation->RamdiskAddress + (uintptr_t)Entry->DataHeaderOffset);
+                        (uintptr_t)bootInformation->Ramdisk.Data + (uintptr_t)Entry->DataHeaderOffset);
             uint8_t* ModuleData;
             uint32_t CrcOfData;
 
@@ -81,8 +81,8 @@ ParseInitialRamdisk(
             }
 
             // Perform CRC validation
-            ModuleData = (uint8_t*)(BootInformation->RamdiskAddress 
-                + Entry->DataHeaderOffset + sizeof(SystemRamdiskModuleHeader_t));
+            ModuleData = (uint8_t*)((uintptr_t)bootInformation->Ramdisk.Data
+                                    + Entry->DataHeaderOffset + sizeof(SystemRamdiskModuleHeader_t));
             CrcOfData  = Crc32Generate(-1, ModuleData, Header->LengthOfData);
             if (CrcOfData == Header->Crc32OfData) {
                 if (RegisterModule((const char*)&Entry->Name[0], (const void*)ModuleData, Header->LengthOfData, 

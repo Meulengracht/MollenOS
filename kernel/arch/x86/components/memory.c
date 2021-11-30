@@ -30,7 +30,6 @@
 #include <debug.h>
 #include <gdt.h>
 #include <machine.h>
-#include <multiboot.h>
 #include <memory.h>
 
 // Interface to the arch-specific
@@ -83,34 +82,47 @@ AllocateBootMemory(
     return memory;
 }
 
+size_t
+__GetAvailablePhysicalMemory(
+        _In_ struct VBoot* bootInformation)
+{
+    size_t upperSize = 0;
+    for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
+        uintptr_t limit = bootInformation->Memory.Entries[i].PhysicalBase +
+                bootInformation->Memory.Entries[i].Length;
+        if (bootInformation->Memory.Entries[i].Type == VBootMemoryType_Available) {
+            if (limit > upperSize) {
+                upperSize = limit;
+            }
+        }
+    }
+    return upperSize;
+}
+
 OsStatus_t
 InitializeSystemMemory(
-    _In_  Multiboot_t*        bootInformation,
+    _In_  struct VBoot*       bootInformation,
     _In_  bounded_stack_t*    boundedStack,
     _In_  StaticMemoryPool_t* globalAccessMemory,
     _In_  SystemMemoryMap_t*  memoryMap,
     _Out_ size_t*             memoryGranularityOut,
     _Out_ size_t*             numberOfMemoryBlocksOut)
 {
-    BIOSMemoryRegion_t* regionPointer;
-    uintptr_t           memorySize;
-    uintptr_t           gaMemory;
-    size_t              gaMemorySize;
-    size_t              count;
-    OsStatus_t          osStatus;
-    int                 i;
+    size_t     memorySize;
+    uintptr_t  gaMemory;
+    size_t     gaMemorySize;
+    size_t     count;
+    OsStatus_t osStatus;
+    int        i;
 
     if (!bootInformation || !boundedStack || !globalAccessMemory ||
         !memoryMap || !memoryGranularityOut || !numberOfMemoryBlocksOut) {
         return OsInvalidParameters;
     }
 
-    regionPointer = (BIOSMemoryRegion_t*)(uintptr_t)bootInformation->MemoryMapAddress;
-
     // The memory-high part is 64kb blocks 
     // whereas the memory-low part is bytes of memory
-    memorySize = (bootInformation->MemoryHigh * 64 * 1024);
-    memorySize  += bootInformation->MemoryLow; // This is in kilobytes
+    memorySize = __GetAvailablePhysicalMemory(bootInformation);
     assert((memorySize / 1024 / 1024) >= 64);
     
     // Initialize the reserved memory address
@@ -168,11 +180,12 @@ InitializeSystemMemory(
     // we can use, that are not already pre-allocated by the system.
     // ISSUE: it seems that the highest address (total number of blocks) actually
     // exceeds the number of initial blocks available
-    TRACE("[pmem] [mem_init] region count %i, block count %u", bootInformation->MemoryMapLength, count);
-    for (i = 0; i < (int)bootInformation->MemoryMapLength; i++) {
-        if (regionPointer->Type == 1) {
-            uintptr_t baseAddress = (uintptr_t)regionPointer->Address;
-            uintptr_t limit       = (uintptr_t)regionPointer->Address + (uintptr_t)regionPointer->Size;
+    TRACE("[pmem] [mem_init] region count %i, block count %u", bootInformation->Memory.NumberOfEntries, count);
+    for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
+        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        if (entry->Type == VBootMemoryType_Available) {
+            uintptr_t baseAddress = (uintptr_t)entry->PhysicalBase;
+            uintptr_t limit       = (uintptr_t)entry->PhysicalBase + (uintptr_t)entry->Length;
             TRACE("[pmem] [mem_init] region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, baseAddress, limit);
             if (baseAddress < g_lastReservedAddress) {
                 baseAddress = g_lastReservedAddress;
@@ -183,7 +196,6 @@ InitializeSystemMemory(
                 baseAddress += PAGE_SIZE;
             }
         }
-        regionPointer++;
     }
 
     // Debug initial stats

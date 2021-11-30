@@ -59,14 +59,6 @@
                                             memset((void*)Instance, 0, sizeof(Type)); \
                                             return Instance; }
 
-PACKED_TYPESTRUCT(BIOSMemoryRegion, {
-    uint64_t Address;
-    uint64_t Size;
-    uint32_t Type;        //1 => Available, 2 => ACPI, 3 => Reserved
-    uint32_t Nil;
-    uint64_t Padding;
-});
-
 KERNELAPI OsStatus_t KERNELABI CreateKernelVirtualMemorySpace(void);
 
 #endif // !_X86_MEMORY_H_

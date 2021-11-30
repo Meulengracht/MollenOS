@@ -25,7 +25,7 @@
 #define _MCORE_SYSTEMSETUP_H_
 
 #include <os/osdefs.h>
-#include <multiboot.h>
+#include <vboot.h>
 
 /* Setup Systems Definitions 
  * Contains bit definitions and magic constants */
@@ -36,7 +36,7 @@
  * Called by the kernel to initialize a supported system */
 KERNELAPI OsStatus_t KERNELABI
 SystemFeaturesInitialize(
-    _In_ Multiboot_t* BootInformation,
-    _In_ unsigned int      Systems);
+    _In_ struct VBoot* BootInformation,
+    _In_ unsigned int  Systems);
 
 #endif // !_MCORE_SYSTEMSETUP_H_

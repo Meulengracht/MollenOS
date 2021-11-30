@@ -51,7 +51,7 @@ extern void StartTestingPhase(void);
 #endif
 
 static SystemMachine_t Machine = { 
-    { 0 }, { 0 }, { 0 }, { 0 },                        // Strings
+    { 0 }, { 0 }, { 0 },                        // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
     OS_IRQ_SPINLOCK_INIT, { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
@@ -69,34 +69,35 @@ GetMachine(void)
 
 void
 PrintHeader(
-    _In_ Multiboot_t *BootInformation)
+    _In_ struct VBoot* bootInformation)
 {
     WRITELINE("MollenOS - Platform: %s - Version %" PRIiIN ".%" PRIiIN ".%" PRIiIN "",
         ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
     WRITELINE("Written by Philip Meulengracht, Copyright 2011.");
-    WRITELINE("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
     WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
-void
+_Noreturn void
 InitializeMachine(
-    _In_ Multiboot_t* BootInformation)
+    _In_ struct VBoot* bootInformation)
 {
     OsStatus_t osStatus;
 
     // Boot information must be supplied
-    if (BootInformation == NULL) {
-        return; // @todo perform unique halt/set error
+    if (bootInformation == NULL) {
+        for(;;) {
+            // @todo perform unique halt/set error
+            ArchProcessorHalt();
+        }
     }
     
     // Initialize all our static memory systems and global variables
-    memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
+    memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
     Crc32GenerateTable();
     LogInitialize();
     FutexInitialize();
 
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
-    sprintf(&Machine.Bootloader[0],   "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
     

@@ -150,7 +150,6 @@
         "actbl.h": "c",
         "actbl3.h": "c",
         "amlresrc.h": "c",
-        "multiboot.h": "c",
         "arch.h": "c",
         "ramdisk.h": "c",
         "pipe.h": "c",

@@ -37,13 +37,13 @@
 
 #define WRITE_VOLATILE(var, value) ({                                \
         union { typeof(var) Value; char Data[1]; } ValueRep =         \
-            { .Value = value };                                      \
+            { .Value = (value) };                                      \
         WriteVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
         ValueRep.Value;                                              \
     })
 
 typedef enum DeviceIoType {
-    DeviceIoInvalid     = 0,
+    DeviceIoInvalid = 0,
     DeviceIoMemoryBased,            // Usually device memory range
     DeviceIoPortBased,              // Usually a port range
     DeviceIoPinBased                // Usually a port/pin combination

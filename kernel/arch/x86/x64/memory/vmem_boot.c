@@ -222,7 +222,7 @@ CreateKernelVirtualMemorySpace(void)
 
     // Identity map the video framebuffer region to a new physical, and then free
     // all the physical mappings allocated for this
-    if (GetMachine()->BootInformation.VbeMode) {
+    if (GetMachine()->BootInformation.Video.FrameBuffer) {
         BytesToMap   = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
         PhysicalBase = VideoGetTerminal()->FrameBufferAddress;
         VirtualBase  = MEMORY_LOCATION_VIDEO;

@@ -339,6 +339,45 @@ TextPutCharacter(
     return OsSuccess;
 }
 
+static void __SetTerminalMode(
+        _In_ struct VBootVideo* video)
+{
+    Terminal.Info.Width                 = video->Width;
+    Terminal.Info.Height                = video->Height;
+    Terminal.Info.Depth                 = 16;
+    Terminal.Info.BytesPerScanline      = 2 * video->Width;
+    Terminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
+    Terminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
+
+    Terminal.CursorLimitX = video->Width;
+    Terminal.CursorLimitY = video->Height;
+    Terminal.FgColor      = (0 << 4) | (15 & 0x0F);
+    Terminal.BgColor      = 0;
+}
+
+static void __SetFramebufferMode(
+        _In_ struct VBootVideo* video)
+{
+    Terminal.FrameBufferAddress         = video->FrameBuffer;
+    Terminal.FrameBufferAddressPhysical = video->FrameBuffer;
+    Terminal.Info.Width                 = video->Width;
+    Terminal.Info.Height                = video->Height;
+    Terminal.Info.Depth                 = (int)video->BitsPerPixel;
+    Terminal.Info.BytesPerScanline      = video->Pitch;
+    Terminal.Info.RedPosition           = (int)video->RedPosition;
+    Terminal.Info.BluePosition          = (int)video->BluePosition;
+    Terminal.Info.GreenPosition         = (int)video->GreenPosition;
+    Terminal.Info.ReservedPosition      = (int)video->ReservedPosition;
+    Terminal.Info.RedMask               = (int)video->RedMask;
+    Terminal.Info.BlueMask              = (int)video->BlueMask;
+    Terminal.Info.GreenMask             = (int)video->GreenMask;
+    Terminal.Info.ReservedMask          = (int)video->ReservedMask;
+    Terminal.CursorLimitX               = Terminal.Info.Width;
+    Terminal.CursorLimitY               = Terminal.Info.Height;
+    Terminal.FgColor                    = 0;
+    Terminal.BgColor                    = 0xFFFFFFFF;
+}
+
 // Unfortunately we have to do the initial parsing before we disable
 // access to the first memory page where this data is located. And this
 // has to be done before create the memory mappings as the virtual paging
@@ -347,75 +386,15 @@ void
 VbeInitialize(void)
 {
     // Which kind of mode has been enabled for us
-    switch (GetMachine()->BootInformation.VbeMode) {
-        // Headless
-        case 0: {
-        } break;
-
-        // Text-Mode (80x25)
-        case 1: {
-            Terminal.Info.Width                 = 80;
-            Terminal.Info.Height                = 25;
-            Terminal.Info.Depth                 = 16;
-            Terminal.Info.BytesPerScanline      = 2 * 80;
-            Terminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
-            Terminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
-
-            Terminal.CursorLimitX = 80;
-            Terminal.CursorLimitY = 25;
-            Terminal.FgColor      = (0 << 4) | (15 & 0x0F);
-            Terminal.BgColor      = 0;
-        } break;
-
-        // Text-Mode (80x50)
-        case 2: {
-            Terminal.Info.Width                 = 80;
-            Terminal.Info.Height                = 50;
-            Terminal.Info.Depth                 = 16;
-            Terminal.Info.BytesPerScanline      = 2 * 80;
-            Terminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
-            Terminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
-
-            Terminal.CursorLimitX = 80;
-            Terminal.CursorLimitY = 50;
-            Terminal.FgColor      = (0 << 4) | (15 & 0x0F);
-            Terminal.BgColor      = 0;
-        } break;
-
-        // VGA-Mode (Graphics)
-        case 3: {
-
-            Terminal.CursorLimitX = Terminal.Info.Width / (MCoreFontWidth + 1);
-            Terminal.CursorLimitY = Terminal.Info.Height / MCoreFontHeight;
-            Terminal.FgColor      = (0 << 4) | (15 & 0x0F);
-            Terminal.BgColor      = 0;
-        } break;
-
-        // VBE-Mode (Graphics)
-        default: {
-            if (GetMachine()->BootInformation.VbeModeInfo) {
-                VbeMode_t* VbeModePointer = (VbeMode_t*)(uintptr_t)GetMachine()->BootInformation.VbeModeInfo;
-                
-                Terminal.FrameBufferAddress         = VbeModePointer->PhysBasePtr;
-                Terminal.FrameBufferAddressPhysical = VbeModePointer->PhysBasePtr;
-                Terminal.Info.Width                 = VbeModePointer->XResolution;
-                Terminal.Info.Height                = VbeModePointer->YResolution;
-                Terminal.Info.Depth                 = VbeModePointer->BitsPerPixel;
-                Terminal.Info.BytesPerScanline      = VbeModePointer->BytesPerScanLine;
-                Terminal.Info.RedPosition           = VbeModePointer->RedMaskPos;
-                Terminal.Info.BluePosition          = VbeModePointer->BlueMaskPos;
-                Terminal.Info.GreenPosition         = VbeModePointer->GreenMaskPos;
-                Terminal.Info.ReservedPosition      = VbeModePointer->ReservedMaskPos;
-                Terminal.Info.RedMask               = VbeModePointer->RedMaskSize;
-                Terminal.Info.BlueMask              = VbeModePointer->BlueMaskSize;
-                Terminal.Info.GreenMask             = VbeModePointer->GreenMaskSize;
-                Terminal.Info.ReservedMask          = VbeModePointer->ReservedMaskSize;
-                Terminal.CursorLimitX               = Terminal.Info.Width;
-                Terminal.CursorLimitY               = Terminal.Info.Height;
-                Terminal.FgColor                    = 0;
-                Terminal.BgColor                    = 0xFFFFFFFF;
-            }
-        } break;
+    if (GetMachine()->BootInformation.Video.FrameBuffer) {
+        __SetFramebufferMode(&GetMachine()->BootInformation.Video);
+    }
+    else {
+        // Either headless or terminal mode
+        if (!GetMachine()->BootInformation.Video.Pitch) {
+            return;
+        }
+        __SetTerminalMode(&GetMachine()->BootInformation.Video);
     }
 }
 
@@ -530,47 +509,29 @@ OsStatus_t
 InitializeFramebufferOutput(void)
 {
     // Which kind of mode has been enabled for us
-    switch (GetMachine()->BootInformation.VbeMode) {
-        // Headless
-        case 0: {
-        } break;
+    if (GetMachine()->BootInformation.Video.FrameBuffer) {
+        size_t   backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+        vaddr_t  backBuffer;
+        int      pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
+        paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
 
-        // Text-Mode (80x25)
-        case 1: {
-            Terminal.AvailableOutputs |= VIDEO_TEXT;
-        } break;
-
-        // Text-Mode (80x50)
-        case 2: {
-            Terminal.AvailableOutputs |= VIDEO_TEXT;
-        } break;
-
-        // VGA-Mode (Graphics)
-        case 3: {
-            Terminal.AvailableOutputs |= VIDEO_GRAPHICS;
-        } break;
-
-        // VBE-Mode (Graphics)
-        default: {
-            if (GetMachine()->BootInformation.VbeModeInfo) {
-                size_t  backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
-                vaddr_t backBuffer;
-                int     pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
-                paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
-
-                if (pages) {
-                    OsStatus_t status = MemorySpaceMap(GetCurrentMemorySpace(), &backBuffer,
-                                                             &pages[0], backBufferSize,
-                                                             MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
-                    if (status == OsSuccess) {
-                        Terminal.BackBufferAddress = backBuffer;
-                    }
-                    kfree(pages);
-                }
-
-                Terminal.AvailableOutputs |= VIDEO_GRAPHICS;
+        if (pages) {
+            OsStatus_t status = MemorySpaceMap(GetCurrentMemorySpace(), &backBuffer,
+                                               &pages[0], backBufferSize,
+                                               MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
+            if (status == OsSuccess) {
+                Terminal.BackBufferAddress = backBuffer;
             }
-        } break;
+            kfree(pages);
+        }
+
+        Terminal.AvailableOutputs |= VIDEO_GRAPHICS;
+    }
+    else {
+        // Either headless or terminal mode
+        if (GetMachine()->BootInformation.Video.Pitch) {
+            Terminal.AvailableOutputs |= VIDEO_TEXT;
+        }
     }
     return OsSuccess;
 }

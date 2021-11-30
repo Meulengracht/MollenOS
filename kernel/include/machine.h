@@ -29,7 +29,7 @@
 #include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <irq_spinlock.h>
-#include <multiboot.h>
+#include <vboot.h>
 #include <time.h>
 #include <utils/static_memory_pool.h>
 
@@ -42,13 +42,12 @@
 typedef struct SystemMachine {
     // System Information
     char                        Architecture[32];
-    char                        Bootloader[32];
     char                        Author[48];
     char                        Date[32];
     unsigned                    VersionMajor;
     unsigned                    VersionMinor;
     unsigned                    VersionRevision;
-    Multiboot_t                 BootInformation;
+    struct VBoot                BootInformation;
 
     // UMA Hardware Resources
     SystemCpu_t     Processor;      // Used in UMA mode
@@ -74,12 +73,14 @@ typedef struct SystemMachine {
 } SystemMachine_t;
 
 /**
+ * @brief Initializes the kernel, this is expected to be the first function called upon
+ * kernel entry.
  *
- * @param BootInformation
+ * @param bootInformation [In] A pointer to the VBoot protocol structure.
  */
-void
+_Noreturn void
 InitializeMachine(
-        _In_ Multiboot_t* BootInformation);
+        _In_ struct VBoot* bootInformation);
 
 /**
  * GetMachine
@@ -110,7 +111,7 @@ InitializeSystemTimers(void);
  */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemory(
-    _In_ Multiboot_t*        bootInformation,
+    _In_ struct VBoot*       bootInformation,
     _In_ bounded_stack_t*    boundedStack,
     _In_ StaticMemoryPool_t* globalAccessMemory,
     _In_ SystemMemoryMap_t*  memoryMap,
