@@ -178,8 +178,6 @@ InitializeSystemMemory(
     
     // So now we go through the memory regions provided by the system and add the physical pages
     // we can use, that are not already pre-allocated by the system.
-    // ISSUE: it seems that the highest address (total number of blocks) actually
-    // exceeds the number of initial blocks available
     TRACE("[pmem] [mem_init] region count %i, block count %u", bootInformation->Memory.NumberOfEntries, count);
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];

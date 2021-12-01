@@ -19,8 +19,10 @@
 #include <console.h>
 #include <library.h>
 #include <Library/PrintLib.h>
+#include <Library/SerialPortLib.h>
 
 static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* gConsoleOut = NULL;
+static BOOLEAN                          gEnabled = FALSE;
 
 EFI_STATUS ConsoleInitialize(void)
 {
@@ -38,21 +40,39 @@ EFI_STATUS ConsoleInitialize(void)
     // Initialize text color, white on black
     gConsoleOut->SetAttribute(gConsoleOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
 
+    // Initialize serial port output
+    SerialPortInitialize();
+
+    // Enable
+    gEnabled = TRUE;
+
     return EFI_SUCCESS;
+}
+
+void ConsoleDisable(void)
+{
+    gEnabled = FALSE;
 }
 
 void ConsoleWrite(
     IN CHAR16* Format,
-    IN ...)
+    IN         ...)
 {
     UINT16  Buffer[512];
     VA_LIST Marker;
     UINTN   Length;
 
-    VA_START(Marker, Format);
-    Length = UnicodeVSPrint(Buffer, sizeof(Buffer) - 1, Format, Marker);
-    VA_END(Marker);
+    if (gEnabled) {
+        VA_START(Marker, Format);
+        Length = UnicodeVSPrint(Buffer, sizeof(Buffer) - 1, Format, Marker);
+        VA_END(Marker);
 
-    Buffer[Length] = 0;
-    gConsoleOut->OutputString(gConsoleOut, &Buffer[0]);
+        Buffer[Length] = 0;
+        gConsoleOut->OutputString(gConsoleOut, &Buffer[0]);
+    }
+
+    VA_START(Marker, Format);
+    Length = AsciiVSPrintUnicodeFormat((CHAR8*)&Buffer[0], sizeof(Buffer) - 1, Format, Marker);
+    VA_END(Marker);
+    SerialPortWrite((UINT8*)&Buffer[0], Length);
 }

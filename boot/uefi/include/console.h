@@ -26,6 +26,8 @@ EFI_STATUS ConsoleInitialize(void);
 
 void EFIAPI ConsoleWrite(
     IN CHAR16* Format,
-    IN ...);
+    IN         ...);
+
+void ConsoleDisable(void);
 
 #endif //!__CONSOLE_H__

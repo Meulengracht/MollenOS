@@ -2,7 +2,7 @@ using System;
 
 namespace OSBuilder.FileSystems
 {
-    public interface IFileSystem
+    public interface IFileSystem : IDisposable
     {
         /**
          * Initializes the filesystem instance at the given position on the given disk
@@ -20,14 +20,14 @@ namespace OSBuilder.FileSystems
         bool ListDirectory(string path);
 
         /** 
-         * Creates a new file or directory with the given path, flags and data
+         * Creates a new file with the given path, flags and data
          */
-        bool WriteFile(string localPath, FileFlags flags, byte[] buffer);
+        bool CreateFile(string localPath, FileFlags flags, byte[] buffer);
+        bool CreateDirectory(string localPath, FileFlags flags);
 
         bool IsBootable();
         byte GetFileSystemType();
         Guid GetFileSystemTypeGuid();
-        Guid GetFileSystemGuid();
         ulong GetSectorStart();
         ulong GetSectorCount();
         string GetName();

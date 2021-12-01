@@ -100,9 +100,9 @@ InitializeMachine(
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
-    
+
     InitializePrimaryProcessor(&Machine.Processor);
-    
+
     // Print build/info-header
     PrintHeader(&Machine.BootInformation);
 
@@ -112,7 +112,7 @@ InitializeMachine(
                                       &Machine.NumberOfMemoryBlocks);
     if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
-        goto StopAndShowError;
+        ArchProcessorHalt();
     }
 
 #ifdef __OSCONFIG_HAS_MMIO

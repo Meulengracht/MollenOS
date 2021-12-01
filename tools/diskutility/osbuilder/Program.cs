@@ -12,41 +12,99 @@ namespace OSBuilder
             return (mb * 1024 * 1024) / (ulong)bytesPerSector;
         }
 
-        static void InstallFolder(FileSystems.IFileSystem fileSystem, string root, FileSystems.FileFlags fileFlags)
+        static byte[] GetFileData(string path)
+        {
+            try
+            {
+                return File.ReadAllBytes(path);
+            }
+            catch (Exception)
+            {
+                Console.WriteLine($"Failed to read file: {path}");
+                return null;
+            }
+        }
+
+        static FileInfo GetFileInfo(string path)
+        {
+            try
+            {
+                return new FileInfo(path);
+            }
+            catch (Exception)
+            {
+                Console.WriteLine($"Failed to stat source: {path}");
+                return null;
+            }
+        }
+
+        static void InstallSource(FileSystems.IFileSystem fileSystem, ProjectSource source)
         {
             if (fileSystem == null)
                 return;
 
-            Console.WriteLine("Installing fs-root: " + System.IO.Directory.GetCurrentDirectory() + "/" + root);
-            string[] directories = Directory.GetDirectories(root, "*", SearchOption.AllDirectories);
+            FileInfo fileInfo = GetFileInfo(source.Path);
+            if (fileInfo == null)
+                return;
 
-            Console.WriteLine("Creating structure");
-            foreach (string dir in directories) {
-                // extract relative path form root to destination
-                string relativePath = dir.Substring(root.Length + 1).Replace('\\', '/');
-                string dirToCreate = dir.Split(Path.DirectorySeparatorChar).Last();
-                Console.WriteLine("Creating: " + relativePath + "  (" + dirToCreate + ")");
+            // strip leading path
+            if (source.Target.StartsWith("/"))
+                source.Target = source.Target.Substring(1);
 
-                // Create the directory
-                if (!fileSystem.WriteFile(relativePath, FileSystems.FileFlags.Directory | fileFlags, null)) {
-                    Console.WriteLine("Failed to create directory: " + dirToCreate);
-                    return;
+            if (fileInfo.Attributes.HasFlag(FileAttributes.Directory))
+            {
+                Console.WriteLine($"Installing directory: {source.Path}");
+
+                // create directory structure first
+                string[] directories = Directory.GetDirectories(source.Path, "*", SearchOption.AllDirectories);
+                foreach (string dir in directories) {
+                    // extract relative path from root to destination
+                    var relativePath = dir.Substring(source.Path.Length + 1).Replace('\\', '/');
+                    var dirToCreate = dir.Split(Path.DirectorySeparatorChar).Last();
+                    var targetPath = source.Target + relativePath;
+
+                    Console.WriteLine("Creating: " + targetPath + "  (" + dirToCreate + ")");
+                    if (!fileSystem.CreateDirectory(targetPath, 0)) {
+                        Console.WriteLine("Failed to create directory: " + dirToCreate);
+                        return;
+                    }
+                }
+
+                // Iterate through deployment folder and install system files
+                string[] installationFiles = Directory.GetFiles(source.Path, "*", SearchOption.AllDirectories);
+                foreach (string file in installationFiles) {
+                    var relativePath = file.Substring(source.Path.Length + 1).Replace('\\', '/');
+                    var targetPath = source.Target + relativePath;
+                    
+                    Console.WriteLine("Copying: " + targetPath);
+                    if (!fileSystem.CreateFile(targetPath, 0, File.ReadAllBytes(file))) {
+                        Console.WriteLine("Failed to install file: " + targetPath);
+                        return;
+                    }
                 }
             }
-
-            // Iterate through deployment folder and install system files
-            Console.WriteLine("Copying files");
-            string[] installationFiles = Directory.GetFiles(root, "*", SearchOption.AllDirectories);
-
-            foreach (string file in installationFiles) {
-                string relativePath = file.Substring(root.Length + 1).Replace('\\', '/');
-                Console.WriteLine("Copying: " + relativePath);
-
-                // Create the file
-                if (!fileSystem.WriteFile(relativePath, fileFlags, File.ReadAllBytes(file))) {
-                    Console.WriteLine("Failed to install file: " + relativePath);
+            else
+            {
+                Console.WriteLine($"Installing file: {source.Path} => {source.Target}");
+                var data = GetFileData(source.Path);
+                if (data == null)
+                {
+                    Console.WriteLine($"Failed to read file: {source.Path}");
                     return;
                 }
+                
+                var rootPath = Path.GetDirectoryName(source.Target);
+                if (!string.IsNullOrEmpty(rootPath))
+                {
+                    if (!fileSystem.CreateDirectory(rootPath, 0))
+                    {
+                        Console.WriteLine("Failed to create directory: " + rootPath);
+                        return;
+                    }
+                }
+
+                if (!fileSystem.CreateFile(source.Target, 0, data))
+                    Console.WriteLine($"Failed to write file: {source.Target}");
             }
         }
 
@@ -150,7 +208,7 @@ namespace OSBuilder
                             Console.WriteLine("No filesystem selected");
                             continue;
                         }
-                        currentFileSystem.WriteFile(targetPath, FileSystems.FileFlags.None, File.ReadAllBytes(sourcePath));
+                        currentFileSystem.CreateFile(targetPath, FileSystems.FileFlags.None, File.ReadAllBytes(sourcePath));
                     } break;
                     case "ls":
                     {
@@ -217,30 +275,24 @@ namespace OSBuilder
             System.Collections.Generic.List<string> attributes)
         {
             FileSystems.FileSystemAttributes attr = FileSystems.FileSystemAttributes.None;
+            if (attributes == null)
+                return attr;
+
             foreach (var attribute in attributes)
             {
                 switch (attribute.ToLower())
                 {
-                    case "efi":
-                        attr |= FileSystems.FileSystemAttributes.EFI;
-                        break;
                     case "boot":
                         attr |= FileSystems.FileSystemAttributes.Boot;
-                        break;
-                    case "system":
-                        attr |= FileSystems.FileSystemAttributes.System;
-                        break;
-                    case "data":
-                        attr |= FileSystems.FileSystemAttributes.Data;
-                        break;
-                    case "user":
-                        attr |= FileSystems.FileSystemAttributes.User;
                         break;
                     case "hidden":
                         attr |= FileSystems.FileSystemAttributes.Hidden;
                         break;
                     case "readonly":
                         attr |= FileSystems.FileSystemAttributes.ReadOnly;
+                        break;
+                    case "noautomount":
+                        attr |= FileSystems.FileSystemAttributes.NoAutoMount;
                         break;
                     default:
                         break;
@@ -253,14 +305,20 @@ namespace OSBuilder
         {
             FileSystems.IFileSystem fileSystem;
             var attributes = GetFileSystemAttributes(partition.Attributes);
-            
+            Guid guid;
+
+            if (!string.IsNullOrEmpty(partition.Guid))
+                guid = Guid.Parse(partition.Guid);
+            else
+                guid = Guid.NewGuid();
+
             switch (partition.Type.ToLower())
             {
                 case "fat":
-                    fileSystem = new FileSystems.FAT.FileSystem(partition.Label, attributes);
+                    fileSystem = new FileSystems.FAT.FileSystem(partition.Label, guid, attributes);
                     break;
                 case "mfs":
-                    fileSystem = new FileSystems.MFS.FileSystem(partition.Label, attributes);
+                    fileSystem = new FileSystems.MFS.FileSystem(partition.Label, guid, attributes);
                     break;
                 default:
                     return null;
@@ -268,9 +326,26 @@ namespace OSBuilder
             return fileSystem;
         }
 
+        static DiskLayouts.IDiskScheme CreateDiskScheme(IDisk disk, ProjectConfiguration config)
+        {
+            DiskLayouts.IDiskScheme scheme;
+
+            // Which kind of disk-scheme?
+            if (config.Scheme.ToLower() == "mbr")
+                scheme = new DiskLayouts.MBR();
+            else if (config.Scheme.ToLower() == "gpt")
+                scheme = new DiskLayouts.GPT();
+            else {
+                throw new Exception("Invalid schema specified in the model");
+            }
+            
+            if (!scheme.Create(disk))
+                throw new Exception("Failed to create disk scheme");
+            return scheme;
+        }
+
         static int SilentInstall(Hashtable drives, string installationType, ProjectConfiguration config)
         {
-            DiskLayouts.IDiskScheme diskScheme;
             IDisk disk;
             
             ulong diskSizeInMBytes = GetMByteCountFromString(config.Size);
@@ -295,15 +370,6 @@ namespace OSBuilder
                 return -1;
             }
 
-            // Which kind of disk-scheme?
-            if (config.Scheme.ToLower() == "mbr")
-                diskScheme = new DiskLayouts.MBR();
-            else if (config.Scheme.ToLower() == "gpt")
-                diskScheme = new DiskLayouts.GPT();
-            else {
-                Console.WriteLine("Invalid option for -scheme");
-                return -1;
-            }
 
             // Create the disk
             if (!disk.Create()) {
@@ -311,32 +377,32 @@ namespace OSBuilder
                 return -1;
             }
 
-            diskScheme.Create(disk);
-            foreach (var partition in config.Partitions)
+            using (var diskScheme = CreateDiskScheme(disk, config))
             {
-                var fileSystem = CreateFileSystem(partition);
-                if (diskScheme.GetFreeSectorCount() == 0)
-                    throw new Exception($"No free sectors left for partition {partition.Label}");
-
-                if (!string.IsNullOrEmpty(partition.Size))
+                foreach (var partition in config.Partitions)
                 {
-                    var partitionSizeMb = GetMByteCountFromString(partition.Size);
-                    var partitionSizeSectors = GetSectorCountFromMB((int)disk.BytesPerSector, partitionSizeMb);
-                    if (diskScheme.GetFreeSectorCount() < partitionSizeSectors)
-                        throw new Exception($"Not enough free space for partition {partition.Label}");
+                    var fileSystem = CreateFileSystem(partition);
+                    if (diskScheme.GetFreeSectorCount() == 0)
+                        throw new Exception($"No free sectors left for partition {partition.Label}");
 
-                    diskScheme.AddPartition(fileSystem, partitionSizeSectors);
-                }
-                else
-                    diskScheme.AddPartition(fileSystem, diskScheme.GetFreeSectorCount());
-                
-                foreach (var source in partition.Sources)
-                {
-                    InstallFolder(fileSystem, source, 0);
+                    if (!string.IsNullOrEmpty(partition.Size))
+                    {
+                        var partitionSizeMb = GetMByteCountFromString(partition.Size);
+                        var partitionSizeSectors = GetSectorCountFromMB((int)disk.BytesPerSector, partitionSizeMb);
+                        if (diskScheme.GetFreeSectorCount() < partitionSizeSectors)
+                            throw new Exception($"Not enough free space for partition {partition.Label}");
+
+                        diskScheme.AddPartition(fileSystem, partitionSizeSectors);
+                    }
+                    else
+                        diskScheme.AddPartition(fileSystem, diskScheme.GetFreeSectorCount());
+                    
+                    foreach (var source in partition.Sources)
+                    {
+                        InstallSource(fileSystem, source);
+                    }
                 }
             }
-
-            diskScheme.Finalize();
             disk.Close();
             return 0;
         }

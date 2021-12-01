@@ -49,6 +49,25 @@ namespace OSBuilder.DiskLayouts
             return true;
         }
 
+        public void Dispose()
+        {
+            if (_disk == null)
+                return;
+            
+            // finalize the MBR layout
+            FinalizeLayout();
+
+            // dispose of filesystems
+            foreach (var fs in _fileSystems)
+            {
+                fs.Dispose();
+            }
+            
+            // cleanup
+            _fileSystems.Clear();
+            _disk = null;
+        }
+
         private void SetPartitionInMBR(byte[] mbr, int partition, FileSystems.IFileSystem fileSystem)
         {
             var byteOffset = 446 + (partition * 16);
@@ -113,14 +132,8 @@ namespace OSBuilder.DiskLayouts
             mbr[446 + (partition * 16) + 4] = 0x00;
         }
 
-        /**
-         * Finalizes a disk opened or created by Open/Create
-         */
-        public bool Finalize()
+        private void FinalizeLayout()
         {
-            if (_disk == null)
-                return false;
-
             // Load up mbr and build the partition table
             Console.WriteLine("Finalize - loading mbr (mbr.sys)");
             byte[] mbr = File.ReadAllBytes("deploy/mbr.sys");
@@ -139,7 +152,6 @@ namespace OSBuilder.DiskLayouts
             }
 
             _disk.Write(mbr, 0, true);
-            return true;
         }
 
         /**

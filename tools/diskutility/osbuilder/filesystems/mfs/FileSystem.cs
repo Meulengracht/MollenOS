@@ -31,7 +31,7 @@ namespace OSBuilder.FileSystems.MFS
         private static readonly ulong GIGABYTE = (MEGABYTE * 1024);
 
         private String _partitionName;
-        private Guid _partitionGuid = Guid.NewGuid();
+        private Guid _partitionGuid;
         private bool _bootable = false;
         private PartitionFlags _partitionFlags = 0;
         private IDisk _disk = null;
@@ -612,24 +612,33 @@ namespace OSBuilder.FileSystems.MFS
             _bucketMap.Open(bucketMapOffset, freeBucketIndex);
         }
 
-        public FileSystem(string partitionName, FileSystemAttributes attributes)
+        public FileSystem(string partitionName, Guid partitionGuid, FileSystemAttributes attributes)
         {
             _partitionName = partitionName;
+            _partitionGuid = partitionGuid;
             if (attributes.HasFlag(FileSystemAttributes.Boot)) {
                 _bootable = true;
             }
-            if (attributes.HasFlag(FileSystemAttributes.System)) {
+            
+            if (partitionGuid == DiskLayouts.GPTGuids.ValiSystemPartition) {
                 _partitionFlags |= PartitionFlags.SystemDrive;
             }
-            if (attributes.HasFlag(FileSystemAttributes.Data)) {
+            if (partitionGuid == DiskLayouts.GPTGuids.ValiDataUserPartition ||
+                partitionGuid == DiskLayouts.GPTGuids.ValiDataPartition) {
                 _partitionFlags |= PartitionFlags.DataDrive;
             }
-            if (attributes.HasFlag(FileSystemAttributes.User)) {
+            if (partitionGuid == DiskLayouts.GPTGuids.ValiDataUserPartition ||
+                partitionGuid == DiskLayouts.GPTGuids.ValiUserPartition) {
                 _partitionFlags |= PartitionFlags.UserDrive;
             }
             if (attributes.HasFlag(FileSystemAttributes.Hidden)) {
                 _partitionFlags |= PartitionFlags.HiddenDrive;
             }
+        }
+
+        public void Dispose()
+        {
+            
         }
 
         public void Initialize(IDisk disk, ulong startSector, ulong sectorCount)
@@ -967,14 +976,12 @@ namespace OSBuilder.FileSystems.MFS
             Console.WriteLine("Files in " + Path + ":");
             ListRecursive(RootBucket, Path);
             Console.WriteLine("");
-
-            // Done
             return true;
         }
 
         /* WriteFile 
          * Creates a new file or directory with the given path, flags and data */
-        public bool WriteFile(string localPath, FileFlags fileFlags, byte[] fileContents)
+        public bool CreateFile(string localPath, FileFlags fileFlags, byte[] fileContents)
         {
             if (_disk == null)
                 return false;
@@ -1143,6 +1150,11 @@ namespace OSBuilder.FileSystems.MFS
             return true;
         }
 
+        public bool CreateDirectory(string localPath, FileFlags flags)
+        {
+            return CreateFile(localPath, flags | FileFlags.Directory, null);
+        }
+
         public bool IsBootable()
         {
             return _bootable;
@@ -1154,11 +1166,6 @@ namespace OSBuilder.FileSystems.MFS
         }
         
         public Guid GetFileSystemTypeGuid()
-        {
-            return DiskLayouts.GPTGuids.Mfs;
-        }
-
-        public Guid GetFileSystemGuid()
         {
             return _partitionGuid;
         }

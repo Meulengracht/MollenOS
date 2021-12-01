@@ -27,7 +27,8 @@ EFI_STATUS LibraryInitialize(
     IN EFI_HANDLE        ImageHandle,
     IN EFI_SYSTEM_TABLE* SystemTable);
 
-EFI_STATUS LibraryCleanup(void);
+EFI_STATUS LibraryCleanup(
+    IN struct VBoot* VBoot);
 
 EFI_STATUS LibraryAllocateMemory(
     IN UINTN   Size,
@@ -35,8 +36,5 @@ EFI_STATUS LibraryAllocateMemory(
 
 EFI_STATUS LibraryFreeMemory(
     IN VOID* Memory);
-
-EFI_STATUS LibraryGetMemoryMap(
-    IN struct VBoot* VBoot);
 
 #endif //!__LIBRARY_H__

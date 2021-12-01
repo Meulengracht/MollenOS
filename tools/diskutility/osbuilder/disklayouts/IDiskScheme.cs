@@ -1,8 +1,10 @@
+
+using System;
 using System.Collections.Generic;
 
 namespace OSBuilder.DiskLayouts
 {
-    public interface IDiskScheme
+    public interface IDiskScheme : IDisposable
     {
         /**
          * Initializes a disk with the existing disk-scheme and gathers
@@ -20,11 +22,6 @@ namespace OSBuilder.DiskLayouts
          * Adds a new partition of the filesystem given, with the given size
          */
         bool AddPartition(FileSystems.IFileSystem fileSystem, ulong sectorCount);
-
-        /**
-         * Finalizes a disk opened or created by Open/Create
-         */
-        bool Finalize();
 
         /** 
          * Retrieves the number of free sectors available for the next partition

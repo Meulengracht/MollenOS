@@ -22,7 +22,6 @@
 EFI_HANDLE         gImageHandle;
 EFI_SYSTEM_TABLE*  gSystemTable;
 EFI_BOOT_SERVICES* gBootServices;
-UINTN              gMemoryMapKey;
 
 EFI_STATUS LibraryInitialize(
   IN EFI_HANDLE        ImageHandle,
@@ -35,45 +34,23 @@ EFI_STATUS LibraryInitialize(
     return EFI_SUCCESS;
 }
 
-EFI_STATUS LibraryCleanup(void)
-{
-    EFI_STATUS Status;
-    
-    Status = gBootServices->ExitBootServices(gImageHandle, gMemoryMapKey);
-    if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"Failed to exit boot services: %r\n", Status);
-    }
-    return Status;
-}
-
-EFI_STATUS LibraryAllocateMemory(
-    IN UINTN   Size,
-    OUT VOID** Memory)
-{
-    return gBootServices->AllocatePool(EfiLoaderData, Size, Memory);
-}
-
-EFI_STATUS LibraryFreeMemory(
-    IN VOID* Memory)
-{
-    return gBootServices->FreePool(Memory);
-}
-
 EFI_STATUS __GetMemoryInformation(
     OUT UINTN*  MemoryMapSize,
     OUT UINTN*  DescriptorSize)
 {
     EFI_STATUS Status;
     UINTN      MapSize = 0;
+    UINTN      MapKey;
     UINT32     DescriptorVersion;
     
     Status = gBootServices->GetMemoryMap(
         &MapSize, NULL, 
-        &gMemoryMapKey,
+        &MapKey,
         DescriptorSize,
         &DescriptorVersion
     );
     if (Status != EFI_BUFFER_TOO_SMALL && EFI_ERROR(Status)) {
+        ConsoleWrite(L"__GetMemoryInformation failed to get memory map %r\n", Status);
         return Status;
     }
     
@@ -82,37 +59,47 @@ EFI_STATUS __GetMemoryInformation(
 }
 
 EFI_STATUS __GetMemoryMap(
-    OUT VOID**  MemoryMap,
-    OUT UINTN*  DescriptorCount)
+    OUT VOID** MemoryMap,
+    OUT UINTN* MemoryMapKey,
+    OUT UINTN* DescriptorCount,
+    OUT UINTN* DescriptorSize)
 {
     EFI_STATUS             Status;
     UINTN                  MemoryMapSize;
-    UINTN                  DescriptorSize;
     UINT32                 DescriptorVersion;
-    UINTN                  MapKey;
+    UINTN                  DescriptorSizeLocal;
     EFI_MEMORY_DESCRIPTOR* MemoryMapLocal;
+    ConsoleWrite(L"__GetMemoryMap()\n");
 
     // Get memory information
-    Status = __GetMemoryInformation(&MemoryMapSize, &DescriptorSize);
+    Status = __GetMemoryInformation(&MemoryMapSize, &DescriptorSizeLocal);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__GetMemoryMap failed to get memory information\n");
         return Status;
     }
+
+    // add additional entries for the next allocation, up to 2 additional entries
+    // can be allocated
+    MemoryMapSize += 2 * DescriptorSizeLocal;
 
     // Allocate memory for the memory map
     Status = LibraryAllocateMemory(MemoryMapSize, (VOID**)&MemoryMapLocal);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__GetMemoryMap failed to allocate memory\n");
         return Status;
     }
 
     Status = gBootServices->GetMemoryMap(&MemoryMapSize, 
-        MemoryMapLocal, &MapKey, &DescriptorSize, &DescriptorVersion
+        MemoryMapLocal, MemoryMapKey, &DescriptorSizeLocal, &DescriptorVersion
     );
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__GetMemoryMap failed to get memory map %r\n", Status);
         return Status;
     }
 
     *MemoryMap       = MemoryMapLocal;
-    *DescriptorCount = MemoryMapSize / DescriptorSize;
+    *DescriptorCount = MemoryMapSize / DescriptorSizeLocal;
+    *DescriptorSize  = DescriptorSizeLocal;
     return EFI_SUCCESS;
 }
 
@@ -122,10 +109,10 @@ enum VBootMemoryType __ConvertEfiType(
     switch (Type) {
         case EfiLoaderCode:
         case EfiLoaderData:
-            return VBootMemoryType_Available;
-
         case EfiBootServicesCode:
         case EfiBootServicesData:
+            return VBootMemoryType_Available;
+
         case EfiRuntimeServicesCode:
         case EfiRuntimeServicesData:
         case EfiMemoryMappedIO:
@@ -144,48 +131,60 @@ enum VBootMemoryType __ConvertEfiType(
     }
 }
 
-EFI_STATUS LibraryGetMemoryMap(
+EFI_STATUS __AllocateVBootMemory(
     IN struct VBoot* VBoot)
 {
-    EFI_STATUS             Status;
-    VOID*                  MemoryMap;
-    UINTN                  MemoryMapSize;
-    UINTN                  DescriptorCount;
-    UINTN                  DescriptorSize;
-    UINTN                  i;
-    ConsoleWrite(L"LibraryGetMemoryMap()\n");
+    EFI_STATUS Status;
+    UINTN      MemoryMapSize;
+    UINTN      DescriptorCount;
+    UINTN      DescriptorSize;
+    ConsoleWrite(L"__AllocateVBootMemory()\n");
 
     Status = __GetMemoryInformation(&MemoryMapSize, &DescriptorSize);
     if (EFI_ERROR(Status)) {
         return Status;
     }
 
+    // add additional entries for the next allocation, up to 2 times 2 additional entries
+    // can be allocated, to take into account the next allocations
+    MemoryMapSize += 4 * DescriptorSize;
+
     // calculate the number of vboot entries we need, include one extra
     // as we need to take into account the allocation we are going to make
     DescriptorCount = (MemoryMapSize / DescriptorSize) + 1;
-    ConsoleWrite(L"LibraryGetMemoryMap allocation %lu vboot memory entries\n",
-        DescriptorCount);
     Status = LibraryAllocateMemory(
         sizeof(struct VBootMemoryEntry) * DescriptorCount,
         (VOID**)&VBoot->Memory.Entries 
     );
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
+    return Status;
+}
+
+EFI_STATUS __FillMemoryMap(
+    IN  struct VBoot* VBoot,
+    OUT VOID**        MemoryMap,
+    OUT UINTN*        MemoryMapKey)
+{
+    EFI_STATUS             Status;
+    VOID*                  MemoryMapLocal;
+    UINTN                  DescriptorCount;
+    UINTN                  DescriptorSize;
+    UINTN                  i;
+    ConsoleWrite(L"__FillMemoryMap()\n");
 
     // Now retrieve the final memory map
-    Status = __GetMemoryMap(&MemoryMap, &DescriptorCount);
+    Status = __GetMemoryMap(&MemoryMapLocal, MemoryMapKey, &DescriptorCount, &DescriptorSize);
     if (EFI_ERROR(Status)) {
         return Status;
     }
 
-    ConsoleWrite(L"LibraryGetMemoryMap Actual descriptor count=%lu\n", DescriptorCount);
+    VBoot->Memory.NumberOfEntries = 0;
+    ConsoleWrite(L"__FillMemoryMap Filling %lu entries\n", DescriptorCount);
     for (i = 0; i < DescriptorCount; i++) {
-        EFI_MEMORY_DESCRIPTOR* MemoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MemoryMap + (i * DescriptorSize));
+        EFI_MEMORY_DESCRIPTOR* MemoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MemoryMapLocal + (i * DescriptorSize));
         enum VBootMemoryType Type = __ConvertEfiType(MemoryDescriptor->Type);
-        ConsoleWrite(L"ENTRY %lu: Type=%u, PhysicalBase=0x%lx, NumberOfPages=0x%lx\n",
-            i, MemoryDescriptor->Type,
-            MemoryDescriptor->PhysicalStart, MemoryDescriptor->NumberOfPages);
+        ConsoleWrite(L"ENTRY %lu: Type=%u, PhysicalBase=0x%lx, VirtualBase=0x%lx, NumberOfPages=0x%lx\n",
+            i, MemoryDescriptor->Type, MemoryDescriptor->PhysicalStart, 
+            MemoryDescriptor->VirtualStart, MemoryDescriptor->NumberOfPages);
         
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;
@@ -194,7 +193,49 @@ EFI_STATUS LibraryGetMemoryMap(
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Attributes   = MemoryDescriptor->Attribute;
         VBoot->Memory.NumberOfEntries++;
     }
-
-    LibraryFreeMemory(MemoryMap);
+    *MemoryMap = MemoryMapLocal;
     return EFI_SUCCESS;
+}
+
+EFI_STATUS LibraryCleanup(
+    IN struct VBoot* VBoot)
+{
+    EFI_STATUS Status;
+
+    Status = __AllocateVBootMemory(VBoot);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    Status = EFI_INVALID_PARAMETER;
+    while (Status != EFI_SUCCESS) {
+        VOID* MemoryMap;
+        UINTN MemoryMapKey;
+
+        Status = __FillMemoryMap(VBoot, &MemoryMap, &MemoryMapKey);
+        if (EFI_ERROR(Status)) {
+            ConsoleWrite(L"Failed to get memory map: %r\n", Status);
+            return Status;
+        }
+        
+        Status = gBootServices->ExitBootServices(gImageHandle, MemoryMapKey);
+        if (EFI_ERROR(Status)) {
+            ConsoleWrite(L"Failed to exit boot services: %r\n", Status);
+            LibraryFreeMemory(MemoryMap);
+        }
+    }
+    return Status;
+}
+
+EFI_STATUS LibraryAllocateMemory(
+    IN UINTN   Size,
+    OUT VOID** Memory)
+{
+    return gBootServices->AllocatePool(EfiLoaderData, Size, Memory);
+}
+
+EFI_STATUS LibraryFreeMemory(
+    IN VOID* Memory)
+{
+    return gBootServices->FreePool(Memory);
 }

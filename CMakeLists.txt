@@ -143,13 +143,13 @@ add_custom_target (install_prepare
 add_dependencies(install_prepare tools)
 
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-bios.yaml --target img
+    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-uefi.yaml --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_img install_prepare install_applications)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-bios.yaml --target vmdk
+    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-uefi.yaml --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare install_applications)
@@ -163,6 +163,17 @@ add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS mollenos_usb.img
+)
+
+add_custom_target (run_qemu
+        COMMAND qemu-system-x86_64
+            -enable-kvm -smp 1 -m 1024
+            -bios /usr/share/OVMF/OVMF_CODE.fd
+            -drive if=virtio,file=mollenos.img,format=raw
+            -net none
+            -serial mon:stdio
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        USES_TERMINAL
 )
 
 add_custom_target(package

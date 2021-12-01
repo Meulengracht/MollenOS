@@ -166,10 +166,12 @@ EFI_STATUS __AllocateKernelStack(
     IN  UINTN  Size,
     OUT VOID** Stack)
 {
-    EFI_STATUS           Status;
     EFI_PHYSICAL_ADDRESS StackBase;
 
-    Status = gBootServices->AllocatePages(
+#if defined(__amd64__) || defined(__i386__)
+    StackBase = LOADER_KERNEL_BASE - Size;
+#else
+    EFI_STATUS Status = gBootServices->AllocatePages(
         AllocateAnyPages,
         EfiRuntimeServicesData,
         EFI_SIZE_TO_PAGES(Size),
@@ -179,6 +181,7 @@ EFI_STATUS __AllocateKernelStack(
         ConsoleWrite(L"__AllocateKernelStack Failed to allocate stack\n");
         return Status;
     }
+#endif
 
     *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
     return EFI_SUCCESS;

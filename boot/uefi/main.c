@@ -76,11 +76,6 @@ static EFI_STATUS __InitializeBootDescriptor(void)
     return Status;
 }
 
-static void __BREAK(void)
-{
-    for(;;);
-}
-
 // Jump into kernel fun-land :-)
 static void __JumpToKernel(
     IN EFI_PHYSICAL_ADDRESS EntryPoint,
@@ -88,6 +83,8 @@ static void __JumpToKernel(
 {
     BASE_LIBRARY_JUMP_BUFFER JumpBuffer;
     SetMem(&JumpBuffer, sizeof(BASE_LIBRARY_JUMP_BUFFER), 0);
+    ConsoleWrite(L"__JumpToKernel(EntryPoint=0x%lx, KernelStack=0x%lx)\n",
+        EntryPoint, KernelStack);
 
 #if defined(__amd64__)
     JumpBuffer.Rbx = (UINTN)gBootDescriptor;
@@ -157,16 +154,12 @@ EFI_STATUS EFIAPI EfiMain (
     }
 
     // Last step is to get the memory map before moving to kernel
-    Status = LibraryGetMemoryMap(gBootDescriptor);
+    Status = LibraryCleanup(gBootDescriptor);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to get memory map\n");
         return Status;
     }
 
-    __BREAK();
-
-    // Cleanup bootloader systems
-    LibraryCleanup();
     __JumpToKernel(EntryPoint, KernelStack);
     return EFI_SUCCESS;
 }

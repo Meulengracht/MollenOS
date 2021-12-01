@@ -9,16 +9,21 @@ size: 2GB
 partitions:
   - label: vali-system
     type: MFS
+    guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
+    # attributes can be boot, readonly, shadow, noautomount
     attributes:
       - boot
-      - system
+      - readonly
     size: 128MB
     sources:
-      - deploy/hdd/system
+      - type: dir
+        path: deploy/hdd/system
+        target: /
+
   - label: vali-data
     type: MFS
-    attributes:
-      - data
-      - user
+    guid: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
     sources:
-      - deploy/hdd/shared
+      - type: dir
+        path: deploy/hdd/shared
+        target: /

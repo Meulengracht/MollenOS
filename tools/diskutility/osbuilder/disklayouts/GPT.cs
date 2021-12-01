@@ -24,7 +24,10 @@ namespace OSBuilder.DiskLayouts
             {
                 var entry = GPTPartitionEntry.Parse(data, (int)(i * entrySize));
                 var partitionSize = (entry.LastSector - entry.FirstSector) + 1;
-                if (entry.TypeGuid == GPTGuids.Mfs)
+                if (entry.TypeGuid == GPTGuids.ValiSystemPartition ||
+                    entry.TypeGuid == GPTGuids.ValiDataPartition ||
+                    entry.TypeGuid == GPTGuids.ValiUserPartition ||
+                    entry.TypeGuid == GPTGuids.ValiDataUserPartition)
                 {
                     _fileSystems.Add(new FileSystems.MFS.FileSystem(_disk, entry.FirstSector, partitionSize));
                 }
@@ -90,6 +93,25 @@ namespace OSBuilder.DiskLayouts
             return true;
         }
 
+        public void Dispose()
+        {
+            if (_disk == null)
+                return;
+            
+            // finalize the GPT layout
+            FinalizeLayout();
+
+            // dispose of filesystems
+            foreach (var fs in _fileSystems)
+            {
+                fs.Dispose();
+            }
+            
+            // cleanup
+            _fileSystems.Clear();
+            _disk = null;
+        }
+
         public bool AddPartition(FileSystems.IFileSystem fileSystem, ulong sectorCount)
         {
             ulong partitionSize = sectorCount;
@@ -136,7 +158,7 @@ namespace OSBuilder.DiskLayouts
             var entry = new GPTPartitionEntry();
             entry.Name = fileSystem.GetName();
             entry.TypeGuid = fileSystem.GetFileSystemTypeGuid();
-            entry.UniqueId = fileSystem.GetFileSystemGuid();
+            entry.UniqueId = Guid.NewGuid();
             entry.FirstSector = fileSystem.GetSectorStart();
             entry.LastSector = fileSystem.GetSectorStart() + fileSystem.GetSectorCount() - 1;
             entry.Attributes = GetAttributes(fileSystem);
@@ -184,11 +206,11 @@ namespace OSBuilder.DiskLayouts
             return true;
         }
 
-        public bool Finalize()
+        private void FinalizeLayout()
         {
             // write the protective MBR
             if (!WriteMBR())
-                return false;
+                throw new Exception("Failed to write protective MBR");
 
             // updated shared values
             _header.NumberOfPartitionEntries = (uint)_fileSystems.Count;
@@ -200,13 +222,14 @@ namespace OSBuilder.DiskLayouts
             _header.BackupLBA = _disk.SectorCount - 1;
             _header.PartitionEntryLBA = 2;
             if (!WriteGPT(false))
-                return false;
+                throw new Exception("Failed to write primary GPT");
 
             // update the gpt header with some values for the secondary copy
             _header.CurrentLBA = _disk.SectorCount - 1;
             _header.BackupLBA = 1;
             _header.PartitionEntryLBA = _header.LastUsableLBA + 1;
-            return WriteGPT(true);
+            if (!WriteGPT(true))
+                throw new Exception("Failed to write backup GPT");
         }
 
         public ulong GetFreeSectorCount()

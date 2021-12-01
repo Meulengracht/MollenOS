@@ -46,14 +46,14 @@ static EFI_GUID gGraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 static EFI_GRAPHICS_OUTPUT_PROTOCOL* gGraphicsOutput = NULL;
 
 static struct PrefferedMode { int Width; int Height; int BitsPerPixel; } gPrefferedModes[] = {
-    { 8192, 4320, 32 },
-    { 7680, 4320, 32 },
-    { 5120, 2880, 32 },
-    { 4096, 2160, 32 },
-    { 3840, 2160, 32 },
-    { 2560, 1440, 32 },
-    { 1920, 1080, 32 },
-    { 1600, 1200, 32 },
+    //{ 8192, 4320, 32 },
+    //{ 7680, 4320, 32 },
+    //{ 5120, 2880, 32 },
+    //{ 4096, 2160, 32 },
+    //{ 3840, 2160, 32 },
+    //{ 2560, 1440, 32 },
+    //{ 1920, 1080, 32 },
+    //{ 1600, 1200, 32 },
     { 1280, 1024, 32 },
     { 1024, 768, 32 },
     { 640, 480, 32 },
@@ -177,9 +177,6 @@ EFI_STATUS __GetVideoModes(
         if (EFI_ERROR(Status)) {
             continue;
         }
-
-        ConsoleWrite(L"FOUND: Width=%d, Height=%d, BitsPerPixel=%d\n",
-            Modes[j].Width, Modes[j].Height, Modes[j].BitsPerPixel);
         j++;
     }
 
@@ -269,6 +266,9 @@ EFI_STATUS VideoInitialize(
     if (EFI_ERROR(Status)) {
         goto exit;
     }
+
+    // Disable console output now that video mode is enabled
+    ConsoleDisable();
 
     // Update the VBoot structure to the new mode
     VBoot->Video.Width = PrefferedMode->Width;
