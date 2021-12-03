@@ -163,15 +163,12 @@ cleanup:
 }
 
 EFI_STATUS __AllocateKernelStack(
-    IN  UINTN  Size,
-    OUT VOID** Stack)
+    IN  struct VBoot* VBoot,
+    IN  UINTN         Size,
+    OUT VOID**        Stack)
 {
     EFI_PHYSICAL_ADDRESS StackBase;
-
-#if defined(__amd64__) || defined(__i386__)
-    StackBase = LOADER_KERNEL_BASE - Size;
-#else
-    EFI_STATUS Status = gBootServices->AllocatePages(
+    EFI_STATUS           Status = gBootServices->AllocatePages(
         AllocateAnyPages,
         EfiRuntimeServicesData,
         EFI_SIZE_TO_PAGES(Size),
@@ -181,10 +178,25 @@ EFI_STATUS __AllocateKernelStack(
         ConsoleWrite(L"__AllocateKernelStack Failed to allocate stack\n");
         return Status;
     }
-#endif
+
+    // Update the VBoot structure
+    VBoot->Stack.Base   = (VOID*)StackBase;
+    VBoot->Stack.Length = Size;
 
     *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
     return EFI_SUCCESS;
+}
+
+EFI_STATUS __AllocateRamdiskSpace(
+    IN  UINTN  Size,
+    OUT VOID** Memory)
+{
+    return gBootServices->AllocatePages(
+        AllocateAnyPages,
+        EfiRuntimeServicesData,
+        EFI_SIZE_TO_PAGES(Size),
+        (EFI_PHYSICAL_ADDRESS*)Memory
+    );
 }
 
 EFI_STATUS LoadKernel(
@@ -228,6 +240,10 @@ EFI_STATUS LoadKernel(
         return Status;
     }
 
+    // Update the VBoot structure
+    VBoot->Kernel.Data   = (VOID*)ImageContext.ImageAddress;
+    VBoot->Kernel.Length = ImageContext.ImageSize;
+
     // Flush not needed for all architectures. We could have a processor specific
     // function in this library that does the no-op if needed.
     InvalidateInstructionCacheRange(
@@ -243,8 +259,12 @@ EFI_STATUS LoadKernel(
         return Status;
     }
 
-    VBoot->Ramdisk.Data   = (VOID*)LOADER_RAMDISK_BASE;
     VBoot->Ramdisk.Length = (UINT32)BufferSize;
+    Status = __AllocateRamdiskSpace(BufferSize, &VBoot->Ramdisk.Data);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+    
     ConsoleWrite(L"LoadKernel Loaded ramdisk at 0x%x, Size=0x%x\n", 
         VBoot->Ramdisk.Data, BufferSize);
 
@@ -252,7 +272,7 @@ EFI_STATUS LoadKernel(
     LibraryFreeMemory(Buffer);
 
     // Allocate a stack for the kernel
-    Status = __AllocateKernelStack(LOADER_KERNEL_STACK_SIZE, KernelStack);
+    Status = __AllocateKernelStack(VBoot, LOADER_KERNEL_STACK_SIZE, KernelStack);
     if (EFI_ERROR(Status)) {
         return Status;
     }

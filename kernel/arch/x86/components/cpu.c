@@ -25,7 +25,6 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <interrupts.h>
 #include <machine.h>
 #include <memory.h>
 #include <smbios.h>
@@ -45,9 +44,9 @@
 #define __get_cpuid(Function, Registers) __cpuid(Registers, Function);
 #else
 #include <cpuid.h>
-#define __get_cpuid(Function, Registers) __cpuid(Function, Registers[0], Registers[1], Registers[2], Registers[3]);
+#define __get_cpuid(Function, Registers) __cpuid(Function, (Registers)[0], (Registers)[1], (Registers)[2], (Registers)[3]);
 #endif
-#define isspace(c) ((c >= 0x09 && c <= 0x0D) || (c == 0x20))
+#define isspace(c) (((c) >= 0x09 && (c) <= 0x0D) || ((c) == 0x20))
 
 extern void __wbinvd(void);
 extern void __hlt(void);
@@ -90,14 +89,14 @@ ExtractCoreTopology(
     _Out_ int*  CoreBits,
     _Out_ int*  LogicalBits)
 {
-	uint32_t CpuRegisters[4] = { 0 };
+	uint32_t cpuRegisters[4] = {0 };
 	
     if (!strncmp(Brand, CPUID_VENDOR_OLDAMD, 12) ||
         !strncmp(Brand, CPUID_VENDOR_AMD, 12)) {
-        __get_cpuid(0x80000008, CpuRegisters);
+        __get_cpuid(0x80000008, cpuRegisters);
     }
     else if (!strncmp(Brand, CPUID_VENDOR_INTEL, 12)) {
-        __get_cpuid(0xB, CpuRegisters);
+        __get_cpuid(0xB, cpuRegisters);
         *LogicalBits = 0;
     }
     // https://wiki.osdev.org/Detecting_CPU_Topology_(80x86)
@@ -138,7 +137,7 @@ ArchProcessorInitialize(
         Processor->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
         Processor->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
         if (CpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
-            Processor->NumberOfCores = (CpuRegisters[1] >> 16) & 0xFF;
+            Processor->NumberOfCores = (int)((CpuRegisters[1] >> 16) & 0xFF);
             PrimaryCore->Id          = (CpuRegisters[1] >> 24) & 0xFF;
         }
         
@@ -178,7 +177,7 @@ ArchProcessorInitialize(
     IdtInitialize();
     PicInitialize();
     VbeInitialize();
-    SmBiosInitialize(NULL);
+    SmBiosInitialize();
 }
 
 void

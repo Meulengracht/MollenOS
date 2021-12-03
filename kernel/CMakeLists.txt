@@ -54,6 +54,7 @@ add_executable (vali-core
 
 	# Memory
 	memory/heap.c
+	memory/memory.c
 	memory/memory_region.c
 	memory/memory_space.c
     

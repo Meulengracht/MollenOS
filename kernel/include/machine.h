@@ -105,22 +105,30 @@ KERNELAPI OsStatus_t KERNELABI
 InitializeSystemTimers(void);
 
 /**
- * InitializeSystemMemory (@arch)
- * Initializes the entire system memory range, selecting ranges that should
+ * @brief Initializes the entire system memory range, selecting ranges that should
  * be reserved and those that are free for system use.
+ *
+ * @param machine [In] The machine to initialize memory systems for.
+ * @return             Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
-InitializeSystemMemory(
-    _In_ struct VBoot*       bootInformation,
-    _In_ bounded_stack_t*    boundedStack,
-    _In_ StaticMemoryPool_t* globalAccessMemory,
-    _In_ SystemMemoryMap_t*  memoryMap,
-    _In_ size_t*             memoryGranularityOut,
-    _In_ size_t*             numberOfMemoryBlocksOut);
+MachineInitializeMemorySystems(
+        _In_ SystemMachine_t* machine);
 
 /**
- * AllocatePhysicalMemory
- * Tries to allocate the requested number of memory pages
+ *
+ * @param size
+ * @param memory
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+MachineAllocateBootMemory(
+        _In_  size_t size,
+        _Out_ void** memory);
+
+/**
+ * @brief Tries to allocate the requested number of memory pages
+ *
  * @param PageCount The number of physical memory pages to allocate
  * @return          The status of the operation
  */

@@ -90,6 +90,13 @@ VideoPutCharacter(
     _In_ int character);
 
 /**
+ * Initializes the serial output for the operating system. This is the output that is
+ * always active if a serial port is present.
+ */
+KERNELAPI OsStatus_t KERNELABI
+SerialPortInitialize(void);
+
+/**
  * Outputs a character to the default serial port if available.
  * @param character [In] The character to write
  */

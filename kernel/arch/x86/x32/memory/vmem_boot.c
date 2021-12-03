@@ -38,15 +38,13 @@
 #include <memory.h>
 #include <string.h>
 
-extern void memory_set_paging(int enable);
-extern uintptr_t AllocateBootMemory(size_t);
-extern uintptr_t g_lastReservedAddress;
+extern uintptr_t g_bootMemoryAddress;
 
-static uintptr_t PDBootPhysicalAddress = 0;
+uintptr_t g_kernelcr3 = 0;
 
 STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
 
-#define GET_TABLE_HELPER(MasterTable, Address) ((PageTable_t*)MasterTable->vTables[PAGE_DIRECTORY_INDEX(Address)])
+#define GET_TABLE_HELPER(MasterTable, Address) ((PageTable_t*)(MasterTable)->vTables[PAGE_DIRECTORY_INDEX(Address)])
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // by the static assert
@@ -61,64 +59,67 @@ CREATE_STRUCTURE_HELPER(PageTable_t, PageTable)
 
 static void 
 MmVirtualFillPageTable(
-        _In_ PageTable_t*       Table,
-        _In_ paddr_t  PhysicalAddress,
-        _In_ vaddr_t   VirtualAddress,
-        _In_ unsigned int            Flags,
-        _In_ size_t             Length)
+        _In_ PageTable_t* pageTable,
+        _In_ paddr_t      physicalAddress,
+        _In_ vaddr_t      virtualAddress,
+        _In_ unsigned int flags,
+        _In_ size_t       length)
 {
-	uintptr_t pAddress = PhysicalAddress | Flags;
-	int       PtStart  = PAGE_TABLE_INDEX(VirtualAddress);
-	int       PtEnd    = MIN(PtStart + DIVUP(Length, PAGE_SIZE), ENTRIES_PER_PAGE);
+	uintptr_t address = physicalAddress | flags;
+	int       ptStart = PAGE_TABLE_INDEX(virtualAddress);
+	int       ptEnd   = MIN(ptStart + DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE);
 
 	// Iterate through pages and map them
-	for (; PtStart < PtEnd; PtStart++, pAddress += PAGE_SIZE) {
-        atomic_store(&Table->Pages[PtStart], pAddress);
+	for (; ptStart < ptEnd; ptStart++, address += PAGE_SIZE) {
+        atomic_store(&pageTable->Pages[ptStart], address);
 	}
 }
 
 static void
 MmVirtualMapMemoryRange(
-        _In_ PageDirectory_t* Directory,
-        _In_ vaddr_t AddressStart,
-        _In_ size_t           Length,
-        _In_ unsigned int          Flags)
+        _In_ PageDirectory_t* pageDirectory,
+        _In_ vaddr_t          addressStart,
+        _In_ size_t           length,
+        _In_ unsigned int     flags)
 {
-    int PdStart = PAGE_DIRECTORY_INDEX(AddressStart);
-    int PdEnd   = PdStart + DIVUP(Length, TABLE_SPACE_SIZE);
+    int pdStart = PAGE_DIRECTORY_INDEX(addressStart);
+    int pdEnd   = pdStart + (int)(DIVUP(length, TABLE_SPACE_SIZE));
     int i;
 
-    for (i = PdStart; i < PdEnd; i++) {
-        if (Directory->vTables[i] == 0) {
-            Directory->vTables[i] = (uintptr_t)MmVirtualCreatePageTable();
-            atomic_store(&Directory->pTables[i], Directory->vTables[i] | Flags);
+    for (i = pdStart; i < pdEnd; i++) {
+        if (pageDirectory->vTables[i] == 0) {
+            pageDirectory->vTables[i] = (uintptr_t)MmVirtualCreatePageTable();
+            atomic_store(&pageDirectory->pTables[i], pageDirectory->vTables[i] | flags);
         }
     }
 }
 
-OsStatus_t
-CreateKernelVirtualMemorySpace(void)
+void
+MmuPrepareKernel(void)
 {
-    PageDirectory_t*  pageDirectory;
-	PageTable_t*      pageTable;
-    size_t            bytesToMap;
-    paddr_t           physicalBase;
-    vaddr_t           virtualBase;
-    unsigned int      kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
-	TRACE("[vmem] [boot_create]");
+    PageDirectory_t* pageDirectory;
+	PageTable_t*     pageTable;
+    size_t           bytesToMap;
+    paddr_t          physicalBase;
+    vaddr_t          virtualBase;
+    OsStatus_t       osStatus;
+    unsigned int     kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
+	TRACE("MmuPrepareKernel()");
 
     // Can we use global pages for kernel table?
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
-    pageDirectory = (PageDirectory_t*)AllocateBootMemory(sizeof(PageDirectory_t));
+    osStatus = MachineAllocateBootMemory(sizeof(PageDirectory_t), (void**)&pageDirectory);
+    assert(osStatus == OsSuccess);
+
     memset((void*)pageDirectory, 0, sizeof(PageDirectory_t));
-    PDBootPhysicalAddress = (uintptr_t)pageDirectory;
+    g_kernelcr3 = (uintptr_t)pageDirectory;
 
     // Due to how it works with multiple cpu's, we need to make sure all shared
     // tables already are mapped in the upper-most level of the page-directory
-    TRACE("[vmem] [boot_create] pre-mapping kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", 
+    TRACE("MmuPrepareKernel pre-mapping kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "",
         0, MEMORY_LOCATION_KERNEL_END);
     
     // Allocate all neccessary memory before starting to identity map
@@ -126,10 +127,10 @@ CreateKernelVirtualMemorySpace(void)
     
     // Get the number of reserved bytes - this address is the NEXT page available for
     // allocation, so subtract a page
-    bytesToMap   = READ_VOLATILE(g_lastReservedAddress) - PAGE_SIZE;
+    bytesToMap = (g_bootMemoryAddress & PAGE_MASK);
 
     // Do the identity map process for entire 2nd page - LastReservedAddress
-    TRACE("[vmem] [boot_create] identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "", 
+    TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
         PAGE_SIZE, TABLE_SPACE_SIZE);
     MmVirtualFillPageTable(GET_TABLE_HELPER(pageDirectory, (uint64_t)0),
                            PAGE_SIZE, PAGE_SIZE, kernelPageFlags, TABLE_SPACE_SIZE - PAGE_SIZE);
@@ -141,7 +142,7 @@ CreateKernelVirtualMemorySpace(void)
         size_t Length = MIN(bytesToMap, TABLE_SPACE_SIZE);
 
         pageTable = GET_TABLE_HELPER(pageDirectory, virtualBase);
-        TRACE("[vmem] [boot_create] identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
+        TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
               virtualBase, virtualBase + Length);
         MmVirtualFillPageTable(pageTable, physicalBase, virtualBase,
                                kernelPageFlags, Length);
@@ -150,53 +151,7 @@ CreateKernelVirtualMemorySpace(void)
         physicalBase += Length;
         virtualBase  += Length;
     }
-
-    // Identity map the video framebuffer region to a new physical, and then free
-    // all the physical mappings allocated for this
-    if (GetMachine()->BootInformation.VbeMode) {
-        bytesToMap   = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-        physicalBase = VideoGetTerminal()->FrameBufferAddress;
-        virtualBase  = MEMORY_LOCATION_VIDEO;
-        while (bytesToMap) {
-            size_t Length = MIN(bytesToMap, TABLE_SPACE_SIZE);
-
-            pageTable = GET_TABLE_HELPER(pageDirectory, virtualBase);
-            MmVirtualFillPageTable(pageTable, physicalBase, virtualBase,
-                                   kernelPageFlags, Length);
-
-            bytesToMap   -= Length;
-            physicalBase += TABLE_SPACE_SIZE;
-            virtualBase  += TABLE_SPACE_SIZE;
-        }
-
-        // Update video address to the new
-        VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
-    }
-    return OsSuccess;
 }
-
-OsStatus_t
-InitializeVirtualSpace(
-        _In_ MemorySpace_t* SystemMemorySpace)
-{
-	TRACE("[vmem] [initialize]");
-
-    if (CpuCoreCurrent() == GetMachine()->Processor.Cores) {
-        // Update the configuration data for the memory space
-        SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = PDBootPhysicalAddress;
-        SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = PDBootPhysicalAddress;
-        SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
-        ArchMmuSwitchMemorySpace(SystemMemorySpace);
-        memory_set_paging(1);
-    }
-    else {
-        // Create a new page directory but copy all kernel mappings to the domain specific memory
-        //iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
-        NOTIMPLEMENTED("[vmem] [initialize] implement initialization of other-domain virtaul spaces");
-    }
-    return OsSuccess;
-}
-
 
 #if defined(__clang__)
 #pragma clang diagnostic pop

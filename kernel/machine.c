@@ -45,6 +45,7 @@
 #include <threading.h>
 #include <timers.h>
 #include <userevent.h>
+#include "arch/io.h"
 
 #ifdef __OSCONFIG_TEST_KERNEL
 extern void StartTestingPhase(void);
@@ -67,64 +68,49 @@ GetMachine(void)
     return &Machine;
 }
 
-void
-PrintHeader(
-    _In_ struct VBoot* bootInformation)
-{
-    WRITELINE("MollenOS - Platform: %s - Version %" PRIiIN ".%" PRIiIN ".%" PRIiIN "",
-        ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-    WRITELINE("Written by Philip Meulengracht, Copyright 2011.");
-    WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
-}
-
+// TODO
+// UefiLoader - Create memory map entry reserved for kernel
+// MemoryLayer - Update ramdisk address to virtual one
+// Bios mboot - Update to vboot protocol
 _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
 {
     OsStatus_t osStatus;
 
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'A');
+    // Initialize all our static memory systems and global variables
+    LogInitialize();
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'B');
+    Crc32GenerateTable();
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'C');
+    FutexInitialize();
+
     // Boot information must be supplied
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'D');
+    TRACE("InitializeMachine(bootInformation=0x%x)", bootInformation);
     if (bootInformation == NULL) {
         for(;;) {
-            // @todo perform unique halt/set error
+            ERROR("InitializeMachine bootInformation was NULL");
             ArchProcessorHalt();
         }
     }
-    
-    // Initialize all our static memory systems and global variables
-    memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
-    Crc32GenerateTable();
-    LogInitialize();
-    FutexInitialize();
+    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'E');
 
-    sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
+    sprintf(&Machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
+    memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
 
     InitializePrimaryProcessor(&Machine.Processor);
 
-    // Print build/info-header
-    PrintHeader(&Machine.BootInformation);
-
     // Initialize machine memory
-    osStatus = InitializeSystemMemory(&Machine.BootInformation, &Machine.PhysicalMemory,
-                                      &Machine.GlobalAccessMemory, &Machine.MemoryMap, &Machine.MemoryGranularity,
-                                      &Machine.NumberOfMemoryBlocks);
+    osStatus = MachineInitializeMemorySystems(&Machine);
     if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
     }
 
-#ifdef __OSCONFIG_HAS_MMIO
-    osStatus = InitializeMemorySpace(&Machine.SystemSpace);
-    if (osStatus != OsSuccess) {
-        ERROR("Failed to initalize system memory space");
-        goto StopAndShowError;
-    }
-#else
-#error "Kernel does not support non-mmio platforms"
-#endif
-    MemoryCacheInitialize();
     osStatus = InitializeConsole();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize output for system.");
@@ -210,13 +196,6 @@ InitializeMachine(
     WARNING("End of initialization, yielding control");
     ThreadingYield();
     goto IdleProcessor;
-
-StopAndShowError:
-    osStatus = InitializeConsole();
-    if (osStatus != OsSuccess) {
-        ERROR("Failed to initialize output for system.");
-        ArchProcessorHalt();
-    }
 
 IdleProcessor:
     while (1) {

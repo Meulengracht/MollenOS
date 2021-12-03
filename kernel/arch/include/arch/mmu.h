@@ -25,26 +25,76 @@
 #define __SYSTEM_MMU_INTEFACE_H__
 
 #include <os/osdefs.h>
+#include <component/memory.h>
 #include <memoryspace.h>
-
-extern OsStatus_t
-InitializeVirtualSpace(
-        _In_ MemorySpace_t*);
-
-extern OsStatus_t
-CloneVirtualSpace(
-        _In_ MemorySpace_t*,
-        _In_ MemorySpace_t*,
-        _In_ int);
-
-extern OsStatus_t
-DestroyVirtualSpace(
-        _In_ MemorySpace_t*);
+#include <vboot.h>
 
 /**
- * ArchMmuSwitchMemorySpace
- * * Switches the current memory space out with the given memory space. This
- * * will cause a total TLB flush.
+ * @brief Retrieves the virtual memory layout for the kernel that will be consulted when
+ * initiating memory regions for the kernel region, userspace region and TLS region.
+ *
+ * @param memoryMap   [In]  A pointer to the memory map storage
+ * @param pageSizeOut [Out] A pointer to storage for the page-size in bytes for the platform.
+ */
+extern void
+MmuGetMemoryMapInformation(
+        _In_  SystemMemoryMap_t* memoryMap,
+        _Out_ size_t*            pageSizeOut);
+
+/**
+ * @brief Prepares the kernel addressing space. This will be called while it is possible
+ * to allocate boot memory for the virtual addressing space. It is expected that the addressing
+ * space will accomodate all boot memory mappings are available once the switch happens. This means
+ * identity mapping the allocated addresses up until this point.
+ *
+ */
+extern void
+MmuPrepareKernel(void);
+
+/**
+ * @brief Loads the kernel addressing space. It is expected that this function loads the virtual
+ * addressing space and prepares mappings for the memory mappings of the Firmware type. When this
+ * function returns the new (and final) virtual addressing space must be in effect. It is not expected
+ * the memory map be accessible after the swap (it does not need to be mapped in).
+ *
+ * @param memorySpace     [In] A pointer to the kernel memory space structure.
+ * @param bootInformation [In] A pointer to the boot parameters (including memory mappings).
+ * @return                     Status of the initialization.
+ */
+extern OsStatus_t
+MmuLoadKernel(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ struct VBoot*  bootInformation);
+
+/**
+ * @brief Clones the mappings of the parent into child to prepare it for execution. This does
+ * only clone kernel mappings if inherit is set to 0. If inherit is set to 1 the userspace mappings
+ * are cloned as well. Any thread-specific regions must not be cloned.
+ *
+ * @param parent  [In] The memoryspace to clone from
+ * @param child   [In] The memoryspace to clone to
+ * @param inherit [In] Whether userspace mappings should be inheritted.
+ * @return             Status of the cloning.
+ */
+extern OsStatus_t
+MmuCloneVirtualSpace(
+        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* child,
+        _In_ int            inherit);
+
+/**
+ * @brief
+ *
+ * @return
+ */
+extern OsStatus_t
+MmuDestroyVirtualSpace(
+        _In_ MemorySpace_t* memorySpace);
+
+/**
+ * @brief Switches the current memory space out with the given memory space. This
+ * will cause a total TLB flush.
+ *
  * @param MemorySpace [In]
  */
 KERNELAPI void KERNELABI
@@ -52,9 +102,9 @@ ArchMmuSwitchMemorySpace(
         _In_ MemorySpace_t* memorySpace);
 
 /**
- * ArchMmuGetPageAttributes
- * * Retrieves memory attributes for the number of virtual address provided. The array
- * * of attribute values provided must be large enough to hold the number of pages requested.
+ * @brief Retrieves memory attributes for the number of virtual address provided. The array
+ * of attribute values provided must be large enough to hold the number of pages requested.
+ *
  * @param MemorySpace     [In]
  * @param VirtualAddress  [In]
  * @param PageCount       [In]
@@ -72,9 +122,9 @@ ArchMmuGetPageAttributes(
         _Out_ int*);
 
 /**
- * ArchMmuUpdatePageAttributes
- * * Changes memory attributes for the number of virtual address provided. The
- * * attributes will be set the same for all pages requested.
+ * @brief Changes memory attributes for the number of virtual address provided. The
+ * attributes will be set the same for all pages requested.
+ *
  * @param MemorySpace    [In]
  * @param VirtualAddress [In]
  * @param PageCount      [In]
@@ -92,8 +142,8 @@ ArchMmuUpdatePageAttributes(
         _Out_ int*);
 
 /**
- * ArchMmuCommitVirtualPage
- * * Update the underlying mapping for a single page at the virtual address given.
+ * @brief Update the underlying mapping for a single page at the virtual address given.
+ *
  * @param MemorySpace           [In]
  * @param VirtualAddress        [In]
  * @param PhysicalAddressValues [In]
@@ -104,16 +154,16 @@ ArchMmuUpdatePageAttributes(
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchMmuCommitVirtualPage(
-        _In_  MemorySpace_t*           memorySpace,
-        _In_  vaddr_t         startAddress,
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
         _In_  const paddr_t* physicalAddresses,
-        _In_  int                      pageCount,
-        _Out_ int*                     pagesComittedOut);
+        _In_  int            pageCount,
+        _Out_ int*           pagesComittedOut);
 
 /**
- * ArchMmuSetContiguousVirtualPages
- * * Creates @PageCount number of virtual memory mappings that correspond to the
- * * physical address given.
+ * @brief Creates @PageCount number of virtual memory mappings that correspond to the
+ * physical address given.
+ *
  * @param MemorySpace          [In]
  * @param VirtualAddress       [In]
  * @param PhysicalStartAddress [In]
@@ -133,8 +183,8 @@ ArchMmuSetContiguousVirtualPages(
         _Out_ int*);
 
 /**
- * ArchMmuReserveVirtualPages
- * * Reserves @PageCount number of virtual memory mappings.
+ * @brief Reserves @PageCount number of virtual memory mappings.
+ *
  * @param MemorySpace          [In]
  * @param VirtualAddress       [In]
  * @param PageCount            [In]
@@ -152,10 +202,10 @@ ArchMmuReserveVirtualPages(
         _Out_ int*);
 
 /**
- * ArchMmuSetVirtualPages
- * * Creates @PageCount number of virtual memory mappings that correspond to the
- * * array of physical mappings given. The array provided must be large enough to
- * * fit the requested number of mappings.
+ * @brief Creates @PageCount number of virtual memory mappings that correspond to the
+ * array of physical mappings given. The array provided must be large enough to
+ * fit the requested number of mappings.
+ *
  * @param MemorySpace           [In]
  * @param VirtualAddress        [In]
  * @param PhysicalAddressValues [In]
@@ -175,9 +225,9 @@ ArchMmuSetVirtualPages(
         _Out_ int*                     pagesUpdatedOut);
 
 /**
- * ArchMmuClearVirtualPages
- * Removes <pageCount> number of virtual memory mappings, the physical pages that are available for freeing
+ * @brief Removes <pageCount> number of virtual memory mappings, the physical pages that are available for freeing
  * will be returned in <freedAddresses> array.
+ *
  * @param memorySpace            [In]  The memory space to perform the unmapping in.
  * @param startAddress           [In]  The start address from where to unmap from.
  * @param pageCount              [In]  The number of pages that should be unmapped.
@@ -199,10 +249,10 @@ ArchMmuClearVirtualPages(
         _Out_ int*               pagesClearedOut);
 
 /**
- * ArchMmuVirtualToPhysical
- * * Converts a range of virtual addresses to physical addresses. The number of
- * * pages requested converted must be able to fit in to the PhysicalAddress array.
- * * Offset of the first page will be preserved in the translation.
+ * @brief Converts a range of virtual addresses to physical addresses. The number of
+ * pages requested converted must be able to fit in to the PhysicalAddress array.
+ * Offset of the first page will be preserved in the translation.
+ *
  * @param MemorySpace           [In]
  * @param VirtualAddress        [In]
  * @param PageCount             [In]

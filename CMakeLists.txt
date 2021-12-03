@@ -167,11 +167,11 @@ add_custom_target (run_bochs
 
 add_custom_target (run_qemu
         COMMAND qemu-system-x86_64
-            -enable-kvm -smp 1 -m 1024
+            -D ./log.txt -monitor stdio -smp 1 -m 4096
             -bios /usr/share/OVMF/OVMF_CODE.fd
             -drive if=virtio,file=mollenos.img,format=raw
-            -net none
-            -serial mon:stdio
+            -net none -no-reboot
+            -serial file:./qserial.txt
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
 )

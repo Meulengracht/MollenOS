@@ -25,7 +25,6 @@
 
 #if defined(__i386__) || defined(__amd64__)
 #define LOADER_KERNEL_BASE       0x100000
-#define LOADER_RAMDISK_BASE      0x200000
 #define LOADER_KERNEL_STACK_SIZE 0x10000
 #else
 #error "Unsupported architecture"

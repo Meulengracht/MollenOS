@@ -116,14 +116,6 @@ InitializeConsole(void)
 {
     OsStatus_t osStatus;
 
-    // Initialize the serial interface if any
-#ifdef __OSCONFIG_HAS_UART
-    osStatus = InitializeSerialOutput();
-    if (osStatus != OsSuccess) {
-        return osStatus;
-    }
-#endif
-
     // Initialize visual representation by framebuffer
 #ifdef __OSCONFIG_HAS_VIDEO
     osStatus = InitializeFramebufferOutput();

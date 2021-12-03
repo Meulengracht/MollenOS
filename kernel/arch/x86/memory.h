@@ -54,11 +54,10 @@
 // Function helpers for repeating functions where it pays off
 // to have them seperate
 #define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(void) { \
-                                            Type* Instance = (Type*)AllocateBootMemory(sizeof(Type)); \
-                                            assert(Instance != NULL); \
-                                            memset((void*)Instance, 0, sizeof(Type)); \
-                                            return Instance; }
-
-KERNELAPI OsStatus_t KERNELABI CreateKernelVirtualMemorySpace(void);
+                                            void* memory = NULL; \
+                                            MachineAllocateBootMemory(sizeof(Type), &memory); \
+                                            assert(memory != NULL); \
+                                            memset((void*)memory, 0, sizeof(Type)); \
+                                            return (Type*)memory; }
 
 #endif // !_X86_MEMORY_H_

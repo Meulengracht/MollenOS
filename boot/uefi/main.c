@@ -26,38 +26,6 @@
 
 static struct VBoot* gBootDescriptor = NULL;
 
-BOOLEAN __CompareGUID(EFI_GUID lh, EFI_GUID rh)
-{
-    return (
-        lh.Data1    == rh.Data1 &&
-        lh.Data2    == rh.Data2 &&
-        lh.Data3    == rh.Data3 &&
-        lh.Data4[0] == rh.Data4[0] &&
-        lh.Data4[1] == rh.Data4[1] &&
-        lh.Data4[2] == rh.Data4[2] &&
-        lh.Data4[3] == rh.Data4[3] &&
-        lh.Data4[4] == rh.Data4[4] &&
-        lh.Data4[5] == rh.Data4[5] &&
-        lh.Data4[6] == rh.Data4[6] &&
-        lh.Data4[7] == rh.Data4[7]);
-}
-
-static void __LocateRsdp(void)
-{
-    EFI_GUID Guid = EFI_ACPI_20_TABLE_GUID;
-    UINTN    i;
-    
-    for (i = 0; i < gSystemTable->NumberOfTableEntries; i++){
-        if (__CompareGUID(gSystemTable->ConfigurationTable[i].VendorGuid, Guid)) {
-            CHAR8* TablePointer = (CHAR8*)gSystemTable->ConfigurationTable[i].VendorTable;
-            if (TablePointer[0] == 'R' && TablePointer[1] == 'S' && TablePointer[2] == 'D' && TablePointer[3] == ' ' && 
-                TablePointer[4] == 'P' && TablePointer[5] == 'T' && TablePointer[6] == 'R' && TablePointer[7] == ' ') {
-                
-            }
-        }
-    }
-}
-
 static EFI_STATUS __InitializeBootDescriptor(void)
 {
     EFI_STATUS Status;
@@ -72,7 +40,6 @@ static EFI_STATUS __InitializeBootDescriptor(void)
     gBootDescriptor->Firmware = VBootFirmware_UEFI;
     gBootDescriptor->ConfigurationTable = gSystemTable->ConfigurationTable;
     gBootDescriptor->ConfigurationTableCount = gSystemTable->NumberOfTableEntries;
-    __LocateRsdp();
     return Status;
 }
 

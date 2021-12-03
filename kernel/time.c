@@ -122,7 +122,7 @@ TimersGetSystemTick(
 {
     // Sanitize
     if (ActiveSystemTimer == NULL || ActiveSystemTimer->GetTick == NULL) {
-        *SystemTick = 1;
+        *SystemTick = 0;
         return OsError;
     }
     *SystemTick = ActiveSystemTimer->GetTick();

@@ -955,5 +955,6 @@ MemoryCacheInitialize(void)
 {
     // Initialize the default cache and disable atomics for this one
     MemoryCacheConstruct(&g_initialCache, "cache_cache", sizeof(MemoryCache_t),
-                         16, 0, HEAP_CACHE_DEFAULT, NULL, NULL);
+                         16, 0, HEAP_SLAB_NO_ATOMIC_CACHE,
+                         NULL, NULL);
 }

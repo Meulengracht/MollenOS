@@ -196,11 +196,15 @@ static void __DestroyContext(
 
 OsStatus_t
 InitializeMemorySpace(
-        _In_ MemorySpace_t* memorySpace)
+        _In_ MemorySpace_t* memorySpace,
+        _In_ struct VBoot*  bootInformation)
 {
+    // initialzie the data structure
     memorySpace->ParentHandle = UUID_INVALID;
     memorySpace->Context      = NULL;
-    return InitializeVirtualSpace(memorySpace);
+
+    // initialize arch specific stuff
+    return MmuLoadKernel(memorySpace, bootInformation);
 }
 
 OsStatus_t
@@ -265,7 +269,7 @@ CreateMemorySpace(
         if (memorySpace->ParentHandle == UUID_INVALID) {
             __CreateContext(memorySpace);
         }
-        CloneVirtualSpace(parent, memorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
+        MmuCloneVirtualSpace(parent, memorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
         *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
     }
     else {
@@ -283,7 +287,7 @@ DestroyMemorySpace(
     MemorySpace_t* memorySpace = (MemorySpace_t*)resource;
     if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
         DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
-        DestroyVirtualSpace(memorySpace);
+        MmuDestroyVirtualSpace(memorySpace);
     }
     if (memorySpace->ParentHandle == UUID_INVALID) {
         __DestroyContext(memorySpace);

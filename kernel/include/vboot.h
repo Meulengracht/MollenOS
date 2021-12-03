@@ -20,7 +20,29 @@
 #define __VBOOT_H__
 
 #define VBOOT_MAGIC   0xAEB007AE
-#define VBOOT_VERSION 0x00010000
+#define VBOOT_VERSION 0x00010000 // V1.0
+
+// Memory cacheability attributes
+#define VBOOT_MEMORY_UC               0x0000000000000001ULL // Uncached
+#define VBOOT_MEMORY_WC               0x0000000000000002ULL // Write-Combined
+#define VBOOT_MEMORY_WT               0x0000000000000004ULL // Write-Through
+#define VBOOT_MEMORY_WB               0x0000000000000008ULL // Write-Back
+#define VBOOT_MEMORY_UCE              0x0000000000000010ULL // Uncached, Extended
+
+// Physical memory protection attributes
+#define VBOOT_MEMORY_WP               0x0000000000001000ULL // Cacheability Protection
+#define VBOOT_MEMORY_RP               0x0000000000002000ULL // Read-Protected
+#define VBOOT_MEMORY_XP               0x0000000000004000ULL // Execute-Protected
+#define VBOOT_MEMORY_NV               0x0000000000008000ULL // The memory region supports byte-addressable non-volatility.
+#define VBOOT_MEMORY_MORE_RELIABLE    0x0000000000010000ULL // The memory region is more reliable than the default.
+#define VBOOT_MEMORY_RO               0x0000000000020000ULL // The memory region is read-only.
+#define VBOOT_MEMORY_SP               0x0000000000040000ULL // The memory region is earmarked for drivers or apps that require special access.
+#define VBOOT_MEMORY_CPU_CRYPTO       0x0000000000080000ULL // The memory region is capable of being protected with the CPU's memory cryptographic capabilities.
+#define VBOOT_MEMORY_RUNTIME          0x8000000000000000ULL // The memory region is a runtime allocated region.
+
+#define VBOOT_CACHE_ATTRIBUTE_MASK  (VBOOT_MEMORY_UC | VBOOT_MEMORY_WC | VBOOT_MEMORY_WT | VBOOT_MEMORY_WB | VBOOT_MEMORY_UCE | VBOOT_MEMORY_WP)
+#define VBOOT_MEMORY_ACCESS_MASK    (VBOOT_MEMORY_RP | VBOOT_MEMORY_XP | VBOOT_MEMORY_RO)
+#define VBOOT_MEMORY_ATTRIBUTE_MASK (VBOOT_MEMORY_ACCESS_MASK | VBOOT_MEMORY_SP | VBOOT_MEMORY_CPU_CRYPTO)
 
 enum VBootFirmware {
     VBootFirmware_BIOS,
@@ -69,6 +91,16 @@ struct VBootRamdisk {
     void*        Data;
 };
 
+struct VBootKernel {
+    unsigned int Length;
+    void*        Data;
+};
+
+struct VBootStack {
+    unsigned int Length;
+    void*        Base;
+};
+
 struct VBoot {
     unsigned int        Magic;
     unsigned int        Version;
@@ -79,6 +111,8 @@ struct VBoot {
     struct VBootMemory  Memory;
     struct VBootVideo   Video;
     struct VBootRamdisk Ramdisk;
+    struct VBootKernel  Kernel;
+    struct VBootStack   Stack;
 };
 
 #endif //!__VBOOT_H__

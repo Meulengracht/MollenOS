@@ -69,12 +69,11 @@ PACKED_TYPESTRUCT(SmBiosStructureHeader, {
     uint16_t            Handle; // Unique 16 bit id.
 });
 
-/* SmBiosInitialize
+/**
  * Initializes and finds if the smbios table is present on the system. The 
- * function will return OsSuccess if the table is present and everything is alright. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SmBiosInitialize(void *UfiConfigurationTable);
+ * function will return OsSuccess if the table is present and everything is alright.
+ */
+KERNELAPI OsStatus_t KERNELABI
+SmBiosInitialize(void);
 
 #endif // !__SMBIOS_DRIVER__

@@ -23,10 +23,10 @@
 #define __TRACE
 
 #include <arch.h>
+#include <arch/output.h>
 #include <assert.h>
 #include <arch/utils.h>
 #include <cpu.h>
-#include <ddk/io.h>
 #include <debug.h>
 #include <gdt.h>
 #include <machine.h>
@@ -41,8 +41,9 @@ extern PageTable_t* MmVirtualGetTable(PAGE_MASTER_LEVEL* parentPageDirectory, PA
 extern void memory_invalidate_addr(uintptr_t pda);
 extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
+extern void memory_paging_init(uintptr_t pda, paddr_t stackPhysicalBase, vaddr_t stackVirtualBase);
 
-uintptr_t g_lastReservedAddress = 0;
+extern uintptr_t g_kernelcr3;
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // in the arch-specific layer
@@ -52,84 +53,11 @@ uintptr_t g_lastReservedAddress = 0;
 #endif
 
 void
-PrintPhysicalMemoryUsage(void) {
-    int    maxBlocks       = READ_VOLATILE(GetMachine()->PhysicalMemory.capacity);
-    int    freeBlocks      = READ_VOLATILE(GetMachine()->PhysicalMemory.index);
-    int    allocatedBlocks = maxBlocks - freeBlocks;
-    size_t reservedMemory  = READ_VOLATILE(g_lastReservedAddress);
-    size_t memoryInUse     = reservedMemory + ((size_t)allocatedBlocks * (size_t)PAGE_SIZE);
-    
-    TRACE("Memory in use %" PRIuIN " Bytes", memoryInUse);
-    TRACE("Block status %" PRIuIN "/%" PRIuIN, allocatedBlocks, maxBlocks);
-    TRACE("Reserved memory: 0x%" PRIxIN " (%" PRIuIN " blocks)", g_lastReservedAddress, g_lastReservedAddress / PAGE_SIZE);
-}
-
-uintptr_t
-AllocateBootMemory(
-    _In_ size_t size)
+MmuGetMemoryMapInformation(
+        _In_  SystemMemoryMap_t* memoryMap,
+        _Out_ size_t*            pageSizeOut)
 {
-    uintptr_t memory = READ_VOLATILE(g_lastReservedAddress);
-    uintptr_t nextMemory;
-    if (!memory) {
-        return 0;
-    }
-
-    nextMemory = memory + size;
-    if (nextMemory % PAGE_SIZE) {
-        nextMemory += PAGE_SIZE - (nextMemory % PAGE_SIZE);
-    }
-    WRITE_VOLATILE(g_lastReservedAddress, nextMemory);
-    return memory;
-}
-
-size_t
-__GetAvailablePhysicalMemory(
-        _In_ struct VBoot* bootInformation)
-{
-    size_t upperSize = 0;
-    for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        uintptr_t limit = bootInformation->Memory.Entries[i].PhysicalBase +
-                bootInformation->Memory.Entries[i].Length;
-        if (bootInformation->Memory.Entries[i].Type == VBootMemoryType_Available) {
-            if (limit > upperSize) {
-                upperSize = limit;
-            }
-        }
-    }
-    return upperSize;
-}
-
-OsStatus_t
-InitializeSystemMemory(
-    _In_  struct VBoot*       bootInformation,
-    _In_  bounded_stack_t*    boundedStack,
-    _In_  StaticMemoryPool_t* globalAccessMemory,
-    _In_  SystemMemoryMap_t*  memoryMap,
-    _Out_ size_t*             memoryGranularityOut,
-    _Out_ size_t*             numberOfMemoryBlocksOut)
-{
-    size_t     memorySize;
-    uintptr_t  gaMemory;
-    size_t     gaMemorySize;
-    size_t     count;
-    OsStatus_t osStatus;
-    int        i;
-
-    if (!bootInformation || !boundedStack || !globalAccessMemory ||
-        !memoryMap || !memoryGranularityOut || !numberOfMemoryBlocksOut) {
-        return OsInvalidParameters;
-    }
-
-    // The memory-high part is 64kb blocks 
-    // whereas the memory-low part is bytes of memory
-    memorySize = __GetAvailablePhysicalMemory(bootInformation);
-    assert((memorySize / 1024 / 1024) >= 64);
-    
-    // Initialize the reserved memory address
-    WRITE_VOLATILE(g_lastReservedAddress, MEMORY_LOCATION_RESERVED);
-    
-    *memoryGranularityOut    = PAGE_SIZE;
-    *numberOfMemoryBlocksOut = DIVUP(memorySize, PAGE_SIZE);
+    *pageSizeOut = PAGE_SIZE;
 
     memoryMap->KernelRegion.Start  = 0;
     memoryMap->KernelRegion.Length = MEMORY_LOCATION_KERNEL_END;
@@ -142,63 +70,6 @@ InitializeSystemMemory(
 
     memoryMap->ThreadRegion.Start  = MEMORY_LOCATION_RING3_THREAD_START;
     memoryMap->ThreadRegion.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
-    
-    // Create the physical memory map
-    count = memorySize / PAGE_SIZE;
-    bounded_stack_construct(boundedStack, (void*)AllocateBootMemory(count * sizeof(void*)), (int)count);
-    
-    // Create the global access memory, it needs to start after the last reserved
-    // memory address, because the reserved memory is not freeable or allocatable.
-    gaMemorySize = MEMORY_LOCATION_VIDEO - READ_VOLATILE(g_lastReservedAddress);
-    gaMemory     = AllocateBootMemory(StaticMemoryPoolCalculateSize(gaMemorySize, PAGE_SIZE));
-    
-    // Create the system kernel virtual memory space, this call identity maps all
-    // memory allocated by AllocateBootMemory, and also allocates some itself
-    osStatus = CreateKernelVirtualMemorySpace();
-    if (osStatus != OsSuccess) {
-        return osStatus;
-    }
-    
-    // After the AllocateBootMemory+CreateKernelVirtualMemorySpace call, the reserved address 
-    // has moved again, which means we actually have allocated too much memory right 
-    // out the box, however we accept this memory waste, as it's max a few 10's of kB.
-    gaMemorySize = MEMORY_LOCATION_VIDEO - READ_VOLATILE(g_lastReservedAddress);
-    TRACE("[pmem] [mem_init] initial size of ga memory to 0x%" PRIxIN, gaMemorySize);
-    if (!IsPowerOfTwo(gaMemorySize)) {
-        gaMemorySize = NextPowerOfTwo(gaMemorySize) >> 1U;
-        TRACE("[pmem] [mem_init] adjusting size of ga memory to 0x%" PRIxIN, gaMemorySize);
-    }
-
-    StaticMemoryPoolConstruct(
-            globalAccessMemory,
-            (void*)gaMemory,
-            READ_VOLATILE(g_lastReservedAddress),
-            gaMemorySize,
-            PAGE_SIZE);
-    
-    // So now we go through the memory regions provided by the system and add the physical pages
-    // we can use, that are not already pre-allocated by the system.
-    TRACE("[pmem] [mem_init] region count %i, block count %u", bootInformation->Memory.NumberOfEntries, count);
-    for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
-        if (entry->Type == VBootMemoryType_Available) {
-            uintptr_t baseAddress = (uintptr_t)entry->PhysicalBase;
-            uintptr_t limit       = (uintptr_t)entry->PhysicalBase + (uintptr_t)entry->Length;
-            TRACE("[pmem] [mem_init] region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, baseAddress, limit);
-            if (baseAddress < g_lastReservedAddress) {
-                baseAddress = g_lastReservedAddress;
-            }
-            
-            while (baseAddress < limit) {
-                bounded_stack_push(boundedStack, (void*)baseAddress);
-                baseAddress += PAGE_SIZE;
-            }
-        }
-    }
-
-    // Debug initial stats
-    PrintPhysicalMemoryUsage();
-    return OsSuccess;
 }
 
 static unsigned int
@@ -561,12 +432,12 @@ ArchMmuReserveVirtualPages(
 
 OsStatus_t
 ArchMmuSetVirtualPages(
-        _In_  MemorySpace_t*           memorySpace,
-        _In_  vaddr_t         startAddress,
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
         _In_  const paddr_t* physicalAddressValues,
-        _In_  int                      pageCount,
-        _In_  unsigned int             attributes,
-        _Out_ int*                     pagesUpdatedOut)
+        _In_  int            pageCount,
+        _In_  unsigned int   attributes,
+        _Out_ int*           pagesUpdatedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
@@ -745,6 +616,206 @@ SetDirectIoAccess(
         if (coreId == ArchGetProcessorCoreId()) {
             TssDisableIo(coreId, port);
         }
+    }
+    return OsSuccess;
+}
+
+static unsigned int
+__GetBootMappingAttributes(
+        _In_ unsigned int attributes)
+{
+    unsigned int converted = PAGE_PRESENT | PAGE_PERSISTENT;
+
+    if (!(attributes & VBOOT_MEMORY_RO)) {
+        converted |= PAGE_WRITE;
+    }
+
+    if (attributes & VBOOT_MEMORY_UC) {
+        converted |= PAGE_CACHE_DISABLE;
+    }
+
+    if (attributes & VBOOT_MEMORY_WT) {
+        converted |= PAGE_WRITETHROUGH;
+    }
+
+    return converted;
+}
+
+static OsStatus_t
+__InstallFirmwareMapping(
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        virtualBase,
+        _In_  paddr_t        physicalBase,
+        _In_  int            pageCount,
+        _In_  unsigned int   attributes)
+{
+    PAGE_MASTER_LEVEL* parentDirectory;
+    PAGE_MASTER_LEVEL* directory;
+    PageTable_t*       pageTable;
+    int                update;
+    int                isCurrent;
+    int                index;
+    int                pagesUpdated = 0;
+    OsStatus_t         status       = OsSuccess;
+    uintptr_t          zero         = 0;
+
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        attributes |= PAGE_GLOBAL;
+    }
+
+    directory = MmVirtualGetMasterTable(memorySpace, virtualBase, &parentDirectory, &isCurrent);
+    while (pageCount && status == OsSuccess) {
+        pageTable = MmVirtualGetTable(parentDirectory, directory, virtualBase, isCurrent, 0, &update);
+        if (!pageTable) {
+            status = (pagesUpdated == 0) ? OsOutOfMemory : OsIncomplete;
+            break;
+        }
+
+        index = PAGE_TABLE_INDEX(virtualBase);
+        for (; index < ENTRIES_PER_PAGE && pageCount; index++, pageCount--, pagesUpdated++, virtualBase += PAGE_SIZE) {
+            uintptr_t mapping = ((physicalBase + (pagesUpdated * PAGE_SIZE)) & PAGE_MASK) | attributes;
+            if (!atomic_compare_exchange_strong(&pageTable->Pages[index], &zero, mapping)) {
+                // Tried to replace a value that was not 0
+                ERROR("[arch_update_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
+                      virtualBase, zero);
+                status = OsIncomplete;
+                break;
+            }
+        }
+    }
+    return status;
+}
+
+static OsStatus_t
+__CreateFirmwareMapping(
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ struct VBootMemoryEntry* entry)
+{
+    vaddr_t    virtualBase;
+    OsStatus_t osStatus;
+    int        pageCount;
+
+    // Allocate a new virtual mapping
+    virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, entry->Length);
+    if (virtualBase == 0) {
+        ERROR("__CreateFirmwareMapping Ran out of memory for allocation 0x%" PRIxIN " (ga-memory)", entry->Length);
+        return OsOutOfMemory;
+    }
+
+    pageCount = DIVUP(entry->Length, PAGE_SIZE);
+
+    // Create the new mapping in the address space
+    osStatus = __InstallFirmwareMapping(memorySpace,
+                           virtualBase,
+                           entry->PhysicalBase,
+                           pageCount,
+                           __GetBootMappingAttributes(entry->Attributes)
+    );
+    if (osStatus == OsSuccess) {
+        entry->VirtualBase = virtualBase;
+    }
+    return osStatus;
+}
+
+static OsStatus_t
+__HandleFirmwareMappings(
+        _In_ MemorySpace_t* memorySpace,
+        _In_  struct VBoot* bootInformation,
+        _Out_ uintptr_t*    stackMapping)
+{
+    unsigned int i;
+    for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
+        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        if (entry->Type == VBootMemoryType_Firmware) {
+            OsStatus_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
+            if (osStatus != OsSuccess) {
+                return osStatus;
+            }
+
+            // Store the stack mapping
+            if ((uintptr_t)bootInformation->Stack.Base == entry->PhysicalBase) {
+                *stackMapping = entry->VirtualBase;
+            }
+        }
+    }
+    return OsSuccess;
+}
+
+static OsStatus_t
+__RemapFramebuffer(
+        _In_ MemorySpace_t* memorySpace)
+{
+    vaddr_t    virtualBase;
+    size_t     framebufferSize;
+    OsStatus_t osStatus;
+    int        pageCount;
+
+    // If no framebuffer for output, no need to do this
+    if (!VideoGetTerminal()->FrameBufferAddress) {
+        return OsSuccess;
+    }
+
+    framebufferSize = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+
+    // Allocate a new virtual mapping
+    virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, framebufferSize);
+    if (virtualBase == 0) {
+        ERROR("__RemapFramebuffer Ran out of memory for allocation 0x%" PRIxIN " (ga-memory)", framebufferSize);
+        return OsOutOfMemory;
+    }
+
+    pageCount = DIVUP(framebufferSize, PAGE_SIZE);
+
+    // Create the new mapping in the address space
+    osStatus = __InstallFirmwareMapping(memorySpace,
+                                        virtualBase,
+                                        VideoGetTerminal()->FrameBufferAddress,
+                                        pageCount,
+                                        PAGE_PRESENT | PAGE_WRITE | PAGE_USER | PAGE_PERSISTENT
+    );
+
+    // Update video address to the new
+    VideoGetTerminal()->FrameBufferAddress = virtualBase;
+    return osStatus;
+}
+
+OsStatus_t
+MmuLoadKernel(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ struct VBoot*  bootInformation)
+{
+    TRACE("MmuLoadKernel()");
+
+    if (CpuCoreCurrent() == GetMachine()->Processor.Cores) {
+        uintptr_t  stackVirtual;
+        OsStatus_t osStatus;
+
+        // Update the configuration data for the memory space
+        memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
+        memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelcr3;
+        memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
+
+        // Install any remaining virtual mappings before we enable it. Currently, firmware
+        // mappings still need to be allocated into global access memory. We also need to ensure
+        // that the kernel stack is mapped correctly
+        osStatus = __HandleFirmwareMappings(memorySpace, bootInformation, &stackVirtual);
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+
+        // Remap the framebuffer for good times
+        osStatus = __RemapFramebuffer(memorySpace);
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+
+        // initialize paging and swap the stack address to virtual one, so we don't crap out.
+        memory_paging_init(g_kernelcr3, (uintptr_t)bootInformation->Stack.Base, stackVirtual);
+    }
+    else {
+        // Create a new page directory but copy all kernel mappings to the domain specific memory
+        //iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
+        NOTIMPLEMENTED("MmuLoadKernel implement initialization of other-domain virtaul spaces");
     }
     return OsSuccess;
 }

@@ -27,12 +27,6 @@
 #include <os/osdefs.h>
 #include <ddk/video.h>
 
-/* InitializeSerialOutput (@arch)
- * Initializes the serial output for the operating system. This is the output that is
- * always active if a serial port is present. */
-KERNELAPI OsStatus_t KERNELABI
-InitializeSerialOutput(void);
-
 /* InitializeFramebufferOutput (@arch)
  * Initializes the video framebuffer of the operating system. This enables visual rendering
  * of the operating system debug console. */

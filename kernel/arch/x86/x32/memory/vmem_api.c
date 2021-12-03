@@ -157,9 +157,9 @@ SyncWithParent:
 }
 
 OsStatus_t
-CloneVirtualSpace(
-        _In_ MemorySpace_t* memorySpaceParent,
-        _In_ MemorySpace_t* memorySpace,
+MmuCloneVirtualSpace(
+        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* child,
         _In_ int            inherit)
 {
     PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
@@ -180,8 +180,8 @@ CloneVirtualSpace(
     memset(pageDirectory, 0, sizeof(PageDirectory_t));
 
     // Determine parent
-    if (memorySpaceParent != NULL) {
-        parentDirectory = (PageDirectory_t*)memorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
+    if (parent != NULL) {
+        parentDirectory = (PageDirectory_t*)parent->Data[MEMORY_SPACE_DIRECTORY];
     }
 
     // Initialize base mappings
@@ -214,30 +214,30 @@ CloneVirtualSpace(
     }
 
     // Update the configuration data for the memory space
-	memorySpace->Data[MEMORY_SPACE_CR3]       = physicalAddress;
-    memorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageDirectory;
+	child->Data[MEMORY_SPACE_CR3]       = physicalAddress;
+    child->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageDirectory;
 
     // Create new resources for the happy new parent :-)
-    if (!memorySpaceParent) {
-        memorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (!memorySpace->Data[MEMORY_SPACE_IOMAP]) {
+    if (!parent) {
+        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+        if (!child->Data[MEMORY_SPACE_IOMAP]) {
             // fuck
             kfree(pageDirectory);
             return OsOutOfMemory;
         }
 
-        if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-            memset((void*)memorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        if (child->Flags & MEMORY_SPACE_APPLICATION) {
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
         }
         else {
-            memset((void*)memorySpace->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
         }
     }
     return OsSuccess;
 }
 
 OsStatus_t
-DestroyVirtualSpace(
+MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
     PageDirectory_t* pageDirectory = (PageDirectory_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];

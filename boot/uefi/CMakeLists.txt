@@ -254,3 +254,18 @@ add_custom_target (test
     DEPENDS vboot
     USES_TERMINAL
 )
+
+### Secure Boot
+### 1. download shim (https://apps.fedoraproject.org/packages/shim)
+### 2. extract SHIMX64.EFI and MMX64.EFI to EFI\BOOT (these are signed by MS)
+### 3. rename EFI\BOOT\SHIMX64.EFI to EFI\BOOT\BOOTX64.EFI.
+### 4. create a public-private key pair and x509 cert with openssl.
+###    - openssl req -newkey rsa:4096 -nodes -keyout MOK.key -new -x509 -days 3650 -subj "/CN=BOOTBOOT/" -out MOK.crt
+###    - openssl x509 -outform DER -in MOK.crt -out MOK.cer
+### 
+### 5. sign VBOOT.EFI using an SHA-256 hash with sbsign.
+###    - sbsign --key MOK.key --cert MOK.crt --out EFI/BOOT/GRUBX64.EFI bootboot.efi
+### 
+### 6. copy MOK.cer to the ESP partition.
+### 7. boot into UEFI, shim will call MOK Manager. There select "Enroll key from disk", find MOK.cer and add it. Then select "Enroll hash from disk", find GRUBX64.EFI and add it.
+### 8. enable Secure Boot.

@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -20,16 +19,15 @@
  * https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.8.0.pdf
  */
 
-/* Includes
- * - System */
+#include <machine.h>
 #include <smbios.h>
 #include <string.h>
+#include <utils/uefi.h>
 
-// Globals
-static SmBiosTable_t SmBiosHeader = { 0 };
+static __EFI_GUID    g_smbiosGuid  = SMBIOS_TABLE_GUID;
+static __EFI_GUID    g_smbios3Guid = SMBIOS3_TABLE_GUID;
+static SmBiosTable_t g_smbios      = { 0 };
 
-/* SmBiosLocate
- * Locates the SMBIOS entry point structure in lower memory. */
 OsStatus_t
 SmBiosLocate(void)
 {
@@ -38,26 +36,47 @@ SmBiosLocate(void)
         Address < SMBIOS_DEFAULT_MEMORY_LOCATION_END; Address += 0x10)
     {
         if (*((uintptr_t*)Address) == SMBIOS_SIGNATURE) {
-            memcpy((void*)&SmBiosHeader, (const void*)Address, sizeof(SmBiosTable_t));
+            memcpy((void*)&g_smbios, (const void*)Address, sizeof(SmBiosTable_t));
             return OsSuccess;
         }
     }
     return OsError;
 }
 
-/* SmBiosInitialize
- * Initializes and finds if the smbios table is present on the system. The 
- * function will return OsSuccess if the table is present and everything is alright. */
+static OsStatus_t
+__FindSmBiosInConfigurationTable(
+        _In_ void*        configurationTable,
+        _In_ unsigned int count)
+{
+    void* table;
+
+    if (!configurationTable || !count) {
+        return OsDoesNotExist;
+    }
+
+    table = __LocateGuidInConfigurationTable(configurationTable, count, g_smbios3Guid);
+    if (table) {
+        memcpy((void*)&g_smbios, (const void*)table, sizeof(SmBiosTable_t));
+        return OsSuccess;
+    }
+
+    table = __LocateGuidInConfigurationTable(configurationTable, count, g_smbiosGuid);
+    if (table) {
+        memcpy((void*)&g_smbios, (const void*)table, sizeof(SmBiosTable_t));
+        return OsSuccess;
+    }
+    return OsDoesNotExist;
+}
+
 OsStatus_t
-SmBiosInitialize(void *UfiConfigurationTable)
+SmBiosInitialize(void)
 {
     // If the configuration table is NULL this is a non-ufi system
     // and we should locate it in memory
-    if (UfiConfigurationTable == NULL) {
+    OsStatus_t osStatus = __FindSmBiosInConfigurationTable(GetMachine()->BootInformation.ConfigurationTable,
+                                                           GetMachine()->BootInformation.ConfigurationTableCount);
+    if (osStatus != OsSuccess) {
         return SmBiosLocate();
     }
-    else {
-        // @todo
-    }
-    return OsError;
+    return osStatus;
 }

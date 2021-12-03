@@ -24,11 +24,11 @@
 #include <arch/output.h>
 #include <arch/utils.h>
 #include <assert.h>
+#include <debug.h>
 #include <handle.h>
 #include <heap.h>
 #include <irq_spinlock.h>
 #include <log.h>
-#include <machine.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -102,6 +102,14 @@ LogInitialize(void)
 
     g_kernelLog.Lines         = (SystemLogLine_t*)&g_bootLogSpace[0];
     g_kernelLog.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
+
+    // Initialize the serial interface if any
+#ifdef __OSCONFIG_HAS_UART
+    OsStatus_t osStatus = SerialPortInitialize();
+    if (osStatus != OsSuccess) {
+        WARNING("LogInitialize failed to initialize serial output!");
+    }
+#endif
 }
 
 void
@@ -209,6 +217,7 @@ LogAppendMessage(
 	va_start(arguments, format);
     vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
     va_end(arguments);
+
 	LogRenderMessages();
 	IrqSpinlockRelease(&g_kernelLog.SyncObject);
 }

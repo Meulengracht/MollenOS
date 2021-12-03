@@ -29,6 +29,7 @@
 #include <ds/list.h>
 #include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
+#include <vboot.h>
 
 DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);
@@ -94,13 +95,17 @@ typedef struct MemoryMappingHandler {
 } MemoryMappingHandler_t;
 
 /**
- * InitializeMemorySpace
- * Initializes the system memory space. This initializes a static version of the
+ * @brief Initializes the system memory space. This initializes a static version of the
  * system memory space which is the default space the cpu should use for kernel operation.
+ *
+ * @param memorySpace     [In]
+ * @param bootInformation [In]
+ * @return                     Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
 InitializeMemorySpace(
-        _In_ MemorySpace_t* memorySpace);
+        _In_ MemorySpace_t* memorySpace,
+        _In_ struct VBoot*  bootInformation);
 
 /**
  * CreateMemorySpace

@@ -182,9 +182,9 @@ EFI_STATUS __FillMemoryMap(
     for (i = 0; i < DescriptorCount; i++) {
         EFI_MEMORY_DESCRIPTOR* MemoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MemoryMapLocal + (i * DescriptorSize));
         enum VBootMemoryType Type = __ConvertEfiType(MemoryDescriptor->Type);
-        ConsoleWrite(L"ENTRY %lu: Type=%u, PhysicalBase=0x%lx, VirtualBase=0x%lx, NumberOfPages=0x%lx\n",
+        ConsoleWrite(L"ENTRY %lu: Type=%u, PhysicalBase=0x%lx, NumberOfPages=0x%lx, Attributes=0x%lx\n",
             i, MemoryDescriptor->Type, MemoryDescriptor->PhysicalStart, 
-            MemoryDescriptor->VirtualStart, MemoryDescriptor->NumberOfPages);
+            MemoryDescriptor->NumberOfPages, MemoryDescriptor->Attribute);
         
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
         VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;

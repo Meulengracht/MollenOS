@@ -250,9 +250,9 @@ SyncPd:
 }
 
 OsStatus_t
-CloneVirtualSpace(
-        _In_ MemorySpace_t* parentMemorySpace,
-        _In_ MemorySpace_t* memorySpace,
+MmuCloneVirtualSpace(
+        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* child,
         _In_ int            inherit)
 {
     PageMasterTable_t*    kernelMasterTable = (PageMasterTable_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
@@ -261,7 +261,7 @@ CloneVirtualSpace(
     PageDirectoryTable_t* directoryTable;
     uintptr_t             physicalAddress;
     uintptr_t             masterAddress;
-    TRACE("CloneVirtualSpace(Inherit %" PRIiIN ")", inherit);
+    TRACE("MmuCloneVirtualSpace(Inherit %" PRIiIN ")", inherit);
 
     // lookup and sanitize regions
     int sharedPml4Entry      = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_KERNEL);
@@ -272,8 +272,8 @@ CloneVirtualSpace(
     assert(sharedPml4Entry != threadPml4Entry);
 
     // Determine parent
-    if (parentMemorySpace != NULL) {
-        parentMasterTable = (PageMasterTable_t*)parentMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    if (parent != NULL) {
+        parentMasterTable = (PageMasterTable_t*)parent->Data[MEMORY_SPACE_DIRECTORY];
     }
 
     // create the new PML4
@@ -314,13 +314,13 @@ CloneVirtualSpace(
     }
 
     // Update the configuration data for the memory space
-	memorySpace->Data[MEMORY_SPACE_CR3]       = masterAddress;
-    memorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageMasterTable;
+	child->Data[MEMORY_SPACE_CR3]       = masterAddress;
+    child->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageMasterTable;
 
     // Create new resources for the happy new parent :-)
-    if (!parentMemorySpace) {
-        memorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (!memorySpace->Data[MEMORY_SPACE_IOMAP]) {
+    if (!parent) {
+        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+        if (!child->Data[MEMORY_SPACE_IOMAP]) {
             // crap
             kfree((void*)pageMasterTable->vTables[threadPml4Entry]);
             kfree(pageMasterTable);
@@ -328,11 +328,11 @@ CloneVirtualSpace(
         }
 
         // For application memory spaces the IO map has all ports disabled, otherwise enabled
-        if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-            memset((void*)memorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        if (child->Flags & MEMORY_SPACE_APPLICATION) {
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
         }
         else {
-            memset((void*)memorySpace->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
         }
     }
     return OsSuccess;
@@ -391,7 +391,7 @@ MmVirtualDestroyPageDirectoryTable(
 }
 
 OsStatus_t
-DestroyVirtualSpace(
+MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
     PageMasterTable_t* current = (PageMasterTable_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];

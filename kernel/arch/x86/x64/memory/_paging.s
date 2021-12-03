@@ -26,28 +26,37 @@ global memory_reload_cr3
 global memory_get_cr3
 global memory_load_cr3
 global memory_invalidate_addr
+global memory_paging_init
 
-;void memory_reload_cr3(void)
-;Reloads the cr3 register
+; void memory_reload_cr3(void)
+; Reads and writes back the CR3 register to initiate a MMU reload
 memory_reload_cr3:
 	mov rax, cr3
 	mov cr3, rax
 	ret 
 
-;uint32_t memory_get_cr3(void)
-;Returns the cr3 register
+; paddr_t memory_get_cr3(void)
+; Reads the contents of the CR3 register and returns it
 memory_get_cr3:
 	mov rax, cr3
 	ret 
 
-;void _memory_load_cr3(uintptr_t pda)
-;Loads the cr3 register
+; void memory_load_cr3([rcx] paddr_t pda)
+; Loads the cr3 register with the provided physical address to a PML4 structure
 memory_load_cr3:
 	mov cr3, rcx
 	ret 
 
-;void _memory_invalidate_addr(uintptr_t pda)
-;Invalidates a page address
+; void memory_invalidate_addr([rcx] vaddr_t address)
+; Invalidates the provided memory address (virtual)
 memory_invalidate_addr:
 	invlpg [rcx]
 	ret
+
+; void memory_paging_init([rcx] paddr_t pda, [rdx] paddr_t stackPhysicalBase, [r8] vaddr_t stackVirtualBase)
+; Switches to the new paging table and readjusts stack from it's physical address to virtual
+; This needs to be called once we setup the new paging mappings.
+memory_paging_init:
+    sub rsp, rdx
+    add rsp, r8
+    jmp memory_load_cr3

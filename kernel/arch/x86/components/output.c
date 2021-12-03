@@ -496,7 +496,7 @@ SerialPutCharacter(
 }
 
 OsStatus_t
-InitializeSerialOutput(void)
+SerialPortInitialize(void)
 {
     // Initalize the UART port (1)
 #ifdef __OSCONFIG_DEBUGMODE
