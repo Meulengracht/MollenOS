@@ -23,9 +23,9 @@
 
 typedef struct {
     uint32_t Data1;
-    uint32_t Data2;
-    uint32_t Data3;
-    uint32_t Data4[8];
+    uint16_t Data2;
+    uint16_t Data3;
+    uint8_t  Data4[8];
 } __EFI_GUID;
 
 typedef struct {

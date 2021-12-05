@@ -27,7 +27,10 @@
 #include <heap.h>
 #include <machine.h>
 
-uintptr_t g_bootMemoryStart   = 0;
+static int       g_bootMemoryEnabled = 0;
+static uintptr_t g_bootMemoryStart   = 0;
+
+// must not be static, should make a get method for this tho instead
 uintptr_t g_bootMemoryAddress = 0;
 
 static void
@@ -45,29 +48,50 @@ static size_t
 __GetAvailablePhysicalMemory(
         _In_ struct VBoot* bootInformation)
 {
-    size_t upperSize = 0;
+    size_t memorySize = 0;
+    TRACE("__GetAvailablePhysicalMemory()");
+
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         if (bootInformation->Memory.Entries[i].Type == VBootMemoryType_Available) {
-            upperSize += bootInformation->Memory.Entries[i].Length;
+            memorySize += bootInformation->Memory.Entries[i].Length;
         }
     }
-    return upperSize;
+
+    TRACE("__GetAvailablePhysicalMemory available memory=0x%" PRIxIN, memorySize);
+    return memorySize;
 }
 
 static OsStatus_t
 __InitializeBootMemory(
-        _In_  struct VBoot*       bootInformation,
-        _In_  SystemMemoryMap_t*  memoryMap)
+        _In_ struct VBoot*       bootInformation,
+        _In_ size_t              memorySize,
+        _In_ size_t              pageSize,
+        _In_ SystemMemoryMap_t*  memoryMap)
 {
+    size_t sizeRequired;
+    TRACE("__InitializeBootMemory()");
+
+    // calculate a rough estimate of memory required for the stack and GA system
+    // the stack uses 8mb per 4gb memory in 64 bit mode
+    sizeRequired = DIVUP(memorySize, pageSize) * sizeof(void*);
+    sizeRequired += StaticMemoryPoolCalculateSize(memoryMap->KernelRegion.Length, pageSize);
+
+    // so this a very qualified guess and hopefully the preperation of the kernel virtual address space
+    // should NEVER require more space than a megabyte of physical memory.
+    sizeRequired += BYTES_PER_MB;
+    TRACE("__InitializeBootMemory sizeRequired=0x%" PRIxIN, sizeRequired);
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
         if (entry->Type == VBootMemoryType_Available) {
             // region also needs to be a part of the kernel map
-            if (ISINRANGE(memoryMap->KernelRegion.Start, entry->PhysicalBase, entry->PhysicalBase + entry->Length)) {
-                // region also needs to fit atleast 16mb
-                if (entry->Length >= (16 * BYTES_PER_MB)) {
+            if (ISINRANGE(entry->PhysicalBase, memoryMap->KernelRegion.Start,
+                          memoryMap->KernelRegion.Start + memoryMap->KernelRegion.Length)) {
+                if (entry->Length >= sizeRequired) {
+                    TRACE("__InitializeBootMemory found area PhysicalBase=0x%llx, Length=0x%llx",
+                          entry->PhysicalBase, entry->Length);
                     g_bootMemoryStart   = entry->PhysicalBase;
                     g_bootMemoryAddress = entry->PhysicalBase;
+                    g_bootMemoryEnabled = 1;
                     return OsSuccess;
                 }
             }
@@ -79,8 +103,8 @@ __InitializeBootMemory(
 static void
 __DisableBootMemory(void)
 {
-    g_bootMemoryAddress = 0;
-    g_bootMemoryStart   = 0;
+    TRACE("__DisableBootMemory()");
+    g_bootMemoryEnabled = 0;
 }
 
 OsStatus_t
@@ -88,8 +112,17 @@ MachineAllocateBootMemory(
         _In_  size_t size,
         _Out_ void** memory)
 {
-    if (!g_bootMemoryAddress) {
+    TRACE("MachineAllocateBootMemory(size=0x%" PRIxIN ")", size);
+    if (!g_bootMemoryEnabled) {
         return OsNotSupported;
+    }
+
+    // all allocations will be page aligned for good reasons
+    // especially since allocations for page tables and whatnot are
+    // made through here.
+    if (size % GetMachine()->MemoryGranularity) {
+        size += GetMachine()->MemoryGranularity;
+        size -= (size % GetMachine()->MemoryGranularity);
     }
 
     *memory = (void*)g_bootMemoryAddress;
@@ -106,6 +139,7 @@ __InitializePhysicalMemory(
     size_t       memoryBlocks = (memorySize / pageSize);
     void*        memory;
     OsStatus_t   osStatus;
+    TRACE("__InitializePhysicalMemory()");
 
     // initialize the stack, and then we pump memory onto it
     osStatus = MachineAllocateBootMemory(memoryBlocks * sizeof(void*), &memory);
@@ -124,6 +158,7 @@ __FillPhysicalMemory(
 {
     unsigned int i;
     size_t       reservedMemorySize;
+    TRACE("__FillPhysicalMemory()");
 
     // Calculate the used boot memory
     reservedMemorySize = g_bootMemoryAddress - g_bootMemoryStart;
@@ -136,13 +171,17 @@ __FillPhysicalMemory(
         struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
         if (entry->Type == VBootMemoryType_Available) {
             uintptr_t baseAddress = (uintptr_t)entry->PhysicalBase;
+            size_t    length      = (size_t)entry->Length;
             uintptr_t limit;
+
+            // adjust values if we allocated this segment for boot memory
             if (baseAddress == g_bootMemoryStart) {
                 baseAddress += reservedMemorySize;
+                length      -= reservedMemorySize;
             }
 
-            limit = baseAddress + (uintptr_t)(entry->Length - reservedMemorySize);
-            TRACE("[pmem] [mem_init] region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, baseAddress, limit);
+            limit = baseAddress + length;
+            TRACE("__FillPhysicalMemory region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, baseAddress, limit);
             while (baseAddress < limit) {
                 bounded_stack_push(boundedStack, (void*)baseAddress);
                 baseAddress += pageSize;
@@ -160,6 +199,7 @@ __InitializeGlobalAccessMemory(
 {
     size_t gaMemorySize;
     size_t gaMemoryStart;
+    TRACE("__InitializeGlobalAccessMemory()");
 
     gaMemoryStart = g_bootMemoryAddress;
     if (gaMemoryStart % pageSize) {
@@ -168,10 +208,10 @@ __InitializeGlobalAccessMemory(
     }
 
     gaMemorySize = memoryMap->KernelRegion.Length - gaMemoryStart;
-    TRACE("[pmem] [mem_init] initial size of ga memory to 0x%" PRIxIN, gaMemorySize);
+    TRACE("__InitializeGlobalAccessMemory initial size of ga memory to 0x%" PRIxIN, gaMemorySize);
     if (!IsPowerOfTwo(gaMemorySize)) {
         gaMemorySize = NextPowerOfTwo(gaMemorySize) >> 1U;
-        TRACE("[pmem] [mem_init] adjusting size of ga memory to 0x%" PRIxIN, gaMemorySize);
+        TRACE("__InitializeGlobalAccessMemory adjusting size of ga memory to 0x%" PRIxIN, gaMemorySize);
     }
 
     StaticMemoryPoolConstruct(
@@ -191,6 +231,7 @@ MachineInitializeMemorySystems(
     OsStatus_t osStatus;
     void*      gaMemory;
     size_t     gaMemorySize;
+    TRACE("MachineInitializeMemorySystems()");
 
     if (!machine) {
         return OsInvalidParameters;
@@ -210,7 +251,9 @@ MachineInitializeMemorySystems(
     // Find a suitable area where we can allocate continous physical pages for systems
     // that require (ident-mapped) memory. This is memory where the pointers need to be valid
     // both before and after we switch to the new virtual address space.
-    osStatus = __InitializeBootMemory(&machine->BootInformation, &machine->MemoryMap);
+    osStatus = __InitializeBootMemory(&machine->BootInformation,
+                                      memorySize, machine->MemoryGranularity,
+                                      &machine->MemoryMap);
     if (osStatus != OsSuccess) {
         return osStatus;
     }
@@ -269,6 +312,10 @@ MachineInitializeMemorySystems(
     if (osStatus != OsSuccess) {
         return osStatus;
     }
+
+    // Invalidate memory map as it is no longer accessible
+    machine->BootInformation.Memory.NumberOfEntries = 0;
+    machine->BootInformation.Memory.Entries         = NULL;
 #endif
 
     // Initialize the slab allocator now that subsystems are up

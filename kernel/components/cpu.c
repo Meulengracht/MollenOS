@@ -44,14 +44,12 @@ SystemCpuCore_t*
 GetProcessorCore(
     _In_ UUId_t CoreId)
 {
-    assert(TxuTable[CoreId] != NULL);
     return TxuTable[CoreId];
 }
 
 SystemCpuCore_t*
 CpuCoreCurrent(void)
 {
-    assert(TxuTable[ArchGetProcessorCoreId()] != NULL);
     return TxuTable[ArchGetProcessorCoreId()];
 }
 

@@ -38,7 +38,6 @@
 #include <modules/manager.h>
 #include <handle.h>
 #include <handle_set.h>
-#include <heap.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <stdio.h>
@@ -69,8 +68,6 @@ GetMachine(void)
 }
 
 // TODO
-// UefiLoader - Create memory map entry reserved for kernel
-// MemoryLayer - Update ramdisk address to virtual one
 // Bios mboot - Update to vboot protocol
 _Noreturn void
 InitializeMachine(
@@ -78,16 +75,12 @@ InitializeMachine(
 {
     OsStatus_t osStatus;
 
-    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'A');
     // Initialize all our static memory systems and global variables
     LogInitialize();
-    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'B');
     Crc32GenerateTable();
-    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'C');
     FutexInitialize();
 
     // Boot information must be supplied
-    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'D');
     TRACE("InitializeMachine(bootInformation=0x%x)", bootInformation);
     if (bootInformation == NULL) {
         for(;;) {
@@ -95,8 +88,6 @@ InitializeMachine(
             ArchProcessorHalt();
         }
     }
-    WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, 'E');
-
     sprintf(&Machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
@@ -184,6 +175,7 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
+    for(;;);
     osStatus = ParseInitialRamdisk(&Machine.BootInformation);
     if (osStatus != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");

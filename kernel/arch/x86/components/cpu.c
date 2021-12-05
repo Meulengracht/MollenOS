@@ -269,6 +269,9 @@ ArchGetProcessorCoreId(void)
 
     // If the local apic is not initialized this is single-core old system
     // OR we are still in startup phase and thus we just return the boot-core
+    if (!GetMachine()->Processor.Cores) {
+        return 0;
+    }
     return GetMachine()->Processor.Cores->Id;
 }
 

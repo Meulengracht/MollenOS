@@ -625,19 +625,9 @@ __GetBootMappingAttributes(
         _In_ unsigned int attributes)
 {
     unsigned int converted = PAGE_PRESENT | PAGE_PERSISTENT;
-
     if (!(attributes & VBOOT_MEMORY_RO)) {
         converted |= PAGE_WRITE;
     }
-
-    if (attributes & VBOOT_MEMORY_UC) {
-        converted |= PAGE_CACHE_DISABLE;
-    }
-
-    if (attributes & VBOOT_MEMORY_WT) {
-        converted |= PAGE_WRITETHROUGH;
-    }
-
     return converted;
 }
 
@@ -658,6 +648,8 @@ __InstallFirmwareMapping(
     int                pagesUpdated = 0;
     OsStatus_t         status       = OsSuccess;
     uintptr_t          zero         = 0;
+    TRACE("__InstallFirmwareMapping(virtualBase=0x%" PRIxIN", physicalBase=0x%" PRIxIN ", pageCount=%i)",
+          virtualBase, physicalBase, pageCount);
 
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
         attributes |= PAGE_GLOBAL;
@@ -694,6 +686,8 @@ __CreateFirmwareMapping(
     vaddr_t    virtualBase;
     OsStatus_t osStatus;
     int        pageCount;
+    TRACE("__CreateFirmwareMapping(physicalBase=0x%" PRIxIN ", length=0x%" PRIxIN ")",
+          entry->PhysicalBase, entry->Length);
 
     // Allocate a new virtual mapping
     virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, entry->Length);
@@ -724,6 +718,8 @@ __HandleFirmwareMappings(
         _Out_ uintptr_t*    stackMapping)
 {
     unsigned int i;
+    TRACE("__HandleFirmwareMappings()");
+
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
         if (entry->Type == VBootMemoryType_Firmware) {
@@ -749,6 +745,8 @@ __RemapFramebuffer(
     size_t     framebufferSize;
     OsStatus_t osStatus;
     int        pageCount;
+    TRACE("__RemapFramebuffer(framebuffer=0x%" PRIxIN ")",
+          VideoGetTerminal()->FrameBufferAddress);
 
     // If no framebuffer for output, no need to do this
     if (!VideoGetTerminal()->FrameBufferAddress) {
@@ -779,6 +777,50 @@ __RemapFramebuffer(
     return osStatus;
 }
 
+static vaddr_t
+__GetVirtualMapping(
+        _In_ struct VBoot* bootInformation,
+        _In_ paddr_t       physicalBase)
+{
+    TRACE("__GetVirtualMapping(physicalBase=0x%" PRIxIN ")", physicalBase);
+    for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
+        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        if (ISINRANGE(physicalBase, entry->PhysicalBase, entry->PhysicalBase + entry->Length)) {
+            TRACE("__GetVirtualMapping entry->PhysicalBase=0x%" PRIxIN " entry->VirtualBase=0x%" PRIxIN,
+                  entry->PhysicalBase, entry->VirtualBase);
+            TRACE("__GetVirtualMapping return=0x%" PRIxIN,
+                  entry->VirtualBase + (physicalBase - entry->PhysicalBase));
+            return entry->VirtualBase + (physicalBase - entry->PhysicalBase);
+        }
+    }
+    TRACE("__GetVirtualMapping not found");
+    return 0;
+}
+
+static void
+__FixupVBootAddresses(
+        _In_ struct VBoot* bootInformation)
+{
+    TRACE("__FixupVBootAddresses()");
+
+    // Update configuration table and entries if present
+    if (bootInformation->ConfigurationTableCount) {
+        bootInformation->ConfigurationTable = (void*)__GetVirtualMapping(
+                bootInformation,
+                (paddr_t)bootInformation->ConfigurationTable);
+    }
+
+    // Update ramdisk
+    bootInformation->Ramdisk.Data = (void*)__GetVirtualMapping(
+            bootInformation,
+            (paddr_t)bootInformation->Ramdisk.Data);
+
+    // Update stack
+    bootInformation->Stack.Base = (void*)__GetVirtualMapping(
+            bootInformation,
+            (paddr_t)bootInformation->Stack.Base);
+}
+
 OsStatus_t
 MmuLoadKernel(
         _In_ MemorySpace_t* memorySpace,
@@ -788,12 +830,16 @@ MmuLoadKernel(
 
     if (CpuCoreCurrent() == GetMachine()->Processor.Cores) {
         uintptr_t  stackVirtual;
+        uintptr_t  stackPhysical;
         OsStatus_t osStatus;
 
         // Update the configuration data for the memory space
         memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
         memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelcr3;
         memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
+
+        // store the physical base of the stack
+        stackPhysical = (uintptr_t)bootInformation->Stack.Base;
 
         // Install any remaining virtual mappings before we enable it. Currently, firmware
         // mappings still need to be allocated into global access memory. We also need to ensure
@@ -809,8 +855,13 @@ MmuLoadKernel(
             return osStatus;
         }
 
+        // Update all mappings in vboot to point to virtual ones instead of physical
+        __FixupVBootAddresses(bootInformation);
+
         // initialize paging and swap the stack address to virtual one, so we don't crap out.
-        memory_paging_init(g_kernelcr3, (uintptr_t)bootInformation->Stack.Base, stackVirtual);
+        TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
+              g_kernelcr3, stackPhysical, stackVirtual);
+        memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory

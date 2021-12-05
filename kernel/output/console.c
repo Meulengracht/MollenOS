@@ -33,7 +33,7 @@
 static const char* g_bootConsoleTitle = "Startup Debug Console";
 
 static void 
-VideoDrawLine(
+__DrawLine(
 	_In_ unsigned int startX,
 	_In_ unsigned int startY,
 	_In_ unsigned int endX,
@@ -56,7 +56,7 @@ VideoDrawLine(
 }
 
 static void
-VideoDrawBootTerminal(
+__DrawBootTerminal(
 	_In_ unsigned int X,
 	_In_ unsigned int Y,
 	_In_ size_t       Width,
@@ -71,13 +71,13 @@ VideoDrawBootTerminal(
 
 	// Draw the header
 	for (i = 0; i < 48; i++) {
-		VideoDrawLine(X, Y + i, X + Width, Y + i, COLOR_BORDER);
+        __DrawLine(X, Y + i, X + Width, Y + i, COLOR_BORDER);
 	}
 	
 	// Draw remaining borders
-	VideoDrawLine(X, Y, X, Y + Height, COLOR_BORDER);
-	VideoDrawLine(X + Width, Y, X + Width, Y + Height, COLOR_BORDER);
-	VideoDrawLine(X, Y + Height, X + Width, Y + Height, COLOR_BORDER);
+    __DrawLine(X, Y, X, Y + Height, COLOR_BORDER);
+    __DrawLine(X + Width, Y, X + Width, Y + Height, COLOR_BORDER);
+    __DrawLine(X, Y + Height, X + Width, Y + Height, COLOR_BORDER);
 
 	// Render title in middle of header
 	while (*TitlePtr) {
@@ -106,11 +106,6 @@ VideoQuery(
 	return OsSuccess;
 }
 
-/**
- * InitializeConsole
- * Initializes the output environment. This enables either visual representation
- * and debugging of the kernel and enables a serial debugger.
- */
 OsStatus_t 
 InitializeConsole(void)
 {
@@ -123,8 +118,8 @@ InitializeConsole(void)
         VideoClear(COLOR_BG);
 #ifdef __OSCONFIG_DEBUGCONSOLE
 		if (VideoGetTerminal()->AvailableOutputs & VIDEO_GRAPHICS) {
-			VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 375, 0,
-				MIN(750, VideoGetTerminal()->Info.Width), VideoGetTerminal()->Info.Height);
+            __DrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 375, 0,
+                               MIN(750, VideoGetTerminal()->Info.Width), VideoGetTerminal()->Info.Height);
 		}
 #endif
     }
