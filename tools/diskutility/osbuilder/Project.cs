@@ -26,7 +26,6 @@ namespace OSBuilder
     public class ProjectConfiguration
     {
         public string Scheme { get; set; }
-        public string Bootloader { get; set; }
         public string Size { get; set; }
         public List<ProjectPartition> Partitions { get; set; }
 

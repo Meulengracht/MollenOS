@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,8 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Kernel entry point
  */
 #define __MODULE "MACH"
 #define __TRACE
@@ -67,8 +63,6 @@ GetMachine(void)
     return &Machine;
 }
 
-// TODO
-// Bios mboot - Update to vboot protocol
 _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
@@ -175,7 +169,6 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    for(;;);
     osStatus = ParseInitialRamdisk(&Machine.BootInformation);
     if (osStatus != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");

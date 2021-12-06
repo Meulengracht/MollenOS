@@ -512,9 +512,9 @@ AcpiInitializeEarly(void)
     // Check for ECDT presence and enumerate. This table is not present on
     // any of the modern systems, they instead appear in the acpi namespace
     if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &header))) {
-        ACPI_TABLE_ECDT *EcdtTable = NULL;
+        ACPI_TABLE_ECDT* ecdtTable = (ACPI_TABLE_ECDT*)header;
         TRACE("AcpiInitializeEarly Enumerating the ECDT Table");
-        EcdtTable = (ACPI_TABLE_ECDT*)header;
+        TODO("missing implementation for ACPI ECDT parsing");
         //AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
         //    (void*)((uintptr_t)EcdtTable + EcdtTable->Header.Length));
         
@@ -525,9 +525,8 @@ AcpiInitializeEarly(void)
 
     // Check for SBST presence and enumerate
     if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &header))) {
-        ACPI_TABLE_SBST *BattTable = NULL;
+        ACPI_TABLE_SBST* sbspTable = (ACPI_TABLE_SBST*)header;
         TRACE("AcpiInitializeEarly Parsing the SBST Table");
-        BattTable = (ACPI_TABLE_SBST*)header;
         TODO("missing implementation for ACPI SBST parsing");
         
         // Cleanup table when we are done with it as we are using

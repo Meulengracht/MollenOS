@@ -1,8 +1,5 @@
 # options: MBR, GPT
 scheme: GPT
-
-# options: BIOS, UEFI
-bootloader: UEFI
 size: 2GB
 
 # initialize partitions for disk

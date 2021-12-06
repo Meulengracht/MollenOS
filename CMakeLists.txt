@@ -143,13 +143,13 @@ add_custom_target (install_prepare
 add_dependencies(install_prepare tools)
 
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-uefi.yaml --target img
+    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_img install_prepare install_applications)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt-uefi.yaml --target vmdk
+    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare install_applications)
