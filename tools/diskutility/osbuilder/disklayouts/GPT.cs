@@ -17,7 +17,7 @@ namespace OSBuilder.DiskLayouts
 
         private void ParseGPTEntries(ulong sector, uint entries, uint entrySize)
         {
-            ulong sectorCount = ((entries * entrySize) / _disk.BytesPerSector) + 1;
+            ulong sectorCount = ((entries * entrySize) / _disk.Geometry.BytesPerSector) + 1;
             byte[] data = _disk.Read(sector, sectorCount); 
 
             for (uint i = 0; i < entries; i++)
@@ -69,7 +69,7 @@ namespace OSBuilder.DiskLayouts
 
         private int GetSectorCountForPartitionTable(IDisk disk)
         {
-            return (int)(16384 / disk.BytesPerSector);
+            return (int)(16384 / disk.Geometry.BytesPerSector);
         }
 
         public bool Create(IDisk disk)
@@ -168,8 +168,8 @@ namespace OSBuilder.DiskLayouts
 
         private bool WriteGPT(bool isBackup)
         {
-            byte[] headerData = new byte[_disk.BytesPerSector];
-            byte[] entriesData = new byte[_disk.BytesPerSector * GetSectorCountForPartitionTable(_disk)];
+            byte[] headerData = new byte[_disk.Geometry.BytesPerSector];
+            byte[] entriesData = new byte[_disk.Geometry.BytesPerSector * GetSectorCountForPartitionTable(_disk)];
 
             // write the entries
             for (int i = 0; i < _fileSystems.Count; i++)

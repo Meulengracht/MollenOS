@@ -35,7 +35,7 @@ namespace OSBuilder.FileSystems.FAT
 
             // write the stream back to the disk
             if (_stream != null) {
-                _disk.Seek((long)(_sector * _disk.BytesPerSector));
+                _disk.Seek((long)(_sector * _disk.Geometry.BytesPerSector));
                 
                 _stream.Flush();
                 _stream.Seek(0, SeekOrigin.Begin);
@@ -56,9 +56,9 @@ namespace OSBuilder.FileSystems.FAT
         {
             return new DiscUtils.Geometry(
                 (long)_disk.SectorCount,
-                (int)_disk.Heads,
-                (int)_disk.SectorsPerTrack,
-                (int)_disk.BytesPerSector
+                (int)_disk.Geometry.HeadsPerCylinder,
+                (int)_disk.Geometry.SectorsPerTrack,
+                (int)_disk.Geometry.BytesPerSector
             );
         }
 

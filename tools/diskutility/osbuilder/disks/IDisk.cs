@@ -4,11 +4,8 @@ namespace OSBuilder
 {
     public interface IDisk
     {
-        uint BytesPerSector { get; }
         ulong SectorCount { get; }
-        uint SectorsPerTrack { get; }
-        uint Heads { get; }
-        uint Cylinders { get; }
+        DiskGeometry Geometry { get; }
 
         bool Create();
         bool Open();

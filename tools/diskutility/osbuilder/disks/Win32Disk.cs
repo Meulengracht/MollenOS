@@ -16,20 +16,14 @@ namespace OSBuilder
         private static readonly uint MEGABYTE = (KILOBYTE * 1024);
         private static readonly ulong GIGABYTE = (MEGABYTE * 1024);
 
-        public uint BytesPerSector { get { return _bytesPerSector; }  }
         public ulong SectorCount { get { return _totalSectors; }  }
-        public uint SectorsPerTrack { get { return _sectorsPerTrack; }  }
-        public uint Heads { get { return _heads; }  }
-        public uint Cylinders { get { return _cylinders; }  }
+        public DiskGeometry Geometry { get { return _diskGeometry; } }
 
-        private uint _bytesPerSector = 0;
-        private uint _sectorsPerTrack = 0;
-        private uint _heads = 0;
-        private uint _cylinders = 0;
         private ulong _totalSectors = 0;
 
         private String _deviceId;
         private SafeFileHandle _nativeHandle = null;
+        private DiskGeometry _diskGeometry = null;
         
         // Seek offsets
         public enum EMoveMethod : uint
@@ -94,34 +88,10 @@ namespace OSBuilder
         public Win32Disk(string deviceId, uint bytesPerSector, ulong sectorCount)
         {
             _deviceId = deviceId;
-            _bytesPerSector = bytesPerSector;
             _totalSectors = sectorCount;
-
-            ulong sizeOfHdd = _bytesPerSector * _totalSectors;
-            CalculateGeometry(sizeOfHdd);
+            _diskGeometry = DiskGeometry.CalculateGeometryLbaAssisted(bytesPerSector * sectorCount, bytesPerSector);
         }
         
-        internal void CalculateGeometry(ulong diskSize)
-        {
-            if (diskSize < GIGABYTE)
-            {
-                _heads = 64;
-                _sectorsPerTrack = 32;
-            }
-            else if (diskSize < (2UL * GIGABYTE))
-            {
-                _heads = 128;
-                _sectorsPerTrack = 32;
-            }
-            else
-            {
-                _heads = 255;
-                _sectorsPerTrack = 63;
-            }
-
-            _cylinders = (uint)(diskSize / (_heads * _sectorsPerTrack * _bytesPerSector));
-        }
-
         public bool Create()
         {
             // not supported on live disks
@@ -200,7 +170,7 @@ namespace OSBuilder
             // If we asked to seek, then handle the case
             if (seekFirst) {
                 // Calculate the absolute offset
-                ulong seekOffset = atSector * _bytesPerSector;
+                ulong seekOffset = atSector * _diskGeometry.BytesPerSector;
                 Seek((long)seekOffset);
             }
 
@@ -213,8 +183,8 @@ namespace OSBuilder
             if (_nativeHandle == null)
                 throw new Exception("Disk not open");
 
-            byte[] buffer = new Byte[sectorCount * _bytesPerSector];
-            ulong seekOffset = sector * _bytesPerSector;
+            byte[] buffer = new Byte[sectorCount * _diskGeometry.BytesPerSector];
+            ulong seekOffset = sector * _diskGeometry.BytesPerSector;
 
             // Prepare disk access by seeking to position
             Seek((long)seekOffset);

@@ -388,7 +388,7 @@ namespace OSBuilder
                     if (!string.IsNullOrEmpty(partition.Size))
                     {
                         var partitionSizeMb = GetMByteCountFromString(partition.Size);
-                        var partitionSizeSectors = GetSectorCountFromMB((int)disk.BytesPerSector, partitionSizeMb);
+                        var partitionSizeSectors = GetSectorCountFromMB((int)disk.Geometry.BytesPerSector, partitionSizeMb);
                         if (diskScheme.GetFreeSectorCount() < partitionSizeSectors)
                             throw new Exception($"Not enough free space for partition {partition.Label}");
 

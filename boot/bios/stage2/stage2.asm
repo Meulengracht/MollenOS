@@ -1,5 +1,3 @@
-; MollenOS
-;
 ; Copyright 2011, Philip Meulengracht
 ;
 ; This program is free software : you can redistribute it and / or modify
@@ -15,8 +13,13 @@
 ; You should have received a copy of the GNU General Public License
 ; along with this program.If not, see <http://www.gnu.org/licenses/>.
 ;
-; MollenOS Stage 2 Bootloader
-; Version 1.0
+; Vali BIOS bootloader (Common, Stage2)
+; - Calling convention for writing assembler in this bootloader
+;   will be the usual cdecl. So that means arguments are pushed in reverse
+;   order on the stack, EAX, ECX and EDX are caller-saved, and rest are calee-saved.
+;   Return values are returned in EAX.
+;
+
 ; 16 Bit Code, Origin at 0x500
 BITS 16
 ORG 0x0500
@@ -26,18 +29,18 @@ ORG 0x0500
 ; *****************************
 ; REAL ENTRY POINT
 ; *****************************
-jmp Entry
+jmp LoaderEntry16
 
 ; Includes
 %include "systems/common.inc"
-%include "systems/memory.inc"
+%include "systems/memory16.inc"
 %include "systems/a20.inc"
 %include "systems/gdt.inc"
-%include "systems/vesa.inc"
+%include "systems/output.inc"
 %include "systems/peloader.inc"
 
 ; FileSystem Includes
-%include "systems/fscommon.inc"
+%include "filesystems/fscommon16.inc"
 
 ; *****************************
 ; Entry Point
@@ -45,376 +48,198 @@ jmp Entry
 ; dh = stage1 type
 ; si = partition table entry
 ; *****************************
-Entry:
-	cli
+LoaderEntry16:
+    cli
 
-	; Clear registers (Not EDX or ESI, it contains stuff!)
-	xor eax, eax
-	xor ebx, ebx
-	xor ecx, ecx
-	xor edi, edi
+    xor ax, ax
+    mov	ds, ax
+    mov	es, ax
+    mov	fs, ax
+    mov	gs, ax
 
-	; Setup segments
-	mov	ds, ax
-	mov	es, ax
-	mov	fs, ax
-	mov	gs, ax
+    mov	ss, ax
+    mov	ax, MEMLOCATION_INITIALSTACK
+    mov	sp, ax
+    sti
 
-	; Setup stack
-	mov	ss, ax
-	mov	ax, MEMLOCATION_INITIALSTACK
-	mov	sp, ax
-	xor ax, ax
-	sti
+    ; save information passed by bootloader (stage1)
+    mov byte [bDriveNumber], dl   ; store drivenum
+    mov byte [bStage1Type], dh    ; store stage1 type
+    mov esi, dword [si + 8]       ; load base-sector from partition entry
+    mov dword [dBaseSector], esi  ; store it for our ReadSectors function
 
-	; Save information passed by Stage1
-	mov byte [bDriveNumber], dl
-	mov byte [bStage1Type], dh
-	mov esi, dword [si + 8]
-	mov dword [dBaseSector], esi
+    ; Initialize the output system (early)
+    call VideoInitializeConsole16
+    TRACE szStartMessage
 
-	; Now we can clear EDX
-	xor edx, edx
-	xor esi, esi
+    TRACE szA20GateMessage
+    xchg bx, bx
+    call A20Enable16       ; enable a20 gate if it not already
+    test ax, ax
+    jnz Continue_Part1
+    call SystemsFail
 
-	; Set video mode to 80x25 (Color Mode)
-	mov 	al, 0x03
-	mov 	ah, 0x00
-	int 	0x10
-
-	; Set text color
-	mov 	al, BLACK
-	mov 	ah, GREEN
-	call 	SetTextColor
-
-	; Print Message
-	mov 	esi, szWelcome0
-	call 	Print
-
-	; Set basic
-	mov 	esi, szBootloaderName
-	mov 	dword [BootHeader + MultiBoot.BootLoaderName], esi
-
-	; Get memory map
-	call 	SetupMemory
-
-	; Enable A20 Gate
-	call 	EnableA20
-
-	; Install GDT
-	call 	InstallGdt
+Continue_Part1:
+    TRACE szGdtMessage
+    call GdtInstall     ; install gdt table with 16, 32 and 64 bit entries
 
 %ifdef __OSCONFIG_HAS_VIDEO
-	; VESA System Select
-	call 	VesaSetup
+    ; Initialize vesa memory structures and find the mode we want
+    TRACE szVesaMessage
+    call VesaInitialize16
 %endif
 
-	; Setup FileSystem (Based on Stage1 Type)
-	xor 	eax, eax
-	mov 	al, byte [bStage1Type]
-	mov 	ah, byte [bDriveNumber]
-	call 	SetupFS
+    ; Initialize filesystem subsystem
+    TRACE szFsMessage
+    xor ax, ax
+    mov al, [bDriveNumber]
+    push ax
+    mov al, [bStage1Type]
+    push ax
+    call FileSystemInitialize16
+    add sp, 4
 
-	; Load Kernel
-	mov 	esi, szLoadingKernel
-	call 	Print
+    ; load memory map to known address so we can parse it and
+    ; prepare the vboot memory map
+    TRACE szMemoryMessage
+    call MemoryInitialize16
 
-	mov 	esi, szKernel
-	mov		edi, szKernelUtf
-	xor 	eax, eax
-	xor 	ebx, ebx
-	mov 	ax, MEMLOCATION_FLOAD_SEGMENT
-	mov 	es, ax
-	mov 	bx, MEMLOCATION_FLOAD_OFFSET
-	call 	LoadFile
+    ; enable 32 bit mode
+    mov	eax, cr0
+    or  eax, 1
+    mov	cr0, eax
+    jmp CODE_DESC:LoaderEntry32
 
-	; Did it load correctly?
-	cmp 	eax, 0
-	jne 	Continue
-
-	; Damnit
-	mov 	esi, szFailed
-	call 	Print
-
-	; Fuckup
-	call 	SystemsFail
-
-Continue:
-	; Save
-	mov 	dword [dKernelSize], eax
-
-	; Print
-	mov 	esi, szSuccess
-	call 	Print
-
-	; Now, the tricky thing comes. We must go to 32-bit, copy the kernel
-	; to 0x1000000, then return back so we can load ramdisk
-
-	; GO PROTECTED MODE!
-	mov		eax, cr0
-	or		eax, 1
-	mov		cr0, eax
-
-	; Jump into 32 bit
-	jmp 	CODE_DESC:LoadKernel32
-
-LoadRamDisk:
-	; Load 16 Idt 
-	call	LoadIdt16
-
-	; Disable Protected mode
-	mov		eax, cr0
-	and		eax, 0xFFFFFFFE
-	mov		cr0, eax
-
-	; Far jump to real mode unprotected
-	jmp 	0:LeaveProtected
-
-LeaveProtected:
-	; Clear registers
-	xor 	eax, eax
-	xor 	ebx, ebx
-	xor 	ecx, ecx
-	xor		edx, edx
-	xor 	esi, esi
-	xor 	edi, edi
-
-	; Setup segments, leave 16 bit protected mode
-	mov		ds, ax
-	mov		es, ax
-	mov		fs, ax
-	mov		gs, ax
-
-	; Setup stack
-	mov		ss, ax
-	mov		ax, MEMLOCATION_INITIALSTACK
-	mov		sp, ax
-	xor 	ax, ax
-
-	; Enable interrupts
-	sti
-
-	; Print load ramdisk
-	mov 	esi, szLoadingRamDisk
-	call 	Print
-
-	; Actually load it
-	mov 	esi, szRamDisk
-	mov		edi, szRamDiskUtf
-	xor 	eax, eax
-	xor 	ebx, ebx
-	mov 	ax, MEMLOCATION_FLOAD_SEGMENT
-	mov 	es, ax
-	mov 	bx, MEMLOCATION_FLOAD_OFFSET
-	call 	LoadFile
-
-	; Did it load correctly?
-	cmp 	eax, 0
-	jne 	Finish16Bit
-
-	; Damnit
-	mov 	esi, szFailed
-	call 	Print
-
-	; Fuckup
-	call 	SystemsFail
-
-Finish16Bit:
-	; Save
-	mov		eax, MEMLOCATION_RAMDISK_UPPER
-	mov 	dword [BootHeader + MultiBoot.RamdiskAddress], eax
-
-	; Print
-	mov 	esi, szSuccess
-	call 	Print
-
-	; Print last message
-	mov 	esi, szFinishBootMsg
-	call 	Print
-
-%ifdef __OSCONFIG_HAS_VIDEO
-	; Switch Video Mode
-	call 	VesaFinish
-%endif
-
-	; GO PROTECTED MODE!
-	mov		eax, cr0
-	or		eax, 1
-	mov		cr0, eax
-
-	; Jump into 32 bit
-	jmp 	CODE_DESC:Entry32
-
-align 32
-; ****************************
-; 32 Bit Stage Below 
-; ****************************
-BITS 32
-
-; 32 Bit Includes
+ALIGN 32
+BITS  32
 %include "systems/cpu.inc"
 %include "systems/lz.inc"
+%include "systems/memory32.inc"
+%include "filesystems/fscommon32.inc"
 
-LoadKernel32:
-	; Disable Interrupts
-	cli
+LoaderEntry32:
+    cli
+    xor eax, eax
+    mov ax, DATA_DESC
+    mov ds, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov es, ax
+    mov esp, MEMLOCATION_INITIALSTACK
 
-	; Setup Segments, Stack etc
-	xor 	eax, eax
-	mov 	ax, DATA_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
-	mov 	esp, MEMLOCATION_INITIALSTACK
+    ; allocate memory for temporary file storage while we load the kernel
+    call MemoryAllocateFirmware
 
-	; Unpack kernel
-	mov		esi, MEMLOCATION_FLOAD_LOWER
-	mov		edi, MEMLOCATION_UNPACK_AREA
-	call	LZLoad
-	cmp		eax, -1
-	je		EndOfStage
+    ; allocate memory for the kernel
+    push MEMLOCATION_KERNEL_UPPER
+    call MemoryAllocateFixed
+    add esp, 4
 
-	; Kernel Relocation to 1mb (PE, ELF, binary)
-	mov 	esi, MEMLOCATION_UNPACK_AREA
-	mov 	edi, MEMLOCATION_KERNEL_UPPER
-	call 	PELoad
+    ; load kernel image to memory and unpack/relocate it
 
-	; Save entry
-	mov 	dword [dKernelEntry], ebx
+    ; allocate memory for the ramdisk
+    call MemoryAllocateFirmware
 
-	; Perfect, now we must return to 16 bit
-	; So we can load the RD
-	
-	; Load 16-bit protected mode descriptor
-	mov 	eax, DATA16_DESC
-	mov 	ds, eax
-	mov 	es, eax
-	mov 	fs, eax
-	mov 	gs, eax
-	mov 	ss, eax
+    ; load ramdisk image to memory and unpack it
 
-	; Jump to protected real mode, set CS!
-	jmp	CODE16_DESC:LoadRamDisk
 
-Entry32:
-	; Setup Segments, Stack etc
-	xor 	eax, eax
-	mov 	ax, DATA_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
-	mov 	esp, MEMLOCATION_INITIALSTACK
+    ; free the temporary file storage
+    call MemoryFreeFirmware
 
-	; Disable ALL irq
-	mov 	al, 0xff
-	out 	0xa1, al
-	out 	0x21, al
+    ; switch video mode
+%ifdef __OSCONFIG_HAS_VIDEO
+    mov eax, VesaFinish
+    push eax
+    call BiosCallWrapper
+    add esp, 4
+%endif
 
-	; But we cli aswell
-	cli
+    ; At this point we no longer need 16 bit mode calls, so
+    ; we can mask all irq from this point in the PIC to avoid
+    ; anything from this point even tho interrupts are disabled atm.
+    mov al, 0xff
+    out 0xa1, al
+    out 0x21, al
 
-	; Unpack ramdisk - new size returned in eax
-	mov		esi, MEMLOCATION_FLOAD_LOWER
-	mov		edi, MEMLOCATION_UNPACK_AREA
-	call	LZLoad
-	cmp		eax, -1
-	je		EndOfStage
-	mov		dword [BootHeader + MultiBoot.RamdiskSize], eax
+    ; allocate memory for the kernel stack
+    push KERNEL_STACK_SIZE
+    call MemoryAllocateFirmware
 
-	; RamDisk Relocation to 2mb
-	mov 	esi, MEMLOCATION_UNPACK_AREA
-	mov 	edi, MEMLOCATION_RAMDISK_UPPER
-	mov		ecx, dword [BootHeader + MultiBoot.RamdiskSize]
-	shr		ecx, 2
-	inc		ecx
-	rep		movsd
-
-	; Setup Cpu
 %ifdef __amd64__
-	call	CpuDetect64
+    ; go into 64 bit mode if possible
+    call	CpuDetect64
     cmp     eax, 1
     jne     Skip64BitMode
 
-	; If eax is set to 1, 
-	; we will enter 64 bit mode instead
+    ; If eax is set to 1, 
+    ; we will enter 64 bit mode instead
     call    CpuSetupLongMode
     jmp     CODE64_DESC:LoadKernel64
 %endif
 
 Skip64BitMode:
-	; Setup Registers
-	xor 	esi, esi
-	xor 	edi, edi
-	mov 	ecx, dword [dKernelEntry]
-	mov 	eax, MULTIBOOT_MAGIC
-	mov 	ebx, BootHeader
+    ; Setup Registers
+    xor esi, esi
+    xor edi, edi
+    mov ecx, dword [dKernelEntry]
+    mov eax, VBOOT_MAGIC
+    mov ebx, BootHeader
 
-	; Setup the final stack
-	mov 	esp, MEMLOCATION_KERNEL_STACK
+    ; Setup the final stack
+    mov esp, MEMLOCATION_KERNEL_STACK
     
-	; Jump to kernel (Entry Point in ECX)
-	jmp 	ecx
+    ; Jump to kernel (Entry Point in ECX)
+    jmp ecx
+    cli
+    hlt
 
-	; Safety
-EndOfStage:
-	cli
-	hlt
-
-align 64
-; ****************************
-; 64 Bit Stage Below 
-; ****************************
-BITS 64
-
+ALIGN 64
+BITS  64
 LoadKernel64:
-    xor 	eax, eax
-	mov 	ax, DATA64_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
-	mov 	rsp, MEMLOCATION_KERNEL_STACK   ; We can set a correct stack from start
+    xor eax, eax
+    mov ax, DATA64_DESC
+    mov ds, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov es, ax
+    mov rsp, MEMLOCATION_KERNEL_STACK   ; We can set a correct stack from start
 
     ; Setup Registers
-	xor 	rsi, rsi
-	xor 	rdi, rdi
-    xor     rax, rax
-    xor     rbx, rbx
-    xor     rcx, rcx
-	mov 	ecx, dword [dKernelEntry]
-	mov 	eax, MULTIBOOT_MAGIC
-	mov 	ebx, BootHeader
+    xor rsi, rsi
+    xor rdi, rdi
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    mov ecx, dword [dKernelEntry]
+    mov eax, VBOOT_MAGIC
+    mov ebx, BootHeader
 
-	; Jump to kernel (Entry Point in ECX)
-	jmp 	rcx
-
-	; Safety
-EndOfStage64:
-	cli
-	hlt
+    ; Jump to kernel (Entry Point in ECX)
+    jmp rcx
+    cli
+    hlt
 
 ; ****************************
 ; Variables
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szBootloaderName				db 		"mboot 1.0.0-dev", 0x00
-szWelcome0 						db 		"starting mboot 1.0.0-dev", 0x0D, 0x0A, 0x00
-szSuccess						db 		" [ok]", 0x0D, 0x0A, 0x00
-szFailed						db 		" [err]", 0x0D, 0x0A, 0x00
-szLoadingKernel					db 		"loading vali kernel image", 0x00
-szLoadingRamDisk				db 		"loading kernel ramdisk", 0x00
-szFinishBootMsg 				db 		"initializing hardware", 0x0D, 0x0A, 0x00
+szStartMessage     db "000000000 [vboot] starting mboot 1.0.0-dev", 0x0D, 0x0A, 0x00
+szA20GateMessage   db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
+szGdtMessage       db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
+szVesaMessage      db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
+szFsMessage        db "000000000 [vboot] initializing current filesystem", 0x0D, 0x0A, 0x00
+szMemoryMessage    db "000000000 [vboot] initializing memory subsystem", 0x0D, 0x0A, 0x00
+szSuccess          db " [ok]", 0x0D, 0x0A, 0x00
+szFailed           db " [err]", 0x0D, 0x0A, 0x00
+szNewline          db 0x0D, 0x0A, 0x00
 
-szKernel						db 		"MCORE   MOS"
-szRamDisk						db		"INITRD  MOS"
-szKernelUtf						db		"syskrnl.mos", 0x0
-szRamDiskUtf					db		"initrd.mos", 0x0
+szKernel      db "MCORE   MOS"
+szRamDisk     db "INITRD  MOS"
+szKernelUtf   db "syskrnl.mos", 0x0
+szRamDiskUtf  db "initrd.mos", 0x0
 
 ; Practical stuff
 bDriveNumber db 0

@@ -107,8 +107,8 @@ lower_entry:
 load_vbr:
     xor ax, ax
 	mov es, ax
-	mov	bx, 0x7C00
     mov eax, dword [bx + 32]
+	mov	bx, 0x7C00
     mov ecx, 1
 	mov edx, 512
     call read_sector

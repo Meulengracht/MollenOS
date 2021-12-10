@@ -28,180 +28,138 @@
 BITS 16
 
 ; ********************************
-; CheckA20
-; OUT: 
-; 	- AX: 0 If A20 is disabled, 1 If enabled
+; A20IsEnabled
+; @brief Checks if A20 is enabled
+; @param <none>
+; @returns 1 if A20 is enabled, 0 otherwise
 ; ******************************** 
-CheckA20:
+A20IsEnabled:
     pushf
-    push 	ds
-    push 	es
-    push 	di
-    push 	si
+    push es
+    push di
+    push si
  
     cli
  
-    xor 	ax, ax ; ax = 0
-    mov 	es, ax
+    xor ax, ax ; ax = 0
+    mov es, ax
  
-    not 	ax ; ax = 0xFFFF
-    mov 	ds, ax
+    not ax ; ax = 0xFFFF
+    mov ds, ax
  
-    mov 	di, 0x0500
-    mov 	si, 0x0510
+    mov di, 0x0500
+    mov si, 0x0510
  
-    mov 	al, byte [es:di]
-    push 	ax
+    mov al, byte [es:di]
+    push ax
  
-    mov 	al, byte [ds:si]
-    push 	ax
+    mov al, byte [ds:si]
+    push ax
  
-    mov 	byte [es:di], 0x00
-    mov 	byte [ds:si], 0xFF
+    mov byte [es:di], 0x00
+    mov byte [ds:si], 0xFF
  
-    cmp 	byte [es:di], 0xFF
+    cmp byte [es:di], 0xFF
  
-    pop 	ax
-    mov 	byte [ds:si], al
+    pop ax
+    mov byte [ds:si], al
  
-    pop 	ax
-    mov 	byte [es:di], al
+    pop ax
+    mov byte [es:di], al
  
-    mov 	ax, 0
-    je 		CheckA20__Exit
+    mov ax, 0
+    je 	.exit
  
-    mov 	ax, 1
+    mov ax, 1
  
-CheckA20__Exit:
-    pop 	si
-    pop 	di
-    pop 	es
-    pop 	ds
-    popf
- 
-    ret
+    .exit:
+        pop si
+        pop di
+        pop es
+        popf
+        ret
 
 ; ********************************
 ; A20MethodKeyboardController
 ; ******************************** 
 A20MethodKeyboardController:
-        cli
+    cli
 
-        call    A20Wait
-        mov     al,0xAD
-        out     0x64,al
+    call    A20Wait
+    mov     al, 0xAD
+    out     0x64, al
 
-        call    A20Wait
-        mov     al,0xD0
-        out     0x64,al
+    call    A20Wait
+    mov     al, 0xD0
+    out     0x64, al
 
-        call    A20Wait2
-        in      al,0x60
-        push    eax
+    call    A20Wait2
+    in      al, 0x60
+    push    ax
 
-        call    A20Wait
-        mov     al,0xD1
-        out     0x64,al
+    call    A20Wait
+    mov     al, 0xD1
+    out     0x64, al
 
-        call    A20Wait
-        pop     eax
-        or      al,2
-        out     0x60,al
+    call    A20Wait
+    pop     ax
+    or      al, 2
+    out     0x60, al
 
-        call    A20Wait
-        mov     al,0xAE
-        out     0x64,al
+    call    A20Wait
+    mov     al, 0xAE
+    out     0x64, al
 
-        call    A20Wait
-        sti
-        ret
+    call    A20Wait
+    sti
+    ret
 
 A20Wait:
-        in      al,0x64
-        test    al,2
-        jnz     A20Wait
-        ret
-
+    in      al, 0x64
+    test    al, 2
+    jnz     A20Wait
+    ret
 
 A20Wait2:
-        in      al,0x64
-        test    al,1
-        jz      A20Wait2
-        ret
+    in      al, 0x64
+    test    al, 1
+    jz      A20Wait2
+    ret
 
 
 ; ********************************
 ; A20MethodBios
 ; ******************************** 
 A20MethodBios:
-	; Bios functon to enable A20
-	mov 	ax, 0x2401
-	int 	0x15
+	mov ax, 0x2401
+	int 0x15
 	ret
 
 ; ********************************
-; EnableA20
+; A20Enable16
+; @brief Enables the A20 Gate through various methods
+;
+; @param <none>
+; @return <none>
 ; ******************************** 
-EnableA20:
-	; Save State
-	pushad
+A20Enable16:
+	call A20IsEnabled      ; don't enable A20 if it's already enabled
+	cmp ax, 1
+	je 	.success
 
-%ifndef __BOOT_SILENCE
-	mov 	esi, szA20Setup
-	call 	Print
-%endif
+	call A20MethodBios     ; try enabling through bios as primary option
+	call A20IsEnabled      ; verify if it's enabled
+	cmp ax, 1
+	je 	.success
 
-	; Step 1, is it already enabled?
-	call 	CheckA20
-	cmp 	ax, 1
-	je 		.Done
+	call A20MethodKeyboardController ; try enabling through keyboard controller
+	call A20IsEnabled     ; verify if it's enabled
+	cmp ax, 1
+	je 	.success
 
-	; First we try to enable trough bios
-	call 	A20MethodBios
-
-	; Did it work?
-	call 	CheckA20
-	cmp 	ax, 1
-	je 		.Done
-
-	; Fuck, not supported then, try keyboard controller
-	call 	A20MethodKeyboardController
-
-	; Did it work?
-	call 	CheckA20
-	cmp 	ax, 1
-	je 		.Done
-
-	.Error:
-%ifndef __BOOT_SILENCE
-		; Nooo :(
-		mov 	esi, szFailed
-		call 	Print
-
-		; Halt
-		call 	SystemsFail
-%endif
-		cli
-		hlt
-
-	.Done:
-%ifndef __BOOT_SILENCE
-		; Print
-		mov 	esi, szSuccess
-		call 	Print
-%endif
-
-		; Restore & Return
-		popad
+	.failed:
+        xor ax, ax
+	.success:
 		ret
-
-; ********************************
-; Variables
-; ********************************
-
-%ifndef __BOOT_SILENCE
-; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szA20Setup db "enabling A20 gate", 0x00
-%endif
 
 %endif

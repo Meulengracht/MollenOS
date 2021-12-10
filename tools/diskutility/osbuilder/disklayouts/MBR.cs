@@ -79,7 +79,7 @@ namespace OSBuilder.DiskLayouts
 
             // determine data to write
             byte status = (byte)(fileSystem.IsBootable() ? 0x80 : 0x00);
-            var sectorsPerTrack = _disk.SectorsPerTrack;
+            var sectorsPerTrack = _disk.Geometry.SectorsPerTrack;
 
             ulong headOfStart = (partitionStart / sectorsPerTrack) % 16;
             ulong headOfEnd = (partitionEnd / sectorsPerTrack) % 16;

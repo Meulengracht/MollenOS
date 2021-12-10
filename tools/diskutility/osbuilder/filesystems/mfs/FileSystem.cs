@@ -64,7 +64,7 @@ namespace OSBuilder.FileSystems.MFS
 
             // Iterate through the data and write it to the buckets
             while (Index < Data.LongLength) {
-                Byte[] Buffer = new Byte[(_bucketSize * _disk.BytesPerSector) * BucketLengthItr];
+                Byte[] Buffer = new Byte[(_bucketSize * _disk.Geometry.BytesPerSector) * BucketLengthItr];
 
                 // Copy the data to the buffer manually
                 for (int i = 0; i < Buffer.Length; i++) {
@@ -111,7 +111,7 @@ namespace OSBuilder.FileSystems.MFS
                 Byte[] directoryBuffer = _disk.Read(BucketToSector(currentDirectoryBucket), _bucketSize * currentBucketLength);
 
                 // Iterate the bucket and find a free entry
-                for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * currentBucketLength); i += 1024) {
+                for (int i = 0; i < (_bucketSize * _disk.Geometry.BytesPerSector * currentBucketLength); i += 1024) {
                     if (directoryBuffer[i] == 0) {
                         // Variables
                         ulong NumBuckets = 0;
@@ -121,10 +121,10 @@ namespace OSBuilder.FileSystems.MFS
                         // Do we even need to write data?
                         if (Data != null) {
                             DataLen = (ulong)Data.LongLength;
-                            NumBuckets = (ulong)(Data.LongLength / _disk.BytesPerSector) / _bucketSize;
-                            if (((Data.LongLength / _disk.BytesPerSector) % _bucketSize) > 0)
+                            NumBuckets = (ulong)(Data.LongLength / _disk.Geometry.BytesPerSector) / _bucketSize;
+                            if (((Data.LongLength / _disk.Geometry.BytesPerSector) % _bucketSize) > 0)
                                 NumBuckets++;
-                            AllocatedSize = NumBuckets * _bucketSize * _disk.BytesPerSector;
+                            AllocatedSize = NumBuckets * _bucketSize * _disk.Geometry.BytesPerSector;
                         }
 
                         // Setup flags
@@ -228,7 +228,7 @@ namespace OSBuilder.FileSystems.MFS
 
                     // Wipe the new allocated directory block
                     Console.WriteLine("Directory - Wipe");
-                    Byte[] Wipe = new Byte[_bucketSize * _disk.BytesPerSector * allocationLength];
+                    Byte[] Wipe = new Byte[_bucketSize * _disk.Geometry.BytesPerSector * allocationLength];
                     _disk.Write(Wipe, BucketToSector(allocation), true);
 
                     // Update iterator
@@ -265,7 +265,7 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
+                    for (int i = 0; i < (_bucketSize * _disk.Geometry.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
                             continue;
                         }
@@ -338,7 +338,7 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
+                    for (int i = 0; i < (_bucketSize * _disk.Geometry.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
                             continue;
                         }
@@ -427,7 +427,7 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
+                    for (i = 0; i < (_bucketSize * _disk.Geometry.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
                             End = 1;
                             break;
@@ -485,7 +485,7 @@ namespace OSBuilder.FileSystems.MFS
                     Byte[] directoryBuffer = _disk.Read(BucketToSector(IteratorBucket), _bucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (_bucketSize * _disk.BytesPerSector * DirectoryLength); i += 1024) {
+                    for (int i = 0; i < (_bucketSize * _disk.Geometry.BytesPerSector * DirectoryLength); i += 1024) {
                         if (directoryBuffer[i] == 0) {
                             continue;
                         }
@@ -555,7 +555,7 @@ namespace OSBuilder.FileSystems.MFS
                                 _disk.Write(directoryBuffer, BucketToSector(IteratorBucket), true);
 
                                 // Wipe directory bucket
-                                byte[] wipeBuffer = new byte[_bucketSize * _disk.BytesPerSector * initialBucketSize];
+                                byte[] wipeBuffer = new byte[_bucketSize * _disk.Geometry.BytesPerSector * initialBucketSize];
                                 _disk.Write(wipeBuffer, BucketToSector(nEntry.Bucket), true);
                             }
 
@@ -770,7 +770,7 @@ namespace OSBuilder.FileSystems.MFS
             //uint16_t SectorsPerBucket;
             //uint64_t MasterRecordSector;
             //uint64_t MasterRecordMirror;
-            byte[] bootsector = new byte[_disk.BytesPerSector];
+            byte[] bootsector = new byte[_disk.Geometry.BytesPerSector];
 
             // Initialize magic
             bootsector[3] = 0x4D;
@@ -788,16 +788,16 @@ namespace OSBuilder.FileSystems.MFS
 
             // Initialize disk metrics
             bootsector[9] = 0x80;
-            bootsector[10] = (Byte)(_disk.BytesPerSector & 0xFF);
-            bootsector[11] = (Byte)((_disk.BytesPerSector >> 8) & 0xFF);
+            bootsector[10] = (Byte)(_disk.Geometry.BytesPerSector & 0xFF);
+            bootsector[11] = (Byte)((_disk.Geometry.BytesPerSector >> 8) & 0xFF);
 
             // Sectors per track
-            bootsector[12] = (Byte)(_disk.SectorsPerTrack & 0xFF);
-            bootsector[13] = (Byte)((_disk.SectorsPerTrack >> 8) & 0xFF);
+            bootsector[12] = (Byte)(_disk.Geometry.SectorsPerTrack & 0xFF);
+            bootsector[13] = (Byte)((_disk.Geometry.SectorsPerTrack >> 8) & 0xFF);
 
             // Heads per cylinder
-            bootsector[14] = (Byte)(_disk.Heads & 0xFF);
-            bootsector[15] = (Byte)((_disk.Heads >> 8) & 0xFF);
+            bootsector[14] = (Byte)(_disk.Geometry.HeadsPerCylinder & 0xFF);
+            bootsector[15] = (Byte)((_disk.Geometry.HeadsPerCylinder >> 8) & 0xFF);
 
             // Total sectors on partition
             bootsector[16] = (Byte)(_sectorCount & 0xFF);
@@ -862,7 +862,7 @@ namespace OSBuilder.FileSystems.MFS
             // Write stage2 to disk
             Console.WriteLine("MakeBoot - loading stage2 (stage2.sys)");
             byte[] stage2Data = File.ReadAllBytes("deploy/stage2.sys");
-            byte[] sectorAlignedBuffer = new Byte[((stage2Data.Length / _disk.BytesPerSector) + 1) * _disk.BytesPerSector];
+            byte[] sectorAlignedBuffer = new Byte[((stage2Data.Length / _disk.Geometry.BytesPerSector) + 1) * _disk.Geometry.BytesPerSector];
             stage2Data.CopyTo(sectorAlignedBuffer, 0);
 
             // Make sure we allocate a sector-aligned buffer
@@ -887,13 +887,13 @@ namespace OSBuilder.FileSystems.MFS
                 }
 
                 byte[] stage2Buffer = File.ReadAllBytes("deploy/stage2.sys");
-                _reservedSectorCount += (ushort)((stage2Buffer.Length / _disk.BytesPerSector) + 1);
+                _reservedSectorCount += (ushort)((stage2Buffer.Length / _disk.Geometry.BytesPerSector) + 1);
             }
 
-            ulong partitionSizeBytes = _sectorCount * _disk.BytesPerSector;
+            ulong partitionSizeBytes = _sectorCount * _disk.Geometry.BytesPerSector;
             Console.WriteLine("Format - size of partition " + partitionSizeBytes.ToString() + " bytes");
 
-            _bucketSize = DetermineBucketSize(_sectorCount * _disk.BytesPerSector);
+            _bucketSize = DetermineBucketSize(_sectorCount * _disk.Geometry.BytesPerSector);
             uint masterBucketSectorOffset = (uint)_reservedSectorCount;
 
             // round the number of reserved sectors up to a equal of buckets
@@ -930,10 +930,10 @@ namespace OSBuilder.FileSystems.MFS
             Console.WriteLine("Format - Wiping root data");
 
             // Allocate a zero array to fill the allocated sectors with
-            byte[] wipeBuffer = new byte[_bucketSize * _disk.BytesPerSector];
+            byte[] wipeBuffer = new byte[_bucketSize * _disk.Geometry.BytesPerSector];
             _disk.Write(wipeBuffer, BucketToSector(badBucketIndex), true);
 
-            wipeBuffer = new Byte[(_bucketSize * _disk.BytesPerSector) * 8];
+            wipeBuffer = new Byte[(_bucketSize * _disk.Geometry.BytesPerSector) * 8];
             _disk.Write(wipeBuffer, BucketToSector(rootIndex), true);
             _disk.Write(wipeBuffer, BucketToSector(journalIndex), true);
 
@@ -1001,8 +1001,8 @@ namespace OSBuilder.FileSystems.MFS
             // Sanitize
             if (fileContents != null) {
                 // Calculate number of sectors required
-                SectorsRequired = (ulong)fileContents.LongLength / _disk.BytesPerSector;
-                if (((ulong)fileContents.LongLength % _disk.BytesPerSector) > 0)
+                SectorsRequired = (ulong)fileContents.LongLength / _disk.Geometry.BytesPerSector;
+                if (((ulong)fileContents.LongLength % _disk.Geometry.BytesPerSector) > 0)
                     SectorsRequired++;
 
                 // Calculate the number of buckets required
@@ -1023,8 +1023,8 @@ namespace OSBuilder.FileSystems.MFS
                 if ((ulong)fileContents.LongLength > nEntry.AllocatedSize) {
 
                     // Calculate only the difference in allocation size
-                    ulong sectorCount = ((ulong)fileContents.LongLength - nEntry.AllocatedSize) / _disk.BytesPerSector;
-                    if ((((ulong)fileContents.LongLength - nEntry.AllocatedSize) % _disk.BytesPerSector) > 0)
+                    ulong sectorCount = ((ulong)fileContents.LongLength - nEntry.AllocatedSize) / _disk.Geometry.BytesPerSector;
+                    if ((((ulong)fileContents.LongLength - nEntry.AllocatedSize) % _disk.Geometry.BytesPerSector) > 0)
                         sectorCount++;
                     uint bucketCount = (uint)(sectorCount / _bucketSize);
                     if ((sectorCount % _bucketSize) > 0)
@@ -1057,7 +1057,7 @@ namespace OSBuilder.FileSystems.MFS
                     _disk.Write(masterRecord, _sector + MasterRecordMirrorSector, true);
 
                     // Update the allocated size in cached
-                    nEntry.AllocatedSize += (bucketCount * _bucketSize * _disk.BytesPerSector);
+                    nEntry.AllocatedSize += (bucketCount * _bucketSize * _disk.Geometry.BytesPerSector);
                 }
 
                 // We should free buckets that are not used here if data size is less

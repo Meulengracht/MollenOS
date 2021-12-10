@@ -63,7 +63,7 @@ namespace OSBuilder.FileSystems.MFS
             // Start by calculating the maximum size of the map. 
             // MasterBucket | Data | MasterBucketMirror | Map
             ulong maxMapSize = GetSizeOfMap(); // Bytes
-            ulong mapSectorCount = (ulong)Math.Ceiling((double)maxMapSize / _disk.BytesPerSector); // Sectors
+            ulong mapSectorCount = (ulong)Math.Ceiling((double)maxMapSize / _disk.Geometry.BytesPerSector); // Sectors
             ulong mapBucketCount = (_sectorCount - mapSectorCount) / _sectorsPerBucket; // Upper bound of the map
             
             _mapSector = (_sector + _sectorCount - 1) - mapSectorCount;
@@ -77,13 +77,13 @@ namespace OSBuilder.FileSystems.MFS
             Console.WriteLine("MfsBucketMap: Building map");
 
             // Seek to start of map
-            _disk.Seek((Int64)(_mapSector * _disk.BytesPerSector));
+            _disk.Seek((Int64)(_mapSector * _disk.Geometry.BytesPerSector));
 
             // A map entry consists of the length of the bucket, and it's link
             // To get the length of the link, you must lookup it's length by accessing Map[Link]
             // Length of bucket 0 is HIDWORD(Map[0]), Link of bucket 0 is LODWORD(Map[0])
             // If the link equals 0xFFFFFFFF there is no link
-            byte[] map = new Byte[_disk.BytesPerSector];
+            byte[] map = new Byte[_disk.Geometry.BytesPerSector];
             WriteEntryToBuffer(map, 0, (uint)mapBucketCount, MFS_ENDOFCHAIN);
             _disk.Write(map);
             return true;
@@ -103,7 +103,7 @@ namespace OSBuilder.FileSystems.MFS
                 return MFS_ENDOFCHAIN;
             }
 
-            uint mapEntriesPerSector = _disk.BytesPerSector / 8;
+            uint mapEntriesPerSector = _disk.Geometry.BytesPerSector / 8;
             uint allocation = _nextFreeBucket;
             
             uint bucketsLeft = bucketCount;
@@ -188,7 +188,7 @@ namespace OSBuilder.FileSystems.MFS
         public uint GetBucketLengthAndLink(uint bucket, out uint bucketLength)
         {
             // Calculate index into bucket map
-            uint mapEntriesPerSector = _disk.BytesPerSector / 8;
+            uint mapEntriesPerSector = _disk.Geometry.BytesPerSector / 8;
             uint sectorOffset = bucket / mapEntriesPerSector;
             uint sectorIndex = bucket % mapEntriesPerSector;
 
@@ -205,7 +205,7 @@ namespace OSBuilder.FileSystems.MFS
         public void SetNextBucket(uint bucket, uint nextBucket)
         {
             // Calculate index into bucket map
-            uint mapEntriesPerSector = _disk.BytesPerSector / 8;
+            uint mapEntriesPerSector = _disk.Geometry.BytesPerSector / 8;
             uint sectorOffset = bucket / mapEntriesPerSector;
             uint sectorIndex = bucket % mapEntriesPerSector;
 

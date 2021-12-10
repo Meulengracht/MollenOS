@@ -27,109 +27,91 @@
 
 BITS 16
 
-; Definitions
-%define 		NULL_DESC 		0
-%define 		CODE_DESC 		0x8
-%define 		DATA_DESC 		0x10
-%define			CODE16_DESC		0x18
-%define 		DATA16_DESC 	0x20
-%define			CODE64_DESC		0x28
-%define 		DATA64_DESC 	0x30
-
 ; ********************************
 ; Load16BitIdt
 ; *******************************
 LoadIdt16:
-	lidt [Idt16]
-	ret
+    lidt [Idt16]
+    ret
 
 ; ********************************
-; InstallGdt
+; GdtInstall
 ; ********************************
-InstallGdt:
-	; Save state
-	pushad
-
-	; Clear interrupts
-	cli 
-
-	; Load Gdt
-	lgdt 	[TemporaryGdt]
-
-	; Restore & Return
-	sti
-	popad
-	ret
+GdtInstall:
+    cli
+    lgdt [TemporaryGdt]
+    sti
+    ret
 
 ;*******************************************
 ; Global Descriptor Table
 ;*******************************************
 StartOfGdt:
-	dd 0                ; null descriptor
-	dd 0 
+    dd 0                ; null descriptor
+    dd 0 
 
 ; gdt code:	            ; code descriptor
-	dw 0FFFFh           ; limit low
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10011010b        ; access
-	db 11001111b        ; granularity
-	db 0                ; base high
+    dw 0FFFFh           ; limit low
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10011010b        ; access
+    db 11001111b        ; granularity
+    db 0                ; base high
 
 ; gdt data:	            ; data descriptor
-	dw 0FFFFh           ; limit low (Same as code)
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10010010b        ; access
-	db 11001111b        ; granularity
-	db 0                ; base high
+    dw 0FFFFh           ; limit low (Same as code)
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10010010b        ; access
+    db 11001111b        ; granularity
+    db 0                ; base high
 
 ; gdt code 16bit:	    ; code descriptor
-	dw 0FFFFh           ; limit low
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10011010b        ; access
-	db 00001111b        ; granularity
-	db 0                ; base high
+    dw 0FFFFh           ; limit low
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10011010b        ; access
+    db 00001111b        ; granularity
+    db 0                ; base high
 
 ; gdt data 16bit:       ; data descriptor
-	dw 0FFFFh           ; limit low (Same as code)
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10010010b        ; access
-	db 00001111b        ; granularity
-	db 0                ; base high
+    dw 0FFFFh           ; limit low (Same as code)
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10010010b        ; access
+    db 00001111b        ; granularity
+    db 0                ; base high
 
 ; gdt code 64bit:       ; code descriptor
-	dw 0                ; limit low
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10011010b        ; access
-	db 00100000b        ; granularity
-	db 0                ; base high
+    dw 0                ; limit low
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10011010b        ; access
+    db 00100000b        ; granularity
+    db 0                ; base high
 
 ; gdt data 64bit:       ; data descriptor
-	dw 0                ; limit low (Same as code)
-	dw 0                ; base low
-	db 0                ; base middle
-	db 10010010b        ; access
-	db 00000000b        ; granularity
-	db 0                ; base high
+    dw 0                ; limit low (Same as code)
+    dw 0                ; base low
+    db 0                ; base middle
+    db 10010010b        ; access
+    db 00000000b        ; granularity
+    db 0                ; base high
 EndOfGdt:
 
 ; The actual Gdt Header
 TemporaryGdt: 
-	dw EndOfGdt - StartOfGdt - 1
-	dd StartOfGdt
+    dw EndOfGdt - StartOfGdt - 1
+    dd StartOfGdt
 
 ; The actual Gdt Header
 TemporaryGdt64bit: 
-	dw EndOfGdt - StartOfGdt - 1
-	dq StartOfGdt
+    dw EndOfGdt - StartOfGdt - 1
+    dq StartOfGdt
 
 ; Interrupt Descriptor Table
 Idt16:
-	dw 0x3ff		; 256 entries, 4b each = 1K
-	dd 0			; Real Mode IVT @ 0x0000
+    dw 0x3ff		; 256 entries, 4b each = 1K
+    dd 0			; Real Mode IVT @ 0x0000
 
 %endif

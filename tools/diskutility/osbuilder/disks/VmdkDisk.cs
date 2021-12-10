@@ -9,54 +9,24 @@ namespace OSBuilder
         private static readonly uint MEGABYTE = (KILOBYTE * 1024);
         private static readonly ulong GIGABYTE = (MEGABYTE * 1024);
 
-        public uint BytesPerSector { get { return _bytesPerSector; }  }
         public ulong SectorCount { get { return _totalSectors; }  }
-        public uint SectorsPerTrack { get { return _sectorsPerTrack; }  }
-        public uint Heads { get { return _heads; }  }
-        public uint Cylinders { get { return _cylinders; }  }
+        public DiskGeometry Geometry { get { return _diskGeometry; } }
 
-        private uint _bytesPerSector = 0;
-        private uint _sectorsPerTrack = 0;
-        private uint _heads = 0;
-        private uint _cylinders = 0;
         private ulong _totalSectors = 0;
 
         private String _imageName = "mollenos.vmdk";
         private DiscUtils.VirtualDisk _diskHandle = null;
+        private DiskGeometry _diskGeometry = null;
         
         public VmdkDisk(uint bytesPerSector, ulong sectorCount)
         {
-            _bytesPerSector = bytesPerSector;
             _totalSectors = sectorCount;
-
-            ulong sizeOfHdd = _bytesPerSector * _totalSectors;
-            CalculateGeometry(sizeOfHdd);
+            _diskGeometry = DiskGeometry.CalculateGeometryLbaAssisted(bytesPerSector * sectorCount, bytesPerSector);
         }
 
         public VmdkDisk(string imageName)
         {
             _imageName = imageName;
-        }
-
-        internal void CalculateGeometry(ulong diskSize)
-        {
-            if (diskSize < GIGABYTE)
-            {
-                _heads = 64;
-                _sectorsPerTrack = 32;
-            }
-            else if (diskSize < (2UL * GIGABYTE))
-            {
-                _heads = 128;
-                _sectorsPerTrack = 32;
-            }
-            else
-            {
-                _heads = 255;
-                _sectorsPerTrack = 63;
-            }
-
-            _cylinders = (uint)(diskSize / (_heads * _sectorsPerTrack * _bytesPerSector));
         }
 
         public bool Create()
@@ -65,15 +35,14 @@ namespace OSBuilder
             if (_diskHandle != null)
                 return true;
             
-            ulong sizeOfHdd = _bytesPerSector * _totalSectors;
-
             try
             {
                 // Always create the image with this name
                 if (File.Exists(_imageName))
                     File.Delete(_imageName);
                 
-                _diskHandle = DiscUtils.Vmdk.Disk.Initialize(_imageName, (long)sizeOfHdd, 
+                _diskHandle = DiscUtils.Vmdk.Disk.Initialize(_imageName,
+                    (long)(_totalSectors * _diskGeometry.BytesPerSector), 
                         DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
             }
             catch (Exception e)
@@ -81,7 +50,6 @@ namespace OSBuilder
                 Console.WriteLine(e.Message);
                 return false;
             }
-            CalculateGeometry(sizeOfHdd);
             return true;
         }
 
@@ -90,9 +58,11 @@ namespace OSBuilder
             try
             {
                 _diskHandle = DiscUtils.Vmdk.Disk.OpenDisk(_imageName, FileAccess.ReadWrite);
-                _bytesPerSector = (uint)_diskHandle.Geometry.BytesPerSector;
-                _sectorsPerTrack = (uint)_diskHandle.Geometry.SectorsPerTrack;
-                _heads = (uint)_diskHandle.Geometry.HeadsPerCylinder;
+                _diskGeometry = new DiskGeometry(
+                    (uint)_diskHandle.Geometry.Cylinders,
+                    (uint)_diskHandle.Geometry.HeadsPerCylinder,
+                    (uint)_diskHandle.Geometry.SectorsPerTrack,
+                    (uint)_diskHandle.Geometry.BytesPerSector);
                 _totalSectors = (ulong)_diskHandle.Geometry.TotalSectorsLong;
                 return true;
             }
@@ -139,7 +109,7 @@ namespace OSBuilder
             // If we asked to seek, then handle the case
             if (seekFirst) {
                 // Calculate the absolute offset
-                ulong seekOffset = atSector * _bytesPerSector;
+                ulong seekOffset = atSector * _diskGeometry.BytesPerSector;
                 Seek((long)seekOffset);
             }
             _diskHandle.Content.Write(buffer, 0, buffer.Length);
@@ -151,8 +121,8 @@ namespace OSBuilder
             if (_diskHandle == null)
                 throw new Exception("Disk not open");
 
-            byte[] buffer = new Byte[sectorCount * _bytesPerSector];
-            ulong seekOffset = sector * _bytesPerSector;
+            byte[] buffer = new Byte[sectorCount * _diskGeometry.BytesPerSector];
+            ulong seekOffset = sector * _diskGeometry.BytesPerSector;
 
             // Prepare disk access by seeking to position
             Seek((long)seekOffset);
