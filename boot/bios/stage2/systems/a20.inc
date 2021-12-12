@@ -35,10 +35,10 @@ BITS 16
 ; ******************************** 
 A20IsEnabled:
     pushf
+    push ds
     push es
     push di
     push si
- 
     cli
  
     xor ax, ax ; ax = 0
@@ -76,6 +76,7 @@ A20IsEnabled:
         pop si
         pop di
         pop es
+        pop ds
         popf
         ret
 

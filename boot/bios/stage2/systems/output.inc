@@ -541,12 +541,12 @@ VesaInitialize16:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szVesaInitialize16 		 db "query video stats", 0x00
-szVesaModeSpace		 db " [", 0x00
+szVesaInitialize16   db "000000000 [vboot] selecting video mode", 0x00
+szVesaModeSpace      db " [", 0x00
 szVesaModeSeperator	 db "x", 0x00
-szVesaModeEnd		 db "]", 0x0D, 0x0A, 0x00
-szModeFailed		 db	" [VBE NO SUPPORT]", 0x0D, 0x0A, 0x00
-szNoAvailModesFailed db	" [VBE NO 24/32B MODES]", 0x0D, 0x0A, 0x00
+szVesaModeEnd        db "]", 0x0D, 0x0A, 0x00
+szModeFailed         db " [VBE NO SUPPORT]", 0x0D, 0x0A, 0x00
+szNoAvailModesFailed db " [VBE NO 24/32B MODES]", 0x0D, 0x0A, 0x00
 
 %ifdef __OSCONFIG_HAS_VIDEO
 wOptimizedVesaMode dw 1

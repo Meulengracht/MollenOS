@@ -36,39 +36,34 @@ jmp Entry
 ; 16 Bit Stage Below 
 ; ****************************
 Entry:
-	cli
-	jmp 	0x0:FixCS ; Far jump to fix segment registers
+    cli
+    jmp 0x0:FixCS ; Far jump to fix segment registers
 
 FixCS:
-	; Setup segments
-    xor     ax, ax
-	mov		ds, ax
-	mov		es, ax
-	mov		fs, ax
-	mov		gs, ax
+    ; Setup segments
+    xor ax, ax
+    mov	ds, ax
+    mov	es, ax
+    mov	fs, ax
+    mov	gs, ax
 
-	; Setup stack
-	mov		ss, ax
+    ; Setup stack
+    mov		ss, ax
     mov     ax, word [wBootStackSize]
-	lock xadd word [wBootStackAddress], ax
-	mov		sp, ax
+    lock xadd word [wBootStackAddress], ax
+    mov		sp, ax
     mov     bp, ax
-	xor 	ax, ax
+    xor 	ax, ax
     sti
 
-	; Enable A20 Gate
-	call 	EnableA20
+    call A20Enable16
+    call GdtInstall
 
-	; Install GDT
-	call 	InstallGdt
-
-	; GO PROTECTED MODE!
-	mov		eax, cr0
-	or		eax, 1
-	mov		cr0, eax
-
-	; Jump into 32 bit
-	jmp 	CODE_DESC:Entry32
+    ; switch to 32 bit mode
+    mov	eax, cr0
+    or	eax, 1
+    mov	cr0, eax
+    jmp CODE_DESC:Entry32
 
 ; ****************************
 ; 32 Bit Stage Below
@@ -79,29 +74,29 @@ BITS 32
 %include "bios/stage2/systems/cpu.inc"
 
 Entry32:
-	; Disable Interrupts
-	cli
+    ; Disable Interrupts
+    cli
 
-	; Setup Segments, Stack etc
-	xor 	eax, eax
-	mov 	ax, DATA_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
+    ; Setup Segments, Stack etc
+    xor 	eax, eax
+    mov 	ax, DATA_DESC
+    mov 	ds, ax
+    mov 	fs, ax
+    mov 	gs, ax
+    mov 	ss, ax
+    mov 	es, ax
     mov     eax, dword [dRunStackSize]
-	lock xadd dword [dRunStackAddress], eax
+    lock xadd dword [dRunStackAddress], eax
     mov     ebp, eax
-	mov 	esp, eax
+    mov 	esp, eax
 
-	; Setup Cpu
+    ; Setup Cpu
 %ifdef __amd64__
-	call	CpuDetect64
+    call	CpuDetect64
     cmp     eax, 1
     jne     Skip64BitMode
 
-	; Enable PAE paging
+    ; Enable PAE paging
     mov     eax, dword [dSystemPageDirectory]
     mov     cr3, eax
     mov     eax, cr4
@@ -122,23 +117,23 @@ Entry32:
 %endif
 
 Skip64BitMode:
-	; Enable paging
+    ; Enable paging
     mov     eax, dword [dSystemPageDirectory]
     mov     cr3, eax
     mov     eax, cr0
     or      eax, 0x80000000
     mov     cr0, eax
 
-	; Setup Registers
-	xor 	esi, esi
-	xor 	edi, edi
-	mov 	ecx, dword [dKernelAddress]
-	jmp 	ecx
+    ; Setup Registers
+    xor 	esi, esi
+    xor 	edi, edi
+    mov 	ecx, dword [dKernelAddress]
+    jmp 	ecx
 
-	; Safety
+    ; Safety
 EndOfStage:
-	cli
-	hlt
+    cli
+    hlt
 
 ; ****************************
 ; 64 Bit Stage Below
@@ -146,28 +141,28 @@ EndOfStage:
 BITS 64
 Entry64:
     xor     eax, eax
-	mov     ax, DATA64_DESC
-	mov     ds, ax
-	mov     fs, ax
-	mov     gs, ax
-	mov     ss, ax
-	mov     es, ax
-	xor     rsp, rsp
-	mov     esp, ebp
+    mov     ax, DATA64_DESC
+    mov     ds, ax
+    mov     fs, ax
+    mov     gs, ax
+    mov     ss, ax
+    mov     es, ax
+    xor     rsp, rsp
+    mov     esp, ebp
 
     ; Setup Registers
-	xor 	rsi, rsi
-	xor 	rdi, rdi
+    xor 	rsi, rsi
+    xor 	rdi, rdi
     xor     rax, rax
     xor     rbx, rbx
     xor     rcx, rcx
-	mov 	ecx, dword [dKernelAddress]
-	jmp 	rcx
+    mov 	ecx, dword [dKernelAddress]
+    jmp 	rcx
 
-	; Safety
+    ; Safety
 EndOfStage64:
-	cli
-	hlt
+    cli
+    hlt
 
 ; **************************
 ; Variables

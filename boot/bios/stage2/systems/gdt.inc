@@ -38,9 +38,7 @@ LoadIdt16:
 ; GdtInstall
 ; ********************************
 GdtInstall:
-    cli
     lgdt [TemporaryGdt]
-    sti
     ret
 
 ;*******************************************

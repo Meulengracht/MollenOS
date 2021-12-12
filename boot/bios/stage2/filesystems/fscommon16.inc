@@ -312,13 +312,8 @@ FileSystemInitialize16:
     jmp .unknown
 
     .init_fat12:
-        push szFsSetup
-        call Print16
-        add sp, 2
-
-        push szFat12
-        call Print16
-        add sp, 2
+        TRACE szFsSetup
+        TRACE szFat12
 
         ; Setup
         pop 	ax
@@ -327,13 +322,8 @@ FileSystemInitialize16:
         jmp 	.done
 
     .init_fat16:
-        push szFsSetup
-        call Print16
-        add sp, 2
-
-        push szFat16
-        call Print16
-        add sp, 2
+        TRACE szFsSetup
+        TRACE szFat16
 
         ; Setup
         pop 	ax
@@ -342,13 +332,8 @@ FileSystemInitialize16:
         jmp 	.done
         
     .init_fat32:
-        push szFsSetup
-        call Print16
-        add sp, 2
-
-        push szFat32
-        call Print16
-        add sp, 2
+        TRACE szFsSetup
+        TRACE szFat32
 
         ; Setup
         pop 	ax
@@ -357,14 +342,8 @@ FileSystemInitialize16:
         jmp 	.done
 
     .init_mfs:
-        push szFsSetup
-        call Print16
-        add sp, 2
-
-        push szMfs
-        call Print16
-        add sp, 2
-
+        TRACE szFsSetup
+        TRACE szMfs
         call MfsInitialize16
         jmp .done
 
@@ -374,9 +353,7 @@ FileSystemInitialize16:
         call SystemsFail
 
     .done:
-        push szSuccess
-        call Print16
-        add sp, 2
+        TRACE szSuccess
         STACK_FRAME_END16
         ret
 
@@ -386,7 +363,7 @@ FileSystemInitialize16:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szFsSetup      db "initializing ", 0x00
+szFsSetup      db "000000000 [vboot] initializing ", 0x00
 szFsLoading    db "loading kernel image", 0x00
 szNotSupported db "filesystem is not supported", 0x00
 szDiskError    db "disk error", 0x00

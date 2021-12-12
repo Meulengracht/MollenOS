@@ -64,16 +64,18 @@ MemoryConvertEntry:
     .set_available:
         mov ax, VBOOT_MEMORY_TYPE_AVAILABLE
         mov ecx, 0xF
+        jmp .set
 
     .set_acpi_reclaim:
         mov ax, VBOOT_MEMORY_TYPE_ACPI
         mov ecx, 0xF
+        jmp .set
     
     .set_acpi_nvs:
         mov ax, VBOOT_MEMORY_TYPE_NVS
         mov ecx, 0xF
     
-    ; set attribs and type
+    .set: ; set attribs and type
     mov word [di + VBootMemoryEntry.Type], ax
     mov dword [di + VBootMemoryEntry.Attributes], ecx
 
@@ -148,8 +150,9 @@ MemoryGetMap:
     .MediasRes:
         test ecx, ecx
         je .SkipEntry
-        cmp byte [MmEntry + BiosMemoryMapEntry.AcpiAttribs], 1
-        je .SkipEntry
+        mov al, byte [MmEntry + BiosMemoryMapEntry.AcpiAttribs]
+        and al, 0x1
+        jz .SkipEntry
 
         ; entry is good, lets convert it to a vboot entry
         push si
@@ -159,24 +162,22 @@ MemoryGetMap:
 
     .GoodEntry:
         inc byte [bMemoryEntryCount]
-        add si, 36 ; next vboot entry 
+        add si, VBootMemoryEntry_size ; next vboot entry 
 
     .SkipEntry:
-        ; If ebx rsets to 0, list is complete
+        ; If ebx resets to 0, list is complete
         test ebx, ebx
         jne .GetNextEntry
         jmp .Done
 
     .NoMemoryMap:
         xor eax, eax
-        pop ebx
-        pop di
-        pop si
-        STACK_FRAME_END16
-        ret
+        jmp .Exit
 
     .Done:
         mov eax, 1
+
+    .Exit:
         pop ebx
         pop di
         pop si
@@ -191,37 +192,35 @@ MemoryGetMap:
 ; ********************************
 GetMemorySize:
     ; Clear registers
-    xor 	ecx, ecx
-    xor 	edx, edx
+    xor ecx, ecx
+    xor edx, edx
     
     ; Setup INT 0x15
-    mov 	eax, 0xE801
-    int 	0x15
-
-    ; Error?
-    jc 		.Error
+    mov eax, 0xE801
+    int 0x15
+    jc .Error
 
     ; Unsupported??
-    cmp 	ah, 0x86
-    je 		.Error
+    cmp ah, 0x86
+    je .Error
 
     ; Invalid Cmd??
-    cmp 	ah, 0x80
-    je 		.Error
+    cmp ah, 0x80
+    je .Error
 
     ; It is possible that bios uses ECX/EDX instead
-    test 	ecx, ecx
-    je 		.UseEAX
+    test ecx, ecx
+    je .UseEAX
 
-    mov 	eax, ecx
-    mov 	ebx, edx
+    mov eax, ecx
+    mov ebx, edx
 
     .UseEAX:
         ret
 
     .Error:
-        mov 	eax, 0
-        mov 	ebx, 0
+        mov eax, 0
+        mov ebx, 0
         ret
     
 
@@ -229,7 +228,11 @@ GetMemorySize:
 ; MemoryInitialize16
 ; ********************************
 MemoryInitialize16:
+    STACK_FRAME_BEGIN16
+    push di
+
     ; clear out buffer we store the memory map in
+    xchg bx, bx
     xor eax, eax
     mov di, MEMLOCATION_MEMORY_MAP
     mov ecx, 1024
@@ -241,6 +244,10 @@ MemoryInitialize16:
     push di
     push 0
     call MemoryGetMap
+    add sp, 4
+
+    pop di
+    STACK_FRAME_END16
     ret
 
 ; Store for parsing entries

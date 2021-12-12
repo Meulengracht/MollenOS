@@ -73,7 +73,6 @@ LoaderEntry16:
     TRACE szStartMessage
 
     TRACE szA20GateMessage
-    xchg bx, bx
     call A20Enable16       ; enable a20 gate if it not already
     test ax, ax
     jnz Continue_Part1
@@ -133,6 +132,7 @@ LoaderEntry32:
 
     ; allocate memory for the kernel
     push MEMLOCATION_KERNEL_UPPER
+    push 0x100000
     call MemoryAllocateFixed
     add esp, 4
 
@@ -226,7 +226,7 @@ LoadKernel64:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szStartMessage     db "000000000 [vboot] starting mboot 1.0.0-dev", 0x0D, 0x0A, 0x00
+szStartMessage     db "000000000 [vboot] version: 1.0.0-dev", 0x0D, 0x0A, 0x00
 szA20GateMessage   db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
 szGdtMessage       db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
 szVesaMessage      db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
