@@ -32,7 +32,7 @@ ORG 0x0500
 jmp LoaderEntry16
 
 ; Includes
-%include "systems/common.inc"
+%include "systems/common16.inc"
 %include "systems/memory16.inc"
 %include "systems/a20.inc"
 %include "systems/gdt.inc"
@@ -70,26 +70,26 @@ LoaderEntry16:
 
     ; Initialize the output system (early)
     call VideoInitializeConsole16
-    TRACE szStartMessage
+    TRACE16 szStartMessage
 
-    TRACE szA20GateMessage
+    TRACE16 szA20GateMessage
     call A20Enable16       ; enable a20 gate if it not already
     test ax, ax
     jnz Continue_Part1
     call SystemsFail
 
 Continue_Part1:
-    TRACE szGdtMessage
+    TRACE16 szGdtMessage
     call GdtInstall     ; install gdt table with 16, 32 and 64 bit entries
 
 %ifdef __OSCONFIG_HAS_VIDEO
     ; Initialize vesa memory structures and find the mode we want
-    TRACE szVesaMessage
+    TRACE16 szVesaMessage
     call VesaInitialize16
 %endif
 
     ; Initialize filesystem subsystem
-    TRACE szFsMessage
+    TRACE16 szFsMessage
     xor ax, ax
     mov al, [bDriveNumber]
     push ax
@@ -100,7 +100,7 @@ Continue_Part1:
 
     ; load memory map to known address so we can parse it and
     ; prepare the vboot memory map
-    TRACE szMemoryMessage
+    TRACE16 szMemoryMessage
     call MemoryInitialize16
 
     ; enable 32 bit mode
@@ -111,9 +111,10 @@ Continue_Part1:
 
 ALIGN 32
 BITS  32
+%include "systems/common32.inc"
+%include "systems/memory32.inc"
 %include "systems/cpu.inc"
 %include "systems/lz.inc"
-%include "systems/memory32.inc"
 %include "filesystems/fscommon32.inc"
 
 LoaderEntry32:
@@ -127,25 +128,85 @@ LoaderEntry32:
     mov es, ax
     mov esp, MEMLOCATION_INITIALSTACK
 
-    ; allocate memory for temporary file storage while we load the kernel
-    call MemoryAllocateFirmware
-
-    ; allocate memory for the kernel
-    push MEMLOCATION_KERNEL_UPPER
-    push 0x100000
+    ; allocate memory for the kernel, this is fixed for now so
+    ; we might as well just allocate it right out of the box.
+    xchg bx, bx
+    push KERNEL_BASE_ADDRESS
+    push MEGABYTE
     call MemoryAllocateFixed
-    add esp, 4
+    add esp, 8
+    cmp eax, 0
+    je .Stage2Failed
 
     ; load kernel image to memory and unpack/relocate it
+    TRACE32 szLoadKernelMessage
+    push szKernelUtf
+    push szKernel
+    call LoadFile32
+    add esp, 8
+    cmp eax, 0
+    je .Stage2Failed
 
-    ; allocate memory for the ramdisk
-    call MemoryAllocateFirmware
+    ; LoadFile returns 
+    ; eax - pointer to file
+    ; ecx - number of bytes read
 
-    ; load ramdisk image to memory and unpack it
+    push eax 
+    call UnpackFile
+    add esp, 4
+    cmp eax, 0
+    je .Stage2Failed
 
+    ; UnpackFile returns
+    ; eax - pointer to unpacked file
+    ; ecx - size of unpacked file
+    mov ebx, eax ; store it in a preserved register
 
-    ; free the temporary file storage
+    ; Now load the PE image
+    push KERNEL_BASE_ADDRESS
+    push eax
+    call PELoad
+    add esp, 8
+    cmp eax, 0
+    je .Stage2Failed
+
+    ; eax - size
+    ; ecx - entry point
+    mov dword [BootHeader + VBoot.KernelBase], ebx
+    mov dword [BootHeader + VBoot.KernelLength], eax
+    mov dword [dKernelEntry], ecx
+
+    ; free unpacked buffer
+    push ebx
     call MemoryFreeFirmware
+    add esp, 4
+
+    ; load ramdisk image to memory
+    TRACE32 szLoadRdMessage
+    push szRamdiskUtf
+    push szRamdisk
+    call LoadFile32
+    add esp, 8
+    cmp eax, 0
+    je .Stage2Failed
+
+    ; LoadFile returns 
+    ; eax - pointer to file
+    ; ecx - number of bytes read
+
+    push eax 
+    call UnpackFile
+    add esp, 4
+    cmp eax, 0
+    je .Stage2Failed
+
+    ; UnpackFile returns
+    ; eax - pointer to unpacked file
+    ; ecx - size of unpacked file
+    mov dword [BootHeader + VBoot.RamdiskBase], eax
+    mov dword [BootHeader + VBoot.RamdiskLength], ecx
+
+    TRACE32 szFinalMessage
 
     ; switch video mode
 %ifdef __OSCONFIG_HAS_VIDEO
@@ -165,6 +226,10 @@ LoaderEntry32:
     ; allocate memory for the kernel stack
     push KERNEL_STACK_SIZE
     call MemoryAllocateFirmware
+    mov esp, eax
+
+    mov dword [BootHeader + VBoot.StackBase], eax
+    mov dword [BootHeader + VBoot.StackLength], KERNEL_STACK_SIZE
 
 %ifdef __amd64__
     ; go into 64 bit mode if possible
@@ -178,6 +243,10 @@ LoaderEntry32:
     jmp     CODE64_DESC:LoadKernel64
 %endif
 
+    .Stage2Failed:
+        push szFailed
+        call SystemsFail32
+
 Skip64BitMode:
     ; Setup Registers
     xor esi, esi
@@ -185,9 +254,6 @@ Skip64BitMode:
     mov ecx, dword [dKernelEntry]
     mov eax, VBOOT_MAGIC
     mov ebx, BootHeader
-
-    ; Setup the final stack
-    mov esp, MEMLOCATION_KERNEL_STACK
     
     ; Jump to kernel (Entry Point in ECX)
     jmp ecx
@@ -197,14 +263,19 @@ Skip64BitMode:
 ALIGN 64
 BITS  64
 LoadKernel64:
-    xor eax, eax
+    xor rax, rax
     mov ax, DATA64_DESC
     mov ds, ax
     mov fs, ax
     mov gs, ax
     mov ss, ax
     mov es, ax
-    mov rsp, MEMLOCATION_KERNEL_STACK   ; We can set a correct stack from start
+
+    ; clear out upper 32 bits of stack to make sure
+    ; no intended bits are left up there
+    mov eax, esp
+    xor rsp, rsp
+    mov rsp, rax
 
     ; Setup Registers
     xor rsi, rsi
@@ -226,25 +297,27 @@ LoadKernel64:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szStartMessage     db "000000000 [vboot] version: 1.0.0-dev", 0x0D, 0x0A, 0x00
-szA20GateMessage   db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
-szGdtMessage       db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
-szVesaMessage      db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
-szFsMessage        db "000000000 [vboot] initializing current filesystem", 0x0D, 0x0A, 0x00
-szMemoryMessage    db "000000000 [vboot] initializing memory subsystem", 0x0D, 0x0A, 0x00
-szSuccess          db " [ok]", 0x0D, 0x0A, 0x00
-szFailed           db " [err]", 0x0D, 0x0A, 0x00
-szNewline          db 0x0D, 0x0A, 0x00
+szStartMessage      db "000000000 [vboot] version: 1.0.0-dev", 0x0D, 0x0A, 0x00
+szA20GateMessage    db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
+szGdtMessage        db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
+szVesaMessage       db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
+szFsMessage         db "000000000 [vboot] initializing current filesystem", 0x0D, 0x0A, 0x00
+szMemoryMessage     db "000000000 [vboot] initializing memory subsystem", 0x0D, 0x0A, 0x00
+szLoadKernelMessage db "000000000 [vboot] loading kernel image", 0x0D, 0x0A, 0x00
+szLoadRdMessage     db "000000000 [vboot] loading ramdisk", 0x0D, 0x0A, 0x00
+szFinalMessage      db "000000000 [vboot] finalizing", 0x0D, 0x0A, 0x00
+szSuccess           db " [ok]", 0x0D, 0x0A, 0x00
+szFailed            db " [err]", 0x0D, 0x0A, 0x00
+szNewline           db 0x0D, 0x0A, 0x00
 
 szKernel      db "MCORE   MOS"
-szRamDisk     db "INITRD  MOS"
+szRamdisk     db "INITRD  MOS"
 szKernelUtf   db "syskrnl.mos", 0x0
-szRamDiskUtf  db "initrd.mos", 0x0
+szRamdiskUtf  db "initrd.mos", 0x0
 
 ; Practical stuff
 bDriveNumber db 0
 dBaseSector  dd 0
-dKernelSize	 dd 0
 dKernelEntry dd	0
 
 ; 2 -> FAT12, 3 -> FAT16, 4 -> FAT32

@@ -312,8 +312,8 @@ FileSystemInitialize16:
     jmp .unknown
 
     .init_fat12:
-        TRACE szFsSetup
-        TRACE szFat12
+        TRACE16 szFsSetup
+        TRACE16 szFat12
 
         ; Setup
         pop 	ax
@@ -322,8 +322,8 @@ FileSystemInitialize16:
         jmp 	.done
 
     .init_fat16:
-        TRACE szFsSetup
-        TRACE szFat16
+        TRACE16 szFsSetup
+        TRACE16 szFat16
 
         ; Setup
         pop 	ax
@@ -332,8 +332,8 @@ FileSystemInitialize16:
         jmp 	.done
         
     .init_fat32:
-        TRACE szFsSetup
-        TRACE szFat32
+        TRACE16 szFsSetup
+        TRACE16 szFat32
 
         ; Setup
         pop 	ax
@@ -342,8 +342,8 @@ FileSystemInitialize16:
         jmp 	.done
 
     .init_mfs:
-        TRACE szFsSetup
-        TRACE szMfs
+        TRACE16 szFsSetup
+        TRACE16 szMfs
         call MfsInitialize16
         jmp .done
 
@@ -353,7 +353,7 @@ FileSystemInitialize16:
         call SystemsFail
 
     .done:
-        TRACE szSuccess
+        TRACE16 szSuccess
         STACK_FRAME_END16
         ret
 

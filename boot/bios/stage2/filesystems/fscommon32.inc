@@ -34,20 +34,25 @@ BITS 32
 ; @brief Loads a file from the filesystem. The file is loaded into the target
 ; address in 32 bit mode. This will happen over a number of iterations dependendant
 ; on the size of the file. The maximum chunk size is 400 kb.
-; @param bufferAddress [In] The address to load the file to
 ; @param filenameDos   [In] The filename to load in the format of 8:3
 ; @param filenameUtf8  [In] The filename to load in the format of utf8
-; @return The number of bytes read
+; @return [eax] A pointer to the filebuffer
+; @return [ecx] The number of bytes read
 ; ****************************
 LoadFile32:
     STACK_FRAME_BEGIN32
+    sub esp, 4
     push edi
+
+    ; Initialize the local variables
+    mov LVAR0_32, 0
 
     ; Initialize bay stuff, so the filesystems below has some space
     ; to play around with. This is static anyway.
     mov word [FileHandle.BaySegment], FILELOADING_BAY_SEGMENT
     mov word [FileHandle.BayOffset],  FILELOADING_BAY_OFFSET
     mov dword [FileHandle.BaySize],   FILELOADING_BAY_SIZE
+    mov dword [FileHandle.Size],      0
 
     ; open the file and hope it exists
     mov cl, byte [bFsCommonType]
@@ -76,10 +81,15 @@ LoadFile32:
         cmp eax, 0
         jz  .exit
 
+    ; allocate space for the file
+    push dword [FileHandle.Size]
+    call MemoryAllocateFirmware
+    add esp, 4
+    mov LVAR0_32, eax
+    mov edi, eax
+
     ; read the file into the buffer
     .read:
-        mov edi, ARG0_32
-        
         .loop:
             mov eax, FileHandle
             push eax
@@ -93,6 +103,8 @@ LoadFile32:
             jmp .loop
 
     .exit:
+        mov eax, LVAR0_32
+        mov ecx, dword [FileHandle.Size]
         pop edi
         STACK_FRAME_END32
         ret

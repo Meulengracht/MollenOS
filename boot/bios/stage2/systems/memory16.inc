@@ -60,6 +60,7 @@ MemoryConvertEntry:
     cmp ax, 0x04
     je .set_acpi_nvs
     mov ax, VBOOT_MEMORY_TYPE_RESERVED ; otherwise bad memory
+    jmp .set
 
     .set_available:
         mov ax, VBOOT_MEMORY_TYPE_AVAILABLE
@@ -232,7 +233,6 @@ MemoryInitialize16:
     push di
 
     ; clear out buffer we store the memory map in
-    xchg bx, bx
     xor eax, eax
     mov di, MEMLOCATION_MEMORY_MAP
     mov ecx, 1024

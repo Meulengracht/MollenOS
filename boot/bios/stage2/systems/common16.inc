@@ -20,8 +20,8 @@
 ; - Contains shared routines and shared data
 ; 
 
-%ifndef _MBOOT_COMMON_INC_
-%define _MBOOT_COMMON_INC_
+%ifndef _MBOOT_COMMON16_INC_
+%define _MBOOT_COMMON16_INC_
 
 BITS 16
 
@@ -78,7 +78,7 @@ BITS 16
 %define LVAR4_32 dword [ebp - 20]
 
 ; Utilities for me
-%macro TRACE 1
+%macro TRACE16 1
     push %1
     call Print16
     add sp, 2

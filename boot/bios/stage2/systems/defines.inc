@@ -36,6 +36,8 @@
 %define	CODE64_DESC 0x28
 %define DATA64_DESC 0x30
 
+%define MEGABYTE 0x100000
+
 %define MEMLOCATION_INITIALSTACK        0x7C00
 %define MEMLOCATION_BOOTCODE			0x7C00
 %define MEMLOCATION_TRAMPOLINE_CODE     0x8000
@@ -46,13 +48,8 @@
 %define FILELOADING_BAY_OFFSET  0xA000
 %define FILELOADING_BAY_SIZE    0x70000
 
-%define KERNEL_STACK_SIZE       0x10000
-
-%define MEMLOCATION_KERNEL_UPPER		0x100000
-%define MEMLOCATION_RAMDISK_UPPER		0x200000
-%define MEMLOCATION_KERNEL_STACK        0x9F000
-
-%define	MEMLOCATION_UNPACK_AREA			0x400000
+%define KERNEL_STACK_SIZE   0x10000
+%define KERNEL_BASE_ADDRESS 0x100000
 
 ; The physical memory location reserved for video space is at 0x0F000000
 ; but at the time we take that into use - we have abandoned this page directory.
