@@ -69,11 +69,9 @@ MfsGetNextBucket:
     mov	edx, dword [qBucketMapSector + 4]
     pop	ebx
 
-    ; addition
-    xor	ecx, ecx
+    ; Add the sector to the base map sector
     add	eax, ebx
-    adc	edx, ecx
-    mov	esi, edx
+    adc	edx, 0
 
     ; do not re-read the bucket sector if it's loaded already
     cmp eax, dword [dLastReadBucketSector]
@@ -85,16 +83,15 @@ MfsGetNextBucket:
     push word 1
     push word BUCKETMAP_ADDRESS_OFFSET
     push word BUCKETMAP_ADDRESS_SEGMENT
-    mov eax, ReadSectorsLBA16
-    push ax
+    push ReadSectorsLBA16
     call BiosCallWrapper
-    add esp, 12
+    add esp, 14
 
     ; Find Entry
     .lookup:
-        pop edx                         ; Get the remainder of the division
-        xchg esi, edx
+        pop esi                         ; Get the remainder of the division
         shl	esi, 3
+        mov bx, BUCKETMAP_ADDRESS_OFFSET
         mov ecx, dword [es:bx + si]     ; move link into ecx
         mov eax, dword [es:bx + si + 4] ; move length into eax
 
@@ -165,10 +162,10 @@ MfsReadBucket:
         ja  .fit
 
     .fitted:
-        mov ebx, eax
+        mov ebx, eax  ; store how many sectors to read
         div ecx
         mov LVAR0_32, eax
-        mov ecx, eax ; ecx is now how many sectors to read
+        mov ecx, ebx ; ecx is now how many sectors to read
 
     pop edx ; restore start sector into eax:edx
     pop eax
@@ -180,10 +177,9 @@ MfsReadBucket:
     push ax
     mov eax, ARG3_32 ; segment of the buffer
     push ax
-    mov eax, ReadSectorsLBA16
-    push ax
+    push ReadSectorsLBA16
     call BiosCallWrapper
-    add esp, 12
+    add esp, 14
 
     ; get bucket information so we can load information
     ; about the next bucket
@@ -209,11 +205,11 @@ MfsGetTokenLength:
     mov	eax, XARG0_32
     mov ecx, 0
     .count:
-        mov	al, [ds:eax]
-        cmp al, 0x2F     ; test against '/'
+        mov	dl, [ds:eax]
+        cmp dl, 0x2F     ; test against '/'
         je .done
-        test al, al
-        je .eos
+        test dl, dl
+        jz .eos
         inc ecx
         inc eax
         jmp .count
@@ -227,13 +223,26 @@ MfsGetTokenLength:
 ; ****************************
 ; MfsStringCompare
 ; @brief Compares two strings to each other
-; @param szString1 [In] String to compare
-; @param szString2 [In] String to compare
-; @param length    [In] Length of the strings to compare
-; @return               0 if not equal, 1 if equal
+; @param szString1 [0, In] String to compare
+; @param szString2 [1, In] String to compare
+; @param length    [2, In] Length of the strings to compare
+; @return          <none> but sets status flag
 ; ****************************
 MfsStringCompare:
-    mov	eax, XARG0_32
+    STACK_FRAME_BEGIN32
+    push esi
+    push edi
+
+    mov esi, ARG0_32
+    mov edi, ARG1_32
+    mov ecx, ARG2_32
+    cld
+    rep cmpsb
+
+    pop edi
+    pop esi
+    STACK_FRAME_END32
+    ret
 
 ; ****************************
 ; MfsOpenFile
@@ -285,7 +294,7 @@ MfsOpenFile:
     mov dword [eax + FileHandle.Data2], 0
     mov dword [eax + FileHandle.Data3], 0
 
-    .chain_loop:       
+    .chain_loop:
         mov eax, LVAR0_32
         push eax 
         call MfsGetTokenLength
@@ -318,10 +327,11 @@ MfsOpenFile:
 
             mov esi, FILELOADING_BAY_LINEAR
             .directory_loop:
-                test byte [es:esi + 3], 0x80 ; bit 31 is set when the entry is in use
+                test byte [esi + 3], 0x80 ; bit 31 is set when the entry is in use
                 jz .next_entry
 
                 ; No, phew, lets check if filename matches
+                xchg bx, bx
                 mov eax, LVAR1_32
                 push eax
                 mov eax, LVAR0_32
@@ -331,15 +341,13 @@ MfsOpenFile:
                 push eax
                 call MfsStringCompare
                 add esp, 12
-
-                test al, al
-                jz .next_entry
+                jne .next_entry
 
                 ; We found an entry that matched the filename we were looking for
                 ; lets get the bucket data
-                mov	eax, dword [es:esi + 0x4]
+                mov	eax, dword [esi + 0x4]
                 mov LVAR2_32, eax
-                mov edx, dword [es:esi + 0x8]
+                mov edx, dword [esi + 0x8]
                 mov LVAR3_32, edx
 
                 ; Was it end of chain?
@@ -361,7 +369,7 @@ MfsOpenFile:
                     mov ecx, ARG1_32
                     mov dword [ecx + FileHandle.Data1], eax
                     mov dword [ecx + FileHandle.Data2], edx
-                    mov eax, dword [es:esi + 0x30]
+                    mov eax, dword [esi + 0x30]
                     mov dword [ecx + FileHandle.Size], eax
                     mov eax, 1
                     jmp .exit

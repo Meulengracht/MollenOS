@@ -53,8 +53,9 @@ UnpackFile:
 
     mov LVAR1_32, eax
 
+    push VBOOT_MEMORY_TYPE_FIRMWARE
     push eax
-    call MemoryAllocateFirmware
+    call MemoryAllocate
     add esp, 4
     cmp eax, 0
     je .exit
@@ -67,7 +68,7 @@ UnpackFile:
 
     ; free file buffer, not needed anymore
     push dword ARG0_32
-    call MemoryFreeFirmware
+    call MemoryFree
     add esp, 4
 
     .exit:
@@ -89,7 +90,8 @@ UnpackFile:
 ; ***********************
 SystemsFail32:
     STACK_FRAME_BEGIN32
-    push dword ARG0_32
+    mov eax, ARG0_32
+    push ax ; push 16 bit argument
     push SystemsFail
     call BiosCallWrapper
     STACK_FRAME_END32

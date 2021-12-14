@@ -50,10 +50,3 @@
 
 %define KERNEL_STACK_SIZE   0x10000
 %define KERNEL_BASE_ADDRESS 0x100000
-
-; The physical memory location reserved for video space is at 0x0F000000
-; but at the time we take that into use - we have abandoned this page directory.
-; We identity map the first 256 mb
-%define MEMLOCATION_PML4T               0x0F000000 ; MEMORY_LOCATION_KERNEL_END - 0x1000000 (16 mb)
-%define IDENTITY_MAP_RANGE              0x10000000 ; MEMORY_LOCATION_KERNEL_END
-%define PT_SIZE                         0x200000   ; 2 mb

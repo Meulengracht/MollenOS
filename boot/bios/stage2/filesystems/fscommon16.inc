@@ -189,6 +189,10 @@ ReadSectorsLBA16:
     shl eax, 16      ; shift into upper 32 bits
     mov ax, ARG3_16  ; load low word of LBA
     
+    ; add base sector onto start-sector
+    add eax, dword [dBaseSector]
+    ; adc edx, 0
+
     xor edx, edx                 ; always clear edx before div
     xor ecx, ecx
     mov cx, WORD [wFsCommonSectorsPerTrack]  ; convert LBA to CHS

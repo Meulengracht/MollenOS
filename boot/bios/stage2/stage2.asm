@@ -115,6 +115,7 @@ BITS  32
 %include "systems/memory32.inc"
 %include "systems/cpu.inc"
 %include "systems/lz.inc"
+%include "systems/paging64.inc"
 %include "filesystems/fscommon32.inc"
 
 LoaderEntry32:
@@ -130,7 +131,6 @@ LoaderEntry32:
 
     ; allocate memory for the kernel, this is fixed for now so
     ; we might as well just allocate it right out of the box.
-    xchg bx, bx
     push KERNEL_BASE_ADDRESS
     push MEGABYTE
     call MemoryAllocateFixed
@@ -178,7 +178,7 @@ LoaderEntry32:
 
     ; free unpacked buffer
     push ebx
-    call MemoryFreeFirmware
+    call MemoryFree
     add esp, 4
 
     ; load ramdisk image to memory
@@ -210,8 +210,7 @@ LoaderEntry32:
 
     ; switch video mode
 %ifdef __OSCONFIG_HAS_VIDEO
-    mov eax, VesaFinish
-    push eax
+    push VesaFinish
     call BiosCallWrapper
     add esp, 4
 %endif
@@ -224,42 +223,60 @@ LoaderEntry32:
     out 0x21, al
 
     ; allocate memory for the kernel stack
+    push VBOOT_MEMORY_TYPE_FIRMWARE
     push KERNEL_STACK_SIZE
-    call MemoryAllocateFirmware
-    mov esp, eax
+    call MemoryAllocate
 
+    ; store metrics for the stack inside the boot header
     mov dword [BootHeader + VBoot.StackBase], eax
     mov dword [BootHeader + VBoot.StackLength], KERNEL_STACK_SIZE
 
+    ; switch stack to the kernel stack
+    add eax, KERNEL_STACK_SIZE
+    sub eax, 8
+    mov esp, eax
+
 %ifdef __amd64__
-    ; go into 64 bit mode if possible
-    call	CpuDetect64
-    cmp     eax, 1
-    jne     Skip64BitMode
+    ; Jump into 64 bit mode if available
+    call CpuDetect64
+    cmp eax, 1
+    jne Skip64BitMode
 
     ; If eax is set to 1, 
     ; we will enter 64 bit mode instead
-    call    CpuSetupLongMode
-    jmp     CODE64_DESC:LoadKernel64
+    call PagingInitialize64
+    cmp eax, 0
+    je .Stage2Failed
+
+    ; finalize memory map before going 64 bit
+    call MemoryFinalizeMap
+    jmp CODE64_DESC:LoadKernel64
+%else
+    jmp Skip64BitMode
 %endif
 
     .Stage2Failed:
         push szFailed
         call SystemsFail32
 
+; This loads the kernel in 32 bit mode. The state when entering the kernel
+; at 32 bit mode must be non-paging in segmenetatino mode. This allows the kernel
+; access to all physical memory.
+; EAX - VBoot Magic
+; EBX - VBoot Header
 Skip64BitMode:
-    ; Setup Registers
-    xor esi, esi
-    xor edi, edi
-    mov ecx, dword [dKernelEntry]
+    ; finalize memory map
+    call MemoryFinalizeMap
+
     mov eax, VBOOT_MAGIC
     mov ebx, BootHeader
-    
-    ; Jump to kernel (Entry Point in ECX)
-    jmp ecx
-    cli
-    hlt
+    mov ecx, dword [dKernelEntry]
+    jmp ecx ; There is no return from this jump.
 
+; This loads the kernel in 64 bit mode. The state when entering the kernel
+; at 64 bit mode must be paging with all physical memory identity mapped.
+; RAX - VBoot Magic
+; RBX - VBoot Header
 ALIGN 64
 BITS  64
 LoadKernel64:
@@ -277,20 +294,17 @@ LoadKernel64:
     xor rsp, rsp
     mov rsp, rax
 
-    ; Setup Registers
-    xor rsi, rsi
-    xor rdi, rdi
+    ; clear out 64 bit parts of registers as we do not
+    ; know the state of them, and we need to use them
+    ; for passing state
     xor rax, rax
     xor rbx, rbx
     xor rcx, rcx
-    mov ecx, dword [dKernelEntry]
+
     mov eax, VBOOT_MAGIC
     mov ebx, BootHeader
-
-    ; Jump to kernel (Entry Point in ECX)
-    jmp rcx
-    cli
-    hlt
+    mov ecx, dword [dKernelEntry]
+    jmp rcx ; There is no return from this jump.
 
 ; ****************************
 ; Variables

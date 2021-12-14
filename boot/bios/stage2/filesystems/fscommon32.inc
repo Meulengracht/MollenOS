@@ -34,8 +34,8 @@ BITS 32
 ; @brief Loads a file from the filesystem. The file is loaded into the target
 ; address in 32 bit mode. This will happen over a number of iterations dependendant
 ; on the size of the file. The maximum chunk size is 400 kb.
-; @param filenameDos   [In] The filename to load in the format of 8:3
-; @param filenameUtf8  [In] The filename to load in the format of utf8
+; @param filenameDos   [0, In] The filename to load in the format of 8:3
+; @param filenameUtf8  [1, In] The filename to load in the format of utf8
 ; @return [eax] A pointer to the filebuffer
 ; @return [ecx] The number of bytes read
 ; ****************************
@@ -65,7 +65,7 @@ LoadFile32:
     push eax
 
     .open_fat:
-        mov eax, ARG1_32
+        mov eax, ARG0_32
         push eax
         call FatOpenFile
         add esp, 8
@@ -74,7 +74,7 @@ LoadFile32:
         jmp .read
 
     .open_mfs:
-        mov eax, ARG2_32
+        mov eax, ARG1_32
         push eax
         call MfsOpenFile
         add esp, 8
@@ -82,8 +82,9 @@ LoadFile32:
         jz  .exit
 
     ; allocate space for the file
+    push VBOOT_MEMORY_TYPE_BOOT
     push dword [FileHandle.Size]
-    call MemoryAllocateFirmware
+    call MemoryAllocate
     add esp, 4
     mov LVAR0_32, eax
     mov edi, eax

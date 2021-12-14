@@ -112,11 +112,16 @@ BITS 16
 
 %define VBOOT_FIRMWARE_BIOS 0
 
-%define VBOOT_MEMORY_TYPE_RESERVED  0
-%define VBOOT_MEMORY_TYPE_FIRMWARE  1
-%define VBOOT_MEMORY_TYPE_ACPI      2
-%define VBOOT_MEMORY_TYPE_NVS       3
-%define VBOOT_MEMORY_TYPE_AVAILABLE 4
+%define VBOOT_MEMORY_TYPE_RESERVED  0x00000000
+%define VBOOT_MEMORY_TYPE_FIRMWARE  0x00000001
+%define VBOOT_MEMORY_TYPE_ACPI      0x00000002
+%define VBOOT_MEMORY_TYPE_NVS       0x00000003
+%define VBOOT_MEMORY_TYPE_AVAILABLE 0x00000004
+
+; Temporary type used during booting which will get
+; marked _AVAILABLE automatically just before jumping to
+; the OS
+%define VBOOT_MEMORY_TYPE_BOOT 0x80000000
 
 struc VBootMemoryEntry
     .Type:         resd 1
@@ -150,14 +155,14 @@ struc VBoot
     .VideoAlphaPosition: resd 1
     .VideoAlphaMask:     resd 1
 
-    .RamdiskLength: resd 1
     .RamdiskBase:   resq 1
+    .RamdiskLength: resd 1
 
-    .KernelLength: resd 1
     .KernelBase:   resq 1
+    .KernelLength: resd 1
 
-    .StackLength:  resd 1
     .StackBase:    resq 1
+    .StackLength:  resd 1
 endstruc
 
 ; ********************************
@@ -296,14 +301,14 @@ istruc VBoot
     at VBoot.VideoAlphaPosition, dd 0
     at VBoot.VideoAlphaMask,     dd 0
 
-    at VBoot.RamdiskLength,      dd 0
     at VBoot.RamdiskBase,        dq 0
+    at VBoot.RamdiskLength,      dd 0
 
-    at VBoot.KernelLength,       dd 0
     at VBoot.KernelBase,         dq 0
+    at VBoot.KernelLength,       dd 0
 
-    at VBoot.StackLength,        dd 0
     at VBoot.StackBase,          dq 0
+    at VBoot.StackLength,        dd 0
 iend
 
 %endif

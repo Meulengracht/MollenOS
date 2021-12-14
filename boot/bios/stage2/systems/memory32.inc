@@ -1,6 +1,6 @@
 ; MollenOS
 ;
-; Copyright 2011 - 2016, Philip Meulengracht
+; Copyright 2021, Philip Meulengracht
 ;
 ; This program is free software : you can redistribute it and / or modify
 ; it under the terms of the GNU General Public License as published by
@@ -81,9 +81,41 @@ MemoryMoveMapDown:
     STACK_FRAME_END32
     ret
 
-; bMemoryEntryCount - Number of firmware entries starting from MEMLOCATION_MEMORY_MAP
-; Entries are encoded as VBootMemoryEntry's
-; VBootMemoryEntry_size variable is the size
+; *********************
+; MemoryMoveMapUp
+; @brief Moves all entries past the given index a full entry up
+; in memory. This acts like a memmove where it copies the data in a forward
+; fashion to allow for move in-place.
+; @param dest   [0, In] The number of entries to move
+; @param source [1, In] The source to move from
+; @param index  [2, In] The index to start moving from
+MemoryMoveMapUp:
+    STACK_FRAME_BEGIN32
+    push esi
+    push edi
+
+    mov edi, ARG0_32
+    mov esi, ARG1_32
+
+    ; Calculate size from current index
+    ; bMemoryEntryCount - index - 1
+    xor eax, eax
+    mov al, byte [bMemoryEntryCount]
+    sub eax, ARG2_32
+    dec eax
+    
+    xor edx, edx
+    mov ecx, VBootMemoryEntry_size
+    mul ecx
+    mov ecx, eax
+
+    cld
+    rep movsb
+
+    pop edi
+    pop esi
+    STACK_FRAME_END32
+    ret
 
 ; *********************
 ; MemoryAllocateFixed
@@ -285,12 +317,13 @@ MemoryAllocateFixed:
         ret
 
 ; **********************
-; MemoryAllocateFirmware
-; @brief Allocates a block of memory from the memory map, marks it as _FIRMWARE and
+; MemoryAllocate
+; @brief Allocates a block of memory from the memory map, marks it as type provided and
 ; always allocates memory from top to bottom.
 ; @param Size [0, In] The size of the memory block to allocate.
+; @param Type [1, In] The type of memory to allocate.
 ; @return The address of the allocated memory block.
-MemoryAllocateFirmware:
+MemoryAllocate:
     STACK_FRAME_BEGIN32
     push esi
 
@@ -350,7 +383,8 @@ MemoryAllocateFirmware:
         ; so unlikely it hurts, but should we make an allocation
         ; that just happens to fit into this entry, then just change
         ; the type to _FIRMWARE and return the base address.
-        mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
+        mov eax, ARG1_32
+        mov dword [esi + VBootMemoryEntry.Type], eax
         mov eax, dword [esi + VBootMemoryEntry.PhysicalBase]
         jmp .exit
 
@@ -365,8 +399,9 @@ MemoryAllocateFirmware:
         ; Change length to be the size of the new entry
         mov dword [esi + VBootMemoryEntry.Length], ecx
 
-        ; Change type to be _FIRMWARE
-        mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
+        ; Change type to be the requested type
+        mov eax, ARG1_32
+        mov dword [esi + VBootMemoryEntry.Type], eax
         mov eax, dword [esi + VBootMemoryEntry.PhysicalBase] ; store base address
 
         ; Adjust the following entry's length and physical base
@@ -382,12 +417,18 @@ MemoryAllocateFirmware:
         STACK_FRAME_END32
         ret
 
-MemoryFreeFirmware:
+; **********************
+; MemoryFree
+; @brief Frees a block of memory from the memory map, marks it as _AVAILABLE.
+;
+; @param address [0, In] The address of the memory block to free.
+; @return                1 if successful, 0 otherwise.
+; ********************** 
+MemoryFree:
     STACK_FRAME_BEGIN32
     push esi
-    ; Hopefully we can merge entry with the previous or next entry, and then move the
-    ; memory map. If not, then we keep it as a free entry seperately by just changing
-    ; type from _FIRMWARE to _AVAILABLE.
+    
+    ; Find the entry and mark it as _AVAILABLE
     mov esi, MEMLOCATION_MEMORY_MAP
     xor ecx, ecx
     mov cl, byte [bMemoryEntryCount]
@@ -400,10 +441,7 @@ MemoryFreeFirmware:
         ; found it, change it to _AVAILABLE
         mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_AVAILABLE
 
-        ; perform merge in backwards direction
-
-        ; perform merge in forwards direction
-
+        ; set as success
         mov eax, 1
         jmp .exit
 
@@ -418,11 +456,139 @@ MemoryFreeFirmware:
         STACK_FRAME_END32
         ret
 
+; **********************
+; MemoryFinalizeMap
+; @brief Finalizes the memory map, by performing cleanup and corrections before
+; passing it to the operating system.
+; @return 0 on success, 1 on error.
+; **********************
 MemoryFinalizeMap:
+    STACK_FRAME_BEGIN32
+    push esi
+    push edi
+
+    ; Go through memory map and merge adjacent entries that are marked as same type
+    ; and have the same attributes (but they all do when booting from bios).
+    ; We also need to make sure that all _BOOT entries get marked as _AVAILABLE.
+    mov esi, MEMLOCATION_MEMORY_MAP
+    xor ecx, ecx
+    mov cl, byte [bMemoryEntryCount]
+
+    ; Mark all _BOOT entries as _AVAILABLE
+    .free_boot:
+        cmp dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_BOOT
+        jne .next_entry_0
+        mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_AVAILABLE
+
+        .next_entry_0:
+            add esi, VBootMemoryEntry_size
+            dec ecx
+            jnz .free_boot
+
+    ; Consolidate all entries of same type
+    mov esi, MEMLOCATION_MEMORY_MAP
+    mov edi, MEMLOCATION_MEMORY_MAP
+    xor ecx, ecx
+    mov cl, byte [bMemoryEntryCount]
+
+    ; start iterating from entry 1
+    add esi, VBootMemoryEntry_size
+    dec ecx
+
+    .consolidate_map:
+        ; cmp entries[i -1].Type == entries[i].Type
+        ; edi = i-1
+        ; esi = i
+        mov eax, dword [edi + VBootMemoryEntry.Type]
+        cmp eax, dword [esi + VBootMemoryEntry.Type]
+        jne .next_entry_1
+
+        ; ok they match, what we do now is entries[i-1].Length += entries[i].Length
+        mov eax, dword [esi + VBootMemoryEntry.Length]
+        mov edx, dword [esi + VBootMemoryEntry.Length + 4]
+        add dword [edi + VBootMemoryEntry.Length], eax
+        adc dword [edi + VBootMemoryEntry.Length + 4], edx
+
+        ; and then we memmove(
+        ;                     dest: i+1, src: i, 
+        ;                     len: VBootMemoryEntry_size * (entryCount - i - 1)))
+        ; Move up, calculate the number of entries to move
+        mov eax, esi
+        add eax, VBootMemoryEntry_size ; eax is now i+1
+
+        push ecx ; index
+        push esi ; src
+        push eax ; dest
+        call MemoryMoveMapUp
+        add esp, 8 ; skip src+dest
+        pop ecx ; restore index
+
+        ; subtract a count of 1 from total count and current remaining
+        dec byte [bMemoryEntryCount]
+        dec ecx
+        jmp .consolidate_map
+
+        .next_entry_1:
+            add esi, VBootMemoryEntry_size
+            add edi, VBootMemoryEntry_size
+            dec ecx
+            jnz .consolidate_map
+
+    ; lastly, store information about memory map in vboot header
     xor eax, eax
     mov al, byte [bMemoryEntryCount]
     mov dword [BootHeader + VBoot.MemoryCount], eax
     mov dword [BootHeader + VBoot.MemoryEntries], MEMLOCATION_MEMORY_MAP
+
+    pop edi
+    pop esi
+    STACK_FRAME_END32
     ret
+
+; **********************
+; MemoryGetUpperBound
+; @brief Finds the memory map entry with the highest upper physical memory
+; address. This is used to determine the upper bound of the memory map.
+; 
+; @return [eax] Lower 32 bits of the memory upper bound.
+; @return [ecx] Upper 32 bits of the memory upper bound.
+; **********************
+MemoryGetUpperBound:
+    STACK_FRAME_BEGIN32
+    push esi
+
+    ; Get upper bound of memory map
+    mov esi, MEMLOCATION_MEMORY_MAP
+    xor ecx, ecx
+    mov cl, byte [bMemoryEntryCount]
+
+    ; The map is already sorted by address, so just take n-1 entry
+    ; and add length. Should we take highest non-reserved instead??
+    xor edx, edx
+    mov eax, VBootMemoryEntry_size
+    mul ecx
+    sub eax, VBootMemoryEntry_size
+    add esi, eax
+
+    .check:
+        cmp dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_RESERVED
+        je .next_entry
+
+        ; found it, return it
+        mov eax, dword [esi + VBootMemoryEntry.PhysicalBase]
+        mov ecx, dword [esi + VBootMemoryEntry.PhysicalBase + 4]
+        add eax, dword [esi + VBootMemoryEntry.Length]
+        adc ecx, dword [esi + VBootMemoryEntry.Length + 4]
+        jmp .exit
+
+        .next_entry:
+            add esi, VBootMemoryEntry_size
+            dec ecx
+            jnz .check
+
+    .exit:
+        pop esi
+        STACK_FRAME_END32
+        ret
 
 %endif
