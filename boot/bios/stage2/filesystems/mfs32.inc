@@ -375,7 +375,7 @@ MfsOpenFile:
                     jmp .exit
 
                 .next_entry:
-                    add esi, 512
+                    add esi, MFS_DIRECTORY_ENTRY_SIZE
                     dec cx
                     jnz .directory_loop
                     ; drop down to next bucket

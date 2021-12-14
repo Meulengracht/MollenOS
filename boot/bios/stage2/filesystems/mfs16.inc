@@ -28,6 +28,7 @@
 BITS 16
 
 %define MFS_MEMORY_SCRACT_SPACE512 0x7E00
+%define MFS_DIRECTORY_ENTRY_SIZE   1024
 
 ; Structure Definitions
 ; Size is 52 bytes
@@ -79,7 +80,7 @@ MfsInitialize16:
     mov ax, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
     mov cx, word [MfsBootSector + MfsBootSectorStruct.BytesPerSector]
     mul ecx
-    mov ecx, 512 ; entry size
+    mov ecx, MFS_DIRECTORY_ENTRY_SIZE
     div ecx
     mov word [wMfsEntriesPerBucket], ax
 

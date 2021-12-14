@@ -243,7 +243,7 @@ ReadSectorsCHS:
             ; now we do the same, but for heads
             inc dh
             cmp dh, byte [wHeadsPerCylinder]
-            ja  .next_address
+            jb  .next_address
 
             mov dh, 0
             cmp ch, 0xFF ; detect overflow here
