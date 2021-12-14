@@ -33,35 +33,46 @@ BITS 32
     add esp, 8
 %endmacro
 
+; ************************
+; UnpackFile
+; @brief Unpacks a file from a file system
 ; @param buffer [In] The lz-compressed buffer that should be unpacked
 ; @return [eax] A new buffer with unpacked contents
 ; @return [ecx] Size of the new buffer
+; ************************
 UnpackFile:
     STACK_FRAME_BEGIN32
     sub esp, 8
+    push ebx
     push esi
     push edi
 
     mov LVAR0_32, 0 ; unpackedBuffer
     mov LVAR1_32, 0 ; unpackedSize
 
+    ; get the original (unpacked) filesize
     push dword ARG0_32
     call lz_validate
     add esp, 4
     cmp eax, -1
     je .exit
 
+    ; store the file size for later, we are going to
+    ; return it as a return value
     mov LVAR1_32, eax
 
+    ; allocate memory for the unpacked image
     push VBOOT_MEMORY_TYPE_FIRMWARE
     push eax
     call MemoryAllocate
     add esp, 4
-    cmp eax, 0
-    je .exit
+    test eax, eax
+    jz .exit
 
+    ; store the buffer for later as well
     mov LVAR0_32, eax
 
+    ; actually perform the decompression into the allocated buffer
     mov esi, ecx
     mov edi, eax
     call lz_decompress
@@ -74,11 +85,11 @@ UnpackFile:
     .exit:
         mov eax, LVAR0_32
         mov ecx, LVAR1_32
-
-    pop edi
-    pop esi
-    STACK_FRAME_END32
-    ret
+        pop ebx
+        pop edi
+        pop esi
+        STACK_FRAME_END32
+        ret
 
 ; ***********************
 ; SystemsFail32

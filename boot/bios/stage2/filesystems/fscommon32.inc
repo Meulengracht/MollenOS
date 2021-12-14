@@ -26,6 +26,19 @@
 %define _MBOOT_FILESYSTEM_COMMON32_INC_
 
 BITS 32
+
+struc FsFileHandle
+    .Position:   resd 1
+    .Size:       resd 1
+    .BaySegment: resw 1
+    .BayOffset:  resw 1
+    .BaySize:    resd 1
+    .Data1:      resd 1
+    .Data2:      resd 1
+    .Data3:      resd 1
+endstruc
+
+; include supported filesystems
 %include "filesystems/fat32.inc"
 %include "filesystems/mfs32.inc"
 
@@ -49,10 +62,13 @@ LoadFile32:
 
     ; Initialize bay stuff, so the filesystems below has some space
     ; to play around with. This is static anyway.
-    mov word [FileHandle.BaySegment], FILELOADING_BAY_SEGMENT
-    mov word [FileHandle.BayOffset],  FILELOADING_BAY_OFFSET
-    mov dword [FileHandle.BaySize],   FILELOADING_BAY_SIZE
-    mov dword [FileHandle.Size],      0
+    mov word  [FileHandle + FsFileHandle.BaySegment], FILELOADING_BAY_SEGMENT
+    mov word  [FileHandle + FsFileHandle.BayOffset],  FILELOADING_BAY_OFFSET
+    mov dword [FileHandle + FsFileHandle.BaySize],    FILELOADING_BAY_SIZE
+    mov dword [FileHandle + FsFileHandle.Size],       0
+
+    ; push the file handle first
+    push FileHandle
 
     ; open the file and hope it exists
     mov cl, byte [bFsCommonType]
@@ -60,16 +76,12 @@ LoadFile32:
     jb  .open_fat
     jmp .open_mfs
 
-    ; push the file handle first
-    mov eax, FileHandle
-    push eax
-
     .open_fat:
         mov eax, ARG0_32
         push eax
         call FatOpenFile
         add esp, 8
-        cmp eax, 0
+        test eax, eax
         jz  .exit
         jmp .read
 
@@ -78,12 +90,12 @@ LoadFile32:
         push eax
         call MfsOpenFile
         add esp, 8
-        cmp eax, 0
-        jz  .exit
+        test eax, eax
+        jz .exit
 
     ; allocate space for the file
     push VBOOT_MEMORY_TYPE_BOOT
-    push dword [FileHandle.Size]
+    push dword [FileHandle + FsFileHandle.Size]
     call MemoryAllocate
     add esp, 4
     mov LVAR0_32, eax
@@ -92,20 +104,40 @@ LoadFile32:
     ; read the file into the buffer
     .read:
         .loop:
-            mov eax, FileHandle
-            push eax
+            push FileHandle
             call MfsReadFile
             add esp, 8
             cmp eax, 0
             jz  .exit
-            mov esi, FILELOADING_BAY_LINEAR
-            mov ecx, eax
-            rep movsb
-            jmp .loop
+
+            ; add bytes read to position
+            mov dword [FileHandle + FsFileHandle.Position], eax
+            mov ecx, dword [FileHandle + FsFileHandle.Position]
+            mov edx, dword [FileHandle + FsFileHandle.Size]
+            cmp ecx, edx
+            jbe .copy
+
+            ; otherwise we have 'read too much in terms of sector sizes'
+            ; as we have to read in multiple of sectors, adjust the number of
+            ; bytes to copy
+            sub ecx, edx    ; overage = position - size
+            sub eax, ecx    ; bytesToCopy -= overage
+            sub dword [FileHandle + FsFileHandle.Position], ecx ; position -= overage
+
+            .copy:
+                mov esi, FILELOADING_BAY_LINEAR
+                mov ecx, eax
+                rep movsb
+
+            ; are we done?
+            mov ecx, dword [FileHandle + FsFileHandle.Position]
+            mov edx, dword [FileHandle + FsFileHandle.Size]
+            cmp ecx, edx
+            jne .loop
 
     .exit:
         mov eax, LVAR0_32
-        mov ecx, dword [FileHandle.Size]
+        mov ecx, dword [FileHandle + FsFileHandle.Size]
         pop edi
         STACK_FRAME_END32
         ret
@@ -114,13 +146,15 @@ LoadFile32:
 ; Variables
 ; ****************************
 FileHandle:
-    .Position   dd 0
-    .Size       dd 0
-    .BaySegment dw 0
-    .BayOffset  dw 0
-    .BaySize    dd 0
-    .Data1      dd 0
-    .Data2      dd 0
-    .Data3      dd 0
+istruc FsFileHandle
+    at FsFileHandle.Position,   dd 0
+    at FsFileHandle.Size,       dd 0
+    at FsFileHandle.BaySegment, dw 0
+    at FsFileHandle.BayOffset,  dw 0
+    at FsFileHandle.BaySize,    dd 0
+    at FsFileHandle.Data1,      dd 0
+    at FsFileHandle.Data2,      dd 0
+    at FsFileHandle.Data3,      dd 0
+iend
 
 %endif

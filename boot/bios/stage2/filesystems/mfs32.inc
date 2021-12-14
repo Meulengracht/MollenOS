@@ -152,10 +152,12 @@ MfsReadBucket:
     mul ecx
 
     ; make sure the number of sectors to read fits into cx
-    cmp eax, 0xFFFF
-    jb  .fitted
     xor ecx, ecx
     mov cx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+    cmp eax, 0xFFFF
+    jb  .fitted
+
+    ; otherwise we fit it
     .fit:
         sub eax, ecx
         cmp eax, 0xFFFF
@@ -233,11 +235,13 @@ MfsStringCompare:
     push esi
     push edi
 
+    xor eax, eax
     mov esi, ARG0_32
     mov edi, ARG1_32
     mov ecx, ARG2_32
     cld
     rep cmpsb
+    setz al
 
     pop edi
     pop esi
@@ -255,6 +259,7 @@ MfsStringCompare:
 MfsOpenFile:
     STACK_FRAME_BEGIN32
     sub esp, 0x20    ; space for 8 variables
+    push esi
 
     ; reset bMfsEndOfString
     mov byte [bMfsEndOfString], 0
@@ -288,11 +293,11 @@ MfsOpenFile:
     ; Data2 = CurrentBucketLength
     ; Data3 = CurrentBucketOffset
     mov eax, ARG1_32
-    mov dword [eax + FileHandle.Position], 0
-    mov dword [eax + FileHandle.Size], 0
-    mov dword [eax + FileHandle.Data1], 0
-    mov dword [eax + FileHandle.Data2], 0
-    mov dword [eax + FileHandle.Data3], 0
+    mov dword [eax + FsFileHandle.Position], 0
+    mov dword [eax + FsFileHandle.Size], 0
+    mov dword [eax + FsFileHandle.Data1], 0
+    mov dword [eax + FsFileHandle.Data2], 0
+    mov dword [eax + FsFileHandle.Data3], 0
 
     .chain_loop:
         mov eax, LVAR0_32
@@ -331,7 +336,6 @@ MfsOpenFile:
                 jz .next_entry
 
                 ; No, phew, lets check if filename matches
-                xchg bx, bx
                 mov eax, LVAR1_32
                 push eax
                 mov eax, LVAR0_32
@@ -341,7 +345,8 @@ MfsOpenFile:
                 push eax
                 call MfsStringCompare
                 add esp, 12
-                jne .next_entry
+                test eax, eax
+                jz .next_entry
 
                 ; We found an entry that matched the filename we were looking for
                 ; lets get the bucket data
@@ -367,10 +372,10 @@ MfsOpenFile:
 
                 .found_entry:
                     mov ecx, ARG1_32
-                    mov dword [ecx + FileHandle.Data1], eax
-                    mov dword [ecx + FileHandle.Data2], edx
+                    mov dword [ecx + FsFileHandle.Data1], eax
+                    mov dword [ecx + FsFileHandle.Data2], edx
                     mov eax, dword [esi + 0x30]
-                    mov dword [ecx + FileHandle.Size], eax
+                    mov dword [ecx + FsFileHandle.Size], eax
                     mov eax, 1
                     jmp .exit
 
@@ -399,6 +404,7 @@ MfsOpenFile:
     .fail:
         xor eax, eax
     .exit:
+        pop esi
         STACK_FRAME_END32
         ret
 
@@ -410,6 +416,7 @@ MfsOpenFile:
 ; ****************************
 MfsReadFile:
     STACK_FRAME_BEGIN32
+    push ebx
     push esi
 
     ; Data1 = CurrentBucket
@@ -418,49 +425,90 @@ MfsReadFile:
     mov esi, ARG0_32
 
     ; Calculate the number of buckets that fit into bay area
-    xor eax, eax
-    mov ax, word [MfsBootSector + MfsBootSectorStruct.BytesPerSector]
-    mov ecx, dword [esi + FileHandle.BaySize]
+    mov eax, dword [esi + FsFileHandle.BaySize]
+    xor ecx, ecx
+    mov cx, word [MfsBootSector + MfsBootSectorStruct.BytesPerSector]
     div ecx
-    mov ecx, eax
-    xor eax, eax
-    mov ax, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+    
+    mov cx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
     div ecx
 
     ; eax now contains the number of buckets that fit into bay area
     ; Now calculate the start bucket to read, and the length
-    mov ecx, dword [esi + FileHandle.Data3] ; load offset
-    mov edx, dword [esi + FileHandle.Data2] ; load length
-    sub edx, ecx                            ; available length of bucket
-    cmp edx, eax                            ; does it fit?
-    jbe .load_loop                              ; it fits
+    mov ecx, dword [esi + FsFileHandle.Data3] ; load offset
+    mov ebx, dword [esi + FsFileHandle.Data2] ; load length
+    sub ebx, ecx                              ; available length of bucket
+    jz .no_data
+
+    cmp ebx, eax                              ; does it fit?
+    jbe .load_data                            ; it fits
 
     ; otherwise we fit it
-    mov edx, eax                            ; cap it
+    mov ebx, eax                              ; cap it
 
-    .load_loop:
-        mov eax, dword [eax + FileHandle.BayOffset]
+    .load_data:
+        mov eax, dword [esi + FsFileHandle.BayOffset]
         push eax
-        mov eax, dword [eax + FileHandle.BaySegment]
+        mov eax, dword [esi + FsFileHandle.BaySegment]
         push eax
-        mov eax, dword [esi + FileHandle.Data3]
+        mov eax, dword [esi + FsFileHandle.Data3]
         push eax
-        push edx
-        mov eax, dword [esi + FileHandle.Data1]
+        push ebx
+        mov eax, dword [esi + FsFileHandle.Data1]
         push eax
         call MfsReadBucket
         add esp, 20
         
-        ; did we read it all?
-        ; are we done?
-        ; are we out of buffer space?
+        ; [eax] The length of the bucket
+        ; [ecx] The link of the bucket
+        ; [edx] buckets read
+        
+        sub eax, dword [esi + FsFileHandle.Data3] ; take offset into account
+        cmp edx, eax                              ; did we read all of this bucket
+        je .next_link
 
-        cmp esi, 0xFFFFFFFF
-        jne	.load_loop
+        ; nope, we only read part of the bucket, add the number
+        ; of buckets read to the offset
+        add dword [esi + FsFileHandle.Data3], edx
+        jmp .exit
 
-    pop esi
-    STACK_FRAME_END32
-    ret
+        .next_link:
+            add dword [esi + FsFileHandle.Data3], edx ; add to offset anyway to protect again 
+                                                      ; consecutive reads
+            cmp ecx, 0xFFFFFFFF
+            mov eax, edx
+            je .exit
+
+            ; otherwise switch bucket
+            push eax
+            push ecx
+            call MfsGetNextBucket
+            pop edx   ; restore the bucket we requested info from
+            mov dword [esi + FsFileHandle.Data1], edx ; set new bucket
+            mov dword [esi + FsFileHandle.Data2], eax ; set length of new bucket
+            mov dword [esi + FsFileHandle.Data3], 0   ; reset bucket offset
+            pop eax   ; restore the number of buckets read
+            jmp .exit ; let ReadFile call us again
+
+    .no_data:
+        xor eax, eax
+
+    .exit:
+        ; Calculate the number of bytes read, eax contains number of buckets
+        ; we've read
+        xor ecx, ecx
+        xor edx, edx
+        mov cx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+        mul ecx
+        
+        xor edx, edx
+        mov cx, word [MfsBootSector + MfsBootSectorStruct.BytesPerSector]
+        mul ecx
+
+        pop esi
+        pop ebx
+        STACK_FRAME_END32
+        ret
 
 ; ****************************
 ; 64 Bit Division

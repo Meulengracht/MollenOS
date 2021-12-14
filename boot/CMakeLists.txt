@@ -35,7 +35,9 @@ if (BOOTLOADER_UEFI)
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/uefi
             CMAKE_ARGS
                 -DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}
+                -DCMAKE_C_COMPILER_FORCED=ON
                 -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}
                 -DVALI_ARCH=${VALI_ARCH}
+
     )
 endif ()

@@ -121,7 +121,7 @@ ReadSectorsCHS16:
         and ax, 0x003F ; only bits 0-5 are valid for sector
         inc al
         cmp al, byte [wFsCommonSectorsPerTrack]
-        jb .no_sector_overflow
+        jbe .no_sector_overflow
         and cl, 0xC0
         or cl, 0x01
         jmp .sector_overflow

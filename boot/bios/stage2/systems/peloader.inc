@@ -154,6 +154,9 @@ endstruc
 PELoad:
     STACK_FRAME_BEGIN32
     sub esp, 0x10
+    push ebx
+    push esi
+    push edi
 
     ; LVAR0 = PE File Buffer
     ; LVAR1 = Relocation Address
@@ -344,10 +347,13 @@ PELoad:
         mov	eax, LVAR3_32
         and eax, 0xFFFFF000
         add	eax, 0x1000
-        sub	eax, LVAR1_32
 
-        ; Also return the entry point
-        mov ecx, LVAR2_32
+        sub	eax, LVAR1_32 ; return size
+        mov ecx, LVAR2_32 ; return entry point
+
+        pop edi
+        pop esi
+        pop ebx
         STACK_FRAME_END32
         ret
 

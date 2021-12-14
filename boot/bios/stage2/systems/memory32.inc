@@ -353,7 +353,7 @@ MemoryAllocate:
         sub esi, VBootMemoryEntry_size
         xor eax, eax
         mov al, byte [bMemoryEntryCount]
-        dec al
+        dec al ; go from 0..n-1
     
     .is_available:
         ; entry must be available

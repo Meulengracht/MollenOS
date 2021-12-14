@@ -135,8 +135,8 @@ LoaderEntry32:
     push MEGABYTE
     call MemoryAllocateFixed
     add esp, 8
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; load kernel image to memory and unpack/relocate it
     TRACE32 szLoadKernelMessage
@@ -144,8 +144,8 @@ LoaderEntry32:
     push szKernel
     call LoadFile32
     add esp, 8
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; LoadFile returns 
     ; eax - pointer to file
@@ -154,8 +154,8 @@ LoaderEntry32:
     push eax 
     call UnpackFile
     add esp, 4
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; UnpackFile returns
     ; eax - pointer to unpacked file
@@ -167,8 +167,8 @@ LoaderEntry32:
     push eax
     call PELoad
     add esp, 8
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; eax - size
     ; ecx - entry point
@@ -187,8 +187,8 @@ LoaderEntry32:
     push szRamdisk
     call LoadFile32
     add esp, 8
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; LoadFile returns 
     ; eax - pointer to file
@@ -197,8 +197,8 @@ LoaderEntry32:
     push eax 
     call UnpackFile
     add esp, 4
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; UnpackFile returns
     ; eax - pointer to unpacked file
