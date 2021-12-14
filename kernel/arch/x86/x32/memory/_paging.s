@@ -27,6 +27,7 @@ global _memory_reload_cr3
 global _memory_get_cr3
 global _memory_load_cr3
 global _memory_invalidate_addr
+global _memory_paging_init
 
 ; void memory_set_paging([esp + 4] int enable)
 ; If enable is non-zero it will enable paging for the core that is calling. Otherwise
