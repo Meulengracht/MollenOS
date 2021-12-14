@@ -42,7 +42,7 @@ BITS 32
 ; ************************
 UnpackFile:
     STACK_FRAME_BEGIN32
-    sub esp, 8
+    sub esp, 0x10
     push ebx
     push esi
     push edi
@@ -60,12 +60,13 @@ UnpackFile:
     ; store the file size for later, we are going to
     ; return it as a return value
     mov LVAR1_32, eax
+    mov LVAR2_32, ecx
 
     ; allocate memory for the unpacked image
     push VBOOT_MEMORY_TYPE_FIRMWARE
     push eax
     call MemoryAllocate
-    add esp, 4
+    add esp, 8
     test eax, eax
     jz .exit
 
@@ -73,7 +74,7 @@ UnpackFile:
     mov LVAR0_32, eax
 
     ; actually perform the decompression into the allocated buffer
-    mov esi, ecx
+    mov esi, LVAR2_32
     mov edi, eax
     call lz_decompress
 

@@ -132,7 +132,7 @@ MemoryAllocateFixed:
     mov esi, MEMLOCATION_MEMORY_MAP
     xor ecx, ecx
     mov cl, byte [bMemoryEntryCount]
-
+    
     .check_entry:
         cmp dword [esi], VBOOT_MEMORY_TYPE_AVAILABLE
         jne .next_entry
@@ -329,15 +329,14 @@ MemoryAllocate:
 
     ; page align the size
     mov eax, ARG0_32
+    mov ecx, eax
     and eax, 0x00000FFF
     jz .size_aligned
 
-    mov ecx, ARG0_32
     and ecx, 0xFFFFF000 
     add ecx, 0x1000
 
     .size_aligned:
-        mov ecx, eax
         ; Allocate from last entry that is marked as _AVAILABLE. We then create modify that
         ; entry to be marked as _FIRMWARE, and move the entire memory map one entry down.
         ; remember to update the number of memory region.
@@ -372,8 +371,9 @@ MemoryAllocate:
 
         .next_entry:
             sub esi, VBootMemoryEntry_size
-            cmp esi, MEMLOCATION_MEMORY_MAP
-            jae .is_available
+            dec eax
+            test eax, eax
+            jns .is_available
             
             ; we're at the end of the memory map, so we can't allocate
             xor eax, eax
@@ -396,18 +396,35 @@ MemoryAllocate:
         add esp, 8
         pop ecx
 
-        ; Change length to be the size of the new entry
-        mov dword [esi + VBootMemoryEntry.Length], ecx
+        ; Split the entry from the behind, so the 
+        ; ith entry must look like this
+        ; i.Length -= ecx
+        ; i+1.Start = (i.Start + i.Length)
+        ; i+1.Length = ecx
 
-        ; Change type to be the requested type
+        ; Adjust length of current entry
+        sub dword [esi + VBootMemoryEntry.Length], ecx
+
+        ; Update new entry that we have created space for
+        mov eax, dword [esi + VBootMemoryEntry.PhysicalBase]
+        mov edx, dword [esi + VBootMemoryEntry.PhysicalBase + 4]
+        add eax, dword [esi + VBootMemoryEntry.Length]
+        adc edx, dword [esi + VBootMemoryEntry.Length + 4]
+        add esi, VBootMemoryEntry_size ; switch to next entry
+
+        ; Initialize new entry
+        mov dword [esi + VBootMemoryEntry.PhysicalBase], eax
+        mov dword [esi + VBootMemoryEntry.PhysicalBase + 4], edx
+        mov dword [esi + VBootMemoryEntry.Length], ecx
+        mov dword [esi + VBootMemoryEntry.Length + 4], 0
+
         mov eax, ARG1_32
         mov dword [esi + VBootMemoryEntry.Type], eax
-        mov eax, dword [esi + VBootMemoryEntry.PhysicalBase] ; store base address
+        mov dword [esi + VBootMemoryEntry.Attributes], 0xF
 
-        ; Adjust the following entry's length and physical base
-        add esi, VBootMemoryEntry_size
-        add dword [esi + VBootMemoryEntry.PhysicalBase], ecx
-        sub dword [esi + VBootMemoryEntry.Length], ecx
+        ; move start address into eax
+        ; ASSUMPTION: we're always allocating under 4gb
+        mov eax, dword [esi + VBootMemoryEntry.PhysicalBase]
 
         ; increase the number of entries
         add byte [bMemoryEntryCount], 1
