@@ -153,7 +153,7 @@ endstruc
 ; ********************************
 PELoad:
     STACK_FRAME_BEGIN32
-    sub esp, 0x10
+    sub esp, 0x20
     push ebx
     push esi
     push edi
@@ -162,6 +162,7 @@ PELoad:
     ; LVAR1 = Relocation Address
     ; LVAR2 = Entry Point
     ; LVAR3 = Last Section Address
+    ; LVAR4 = Section iterator
     mov eax, ARG1_32
     mov LVAR1_32, eax
 
@@ -217,7 +218,7 @@ PELoad:
         mov eax, dword [PEOptHeader32 + PEOptionalHeader32.ImageBase]
         add eax, dword [PEOptHeader32 + PEOptionalHeader32.EntryPoint]
         mov LVAR2_32, eax
-        jmp .HandleSections
+        jmp .prepare_loop
 
     .PE64:
         ; Copy PE header
@@ -234,17 +235,17 @@ PELoad:
         mov	LVAR2_32, eax
 
     ; Get sections
-    .HandleSections:
+    .prepare_loop:
         xor eax, eax
-        xor ecx, ecx
         mov ax, word [PEHeader + PEMainHeader.OptHeaderSize]
         add esi, eax
+        
+        xor ecx, ecx
         mov cx, word [PEHeader + PEMainHeader.NumSections]
+        mov LVAR4_32, ecx
 
     ; Now we need to relocate
-    .cLoop:
-        push ecx
-
+    .section_loop:
         ; Copy Section Header
         mov ecx, 10 			; 10 * 4 = 40
         mov edi, PESection
@@ -267,82 +268,78 @@ PELoad:
         mov ebx, dword [PESection + PESectionHeader.VirtualSize]
 
         ; Size Check
-        test 	ecx, ecx
-        je 		.ZeroSection0
+        test ecx, ecx
+        je .zero_section0
 
         ; Copy or zero section? :-)
-        mov 	eax, dword [PESection + PESectionHeader.Attributes]
+        mov eax, dword [PESection + PESectionHeader.Attributes]
 
         ; Code or Data?
-        and 	eax, PE_SECTION_CODE
-        cmp 	eax, PE_SECTION_CODE
-        je 		.CopySection
+        and eax, PE_SECTION_CODE
+        cmp eax, PE_SECTION_CODE
+        je .copy_section
 
-        mov 	eax, dword [PESection + PESectionHeader.Attributes]
-        and 	eax, PE_SECTION_DATA
-        cmp 	eax, PE_SECTION_DATA
-        je 		.CopySection
+        mov eax, dword [PESection + PESectionHeader.Attributes]
+        and eax, PE_SECTION_DATA
+        cmp eax, PE_SECTION_DATA
+        je .copy_section
 
-        mov 	eax, dword [PESection + PESectionHeader.Attributes]
-        and 	eax, PE_SECTION_ZERO
-        cmp 	eax, PE_SECTION_ZERO
-        jne 	.NextSection
+        mov eax, dword [PESection + PESectionHeader.Attributes]
+        and eax, PE_SECTION_ZERO
+        cmp eax, PE_SECTION_ZERO
+        jne .next_section
 
         ; If the other fails, its zero
-        .ZeroSection:
-            xor 	eax, eax
+        .zero_section:
+            xor eax, eax
             cld
-            rep 	stosb
-            jmp 	.NextSection
+            rep stosb
+            jmp .next_section
 
-        .ZeroSection0:
-            xor 	eax, eax
-            mov 	ecx, ebx
+        .zero_section0:
+            xor eax, eax
+            mov ecx, ebx
             cld
-            rep 	stosb
-            jmp 	.NextSection
+            rep stosb
+            jmp .next_section
 
         .ZeroRemaining:
-            xor 	eax, eax
-            sub 	ebx, ecx
-            mov 	ecx, ebx
+            xor eax, eax
+            sub ebx, ecx
+            mov ecx, ebx
             cld
-            rep 	stosb
-            jmp 	.NextSection
+            rep stosb
+            jmp .next_section
 
         ; Copy data
-        .CopySection:
-            push 	ecx
-            shr 	ecx, 2 	; divide by 4
-            add 	ecx, 1 	; In case of remainder
+        .copy_section:
+            push ecx
+            shr ecx, 2 	; divide by 4
+            add ecx, 1 	; In case of remainder
             cld
-            rep 	movsd
-            pop 	ecx
-            cmp 	ecx, ebx
-            jb 		.ZeroRemaining
+            rep movsd
+            pop ecx
+            cmp ecx, ebx
+            jb .ZeroRemaining
 
-        .NextSection:
+        .next_section:
             ; Save last edi
             mov	LVAR3_32, edi
 
-            ; Restore location and counter
+            ; Restore location
             pop esi
-            pop ecx
 
             ; Move to next section
-            dec	ecx
-            jnz .cLoop
-
-        ; Loop Done
-        jmp 	.Done
+            dec	dword LVAR4_32
+            jnz .section_loop
+            jmp .success
 
     .NotPE:
         xor eax, eax
         xor ecx, ecx
-        STACK_FRAME_END32
-        ret
+        jmp .exit
 
-    .Done:
+    .success:
         ; Page align up and calculate size
         mov	eax, LVAR3_32
         and eax, 0xFFFFF000
@@ -351,6 +348,7 @@ PELoad:
         sub	eax, LVAR1_32 ; return size
         mov ecx, LVAR2_32 ; return entry point
 
+    .exit:
         pop edi
         pop esi
         pop ebx

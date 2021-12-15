@@ -343,9 +343,13 @@ MemoryAllocate:
         mov esi, MEMLOCATION_MEMORY_MAP
         
         ; calculate offset into memory map, clear out registers
+        push ecx
         xor edx, edx
+        xor ecx, ecx
         mov eax, VBootMemoryEntry_size
-        mul byte [bMemoryEntryCount]
+        mov cl, byte [bMemoryEntryCount]
+        mul ecx
+        pop ecx
         add esi, eax
 
         ; esi now points to end of memory map, subtract size of entry
@@ -599,7 +603,7 @@ MemoryGetUpperBound:
         jmp .exit
 
         .next_entry:
-            add esi, VBootMemoryEntry_size
+            sub esi, VBootMemoryEntry_size
             dec ecx
             jnz .check
 

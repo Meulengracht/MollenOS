@@ -42,7 +42,7 @@ BITS 32
 ; @returns The address of the allocated memory area
 ; **************************
 PagingAllocateTable:
-    push esi
+    push edi
     push VBOOT_MEMORY_TYPE_BOOT
     push 0x1000
     call MemoryAllocate
@@ -52,14 +52,14 @@ PagingAllocateTable:
 
     cld
     mov edx, eax  ; store for return value
-    mov esi, eax
+    mov edi, eax
     xor eax, eax
     mov ecx, 0x400
     rep stosd
     mov eax, edx
 
     .exit:
-        pop esi
+        pop edi
         ret
 
 ; *************************
@@ -74,9 +74,10 @@ PagingIdentityMapPD:
     STACK_FRAME_BEGIN32
     push esi
 
-    mov esi, LVAR0_32
+    mov esi, dword ARG0_32
     mov eax, dword ARG2_32
     mov edx, dword ARG3_32
+    mov ecx, PAGECOUNT64   ; maximum entries in this PD
     .map_pd:
         ; map the entry in the PD64
         mov dword [esi], eax
@@ -90,8 +91,12 @@ PagingIdentityMapPD:
         
         cmp edx, dword ARG5_32 ; cmp upper 32 bits
         jb .map_pd
+        ja .exit
         cmp eax, dword ARG4_32 ; cmp lower 32 bits
         jb .map_pd
+        ja .exit
+        dec ecx
+        jnz .map_pd
 
     .exit:
         pop esi
@@ -109,6 +114,7 @@ PagingIdentityMapPD:
 PagingIdentityMapPDP:
     STACK_FRAME_BEGIN32
     sub esp, 8
+    push ebx
     push esi
 
     mov eax, dword ARG2_32
@@ -117,6 +123,7 @@ PagingIdentityMapPDP:
     mov LVAR1_32, edx
 
     mov esi, ARG0_32
+    mov ebx, PAGECOUNT64   ; maximum entries in this PD
     .map_pdp:
         call PagingAllocateTable
         cmp eax, 0
@@ -126,21 +133,23 @@ PagingIdentityMapPDP:
         mov dword [esi], eax
         or  dword [esi], 0x00000083 ; PAGE_PRESENT | PAGE_WRITE | PAGE_2MB
 
-        push eax ; push the address of the PD
-        push 0   ; upper 32 bits of physical address
+        mov eax, dword ARG4_32
+        mov edx, dword ARG5_32
+        push edx ; upper 32 bits of length
+        push eax ; lower 32 bits of length
         
         mov eax, LVAR0_32
         mov edx, LVAR1_32
-        push eax ; lower 32 bits of physical address start
         push edx ; upper 32 bits of physical address start
+        push eax ; lower 32 bits of physical address start
 
-        mov eax, dword ARG4_32
-        mov edx, dword ARG5_32
-        push eax ; lower 32 bits of length
-        push edx ; upper 32 bits of length
+        mov eax, dword [esi]
+        and eax, 0xFFFFF000
+        push 0   ; upper 32 bits of physical address
+        push eax ; push the address of the PD
         
         call PagingIdentityMapPD
-        add esp, 0x18
+        add esp, 24
 
         ; move on to next
         add esi, 8
@@ -154,11 +163,16 @@ PagingIdentityMapPDP:
         mov edx, LVAR1_32
         cmp edx, dword ARG5_32 ; cmp upper 32 bits
         jb .map_pdp
+        ja .exit
         cmp eax, dword ARG4_32 ; cmp lower 32 bits
         jb .map_pdp
+        ja .exit
+        dec ebx
+        jnz .map_pdp
 
     .exit:
         pop esi
+        pop ebx
         STACK_FRAME_END32
         ret
 
@@ -201,21 +215,23 @@ PagingInitialize64:
         mov dword [esi], eax
         or  dword [esi], 0x00000083 ; PAGE_PRESENT | PAGE_WRITE | PAGE_2MB
 
-        push eax ; push the address of the PDP
-        push 0   ; upper 32 bits of physical address
-       
-        mov eax, LVAR0_32
-        mov edx, LVAR1_32
-        push eax ; lower 32 bits of physical address start
-        push edx ; upper 32 bits of physical address start
-
         mov eax, LVAR2_32
         mov edx, LVAR3_32
-        push eax ; lower 32 bits of length
         push edx ; upper 32 bits of length
+        push eax ; lower 32 bits of length
         
+        mov eax, LVAR0_32
+        mov edx, LVAR1_32
+        push edx ; upper 32 bits of physical address start
+        push eax ; lower 32 bits of physical address start
+
+        mov eax, dword [esi]
+        and eax, 0xFFFFF000
+        push 0   ; upper 32 bits of physical address
+        push eax ; push the address of the PDP
+
         call PagingIdentityMapPDP
-        add esp, 0x18
+        add esp, 24
 
         ; move on to next
         add esi, 8
@@ -227,27 +243,29 @@ PagingInitialize64:
         mov eax, LVAR0_32
         mov edx, LVAR1_32
         cmp edx, LVAR3_32 ; cmp upper 32 bits
-        jb .fill_pml4
-        cmp eax, LVAR2_32 ; cmp lower 32 bits
-        jb .fill_pml4
+        jb .fill_pml4     ; if we are below, then continue in any case
+        ja .mapping_done  ; if we are above, then we can break immediately
+        cmp eax, LVAR2_32 ; cmp lower 32 bits in case upper 32 bits are equal
+        jb .fill_pml4     ; only if we have mapped less than, then continue
 
-    ; Enable PSE and PAE bits in the CR4 register, we assume that the cpu
-    ; supports these bits as it supports 64 bit mode.
-    mov eax, cr4
-    or  eax, 0x10 ; Enable PSE (4mb pages)
-    or  eax, 0x20
-    mov cr4, eax
+    .mapping_done:
+        ; Enable PSE and PAE bits in the CR4 register, we assume that the cpu
+        ; supports these bits as it supports 64 bit mode.
+        mov eax, cr4
+        or  eax, 0x10 ; Enable PSE (2mb pages)
+        or  eax, 0x20
+        mov cr4, eax
 
-    ; Switch to compatability mode
-    mov ecx, 0xC0000080
-    rdmsr
-    or eax, 0x100
-    wrmsr
+        ; Switch to compatability mode
+        mov ecx, 0xC0000080
+        rdmsr
+        or eax, 0x100
+        wrmsr
 
-    ; Enable paging
-    mov eax, cr0
-    or  eax, 0x80000000
-    mov cr0, eax
+        ; Enable paging
+        mov eax, cr0
+        or  eax, 0x80000000
+        mov cr0, eax
 
     .exit:
         pop esi

@@ -150,8 +150,7 @@ LoaderEntry32:
     ; LoadFile returns 
     ; eax - pointer to file
     ; ecx - number of bytes read
-
-    push eax 
+    push eax
     call UnpackFile
     add esp, 4
     test eax, eax
@@ -172,7 +171,7 @@ LoaderEntry32:
 
     ; eax - size
     ; ecx - entry point
-    mov dword [BootHeader + VBoot.KernelBase], ebx
+    mov dword [BootHeader + VBoot.KernelBase], KERNEL_BASE_ADDRESS
     mov dword [BootHeader + VBoot.KernelLength], eax
     mov dword [dKernelEntry], ecx
 
@@ -239,14 +238,14 @@ LoaderEntry32:
 %ifdef __amd64__
     ; Jump into 64 bit mode if available
     call CpuDetect64
-    cmp eax, 1
-    jne Skip64BitMode
+    test eax, eax
+    jz Skip64BitMode
 
     ; If eax is set to 1, 
     ; we will enter 64 bit mode instead
     call PagingInitialize64
-    cmp eax, 0
-    je .Stage2Failed
+    test eax, eax
+    jz .Stage2Failed
 
     ; finalize memory map before going 64 bit
     call MemoryFinalizeMap
