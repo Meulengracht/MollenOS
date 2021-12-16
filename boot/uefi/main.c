@@ -38,8 +38,8 @@ static EFI_STATUS __InitializeBootDescriptor(void)
     gBootDescriptor->Magic    = VBOOT_MAGIC;
     gBootDescriptor->Version  = VBOOT_VERSION;
     gBootDescriptor->Firmware = VBootFirmware_UEFI;
-    gBootDescriptor->ConfigurationTable = gSystemTable->ConfigurationTable;
     gBootDescriptor->ConfigurationTableCount = gSystemTable->NumberOfTableEntries;
+    gBootDescriptor->ConfigurationTable = (unsigned long long)gSystemTable->ConfigurationTable;
     return Status;
 }
 

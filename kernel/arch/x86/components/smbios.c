@@ -73,8 +73,9 @@ SmBiosInitialize(void)
 {
     // If the configuration table is NULL this is a non-ufi system
     // and we should locate it in memory
-    OsStatus_t osStatus = __FindSmBiosInConfigurationTable(GetMachine()->BootInformation.ConfigurationTable,
-                                                           GetMachine()->BootInformation.ConfigurationTableCount);
+    OsStatus_t osStatus = __FindSmBiosInConfigurationTable(
+            (void*)GetMachine()->BootInformation.ConfigurationTable,
+            GetMachine()->BootInformation.ConfigurationTableCount);
     if (osStatus != OsSuccess) {
         return SmBiosLocate();
     }

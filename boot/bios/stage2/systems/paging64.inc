@@ -131,7 +131,7 @@ PagingIdentityMapPDP:
 
         ; map the entry in the PDP64
         mov dword [esi], eax
-        or  dword [esi], 0x00000083 ; PAGE_PRESENT | PAGE_WRITE | PAGE_2MB
+        or  dword [esi], 0x00000003 ; PAGE_PRESENT | PAGE_WRITE
 
         mov eax, dword ARG4_32
         mov edx, dword ARG5_32
@@ -213,7 +213,7 @@ PagingInitialize64:
         ; Now we have allocated an entry for the PML4 table, install it
         ; and then identity map the PDP
         mov dword [esi], eax
-        or  dword [esi], 0x00000083 ; PAGE_PRESENT | PAGE_WRITE | PAGE_2MB
+        or  dword [esi], 0x00000003 ; PAGE_PRESENT | PAGE_WRITE | PAGE_2MB
 
         mov eax, LVAR2_32
         mov edx, LVAR3_32

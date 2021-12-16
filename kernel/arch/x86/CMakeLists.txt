@@ -16,6 +16,7 @@ configure_file(arch.h ${CMAKE_BINARY_DIR}/arch.h COPYONLY)
 # Configure include paths
 include_directories (
         ${CMAKE_BINARY_DIR}
+        ../../../boot/include
         ../../../librt/libc/include
         ../../../librt/libds/include
         ../../../librt/libddk/include

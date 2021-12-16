@@ -110,7 +110,7 @@ add_compile_definitions(_PCD_GET_MODE_8_PcdDebugClearMemoryValue=0xAF)
 # @Prompt Enable control flow enforcement.
 add_compile_definitions(_PCD_GET_MODE_32_PcdControlFlowEnforcementPropertyMask=0)
 
-add_compile_options(-Wall -Werror -Wno-format -Wno-microsoft-static-assert)
+add_compile_options(-Wall -Werror -Wno-format -Wno-microsoft-static-assert -Wno-address-of-packed-member)
 add_compile_options(-mno-red-zone)
 add_compile_options(-fshort-wchar)
 add_compile_options(-fno-stack-protector)

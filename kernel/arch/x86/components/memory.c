@@ -717,11 +717,13 @@ __HandleFirmwareMappings(
         _In_  struct VBoot* bootInformation,
         _Out_ uintptr_t*    stackMapping)
 {
-    unsigned int i;
+    struct VBootMemoryEntry* entries;
+    unsigned int             i;
     TRACE("__HandleFirmwareMappings()");
 
+    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        struct VBootMemoryEntry* entry = &entries[i];
         if (entry->Type == VBootMemoryType_Firmware) {
             OsStatus_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
             if (osStatus != OsSuccess) {
@@ -782,9 +784,12 @@ __GetVirtualMapping(
         _In_ struct VBoot* bootInformation,
         _In_ paddr_t       physicalBase)
 {
+    struct VBootMemoryEntry* entries;
+
     TRACE("__GetVirtualMapping(physicalBase=0x%" PRIxIN ")", physicalBase);
+    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        struct VBootMemoryEntry* entry = &entries[i];
         if (ISINRANGE(physicalBase, entry->PhysicalBase, entry->PhysicalBase + entry->Length)) {
             TRACE("__GetVirtualMapping entry->PhysicalBase=0x%" PRIxIN " entry->VirtualBase=0x%" PRIxIN,
                   entry->PhysicalBase, entry->VirtualBase);
@@ -805,18 +810,18 @@ __FixupVBootAddresses(
 
     // Update configuration table and entries if present
     if (bootInformation->ConfigurationTableCount) {
-        bootInformation->ConfigurationTable = (void*)__GetVirtualMapping(
+        bootInformation->ConfigurationTable = __GetVirtualMapping(
                 bootInformation,
                 (paddr_t)bootInformation->ConfigurationTable);
     }
 
     // Update ramdisk
-    bootInformation->Ramdisk.Data = (void*)__GetVirtualMapping(
+    bootInformation->Ramdisk.Data = __GetVirtualMapping(
             bootInformation,
             (paddr_t)bootInformation->Ramdisk.Data);
 
     // Update stack
-    bootInformation->Stack.Base = (void*)__GetVirtualMapping(
+    bootInformation->Stack.Base = __GetVirtualMapping(
             bootInformation,
             (paddr_t)bootInformation->Stack.Base);
 }

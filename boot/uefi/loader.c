@@ -180,7 +180,7 @@ EFI_STATUS __AllocateKernelStack(
     }
 
     // Update the VBoot structure
-    VBoot->Stack.Base   = (VOID*)StackBase;
+    VBoot->Stack.Base   = (unsigned long long)StackBase;
     VBoot->Stack.Length = Size;
 
     *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
@@ -241,7 +241,7 @@ EFI_STATUS LoadKernel(
     }
 
     // Update the VBoot structure
-    VBoot->Kernel.Data   = (VOID*)ImageContext.ImageAddress;
+    VBoot->Kernel.Data   = (unsigned long long)ImageContext.ImageAddress;
     VBoot->Kernel.Length = ImageContext.ImageSize;
 
     // Flush not needed for all architectures. We could have a processor specific
@@ -260,7 +260,7 @@ EFI_STATUS LoadKernel(
     }
 
     VBoot->Ramdisk.Length = (UINT32)BufferSize;
-    Status = __AllocateRamdiskSpace(BufferSize, &VBoot->Ramdisk.Data);
+    Status = __AllocateRamdiskSpace(BufferSize, (VOID**)&VBoot->Ramdisk.Data);
     if (EFI_ERROR(Status)) {
         return Status;
     }
@@ -268,7 +268,7 @@ EFI_STATUS LoadKernel(
     ConsoleWrite(L"LoadKernel Loaded ramdisk at 0x%x, Size=0x%x\n", 
         VBoot->Ramdisk.Data, BufferSize);
 
-    CopyMem(VBoot->Ramdisk.Data, Buffer, BufferSize);
+    CopyMem((VOID*)VBoot->Ramdisk.Data, Buffer, BufferSize);
     LibraryFreeMemory(Buffer);
 
     // Allocate a stack for the kernel

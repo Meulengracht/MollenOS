@@ -19,6 +19,20 @@
 #ifndef __VBOOT_H__
 #define __VBOOT_H__
 
+// Use this to pack structures and avoid any issues with padding
+// from compilers
+#if (defined (__clang__))
+#define VBOOT_PACKED(name, body) struct __attribute__((packed)) name body
+#elif (defined (__GNUC__))
+#define VBOOT_PACKED(name, body) struct name body __attribute__((packed))
+#elif (defined (__arm__))
+#define VBOOT_PACKED(name, body) __packed struct name body
+#elif (defined (_MSC_VER))
+#define VBOOT_PACKED(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
+#else
+#error Please define packed struct for the used compiler
+#endif
+
 #define VBOOT_MAGIC   0xAEB007AE
 #define VBOOT_VERSION 0x00010000 // V1.0
 
@@ -57,20 +71,20 @@ enum VBootMemoryType {
     VBootMemoryType_Available
 };
 
-struct VBootMemoryEntry {
+VBOOT_PACKED(VBootMemoryEntry, {
     enum VBootMemoryType Type;
     unsigned long long   PhysicalBase;
     unsigned long long   VirtualBase;
     unsigned long long   Length;
     unsigned long long   Attributes;
-};
+});
 
-struct VBootMemory {
-    unsigned int             NumberOfEntries;
-    struct VBootMemoryEntry* Entries;
-};
+VBOOT_PACKED(VBootMemory, {
+    unsigned int       NumberOfEntries;
+    unsigned long long Entries;         // struct VBootMemoryEntry*
+});
 
-struct VBootVideo {
+VBOOT_PACKED(VBootVideo, {
     unsigned long long FrameBuffer;
     unsigned int       Width;
     unsigned int       Height;
@@ -84,35 +98,35 @@ struct VBootVideo {
     unsigned int       BlueMask;
     unsigned int       ReservedPosition;
     unsigned int       ReservedMask;
-};
+});
 
-struct VBootRamdisk {
-    unsigned int Length;
-    void*        Data;
-};
+VBOOT_PACKED(VBootRamdisk, {
+    unsigned long long Data;
+    unsigned int       Length;
+});
 
-struct VBootKernel {
-    unsigned int Length;
-    void*        Data;
-};
+VBOOT_PACKED(VBootKernel, {
+    unsigned long long Data;
+    unsigned int       Length;
+});
 
-struct VBootStack {
-    unsigned int Length;
-    void*        Base;
-};
+VBOOT_PACKED(VBootStack, {
+    unsigned long long Base;
+    unsigned int       Length;
+});
 
-struct VBoot {
+VBOOT_PACKED(VBoot, {
     unsigned int        Magic;
     unsigned int        Version;
     enum VBootFirmware  Firmware;
-    void*               ConfigurationTable;
     unsigned int        ConfigurationTableCount;
+    unsigned long long  ConfigurationTable;
 
     struct VBootMemory  Memory;
     struct VBootVideo   Video;
     struct VBootRamdisk Ramdisk;
     struct VBootKernel  Kernel;
     struct VBootStack   Stack;
-};
+});
 
 #endif //!__VBOOT_H__

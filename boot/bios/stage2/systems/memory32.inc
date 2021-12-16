@@ -98,11 +98,10 @@ MemoryMoveMapUp:
     mov esi, ARG1_32
 
     ; Calculate size from current index
-    ; bMemoryEntryCount - index - 1
+    ; bMemoryEntryCount - index
     xor eax, eax
     mov al, byte [bMemoryEntryCount]
     sub eax, ARG2_32
-    dec eax
     
     xor edx, edx
     mov ecx, VBootMemoryEntry_size
@@ -349,8 +348,8 @@ MemoryAllocate:
         mov eax, VBootMemoryEntry_size
         mov cl, byte [bMemoryEntryCount]
         mul ecx
-        pop ecx
         add esi, eax
+        pop ecx
 
         ; esi now points to end of memory map, subtract size of entry
         sub esi, VBootMemoryEntry_size
@@ -524,22 +523,36 @@ MemoryFinalizeMap:
         cmp eax, dword [esi + VBootMemoryEntry.Type]
         jne .next_entry_1
 
+        ; ok types match, but we have to make sure that the entry is actually
+        ; coming directly after this one, so calculate the end of i-1
+        mov eax, dword [edi + VBootMemoryEntry.PhysicalBase]
+        mov edx, dword [edi + VBootMemoryEntry.PhysicalBase + 4]
+        add eax, dword [edi + VBootMemoryEntry.Length]
+        adc edx, dword [edi + VBootMemoryEntry.Length + 4]
+
+        ; now compare that to the starting point of i
+        cmp eax, dword [esi + VBootMemoryEntry.PhysicalBase]
+        jne .next_entry_1
+        cmp edx, dword [esi + VBootMemoryEntry.PhysicalBase + 4]
+        jne .next_entry_1
+
         ; ok they match, what we do now is entries[i-1].Length += entries[i].Length
         mov eax, dword [esi + VBootMemoryEntry.Length]
         mov edx, dword [esi + VBootMemoryEntry.Length + 4]
         add dword [edi + VBootMemoryEntry.Length], eax
         adc dword [edi + VBootMemoryEntry.Length + 4], edx
 
+        ; overwrite entry i with i+1
         ; and then we memmove(
-        ;                     dest: i+1, src: i, 
+        ;                     dest: i, src: i+1, 
         ;                     len: VBootMemoryEntry_size * (entryCount - i - 1)))
         ; Move up, calculate the number of entries to move
         mov eax, esi
         add eax, VBootMemoryEntry_size ; eax is now i+1
 
         push ecx ; index
-        push esi ; src
-        push eax ; dest
+        push eax ; src (i+1)
+        push esi ; dest (i)
         call MemoryMoveMapUp
         add esp, 8 ; skip src+dest
         pop ecx ; restore index
@@ -547,6 +560,7 @@ MemoryFinalizeMap:
         ; subtract a count of 1 from total count and current remaining
         dec byte [bMemoryEntryCount]
         dec ecx
+        jz .exit
         jmp .consolidate_map
 
         .next_entry_1:
@@ -555,16 +569,17 @@ MemoryFinalizeMap:
             dec ecx
             jnz .consolidate_map
 
-    ; lastly, store information about memory map in vboot header
-    xor eax, eax
-    mov al, byte [bMemoryEntryCount]
-    mov dword [BootHeader + VBoot.MemoryCount], eax
-    mov dword [BootHeader + VBoot.MemoryEntries], MEMLOCATION_MEMORY_MAP
+    .exit:
+        ; lastly, store information about memory map in vboot header
+        xor eax, eax
+        mov al, byte [bMemoryEntryCount]
+        mov dword [BootHeader + VBoot.MemoryCount], eax
+        mov dword [BootHeader + VBoot.MemoryEntries], MEMLOCATION_MEMORY_MAP
 
-    pop edi
-    pop esi
-    STACK_FRAME_END32
-    ret
+        pop edi
+        pop esi
+        STACK_FRAME_END32
+        ret
 
 ; **********************
 ; MemoryGetUpperBound

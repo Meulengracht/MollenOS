@@ -9,18 +9,18 @@ set (SHARED_INCLUDES
     ../include
     ./include
 )
-set (KERNEL_INCLUDES "")
+set (KERNEL_INCLUDES
+        ../../boot/include
+        ../../kernel/include
+        ../../kernel/arch/include
+)
 
 if (${VALI_ARCH} STREQUAL "i386")
     list (APPEND KERNEL_INCLUDES
-        ../../kernel/include
-        ../../kernel/arch/include
         ../../kernel/arch/x86/x32
     )
 elseif (${VALI_ARCH} STREQUAL "amd64")
     list (APPEND KERNEL_INCLUDES
-        ../../kernel/include
-        ../../kernel/arch/include
         ../../kernel/arch/x86/x64
     )
 endif ()

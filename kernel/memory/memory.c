@@ -48,12 +48,16 @@ static size_t
 __GetAvailablePhysicalMemory(
         _In_ struct VBoot* bootInformation)
 {
-    size_t memorySize = 0;
-    TRACE("__GetAvailablePhysicalMemory()");
+    struct VBootMemoryEntry* entries;
+    size_t                   memorySize = 0;
+    TRACE("__GetAvailablePhysicalMemory(entries=0x%llx)", bootInformation->Memory.NumberOfEntries);
 
+    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        if (bootInformation->Memory.Entries[i].Type == VBootMemoryType_Available) {
-            memorySize += bootInformation->Memory.Entries[i].Length;
+        TRACE("__GetAvailablePhysicalMemory found area PhysicalBase=0x%llx, Length=0x%llx",
+              entries[i].PhysicalBase, entries[i].Length);
+        if (entries[i].Type == VBootMemoryType_Available) {
+            memorySize += entries[i].Length;
         }
     }
 
@@ -68,7 +72,8 @@ __InitializeBootMemory(
         _In_ size_t              pageSize,
         _In_ SystemMemoryMap_t*  memoryMap)
 {
-    size_t sizeRequired;
+    struct VBootMemoryEntry* entries;
+    size_t                   sizeRequired;
     TRACE("__InitializeBootMemory()");
 
     // calculate a rough estimate of memory required for the stack and GA system
@@ -80,8 +85,9 @@ __InitializeBootMemory(
     // should NEVER require more space than a megabyte of physical memory.
     sizeRequired += BYTES_PER_MB;
     TRACE("__InitializeBootMemory sizeRequired=0x%" PRIxIN, sizeRequired);
+    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        struct VBootMemoryEntry* entry = &entries[i];
         if (entry->Type == VBootMemoryType_Available) {
             // region also needs to be a part of the kernel map
             if (ISINRANGE(entry->PhysicalBase, memoryMap->KernelRegion.Start,
@@ -156,8 +162,9 @@ __FillPhysicalMemory(
         _In_ bounded_stack_t* boundedStack,
         _In_ size_t           pageSize)
 {
-    unsigned int i;
-    size_t       reservedMemorySize;
+    unsigned int             i;
+    size_t                   reservedMemorySize;
+    struct VBootMemoryEntry* entries;
     TRACE("__FillPhysicalMemory()");
 
     // Calculate the used boot memory
@@ -167,8 +174,9 @@ __FillPhysicalMemory(
         reservedMemorySize -= (reservedMemorySize % pageSize);
     }
 
+    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &bootInformation->Memory.Entries[i];
+        struct VBootMemoryEntry* entry = &entries[i];
         if (entry->Type == VBootMemoryType_Available) {
             uintptr_t baseAddress = (uintptr_t)entry->PhysicalBase;
             size_t    length      = (size_t)entry->Length;
@@ -315,7 +323,7 @@ MachineInitializeMemorySystems(
 
     // Invalidate memory map as it is no longer accessible
     machine->BootInformation.Memory.NumberOfEntries = 0;
-    machine->BootInformation.Memory.Entries         = NULL;
+    machine->BootInformation.Memory.Entries         = 0;
 #endif
 
     // Initialize the slab allocator now that subsystems are up

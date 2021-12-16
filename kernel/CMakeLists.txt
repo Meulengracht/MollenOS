@@ -15,6 +15,7 @@ include_directories (
 	${CMAKE_BINARY_DIR}/protocols
 	arch/include
 	include
+	../boot/include
     ../librt/libc/include
     ../librt/libds/include
     ../librt/libddk/include

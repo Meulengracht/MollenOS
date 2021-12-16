@@ -164,12 +164,15 @@ EFI_STATUS __AllocateVBootMemory(
 static void __DumpMemoryMap(
     IN struct VBoot* VBoot)
 {
-    UINTN i;
+    struct VBootMemoryEntry* Entries;
+    UINTN                    i;
+
     ConsoleWrite(L"MemoryMap (NumberOfEntries=%d):\n", VBoot->Memory.NumberOfEntries);
+    Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 0; i < VBoot->Memory.NumberOfEntries; i++) {
         ConsoleWrite(L"  %d: Type=%d, PhysicalBase=0x%lx, Length=0x%lx, Attributes=0x%lx\n", i, 
-            VBoot->Memory.Entries[i].Type, VBoot->Memory.Entries[i].PhysicalBase, 
-            VBoot->Memory.Entries[i].Length, VBoot->Memory.Entries[i].Attributes);
+            Entries[i].Type, Entries[i].PhysicalBase, 
+            Entries[i].Length, Entries[i].Attributes);
     }
 }
 
@@ -178,11 +181,12 @@ EFI_STATUS __FillMemoryMap(
     OUT VOID**        MemoryMap,
     OUT UINTN*        MemoryMapKey)
 {
-    EFI_STATUS             Status;
-    VOID*                  MemoryMapLocal;
-    UINTN                  DescriptorCount;
-    UINTN                  DescriptorSize;
-    UINTN                  i;
+    struct VBootMemoryEntry* Entries;
+    EFI_STATUS               Status;
+    VOID*                    MemoryMapLocal;
+    UINTN                    DescriptorCount;
+    UINTN                    DescriptorSize;
+    UINTN                    i;
     ConsoleWrite(L"__FillMemoryMap()\n");
 
     // Now retrieve the final memory map
@@ -191,17 +195,18 @@ EFI_STATUS __FillMemoryMap(
         return Status;
     }
 
-    VBoot->Memory.NumberOfEntries = 0;
     ConsoleWrite(L"__FillMemoryMap Filling %lu entries\n", DescriptorCount);
+    VBoot->Memory.NumberOfEntries = 0;
+    Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 0; i < DescriptorCount; i++) {
         EFI_MEMORY_DESCRIPTOR* MemoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MemoryMapLocal + (i * DescriptorSize));
         enum VBootMemoryType Type = __ConvertEfiType(MemoryDescriptor->Type);
         
-        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
-        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;
-        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].VirtualBase  = MemoryDescriptor->VirtualStart;
-        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Length       = MemoryDescriptor->NumberOfPages * EFI_PAGE_SIZE;
-        VBoot->Memory.Entries[VBoot->Memory.NumberOfEntries].Attributes   = MemoryDescriptor->Attribute;
+        Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
+        Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;
+        Entries[VBoot->Memory.NumberOfEntries].VirtualBase  = MemoryDescriptor->VirtualStart;
+        Entries[VBoot->Memory.NumberOfEntries].Length       = MemoryDescriptor->NumberOfPages * EFI_PAGE_SIZE;
+        Entries[VBoot->Memory.NumberOfEntries].Attributes   = MemoryDescriptor->Attribute;
         VBoot->Memory.NumberOfEntries++;
     }
     *MemoryMap = MemoryMapLocal;
@@ -237,22 +242,23 @@ static void __MemMove(
 static void __ConsolidateMemoryMap(
     IN struct VBoot* VBoot)
 {
-    UINTN i;
+    struct VBootMemoryEntry* Entries;
+    UINTN                    i;
     ConsoleWrite(L"__ConsolidateMemoryMap()\n");
 
+    Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 1; i < VBoot->Memory.NumberOfEntries;) {
-        if (VBoot->Memory.Entries[i - 1].Type == VBoot->Memory.Entries[i].Type &&
-            VBoot->Memory.Entries[i - 1].Attributes == VBoot->Memory.Entries[i].Attributes &&
-            VBoot->Memory.Entries[i - 1].PhysicalBase + VBoot->Memory.Entries[i - 1].Length == VBoot->Memory.Entries[i].PhysicalBase) {
+        if (Entries[i - 1].Type == Entries[i].Type &&
+            Entries[i - 1].Attributes == Entries[i].Attributes &&
+            Entries[i - 1].PhysicalBase + Entries[i - 1].Length == Entries[i].PhysicalBase) {
             
             // This block is a continuation of the previous block, consolidate them
-            VBoot->Memory.Entries[i - 1].Length += VBoot->Memory.Entries[i].Length;
+            Entries[i - 1].Length += Entries[i].Length;
 
             // Move the entire memory map one entry back
             if (i < VBoot->Memory.NumberOfEntries - 1) {
                 __MemMove(
-                    &VBoot->Memory.Entries[i + 1], 
-                    &VBoot->Memory.Entries[i], 
+                    &Entries[i + 1], &Entries[i], 
                     sizeof(struct VBootMemoryEntry) * (VBoot->Memory.NumberOfEntries - i - 1)
                 );
             }
@@ -269,13 +275,15 @@ static void __ConsolidateMemoryMap(
 static void __FixupMemoryMap(
     IN struct VBoot* VBoot)
 {
-    EFI_PHYSICAL_ADDRESS KernelAddress;
-    UINTN                i;
+    struct VBootMemoryEntry* Entries;
+    EFI_PHYSICAL_ADDRESS     KernelAddress;
+    UINTN                    i;
     ConsoleWrite(L"__FixupMemoryMap()\n");
 
     KernelAddress = (EFI_PHYSICAL_ADDRESS)VBoot->Kernel.Data;
+    Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 0; i < VBoot->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* Entry = &VBoot->Memory.Entries[i];
+        struct VBootMemoryEntry* Entry = &Entries[i];
 
         if (Entry->PhysicalBase                <= KernelAddress && 
             Entry->PhysicalBase + Entry->Length > KernelAddress) {
@@ -286,13 +294,12 @@ static void __FixupMemoryMap(
             // or we are in the middle of it. Should we move the entire memory map
             // 1 or 2 entries
             if (Entry->PhysicalBase == KernelAddress) {
-                struct VBootMemoryEntry* KernelMapping   = &VBoot->Memory.Entries[i];
-                struct VBootMemoryEntry* OriginalMapping = &VBoot->Memory.Entries[i + 1];
+                struct VBootMemoryEntry* KernelMapping   = &Entries[i];
+                struct VBootMemoryEntry* OriginalMapping = &Entries[i + 1];
                 // Start of entry, move the entire memory map one entry
                 ConsoleWrite(L"__FixupMemoryMap Moving memory map one entry\n");
                 __MemMoveReverse(
-                    &VBoot->Memory.Entries[i],
-                    &VBoot->Memory.Entries[i + 1],
+                    &Entries[i], &Entries[i + 1],
                     (VBoot->Memory.NumberOfEntries - i) * sizeof(struct VBootMemoryEntry));
 
                 // Create the kernel mapping
@@ -309,14 +316,13 @@ static void __FixupMemoryMap(
                 // Adjust the number of entries
                 VBoot->Memory.NumberOfEntries++;
             } else {
-                struct VBootMemoryEntry* FirstMapping    = &VBoot->Memory.Entries[i];
-                struct VBootMemoryEntry* KernelMapping   = &VBoot->Memory.Entries[i + 1];
-                struct VBootMemoryEntry* OriginalMapping = &VBoot->Memory.Entries[i + 2];
+                struct VBootMemoryEntry* FirstMapping    = &Entries[i];
+                struct VBootMemoryEntry* KernelMapping   = &Entries[i + 1];
+                struct VBootMemoryEntry* OriginalMapping = &Entries[i + 2];
                 // Middle of entry, move the memory map two entries
                 ConsoleWrite(L"__FixupMemoryMap Moving memory map two entry\n");
                 __MemMoveReverse(
-                    &VBoot->Memory.Entries[i],
-                    &VBoot->Memory.Entries[i + 2],
+                    &Entries[i], &Entries[i + 2],
                     (VBoot->Memory.NumberOfEntries - i) * sizeof(struct VBootMemoryEntry));
                 
 

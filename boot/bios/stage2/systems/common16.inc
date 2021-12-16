@@ -135,8 +135,8 @@ struc VBoot
     .Magic:        resd 1
     .Version:      resd 1
     .FirmwareType: resd 1
-    .ConfigTable:  resq 1
     .ConfigCount:  resd 1
+    .ConfigTable:  resq 1
 
     .MemoryCount:   resd 1
     .MemoryEntries: resq 1
@@ -281,8 +281,8 @@ istruc VBoot
     at VBoot.Magic,              dd VBOOT_MAGIC
     at VBoot.Version,            dd VBOOT_VERSION
     at VBoot.FirmwareType,       dd VBOOT_FIRMWARE_BIOS
-    at VBoot.ConfigTable,        dq 0
     at VBoot.ConfigCount,        dd 0
+    at VBoot.ConfigTable,        dq 0
 
     at VBoot.MemoryCount,        dd 0
     at VBoot.MemoryEntries,      dq 0
