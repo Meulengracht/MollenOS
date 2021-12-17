@@ -169,7 +169,7 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    osStatus = ParseInitialRamdisk(&Machine.BootInformation);
+    osStatus = RamdiskParse(&Machine.BootInformation);
     if (osStatus != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system stopping");
         ArchProcessorHalt();

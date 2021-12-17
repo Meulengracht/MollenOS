@@ -528,9 +528,9 @@ ThreadContext(
 
 OsStatus_t
 ThreadingAdvance(
-    _In_  int     Preemptive,
-    _In_  size_t  MillisecondsPassed,
-    _Out_ size_t* NextDeadlineOut)
+    _In_  int     preemptive,
+    _In_  size_t  millisecondsPassed,
+    _Out_ size_t* nextDeadlineOut)
 {
     SystemCpuCore_t* core          = CpuCoreCurrent();
     Thread_t*        currentThread = CpuCoreCurrentThread(core);
@@ -560,7 +560,8 @@ ThreadingAdvance(
 
 #ifdef __OSCONFIG_DEBUG_SCHEDULER
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
-          core->Id, currentThread->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
+          CpuCoreId(core), currentThread->Name,
+          currentThread->ContextActive, CONTEXT_IP(currentThread->ContextActive), preemptive);
 #endif
 GetNextThread:
     if ((currentThread->Flags & THREADING_IDLE) || cleanup == 1) {
@@ -576,8 +577,8 @@ GetNextThread:
     
     // Advance the scheduler
     nextThread = (Thread_t*)SchedulerAdvance((currentThread != NULL) ?
-                                             currentThread->SchedulerObject : NULL, Preemptive,
-                                             MillisecondsPassed, NextDeadlineOut);
+                                             currentThread->SchedulerObject : NULL, preemptive,
+                                             millisecondsPassed, nextDeadlineOut);
     
     // Sanitize if we need to active our idle thread, otherwise
     // do a final check that we haven't just gotten ahold of a thread
@@ -609,7 +610,7 @@ GetNextThread:
 
 #ifdef __OSCONFIG_DEBUG_SCHEDULER
     TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ")",
-          core->Id, nextThread->Name, nextThread->ContextActive,
+          CpuCoreId(core), nextThread->Name, nextThread->ContextActive,
           CONTEXT_IP(nextThread->ContextActive));
 #endif
     

@@ -89,14 +89,13 @@ PagingIdentityMapPD:
         add eax, PT64_SIZE
         adc edx, 0
         
+        dec ecx
+        jz .exit
         cmp edx, dword ARG5_32 ; cmp upper 32 bits
         jb .map_pd
         ja .exit
         cmp eax, dword ARG4_32 ; cmp lower 32 bits
         jb .map_pd
-        ja .exit
-        dec ecx
-        jnz .map_pd
 
     .exit:
         pop esi
@@ -159,6 +158,8 @@ PagingIdentityMapPDP:
         adc LVAR1_32, 0
         
         ; compare
+        dec ebx
+        jz .exit
         mov eax, LVAR0_32
         mov edx, LVAR1_32
         cmp edx, dword ARG5_32 ; cmp upper 32 bits
@@ -166,9 +167,6 @@ PagingIdentityMapPDP:
         ja .exit
         cmp eax, dword ARG4_32 ; cmp lower 32 bits
         jb .map_pdp
-        ja .exit
-        dec ebx
-        jnz .map_pdp
 
     .exit:
         pop esi

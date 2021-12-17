@@ -332,8 +332,8 @@ ThreadingEnterUsermode(
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingAdvance(
-        _In_  int     Preemptive,
-        _In_  size_t  MillisecondsPassed,
-        _Out_ size_t* NextDeadlineOut);
+        _In_  int     preemptive,
+        _In_  size_t  millisecondsPassed,
+        _Out_ size_t* nextDeadlineOut);
 
 #endif //!__THREADING_H__

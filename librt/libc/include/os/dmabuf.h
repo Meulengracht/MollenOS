@@ -32,7 +32,7 @@
  * Configuration flags for creation of a new dma buffer
  */
 #define DMA_PERSISTANT  0x00000001U // Used to indicate underlying memory should not be freed upon dma destruction
-#define DMA_UNCACHEABLE 0x00000002U // Used to indicate that the dma buffer should be disable caching of the memory
+#define DMA_UNCACHEABLE 0x00000002U // Used to indicate that the dma buffer should be disabled caching of the memory
 #define DMA_CLEAN       0x00000004U // Zero out any allocated memory for the dma buffer
 #define DMA_TRAP        0x00000008U // Dma region is a trap region. This can not be used in normal circumstances.
 

@@ -230,7 +230,7 @@ QueueForScheduler(
         _In_ SchedulerObject_t* Object,
         _In_ int                OutsideAdvance)
 {
-    int ResultState;
+    int resultState;
     
     // Verify it doesn't exist in sleep queue, and check both the case where
     // it is the end of the list and if it's not
@@ -239,9 +239,9 @@ QueueForScheduler(
         Scheduler->SleepQueue.Head == Object) {
         RemoveFromQueue(&Scheduler->SleepQueue, Object);
     }
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE_FINISH);
-    if (ResultState == STATE_INVALID) {
+
+    resultState = ExecuteEvent(Object, EVENT_QUEUE_FINISH);
+    if (resultState == STATE_INVALID) {
         FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [queue] object was NOT in correct state for queueing");
     }
     AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);

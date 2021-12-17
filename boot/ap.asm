@@ -48,12 +48,12 @@ FixCS:
     mov	gs, ax
 
     ; Setup stack
-    mov		ss, ax
-    mov     ax, word [wBootStackSize]
+    mov	ss, ax
+    mov ax, word [wBootStackSize]
     lock xadd word [wBootStackAddress], ax
-    mov		sp, ax
-    mov     bp, ax
-    xor 	ax, ax
+    mov	sp, ax
+    mov bp, ax
+    xor ax, ax
     sti
 
     call A20Enable16
@@ -74,61 +74,48 @@ BITS 32
 %include "bios/stage2/systems/cpu.inc"
 
 Entry32:
-    ; Disable Interrupts
     cli
 
     ; Setup Segments, Stack etc
-    xor 	eax, eax
-    mov 	ax, DATA_DESC
-    mov 	ds, ax
-    mov 	fs, ax
-    mov 	gs, ax
-    mov 	ss, ax
-    mov 	es, ax
-    mov     eax, dword [dRunStackSize]
-    lock xadd dword [dRunStackAddress], eax
-    mov     ebp, eax
-    mov 	esp, eax
+    xor eax, eax
+    mov ax, DATA_DESC
+    mov ds, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov es, ax
 
-    ; Setup Cpu
+    ; initialize 32 bit stack, we reuse the 16 bit stack while deciding on 32/64 bit mode
+    mov ax, sp
+    xor esp, esp
+    mov sp, ax
+
 %ifdef __amd64__
-    call	CpuDetect64
-    cmp     eax, 1
-    jne     Skip64BitMode
-
-    ; Enable PAE paging
-    mov     eax, dword [dSystemPageDirectory]
-    mov     cr3, eax
-    mov     eax, cr4
-    or      eax, 0x20
-    mov     cr4, eax
-
-    ; Switch to compatability mode
-    mov     ecx, 0xC0000080
-    rdmsr
-    or      eax, 0x100
-    wrmsr
-
-    ; Enable paging
-    mov     eax, cr0
-    or      eax, 0x80000000
-    mov     cr0, eax
-    jmp     CODE64_DESC:Entry64
+    call CpuDetect64
+    test eax, eax
+    jz Skip64BitMode
+    jmp Switch64
 %endif
 
 Skip64BitMode:
+    ; switch to new larger permanent stack
+    mov eax, dword [dRunStackSize]
+    lock xadd dword [dRunStackAddress], eax
+    mov ebp, eax
+    mov esp, eax
+
     ; Enable paging
-    mov     eax, dword [dSystemPageDirectory]
-    mov     cr3, eax
-    mov     eax, cr0
-    or      eax, 0x80000000
-    mov     cr0, eax
+    mov eax, dword [dSystemPageDirectory]
+    mov cr3, eax
+    mov eax, cr0
+    or  eax, 0x80000000
+    mov cr0, eax
 
     ; Setup Registers
-    xor 	esi, esi
-    xor 	edi, edi
-    mov 	ecx, dword [dKernelAddress]
-    jmp 	ecx
+    xor esi, esi
+    xor edi, edi
+    mov ecx, dword [dKernelAddress]
+    jmp ecx
 
     ; Safety
 EndOfStage:
@@ -139,25 +126,61 @@ EndOfStage:
 ; 64 Bit Stage Below
 ; **************************** 
 BITS 64
+Switch64:
+    ; switch to new larger permanent stack
+    mov rax, qword [dRunStackSize]
+    lock xadd qword [dRunStackAddress], rax
+    mov rbp, rax
+    mov rsp, rax
+
+    ; Enable PAE paging
+    mov rax, qword [dSystemPageDirectory]
+    mov cr3, rax
+    mov rax, cr4
+    or  rax, 0x20
+    mov cr4, rax
+
+    ; Switch to compatability mode
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 0x100
+    wrmsr
+
+    ; Enable paging
+    mov rax, cr0
+    or  eax, 0x80000000
+    mov cr0, rax
+
+    ; Invoke a faux interrupt return to switch code segment
+    ; to 64 bit
+    mov rax, rsp
+    sub rsp, 16
+    mov qword [rsp + 8], DATA64_DESC
+    mov qword [rsp], rax
+    pushfq
+    sub rsp, 16
+    mov qword [rsp + 8], CODE64_DESC
+    mov rax, Entry64
+    mov qword [rsp], rax
+    iretq
+
 Entry64:
-    xor     eax, eax
-    mov     ax, DATA64_DESC
-    mov     ds, ax
-    mov     fs, ax
-    mov     gs, ax
-    mov     ss, ax
-    mov     es, ax
-    xor     rsp, rsp
-    mov     esp, ebp
+    xor eax, eax
+    mov ax, DATA64_DESC
+    mov ds, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov es, ax
 
     ; Setup Registers
-    xor 	rsi, rsi
-    xor 	rdi, rdi
-    xor     rax, rax
-    xor     rbx, rbx
-    xor     rcx, rcx
-    mov 	ecx, dword [dKernelAddress]
-    jmp 	rcx
+    xor rsi, rsi
+    xor rdi, rdi
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    mov rcx, qword [dKernelAddress]
+    jmp rcx
 
     ; Safety
 EndOfStage64:
@@ -169,7 +192,7 @@ EndOfStage64:
 ; **************************
 wBootStackSize          dw  0x100
 wBootStackAddress       dw  0x1100  ; Base-stack must not be below 0x1000
-dRunStackSize           dd  0       ; size - 16
-dRunStackAddress        dd  0       ; size - 12
-dSystemPageDirectory    dd  0       ; size - 8
-dKernelAddress          dd  0       ; size - 4
+dRunStackSize           dq  0       ; size - 32
+dRunStackAddress        dq  0       ; size - 24
+dSystemPageDirectory    dq  0       ; size - 16
+dKernelAddress          dq  0       ; size - 8

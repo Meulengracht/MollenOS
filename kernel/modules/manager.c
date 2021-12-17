@@ -80,6 +80,7 @@ void
 SpawnServices(void)
 {
     IntStatus_t IrqState;
+    TRACE("SpawnServices()");
 
     // Disable interrupts while doing this as
     // we are still the idle thread -> as soon as a new
@@ -92,8 +93,11 @@ SpawnServices(void)
     foreach(i, &g_modules) {
         TRACE("SpawnServices checking key %i", (int)(uintptr_t)i->key);
         if ((int)(uintptr_t)i->key == (int)ServiceResource) {
-            SystemModule_t* module   = (SystemModule_t*)i->value;
-            OsStatus_t      osStatus = SpawnModule(module);
+            SystemModule_t* module = (SystemModule_t*)i->value;
+            OsStatus_t      osStatus;
+
+            TRACE("SpawnServices %s", MStringRaw(module->Path));
+            osStatus = SpawnModule(module);
             if (osStatus != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %" PRIuIN "", MStringRaw(module->Path), osStatus);
             }

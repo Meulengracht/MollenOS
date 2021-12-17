@@ -314,6 +314,7 @@ MmuCloneVirtualSpace(
     }
 
     // Update the configuration data for the memory space
+    TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", masterAddress, pageMasterTable);
 	child->Data[MEMORY_SPACE_CR3]       = masterAddress;
     child->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageMasterTable;
 

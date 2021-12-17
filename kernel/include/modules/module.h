@@ -31,11 +31,6 @@
 typedef struct PeExecutable PeExecutable_t;
 typedef struct MString MString_t;
 
-#define MODULE_FILESYSTEM       0x01010101
-#define MODULE_BUS              0x02020202
-#define MODULE_INITIAL_STACK    0x1000
-#define MODULE_MAX_STACK        (4 << 20)
-
 typedef enum SystemModuleType {
     FileResource = 0,
     ModuleResource,

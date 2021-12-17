@@ -78,7 +78,7 @@ PACKED_TYPESTRUCT(SystemRamdiskModuleHeader, {
  * Parses the supplied ramdisk by the bootloader. Without a ramdisk present only debug
  * functionality will be available. */
 KERNELAPI OsStatus_t KERNELABI
-ParseInitialRamdisk(
+RamdiskParse(
     _In_ struct VBoot* bootInformation);
 
 #endif //!__RAMDISK_H__

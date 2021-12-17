@@ -29,64 +29,66 @@
 #include <crc32.h>
 
 OsStatus_t
-ParseInitialRamdisk(
+RamdiskParse(
     _In_ struct VBoot* bootInformation)
 {
-    SystemRamdiskHeader_t* Ramdisk;
-    SystemRamdiskEntry_t*  Entry;
-    int                    Counter = 0;
-    SystemModuleType_t     Type;
+    SystemRamdiskHeader_t* ramdisk;
+    SystemRamdiskEntry_t*  ramdiskEntry;
+    int                    counter;
+    SystemModuleType_t     moduleType;
 
-    TRACE("ParseInitialRamdisk(Address 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
+    TRACE("RamdiskParse(address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           bootInformation->Ramdisk.Data, bootInformation->Ramdisk.Length);
     if (bootInformation->Ramdisk.Data == 0 || bootInformation->Ramdisk.Length == 0) {
-        return OsError;
+        return OsSuccess; // no ramdisk, skip
     }
     
     // Initialize the pointer and read the signature value, must match
-    Ramdisk = (SystemRamdiskHeader_t*)(uintptr_t)bootInformation->Ramdisk.Data;
-    if (Ramdisk->Magic != RAMDISK_MAGIC) {
-        ERROR("Invalid magic in ramdisk - 0x%" PRIxIN "", Ramdisk->Magic);
+    ramdisk = (SystemRamdiskHeader_t*)(uintptr_t)bootInformation->Ramdisk.Data;
+    if (ramdisk->Magic != RAMDISK_MAGIC) {
+        ERROR("RamdiskParse Invalid magic - 0x%" PRIxIN "", ramdisk->Magic);
         return OsError;
     }
-    if (Ramdisk->Version != RAMDISK_VERSION_1) {
-        ERROR("Invalid ramdisk version - 0x%" PRIxIN "", Ramdisk->Version);
+
+    if (ramdisk->Version != RAMDISK_VERSION_1) {
+        ERROR("RamdiskParse Invalid version - 0x%" PRIxIN "", ramdisk->Version);
         return OsError;
     }
-    Entry   = (SystemRamdiskEntry_t*)
+
+    ramdiskEntry = (SystemRamdiskEntry_t*)
         ((uintptr_t)bootInformation->Ramdisk.Data + sizeof(SystemRamdiskHeader_t));
-    Counter = Ramdisk->FileCount;
+    counter      = ramdisk->FileCount;
 
     // Keep iterating untill we reach the end of counter
-    TRACE("Parsing %" PRIiIN " number of files in the ramdisk", Counter);
-    while (Counter != 0) {
-        if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
-            TRACE("Entry %s type: %" PRIuIN "", &Entry->Name[0], Entry->Type);
-            SystemRamdiskModuleHeader_t* Header =
+    TRACE("Parsing %" PRIiIN " number of files in the ramdisk", counter);
+    while (counter != 0) {
+        if (ramdiskEntry->Type == RAMDISK_MODULE || ramdiskEntry->Type == RAMDISK_FILE) {
+            TRACE("Entry %s type: %" PRIuIN "", &ramdiskEntry->Name[0], ramdiskEntry->Type);
+            SystemRamdiskModuleHeader_t* moduleHeader =
                 (SystemRamdiskModuleHeader_t*)(
-                        (uintptr_t)bootInformation->Ramdisk.Data + (uintptr_t)Entry->DataHeaderOffset);
-            uint8_t* ModuleData;
-            uint32_t CrcOfData;
+                        (uintptr_t)bootInformation->Ramdisk.Data + (uintptr_t)ramdiskEntry->DataHeaderOffset);
+            uint8_t* moduleData;
+            uint32_t crcOfData;
 
-            if (Entry->Type == RAMDISK_FILE) {
-                Type = FileResource;
+            if (ramdiskEntry->Type == RAMDISK_FILE) {
+                moduleType = FileResource;
             }
             else {
-                if (Header->Flags & RAMDISK_MODULE_SERVER) {
-                    Type = ServiceResource;
+                if (moduleHeader->Flags & RAMDISK_MODULE_SERVER) {
+                    moduleType = ServiceResource;
                 }
                 else {
-                    Type = ModuleResource;
+                    moduleType = ModuleResource;
                 }
             }
 
             // Perform CRC validation
-            ModuleData = (uint8_t*)((uintptr_t)bootInformation->Ramdisk.Data
-                                    + Entry->DataHeaderOffset + sizeof(SystemRamdiskModuleHeader_t));
-            CrcOfData  = Crc32Generate(-1, ModuleData, Header->LengthOfData);
-            if (CrcOfData == Header->Crc32OfData) {
-                if (RegisterModule((const char*)&Entry->Name[0], (const void*)ModuleData, Header->LengthOfData, 
-                    Type, Header->VendorId, Header->DeviceId, Header->DeviceType, Header->DeviceSubType) != OsSuccess) {
+            moduleData = (uint8_t*)((uintptr_t)bootInformation->Ramdisk.Data
+                                    + ramdiskEntry->DataHeaderOffset + sizeof(SystemRamdiskModuleHeader_t));
+            crcOfData  = Crc32Generate(-1, moduleData, moduleHeader->LengthOfData);
+            if (crcOfData == moduleHeader->Crc32OfData) {
+                if (RegisterModule((const char*)&ramdiskEntry->Name[0], (const void*)moduleData, moduleHeader->LengthOfData,
+                                   moduleType, moduleHeader->VendorId, moduleHeader->DeviceId, moduleHeader->DeviceType, moduleHeader->DeviceSubType) != OsSuccess) {
                     // @todo ?
                     FATAL(FATAL_SCOPE_KERNEL, "failed to register module");
                 }
@@ -94,15 +96,15 @@ ParseInitialRamdisk(
             else
             {
                 ERROR("CRC-Validation(%s): Failed (Calculated 0x%" PRIxIN " != Stored 0x%" PRIxIN ")",
-                    &Entry->Name[0], CrcOfData, Header->Crc32OfData);
+                      &ramdiskEntry->Name[0], crcOfData, moduleHeader->Crc32OfData);
                 break;
             }
         }
         else {
-            WARNING("Unknown entry type: %" PRIuIN "", Entry->Type);
+            WARNING("Unknown entry type: %" PRIuIN "", ramdiskEntry->Type);
         }
-        Counter--;
-        Entry++;
+        counter--;
+        ramdiskEntry++;
     }
     return OsSuccess;
 }

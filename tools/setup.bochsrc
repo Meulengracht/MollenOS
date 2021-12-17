@@ -184,7 +184,7 @@ display_library: x
 #  2.2.6 2.6Ghz Intel Core 2 Duo with WinXP/g++ 3.4       21 to 25 Mips
 #  2.2.6 2.1Ghz Athlon XP with Linux 2.6/g++ 3.4          12 to 15 Mips
 #=======================================================================
-cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1, msrs="msrs.def"
+cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=0, ignore_bad_msrs=1, msrs="msrs.def"
 cpu: cpuid_limit_winnt=0
 
 #=======================================================================
@@ -349,7 +349,7 @@ cpuid: family=6, model=0x1a, stepping=5
 # used all allocated host memory and wants more.
 #
 #=======================================================================
-memory: guest=512, host=256
+memory: guest=4096, host=256
 
 #=======================================================================
 # ROMIMAGE:

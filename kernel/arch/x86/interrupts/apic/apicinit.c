@@ -521,8 +521,6 @@ ApicRecalibrateTimer(void)
     volatile clock_t Tick        = 0;
     clock_t          PassedTicks;
     size_t           TimerTicks;
-
-    // Debug
     TRACE("ApicRecalibrateTimer()");
 
     // Setup initial local apic timer registers
@@ -542,9 +540,9 @@ ApicRecalibrateTimer(void)
     // Stop counter and calibrate
     ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
     TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-    TRACE("Bus Speed: %" PRIuIN " Hz", (TimerTicks * 10));
+    TRACE("ApicRecalibrateTimer BusSpeed: %" PRIuIN " Hz", (TimerTicks * 10));
     GlbTimerQuantum = (TimerTicks / PassedTicks) + 1;
-    TRACE("Quantum: %" PRIuIN "", GlbTimerQuantum);
+    TRACE("ApicRecalibrateTimer ApicQuantum(1ms): %" PRIuIN "", GlbTimerQuantum);
 
     // Start timer for good
     ApicStartTimer(GlbTimerQuantum * 20);

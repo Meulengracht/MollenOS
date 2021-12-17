@@ -40,7 +40,7 @@
 
 // PageTable-specific bitfields
 #define PAGETABLE_UNUSED        0x40u
-#define PAGETABLE_LARGE         0x80U
+#define PAGETABLE_LARGE         0x80U  // 4MB (32 bit), 2MB (64 bit, if used on PD), 1GB (64 bit, if used on PDP)
 #define PAGETABLE_ZERO          0x100U // Must be zero, unused
 
 // OS Bitfields for pages, bits 9-11 are available

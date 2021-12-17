@@ -31,6 +31,7 @@
 #include <gdt.h>
 #include <machine.h>
 #include <memory.h>
+#include "arch/interrupts.h"
 
 // Interface to the arch-specific
 extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* memorySpace, vaddr_t address,
@@ -496,12 +497,12 @@ ArchMmuSetVirtualPages(
 
 OsStatus_t
 ArchMmuClearVirtualPages(
-        _In_  MemorySpace_t*     memorySpace,
-        _In_  vaddr_t   startAddress,
-        _In_  int                pageCount,
-        _In_  paddr_t* freedAddresses,
-        _Out_ int*               freedAddressesCountOut,
-        _Out_ int*               pagesClearedOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
+        _In_  int            pageCount,
+        _In_  paddr_t*       freedAddresses,
+        _Out_ int*           freedAddressesCountOut,
+        _Out_ int*           pagesClearedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
@@ -551,16 +552,16 @@ ArchMmuClearVirtualPages(
 
 OsStatus_t
 ArchMmuVirtualToPhysical(
-        _In_  MemorySpace_t*     memorySpace,
-        _In_  vaddr_t   startAddress,
-        _In_  int                pageCount,
-        _In_  paddr_t* physicalAddressValues,
-        _Out_ int*               pagesRetrievedOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
+        _In_  int            pageCount,
+        _In_  paddr_t*       physicalAddressValues,
+        _Out_ int*           pagesRetrievedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
     PageTable_t*       pageTable;
-    uint32_t           mapping;
+    uintptr_t          mapping;
     int                isCurrent, update;
     int                index;
     int                pagesRetrieved = 0;
