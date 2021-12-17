@@ -20,9 +20,9 @@
 ;   Return values are returned in EAX.
 ;
 
-; 16 Bit Code, Origin at 0x500
+; 16 Bit Code, Origin at 0x1000
 BITS 16
-ORG 0x0500
+ORG 0x1000
 
 %include "systems/defines.inc"
 

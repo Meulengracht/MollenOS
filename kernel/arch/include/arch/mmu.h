@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <component/memory.h>
 #include <memoryspace.h>
-#include <vboot.h>
+#include <vboot/vboot.h>
 
 /**
  * @brief Retrieves the virtual memory layout for the kernel that will be consulted when

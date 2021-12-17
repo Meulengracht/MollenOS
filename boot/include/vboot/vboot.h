@@ -19,19 +19,7 @@
 #ifndef __VBOOT_H__
 #define __VBOOT_H__
 
-// Use this to pack structures and avoid any issues with padding
-// from compilers
-#if (defined (__clang__))
-#define VBOOT_PACKED(name, body) struct __attribute__((packed)) name body
-#elif (defined (__GNUC__))
-#define VBOOT_PACKED(name, body) struct name body __attribute__((packed))
-#elif (defined (__arm__))
-#define VBOOT_PACKED(name, body) __packed struct name body
-#elif (defined (_MSC_VER))
-#define VBOOT_PACKED(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
-#else
-#error Please define packed struct for the used compiler
-#endif
+#include "def.h"
 
 #define VBOOT_MAGIC   0xAEB007AE
 #define VBOOT_VERSION 0x00010000 // V1.0

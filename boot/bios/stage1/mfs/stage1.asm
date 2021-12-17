@@ -147,7 +147,7 @@ fix_cs:
 
         mov dx, word [wReservedSectorCount]
         push dx                      ; push sector count
-        push 0x0500                  ; push buffer segment offset
+        push 0x1000                  ; push buffer segment offset
         push 0                       ; push segment
         call ReadSectorsCHS
         add sp, 12                   ; 6*2
@@ -158,7 +158,7 @@ fix_cs:
         mov dl, byte [bPhysicalDriveNum]
         mov si, PartitionData
         mov dh, 5
-        jmp 0x0:0x500
+        jmp 0x0:0x1000
 
 ; **************************
 ; ReadSectorsCHS

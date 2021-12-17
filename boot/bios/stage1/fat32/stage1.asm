@@ -184,7 +184,7 @@ LoadFile:
 	; Step 1. Setup buffer
 	mov 	bx, 0x0000
 	mov 	es, bx
-	mov 	bx, 0x0500
+	mov 	bx, 0x1000
 
 	; Load 
 	.cLoop:

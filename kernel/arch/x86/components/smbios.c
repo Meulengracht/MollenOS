@@ -22,7 +22,7 @@
 #include <machine.h>
 #include <smbios.h>
 #include <string.h>
-#include <utils/uefi.h>
+#include <vboot/uefi.h>
 
 static __EFI_GUID    g_smbiosGuid  = SMBIOS_TABLE_GUID;
 static __EFI_GUID    g_smbios3Guid = SMBIOS3_TABLE_GUID;

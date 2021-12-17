@@ -29,7 +29,7 @@
 #include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <irq_spinlock.h>
-#include <vboot.h>
+#include <vboot/vboot.h>
 #include <time.h>
 #include <utils/static_memory_pool.h>
 

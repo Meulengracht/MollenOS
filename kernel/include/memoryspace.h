@@ -29,7 +29,7 @@
 #include <ds/list.h>
 #include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
-#include <vboot.h>
+#include <vboot/vboot.h>
 
 DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);

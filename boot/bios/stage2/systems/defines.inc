@@ -20,7 +20,7 @@
 ; *******************************************************
 ; Memory Map:
 ; 0x00000000 - 0x000004FF		Reserved
-; 0x00000500 - 0x00007AFF		Second Stage Bootloader (~29 Kb)
+; 0x00001000 - 0x00007AFF		Second Stage Bootloader (~29 Kb)
 ; 0x00007B00 - 0x00007BFF		Stack Space (256 Bytes)
 ; 0x00007C00 - 0x00007DFF		Bootloader (512 Bytes)
 ; 0x00007E00 - 0x00008FFF		Used by subsystems in this bootloader (BOOT ONLY)

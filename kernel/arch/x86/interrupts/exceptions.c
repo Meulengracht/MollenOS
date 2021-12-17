@@ -160,9 +160,9 @@ ExceptionEntry(
         core   = CpuCoreCurrent();
         thread = CpuCoreCurrentThread(core);
 
-        ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "",
+        ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN,
               thread != NULL ? ThreadName(thread) : "Null",
-              context->ErrorCode, CONTEXT_IP(context));
+              context->ErrorCode, CONTEXT_IP(context), CONTEXT_SP(context));
         SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     }

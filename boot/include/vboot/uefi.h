@@ -1,5 +1,5 @@
 /**
- *Copyright 2017, Philip Meulengracht
+ * Copyright 2021, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,14 +12,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
-#ifndef __UTILS_UEFI_H__
-#define __UTILS_UEFI_H__
+#ifndef __VBOOT_UEFI_H__
+#define __VBOOT_UEFI_H__
 
-#include <os/osdefs.h>
+#include "def.h"
 
 typedef struct {
     uint32_t Data1;

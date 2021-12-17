@@ -30,66 +30,66 @@ BITS 16
 
 ; Structure Definitions
 struc VbeControllerStruct
-    .Signature			resb	4
-    .Version 			resw	1
-    .OemNamePtr			resd 	1
-    .Capabilities		resd 	1
-    .ModeListPtr		resd 	1 	; List of WORDS terminated by 0xFFFF
-    .Num64KBlocksMem	resw 	1
-    .ReservedSpace 		resb 	492
+    .Signature			resb 4
+    .Version 			resw 1
+    .OemNamePtr			resd 1
+    .Capabilities		resd 1
+    .ModeListPtr		resd 1 	; List of WORDS terminated by 0xFFFF
+    .Num64KBlocksMem	resw 1
+    .ReservedSpace 		resb 492
 endstruc
 
 struc VbeModeStruct
-    .Attributes 		resw 	1
-    .WindowAttribsA 	resb 	1
-    .WindowAttribsB		resb 	1
-    .WindowGranKb 		resw 	1
-    .WindowSizeKb 		resw 	1
-    .WindowASegment 	resw 	1
-    .WindowBSegment 	resw 	1
-    .FuncPtrPosition 	resd 	1
-    .BytesPerScanline 	resw 	1
+    .Attributes 		resw 1
+    .WindowAttribsA 	resb 1
+    .WindowAttribsB		resb 1
+    .WindowGranKb 		resw 1
+    .WindowSizeKb 		resw 1
+    .WindowASegment 	resw 1
+    .WindowBSegment 	resw 1
+    .FuncPtrPosition 	resd 1
+    .BytesPerScanline 	resw 1
 
-    .ResolutionX		resw 	1
-    .ResolutionY 		resw 	1
-    .CharCellWidth 		resb 	1
-    .CharCellHeight 	resb 	1
-    .NumPlanes 		resb 	1
-    .Bpp 			resb 	1
-    .NumBanks 		resb 	1
-    .MemoryModel		resb 	1
-    .BankSizeKb 		resb 	1
-    .MaxImagePages 		resb 	1
-    .Reserved 		resb 	1
+    .ResolutionX		resw 1
+    .ResolutionY 		resw 1
+    .CharCellWidth 		resb 1
+    .CharCellHeight 	resb 1
+    .NumPlanes 		    resb 1
+    .Bpp 			    resb 1
+    .NumBanks 		    resb 1
+    .MemoryModel		resb 1
+    .BankSizeKb 		resb 1
+    .MaxImagePages 		resb 1
+    .Reserved 		    resb 1
 
-    .RedMaskSize 		resb 	1
-    .RedFieldPos 		resb 	1
-    .GreenMaskSize 		resb 	1
-    .GreenFieldPos 		resb 	1
-    .BlueMaskSize 		resb 	1
-    .BlueFieldPos 		resb 	1
-    .AlphaMaskSize		resb 	1
-    .AlphaFieldPos 		resb 	1
-    .DirectColorAttribs resb 	1
+    .RedMaskSize 		resb 1
+    .RedFieldPos 		resb 1
+    .GreenMaskSize 		resb 1
+    .GreenFieldPos 		resb 1
+    .BlueMaskSize 		resb 1
+    .BlueFieldPos 		resb 1
+    .AlphaMaskSize		resb 1
+    .AlphaFieldPos 		resb 1
+    .DirectColorAttribs resb 1
 
-    .FrameBuffer 		resd 	1
-    .Reserved1 		resd 	1
-    .Reserved2 		resw 	1
+    .FrameBuffer        resd 1
+    .Reserved1          resd 1
+    .Reserved2          resw 1
 
-    .LinBytesPerScanLine	resw	1
-    .BnkNumberOfImagePages	resb	1
-    .LinNumberOfImagePages	resb	1
-    .LinRedMaskSize		resb	1
-    .LinRedFieldPos		resb	1
-    .LinGreenMaskSize	resb	1
-    .LinGreenFieldPos	resb	1
-    .LinBlueMaskSize	resb	1
-    .LinBlueFieldPos	resb	1
-    .LinAlphaMaskSize	resb	1
-    .LinAlphaFieldPos	resb	1
-    .MaxPixelClock		resd	1
+    .LinBytesPerScanLine	resw 1
+    .BnkNumberOfImagePages	resb 1
+    .LinNumberOfImagePages	resb 1
+    .LinRedMaskSize	        resb 1
+    .LinRedFieldPos	        resb 1
+    .LinGreenMaskSize       resb 1
+    .LinGreenFieldPos       resb 1
+    .LinBlueMaskSize        resb 1
+    .LinBlueFieldPos        resb 1
+    .LinAlphaMaskSize       resb 1
+    .LinAlphaFieldPos       resb 1
+    .MaxPixelClock          resd 1
 
-    .ReservedSpace 		resb 	190
+    .ReservedSpace          resb 190
 endstruc
 
 ; ********************************
@@ -480,10 +480,8 @@ VesaInitialize16:
 
     .ModeSuccess:
         pop	es
-        ; YAY!
-        push szVesaModeSpace
-        call Print16
-        add sp, 2
+        
+        TRACE16 szVesaModeSpace
 
         xor eax, eax
         mov ax, word [wCurrentResX]
@@ -491,9 +489,7 @@ VesaInitialize16:
         call PrintNumber16
         add sp, 4
 
-        push szVesaModeSeperator
-        call Print16
-        add sp, 2
+        TRACE16 szVesaModeSeperator
 
         xor eax, eax
         mov ax, word [wCurrentResY]
@@ -501,9 +497,7 @@ VesaInitialize16:
         call PrintNumber16
         add sp, 4
         
-        push szVesaModeEnd
-        call Print16
-        add sp, 2
+        TRACE16 szVesaModeEnd
 
         ; Reload structure
         xor ecx, ecx
@@ -511,26 +505,54 @@ VesaInitialize16:
         mov cx, word [wOptimizedVesaMode]
         mov edi, VesaModeInfo
         int 0x10
+
+        ; Fill vboot structure with information
+        mov eax, dword [VesaModeInfo + VbeModeStruct.FrameBuffer]
+        mov dword [BootHeader + VBoot.VideoFramebuffer], eax
+
+        mov ax, word [VesaModeInfo + VbeModeStruct.ResolutionX]
+        mov cx, word [VesaModeInfo + VbeModeStruct.ResolutionY]
+        mov dx, word [VesaModeInfo + VbeModeStruct.BytesPerScanline]
+        mov word [BootHeader + VBoot.VideoWidth], ax
+        mov word [BootHeader + VBoot.VideoHeight], cx
+        mov word [BootHeader + VBoot.VideoPitch], dx
+
+        mov al, byte [VesaModeInfo + VbeModeStruct.Bpp]
+        mov byte [BootHeader + VBoot.VideoBitsPerPixel], al
+
+        mov al, byte [VesaModeInfo + VbeModeStruct.RedMaskSize]
+        mov cl, byte [VesaModeInfo + VbeModeStruct.RedFieldPos]
+        mov byte [BootHeader + VBoot.VideoRedMask], al
+        mov byte [BootHeader + VBoot.VideoRedPosition], cl
+        
+        mov al, byte [VesaModeInfo + VbeModeStruct.GreenMaskSize]
+        mov cl, byte [VesaModeInfo + VbeModeStruct.GreenFieldPos]
+        mov byte [BootHeader + VBoot.VideoGreenMask], al
+        mov byte [BootHeader + VBoot.VideoGreenPosition], cl
+
+        mov al, byte [VesaModeInfo + VbeModeStruct.BlueMaskSize]
+        mov cl, byte [VesaModeInfo + VbeModeStruct.BlueFieldPos]
+        mov byte [BootHeader + VBoot.VideoBlueMask], al
+        mov byte [BootHeader + VBoot.VideoBluePosition], cl
+
+        mov al, byte [VesaModeInfo + VbeModeStruct.AlphaMaskSize]
+        mov cl, byte [VesaModeInfo + VbeModeStruct.AlphaFieldPos]
+        mov byte [BootHeader + VBoot.VideoAlphaMask], al
+        mov byte [BootHeader + VBoot.VideoAlphaPosition], cl
         
         popad 
         ret
 
     .GetModeFail:
         pop	es
-        
-        push szModeFailed
-        call Print16
-        add sp, 2
+        TRACE16 szModeFailed
 
         popad 
         ret
 
     .Fail:
         pop	es
-        
-        push szNoAvailModesFailed
-        call Print16
-        add sp, 2 
+        TRACE16 szNoAvailModesFailed
 
         popad 
         ret
