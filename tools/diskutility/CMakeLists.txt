@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.13.4)
 project (Vali-Diskutility)
 
 add_custom_target (diskutility ALL

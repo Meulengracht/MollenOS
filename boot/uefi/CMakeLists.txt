@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.13.4)
 project(vali-boot-uefi C ASM_NASM)
 
 set(OMVF_URL_BASE "https://github.com/retrage/edk2-nightly/raw/master/bin")

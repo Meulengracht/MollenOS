@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -24,6 +23,14 @@
 #define __COMPONENT_MEMORY__
 
 #include <os/osdefs.h>
+#include <ds/bounded_stack.h>
+
+#define MEMORY_MASK_COUNT 4
+
+enum SystemMemoryAttributes {
+    SystemMemoryAttributes_REMOVABLE,
+    SystemMemoryAttributes_NONVOLATILE
+};
 
 typedef struct SystemMemoryRange {
     uintptr_t Start;
@@ -37,17 +44,86 @@ typedef struct SystemMemoryMap {
     SystemMemoryRange_t ThreadRegion;
 } SystemMemoryMap_t;
 
+typedef struct SystemMemoryAllocatorRegion {
+    bounded_stack_t Blocks;
+    IrqSpinlock_t   Lock;
+} SystemMemoryAllocatorRegion_t;
+
+typedef struct SystemMemoryAllocator {
+    int                           MaskCount;
+    size_t                        Masks[MEMORY_MASK_COUNT];
+    SystemMemoryAllocatorRegion_t Region[MEMORY_MASK_COUNT];
+} SystemMemoryAllocator_t;
+
 typedef struct SystemMemory {
-    // Memory Information
-    uintptr_t            Start;
-    uintptr_t            Length;
-    size_t               BlockSize;
-    int                  Removable;      // This memory is not fixed and should not be used for system memory
-    int                  NonVolatile;    // Memory is non volatile
+    uintptr_t               PhysicalBase;
+    size_t                  Size;
+    size_t                  BlockSize;
+    unsigned int            Attributes; // enum SystemMemoryAttributes
+    SystemMemoryAllocator_t Allocator;
 } SystemMemory_t;
 
 #define IS_KERNEL_CODE(mmap_ptr, addr) (ISINRANGE(addr, (mmap_ptr)->KernelRegion.Start, (mmap_ptr)->KernelRegion.Start + (mmap_ptr)->KernelRegion.Length))
 #define IS_USER_CODE(mmap_ptr, addr)   (ISINRANGE(addr, (mmap_ptr)->UserCode.Start, (mmap_ptr)->UserCode.Start + (mmap_ptr)->UserCode.Length))
 #define IS_USER_STACK(mmap_ptr, addr)  (ISINRANGE(addr, (mmap_ptr)->ThreadRegion.Start, (mmap_ptr)->ThreadRegion.Start + (mmap_ptr)->ThreadRegion.Length))
+
+/**
+ * @brief
+ *
+ * @param systemMemory
+ * @param physicalBase
+ * @param size
+ * @param blockSize
+ * @param attributes
+ */
+KERNELAPI void KERNELABI
+SystemMemoryConstruct(
+        _In_ SystemMemory_t* systemMemory,
+        _In_ uintptr_t       physicalBase,
+        _In_ size_t          size,
+        _In_ size_t          blockSize,
+        _In_ unsigned int    attributes);
+
+/**
+ * @brief
+ *
+ * @param systemMemory
+ * @param memoryMask
+ * @param pageCount
+ * @param pages
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+SystemMemoryAllocate(
+        _In_ SystemMemory_t* systemMemory,
+        _In_ size_t          memoryMask,
+        _In_ int             pageCount,
+        _In_ uintptr_t*      pages);
+
+/**
+ * @brief
+ *
+ * @param systemMemory
+ * @param pageCount
+ * @param pages
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+SystemMemoryFree(
+        _In_ SystemMemory_t* systemMemory,
+        _In_ int             pageCount,
+        _In_ uintptr_t*      pages);
+
+/**
+ * @brief
+ *
+ * @param systemMemory
+ * @param address
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+SystemMemoryContainsAddress(
+        _In_ SystemMemory_t* systemMemory,
+        _In_ uintptr_t       address);
 
 #endif // !__COMPONENT_MEMORY__

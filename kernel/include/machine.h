@@ -40,14 +40,13 @@
 #include <component/ic.h>
 
 typedef struct SystemMachine {
-    // System Information
-    char                        Architecture[32];
-    char                        Author[48];
-    char                        Date[32];
-    unsigned                    VersionMajor;
-    unsigned                    VersionMinor;
-    unsigned                    VersionRevision;
-    struct VBoot                BootInformation;
+    char         Architecture[32];
+    char         Author[48];
+    char         Date[32];
+    unsigned     VersionMajor;
+    unsigned     VersionMinor;
+    unsigned     VersionRevision;
+    struct VBoot BootInformation;
 
     // UMA Hardware Resources
     SystemCpu_t     Processor;      // Used in UMA mode

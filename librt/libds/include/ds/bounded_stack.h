@@ -28,9 +28,9 @@
 #include <ds/shared.h>
 
 typedef struct bounded_stack {
-    int          capacity;
-    int          index;
-    void**       elements;
+    int    capacity;
+    int    index;
+    void** elements;
 } bounded_stack_t;
 
 #define BOUNDED_STACK_INIT(capacity, storage) { capacity, 0, storage }

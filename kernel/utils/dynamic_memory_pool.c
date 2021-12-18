@@ -173,7 +173,7 @@ IterativeAllocate(
 
 		// Assumptions past this point:
 		// Since we are not marked as allocated, either one of our nodes are free. This is guarantee
-		// made by the the algorithm. We can also assume past this point that both left/right nodes exists
+		// made by the algorithm. We can also assume past this point that both left/right nodes exists
 		// if GoDeeper is set
 		if (GoDeeper) {
 			if (!CurrentNode->Right->Allocated) {

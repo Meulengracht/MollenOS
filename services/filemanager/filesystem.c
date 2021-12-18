@@ -19,7 +19,7 @@
  * - Handles all file related services and disk services
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/convert.h>

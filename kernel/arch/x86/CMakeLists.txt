@@ -1,8 +1,7 @@
-# Project setup
-project (ValiPlatform-X86)
+project (vali-kernel-x86)
 enable_language (C)
 
-if (${VALI_ARCH} STREQUAL "i386")
+if ("${VALI_ARCH}" STREQUAL "i386")
     add_subdirectory(x32)
     include_directories(x32)
 else ()
@@ -13,15 +12,8 @@ endif ()
 # Copy config file
 configure_file(arch.h ${CMAKE_BINARY_DIR}/arch.h COPYONLY)
 
-# Configure include paths
+# include additional paths
 include_directories (
-        ${CMAKE_BINARY_DIR}
-        ../../../boot/include
-        ../../../librt/libc/include
-        ../../../librt/libds/include
-        ../../../librt/libddk/include
-        ../../../librt/libacpi/source/include
-        ../../include
         ../include
         ./
 )
@@ -32,7 +24,7 @@ add_custom_command(
     DEPENDS tools ap
 )
 
-add_library(vali-platform STATIC
+add_kernel_library(vali-x86 ""
     ${CMAKE_BINARY_DIR}/smp_trampoline.c
     components/cmos.c
     components/cpu.c
@@ -59,7 +51,3 @@ add_library(vali-platform STATIC
     
     idt_stubs.c
 )
-target_compile_options(vali-platform
-    PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__>
-)
-add_dependencies (vali-platform vali-${VALI_ARCH})

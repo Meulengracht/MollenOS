@@ -36,7 +36,7 @@
  * @param memoryMap   [In]  A pointer to the memory map storage
  * @param pageSizeOut [Out] A pointer to storage for the page-size in bytes for the platform.
  */
-extern void
+KERNELAPI void KERNELABI
 MmuGetMemoryMapInformation(
         _In_  SystemMemoryMap_t* memoryMap,
         _Out_ size_t*            pageSizeOut);
@@ -48,7 +48,7 @@ MmuGetMemoryMapInformation(
  * identity mapping the allocated addresses up until this point.
  *
  */
-extern void
+KERNELAPI void KERNELABI
 MmuPrepareKernel(void);
 
 /**
@@ -61,7 +61,7 @@ MmuPrepareKernel(void);
  * @param bootInformation [In] A pointer to the boot parameters (including memory mappings).
  * @return                     Status of the initialization.
  */
-extern OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 MmuLoadKernel(
         _In_ MemorySpace_t* memorySpace,
         _In_ struct VBoot*  bootInformation);
@@ -76,7 +76,7 @@ MmuLoadKernel(
  * @param inherit [In] Whether userspace mappings should be inheritted.
  * @return             Status of the cloning.
  */
-extern OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 MmuCloneVirtualSpace(
         _In_ MemorySpace_t* parent,
         _In_ MemorySpace_t* child,
@@ -87,7 +87,7 @@ MmuCloneVirtualSpace(
  *
  * @return
  */
-extern OsStatus_t
+KERNELAPI OsStatus_t KERNELABI
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace);
 
