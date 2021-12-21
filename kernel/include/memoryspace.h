@@ -33,6 +33,7 @@
 
 DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);
+DECL_STRUCT(PlatformMemoryMapping);
 
 /* MemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -98,14 +99,18 @@ typedef struct MemoryMappingHandler {
  * @brief Initializes the system memory space. This initializes a static version of the
  * system memory space which is the default space the cpu should use for kernel operation.
  *
- * @param memorySpace     [In]
- * @param bootInformation [In]
+ * @param memorySpace        [In]
+ * @param bootInformation    [In]
+ * @param kernelMappings     [In]
+ * @param kernelMappingCount [In]
  * @return                     Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
 InitializeMemorySpace(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ struct VBoot*  bootInformation);
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ struct VBoot*            bootInformation,
+        _In_ PlatformMemoryMapping_t* kernelMappings,
+        _In_ int                      kernelMappingCount);
 
 /**
  * CreateMemorySpace

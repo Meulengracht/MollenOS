@@ -14,11 +14,6 @@ if (MSVC)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 endif ()
 
-# Build the revision file generator utility
-add_executable (revision revision/main.c)
-install(TARGETS revision EXPORT tools_revision DESTINATION bin)
-install(EXPORT tools_revision NAMESPACE rev_ DESTINATION lib/tools_revision)
-
 # Build the ramdisk utility
 add_executable (rd rd/main.c)
 install(TARGETS rd EXPORT tools_rd DESTINATION bin)

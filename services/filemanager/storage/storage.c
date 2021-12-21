@@ -51,7 +51,9 @@ VfsStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type)
+        _In_ enum FileSystemType  type,
+        _In_ guid_t*              typeGuid,
+        _In_ guid_t*              guid)
 {
     FileSystem_t* fileSystem;
     UUId_t        id;
@@ -60,7 +62,11 @@ VfsStorageRegisterFileSystem(
           LODWORD(sector), LODWORD(sectorCount), type);
 
     id = VfsIdentifierAllocate(storage);
-    fileSystem = VfsFileSystemCreate(&storage->storage, id, sector, sectorCount, type);
+    fileSystem = VfsFileSystemCreate(
+            &storage->storage, id,
+            sector, sectorCount, type,
+            typeGuid, guid
+    );
     if (!fileSystem) {
         return OsOutOfMemory;
     }

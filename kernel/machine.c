@@ -22,7 +22,6 @@
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
-#include <revision.h>
 #include <machine.h>
 
 #include <acpiinterface.h>
@@ -48,13 +47,12 @@ extern void StartTestingPhase(void);
 
 static SystemMachine_t Machine = { 
     { 0 }, { 0 }, { 0 },                        // Strings
-    REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
-    OS_IRQ_SPINLOCK_INIT, { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
+    { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL,                                     // InterruptControllers
     { { { 0 } } },                                     // SystemTime
     ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
-    ATOMIC_VAR_INIT(1), 0, 0                           // Total Information
+    ATOMIC_VAR_INIT(1), 0, 0, 0 // Total Information
 };
 
 SystemMachine_t*
@@ -84,7 +82,7 @@ InitializeMachine(
     }
     sprintf(&Machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
-    sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
+    sprintf(&Machine.Date[0],         "%s - %s", __DATE__, __TIME__);
     memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
 
     InitializePrimaryProcessor(&Machine.Processor);
@@ -190,19 +188,58 @@ IdleProcessor:
 
 OsStatus_t
 AllocatePhysicalMemory(
-    _In_ int        PageCount,
-    _In_ uintptr_t* Pages)
+    _In_ int        pageCount,
+    _In_ uintptr_t* pages)
 {
-    OsStatus_t Status = OsSuccess;
-    int        PagesAllocated;
+    OsStatus_t osStatus;
+    int        pagesAllocated = pageCount;
+    size_t     pageMask = __MASK;
+    SystemMemoryAllocatorRegion_t* region;
 
-    IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
-    PagesAllocated = bounded_stack_pop_multiple(&GetMachine()->PhysicalMemory, (void**)&Pages[0], PageCount);
-    if (PagesAllocated < PageCount) {
-        bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, (void**)&Pages[0], PagesAllocated);
-        Status = OsOutOfMemory;
+    // default to highest allocator
+    region = &GetMachine()->PhysicalMemory.Region[GetMachine()->PhysicalMemory.MaskCount - 1];
+    if (pageMask) {
+        for (int i = GetMachine()->PhysicalMemory.MaskCount - 1; i >= 0; i--) {
+            if (pageMask >= GetMachine()->PhysicalMemory.Masks[i]) {
+                region = &GetMachine()->PhysicalMemory.Region[i];
+            }
+        }
     }
-    IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
 
-    return Status;
+    IrqSpinlockAcquire(&region->Lock);
+    osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
+    if (osStatus == OsIncomplete) {
+        MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
+        osStatus = OsOutOfMemory;
+    }
+    IrqSpinlockRelease(&region->Lock);
+
+    if (osStatus == OsSuccess) {
+        GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pageCount;
+    }
+    return osStatus;
+}
+
+void
+FreePhysicalMemory(
+        _In_ int              pageCount,
+        _In_ const uintptr_t* pages)
+{
+    SystemMemoryAllocatorRegion_t* region;
+    int                            i;
+
+    for (i = 0; i < pageCount; i++) {
+        uintptr_t address = pages[i];
+        for (int j = GetMachine()->PhysicalMemory.MaskCount - 1; j >= 0; j--) {
+            if (address >= GetMachine()->PhysicalMemory.Masks[j]) {
+                region = &GetMachine()->PhysicalMemory.Region[j];
+            }
+        }
+
+        IrqSpinlockAcquire(&region->Lock);
+        MemoryStackPush(&region->Stack, address, 1);
+        IrqSpinlockRelease(&region->Lock);
+    }
+
+    GetMachine()->NumberOfFreeMemoryBlocks += (size_t)pageCount;
 }

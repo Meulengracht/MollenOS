@@ -31,7 +31,7 @@
 #include <gdt.h>
 #include <machine.h>
 #include <memory.h>
-#include "arch/interrupts.h"
+#include "arch/mmu.h"
 
 // Interface to the arch-specific
 extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* memorySpace, vaddr_t address,
@@ -45,6 +45,7 @@ extern void memory_reload_cr3(void);
 extern void memory_paging_init(uintptr_t pda, paddr_t stackPhysicalBase, vaddr_t stackVirtualBase);
 
 extern uintptr_t g_kernelcr3;
+extern uintptr_t g_kernelpd;
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // in the arch-specific layer
@@ -54,23 +55,35 @@ extern uintptr_t g_kernelcr3;
 #endif
 
 void
-MmuGetMemoryMapInformation(
-        _In_  SystemMemoryMap_t* memoryMap,
-        _Out_ size_t*            pageSizeOut)
+MmuGetMemoryConfiguration(
+        _In_ PlatformMemoryConfiguration_t* configuration)
 {
-    *pageSizeOut = PAGE_SIZE;
+    configuration->PageSize = PAGE_SIZE;
 
-    memoryMap->KernelRegion.Start  = 0;
-    memoryMap->KernelRegion.Length = MEMORY_LOCATION_KERNEL_END;
+    configuration->MemoryMap.Shared.Start  = MEMORY_LOCATION_SHARED_START;
+    configuration->MemoryMap.Shared.Length = MEMORY_LOCATION_SHARED_END - MEMORY_LOCATION_SHARED_START;
 
-    memoryMap->UserCode.Start  = MEMORY_LOCATION_RING3_CODE;
-    memoryMap->UserCode.Length = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
+    configuration->MemoryMap.UserCode.Start  = MEMORY_LOCATION_RING3_CODE;
+    configuration->MemoryMap.UserCode.Length = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
 
-    memoryMap->UserHeap.Start  = MEMORY_LOCATION_RING3_HEAP;
-    memoryMap->UserHeap.Length = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
+    configuration->MemoryMap.UserHeap.Start  = MEMORY_LOCATION_RING3_HEAP;
+    configuration->MemoryMap.UserHeap.Length = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
 
-    memoryMap->ThreadRegion.Start  = MEMORY_LOCATION_RING3_THREAD_START;
-    memoryMap->ThreadRegion.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
+    configuration->MemoryMap.ThreadLocal.Start  = MEMORY_LOCATION_RING3_THREAD_START;
+    configuration->MemoryMap.ThreadLocal.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
+
+    // initialize masks
+    // 1MB - BIOS
+    // 16MB - ISA
+    // 2GB - 32 bit drivers (for broken devices)
+    // 4GB - 32 bit drivers
+    // rest
+    configuration->MemoryMaskCount = 0;
+    configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_BIOS;
+    configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_ISA;
+    configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_2GB;
+    configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_32BIT;
+    configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_64BIT;
 }
 
 static unsigned int
@@ -184,11 +197,11 @@ ArchMmuGetPageAttributes(
 
 OsStatus_t
 ArchMmuUpdatePageAttributes(
-        _In_  MemorySpace_t*   memorySpace,
-        _In_  vaddr_t startAddress,
-        _In_  int              pageCount,
-        _In_  unsigned int*    attributes,
-        _Out_ int*             pagesUpdatedOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
+        _In_  int            pageCount,
+        _In_  unsigned int*  attributes,
+        _Out_ int*           pagesUpdatedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
@@ -206,7 +219,7 @@ ArchMmuUpdatePageAttributes(
     x86Attributes = ConvertGenericAttributesToX86(*attributes);
     
     // For kernel mappings we would like to mark the mappings global
-    if (startAddress < MEMORY_LOCATION_KERNEL_END) {
+    if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             x86Attributes |= PAGE_GLOBAL;
         }
@@ -338,7 +351,7 @@ ArchMmuSetContiguousVirtualPages(
     x86Attributes = ConvertGenericAttributesToX86(attributes);
     
     // For kernel mappings we would like to mark the mappings global
-    if (startAddress < MEMORY_LOCATION_KERNEL_END) {
+    if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             x86Attributes |= PAGE_GLOBAL;
         }
@@ -402,7 +415,7 @@ ArchMmuReserveVirtualPages(
     x86Attributes = ConvertGenericAttributesToX86(attributes);
     
     // For kernel mappings we would like to mark the mappings global
-    if (startAddress < MEMORY_LOCATION_KERNEL_END) {
+    if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             x86Attributes |= PAGE_GLOBAL;
         }
@@ -458,7 +471,7 @@ ArchMmuSetVirtualPages(
     x86Attributes = ConvertGenericAttributesToX86(attributes);
     
     // For kernel mappings we would like to mark the mappings global
-    if (startAddress < MEMORY_LOCATION_KERNEL_END) {
+    if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             x86Attributes |= PAGE_GLOBAL;
         }
@@ -829,8 +842,10 @@ __FixupVBootAddresses(
 
 OsStatus_t
 MmuLoadKernel(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ struct VBoot*  bootInformation)
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ struct VBoot*            bootInformation,
+        _In_ PlatformMemoryMapping_t* kernelMappings,
+        _In_ int                      kernelMappingCount)
 {
     TRACE("MmuLoadKernel()");
 
@@ -839,9 +854,14 @@ MmuLoadKernel(
         uintptr_t  stackPhysical;
         OsStatus_t osStatus;
 
+        // Create the system kernel virtual memory space, this call identity maps all
+        // memory allocated by AllocateBootMemory, and also allocates some itself
+        MmuPrepareKernel();
+        for(;;);
+
         // Update the configuration data for the memory space
         memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
-        memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelcr3;
+        memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelpd;
         memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
 
         // store the physical base of the stack

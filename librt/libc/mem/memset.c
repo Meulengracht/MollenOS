@@ -57,7 +57,7 @@ void *memset(void *dest, int c, size_t count)
 			*aligned_addr++ = buffer;
 			count -= LBLOCKSIZE;
 		}
-		/* Pick up the remainder with a bytewise loop.  */
+		/* Pick up the remainder with a bytewise loop. 0000000000115a00 */
 		s = (char*)aligned_addr;
 	}
 

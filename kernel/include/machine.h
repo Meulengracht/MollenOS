@@ -43,16 +43,12 @@ typedef struct SystemMachine {
     char         Architecture[32];
     char         Author[48];
     char         Date[32];
-    unsigned     VersionMajor;
-    unsigned     VersionMinor;
-    unsigned     VersionRevision;
     struct VBoot BootInformation;
 
     // UMA Hardware Resources
-    SystemCpu_t     Processor;      // Used in UMA mode
-    MemorySpace_t   SystemSpace;    // Used in UMA mode
-    bounded_stack_t PhysicalMemory;
-    IrqSpinlock_t   PhysicalMemoryLock;
+    SystemCpu_t             Processor;      // Used in UMA mode
+    MemorySpace_t           SystemSpace;    // Used in UMA mode
+    SystemMemoryAllocator_t PhysicalMemory;
     
     // Global Hardware Resources
     StaticMemoryPool_t          GlobalAccessMemory;
@@ -68,8 +64,16 @@ typedef struct SystemMachine {
     _Atomic(int)                NumberOfCores;
     _Atomic(int)                NumberOfActiveCores;
     size_t                      NumberOfMemoryBlocks;
+    size_t                      NumberOfFreeMemoryBlocks;
     size_t                      MemoryGranularity;
 } SystemMachine_t;
+
+#define __KERNELSTART (GetMachine()->BootInformation.Kernel.Data)
+#define __KERNELEND   (__KERNELSTART + GetMachine()->BootInformation.Kernel.Length)
+
+#define IS_KERNEL_CODE(addr)           (ISINRANGE(addr, __KERNELSTART, __KERNELEND))
+#define IS_USER_CODE(mmap_ptr, addr)   (ISINRANGE(addr, (mmap_ptr)->UserCode.Start, (mmap_ptr)->UserCode.Start + (mmap_ptr)->UserCode.Length))
+#define IS_USER_STACK(mmap_ptr, addr)  (ISINRANGE(addr, (mmap_ptr)->ThreadLocal.Start, (mmap_ptr)->ThreadLocal.Start + (mmap_ptr)->ThreadLocal.Length))
 
 /**
  * @brief Initializes the kernel, this is expected to be the first function called upon
@@ -115,24 +119,39 @@ MachineInitializeMemorySystems(
         _In_ SystemMachine_t* machine);
 
 /**
+ * @brief
  *
  * @param size
- * @param memory
+ * @param virtualBaseOut
+ * @param physicalBaseOut
  * @return
  */
 KERNELAPI OsStatus_t KERNELABI
 MachineAllocateBootMemory(
-        _In_  size_t size,
-        _Out_ void** memory);
+        _In_  size_t   size,
+        _Out_ vaddr_t* virtualBaseOut,
+        _Out_ paddr_t* physicalBaseOut);
 
 /**
  * @brief Tries to allocate the requested number of memory pages
  *
- * @param PageCount The number of physical memory pages to allocate
+ * @param pageCount The number of physical memory pages to allocate
  * @return          The status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 AllocatePhysicalMemory(
-    _In_ int        PageCount,
-    _In_ uintptr_t* Pages);
+    _In_ int        pageCount,
+    _In_ uintptr_t* pages);
+
+/**
+ * @brief
+ *
+ * @param pageCount
+ * @param pages
+ */
+KERNELAPI void KERNELABI
+FreePhysicalMemory(
+        _In_ int              pageCount,
+        _In_ const uintptr_t* pages);
+
 #endif // !__VALI_MACHINE__

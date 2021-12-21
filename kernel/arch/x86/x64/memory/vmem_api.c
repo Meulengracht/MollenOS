@@ -135,7 +135,7 @@ SyncPmlWithParent:
                     goto SyncPmlWithParent;
                 }
 
-                // If we are inheriting it's important that we mark our copy inherited
+                // If we are inheriting its important that we mark our copy inherited
                 parentPageMasterTable->vTables[pmIndex] = (uint64_t)directoryTable;
                 physical |= PAGETABLE_INHERITED;
             }
@@ -176,7 +176,7 @@ MmVirtualGetTable(
 
     // Modify the creation flags, we need to change them in a few cases
     // 1) If we are mapping any address above kernel region, it needs PAGE_USER
-    if (virtualAddress > MEMORY_LOCATION_KERNEL_END) {
+    if (virtualAddress >= MEMORY_LOCATION_RING3_CODE) {
         createFlags |= PAGE_USER;
     }
 
@@ -190,7 +190,7 @@ MmVirtualGetTable(
     // The rest of the levels (Page-Directories and Page-Tables) are now
     // in shared access, which means multiple accesses to these instances will
     // be done. If there are ANY changes it must be with LOAD/MODIFY/CAS to make
-    // sure changes are atomic. These changes does NOT need to be propegated upwards to parent
+    // sure changes are atomic. These changes do NOT need to be propegated upwards to parent
     mapping = atomic_load(&directoryTable->pTables[pdpIndex]);
 SyncPdp:
     if (mapping & PAGE_PRESENT) {
@@ -344,17 +344,14 @@ MmVirtualDestroyPageTable(
 	_In_ PageTable_t* pageTable)
 {
     // Handle PT[0..511] normally
-    IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
     for (int i = 0; i < ENTRIES_PER_PAGE; i++) {
         uint64_t mapping = atomic_load_explicit(&pageTable->Pages[i], memory_order_relaxed);
         uint64_t address = mapping & PAGE_MASK;
         if (!address || (mapping & PAGE_PERSISTENT) || !(mapping & PAGE_PRESENT)) {
             continue;
         }
-
-        bounded_stack_push(&GetMachine()->PhysicalMemory, (void*)address);
+        FreePhysicalMemory(1, &address);
     }
-    IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
     kfree(pageTable);
     return OsSuccess;
 }

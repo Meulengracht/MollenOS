@@ -23,9 +23,10 @@
 #define __COMPONENT_MEMORY__
 
 #include <os/osdefs.h>
-#include <ds/bounded_stack.h>
+#include <irq_spinlock.h>
+#include <utils/memory_stack.h>
 
-#define MEMORY_MASK_COUNT 4
+#define MEMORY_MASK_COUNT 5
 
 enum SystemMemoryAttributes {
     SystemMemoryAttributes_REMOVABLE,
@@ -38,15 +39,15 @@ typedef struct SystemMemoryRange {
 } SystemMemoryRange_t;
 
 typedef struct SystemMemoryMap {
-    SystemMemoryRange_t KernelRegion;
+    SystemMemoryRange_t Shared;
     SystemMemoryRange_t UserCode;
     SystemMemoryRange_t UserHeap;
-    SystemMemoryRange_t ThreadRegion;
+    SystemMemoryRange_t ThreadLocal;
 } SystemMemoryMap_t;
 
 typedef struct SystemMemoryAllocatorRegion {
-    bounded_stack_t Blocks;
-    IrqSpinlock_t   Lock;
+    MemoryStack_t Stack;
+    IrqSpinlock_t Lock;
 } SystemMemoryAllocatorRegion_t;
 
 typedef struct SystemMemoryAllocator {
@@ -62,10 +63,6 @@ typedef struct SystemMemory {
     unsigned int            Attributes; // enum SystemMemoryAttributes
     SystemMemoryAllocator_t Allocator;
 } SystemMemory_t;
-
-#define IS_KERNEL_CODE(mmap_ptr, addr) (ISINRANGE(addr, (mmap_ptr)->KernelRegion.Start, (mmap_ptr)->KernelRegion.Start + (mmap_ptr)->KernelRegion.Length))
-#define IS_USER_CODE(mmap_ptr, addr)   (ISINRANGE(addr, (mmap_ptr)->UserCode.Start, (mmap_ptr)->UserCode.Start + (mmap_ptr)->UserCode.Length))
-#define IS_USER_STACK(mmap_ptr, addr)  (ISINRANGE(addr, (mmap_ptr)->ThreadRegion.Start, (mmap_ptr)->ThreadRegion.Start + (mmap_ptr)->ThreadRegion.Length))
 
 /**
  * @brief

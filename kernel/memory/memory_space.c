@@ -196,15 +196,17 @@ static void __DestroyContext(
 
 OsStatus_t
 InitializeMemorySpace(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ struct VBoot*  bootInformation)
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ struct VBoot*            bootInformation,
+        _In_ PlatformMemoryMapping_t* kernelMappings,
+        _In_ int                      kernelMappingCount)
 {
     // initialzie the data structure
     memorySpace->ParentHandle = UUID_INVALID;
     memorySpace->Context      = NULL;
 
     // initialize arch specific stuff
-    return MmuLoadKernel(memorySpace, bootInformation);
+    return MmuLoadKernel(memorySpace, bootInformation, kernelMappings, kernelMappingCount);
 }
 
 OsStatus_t
@@ -221,8 +223,8 @@ CreateMemorySpace(
         *Handle = GetCurrentMemorySpaceHandle();
     }
     else if (Flags & MEMORY_SPACE_APPLICATION) {
-        uintptr_t      threadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
-        size_t         threadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length + 1;
+        uintptr_t      threadRegionStart = GetMachine()->MemoryMap.ThreadLocal.Start;
+        size_t         threadRegionSize  = GetMachine()->MemoryMap.ThreadLocal.Length + 1;
         MemorySpace_t* parent            = NULL;
         MemorySpace_t* memorySpace;
 
@@ -625,10 +627,7 @@ MemorySpaceCommit(
         ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
               osStatus, address, size);
         if (!(placementFlags & MAPPING_PHYSICAL_FIXED)) {
-            IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
-            bounded_stack_push_multiple(&GetMachine()->PhysicalMemory,
-                                        (void**)&physicalAddressValues[0], pageCount);
-            IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
+            FreePhysicalMemory(pageCount, &physicalAddressValues[0]);
         }
     }
     return osStatus;
@@ -733,9 +732,7 @@ static OsStatus_t __ClearPhysicalPages(
     if (pagesCleared) {
         // free the physical memory
         if (pagesFreed) {
-            IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
-            bounded_stack_push_multiple(&GetMachine()->PhysicalMemory, (void**)&addresses[0], pagesFreed);
-            IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
+            FreePhysicalMemory(pagesFreed, &addresses[0]);
         }
         __SyncMemoryRegion(memorySpace, address, size);
     }

@@ -5,5 +5,6 @@ enable_language (C)
 add_kernel_library (vali-core-utils ""
         crc32.c
         dynamic_memory_pool.c
+        memory_stack.c
         static_memory_pool.c
 )

@@ -29,6 +29,8 @@
 #include <vfs/gpt.h>
 #include <vfs/mbr.h>
 
+static guid_t g_emptyGuid = GUID_EMPTY;
+
 OsStatus_t
 VfsStorageDetectFileSystem(
 	_In_ FileSystemStorage_t* storage,
@@ -58,7 +60,7 @@ VfsStorageDetectFileSystem(
 	// FAT - "FATXX"
 	mbr = (MasterBootRecord_t*)buffer;
 	if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
-		type =FileSystemType_MFS;
+		type = FileSystemType_MFS;
 	}
 	else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
 		type = FileSystemType_NTFS;
@@ -84,7 +86,12 @@ VfsStorageDetectFileSystem(
         return OsError;
     }
 
-    return VfsStorageRegisterFileSystem(storage, sector, sectorCount, type);
+    return VfsStorageRegisterFileSystem(
+            storage, sector,
+            sectorCount, type,
+            &g_emptyGuid,
+            &g_emptyGuid
+    );
 }
 
 OsStatus_t

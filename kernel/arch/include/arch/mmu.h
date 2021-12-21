@@ -26,8 +26,22 @@
 
 #include <os/osdefs.h>
 #include <component/memory.h>
-#include <memoryspace.h>
 #include <vboot/vboot.h>
+
+DECL_STRUCT(MemorySpace);
+
+typedef struct PlatformMemoryConfiguration {
+    SystemMemoryMap_t MemoryMap;
+    size_t            PageSize;
+    int               MemoryMaskCount;
+    size_t            MemoryMasks[MEMORY_MASK_COUNT];
+} PlatformMemoryConfiguration_t;
+
+typedef struct PlatformMemoryMapping {
+    paddr_t PhysicalBase;
+    vaddr_t VirtualBase;
+    size_t  Length;
+} PlatformMemoryMapping_t;
 
 /**
  * @brief Retrieves the virtual memory layout for the kernel that will be consulted when
@@ -37,19 +51,8 @@
  * @param pageSizeOut [Out] A pointer to storage for the page-size in bytes for the platform.
  */
 KERNELAPI void KERNELABI
-MmuGetMemoryMapInformation(
-        _In_  SystemMemoryMap_t* memoryMap,
-        _Out_ size_t*            pageSizeOut);
-
-/**
- * @brief Prepares the kernel addressing space. This will be called while it is possible
- * to allocate boot memory for the virtual addressing space. It is expected that the addressing
- * space will accomodate all boot memory mappings are available once the switch happens. This means
- * identity mapping the allocated addresses up until this point.
- *
- */
-KERNELAPI void KERNELABI
-MmuPrepareKernel(void);
+MmuGetMemoryConfiguration(
+        _In_ PlatformMemoryConfiguration_t* configuration);
 
 /**
  * @brief Loads the kernel addressing space. It is expected that this function loads the virtual
@@ -63,8 +66,10 @@ MmuPrepareKernel(void);
  */
 KERNELAPI OsStatus_t KERNELABI
 MmuLoadKernel(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ struct VBoot*  bootInformation);
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ struct VBoot*            bootInformation,
+        _In_ PlatformMemoryMapping_t* kernelMappings,
+        _In_ int                      kernelMappingCount);
 
 /**
  * @brief Clones the mappings of the parent into child to prepare it for execution. This does

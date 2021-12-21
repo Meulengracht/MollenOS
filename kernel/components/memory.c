@@ -75,18 +75,27 @@ SystemMemoryAllocate(
         _In_ int             pageCount,
         _In_ uintptr_t*      pages)
 {
-    SystemMemoryAllocatorRegion_t* allocator;
-    int                            pagesAllocated;
-    OsStatus_t                     osStatus = OsSuccess;
+    OsStatus_t osStatus;
+    int        pagesAllocated = pageCount;
+    SystemMemoryAllocatorRegion_t* region;
 
-    allocator = __GetAppropriateAllocator(systemMemory, memoryMask);
-    IrqSpinlockAcquire(&allocator->Lock);
-    pagesAllocated = bounded_stack_pop_multiple(&allocator->Blocks, (void**)&pages[0], pageCount);
-    if (pagesAllocated < pageCount) {
-        bounded_stack_push_multiple(&allocator->Blocks, (void**)&pages[0], pagesAllocated);
+    // default to highest allocator
+    region = &systemMemory->Allocator.Region[systemMemory->Allocator.MaskCount - 1];
+    if (memoryMask) {
+        for (int i = systemMemory->Allocator.MaskCount - 1; i >= 0; i--) {
+            if (memoryMask >= systemMemory->Allocator.Masks[i]) {
+                region = &systemMemory->Allocator.Region[i];
+            }
+        }
+    }
+
+    IrqSpinlockAcquire(&region->Lock);
+    osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
+    if (osStatus == OsIncomplete) {
+        MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
         osStatus = OsOutOfMemory;
     }
-    IrqSpinlockRelease(&allocator->Lock);
+    IrqSpinlockRelease(&region->Lock);
     return osStatus;
 }
 

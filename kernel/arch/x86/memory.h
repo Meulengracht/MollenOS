@@ -53,11 +53,21 @@
 
 // Function helpers for repeating functions where it pays off
 // to have them seperate
-#define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(void) { \
-                                            void* memory = NULL; \
-                                            MachineAllocateBootMemory(sizeof(Type), &memory); \
-                                            assert(memory != NULL); \
-                                            memset((void*)memory, 0, sizeof(Type)); \
-                                            return (Type*)memory; }
+#define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(vaddr_t* virtualBase) { \
+                                            paddr_t physicalBase; \
+                                            MachineAllocateBootMemory(sizeof(Type), virtualBase, &physicalBase); \
+                                            assert(physicalBase != 0); \
+                                            memset((void*)physicalBase, 0, sizeof(Type)); \
+                                            return (Type*)physicalBase; }
+
+/**
+ * @brief Prepares the kernel addressing space. This will be called while it is possible
+ * to allocate boot memory for the virtual addressing space. It is expected that the addressing
+ * space will accomodate all boot memory mappings are available once the switch happens. This means
+ * identity mapping the allocated addresses up until this point.
+ *
+ */
+KERNELAPI void KERNELABI
+MmuPrepareKernel(void);
 
 #endif // !_X86_MEMORY_H_

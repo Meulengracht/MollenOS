@@ -60,7 +60,7 @@ ExecuteSignalOnCoreFunction(
         // CASE 1.2: The thread is currently executing user code. In this case
         //           we can simply process all the queued signals onto the current
         //           context.
-        if (!IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(currentContext))) {
+        if (!IS_KERNEL_CODE(CONTEXT_IP(currentContext))) {
             TRACE("[signal] [execute] case 1.2");
             SignalProcessQueued(thread, currentContext);
         }
@@ -73,7 +73,7 @@ ExecuteSignalOnCoreFunction(
         // CASE 2.1: The thread is currently executing kernel code (syscall).
         //           In this case the signal must stay queued and be handled
         //           on exit of system call
-        if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(thread->ContextActive))) {
+        if (IS_KERNEL_CODE(CONTEXT_IP(thread->ContextActive))) {
             TRACE("[signal] [execute] case 2.1");
             SchedulerExpediteObject(thread->SchedulerObject);
         }
@@ -151,7 +151,7 @@ SignalExecuteLocalThreadTrap(
     // Do not support signals that occur in kernel code, those should __NOT__ occur
     // but rather we should protect against or fix why it fails.
     // However if we wanted to support this, we could
-    if (CONTEXT_IP(context) != 0 && IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(context))) {
+    if (CONTEXT_IP(context) != 0 && IS_KERNEL_CODE(CONTEXT_IP(context))) {
         DebugPanic(FATAL_SCOPE_KERNEL, context,
                    "Crash at address 0x%" PRIxIN, CONTEXT_IP(context));
     }

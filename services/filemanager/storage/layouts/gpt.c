@@ -29,36 +29,6 @@
 #include <string.h>
 
 static guid_t g_emptyGuid = GUID_EMPTY;
-static guid_t g_efiGuid = GUID_EMPTY;
-static guid_t g_fatGuid = GUID_EMPTY;
-static guid_t g_mfsGuid = GUID_EMPTY;
-static int    g_loaded  = 0;
-
-static void
-__InitializeGuids(void)
-{
-    if (g_loaded) {
-        return;
-    }
-
-    guid_parse_string(&g_efiGuid, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B");
-    guid_parse_string(&g_fatGuid, "21686148-6449-6E6F-744E-656564454649");
-    guid_parse_string(&g_mfsGuid, "59B777D8-6457-498C-A19D-11A68D1A46E3");
-    g_loaded = 1;
-}
-
-static enum FileSystemType
-__GetTypeFromGuid(
-        _In_ guid_t* guid)
-{
-    if (!guid_cmp(guid, &g_efiGuid) || !guid_cmp(guid, &g_fatGuid)) {
-        return FileSystemType_FAT;
-    }
-    if (!guid_cmp(guid, &g_mfsGuid)) {
-        return FileSystemType_MFS;
-    }
-    return FileSystemType_UNKNOWN;
-}
 
 OsStatus_t
 GptEnumeratePartitionTable(
@@ -98,6 +68,7 @@ GptEnumeratePartitionTable(
         entry = (GptPartitionEntry_t*)buffer;
         for (size_t i = 0; i < storage->storage.descriptor.SectorSize; i += gptHeader->PartitionEntrySize, entry++) {
             guid_t   typeGuid;
+            guid_t   uniqueId;
             uint64_t sectorCount;
 
             // detect end of table, empty type guid
@@ -106,8 +77,14 @@ GptEnumeratePartitionTable(
                 goto parse_done;
             }
 
+            guid_parse_raw(&uniqueId, &entry->PartitionGUID[0]);
             sectorCount = (entry->EndLBA - entry->StartLBA) + 1;
-            VfsStorageRegisterFileSystem(storage, entry->StartLBA, sectorCount, __GetTypeFromGuid(&typeGuid));
+            VfsStorageRegisterFileSystem(
+                    storage, entry->StartLBA,
+                    sectorCount, 0,
+                    &typeGuid,
+                    &uniqueId
+            );
         }
 
         partitionTableSectorCount--;
@@ -154,7 +131,6 @@ GptEnumerate(
     OsStatus_t   osStatus;
 
     TRACE("GptEnumerate()");
-    __InitializeGuids();
 
     // Start out by reading the gpt-header to detect whether there is a valid GPT table
     osStatus = VfsStorageReadHelper(storage, bufferHandle, 1, 1, &sectorsRead);

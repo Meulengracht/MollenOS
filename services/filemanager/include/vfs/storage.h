@@ -24,6 +24,7 @@
 #define __VFS_STORAGE_H__
 
 #include <ddk/filesystem.h>
+#include <ds/guid.h>
 #include <ds/list.h>
 #include <os/usched/mutex.h>
 #include "filesystem_types.h"
@@ -52,7 +53,9 @@ VfsStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type);
+        _In_ enum FileSystemType  type,
+        _In_ guid_t*              typeGuid,
+        _In_ guid_t*              guid);
 
 /**
  * @brief Detects the kind of layout on the disk, be it MBR or GPT layout, if there is no layout it returns

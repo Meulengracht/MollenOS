@@ -41,6 +41,7 @@
 extern uintptr_t g_bootMemoryAddress;
 
 uintptr_t g_kernelcr3 = 0;
+uintptr_t g_kernelpd  = 0;
 
 STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
 
@@ -88,8 +89,8 @@ MmVirtualMapMemoryRange(
 
     for (i = pdStart; i < pdEnd; i++) {
         if (pageDirectory->vTables[i] == 0) {
-            pageDirectory->vTables[i] = (uintptr_t)MmVirtualCreatePageTable();
-            atomic_store(&pageDirectory->pTables[i], pageDirectory->vTables[i] | flags);
+            uintptr_t physicalBase = (uintptr_t)MmVirtualCreatePageTable(&pageDirectory->vTables[i]);
+            atomic_store(&pageDirectory->pTables[i], physicalBase | flags);
         }
     }
 }
@@ -111,11 +112,14 @@ MmuPrepareKernel(void)
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
-    osStatus = MachineAllocateBootMemory(sizeof(PageDirectory_t), (void**)&pageDirectory);
+    osStatus = MachineAllocateBootMemory(sizeof(PageDirectory_t),
+                                         &virtualBase,
+                                         (paddr_t*)&pageDirectory);
     assert(osStatus == OsSuccess);
 
     memset((void*)pageDirectory, 0, sizeof(PageDirectory_t));
     g_kernelcr3 = (uintptr_t)pageDirectory;
+    g_kernelpd  = virtualBase;
 
     // Due to how it works with multiple cpu's, we need to make sure all shared
     // tables already are mapped in the upper-most level of the page-directory

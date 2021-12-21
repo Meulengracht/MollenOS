@@ -129,10 +129,18 @@ LoaderEntry32:
     mov es, ax
     mov esp, MEMLOCATION_INITIALSTACK
 
+    ; allocate memory for the memory map, this is fixed for now.
+    push PAGESIZE
+    push MEMLOCATION_MEMORY_MAP
+    call MemoryAllocateFixed
+    add esp, 8
+    test eax, eax
+    jz .Stage2Failed
+
     ; allocate memory for the kernel, this is fixed for now so
     ; we might as well just allocate it right out of the box.
-    push KERNEL_BASE_ADDRESS
     push MEGABYTE
+    push KERNEL_BASE_ADDRESS
     call MemoryAllocateFixed
     add esp, 8
     test eax, eax

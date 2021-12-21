@@ -43,6 +43,13 @@ VfsFileSystemCacheInitialize(
 static uint64_t vfs_request_hash(const void* element);
 static int      vfs_request_cmp(const void* element1, const void* element2);
 
+static guid_t g_efiGuid = GUID_EMPTY;
+static guid_t g_fatGuid = GUID_EMPTY;
+static guid_t g_mfsSystemGuid = GUID_EMPTY;
+static guid_t g_mfsUserDataGuid = GUID_EMPTY;
+static guid_t g_mfsUserGuid = GUID_EMPTY;
+static guid_t g_mfsDataGuid = GUID_EMPTY;
+
 static list_t            g_mounts = LIST_INIT;
 static struct usched_mtx g_mountsLock;
 
@@ -52,8 +59,28 @@ static void __NotifySessionManager(MString_t* mount_point)
     sys_session_disk_connected(GetGrachtClient(), &msg.base, MStringRaw(mount_point));
 }
 
+static enum FileSystemType
+__GetTypeFromGuid(
+        _In_ guid_t* guid)
+{
+    if (!guid_cmp(guid, &g_efiGuid) || !guid_cmp(guid, &g_fatGuid)) {
+        return FileSystemType_FAT;
+    }
+    if (!guid_cmp(guid, &g_mfsSystemGuid) || !guid_cmp(guid, &g_mfsUserDataGuid) ||
+        !guid_cmp(guid, &g_mfsUserGuid) || !guid_cmp(guid, &g_mfsDataGuid)) {
+        return FileSystemType_MFS;
+    }
+    return FileSystemType_UNKNOWN;
+}
+
 void VfsFileSystemInitialize(void)
 {
+    guid_parse_string(&g_efiGuid, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B");
+    guid_parse_string(&g_fatGuid, "21686148-6449-6E6F-744E-656564454649");
+    guid_parse_string(&g_mfsSystemGuid, "C4483A10-E3A0-4D3F-B7CC-C04A6E16612B");
+    guid_parse_string(&g_mfsUserDataGuid, "80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53");
+    guid_parse_string(&g_mfsUserGuid, "8874F880-E7AD-4EE2-839E-6FFA54F19A72");
+    guid_parse_string(&g_mfsDataGuid, "B8E1A523-5865-4651-9548-8A43A9C21384");
     usched_mtx_init(&g_mountsLock);
 }
 
@@ -63,9 +90,12 @@ VfsFileSystemCreate(
         _In_ UUId_t              id,
         _In_ uint64_t            sector,
         _In_ uint64_t            sectorCount,
-        _In_ enum FileSystemType type)
+        _In_ enum FileSystemType type,
+        _In_ guid_t*             typeGuid,
+        _In_ guid_t*             guid)
 {
-    FileSystem_t* fileSystem;
+    FileSystem_t*       fileSystem;
+    enum FileSystemType fsType = type;
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -73,9 +103,14 @@ VfsFileSystemCreate(
     }
     memset(fileSystem, 0, sizeof(FileSystem_t));
 
+    if (!fsType) {
+        // try to deduce from type guid
+        fsType = __GetTypeFromGuid(typeGuid);
+    }
+
     ELEMENT_INIT(&fileSystem->header, (uintptr_t)disk->device_id, fileSystem);
-    fileSystem->id                     = id;
-    fileSystem->type                   = type;
+    fileSystem->id               = id;
+    fileSystem->type             = fsType;
     fileSystem->state            = FileSystemState_CREATED;
     fileSystem->base.SectorStart = sector;
     fileSystem->base.SectorCount = sectorCount;

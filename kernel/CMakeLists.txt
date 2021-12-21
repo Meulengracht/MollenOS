@@ -33,16 +33,6 @@ macro (add_kernel_library)
 	endif ()
 endmacro ()
 
-# Copy config file
-configure_file(../revision.h ${CMAKE_BINARY_DIR}/revision.h COPYONLY)
-
-# Generate the revision header
-#add_custom_command(
-#    OUTPUT "${CMAKE_BINARY_DIR}/revision.h"
-#    COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision" build clang
-#    COMMENT "Updating revision header"
-#)
-
 # Configure source files
 add_executable (vali-core
 		../librt/libddk/io.c

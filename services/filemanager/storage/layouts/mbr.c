@@ -31,6 +31,8 @@
 #define MBR_PARTITION_COUNT 4
 #define IS_PARTITION_PRESENT(part) ((part)->Status == 0x80 || ((part)->Status == 0 && (part)->Type != 0))
 
+static guid_t g_emptyGuid = GUID_EMPTY;
+
 OsStatus_t MbrEnumeratePartitions(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
@@ -104,11 +106,13 @@ static OsStatus_t ParsePartitionEntry(
         }
     }
 
-    VfsStorageRegisterFileSystem(storage,
+    return VfsStorageRegisterFileSystem(storage,
                                  currentSector + entry->LbaSector,
                                  entry->LbaSize,
-                                 type);
-    return OsSuccess;
+                                 type,
+                                 &g_emptyGuid,
+                                 &g_emptyGuid
+    );
 }
 
 OsStatus_t
