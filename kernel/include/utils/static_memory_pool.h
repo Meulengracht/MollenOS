@@ -41,11 +41,27 @@ typedef struct StaticMemoryPool {
 	IrqSpinlock_t        SyncObject;
 } StaticMemoryPool_t;
 
+/**
+ * @brief
+ *
+ * @param Length
+ * @param ChunkSize
+ * @return
+ */
 KERNELAPI size_t KERNELABI
 StaticMemoryPoolCalculateSize(
     _In_ size_t Length,
     _In_ size_t ChunkSize);
 
+/**
+ * @brief
+ *
+ * @param Pool
+ * @param Storage
+ * @param StartAddress
+ * @param Length
+ * @param ChunkSize
+ */
 KERNELAPI void KERNELABI
 StaticMemoryPoolConstruct(
     _In_ StaticMemoryPool_t* Pool,
@@ -54,17 +70,46 @@ StaticMemoryPoolConstruct(
     _In_ size_t              Length,
     _In_ size_t              ChunkSize);
 
+/**
+ * @brief
+ *
+ * @param Pool
+ * @param Storage
+ */
+KERNELAPI void KERNELABI
+StaticMemoryPoolRelocate(
+        _In_ StaticMemoryPool_t* Pool,
+        _In_ void*               Storage);
+
+/**
+ * @brief
+ *
+ * @param Pool
+ * @param Length
+ * @return
+ */
 KERNELAPI uintptr_t KERNELABI
 StaticMemoryPoolAllocate(
     StaticMemoryPool_t* Pool,
     size_t              Length);
 
+/**
+ * @brief
+ *
+ * @param Pool
+ * @param Address
+ */
 KERNELAPI void KERNELABI
 StaticMemoryPoolFree(
     _In_ StaticMemoryPool_t* Pool,
     _In_ uintptr_t           Address);
 
-// Returns 1 if contains
+/**
+ * @brief
+ * @param Pool
+ * @param Address
+ * @return        1 if the address is within the boundaries of this allocator
+ */
 KERNELAPI int KERNELABI
 StaticMemoryPoolContains(
     _In_ StaticMemoryPool_t* Pool,

@@ -135,13 +135,16 @@ MachineAllocateBootMemory(
 /**
  * @brief Tries to allocate the requested number of memory pages
  *
- * @param pageCount The number of physical memory pages to allocate
+ * @param pageMask  [In] The allowed mask of the physical pages
+ * @param pageCount [In] The number of physical memory pages to allocate
+ * @param pages     [In] The pages allocated
  * @return          The status of the operation
  */
 KERNELAPI OsStatus_t KERNELABI
 AllocatePhysicalMemory(
-    _In_ int        pageCount,
-    _In_ uintptr_t* pages);
+        _In_ size_t     pageMask,
+        _In_ int        pageCount,
+        _In_ uintptr_t* pages);
 
 /**
  * @brief

@@ -34,11 +34,6 @@
 #include "arch/mmu.h"
 
 // Interface to the arch-specific
-extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(MemorySpace_t* memorySpace, vaddr_t address,
-                                                  PAGE_MASTER_LEVEL** parentDirectory, int* isCurrentOut);
-extern PageTable_t* MmVirtualGetTable(PAGE_MASTER_LEVEL* parentPageDirectory, PAGE_MASTER_LEVEL* pageDirectory,
-                                      vaddr_t address, int isCurrent, int createIfMissing, int* update);
-
 extern void memory_invalidate_addr(uintptr_t pda);
 extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
@@ -653,15 +648,11 @@ __InstallFirmwareMapping(
         _In_  int            pageCount,
         _In_  unsigned int   attributes)
 {
-    PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;
     PageTable_t*       pageTable;
-    int                update;
-    int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
     OsStatus_t         status       = OsSuccess;
-    uintptr_t          zero         = 0;
     TRACE("__InstallFirmwareMapping(virtualBase=0x%" PRIxIN", physicalBase=0x%" PRIxIN ", pageCount=%i)",
           virtualBase, physicalBase, pageCount);
 
@@ -669,9 +660,9 @@ __InstallFirmwareMapping(
         attributes |= PAGE_GLOBAL;
     }
 
-    directory = MmVirtualGetMasterTable(memorySpace, virtualBase, &parentDirectory, &isCurrent);
-    while (pageCount && status == OsSuccess) {
-        pageTable = MmVirtualGetTable(parentDirectory, directory, virtualBase, isCurrent, 0, &update);
+    directory = (PAGE_MASTER_LEVEL*)memorySpace->Data[MEMORY_SPACE_CR3];
+    while (pageCount) {
+        pageTable = MmBootGetPageTable(directory, virtualBase);
         if (!pageTable) {
             status = (pagesUpdated == 0) ? OsOutOfMemory : OsIncomplete;
             break;
@@ -680,13 +671,7 @@ __InstallFirmwareMapping(
         index = PAGE_TABLE_INDEX(virtualBase);
         for (; index < ENTRIES_PER_PAGE && pageCount; index++, pageCount--, pagesUpdated++, virtualBase += PAGE_SIZE) {
             uintptr_t mapping = ((physicalBase + (pagesUpdated * PAGE_SIZE)) & PAGE_MASK) | attributes;
-            if (!atomic_compare_exchange_strong(&pageTable->Pages[index], &zero, mapping)) {
-                // Tried to replace a value that was not 0
-                ERROR("[arch_update_virtual] failed to update address 0x%" PRIxIN ", existing mapping was in place 0x%" PRIxIN,
-                      virtualBase, zero);
-                status = OsIncomplete;
-                break;
-            }
+            atomic_store(&pageTable->Pages[index], mapping);
         }
     }
     return status;
@@ -840,6 +825,28 @@ __FixupVBootAddresses(
             (paddr_t)bootInformation->Stack.Base);
 }
 
+static OsStatus_t
+__CreateKernelMappings(
+        _In_ MemorySpace_t*           memorySpace,
+        _In_ PlatformMemoryMapping_t* kernelMappings,
+        _In_ int                      kernelMappingCount)
+{
+    for (int i = 0; i < kernelMappingCount; i++) {
+        int        pageCount = (int)DIVUP(kernelMappings[i].Length, PAGE_SIZE);
+        OsStatus_t osStatus = __InstallFirmwareMapping(
+                memorySpace,
+                kernelMappings[i].VirtualBase,
+                kernelMappings[i].PhysicalBase,
+                pageCount,
+                PAGE_PRESENT | PAGE_WRITE
+        );
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+    }
+    return OsSuccess;
+}
+
 OsStatus_t
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
@@ -857,7 +864,6 @@ MmuLoadKernel(
         // Create the system kernel virtual memory space, this call identity maps all
         // memory allocated by AllocateBootMemory, and also allocates some itself
         MmuPrepareKernel();
-        for(;;);
 
         // Update the configuration data for the memory space
         memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
@@ -881,12 +887,19 @@ MmuLoadKernel(
             return osStatus;
         }
 
+        // Create all the kernel mappings
+        osStatus = __CreateKernelMappings(memorySpace, kernelMappings, kernelMappingCount);
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+
         // Update all mappings in vboot to point to virtual ones instead of physical
         __FixupVBootAddresses(bootInformation);
 
         // initialize paging and swap the stack address to virtual one, so we don't crap out.
         TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
               g_kernelcr3, stackPhysical, stackVirtual);
+        for(;;);
         memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
     }
     else {

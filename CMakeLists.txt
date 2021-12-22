@@ -33,6 +33,8 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set (VALI_PATH_DEPLOY               ${CMAKE_BINARY_DIR}/deploy)
 set (VALI_PATH_DEPLOY_HDD           ${CMAKE_BINARY_DIR}/deploy/hdd)
 set (VALI_PATH_DEPLOY_SYSTEM        ${CMAKE_BINARY_DIR}/deploy/hdd/system)
+set (VALI_PATH_DEPLOY_SYSTEM_SRV    ${CMAKE_BINARY_DIR}/deploy/hdd/system/services)
+set (VALI_PATH_DEPLOY_SYSTEM_MODS   ${CMAKE_BINARY_DIR}/deploy/hdd/system/modules)
 set (VALI_PATH_DEPLOY_SHARED        ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
 set (VALI_PATH_DEPLOY_SHARED_BIN    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/bin)
 set (VALI_PATH_DEPLOY_SHARED_LIB    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
@@ -48,6 +50,25 @@ if (DEFINED ENV{VALI_APPLICATION_PATH})
     set (VALI_PATH_APPLICATIONS_SHARE $ENV{VALI_APPLICATION_PATH}/share)
 endif ()
 
+# Setup utility macros for targets
+macro (deploy_to_initrd)
+    if ((${ARGC} EQUAL 1) OR (${ARGC} EQUAL 2))
+        # ARGV0 = target
+        # ARGV1 = mdrv on/off
+        if (${ARGC} EQUAL 2 AND ${ARGV1})
+            get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
+            configure_file(${D2RD_SOURCE_DIR}/${ARGV0}.mdrv ${VALI_PATH_INITRD}/${ARGV0}.mdrv COPYONLY)
+        endif ()
+
+        add_custom_command (TARGET ${ARGV0} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_INITRD}
+        )
+    else ()
+        message (STATUS "usage: deploy_to_initrd <target> <copy mdrv ON/OFF>")
+        message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_to_initrd")
+    endif ()
+endmacro ()
+
 # Setup tools
 set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
 set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
@@ -58,6 +79,8 @@ set (TOOL_RV ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision)
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_HDD})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_SRV})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_BIN})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})

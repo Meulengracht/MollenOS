@@ -98,11 +98,10 @@ MemoryMoveMapUp:
     mov esi, ARG1_32
 
     ; Calculate size from current index
-    ; bMemoryEntryCount - index
-    xor eax, eax
-    mov al, byte [bMemoryEntryCount]
-    sub eax, ARG2_32
-    
+    ; index - 1
+    mov eax, ARG2_32
+    dec eax
+
     xor edx, edx
     mov ecx, VBootMemoryEntry_size
     mul ecx
@@ -121,6 +120,7 @@ MemoryMoveMapUp:
 ; @brief Allocates a fixed physical memory address from the available memory.
 ; @param Address [0, In] The physical address to allocate
 ; @param Size    [1, In] The size of the allocation
+; @param Type    [2, In] The type of the allocation
 ; @return                0 on error, 1 on success
 MemoryAllocateFixed:
     STACK_FRAME_BEGIN32
@@ -176,8 +176,9 @@ MemoryAllocateFixed:
             mov ecx, ARG1_32
             mov dword [esi + VBootMemoryEntry.Length], ecx
 
-            ; Change type to be _FIRMWARE
-            mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
+            ; Change type to be whatever requested
+            mov eax, ARG2_32
+            mov dword [esi + VBootMemoryEntry.Type], eax
             mov eax, dword [esi + VBootMemoryEntry.PhysicalBase] ; store base address
 
             ; Adjust the following entry's length and physical base
@@ -235,9 +236,11 @@ MemoryAllocateFixed:
             ; i+1th entry = allocated segment
             ; from arg0 ... to arg0+arg1
             add esi, VBootMemoryEntry_size
+            mov eax, ARG2_32
+            mov dword [esi + VBootMemoryEntry.Type], eax
+
             mov eax, ARG0_32
             mov edx, ARG1_32
-            mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
             mov dword [esi + VBootMemoryEntry.PhysicalBase], eax
             mov dword [esi + VBootMemoryEntry.Length], edx
             mov dword [esi + VBootMemoryEntry.Length + 4], 0
@@ -283,7 +286,11 @@ MemoryAllocateFixed:
             add esi, VBootMemoryEntry_size
 
             ; initialize entry with new physical base and length
-            mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
+            push ebx
+            mov ebx, ARG2_32
+            mov dword [esi + VBootMemoryEntry.Type], ebx
+            pop ebx
+
             mov dword [esi + VBootMemoryEntry.PhysicalBase], ecx
             mov dword [esi + VBootMemoryEntry.PhysicalBase + 4], edx
             mov dword [esi + VBootMemoryEntry.Length], eax
@@ -299,8 +306,9 @@ MemoryAllocateFixed:
 
         .change_entry:
             ; Entry just so happened to match both start and size... weird
-            ; no need to split, just mark it _FIRMWARE
-            mov dword [esi + VBootMemoryEntry.Type], VBOOT_MEMORY_TYPE_FIRMWARE
+            ; no need to split, just mark it the new type
+            mov eax, ARG2_32
+            mov dword [esi + VBootMemoryEntry.Type], eax
             mov eax, 1
             jmp .exit
 
@@ -550,9 +558,9 @@ MemoryFinalizeMap:
         mov eax, esi
         add eax, VBootMemoryEntry_size ; eax is now i+1
 
-        push ecx ; index
-        push eax ; src (i+1)
-        push esi ; dest (i)
+        push ecx ; index        1
+        push eax ; src (i+1)    2
+        push esi ; dest (i)     1
         call MemoryMoveMapUp
         add esp, 8 ; skip src+dest
         pop ecx ; restore index

@@ -89,6 +89,17 @@ StaticMemoryPoolConstruct(
 	memset(Storage, 0, StaticMemoryPoolCalculateSize(Length, ChunkSize));
 }
 
+
+void
+StaticMemoryPoolRelocate(
+        _In_ StaticMemoryPool_t* Pool,
+        _In_ void*               Storage)
+{
+    assert(Pool != NULL);
+
+    Pool->Chunks = (StaticMemoryChunk_t*)Storage;
+}
+
 static int
 FindNextParent(
 	_In_  StaticMemoryPool_t* Pool,

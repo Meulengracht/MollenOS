@@ -27,17 +27,24 @@
 #include <heap.h>
 #include <machine.h>
 
-static int                      g_bootMemoryEnabled     = 0;
-static uintptr_t                g_bootMemoryStart       = 0;
+#define KERNEL_MAPPING_PAGECOUNT 2
+
+struct MemoryBootContext {
+    // keep identity mappings, so we can remap them afterwards
+    // we need 5 for memory masks, and 1 for GA
+    PlatformMemoryMapping_t IdentityMappings[MEMORY_MASK_COUNT + 1];
+    uintptr_t               BootMemoryAddress;
+    int                     BootMemoryEnabled;
+    uintptr_t               BootMemoryStart;
+};
+
 static PlatformMemoryMapping_t* g_kernelMappings        = NULL;
 static int                      g_kernelMappingIndex    = 0;
 static int                      g_kernelMappingCapacity = 0;
 
-// must not be static, should make a get method for this tho instead
-uintptr_t g_bootMemoryAddress = 0;
 
 // static methods in this file
-static OsStatus_t __AllocateIdentity(size_t, void**);
+static OsStatus_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
 
 static void
 __PrintMemoryUsage(void) {
@@ -95,25 +102,33 @@ __AddKernelMapping(
 
 static OsStatus_t
 __InitializeKernelMappings(
+        _In_ struct MemoryBootContext*      bootContext,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
     OsStatus_t osStatus;
     TRACE("__InitializeKernelMappings()");
 
-    osStatus = __AllocateIdentity(memoryConfiguration->PageSize, (void**)&g_kernelMappings);
+    osStatus = __AllocateIdentity(
+            bootContext,
+            memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT,
+            (void**)&g_kernelMappings
+    );
     if (osStatus != OsSuccess) {
         return osStatus;
     }
 
-    memset(g_kernelMappings, 0, memoryConfiguration->PageSize);
+    memset(g_kernelMappings, 0, memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT);
 
     // calculate the max number of kernel mappings we support
-    g_kernelMappingCapacity = (int)(memoryConfiguration->PageSize / sizeof(PlatformMemoryMapping_t));
+    g_kernelMappingCapacity = (int)(
+            (memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT) / sizeof(PlatformMemoryMapping_t));
+    TRACE("__InitializeKernelMappings g_kernelMappingCapacity=%i", g_kernelMappingCapacity);
     return OsSuccess;
 }
 
 static OsStatus_t
 __InitializeIdentityMemory(
+        _In_ struct MemoryBootContext*      bootContext,
         _In_ struct VBoot*                  bootInformation,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
@@ -124,10 +139,11 @@ __InitializeIdentityMemory(
     // We initially use a page for each memory mask manager. We also use a page for
     // kernel mappings, and we use a lot of pages for the GA region.
     sizeRequired = memoryConfiguration->MemoryMaskCount * memoryConfiguration->PageSize;
-    sizeRequired += memoryConfiguration->PageSize;
+    sizeRequired += memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT;
     sizeRequired += StaticMemoryPoolCalculateSize(
             memoryConfiguration->MemoryMap.Shared.Length,
-            memoryConfiguration->PageSize);
+            memoryConfiguration->PageSize
+    );
 
     // so this a very qualified guess and hopefully the preperation of the kernel virtual address space
     // should NEVER require more space than a megabyte of physical memory.
@@ -139,9 +155,9 @@ __InitializeIdentityMemory(
             if (entry->Length >= sizeRequired) {
                 TRACE("__InitializeIdentityMemory found area PhysicalBase=0x%llx, Length=0x%llx",
                       entry->PhysicalBase, entry->Length);
-                g_bootMemoryStart   = entry->PhysicalBase;
-                g_bootMemoryAddress = entry->PhysicalBase;
-                g_bootMemoryEnabled = 1;
+                bootContext->BootMemoryStart   = entry->PhysicalBase;
+                bootContext->BootMemoryAddress = entry->PhysicalBase;
+                bootContext->BootMemoryEnabled = 1;
                 return OsSuccess;
             }
         }
@@ -149,25 +165,57 @@ __InitializeIdentityMemory(
     return OsOutOfMemory;
 }
 
-static void
-__DisableIdentityMemory(void)
+static OsStatus_t
+__DisableIdentityMemory(
+        _In_ struct MemoryBootContext* bootContext,
+        _In_ StaticMemoryPool_t*       globalAccessMemory)
 {
+    OsStatus_t osStatus;
+    int        i;
+
     TRACE("__DisableIdentityMemory()");
-    g_bootMemoryEnabled = 0;
+    bootContext->BootMemoryEnabled = 0;
 
     // Add the kernel mappings that have been created with identity mappings
     // 1. Physical Memory Managers
-    // 2. GA Memory range (map it into itself)
+    for (i = 0; i < MEMORY_MASK_COUNT; i++) {
+        if (bootContext->IdentityMappings[i].Length) {
+            bootContext->IdentityMappings[i].VirtualBase = StaticMemoryPoolAllocate(
+                    globalAccessMemory,
+                    bootContext->IdentityMappings[i].Length
+            );
+            osStatus = __AddKernelMapping(
+                    bootContext->IdentityMappings[i].PhysicalBase,
+                    bootContext->IdentityMappings[i].VirtualBase,
+                    bootContext->IdentityMappings[i].Length
+            );
+            if (osStatus != OsSuccess) {
+                return osStatus;
+            }
+        }
+    }
 
+    // 2. GA Memory range (map it into itself)
+    bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase = StaticMemoryPoolAllocate(
+            globalAccessMemory,
+            bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
+    );
+    osStatus = __AddKernelMapping(
+            bootContext->IdentityMappings[MEMORY_MASK_COUNT].PhysicalBase,
+            bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase,
+            bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
+    );
+    return osStatus;
 }
 
 OsStatus_t
 __AllocateIdentity(
-        _In_  size_t size,
-        _Out_ void** memory)
+        _In_  struct MemoryBootContext* bootContext,
+        _In_  size_t                    size,
+        _Out_ void**                    memory)
 {
     TRACE("__AllocateIdentity(size=0x%" PRIxIN ")", size);
-    if (!g_bootMemoryEnabled) {
+    if (!bootContext || !bootContext->BootMemoryEnabled) {
         return OsNotSupported;
     }
 
@@ -179,8 +227,8 @@ __AllocateIdentity(
         size -= (size % GetMachine()->MemoryGranularity);
     }
 
-    *memory = (void*)g_bootMemoryAddress;
-    g_bootMemoryAddress += size;
+    *memory = (void*)bootContext->BootMemoryAddress;
+    bootContext->BootMemoryAddress += size;
     return OsSuccess;
 }
 
@@ -212,15 +260,12 @@ MachineAllocateBootMemory(
                 &pagesAllocated, &blocks[0]
         );
         if (osStatus == OsOutOfMemory) {
-            TRACE("MachineAllocateBootMemory failed to allocate blocks %u from mask 0x%" PRIxIN,
-                    osStatus, GetMachine()->PhysicalMemory.Masks[i]);
             continue;
         }
         blockCount -= pagesAllocated;
     }
 
     if (osStatus == OsSuccess) {
-        TRACE("MachineAllocateBootMemory reverting blocks");
         // revert the order of pages, the reason for this is we want to provide
         // contigious pages, and it actually pops from top
         for (i = 0; i < blockCount / 2; i++) {
@@ -231,7 +276,10 @@ MachineAllocateBootMemory(
     }
 
     // register the kernel mapping, so it will be available after switching to virtual space
-    __AddKernelMapping(blocks[0], virtualBase, size);
+    osStatus = __AddKernelMapping(blocks[0], virtualBase, size);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 
     *physicalBaseOut = blocks[0];
     *virtualBaseOut  = virtualBase;
@@ -240,6 +288,7 @@ MachineAllocateBootMemory(
 
 static OsStatus_t
 __InitializePhysicalMemory(
+        _In_ struct MemoryBootContext*      bootContext,
         _In_ SystemMemoryAllocator_t*       physicalMemory,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
@@ -254,10 +303,14 @@ __InitializePhysicalMemory(
 
     for (i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
         uintptr_t memory;
-        osStatus = __AllocateIdentity(memoryConfiguration->PageSize, (void**)&memory);
+        osStatus = __AllocateIdentity(bootContext, memoryConfiguration->PageSize, (void**)&memory);
         if (osStatus != OsSuccess) {
             return osStatus;
         }
+
+        // update the address in the boot context
+        bootContext->IdentityMappings[i].PhysicalBase = memory;
+        bootContext->IdentityMappings[i].Length       = memoryConfiguration->PageSize;
 
         IrqSpinlockConstruct(&physicalMemory->Region[i].Lock);
         MemoryStackConstruct(&physicalMemory->Region[i].Stack,
@@ -271,9 +324,10 @@ __InitializePhysicalMemory(
 
 static void
 __FillPhysicalMemory(
-        _In_ struct VBoot*            bootInformation,
-        _In_ SystemMemoryAllocator_t* physicalMemory,
-        _In_ size_t                   pageSize)
+        _In_ struct MemoryBootContext* bootContext,
+        _In_ struct VBoot*             bootInformation,
+        _In_ SystemMemoryAllocator_t*  physicalMemory,
+        _In_ size_t                    pageSize)
 {
     unsigned int             i;
     int                      j;
@@ -282,7 +336,7 @@ __FillPhysicalMemory(
     TRACE("__FillPhysicalMemory()");
 
     // Calculate the used boot memory
-    reservedMemorySize = g_bootMemoryAddress - g_bootMemoryStart;
+    reservedMemorySize = bootContext->BootMemoryAddress - bootContext->BootMemoryStart;
 
     entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
@@ -293,7 +347,7 @@ __FillPhysicalMemory(
             uintptr_t limit;
 
             // adjust values if we allocated this segment for boot memory
-            if (baseAddress == g_bootMemoryStart) {
+            if (baseAddress == bootContext->BootMemoryStart) {
                 baseAddress += reservedMemorySize;
                 length      -= reservedMemorySize;
             }
@@ -331,9 +385,10 @@ __FillPhysicalMemory(
 
 static OsStatus_t
 __InitializeGlobalAccessMemory(
-        _In_ StaticMemoryPool_t* globalAccessMemory,
-        _In_ SystemMemoryMap_t*  memoryMap,
-        _In_ size_t              pageSize)
+        _In_ struct MemoryBootContext* bootContext,
+        _In_ StaticMemoryPool_t*       globalAccessMemory,
+        _In_ SystemMemoryMap_t*        memoryMap,
+        _In_ size_t                    pageSize)
 {
     size_t     gaMemorySize;
     void*      gaMemory;
@@ -345,10 +400,14 @@ __InitializeGlobalAccessMemory(
             pageSize
     );
 
-    osStatus = __AllocateIdentity(gaMemorySize, &gaMemory);
+    osStatus = __AllocateIdentity(bootContext, gaMemorySize, &gaMemory);
     if (osStatus != OsSuccess) {
         return OsOutOfMemory;
     }
+
+    // Update the boot context with the new physical mapping
+    bootContext->IdentityMappings[MEMORY_MASK_COUNT].PhysicalBase = (paddr_t)gaMemory;
+    bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length       = gaMemorySize;
 
     TRACE("__InitializeGlobalAccessMemory initial size of ga memory to 0x%" PRIxIN, memoryMap->Shared.Length);
     gaMemorySize = memoryMap->Shared.Length;
@@ -367,10 +426,34 @@ __InitializeGlobalAccessMemory(
     return OsSuccess;
 }
 
+#ifdef __OSCONFIG_HAS_MMIO
+static void
+__UpdateSystemAddresses(
+        _In_ struct MemoryBootContext* bootContext)
+{
+    TRACE("__UpdateSystemAddresses()");
+
+    // Update all addresses used by physical memory
+    for (int i = 0; i < GetMachine()->PhysicalMemory.MaskCount; i++) {
+        MemoryStackRelocate(
+                &GetMachine()->PhysicalMemory.Region[i].Stack,
+                bootContext->IdentityMappings[i].VirtualBase
+        );
+    }
+
+    // Update the data store address of GA
+    StaticMemoryPoolRelocate(
+            &GetMachine()->GlobalAccessMemory,
+            (void*)bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase
+    );
+}
+#endif
+
 OsStatus_t
 MachineInitializeMemorySystems(
         _In_ SystemMachine_t* machine)
 {
+    struct MemoryBootContext      bootContext;
     PlatformMemoryConfiguration_t configuration;
     size_t                        memorySize;
     OsStatus_t                    osStatus;
@@ -390,15 +473,23 @@ MachineInitializeMemorySystems(
     // Get fixed virtual memory layout and platform page size
     MmuGetMemoryConfiguration(&configuration);
 
-    // Some of the configuration values we store in the machine structure for later use
+    // Some configuration values we store in the machine structure for later use
     memcpy(&machine->MemoryMap, &configuration.MemoryMap, sizeof(SystemMemoryMap_t));
     machine->MemoryGranularity    = configuration.PageSize;
     machine->NumberOfMemoryBlocks = memorySize / machine->MemoryGranularity;
 
+    // Initialize the memory boot context that keeps some state for us while initializing
+    // system memory.
+    memset(&bootContext, 0, sizeof(struct MemoryBootContext));
+
     // Find a suitable area where we can allocate continous physical pages for systems
     // that require (ident-mapped) memory. This is memory where the pointers need to be valid
     // both before and after we switch to the new virtual address space.
-    osStatus = __InitializeIdentityMemory(&machine->BootInformation, &configuration);
+    osStatus = __InitializeIdentityMemory(
+            &bootContext,
+            &machine->BootInformation,
+            &configuration
+    );
     if (osStatus != OsSuccess) {
         return osStatus;
     }
@@ -406,13 +497,17 @@ MachineInitializeMemorySystems(
     // Initialize the kernel mappings first. Kernel mappings are mappings we want the platform the do when
     // switching to the new virtual addressing space. This is to avoid having identity mapped memory when we are
     // done allocating for basic systems.
-    osStatus = __InitializeKernelMappings(&configuration);
+    osStatus = __InitializeKernelMappings(&bootContext, &configuration);
     if (osStatus != OsSuccess) {
         return osStatus;
     }
 
     // initialize the subsystems
-    osStatus = __InitializePhysicalMemory(&machine->PhysicalMemory, &configuration);
+    osStatus = __InitializePhysicalMemory(
+            &bootContext,
+            &machine->PhysicalMemory,
+            &configuration
+    );
     if (osStatus != OsSuccess) {
         return osStatus;
     }
@@ -421,18 +516,26 @@ MachineInitializeMemorySystems(
     // virtual mappings that can be used to facilitate system services
     // It will start from the next free lower physical region and go up to
     // memoryMap->KernelRegion.Length
-    __InitializeGlobalAccessMemory(
+    osStatus = __InitializeGlobalAccessMemory(
+            &bootContext,
             &machine->GlobalAccessMemory,
             &machine->MemoryMap,
             machine->MemoryGranularity
     );
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 
     // At this point no further boot allocations will be made, and thus we can start adding
     // the remaining free physical pages to the physical memory manager
-    __DisableIdentityMemory();
+    osStatus = __DisableIdentityMemory(&bootContext, &machine->GlobalAccessMemory);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 
     // fill the memory allocators, as we need them for allocating boot memory
     __FillPhysicalMemory(
+            &bootContext,
             &machine->BootInformation,
             &machine->PhysicalMemory,
             machine->MemoryGranularity
@@ -449,6 +552,10 @@ MachineInitializeMemorySystems(
     if (osStatus != OsSuccess) {
         return osStatus;
     }
+
+    // At this point our physical memory managers and GA memory needs
+    // updating. Otherwise, they won't be accessible.
+    __UpdateSystemAddresses(&bootContext);
 
     // Invalidate memory map as it is no longer accessible
     machine->BootInformation.Memory.NumberOfEntries = 0;

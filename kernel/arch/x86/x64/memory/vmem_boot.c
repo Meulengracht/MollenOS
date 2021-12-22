@@ -61,9 +61,9 @@ CREATE_STRUCTURE_HELPER(PageDirectory_t, PageDirectory)
  * Creates and initializes a new empty page-directory-table */
 CREATE_STRUCTURE_HELPER(PageDirectoryTable_t, PageDirectoryTable)
 
-static PageTable_t*
-__GetPageTablePhysical(
-        _In_ PageMasterTable_t* masterTable,
+PageTable_t*
+MmBootGetPageTable(
+        _In_ PAGE_MASTER_LEVEL* masterTable,
         _In_ vaddr_t            address)
 {
     PageDirectoryTable_t* pageDirectoryTable;
@@ -244,7 +244,7 @@ MmuPrepareKernel(void)
         TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
               virtualBase, virtualBase + length);
 
-        pageTable = __GetPageTablePhysical(pageMasterTable, virtualBase);
+        pageTable = MmBootGetPageTable(pageMasterTable, virtualBase);
         MmVirtualFillPageTable(pageTable, physicalBase, virtualBase, kernelPageFlags, length);
 
         bytesToMap   -= length;

@@ -56,7 +56,8 @@ enum VBootMemoryType {
     VBootMemoryType_Firmware,
     VBootMemoryType_ACPI,
     VBootMemoryType_NVS,
-    VBootMemoryType_Available
+    VBootMemoryType_Available,
+    VBootMemoryType_Reclaim
 };
 
 VBOOT_PACKED(VBootMemoryEntry, {

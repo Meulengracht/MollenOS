@@ -17,7 +17,7 @@ macro (add_filesystem_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 LINK_FLAGS "-Xlinker -noentry"
-                
+                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
 
@@ -46,6 +46,7 @@ macro (add_module_target)
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__DRIVER_IMPL ${ARGV1}"
                 LINK_FLAGS "-Xlinker -entry:__CrtModuleEntry"
+                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
 

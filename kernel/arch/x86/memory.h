@@ -70,4 +70,52 @@
 KERNELAPI void KERNELABI
 MmuPrepareKernel(void);
 
+/**
+ * @brief
+ *
+ * @param masterTable
+ * @param address
+ * @return
+ */
+KERNELAPI PageTable_t* KERNELABI
+MmBootGetPageTable(
+        _In_ PAGE_MASTER_LEVEL* masterTable,
+        _In_ vaddr_t            address);
+
+/**
+ * @brief
+ *
+ * @param memorySpace
+ * @param address
+ * @param parentDirectory
+ * @param isCurrentOut
+ * @return
+ */
+KERNELAPI PAGE_MASTER_LEVEL* KERNELABI
+MmVirtualGetMasterTable(
+        _In_ MemorySpace_t*      memorySpace,
+        _In_ vaddr_t             address,
+        _In_ PAGE_MASTER_LEVEL** parentDirectory,
+        _In_ int*                isCurrentOut);
+
+/**
+ * @brief
+ *
+ * @param parentPageDirectory
+ * @param pageDirectory
+ * @param address
+ * @param isCurrent
+ * @param createIfMissing
+ * @param update
+ * @return
+ */
+KERNELAPI PageTable_t* KERNELABI
+MmVirtualGetTable(
+        _In_  PAGE_MASTER_LEVEL* parentPageDirectory,
+        _In_  PAGE_MASTER_LEVEL* pageDirectory,
+        _In_  vaddr_t            address,
+        _In_  int                isCurrent,
+        _In_  int                createIfMissing,
+        _Out_ int*               update);
+
 #endif // !_X86_MEMORY_H_

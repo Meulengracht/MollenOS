@@ -117,6 +117,7 @@ BITS 16
 %define VBOOT_MEMORY_TYPE_ACPI      0x00000002
 %define VBOOT_MEMORY_TYPE_NVS       0x00000003
 %define VBOOT_MEMORY_TYPE_AVAILABLE 0x00000004
+%define VBOOT_MEMORY_TYPE_RECLAIM   0x00000005
 
 ; Temporary type used during booting which will get
 ; marked _AVAILABLE automatically just before jumping to

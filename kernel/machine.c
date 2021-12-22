@@ -148,7 +148,7 @@ InitializeMachine(
     }
 #endif
 
-    // Last step is to enable timers that kickstart all other threads
+    // Last step is to enable timers that kickstart all the other threads
     osStatus = InitializeSystemTimers();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
@@ -188,15 +188,15 @@ IdleProcessor:
 
 OsStatus_t
 AllocatePhysicalMemory(
-    _In_ int        pageCount,
-    _In_ uintptr_t* pages)
+        _In_ size_t     pageMask,
+        _In_ int        pageCount,
+        _In_ uintptr_t* pages)
 {
     OsStatus_t osStatus;
     int        pagesAllocated = pageCount;
-    size_t     pageMask = __MASK;
     SystemMemoryAllocatorRegion_t* region;
 
-    // default to highest allocator
+    // default to the highest allocator
     region = &GetMachine()->PhysicalMemory.Region[GetMachine()->PhysicalMemory.MaskCount - 1];
     if (pageMask) {
         for (int i = GetMachine()->PhysicalMemory.MaskCount - 1; i >= 0; i--) {

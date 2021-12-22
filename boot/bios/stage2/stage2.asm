@@ -130,6 +130,7 @@ LoaderEntry32:
     mov esp, MEMLOCATION_INITIALSTACK
 
     ; allocate memory for the memory map, this is fixed for now.
+    push VBOOT_MEMORY_TYPE_RECLAIM
     push PAGESIZE
     push MEMLOCATION_MEMORY_MAP
     call MemoryAllocateFixed
@@ -139,6 +140,7 @@ LoaderEntry32:
 
     ; allocate memory for the kernel, this is fixed for now so
     ; we might as well just allocate it right out of the box.
+    push VBOOT_MEMORY_TYPE_FIRMWARE
     push MEGABYTE
     push KERNEL_BASE_ADDRESS
     call MemoryAllocateFixed

@@ -13,6 +13,7 @@ macro (add_service_target)
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL ${ARGV1}"
                 LINK_FLAGS "-Xlinker -entry:__CrtServiceEntry"
+                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_SRV}
         )
         target_link_libraries (${ARGV0} gracht libusb libds libddk c librt)
 

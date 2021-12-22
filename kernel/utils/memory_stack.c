@@ -19,7 +19,7 @@
  *   different memory regions that map to physical components
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <debug.h>

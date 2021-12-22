@@ -43,7 +43,7 @@ BITS 32
 ; **************************
 PagingAllocateTable:
     push edi
-    push VBOOT_MEMORY_TYPE_BOOT
+    push VBOOT_MEMORY_TYPE_RECLAIM
     push 0x1000
     call MemoryAllocate
     add esp, 8

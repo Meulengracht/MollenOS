@@ -494,7 +494,7 @@ MemorySpaceMap(
         MemoryFlags |= MAPPING_COMMIT;
     }
     else if (MemoryFlags & MAPPING_COMMIT) {
-        Status = AllocatePhysicalMemory(PageCount, &PhysicalAddressValues[0]);
+        Status = AllocatePhysicalMemory(0, PageCount, &PhysicalAddressValues[0]);
         if (Status != OsSuccess) {
             return Status;
         }
@@ -615,7 +615,7 @@ MemorySpaceCommit(
     }
 
     if (!(placementFlags & MAPPING_PHYSICAL_FIXED)) {
-        osStatus = AllocatePhysicalMemory(pageCount, &physicalAddressValues[0]);
+        osStatus = AllocatePhysicalMemory(0, pageCount, &physicalAddressValues[0]);
         if (osStatus != OsSuccess) {
             return osStatus;
         }
