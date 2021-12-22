@@ -25,6 +25,8 @@
 #include <os/osdefs.h>
 #include <paging.h>
 
+DECL_STRUCT(MemorySpace);
+
 // Shared bitfields
 #define PAGE_PRESENT            0x1U
 #define PAGE_WRITE              0x2U
