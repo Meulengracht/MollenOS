@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -327,7 +326,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     }
     
     Status = MemorySpaceMap((MemorySpace_t*)Handle, Address,
-        Pages, Length, KernelFlags, PlacementFlags);
+        Pages, Length, 0, KernelFlags, PlacementFlags);
     dsfree(Pages);
 #else
     struct MemoryMappingParameters Parameters;

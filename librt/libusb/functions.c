@@ -46,6 +46,7 @@ UsbInitialize(void)
     info.length   = LIBUSB_SHAREDBUFFER_SIZE;
     info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
     info.flags    = 0;
+    info.type     = DMA_TYPE_DRIVER_32;
     
     status = dma_create(&info, &DmaAttachment);
     if (status != OsSuccess) {

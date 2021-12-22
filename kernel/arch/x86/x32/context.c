@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -219,8 +217,14 @@ ContextCreate(
     }
 
     // Adjust pointer to top of stack and then commit the first stack page
-    status = MemorySpaceCommit(memorySpace, contextAddress + (contextSize - sizeof(Context_t)),
-                               &physicalContextAddress, PAGE_SIZE, 0);
+    status = MemorySpaceCommit(
+            memorySpace,
+            contextAddress + (contextSize - sizeof(Context_t)),
+            &physicalContextAddress,
+            PAGE_SIZE,
+            0,
+            0
+    );
     if (status != OsSuccess) {
         MemorySpaceUnmap(memorySpace, contextAddress, contextSize);
         return NULL;

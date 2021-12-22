@@ -42,7 +42,6 @@ static PlatformMemoryMapping_t* g_kernelMappings        = NULL;
 static int                      g_kernelMappingIndex    = 0;
 static int                      g_kernelMappingCapacity = 0;
 
-
 // static methods in this file
 static OsStatus_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
 
@@ -85,8 +84,8 @@ __AddKernelMapping(
         _In_ size_t  length)
 {
     PlatformMemoryMapping_t* mapping;
-    TRACE("__AddKernelMapping(physical=0x%" PRIxIN ", virtual=0x%" PRIxIN ", length=0x%" PRIxIN ")",
-          physicalBase, virtualBase, length);
+    TRACE("__AddKernelMapping(i=%i, physical=0x%" PRIxIN ", virtual=0x%" PRIxIN ", length=0x%" PRIxIN ")",
+          g_kernelMappingIndex, physicalBase, virtualBase, length);
 
     if (g_kernelMappingIndex == g_kernelMappingCapacity - 1) {
         ERROR("__AddKernelMapping maximum number of kernel mappings reached");
@@ -122,6 +121,7 @@ __InitializeKernelMappings(
     // calculate the max number of kernel mappings we support
     g_kernelMappingCapacity = (int)(
             (memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT) / sizeof(PlatformMemoryMapping_t));
+    g_kernelMappingCapacity--; // keep a null entry
     TRACE("__InitializeKernelMappings g_kernelMappingCapacity=%i", g_kernelMappingCapacity);
     return OsSuccess;
 }
@@ -263,6 +263,9 @@ MachineAllocateBootMemory(
             continue;
         }
         blockCount -= pagesAllocated;
+
+        // keep the number of free blocks in the machine stats up to date here
+        GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pagesAllocated;
     }
 
     if (osStatus == OsSuccess) {
@@ -372,7 +375,6 @@ __FillPhysicalMemory(
                 MemoryStackPush(&physicalMemory->Region[j].Stack, baseAddress, blockCount);
 
                 // add statistics so we can keep track of free memory
-                GetMachine()->NumberOfMemoryBlocks += (size_t)blockCount;
                 GetMachine()->NumberOfFreeMemoryBlocks += (size_t)blockCount;
 
                 // adjust base and length
@@ -435,6 +437,8 @@ __UpdateSystemAddresses(
 
     // Update all addresses used by physical memory
     for (int i = 0; i < GetMachine()->PhysicalMemory.MaskCount; i++) {
+        TRACE("__UpdateSystemAddresses relocating %i to 0x%" PRIxIN,
+              i, bootContext->IdentityMappings[i].VirtualBase);
         MemoryStackRelocate(
                 &GetMachine()->PhysicalMemory.Region[i].Stack,
                 bootContext->IdentityMappings[i].VirtualBase
@@ -442,6 +446,8 @@ __UpdateSystemAddresses(
     }
 
     // Update the data store address of GA
+    TRACE("__UpdateSystemAddresses relocating GA to 0x%" PRIxIN,
+          bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase);
     StaticMemoryPoolRelocate(
             &GetMachine()->GlobalAccessMemory,
             (void*)bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase
@@ -546,8 +552,7 @@ MachineInitializeMemorySystems(
     osStatus = InitializeMemorySpace(
             &machine->SystemSpace,
             &machine->BootInformation,
-            g_kernelMappings,
-            g_kernelMappingIndex + 1
+            g_kernelMappings
     );
     if (osStatus != OsSuccess) {
         return osStatus;

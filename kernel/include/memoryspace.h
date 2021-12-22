@@ -35,12 +35,16 @@ DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);
 DECL_STRUCT(PlatformMemoryMapping);
 
-/* MemorySpace Definitions
- * Definitions, bit definitions and magic constants for memory spaces */
+/**
+ * MemorySpace Definitions
+ * Definitions, bit definitions and magic constants for memory spaces
+ */
 #define MEMORY_DATACOUNT 4
 
-/* MemorySpace (Type) Definitions
- * Definitions, bit definitions and magic constants for memory spaces */
+/**
+ * MemorySpace (Type) Definitions
+ * Definitions, bit definitions and magic constants for memory spaces
+ */
 #define MEMORY_SPACE_INHERIT            0x00000001U
 #define MEMORY_SPACE_APPLICATION        0x00000002U
 
@@ -102,34 +106,34 @@ typedef struct MemoryMappingHandler {
  * @param memorySpace        [In]
  * @param bootInformation    [In]
  * @param kernelMappings     [In]
- * @param kernelMappingCount [In]
- * @return                     Status of the initialization.
+ * @return                        Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
 InitializeMemorySpace(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings,
-        _In_ int                      kernelMappingCount);
+        _In_ PlatformMemoryMapping_t* kernelMappings);
 
 /**
- * CreateMemorySpace
- * Initialize a new memory space, depending on what user is requesting we 
+ * @brief Initialize a new memory space, depending on what user is requesting we
  * might recycle a already existing address space
+ *
+ *
  */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpace(
     _In_  unsigned int Flags,
-    _Out_ UUId_t* Handle);
+    _Out_ UUId_t*      Handle);
 
 /**
- * SwitchMemorySpace
- * Switches the current address space out with the the address space provided 
+ * @brief Switches the current address space out with the the address space provided
  * for the current cpu.
+ *
+ * @param memorySpace [In] The memory space that should be switched to.
  */
 KERNELAPI void KERNELABI
 SwitchMemorySpace(
-        _In_ MemorySpace_t*);
+        _In_ MemorySpace_t* memorySpace);
 
 KERNELAPI UUId_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
@@ -137,7 +141,8 @@ KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
 
 /**
- * Checks if two memory spaces are related to each other by sharing resources.
+ * @brief Checks if two memory spaces are related to each other by sharing resources.
+ *
  * @param Space1
  * @param Space2
  * @return
@@ -148,25 +153,29 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space2);
 
 /**
- * Creates a new virtual to physical memory mapping.
- * @param MemorySpace           [In]      The memory space where the mapping should be created.
- * @param Address               [In, Out] The virtual address that should be mapped. 
+ * @brief Creates a new virtual to physical memory mapping.
+ *
+ * @param memorySpace           [In]      The memory space where the mapping should be created.
+ * @param address               [In, Out] The virtual address that should be mapped.
  *                                        Can also be auto assigned if not provided.
- * @param PhysicalAddressValues [In]      Contains physical addresses for the mappings done.
- * @param MemoryFlags           [In]      Memory mapping configuration flags.
- * @param PlacementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ * @param physicalAddressValues [In]      Contains physical addresses for the mappings done.
+ * @param pageMask              [In]      The accepted page mask for physical pages allocated.
+ * @param memoryFlags           [In]      Memory mapping configuration flags.
+ * @param placementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMap(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ vaddr_t*    Address,
-        _InOut_ uintptr_t*           PhysicalAddressValues,
-        _In_    size_t               Length,
-        _In_    unsigned int              MemoryFlags,
-        _In_    unsigned int              PlacementFlags);
+        _In_    MemorySpace_t* memorySpace,
+        _InOut_ vaddr_t*       address,
+        _InOut_ uintptr_t*     physicalAddressValues,
+        _In_    size_t         length,
+        _In_    size_t         pageMask,
+        _In_    unsigned int   memoryFlags,
+        _In_    unsigned int   placementFlags);
 
 /**
- * Creates a new virtual to contiguous physical memory mapping.
+ * @brief Creates a new virtual to contiguous physical memory mapping.
+ *
  * @param MemorySpace          [In]      The memory space where the mapping should be created.
  * @param Address              [In, Out] The virtual address that should be mapped. 
  *                                       Can also be auto assigned if not provided.
@@ -177,14 +186,15 @@ MemorySpaceMap(
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMapContiguous(
         _In_    MemorySpace_t* MemorySpace,
-        _InOut_ vaddr_t*    Address,
-        _In_    uintptr_t            PhysicalStartAddress,
-        _In_    size_t               Length,
-        _In_    unsigned int              MemoryFlags,
-        _In_    unsigned int              PlacementFlags);
+        _InOut_ vaddr_t*       Address,
+        _In_    uintptr_t      PhysicalStartAddress,
+        _In_    size_t         Length,
+        _In_    unsigned int   MemoryFlags,
+        _In_    unsigned int   PlacementFlags);
 
 /**
- * Marks a virtual region of memory as reserved
+ * @brief Marks a virtual region of memory as reserved
+ *
  * @param memorySpace          [In]      The memory space where the mapping should be created.
  * @param address              [In, Out] The virtual address that should be mapped.
  *                                       Can also be auto assigned if not provided.
@@ -194,13 +204,14 @@ MemorySpaceMapContiguous(
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceMapReserved(
         _In_    MemorySpace_t* memorySpace,
-        _InOut_ vaddr_t*    address,
-        _In_    size_t               size,
-        _In_    unsigned int              memoryFlags,
-        _In_    unsigned int              placementFlags);
+        _InOut_ vaddr_t*       address,
+        _In_    size_t         size,
+        _In_    unsigned int   memoryFlags,
+        _In_    unsigned int   placementFlags);
 
 /**
- * Unmaps a virtual memory region from an address space.
+ * @brief Unmaps a virtual memory region from an address space.
+ *
  * @param memorySpace
  * @param address
  * @param size
@@ -208,29 +219,33 @@ MemorySpaceMapReserved(
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceUnmap(
         _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t     address,
-        _In_ size_t               size);
+        _In_ vaddr_t        address,
+        _In_ size_t         size);
 
 /**
- * Commits/finishes an already present memory mapping. If a physical address
+ * @brief Commits/finishes an already present memory mapping. If a physical address
  * is not already provided one will be allocated for the mapping.
+ *
  * @param memorySpace           [In] The memory space where the mapping should be commited.
  * @param address               [In] The virtual address that should be committed.
  *                                   Any kind of offset into the given page address is ignored.
  * @param physicalAddressValues [In] The dma vector where the physical mappings should be provided.
  * @param size                  [In] Length that should be committed.
+ * @param pageMask              [In] The accepted page mask for physical pages allocated.
  * @param placementFlags        [In] Supports MAPPING_PHYSICAL_* flags.
  */
 KERNELAPI OsStatus_t KERNELABI
 MemorySpaceCommit(
-        _In_ MemorySpace_t*   memorySpace,
-        _In_ vaddr_t address,
-        _In_ uintptr_t*       physicalAddressValues,
-        _In_ size_t           size,
-        _In_ unsigned int     placementFlags);
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ uintptr_t*     physicalAddressValues,
+        _In_ size_t         size,
+        _In_ size_t         pageMask,
+        _In_ unsigned int   placementFlags);
 
 /**
- * Changes the attributes of the given memory range.
+ * @brief Changes the attributes of the given memory range.
+ *
  * @param memorySpace
  * @param address
  * @param length
@@ -247,8 +262,9 @@ MemorySpaceChangeProtection(
         _Out_       unsigned int*  previousAttributes);
 
 /**
- * Clones a region of memory mappings into the address space provided. The new mapping
+ * @brief Clones a region of memory mappings into the address space provided. The new mapping
  * will automatically be marked COMMIT, PERSISTANT and PROVIDED.
+ *
  * @param sourceSpace
  * @param destinationSpace
  * @param sourceAddress
@@ -268,8 +284,8 @@ MemorySpaceCloneMapping(
         _In_        unsigned int   placementFlags);
 
 /**
- * GetMemorySpaceMapping
- * * Converts a virtual address range into the mapped physical range.
+ * @brief Converts a virtual address range into the mapped physical range.
+ *
  * @param memorySpace  [In]  The addressing space the lookup should take place in
  * @param address      [In]  The virtual address the lookup should start at
  * @param pageCount    [In]  The length of the lookup in pages.
@@ -283,7 +299,8 @@ GetMemorySpaceMapping(
         _Out_ uintptr_t*     dmaVectorOut);
 
 /**
- * Queries allocation information from an existing allocation by its virtual address
+ * @brief Queries allocation information from an existing allocation by its virtual address
+ *
  * @param memorySpace
  * @param address
  * @param descriptor
@@ -296,7 +313,8 @@ MemorySpaceQuery(
         _In_ MemoryDescriptor_t* descriptor);
 
 /**
- * Retrieves the attributes for a specific virtual memory address in the given space.
+ * @brief Retrieves the attributes for a specific virtual memory address in the given space.
+ *
  * @param memorySpace
  * @param address
  * @param length
@@ -311,7 +329,8 @@ GetMemorySpaceAttributes(
         _In_ unsigned int*  attributesArray);
 
 /**
- * Retrieves whether or not the page has been written to.
+ * @brief Retrieves whether or not the page has been written to.
+ *
  * @param memorySpace [In] The memory space to check the address in.
  * @param address     [In] The address to check for access.
  * @return            Returns OsSuccess if the address is dirty.
@@ -322,7 +341,8 @@ IsMemorySpacePageDirty(
         _In_ vaddr_t       address);
 
 /**
- * Checks if the given virtual address has a physical address and is present.
+ * @brief Checks if the given virtual address has a physical address and is present.
+ *
  * @param memorySpace [In] The memory space to check the address in.
  * @param address     [In] The virtual address to check.
  * @return
@@ -333,7 +353,8 @@ IsMemorySpacePagePresent(
         _In_ vaddr_t       address);
 
 /**
- * Sets the signal handler for the shared memory-space given
+ * @brief Sets the signal handler for the shared memory-space given
+ *
  * @param memorySpace          [In] The memory space to update
  * @param signalHandlerAddress [In] The address of the signal handler.
  * @return                     Status of the operation
@@ -344,7 +365,8 @@ MemorySpaceSetSignalHandler(
         _In_ vaddr_t        signalHandlerAddress);
 
 /**
- * Retrieves the signal-handler address of the given memory-space
+ * @brief Retrieves the signal-handler address of the given memory-space
+ *
  * @param memorySpace [In] The memory space to retrieve the signal handler address from.
  * @return            The address of the signal-handler.
  */

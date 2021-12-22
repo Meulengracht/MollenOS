@@ -192,27 +192,38 @@ AllocatePhysicalMemory(
         _In_ int        pageCount,
         _In_ uintptr_t* pages)
 {
-    OsStatus_t osStatus;
-    int        pagesAllocated = pageCount;
     SystemMemoryAllocatorRegion_t* region;
+    OsStatus_t                     osStatus;
+    int                            pagesLeftToAllocate = pageCount;
+    int                            i = GetMachine()->PhysicalMemory.MaskCount - 1;
 
     // default to the highest allocator
-    region = &GetMachine()->PhysicalMemory.Region[GetMachine()->PhysicalMemory.MaskCount - 1];
-    if (pageMask) {
-        for (int i = GetMachine()->PhysicalMemory.MaskCount - 1; i >= 0; i--) {
-            if (pageMask >= GetMachine()->PhysicalMemory.Masks[i]) {
-                region = &GetMachine()->PhysicalMemory.Region[i];
+    region = &GetMachine()->PhysicalMemory.Region[i];
+    while (pagesLeftToAllocate > 0 && i >= 0) {
+        int pagesAllocated = pagesLeftToAllocate;
+
+        // make sure pagemask is correct if one is provided
+        if (pageMask) {
+            if (pageMask < GetMachine()->PhysicalMemory.Masks[i]) {
+                region = &GetMachine()->PhysicalMemory.Region[--i];
+                continue;
             }
         }
-    }
 
-    IrqSpinlockAcquire(&region->Lock);
-    osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-    if (osStatus == OsIncomplete) {
-        MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
-        osStatus = OsOutOfMemory;
+        // try to allocate all neccessary pages from this memory mask allocator
+        IrqSpinlockAcquire(&region->Lock);
+        osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
+        IrqSpinlockRelease(&region->Lock);
+
+        // if it returns out of memory, then no pages are available here
+        if (osStatus != OsOutOfMemory) {
+            // otherwise, we subtract the number of pages allocated from this
+            pagesLeftToAllocate -= pagesAllocated;
+        }
+
+        // go to next allocator
+        region = &GetMachine()->PhysicalMemory.Region[--i];
     }
-    IrqSpinlockRelease(&region->Lock);
 
     if (osStatus == OsSuccess) {
         GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pageCount;

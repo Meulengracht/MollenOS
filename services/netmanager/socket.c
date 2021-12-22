@@ -56,6 +56,7 @@ CreateSocketPipe(
     Buffer.length   = SOCKET_DEFAULT_BUFFER_SIZE;
     Buffer.capacity = SOCKET_SYSMAX_BUFFER_SIZE; // Should be from global settings
     Buffer.flags    = 0;
+    Buffer.type     = 0;
     
     Status = dma_create(&Buffer, &Pipe->DmaAttachment);
     if (Status != OsSuccess) {

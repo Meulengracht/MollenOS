@@ -60,7 +60,7 @@ __ExtendStack(
     vaddr_t    space;
 
     osStatus = MemorySpaceMap(GetCurrentMemorySpace(),
-                   &space, NULL, newSize,
+                   &space, NULL, newSize, 0,
                    MAPPING_COMMIT | MAPPING_DOMAIN,
                    MAPPING_VIRTUAL_GLOBAL);
     assert(osStatus == OsSuccess);

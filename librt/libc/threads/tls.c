@@ -110,6 +110,7 @@ tls_create(
     info.length   = BUFSIZ;
     info.capacity = BUFSIZ;
     info.flags    = DMA_PERSISTANT;
+    info.type     = DMA_TYPE_DRIVER_32;
     return dma_export(buffer, &info, &Tls->transfer_buffer);
 }
 

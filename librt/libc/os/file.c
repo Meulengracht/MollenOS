@@ -382,6 +382,7 @@ CreateFileMapping(
     bufferInfo.capacity = Length;
     bufferInfo.length   = 0;
     bufferInfo.flags    = DMA_CLEAN | DMA_TRAP;
+    bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = dma_create(&bufferInfo, &fileView->dmaAttachment);
     if (osStatus != OsSuccess) {

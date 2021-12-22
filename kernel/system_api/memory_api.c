@@ -23,6 +23,7 @@
 #define __MODULE "sc_mem"
 //#define __TRACE
 
+#include <arch/utils.h>
 #include <ddk/memory.h>
 
 #include <os/mollenos.h>
@@ -93,11 +94,11 @@ static OsStatus_t __PerformAllocation(
 
     // handle commit act
     if (hint && ((memoryFlags & (MEMORY_COMMIT | MEMORY_FIXED)) == (MEMORY_COMMIT | MEMORY_FIXED))) {
-        osStatus = MemorySpaceCommit(memorySpace, (vaddr_t)hint, pages, length, placementFlags);
+        osStatus = MemorySpaceCommit(memorySpace, (vaddr_t)hint, pages, length, 0, placementFlags);
         allocatedAddress = pages[0];
     }
     else {
-        osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, memoryFlags, placementFlags);
+        osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, 0, memoryFlags, placementFlags);
     }
 
     if (osStatus == OsSuccess) {
@@ -235,6 +236,7 @@ ScDmaCreate(
 {
     OsStatus_t   osStatus;
     unsigned int flags = 0;
+    size_t       pageMask;
     void*        kernelMapping;
 
     if (!info || !attachment) {
@@ -242,14 +244,25 @@ ScDmaCreate(
     }
     
     TRACE("[sc_mem] [dma_create] %u, 0x%x", LODWORD(info->length), info->flags);
+    osStatus = ArchGetPageMaskFromDmaType(info->type, &pageMask);
+    if (osStatus != OsSuccess) {
+        ERROR("ScDmaCreate unsupported dma buffer type %u on this platform", info->type);
+        return osStatus;
+    }
 
     if (info->flags & DMA_PERSISTANT)  { flags |= MAPPING_PERSISTENT; }
     if (info->flags & DMA_UNCACHEABLE) { flags |= MAPPING_NOCACHE; }
     if (info->flags & DMA_TRAP)        { flags |= MAPPING_TRAPPAGE; }
 
-    osStatus = MemoryRegionCreate(info->length, info->capacity,
-                                  flags, &kernelMapping, &attachment->buffer,
-                                  &attachment->handle);
+    osStatus = MemoryRegionCreate(
+            info->length,
+            info->capacity,
+            flags,
+            pageMask,
+            &kernelMapping,
+            &attachment->buffer,
+            &attachment->handle
+    );
     if (osStatus != OsSuccess) {
         return osStatus;
     }
@@ -491,7 +504,7 @@ ScCreateMemorySpaceMapping(
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
     Status = MemorySpaceMap(MemorySpace, &Parameters->VirtualAddress, Pages,
-        Parameters->Length, RequiredFlags, MAPPING_VIRTUAL_FIXED);
+        Parameters->Length, 0, RequiredFlags, MAPPING_VIRTUAL_FIXED);
     kfree(Pages);
     
     if (Status != OsSuccess) {

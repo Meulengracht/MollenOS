@@ -79,23 +79,24 @@ static OsStatus_t
 AllocateMemoryForPool(
     _In_ UsbSchedulerPool_t* Pool)
 {
-    size_t                 ElementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
-    struct dma_buffer_info DmaInfo;
-    OsStatus_t             Status;
+    size_t                 elementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
+    struct dma_buffer_info dmaBufferInfo;
+    OsStatus_t             osStatus;
         
     // Setup required memory allocation flags
     // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
     // Require contigious memory to make allocation/address conversion easier
-    DmaInfo.length   = ElementBytes;
-    DmaInfo.capacity = ElementBytes;
-    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    dmaBufferInfo.length   = elementBytes;
+    dmaBufferInfo.capacity = elementBytes;
+    dmaBufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    dmaBufferInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
-    TRACE("... allocating element pool memory (%u bytes)", ElementBytes);
-    Status = dma_create(&DmaInfo, &Pool->ElementPoolDMA);
-    if (Status != OsSuccess) {
-        ERROR("... failed! %u", Status);
-        return Status;
+    TRACE("... allocating element pool memory (%u bytes)", elementBytes);
+    osStatus = dma_create(&dmaBufferInfo, &Pool->ElementPoolDMA);
+    if (osStatus != OsSuccess) {
+        ERROR("... failed! %u", osStatus);
+        return osStatus;
     }
     (void)dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
@@ -118,6 +119,7 @@ AllocateMemoryForFrameList(
     DmaInfo.length   = FrameListBytes;
     DmaInfo.capacity = FrameListBytes;
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     TRACE("... allocating frame list memory (%u bytes)", FrameListBytes);
     Status = dma_create(&DmaInfo, &Scheduler->Settings.FrameListDMA);

@@ -85,6 +85,7 @@ HciControllerCreate(
     DmaInfo.length   = 0x1000;
     DmaInfo.capacity = 0x1000;
     DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
     
     Status = dma_create(&DmaInfo, &Controller->HccaDMA);
     if (Status != OsSuccess) {

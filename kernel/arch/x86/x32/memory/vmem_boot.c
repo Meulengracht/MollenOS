@@ -27,25 +27,17 @@
 #define __COMPILE_ASSERT
 
 #include <arch.h>
-#include <arch/output.h>
-#include <arch/mmu.h>
-#include <ddk/io.h>
 #include <assert.h>
 #include <cpu.h>
 #include <debug.h>
-#include <gdt.h>
 #include <machine.h>
 #include <memory.h>
 #include <string.h>
-
-extern uintptr_t g_bootMemoryAddress;
 
 uintptr_t g_kernelcr3 = 0;
 uintptr_t g_kernelpd  = 0;
 
 STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
-
-#define GET_TABLE_HELPER(MasterTable, Address) ((PageTable_t*)(MasterTable)->vTables[PAGE_DIRECTORY_INDEX(Address)])
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // by the static assert
@@ -57,6 +49,17 @@ STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
 /* MmVirtualCreatePageTable
  * Creates and initializes a new empty page-table */
 CREATE_STRUCTURE_HELPER(PageTable_t, PageTable)
+
+PageTable_t*
+MmBootGetPageTable(
+        _In_ PAGE_MASTER_LEVEL* masterTable,
+        _In_ vaddr_t            address)
+{
+    PageTable_t* pageTable;
+
+    pageTable = (PageTable_t*)(atomic_load(&masterTable->pTables[PAGE_DIRECTORY_INDEX(address)]) & PAGE_MASK);
+    return pageTable;
+}
 
 static void 
 MmVirtualFillPageTable(
@@ -112,9 +115,11 @@ MmuPrepareKernel(void)
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
-    osStatus = MachineAllocateBootMemory(sizeof(PageDirectory_t),
-                                         &virtualBase,
-                                         (paddr_t*)&pageDirectory);
+    osStatus = MachineAllocateBootMemory(
+            sizeof(PageDirectory_t),
+            &virtualBase,
+            (paddr_t*)&pageDirectory
+    );
     assert(osStatus == OsSuccess);
 
     memset((void*)pageDirectory, 0, sizeof(PageDirectory_t));
@@ -122,38 +127,42 @@ MmuPrepareKernel(void)
     g_kernelpd  = virtualBase;
 
     // Due to how it works with multiple cpu's, we need to make sure all shared
-    // tables already are mapped in the upper-most level of the page-directory
-    TRACE("MmuPrepareKernel pre-mapping kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "",
-        0, MEMORY_LOCATION_KERNEL_END);
-    
+    // tables already are mapped in the uppermost level of the page-directory
+
     // Allocate all neccessary memory before starting to identity map
-    MmVirtualMapMemoryRange(pageDirectory, 0, MEMORY_LOCATION_KERNEL_END, PAGE_PRESENT | PAGE_WRITE);
-    
-    // Get the number of reserved bytes - this address is the NEXT page available for
-    // allocation, so subtract a page
-    bytesToMap = (g_bootMemoryAddress & PAGE_MASK);
+    TRACE("MmuPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+          MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
+    MmVirtualMapMemoryRange(
+            pageDirectory,
+            MEMORY_LOCATION_KERNEL,
+            BYTES_PER_MB,
+            PAGE_PRESENT | PAGE_WRITE
+    );
 
-    // Do the identity map process for entire 2nd page - LastReservedAddress
-    TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
-        PAGE_SIZE, TABLE_SPACE_SIZE);
-    MmVirtualFillPageTable(GET_TABLE_HELPER(pageDirectory, (uint64_t)0),
-                           PAGE_SIZE, PAGE_SIZE, kernelPageFlags, TABLE_SPACE_SIZE - PAGE_SIZE);
-    virtualBase  = TABLE_SPACE_SIZE;
-    physicalBase = TABLE_SPACE_SIZE;
-    bytesToMap  -= MIN(bytesToMap, TABLE_SPACE_SIZE);
-    
+    TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+          MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_START);
+    MmVirtualMapMemoryRange(
+            pageDirectory,
+            MEMORY_LOCATION_SHARED_START,
+            MEMORY_LOCATION_SHARED_END,
+            PAGE_PRESENT | PAGE_WRITE
+    );
+
+    // Do the identity map process for the kernel mapping
+    virtualBase  = MEMORY_LOCATION_KERNEL;
+    physicalBase = MEMORY_LOCATION_KERNEL;
+    bytesToMap   = BYTES_PER_MB;
     while (bytesToMap) {
-        size_t Length = MIN(bytesToMap, TABLE_SPACE_SIZE);
-
-        pageTable = GET_TABLE_HELPER(pageDirectory, virtualBase);
+        size_t length = MIN(bytesToMap, TABLE_SPACE_SIZE - (virtualBase % TABLE_SPACE_SIZE));
         TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
-              virtualBase, virtualBase + Length);
-        MmVirtualFillPageTable(pageTable, physicalBase, virtualBase,
-                               kernelPageFlags, Length);
+              virtualBase, virtualBase + length);
 
-        bytesToMap   -= Length;
-        physicalBase += Length;
-        virtualBase  += Length;
+        pageTable = MmBootGetPageTable(pageDirectory, virtualBase);
+        MmVirtualFillPageTable(pageTable, physicalBase, virtualBase, kernelPageFlags, length);
+
+        bytesToMap   -= length;
+        physicalBase += length;
+        virtualBase  += length;
     }
 }
 

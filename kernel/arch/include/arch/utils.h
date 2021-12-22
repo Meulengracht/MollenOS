@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -26,52 +25,91 @@
 
 #include <os/osdefs.h>
 
-typedef struct Context Context_t;
-typedef struct SystemCpu SystemCpu_t;
+DECL_STRUCT(Context);
+DECL_STRUCT(SystemCpu);
 
-/* ArchDumpThreadContext 
- * Dumps the contents of the given thread context for debugging. */
+/**
+ * @brief Converts a dma type into a page mask used for physical page allocation. This call
+ * is specific to the dma interface and provides a way for platforms to identify which pages
+ * can be used for each dma type.
+ *
+ * @param dmaType     [In]
+ * @param pageMaskOut [Out]
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+ArchGetPageMaskFromDmaType(
+        _In_  unsigned int dmaType,
+        _Out_ size_t*      pageMaskOut);
+
+/**
+ * @brief Dumps the contents of the given thread context for debugging.
+ *
+ * @param context
+ * @return
+ */
 KERNELAPI OsStatus_t KERNELABI
 ArchDumpThreadContext(
     _In_ Context_t *context);
 
-/* ArchGetProcessorCoreId 
- * Returns the current processor core id. */
+/**
+ * @brief Returns the current processor core id.
+ *
+ * @return
+ */
 KERNELAPI UUId_t KERNELABI
 ArchGetProcessorCoreId(void);
 
-/* ArchProcessorInitialize
- * Initializes and fills in the processor structure for the calling processor. */
+/**
+ * @brief Initializes and fills in the processor structure for the calling processor.
+ *
+ * @param Processor
+ */
 KERNELAPI void KERNELABI
 ArchProcessorInitialize(
     _In_ SystemCpu_t* Processor);
 
-/* ArchProcessorSendInterrupt
- * Sends the given interrupt vector to the core specified. */
+/**
+ * @brief Sends the given interrupt vector to the core specified.
+ *
+ * @param CoreId
+ * @param InterruptId
+ * @return
+ */
 KERNELAPI OsStatus_t KERNELABI
 ArchProcessorSendInterrupt(
     _In_ UUId_t CoreId,
     _In_ UUId_t InterruptId);
 
-/* ArchProcessorIdle
- * Enters idle mode for the current processor core. */
+/**
+ * @brief Enters idle mode for the current processor core.
+ */
 KERNELAPI void KERNELABI
 ArchProcessorIdle(void);
 
-/* ArchProcessorHalt
- * Halts the current cpu - rendering system useless. */
+/**
+ * @brief Halts the current cpu - rendering system useless.
+ */
 KERNELAPI void KERNELABI
 ArchProcessorHalt(void);
 
-/* CpuFlushInstructionCache
- * Flushes the instruction cache for the processor. */
+/**
+ * @brief Flushes the instruction cache for the processor.
+ *
+ * @param Start
+ * @param Length
+ */
 KERNELAPI void KERNELABI
 CpuFlushInstructionCache(
     _In_Opt_ void*  Start, 
     _In_Opt_ size_t Length);
 
-/* CpuInvalidateMemoryCache
- * Invalidates a memory area in the memory cache. */
+/**
+ * @brief Invalidates a memory area in the memory cache.
+ *
+ * @param Start
+ * @param Length
+ */
 KERNELAPI void KERNELABI
 CpuInvalidateMemoryCache(
     _In_Opt_ void*  Start, 

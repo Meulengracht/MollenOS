@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -86,10 +84,15 @@ AllocateSyncAddress(
         return status;
     }
 
-    status = MemorySpaceMap(GetCurrentMemorySpace(), (vaddr_t*)&userAddress, &dmaAddress,
-                            GetMemorySpacePageSize(),
-                   MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-                   MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS);
+    status = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            (vaddr_t*)&userAddress,
+            &dmaAddress,
+            GetMemorySpacePageSize(),
+            0,
+            MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+    );
     if (status != OsSuccess) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;

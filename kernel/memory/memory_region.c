@@ -41,6 +41,7 @@ typedef struct MemoryRegion {
     uintptr_t    KernelMapping;
     size_t       Length;
     size_t       Capacity;
+    size_t       PageMask;
     unsigned int Flags;
     int          PageCount;
     uintptr_t    Pages[];
@@ -73,6 +74,7 @@ static OsStatus_t __CreateUserMapping(
                 status = MemorySpaceCommit(memorySpace, address,
                                            &region->Pages[i],
                                            GetMemorySpacePageSize(),
+                                           region->PageMask,
                                            MAPPING_PHYSICAL_FIXED);
             }
         }
@@ -95,7 +97,8 @@ static OsStatus_t __CreateKernelMapping(
     if (region->Length) {
         status = MemorySpaceCommit(
                 memorySpace, (vaddr_t)region->KernelMapping,
-                &region->Pages[0], region->Length, 0);
+                &region->Pages[0], region->Length,
+                region->PageMask, 0);
     }
     return status;
 }
@@ -113,8 +116,14 @@ static OsStatus_t __CreateKernelMappingFromExisting(
     }
 
     status = MemorySpaceMap(
-            memorySpace, (uintptr_t*)&region->KernelMapping,
-            &region->Pages[0], region->Length, region->Flags, MAPPING_VIRTUAL_GLOBAL);
+            memorySpace,
+            (uintptr_t*)&region->KernelMapping,
+            &region->Pages[0],
+            region->Length,
+            region->PageMask,
+            region->Flags,
+            MAPPING_VIRTUAL_GLOBAL
+    );
     return status;
 }
 
@@ -134,6 +143,7 @@ MemoryRegionCreate(
     _In_  size_t       length,
     _In_  size_t       capacity,
     _In_  unsigned int flags,
+    _In_  size_t       pageMask,
     _Out_ void**       kernelMapping,
     _Out_ void**       userMapping,
     _Out_ UUId_t*      handleOut)
@@ -144,7 +154,7 @@ MemoryRegionCreate(
 
     // Capacity is the expected maximum size of the region. Regions
     // are resizable, but to ensure that enough continious space is
-    // allocated we must do it like this. Otherwise one must create a new.
+    // allocated we must do it like this. Otherwise, one must create a new.
     pageCount    = DIVUP(capacity, GetMemorySpacePageSize());
     memoryRegion = (MemoryRegion_t*)kmalloc(
         sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
@@ -158,6 +168,7 @@ MemoryRegionCreate(
     memoryRegion->Length    = length;
     memoryRegion->Capacity  = capacity;
     memoryRegion->PageCount = pageCount;
+    memoryRegion->PageMask  = pageMask;
 
     osStatus = __CreateKernelMapping(memoryRegion, GetCurrentMemorySpace());
     if (osStatus != OsSuccess) {
@@ -198,7 +209,7 @@ MemoryRegionCreateExisting(
 
     // Capacity is the expected maximum size of the region. Regions
     // are resizable, but to ensure that enough continious space is
-    // allocated we must do it like this. Otherwise one must create a new.
+    // allocated we must do it like this. Otherwise, one must create a new.
     capacityWithOffset = size + ((uintptr_t)memory % GetMemorySpacePageSize());
     pageCount          = DIVUP(capacityWithOffset, GetMemorySpacePageSize());
 
@@ -213,6 +224,7 @@ MemoryRegionCreateExisting(
     region->Length    = capacityWithOffset;
     region->Capacity  = capacityWithOffset;
     region->PageCount = pageCount;
+    region->PageMask  = __MASK;    // not relevant on exported regions
 
     osStatus = __CreateKernelMappingFromExisting(region, GetCurrentMemorySpace(), (uintptr_t) memory);
     if (osStatus != OsSuccess) {
@@ -327,16 +339,28 @@ static OsStatus_t __FillInMemoryRegion(
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize(), kernelAddress += GetMemorySpacePageSize()) {
         if (!memoryRegion->Pages[i]) {
             // handle kernel mapping first
-            osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), kernelAddress, &memoryRegion->Pages[i],
-                                         GetMemorySpacePageSize(), 0);
+            osStatus = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    kernelAddress,
+                    &memoryRegion->Pages[i],
+                    GetMemorySpacePageSize(),
+                    memoryRegion->PageMask,
+                    0
+            );
             if (osStatus != OsSuccess) {
                 ERROR("MemoryRegionResize failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
                 break;
             }
 
             // then user mapping
-            osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), userAddress, &memoryRegion->Pages[i],
-                                         GetMemorySpacePageSize(), MAPPING_PHYSICAL_FIXED);
+            osStatus = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    userAddress,
+                    &memoryRegion->Pages[i],
+                    GetMemorySpacePageSize(),
+                    memoryRegion->PageMask,
+                    MAPPING_PHYSICAL_FIXED
+            );
             if (osStatus != OsSuccess) {
                 ERROR("MemoryRegionResize failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;
@@ -365,19 +389,28 @@ static OsStatus_t __ExpandMemoryRegion(
 
     // commit the new pages as one continous operation, this we can do
     end      = memoryRegion->KernelMapping + (currentPageCount * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), end,
-                                 &memoryRegion->Pages[currentPageCount],
-                                 newLength - memoryRegion->Length, 0);
+    osStatus = MemorySpaceCommit(
+            GetCurrentMemorySpace(),
+            end,
+            &memoryRegion->Pages[currentPageCount],
+            newLength - memoryRegion->Length,
+            memoryRegion->PageMask,
+            0
+    );
     if (osStatus != OsSuccess) {
         return osStatus;
     }
 
     // Calculate from where we should start committing new pages
     end      = userAddress + (currentPageCount * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), end,
-                                 &memoryRegion->Pages[currentPageCount],
-                                 newLength - memoryRegion->Length,
-                                 MAPPING_PHYSICAL_FIXED);
+    osStatus = MemorySpaceCommit(
+            GetCurrentMemorySpace(),
+            end,
+            &memoryRegion->Pages[currentPageCount],
+            newLength - memoryRegion->Length,
+            memoryRegion->PageMask,
+            MAPPING_PHYSICAL_FIXED
+    );
     return osStatus;
 }
 
@@ -437,8 +470,14 @@ static OsStatus_t __RefreshMemoryRegion(
 
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize()) {
         if (memoryRegion->Pages[i] && IsMemorySpacePagePresent(GetCurrentMemorySpace(), userAddress) != OsSuccess) {
-            osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), userAddress, &memoryRegion->Pages[i],
-                                         GetMemorySpacePageSize(), MAPPING_PHYSICAL_FIXED);
+            osStatus = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    userAddress,
+                    &memoryRegion->Pages[i],
+                    GetMemorySpacePageSize(),
+                    memoryRegion->PageMask,
+                    MAPPING_PHYSICAL_FIXED
+            );
             if (osStatus != OsSuccess) {
                 ERROR("__RefreshMemoryRegion failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;
@@ -478,7 +517,7 @@ MemoryRegionRefresh(
     newPages     = DIVUP(memoryRegion->Length, GetMemorySpacePageSize());
 
     // Before expanding or shrinking, we want to make sure we fill in any blanks in the existing region
-    // if the region has been scattered. It's not that we need to do this, but its the behaviour we want
+    // if the region has been scattered. It's not that we need to do this, but it's the behaviour we want
     // the region to have
     osStatus = __RefreshMemoryRegion(memoryRegion, (uintptr_t)memory, currentPages);
     if (osStatus != OsSuccess) {
@@ -492,12 +531,17 @@ MemoryRegionRefresh(
         goto exit;
     }
     
-    // Otherwise commit mappings, but instead of doing like the Resize
-    // operation we will tell that we provide them ourself
+    // Otherwise, commit mappings, but instead of doing like the Resize
+    // operation we will tell that we provide them ourselves
     end    = (uintptr_t)memory + (currentPages * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), end,
-                                 &memoryRegion->Pages[currentPages], memoryRegion->Length - currentLength,
-                                 MAPPING_PHYSICAL_FIXED);
+    osStatus = MemorySpaceCommit(
+            GetCurrentMemorySpace(),
+            end,
+            &memoryRegion->Pages[currentPages],
+            memoryRegion->Length - currentLength,
+            memoryRegion->PageMask,
+            MAPPING_PHYSICAL_FIXED
+    );
 
 exit:
     MutexUnlock(&memoryRegion->SyncObject);
@@ -532,16 +576,28 @@ MemoryRegionCommit(
     for (; i < limit; i++, kernelAddress += GetMemorySpacePageSize(), userAddress += GetMemorySpacePageSize()) {
         if (!memoryRegion->Pages[i]) {
             // handle kernel mapping first
-            osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), kernelAddress, &memoryRegion->Pages[i],
-                                         GetMemorySpacePageSize(), 0);
+            osStatus = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    kernelAddress,
+                    &memoryRegion->Pages[i],
+                    GetMemorySpacePageSize(),
+                    memoryRegion->PageMask,
+                    0
+            );
             if (osStatus != OsSuccess) {
                 ERROR("MemoryRegionCommit failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
                 break;
             }
 
             // then user mapping
-            osStatus = MemorySpaceCommit(GetCurrentMemorySpace(), userAddress, &memoryRegion->Pages[i],
-                                         GetMemorySpacePageSize(), MAPPING_PHYSICAL_FIXED);
+            osStatus = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    userAddress,
+                    &memoryRegion->Pages[i],
+                    GetMemorySpacePageSize(),
+                    memoryRegion->PageMask,
+                    MAPPING_PHYSICAL_FIXED
+            );
             if (osStatus != OsSuccess) {
                 ERROR("MemoryRegionCommit failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;

@@ -198,15 +198,14 @@ OsStatus_t
 InitializeMemorySpace(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings,
-        _In_ int                      kernelMappingCount)
+        _In_ PlatformMemoryMapping_t* kernelMappings)
 {
     // initialzie the data structure
     memorySpace->ParentHandle = UUID_INVALID;
     memorySpace->Context      = NULL;
 
     // initialize arch specific stuff
-    return MmuLoadKernel(memorySpace, bootInformation, kernelMappings, kernelMappingCount);
+    return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
 }
 
 OsStatus_t
@@ -466,58 +465,61 @@ static vaddr_t __AllocateVirtualMemory(
 
 OsStatus_t
 MemorySpaceMap(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ vaddr_t*       Address,
-        _InOut_ uintptr_t*     PhysicalAddressValues,
-        _In_    size_t         Length,
-        _In_    unsigned int   MemoryFlags,
-        _In_    unsigned int   PlacementFlags)
+        _In_    MemorySpace_t* memorySpace,
+        _InOut_ vaddr_t*       address,
+        _InOut_ uintptr_t*     physicalAddressValues,
+        _In_    size_t         length,
+        _In_    size_t         pageMask,
+        _In_    unsigned int   memoryFlags,
+        _In_    unsigned int   placementFlags)
 {
-    int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    int        PagesUpdated;
-    vaddr_t    VirtualBase;
-    OsStatus_t Status;
-    TRACE("[memory_map] %u, 0x%x, 0x%x", LODWORD(Length), MemoryFlags, PlacementFlags);
+    int        pageCount = DIVUP(length, GetMemorySpacePageSize());
+    int        pagesUpdated;
+    vaddr_t    virtualBase;
+    OsStatus_t osStatus;
+    TRACE("MemorySpaceMap(len=%" PRIuIN ", attribs=0x%x, placement=0x%x)",
+          length, memoryFlags, placementFlags);
     
     // If we are trying to reserve memory through this call, redirect it to the
     // dedicated reservation method. 
-    if (!(MemoryFlags & MAPPING_COMMIT)) {
-        return MemorySpaceMapReserved(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
+    if (!(memoryFlags & MAPPING_COMMIT)) {
+        return MemorySpaceMapReserved(memorySpace, address, length, memoryFlags, placementFlags);
     }
     
-    assert(MemorySpace != NULL);
-    assert(PhysicalAddressValues != NULL);
-    assert(PlacementFlags != 0);
+    assert(memorySpace != NULL);
+    assert(physicalAddressValues != NULL);
+    assert(placementFlags != 0);
     
     // In case the mappings are provided, we would like to force the COMMIT flag.
-    if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-        MemoryFlags |= MAPPING_COMMIT;
+    if (placementFlags & MAPPING_PHYSICAL_FIXED) {
+        memoryFlags |= MAPPING_COMMIT;
     }
-    else if (MemoryFlags & MAPPING_COMMIT) {
-        Status = AllocatePhysicalMemory(0, PageCount, &PhysicalAddressValues[0]);
-        if (Status != OsSuccess) {
-            return Status;
+    else if (memoryFlags & MAPPING_COMMIT) {
+        osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
+        if (osStatus != OsSuccess) {
+            ERROR("MemorySpaceMap failed to allocate physical memory for mapping");
+            return osStatus;
         }
     }
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    VirtualBase = __AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
-    if (!VirtualBase) {
+    virtualBase = __AllocateVirtualMemory(memorySpace, address, length, memoryFlags, placementFlags);
+    if (!virtualBase) {
         // Cleanup physical mappings
         // TODO
-        ERROR("[memory_map] implement cleanup of phys virt");
+        ERROR("MemorySpaceMap implement cleanup of phys virt");
         return OsInvalidParameters;
     }
-    
-    Status = ArchMmuSetVirtualPages(MemorySpace, VirtualBase, 
-        PhysicalAddressValues, PageCount, MemoryFlags, &PagesUpdated);
-    if (Status != OsSuccess) {
+
+    osStatus = ArchMmuSetVirtualPages(memorySpace, virtualBase,
+                                      physicalAddressValues, pageCount, memoryFlags, &pagesUpdated);
+    if (osStatus != OsSuccess) {
         // Handle cleanup of the pages not mapped
         // TODO
-        ERROR("[memory_map] implement cleanup of phys/virt");
+        ERROR("MemorySpaceMap implement cleanup of phys/virt");
     }
-    return Status;
+    return osStatus;
 }
 
 OsStatus_t
@@ -604,6 +606,7 @@ MemorySpaceCommit(
         _In_ vaddr_t        address,
         _In_ uintptr_t*     physicalAddressValues,
         _In_ size_t         size,
+        _In_ size_t         pageMask,
         _In_ unsigned int   placementFlags)
 {
     int        pageCount = DIVUP(size, GetMemorySpacePageSize());
@@ -615,7 +618,7 @@ MemorySpaceCommit(
     }
 
     if (!(placementFlags & MAPPING_PHYSICAL_FIXED)) {
-        osStatus = AllocatePhysicalMemory(0, pageCount, &physicalAddressValues[0]);
+        osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
         if (osStatus != OsSuccess) {
             return osStatus;
         }

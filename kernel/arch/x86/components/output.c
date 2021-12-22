@@ -516,9 +516,15 @@ InitializeFramebufferOutput(void)
         paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
 
         if (pages) {
-            OsStatus_t status = MemorySpaceMap(GetCurrentMemorySpace(), &backBuffer,
-                                               &pages[0], backBufferSize,
-                                               MAPPING_COMMIT, MAPPING_VIRTUAL_GLOBAL);
+            OsStatus_t status = MemorySpaceMap(
+                    GetCurrentMemorySpace(),
+                    &backBuffer,
+                    &pages[0],
+                    backBufferSize,
+                    0,
+                    MAPPING_COMMIT,
+                    MAPPING_VIRTUAL_GLOBAL
+            );
             if (status == OsSuccess) {
                 Terminal.BackBufferAddress = backBuffer;
             }

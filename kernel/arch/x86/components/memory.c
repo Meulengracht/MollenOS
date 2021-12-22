@@ -23,6 +23,7 @@
 #define __TRACE
 
 #include <arch.h>
+#include <arch/mmu.h>
 #include <arch/output.h>
 #include <assert.h>
 #include <arch/utils.h>
@@ -31,7 +32,7 @@
 #include <gdt.h>
 #include <machine.h>
 #include <memory.h>
-#include "arch/mmu.h"
+#include <os/dmabuf.h>
 
 // Interface to the arch-specific
 extern void memory_invalidate_addr(uintptr_t pda);
@@ -78,7 +79,36 @@ MmuGetMemoryConfiguration(
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_ISA;
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_2GB;
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_32BIT;
+#if defined(__amd64__)
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_64BIT;
+#endif
+}
+
+
+OsStatus_t
+ArchGetPageMaskFromDmaType(
+        _In_  unsigned int dmaType,
+        _Out_ size_t*      pageMaskOut)
+{
+    switch (dmaType) {
+#if defined(__amd64__)
+        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OsSuccess;
+#else
+        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+#endif
+        case DMA_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OsSuccess;
+        case DMA_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OsSuccess;
+        case DMA_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+
+#if defined(__amd64__)
+        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OsSuccess;
+#else
+        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+#endif
+
+        default:
+            return OsNotSupported;
+    }
 }
 
 static unsigned int
@@ -712,9 +742,9 @@ __CreateFirmwareMapping(
 
 static OsStatus_t
 __HandleFirmwareMappings(
-        _In_ MemorySpace_t* memorySpace,
-        _In_  struct VBoot* bootInformation,
-        _Out_ uintptr_t*    stackMapping)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  struct VBoot*  bootInformation,
+        _Out_ uintptr_t*     stackMapping)
 {
     struct VBootMemoryEntry* entries;
     unsigned int             i;
@@ -828,21 +858,27 @@ __FixupVBootAddresses(
 static OsStatus_t
 __CreateKernelMappings(
         _In_ MemorySpace_t*           memorySpace,
-        _In_ PlatformMemoryMapping_t* kernelMappings,
-        _In_ int                      kernelMappingCount)
+        _In_ PlatformMemoryMapping_t* kernelMappings)
 {
-    for (int i = 0; i < kernelMappingCount; i++) {
-        int        pageCount = (int)DIVUP(kernelMappings[i].Length, PAGE_SIZE);
+    PlatformMemoryMapping_t* i;
+    TRACE("__CreateKernelMappings()");
+
+    i = kernelMappings;
+    while (i->Length) {
+        int        pageCount = (int)DIVUP(i->Length, PAGE_SIZE);
         OsStatus_t osStatus = __InstallFirmwareMapping(
                 memorySpace,
-                kernelMappings[i].VirtualBase,
-                kernelMappings[i].PhysicalBase,
+                i->VirtualBase,
+                i->PhysicalBase,
                 pageCount,
                 PAGE_PRESENT | PAGE_WRITE
         );
         if (osStatus != OsSuccess) {
             return osStatus;
         }
+
+        // go to next entry, the kernel mappings end with a 0 entry
+        i++;
     }
     return OsSuccess;
 }
@@ -851,8 +887,7 @@ OsStatus_t
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings,
-        _In_ int                      kernelMappingCount)
+        _In_ PlatformMemoryMapping_t* kernelMappings)
 {
     TRACE("MmuLoadKernel()");
 
@@ -888,7 +923,7 @@ MmuLoadKernel(
         }
 
         // Create all the kernel mappings
-        osStatus = __CreateKernelMappings(memorySpace, kernelMappings, kernelMappingCount);
+        osStatus = __CreateKernelMappings(memorySpace, kernelMappings);
         if (osStatus != OsSuccess) {
             return osStatus;
         }
@@ -899,7 +934,6 @@ MmuLoadKernel(
         // initialize paging and swap the stack address to virtual one, so we don't crap out.
         TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
               g_kernelcr3, stackPhysical, stackVirtual);
-        for(;;);
         memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
     }
     else {

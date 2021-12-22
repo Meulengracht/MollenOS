@@ -118,10 +118,17 @@ __AllocateVirtualPages(
         memoryFlags |= MAPPING_USERSPACE;
     }
 
-    status = MemorySpaceMap(GetCurrentMemorySpace(), &address, &pages[0],
-            pageSize * pageCount, memoryFlags, MAPPING_VIRTUAL_GLOBAL);
+    status = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &address,
+            &pages[0],
+            pageSize * pageCount,
+            0,
+            memoryFlags,
+            MAPPING_VIRTUAL_GLOBAL
+    );
     if (status != OsSuccess) {
-        ERROR("Ran out of memory for allocation in the heap");
+        ERROR("__AllocateVirtualPages Ran out of memory for allocation in the heap");
         return 0;
     }
     return address;

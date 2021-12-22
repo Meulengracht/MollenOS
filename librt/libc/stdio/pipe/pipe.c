@@ -72,6 +72,7 @@ int pipe(long size, int flags)
     bufferInfo.length   = size;
     bufferInfo.capacity = size;
     bufferInfo.flags    = 0;
+    bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = dma_create(&bufferInfo, &attachment);
     if (osStatus != OsSuccess) {

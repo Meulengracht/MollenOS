@@ -111,6 +111,7 @@ VfsStorageParse(
 	dmaInfo.capacity = storage->storage.descriptor.SectorSize;
 	dmaInfo.length   = storage->storage.descriptor.SectorSize;
 	dmaInfo.flags    = 0;
+    dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     osStatus = dma_create(&dmaInfo, &dmaAttachment);
 	if (osStatus != OsSuccess) {

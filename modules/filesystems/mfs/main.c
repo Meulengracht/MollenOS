@@ -303,6 +303,7 @@ FsInitialize(
     bufferInfo.length   = fileSystemBase->Disk.descriptor.SectorSize;
     bufferInfo.capacity = fileSystemBase->Disk.descriptor.SectorSize;
     bufferInfo.flags    = 0;
+    bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
     if (osStatus != OsSuccess) {
@@ -441,6 +442,7 @@ FsInitialize(
     mapInfo.length   = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize;
     mapInfo.capacity = (size_t)Mfs->MasterRecord.MapSize + Descriptor->Disk.descriptor.SectorSize;
     mapInfo.flags    = DMA_PERSISTANT;
+    DmaInfo.type     = DMA_TYPE_DRIVER_32;
     
     Status = dma_export(bMap, &mapInfo, &mapAttachment);
     if (Status != OsSuccess) {

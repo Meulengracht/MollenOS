@@ -35,6 +35,7 @@ struct dma_sg;
  * @param length        [In]  The number of bytes that should be committed initially.
  * @param capacity      [In]  The number of bytes that we should reserve for continuity.
  * @param flags         [In]  Configuration of the memory region and behaviour.
+ * @param pageMask      [In]  The accepted pagemask for any physical pages allocated.
  * @param kernelMapping [Out] The allocated virtual buffer address for the kernel mapping.
  * @param userMapping   [Out] The allocated virtual buffer address for the user mapping.
  * @param handleOut     [Out] The global handle for the memory region.
@@ -42,12 +43,13 @@ struct dma_sg;
  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryRegionCreate(
-    _In_  size_t  length,
-    _In_  size_t  capacity,
+    _In_  size_t       length,
+    _In_  size_t       capacity,
     _In_  unsigned int flags,
-    _Out_ void**  kernelMapping,
-    _Out_ void**  userMapping,
-    _Out_ UUId_t* handleOut);
+    _In_  size_t       pageMask,
+    _Out_ void**       kernelMapping,
+    _Out_ void**       userMapping,
+    _Out_ UUId_t*      handleOut);
 
 /**
  * Exports an existing memory region that stretches over <Length>. Makes sure

@@ -72,6 +72,7 @@ AhciPortCreate(
     bufferInfo.length   = AhciManagerGetFrameSize();
     bufferInfo.capacity = AhciManagerGetFrameSize();
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    bufferInfo.type     = DMA_TYPE_DRIVER_32;
     dma_create(&bufferInfo, &port->InternalBuffer);
     
     // TODO: port nr or bit index? Right now use the Index in the validity map
@@ -224,6 +225,7 @@ AllocateOperationalMemory(
     bufferInfo.length   = sizeof(AHCICommandList_t);
     bufferInfo.capacity = sizeof(AHCICommandList_t);
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = dma_create(&bufferInfo, &port->CommandListDMA);
     if (osStatus != OsSuccess) {

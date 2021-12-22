@@ -37,6 +37,15 @@
 #define DMA_TRAP        0x00000008U // Dma region is a trap region. This can not be used in normal circumstances.
 
 /**
+ * Dma type buffer which can indicate which kind of memory will be allocated
+ */
+#define DMA_TYPE_REGULAR      0  // Regular allocation of physical memory
+#define DMA_TYPE_DRIVER_ISA   1  // Memory should be located in ISA-compatable memory (<16mb)
+#define DMA_TYPE_DRIVER_32LOW 2  // Memory should be allocated in a lower 32 bit region as device may not be fully 32 bit compliant
+#define DMA_TYPE_DRIVER_32    3  // Memory should be located in 32 bit memory
+#define DMA_TYPE_DRIVER_64    4  // Memory should be located in 64 bit memory
+
+/**
  * Access flags that are available when mapping a dma buffer.
  * Read is always implied when mapping a region.
  */
@@ -58,6 +67,7 @@ struct dma_buffer_info {
     size_t       length;
     size_t       capacity;
     unsigned int flags;
+    unsigned int type;
 };
 
 struct dma_attachment {

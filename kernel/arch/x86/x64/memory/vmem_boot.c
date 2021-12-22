@@ -27,7 +27,6 @@
 #define __COMPILE_ASSERT
 
 #include <arch.h>
-#include <arch/mmu.h>
 #include <assert.h>
 #include <cpu.h>
 #include <debug.h>
@@ -204,15 +203,13 @@ MmuPrepareKernel(void)
     );
     assert(osStatus == OsSuccess);
 
-    TRACE("MmuPrepareKernel pageMasterTable=0x%llx, virtualbase=0x%llx",
-          pageMasterTable, virtualBase);
     memset((void*)pageMasterTable, 0, sizeof(PageMasterTable_t));
     g_kernelcr3 = (uintptr_t)pageMasterTable;
     g_kernelpd  = virtualBase;
 
     // Due to how it works with multiple cpu's, we need to make sure all shared
     // tables already are mapped in the uppermost level of the page-directory
-    
+
     // Allocate all neccessary memory before starting to identity map
     TRACE("MmuPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
@@ -233,9 +230,6 @@ MmuPrepareKernel(void)
     );
 
     // Do the identity map process for the kernel mapping
-    TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
-          MEMORY_LOCATION_KERNEL, BYTES_PER_MB);
-
     virtualBase  = MEMORY_LOCATION_KERNEL;
     physicalBase = MEMORY_LOCATION_KERNEL;
     bytesToMap   = BYTES_PER_MB;

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -35,11 +33,11 @@
 
 static HpController_t HpetController = { 0 };
 
-#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + Offset), (void*)ValueOut, 4)
-#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + Offset), (void*)ValueOut, 8)
+#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + (Offset)), (void*)(ValueOut), 4)
+#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + (Offset)), (void*)(ValueOut), 8)
 
-#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + Offset), (void*)&Value, 4)
-#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + Offset), (void*)&Value, 8)
+#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + (Offset)), (void*)&(Value), 4)
+#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + (Offset)), (void*)&(Value), 8)
 
 void
 HpReadCounter(
@@ -182,7 +180,7 @@ HpInterrupt(
                 TimersInterrupt(HpetController.Timers[i].Interrupt);
             }
             if (!HpetController.Timers[i].PeriodicSupport) {
-                // Non periodic timer fired, what now?
+                // Non-periodic timer fired, what now?
                 WARNING("HPET::NON-PERIODIC TIMER FIRED");
             }
         }
@@ -377,10 +375,9 @@ HpInitialize(
         HpReadFrequency, HpReadMainCounter
     };
     
-    int        Legacy        = 0;
-    int        FoundPeriodic = 0;
-    OsStatus_t Status;
-    uintptr_t  UpdatedAddress;
+    int        legacy;
+    OsStatus_t osStatus;
+    uintptr_t  updatedAddress;
     size_t     TempValue;
     int        NumTimers;
     int        i;
@@ -392,18 +389,23 @@ HpInitialize(
     HpetController.BaseAddress = (uintptr_t)(Table->Address.Address);
     HpetController.TickMinimum = Table->MinimumTick;
 
-    Status = MemorySpaceMap(GetCurrentMemorySpace(), 
-        &UpdatedAddress, &HpetController.BaseAddress, GetMemorySpacePageSize(),
-        MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE, 
-        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED);
-    if (Status != OsSuccess) {
+    osStatus = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &updatedAddress,
+            &HpetController.BaseAddress,
+            GetMemorySpacePageSize(),
+            0,
+            MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
+            MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+    );
+    if (osStatus != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;
     }
-    HpetController.BaseAddress = UpdatedAddress;
+    HpetController.BaseAddress = updatedAddress;
 
     // AMD SB700 Systems initialise HPET on first register access,
-    // wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile
+    // wait for it to set up HPET, its config register reads 0xFFFFFFFF meanwhile
     for (i = 0; i < 10000; i++) {
         HP_READ_32(HPET_REGISTER_CONFIG, &TempValue);
         if (TempValue != 0xFFFFFFFF) {
@@ -438,12 +440,12 @@ HpInitialize(
     // Process the capabilities
     HP_READ_32(HPET_REGISTER_CAPABILITIES, &TempValue);
     HpetController.Is64Bit = (TempValue & HPET_64BITSUPPORT) ? 1 : 0;
-    Legacy                 = (TempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
-    NumTimers              = (int)HPET_TIMERCOUNT(TempValue);
+    legacy    = (TempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
+    NumTimers = (int)HPET_TIMERCOUNT(TempValue);
     TRACE("Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "", 
         TempValue, NumTimers, (HpetController.Frequency.u.LowPart / 1000));
 
-    if (Legacy && NumTimers < 2) {
+    if (legacy && NumTimers < 2) {
         ERROR("Failed to initialize HPET, legacy is available but not enough timers.");
         return AE_ERROR;
     }
@@ -456,14 +458,14 @@ HpInitialize(
 
     // Enable the legacy routings if its are supported
     HP_READ_32(HPET_REGISTER_CONFIG, &TempValue);
-    if (Legacy) {
+    if (legacy) {
         TempValue |= HPET_CONFIG_LEGACY;
     }
     HP_WRITE_32(HPET_REGISTER_CONFIG, TempValue);
 
     // Loop through all comparators and configurate them
     for (i = 0; i < NumTimers; i++) {
-        if (HpComparatorInitialize(i, Legacy) == OsError) {
+        if (HpComparatorInitialize(i, legacy) == OsError) {
             ERROR("HPET Failed to initialize comparator %" PRIiIN "", i);
             HpetController.Timers[i].Present = 0;
         }
@@ -471,7 +473,7 @@ HpInitialize(
 
     // If the system is using legacy replacmenet options, then don't initialize
     // any of the hpet timers just yet. Let the base drivers initialize them correctly.
-    for (i = 0; !Legacy && i < NumTimers; i++) {
+    for (i = 0; !legacy && i < NumTimers; i++) {
         if (HpetController.Timers[i].Present && HpetController.Timers[i].PeriodicSupport) {
             if (HpComparatorStart(i, 1000, 1, INTERRUPT_NONE) != OsSuccess) {
                 ERROR("Failed to initialize periodic timer %" PRIiIN "", i);
@@ -482,7 +484,6 @@ HpInitialize(
                 }
                 else {
                     HpetController.Timers[i].SystemTimer = 1;
-                    FoundPeriodic = 1;
                     break;
                 }
             }

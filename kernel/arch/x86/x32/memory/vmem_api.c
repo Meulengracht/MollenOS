@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -221,7 +219,6 @@ MmuCloneVirtualSpace(
     if (!parent) {
         child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
         if (!child->Data[MEMORY_SPACE_IOMAP]) {
-            // fuck
             kfree(pageDirectory);
             return OsOutOfMemory;
         }
@@ -263,20 +260,19 @@ MmuDestroyVirtualSpace(
 
         // Iterate pages in table
         pageTable = (PageTable_t*)pageDirectory->vTables[i];
-        IrqSpinlockAcquire(&GetMachine()->PhysicalMemoryLock);
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
             currentMapping = atomic_load_explicit(&pageTable->Pages[j], memory_order_relaxed);
             if ((currentMapping & PAGE_PERSISTENT) || !(currentMapping & PAGE_PRESENT)) {
                 continue;
             }
 
+
             // If it has a mapping - free it
             if ((currentMapping & PAGE_MASK) != 0) {
                 currentMapping &= PAGE_MASK;
-                bounded_stack_push(&GetMachine()->PhysicalMemory, (void*)currentMapping);
+                FreePhysicalMemory(1, &currentMapping);
             }
         }
-        IrqSpinlockRelease(&GetMachine()->PhysicalMemoryLock);
         kfree(pageTable);
     }
     kfree(pageDirectory);

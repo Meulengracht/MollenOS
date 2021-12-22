@@ -100,6 +100,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
         info.length   = adjustedLength;
         info.capacity = adjustedLength;
         info.flags    = DMA_PERSISTANT;
+        info.type     = DMA_TYPE_DRIVER_32;
         
         status = dma_export(adjustedPointer, &info, &attachment);
         if (status != OsSuccess) {
@@ -160,6 +161,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         info.length   = adjustedLength;
         info.capacity = adjustedLength;
         info.flags    = DMA_PERSISTANT;
+        info.type     = DMA_TYPE_DRIVER_32;
         
         status = dma_export(adjustedPointer, &info, &attachment);
         if (status != OsSuccess) {

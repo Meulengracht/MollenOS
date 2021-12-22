@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,10 +64,9 @@ DebugPageFault(
     // get information about the allocation
     osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
     if (osStatus == OsSuccess) {
-        // userspace allocation, perform additional checks
-        // checks:
+        // userspace allocation, perform additional checks.
         // 1) Was a guard page hit?
-        // 2) Should the exception be propegated (i.e memory handlers)
+        // 2) Should the exception be propegated (i.e. memory handlers)
         if (descriptor.Attributes & MAPPING_GUARDPAGE) {
             // detect stack overflow
         }
@@ -79,10 +77,16 @@ DebugPageFault(
         }
     }
 
-    // Otherwise commit the page and continue without anyone noticing, and handle race-conditions
+    // Otherwise, commit the page and continue without anyone noticing, and handle race-conditions
     // if two different threads have accessed a reserved page. OsExists will be returned.
-    osStatus = MemorySpaceCommit(memorySpace, address, &physicalAddress,
-                                 GetMemorySpacePageSize(), 0);
+    osStatus = MemorySpaceCommit(
+            memorySpace,
+            address,
+            &physicalAddress,
+            GetMemorySpacePageSize(),
+            0,
+            0
+    );
     if (osStatus == OsExists) {
         osStatus = OsSuccess;
     }
@@ -189,7 +193,7 @@ DebugGetModuleByAddress(
     // Validate that the address is within userspace
     if (Address >= GetMachine()->MemoryMap.UserCode.Start && 
         Address < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length)) {
-        // Sanitize whether or not a process was running
+        // Sanitize whether a process was running
         if (Module != NULL && Module->Executable != NULL) {
             uintptr_t PmBase = Module->Executable->VirtualAddress;
             char *PmName     = (char*)MStringRaw(Module->Executable->Name);

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -323,8 +321,15 @@ ThreadingEnterUsermode(
     paddr_t   tlsPhysicalAddress;
 
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
-    MemorySpaceMap(GetCurrentMemorySpace(), &tlsAddress, &tlsPhysicalAddress, GetMemorySpacePageSize(),
-                   MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT, MAPPING_VIRTUAL_THREAD);
+    MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &tlsAddress,
+            &tlsPhysicalAddress,
+            GetMemorySpacePageSize(),
+            0,
+            MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
+            MAPPING_VIRTUAL_THREAD
+    );
 
     // Create the userspace stack(s) now that we will need it
     thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1, thread->UserStackSize);
@@ -580,7 +585,7 @@ GetNextThread:
                                              currentThread->SchedulerObject : NULL, preemptive,
                                              millisecondsPassed, nextDeadlineOut);
     
-    // Sanitize if we need to active our idle thread, otherwise
+    // Sanitize if we need to activate our idle thread, otherwise
     // do a final check that we haven't just gotten ahold of a thread
     // marked for finish
     if (nextThread == NULL) {
@@ -716,7 +721,7 @@ CreateDefaultThreadContexts(
     OsStatus_t status = OsSuccess;
     TRACE("CreateDefaultThreadContexts(thread=0x%" PRIxIN ")", thread);
 
-    // Create the kernel context, for a userspace thread this is always the default
+    // Create the kernel context, for an userspace thread this is always the default
     thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
         status = OsOutOfMemory;

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -106,7 +104,7 @@ InitializeApicLvt(
     }
 
     // Sanity - LVT 1 Default Settings
-    // They can be dependant on whether or not the apic is integrated or a seperated chip
+    // They can be dependent on whether the apic is integrated or a seperated chip
     if (Temp == 0 && Lvt == 1) {
         Temp = APIC_NMI_ROUTE;
         if (!ApicIsIntegrated()) {
@@ -128,29 +126,37 @@ void
 ParseIoApic(
     _In_ SystemInterruptController_t* Controller)
 {
-    uintptr_t Original, Updated;
-    int IoEntries, i, j;
+    uintptr_t originalAddress, remappedAddress;
+    int       ioEntries, i, j;
 
-    // Debug
-    TRACE(" > initialing io-apic %" PRIuIN "", Controller->Id);
+    TRACE("ParseIoApic initialing io-apic %" PRIuIN "", Controller->Id);
 
     // Relocate the io-apic
-    Original = Controller->MemoryAddress;
-    MemorySpaceMap(GetCurrentMemorySpace(), &Updated, &Original, GetMemorySpacePageSize(), 
-        MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL);
-    Controller->MemoryAddress = Updated + (Original & 0xFFF);
+    originalAddress = Controller->MemoryAddress;
+    MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &remappedAddress,
+            &originalAddress,
+            GetMemorySpacePageSize(),
+            MEMORY_MASK_32BIT,
+            MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+    );
+    Controller->MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
 
-    /* Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
+    /**
+     * Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
      * entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
-     * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239. */
-    IoEntries = ApicIoRead(Controller, 1);
-    IoEntries >>= 16;
-    IoEntries &= 0xFF;
-    Controller->NumberOfInterruptLines = IoEntries + 1;
-    TRACE(" > number of interrupt pins: %" PRIiIN "", IoEntries);
+     * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239.
+     */
+    ioEntries = ApicIoRead(Controller, 1);
+    ioEntries >>= 16;
+    ioEntries &= 0xFF;
+    Controller->NumberOfInterruptLines = ioEntries + 1;
+    TRACE(" > number of interrupt pins: %" PRIiIN "", ioEntries);
 
-    /* Structure of IO Entry Register:
+    /**
+     * Structure of IO Entry Register:
      * Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
      * Bits 8 - 10: Delivery Mode. - Read / Write
      *      - 000: Fixed Delivery, deliver interrupt to all cores listed in destination.
@@ -175,7 +181,7 @@ ParseIoApic(
      */
 
     // Step 1 - find the i8259 connection
-    for (i = 0; i <= IoEntries; i++) {
+    for (i = 0; i <= ioEntries; i++) {
         uint64_t Entry = ApicReadIoEntry(Controller, i);
 
         // Unmasked and ExtINT? 
@@ -189,7 +195,7 @@ ParseIoApic(
     }
 
     /* Now clear interrupts */
-    for (i = Controller->InterruptLineBase, j = 0; j <= IoEntries; i++, j++) {
+    for (i = Controller->InterruptLineBase, j = 0; j <= ioEntries; i++, j++) {
         uint64_t Entry = ApicReadIoEntry(Controller, j);
 
         /* Sanitize the entry
@@ -340,27 +346,24 @@ void ApicInitialSetup(UUId_t CoreId)
 void
 ApicSetupESR(void)
 {
-    // Variables
-    int MaxLvt      = 0;
-    uint32_t Temp   = 0;
+    int maxLvt = 0;
 
-    // Sanitize whether or not this
-    // is an integrated chip, because if not ESR is not needed
+    // Sanitize whether this is an integrated chip, because if not ESR is not needed
     if (!ApicIsIntegrated()) {
         return;
     }
 
     // Get the max level of LVT supported
     // on this local apic chip
-    MaxLvt = ApicGetMaxLvt();
-    if (MaxLvt > 3) {
+    maxLvt = ApicGetMaxLvt();
+    if (maxLvt > 3) {
         ApicWriteLocal(APIC_ESR, 0);
     }
-    Temp = ApicReadLocal(APIC_ESR);
+    (void)ApicReadLocal(APIC_ESR);
 
     // Enable errors and clear register
     ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR);
-    if (MaxLvt > 3) {
+    if (maxLvt > 3) {
         ApicWriteLocal(APIC_ESR, 0);
     }
 }
@@ -396,55 +399,61 @@ ApicStartTimer(
 void
 ApicInitialize(void)
 {
-    SystemInterruptController_t* Ic                = NULL;
-    ACPI_TABLE_HEADER*           Header            = NULL;
-    uint32_t                     TemporaryValue    = 0;
-    UUId_t                       BspApicId         = 0;
-    uintptr_t                    OriginalApAddress = 0;
-    uintptr_t                    UpdatedApAddress  = 0;
+    SystemInterruptController_t* ic;
+    ACPI_TABLE_HEADER*           header = NULL;
+    uintptr_t originalApAddress = 0;
+    uintptr_t remappedApAddress = 0;
+    UUId_t    bspApicId;
+    uint32_t  temporaryValue;
+    TRACE("ApicInitialize()");
 
-    // Step 1. Disable IMCR if present (to-do..) 
+    // Step 1. Disable IMCR if present (to-do)
     // But the bit that tells us if IMCR is present
     // is located in the MP tables
     WriteDirectIo(DeviceIoPortBased, 0x22, 1, 0x70);
     WriteDirectIo(DeviceIoPortBased, 0x23, 1, 0x1);
 
     // Step 2. Get the LAPIC base 
-    // So we lookup the MADT table if it exists (if it doesn't
-    // we should fallback to MP tables)
-    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
-        ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
-        OriginalApAddress          = MadtTable->Address;
-        AcpiPutTable(Header);
+    // So we look up the MADT table if it exists (if it doesn't
+    // we should fall back to MP tables)
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &header))) {
+        ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)header;
+        originalApAddress = MadtTable->Address;
+        AcpiPutTable(header);
     }
     else if (MpInitialize() == OsSuccess) {
-        if (MpGetLocalApicAddress(&OriginalApAddress) != OsSuccess) {
+        if (MpGetLocalApicAddress(&originalApAddress) != OsSuccess) {
             // Fallback to msr
             uint64_t Value = 0;
             CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
-            OriginalApAddress = (uintptr_t)Value;
+            originalApAddress = (uintptr_t)Value;
         }
     }
     else {
         // Read from msr
         uint64_t Value = 0;
         CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
-        OriginalApAddress = (uintptr_t)Value;
+        originalApAddress = (uintptr_t)Value;
     }
 
     // Perform the remap
-    TRACE(" > local apic at 0x%" PRIxIN "", OriginalApAddress);
-    MemorySpaceMap(GetCurrentMemorySpace(), &UpdatedApAddress, &OriginalApAddress, 
-        GetMemorySpacePageSize(), 
-        MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED);
-    GlbLocalApicBase = UpdatedApAddress + (OriginalApAddress & 0xFFF);
-    BspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
-    TRACE(" > local bsp id %u", BspApicId);
+    TRACE("ApicInitialize local apic at 0x%" PRIxIN "", originalApAddress);
+    MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &remappedApAddress,
+            &originalApAddress,
+            GetMemorySpacePageSize(),
+            MEMORY_MASK_32BIT,
+            MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+            MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+    );
+    GlbLocalApicBase = remappedApAddress + (originalApAddress & 0xFFF);
+    bspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    TRACE("ApicInitialize local bsp id %u", bspApicId);
 
     // Do some initial shared Apic setup
     // for this processor id
-    ApicInitialSetup(BspApicId);
+    ApicInitialSetup(bspApicId);
 
     // Actually enable APIC on the
     // boot processor, afterwards
@@ -459,29 +468,29 @@ ApicInitialize(void)
     // sets up error registers
     ApicSetupESR();
 
-    // Disable Apic Timer while we setup the io-apics 
+    // Disable Apic Timer while we set up the io-apics
     // we need to be careful still
-    TemporaryValue = ApicReadLocal(APIC_TIMER_VECTOR);
-    TemporaryValue |= (APIC_MASKED | INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_TIMER_VECTOR, TemporaryValue);
+    temporaryValue = ApicReadLocal(APIC_TIMER_VECTOR);
+    temporaryValue |= (APIC_MASKED | INTERRUPT_LAPIC);
+    ApicWriteLocal(APIC_TIMER_VECTOR, temporaryValue);
 
     // Set the system into IoApic mode if possible by initializing
     // the io-apics. If the io-apics don't exist, then there are no interrupt
-    // controllers and we should instead create it as PIC
-    TRACE(" > initializing interrupt controllers");
-    Ic = GetMachine()->InterruptController;
-    if (Ic) {
+    // controllers, and we should instead create it as PIC
+    TRACE("ApicInitialize initializing interrupt controllers");
+    ic = GetMachine()->InterruptController;
+    if (ic) {
         g_interruptMode = InterruptModeApic;
-        while (Ic) {
-            ParseIoApic(Ic);
-            Ic = Ic->Link;
+        while (ic) {
+            ParseIoApic(ic);
+            ic = ic->Link;
         }
     }
 
     // We can now enable the interrupts, as 
     // the IVT table is in place and the local apic
     // has been configured!
-    TRACE(" > enabling interrupts");
+    TRACE("ApicInitialize enabling interrupts");
     InterruptEnable();
     ApicSendEoi(0, 0);
 }
@@ -505,11 +514,11 @@ InitializeLocalApicForApplicationCore(void)
     ApicInitialSetup(ArchGetProcessorCoreId());
     ApicEnable();
 
-    // Setup the LVT channels
+    // Set up the LVT channels
     InitializeApicLvt(0);
     InitializeApicLvt(1);
 
-    // Setup the ESR and disable timer
+    // Set up the ESR and disable timer
     ApicSetupESR();
     ApicStartTimer(0);
 }

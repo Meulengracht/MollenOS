@@ -60,16 +60,16 @@ MmuGetMemoryConfiguration(
  * function returns the new (and final) virtual addressing space must be in effect. It is not expected
  * the memory map be accessible after the swap (it does not need to be mapped in).
  *
- * @param memorySpace     [In] A pointer to the kernel memory space structure.
- * @param bootInformation [In] A pointer to the boot parameters (including memory mappings).
+ * @param memorySpace        [In] A pointer to the kernel memory space structure.
+ * @param bootInformation    [In] A pointer to the boot parameters (including memory mappings).
+ * @param kernelMappings     [In]
  * @return                     Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings,
-        _In_ int                      kernelMappingCount);
+        _In_ PlatformMemoryMapping_t* kernelMappings);
 
 /**
  * @brief Clones the mappings of the parent into child to prepare it for execution. This does
