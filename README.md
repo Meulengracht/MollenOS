@@ -49,7 +49,7 @@ MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
 ## Getting started <a name="getting-started"></a>
 
 ### Environment variables <a name="env-variables"></a>
-Before you setup anything you must setup environmental variables that are used by
+Before you set up anything you must set up environmental variables that are used by
 the project. This is only true if you do not do development with a docker container.
 
 | Variable              | Required | Description             |
@@ -64,7 +64,19 @@ the project. This is only true if you do not do development with a docker contai
 #### Docker
 
 Fully prepared docker images with a toolchain installed are provided from valios/vali-toolchain. This repository
-comes with a Dockerfile that you can use to build the OS with.
+comes with a Dockerfile that you can use to build the OS with. You can also include the userspace
+by downloading the build .tar file from the userspace repository and keep it in
+the same folder as you run the docker command. Then docker will include it when you build an image file.
+
+Building the OS with no artifacts
+```
+docker build --build-arg ARCH=amd64 --file build.Dockerfile .
+```
+
+Building an .img file locally with docker and export it to host:
+```
+DOCKER_BUILDKIT=1 docker build --build-arg ARCH=amd64 --output type=local,dest=build --file nightly.Dockerfile .
+```
 
 #### Local (from source)
 The only thing you need to get started is a succesfully built (custom) toolchain of llvm/clang/lld. To help make this easier
@@ -141,7 +153,7 @@ of deferred packages. See this issue description [here](https://forum.osdev.org/
 
 I appreciate any form for contribution you want to make to the project! The project is purely driven by passion, and I dedicate any and all available spare time to this project. But to take this project to the next level I need support! Contributions of any kind are deerly welcome, but should follow the below guidelines.
 
-You can start contributing on any aspect of the operating system, and if you should ever be in doubt, feel free to send me an email at phailmollen@gmail.com.
+You can start contributing on any aspect of the operating system, and if you should ever be in doubt, feel free to email me at phailmollen@gmail.com.
 
 ### Submitting issues <a name="contrib-issues"></a>
 
@@ -153,15 +165,15 @@ If you want to contribute as a developer on the project please fork the reposito
 
 ## Roadmap <a name="roadmap"></a>
 
-The basic features of the kernel is completed, and the road to the 0.7 release will include mostly bugfixes to kernel or any missing implementations. Some implementations in relation to cleanup of resources and coordination of cleanup are postponed and we now seem to slowly encounter those issues as we continue to port applications and functionality to the operation system. The goal for the 0.7 release are described in the milestone [0.7 Pearl](https://github.com/Meulengracht/MollenOS/milestone/6).
+The basic features of the kernel is completed, and the road to the 0.7 release will include mostly bugfixes to kernel or any missing implementations. Some implementations in relation to clean up of resources and coordination of cleanup are postponed, and we now seem to slowly encounter those issues as we continue to port applications and functionality to the operating system. The goal for the 0.7 release are described in the milestone [0.7 Pearl](https://github.com/Meulengracht/MollenOS/milestone/6).
 
 ## Features <a name="features"></a>
 
 ### Bootloader <a name="features-boot"></a>
-MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own faily complete bootloader for BIOS (only atm, we are planning to implement UEFI soon), which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
+MollenOS uses its own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead, it has its own faily complete bootloader for BIOS (only atm, we are planning to implement UEFI soon), which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
 
 ### Kernel <a name="features-kernel"></a>
-The Vali kernel is far from feature-complete, but it currently is in a state where it supports our use-cases. The kernel itself provides some of the basic system management functions like;
+The Vali kernel is far from feature-complete, but it currently is in a state where it supports our use-cases. The kernel itself provides some basic system management functions like;
  - Memory management
  - Thread management
  - IPC
@@ -213,5 +225,5 @@ All documentation about design and implementation, and the theory behind is stor
 - /modules (Contains drivers for Vali)
 - /protocols (All the libgracht protocols used in the OS for services and modules)
 - /services (Contains system services like the filemanager for Vali)
-- /resources (Contains the deploy folder for installing the OS)
+- /resources (Contains the deployment folder for installing the OS)
 - /tools (Contains tools for building and manipulating)
