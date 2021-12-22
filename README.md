@@ -70,12 +70,12 @@ the same folder as you run the docker command. Then docker will include it when 
 
 Building the OS with no artifacts
 ```
-docker build --build-arg ARCH=amd64 --file build.Dockerfile .
+docker build --build-arg ARCH={i386,amd64} --file build.Dockerfile .
 ```
 
 Building an .img file locally with docker and export it to host:
 ```
-DOCKER_BUILDKIT=1 docker build --build-arg ARCH=amd64 --output type=local,dest=build --file nightly.Dockerfile .
+DOCKER_BUILDKIT=1 docker build --build-arg ARCH={i386,amd64} --output type=local,dest=build --file nightly.Dockerfile .
 ```
 
 #### Local (from source)

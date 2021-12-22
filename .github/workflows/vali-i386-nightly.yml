@@ -17,6 +17,7 @@ jobs:
       uses: docker/setup-buildx-action@v1
     - name: Download vali applications
       uses: dawidd6/action-download-artifact@v2
+      continue-on-error: true
       with:
         workflow: nightly-i386.yml
         workflow_conclusion: success
