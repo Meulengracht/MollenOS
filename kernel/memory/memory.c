@@ -18,7 +18,7 @@
  *   - Implements helpers and utility functions with the MemoryInitialize.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <arch/mmu.h>
@@ -47,13 +47,13 @@ static OsStatus_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
 
 static void
 __PrintMemoryUsage(void) {
-    int    maxBlocks       = READ_VOLATILE(GetMachine()->NumberOfMemoryBlocks);
-    int    freeBlocks      = READ_VOLATILE(GetMachine()->NumberOfFreeMemoryBlocks);
-    int    allocatedBlocks = maxBlocks - freeBlocks;
+    size_t maxBlocks       = READ_VOLATILE(GetMachine()->NumberOfMemoryBlocks);
+    size_t freeBlocks      = READ_VOLATILE(GetMachine()->NumberOfFreeMemoryBlocks);
+    size_t allocatedBlocks = maxBlocks - freeBlocks;
     size_t memoryInUse     = ((size_t)allocatedBlocks * (size_t)GetMemorySpacePageSize());
 
-    TRACE("Memory in use %" PRIuIN " Bytes", memoryInUse);
-    TRACE("Block status %" PRIuIN "/%" PRIuIN, allocatedBlocks, maxBlocks);
+    WRITELINE("Memory in use %" PRIuIN " Bytes", memoryInUse);
+    WRITELINE("Block status %" PRIuIN "/%" PRIuIN, allocatedBlocks, maxBlocks);
 }
 
 static size_t
@@ -347,7 +347,6 @@ __FillPhysicalMemory(
         if (entry->Type == VBootMemoryType_Available) {
             uintptr_t baseAddress = (uintptr_t)entry->PhysicalBase;
             size_t    length      = (size_t)entry->Length;
-            uintptr_t limit;
 
             // adjust values if we allocated this segment for boot memory
             if (baseAddress == bootContext->BootMemoryStart) {
@@ -355,8 +354,8 @@ __FillPhysicalMemory(
                 length      -= reservedMemorySize;
             }
 
-            limit = baseAddress + length;
-            TRACE("__FillPhysicalMemory region %i: 0x%" PRIxIN " => 0x%" PRIxIN, i, baseAddress, limit);
+            TRACE("__FillPhysicalMemory region %i: 0x%" PRIxIN " => 0x%" PRIxIN,
+                  i, baseAddress, baseAddress + length);
             for (j = 0; j < physicalMemory->MaskCount && length; j++) {
                 size_t maskSize;
                 size_t sizeAvailable;

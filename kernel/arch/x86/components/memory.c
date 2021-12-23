@@ -19,8 +19,9 @@
  * Memory Utility Functions
  *   - Implements helpers and utility functions with the MemoryInitialize.
  */
+
 #define __MODULE "MEM0"
-#define __TRACE
+//#define __TRACE
 
 #include <arch.h>
 #include <arch/mmu.h>
