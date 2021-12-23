@@ -1,9 +1,9 @@
 
 # The Mollen(/Vali) Operating System 
 
-| Platform | Nightly Image (.img) | Status   |
-| -------- | -------------------- |:-------- |
-| I386     | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-i386-nightly.yml) | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg) |
+| Platform | Nightly Image (.img)                                                                        | Status                                                                                           |
+|----------|---------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------|
+| I386     | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-i386-nightly.yml)  | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg)   |
 | AMD64    | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-amd64-nightly.yml) | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
 
 
@@ -21,13 +21,12 @@
 3. [Contributing](#contributing)
     1. [Submitting issues](#contrib-issues)
     2. [PRs](#contrib-pr)
-4. [Roadmap](#roadmap)
-5. [Features](#features)
-    1. [Bootloader](#features-boot)
-    2. [Kernel](#features-kernel)
-    3. [Services](#features-services)
-    4. [Drivers](#features-drivers)
-6. [Documentation](#documentation)
+4. [Features](#features)
+    3. [Bootloader](#features-boot)
+    4. [Kernel](#features-kernel)
+    5. [Services](#features-services)
+    6. [Drivers](#features-drivers)
+5. [Documentation](#documentation)
     1. [Architecture](#doc-system-arch)
     2. [Project structure](#doc-project-structure)
 
@@ -41,10 +40,10 @@ MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
 
 ### Noteable projects
 
-| Project               | Link                                                 | Description             |
-| --------------------- |:---------------------------------------------------- |:-----------------------:|
-| Gracht                | [github](https://github.com/Meulengracht/libgracht)  | Protocol library heavily featured in MollenOS/Vali. |
-| Vioarr                | [github](https://github.com/Meulengracht/vioarr)     | Window manager with terminal and launcher built ontop of Gracht. |
+| Project | Link                                                |                           Description                            |
+|---------|:----------------------------------------------------|:----------------------------------------------------------------:|
+| Gracht  | [github](https://github.com/Meulengracht/libgracht) |       Protocol library heavily featured in MollenOS/Vali.        |
+| Vioarr  | [github](https://github.com/Meulengracht/vioarr)    | Window manager with terminal and launcher built ontop of Gracht. |
 
 ## Getting started <a name="getting-started"></a>
 
@@ -52,9 +51,9 @@ MollenOS Discord Server: https://discord.gg/kgQ5uD2mH2
 Before you set up anything you must set up environmental variables that are used by
 the project. This is only true if you do not do development with a docker container.
 
-| Variable              | Required | Description             |
-| --------------------- |:-------- |:-----------------------:|
-| CROSS                 | Yes      | Points to where the cross-compiler is installed. |
+| Variable              | Required |                        Description                         |
+|-----------------------|:---------|:----------------------------------------------------------:|
+| CROSS                 | Yes      |      Points to where the cross-compiler is installed.      |
 | VALI_APPLICATION_PATH | No\*     | Points to where the Vali applications/libraries are built. |
 
 \* Can be supplied to include built applications in the kernel image
@@ -116,8 +115,8 @@ SDK/DDK installed (```make install``` - remember to set CMAKE_INSTALL_PREFIX whe
 the appropriate environmental variables' setup. Then the command ```make install_{img,vmdk}``` will automatically
 pull in all built applications and libraries into the OS image.
 
-| Option        | Description |
-| ------------- |:-----------:|
+| Option        |                                  Description                                  |
+|---------------|:-----------------------------------------------------------------------------:|
 | VALI_SDK_PATH | The path to the installed SDK, usually where Vali is installed with /vali-sdk |
 | VALI_DDK_PATH | The path to the installed DDK, usually where Vali is installed with /valk-ddk |
 
@@ -126,21 +125,21 @@ Then follow the instructions located [here](https://github.com/Meulengracht/vali
 ### The build option for cmake <a name="build-options"></a>
 These are highlighted build configuration options for the cmake generation, there are more options, but these are the most often configured.
 
-| Option            | Default Value | Description             |
-| ----------------- |:-------------:|:-----------------------:|
-| VALI_ARCH                 | i386  | Which architecture you will build the OS and applications for. Supported are i386 and amd64. |
-| VALI_ENABLE_KERNEL_TRACE  | ON    | Enable debug tracing in the kernel. |
-| VALI_ENABLE_SMP           | ON    | Enable multicore support in the kernel. |
+| Option                   | Default Value |                                         Description                                          |
+|--------------------------|:-------------:|:--------------------------------------------------------------------------------------------:|
+| VALI_ARCH                |     i386      | Which architecture you will build the OS and applications for. Supported are i386 and amd64. |
+| VALI_ENABLE_KERNEL_TRACE |      ON       |                             Enable debug tracing in the kernel.                              |
+| VALI_ENABLE_SMP          |      ON       |                           Enable multicore support in the kernel.                            |
 
 ### The build commands <a name="build-commands"></a>
 There is a series of build commands available.
 
-| Command           | Description             |
-| ----------------- |:-----------------------:|
-| make              | Builds the operating system and support libraries |
+| Command           |                                                       Description                                                        |
+|-------------------|:------------------------------------------------------------------------------------------------------------------------:|
+| make              |                                    Builds the operating system and support libraries                                     |
 | make install      | Installs the SDK and DDK to the location pointed by CMAKE_INSTALL_PREFIX. This is needed for app and driver development. |
-| make install_img  | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .img |
-| make install_vmdk | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .vmdk |
+| make install_img  |                Creates a harddisk image with bootloader, kernel, libraries and built apps of format .img                 |
+| make install_vmdk |                Creates a harddisk image with bootloader, kernel, libraries and built apps of format .vmdk                |
 
 ### Known issues <a name="known-issues"></a>
 
@@ -163,14 +162,14 @@ When submitting issues, please take care that the issue is not a dublicate of an
 
 If you want to contribute as a developer on the project please fork the repository, and contribute via pull requests. There is a pull request template you can use when creating a pull request. Please allow for a day or two for me to review the pull request before accepting, as I will take a look as quickly as possible and submit your pull request.
 
-## Roadmap <a name="roadmap"></a>
-
-The basic features of the kernel is completed, and the road to the 0.7 release will include mostly bugfixes to kernel or any missing implementations. Some implementations in relation to clean up of resources and coordination of cleanup are postponed, and we now seem to slowly encounter those issues as we continue to port applications and functionality to the operating system. The goal for the 0.7 release are described in the milestone [0.7 Pearl](https://github.com/Meulengracht/MollenOS/milestone/6).
-
 ## Features <a name="features"></a>
 
 ### Bootloader <a name="features-boot"></a>
-MollenOS uses its own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead, it has its own faily complete bootloader for BIOS (only atm, we are planning to implement UEFI soon), which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
+MollenOS uses its own filesystem (MFS), it is not booted by the 
+more traditional way of GRUB. Instead, it has its own faily 
+complete bootloader for BIOS and UEFI, which can be found in the /boot 
+directory. VBoot is written specifically for MollenOS, and 
+supports booting from both FAT32 & MFS.
 
 ### Kernel <a name="features-kernel"></a>
 The Vali kernel is far from feature-complete, but it currently is in a state where it supports our use-cases. The kernel itself provides some basic system management functions like;
