@@ -49,7 +49,7 @@ set_target_properties (phoenix
         PROPERTIES
             COMPILE_OPTIONS "-nostdlib;-Wno-address-of-packed-member"
             COMPILE_DEFINITIONS "__SERVICE_IMPL"
-            LINK_FLAGS "-Xlinker -entry:__phoenix_main -Xlinker -base:\"${PHOENIX_BASE_ADDRESS}\""
+            LINK_FLAGS "-Xlinker -entry:__phoenix_main -Xlinker -fixed -Xlinker -base:\"${PHOENIX_BASE_ADDRESS}\""
             OUTPUT_NAME "phoenix"
             SUFFIX ".mos"
 )

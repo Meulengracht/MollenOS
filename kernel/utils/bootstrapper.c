@@ -31,7 +31,10 @@ SpawnBootstrapper(void)
     UUId_t     threadHandle;
     OsStatus_t osStatus;
     vaddr_t    codeAddress;
-    TRACE("SpawnBootstrapper()");
+    TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",
+          GetMachine()->BootInformation.Phoenix.Base,
+          GetMachine()->BootInformation.Phoenix.EntryPoint,
+          GetMachine()->BootInformation.Phoenix.Length);
 
     if (!GetMachine()->BootInformation.Phoenix.Length) {
         TRACE("SpawnBootstrapper no bootstrapper present in boot information");
@@ -60,7 +63,7 @@ SpawnBootstrapper(void)
     }
 
     osStatus = ThreadCreate(
-            "phoenix",
+            "phoenix.mos",
             (ThreadEntry_t)GetMachine()->BootInformation.Phoenix.EntryPoint,
             NULL,
             THREADING_USERMODE,

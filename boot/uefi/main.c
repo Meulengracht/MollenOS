@@ -108,7 +108,7 @@ EFI_STATUS EFIAPI EfiMain (
 
     Status = LoadResources(gBootDescriptor, &KernelStack);
     if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"Failed to load kernel or ramdisk\n");
+        ConsoleWrite(L"Failed to load system resources\n");
         return Status;
     }
 

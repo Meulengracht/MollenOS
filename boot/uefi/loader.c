@@ -187,7 +187,7 @@ EFI_STATUS __AllocateKernelStack(
     return EFI_SUCCESS;
 }
 
-EFI_STATUS __AllocateRamdiskSpace(
+EFI_STATUS __AllocatePageAligned(
     IN  UINTN  Size,
     OUT VOID** Memory)
 {
@@ -271,7 +271,7 @@ __LoadRamdisk(
     }
 
     VBoot->Ramdisk.Length = (UINT32)BufferSize;
-    Status = __AllocateRamdiskSpace(BufferSize, (VOID**)&VBoot->Ramdisk.Data);
+    Status = __AllocatePageAligned(BufferSize, (VOID**)&VBoot->Ramdisk.Data);
     if (EFI_ERROR(Status)) {
         return Status;
     }
@@ -297,6 +297,7 @@ __LoadPhoenix(
 
     Status = __LoadFile(L"\\EFI\\VALI\\phoenix.mos", 0, &Buffer, &BufferSize);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadPhoenix Failed to load phoenix\n");
         return Status;
     }
 
@@ -309,20 +310,22 @@ __LoadPhoenix(
     // Get information about the pe image
     Status = PeCoffLoaderGetImageInfo(&ImageContext);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadPhoenix Failed to get image info\n");
         return Status;
     }
 
     // We would like to allocate some new memory for the image
     // to be relocated into, and we do not perform any relocation
     // to this new address as we are still loading the image at the
-    // preffered base address
-    Status = LibraryAllocateMemory(
+    // preffered base address. Make sure we align up to the page size
+    Status = __AllocatePageAligned(
         ImageContext.ImageSize,
         (VOID**)&ImageContext.ImageAddress
     );
 
     Status = PeCoffLoaderLoadImage(&ImageContext);
     if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"__LoadPhoenix Failed to load image %r (%d)\n", Status, ImageContext.ImageError);
         return Status;
     }
 
@@ -340,7 +343,7 @@ __LoadPhoenix(
         (VOID *)(UINTN)ImageContext.ImageAddress, 
         ImageContext.ImageSize
     );
-    ConsoleWrite(L"__LoadPhoenix loaded at 0x%x, Size=0x%x\n", 
+    ConsoleWrite(L"__LoadPhoenix loaded at 0x%llx, Size=0x%llx\n", 
         ImageContext.ImageAddress, ImageContext.ImageSize);
 
     return EFI_SUCCESS;

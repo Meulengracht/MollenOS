@@ -76,6 +76,7 @@ BITS 16
 %define LVAR2_32 dword [ebp - 12]
 %define LVAR3_32 dword [ebp - 16]
 %define LVAR4_32 dword [ebp - 20]
+%define LVAR5_32 dword [ebp - 24]
 
 ; Utilities for me
 %macro TRACE16 1

@@ -180,9 +180,11 @@ LoaderEntry32:
     jz .Stage2Failed
 
     ; eax - size
-    ; ecx - entry point
+    ; ecx - (lower 32 bits) entry point
+    ; edx - (upper 32 bits) entry point
     mov dword [BootHeader + VBoot.KernelBase], KERNEL_BASE_ADDRESS
     mov dword [BootHeader + VBoot.KernelEntry], ecx
+    mov dword [BootHeader + VBoot.KernelEntry + 4], edx
     mov dword [BootHeader + VBoot.KernelLength], eax
 
     ; free unpacked buffer
@@ -238,12 +240,11 @@ LoaderEntry32:
     jz .Stage2Failed
 
     ; swap the file pointer address and load address
-    mov ecx, eax
     mov ebx, dword [BootHeader + VBoot.PhoenixBase]
-    mov dword [BootHeader + VBoot.PhoenixBase], ecx
+    mov dword [BootHeader + VBoot.PhoenixBase], eax
     
     ; Now load the PE image
-    push ecx ; load address
+    push eax ; load address
     push ebx ; file buffer
     call PELoad
     add esp, 8
@@ -251,9 +252,11 @@ LoaderEntry32:
     jz .Stage2Failed
 
     ; eax - size
-    ; ecx - entry point
+    ; ecx - (lower 32 bits) entry point
+    ; edx - (upper 32 bits) entry point
     mov dword [BootHeader + VBoot.PhoenixLength], eax
     mov dword [BootHeader + VBoot.PhoenixEntry], ecx
+    mov dword [BootHeader + VBoot.PhoenixEntry + 4], edx
 
     ; free file buffer
     push ebx

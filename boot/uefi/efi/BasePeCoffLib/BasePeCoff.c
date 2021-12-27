@@ -1241,14 +1241,6 @@ PeCoffLoaderLoadImage (
       ImageContext->ImageError = IMAGE_ERROR_INVALID_SUBSYSTEM;
       return RETURN_LOAD_ERROR;
     }
-    //
-    // If the image does not contain relocations, and the requested load address
-    // is not the linked address, then return an error.
-    //
-    if (CheckContext.ImageAddress != ImageContext->ImageAddress) {
-      ImageContext->ImageError = IMAGE_ERROR_INVALID_IMAGE_ADDRESS;
-      return RETURN_INVALID_PARAMETER;
-    }
   }
   //
   // Make sure the allocated space has the proper section alignment

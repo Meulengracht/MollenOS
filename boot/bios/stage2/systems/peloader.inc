@@ -149,7 +149,8 @@ endstruc
 ; @param buffer [In] Pointer to the buffer containing the PE executable
 ; @param destinationAddress [In] The address to load the executable to
 ; @returns [eax] Size of the image loaded, 0 if error
-; @returns [ecx] Entry point of the image, 0 if error
+; @returns [ecx] Lower 32 bits of entry point of the image, 0 if error
+; @returns [edx] Upper 32 bits of entry point of the image, 0 if error
 ; ********************************
 PELoad:
     STACK_FRAME_BEGIN32
@@ -160,14 +161,18 @@ PELoad:
 
     ; LVAR0 = PE File Buffer
     ; LVAR1 = Relocation Address
-    ; LVAR2 = Entry Point
-    ; LVAR3 = Last Section Address
-    ; LVAR4 = Section iterator
+    ; LVAR2 = Entry Point (lower 32 bit)
+    ; LVAR3 = Entry Point (upper 32 bit)
+    ; LVAR4 = Last Section Address
+    ; LVAR5 = Section iterator
     mov eax, ARG1_32
     mov LVAR1_32, eax
 
     mov eax, ARG0_32
     mov LVAR0_32, eax
+
+    ; zero out upper 32 bit
+    mov LVAR3_32, 0
     
     ; Copy DOS header
     mov esi, eax
@@ -231,8 +236,11 @@ PELoad:
 
         ; Get entry point
         mov	eax, dword [PEOptHeader64 + PEOptionalHeader64.BaseAddress]
+        mov ecx, dword [PEOptHeader64 + PEOptionalHeader64.BaseAddress + 4]
         add	eax, dword [PEOptHeader64 + PEOptionalHeader64.EntryPoint]
+        adc ecx, 0
         mov	LVAR2_32, eax
+        mov LVAR3_32, ecx
 
     ; Get sections
     .prepare_loop:
@@ -242,7 +250,7 @@ PELoad:
         
         xor ecx, ecx
         mov cx, word [PEHeader + PEMainHeader.NumSections]
-        mov LVAR4_32, ecx
+        mov LVAR5_32, ecx
 
     ; Now we need to relocate
     .section_loop:
@@ -324,13 +332,13 @@ PELoad:
 
         .next_section:
             ; Save last edi
-            mov	LVAR3_32, edi
+            mov	LVAR4_32, edi
 
             ; Restore location
             pop esi
 
             ; Move to next section
-            dec	dword LVAR4_32
+            dec	dword LVAR5_32
             jnz .section_loop
             jmp .success
 
@@ -341,12 +349,13 @@ PELoad:
 
     .success:
         ; Page align up and calculate size
-        mov	eax, LVAR3_32
+        mov	eax, LVAR4_32
         and eax, 0xFFFFF000
         add	eax, 0x1000
 
         sub	eax, LVAR1_32 ; return size
-        mov ecx, LVAR2_32 ; return entry point
+        mov ecx, LVAR2_32 ; return lower 32 bit of entry point
+        mov edx, LVAR3_32 ; return upper 32 bit of entry point
 
     .exit:
         pop edi

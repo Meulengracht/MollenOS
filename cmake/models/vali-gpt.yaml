@@ -18,6 +18,9 @@ partitions:
       - type: file
         path: deploy/hdd/system/initrd.mos
         target: /EFI/vali/initrd.mos
+      - type: file
+        path: deploy/hdd/system/phoenix.mos
+        target: /EFI/vali/phoenix.mos
   
   - label: vali-system
     type: MFS

@@ -221,13 +221,15 @@ CRTDECL(void, __cxa_runinitializers(
     __cxa_primary_tls_thread_init  = module_thread_init;
     __cxa_primary_tls_thread_finit = module_thread_finit;
 
-    memcpy(&g_moduleEntries[0], processInformation->LibraryEntries, processInformation->LibraryEntriesLength);
-    g_moduleCount = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
-    
-    TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, g_moduleCount, g_moduleEntries);
-    for (int i = 0; i < g_moduleCount; i++) {
-        TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, g_moduleEntries[i]);
-        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);
+    if (processInformation->LibraryEntriesLength) {
+        memcpy(&g_moduleEntries[0], processInformation->LibraryEntries, processInformation->LibraryEntriesLength);
+        g_moduleCount = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
+
+        TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, g_moduleCount, g_moduleEntries);
+        for (int i = 0; i < g_moduleCount; i++) {
+            TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, g_moduleEntries[i]);
+            ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);
+        }
     }
 
     // Run global and primary thread setup for process
