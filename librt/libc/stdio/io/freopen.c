@@ -70,7 +70,7 @@ FILE* freopen(
 			_fflags(mode, &open_flags, &stream_flags);
 			// TODO: support multiple types of streams
 			
-			sys_file_set_options(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
+			sys_file_set_options(GetGrachtClient(), &msg.base, *__crt_processid_ptr(),
 				handle->object.handle, _fopts(open_flags), _faccess(open_flags));
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 			sys_file_set_options_result(GetGrachtClient(), &msg.base, &status);

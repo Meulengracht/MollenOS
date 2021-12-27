@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,12 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <os/mollenos.h>
 
 clock_t
 clock(void)
 {
-    LargeUInteger_t SysTick = { { 0 } };
-    GetSystemTick(TIME_MONOTONIC, &SysTick);
-    return (clock_t)SysTick.QuadPart;
+    LargeUInteger_t tick = {{0 } };
+    GetSystemTick(TIME_MONOTONIC, &tick);
+    return (clock_t)tick.QuadPart;
 }

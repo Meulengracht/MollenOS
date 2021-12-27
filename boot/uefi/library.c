@@ -280,7 +280,7 @@ static void __FixupMemoryMap(
     UINTN                    i;
     ConsoleWrite(L"__FixupMemoryMap()\n");
 
-    KernelAddress = (EFI_PHYSICAL_ADDRESS)VBoot->Kernel.Data;
+    KernelAddress = (EFI_PHYSICAL_ADDRESS)VBoot->Kernel.Base;
     Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 0; i < VBoot->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* Entry = &Entries[i];

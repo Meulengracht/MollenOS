@@ -33,7 +33,6 @@
 #include <handle.h>
 #include <heap.h>
 #include <memoryspace.h>
-#include <modules/manager.h>
 #include <threading.h>
 #include <string.h>
 
@@ -164,7 +163,6 @@ AcquireSystemDeviceIo(
 {
     SystemDeviceIo_t *    SystemIo;
     MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    SystemModule_t   *      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
     assert(IoSpace != NULL);
 
@@ -174,14 +172,11 @@ AcquireSystemDeviceIo(
     SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy
-    if (Module == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
-        if (Module == NULL) {
-            ERROR(" > non-server process tried to acquire io-space");
-        }
+    if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
         return OsError;
     }
-    SystemIo->Owner = Module->Handle;
+    SystemIo->Owner = GetCurrentMemorySpaceHandle();
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
@@ -227,7 +222,6 @@ ReleaseSystemDeviceIo(
 {
     SystemDeviceIo_t *    SystemIo;
     MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    SystemModule_t   *      Module = GetCurrentModule();
     UUId_t               CoreId = ArchGetProcessorCoreId();
     
     assert(IoSpace != NULL);
@@ -236,11 +230,7 @@ ReleaseSystemDeviceIo(
     SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
 
     // Sanitize the system copy and do some security checks
-    if (Module == NULL || SystemIo == NULL || 
-        SystemIo->Owner != Module->Handle) {
-        if (Module == NULL) {
-            ERROR(" > non-server process tried to acquire io-space");
-        }
+    if (SystemIo == NULL || SystemIo->Owner != GetCurrentMemorySpaceHandle()) {
         ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
         return OsError;
     }
@@ -337,13 +327,8 @@ uintptr_t
 ValidateDeviceIoMemoryAddress(
     _In_ uintptr_t Address)
 {
-    SystemModule_t* Module = GetCurrentModule();
     TRACE("ValidateDeviceIoMemoryAddress(Process %" PRIuIN ", Address 0x%" PRIxIN ")", Handle, Address);
 
-    if (Module == NULL) {
-        return 0;
-    }
-    
     // Iterate and check each io-space if the process has this mapped in
     foreach(i, &g_ioSpaces) {
         SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)i->value;
@@ -352,7 +337,7 @@ ValidateDeviceIoMemoryAddress(
         // Two things has to be true before the io-space
         // is valid, it has to belong to the right process
         // and be in range 
-        if (IoSpace->Owner == Module->Handle && IoSpace->Io.Type == DeviceIoMemoryBased &&
+        if (IoSpace->Owner == GetCurrentMemorySpaceHandle() && IoSpace->Io.Type == DeviceIoMemoryBased &&
             (Address >= VirtualBase && Address < (VirtualBase + IoSpace->Io.Access.Memory.Length))) {
             return IoSpace->Io.Access.Memory.PhysicalBase + (Address - VirtualBase);
         }

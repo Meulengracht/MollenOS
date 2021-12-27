@@ -151,8 +151,8 @@ GetUserDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? 
-        PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(__crt_is_phoenix() ?
+                                  PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -163,8 +163,8 @@ GetUserCacheDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? 
-        PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(__crt_is_phoenix() ?
+                                  PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -175,8 +175,8 @@ GetApplicationDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? 
-        PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(__crt_is_phoenix() ?
+                                  PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -187,6 +187,6 @@ GetApplicationTemporaryDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? 
-        PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(__crt_is_phoenix() ?
+                                  PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
 }

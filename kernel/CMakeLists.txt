@@ -54,7 +54,6 @@ add_subdirectory(acpi)
 add_subdirectory(arch)
 add_subdirectory(components)
 add_subdirectory(memory)
-add_subdirectory(modules)
 add_subdirectory(output)
 add_subdirectory(scheduling)
 add_subdirectory(system_api)
@@ -64,7 +63,7 @@ set_target_properties (
 	vali-core
 	PROPERTIES
         LINK_FLAGS "-Xlinker -entry:kentry -Xlinker -fixed -Xlinker -base:\"0x100000\" -Xlinker -manifest:no"
-		OUTPUT_NAME "syskrnl"
+		OUTPUT_NAME "kernel"
         SUFFIX ".mos"
 )
 target_compile_options(vali-core

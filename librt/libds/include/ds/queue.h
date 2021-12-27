@@ -29,7 +29,7 @@
 #include <ds/shared.h>
 #include <stdint.h>
 
-typedef struct queue {
+typedef struct gr_queue {
     struct element* head;
     struct element* tail;
     size_t          count;

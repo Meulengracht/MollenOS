@@ -13,8 +13,8 @@ partitions:
         path: boot/bin/VBOOT.efi
         target: /EFI/BOOT/BOOTX64.EFI
       - type: file
-        path: deploy/hdd/system/syskrnl.mos
-        target: /EFI/vali/syskrnl.mos
+        path: deploy/hdd/system/kernel.mos
+        target: /EFI/vali/kernel.mos
       - type: file
         path: deploy/hdd/system/initrd.mos
         target: /EFI/vali/initrd.mos

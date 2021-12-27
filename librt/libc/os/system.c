@@ -49,7 +49,7 @@ GetSystemTick(
     _In_ int              TickBase,
     _In_ LargeUInteger_t* Tick)
 {
-    if (TickBase == TIME_PROCESS && !IsProcessModule()) {
+    if (TickBase == TIME_PROCESS && !__crt_is_phoenix()) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         OsStatus_t               status;
         

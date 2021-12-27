@@ -34,6 +34,7 @@
 #include <string.h>
 #include <strings.h>
 #include <threads.h>
+#include "assert.h"
 
 struct library_element {
     const char* path;
@@ -62,6 +63,7 @@ Handle_t
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(UUID_INVALID);
     SOInitializer_t          Initializer;
     struct library_element*  library;
     Handle_t                 handle   = HANDLE_INVALID;
@@ -73,6 +75,8 @@ SharedObjectLoad(
         return HANDLE_GLOBAL;
     }
 
+    assert(__crt_is_phoenix() == 0);
+
     mtx_lock(&g_librariesLock);
     library = hashtable_get(&g_libraries, &(struct library_element) { .path = SharedObject });
     if (library) {
@@ -82,15 +86,10 @@ SharedObjectLoad(
         return handle;
     }
 
-    if (IsProcessModule()) {
-        osStatus = Syscall_LibraryLoad(SharedObject, &handle, &entryAddress);
-    }
-    else {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        sys_library_load(GetGrachtClient(), &msg.base, *GetInternalProcessId(), SharedObject);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_library_load_result(GetGrachtClient(), &msg.base, &osStatus, (uintptr_t*)&handle, &entryAddress);
-    }
+    msg.address.data.handle = GetProcessService();
+    sys_library_load(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), SharedObject);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_library_load_result(GetGrachtClient(), &msg.base, &osStatus, (uintptr_t*)&handle, &entryAddress);
 
     if (osStatus == OsSuccess && handle != HANDLE_INVALID) {
         struct library_element element;
@@ -138,22 +137,19 @@ SharedObjectGetFunction(
 		return NULL;
 	}
 
-    if (IsProcessModule()) {
-        return (void*)Syscall_LibraryFunction(Handle, Function);
+    assert(__crt_is_phoenix() == 0);
+
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    uintptr_t AddressOfFunction;
+
+    sys_library_get_function(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle, Function);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
+    OsStatusToErrno(Status);
+    if (Status != OsSuccess) {
+        return NULL;
     }
-    else {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        uintptr_t AddressOfFunction;
-        
-        sys_library_get_function(GetGrachtClient(), &msg.base, *GetInternalProcessId(), (uintptr_t)Handle, Function);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
-        OsStatusToErrno(Status);
-        if (Status != OsSuccess) {
-            return NULL;
-        }
-        return (void*)AddressOfFunction;
-    }
+    return (void*)AddressOfFunction;
 }
 
 struct so_enum_context {
@@ -179,6 +175,8 @@ SharedObjectUnload(
         return OsSuccess;
     }
 
+    assert(__crt_is_phoenix() == 0);
+
     enumContext.handle  = Handle;
     enumContext.library = NULL;
 
@@ -197,16 +195,11 @@ SharedObjectUnload(
         if (initialize != NULL) {
             initialize(DLL_ACTION_FINALIZE);
         }
-        
-        if (IsProcessModule()) {
-            status = Syscall_LibraryUnload(Handle);
-        }
-        else {
-            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-            sys_library_unload(GetGrachtClient(), &msg.base, *GetInternalProcessId(), (uintptr_t)Handle);
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-            sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
-        }
+
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+        sys_library_unload(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
         OsStatusToErrno(status);
     }
     mtx_unlock(&g_librariesLock);

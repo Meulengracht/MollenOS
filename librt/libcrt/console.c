@@ -24,7 +24,7 @@
 #include <stdlib.h>
 
 extern int    main(int argc, char **argv, char **envp);
-extern char** __crt_init(thread_storage_t* threadStorage, int isModule, int* argumentCount);
+extern char** __crt_initialize(thread_storage_t* threadStorage, int isPhoenix, int* argumentCount);
 
 void
 __CrtConsoleEntry(void)
@@ -34,7 +34,7 @@ __CrtConsoleEntry(void)
 	int              argc;
 	int              exitCode;
 
-	argv = __crt_init(&threadStorage, 0, &argc);
+	argv = __crt_initialize(&threadStorage, 0, &argc);
 	exitCode = main(argc, argv, NULL);
 	free(argv);
 	exit(exitCode);

@@ -44,10 +44,6 @@ set (SHARED_SOURCES
     mstring/mstringsubstring.c
     mstring/mstringutf8.c
 
-    pe/load.c
-    pe/utilities.c
-    pe/verify.c
-
     bitmap.c
     bounded_stack.c
     collection.c

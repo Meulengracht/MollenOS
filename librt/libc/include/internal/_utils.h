@@ -22,9 +22,9 @@ typedef struct HandleSetWaitParameters {
     int                 pollEvents;
 } HandleSetWaitParameters_t;
 
-extern int                IsProcessModule(void);
-extern UUId_t*            GetInternalProcessId(void);
-extern const char*        GetInternalCommandLine(void);
+extern int                __crt_is_phoenix(void);
+extern UUId_t*            __crt_processid_ptr(void);
+extern const char*        __crt_cmdline(void);
 
 CRTDECL(gracht_client_t*, GetGrachtClient(void));
 CRTDECL(UUId_t,           GetNativeHandle(int));

@@ -29,3 +29,4 @@ add_service_target(sessionmanager ""
     main.c
 )
 add_dependencies(sessionmanager service_servers)
+deploy_to_initrd(sessionmanager ON)

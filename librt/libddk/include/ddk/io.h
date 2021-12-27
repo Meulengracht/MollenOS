@@ -83,18 +83,20 @@ void WriteVolatileMemory(
     _In_ void*          Data,
     _In_ size_t         Length);
 
-/* CreateDeviceMemoryIo
- * Registers a new device memory io with the operating system. If this memory range
- * overlaps any existing io range, this request will be denied by the system. */
+/**
+ * @brief Registers a new device memory io with the operating system. If this memory range
+ * overlaps any existing io range, this request will be denied by the system.
+ */
 DDKDECL(OsStatus_t,
 CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
     _In_ size_t         Length));
 
-/* CreateDevicePortIo
- * Registers a new device port io with the operating system. If this port io range
- * overlaps any existing range, this request will be denied by the system. */
+/**
+ * @brief Registers a new device port io with the operating system. If this port io range
+ * overlaps any existing range, this request will be denied by the system.
+ */
 DDKDECL(OsStatus_t,
 CreateDevicePortIo(
     _In_ DeviceIo_t*    IoSpace,

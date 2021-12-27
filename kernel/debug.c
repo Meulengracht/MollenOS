@@ -23,8 +23,6 @@
 #define __MODULE "DBGI"
 //#define __TRACE
 
-#include "../librt/libds/pe/pe.h"
-#include <modules/manager.h>
 #include <arch/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>
@@ -181,46 +179,6 @@ DebugPanic(
     return OsSuccess;
 }
 
-/* DebugGetModuleByAddress
- * Retrieves the module (Executable) at the given address */
-OsStatus_t
-DebugGetModuleByAddress(
-    _In_  SystemModule_t* Module,
-    _In_  uintptr_t       Address,
-    _Out_ uintptr_t*      Base,
-    _Out_ char**          Name)
-{
-    // Validate that the address is within userspace
-    if (Address >= GetMachine()->MemoryMap.UserCode.Start && 
-        Address < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length)) {
-        // Sanitize whether a process was running
-        if (Module != NULL && Module->Executable != NULL) {
-            uintptr_t PmBase = Module->Executable->VirtualAddress;
-            char *PmName     = (char*)MStringRaw(Module->Executable->Name);
-
-            // Was it not main executable?
-            if (Address > (Module->Executable->CodeBase + Module->Executable->CodeSize)) {
-                // Iterate libraries to find the sinner
-                if (Module->Executable->Libraries != NULL) {
-                    foreach(i, Module->Executable->Libraries) {
-                        PeExecutable_t* Lib = i->value;
-                        if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
-                            PmName = (char*)MStringRaw(Lib->Name);
-                            PmBase = Lib->VirtualAddress;
-                        }
-                    }
-                }
-            }
-            *Base = PmBase;
-            *Name = PmName;
-            return OsSuccess;
-        }
-    }
-    *Base = 0;
-    *Name = NULL;
-    return OsError;
-}
-
 OsStatus_t
 DebugStackTrace(
     _In_ Context_t* context,
@@ -248,20 +206,12 @@ DebugStackTrace(
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
         uintptr_t Value = StackPtr[0];
-        uintptr_t Base  = 0;
-        char *Name      = NULL;
 
         // Check for userspace code address
         if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
             Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
             context != NULL) {
-            if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
-                WRITELINE("%" PRIuIN " - 0x%" PRIxIN " (%s)", maxFrames - Itr, (Value - Base), Name);
-                
-            }
-            else {
-                WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
-            }
+            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
             Itr--;
         }
 
@@ -275,9 +225,6 @@ DebugStackTrace(
     return OsSuccess;
 }
 
-/* DebugMemory 
- * Dumps memory in the form of <data> <string> at the
- * given address and length of memory dump */
 OsStatus_t
 DebugMemory(
     _In_Opt_ const char*    Description,

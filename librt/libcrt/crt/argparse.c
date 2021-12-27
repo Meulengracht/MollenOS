@@ -24,7 +24,7 @@
 #include <crtdefs.h>
 #include <ctype.h>
 
-void
+static void
 __unescape_quotes(
         _InOut_ char* string)
 {
@@ -49,7 +49,7 @@ __unescape_quotes(
 }
 
 int
-__parse_cmdline(
+__crt_parse_cmdline(
         _In_ char*  rawCommandLine,
         _In_ char** argv)
 {

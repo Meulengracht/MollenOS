@@ -119,6 +119,19 @@ SystemDebug(
 	_In_ int         Type,
 	_In_ const char* Format, ...));
 
+/**
+ * @brief Requests to have the boot ramdisk mapped into the current memory space and
+ * returns a pointer to the ramdisk. The memory can be freed by calling MemoryFree.
+ *
+ * @param bufferOut       [Out] A pointer to storage of a void* pointer that will be set to the ramdisk.
+ * @param bufferLengthOut [Out] Size of the ramdisk buffer
+ * @return                Status of the operation.
+ */
+DDKDECL(OsStatus_t,
+DdkUtilsMapRamdisk(
+        _Out_ void**  bufferOut,
+        _Out_ size_t* bufferLengthOut));
+
 _CODE_END
 
 #endif //!_UTILS_INTERFACE_H_

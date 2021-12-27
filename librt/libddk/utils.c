@@ -56,5 +56,21 @@ QueryDisplayInformation(VideoDescriptor_t* Descriptor)
 
 void* CreateDisplayFramebuffer(void)
 {
-    return Syscall_CreateDisplayFramebuffer();
+    void*      framebuffer;
+    OsStatus_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
+    if (osStatus != OsSuccess) {
+        return NULL;
+    }
+    return framebuffer;
+}
+
+OsStatus_t
+DdkUtilsMapRamdisk(
+        _Out_ void**  bufferOut,
+        _Out_ size_t* bufferLengthOut)
+{
+    if (!bufferOut || !bufferLengthOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_MapRamdisk(bufferOut, bufferLengthOut);
 }

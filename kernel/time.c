@@ -24,7 +24,6 @@
 //#define __TRACE
 
 #include "../librt/libc/time/local.h"
-#include <modules/manager.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>

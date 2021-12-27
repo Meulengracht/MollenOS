@@ -35,7 +35,7 @@ ProcessGetLibraryHandles(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     
-    sys_process_get_modules(GetGrachtClient(), &msg.base, *GetInternalProcessId());
+    sys_process_get_modules(GetGrachtClient(), &msg.base, *__crt_processid_ptr());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_get_modules_result(GetGrachtClient(), &msg.base, (uintptr_t*)ModuleList,
                                    PROCESS_MAXMODULES, ModuleCountOut);
@@ -49,7 +49,7 @@ UnwindGetSection(
     Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
     int      ModuleCount;
     
-    if (IsProcessModule()) {
+    if (__crt_is_phoenix()) {
         return OsDoesNotExist;
     }
     

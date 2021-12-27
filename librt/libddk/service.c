@@ -172,15 +172,3 @@ WaitForNetService(
 {
     return WaitForService(GetNetService, Timeout);
 }
-
-OsStatus_t
-InstallDriver(
-    _In_ Device_t* Device, 
-    _In_ size_t         Length,
-    _In_ const void*    DriverBuffer,
-    _In_ size_t         DriverBufferLength)
-{
-    assert(Device != NULL);
-    assert(Length != 0);
-	return Syscall_LoadDriver(Device, DriverBuffer, DriverBufferLength);
-}

@@ -199,19 +199,18 @@ EFI_STATUS __AllocateRamdiskSpace(
     );
 }
 
-EFI_STATUS LoadKernel(
-    IN  struct VBoot*         VBoot,
-    OUT EFI_PHYSICAL_ADDRESS* EntryPoint,
-    OUT VOID**                KernelStack)
+EFI_STATUS
+__LoadKernel(
+    IN  struct VBoot* VBoot)
 {
     EFI_STATUS Status;
     VOID*      Buffer;
     UINTN      BufferSize;
-    ConsoleWrite(L"LoadKernel()\n");
+    ConsoleWrite(L"__LoadKernel()\n");
 
     PE_COFF_LOADER_IMAGE_CONTEXT ImageContext;
 
-    Status = __LoadFile(L"\\EFI\\VALI\\syskrnl.mos", 1, &Buffer, &BufferSize);
+    Status = __LoadFile(L"\\EFI\\VALI\\kernel.mos", 1, &Buffer, &BufferSize);
     if (EFI_ERROR(Status)) {
         return Status;
     }
@@ -241,8 +240,9 @@ EFI_STATUS LoadKernel(
     }
 
     // Update the VBoot structure
-    VBoot->Kernel.Data   = (unsigned long long)ImageContext.ImageAddress;
-    VBoot->Kernel.Length = ImageContext.ImageSize;
+    VBoot->Kernel.Base       = (unsigned long long)ImageContext.ImageAddress;
+    VBoot->Kernel.EntryPoint = (unsigned long long)ImageContext.EntryPoint;
+    VBoot->Kernel.Length     = ImageContext.ImageSize;
 
     // Flush not needed for all architectures. We could have a processor specific
     // function in this library that does the no-op if needed.
@@ -250,8 +250,19 @@ EFI_STATUS LoadKernel(
         (VOID *)(UINTN)ImageContext.ImageAddress, 
         ImageContext.ImageSize
     );
-    ConsoleWrite(L"LoadKernel Loaded kernel at 0x%x, Size=0x%x\n", 
+    ConsoleWrite(L"__LoadKernel loaded at 0x%x, Size=0x%x\n", 
         ImageContext.ImageAddress, ImageContext.ImageSize);
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS
+__LoadRamdisk(
+    IN  struct VBoot* VBoot)
+{
+    EFI_STATUS Status;
+    VOID*      Buffer;
+    UINTN      BufferSize;
+    ConsoleWrite(L"__LoadRamdisk()\n");
 
     // Load and relocate the ramdisk
     Status = __LoadFile(L"\\EFI\\VALI\\initrd.mos", 1, &Buffer, &BufferSize);
@@ -270,13 +281,97 @@ EFI_STATUS LoadKernel(
 
     CopyMem((VOID*)VBoot->Ramdisk.Data, Buffer, BufferSize);
     LibraryFreeMemory(Buffer);
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS
+__LoadPhoenix(
+    IN  struct VBoot* VBoot)
+{
+    EFI_STATUS Status;
+    VOID*      Buffer;
+    UINTN      BufferSize;
+    ConsoleWrite(L"__LoadPhoenix()\n");
+
+    PE_COFF_LOADER_IMAGE_CONTEXT ImageContext;
+
+    Status = __LoadFile(L"\\EFI\\VALI\\phoenix.mos", 0, &Buffer, &BufferSize);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    // Initialize the image context
+    SetMem(&ImageContext, sizeof(ImageContext), 0);
+
+    ImageContext.Handle = Buffer;
+    ImageContext.ImageRead = PeCoffLoaderImageReadFromMemory;
+
+    // Get information about the pe image
+    Status = PeCoffLoaderGetImageInfo(&ImageContext);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    // We would like to allocate some new memory for the image
+    // to be relocated into, and we do not perform any relocation
+    // to this new address as we are still loading the image at the
+    // preffered base address
+    Status = LibraryAllocateMemory(
+        ImageContext.ImageSize,
+        (VOID**)&ImageContext.ImageAddress
+    );
+
+    Status = PeCoffLoaderLoadImage(&ImageContext);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    // Free the filebuffer, we don't need that anymore
+    LibraryFreeMemory(Buffer);
+
+    // Update the VBoot structure
+    VBoot->Phoenix.Base       = (unsigned long long)ImageContext.ImageAddress;
+    VBoot->Phoenix.EntryPoint = (unsigned long long)ImageContext.EntryPoint;
+    VBoot->Phoenix.Length     = ImageContext.ImageSize;
+
+    // Flush not needed for all architectures. We could have a processor specific
+    // function in this library that does the no-op if needed.
+    InvalidateInstructionCacheRange(
+        (VOID *)(UINTN)ImageContext.ImageAddress, 
+        ImageContext.ImageSize
+    );
+    ConsoleWrite(L"__LoadPhoenix loaded at 0x%x, Size=0x%x\n", 
+        ImageContext.ImageAddress, ImageContext.ImageSize);
+
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS LoadResources(
+    IN  struct VBoot* VBoot,
+    OUT VOID**        KernelStack)
+{
+    EFI_STATUS Status;
+    ConsoleWrite(L"LoadResources()\n");
+
+    Status = __LoadKernel(VBoot);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    Status = __LoadRamdisk(VBoot);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    Status = __LoadPhoenix(VBoot);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
 
     // Allocate a stack for the kernel
     Status = __AllocateKernelStack(VBoot, LOADER_KERNEL_STACK_SIZE, KernelStack);
     if (EFI_ERROR(Status)) {
         return Status;
     }
-
-    *EntryPoint = ImageContext.EntryPoint;
     return EFI_SUCCESS;
 }

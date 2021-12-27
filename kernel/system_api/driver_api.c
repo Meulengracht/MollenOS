@@ -26,11 +26,8 @@
 #include <acpiinterface.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
-#include <ddk/device.h>
-#include <debug.h>
 #include <deviceio.h>
 #include <handle.h>
-#include <modules/manager.h>
 #include <interrupts.h>
 #include <machine.h>
 
@@ -109,27 +106,19 @@ ScAcpiQueryInterrupt(
 
 OsStatus_t
 ScIoSpaceRegister(
-    _In_ DeviceIo_t* IoSpace)
+    _In_ DeviceIo_t* ioSpace)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (IoSpace == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    if (ioSpace == NULL) {
         return OsError;
     }
-    return RegisterSystemDeviceIo(IoSpace);
+    return RegisterSystemDeviceIo(ioSpace);
 }
 
 OsStatus_t
 ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (IoSpace == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    if (IoSpace == NULL) {
         return OsError;
     }
     return AcquireSystemDeviceIo(IoSpace);
@@ -137,121 +126,50 @@ ScIoSpaceAcquire(
 
 OsStatus_t
 ScIoSpaceRelease(
-    _In_ DeviceIo_t* IoSpace)
+    _In_ DeviceIo_t* ioSpace)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (IoSpace == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    if (ioSpace == NULL) {
         return OsError;
     }
-    return ReleaseSystemDeviceIo(IoSpace);
+    return ReleaseSystemDeviceIo(ioSpace);
 }
 
 OsStatus_t
 ScIoSpaceDestroy(
-    _In_ DeviceIo_t* IoSpace)
+    _In_ DeviceIo_t* ioSpace)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (IoSpace == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    if (ioSpace == NULL) {
         return OsInvalidParameters;
     }
-    DestroyHandle(IoSpace->Id);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScRegisterAliasId(
-    _In_ UUId_t Alias)
-{
-    WARNING("New Service: 0x%" PRIxIN "", Alias);
-    return SetModuleAlias(Alias);
-}
-
-OsStatus_t
-ScLoadDriver(
-    _In_ Device_t*   device,
-    _In_ const void* driverBuffer,
-    _In_ size_t      driverBufferLength)
-{
-    SystemModule_t* currentModule = GetCurrentModule();
-    SystemModule_t* module;
-    OsStatus_t osStatus;
-
-    TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
-          device->VendorId, device->DeviceId, device->Class, device->Subclass);
-    if (!currentModule || !device) {
-        if (!currentModule) {
-            return OsInvalidPermissions;
-        }
-        return OsInvalidParameters;
-    }
-
-    // First of all, if a server has already been spawned
-    // for the specific driver, then call it's RegisterInstance
-    module = GetModule(device->VendorId, device->ProductId, device->Class, device->Subclass);
-    if (!module) {
-        // Look for matching driver first, then generic
-        module = GetSpecificDeviceModule(device->VendorId, device->ProductId);
-        module = (module == NULL) ? GetGenericDeviceModule(device->Class, device->Subclass) : module;
-
-        // We did not have any, did the driver provide one for us?
-        if (!module) {
-            if (driverBuffer && driverBufferLength ) {
-                osStatus = RegisterModule("custom_module", driverBuffer, driverBufferLength, ModuleResource,
-                                          device->VendorId, device->ProductId, device->Class, device->Subclass);
-                if (osStatus == OsSuccess) {
-                    module = GetModule(device->VendorId, device->ProductId, device->Class, device->Subclass);
-                }
-            }
-
-            if (!module) {
-                return OsDoesNotExist;
-            }
-        }
-
-        osStatus = SpawnModule(module);
-        if (osStatus != OsSuccess) {
-            return osStatus;
-        }
-    }
+    DestroyHandle(ioSpace->Id);
     return OsSuccess;
 }
 
 UUId_t
 ScRegisterInterrupt(
-    _In_ DeviceInterrupt_t* Interrupt,
-    _In_ unsigned int            Flags)
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ unsigned int       flags)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (Interrupt == NULL || Module == NULL || 
-        (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
+    if (deviceInterrupt == NULL ||
+        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
-    return InterruptRegister(Interrupt, Flags);
+    return InterruptRegister(deviceInterrupt, flags);
 }
 
 OsStatus_t
 ScUnregisterInterrupt(
-    _In_ UUId_t Source)
+    _In_ UUId_t sourceId)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (Module == NULL) {
-        return OsInvalidPermissions;
-    }
-    return InterruptUnregister(Source);
+    return InterruptUnregister(sourceId);
 }
 
 OsStatus_t
 ScGetProcessBaseAddress(
-    _Out_ uintptr_t* BaseAddress)
+    _Out_ uintptr_t* baseAddress)
 {
-    if (BaseAddress != NULL) {
-        *BaseAddress = GetMachine()->MemoryMap.UserCode.Start;
+    if (baseAddress != NULL) {
+        *baseAddress = GetMachine()->MemoryMap.UserCode.Start;
         return OsSuccess;
     }
     return OsInvalidParameters;

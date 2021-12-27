@@ -40,7 +40,7 @@ int unlink(
     	return EOF;
     }
     
-    status = sys_file_delete(GetGrachtClient(), &msg.base, *GetInternalProcessId(), path, 0);
+    status = sys_file_delete(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, 0);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_delete_result(GetGrachtClient(), &msg.base, &osStatus);
     if (status || OsStatusToErrno(osStatus)) {

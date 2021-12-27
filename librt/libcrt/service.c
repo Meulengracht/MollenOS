@@ -34,22 +34,25 @@ static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
 extern char**
-__crt_init(
+__crt_initialize(
     _In_  thread_storage_t* threadStorage,
-    _In_  int               isModule,
+    _In_  int               isPhoenix,
     _Out_ int*              argumentCount);
 
-int __crt_get_server_iod(void)
+int
+__crt_get_server_iod(void)
 {
     return gracht_link_get_handle((struct gracht_link*)g_serverLink);
 }
 
-gracht_server_t* __crt_get_service_server(void)
+gracht_server_t*
+__crt_get_service_server(void)
 {
     return g_server;
 }
 
-_Noreturn static void __crt_service_main(int setIod)
+_Noreturn static void
+__crt_service_main(int setIod)
 {
     struct ioset_event events[32];
     int                timeout = 0;
@@ -77,16 +80,12 @@ _Noreturn static void __crt_service_main(int setIod)
     }
 }
 
-void __CrtServiceEntry(void)
+static void
+__crt_service_init(void)
 {
-    thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_PATH };
     int                           status;
-
-    // initialize runtime environment
-    __crt_init(&threadStorage, 1, NULL);
-
     GetServiceAddress(&addr);
 
     // initialize the link
@@ -133,4 +132,18 @@ void __CrtServiceEntry(void)
     atexit((void (*)(void))OnUnload);
     at_quick_exit((void (*)(void))OnUnload);
     __crt_service_main(config.set_descriptor);
+}
+
+void __CrtServiceEntry(void)
+{
+    thread_storage_t threadStorage;
+    __crt_initialize(&threadStorage, 0, NULL);
+    __crt_service_init();
+}
+
+void __phoenix_main(void)
+{
+    thread_storage_t threadStorage;
+    __crt_initialize(&threadStorage, 1, NULL);
+    __crt_service_init();
 }

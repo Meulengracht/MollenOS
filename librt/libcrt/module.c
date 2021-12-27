@@ -39,9 +39,9 @@ static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
 extern char**
-__crt_init(
+__crt_initialize(
     _In_  thread_storage_t* threadStorage,
-    _In_  int               isModule,
+    _In_  int               isPhoenix,
     _Out_ int*              argumentCount);
 
 int __crt_get_server_iod(void)
@@ -106,7 +106,7 @@ void __CrtModuleEntry(void)
     int                           status;
 
     // initialize runtime environment
-    __crt_init(&threadStorage, 1, NULL);
+    __crt_initialize(&threadStorage, 0, NULL);
 
     // initialize the link
     status = gracht_link_vali_create(&g_serverLink);

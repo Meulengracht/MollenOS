@@ -714,6 +714,11 @@ DmIoctlDevice(
         settings |= PCI_COMMAND_FASTBTB;
     }
 
+    // Handle memory write and invalidate
+    if (Flags & __DEVICEMANAGER_IOCTL_MEMWRTINVD_ENABLE) {
+        settings |= PCI_COMMAND_MEMWRITE;
+    }
+
     // Write back settings
     PciWrite16(pciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04, settings);
     return OsSuccess;

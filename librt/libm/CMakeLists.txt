@@ -56,7 +56,7 @@ set_source_files_properties(${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES}
         COMPILE_FLAGS "${MATH_FLAGS} -fno-builtin -fno-strict-aliasing"
 )
 
-add_library(libm ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
+add_library(libm STATIC ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
 install(TARGETS libm LIBRARY
     ARCHIVE DESTINATION vali-sdk/lib
     LIBRARY DESTINATION vali-sdk/lib

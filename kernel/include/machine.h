@@ -68,7 +68,7 @@ typedef struct SystemMachine {
     size_t                      MemoryGranularity;
 } SystemMachine_t;
 
-#define __KERNELSTART (GetMachine()->BootInformation.Kernel.Data)
+#define __KERNELSTART (GetMachine()->BootInformation.Kernel.Base)
 #define __KERNELEND   (__KERNELSTART + GetMachine()->BootInformation.Kernel.Length)
 
 #define IS_KERNEL_CODE(addr)           (ISINRANGE(addr, __KERNELSTART, __KERNELEND))

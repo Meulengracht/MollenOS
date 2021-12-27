@@ -21,7 +21,7 @@
 
 #include <Uefi.h>
 #include <GlobalTable.h>
-#include <vboot.h>
+#include <vboot/vboot.h>
 
 #if defined(__i386__) || defined(__amd64__)
 #define LOADER_KERNEL_BASE       0x100000
@@ -32,9 +32,8 @@
 
 EFI_STATUS LoaderInitialize(void);
 
-EFI_STATUS LoadKernel(
-    IN  struct VBoot*         VBoot,
-    OUT EFI_PHYSICAL_ADDRESS* EntryPoint,
-    OUT VOID**                KernelStack);
+EFI_STATUS LoadResources(
+    IN  struct VBoot* VBoot,
+    OUT VOID**        KernelStack);
 
 #endif //!__LOADER_H__

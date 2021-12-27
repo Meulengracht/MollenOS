@@ -73,9 +73,8 @@ EFI_STATUS EFIAPI EfiMain (
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE* SystemTable)
 {
-    EFI_STATUS           Status;
-    EFI_PHYSICAL_ADDRESS EntryPoint;
-    VOID*                KernelStack;
+    EFI_STATUS Status;
+    VOID*      KernelStack;
 
     // Initialize bootloader systems
     Status = LibraryInitialize(ImageHandle, SystemTable);
@@ -100,14 +99,14 @@ EFI_STATUS EFIAPI EfiMain (
         return Status;
     }
 
-    // Load kernel and ramdisk resources
+    // Load kernel, ramdisk and bootstrapper resources
     Status = LoaderInitialize();
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to initialize loader\n");
         return Status;
     }
 
-    Status = LoadKernel(gBootDescriptor, &EntryPoint, &KernelStack);
+    Status = LoadResources(gBootDescriptor, &KernelStack);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to load kernel or ramdisk\n");
         return Status;
@@ -127,6 +126,6 @@ EFI_STATUS EFIAPI EfiMain (
         return Status;
     }
 
-    __JumpToKernel(EntryPoint, KernelStack);
+    __JumpToKernel(gBootDescriptor->Kernel.EntryPoint, KernelStack);
     return EFI_SUCCESS;
 }

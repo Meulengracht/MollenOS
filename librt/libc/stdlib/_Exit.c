@@ -27,13 +27,10 @@ void
 _Exit(
     _In_ int exitCode)
 {
-    if (IsProcessModule()) {
-        Syscall_ModuleExit(exitCode);
-    }
-    else {
+    if (!__crt_is_phoenix()) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         OsStatus_t               status;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *GetInternalProcessId(), exitCode);
+        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
     }

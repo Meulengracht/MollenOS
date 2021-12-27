@@ -118,6 +118,7 @@ add_compile_options(-ffreestanding)
 
 include_directories(include)
 include_directories(include/efi)
+include_directories(../include)
 
 set(SRCS)
 set(ASM_SRCS)

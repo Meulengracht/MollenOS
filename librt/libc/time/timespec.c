@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -30,9 +29,9 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    SystemTime_t    SystemTime = { { { 0 } } };
-	struct tm       Temporary  = { 0 };
-    LargeUInteger_t Tick       = { { 0 } };
+    SystemTime_t    systemTime = {{{0 } } };
+	struct tm       temporary = {0 };
+    LargeUInteger_t tick      = {{0 } };
 
     if (ts == NULL) {
         return -1;
@@ -42,22 +41,22 @@ timespec_get(
     switch (base) {
         case TIME_TAI:
         case TIME_UTC: {
-            if (GetSystemTime(&SystemTime) == OsSuccess) {
+            if (GetSystemTime(&systemTime) == OsSuccess) {
                 if (base == TIME_UTC) {
-                    Temporary.tm_sec  = SystemTime.Second;
-                    Temporary.tm_min  = SystemTime.Minute;
-                    Temporary.tm_hour = SystemTime.Hour;
-                    Temporary.tm_mday = SystemTime.DayOfMonth;
-                    Temporary.tm_mon  = SystemTime.Month - 1;
-                    Temporary.tm_year = SystemTime.Year - YEAR_BASE;
-                    ts->tv_sec        = mktime(&Temporary);
+                    temporary.tm_sec  = systemTime.Second;
+                    temporary.tm_min  = systemTime.Minute;
+                    temporary.tm_hour = systemTime.Hour;
+                    temporary.tm_mday = systemTime.DayOfMonth;
+                    temporary.tm_mon  = systemTime.Month - 1;
+                    temporary.tm_year = systemTime.Year - YEAR_BASE;
+                    ts->tv_sec        = mktime(&temporary);
                 }
                 else {
-                    ts->tv_sec = SystemTime.Second + (SystemTime.Minute * SECSPERMIN) +
-                        (SystemTime.Hour * SECSPERHOUR) + ((SystemTime.DayOfMonth - 1) * SECSPERDAY) +
-                        ((SystemTime.Month - 1) * (SECSPERDAY * 30)) + ((SystemTime.Year * 365) * SECSPERDAY);
+                    ts->tv_sec = systemTime.Second + (systemTime.Minute * SECSPERMIN) +
+                                 (systemTime.Hour * SECSPERHOUR) + ((systemTime.DayOfMonth - 1) * SECSPERDAY) +
+                                 ((systemTime.Month - 1) * (SECSPERDAY * 30)) + ((systemTime.Year * 365) * SECSPERDAY);
                 }
-                ts->tv_nsec = (long)SystemTime.Nanoseconds.QuadPart;
+                ts->tv_nsec = (long)systemTime.Nanoseconds.QuadPart;
             }
             else {
                 return -1;
@@ -66,9 +65,9 @@ timespec_get(
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            GetSystemTick(base, &Tick);
-            ts->tv_sec  = (time_t)(Tick.QuadPart / CLOCKS_PER_SEC);
-            ts->tv_nsec = (long)((Tick.QuadPart % CLOCKS_PER_SEC) * NSEC_PER_MSEC);
+            GetSystemTick(base, &tick);
+            ts->tv_sec  = (time_t)(tick.QuadPart / CLOCKS_PER_SEC);
+            ts->tv_nsec = (long)((tick.QuadPart % CLOCKS_PER_SEC) * NSEC_PER_MSEC);
         } break;
 
         default:

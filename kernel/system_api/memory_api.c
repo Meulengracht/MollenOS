@@ -32,7 +32,6 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
-#include <modules/manager.h>
 #include <memoryspace.h>
 #include <memory_region.h>
 #include <threading.h>
@@ -427,35 +426,28 @@ ScDmaAttachmentUnmap(
 
 OsStatus_t 
 ScCreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* Handle)
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut)
 {
-    SystemModule_t* Module = GetCurrentModule();
-    if (Handle == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    if (handleOut == NULL) {
         return OsError;
     }
-    return CreateMemorySpace(Flags | MEMORY_SPACE_APPLICATION, Handle);
+    return CreateMemorySpace(flags | MEMORY_SPACE_APPLICATION, handleOut);
 }
 
 OsStatus_t 
 ScGetThreadMemorySpaceHandle(
-    _In_  UUId_t  ThreadHandle,
-    _Out_ UUId_t* Handle)
+    _In_  UUId_t  threadHandle,
+    _Out_ UUId_t* handleOut)
 {
-    Thread_t*  Thread;
-    SystemModule_t* Module = GetCurrentModule();
-    if (Handle == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsInvalidPermissions;
-        }
+    Thread_t* thread;
+    if (handleOut == NULL) {
         return OsError;
     }
-    Thread = THREAD_GET(ThreadHandle);
-    if (Thread != NULL) {
-        *Handle = ThreadMemorySpaceHandle(Thread);
+
+    thread = THREAD_GET(threadHandle);
+    if (thread != NULL) {
+        *handleOut = ThreadMemorySpaceHandle(thread);
         return OsSuccess;
     }
     return OsDoesNotExist;
@@ -463,69 +455,65 @@ ScGetThreadMemorySpaceHandle(
 
 OsStatus_t 
 ScCreateMemorySpaceMapping(
-    _In_  UUId_t                          Handle,
-    _In_  struct MemoryMappingParameters* Parameters,
-    _Out_ void**                          AddressOut)
+    _In_  UUId_t                          handle,
+    _In_  struct MemoryMappingParameters* mappingParameters,
+    _Out_ void**                          addressOut)
 {
-    SystemModule_t*      Module = GetCurrentModule();
-    MemorySpace_t*       MemorySpace = (MemorySpace_t*)LookupHandleOfType(Handle, HandleTypeMemorySpace);
-    unsigned int RequiredFlags = MAPPING_COMMIT | MAPPING_USERSPACE;
-    vaddr_t      CopyPlacement = 0;
-    int          PageCount;
-    uintptr_t*           Pages;
-    OsStatus_t           Status;
+    MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
+    unsigned int   memoryFlags   = MAPPING_COMMIT | MAPPING_USERSPACE;
+    vaddr_t        copyPlacement = 0;
+    int            pageCount;
+    uintptr_t*     pages;
+    OsStatus_t     osStatus;
     TRACE("[sc_map] target address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
-        Parameters->VirtualAddress, Parameters->Flags, Parameters->Length);
+          mappingParameters->VirtualAddress, mappingParameters->Flags, mappingParameters->Length);
     
-    if (Parameters == NULL || AddressOut == NULL || Module == NULL) {
-        if (Module == NULL) {
-            return OsDoesNotExist;
-        }
+    if (mappingParameters == NULL || addressOut == NULL) {
         return OsInvalidParameters;
     }
     
-    if (MemorySpace == NULL) {
+    if (memorySpace == NULL) {
         return OsDoesNotExist;
     }
-    
-    PageCount = DIVUP(Parameters->Length, GetMemorySpacePageSize());
-    Pages     = kmalloc(sizeof(uintptr_t) * PageCount);
-    if (!Pages) {
+
+    pageCount = DIVUP(mappingParameters->Length, GetMemorySpacePageSize());
+    pages     = kmalloc(sizeof(uintptr_t) * pageCount);
+    if (!pages) {
         return OsOutOfMemory;
     }
     
-    if (Parameters->Flags & MEMORY_EXECUTABLE) {
-        RequiredFlags |= MAPPING_EXECUTABLE;
+    if (mappingParameters->Flags & MEMORY_EXECUTABLE) {
+        memoryFlags |= MAPPING_EXECUTABLE;
     }
-    if (!(Parameters->Flags & MEMORY_WRITE)) {
-        RequiredFlags |= MAPPING_READONLY;
+    if (!(mappingParameters->Flags & MEMORY_WRITE)) {
+        memoryFlags |= MAPPING_READONLY;
     }
 
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
-    Status = MemorySpaceMap(MemorySpace, &Parameters->VirtualAddress, Pages,
-        Parameters->Length, 0, RequiredFlags, MAPPING_VIRTUAL_FIXED);
-    kfree(Pages);
+    osStatus = MemorySpaceMap(memorySpace, &mappingParameters->VirtualAddress, pages,
+                              mappingParameters->Length, 0, memoryFlags, MAPPING_VIRTUAL_FIXED);
+    kfree(pages);
     
-    if (Status != OsSuccess) {
+    if (osStatus != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
-        return Status;
+        return osStatus;
     }
     
     // Create a cloned copy in our own memory space, however we will set new placement and
     // access flags
-    RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT;
-    Status         = MemorySpaceCloneMapping(MemorySpace, GetCurrentMemorySpace(),
-                                             Parameters->VirtualAddress, &CopyPlacement, Parameters->Length,
-                                             RequiredFlags, MAPPING_VIRTUAL_PROCESS);
-    if (Status != OsSuccess) {
+    memoryFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT;
+    osStatus = MemorySpaceCloneMapping(memorySpace, GetCurrentMemorySpace(),
+                                       mappingParameters->VirtualAddress, &copyPlacement, mappingParameters->Length,
+                                       memoryFlags, MAPPING_VIRTUAL_PROCESS);
+    if (osStatus != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
-        MemorySpaceUnmap(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
+        MemorySpaceUnmap(memorySpace, mappingParameters->VirtualAddress, mappingParameters->Length);
     }
     TRACE("[sc_map] local address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
-        CopyPlacement, RequiredFlags, Parameters->Length);
-    *AddressOut = (void*)CopyPlacement;
-    return Status;
+          copyPlacement, memoryFlags, mappingParameters->Length);
+    *addressOut = (void*)copyPlacement;
+    return osStatus;
 }
 
 
@@ -536,15 +524,10 @@ ScMapThreadMemoryRegion(
     _Out_ void**    topOfStack,
     _Out_ void**    pointerOut)
 {
-    Thread_t*       thread;
-    SystemModule_t* module = GetCurrentModule();
-    uintptr_t       copiedAddress;
-    OsStatus_t      status;
-    size_t          correctLength;
-
-    if (!module) {
-        return OsInvalidPermissions;
-    }
+    Thread_t*  thread;
+    uintptr_t  copiedAddress;
+    OsStatus_t status;
+    size_t     correctLength;
 
     thread = THREAD_GET(threadHandle);
     if (!thread) {

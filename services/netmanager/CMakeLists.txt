@@ -36,3 +36,4 @@ add_service_target(netmanager ""
     main.c
 )
 add_dependencies(netmanager service_servers)
+deploy_to_initrd(netmanager ON)

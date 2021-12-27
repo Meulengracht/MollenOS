@@ -31,7 +31,6 @@
 #define _DEBUG_H_
 
 #include <component/memory.h>
-#include <modules/module.h>
 #include <os/context.h>
 #include <os/osdefs.h>
 #include <log.h>
@@ -93,15 +92,6 @@ DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
     _In_ const char* Message, ...);
-
-/* DebugGetModuleByAddress
- * Retrieves the module (Executable) at the given address */
-KERNELAPI OsStatus_t KERNELABI
-DebugGetModuleByAddress(
-    _In_  SystemModule_t* Module,
-    _In_  uintptr_t       Address, 
-    _Out_ uintptr_t*      Base, 
-    _Out_ char**          Name);
 
 /* DebugStackTrace
  * Performs a verbose stack trace in the current context 

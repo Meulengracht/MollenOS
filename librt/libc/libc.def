@@ -1,8 +1,8 @@
 LIBRARY c
 EXPORTS
 abort
-InitializeProcess
-GetInternalCommandLine
+__crt_process_initialize
+__crt_cmdline
 exit
 _setjmp
 _setjmp3

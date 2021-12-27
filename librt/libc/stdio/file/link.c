@@ -38,7 +38,7 @@ int link(
         return OsInvalidParameters;
     }
     
-    sys_file_link(GetGrachtClient(), &msg.base, *GetInternalProcessId(), from, to, symbolic);
+    sys_file_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), from, to, symbolic);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_link_result(GetGrachtClient(), &msg.base, &status);
     return OsStatusToErrno(status);

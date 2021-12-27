@@ -1,0 +1,38 @@
+/**
+ * Network Adapter Contract
+ * Provides networking related functionality to the drivers that implement this. The contracts
+ * supported by each driver can be queried through the driver contract.
+ */
+
+import "../types"
+
+namespace ctt
+
+enum netadapter_type {
+    ETHERNET,
+    WIFI
+}
+
+struct netadapter_stats {
+    netadapter_type type;
+    uint            mtu_size;
+}
+
+struct netadapter_request {
+    uint   request_id;
+    UUId_t buffer_handle;
+}
+
+enum netadapter_link_status {
+    DOWN,
+    UP
+}
+
+service netadapter (21) {
+    func stat(UUId_t deviceId) : () = 1;
+    func queue(UUId_t deviceId, netadapter_request request) : () = 2;
+
+    event stats : (UUId_t deviceId, netadapter_stats stats) = 3;
+    event error : (UUId_t deviceId, int error) = 4;
+    event link_status : (UUId_t deviceId, netadapter_link_status status) = 5;
+}

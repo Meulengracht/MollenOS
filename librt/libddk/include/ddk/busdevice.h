@@ -35,11 +35,12 @@
 #define __DEVICEMANAGER_IOCTL_EXT    0x00000001
 
 // Ioctl-Bus Specific Flags
-#define __DEVICEMANAGER_IOCTL_ENABLE           0x00000001
-#define __DEVICEMANAGER_IOCTL_IO_ENABLE        0x00000002
-#define __DEVICEMANAGER_IOCTL_MMIO_ENABLE      0x00000004
-#define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE 0x00000008
-#define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE   0x00000010  // Fast Back-To-Back
+#define __DEVICEMANAGER_IOCTL_ENABLE            0x00000001
+#define __DEVICEMANAGER_IOCTL_IO_ENABLE         0x00000002
+#define __DEVICEMANAGER_IOCTL_MMIO_ENABLE       0x00000004
+#define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE  0x00000008
+#define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE    0x00000010  // Fast Back-To-Back
+#define __DEVICEMANAGER_IOCTL_MEMWRTINVD_ENABLE 0x00000020
 
 // Ioctl-Ext Specific Flags
 #define __DEVICEMANAGER_IOCTL_EXT_WRITE        0x00000000
@@ -60,25 +61,26 @@ typedef struct BusDevice {
     unsigned int Function;
 } BusDevice_t;
 
-/* IoctlDevice
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device */
+/**
+ * @brief Allows manipulation of a given device to either disable or enable, or configure the device
+ */
 DDKDECL(OsStatus_t,
 IoctlDevice(
-    _In_ UUId_t  Device,
+    _In_ UUId_t       Device,
     _In_ unsigned int Command,
     _In_ unsigned int Flags));
 
-/* IoctlDeviceEx
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device.
- * <Direction> = 0 (Read), 1 (Write) */
+/**
+ * @brief Allows manipulation of a given device to either disable or enable, or configure the device.
+ *
+ * @param Direction [In] 0 (Read), 1 (Write)
+ */
 DDKDECL(OsStatus_t,
 IoctlDeviceEx(
-    _In_    UUId_t  Device,
-    _In_    int     Direction,
+    _In_    UUId_t       Device,
+    _In_    int          Direction,
     _In_    unsigned int Register,
-    _InOut_ size_t* Value,
-    _In_    size_t  Width));
+    _InOut_ size_t*      Value,
+    _In_    size_t       Width));
 
 #endif //!__DDK_BUSDEVICE_H__

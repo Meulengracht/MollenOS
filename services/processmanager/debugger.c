@@ -29,7 +29,7 @@
 #include <ddk/debug.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
-#include "../../librt/libds/pe/pe.h"
+#include "pe/pe.h"
 #include "process.h"
 #include "sys_process_service_server.h"
 #include "symbols.h"

@@ -60,16 +60,4 @@ DDKDECL(OsStatus_t,
 UnregisterDevice(
     _In_ UUId_t DeviceId));
 
-/* InstallDriver 
- * Tries to find a suitable driver for the given device
- * by searching storage-medias for the vendorid/deviceid 
- * combination or the class/subclass combination if specific
- * is not found */
-DDKDECL(OsStatus_t,
-InstallDriver(
-    _In_ Device_t*   Device, 
-    _In_ size_t      Length,
-    _In_ const void* DriverBuffer,
-    _In_ size_t      DriverBufferLength));
-
 #endif //!__DDK_DEVICE_H__

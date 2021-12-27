@@ -124,7 +124,7 @@ int open(const char* file, int flags, ...)
     }
     
     // Try to open the file by directly communicating with the file-service
-    status = sys_file_open(GetGrachtClient(), &msg.base, *GetInternalProcessId(),
+    status = sys_file_open(GetGrachtClient(), &msg.base, *__crt_processid_ptr(),
         file, _fopts(flags), _faccess(flags));
     if (status) {
         ERROR("open no communcation channel open");
@@ -146,7 +146,7 @@ int open(const char* file, int flags, ...)
 
     TRACE("open retrieved handle %u", handle);
     if (stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object)) {
-        sys_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
+        sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;

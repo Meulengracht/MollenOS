@@ -1,5 +1,16 @@
 enable_language(C)
 
+# Configure the base address for phoenix. this is to simplify things for the loader
+# as the loader will not have to relocate.
+set (PHOENIX_BASE_ADDRESS "0x100000")
+if ("${VALI_ARCH}" STREQUAL "i386")
+    set (PHOENIX_BASE_ADDRESS "0x20000000")
+elseif ("${VALI_ARCH}" STREQUAL "amd64")
+    set (PHOENIX_BASE_ADDRESS "0x8000000000")
+else ()
+    message(FATAL "phoenix: unsupported architecture ${VALI_ARCH}")
+endif ()
+
 # Configure include paths
 include_directories (
     ${CMAKE_BINARY_DIR}
@@ -18,14 +29,29 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
-add_service_target(processmanager ""
-    ${ADDITONAL_SOURCES}
+add_executable (phoenix
+        ${ADDITONAL_SOURCES}
 
-    debugger.c
-    main.c
-    map_parser.c
-    process.c
-    requests.c
-    symbol_loader.c
+        pe/glue.c
+        pe/load.c
+        pe/utilities.c
+        pe/verify.c
+
+        debugger.c
+        main.c
+        map_parser.c
+        process.c
+        requests.c
+        symbol_loader.c
 )
-add_dependencies(processmanager service_servers)
+
+set_target_properties (phoenix
+        PROPERTIES
+            COMPILE_OPTIONS "-nostdlib;-Wno-address-of-packed-member"
+            COMPILE_DEFINITIONS "__SERVICE_IMPL"
+            LINK_FLAGS "-Xlinker -entry:__phoenix_main -Xlinker -base:\"${PHOENIX_BASE_ADDRESS}\""
+            OUTPUT_NAME "phoenix"
+            SUFFIX ".mos"
+)
+target_link_libraries (phoenix libc libm libds libddk librt gracht_static)
+add_dependencies(phoenix service_servers)

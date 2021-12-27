@@ -29,8 +29,6 @@
 #include <crc32.h>
 #include <debug.h>
 #include <futex.h>
-#include <modules/ramdisk.h>
-#include <modules/manager.h>
 #include <handle.h>
 #include <handle_set.h>
 #include <interrupts.h>
@@ -41,9 +39,7 @@
 #include <userevent.h>
 #include "arch/io.h"
 
-#ifdef __OSCONFIG_TEST_KERNEL
-extern void StartTestingPhase(void);
-#endif
+extern void SpawnBootstrapper(void);
 
 static SystemMachine_t Machine = { 
     { 0 }, { 0 }, { 0 },                        // Strings
@@ -162,18 +158,8 @@ InitializeMachine(
     // Initialize all userspace subsystems here
     UserEventInitialize();
 
-    // Either of three things happen, testing phase can begin, we can enter
-    // debug console or last option is normal operation.
-#ifdef __OSCONFIG_TEST_KERNEL
-    StartTestingPhase();
-#else
-    osStatus = RamdiskParse(&Machine.BootInformation);
-    if (osStatus != OsSuccess) {
-        ERROR(" > no ramdisk provided, operating system stopping");
-        ArchProcessorHalt();
-    }
-    SpawnServices();
-#endif
+    // Start the bootstrap module if present
+    SpawnBootstrapper();
 
     // yield before going to assume new threads
     WARNING("End of initialization, yielding control");

@@ -78,7 +78,7 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_VIRTUAL_FIXED           0x00000010U  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x0000001EU
 
-#define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
+#define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
 typedef struct MemorySpaceContext MemorySpaceContext_t;
 

@@ -226,7 +226,7 @@ void sys_library_get_function_invocation(struct gracht_message* message, const U
 
     // initialize parameters
     request->parameters.get_function.handle         = processId;
-    request->parameters.get_function.library_handle = handle;
+    request->parameters.get_function.library_handle = (Handle_t)handle;
     request->parameters.get_function.name           = strdup(name);
     usched_task_queue((usched_task_fn)PmGetLibraryFunction, request);
 }
@@ -244,7 +244,7 @@ void sys_library_unload_invocation(struct gracht_message* message, const UUId_t 
 
     // initialize parameters
     request->parameters.unload_library.handle         = processId;
-    request->parameters.unload_library.library_handle = handle;
+    request->parameters.unload_library.library_handle = (Handle_t)handle;
     usched_task_queue((usched_task_fn)PmUnloadLibrary, request);
 }
 

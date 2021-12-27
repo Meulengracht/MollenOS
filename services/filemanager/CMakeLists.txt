@@ -54,3 +54,4 @@ add_service_target(filemanager "-D__FILEMANAGER_IMPL"
         ${ADDITONAL_SOURCES}
 )
 add_dependencies(filemanager service_servers)
+deploy_to_initrd(filemanager ON)

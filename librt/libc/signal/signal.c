@@ -86,14 +86,14 @@ static void __CrashHandler(
     _In_ sig_element* signal,
     _In_ size_t       flags)
 {
-    // Not supported by modules
-    if (!IsProcessModule()) {
+    // Not supported by phoenix
+    if (!__crt_is_phoenix()) {
         OsStatus_t               osStatus;
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
         status = sys_process_report_crash(GetGrachtClient(), &msg.base, thrd_current(),
-                                          *GetInternalProcessId(), (const uint8_t*)context,
+                                          *__crt_processid_ptr(), (const uint8_t*)context,
                                           sizeof(Context_t), signal->signal);
         if (status) {
             // @todo log and return

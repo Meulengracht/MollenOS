@@ -182,8 +182,8 @@ LoaderEntry32:
     ; eax - size
     ; ecx - entry point
     mov dword [BootHeader + VBoot.KernelBase], KERNEL_BASE_ADDRESS
+    mov dword [BootHeader + VBoot.KernelEntry], ecx
     mov dword [BootHeader + VBoot.KernelLength], eax
-    mov dword [dKernelEntry], ecx
 
     ; free unpacked buffer
     push ebx
@@ -202,7 +202,6 @@ LoaderEntry32:
     ; LoadFile returns 
     ; eax - pointer to file
     ; ecx - number of bytes read
-
     push eax 
     call UnpackFile
     add esp, 4
@@ -214,6 +213,52 @@ LoaderEntry32:
     ; ecx - size of unpacked file
     mov dword [BootHeader + VBoot.RamdiskBase], eax
     mov dword [BootHeader + VBoot.RamdiskLength], ecx
+
+    ; load bootstrapper to memory
+    TRACE32 szLoadPhoenixMessage
+    push szPhoenixUtf
+    push szPhoenix
+    call LoadFile32
+    add esp, 8
+    test eax, eax
+    jz .Stage2Failed
+
+    ; LoadFile returns 
+    ; eax - pointer to file
+    ; ecx - number of bytes read
+    mov dword [BootHeader + VBoot.PhoenixBase], eax
+    mov dword [BootHeader + VBoot.PhoenixLength], ecx
+
+    ; Allocate memory for us to relocate the image into
+    push VBOOT_MEMORY_TYPE_FIRMWARE
+    push KILOBYTE * 512 ; ASSUMPTION: 512K is enough for the bootstrapper
+    call MemoryAllocate
+    add esp, 8
+    test eax, eax
+    jz .Stage2Failed
+
+    ; swap the file pointer address and load address
+    mov ecx, eax
+    mov ebx, dword [BootHeader + VBoot.PhoenixBase]
+    mov dword [BootHeader + VBoot.PhoenixBase], ecx
+    
+    ; Now load the PE image
+    push ecx ; load address
+    push ebx ; file buffer
+    call PELoad
+    add esp, 8
+    test eax, eax
+    jz .Stage2Failed
+
+    ; eax - size
+    ; ecx - entry point
+    mov dword [BootHeader + VBoot.PhoenixLength], eax
+    mov dword [BootHeader + VBoot.PhoenixEntry], ecx
+
+    ; free file buffer
+    push ebx
+    call MemoryFree
+    add esp, 4
 
     TRACE32 szFinalMessage
 
@@ -279,7 +324,7 @@ Skip64BitMode:
 
     mov eax, VBOOT_MAGIC
     mov ebx, BootHeader
-    mov ecx, dword [dKernelEntry]
+    mov ecx, dword [BootHeader + VBoot.KernelEntry]
     jmp ecx ; There is no return from this jump.
 
 ; This loads the kernel in 64 bit mode. The state when entering the kernel
@@ -312,7 +357,7 @@ LoadKernel64:
 
     mov eax, VBOOT_MAGIC
     mov ebx, BootHeader
-    mov ecx, dword [dKernelEntry]
+    mov ecx, dword [BootHeader + VBoot.KernelEntry]
     jmp rcx ; There is no return from this jump.
 
 ; ****************************
@@ -320,28 +365,30 @@ LoadKernel64:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szStartMessage      db "000000000 [vboot] version: 1.0.0-dev", 0x0D, 0x0A, 0x00
-szA20GateMessage    db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
-szGdtMessage        db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
-szVesaMessage       db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
-szFsMessage         db "000000000 [vboot] initializing current filesystem", 0x0D, 0x0A, 0x00
-szMemoryMessage     db "000000000 [vboot] initializing memory subsystem", 0x0D, 0x0A, 0x00
-szLoadKernelMessage db "000000000 [vboot] loading kernel image", 0x0D, 0x0A, 0x00
-szLoadRdMessage     db "000000000 [vboot] loading ramdisk", 0x0D, 0x0A, 0x00
-szFinalMessage      db "000000000 [vboot] finalizing", 0x0D, 0x0A, 0x00
-szSuccess           db " [ok]", 0x0D, 0x0A, 0x00
-szFailed            db " [err]", 0x0D, 0x0A, 0x00
-szNewline           db 0x0D, 0x0A, 0x00
+szStartMessage       db "000000000 [vboot] version: 1.0.0-dev", 0x0D, 0x0A, 0x00
+szA20GateMessage     db "000000000 [vboot] enabling a20 gate", 0x0D, 0x0A, 0x00
+szGdtMessage         db "000000000 [vboot] installing new gdt", 0x0D, 0x0A, 0x00
+szVesaMessage        db "000000000 [vboot] initializing vesa subsystem", 0x0D, 0x0A, 0x00
+szFsMessage          db "000000000 [vboot] initializing current filesystem", 0x0D, 0x0A, 0x00
+szMemoryMessage      db "000000000 [vboot] initializing memory subsystem", 0x0D, 0x0A, 0x00
+szLoadKernelMessage  db "000000000 [vboot] loading kernel", 0x0D, 0x0A, 0x00
+szLoadRdMessage      db "000000000 [vboot] loading ramdisk", 0x0D, 0x0A, 0x00
+szLoadPhoenixMessage db "000000000 [vboot] loading bootstrapper", 0x0D, 0x0A, 0x00
+szFinalMessage       db "000000000 [vboot] finalizing", 0x0D, 0x0A, 0x00
+szSuccess            db " [ok]", 0x0D, 0x0A, 0x00
+szFailed             db " [err]", 0x0D, 0x0A, 0x00
+szNewline            db 0x0D, 0x0A, 0x00
 
-szKernel      db "MCORE   MOS"
+szKernel      db "KERNEL  MOS"
 szRamdisk     db "INITRD  MOS"
-szKernelUtf   db "syskrnl.mos", 0x0
-szRamdiskUtf  db "initrd.mos", 0x0
+szPhoenix     db "PHOENIX MOS"
+szKernelUtf   db "kernel.mos", 0x00
+szRamdiskUtf  db "initrd.mos", 0x00
+szPhoenixUtf  db "phoenix.mos", 0x00
 
 ; Practical stuff
 bDriveNumber db 0
 dBaseSector  dd 0
-dKernelEntry dd	0
 
 ; 2 -> FAT12, 3 -> FAT16, 4 -> FAT32
 ; 5 -> MFS1

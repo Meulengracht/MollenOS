@@ -160,10 +160,15 @@ struc VBoot
     .RamdiskLength: resd 1
 
     .KernelBase:   resq 1
+    .KernelEntry:  resq 1
     .KernelLength: resd 1
 
     .StackBase:    resq 1
     .StackLength:  resd 1
+
+    .PhoenixBase:   resq 1
+    .PhoenixEntry:  resq 1
+    .PhoenixLength: resd 1
 endstruc
 
 ; ********************************
@@ -306,10 +311,15 @@ istruc VBoot
     at VBoot.RamdiskLength,      dd 0
 
     at VBoot.KernelBase,         dq 0
+    at VBoot.KernelEntry,        dq 0
     at VBoot.KernelLength,       dd 0
 
     at VBoot.StackBase,          dq 0
     at VBoot.StackLength,        dd 0
+
+    at VBoot.PhoenixBase,        dq 0
+    at VBoot.PhoenixEntry,       dq 0
+    at VBoot.PhoenixLength,      dd 0
 iend
 
 %endif

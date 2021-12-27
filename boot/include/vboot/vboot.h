@@ -94,9 +94,29 @@ VBOOT_PACKED(VBootRamdisk, {
     unsigned int       Length;
 });
 
-VBOOT_PACKED(VBootKernel, {
-    unsigned long long Data;
-    unsigned int       Length;
+/**
+ * VBoot provides modules, which are really just loaded PE images currently. These images are already
+ * loaded and relocated, and ready to be executed.
+ */
+VBOOT_PACKED(VBootModule, {
+    /**
+     * Base is the physical address of the loaded image, and does not correspond to the
+     * ImageBase of the image.
+     */
+    unsigned long long Base;
+
+    /**
+     * Entry point consists of the absolute address which is calculated as
+     * ImageBase+EntryPointOffset. Where ImageBase is the preffered load address
+     * of the image.
+     */
+    unsigned long long EntryPoint;
+
+    /**
+     * Length is the length of the loaded image. This will cover the entire image of
+     * the loaded (and relocated) image in memory.
+     */
+    unsigned int Length;
 });
 
 VBOOT_PACKED(VBootStack, {
@@ -114,8 +134,9 @@ VBOOT_PACKED(VBoot, {
     struct VBootMemory  Memory;
     struct VBootVideo   Video;
     struct VBootRamdisk Ramdisk;
-    struct VBootKernel  Kernel;
+    struct VBootModule  Kernel;
     struct VBootStack   Stack;
+    struct VBootModule  Phoenix;
 });
 
 #endif //!__VBOOT_H__

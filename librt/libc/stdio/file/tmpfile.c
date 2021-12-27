@@ -45,7 +45,7 @@ FILE* tmpfile(void)
     status = sys_file_open(
         GetGrachtClient(), 
         &msg.base, 
-        *GetInternalProcessId(),
+        *__crt_processid_ptr(),
         &path[0], 
         __FILE_CREATE | __FILE_TEMPORARY | __FILE_FAILONEXIST | __FILE_BINARY, 
         __FILE_READ_ACCESS | __FILE_WRITE_ACCESS
@@ -72,7 +72,7 @@ FILE* tmpfile(void)
 
     TRACE("open retrieved handle %u", handle);
     if (stdio_handle_create(-1, WX_DONTINHERIT | WX_TEMP, &object)) {
-        sys_file_close(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle);
+        sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return NULL;

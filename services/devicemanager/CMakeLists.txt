@@ -36,3 +36,4 @@ endif ()
 
 add_service_target(devicemanager "" main.c ${ADDITONAL_SOURCES})
 add_dependencies(devicemanager service_servers contract_clients)
+deploy_to_initrd(devicemanager ON)

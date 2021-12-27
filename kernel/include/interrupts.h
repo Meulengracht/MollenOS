@@ -33,7 +33,7 @@
 
 typedef struct SystemInterrupt {
     UUId_t                   Id;
-    UUId_t                   ModuleHandle;
+    UUId_t                   Owner;
     UUId_t                   Thread;
     InterruptResourceTable_t KernelResources;
     InterruptHandler_t       Handler;

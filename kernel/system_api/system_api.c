@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,13 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS MCore - System Calls
+ * System Calls
  */
+
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <modules/manager.h>
 #include <arch/output.h>
 #include <arch/utils.h>
 #include <os/mollenos.h>
@@ -117,13 +115,7 @@ ScSystemTick(
     }
 
     if (TimersGetSystemTick((clock_t*)&tick->QuadPart) == OsSuccess) {
-        if (tickBase == TIME_PROCESS) {
-            SystemModule_t* Module = GetCurrentModule();
-            if (Module != NULL) {
-                tick->QuadPart -= Module->StartedAt;
-            }
-        }
-        else if (tickBase == TIME_THREAD) {
+        if (tickBase == TIME_THREAD) {
             Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
                 tick->QuadPart -= ThreadStartTime(Thread);
@@ -167,19 +159,55 @@ ScQueryDisplayInformation(
     return VideoQuery(Descriptor);
 }
 
-void*
-ScCreateDisplayFramebuffer(void)
+OsStatus_t
+ScMapBootFramebuffer(
+        _Out_ void** bufferOut)
 {
     MemorySpace_t* memorySpace     = GetCurrentMemorySpace();
     uintptr_t      addressPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t      fbVirtual       = 0;
     size_t         fbSize          = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+    OsStatus_t     osStatus;
 
-    if (MemorySpaceMapContiguous(memorySpace, &fbVirtual, addressPhysical, fbSize,
-        MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-                                 MAPPING_VIRTUAL_PROCESS) != OsSuccess) {
-        // What? @todo
-        ERROR("Failed to map the display buffer");
+    if (!VideoGetTerminal()->FrameBufferAddressPhysical) {
+        return OsNotSupported;
     }
-    return (void*)fbVirtual;
+
+    osStatus = MemorySpaceMapContiguous(
+            memorySpace,
+            &fbVirtual,
+            addressPhysical,
+            fbSize,
+            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+            MAPPING_VIRTUAL_PROCESS
+    );
+
+    if (osStatus == OsSuccess) {
+        *bufferOut = (void*)fbVirtual;
+    }
+    return osStatus;
+}
+
+OsStatus_t
+ScMapRamdisk(
+        _Out_ void**  bufferOut,
+        _Out_ size_t* lengthOut)
+{
+    OsStatus_t osStatus;
+    vaddr_t    mapping;
+
+    osStatus = MemorySpaceCloneMapping(
+            GetCurrentMemorySpace(),
+            GetCurrentMemorySpace(),
+            (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
+            &mapping,
+            GetMachine()->BootInformation.Ramdisk.Length,
+            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (osStatus == OsSuccess) {
+        *bufferOut = (void*)mapping;
+        *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
+    }
+    return osStatus;
 }

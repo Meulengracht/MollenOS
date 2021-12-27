@@ -499,8 +499,6 @@ set (SOURCES_LIBC
     ${SOURCES_TIME}
     ${SOURCES_OS}
     ${SOURCES_WSTRING}
-
-    main.c
 )
 
 add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
@@ -508,7 +506,12 @@ target_compile_options(libk
   PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL>
 )
 
-add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC})
+add_library(libc STATIC ${ASM_SOURCES} ${SOURCES_LIBC})
+target_compile_options(libc
+        PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL>
+)
+
+add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
 target_compile_options(c
   PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL>
 )
@@ -516,20 +519,19 @@ set_target_properties(c
     PROPERTIES
         LINK_FLAGS "-Xlinker -def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def"
 )
+
 target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c
     ARCHIVE DESTINATION vali-sdk/lib
     LIBRARY DESTINATION vali-sdk/lib
     RUNTIME DESTINATION vali-sdk/bin
 )
+
 install(DIRECTORY include/ DESTINATION vali-sdk/include
     FILES_MATCHING
         PATTERN "*.h"
         PATTERN "internal" EXCLUDE
 )
 
-if (DEFINED VALI_PATH_INITRD)
-    add_custom_command (TARGET c POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:c> ${VALI_PATH_INITRD}
-    )
-endif ()
+# make sure the C library is deployed as the services/modules depend on it
+deploy_to_initrd(c OFF)

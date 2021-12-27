@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -172,66 +171,66 @@
 #define PE_DEBUG_TYPE_RESERVED              10
 #define PE_DEBUG_TYPE_CLSID                 11
 
-/* MzHeader
- * The MZ header which is the base for a PE/COM/DOS
- * file, extra headers are added afterwards */
+/**
+ * The MZ header which is the base for a PE/COM/DOS file, extra headers are added afterwards
+ */
 PACKED_TYPESTRUCT(MzHeader, {
-    uint16_t            Signature;
-    uint16_t            PageExtraBytes; // Extra Bytes in last page
-    uint16_t            NumPages;
-    uint16_t            NumRelocations;
-    uint16_t            HeaderSize;
-    uint16_t            MinAllocation;
-    uint16_t            MaxAllocation;
-    uint16_t            InitialSS;
-    uint16_t            InitialSP;
-    uint16_t            Checksum;
-    uint16_t            InitialIP;
-    uint16_t            InitialCS;
-    uint16_t            RelocationTableAddress;
-    uint16_t            Overlay;
-    uint16_t            Reserved0[4];
-    uint16_t            OemId;
-    uint16_t            OemInfo;
-    uint16_t            Reserved1[10];
-    uint32_t            PeHeaderAddress;
+    uint16_t Signature;
+    uint16_t PageExtraBytes; // Extra Bytes in last page
+    uint16_t NumPages;
+    uint16_t NumRelocations;
+    uint16_t HeaderSize;
+    uint16_t MinAllocation;
+    uint16_t MaxAllocation;
+    uint16_t InitialSS;
+    uint16_t InitialSP;
+    uint16_t Checksum;
+    uint16_t InitialIP;
+    uint16_t InitialCS;
+    uint16_t RelocationTableAddress;
+    uint16_t Overlay;
+    uint16_t Reserved0[4];
+    uint16_t OemId;
+    uint16_t OemInfo;
+    uint16_t Reserved1[10];
+    uint32_t PeHeaderAddress;
 });
 
-/* PeHeader
- * The PE header, which is an extension of the
- * MZ header, and adds a lot of new features */
+/**
+ * The PE header, which is an extension of the MZ header, and adds a lot of new features
+ */
 PACKED_TYPESTRUCT(PeHeader, {
-    uint32_t            Magic;
-    uint16_t            Machine;
-    uint16_t            NumSections;
-    uint32_t            DateTimeStamp; // Date is offset from 1970 January 1
-    uint32_t            SymbolTableOffset; // File offset
-    uint32_t            NumSymbolsInTable;
-    uint16_t            SizeOfOptionalHeader;
-    uint16_t            Attributes;
+    uint32_t Magic;
+    uint16_t Machine;
+    uint16_t NumSections;
+    uint32_t DateTimeStamp; // Date is offset from 1970 January 1
+    uint32_t SymbolTableOffset; // File offset
+    uint32_t NumSymbolsInTable;
+    uint16_t SizeOfOptionalHeader;
+    uint16_t Attributes;
 });
 
-/* Describes a data-directory entry in the
- * PE metadata. There is a max of 16 directories, and each
+/**
+ * Describes a data-directory entry in the PE metadata. There is a max of 16 directories, and each
  * entry is fixed for its type/index */
 PACKED_TYPESTRUCT(PeDataDirectory, {
-    uint32_t            AddressRVA;
-    uint32_t            Size;
+    uint32_t AddressRVA;
+    uint32_t Size;
 });
 
-/* PE-Optional-Header
- * This is the shared optional header, we can use it to 
- * determine which optional-version to use. It follows
- * directly after the base header */
+/**
+ * This is the shared optional header, we can use it to determine which optional-version to use. It follows
+ * directly after the base header
+ */
 PACKED_TYPESTRUCT(PeOptionalHeader, {
-    uint16_t            Architecture;
-    uint8_t             LinkerVersionMajor;
-    uint8_t             LinkerVersionMinor;
-    uint32_t            SizeOfCode;
-    uint32_t            SizeOfData;
-    uint32_t            SizeOfBss;
-    uint32_t            EntryPoint; // Relative offset
-    uint32_t            BaseOfCode;
+    uint16_t Architecture;
+    uint8_t  LinkerVersionMajor;
+    uint8_t  LinkerVersionMinor;
+    uint32_t SizeOfCode;
+    uint32_t SizeOfData;
+    uint32_t SizeOfBss;
+    uint32_t EntryPoint; // Relative offset
+    uint32_t BaseOfCode;
 });
 
 /* PE-Optional-Header

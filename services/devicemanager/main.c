@@ -234,12 +234,7 @@ void sys_device_get_devices_by_protocol_invocation(struct gracht_message* messag
 static int __LoadDriverWorker(void* context)
 {
     Device_t*  device = context;
-    OsStatus_t osStatus;
 
-    osStatus = InstallDriver(device, device->Length, NULL, 0);
-    if (osStatus != OsSuccess) {
-        return OsStatusToErrno(osStatus);
-    }
     return 0;
 }
 

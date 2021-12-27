@@ -21,7 +21,7 @@
 
 #include <Uefi.h>
 #include <GlobalTable.h>
-#include <vboot.h>
+#include <vboot/vboot.h>
 
 EFI_STATUS LibraryInitialize(
     IN EFI_HANDLE        ImageHandle,

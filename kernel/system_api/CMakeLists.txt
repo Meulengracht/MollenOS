@@ -6,9 +6,7 @@ add_kernel_library (vali-core-api ""
         driver_api.c
         entry.c
         memory_api.c
-        module_api.c
         ossupport_api.c
-        sharedobject_api.c
         synchonization_api.c
         system_api.c
         thread_api.c

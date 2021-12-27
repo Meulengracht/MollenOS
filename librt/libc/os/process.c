@@ -130,7 +130,7 @@ ProcessKill(
 UUId_t
 ProcessGetCurrentId(void)
 {
-    return *GetInternalProcessId();
+    return *__crt_processid_ptr();
 }
 
 OsStatus_t
@@ -158,7 +158,7 @@ GetProcessCommandLine(
     _In_    char*   buffer,
     _InOut_ size_t* maxLength)
 {
-    const char* commandLine = GetInternalCommandLine();
+    const char* commandLine = __crt_cmdline();
 	size_t      length      = strlen(&commandLine[0]);
 
     if (!buffer || maxLength == 0) {
@@ -182,10 +182,8 @@ ProcessGetCurrentName(
         return OsInvalidParameters;
     }
 
-    if (IsProcessModule()) {
-        return Syscall_ModuleName(Buffer, MaxLength);
-    }
-    
+    assert(__crt_is_phoenix() == 0);
+
     sys_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_get_name_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
@@ -206,9 +204,7 @@ ProcessGetAssemblyDirectory(
     }
 
     if (Handle == UUID_INVALID) {
-        if (IsProcessModule()) {
-            return Syscall_GetAssemblyDirectory(Buffer, MaxLength);
-        }
+        assert(__crt_is_phoenix() == 0);
         Handle = ProcessGetCurrentId();
     }
     
@@ -232,9 +228,7 @@ ProcessGetWorkingDirectory(
     }
     
     if (Handle == UUID_INVALID) {
-        if (IsProcessModule()) {
-            return Syscall_GetWorkingDirectory(Buffer, MaxLength);
-        }
+        assert(__crt_is_phoenix() == 0);
         Handle = ProcessGetCurrentId();
     }
 	
@@ -254,10 +248,7 @@ ProcessSetWorkingDirectory(
     if (!Path) {
         return OsInvalidParameters;
     }
-    
-    if (IsProcessModule()) {
-        return Syscall_SetWorkingDirectory(Path);
-    }
+    assert(__crt_is_phoenix() == 0);
 	
     sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);

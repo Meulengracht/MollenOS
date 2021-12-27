@@ -32,7 +32,7 @@
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>
 #include <internal/_ipc.h>
-#include "../../librt/libds/pe/pe.h"
+#include "pe/pe.h"
 #include <os/mollenos.h>
 #include "process.h"
 #include <stdlib.h>

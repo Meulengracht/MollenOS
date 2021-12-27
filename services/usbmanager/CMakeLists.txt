@@ -33,3 +33,4 @@ add_service_target(usbmanager ""
         main.c
 )
 add_dependencies(usbmanager service_servers)
+deploy_to_initrd(usbmanager ON)

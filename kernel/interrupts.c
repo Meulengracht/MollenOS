@@ -34,7 +34,6 @@
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>
-#include <modules/manager.h>
 #include <memoryspace.h>
 #include <irq_spinlock.h>
 #include <interrupts.h>
@@ -363,9 +362,9 @@ InterruptRegister(
     id = atomic_fetch_add(&g_nextInterruptId, 1);
     memset((void*)systemInterrupt, 0, sizeof(SystemInterrupt_t));
 
-    systemInterrupt->Id           = (id << 16U);
-    systemInterrupt->ModuleHandle = UUID_INVALID;
-    systemInterrupt->Thread       = ThreadCurrentHandle();
+    systemInterrupt->Id     = (id << 16U);
+    systemInterrupt->Owner  = UUID_INVALID;
+    systemInterrupt->Thread = ThreadCurrentHandle();
     systemInterrupt->Flags        = flags;
     systemInterrupt->Line         = deviceInterrupt->Line;
     systemInterrupt->Pin          = deviceInterrupt->Pin;
@@ -373,8 +372,7 @@ InterruptRegister(
 
     // Get process id?
     if (!(flags & INTERRUPT_KERNEL)) {
-        assert(GetCurrentModule() != NULL);
-        systemInterrupt->ModuleHandle = GetCurrentModule()->Handle;
+        systemInterrupt->Owner = GetCurrentMemorySpaceHandle();
     }
 
     // Resolve the table index
@@ -412,7 +410,7 @@ InterruptRegister(
           deviceInterrupt->Line, deviceInterrupt->Pin, tableIndex);
 
     // If it's an user interrupt, resolve resources
-    if (systemInterrupt->ModuleHandle != UUID_INVALID) {
+    if (systemInterrupt->Owner != UUID_INVALID) {
         if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OsSuccess) {
             ERROR(" > failed to resolve the requested resources");
             kfree(systemInterrupt);
@@ -467,7 +465,7 @@ InterruptUnregister(
     while (Entry) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
-                if (Entry->ModuleHandle != GetCurrentModule()->Handle) {
+                if (Entry->Owner != GetCurrentMemorySpaceHandle()) {
                     Previous = Entry;
                     Entry    = Entry->Link;
                     continue;
@@ -503,7 +501,7 @@ InterruptUnregister(
     if (g_interruptTable[Entry->Source].Penalty == 0) {
         InterruptConfigure(Entry, 0);
     }
-    if (Entry->ModuleHandle != UUID_INVALID) {
+    if (Entry->Owner != UUID_INVALID) {
         if (InterruptReleaseResources(Entry) != OsSuccess) {
             ERROR(" > failed to cleanup interrupt resources");
         }

@@ -157,7 +157,7 @@ add_custom_target (install_prepare
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${VALI_PATH_DEPLOY_SYSTEM}/syskrnl.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_SYSTEM}/kernel.mos
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
@@ -206,7 +206,7 @@ add_custom_target(package
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_DEPLOY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern *.sys
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${CMAKE_BINARY_DIR}/package_os/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/syskrnl.mos ${CMAKE_BINARY_DIR}/package_os/syskrnl.mos
+    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${CMAKE_BINARY_DIR}/package_os/kernel.mos
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/package_os/
     COMMAND ${CMAKE_COMMAND} -E copy ${TOOL_DU} ${CMAKE_BINARY_DIR}/package_os/
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern DiscUtils*

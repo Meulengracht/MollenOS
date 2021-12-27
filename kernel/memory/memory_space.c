@@ -845,14 +845,24 @@ MemorySpaceCloneMapping(
     // increase reference of the source allocation first, to "acquire" it.
     sourceAllocation = __AcquireAllocation(sourceSpace, sourceAddress);
 
-    osStatus = __GetAndVerifyPhysicalMapping(sourceSpace, sourceAddress, pageCount,
-                                             &physicalAddressValues, &pagesRetrieved);
+    osStatus = __GetAndVerifyPhysicalMapping(
+            sourceSpace,
+            sourceAddress,
+            pageCount,
+            &physicalAddressValues,
+            &pagesRetrieved
+    );
     if (osStatus != OsSuccess) {
         goto exit;
     }
 
-    virtualBase = __AllocateVirtualMemory(destinationSpace, destinationAddress, length,
-                                          memoryFlags, placementFlags);
+    virtualBase = __AllocateVirtualMemory(
+            destinationSpace,
+            destinationAddress,
+            length,
+            memoryFlags,
+            placementFlags
+    );
     if (virtualBase == 0) {
         osStatus = OsOutOfMemory;
         goto exit;
@@ -863,9 +873,14 @@ MemorySpaceCloneMapping(
         __LinkAllocations(destinationSpace, virtualBase, sourceAllocation);
     }
 
-    osStatus = ArchMmuSetVirtualPages(destinationSpace, virtualBase, &physicalAddressValues[0],
-                                      pagesRetrieved, memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT,
-                                      &pagesUpdated);
+    osStatus = ArchMmuSetVirtualPages(
+            destinationSpace,
+            virtualBase,
+            &physicalAddressValues[0],
+            pagesRetrieved,
+            memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT,
+            &pagesUpdated
+    );
     if (osStatus == OsSuccess && pagesUpdated != pageCount) {
         osStatus = OsIncomplete;
     }

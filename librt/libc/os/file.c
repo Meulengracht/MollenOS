@@ -79,7 +79,7 @@ OsStatus_t SetFileSizeFromFd(int fileDescriptor, size_t size)
     sys_file_set_size(
         GetGrachtClient(), 
         &msg.base, 
-        *GetInternalProcessId(), 
+        *__crt_processid_ptr(),
         handle->object.handle,
         value.u.LowPart,
         value.u.HighPart
@@ -123,7 +123,7 @@ OsStatus_t ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissi
     sys_file_get_options(
         GetGrachtClient(),
         &msg.base,
-        *GetInternalProcessId(),
+        *__crt_processid_ptr(),
         handle->object.handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -132,7 +132,7 @@ OsStatus_t ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissi
     sys_file_set_options(
         GetGrachtClient(),
         &msg.base,
-        *GetInternalProcessId(),
+        *__crt_processid_ptr(),
         handle->object.handle,
         permissions,
         access
@@ -151,7 +151,7 @@ OsStatus_t GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLeng
         return OsInvalidParameters;
     }
 
-    sys_file_fstat_link(GetGrachtClient(), &msg.base, *GetInternalProcessId(), path);
+    sys_file_fstat_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_link_result(GetGrachtClient(), &msg.base, &status, linkPathBuffer, bufferLength);
     return status;
@@ -171,7 +171,7 @@ GetFilePathFromFd(
         return OsInvalidParameters;
     }
     
-    sys_file_get_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    sys_file_get_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_get_path_result(GetGrachtClient(), &msg.base, &status, PathBuffer, MaxLength);
     return status;
@@ -238,7 +238,7 @@ GetFileSystemInformationFromPath(
         return OsInvalidParameters;
     }
     
-    sys_file_fsstat_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    sys_file_fsstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), Path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -263,7 +263,7 @@ GetFileSystemInformationFromFd(
         return OsInvalidParameters;
     }
     
-    sys_file_fsstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    sys_file_fsstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -286,7 +286,7 @@ GetFileInformationFromPath(
         return OsInvalidParameters;
     }
     
-    sys_file_fstat_path(GetGrachtClient(), &msg.base, *GetInternalProcessId(), Path);
+    sys_file_fstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), Path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -311,7 +311,7 @@ GetFileInformationFromFd(
         return OsInvalidParameters;
     }
     
-    sys_file_fstat(GetGrachtClient(), &msg.base, *GetInternalProcessId(), handle->object.handle);
+    sys_file_fstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -446,7 +446,7 @@ OsStatus_t FlushFileMapping(
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
             size_t                   bytesTransferred;
 
-            sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *GetInternalProcessId(), fileView->file_handle,
+            sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), fileView->file_handle,
                                        1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
                                        i * __GetPageSize(), dirtyPageCount * __GetPageSize());
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -518,7 +518,7 @@ OsStatus_t HandleMemoryMappingEvent(
     }
 
     // Now we perform the actual filling on the memory area
-    sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *GetInternalProcessId(), fileView->file_handle,
+    sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), fileView->file_handle,
                                0, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
                                virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer, __GetPageSize());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);

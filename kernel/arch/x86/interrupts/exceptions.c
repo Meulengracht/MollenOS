@@ -31,7 +31,6 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
-#include <modules/manager.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <paging.h>
@@ -48,9 +47,8 @@ HardFault(
     _In_ Context_t* context,
     _In_ uintptr_t  pfAddress)
 {
-    uintptr_t    moduleBase = 0;
-    char*        moduleName = NULL;
-    unsigned int attributes = 0;
+    uintptr_t    physicalBase = 0;
+    unsigned int attributes   = 0;
     LogSetRenderMode(1);
 
     // Was it a page-fault?
@@ -59,20 +57,11 @@ HardFault(
         // Bit 2 - write access
         // Bit 4 - user/kernel
         WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", pfAddress, context->ErrorCode);
-        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &moduleBase) == OsSuccess) {
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &physicalBase) == OsSuccess) {
             GetMemorySpaceAttributes(GetCurrentMemorySpace(), pfAddress, PAGE_SIZE, &attributes);
-            WRITELINE("existing mapping for address: 0x%" PRIxIN "", moduleBase);
+            WRITELINE("existing mapping for address: 0x%" PRIxIN "", physicalBase);
             WRITELINE("existing attribs for address: 0x%" PRIxIN "", attributes);
         }
-    }
-
-    // Locate which module
-    if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(context), &moduleBase, &moduleName) == OsSuccess) {
-        uintptr_t Diff = CONTEXT_IP(context) - moduleBase;
-        WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, moduleName);
-    }
-    else {
-        WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(context));
     }
 
     // Enter panic handler
