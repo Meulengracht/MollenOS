@@ -163,6 +163,7 @@ InitializeMachine(
 
     // yield before going to assume new threads
     WARNING("End of initialization, yielding control");
+    SchedulerEnable();
     ThreadingYield();
     goto IdleProcessor;
 

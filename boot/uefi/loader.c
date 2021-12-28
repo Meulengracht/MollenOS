@@ -162,18 +162,27 @@ cleanup:
     return Status;
 }
 
+EFI_STATUS __AllocatePageAligned(
+    IN  UINTN  Size,
+    OUT VOID** Memory)
+{
+    return gBootServices->AllocatePages(
+        AllocateAnyPages,
+        EfiRuntimeServicesData,
+        EFI_SIZE_TO_PAGES(Size),
+        (EFI_PHYSICAL_ADDRESS*)Memory
+    );
+}
+
 EFI_STATUS __AllocateKernelStack(
     IN  struct VBoot* VBoot,
     IN  UINTN         Size,
     OUT VOID**        Stack)
 {
     EFI_PHYSICAL_ADDRESS StackBase;
-    EFI_STATUS           Status = gBootServices->AllocatePages(
-        AllocateAnyPages,
-        EfiRuntimeServicesData,
-        EFI_SIZE_TO_PAGES(Size),
-        &StackBase
-    );
+    EFI_STATUS           Status;
+    
+    Status = __AllocatePageAligned(Size, (VOID**)&StackBase);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"__AllocateKernelStack Failed to allocate stack\n");
         return Status;
@@ -185,18 +194,6 @@ EFI_STATUS __AllocateKernelStack(
 
     *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
     return EFI_SUCCESS;
-}
-
-EFI_STATUS __AllocatePageAligned(
-    IN  UINTN  Size,
-    OUT VOID** Memory)
-{
-    return gBootServices->AllocatePages(
-        AllocateAnyPages,
-        EfiRuntimeServicesData,
-        EFI_SIZE_TO_PAGES(Size),
-        (EFI_PHYSICAL_ADDRESS*)Memory
-    );
 }
 
 EFI_STATUS

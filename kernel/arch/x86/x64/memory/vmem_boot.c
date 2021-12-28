@@ -70,41 +70,53 @@ MmBootGetPageTable(
     PageTable_t*          pageTable;
 
     pageDirectoryTable = (PageDirectoryTable_t*)(atomic_load(&masterTable->pTables[PAGE_LEVEL_4_INDEX(address)]) & PAGE_MASK);
-    pageDirectory      = (PageDirectory_t*)(atomic_load(&pageDirectoryTable->pTables[PAGE_DIRECTORY_POINTER_INDEX(address)]) & PAGE_MASK);
-    pageTable          = (PageTable_t*)(atomic_load(&pageDirectory->pTables[PAGE_DIRECTORY_INDEX(address)]) & PAGE_MASK);
+    if (!pageDirectoryTable) {
+        return NULL;
+    }
+
+    pageDirectory = (PageDirectory_t*)(atomic_load(&pageDirectoryTable->pTables[PAGE_DIRECTORY_POINTER_INDEX(address)]) & PAGE_MASK);
+    if (!pageDirectory) {
+        return NULL;
+    }
+
+    pageTable = (PageTable_t*)(atomic_load(&pageDirectory->pTables[PAGE_DIRECTORY_INDEX(address)]) & PAGE_MASK);
     return pageTable;
 }
 
 static void 
 MmVirtualFillPageTable(
         _In_ PageTable_t* pageTable,
-        _In_ paddr_t      physicalAddress,
-        _In_ vaddr_t      virtualAddress,
+        _In_ paddr_t      physicalBase,
+        _In_ vaddr_t      virtualBase,
         _In_ unsigned int flags,
         _In_ size_t       length)
 {
-	uintptr_t pAddress = physicalAddress | flags;
-	int       PtStart  = PAGE_TABLE_INDEX(virtualAddress);
-	int       PtEnd    = MIN(PtStart + DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE);
+	uintptr_t address = physicalBase | flags;
+	int       iStart = PAGE_TABLE_INDEX(virtualBase);
+	int       iEnd   = iStart + (int)(MIN(DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE - iStart));
+    TRACE("MmVirtualFillPageTable(virtual=0x%llx, physical=0x%llx, length=0x%llx)", virtualBase, physicalBase, length);
+    TRACE("MmVirtualFillPageTable iStart=%i, iEnd=%i", iStart, iEnd);
 
 	// Iterate through pages and map them
-	for (; PtStart < PtEnd; PtStart++, pAddress += PAGE_SIZE) {
-        atomic_store(&pageTable->Pages[PtStart], pAddress);
+	for (; iStart < iEnd; iStart++, address += PAGE_SIZE) {
+        atomic_store(&pageTable->Pages[iStart], address);
 	}
 }
 
 static void
 CreateDirectoryEntriesForRange(
         _In_ PageDirectory_t* pageDirectory,
-        _In_ vaddr_t          addressStart,
+        _In_ vaddr_t          virtualBase,
         _In_ size_t           length,
         _In_ unsigned int     flags)
 {
-    int pdStart = PAGE_DIRECTORY_POINTER_INDEX(addressStart);
-    int pdEnd   = pdStart + (int)(DIVUP(length, TABLE_SPACE_SIZE));
+    int iStart = PAGE_DIRECTORY_INDEX(virtualBase);
+    int iEnd   = iStart + (int)(MIN(DIVUP(length, TABLE_SPACE_SIZE), ENTRIES_PER_PAGE - iStart));
     int i;
+    TRACE("CreateDirectoryEntriesForRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
+    TRACE("CreateDirectoryEntriesForRange iStart=%i, iEnd=%i", iStart, iEnd);
 
-    for (i = pdStart; i < pdEnd; i++) {
+    for (i = iStart; i < iEnd; i++) {
         if (pageDirectory->vTables[i] == 0) {
             uintptr_t physicalBase = (uintptr_t)MmVirtualCreatePageTable(&pageDirectory->vTables[i]);
             atomic_store(&pageDirectory->pTables[i], physicalBase | flags);
@@ -115,17 +127,19 @@ CreateDirectoryEntriesForRange(
 static void
 CreateDirectoryTableEntriesForRange(
         _In_ PageDirectoryTable_t* directoryTable,
-        _In_ vaddr_t               addressStart,
+        _In_ vaddr_t               virtualBase,
         _In_ size_t                length,
         _In_ unsigned int          flags)
 {
     size_t    bytesToMap = length;
-    uintptr_t addressItr = addressStart;
-    int       pdpStart   = PAGE_DIRECTORY_POINTER_INDEX(addressStart);
-    int       PdpEnd     = pdpStart + (int)(DIVUP(length, DIRECTORY_SPACE_SIZE));
+    uintptr_t address = virtualBase;
+    int       iStart = PAGE_DIRECTORY_POINTER_INDEX(virtualBase);
+    int       iEnd   = iStart + (int)(MIN(DIVUP(length, DIRECTORY_SPACE_SIZE), ENTRIES_PER_PAGE - iStart));
     int       i;
+    TRACE("CreateDirectoryTableEntriesForRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
+    TRACE("CreateDirectoryTableEntriesForRange iStart=%i, iEnd=%i", iStart, iEnd);
 
-    for (i = pdpStart; i < PdpEnd; i++) {
+    for (i = iStart; i < iEnd; i++) {
         size_t           subLength;
         PageDirectory_t* pageDirectory;
 
@@ -136,31 +150,33 @@ CreateDirectoryTableEntriesForRange(
 
         subLength     = MIN(DIRECTORY_SPACE_SIZE, bytesToMap);
         pageDirectory = (PageDirectory_t*)(atomic_load(&directoryTable->pTables[i]) & PAGE_MASK);
-        CreateDirectoryEntriesForRange(pageDirectory, addressItr, subLength, flags);
+        CreateDirectoryEntriesForRange(pageDirectory, address, subLength, flags);
 
         // Increase iterators
         bytesToMap -= subLength;
-        addressItr += subLength;
+        address += subLength;
     }
 }
 
 static void
 MmVirtualMapMemoryRange(
         _In_ PageMasterTable_t* masterTable,
-        _In_ vaddr_t            addressStart,
+        _In_ vaddr_t            virtualBase,
         _In_ size_t             length,
         _In_ unsigned int       flags)
 {
     size_t    bytesToMap = length;
-    uintptr_t addressItr = addressStart;
+    uintptr_t address    = virtualBase;
 	int       i;
 
     // Get indices, need them to make decisions
-    int pmStart = PAGE_LEVEL_4_INDEX(addressStart);
-    int pmEnd   = pmStart + (int)(DIVUP(length, DIRECTORY_TABLE_SPACE_SIZE));
+    int iStart = PAGE_LEVEL_4_INDEX(virtualBase);
+    int iEnd   = iStart + (int)(DIVUP(length, DIRECTORY_TABLE_SPACE_SIZE));
+    TRACE("MmVirtualMapMemoryRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
+    TRACE("MmVirtualMapMemoryRange iStart=%i, iEnd=%i", iStart, iEnd);
 
     // Iterate all the neccessary page-directory tables
-    for (i = pmStart; i < pmEnd; i++) {
+    for (i = iStart; i < iEnd; i++) {
         size_t                subLength;
         PageDirectoryTable_t* pageDirectoryTable;
 
@@ -171,11 +187,11 @@ MmVirtualMapMemoryRange(
 
         subLength          = MIN(DIRECTORY_TABLE_SPACE_SIZE, bytesToMap);
         pageDirectoryTable = (PageDirectoryTable_t*)(atomic_load(&masterTable->pTables[i]) & PAGE_MASK);
-        CreateDirectoryTableEntriesForRange(pageDirectoryTable, addressItr, subLength, flags);
+        CreateDirectoryTableEntriesForRange(pageDirectoryTable, address, subLength, flags);
         
         // Increase iterators
         bytesToMap -= subLength;
-        addressItr += subLength;
+        address += subLength;
     }
 }
 
@@ -203,6 +219,7 @@ MmuPrepareKernel(void)
     );
     assert(osStatus == OsSuccess);
 
+    TRACE("MmuPrepareKernel cr3=0x%llx", pageMasterTable);
     memset((void*)pageMasterTable, 0, sizeof(PageMasterTable_t));
     g_kernelcr3 = (uintptr_t)pageMasterTable;
     g_kernelpd  = virtualBase;
@@ -221,11 +238,11 @@ MmuPrepareKernel(void)
     );
 
     TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
-          MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_START);
+          MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END);
     MmVirtualMapMemoryRange(
             pageMasterTable,
             MEMORY_LOCATION_SHARED_START,
-            MEMORY_LOCATION_SHARED_END,
+            MEMORY_LOCATION_SHARED_END - MEMORY_LOCATION_SHARED_START,
             PAGE_PRESENT | PAGE_WRITE
     );
 

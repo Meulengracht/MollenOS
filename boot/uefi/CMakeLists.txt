@@ -251,6 +251,7 @@ add_custom_target (test
         -drive if=pflash,format=raw,readonly,file=${OVMF_FILE_BASE}_OVMF_CODE.fd
         -drive if=pflash,format=raw,file=${OVMF_FILE_BASE}_OVMF_VARS.fd
         -nodefaults -serial stdio
+        -no-reboot -no-shutdown
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS vboot
     USES_TERMINAL

@@ -140,11 +140,11 @@ MmuPrepareKernel(void)
     );
 
     TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
-          MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_START);
+          MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END);
     MmVirtualMapMemoryRange(
             pageDirectory,
             MEMORY_LOCATION_SHARED_START,
-            MEMORY_LOCATION_SHARED_END,
+            MEMORY_LOCATION_SHARED_END - MEMORY_LOCATION_SHARED_START,
             PAGE_PRESENT | PAGE_WRITE
     );
 

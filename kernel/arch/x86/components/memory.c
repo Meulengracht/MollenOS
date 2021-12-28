@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "MEM0"
-//#define __TRACE
+#define __TRACE
 
 #include <arch.h>
 #include <arch/mmu.h>
@@ -695,7 +695,8 @@ __InstallFirmwareMapping(
     while (pageCount) {
         pageTable = MmBootGetPageTable(directory, virtualBase);
         if (!pageTable) {
-            status = (pagesUpdated == 0) ? OsOutOfMemory : OsIncomplete;
+            ERROR("__InstallFirmwareMapping pagetable for address 0x%" PRIxIN " was not found", virtualBase);
+            status = OsError;
             break;
         }
 

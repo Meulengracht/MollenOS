@@ -18,7 +18,7 @@
  *   - Implements helpers and utility functions with the MemoryInitialize.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <arch/mmu.h>
