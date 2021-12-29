@@ -94,8 +94,6 @@ MmVirtualFillPageTable(
 	uintptr_t address = physicalBase | flags;
 	int       iStart = PAGE_TABLE_INDEX(virtualBase);
 	int       iEnd   = iStart + (int)(MIN(DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE - iStart));
-    TRACE("MmVirtualFillPageTable(virtual=0x%llx, physical=0x%llx, length=0x%llx)", virtualBase, physicalBase, length);
-    TRACE("MmVirtualFillPageTable iStart=%i, iEnd=%i", iStart, iEnd);
 
 	// Iterate through pages and map them
 	for (; iStart < iEnd; iStart++, address += PAGE_SIZE) {
@@ -113,8 +111,6 @@ CreateDirectoryEntriesForRange(
     int iStart = PAGE_DIRECTORY_INDEX(virtualBase);
     int iEnd   = iStart + (int)(MIN(DIVUP(length, TABLE_SPACE_SIZE), ENTRIES_PER_PAGE - iStart));
     int i;
-    TRACE("CreateDirectoryEntriesForRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
-    TRACE("CreateDirectoryEntriesForRange iStart=%i, iEnd=%i", iStart, iEnd);
 
     for (i = iStart; i < iEnd; i++) {
         if (pageDirectory->vTables[i] == 0) {
@@ -136,8 +132,6 @@ CreateDirectoryTableEntriesForRange(
     int       iStart = PAGE_DIRECTORY_POINTER_INDEX(virtualBase);
     int       iEnd   = iStart + (int)(MIN(DIVUP(length, DIRECTORY_SPACE_SIZE), ENTRIES_PER_PAGE - iStart));
     int       i;
-    TRACE("CreateDirectoryTableEntriesForRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
-    TRACE("CreateDirectoryTableEntriesForRange iStart=%i, iEnd=%i", iStart, iEnd);
 
     for (i = iStart; i < iEnd; i++) {
         size_t           subLength;
@@ -172,8 +166,6 @@ MmVirtualMapMemoryRange(
     // Get indices, need them to make decisions
     int iStart = PAGE_LEVEL_4_INDEX(virtualBase);
     int iEnd   = iStart + (int)(DIVUP(length, DIRECTORY_TABLE_SPACE_SIZE));
-    TRACE("MmVirtualMapMemoryRange(virtual=0x%llx, length=0x%llx)", virtualBase, length);
-    TRACE("MmVirtualMapMemoryRange iStart=%i, iEnd=%i", iStart, iEnd);
 
     // Iterate all the neccessary page-directory tables
     for (i = iStart; i < iEnd; i++) {
@@ -219,7 +211,6 @@ MmuPrepareKernel(void)
     );
     assert(osStatus == OsSuccess);
 
-    TRACE("MmuPrepareKernel cr3=0x%llx", pageMasterTable);
     memset((void*)pageMasterTable, 0, sizeof(PageMasterTable_t));
     g_kernelcr3 = (uintptr_t)pageMasterTable;
     g_kernelpd  = virtualBase;

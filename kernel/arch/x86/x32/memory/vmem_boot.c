@@ -64,18 +64,18 @@ MmBootGetPageTable(
 static void 
 MmVirtualFillPageTable(
         _In_ PageTable_t* pageTable,
-        _In_ paddr_t      physicalAddress,
-        _In_ vaddr_t      virtualAddress,
+        _In_ paddr_t      physicalBase,
+        _In_ vaddr_t      virtualBase,
         _In_ unsigned int flags,
         _In_ size_t       length)
 {
-	uintptr_t address = physicalAddress | flags;
-	int       ptStart = PAGE_TABLE_INDEX(virtualAddress);
-	int       ptEnd   = MIN(ptStart + DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE);
+	uintptr_t address = physicalBase | flags;
+	int       iStart  = PAGE_TABLE_INDEX(virtualBase);
+	int       iEnd    = iStart + (int)(MIN(DIVUP(length, PAGE_SIZE), ENTRIES_PER_PAGE - iStart));
 
 	// Iterate through pages and map them
-	for (; ptStart < ptEnd; ptStart++, address += PAGE_SIZE) {
-        atomic_store(&pageTable->Pages[ptStart], address);
+	for (; iStart < iEnd; iStart++, address += PAGE_SIZE) {
+        atomic_store(&pageTable->Pages[iStart], address);
 	}
 }
 
@@ -86,11 +86,11 @@ MmVirtualMapMemoryRange(
         _In_ size_t           length,
         _In_ unsigned int     flags)
 {
-    int pdStart = PAGE_DIRECTORY_INDEX(addressStart);
-    int pdEnd   = pdStart + (int)(DIVUP(length, TABLE_SPACE_SIZE));
+    int iStart = PAGE_DIRECTORY_INDEX(addressStart);
+    int iEnd   = iStart + (int)(DIVUP(length, TABLE_SPACE_SIZE));
     int i;
 
-    for (i = pdStart; i < pdEnd; i++) {
+    for (i = iStart; i < iEnd; i++) {
         if (pageDirectory->vTables[i] == 0) {
             uintptr_t physicalBase = (uintptr_t)MmVirtualCreatePageTable(&pageDirectory->vTables[i]);
             atomic_store(&pageDirectory->pTables[i], physicalBase | flags);

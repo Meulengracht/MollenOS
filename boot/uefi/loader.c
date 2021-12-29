@@ -285,9 +285,10 @@ EFI_STATUS
 __LoadPhoenix(
     IN  struct VBoot* VBoot)
 {
-    EFI_STATUS Status;
-    VOID*      Buffer;
-    UINTN      BufferSize;
+    EFI_STATUS           Status;
+    VOID*                Buffer;
+    UINTN                BufferSize;
+    EFI_PHYSICAL_ADDRESS OriginalImageBase;
     ConsoleWrite(L"__LoadPhoenix()\n");
 
     PE_COFF_LOADER_IMAGE_CONTEXT ImageContext;
@@ -315,6 +316,7 @@ __LoadPhoenix(
     // to be relocated into, and we do not perform any relocation
     // to this new address as we are still loading the image at the
     // preffered base address. Make sure we align up to the page size
+    OriginalImageBase = ImageContext.ImageAddress;
     Status = __AllocatePageAligned(
         ImageContext.ImageSize,
         (VOID**)&ImageContext.ImageAddress
@@ -331,7 +333,7 @@ __LoadPhoenix(
 
     // Update the VBoot structure
     VBoot->Phoenix.Base       = (unsigned long long)ImageContext.ImageAddress;
-    VBoot->Phoenix.EntryPoint = (unsigned long long)ImageContext.EntryPoint;
+    VBoot->Phoenix.EntryPoint = (unsigned long long)(ImageContext.EntryPoint - ImageContext.ImageAddress) + OriginalImageBase;
     VBoot->Phoenix.Length     = ImageContext.ImageSize;
 
     // Flush not needed for all architectures. We could have a processor specific

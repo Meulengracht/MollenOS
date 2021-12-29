@@ -7,7 +7,7 @@ partitions:
   - label: vali-system
     type: MFS
     guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
-    # attributes can be boot, readonly, shadow, noautomount
+    # attributes can be: boot, readonly, shadow, noautomount
     attributes:
       - boot
       - readonly
