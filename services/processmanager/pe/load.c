@@ -187,7 +187,7 @@ PeHandleSections(
         }
 
         // Iterate pages and map them in our memory space
-        Status = AcquireImageMapping(Image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &MapHandle);
+        Status = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &MapHandle);
         if (Status != OsSuccess) {
             dserror("%s: Failed to map section %s at 0x%" PRIxIN ": %u", 
                 MStringRaw(Image->Name), &SectionName[0], VirtualDestination, Status);
@@ -238,8 +238,8 @@ PeHandleSections(
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (CurrentAddress % GetPageSize()) {
-        CurrentAddress += (GetPageSize() - (CurrentAddress % GetPageSize()));
+    if (CurrentAddress % PeImplGetPageSize()) {
+        CurrentAddress += (PeImplGetPageSize() - (CurrentAddress % PeImplGetPageSize()));
     }
 
     if (Parent != NULL) Parent->NextLoadingAddress = CurrentAddress;
@@ -741,14 +741,14 @@ PeParseAndMapImage(
     dswarning("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Copy metadata of image to base address
-    osStatus = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
-        MEMORY_READ | MEMORY_WRITE, &MapHandle);
+    osStatus = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
+                                         MEMORY_READ | MEMORY_WRITE, &MapHandle);
     if (osStatus != OsSuccess) {
         dserror("Failed to map pe's metadata, out of memory?");
         return OsError;
     }
     memcpy((void*)VirtualAddress, ImageBuffer, SizeOfMetaData);
-    ReleaseImageMapping(MapHandle);
+    PeImplReleaseImageMapping(MapHandle);
 
     // Allocate an array of mappings that we can keep sections in
     SectionMappings = (SectionMapping_t*)dsalloc(sizeof(SectionMapping_t) * SectionCount);
@@ -794,21 +794,21 @@ PeParseAndMapImage(
         // Is there any directory available for the handler?
         if (DirectoryContents[dataDirectoryIndex] != NULL) {
             dstrace("parsing data-directory[%i]", dataDirectoryIndex);
-            Timing = GetTimestamp();
+            Timing = PeImplGetTimestamp();
             osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
                                                         DirectoryContents[dataDirectoryIndex],
                                                         Directories[dataDirectoryIndex].Size);
             if (osStatus != OsSuccess) {
                 dserror("handling of data-directory failed, status %u", osStatus);
             }
-            dstrace("directory[%i]: %u ms", dataDirectoryIndex, GetTimestamp() - Timing);
+            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestamp() - Timing);
         }
     }
 
     // Free all the section mappings
     for (i = 0; i < SectionCount; i++) {
         if (SectionMappings[i].Handle != NULL) {
-            ReleaseImageMapping(SectionMappings[i].Handle);
+            PeImplReleaseImageMapping(SectionMappings[i].Handle);
         }
     }
     dsfree(SectionMappings);
@@ -816,43 +816,48 @@ PeParseAndMapImage(
 }
 
 static OsStatus_t
-ResolvePeImagePath(
-    _In_  UUId_t           Owner,
-    _In_  MString_t*       Path,
-    _Out_ uint8_t**        BufferOut,
-    _Out_ MString_t**      FullPathOut)
+__ResolveImagePath(
+        _In_  UUId_t          owner,
+        _In_  PeExecutable_t* parent,
+        _In_  MString_t*      path,
+        _Out_ uint8_t**       bufferOut,
+        _Out_ MString_t**     fullPathOut)
 {
-    MString_t* FullPath;
-    uint8_t*   Buffer;
-    size_t     Length;
-    OsStatus_t Status;
+    MString_t* fullPath;
+    uint8_t*   buffer;
+    size_t     length;
+    OsStatus_t osStatus;
 
-    // Resolve the path first
-    Status = ResolveFilePath(Owner, Path, &FullPath);
-    if (Status != OsSuccess) {
-        dserror("Failed to resolve path for executable: %s (%u)", MStringRaw(Path), Status);
-        return Status;
+    osStatus = PeImplResolveFilePath(
+            owner,
+            (parent ? parent->FullPath : NULL),
+            path,
+            &fullPath
+    );
+    if (osStatus != OsSuccess) {
+        dserror("Failed to resolve path for executable: %s (%u)", MStringRaw(path), osStatus);
+        return osStatus;
     }
     
     // Load the file
-    Status = LoadFile(FullPath, (void**)&Buffer, &Length);
-    if (Status != OsSuccess) {
-        dserror("Failed to load file for path %s (%u)", MStringRaw(FullPath), Status);
-        MStringDestroy(FullPath);
-        return Status;
+    osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
+    if (osStatus != OsSuccess) {
+        dserror("Failed to load file for path %s (%u)", MStringRaw(fullPath), osStatus);
+        MStringDestroy(fullPath);
+        return osStatus;
     }
 
-    *BufferOut   = Buffer;
-    *FullPathOut = FullPath;
-    return PeValidateImageBuffer(Buffer, Length);
+    *bufferOut   = buffer;
+    *fullPathOut = fullPath;
+    return PeValidateImageBuffer(buffer, length);
 }
 
 OsStatus_t
 PeLoadImage(
-    _In_  UUId_t           owner,
-    _In_  PeExecutable_t*  parent,
-    _In_  MString_t*       path,
-    _Out_ PeExecutable_t** imageOut)
+        _In_  UUId_t           owner,
+        _In_  PeExecutable_t*  parent,
+        _In_  MString_t*       path,
+        _Out_ PeExecutable_t** imageOut)
 {
     MzHeader_t*           dosHeader;
     PeHeader_t*           peHeader;
@@ -873,7 +878,7 @@ PeLoadImage(
     dstrace("PeLoadImage(Path %s, Parent %s)",
             MStringRaw(path), (parent == NULL) ? "None" : MStringRaw(parent->Name));
 
-    osStatus = ResolvePeImagePath(owner, path, &buffer, &fullPath);
+    osStatus = __ResolveImagePath(owner, parent, path, &buffer, &fullPath);
     if (osStatus != OsSuccess) {
         if (fullPath != NULL) {
             MStringDestroy(fullPath);
@@ -881,9 +886,9 @@ PeLoadImage(
         return osStatus;
     }
 
-    dosHeader             = (MzHeader_t*)buffer;
-    peHeader              = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
-    optionalHeader        = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    dosHeader      = (MzHeader_t*)buffer;
+    peHeader       = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
+    optionalHeader = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
     if (peHeader->Machine != PE_CURRENT_MACHINE) {
         dserror("The image as built for machine type 0x%x, "
                 "which is not the current machine type.",
@@ -937,7 +942,7 @@ PeLoadImage(
     image->Owner             = owner;
     image->FullPath          = fullPath;
     image->Architecture      = optionalHeader->Architecture;
-    image->VirtualAddress    = (parent == NULL) ? GetBaseAddress() : parent->NextLoadingAddress;
+    image->VirtualAddress    = (parent == NULL) ? PeImplGetBaseAddress() : parent->NextLoadingAddress;
     image->Libraries         = dsalloc(sizeof(list_t));
     image->References        = 1;
     image->OriginalImageBase = imageBase;
@@ -950,7 +955,7 @@ PeLoadImage(
     }
 
     if (parent == NULL) {
-        osStatus = CreateImageSpace(&image->MemorySpace);
+        osStatus = PeImplCreateImageSpace(&image->MemorySpace);
         if (osStatus != OsSuccess) {
             dserror("Failed to create pe's memory space");
             MStringDestroy(image->Name);
@@ -967,7 +972,7 @@ PeLoadImage(
     // Parse the headers, directories and handle them.
     osStatus = PeParseAndMapImage(parent, image, buffer, sizeOfMetaData, sectionAddress,
                                   (int)peHeader->NumSections, directoryPtr);
-    UnloadFile(fullPath, (void*)buffer);
+    PeImplUnloadFile(fullPath, (void*)buffer);
     if (osStatus != OsSuccess) {
         PeUnloadLibrary(parent, image);
         return OsError;

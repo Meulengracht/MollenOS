@@ -13,14 +13,15 @@ endif ()
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
+        ${CMAKE_BINARY_DIR}
+        ${CMAKE_BINARY_DIR}/protocols
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ../../librt/libgracht/include
+        ../../librt/libusb/include
+        ../../librt/libddk/include
+        ../../librt/libds/include
+        ../../librt/libc/include
+        include
 )
 
 set (ADDITONAL_SOURCES
@@ -32,17 +33,20 @@ set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 add_executable (phoenix
         ${ADDITONAL_SOURCES}
 
+        bootstrap/discover.c
+
         pe/glue.c
         pe/load.c
         pe/utilities.c
         pe/verify.c
 
-        debugger.c
+        debugger/debugger.c
+        debugger/map_parser.c
+        debugger/symbol_loader.c
+
         main.c
-        map_parser.c
         process.c
         requests.c
-        symbol_loader.c
 )
 
 set_target_properties (phoenix

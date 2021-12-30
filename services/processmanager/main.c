@@ -54,5 +54,6 @@ OnLoad(void)
 
     InitializeProcessManager();
     DebuggerInitialize();
+    PmBootstrap();
     return OsSuccess;
 }

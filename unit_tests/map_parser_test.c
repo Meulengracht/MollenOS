@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
-#include "../services/processmanager/map_parser.c"
+#include "../services/processmanager/debugger/map_parser.c"
 
 // ./map_parser_test /home/philip/Source/vali-userspace/mesa/build/vali-amd64/gallium-osmesa.map
 int main(int argc, char **argv)

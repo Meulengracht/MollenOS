@@ -41,21 +41,21 @@ PACKED_TYPESTRUCT(BitmapInfoHeader, {
     uint32_t biClrImportant;  //number of colors that are important
 });
 
-/* MCoreRamDiskHeader
- * The ramdisk header, this is present in the 
- * first few bytes of the ramdisk image, members
- * do not vary in length */
+/**
+ * The ramdisk header, this is present in the first few bytes of the ramdisk image, members
+ * do not vary in length
+ */
 PACKED_TYPESTRUCT(MCoreRamDiskHeader, {
-    uint32_t    Magic;
-    uint32_t    Version;
-    uint32_t    Architecture;
-    int32_t     FileCount;
+    uint32_t Magic;
+    uint32_t Version;
+    uint32_t Architecture;
+    int32_t  FileCount;
 });
 
-/* MCoreRamDiskEntry
- * This is the ramdisk entry, which describes
- * an entry in the ramdisk. The ramdisk entry area
- * contains headers right after each other */
+/**
+ * This is the ramdisk entry, which describes an entry in the ramdisk. The ramdisk entry area
+ * contains headers right after each other
+ */
 PACKED_TYPESTRUCT(MCoreRamDiskEntry, {
     uint8_t     Name[64]; // UTF-8 Encoded filename
     uint32_t    Type; // Check the ramdisk entry definitions

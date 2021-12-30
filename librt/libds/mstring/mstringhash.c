@@ -25,23 +25,17 @@
 
 size_t MStringHash(MString_t *String)
 {
-	/* Hash Seed */
 	size_t Hash = 5381;
 	uint8_t *StrPtr;
 	int Char;
 
-	/* Sanity */
-	if (String->Data == NULL
-		|| String->Length == 0)
+	if (String->Data == NULL || String->Length == 0)
 		return 0;
 
-	/* Get a pointer */
 	StrPtr = (uint8_t*)String->Data;
-
-	/* Hash */
-	while ((Char = tolower(*StrPtr++)) != 0)
-		Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
-
-	/* Done */
+	while ((Char = tolower(*StrPtr)) != 0) {
+        Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
+        StrPtr++;
+    }
 	return Hash;
 }

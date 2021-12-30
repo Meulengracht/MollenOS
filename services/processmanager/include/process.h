@@ -69,16 +69,35 @@ typedef struct Process {
 extern void InitializeProcessManager(void);
 
 /**
- * @brief Initializes the debugger functionality in the process manager
+ * @brief Initializes the debugger functionality in the process manager.
  */
 extern void DebuggerInitialize(void);
+
+/**
+ * @brief Bootstraps the entire system by parsing ramdisk for system services.
+ */
+extern void PmBootstrap(void);
+
+/**
+ * @brief
+ *
+ * @param path
+ * @param bufferOut
+ * @param bufferSizeOut
+ * @return
+ */
+extern OsStatus_t
+PmBootstrapFindRamdiskFile(
+        _In_  MString_t* path,
+        _Out_ void**     bufferOut,
+        _Out_ size_t*    bufferSizeOut);
 
 /**
  * @brief Registers a request to the process. As long as a request is registered to a process the process
  * termination will not complete before all requests has been handled.
  *
- * @param handle  A handle for the process to register the request for
- * @param request The request that should be registered.
+ * @param[In] handle  A handle for the process to register the request for
+ * @param[In] request The request that should be registered.
  * @return
  */
 extern Process_t*
@@ -90,12 +109,43 @@ RegisterProcessRequest(
  * @brief Unregisters a registered request, if the process is terminating and the number of requests reach 0,
  * then process destruction will also occur.
  *
- * @param process A process instance that the request is registered too
- * @param request The request that should be unregistered.
+ * @param[In] process A process instance that the request is registered too
+ * @param[In] request The request that should be unregistered.
  */
 extern void
 UnregisterProcessRequest(
         _In_ Process_t* process,
         _In_ Request_t* request);
+
+/**
+ * @brief Spawns a new process with the given configuration. The process assumes a valid PE image
+ * and builds all required tables for the new process.
+ *
+ * @param[In] path
+ * @param[In] args
+ * @param[In] inherit
+ * @param[In] processConfiguration
+ * @param[In] cancellationToken
+ * @param[Out] handleOut
+ * @return
+ */
+extern OsStatus_t
+PmCreateProcessInternal(
+        _In_  const char*             path,
+        _In_  const char*             args,
+        _In_  const void*             inherit,
+        _In_  ProcessConfiguration_t* processConfiguration,
+        _In_  void*                   cancellationToken,
+        _Out_ UUId_t*                 handleOut);
+
+/**
+ * @brief Retrieves the process associated by the handle.
+ *
+ * @param[In] handle
+ * @return Returns NULL if the handle is invalid.
+ */
+extern Process_t*
+PmGetProcessByHandle(
+        _In_ UUId_t handle);
 
 #endif //!__PROCESS_INTERFACE__

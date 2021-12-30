@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -77,49 +76,65 @@ typedef struct PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
-__EXTERN uintptr_t  GetPageSize(void);
-__EXTERN uintptr_t  GetBaseAddress(void);
-__EXTERN clock_t    GetTimestamp(void);
-__EXTERN OsStatus_t ResolveFilePath(UUId_t, MString_t*, MString_t**);
-__EXTERN OsStatus_t LoadFile(MString_t*, void**, size_t*);
-__EXTERN void       UnloadFile(MString_t*, void*);
-__EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);
-__EXTERN OsStatus_t AcquireImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, unsigned int, MemoryMapHandle_t*);
-__EXTERN void       ReleaseImageMapping(MemoryMapHandle_t);
+__EXTERN uintptr_t  PeImplGetPageSize(void);
+__EXTERN uintptr_t  PeImplGetBaseAddress(void);
+__EXTERN clock_t    PeImplGetTimestamp(void);
+__EXTERN OsStatus_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
+__EXTERN OsStatus_t PeImplLoadFile(MString_t*, void**, size_t*);
+__EXTERN void       PeImplUnloadFile(MString_t*, void*);
+__EXTERN OsStatus_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
+__EXTERN OsStatus_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
+__EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);
 
 /*******************************************************************************
  * Public API 
  *******************************************************************************/
 
-/* PeValidateImageBuffer
- * Validates a file-buffer of the given length, does initial header 
- * checks and performs a checksum validation. */
-__EXTERN OsStatus_t
+/**
+ * @brief Validates a file-buffer of the given length, does initial header checks and
+ * performs a checksum validation.
+ *
+ * @param Buffer
+ * @param Length
+ * @return
+ */
+extern OsStatus_t
 PeValidateImageBuffer(
     _In_ uint8_t* Buffer,
     _In_ size_t   Length);
 
-/* PeLoadImage
- * Loads the given file-buffer as a pe image into the current address space 
+/**
+ * @brief Loads the given file-buffer as a pe image into the current address space
  * at the given Base-Address, which is updated after load to reflect where
- * the next address is available for load */
-__EXTERN OsStatus_t
+ * the next address is available for load
+ *
+ * @param[In] owner
+ * @param[In] parent
+ * @param[In] path
+ * @param[Out] imageOut
+ * @return
+ */
+extern OsStatus_t
 PeLoadImage(
     _In_  UUId_t           owner,
     _In_  PeExecutable_t*  parent,
     _In_  MString_t*       path,
     _Out_ PeExecutable_t** imageOut);
 
-/* PeUnloadImage
- * Unload executables, all it's dependancies and free it's resources */
-__EXTERN OsStatus_t
+/**
+ * @brief Unload executables, all it's dependancies and free it's resources
+ *
+ * @param image
+ * @return
+ */
+extern OsStatus_t
 PeUnloadImage(
     _In_ PeExecutable_t* image);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
  * This only cleans up in the case there are no more references */
-__EXTERN OsStatus_t
+extern OsStatus_t
 PeUnloadLibrary(
     _In_ PeExecutable_t* parent,
     _In_ PeExecutable_t* library);

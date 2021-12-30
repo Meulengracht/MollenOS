@@ -21,10 +21,15 @@
  */
 
 #include <ddk/memory.h>
-#include <ds/ds.h>
+#include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
 #include "pe.h"
+#include "process.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 typedef struct MemoryMappingState {
@@ -40,7 +45,218 @@ static uintptr_t          g_systemBaseAddress = 0;
 /*******************************************************************************
  * Support Methods (PE)
  *******************************************************************************/
-uintptr_t GetPageSize(void)
+static inline OsStatus_t
+__TestFilePath(
+        _In_ MString_t* path)
+{
+    OsFileDescriptor_t fileDescriptor;
+    return GetFileInformationFromPath(MStringRaw(path), &fileDescriptor);
+}
+
+static OsStatus_t
+__GuessBasePath(
+        _In_  UUId_t      processHandle,
+        _In_  MString_t*  path,
+        _Out_ MString_t** fullPathOut)
+{
+    // Check the working directory, if it fails iterate the environment defaults
+    Process_t* process = PmGetProcessByHandle(processHandle);
+    MString_t* result;
+    int        isApp;
+    int        isDll;
+
+    // Start by testing against the loaders current working directory,
+    // however this won't work for the base process
+    if (process != NULL) {
+        result = MStringClone(process->working_directory);
+        MStringAppendCharacter(result, '/');
+        MStringAppend(result, path);
+        if (__TestFilePath(result) == OsSuccess) {
+            *fullPathOut = result;
+            return OsSuccess;
+        }
+    }
+    else {
+        result = MStringCreate(NULL, StrUTF8);
+    }
+
+    // At this point we have to run through all PATH values
+    // Look at the type of file we are trying to load. .app? .dll?
+    // for other types its most likely resource load
+    isApp = MStringFindCString(path, ".run");
+    isDll = MStringFindCString(path, ".dll");
+    if (isApp != MSTRING_NOT_FOUND || isDll != MSTRING_NOT_FOUND) {
+        MStringReset(result, "$bin/", StrUTF8);
+    }
+    else {
+        MStringReset(result, "$data/", StrUTF8);
+    }
+    MStringAppend(result, path);
+    if (__TestFilePath(result) == OsSuccess) {
+        *fullPathOut = result;
+        return OsSuccess;
+    }
+    else {
+        MStringDestroy(result);
+        return OsError;
+    }
+}
+
+static OsStatus_t
+__ResolveRelativePath(
+        _In_  UUId_t      processId,
+        _In_  MString_t*  parentPath,
+        _In_  MString_t*  path,
+        _Out_ MString_t** fullPathOut)
+{
+    OsStatus_t osStatus;
+    MString_t* temporaryResult = path;
+
+    // Let's test against parent being loaded through the ramdisk
+    if (parentPath && MStringFindCString(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
+        // create the full path for the ramdisk
+        temporaryResult = MStringCreate("rd:/", StrUTF8);
+        MStringAppend(temporaryResult, path);
+
+        // try to find the file in the ramdisk
+        osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
+        if (osStatus == OsSuccess) {
+            *fullPathOut = temporaryResult;
+            return osStatus;
+        }
+
+        // cleanup our attempt at resolving
+        MStringDestroy(temporaryResult);
+        temporaryResult = path;
+    }
+
+    // should we resolve any form for variables?
+    if (MStringFind(path, '$', 0) == MSTRING_NOT_FOUND) {
+        osStatus = __GuessBasePath(processId, path, &temporaryResult);
+        TRACE("__ResolveRelativePath basePath=%s", MStringRaw(temporaryResult));
+
+        // If we already deduced an absolute path skip the canonicalizing moment
+        if (osStatus == OsSuccess && MStringFind(temporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
+            *fullPathOut = temporaryResult;
+            return osStatus;
+        }
+    }
+
+    // Take into account we might have failed to guess base path
+    if (osStatus == OsSuccess) {
+        char* canonicalizedPath = (char*)malloc(_MAXPATH);
+        if (!canonicalizedPath) {
+            ERROR("__ResolveRelativePath failed to allocate memory buffer for the canonicalized path");
+            return OsOutOfMemory;
+        }
+        memset(canonicalizedPath, 0, _MAXPATH);
+
+        osStatus = PathCanonicalize(MStringRaw(temporaryResult), canonicalizedPath, _MAXPATH);
+        TRACE("__ResolveRelativePath canonicalizedPath=%s", canonicalizedPath);
+        if (osStatus == OsSuccess) {
+            *fullPathOut = MStringCreate(canonicalizedPath, StrUTF8);
+        }
+        free(canonicalizedPath);
+    }
+    return osStatus;
+}
+
+OsStatus_t
+PeImplResolveFilePath(
+        _In_  UUId_t      processId,
+        _In_  MString_t*  parentPath,
+        _In_  MString_t*  path,
+        _Out_ MString_t** fullPathOut)
+{
+    OsStatus_t osStatus = OsSuccess;
+    ENTRY("ResolveFilePath(processId=%u, path=%s)", processId, MStringRaw(path));
+
+    if (MStringFind(path, ':', 0) == MSTRING_NOT_FOUND) {
+        // If we don't even have an environmental identifier present, we
+        // have to get creative and guess away
+        osStatus = __ResolveRelativePath(processId, parentPath, path, fullPathOut);
+    }
+    else {
+        // Assume absolute path
+        *fullPathOut = MStringClone(path);
+    }
+
+    EXIT("ResolveFilePath");
+    return osStatus;
+}
+
+OsStatus_t
+PeImplLoadFile(
+        _In_  MString_t* fullPath,
+        _Out_ void**     bufferOut,
+        _Out_ size_t*    lengthOut)
+{
+    FILE*      file;
+    long       fileSize;
+    void*      fileBuffer;
+    size_t     bytesRead;
+    OsStatus_t osStatus = OsSuccess;
+    ENTRY("LoadFile %s", MStringRaw(fullPath));
+
+    // special case:
+    // load from ramdisk
+    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
+        return PmBootstrapFindRamdiskFile(fullPath, bufferOut, lengthOut);
+    }
+
+    file = fopen(MStringRaw(fullPath), "rb");
+    if (!file) {
+        ERROR("LoadFile fopen failed: %i", errno);
+        osStatus = OsDoesNotExist;
+        goto exit;
+    }
+
+    fseek(file, 0, SEEK_END);
+    fileSize = ftell(file);
+    rewind(file);
+
+    TRACE("[load_file] size %" PRIuIN, fileSize);
+    fileBuffer = malloc(fileSize);
+    if (!fileBuffer) {
+        ERROR("LoadFile null");
+        fclose(file);
+        osStatus = OsOutOfMemory;
+        goto exit;
+    }
+
+    bytesRead = fread(fileBuffer, 1, fileSize, file);
+    fclose(file);
+
+    TRACE("LoadFile read %" PRIuIN " bytes from file", bytesRead);
+    if (bytesRead != fileSize) {
+        osStatus = OsIncomplete;
+    }
+
+    *bufferOut = fileBuffer;
+    *lengthOut = fileSize;
+
+exit:
+    EXIT("LoadFile");
+    return osStatus;
+}
+
+void
+PeImplUnloadFile(
+        _In_ MString_t* fullPath,
+        _In_ void*      buffer)
+{
+    // do not free the buffer if the buffer came from the ramdisk
+    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
+        return;
+    }
+
+    // otherwise, we will simply free the buffer,
+    // but when we implement caching we will check if it should stay cached
+    free(buffer);
+}
+
+uintptr_t
+PeImplGetPageSize(void)
 {
     if (g_systemInformation.PageSizeBytes == 0) {
         SystemQuery(&g_systemInformation);
@@ -48,7 +264,8 @@ uintptr_t GetPageSize(void)
     return g_systemInformation.PageSizeBytes;
 }
 
-uintptr_t GetBaseAddress(void)
+uintptr_t
+PeImplGetBaseAddress(void)
 {
     if (g_systemBaseAddress == 0) {
         Syscall_GetProcessBaseAddress(&g_systemBaseAddress);
@@ -56,92 +273,70 @@ uintptr_t GetBaseAddress(void)
     return g_systemBaseAddress;
 }
 
-clock_t GetTimestamp(void)
+clock_t
+PeImplGetTimestamp(void)
 {
     return clock();
 }
 
-#ifdef LIBC_KERNEL
-OsStatus_t ResolveFilePath(UUId_t ProcessId, MString_t* Path, MString_t** FullPath)
+OsStatus_t
+PeImplCreateImageSpace(
+        _Out_ MemorySpaceHandle_t* handleOut)
 {
-    MString_t* InitRdPath;
-
-    // Don't care about the uuid
-    _CRT_UNUSED(ProcessId);
-
-    // Check if path already contains rd:/
-    if (MStringFindCString(Path, "rd:/") == MSTRING_NOT_FOUND) {
-        InitRdPath = MStringCreate("rd:/", StrUTF8);
-        MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
+    UUId_t     memorySpaceHandle = UUID_INVALID;
+    OsStatus_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
-    else {
-        InitRdPath = MStringClone(Path);
-    }
-    *FullPath = InitRdPath;
-    return OsSuccess;
-}
-
-OsStatus_t LoadFile(MString_t* FullPath, void** BufferOut, size_t* LengthOut)
-{
-    return GetModuleDataByPath(FullPath, BufferOut, LengthOut);
-}
-
-void UnloadFile(MString_t* FullPath, void* Buffer)
-{
-    // Do nothing, never free the module buffers
-    _CRT_UNUSED(FullPath);
-    _CRT_UNUSED(Buffer);
-}
-#endif
-
-OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
-{
-    UUId_t     MemorySpaceHandle = UUID_INVALID;
-    OsStatus_t Status            = CreateMemorySpace(0, &MemorySpaceHandle);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-    *HandleOut = (MemorySpaceHandle_t)(uintptr_t)MemorySpaceHandle;
+    *handleOut = (MemorySpaceHandle_t)(uintptr_t)memorySpaceHandle;
     return OsSuccess;
 }
 
 // Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly
 // accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
-OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, size_t Length, unsigned int Flags, MemoryMapHandle_t* HandleOut)
+OsStatus_t
+PeImplAcquireImageMapping(
+        _In_    MemorySpaceHandle_t memorySpaceHandle,
+        _InOut_ uintptr_t*          address,
+        _In_    size_t              length,
+        _In_    unsigned int        flags,
+        _In_    MemoryMapHandle_t*  handleOut)
 {
-    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)dsalloc(sizeof(MemoryMappingState_t));
-    OsStatus_t            Status;
+    MemoryMappingState_t* stateObject = (MemoryMappingState_t*)malloc(sizeof(MemoryMappingState_t));
+    OsStatus_t            osStatus;
 
-    if (!StateObject) {
+    if (!stateObject) {
         return OsOutOfMemory;
     }
 
-    StateObject->Handle  = Handle;
-    StateObject->Address = *Address;
-    StateObject->Length  = Length;
-    StateObject->Flags   = Flags;
-    *HandleOut           = (MemoryMapHandle_t)StateObject;
+    stateObject->Handle  = memorySpaceHandle;
+    stateObject->Address = *address;
+    stateObject->Length  = length;
+    stateObject->Flags   = flags;
+    *handleOut = (MemoryMapHandle_t)stateObject;
 
     // When creating these mappings we must always
     // map in with write flags, and then clear the 'write' flag on release if it was requested
     struct MemoryMappingParameters Parameters;
-    Parameters.VirtualAddress = *Address;
-    Parameters.Length         = Length;
-    Parameters.Flags          = Flags;
+    Parameters.VirtualAddress = *address;
+    Parameters.Length         = length;
+    Parameters.Flags          = flags;
 
-    Status   = CreateMemoryMapping((UUId_t)(uintptr_t)Handle, &Parameters, (void**)&StateObject->Address);
-    *Address = StateObject->Address;
-    if (Status != OsSuccess) {
-        dsfree(StateObject);
+    osStatus = CreateMemoryMapping((UUId_t)(uintptr_t)memorySpaceHandle, &Parameters, (void**)&stateObject->Address);
+    *address = stateObject->Address;
+    if (osStatus != OsSuccess) {
+        free(stateObject);
     }
-    return Status;
+    return osStatus;
 }
 
 // Releases the access previously granted to the mapping, however this is not something
 // that is neccessary in kernel mode, so this function does nothing
-void ReleaseImageMapping(MemoryMapHandle_t Handle)
+void
+PeImplReleaseImageMapping(
+        _In_ MemoryMapHandle_t mapHandle)
 {
-    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)Handle;
+    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)mapHandle;
     MemoryFree((void*)StateObject->Address, StateObject->Length);
-    dsfree(StateObject);
+    free(StateObject);
 }

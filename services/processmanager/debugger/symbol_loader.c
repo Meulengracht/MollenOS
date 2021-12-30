@@ -207,8 +207,11 @@ static uint64_t SymbolContextHash(const void* element)
     }
 
     pointer = (uint8_t*)context->key;
-    while ((character = tolower(*pointer++)) != 0)
+    while ((character = tolower(*pointer)) != 0) {
         hash = ((hash << 5) + hash) + character; /* hash * 33 + c */
+        pointer++;
+    }
+
     return hash;
 }
 

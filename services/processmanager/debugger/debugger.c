@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -29,7 +27,7 @@
 #include <ddk/debug.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
-#include "pe/pe.h"
+#include "pe.h"
 #include "process.h"
 #include "sys_process_service_server.h"
 #include "symbols.h"

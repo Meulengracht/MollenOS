@@ -29,5 +29,5 @@ if (MSVC)
 endif ()
 
 # Unit tests
-add_unit_test (map_parser_test "-ggdb -rdynamic" map_parser_test.c)
+add_unit_test (map_parser_test "-ggdb -rdynamic -I${CMAKE_CURRENT_SOURCE_DIR}/../services/processmanager/include" map_parser_test.c)
 add_unit_test (fread_tests "-ggdb -rdynamic" fread_tests.c)
