@@ -55,20 +55,11 @@ _Noreturn static void
 __crt_service_main(int setIod)
 {
     struct ioset_event events[32];
-    int                timeout = 0;
+    int                timeout;
+    int                num_events;
 
     while (1) {
-        int num_events = ioset_wait(setIod, &events[0], 32, timeout);
-        for (int i = 0; i < num_events; i++) {
-            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
-                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
-            }
-            else {
-                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
-            }
-        }
-
-        // handle all tasks after events
+        // handle tasks before going to sleep
         do {
             timeout = usched_yield();
         } while (timeout == 0);
@@ -76,6 +67,17 @@ __crt_service_main(int setIod)
         // convert INT_MAX result to infinite result
         if (timeout == INT_MAX) {
             timeout = 0;
+        }
+
+        // handle events
+        num_events = ioset_wait(setIod, &events[0], 32, timeout);
+        for (int i = 0; i < num_events; i++) {
+            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
+                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
+            }
+            else {
+                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
+            }
         }
     }
 }
@@ -119,8 +121,9 @@ __crt_service_init(void)
                        .events   = IOSETIN | IOSETCTL | IOSETLVT
                });
 
-    // initialize the userspace scheduler to support request based
-    // services in an async matter
+    // Initialize the userspace scheduler to support request based
+    // services in an async matter, and do this before we call OnLoad
+    // as the service might queue tasks up on load.
     usched_init();
 
     // Call the driver load function

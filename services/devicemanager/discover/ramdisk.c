@@ -16,9 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- * Process Manager - Bootstrapper
+ * Device Manager - Bootstrapper
  * Provides system bootstrap functionality, parses ramdisk for additional system
- * services and boots them.
+ * drivers and loads them if any matching device is present.
  */
 
 #define __TRACE
@@ -29,8 +29,6 @@
 #include <ds/mstring.h>
 #include <ds/list.h>
 #include <stdlib.h>
-#include "pe.h"
-#include "process.h"
 
 struct RamdiskFile {
     element_t   ListHeader;
@@ -119,44 +117,17 @@ __ParseRamdisk(
     return OsSuccess;
 }
 
-static void
-__SpawnServices(void)
-{
-    UUId_t                 handle;
-    ProcessConfiguration_t processConfiguration;
-    TRACE("__SpawnServices()");
-
-    ProcessConfigurationInitialize(&processConfiguration);
-
-    foreach (i, &g_ramdiskFiles) {
-        struct RamdiskFile* file = i->value;
-        if (file->IsService) {
-            OsStatus_t osStatus = PmCreateProcessInternal(
-                    MStringRaw(file->Name),
-                    NULL,
-                    NULL,
-                    &processConfiguration,
-                    NULL,
-                    &handle
-            );
-            if (osStatus != OsSuccess) {
-                WARNING("__SpawnServices failed to spawn service %s", MStringRaw(file->Name));
-            }
-        }
-    }
-}
-
-void PmBootstrap(void)
+void DmLoadRamdisk(void)
 {
     OsStatus_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
-    TRACE("PmBootstrap()");
+    TRACE("DmLoadRamdisk()");
 
     // Let's map in the ramdisk and discover various service modules
     osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
     if (osStatus != OsSuccess) {
-        TRACE("ProcessBootstrap failed to map ramdisk into address space %u", osStatus);
+        TRACE("DmLoadRamdisk failed to map ramdisk into address space %u", osStatus);
         return;
     }
 
@@ -165,37 +136,34 @@ void PmBootstrap(void)
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
     if (osStatus != OsSuccess) {
-        ERROR("ProcessBootstrap failed to parse ramdisk");
+        ERROR("DmLoadRamdisk failed to parse ramdisk");
         return;
     }
-    __SpawnServices();
 
     // store buffer and size for later cleanup
     g_ramdiskBuffer = ramdisk;
     g_ramdiskSize   = ramdiskSize;
-
 }
 
-void
-PmBootstrapCleanup(void)
+void DmUnloadRamdisk(void)
 {
     OsStatus_t osStatus;
 
     if (g_ramdiskBuffer && g_ramdiskSize) {
         osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
         if (osStatus != OsSuccess) {
-            ERROR("PmBootstrapCleanup failed to free the ramdisk memory");
+            ERROR("DmUnloadRamdisk failed to free the ramdisk memory");
         }
     }
 }
 
 OsStatus_t
-PmBootstrapFindRamdiskFile(
+DmRamdiskFindFile(
         _In_  MString_t* path,
         _Out_ void**     bufferOut,
         _Out_ size_t*    bufferSizeOut)
 {
-    TRACE("PmBootstrapFindRamdiskFile(path=%s)", MStringRaw(path));
+    TRACE("DmRamdiskFindFile(path=%s)", MStringRaw(path));
 
     foreach (i, &g_ramdiskFiles) {
         struct RamdiskFile* file = i->value;

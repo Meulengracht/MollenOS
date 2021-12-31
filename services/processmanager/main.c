@@ -22,20 +22,19 @@
 #define __TRACE
 
 #include <ds/mstring.h>
-#include <os/process.h>
-#include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <string.h>
-#include <stdio.h>
 #include "process.h"
+#include <os/usched/usched.h>
 
 #include <sys_library_service_server.h>
 #include <sys_process_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-OsStatus_t OnUnload(void)
+OsStatus_t
+OnUnload(void)
 {
+    PmBootstrapCleanup();
     return OsSuccess;
 }
 
@@ -52,8 +51,12 @@ OnLoad(void)
     gracht_server_register_protocol(__crt_get_service_server(), &sys_library_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_process_server_protocol);
 
-    InitializeProcessManager();
-    DebuggerInitialize();
-    PmBootstrap();
+    // Initialize all our subsystems for Phoenix
+    PmInitialize();
+    PmDebuggerInitialize();
+
+    // Queue up a task that bootstraps the system, it must run in scheduler
+    // context as it uses scheduler primitives.
+    usched_task_queue((usched_task_fn)PmBootstrap, NULL);
     return OsSuccess;
 }

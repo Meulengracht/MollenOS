@@ -53,7 +53,10 @@ static inline void __SetFlags(Mutex_t* mutex, unsigned int flags)
 }
 
 // Try performing a quick lock of the mutex by using cmpxchg
-static OsStatus_t __TryQuickLock(Mutex_t* mutex, UUId_t* ownerOut)
+static OsStatus_t
+__TryQuickLock(
+        _In_  Mutex_t* mutex,
+        _Out_ UUId_t*  ownerOut)
 {
     UUId_t currentThread = ThreadCurrentHandle();
     UUId_t free          = UUID_INVALID;

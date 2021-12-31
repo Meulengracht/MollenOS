@@ -20,6 +20,8 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
+#define __TRACE
+
 #include <ddk/memory.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>
@@ -64,6 +66,9 @@ __GuessBasePath(
     MString_t* result;
     int        isApp;
     int        isDll;
+
+    TRACE("__GuessBasePath(process=%u, path=%s)",
+          processHandle, MStringRaw(path));
 
     // Start by testing against the loaders current working directory,
     // however this won't work for the base process
@@ -111,6 +116,8 @@ __ResolveRelativePath(
 {
     OsStatus_t osStatus;
     MString_t* temporaryResult = path;
+    TRACE("__ResolveRelativePath(processId=%u, parentPath=%s, path=%s)",
+          processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
 
     // Let's test against parent being loaded through the ramdisk
     if (parentPath && MStringFindCString(parentPath, "rd:/") != MSTRING_NOT_FOUND) {

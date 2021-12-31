@@ -33,7 +33,6 @@
 #include <ds/list.h>
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
-#include <os/mollenos.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
@@ -90,7 +89,7 @@ OnLoad(void)
     // Register the client control protocol
     gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
 
-    // Start the enumeration process in a new thread so we can quickly return
+    // Start the enumeration process in a new thread, so we can quickly return
     // and be ready for requests.
     if (thrd_create(&thr, BusEnumerate, NULL) != thrd_success) {
         return OsError;
@@ -113,7 +112,7 @@ find_driver_for_device(
             }
         }
         
-        // Otherwise match against class/subclass to identify generic match
+        // Otherwise, match against class/subclass to identify generic match
         if (device->Class    == driverNode->class &&
             device->Subclass == driverNode->sub_class) {
             return driverNode;

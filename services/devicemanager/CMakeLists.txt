@@ -24,16 +24,22 @@ set (ADDITONAL_SOURCES
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
 if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
-    include_directories(arch/x86)
+    include_directories(bus/pci)
     set (ADDITONAL_SOURCES
         ${ADDITONAL_SOURCES}
-        arch/x86/pcienumerate.c
-        arch/x86/pcihelpers.c
-        arch/x86/pciio.c
-        arch/x86/pcistrings.c
+        bus/pci/pcienumerate.c
+        bus/pci/pcihelpers.c
+        bus/pci/pciio.c
+        bus/pci/pcistrings.c
     )
 endif ()
 
-add_service_target(devicemanager "" main.c ${ADDITONAL_SOURCES})
+add_service_target(devicemanager ""
+        ${ADDITONAL_SOURCES}
+
+        discover/ramdisk.c
+
+        main.c
+)
 add_dependencies(devicemanager service_servers contract_clients)
 deploy_to_initrd(devicemanager ON)

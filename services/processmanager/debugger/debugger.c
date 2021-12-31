@@ -33,7 +33,7 @@
 #include "symbols.h"
 
 void
-DebuggerInitialize(void)
+PmDebuggerInitialize(void)
 {
     SymbolInitialize();
 }

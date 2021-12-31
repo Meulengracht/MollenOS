@@ -166,7 +166,7 @@ GetProcessByThread(
 }
 
 void
-InitializeProcessManager(void)
+PmInitialize(void)
 {
     hashtable_construct(&g_threadmappings, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct thread_mapping), mapping_hash,

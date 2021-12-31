@@ -66,17 +66,23 @@ typedef struct Process {
 /**
  * @brief Initializes the subsystems for managing the running processes.
  */
-extern void InitializeProcessManager(void);
+extern void PmInitialize(void);
 
 /**
  * @brief Initializes the debugger functionality in the process manager.
  */
-extern void DebuggerInitialize(void);
+extern void PmDebuggerInitialize(void);
 
 /**
  * @brief Bootstraps the entire system by parsing ramdisk for system services.
  */
 extern void PmBootstrap(void);
+
+/**
+ * @brief Cleans up any resources related to bootstrapping. This includes the mapped
+ * ramdisk, which should only be cleaned up on process exit.
+ */
+extern void PmBootstrapCleanup(void);
 
 /**
  * @brief
