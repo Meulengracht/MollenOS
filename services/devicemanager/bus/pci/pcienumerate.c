@@ -25,7 +25,7 @@
 //#define __TRACE
 
 #include <assert.h>
-#include "../../devicemanager.h"
+#include "../../devices.h"
 #include "bus.h"
 #include <ddk/acpi.h>
 #include <ddk/busdevice.h>

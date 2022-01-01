@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -26,31 +24,27 @@
 #include <ddk/crc32.h>
 #include <ddk/ramdisk.h>
 #include <ddk/utils.h>
+#include <discover.h>
 #include <ds/mstring.h>
-#include <ds/list.h>
 #include <stdlib.h>
-
-struct RamdiskFile {
-    element_t   ListHeader;
-    MString_t*  Name;
-    const void* Data;
-    size_t      DataLength;
-    int         IsService;
-};
-
-static void*  g_ramdiskBuffer = NULL;
-static size_t g_ramdiskSize   = 0;
-static list_t g_ramdiskFiles  = LIST_INIT;
 
 static OsStatus_t
 __ParseRamdiskFile(
         _In_ const uint8_t*         name,
         _In_ RamdiskModuleHeader_t* moduleHeader)
 {
-    struct RamdiskFile* ramdiskFile;
-    uint8_t*            moduleData;
-    uint32_t            crcOfData;
+    struct DriverIdentification identification;
+
+    MString_t* path;
+    uint8_t*   moduleData;
+    uint32_t   crcOfData;
+    OsStatus_t osStatus;
     TRACE("__ParseRamdiskFile(name=%s)", name);
+
+    // skip services
+    if (moduleHeader->Flags & RAMDISK_MODULE_SERVER) {
+        return OsSuccess;
+    }
 
     // calculate CRC32 of data
     moduleData = (uint8_t*)((uintptr_t)moduleHeader + sizeof(RamdiskModuleHeader_t));
@@ -60,23 +54,14 @@ __ParseRamdiskFile(
         return OsError;
     }
 
-    // we found a file
-    ramdiskFile = malloc(sizeof(struct RamdiskFile));
-    if (!ramdiskFile) {
-        ERROR("__ParseRamdiskFile ran out of memory for file entry allocation");
-        return OsOutOfMemory;
-    }
+    path = MStringCreate("rd:/", StrUTF8);
+    MStringAppendCharacters(path, (const char*)name, StrUTF8);
 
-    ELEMENT_INIT(&ramdiskFile->ListHeader, 0, ramdiskFile);
-
-    ramdiskFile->Name = MStringCreate("rd:/", StrUTF8);
-    MStringAppendCharacters(ramdiskFile->Name, (const char*)name, StrUTF8);
-
-    ramdiskFile->Data       = moduleData;
-    ramdiskFile->DataLength = moduleHeader->LengthOfData;
-    ramdiskFile->IsService  = (moduleHeader->Flags & RAMDISK_MODULE_SERVER) != 0 ? 1 : 0;
-    list_append(&g_ramdiskFiles, &ramdiskFile->ListHeader);
-    return OsSuccess;
+    identification.VendorId  = moduleHeader->VendorId;
+    identification.ProductId = moduleHeader->DeviceId;
+    osStatus = DmDiscoverAddDriver(path, &identification, 1);
+    MStringDestroy(path);
+    return osStatus;
 }
 
 static OsStatus_t
@@ -105,7 +90,7 @@ __ParseRamdisk(
 
     entry = (RamdiskEntry_t*)((uintptr_t)ramdiskBuffer + sizeof(RamdiskHeader_t));
     for (i = 0; i < header->FileCount; i++, entry++) {
-        if (entry->Type == RAMDISK_MODULE || entry->Type == RAMDISK_FILE) {
+        if (entry->Type == RAMDISK_MODULE) {
             RamdiskModuleHeader_t* moduleHeader =
                     (RamdiskModuleHeader_t*)((uintptr_t)ramdiskBuffer + entry->DataHeaderOffset);
             osStatus = __ParseRamdiskFile(&entry->Name[0], moduleHeader);
@@ -117,17 +102,18 @@ __ParseRamdisk(
     return OsSuccess;
 }
 
-void DmLoadRamdisk(void)
+void
+DmRamdiskDiscover(void)
 {
     OsStatus_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
-    TRACE("DmLoadRamdisk()");
+    TRACE("DmRamdiskDiscover()");
 
     // Let's map in the ramdisk and discover various service modules
     osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
     if (osStatus != OsSuccess) {
-        TRACE("DmLoadRamdisk failed to map ramdisk into address space %u", osStatus);
+        TRACE("DmRamdiskDiscover failed to map ramdisk into address space %u", osStatus);
         return;
     }
 
@@ -136,42 +122,13 @@ void DmLoadRamdisk(void)
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
     if (osStatus != OsSuccess) {
-        ERROR("DmLoadRamdisk failed to parse ramdisk");
+        ERROR("DmRamdiskDiscover failed to parse ramdisk");
         return;
     }
 
-    // store buffer and size for later cleanup
-    g_ramdiskBuffer = ramdisk;
-    g_ramdiskSize   = ramdiskSize;
-}
-
-void DmUnloadRamdisk(void)
-{
-    OsStatus_t osStatus;
-
-    if (g_ramdiskBuffer && g_ramdiskSize) {
-        osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
-        if (osStatus != OsSuccess) {
-            ERROR("DmUnloadRamdisk failed to free the ramdisk memory");
-        }
+    // cleanup the memory immediately as we no longer need it
+    osStatus = MemoryFree(ramdisk, ramdiskSize);
+    if (osStatus != OsSuccess) {
+        ERROR("DmRamdiskDiscover failed to free the ramdisk memory");
     }
-}
-
-OsStatus_t
-DmRamdiskFindFile(
-        _In_  MString_t* path,
-        _Out_ void**     bufferOut,
-        _Out_ size_t*    bufferSizeOut)
-{
-    TRACE("DmRamdiskFindFile(path=%s)", MStringRaw(path));
-
-    foreach (i, &g_ramdiskFiles) {
-        struct RamdiskFile* file = i->value;
-        if (MStringCompare(file->Name, path, 0) == MSTRING_FULL_MATCH) {
-            if (bufferOut) *bufferOut = (void*)file->Data;
-            if (bufferSizeOut) *bufferSizeOut = file->DataLength;
-            return OsSuccess;
-        }
-    }
-    return OsDoesNotExist;
 }

@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -21,38 +20,54 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
-#ifndef __DEVICEMANAGER_INTERFACE__
-#define __DEVICEMANAGER_INTERFACE__
+#ifndef __DEVICES_H__
+#define __DEVICES_H__
 
 #include <os/osdefs.h>
 
 DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
 
-/* DmRegisterDevice
- * Allows registering of a new device in the
- * device-manager, and automatically queries for a driver for the new device */
-__EXTERN
-OsStatus_t
+/**
+ * @brief Notifies a driver of a new device for the driver.
+ *
+ * @param[In] driverHandle
+ * @param[In] deviceId
+ * @return
+ */
+extern OsStatus_t
 DmRegisterDevice(
-	_In_  Device_t*   device,
-	_In_  const char* name,
-	_In_  unsigned int     flags,
-	_Out_ UUId_t*     idOut);
+        _In_ UUId_t driverHandle,
+        _In_ UUId_t deviceId);
 
-/* DmUnregisterDevice
+/**
+ * @brief Creates a new device in the device manager. This will automatically try to resolve
+ * a driver for the device.
+ *
+ * @param device
+ * @param name
+ * @param flags
+ * @param idOut
+ * @return
+ */
+extern OsStatus_t
+DmDeviceCreate(
+	_In_  Device_t*    device,
+	_In_  const char*  name,
+	_In_  unsigned int flags,
+	_Out_ UUId_t*      idOut);
+
+/**
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-__EXTERN
-OsStatus_t
-DmUnregisterDevice(
+extern OsStatus_t
+DmDeviceDestroy(
 	_In_ UUId_t DeviceId);
 
 /* DmIoctlDevice
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
-__EXTERN
-OsStatus_t
+extern OsStatus_t
 DmIoctlDevice(
     _In_ BusDevice_t* Device,
     _In_ unsigned int Command,
@@ -62,8 +77,7 @@ DmIoctlDevice(
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
-__EXTERN
-OsStatus_t
+extern OsStatus_t
 DmIoctlDeviceEx(
 	_In_ BusDevice_t* device,
 	_In_ int          direction,
@@ -71,4 +85,4 @@ DmIoctlDeviceEx(
 	_In_ size_t*      value,
 	_In_ size_t       width);
 
-#endif //! __DEVICEMANAGER_INTERFACE__
+#endif //!__DEVICES_H__

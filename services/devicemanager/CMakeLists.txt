@@ -8,13 +8,14 @@ enable_language(C)
 
 # Configure include paths
 include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
+        ${CMAKE_BINARY_DIR}/protocols
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ../../librt/libgracht/include
+        ../../librt/libusb/include
+        ../../librt/libddk/include
+        ../../librt/libds/include
+        ../../librt/libc/include
+        include
 )
 
 set (ADDITONAL_SOURCES
@@ -38,7 +39,9 @@ add_service_target(devicemanager ""
         ${ADDITONAL_SOURCES}
 
         discover/ramdisk.c
+        discover/discover.c
 
+        devices.c
         main.c
 )
 add_dependencies(devicemanager service_servers contract_clients)
