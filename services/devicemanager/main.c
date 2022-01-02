@@ -60,6 +60,7 @@ OnLoad(void)
     gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
 
     // Initialize the subsystems
+    DmDevicesInitialize();
     DmDiscoverInitialize();
 
     // Start the enumeration process in a new thread, so we can quickly return

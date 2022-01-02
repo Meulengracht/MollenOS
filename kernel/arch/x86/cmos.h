@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -30,30 +29,70 @@
 #define CMOS_IO_SELECT          0x00
 #define CMOS_IO_DATA            0x01
 
-#define CMOS_REGISTER_SECONDS   0x00
-#define CMOS_REGISTER_MINUTES   0x02
-#define CMOS_REGISTER_HOURS     0x04
-#define CMOS_REGISTER_DAYS      0x07
-#define CMOS_REGISTER_MONTHS    0x08
-#define CMOS_REGISTER_YEARS     0x09
+#define CMOS_REGISTER_SECOND        0x00
+#define CMOS_REGISTER_SECOND_ALARM  0x01
+#define CMOS_REGISTER_MINUTE        0x02
+#define CMOS_REGISTER_MINUTE_ALARM  0x03
+#define CMOS_REGISTER_HOUR          0x04
+#define CMOS_REGISTER_HOUR_ALARM    0x05
+#define CMOS_REGISTER_DAY_OF_WEEK   0x06
+#define CMOS_REGISTER_DAY_OF_MONTH  0x07
+#define CMOS_REGISTER_MONTH         0x08
+#define CMOS_REGISTER_YEAR          0x09
 
 #define CMOS_REGISTER_STATUS_A  0x0A
 #define CMOS_REGISTER_STATUS_B  0x0B
 #define CMOS_REGISTER_STATUS_C  0x0C
-#define CMOS_REGISTER_STATUS_D  0x0D
+#define CMOS_REGISTER_STATUS_D  0x0D // Only bit 7 is used to detect whether CMOS has power
 
-#define CMOS_CURRENT_YEAR       2019
+#define CMOS_CURRENT_YEAR       2022
+
+/**
+ * CMOS Status Register A
+ * Bits 0-3: Rate Selection
+ * Bits 4-6: Divider
+ * Bit  7:   Time update in progress
+ */
+#define CMOSA_TIME_UPDATING    0x80
+
 
 #define CMOS_NMI_BIT            0x80
 #define CMOS_ALLBITS_NONMI      0x7F
 #define CMOSX_BIT_DISABLE_NMI   0x80
-#define CMOSA_UPDATE_IN_PROG    0x80
+
+/**
+ * CMOS Status Register B
+ * Bit 0: Enable Daylight Savings
+ * Bit 1: (1) 24 Hour Mode (0) 12 Hour Mode
+ * Bit 2: Time/Date Format (1) Binary (0) BCD
+ * Bit 3: Square Wave Frequency (1) Enable (0) Disable
+ * Bit 4: Update Ended Interrupt
+ * Bit 5: Alarm Interrupt
+ * Bit 6: Periodic Interrupt
+ * Bit 7: Clock Update (1) Disable (0) Update Count Normally
+ */
 #define CMOSB_BCD_FORMAT        0x04
 #define CMOSB_RTC_PERIODIC      0x40
 
-#define CMOS_BCD_TO_DEC(n)      (((n >> 4) & 0x0F) * 10 + (n & 0x0F))
-#define CMOS_DEC_TO_BCD(n)      (((n / 10) << 4) | (n % 10))
+/**
+ * CMOS Status Register C (ReadOnly)
+ * Bits 0-3: Reserved
+ * Bit  4:   Update Ended Interrupt Enabled
+ * Bit  5:   Alarm Interrupt Enabled
+ * Bit  6:   Periodic Interrupt Enabled
+ * Bit  7:   IRQF
+ */
 
+
+/**
+ * CMOS Conversion (BCD) Macros
+ */
+#define CMOS_BCD_TO_DEC(n) ((((n) >> 4) & 0x0F) * 10 + ((n) & 0x0F))
+#define CMOS_DEC_TO_BCD(n) ((((n) / 10) << 4) | ((n) % 10))
+
+/**
+ * CMOS Interrupt Line (Fixed-ISA)
+ */
 #define CMOS_RTC_IRQ            0x08
 
 /* The CMOS driver structure

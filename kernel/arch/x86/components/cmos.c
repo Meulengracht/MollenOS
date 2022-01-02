@@ -106,8 +106,8 @@ CmosGetTicks(void)
 OsStatus_t
 ArchSynchronizeSystemTime(void)
 {
-    while (!(CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG));
-    while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG);
+    while (!(CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING));
+    while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
     return OsSuccess;
 }
 
@@ -124,15 +124,15 @@ ArchGetSystemTime(
 
     // Wait while update is in progress
     // TODO: ArchSynchronizeSystemTime()
-    while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG);
+    while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
 
     // Fill in variables
-    SystemTime->Second     = CmosRead(CMOS_REGISTER_SECONDS);
-    SystemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTES);
-    SystemTime->Hour       = CmosRead(CMOS_REGISTER_HOURS);
-    SystemTime->DayOfMonth = CmosRead(CMOS_REGISTER_DAYS);
-    SystemTime->Month      = CmosRead(CMOS_REGISTER_MONTHS);
-    SystemTime->Year       = CmosRead(CMOS_REGISTER_YEARS);
+    SystemTime->Second     = CmosRead(CMOS_REGISTER_SECOND);
+    SystemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTE);
+    SystemTime->Hour       = CmosRead(CMOS_REGISTER_HOUR);
+    SystemTime->DayOfMonth = CmosRead(CMOS_REGISTER_DAY_OF_MONTH);
+    SystemTime->Month      = CmosRead(CMOS_REGISTER_MONTH);
+    SystemTime->Year       = CmosRead(CMOS_REGISTER_YEAR);
 
     // Convert time format? 
     if (!(StatusB & CMOSB_BCD_FORMAT)) {

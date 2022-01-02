@@ -29,6 +29,9 @@
 struct DriverIdentification {
     uint32_t VendorId;
     uint32_t ProductId;
+
+    uint32_t Class;
+    uint32_t Subclass;
 };
 
 /**

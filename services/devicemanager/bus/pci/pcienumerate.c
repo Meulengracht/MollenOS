@@ -25,18 +25,17 @@
 //#define __TRACE
 
 #include <assert.h>
-#include "../../devices.h"
 #include "bus.h"
+#include <devices.h>
 #include <ddk/acpi.h>
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <ds/list.h>
 #include <threads.h>
 
-#define DEVICE_IS_PCI_BRIDGE(device) (device->Header->Class == PCI_CLASS_BRIDGE && device->Header->Subclass == PCI_BRIDGE_SUBCLASS_PCI)
+#define DEVICE_IS_PCI_BRIDGE(device) ((device)->Header->Class == PCI_CLASS_BRIDGE && (device)->Header->Subclass == PCI_BRIDGE_SUBCLASS_PCI)
 
 /* PCI-Express Support
  * This is the acpi-mcfg entry structure that represents an pci-express controller */
@@ -57,8 +56,7 @@ static mtx_t        g_pciDevicesLock;
 static PciDevice_t* g_rootDevice    = NULL;
 static int          g_acpiAvailable = 0;
 
-int
-BusEnumerate(void* context)
+void BusEnumerate(void)
 {
     ACPI_TABLE_MCFG*   mcfgTable = NULL;
     ACPI_TABLE_HEADER* header    = NULL;
@@ -67,11 +65,9 @@ BusEnumerate(void* context)
     OsStatus_t         osStatus;
     int                function;
 
-    _CRT_UNUSED(context);
-
     g_rootDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
     if (!g_rootDevice) {
-        return ENOMEM;
+        return;
     }
     memset(g_rootDevice, 0, sizeof(PciDevice_t));
 
@@ -121,7 +117,7 @@ BusEnumerate(void* context)
             size_t length;
 
             if (!bus) {
-                return ENOMEM;
+                return;
             }
 
             memset(bus, 0, sizeof(PciBus_t));
@@ -129,7 +125,7 @@ BusEnumerate(void* context)
             length = (mcfgEntry->EndBus - mcfgEntry->StartBus + 1) << 20;
             if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OsSuccess) {
                 ERROR(" > failed to create pcie address space");
-                return ENODEV;
+                return;
             }
 
             // PCIe memory spaces spand up to 256 mb
@@ -150,7 +146,7 @@ BusEnumerate(void* context)
         // Otherwise we have traditional PCI buses
         PciBus_t* bus = (PciBus_t*)malloc(sizeof(PciBus_t));
         if (!bus) {
-            return ENOMEM;
+            return;
         }
         memset(bus, 0, sizeof(PciBus_t));
 
@@ -161,13 +157,13 @@ BusEnumerate(void* context)
         osStatus = CreateDevicePortIo(&bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
         if (osStatus != OsSuccess) {
             ERROR(" > failed to initialize pci io space");
-            return ENODEV;
+            return;
         }
 
         osStatus = AcquireDeviceIo(&bus->IoSpace);
         if (osStatus != OsSuccess) {
             ERROR(" > failed to acquire pci io space");
-            return ENODEV;
+            return;
         }
 
         // We can check whether or not it's a multi-function
@@ -188,7 +184,6 @@ BusEnumerate(void* context)
     _foreach(element, &g_rootDevice->children) {
         PciInstallDriverCallback(element->value);
     }
-    return EOK;
 }
 
 unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass) {
@@ -583,10 +578,15 @@ CreateBusDeviceFromPciDevice(
             }
         }
     }
-    return DmRegisterDevice(&Device.Base,
-        PciToString(PciDevice->Header->Class,
-        PciDevice->Header->Subclass, PciDevice->Header->Interface),
-        DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
+    return DmDeviceCreate(
+            &Device.Base,
+            PciToString(
+                    PciDevice->Header->Class,
+                    PciDevice->Header->Subclass,
+                    PciDevice->Header->Interface),
+            DEVICE_REGISTER_FLAG_LOADDRIVER,
+            &Id
+    );
 }
 
 void
@@ -626,7 +626,7 @@ BusInstallFixed(
     Device->InterruptPin         = INTERRUPT_NONE;
     Device->InterruptLine        = INTERRUPT_NONE;
     Device->InterruptAcpiConform = 0;
-    return DmRegisterDevice(&Device->Base, Name, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
+    return DmDeviceCreate(&Device->Base, Name, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
 }
 
 /* BusRegisterPS2Controller

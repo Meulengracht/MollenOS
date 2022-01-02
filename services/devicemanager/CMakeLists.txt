@@ -43,6 +43,7 @@ add_service_target(devicemanager ""
 
         devices.c
         main.c
+        requests.c
 )
 add_dependencies(devicemanager service_servers contract_clients)
 deploy_to_initrd(devicemanager ON)

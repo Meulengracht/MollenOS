@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <devices.h>
 #include <discover.h>
+#include <requests.h>
 #include <ddk/utils.h>
 #include <ddk/busdevice.h>
 #include <ds/list.h>
@@ -36,169 +37,182 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-struct device_protocol {
+struct DmDeviceProtocol {
     element_t header;
     char*     name;
 };
 
-struct device_node {
+struct DmDevice {
     element_t header;
     UUId_t    driver_id;
     Device_t* device;
-    list_t    protocols;
+    list_t    protocols;   // list<struct DmDeviceProtocol>
 };
 
-struct driver_node {
-    element_t    header;
-    unsigned int vendor_id;
-    unsigned int product_id;
+static struct usched_mtx g_devicesLock;
+static list_t            g_devices      = LIST_INIT;
+static UUId_t            g_nextDeviceId = 1;
 
-    unsigned int class;
-    unsigned int sub_class;
-};
-
-static list_t g_devices      = LIST_INIT;
-static list_t g_drivers      = LIST_INIT;
-static UUId_t g_nextDeviceId = 1;
-
-static struct driver_node*
-find_driver_for_device(
-        _In_ Device_t* device)
+void DmDevicesInitialize(void)
 {
-    foreach(node, &g_drivers) {
-        struct driver_node* driverNode = node->value;
+    usched_mtx_init(&g_devicesLock);
+}
 
-        // Check against vendor/device ids if nonne-zero
-        if (driverNode->vendor_id != 0 && driverNode->product_id != 0) {
-            if (device->VendorId == driverNode->vendor_id &&
-                device->ProductId == driverNode->product_id) {
-                return driverNode;
-            }
-        }
-
-        // Otherwise, match against class/subclass to identify generic match
-        if (device->Class    == driverNode->class &&
-            device->Subclass == driverNode->sub_class) {
-            return driverNode;
+static struct DmDevice*
+__GetDevice(
+        _In_ UUId_t deviceId)
+{
+    struct DmDevice* result = NULL;
+    usched_mtx_lock(&g_devicesLock);
+    foreach (i, &g_devices) {
+        struct DmDevice* device = i->value;
+        if (device->device->Id == deviceId) {
+            result = device;
+            break;
         }
     }
-    return NULL;
+    usched_mtx_unlock(&g_devicesLock);
+    return result;
+}
+
+OsStatus_t
+DmDevicesRegister(
+        _In_ UUId_t driverHandle,
+        _In_ UUId_t deviceId)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
+    struct DmDevice*         device = __GetDevice(deviceId);
+    if (!device) {
+        return OsDoesNotExist;
+    }
+
+    ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)device->device,
+                               device->device->Length);
+    ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, device->device->Id);
+    return OsSuccess;
+}
+
+void DmHandleDeviceCreate(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
+{
+    UUId_t     result = UUID_INVALID;
+    OsStatus_t status = DmDeviceCreate(
+            (Device_t*)request->parameters.create.device_buffer,
+            NULL,
+            request->parameters.create.flags,
+            &result
+    );
+    sys_device_register_response(request->message, status, result);
+
+    free((void*)request->parameters.create.device_buffer);
+    RequestDestroy(request);
+}
+
+void DmHandleDeviceDestroy(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
+{
+    sys_device_unregister_response(request->message, OsNotSupported);
+    RequestDestroy(request);
+}
+
+void DmHandleGetDevicesByProtocol(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
+{
+    TRACE("DmHandleGetDevicesByProtocol(protocol=%u)",
+          request->parameters.get_devices_by_protocol.protocol);
+
+    usched_mtx_lock(&g_devicesLock);
+    foreach(node, &g_devices) {
+        struct DmDevice* device = node->value;
+        foreach(protoNode, &device->protocols) {
+            struct DmDeviceProtocol* protocol = protoNode->value;
+            uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
+            if (id == request->parameters.get_devices_by_protocol.protocol) {
+                sys_device_event_protocol_device_single(
+                        __crt_get_service_server(),
+                        request->message[0].client,
+                        device->device->Id,
+                        device->driver_id,
+                        request->parameters.get_devices_by_protocol.protocol
+                );
+            }
+        }
+    }
+    usched_mtx_unlock(&g_devicesLock);
+
+    RequestDestroy(request);
+}
+
+void DmHandleIoctl(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
+{
+    struct DmDevice* device = __GetDevice(request->parameters.ioctl.device_id);
+    OsStatus_t       result = OsInvalidParameters;
+
+    if (device && device->device->Length == sizeof(BusDevice_t)) {
+        result = DmIoctlDevice(
+                (BusDevice_t*)device->device,
+                request->parameters.ioctl.command,
+                request->parameters.ioctl.flags
+        );
+    }
+
+    sys_device_ioctl_response(request->message, result);
+    RequestDestroy(request);
+}
+
+void DmHandleIoctl2(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
+{
+    struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
+    OsStatus_t       result  = OsInvalidParameters;
+    uint64_t         storage = (uint64_t)request->parameters.ioctl2.value;
+
+    if (device && device->device->Length == sizeof(BusDevice_t)) {
+        result = DmIoctlDeviceEx(
+                (BusDevice_t*)device->device,
+                request->parameters.ioctl2.direction,
+                request->parameters.ioctl2.command,
+                &storage,
+                request->parameters.ioctl2.width
+        );
+    }
+
+    sys_device_ioctlex_response(request->message, result, (size_t)storage);
+    RequestDestroy(request);
 }
 
 static void
-update_device_drivers(void)
+__AddProtocolToDevice(
+        _In_ Request_t*       request,
+        _In_ struct DmDevice* device)
 {
-    foreach(node, &g_devices) {
-        struct device_node* deviceNode = node->value;
-        if (deviceNode->driver_id == UUID_INVALID) {
-            struct driver_node* driverNode = find_driver_for_device(deviceNode->device);
-            if (driverNode) {
-                UUId_t                   handle = (UUId_t)(uintptr_t)driverNode->header.key;
-                struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(handle);
-                TRACE("[devicemanager] [notify] found device for driver: %s",
-                      &deviceNode->device->Name[0]);
-                ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)deviceNode->device,
-                                           deviceNode->device->Length);
-                ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, deviceNode->device->Id);
-
-                deviceNode->driver_id = handle;
-            }
-        }
-    }
-}
-
-void sys_device_notify_invocation(struct gracht_message* message,
-                                  const UUId_t driverId, const unsigned int vendorId,
-                                  const unsigned int productId, const unsigned int class,
-                                  const unsigned int subclass)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
-    struct driver_node*      driverNode;
-
-    TRACE("[devicemanager] [notify] driver registered for [%u:%u %u:%u]",
-          vendorId, productId, class, subclass);
-
-    driverNode = (struct driver_node*)malloc(sizeof(struct driver_node));
-    if (!driverNode) {
-        ERROR("[devicemanager] [notify] failed to allocate memory for driver node");
+    struct DmDeviceProtocol* protocol = malloc(sizeof(struct DmDeviceProtocol));
+    if (!protocol) {
         return;
     }
 
-    ELEMENT_INIT(&driverNode->header, (uintptr_t)driverId, driverNode);
-    driverNode->vendor_id = vendorId;
-    driverNode->product_id = productId;
-    driverNode->class = class;
-    driverNode->sub_class = subclass;
-    list_append(&g_drivers, &driverNode->header);
-
-    // Subscribe to events from this source
-    ctt_driver_subscribe(GetGrachtClient(), &msg.base);
-
-    // Perform an update run of device/drivers
-    update_device_drivers();
+    ELEMENT_INIT(&protocol->header, (uintptr_t)request->parameters.register_protocol.protocol_id, protocol);
+    protocol->name = strdup(request->parameters.register_protocol.protocol_name);
+    list_append(&device->protocols, &protocol->header);
 }
 
-void sys_device_register_invocation(struct gracht_message* message, const uint8_t* buffer, const uint32_t buffer_count, const unsigned int flags)
+void DmHandleRegisterProtocol(
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
 {
-    UUId_t     result = UUID_INVALID;
-    OsStatus_t status = DmDeviceCreate((Device_t*) buffer, NULL, flags, &result);
-    sys_device_register_response(message, status, result);
-}
-
-void sys_device_unregister_invocation(struct gracht_message* message, const UUId_t deviceId)
-{
-    sys_device_unregister_response(message, OsNotSupported);
-}
-
-void sys_device_ioctl_invocation(struct gracht_message* message, const UUId_t deviceId, const unsigned int command, const unsigned int flags)
-{
-    struct device_node* deviceNode = (struct device_node*)list_find(&g_devices, (void*)(uintptr_t)deviceId);
-    OsStatus_t          result     = OsInvalidParameters;
-
-    if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDevice((BusDevice_t*)deviceNode->device, command, flags);
+    struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
+    if (device) {
+        __AddProtocolToDevice(request, device);
     }
 
-    sys_device_ioctl_response(message, result);
-}
-
-void sys_device_ioctlex_invocation(struct gracht_message* message, const UUId_t deviceId,
-                                   const int direction, const unsigned int command,
-                                   const size_t value, const unsigned int width)
-{
-    struct device_node* deviceNode = (struct device_node*)list_find(&g_devices, (void*)(uintptr_t)deviceId);
-    OsStatus_t          result     = OsInvalidParameters;
-    uint64_t            storage    = (uint64_t)value;
-
-    if (deviceNode && deviceNode->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDeviceEx((BusDevice_t*)deviceNode->device, direction, command, &storage, width);
-    }
-
-    sys_device_ioctlex_response(message, result, (size_t)storage);
-}
-
-void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
-{
-    TRACE("sys_device_get_devices_by_protocol_invocation %u", protocolId);
-    foreach(node, &g_devices) {
-        struct device_node* deviceNode = node->value;
-        foreach(protoNode, &deviceNode->protocols) {
-            struct device_protocol* protocol = protoNode->value;
-            uint8_t                 id = (uint8_t)(uintptr_t)protocol->header.key;
-            if (id == protocolId) {
-                sys_device_event_protocol_device_single(__crt_get_service_server(),
-                                                        message->client, deviceNode->device->Id,
-                                                        deviceNode->driver_id, protocolId);
-            }
-        }
-    }
-}
-
-static int __LoadDriverWorker(void* context)
-{
-    Device_t*  device = context;
-
-    return 0;
+    free((void*)request->parameters.register_protocol.protocol_name);
+    RequestDestroy(request);
 }
 
 OsStatus_t
@@ -208,14 +222,14 @@ DmDeviceCreate(
         _In_  unsigned int flags,
         _Out_ UUId_t*      idOut)
 {
-    struct device_node* deviceNode;
-    Device_t*           deviceCopy;
+    struct DmDevice* deviceNode;
+    Device_t*        deviceCopy;
 
     assert(device != NULL);
     assert(idOut != NULL);
     assert(device->Length >= sizeof(Device_t));
 
-    deviceNode = (struct device_node*)malloc(sizeof(struct device_node));
+    deviceNode = (struct DmDevice*)malloc(sizeof(struct DmDevice));
     if (!deviceNode) {
         return OsOutOfMemory;
     }
@@ -249,32 +263,16 @@ DmDeviceCreate(
     // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
     if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
-        thrd_t thr;
-        if (thrd_create(&thr, __LoadDriverWorker, deviceNode->device) != thrd_success) {
-            return OsError;
-        }
-        thrd_detach(thr);
+        struct DriverIdentification driverIdentification = {
+                .VendorId = device->VendorId,
+                .ProductId = device->ProductId,
+
+                .Class = device->Class,
+                .Subclass = device->Subclass
+        };
+
+        DmDiscoverFindDriver(device->Id, &driverIdentification);
     }
 #endif
     return OsSuccess;
-}
-
-static void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
-                                                        const UUId_t deviceId,
-                                                        const char* protocolName,
-                                                        const uint8_t protocolId)
-{
-    struct device_node* deviceNode = (struct device_node*)list_find(&g_devices, (void*)(uintptr_t)deviceId);
-
-    TRACE("[ctt_driver_event_device_protocol_callback] %u => %s", deviceId, protocolName);
-    if (deviceNode) {
-        struct device_protocol* protocol = malloc(sizeof(struct device_protocol));
-        if (!protocol) {
-            return;
-        }
-
-        ELEMENT_INIT(&protocol->header, (uintptr_t)protocolId, protocol);
-        protocol->name = strdup(&protocolName[0]);
-        list_append(&deviceNode->protocols, &protocol->header);
-    }
 }

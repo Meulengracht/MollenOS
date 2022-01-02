@@ -22,6 +22,7 @@
 
 #include "../libc/threads/tls.h"
 #include <ddk/service.h>
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
 #include <internal/_ipc.h>
@@ -30,7 +31,6 @@
 #include <ioset.h>
 
 // Module Interface
-extern void       GetModuleIdentifiers(unsigned int*, unsigned int*, unsigned int*, unsigned int*);
 extern OsStatus_t OnLoad(void);
 extern OsStatus_t OnUnload(void);
 extern OsStatus_t OnEvent(struct ioset_event* event);
@@ -54,30 +54,29 @@ gracht_server_t* __crt_get_module_server(void)
     return g_server;
 }
 
-void __crt_module_load(void)
+void __crt_module_load(
+        _In_ UUId_t moduleId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    unsigned int             vendorId;
-    unsigned int             deviceId;
-    unsigned int             class;
-    unsigned int             subClass;
-    
-    GetModuleIdentifiers(&vendorId, &deviceId, &class, &subClass);
-    
+
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
         exit(-2001);
     }
-    
-    if (vendorId != 0 || deviceId != 0 || class != 0 || subClass != 0) {
-        sys_device_notify(GetGrachtClient(), &msg.base,
+
+    // Notify the devicemanager of our successful startup
+    sys_device_notify(
+            GetGrachtClient(),
+            &msg.base,
             GetNativeHandle(__crt_get_server_iod()),
-            vendorId, deviceId, class, subClass);
-    }
+            moduleId
+    );
 }
 
-_Noreturn static void __crt_module_main(int setIod)
+_Noreturn static void
+__crt_module_main(
+        _In_ int setIod)
 {
     struct ioset_event events[32];
 
@@ -98,15 +97,48 @@ _Noreturn static void __crt_module_main(int setIod)
     }
 }
 
+static OsStatus_t
+__ParseModuleOptions(
+        _In_  char**  argv,
+        _In_  int     argc,
+        _Out_ UUId_t* moduleIdOut)
+{
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
+            long moduleId = strtol(argv[i + 1], NULL, 10);
+            if (moduleId != 0) {
+                *moduleIdOut = (UUId_t)moduleId;
+                return OsSuccess;
+            }
+        }
+    }
+    return OsDoesNotExist;
+}
+
 void __CrtModuleEntry(void)
 {
     thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
+    OsStatus_t                    osStatus;
+    UUId_t                        moduleId;
     int                           status;
+    char**                        argv;
+    int                           argc;
 
     // initialize runtime environment
-    __crt_initialize(&threadStorage, 0, NULL);
+    argv = __crt_initialize(&threadStorage, 0, &argc);
+    if (!argv || argc < 3) {
+        ERROR("__CrtModuleEntry invalid argument count for module");
+        exit(-1);
+    }
+
+    // parse the options provided for this module
+    osStatus = __ParseModuleOptions(argv, argc, &moduleId);
+    if (osStatus != OsSuccess) {
+        ERROR("__CrtModuleEntry missing --id parameter for module");
+        exit(-1);
+    }
 
     // initialize the link
     status = gracht_link_vali_create(&g_serverLink);
@@ -145,7 +177,7 @@ void __CrtModuleEntry(void)
         exit(-2002);
     }
 
-    __crt_module_load();
+    __crt_module_load(moduleId);
     atexit((void (*)(void))OnUnload);
     at_quick_exit((void (*)(void))OnUnload);
     __crt_module_main(config.set_descriptor);

@@ -29,6 +29,11 @@ DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
 
 /**
+ * @brief Initializes the device manager systems
+ */
+extern void DmDevicesInitialize(void);
+
+/**
  * @brief Notifies a driver of a new device for the driver.
  *
  * @param[In] driverHandle
@@ -36,7 +41,7 @@ DECL_STRUCT(BusDevice);
  * @return
  */
 extern OsStatus_t
-DmRegisterDevice(
+DmDevicesRegister(
         _In_ UUId_t driverHandle,
         _In_ UUId_t deviceId);
 
