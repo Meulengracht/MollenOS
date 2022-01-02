@@ -206,15 +206,6 @@ PS2Initialize(
     return OsSuccess;
 }
 
-void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
-    unsigned int* class, unsigned int* subClass)
-{
-    *vendorId = 0xFFEF;
-    *deviceId = 0x30;
-    *class    = 0;
-    *subClass = 0;
-}
-
 OsStatus_t
 OnLoad(void)
 {

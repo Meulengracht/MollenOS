@@ -43,15 +43,6 @@ MsdDeviceGet(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
-    unsigned int* class, unsigned int* subClass)
-{
-    *vendorId = 0;
-    *deviceId = 0;
-    *class    = 0xCABB;
-    *subClass = 0x80000;
-}
-
 OsStatus_t
 OnLoad(void)
 {

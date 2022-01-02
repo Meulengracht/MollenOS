@@ -69,8 +69,8 @@ void __crt_module_load(
     sys_device_notify(
             GetGrachtClient(),
             &msg.base,
-            GetNativeHandle(__crt_get_server_iod()),
-            moduleId
+            moduleId,
+            GetNativeHandle(__crt_get_server_iod())
     );
 }
 

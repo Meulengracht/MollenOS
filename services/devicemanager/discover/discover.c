@@ -19,6 +19,8 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
+//#define __TRACE
+
 #include <discover.h>
 #include <devices.h>
 #include <ramdisk.h>
@@ -91,6 +93,8 @@ DmDiscoverAddDriver(
         _In_ int                          identifiersCount)
 {
     struct DmDriver* driver;
+    TRACE("DmDiscoverAddDriver(path=%s, identifiersCount=%i)",
+          MStringRaw(driverPath), identifiersCount);
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
@@ -287,7 +291,7 @@ __NotifyDevices(
         struct DmDevice* device   = i->value;
         OsStatus_t       osStatus = DmDevicesRegister(driver->handle, device->id);
         if (osStatus != OsSuccess) {
-            WARNING("__NotifyDevices failed to notify driver of device");
+            WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
         }
     }
     usched_mtx_unlock(&driver->devices_lock);

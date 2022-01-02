@@ -33,15 +33,6 @@
 OsStatus_t        UhciSetup(UhciController_t *Controller);
 InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
-void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
-    unsigned int* class, unsigned int* subClass)
-{
-    *vendorId = 0;
-    *deviceId = 0;
-    *class    = 0xC0003;
-    *subClass = 0;
-}
-
 void
 UhciControllerDump(
     _In_ UhciController_t* Controller)

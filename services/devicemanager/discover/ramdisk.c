@@ -19,7 +19,7 @@
  * drivers and loads them if any matching device is present.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/crc32.h>
 #include <ddk/ramdisk.h>
@@ -59,6 +59,8 @@ __ParseRamdiskFile(
 
     identification.VendorId  = moduleHeader->VendorId;
     identification.ProductId = moduleHeader->DeviceId;
+    identification.Class     = moduleHeader->DeviceType;
+    identification.Subclass  = moduleHeader->DeviceSubType;
     osStatus = DmDiscoverAddDriver(path, &identification, 1);
     MStringDestroy(path);
     return osStatus;

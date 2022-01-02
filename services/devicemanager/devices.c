@@ -20,6 +20,8 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
+#define __TRACE
+
 #include <assert.h>
 #include <devices.h>
 #include <discover.h>
@@ -82,9 +84,15 @@ DmDevicesRegister(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
     struct DmDevice*         device = __GetDevice(deviceId);
+    TRACE("DmDevicesRegister(driverHandle=%u, deviceId=%u)",
+          driverHandle, deviceId);
+
     if (!device) {
         return OsDoesNotExist;
     }
+
+    // store the driver loaded
+    device->driver_id = driverHandle;
 
     ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)device->device,
                                device->device->Length);
@@ -271,7 +279,7 @@ DmDeviceCreate(
                 .Subclass = device->Subclass
         };
 
-        DmDiscoverFindDriver(device->Id, &driverIdentification);
+        DmDiscoverFindDriver(deviceCopy->Id, &driverIdentification);
     }
 #endif
     return OsSuccess;

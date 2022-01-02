@@ -43,15 +43,6 @@ HubDeviceGet(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-void GetModuleIdentifiers(unsigned int* vendorId, unsigned int* deviceId,
-    unsigned int* class, unsigned int* subClass)
-{
-    *vendorId = 0;
-    *deviceId = 0;
-    *class    = 0xCABB;
-    *subClass = 0x90000;
-}
-
 OsStatus_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
