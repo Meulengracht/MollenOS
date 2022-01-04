@@ -24,11 +24,11 @@
 
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <component/timer.h>
 #include <assert.h>
 #include <os/mollenos.h>
 #include <threading.h>
 #include <scheduler.h>
-#include <timers.h>
 #include <string.h>
 #include <debug.h>
 
@@ -116,9 +116,9 @@ ScThreadSleep(
     clock_t start = 0;
     clock_t end   = 0;
 
-    TimersGetSystemTick(&start);
+    SystemTimerGetTimestamp(&start);
     if (SchedulerSleep(milliseconds, &end) != SCHEDULER_SLEEP_INTERRUPTED) {
-        TimersGetSystemTick(&end);
+        SystemTimerGetTimestamp(&end);
     }
 
     // Update outs

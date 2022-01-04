@@ -22,12 +22,12 @@
 
 #include <arch/output.h>
 #include <arch/utils.h>
+#include <component/timer.h>
 #include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <console.h>
 #include <machine.h>
-#include <timers.h>
 #include <debug.h>
 #include <string.h>
 
@@ -101,7 +101,7 @@ ScSystemTime(
     if (systemTime == NULL) {
         return OsError;
     }
-    memcpy(systemTime, &GetMachine()->SystemTime, sizeof(SystemTime_t));
+    memcpy(systemTime, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
     return OsSuccess;
 }
 
@@ -111,43 +111,37 @@ ScSystemTick(
     _In_ LargeUInteger_t* tick)
 {
     if (tick == NULL) {
-        return OsError;
+        return OsInvalidParameters;
     }
 
-    if (TimersGetSystemTick((clock_t*)&tick->QuadPart) == OsSuccess) {
-        if (tickBase == TIME_THREAD) {
-            Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-            if (Thread != NULL) {
-                tick->QuadPart -= ThreadStartTime(Thread);
-            }
+    SystemTimerGetTimestamp((clock_t*)&tick->QuadPart);
+    if (tickBase == TIME_THREAD) {
+        Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+        if (Thread != NULL) {
+            tick->QuadPart -= ThreadStartTime(Thread);
         }
-        return OsSuccess;
     }
-
-    // Default the result to 0 to indicate unsupported
-    tick->QuadPart = 0;
-    return OsError;
+    return OsSuccess;
 }
 
 OsStatus_t
 ScPerformanceFrequency(
-    _Out_ LargeInteger_t *Frequency)
+    _Out_ LargeUInteger_t *Frequency)
 {
-    // Sanitize input
     if (Frequency == NULL) {
-        return OsError;
+        return OsInvalidParameters;
     }
-    return TimersQueryPerformanceFrequency(Frequency);
+    return SystemTimerGetPerformanceFrequency(Frequency);
 }
 
 OsStatus_t
 ScPerformanceTick(
-    _Out_ LargeInteger_t *Value)
+    _Out_ LargeUInteger_t *Value)
 {
     if (Value == NULL) {
         return OsError;
     }
-    return TimersQueryPerformanceTick(Value);
+    return SystemTimerGetPerformanceTick(Value);
 }
 
 OsStatus_t

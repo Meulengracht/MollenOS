@@ -30,8 +30,8 @@
 extern uint32_t g_calibrationTick;
 extern void _rdtsc(uint64_t *Value);
 
-static void TscGetCount(void*, tick_t*);
-static void TscGetFrequency(void*, tick_t*);
+static void TscGetCount(void*, LargeUInteger_t*);
+static void TscGetFrequency(void*, LargeUInteger_t*);
 static void TscNoOperation(void*);
 
 /**
@@ -80,8 +80,7 @@ TscInitialize(void)
             &g_tscOperations,
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
             UUID_INVALID,
-            NULL
-    );
+            NULL);
     if (osStatus != OsSuccess) {
         WARNING("TscInitialize failed to register platform timer");
     }
@@ -89,20 +88,20 @@ TscInitialize(void)
 
 static void
 TscGetCount(
-        _In_  void*    context,
-        _Out_ tick_t* tick)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* tick)
 {
     _CRT_UNUSED(context);
-    _rdtsc(tick);
+    _rdtsc(&tick->QuadPart);
 }
 
 static void
 TscGetFrequency(
-        _In_  void*   context,
-        _Out_ tick_t* frequency)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* frequency)
 {
     _CRT_UNUSED(context);
-    *frequency = g_tscFrequency;
+    frequency->QuadPart = g_tscFrequency;
 }
 
 static void

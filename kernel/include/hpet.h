@@ -123,7 +123,7 @@ typedef struct HpController {
 	int						 Is64Bit;
 	size_t					 TickMinimum;
 	size_t  				 Period;
-	LargeInteger_t			 Frequency;
+	LargeUInteger_t			 Frequency;
 	clock_t					 Clock;
 } HpController_t;
 
@@ -131,7 +131,7 @@ typedef struct HpController {
  * Initializes the ACPI hpet timer from the hpet table. */
 __EXTERN ACPI_STATUS
 HpInitialize(
-	_In_ ACPI_TABLE_HPET *Table);
+	_In_ ACPI_TABLE_HPET *hpetTable);
 
 /* HpComparatorStart
  * Starts a new hpet timer. If a legacy irq is provided that will be used

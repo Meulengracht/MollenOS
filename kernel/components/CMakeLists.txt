@@ -7,4 +7,5 @@ add_kernel_library (vali-core-components ""
         domain.c
         ic.c
         memory.c
+        timer.c
 )

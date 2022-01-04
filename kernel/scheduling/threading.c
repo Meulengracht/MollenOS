@@ -28,6 +28,7 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
 #include <handle.h>
@@ -36,7 +37,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <threading.h>
-#include <timers.h>
 
 #include "threading_private.h"
 
@@ -775,7 +775,7 @@ InitializeDefaultThread(
     thread->ParentHandle    = UUID_INVALID;
     thread->KernelStackSize = kernelStackSize;
     thread->UserStackSize   = userStackSize;
-    TimersGetSystemTick(&thread->StartedAt);
+    SystemTimerGetTimestamp(&thread->StartedAt);
 
     osStatus = streambuffer_create(
             sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,

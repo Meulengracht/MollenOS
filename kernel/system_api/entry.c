@@ -129,8 +129,8 @@ extern OsStatus_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
 extern OsStatus_t ScSystemQuery(SystemDescriptor_t* Descriptor);
 extern OsStatus_t ScSystemTime(SystemTime_t* systemTime);
 extern OsStatus_t ScSystemTick(int tickBase, LargeUInteger_t* tick);
-extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
-extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
+extern OsStatus_t ScPerformanceFrequency(LargeUInteger_t *Frequency);
+extern OsStatus_t ScPerformanceTick(LargeUInteger_t *Value);
 
 #define SYSTEM_CALL_COUNT 66
 

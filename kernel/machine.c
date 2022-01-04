@@ -40,7 +40,6 @@
 #include <scheduler.h>
 #include <stdio.h>
 #include <threading.h>
-#include <timers.h>
 #include <userevent.h>
 #include "arch/io.h"
 
@@ -51,7 +50,7 @@ static SystemMachine_t Machine = {
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
     { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL,                                     // InterruptControllers
-    { { { 0 } } },                                     // SystemTime
+    SYSTEM_TIMERS_INIT,                                     // SystemTimers
     ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
     ATOMIC_VAR_INIT(1), 0, 0, 0 // Total Information
 };

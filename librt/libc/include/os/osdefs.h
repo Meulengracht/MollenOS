@@ -219,11 +219,13 @@ NextPowerOfTwo(size_t value)
 #endif
 
 #define FSEC_PER_NSEC                           1000000L // Femptoseconds per nanosecond
+#define FSEC_PER_SEC                            1000000000000000LL
 #define NSEC_PER_USEC                           1000L    // Nanoseconds per microsecond
 #define NSEC_PER_MSEC                           1000000L // Nanoseconds per millisecond
-#define MSEC_PER_SEC                            1000L
 #define NSEC_PER_SEC                            1000000000L
-#define FSEC_PER_SEC                            1000000000000000LL
+#define USEC_PER_MSEC                           1000L
+#define USEC_PER_SEC                            1000000L
+#define MSEC_PER_SEC                            1000L
 
 #define BYTES_PER_KB 1024
 #define BYTES_PER_MB (BYTES_PER_KB * 1024)

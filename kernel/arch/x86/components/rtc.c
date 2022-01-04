@@ -28,7 +28,6 @@
 #include <hpet.h>
 #include <interrupts.h>
 #include <machine.h>
-#include <timers.h>
 #include <arch/x86/cmos.h>
 
 // import the calibration ticker as we use it during boot
@@ -55,12 +54,12 @@ RtcInterrupt(
     }
 
     // Should we ever try to resync the time at specific intervals?
-    if (GetMachine()->SystemTime.Year == 0) {
-        CmosReadSystemTime(&GetMachine()->SystemTime);
+    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
+        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
     }
     else {
         // Update system time with 1 second
-        TimeWallClockAddTime(1);
+        SystemTimerWallClockAddTime(1);
     }
     return InterruptHandled;
 }
@@ -105,7 +104,7 @@ RtcInitialize(
         // If we are emulated then we sync the clock immediately and start a timer that should fire
         // once every second
         CmosWaitForUpdate();
-        CmosReadSystemTime(&GetMachine()->SystemTime);
+        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
 
     	// Counter 1 is the IRQ 8 emulator
         HpComparatorStart(1, 1, 1, deviceInterrupt.Line);

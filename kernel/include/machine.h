@@ -35,6 +35,7 @@
 #include <component/memory.h>
 #include <component/cpu.h>
 #include <component/ic.h>
+#include <component/timer.h>
 
 typedef struct SystemMachine {
     char         Architecture[32];
@@ -54,8 +55,7 @@ typedef struct SystemMachine {
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
-    SystemTime_t                SystemTime;
-    list_t                      SystemTimers; // list<SystemTimer_t*>
+    SystemTimers_t              SystemTimers;
 
     // Total information across domains
     _Atomic(int)                NumberOfProcessors;

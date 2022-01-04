@@ -40,8 +40,8 @@ typedef struct LocalApicTimer {
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
 
-static void ApicTimerGetCount(void*, tick_t*);
-static void ApicTimerGetFrequency(void*, tick_t*);
+static void ApicTimerGetCount(void*, LargeUInteger_t*);
+static void ApicTimerGetFrequency(void*, LargeUInteger_t*);
 static void ApicTimerRecalibrate(void*);
 
 // TODO this should be per-core
@@ -100,19 +100,18 @@ ApicTimerInitialize(void)
         return;
     }
 
+    // Run the calibration code
+    ApicTimerRecalibrate(NULL);
+
     // register as available platform timer
     osStatus = SystemTimerRegister(
             &g_lapicOperations,
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_IRQ | SystemTimeAttributes_CALIBRATED,
             UUID_INVALID,
-            NULL
-    );
+            NULL);
     if (osStatus != OsSuccess) {
         WARNING("TscInitialize failed to register platform timer");
     }
-
-    // Run the calibration code
-    ApicTimerRecalibrate(NULL);
 
     // Start timer for good
     ApicTimerStart(g_lapicTimer.Quantum * 20);
@@ -129,8 +128,8 @@ ApicTimerStart(
 
 static void
 ApicTimerGetCount(
-        _In_  void*   context,
-        _Out_ tick_t* count)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* count)
 {
     // So we need to get the number of ticks passed for the current timeslice, otherwise
     // we will return the same value each time a thread calls this function, which we do
@@ -141,17 +140,17 @@ ApicTimerGetCount(
     uint32_t    ticksPassed = ApicReadLocal(APIC_INITIAL_COUNT) - tick;
     _CRT_UNUSED(context);
 
-    *count = (tick_t)(g_lapicTimer.Tick + ticksPassed);
+    count->QuadPart = g_lapicTimer.Tick + ticksPassed;
     InterruptRestoreState(intStatus);
 }
 
 static void
 ApicTimerGetFrequency(
-        _In_  void*   context,
-        _Out_ tick_t* frequency)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* frequency)
 {
     _CRT_UNUSED(context);
-    *frequency = (tick_t)g_lapicTimer.Frequency;
+    frequency->QuadPart = g_lapicTimer.Frequency;
 }
 
 static void

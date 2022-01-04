@@ -29,7 +29,6 @@
 #include <arch/interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <timers.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>

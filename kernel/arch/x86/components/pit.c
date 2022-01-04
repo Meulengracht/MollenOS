@@ -31,8 +31,6 @@
 #include <hpet.h>
 #include <interrupts.h>
 #include <arch/x86/pit.h>
-#include <string.h>
-#include <timers.h>
 
 typedef struct Pit {
     int     Enabled;
@@ -46,8 +44,8 @@ typedef struct Pit {
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
 
-static void PitGetCount(void*, tick_t*);
-static void PitGetFrequency(void*, tick_t*);
+static void PitGetCount(void*, LargeUInteger_t*);
+static void PitGetFrequency(void*, LargeUInteger_t*);
 static void PitNoOperation(void*);
 
 static SystemTimerOperations_t g_pitOperations = {
@@ -89,7 +87,7 @@ PitInterrupt(
             g_pit.DriftAccumulated += 1000;
             seconds--;
         }
-        TimeWallClockAddTime(seconds);
+        SystemTimerWallClockAddTime(seconds);
     }
 	return InterruptHandled;
 }
@@ -139,22 +137,21 @@ PitInitialize(
     // Store updated interrupt line
     g_pit.InterruptLine = deviceInterrupt.Line;
 
-    // Register us as a system timer
-    osStatus = SystemTimerRegister(
-            &g_pitOperations,
-            SystemTimeAttributes_IRQ,
-            irq,
-            &g_pit
-    );
-    if (osStatus != OsSuccess) {
-        WARNING("PitInitialize failed to register the platform timer");
-    }
-
     // Initialize the PIT to a frequency of 1000hz during boot so that the rest of the system
     // can calibrate its timers. When calibration is over, we then reinitialize the PIT to the lowest
     // frequency since we do not use the PIT for any high precision, but instead only use it for
     // time-keeping if the RTC is not available.
     PitSetCalibrationMode(1);
+
+    // Register us as a system timer
+    osStatus = SystemTimerRegister(
+            &g_pitOperations,
+            SystemTimeAttributes_IRQ,
+            irq,
+            &g_pit);
+    if (osStatus != OsSuccess) {
+        WARNING("PitInitialize failed to register the platform timer");
+    }
 	return OsSuccess;
 }
 
@@ -201,20 +198,20 @@ PitSetCalibrationMode(
 
 static void
 PitGetCount(
-        _In_  void*   context,
-        _Out_ tick_t* tick)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* tick)
 {
     Pit_t* pit = context;
-    *tick = pit->Tick;
+    tick->QuadPart = pit->Tick;
 }
 
 static void
 PitGetFrequency(
-        _In_  void*   context,
-        _Out_ tick_t* frequency)
+        _In_ void*            context,
+        _In_ LargeUInteger_t* frequency)
 {
     Pit_t* pit = context;
-    *frequency = pit->Frequency;
+    frequency->QuadPart = pit->Frequency;
 }
 
 static void

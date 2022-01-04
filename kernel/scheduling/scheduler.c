@@ -37,7 +37,6 @@
 #include <machine.h>
 #include <scheduler.h>
 #include <string.h>
-#include <timers.h>
 
 #define EVENT_EXECUTE      0
 #define EVENT_QUEUE        1
@@ -372,7 +371,7 @@ SchedulerDestroyObject(
 {
     Scheduler_t * Scheduler = SchedulerGetFromCore(Object->CoreId);
     
-    // Remove pressure, and explicit put a memory barrier to push these
+    // Remove pressure, and explicit put a memory barrier to push the
     // memory writes to other cores that allocate objects
     atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
     atomic_fetch_sub(&Scheduler->ObjectCount, 1);
@@ -456,7 +455,7 @@ SchedulerExpediteObject(
         }
         
         Object->TimeoutReason = OsInterrupted;
-        TimersGetSystemTick(&Object->InterruptedAt);
+        SystemTimerGetTimestamp(&Object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
         // the rest is then up to the scheduler, or we update the state to QUEUEING,
@@ -590,7 +589,7 @@ PerformObjectTimeout(
         }
         
         Object->TimeoutReason = OsTimeout;
-        TimersGetSystemTick(&Object->InterruptedAt);
+        SystemTimerGetTimestamp(&Object->InterruptedAt);
         QueueForScheduler(Scheduler, Object, 0);
     }
     else {
@@ -655,7 +654,7 @@ HandleObjectRequeue(
     else if (Object->TimeLeft != 0) {
         TRACE("[scheduler] [advance] sleep 0x%llx (Head 0x%llx, Tail 0x%llx)", 
             Object->Link, Scheduler->SleepQueue.Head, Scheduler->SleepQueue.Tail);
-        // OK, so the we are blocking this object which means we won't be
+        // OK, so we are blocking this object which means we won't be
         // queuing the object up again, should we track the sleep?
         AppendToQueue(&Scheduler->SleepQueue, Object, Object);
     }
@@ -679,7 +678,7 @@ SchedulerAdvance(
     // Allow Object to be NULL but not NextDeadlineOut
     assert(NextDeadlineOut != NULL);
     
-    // In one case we can skip the whole requeue etc etc. This happens when there
+    // In one case we can skip the whole requeue etc. etc. This happens when there
     // was a sleep event before the objects time-slice is out. Adjust and continue
     if (Object != NULL && Preemptive && MillisecondsPassed < Object->TimeSliceLeft) {
         // Steps to take here is, adjusting the current time-slice,
@@ -692,7 +691,7 @@ SchedulerAdvance(
     }
 
     // Handle the scheduled object first. The only times it's up to this function
-    // to requeue immediately is if the thread was running. Otherwise it's because
+    // to requeue immediately is if the thread was running. Otherwise, it's because
     // we've been interrupted or blocked.
     if (Object != NULL) {
         HandleObjectRequeue(scheduler, Object, Preemptive);
@@ -714,7 +713,7 @@ SchedulerAdvance(
     // Handle the boost timer as long as there are active objects running
     // if we run out of objects then boosting makes no sense
     if (nextObject != NULL) {
-        TimersGetSystemTick(&currentClock);
+        SystemTimerGetTimestamp(&currentClock);
         
         // Handle the boost timer
         if (scheduler->LastBoost == 0) {

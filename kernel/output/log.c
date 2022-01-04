@@ -24,6 +24,7 @@
 #include <arch/output.h>
 #include <arch/utils.h>
 #include <assert.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -33,7 +34,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <threading.h>
-#include <timers.h>
 
 typedef struct SystemLogLine {
     int     level;
@@ -212,7 +212,7 @@ LogAppendMessage(
     logLine->level        = level;
     logLine->coreId       = coreId;
     logLine->threadHandle = ThreadCurrentHandle();
-    TimersGetSystemTick(&logLine->timeStamp);
+    SystemTimerGetTimestamp(&logLine->timeStamp);
     
 	va_start(arguments, format);
     vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
