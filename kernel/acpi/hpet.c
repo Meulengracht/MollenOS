@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * High Performance Event Timer (HPET) Driver
@@ -89,7 +89,7 @@ HpStart(void)
 }
 
 OsStatus_t
-HpHasLegacyController(void)
+HpetIsEmulatingLegacyController(void)
 {
     size_t Config;
     if (HpetController.BaseAddress != 0) {
@@ -177,7 +177,6 @@ HpInterrupt(
         if (InterruptStatus & (1 << i) && HpetController.Timers[i].Enabled) {
             if (HpetController.Timers[i].SystemTimer) {
                 HpetController.Clock++;
-                TimersInterrupt(HpetController.Timers[i].Interrupt);
             }
             if (!HpetController.Timers[i].PeriodicSupport) {
                 // Non-periodic timer fired, what now?

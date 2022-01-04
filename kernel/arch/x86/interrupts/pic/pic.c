@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS X86-32 PIC (Programmable Interrupt Controller)
@@ -21,9 +21,9 @@
  */
 
 #include <arch/io.h>
-#include <pic.h>
+#include <arch/x86/pic.h>
 
-static int GlbElcrInitialized = 0;
+static int g_elcrInitialized = 0;
 
 /* PicGetElcr 
  * Retrieves the elcr status register(s). */
@@ -93,11 +93,11 @@ PicInitialize(void)
     if ((Status & (PIC_ELCR_MASK(0) | PIC_ELCR_MASK(1) | PIC_ELCR_MASK(2) |
         PIC_ELCR_MASK(8) | PIC_ELCR_MASK(13))) != 0) {
         // Not Present
-        GlbElcrInitialized  = 0;
+        g_elcrInitialized = 0;
     }
     else {
         // Present
-        GlbElcrInitialized = 1;
+        g_elcrInitialized = 1;
     }
 }
 
@@ -116,7 +116,7 @@ PicConfigureLine(
     size_t Mask         = 0;
 
     // Configure for either level/edge
-    if (GlbElcrInitialized == 1 && LevelTriggered != -1) {
+    if (g_elcrInitialized == 1 && LevelTriggered != -1) {
         PicGetElcr(&Status);
         if (LevelTriggered == 1) {
             Status |= PIC_ELCR_MASK(Irq);
@@ -175,7 +175,7 @@ PicGetConfiguration(
     *LevelTriggered     = 0;
 
     // Configure for either level/edge
-    if (GlbElcrInitialized == 1) {
+    if (g_elcrInitialized == 1) {
         PicGetElcr(&Status);
         if (Status & PIC_ELCR_MASK(Irq)) {
             *LevelTriggered = 1;

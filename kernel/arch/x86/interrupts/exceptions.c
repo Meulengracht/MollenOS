@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Interrupt Interface
@@ -26,14 +26,14 @@
 #define __MODULE "IRQS"
 //#define __TRACE
 
-#include <arch.h>
 #include <arch/utils.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
 #include <memoryspace.h>
 #include <threading.h>
-#include <paging.h>
 
 #define PAGE_FAULT_PRESENT 0x1
 #define PAGE_FAULT_WRITE   0x2

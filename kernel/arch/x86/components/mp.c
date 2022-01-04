@@ -14,14 +14,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MP-Tables Parser
  * https://wiki.osdev.org/Symmetric_Multiprocessing#Finding_information_using_MP_Table
  */
 
-#include <mp.h>
+#include <arch/x86/mp.h>
 #include <string.h>
 
 #define EBDA_START      0x40E

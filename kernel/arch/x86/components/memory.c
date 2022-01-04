@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Memory Utility Functions
  *   - Implements helpers and utility functions with the MemoryInitialize.
@@ -23,17 +23,22 @@
 #define __MODULE "MEM0"
 //#define __TRACE
 
-#include <arch.h>
 #include <arch/mmu.h>
 #include <arch/output.h>
-#include <assert.h>
 #include <arch/utils.h>
-#include <cpu.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/memory.h>
+#include <assert.h>
 #include <debug.h>
-#include <gdt.h>
 #include <machine.h>
-#include <memory.h>
 #include <os/dmabuf.h>
+
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#endif
 
 // Interface to the arch-specific
 extern void memory_invalidate_addr(uintptr_t pda);

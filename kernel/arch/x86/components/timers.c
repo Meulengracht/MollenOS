@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,49 +12,62 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS x86 Common Timer Interface
+ * x86 Common Timer Interface
  * - Contains shared x86 timer routines
  */
-#define __MODULE "TMIF"
+
 #define __TRACE
 
 #include <acpiinterface.h>
-#include <interrupts.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/cmos.h>
+#include <arch/x86/pit.h>
+#include <arch/x86/tsc.h>
 #include <debug.h>
-#include <apic.h>
-#include <cpu.h>
-#include "../cmos.h"
-#include "../pit.h"
+#include <interrupts.h>
+
+uint32_t g_calibrationTick = 0;
 
 OsStatus_t
 TimersDiscover(void)
 {
-    int RtcAvailable = 1;
+    OsStatus_t osStatus;
+    int        rtcAvailable = 1;
     
     TRACE("TimersDiscover()");
 
     // Start out by detecting presence of HPET
     if (AcpiAvailable() == ACPI_AVAILABLE) {
         if (AcpiGbl_FADT.BootFlags & ACPI_FADT_NO_CMOS_RTC) {
-            RtcAvailable = 0;
+            WARNING("TimersDiscover RTC is not available on this platform");
+            rtcAvailable = 0;
         }
     }
-	
-    // Do we have an RTC?
-    if (RtcAvailable == 0) {
-        if (PitInitialize() != OsSuccess) {
-            ERROR("Failed to initialize the PIT.");
-        }
+
+    // we use the RTC primarily if it's available, for both calibration stage and
+    // the time-keeping.
+    osStatus = CmosInitialize(rtcAvailable);
+    if (osStatus != OsSuccess) {
+        WARNING("TimersDiscover failed to initialize the CMOS or RTC");
     }
-    return CmosInitialize(RtcAvailable);
+
+    // if the RTC should not be available, then we must resort to the PIT if that is available.
+    // otherwise, we require the HPET to be available.
+    osStatus = PitInitialize(rtcAvailable);
+    if (osStatus != OsSuccess) {
+        WARNING("TimersDiscover failed to initialize the PIT");
+    }
+    return osStatus;
 }
 
 OsStatus_t
 InitializeSystemTimers(void)
 {
+    OsStatus_t osStatus;
+
     // Free all the allocated isa's now for drivers
     InterruptDecreasePenalty(0); // PIT
     InterruptDecreasePenalty(1); // PS/2
@@ -72,13 +84,19 @@ InitializeSystemTimers(void)
     InterruptDecreasePenalty(15); // IDE
 
     // Activate fixed system timers
-    if (TimersDiscover() != OsSuccess) {
-        return OsError;
+    osStatus = TimersDiscover();
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
+
+    // Calibrate the TSC
+    TscInitialize();
     
-    // Recalibrate in case of apic
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
-        ApicRecalibrateTimer();
-    }
+    // Calibrate the Local Apic Timer
+    ApicTimerInitialize();
+
+    // Disable calibration mode
+    RtcSetCalibrationMode(0);
+    PitSetCalibrationMode(0);
     return OsSuccess;
 }

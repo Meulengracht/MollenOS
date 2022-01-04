@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Symmetrical Multiprocessoring
@@ -27,39 +27,28 @@
 #include <component/cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <arch/time.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <component/timer.h>
+#include <debug.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <timers.h>
-#include <debug.h>
-#include <apic.h>
 #include <heap.h>
-#include <gdt.h>
-#include <idt.h>
-#include <cpu.h>
 #include <string.h>
 #include <assert.h>
+
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#include <arch/x86/x32/idt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#include <arch/x86/x64/idt.h>
+#endif
 
 extern const int   __GlbTramplineCode_length;
 extern const char  __GlbTramplineCode[];
 static int         JumpSpaceInitialized = 0;
-
-void
-PollTimerForMilliseconds(size_t Milliseconds)
-{
-    volatile clock_t current;
-    clock_t          end;
-    
-    if (TimersGetSystemTick((clock_t*)&current) != OsSuccess) {
-        ArchStallProcessorCore(Milliseconds);
-        return;
-    }
-
-    end = current + Milliseconds;
-    while (current < end) {
-        TimersGetSystemTick((clock_t*)&current);
-    }
-}
 
 void
 SmpApplicationCoreEntry(void)
@@ -117,7 +106,7 @@ StartApplicationCore(
         ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", coreId);
         return;
     }
-    PollTimerForMilliseconds(10);
+    SystemTimerStall(10 * NSEC_PER_MSEC);
     // ApicPerformIPI(Core->Id, 0); is needed on older cpus, but not supported on newer.
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
@@ -131,7 +120,7 @@ StartApplicationCore(
     // If it didn't boot then send another SIPI and give up
     timeout = 10;
     while (!(CpuCoreState(Core) & CpuStateRunning) && timeout) {
-        PollTimerForMilliseconds(1);
+        SystemTimerStall(NSEC_PER_MSEC);
         timeout--;
     }
     

@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86 Advanced Programmable Interrupt Controller Driver
@@ -23,9 +23,9 @@
 #define __TRACE
 
 #include <debug.h>
-#include <apic.h>
+#include <arch/x86/pic.h>
+#include <arch/x86/apic.h>
 #include <acpi.h>
-#include <pic.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -62,19 +62,19 @@ int ApicGetMaxLvt(void) {
     return APIC_INTEGRATED((Version & 0xFF)) ? (((Version) >> 16) & 0xFF) : 2;
 }
 
-uint32_t ApicComputeLogicalDestination(UUId_t CoreId) {
-    return (1 << ((CoreId % 7) + 1)) | (1 << 0);
+uint32_t ApicComputeLogicalDestination(UUId_t coreId) {
+    return (1 << ((coreId % 7) + 1)) | (1 << 0);
 }
 
 /* Helper for updating the task priority register
  * this register helps us using Lowest-Priority
  * delivery mode, as this controls which cpu to
  * interrupt */
-void ApicSetTaskPriority(uint32_t Priority) {
+void ApicSetTaskPriority(uint32_t priority) {
     uint32_t Temp = ApicReadLocal(APIC_TASK_PRIORITY);
     Temp &= ~(APIC_PRIORITY_MASK);
-    Temp |= (Priority & APIC_PRIORITY_MASK);
-    ApicWriteLocal(APIC_TASK_PRIORITY, Priority);
+    Temp |= (priority & APIC_PRIORITY_MASK);
+    ApicWriteLocal(APIC_TASK_PRIORITY, priority);
 }
 
 /* Retrives the current task priority
@@ -95,7 +95,7 @@ void ApicMaskGsi(int Gsi)
     int Pin         = APIC_NO_GSI;
 
     // Use the correct interrupt mode
-    if (GetApicInterruptMode() == InterruptModePic) {
+    if (GetApicInterruptMode() == InterruptMode_PIC) {
         PicConfigureLine(Gsi, 0, -1);
         return;
     }
@@ -125,7 +125,7 @@ void ApicUnmaskGsi(int Gsi)
     int Pin         = APIC_NO_GSI;
 
     // Use the correct interrupt mode
-    if (GetApicInterruptMode() == InterruptModePic) {
+    if (GetApicInterruptMode() == InterruptMode_PIC) {
         PicConfigureLine(Gsi, 1, -1);
         return;
     }
@@ -149,7 +149,7 @@ void ApicUnmaskGsi(int Gsi)
 void ApicSendEoi(int Gsi, uint32_t Vector)
 {
     // Use the correct interrupt mode
-    if (GetApicInterruptMode() == InterruptModePic) {
+    if (GetApicInterruptMode() == InterruptMode_PIC) {
         if (Gsi != APIC_NO_GSI) {
             PicSendEoi(Gsi);
         }

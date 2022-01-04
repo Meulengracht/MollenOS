@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS x86 Memory Definitions, Structures, Explanations
@@ -23,7 +23,12 @@
 #define _X86_MEMORY_H_
 
 #include <os/osdefs.h>
-#include <paging.h>
+
+#if defined(__i386__)
+#include <arch/x86/x32/paging.h>
+#else
+#include <arch/x86/x64/paging.h>
+#endif
 
 DECL_STRUCT(MemorySpace);
 

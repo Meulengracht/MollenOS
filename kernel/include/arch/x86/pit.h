@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS X86 PIT (Timer) Driver
@@ -24,7 +24,6 @@
 #define __DRIVER_PIT_H__
 
 #include <os/osdefs.h>
-#include <arch.h>
 #include <time.h>
 
 /* Io-space for accessing the PIT
@@ -59,21 +58,31 @@
 #define	PIT_COMMAND_COUNTER_1		0x40
 #define	PIT_COMMAND_COUNTER_2		0x80
 
-/* The IRQ line the PIT uses, it's an ISA line so it's fixed */
+#define PIT_FREQUENCY               1193181
+
+/* The IRQ line the PIT uses, it's an ISA line, so it's fixed */
 #define PIT_IRQ						0x0
 
-typedef struct Pit {
-	UUId_t				Irq;
-	size_t				NsTick;
-	size_t				NsCounter;
-	clock_t				Ticks;
-} Pit_t;
+/**
+ * @brief Initializes the Programmable Interval Timer. The behaviour of
+ * the timers and how they are configured depends on whether the RTC chip
+ * is available as well for CMOS time updates.
+ *
+ * @param[In] rtcAvailable Availability of the RTC chip
+ * @return    Status of the initialization.
+ */
+KERNELAPI OsStatus_t KERNELABI
+PitInitialize(
+        _In_ int rtcAvailable);
 
-/* PitInitialize
- * Initializes the PIT unit on the system. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PitInitialize(void);
+/**
+ * @brief Enables or disables calibration mode for the PIT. If calibration mode is enabled
+ * the calibration ticker will tick each 1ms.
+ *
+ * @param[In] enable Set to non-zero to enable calibration mode.
+ */
+KERNELAPI void KERNELABI
+PitSetCalibrationMode(
+        _In_ int enable);
 
 #endif //!__DRIVER_PIT_H___

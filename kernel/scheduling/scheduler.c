@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Multilevel Feedback Scheduler
  *  - Implements scheduling of threads by having a specified number of queues
@@ -26,10 +26,10 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <arch/time.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <component/domain.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <ds/list.h>
 #include <ddk/io.h>
@@ -38,7 +38,6 @@
 #include <scheduler.h>
 #include <string.h>
 #include <timers.h>
-#include <arch/interrupts.h>
 
 #define EVENT_EXECUTE      0
 #define EVENT_QUEUE        1
@@ -392,7 +391,7 @@ SchedulerSleep(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) {
         // Called by the idle threads
-        ArchStallProcessorCore(milliseconds);
+        SystemTimerStall(milliseconds * NSEC_PER_MSEC);
         return SCHEDULER_SLEEP_OK;
     }
 

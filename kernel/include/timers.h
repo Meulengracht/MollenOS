@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -13,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Timer Mangement Interface
@@ -33,29 +32,14 @@ typedef struct SystemPerformanceTimerOps {
     void (*ReadTimer)(LargeInteger_t*);
 } SystemPerformanceTimerOps_t;
 
-typedef struct SystemTimer {
-    element_t Header;
-    UUId_t   Source;
-    size_t   TickInNs;
-    size_t   Ticks;
-    clock_t  (*GetTick)(void);
-    void     (*ResetTick)(void);
-} SystemTimer_t;
-
-/* TimersSynchronizeTime
- * Synchronizes the system time with the hardware. */
+/**
+ * @brief Adds a number of seconds to the system wallclock
+ *
+ * @param[In] seconds The number of seconds to add to the wallclock
+ */
 KERNELAPI void KERNELABI
-TimersSynchronizeTime(void);
-
-/* TimersRegisterSystemTimer 
- * Registrates a interrupt timer source with the timer management, which keeps track 
- * of which interrupts are available for time-keeping */
-KERNELAPI OsStatus_t KERNELABI
-TimersRegisterSystemTimer(
-    _In_ UUId_t  Source,
-    _In_ size_t  TickNs,
-    _In_ clock_t (*GetTickFn)(void),
-    _In_ void    (*ResetTickFn)(void));
+TimeWallClockAddTime(
+        _In_ int seconds);
 
 /* TimersRegisterPerformanceTimer
  * Registers a high performance timer that can be seperate from the system timer. */
@@ -83,14 +67,5 @@ TimersQueryPerformanceFrequency(
 KERNELAPI OsStatus_t KERNELABI
 TimersQueryPerformanceTick(
     _Out_ LargeInteger_t *Value);
-
-/* TimersInterrupt
- * Called by the interrupt-code to tell the timer-management system
- * a new interrupt has occured from the given source. This allows
- * the timer-management system to tell us if that was the active
- * timer-source */
-KERNELAPI OsStatus_t KERNELABI
-TimersInterrupt(
-    _In_ UUId_t Source);
 
 #endif // !__VALI_TIMERS_H__

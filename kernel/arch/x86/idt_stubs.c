@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -13,14 +12,12 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * X86 IDT Assembler stubs
- *
  */
 
-#include <idt_stubs.h>
+#include <arch/x86/idt_stubs.h>
 
 idt_stub_t IdtStubs[IDT_DESCRIPTOR_COUNT] = {
     irq_handler0, irq_handler1, irq_handler2, irq_handler3, irq_handler4, 

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86 Cpu Information Header
@@ -25,17 +23,24 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <machine.h>
-#include <memory.h>
-#include <smbios.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/smbios.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/pic.h>
+#include <arch/x86/vbe.h>
 #include <debug.h>
-#include <apic.h>
-#include <cpu.h>
-#include <gdt.h>
-#include <idt.h>
-#include <pic.h>
+#include <machine.h>
 #include <string.h>
-#include <vbe.h>
+
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#include <arch/x86/x32/idt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#include <arch/x86/x64/idt.h>
+#endif
 
 #include "../../../components/cpu_private.h"
 
@@ -196,7 +201,7 @@ ArchProcessorSendInterrupt(
     _In_ UUId_t CoreId,
     _In_ UUId_t InterruptId)
 {
-    OsStatus_t Status = ApicSendInterrupt(InterruptSpecific, CoreId, InterruptId & 0xFF);
+    OsStatus_t Status = ApicSendInterrupt(InterruptTarget_SPECIFIC, CoreId, InterruptId & 0xFF);
     if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
@@ -268,7 +273,7 @@ ArchGetProcessorCoreId(void)
     }
 
     // If the local apic is not initialized this is single-core old system
-    // OR we are still in startup phase and thus we just return the boot-core
+    // OR we are still in startup phase, and thus we just return the boot-core
     if (!GetMachine()->Processor.Cores) {
         return 0;
     }
@@ -339,25 +344,4 @@ void CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
     else {
         ERROR("[write_msr] MSR is not supported on this cpu: %u", registerIndex);
     }
-}
-
-extern void _rdtsc(uint64_t *Value);
-
-void
-ArchStallProcessorCore(
-    size_t MilliSeconds)
-{
-	// Variables
-	volatile uint64_t TimeOut = 0;
-	uint64_t Counter = 0;
-
-	if (!(GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
-		FATAL(FATAL_SCOPE_KERNEL, "DelayMs() was called, but no TSC support in CPU.");
-		ArchProcessorIdle();
-	}
-
-	// Use the read timestamp counter
-	_rdtsc(&Counter);
-	TimeOut = Counter + (uint64_t)(MilliSeconds * 100000);
-	while (Counter < TimeOut) { _rdtsc(&Counter); }
 }

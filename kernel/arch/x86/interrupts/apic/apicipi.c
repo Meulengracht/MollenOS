@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Advanced Programmable Interrupt Controller Driver
@@ -24,19 +24,19 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <arch/time.h>
+#include <arch/x86/apic.h>
 #include <assert.h>
+#include <component/timer.h>
 #include <debug.h>
-#include <apic.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 fault = 0; \
 for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-    if (timeout_ >= runs) {\
-         fault = 1; \
+    if (timeout_ >= (runs)) {\
+         (fault) = 1; \
          break;\
                                             }\
-    ArchStallProcessorCore(wait);\
+    SystemTimerStall(wait * NSEC_PER_MSEC);\
                     }
 
 OsStatus_t
@@ -50,29 +50,28 @@ ApicWaitForIdle(void)
 void
 ApicSynchronizeArbIds(void)
 {
-    // Variables
-    IntStatus_t InterruptStatus;
-    OsStatus_t Status;
+    IntStatus_t interruptStatus;
+    OsStatus_t  osStatus;
 
 	// Not needed on AMD and not supported on P4 
 	// So we need a check here in place to do it @todo
-    InterruptStatus = InterruptDisable();
-	Status          = ApicWaitForIdle();
-    assert(Status != OsError);
+    interruptStatus = InterruptDisable();
+    osStatus        = ApicWaitForIdle();
+    assert(osStatus != OsError);
 
 	ApicWriteLocal(APIC_ICR_HIGH,   0);
 	ApicWriteLocal(APIC_ICR_LOW,    APIC_ICR_SH_ALL | APIC_TRIGGER_LEVEL | APIC_DELIVERY_MODE(APIC_MODE_INIT));
-	
-    Status = ApicWaitForIdle();
-    assert(Status != OsError);
-    InterruptRestoreState(InterruptStatus);
+
+    osStatus = ApicWaitForIdle();
+    assert(osStatus != OsError);
+    InterruptRestoreState(interruptStatus);
 }
 
 OsStatus_t
 ApicSendInterrupt(
-    _In_ InterruptTarget_t  Type,
-    _In_ UUId_t             Specific,
-    _In_ uint32_t           Vector)
+    _In_ InterruptTarget_t  type,
+    _In_ UUId_t             specific,
+    _In_ uint32_t           vector)
 {
 	uint32_t    IpiLow  = 0;
 	uint32_t    IpiHigh = 0;
@@ -80,18 +79,18 @@ ApicSendInterrupt(
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;
 
-    if (Type == InterruptSpecific && Specific == CoreId) {
-        Type = InterruptSelf;
+    if (type == InterruptTarget_SPECIFIC && specific == CoreId) {
+        type = InterruptTarget_SELF;
     }
 
     // Handle target types
-    if (Type == InterruptSpecific) {
-	    IpiHigh = APIC_DESTINATION(Specific);
+    if (type == InterruptTarget_SPECIFIC) {
+	    IpiHigh = APIC_DESTINATION(specific);
     }
-    else if (Type == InterruptSelf) {
+    else if (type == InterruptTarget_SELF) {
         IpiLow |= (1 << 18);
     }
-    else if (Type == InterruptAll) {
+    else if (type == InterruptTarget_ALL) {
         IpiLow |= (1 << 19);
     }
     else {
@@ -102,7 +101,7 @@ ApicSendInterrupt(
 	// Fixed Delivery
 	// Assert (Bit 14 = 1)
     // Edge (Bit 15 = 0)
-	IpiLow |= APIC_VECTOR(Vector) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+	IpiLow |= APIC_VECTOR(vector) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
 
     // Are we sending to ourself? Handle this a bit differently, if the ICR is already
     // busy we don't want to clear it as we already a send pending, just queue up interrupt
@@ -119,16 +118,16 @@ ApicSendInterrupt(
 
 OsStatus_t
 ApicPerformIPI(
-    _In_ UUId_t CoreId,
-    _In_ int    Assert)
+    _In_ UUId_t coreId,
+    _In_ int    assert)
 {
-	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
+	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
 	uint32_t    IpiLow  = 0;
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;
 
     // Determine assert or deassert
-    if (Assert) {
+    if (assert) {
         IpiLow = APIC_DELIVERY_MODE(APIC_MODE_INIT) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
     }
     else {
@@ -150,11 +149,11 @@ ApicPerformIPI(
 
 OsStatus_t
 ApicPerformSIPI(
-    _In_ UUId_t    CoreId,
+    _In_ UUId_t    coreId,
     _In_ uintptr_t Address)
 {
 	uint32_t    IpiLow  = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
-	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
+	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
     uint8_t     Vector  = 0;
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;

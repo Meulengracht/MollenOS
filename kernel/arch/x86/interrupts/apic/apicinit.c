@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 Advanced Programmable Interrupt Controller Driver
@@ -22,25 +22,24 @@
 #define __TRACE
 
 #include <component/cpu.h>
-#include <cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/io.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/mp.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <timers.h>
 #include <debug.h>
-#include <apic.h>
-#include <mp.h>
 
 static SystemInterruptController_t* g_ioApicI8259Apic = NULL;
-static int                          g_ioApicI8259Pin = 0;
-static SystemInterruptMode_t        g_interruptMode  = InterruptModePic;
+static int             g_ioApicI8259Pin = 0;
+static InterruptMode_t g_interruptMode  = InterruptMode_PIC;
 
-size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
-uintptr_t GlbLocalApicBase = 0;
+uintptr_t g_localApicBaseAddress = 0;
 
 static unsigned int
 GetSystemLvtByAcpi(
@@ -388,15 +387,6 @@ ApicEnable(void)
 }
 
 void
-ApicStartTimer(
-    _In_ size_t Quantum)
-{
-    ApicWriteLocal(APIC_TIMER_VECTOR,    APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,   Quantum);
-}
-
-void
 ApicInitialize(void)
 {
     SystemInterruptController_t* ic;
@@ -447,8 +437,8 @@ ApicInitialize(void)
             MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
-    GlbLocalApicBase = remappedApAddress + (originalApAddress & 0xFFF);
-    bspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    g_localApicBaseAddress = remappedApAddress + (originalApAddress & 0xFFF);
+    bspApicId              = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     TRACE("ApicInitialize local bsp id %u", bspApicId);
 
     // Do some initial shared Apic setup
@@ -480,7 +470,7 @@ ApicInitialize(void)
     TRACE("ApicInitialize initializing interrupt controllers");
     ic = GetMachine()->InterruptController;
     if (ic) {
-        g_interruptMode = InterruptModeApic;
+        g_interruptMode = InterruptMode_APIC;
         while (ic) {
             ParseIoApic(ic);
             ic = ic->Link;
@@ -495,7 +485,7 @@ ApicInitialize(void)
     ApicSendEoi(0, 0);
 }
 
-SystemInterruptMode_t
+InterruptMode_t
 GetApicInterruptMode(void)
 {
     return g_interruptMode;
@@ -504,7 +494,7 @@ GetApicInterruptMode(void)
 OsStatus_t
 ApicIsInitialized(void)
 {
-    return (GlbLocalApicBase == 0) ? OsError : OsSuccess;
+    return (g_localApicBaseAddress == 0) ? OsError : OsSuccess;
 }
 
 void
@@ -520,39 +510,5 @@ InitializeLocalApicForApplicationCore(void)
 
     // Set up the ESR and disable timer
     ApicSetupESR();
-    ApicStartTimer(0);
-}
-
-void
-ApicRecalibrateTimer(void)
-{
-    volatile clock_t InitialTick = 0;
-    volatile clock_t Tick        = 0;
-    clock_t          PassedTicks;
-    size_t           TimerTicks;
-    TRACE("ApicRecalibrateTimer()");
-
-    // Setup initial local apic timer registers
-    ApicWriteLocal(APIC_TIMER_VECTOR,    INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
-
-    // Sleep for 100 ms
-    if (TimersGetSystemTick((clock_t*)&InitialTick) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "No system timers are present, can't calibrate APIC");
-    }
-    while (Tick < (InitialTick + 100)) {
-        TimersGetSystemTick((clock_t*)&Tick);
-    }
-    PassedTicks = Tick - InitialTick;
-    
-    // Stop counter and calibrate
-    ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
-    TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-    TRACE("ApicRecalibrateTimer BusSpeed: %" PRIuIN " Hz", (TimerTicks * 10));
-    GlbTimerQuantum = (TimerTicks / PassedTicks) + 1;
-    TRACE("ApicRecalibrateTimer ApicQuantum(1ms): %" PRIuIN "", GlbTimerQuantum);
-
-    // Start timer for good
-    ApicStartTimer(GlbTimerQuantum * 20);
+    ApicTimerStart(0);
 }

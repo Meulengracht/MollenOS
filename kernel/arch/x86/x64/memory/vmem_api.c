@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86-64 Virtual Memory Manager
@@ -26,13 +26,13 @@
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-#include <arch.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
 #include <assert.h>
 #include <handle.h>
 #include <heap.h>
 #include <debug.h>
 #include <machine.h>
-#include <memory.h>
 #include <memoryspace.h>
 #include <string.h>
 

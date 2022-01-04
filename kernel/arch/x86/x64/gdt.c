@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86-64 Descriptor Table
@@ -22,13 +22,12 @@
  */
 
 #include <arch/utils.h>
-#include <interrupts.h>
-#include <memory.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/x64/gdt.h>
 #include <assert.h>
 #include <string.h>
-#include <arch.h>
 #include <heap.h>
-#include <gdt.h>
 
 extern void TssInstall(int GdtIndex);
 

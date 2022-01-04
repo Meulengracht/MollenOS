@@ -6,7 +6,6 @@ enable_language (C)
 include_directories (
 	${CMAKE_BINARY_DIR}
 	${CMAKE_BINARY_DIR}/protocols
-	arch/include
 	include
 	../boot/include
     ../librt/libc/include

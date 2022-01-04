@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86-32 Descriptor Table
@@ -21,14 +21,13 @@
  * - Task State Segment 
  */
 
-#include <interrupts.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/x32/gdt.h>
 #include <arch/utils.h>
-#include <memory.h>
 #include <assert.h>
 #include <string.h>
-#include <arch.h>
 #include <heap.h>
-#include <gdt.h>
 
 extern void TssInstall(int GdtIndex);
 
@@ -69,24 +68,14 @@ GdtInitialize(void)
 	GdtInstallDescriptor(0, 0, 0, 0);
 
 	// Kernel segments
-	// Kernel segments span the entire virtual
-	// address space from 0 -> 0xFFFFFFFF
+	// Kernel segments span the entire virtual address space from 0 -> 0xFFFFFFFF
 	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT / PAGE_SIZE,
 		GDT_RING0_CODE, GDT_GRANULARITY);
 	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT,
 		GDT_RING0_DATA, GDT_GRANULARITY);
 
-	// Applications segments
-	// Application segments does not span entire address space
-	// but rather in their own subset
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
-		GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,
-		GDT_RING3_DATA, GDT_GRANULARITY);
-
-	// Driver segments
-	// Driver segments does not span entire address space
-	// but rather in their own subset
+	// Application segments
+    // Applications are not allowed full access of addressing space
 	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
 		GDT_RING3_CODE, GDT_GRANULARITY);
 	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,

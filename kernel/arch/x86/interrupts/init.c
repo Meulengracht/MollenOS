@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Interrupt Interface
@@ -26,12 +26,15 @@
 #define __MODULE        "IRQS"
 //#define __TRACE
 
+#include <arch/x86/arch.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
 #include <interrupts.h>
 #include <debug.h>
-#include <apic.h>
-#include <arch.h>
-#include <gdt.h>
-#include <cpu.h>
+
+#if defined(amd64) || defined(__amd64__)
+#include <arch/x86/x64/gdt.h>
+#endif
 
 static void
 InitializeSoftwareHandlers(void)

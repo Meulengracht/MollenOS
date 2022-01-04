@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 Common Threading Interface
@@ -26,18 +26,23 @@
 #include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
 #include <threading.h>
 #include <interrupts.h>
 #include <debug.h>
 #include <heap.h>
-#include <apic.h>
-#include <gdt.h>
-#include <cpu.h>
 
 #include <assert.h>
 #include <string.h>
 
-extern size_t GlbTimerQuantum;
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#endif
+
 extern void load_fpu(uintptr_t *buffer);
 extern void load_fpu_extended(uintptr_t *buffer);
 extern void save_fpu(uintptr_t *buffer);
@@ -111,7 +116,7 @@ ThreadingYield(void)
     // out of last nesting to ensure we've run all interrupt handlers
     if (InterruptGetActiveStatus()) {
         if (ThreadIsCurrentIdle(ArchGetProcessorCoreId())) {
-            OsStatus_t Status = ApicSendInterrupt(InterruptSelf, UUID_INVALID, INTERRUPT_LAPIC);
+            OsStatus_t Status = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
             if (Status != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
             }

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Interrupt Interface
  * - Contains the shared kernel interrupt interface
@@ -25,25 +22,24 @@
 #define __MODULE "irqs"
 //#define __TRACE
 
-#include <arch/time.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <ddk/barrier.h>
 #include <heap.h>
 #include <interrupts.h>
 #include <machine.h>
-#include <string.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 fault = OsSuccess; \
 for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-    if (timeout_ >= runs) {\
-         fault = OsTimeout; \
+    if (timeout_ >= (runs)) {\
+         (fault) = OsTimeout; \
          break;\
                                             }\
-    ArchStallProcessorCore(wait);\
+    SystemTimerStall((wait) * NSEC_PER_MSEC);\
                     }
 
 static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };

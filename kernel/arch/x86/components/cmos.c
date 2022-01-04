@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -13,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 CMOS & RTC (Clock) Driver
@@ -24,28 +23,26 @@
 
 #include <os/mollenos.h>
 #include <acpiinterface.h>
-#include "../cmos.h"
+#include <arch/x86/cmos.h>
 #include <arch/io.h>
 #include <string.h>
 #include <debug.h>
 
-static Cmos_t CmosUnit = { 0 };
+Cmos_t g_cmos = { 0 };
 
 OsStatus_t
 CmosInitialize(
-    _In_ int InitializeRtc)
+    _In_ int initializeRtc)
 {
-    TRACE("CmosInitialize(rtc %" PRIiIN ")", InitializeRtc);
+    TRACE("CmosInitialize(rtc %" PRIiIN ")", initializeRtc);
 
     // Check out century register
     if (AcpiAvailable() == ACPI_AVAILABLE) {
-        CmosUnit.AcpiCentury = AcpiGbl_FADT.Century;
+        g_cmos.AcpiCentury = AcpiGbl_FADT.Century;
     }
-    CmosUnit.RtcAvailable = InitializeRtc;
-
-    // Last part is to initialize the rtc chip if it present in system
-    if (CmosUnit.RtcAvailable) {
-        return RtcInitialize(&CmosUnit);
+    g_cmos.RtcAvailable = initializeRtc;
+    if (g_cmos.RtcAvailable) {
+        return RtcInitialize(&g_cmos);
     }
     else {
         return OsSuccess;
@@ -56,20 +53,20 @@ uint8_t
 CmosRead(
     _In_ uint8_t Register)
 {
-    size_t  Storage = 0;
-    uint8_t Tmp     = 0;
+    size_t  cmosValue = 0;
+    uint8_t temp;
     
     // Keep NMI if disabled
-    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
-    Storage &= CMOS_NMI_BIT;
-    Tmp     = Storage & 0xFF;
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &cmosValue);
+    cmosValue &= CMOS_NMI_BIT;
+    temp       = cmosValue & 0xFF;
 
     // Select Register (but do not change NMI)
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, 
-        (Tmp | (Register & CMOS_ALLBITS_NONMI)));
-    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, &Storage);
-    Tmp = Storage & 0xFF;
-    return Tmp;
+        (temp | (Register & CMOS_ALLBITS_NONMI)));
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, &cmosValue);
+    temp = cmosValue & 0xFF;
+    return temp;
 }
 
 void
@@ -77,87 +74,68 @@ CmosWrite(
     _In_ uint8_t Register,
     _In_ uint8_t Data)
 {
-    size_t  Storage  = 0;
-    uint8_t Tmp     = 0;
+    size_t  cmosValue = 0;
+    uint8_t temp;
 
     // Keep NMI if disabled
-    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
-    Storage &= CMOS_NMI_BIT;
-    Tmp     = Storage & 0xFF;
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &cmosValue);
+    cmosValue &= CMOS_NMI_BIT;
+    temp       = cmosValue & 0xFF;
 
     // Select Register (but do not change NMI)
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1,
-        (Tmp | (Register & CMOS_ALLBITS_NONMI)));
+        (temp | (Register & CMOS_ALLBITS_NONMI)));
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, Data);
 }
 
 void
-CmosResetTicks(void)
-{
-    CmosUnit.Ticks = 0;
-}
-
-clock_t
-CmosGetTicks(void)
-{
-    return CmosUnit.Ticks;
-}
-
-OsStatus_t
-ArchSynchronizeSystemTime(void)
+CmosWaitForUpdate(void)
 {
     while (!(CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING));
     while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
-    return OsSuccess;
 }
 
-OsStatus_t
-ArchGetSystemTime(
-    _In_ SystemTime_t* SystemTime)
+void
+CmosReadSystemTime(
+        _In_ SystemTime_t* systemTime)
 {
-    uint8_t Century = 0;
-    uint8_t StatusB = CmosRead(CMOS_REGISTER_STATUS_B);
-
-    if (CmosUnit.AcpiCentury != 0) {
-        Century = CmosRead(CmosUnit.AcpiCentury);
+    uint8_t century = 0;
+    uint8_t statusB = CmosRead(CMOS_REGISTER_STATUS_B);
+    if (g_cmos.AcpiCentury != 0) {
+        century = CmosRead(g_cmos.AcpiCentury);
     }
 
-    // Wait while update is in progress
-    // TODO: ArchSynchronizeSystemTime()
-    while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
-
     // Fill in variables
-    SystemTime->Second     = CmosRead(CMOS_REGISTER_SECOND);
-    SystemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTE);
-    SystemTime->Hour       = CmosRead(CMOS_REGISTER_HOUR);
-    SystemTime->DayOfMonth = CmosRead(CMOS_REGISTER_DAY_OF_MONTH);
-    SystemTime->Month      = CmosRead(CMOS_REGISTER_MONTH);
-    SystemTime->Year       = CmosRead(CMOS_REGISTER_YEAR);
+    systemTime->Second     = CmosRead(CMOS_REGISTER_SECOND);
+    systemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTE);
+    systemTime->Hour       = CmosRead(CMOS_REGISTER_HOUR);
+    systemTime->DayOfMonth = CmosRead(CMOS_REGISTER_DAY_OF_MONTH);
+    systemTime->Month      = CmosRead(CMOS_REGISTER_MONTH);
+    systemTime->Year       = CmosRead(CMOS_REGISTER_YEAR);
 
-    // Convert time format? 
-    if (!(StatusB & CMOSB_BCD_FORMAT)) {
-        SystemTime->Second     = CMOS_BCD_TO_DEC(SystemTime->Second);
-        SystemTime->Minute     = CMOS_BCD_TO_DEC(SystemTime->Minute);
-        SystemTime->Hour       = CMOS_BCD_TO_DEC(SystemTime->Hour);
-        SystemTime->DayOfMonth = CMOS_BCD_TO_DEC(SystemTime->DayOfMonth);
-        SystemTime->Month      = CMOS_BCD_TO_DEC(SystemTime->Month);
-        SystemTime->Year       = CMOS_BCD_TO_DEC(SystemTime->Year);
-        if (Century != 0) {
-            Century = CMOS_BCD_TO_DEC(Century);
-        }    
+    // Convert time format?
+    if (!(statusB & CMOSB_FORMAT_BINARY)) {
+        systemTime->Second     = CMOS_BCD_TO_DEC(systemTime->Second);
+        systemTime->Minute     = CMOS_BCD_TO_DEC(systemTime->Minute);
+        systemTime->Hour       = CMOS_BCD_TO_DEC(systemTime->Hour);
+        systemTime->DayOfMonth = CMOS_BCD_TO_DEC(systemTime->DayOfMonth);
+        systemTime->Month      = CMOS_BCD_TO_DEC(systemTime->Month);
+        systemTime->Year       = CMOS_BCD_TO_DEC(systemTime->Year);
+        if (century != 0) {
+            century = CMOS_BCD_TO_DEC(century);
+        }
     }
 
     // Correct the 0 indexed values
-    SystemTime->DayOfMonth++;
+    systemTime->DayOfMonth++;
 
-    if (Century != 0) {
-        SystemTime->Year += Century * 100;
+    if (century != 0) {
+        systemTime->Year += century * 100;
     }
     else {
-        SystemTime->Year += (CMOS_CURRENT_YEAR / 100) * 100;
-        if (SystemTime->Year < CMOS_CURRENT_YEAR) {
-            SystemTime->Year += 100;
+        systemTime->Year += (CMOS_CURRENT_YEAR / 100) * 100;
+        if (systemTime->Year < CMOS_CURRENT_YEAR) {
+            systemTime->Year += 100;
         }
     }
-    return OsSuccess;
 }

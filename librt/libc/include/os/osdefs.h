@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * OS Basic Definitions & Structures
@@ -218,8 +218,9 @@ NextPowerOfTwo(size_t value)
 #define COMPILE_TIME_ASSERT(X)                  COMPILE_TIME_ASSERT2(X,__LINE__)
 #endif
 
-#define FSEC_PER_NSEC                           1000000L
-#define NSEC_PER_MSEC                           1000000L
+#define FSEC_PER_NSEC                           1000000L // Femptoseconds per nanosecond
+#define NSEC_PER_USEC                           1000L    // Nanoseconds per microsecond
+#define NSEC_PER_MSEC                           1000000L // Nanoseconds per millisecond
 #define MSEC_PER_SEC                            1000L
 #define NSEC_PER_SEC                            1000000000L
 #define FSEC_PER_SEC                            1000000000000000LL

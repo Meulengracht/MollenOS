@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS MCore - Timer Mangement Interface
@@ -26,7 +26,6 @@
 #include "../librt/libc/time/local.h"
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <arch/time.h>
 #include <ds/list.h>
 #include <interrupts.h>
 #include <scheduler.h>
@@ -42,19 +41,6 @@ static SystemPerformanceTimerOps_t PerformanceTimer  = { 0 };
 static SystemTimer_t*              ActiveSystemTimer = NULL;
 static list_t                      SystemTimers      = LIST_INIT;
 static long                        AccumulatedDrift  = 0;
-
-void
-TimersSynchronizeTime(void)
-{
-    // InterruptDisable();
-    // ArchSynchronizeSystemTime();
-    ArchGetSystemTime(&GetMachine()->SystemTime);
-    if (ActiveSystemTimer != NULL) {
-        ActiveSystemTimer->ResetTick();
-    }
-    GetMachine()->SystemTime.Nanoseconds.QuadPart = 0;
-    // InterruptEnable();
-}
 
 OsStatus_t
 TimersRegisterSystemTimer(
@@ -151,56 +137,34 @@ TimersQueryPerformanceTick(
 }
 
 void
-UpdateSystemTime(size_t Nanoseconds)
+TimeWallClockAddTime(
+        _In_ int seconds)
 {
-    SystemTime_t* Time        = &GetMachine()->SystemTime;
-    int           IsLeap      = 0;
-    int           DaysInMonth = 0;
+    SystemTime_t* systemTime = &GetMachine()->SystemTime;
+    int           IsLeap;
+    int           DaysInMonth;
 
-    // Update the nanoseconds and handle rollover
-    Time->Nanoseconds.QuadPart += Nanoseconds;
-    if (Time->Nanoseconds.QuadPart > NSEC_PER_SEC) {
-        Time->Nanoseconds.QuadPart -= NSEC_PER_SEC;
-        Time->Second++;
-        if (Time->Second == SECSPERMIN) {
-            Time->Second = 0;
-            Time->Minute++;
-            if (Time->Minute == MINSPERHOUR) {
-                Time->Minute = 0;
-                Time->Hour++;
-                if (Time->Hour == HOURSPERDAY) {
-                    Time->Hour  = 0;
-                    IsLeap      = isleap(Time->Year);
-                    DaysInMonth = __month_lengths[IsLeap][Time->Month - 1];
-                    Time->DayOfMonth++;
-                    if (Time->DayOfMonth > DaysInMonth) {
-                        Time->DayOfMonth = 1;
-                        Time->Month++;
-                        if (Time->Month > MONSPERYEAR) {
-                            Time->Month = 0;
-                            Time->Year++;
-                        }
+    systemTime->Second += seconds;
+    if (systemTime->Second >= SECSPERMIN) {
+        systemTime->Second %= SECSPERMIN;
+        systemTime->Minute++;
+        if (systemTime->Minute == MINSPERHOUR) {
+            systemTime->Minute = 0;
+            systemTime->Hour++;
+            if (systemTime->Hour == HOURSPERDAY) {
+                systemTime->Hour = 0;
+                IsLeap      = isleap(systemTime->Year);
+                DaysInMonth = __month_lengths[IsLeap][systemTime->Month - 1];
+                systemTime->DayOfMonth++;
+                if (systemTime->DayOfMonth > DaysInMonth) {
+                    systemTime->DayOfMonth = 1;
+                    systemTime->Month++;
+                    if (systemTime->Month > MONSPERYEAR) {
+                        systemTime->Month = 0;
+                        systemTime->Year++;
                     }
                 }
             }
         }
     }
-}
-
-OsStatus_t
-TimersInterrupt(
-    _In_ UUId_t Source)
-{
-    if (ActiveSystemTimer != NULL) {
-        if (ActiveSystemTimer->Source == Source) {
-            size_t MilliTicks = DIVUP(ActiveSystemTimer->TickInNs, NSEC_PER_MSEC);
-            AccumulatedDrift += NSEC_PER_MSEC - (long)ActiveSystemTimer->TickInNs;
-            if (AccumulatedDrift >= NSEC_PER_MSEC)       { MilliTicks++; AccumulatedDrift -= NSEC_PER_MSEC; }
-            else if (AccumulatedDrift <= -NSEC_PER_MSEC) { MilliTicks--; AccumulatedDrift += NSEC_PER_MSEC; }
-            if (MilliTicks != 0)                         { /* */ }
-            UpdateSystemTime(ActiveSystemTimer->TickInNs);
-            return OsSuccess;
-        }
-    }
-    return OsError;
 }

@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * MollenOS x86 Advanced Programmable Interrupt Controller Driver
  * - General APIC header for local apic functionality
@@ -26,7 +24,6 @@
 #include <os/osdefs.h>
 #include <ddk/interrupt.h>
 #include <component/ic.h>
-#include <arch.h>
 
 /* Local Apic Registers Definitions
  * Register offsets from the LOCAL_APIC_BASE. */
@@ -53,17 +50,17 @@
 
 /* Interrupt Registers (Common) 
  * Common bit definitions used by the Local Apic register to configure. */
-#define APIC_VECTOR(Vector)         (Vector & 0xFF)
+#define APIC_VECTOR(Vector)         ((Vector) & 0xFF)
 #define APIC_DESTINATION_PHYSICAL   0
 #define APIC_DESTINATION_LOGICAL    (1 << 11)
 #define APIC_DELIVERY_BUSY          (1 << 12)
 #define APIC_LEVEL_ASSERT           (1 << 14)
 #define APIC_TRIGGER_EDGE           0
 #define APIC_TRIGGER_LEVEL          (1 << 15)
-#define APIC_DESTINATION(Dest)      ((Dest & 0x7F) << 24)
+#define APIC_DESTINATION(Dest)      (((Dest) & 0x7F) << 24)
 #define APIC_BROADCAST              0xFF000000
 
-#define APIC_DELIVERY_MODE(Mode)    ((Mode & 0x7) << 8)
+#define APIC_DELIVERY_MODE(Mode)    (((Mode) & 0x7) << 8)
 #define APIC_MODE_FIXED             0x0
 #define APIC_MODE_LOWEST_PRIORITY   0x1
 #define APIC_MODE_SMI               0x2
@@ -77,7 +74,7 @@
 #define APIC_ICR_SH_NONE            0
 #define APIC_ICR_SH_SELF            (1 << 18)
 #define APIC_ICR_SH_ALL             (1 << 19)
-#define APIC_ICR_SH_ALL_OTHERS      (1 << 18) | (1 << 19)
+#define APIC_ICR_SH_ALL_OTHERS      ((1 << 18) | (1 << 19))
 
 /* Local apic timer definitions */
 #define APIC_TIMER_DIVIDER_1	0xB
@@ -89,7 +86,7 @@
 /* Helper definitions for the utility
  * and support functions */
 #define APIC_PRIORITY_MASK		0xFF
-#define APIC_NO_GSI				-1
+#define APIC_NO_GSI				((int)-1)
 
 /* Local apic flags for some of the
  * below registers, this is also io-apic
@@ -102,12 +99,12 @@
 #define APIC_MASKED				0x10000
 
 /* This only is something we need to check on 
- * 32-bit processors, all 64 bit cpus must use
+ * 32-bit processors, all 64-bit cpus must use
  * the integrated APIC */
 #if defined(_X86_32) || defined(i386)
-#define APIC_INTEGRATED(x)      ((x) & 0xF0)
+#define APIC_INTEGRATED(x) ((x) & 0xF0)
 #else
-#define APIC_INTEGRATED(x)      (1)
+#define APIC_INTEGRATED(x) (1)
 #endif
 
 /* This is a configurable default quantum for the
@@ -115,55 +112,62 @@
  * for the cpu to more accurately calculate a quantum */
 #define APIC_DEFAULT_QUANTUM 15000
 
-/* Interrupt Target Types
- * The supported kinds of interrupt targets we support
- * when we invoke interrupts ourself */
-typedef enum _InterruptTarget {
-    InterruptSpecific,
-    InterruptSelf,
-    InterruptAll,
-    InterruptAllButSelf
+typedef enum InterruptTarget {
+    InterruptTarget_SPECIFIC,
+    InterruptTarget_SELF,
+    InterruptTarget_ALL,
+    InterruptTarget_ALLBUTSELF
 } InterruptTarget_t;
 
-typedef enum _SystemInterruptMode {
-    InterruptModePic,
-    InterruptModeApic,
-    InterruptModeApicX2
-} SystemInterruptMode_t;
+typedef enum InterruptMode {
+    InterruptMode_PIC,
+    InterruptMode_APIC,
+    InterruptMode_APICX2
+} InterruptMode_t;
 
-/* ApicInitialize
- * Initialize the local APIC controller and install default interrupts. */
+/**
+ * @brief Initialize the local APIC controller and install default interrupts.
+ */
 KERNELAPI void KERNELABI
 ApicInitialize(void);
 
-/* ApicIsInitialized
- * Returns OsSuccess if the local apic is initialized and memory mapped. */
+/**
+ * @brief Returns OsSuccess if the local apic is initialized and memory mapped.
+ * @return OsSuccess if the Local Apic is available.
+ */
 KERNELAPI OsStatus_t KERNELABI
 ApicIsInitialized(void);
 
-/* GetApicInterruptMode
- * Returns the current system interrupt mode. This is determined by ApicInitialize(). */
-KERNELAPI SystemInterruptMode_t KERNELABI
+/**
+ * @brief Returns the current system interrupt mode. This is determined by ApicInitialize().
+ * @return The current interrupt mode.
+ */
+KERNELAPI InterruptMode_t KERNELABI
 GetApicInterruptMode(void);
 
-/* InitializeLocalApicForApplicationCore
- * Enables the local apic and sets it's default state. Also initializes the 
- * local apic timer, but does not start it. */
+/**
+ * @brief Enables the local apic and sets its default state. Also initializes the
+ * local apic timer, but does not start it.
+ */
 KERNELAPI void KERNELABI
 InitializeLocalApicForApplicationCore(void);
 
-/* ApicRecalibrateTimer
- * Recalibrates the the local apic timer, using an external timer source
- * to accurately have the local apic tick at 1ms */
+/**
+ * @brief Initializes the the local apic timer, using an external timer source
+ * to accurately have the local apic tick at 1ms
+ */
 KERNELAPI void KERNELABI
-ApicRecalibrateTimer(void);
+ApicTimerInitialize(void);
 
-/* ApicStartTimer
- * Reloads the local apic timer with a default divisor and the timer set to the given quantum
- * the timer is immediately started */
+/**
+ * @brief Reloads the local apic timer with a default divisor and the timer set to the given quantum
+ * the timer is immediately started.
+ *
+ * @param[In] quantumValue The value that should be loaded into the local apic timer.
+ */
 KERNELAPI void KERNELABI
-ApicStartTimer(
-    _In_ size_t Quantum);
+ApicTimerStart(
+    _In_ size_t quantumValue);
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
@@ -195,73 +199,117 @@ __EXTERN uint64_t ApicReadIoEntry(SystemInterruptController_t *IoApic, int Pin);
  * the given Pin (io-apic entry) offset. */
 __EXTERN void ApicWriteIoEntry(SystemInterruptController_t *IoApic, int Pin, uint64_t Data);
 
-/* Sends end of interrupt to the local
- * apic chip, and enables for a new interrupt
- * on that irq line to occur */
-__EXTERN void ApicSendEoi(int Gsi, uint32_t Vector);
-
-/* ApicUnmaskGsi
- * Unmasks the given gsi if possible by deriving
- * the io-apic and pin from it. This allows the
- * io-apic to deliver interrupts again */
-__EXTERN void ApicUnmaskGsi(int Gsi);
-
-/* ApicMaskGsi 
- * Masks the given gsi if possible by deriving
- * the io-apic and pin from it. This makes sure
- * the io-apic delivers no interrupts */
-__EXTERN void ApicMaskGsi(int Gsi);
-
-/* ApicSendInterrupt
- * Sends an interrupt vector-request to a given cpu-id. */
-KERNELAPI OsStatus_t KERNELABI
-ApicSendInterrupt(
-    _In_ InterruptTarget_t  Type,
-    _In_ UUId_t             Specific,
-    _In_ uint32_t           Vector);
-
-/* ApicPerformIPI
- * Sends an ipi request for the specified cpu */
-KERNELAPI OsStatus_t KERNELABI
-ApicPerformIPI(
-    _In_ UUId_t             CoreId,
-    _In_ int                Assert);
-
-/* ApicPerformSIPI
- * Sends an sipi request for the specified cpu, to start executing code at the given vector */
-KERNELAPI OsStatus_t KERNELABI
-ApicPerformSIPI(
-    _In_ UUId_t             CoreId,
-    _In_ uintptr_t          Address);
-
-/* This only is something we need to check on 
- * 32-bit processors, all 64 bit cpus must use
- * the integrated APIC */
-__EXTERN int ApicIsIntegrated(void);
-
-/* Retrieve the max supported LVT for the
- * onboard local apic chip, this is used 
- * for the ESR among others */
-__EXTERN int ApicGetMaxLvt(void);
+/**
+ * @brief Acknowledge the reception of an interrupt
+ *
+ * @param[In] Gsi
+ * @param[In] Vector
+ */
+KERNELAPI void KERNELABI
+ApicSendEoi(
+        _In_ int      Gsi,
+        _In_ uint32_t Vector);
 
 /**
- * Divides all cpu into different groups. All cpu's get their first bit set which means
- * that group 0 is targetting ALL cpus.
- * @param CoreId [In] Takes the id of the cpu core
- * @return            The groups the cpu belongs to
+ * @brief Unmasks the GSI provided, allowing the interrupt line to trigger
+ *
+ * @param[In] Gsi The Global Source Interrupt that should be unmasked.
  */
-KERNELAPI uint32_t KERNELABI 
-ApicComputeLogicalDestination(UUId_t CoreId);
+KERNELAPI void KERNELABI
+ApicUnmaskGsi(
+        _In_ int Gsi);
 
-/* Helper for updating the task priority register
- * this register helps us using Lowest-Priority
- * delivery mode, as this controls which cpu to
- * interrupt */
-__EXTERN void ApicSetTaskPriority(uint32_t Priority);
+/**
+ * @brief Masks the GSI provided, disallowing the interrupt line from triggering
+ *
+ * @param[In] Gsi The Global Source Interrupt that should be masked.
+ */
+KERNELAPI void KERNELABI
+ApicMaskGsi(
+        _In_ int Gsi);
 
-/* Retrives the current task priority
- * for the current cpu */
-__EXTERN uint32_t ApicGetTaskPriority(void);
+/**
+ * @brief Sends an interrupt vector-request to a given cpu-id.
+ *
+ * @param[In] type
+ * @param[In] specific
+ * @param[In] vector
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+ApicSendInterrupt(
+    _In_ InterruptTarget_t type,
+    _In_ UUId_t            specific,
+    _In_ uint32_t          vector);
+
+/**
+ * @brief Sends an ipi request for the specified cpu
+ * @param[In] coreId
+ * @param[In] assert
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+ApicPerformIPI(
+    _In_ UUId_t coreId,
+    _In_ int    assert);
+
+/**
+ * @brief Sends an sipi request for the specified cpu, to start executing code at the given vector
+ *
+ * @param[In] coreId
+ * @param[In] address
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+ApicPerformSIPI(
+    _In_ UUId_t    coreId,
+    _In_ uintptr_t address);
+
+/**
+ * @brief On 32-bit processors the local apic might not be integrated onto the chip,
+ * but rather be an external chip. This is not relevant for 64 bit cpus.
+ *
+ * @return 1 If the local apic is integrated, otherwise 0.
+ */
+KERNELAPI int KERNELABI
+ApicIsIntegrated(void);
+
+/**
+ * @brief Retrieve the max supported LVT for the onboard local apic chip, this is used
+ * for the ESR among others.
+ *
+ * @return The maximum supported LVT.
+ */
+KERNELAPI int KERNELABI
+ApicGetMaxLvt(void);
+
+/**
+ * @brief Divides all cpu into different groups. All cpu's get their first bit set which means
+ * that group 0 is targetting ALL cpus.
+ *
+ * @param[In] coreId The cpu core id
+ * @return           The groups the cpu belongs to
+ */
+KERNELAPI uint32_t KERNELABI
+ApicComputeLogicalDestination(
+        _In_ UUId_t coreId);
+
+/**
+ * @brief Sets the current task priority
+ *
+ * @param[In] priority The value that should be loaded into the task priority register
+ */
+KERNELAPI void KERNELABI
+ApicSetTaskPriority(
+        _In_ uint32_t priority);
+
+/**
+ * @brief Get the current task priority set
+ *
+ * @return The value of the task priority register
+ */
+KERNELAPI uint32_t KERNELABI
+ApicGetTaskPriority(void);
 
 /* ApicTimerHandler
  * The scheduler interrupt handler. The only functionality this handler has is

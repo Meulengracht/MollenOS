@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86-64 Thread Contexts
@@ -22,11 +22,11 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <cpu.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/x64/gdt.h>
 #include <debug.h>
-#include <gdt.h>
 #include <log.h>
-#include <memory.h>
 #include <memoryspace.h>
 #include <string.h>
 #include <threading.h>

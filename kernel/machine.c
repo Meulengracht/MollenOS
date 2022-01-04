@@ -12,13 +12,18 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 #define __MODULE "MACH"
 #define __TRACE
 
-#include <arch.h>
+#if defined(__i386__) || defined(__amd64__)
+#include <arch/x86/arch.h>
+#else
+#error "interrupts.c: unsupported platform"
+#endif
+
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
@@ -150,7 +155,6 @@ InitializeMachine(
         ERROR("Failed to initialize timers for system.");
         ArchProcessorHalt();
     }
-    TimersSynchronizeTime();
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif
