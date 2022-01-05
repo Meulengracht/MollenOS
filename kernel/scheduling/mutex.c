@@ -121,7 +121,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
     __SetFlags(mutex, MUTEX_FLAG_PENDING);
     while (1) {
         // block task and then reenable interrupts
-        SchedulerBlock(&mutex->blockQueue, timeout);
+        SchedulerBlock(&mutex->blockQueue, timeout * NSEC_PER_MSEC);
         spinlock_release(&mutex->syncObject);
         InterruptRestoreState(intStatus);
         ThreadingYield();

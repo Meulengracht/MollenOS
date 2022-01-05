@@ -83,7 +83,7 @@ extern OsStatus_t ScThreadExit(int ExitCode);
 extern OsStatus_t ScThreadJoin(UUId_t ThreadId, int* ExitCode);
 extern OsStatus_t ScThreadDetach(UUId_t ThreadId);
 extern OsStatus_t ScThreadSignal(UUId_t ThreadId, int SignalCode);
-extern OsStatus_t ScThreadSleep(time_t milliseconds, time_t* millisecondsSlept);
+extern OsStatus_t ScThreadSleep(LargeUInteger_t*, LargeUInteger_t*);
 extern OsStatus_t ScThreadYield(void);
 extern UUId_t     ScThreadGetCurrentId(void);
 extern UUId_t     ScThreadCookie(void);

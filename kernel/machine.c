@@ -120,16 +120,24 @@ InitializeMachine(
         ArchProcessorIdle();
     }
 
+    // initialize subsystems that were waiting for memory allocation
+    LogInitializeFull();
     HandleSetsInitialize();
     ThreadingEnable();
     InitializeInterruptTable();
     InitializeInterruptHandlers();
-    osStatus = InterruptInitialize();
+
+    osStatus = PlatformInterruptInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
         ArchProcessorIdle();
     }
-    LogInitializeFull();
+
+    osStatus = PlatformTimersInitialize();
+    if (osStatus != OsSuccess) {
+        ERROR("Failed to initialize timers for system.");
+        ArchProcessorHalt();
+    }
 
     osStatus = InitializeHandleJanitor();
     if (osStatus != OsSuccess) {
@@ -148,12 +156,6 @@ InitializeMachine(
     }
 #endif
 
-    // Last step is to enable timers that kickstart all the other threads
-    osStatus = InitializeSystemTimers();
-    if (osStatus != OsSuccess) {
-        ERROR("Failed to initialize timers for system.");
-        ArchProcessorHalt();
-    }
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif

@@ -110,21 +110,22 @@ ScThreadSignal(
 
 OsStatus_t
 ScThreadSleep(
-    _In_  time_t  milliseconds,
-    _Out_ time_t* millisecondsSlept)
+    _In_ LargeUInteger_t* nanoseconds,
+    _In_ LargeUInteger_t* nanosecondsSlept)
 {
     clock_t start = 0;
     clock_t end   = 0;
+    if (!nanoseconds || !nanosecondsSlept) {
+        return OsInvalidParameters;
+    }
 
     SystemTimerGetTimestamp(&start);
-    if (SchedulerSleep(milliseconds, &end) != SCHEDULER_SLEEP_INTERRUPTED) {
+    if (SchedulerSleep(nanoseconds->QuadPart, &end) != SCHEDULER_SLEEP_INTERRUPTED) {
         SystemTimerGetTimestamp(&end);
     }
 
     // Update outs
-    if (millisecondsSlept != NULL) {
-        *millisecondsSlept = (time_t)(end - start);
-    }
+    nanosecondsSlept->QuadPart = end - start;
     return OsSuccess;
 }
 

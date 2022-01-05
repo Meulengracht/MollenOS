@@ -301,7 +301,7 @@ FutexWait(
         return OsInterrupted;
     }
     
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout);
+    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     InterruptRestoreState(CpuState);
     ThreadingYield();
 
@@ -371,7 +371,7 @@ FutexWaitOperation(
         return OsInterrupted;
     }
     
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout);
+    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
     InterruptRestoreState(CpuState);

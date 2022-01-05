@@ -326,14 +326,17 @@ ThreadingEnterUsermode(
         _In_ void*         Argument);
 
 /**
- * ThreadingAdvance
- * This is the thread-switch function and must be be called from the below architecture
- * to get the next thread to run
+ * @brief This is the primary tick function for multithreading.
+ *
+ * @param[In]  preemptive        Non-zero if this was due to preemptive scheduling.
+ * @param[In]  nanosecondsPassed The nanoseconds passed since last scheduling.
+ * @param[Out] nextDeadlineOut   The nanoseconds untill next scheduling.
+ * @return     Status of the tick.
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingAdvance(
         _In_  int     preemptive,
-        _In_  size_t  millisecondsPassed,
+        _In_  size_t  nanosecondsPassed,
         _Out_ size_t* nextDeadlineOut);
 
 #endif //!__THREADING_H__

@@ -19,8 +19,11 @@
  *   different memory regions that map to physical components
  */
 
+#define __TRACE
+
 #include <assert.h>
 #include <component/timer.h>
+#include <debug.h>
 #include <heap.h>
 #include <machine.h>
 #include <string.h>
@@ -55,6 +58,7 @@ SystemTimerRegister(
 {
     SystemTimer_t*  systemTimer;
     LargeUInteger_t frequency;
+    TRACE("SystemTimerRegister(attributes=0x%x)", attributes);
 
     systemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
     if (!systemTimer) {
@@ -63,6 +67,7 @@ SystemTimerRegister(
 
     // query frequency immediately to calculate the resolution of the timer
     operations->GetFrequency(context, &frequency);
+    TRACE("SystemTimerRegister frequency=0x%llx", frequency.QuadPart);
 
     ELEMENT_INIT(&systemTimer->ListHeader, 0, systemTimer);
     memcpy(&systemTimer->Operations, operations, sizeof(SystemTimerOperations_t));
@@ -70,6 +75,7 @@ SystemTimerRegister(
     systemTimer->Interrupt  = interrupt;
     systemTimer->Context    = context;
     systemTimer->Resolution = __CalculateResolution(&frequency);
+    TRACE("SystemTimerRegister resolution=0x%llx", systemTimer->Resolution);
 
     // See if the timer can be used for anything
     if (attributes & SystemTimeAttributes_HPC) {
@@ -101,20 +107,25 @@ SystemTimerGetTimestamp(
     SystemTimer_t*  clock = GetMachine()->SystemTimers.Clock;
     LargeUInteger_t frequency;
     LargeUInteger_t tick;
-    assert(clock != NULL);
+
+    // guard against early calls from the log
+    if (!clock) {
+        *timestampOut = 0;
+        return;
+    }
 
     // get clock precision metrics
     clock->Operations.Read(clock->Context, &tick);
     clock->Operations.GetFrequency(clock->Context, &frequency);
 
     if (frequency.QuadPart <= MSEC_PER_SEC) {
-        *timestampOut = (MSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart;
+        *timestampOut = (MSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart * NSEC_PER_MSEC;
     }
     else if (frequency.QuadPart <= USEC_PER_SEC) {
-        *timestampOut = ((USEC_PER_SEC / frequency.QuadPart) * tick.QuadPart) / USEC_PER_MSEC;
+        *timestampOut = ((USEC_PER_SEC / frequency.QuadPart) * tick.QuadPart) * NSEC_PER_USEC;
     }
     else { // we assume ns
-        *timestampOut = ((NSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart) / NSEC_PER_MSEC;
+        *timestampOut = ((NSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart);
     }
 }
 
@@ -123,7 +134,11 @@ SystemTimerGetClockTick(
         _In_ LargeUInteger_t* tickOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    assert(clock != NULL);
+    if (!clock) {
+        tickOut->QuadPart = 0;
+        return;
+    }
+
     clock->Operations.Read(clock->Context, tickOut);
 }
 
@@ -132,7 +147,11 @@ SystemTimerGetClockFrequency(
         _In_ LargeUInteger_t* frequencyOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    assert(clock != NULL);
+    if (!clock) {
+        frequencyOut->QuadPart = 0;
+        return;
+    }
+
     clock->Operations.GetFrequency(clock->Context, frequencyOut);
 }
 

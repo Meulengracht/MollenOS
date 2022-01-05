@@ -58,7 +58,7 @@ InitializeSoftwareHandlers(void)
 }
 
 OsStatus_t
-InterruptInitialize(void)
+PlatformInterruptInitialize(void)
 {
     TRACE("...setting up interrupt handlers");
     InitializeSoftwareHandlers();

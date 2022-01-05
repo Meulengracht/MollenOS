@@ -52,19 +52,20 @@
 #define STATE_BLOCKED  5
 #define STATE_RUNNING  6
 
+// all timing units are in nanoseconds
 typedef struct SchedulerObject {
     element_t               Header;
     _Atomic(int)            State;
     unsigned int            Flags;
     UUId_t                  CoreId;
-    size_t                  TimeSlice;
-    size_t                  TimeSliceLeft;
+    clock_t                 TimeSlice;
+    clock_t                 TimeSliceLeft;
     int                     Queue;
     struct SchedulerObject* Link;
     void*                   Object;
     
     list_t*                 WaitQueueHandle;
-    size_t                  TimeLeft;
+    clock_t                 TimeLeft;
     OsStatus_t              TimeoutReason;
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
@@ -173,7 +174,7 @@ GetNameOfObject(
 }
 
 static void
-AppendToQueue(
+__AppendToQueue(
     _In_ SchedulerQueue_t*  Queue,
     _In_ SchedulerObject_t* Start,
     _In_ SchedulerObject_t* End)
@@ -193,7 +194,7 @@ AppendToQueue(
 }
 
 static OsStatus_t
-RemoveFromQueue(
+__RemoveFromQueue(
     _In_ SchedulerQueue_t*  Queue,
     _In_ SchedulerObject_t* Object)
 {
@@ -223,7 +224,7 @@ RemoveFromQueue(
 }
 
 static void
-QueueForScheduler(
+__QueueForScheduler(
         _In_ Scheduler_t* Scheduler,
         _In_ SchedulerObject_t* Object,
         _In_ int                OutsideAdvance)
@@ -235,23 +236,23 @@ QueueForScheduler(
     if (Object->Link != NULL ||
         Scheduler->SleepQueue.Tail == Object ||
         Scheduler->SleepQueue.Head == Object) {
-        RemoveFromQueue(&Scheduler->SleepQueue, Object);
+        __RemoveFromQueue(&Scheduler->SleepQueue, Object);
     }
 
     resultState = ExecuteEvent(Object, EVENT_QUEUE_FINISH);
     if (resultState == STATE_INVALID) {
         FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [queue] object was NOT in correct state for queueing");
     }
-    AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
+    __AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
 }
 
 static void
-QueueOnCoreFunction(
+__QueueOnCoreFunction(
     _In_ void* Context)
 {
     Scheduler_t*       scheduler = CpuCoreScheduler(CpuCoreCurrent());
     SchedulerObject_t* object    = (SchedulerObject_t*)Context;
-    QueueForScheduler(scheduler, object, 1);
+    __QueueForScheduler(scheduler, object, 1);
 
     if (ThreadIsCurrentIdle(object->CoreId)) {
         ThreadingYield();
@@ -259,7 +260,7 @@ QueueOnCoreFunction(
 }
 
 static inline OsStatus_t
-QueueObjectImmediately(
+__QueueObjectImmediately(
     _In_ SchedulerObject_t* Object)
 {
     SystemCpuCore_t* core      = CpuCoreCurrent();
@@ -268,7 +269,7 @@ QueueObjectImmediately(
     // If the object is running on our core, just append it
     if (CpuCoreId(core) == Object->CoreId) {
         IrqSpinlockAcquire(&scheduler->SyncObject);
-        QueueForScheduler(scheduler, Object, 1);
+        __QueueForScheduler(scheduler, Object, 1);
         IrqSpinlockRelease(&scheduler->SyncObject);
 
         // If we are running on the idle thread, we can switch immediately, unless
@@ -278,12 +279,12 @@ QueueObjectImmediately(
         return OsSuccess;
     }
     else {
-        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, QueueOnCoreFunction, Object, 1);
+        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, Object, 1);
     }
 }
 
 static void
-AllocateScheduler(
+__AllocateScheduler(
     _In_ SchedulerObject_t* Object)
 {
     SystemDomain_t*  domain    = GetCurrentDomain();
@@ -334,35 +335,35 @@ AllocateScheduler(
 
 SchedulerObject_t*
 SchedulerCreateObject(
-    _In_ void*   Payload,
-    _In_ unsigned int Flags)
+    _In_ void*        payload,
+    _In_ unsigned int flags)
 {
-    SchedulerObject_t* Object = kmalloc(sizeof(SchedulerObject_t));
-    if (!Object) {
+    SchedulerObject_t* object = kmalloc(sizeof(SchedulerObject_t));
+    if (!object) {
         return NULL;
     }
     
-    memset(Object, 0, sizeof(SchedulerObject_t));
-    ELEMENT_INIT(&Object->Header, 0, Object);
-    Object->State  = ATOMIC_VAR_INIT(STATE_INITIAL);
-    Object->Object = Payload;
+    memset(object, 0, sizeof(SchedulerObject_t));
+    ELEMENT_INIT(&object->Header, 0, object);
+    object->State  = ATOMIC_VAR_INIT(STATE_INITIAL);
+    object->Object = payload;
 
-    if (Flags & THREADING_IDLE) {
-        Object->Queue      = SCHEDULER_LEVEL_LOW;
-        Object->TimeSlice  = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
-        Object->CoreId     = ArchGetProcessorCoreId();
-        WRITE_VOLATILE(Object->Flags, SCHEDULER_FLAG_BOUND);
+    if (flags & THREADING_IDLE) {
+        object->Queue     = SCHEDULER_LEVEL_LOW;
+        object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
+        object->CoreId    = ArchGetProcessorCoreId();
+        WRITE_VOLATILE(object->Flags, SCHEDULER_FLAG_BOUND);
         // This only happens on the running core, no need for barriers.
     }
     else {
-        Object->Queue     = 0;
-        Object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
-        AllocateScheduler(Object);
+        object->Queue     = 0;
+        object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
+        __AllocateScheduler(object);
         smp_mb();
     }
-    
-    Object->TimeSliceLeft = Object->TimeSlice;
-    return Object;
+
+    object->TimeSliceLeft = object->TimeSlice;
+    return object;
 }
 
 void
@@ -381,22 +382,21 @@ SchedulerDestroyObject(
 
 int
 SchedulerSleep(
-    _In_  size_t   milliseconds,
+    _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt)
 {
     SchedulerObject_t* object;
-    TRACE("[scheduler] [sleep] %" PRIuIN, milliseconds);
+    TRACE("[scheduler] [sleep] %" PRIuIN, nanoseconds);
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    if (!object) {
-        // Called by the idle threads
-        SystemTimerStall(milliseconds * NSEC_PER_MSEC);
+    if (!object) { // This can be called before scheduler is available
+        SystemTimerStall(nanoseconds);
         return SCHEDULER_SLEEP_OK;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
     // we would a minimum value of 1
-    object->TimeLeft        = MAX(milliseconds, 1);
+    object->TimeLeft        = MAX(nanoseconds, 1);
     object->TimeoutReason   = OsSuccess;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = NULL;
@@ -419,109 +419,107 @@ SchedulerSleep(
 
 void
 SchedulerBlock(
-    _In_ list_t* BlockQueue,
-    _In_ size_t  Timeout)
+    _In_ list_t* blockQueue,
+    _In_ clock_t timeout)
 {
-    SchedulerObject_t* Object;
-    TRACE("[scheduler] [block] %" PRIuIN, Timeout);
-    
-    Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    assert(Object != NULL);
-    
-    Object->TimeLeft        = Timeout;
-    Object->TimeoutReason   = OsSuccess;
-    Object->InterruptedAt   = 0;
-    Object->WaitQueueHandle = BlockQueue;
+    SchedulerObject_t* object;
+    TRACE("[scheduler] [block] %" PRIuIN, timeout);
+
+    object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
+    assert(object != NULL);
+
+    object->TimeLeft        = timeout;
+    object->TimeoutReason   = OsSuccess;
+    object->InterruptedAt   = 0;
+    object->WaitQueueHandle = blockQueue;
 
     // We don't check return state here as we can only ever be in running
     // state at this point
-    (void)ExecuteEvent(Object, EVENT_BLOCK);
+    (void)ExecuteEvent(object, EVENT_BLOCK);
     
     // For now the lists include a lock, which perform memory barriers
-    list_append(BlockQueue, &Object->Header);
+    list_append(blockQueue, &object->Header);
 }
 
 void
 SchedulerExpediteObject(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    int ResultState;
+    int resultState;
     TRACE("[scheduler] [expedite]");
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE);
-    if (ResultState != STATE_INVALID) {
-        if (Object->WaitQueueHandle != NULL) {
-            (void)list_remove(Object->WaitQueueHandle, &Object->Header);
+
+    resultState = ExecuteEvent(object, EVENT_QUEUE);
+    if (resultState != STATE_INVALID) {
+        if (object->WaitQueueHandle != NULL) {
+            (void)list_remove(object->WaitQueueHandle, &object->Header);
         }
-        
-        Object->TimeoutReason = OsInterrupted;
-        SystemTimerGetTimestamp(&Object->InterruptedAt);
+
+        object->TimeoutReason = OsInterrupted;
+        SystemTimerGetTimestamp(&object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
         // the rest is then up to the scheduler, or we update the state to QUEUEING,
         // which means we must initiate a queue operation.
-        if (ResultState == STATE_QUEUEING) {
-            QueueObjectImmediately(Object);
+        if (resultState == STATE_QUEUEING) {
+            __QueueObjectImmediately(object);
         }
     }
     else {
-        TRACE("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", Object);
+        TRACE("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", object);
     }
 }
 
 OsStatus_t
 SchedulerQueueObject(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    OsStatus_t Status = OsSuccess;
-    int        ResultState;
+    OsStatus_t osStatus = OsSuccess;
+    int        resultState;
     
     TRACE("[scheduler] [queue]");
     
-    assert(Object != NULL);
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE);
-    if (ResultState == STATE_INVALID) {
-        WARNING("[scheduler] [queue] object %s was in invalid state", GetNameOfObject(Object));
+    assert(object != NULL);
+
+    resultState = ExecuteEvent(object, EVENT_QUEUE);
+    if (resultState == STATE_INVALID) {
+        WARNING("[scheduler] [queue] object %s was in invalid state", GetNameOfObject(object));
         return OsInvalidParameters;
     }
     
     // Either the resulting state is RUNNING which means we cancelled the block,
     // the rest is then up to the scheduler, or we update the state to QUEUEING,
     // which means we must initiate a queue operation.
-    if (ResultState == STATE_QUEUEING) {
-        Status = QueueObjectImmediately(Object);
+    if (resultState == STATE_QUEUEING) {
+        osStatus = __QueueObjectImmediately(object);
     }
-    return Status;
+    return osStatus;
 }
 
 int
 SchedulerObjectGetQueue(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    assert(Object != NULL);
+    assert(object != NULL);
     
     smp_rmb();
-    return Object->Queue;
+    return object->Queue;
 }
 
 UUId_t
 SchedulerObjectGetAffinity(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    assert(Object != NULL);
-    return Object->CoreId;
+    assert(object != NULL);
+    return object->CoreId;
 }
 
-int
+OsStatus_t
 SchedulerGetTimeoutReason(void)
 {
-    SchedulerObject_t* Object;
+    SchedulerObject_t* object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
+    assert(object != NULL);
     
-    Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    assert(Object != NULL);
-    
-    return Object->TimeoutReason;
+    return object->TimeoutReason;
 }
 
 void SchedulerDisable(void)
@@ -546,164 +544,165 @@ void SchedulerEnable(void)
 }
 
 static void
-UpdatePressureForObject(
-        _In_ Scheduler_t* Scheduler,
-        _In_ SchedulerObject_t* Object,
-        _In_ int                NewPressureRank)
+__UpdatePressureForObject(
+        _In_ Scheduler_t*       scheduler,
+        _In_ SchedulerObject_t* object,
+        _In_ int                newPressureRank)
 {
-    if (NewPressureRank != Object->Queue) {
-        atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
-        
-        Object->Queue         = NewPressureRank;
-        Object->TimeSlice     = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
-        Object->TimeSliceLeft = Object->TimeSlice;
-        atomic_fetch_add(&Scheduler->Bandwidth, Object->TimeSlice);
+    if (newPressureRank != object->Queue) {
+        atomic_fetch_sub(&scheduler->Bandwidth, object->TimeSlice);
+
+        object->Queue         = newPressureRank;
+        object->TimeSlice     = (newPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        object->TimeSliceLeft = object->TimeSlice;
+        atomic_fetch_add(&scheduler->Bandwidth, object->TimeSlice);
     }
 }
 
 static void
-SchedulerBoost(
-        _In_ Scheduler_t* Scheduler)
+__Boost(
+        _In_ Scheduler_t* scheduler)
 {
     for (int i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
-        if (Scheduler->Queues[i].Head) {
-            AppendToQueue(&Scheduler->Queues[0], 
-                Scheduler->Queues[i].Head, Scheduler->Queues[i].Tail);
-            Scheduler->Queues[i].Head = NULL;
-            Scheduler->Queues[i].Tail = NULL;
+        if (scheduler->Queues[i].Head) {
+            __AppendToQueue(&scheduler->Queues[0],
+                            scheduler->Queues[i].Head,
+                            scheduler->Queues[i].Tail);
+            scheduler->Queues[i].Head = NULL;
+            scheduler->Queues[i].Tail = NULL;
         }
     }
 }
 
 static void
-PerformObjectTimeout(
-        _In_ Scheduler_t* Scheduler,
-        _In_ SchedulerObject_t* Object)
+__PerformObjectTimeout(
+        _In_ Scheduler_t*       scheduler,
+        _In_ SchedulerObject_t* object)
 {
-    int ResultState;
-    
-    ResultState = ExecuteEvent(Object, EVENT_QUEUE);
-    if (ResultState != STATE_INVALID) {
-        if (Object->WaitQueueHandle != NULL) {
-            (void)list_remove(Object->WaitQueueHandle, &Object->Header);
+    int resultState;
+
+    resultState = ExecuteEvent(object, EVENT_QUEUE);
+    if (resultState != STATE_INVALID) {
+        if (object->WaitQueueHandle != NULL) {
+            (void)list_remove(object->WaitQueueHandle, &object->Header);
         }
-        
-        Object->TimeoutReason = OsTimeout;
-        SystemTimerGetTimestamp(&Object->InterruptedAt);
-        QueueForScheduler(Scheduler, Object, 0);
+
+        object->TimeoutReason = OsTimeout;
+        SystemTimerGetTimestamp(&object->InterruptedAt);
+        __QueueForScheduler(scheduler, object, 0);
     }
     else {
-        WARNING("[scheduler] [timeout] object 0x%" PRIxIN " was in invalid state", Object);
+        WARNING("[scheduler] [timeout] object 0x%" PRIxIN " was in invalid state", object);
     }
 }
 
 // The sleep list is thread-safe due to the fact that the function that removes
 // from the sleep queue is only called on this core, while the function that adds
 // is also only called on this core, and the list here is only iterated on this core.
-static size_t
-SchedulerUpdateSleepQueue(
-        _In_ Scheduler_t* Scheduler,
-        _In_ SchedulerObject_t* IgnoreObject,
-        _In_ size_t             MillisecondsPassed)
+static clock_t
+__UpdateSleepQueue(
+        _In_ Scheduler_t*       scheduler,
+        _In_ SchedulerObject_t* ignoreObject,
+        _In_ clock_t            nanosecondsPassed)
 {
-    size_t             NextUpdate = __MASK;
-    SchedulerObject_t* i          = Scheduler->SleepQueue.Head;
+    clock_t            nextUpdate = __MASK;
+    SchedulerObject_t* i          = scheduler->SleepQueue.Head;
     
     while (i) {
-        if (i != IgnoreObject && i->TimeLeft) {
-            i->TimeLeft -= MIN(i->TimeLeft, MillisecondsPassed);
+        if (i != ignoreObject && i->TimeLeft) {
+            i->TimeLeft -= MIN(i->TimeLeft, nanosecondsPassed);
             if (!i->TimeLeft) {
-                PerformObjectTimeout(Scheduler, i);
+                __PerformObjectTimeout(scheduler, i);
             }
         }
         
         if (i->TimeLeft) {
-            NextUpdate = MIN(i->TimeLeft, NextUpdate);
+            nextUpdate = MIN(i->TimeLeft, nextUpdate);
         }
         i = i->Link;
     }
-    return NextUpdate;
+    return nextUpdate;
 }
 
 static void
-HandleObjectRequeue(
-        _In_ Scheduler_t* Scheduler,
-        _In_ SchedulerObject_t* Object,
-        _In_ int                Preemptive)
+__HandleObjectRequeue(
+        _In_ Scheduler_t*       scheduler,
+        _In_ SchedulerObject_t* object,
+        _In_ int                preemptive)
 {
-    int ResultState;
-    
-    ResultState = ExecuteEvent(Object, EVENT_SCHEDULE);
-    if (ResultState == STATE_INVALID) {
+    int resultState;
+
+    resultState = ExecuteEvent(object, EVENT_SCHEDULE);
+    if (resultState == STATE_INVALID) {
         FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [advance] encounted a state that was not running/blocking");
     }
     
     // Accepted outcome states currently are QUEUEING & BLOCKED
-    if (ResultState == STATE_QUEUEING) {
+    if (resultState == STATE_QUEUEING) {
         TRACE("[scheduler] [advance] reschedule");
         // Did it yield itself?
-        if (Preemptive) {
+        if (preemptive) {
             // Nah, we interrupted it, demote it for that unless we are at max
             // priority queue.
-            if (Object->Queue < SCHEDULER_LEVEL_LOW) {
-                UpdatePressureForObject(Scheduler, Object, Object->Queue + 1);
+            if (object->Queue < SCHEDULER_LEVEL_LOW) {
+                __UpdatePressureForObject(scheduler, object, object->Queue + 1);
             }
         }
-        QueueForScheduler(Scheduler, Object, 0);
+        __QueueForScheduler(scheduler, object, 0);
     }
-    else if (Object->TimeLeft != 0) {
-        TRACE("[scheduler] [advance] sleep 0x%llx (Head 0x%llx, Tail 0x%llx)", 
-            Object->Link, Scheduler->SleepQueue.Head, Scheduler->SleepQueue.Tail);
+    else if (object->TimeLeft != 0) {
+        TRACE("[scheduler] [advance] sleep 0x%llx (Head 0x%llx, Tail 0x%llx)",
+              object->Link, scheduler->SleepQueue.Head, scheduler->SleepQueue.Tail);
         // OK, so we are blocking this object which means we won't be
         // queuing the object up again, should we track the sleep?
-        AppendToQueue(&Scheduler->SleepQueue, Object, Object);
+        __AppendToQueue(&scheduler->SleepQueue, object, object);
     }
 }
 
 void*
 SchedulerAdvance(
-    _In_  SchedulerObject_t* Object,
-    _In_  int                Preemptive,
-    _In_  size_t             MillisecondsPassed,
-    _Out_ size_t*            NextDeadlineOut)
+    _In_  SchedulerObject_t* object,
+    _In_  int                preemptive,
+    _In_  clock_t            nanosecondsPassed,
+    _Out_ size_t*            nextDeadlineOut)
 {
     Scheduler_t*       scheduler  = CpuCoreScheduler(CpuCoreCurrent());
     SchedulerObject_t* nextObject = NULL;
     clock_t            currentClock;
     size_t             nextDeadline;
     int                i;
-    TRACE("[scheduler] [advance] current 0x%llx, forced %i, ms-passed %llu",
-        Object, Preemptive, MillisecondsPassed);
+    TRACE("[scheduler] [advance] current 0x%llx, forced %i, ns-passed %llu",
+          object, preemptive, nanosecondsPassed);
     
     // Allow Object to be NULL but not NextDeadlineOut
-    assert(NextDeadlineOut != NULL);
+    assert(nextDeadlineOut != NULL);
     
     // In one case we can skip the whole requeue etc. etc. This happens when there
     // was a sleep event before the objects time-slice is out. Adjust and continue
-    if (Object != NULL && Preemptive && MillisecondsPassed < Object->TimeSliceLeft) {
+    if (object != NULL && preemptive && nanosecondsPassed < object->TimeSliceLeft) {
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
-        Object->TimeSliceLeft -= MillisecondsPassed;
-        nextDeadline = SchedulerUpdateSleepQueue(scheduler, NULL, MillisecondsPassed);
-        *NextDeadlineOut       = MIN(Object->TimeSliceLeft, nextDeadline);
-        TRACE("[scheduler] [advance] redeploy next deadline %llu", *NextDeadlineOut);
-        return Object->Object;
+        object->TimeSliceLeft -= nanosecondsPassed;
+        nextDeadline = __UpdateSleepQueue(scheduler, NULL, nanosecondsPassed);
+        *nextDeadlineOut = MIN(object->TimeSliceLeft, nextDeadline);
+        TRACE("[scheduler] [advance] redeploy next deadline %llu", *nextDeadlineOut);
+        return object->Object;
     }
 
     // Handle the scheduled object first. The only times it's up to this function
     // to requeue immediately is if the thread was running. Otherwise, it's because
     // we've been interrupted or blocked.
-    if (Object != NULL) {
-        HandleObjectRequeue(scheduler, Object, Preemptive);
+    if (object != NULL) {
+        __HandleObjectRequeue(scheduler, object, preemptive);
     }
-    nextDeadline = SchedulerUpdateSleepQueue(scheduler, Object, MillisecondsPassed);
+    nextDeadline = __UpdateSleepQueue(scheduler, object, nanosecondsPassed);
 
     // Get next object
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
         if (scheduler->Queues[i].Head != NULL) {
             nextObject = scheduler->Queues[i].Head;
-            RemoveFromQueue(&scheduler->Queues[i], nextObject);
-            UpdatePressureForObject(scheduler, nextObject, i);
+            __RemoveFromQueue(&scheduler->Queues[i], nextObject);
+            __UpdatePressureForObject(scheduler, nextObject, i);
             nextDeadline = MIN(nextObject->TimeSlice, nextDeadline);
             ExecuteEvent(nextObject, EVENT_EXECUTE);
             break;
@@ -721,19 +720,19 @@ SchedulerAdvance(
         }
         else {
             clock_t timeDiff = currentClock - scheduler->LastBoost;
-            if (timeDiff >= SCHEDULER_BOOST) {
-                SchedulerBoost(scheduler);
+            if ((timeDiff / NSEC_PER_MSEC) >= SCHEDULER_BOOST_MS) {
+                __Boost(scheduler);
                 scheduler->LastBoost = currentClock;
             }
         }
-        *NextDeadlineOut = nextDeadline;
+        *nextDeadlineOut = nextDeadline;
         TRACE("[scheduler] [advance] next 0x%llx, deadline in %llu", nextObject, nextDeadline);
     }
     else {
         // Reset boost
         scheduler->LastBoost = 0;
-        *NextDeadlineOut = (nextDeadline == __MASK) ? 0 : nextDeadline;
-        TRACE("[scheduler] [advance] no next object, deadline in %llu", *NextDeadlineOut);
+        *nextDeadlineOut = (nextDeadline == __MASK) ? 0 : nextDeadline;
+        TRACE("[scheduler] [advance] no next object, deadline in %llu", *nextDeadlineOut);
     }
     
     return (nextObject == NULL) ? NULL : nextObject->Object;

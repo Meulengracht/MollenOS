@@ -21,6 +21,7 @@
 #define __MODULE "APIC"
 #define __TRACE
 
+#include <assert.h>
 #include <arch/io.h>
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
@@ -33,6 +34,7 @@
 
 typedef struct LocalApicTimer {
     uint32_t Quantum;
+    uint32_t QuantumUnit;
     uint64_t Frequency;
     uint64_t Tick;
 } LocalApicTimer_t;
@@ -45,7 +47,12 @@ static void ApicTimerGetFrequency(void*, LargeUInteger_t*);
 static void ApicTimerRecalibrate(void*);
 
 // TODO this should be per-core
-static LocalApicTimer_t g_lapicTimer = { .Quantum = APIC_DEFAULT_QUANTUM, 0, 0 };
+static LocalApicTimer_t g_lapicTimer = {
+        .Quantum = APIC_DEFAULT_QUANTUM,
+        .QuantumUnit = 0,
+        .Frequency = 0,
+        .Tick = 0
+};
 
 static SystemTimerOperations_t g_lapicOperations = {
         .Read = ApicTimerGetCount,
@@ -63,7 +70,7 @@ ApicTimerHandler(
 
     uint32_t tick         = ApicReadLocal(APIC_CURRENT_COUNT);
     uint32_t ticksPassed  = ApicReadLocal(APIC_INITIAL_COUNT) - tick;
-    size_t   nextDeadline = 20;
+    size_t   nextDeadline = (20 * NSEC_PER_MSEC) / g_lapicTimer.QuantumUnit; // 20ms baseline
 
     // clear the initial count if we were interrupted
     if (tick != 0) {
@@ -77,14 +84,14 @@ ApicTimerHandler(
     // switching
     (void)ThreadingAdvance(
             tick == 0 ? 1 : 0,
-            DIVUP(ticksPassed, g_lapicTimer.Quantum),
+            ((ticksPassed / g_lapicTimer.QuantumUnit) / g_lapicTimer.Quantum),
             &nextDeadline
     );
 
     // restart timer
     ApicWriteLocal(
             APIC_INITIAL_COUNT,
-            g_lapicTimer.Quantum * nextDeadline
+            MAX(g_lapicTimer.Quantum * (nextDeadline / g_lapicTimer.QuantumUnit), 0xFFFFFFFF)
     );
     return InterruptHandled;
 }
@@ -157,13 +164,14 @@ static void
 ApicTimerRecalibrate(
         _In_ void* context)
 {
-    uint64_t lapicTicks;
+    clock_t  lapicTicks;
     uint32_t ticker;
     uint32_t tickEnd;
 
     _CRT_UNUSED(context);
 
     // Setup initial local apic timer registers
+    // TODO handle the case where the apic timer ticks WAY to quick for the 1 divider
     ApicWriteLocal(APIC_TIMER_VECTOR,    INTERRUPT_LAPIC);
     ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
     ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
@@ -176,16 +184,29 @@ ApicTimerRecalibrate(
     }
 
     // Stop counter and calibrate the frequency of the lapic
-    ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
     lapicTicks = (0xFFFFFFFFU - ApicReadLocal(APIC_CURRENT_COUNT));
+    assert(lapicTicks != 0xFFFFFFFF);
+    ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
+
     lapicTicks *= 10; // ticks per second
 
     // Reset the timer data
     g_lapicTimer.Tick = 0;
     g_lapicTimer.Frequency = lapicTicks;
-    g_lapicTimer.Quantum = (lapicTicks / 1000) + 1;
+
+    g_lapicTimer.QuantumUnit = 1; // assume ns accuracy
+    g_lapicTimer.Quantum     = lapicTicks / NSEC_PER_SEC; // number of ticks per ns
+    if (lapicTicks < NSEC_PER_SEC) {
+        g_lapicTimer.QuantumUnit = NSEC_PER_USEC; // we are using usec precision
+        g_lapicTimer.Quantum     = lapicTicks / USEC_PER_SEC;
+        if (lapicTicks < USEC_PER_SEC) {
+            g_lapicTimer.QuantumUnit = NSEC_PER_MSEC; // msec precision
+            g_lapicTimer.Quantum     = lapicTicks / MSEC_PER_SEC;
+        }
+    }
 
     // calculate the quantum
     TRACE("ApicTimerRecalibrate BusSpeed: %" PRIuIN " Hz", lapicTicks);
-    TRACE("ApicTimerRecalibrate ApicQuantum(1ms): %" PRIuIN "", g_lapicTimer.Quantum);
+    TRACE("ApicTimerRecalibrate Quantum: %" PRIuIN ", QuantumUnit %u",
+          g_lapicTimer.Quantum, g_lapicTimer.QuantumUnit);
 }

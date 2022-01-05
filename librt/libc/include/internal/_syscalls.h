@@ -51,7 +51,7 @@ _CODE_END
 #define Syscall_ThreadSignal(ThreadId, Signal)                             (OsStatus_t)syscall2(22, SCPARAM(ThreadId), SCPARAM(Signal))
 #define Syscall_ThreadJoin(ThreadId, ExitCode)                             (OsStatus_t)syscall2(23, SCPARAM(ThreadId), SCPARAM(ExitCode))
 #define Syscall_ThreadDetach(ThreadId)                                     (OsStatus_t)syscall1(24, SCPARAM(ThreadId))
-#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept)               (OsStatus_t)syscall2(25, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
+#define Syscall_ThreadSleep(Nanoseconds, NanosecondsSlept)                 (OsStatus_t)syscall2(25, SCPARAM(Nanoseconds), SCPARAM(NanosecondsSlept))
 #define Syscall_ThreadYield()                                              (OsStatus_t)syscall0(26)
 #define Syscall_ThreadId()                                                 (UUId_t)syscall0(27)
 #define Syscall_ThreadCookie()                                             (UUId_t)syscall0(28)

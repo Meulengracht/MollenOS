@@ -29,7 +29,7 @@
 
 #ifndef _CLOCK_T_DEFINED
 #define _CLOCK_T_DEFINED
-typedef __SIZE_TYPE__ clock_t;
+typedef unsigned long long clock_t;
 #endif //!_CLOCK_T_DEFINED
 
 #ifndef _TIME32_T_DEFINED

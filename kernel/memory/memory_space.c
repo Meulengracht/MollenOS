@@ -129,7 +129,7 @@ static void __SyncMemoryRegion(
 
     numberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, __MemorySyncCallback, &Object, 1);
     while (atomic_load(&Object.CallsCompleted) != numberOfCores && timeout > 0) {
-        SchedulerSleep(5, &interruptedAt);
+        SchedulerSleep(5 * NSEC_PER_MSEC, &interruptedAt);
         timeout -= 5;
     }
     

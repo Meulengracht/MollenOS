@@ -64,7 +64,7 @@ TimersDiscover(void)
 }
 
 OsStatus_t
-InitializeSystemTimers(void)
+PlatformTimersInitialize(void)
 {
     OsStatus_t osStatus;
 

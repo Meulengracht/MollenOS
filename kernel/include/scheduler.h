@@ -41,7 +41,7 @@ typedef struct list list_t;
 // Boosts happen every 5 seconds to prevent starvation in the scheduler
 // Timeslices go from initial => initial + (2 * SCHEDULER_LEVEL_COUNT)
 #define SCHEDULER_TIMESLICE_INITIAL     10
-#define SCHEDULER_BOOST                 5000
+#define SCHEDULER_BOOST_MS                 5000
 
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
@@ -58,7 +58,7 @@ typedef struct SchedulerQueue {
     SchedulerObject_t* Tail;
 } SchedulerQueue_t;
 
-typedef struct usched_scheduler {
+typedef struct Scheduler {
     int                    Enabled;
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
@@ -75,8 +75,8 @@ typedef struct usched_scheduler {
  * This must be done before the kernel scheduler is used for the thread. */
 KERNELAPI SchedulerObject_t* KERNELABI
 SchedulerCreateObject(
-    _In_ void*        Payload,
-    _In_ unsigned int Flags);
+    _In_ void*        payload,
+    _In_ unsigned int flags);
 
 /* SchedulerDestroyObject
  * Cleans up the resources associated with the kernel scheduler. */
@@ -88,69 +88,96 @@ SchedulerDestroyObject(
  * Queues up a new object for execution, at the next available timeslot. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerQueueObject(
-    _In_ SchedulerObject_t* Object);
+    _In_ SchedulerObject_t* object);
 
 /* SchedulerExpediteObject
  * If the given object is currently blocked, it will be unblocked and requeued
  * immediately. This function is core-safe and can be called across cores. */
 KERNELAPI void KERNELABI
 SchedulerExpediteObject(
-    _In_ SchedulerObject_t* Object);
+    _In_ SchedulerObject_t* object);
 
 /**
- * SchedulerSleep
- * * Blocks the currently running thread for <Milliseconds>. Can return different
- * * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. 
+ * @brief Blocks the currently running thread. Can return different
+ * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED.
+ *
+ * @param[In]  nanoseconds   The minimum number of nanoseconds to sleep for.
+ * @param[Out] interruptedAt The timestamp the thread were awakened at if return is SCHEDULER_SLEEP_INTERRUPTED.
+ * @return     Returns SCHEDULER_SLEEP_INTERRUPTED if a full sleep was not done, otherwise SCHEDULER_SLEEP_OK.
  */
 KERNELAPI int KERNELABI
 SchedulerSleep(
-    _In_  size_t   milliseconds,
+    _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt);
 
 /**
- * SchedulerBlock
- * * Blocks the current scheduler object, and adds it to the given blocking queue.
- * 
+ * @brief Blocks the current scheduler object, and adds it to the given blocking queue.
+ *
+ * @param[In] blockQueue The block queue the current scheduler object should be queued at.
+ * @param[In] timeout    The timeout in nanoseconds granularity.
  */
 KERNELAPI void KERNELABI
 SchedulerBlock(
-    _In_ list_t* BlockQueue,
-    _In_ size_t  Timeout);
+    _In_ list_t* blockQueue,
+    _In_ clock_t timeout);
 
 /**
- * SchedulerGetTimeoutReason
+ * @brief Returns the last timeout reason for the current thread.
+ *
+ * @return Status for the last sleep.
  */
-KERNELAPI int KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerGetTimeoutReason(void);
 
-/* SchedulerAdvance 
- * This should be called by the underlying archteicture code
- * to get the next thread that is to be run. */
+/**
+ * @brief The primary ticker function for the scheduler. Will return the next object available
+ * for scheduling, and when the next tick should occur in the deadline parameter.
+ *
+ * @param[In]  object            The scheduler object that should be rescheduled.
+ * @param[In]  preemptive        Non-zero if this was due to preemptive scheduling.
+ * @param[In]  nanosecondsPassed The nanoseconds passed since last scheduling.
+ * @param[Out] nextDeadlineOut   The nanoseconds untill next scheduling.
+ * @return     The next payload that should be executed.
+ */
 KERNELAPI void* KERNELABI
 SchedulerAdvance(
-    _In_  SchedulerObject_t* Object,
-    _In_  int                Preemptive,
-    _In_  size_t             MillisecondsPassed,
-    _Out_ size_t*            NextDeadlineOut);
+    _In_  SchedulerObject_t* object,
+    _In_  int                preemptive,
+    _In_  clock_t            nanosecondsPassed,
+    _Out_ clock_t*           nextDeadlineOut);
 
+/**
+ * @brief Gets the current queue priority of the object.
+ *
+ * @param[In] object The object to read the queue of.
+ * @return    The queue of the object.
+ */
 KERNELAPI int KERNELABI
 SchedulerObjectGetQueue(
-    _In_ SchedulerObject_t*);
+    _In_ SchedulerObject_t* object);
 
+/**
+ * @brief Gets the current cpu core affinity for the object.
+ *
+ * @param[In] object The object to read the affinity of.
+ * @return    The cpu core id of the object.
+ */
 KERNELAPI UUId_t KERNELABI
 SchedulerObjectGetAffinity(
-    _In_ SchedulerObject_t*);
+    _In_ SchedulerObject_t* object);
 
 /**
- * Disables scheduling for the current core. This can be used in cases where we want to
+ * @brief Disables scheduling for the current core. This can be used in cases where we want to
  * schedule a number of threads without being interrupted before the end.
  */
-KERNELAPI void KERNELABI SchedulerDisable(void);
+KERNELAPI void KERNELABI
+SchedulerDisable(void);
 
 /**
- * Enables scheduling for the current core. This immediately yields the current thread if
+ * @brief Enables scheduling for the current core. This immediately yields the current thread if
  * the current thread is marked as an idle thread.
  */
-KERNELAPI void KERNELABI SchedulerEnable(void);
+KERNELAPI void KERNELABI
+SchedulerEnable(void);
 
 #endif // !__VALI_SCHEDULER_H__

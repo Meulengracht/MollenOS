@@ -30,7 +30,7 @@
 
 /* InterruptInitialize
  * Initialize interrupts in the base system. */
-KERNELAPI OsStatus_t KERNELABI InterruptInitialize(void);
+KERNELAPI OsStatus_t KERNELABI PlatformInterruptInitialize(void);
 
 /**
  * Specifies the current interrupt mode. This is currently used on X86 in conjunction with acpi.

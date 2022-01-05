@@ -534,7 +534,7 @@ ThreadContext(
 OsStatus_t
 ThreadingAdvance(
     _In_  int     preemptive,
-    _In_  size_t  millisecondsPassed,
+    _In_  size_t  nanosecondsPassed,
     _Out_ size_t* nextDeadlineOut)
 {
     SystemCpuCore_t* core          = CpuCoreCurrent();
@@ -581,9 +581,12 @@ GetNextThread:
     }
     
     // Advance the scheduler
-    nextThread = (Thread_t*)SchedulerAdvance((currentThread != NULL) ?
-                                             currentThread->SchedulerObject : NULL, preemptive,
-                                             millisecondsPassed, nextDeadlineOut);
+    nextThread = (Thread_t*)SchedulerAdvance(
+            (currentThread != NULL) ? currentThread->SchedulerObject : NULL,
+            preemptive,
+            nanosecondsPassed,
+            nextDeadlineOut
+    );
     
     // Sanitize if we need to activate our idle thread, otherwise
     // do a final check that we haven't just gotten ahold of a thread
@@ -604,7 +607,7 @@ GetNextThread:
 
     // Handle level switch, thread startup
     if (nextThread->Flags & THREADING_TRANSITION_USERMODE) {
-        nextThread->Flags        &= ~(THREADING_TRANSITION_USERMODE);
+        nextThread->Flags &= ~(THREADING_TRANSITION_USERMODE);
         nextThread->ContextActive = nextThread->Contexts[THREADING_CONTEXT_LEVEL1];
     }
     
@@ -676,7 +679,7 @@ DestroyThread(
         int Timeout = 200;
         SemaphoreSignal(&thread->EventObject, references + 1);
         while (Timeout > 0) {
-            SchedulerSleep(10, &unused);
+            SchedulerSleep(10 * NSEC_PER_MSEC, &unused);
             Timeout -= 10;
 
             references = atomic_load(&thread->References);

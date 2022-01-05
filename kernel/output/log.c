@@ -156,7 +156,7 @@ LogRenderMessages(void)
         else {
             VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
             snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
-                     "%09" PRIuIN " [%s-%u-%s] %s\n",
+                     "%09llu [%s-%u-%s] %s\n",
                      logLine->timeStamp,
                      g_typeNames[logLine->level],
                      logLine->coreId,
@@ -213,6 +213,7 @@ LogAppendMessage(
     logLine->coreId       = coreId;
     logLine->threadHandle = ThreadCurrentHandle();
     SystemTimerGetTimestamp(&logLine->timeStamp);
+    logLine->timeStamp /= NSEC_PER_MSEC;
     
 	va_start(arguments, format);
     vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);

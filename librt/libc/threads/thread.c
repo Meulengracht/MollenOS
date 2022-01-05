@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -28,7 +26,6 @@
 #include <os/mollenos.h>
 #include "tls.h"
 #include <stdlib.h>
-#include <signal.h>
 #include <threads.h>
 
 CRTDECL(void, __cxa_threadinitialize(void));
@@ -123,7 +120,7 @@ thrd_current(void)
         return tls_current()->thr_id;
     }
 
-    // Otherwise invoke OS to refresh id
+    // Otherwise, invoke OS to refresh id
     tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
     return tls_current()->thr_id;
 }
@@ -133,26 +130,26 @@ thrd_sleep(
     _In_     const struct timespec* time_point,
     _In_Opt_ struct timespec*       remaining)
 {
-    // Add up to msec granularity, we don't support sub-ms
-    time_t msec         = time_point->tv_sec * MSEC_PER_SEC;
-    time_t msec_slept   = 0;
-    if (time_point->tv_nsec != 0) {
-        msec += ((time_point->tv_nsec - 1) / NSEC_PER_MSEC) + 1;
-    }
+    LargeUInteger_t nanoseconds;
+    LargeUInteger_t nanosecondsPassed = { 0 };
 
     // Sanitize just in case - to save a syscall
     if (time_point->tv_sec == 0 && time_point->tv_nsec == 0) {
-        return 0;
+        return thrd_error;
     }
 
+    // Add up to msec granularity, we don't support sub-ms
+    nanoseconds.QuadPart = time_point->tv_sec * NSEC_PER_SEC;
+    nanoseconds.QuadPart += time_point->tv_nsec;
+
     // Redirect the call
-    Syscall_ThreadSleep(msec, &msec_slept);
+    Syscall_ThreadSleep(&nanoseconds, &nanosecondsPassed);
 
     // Update out if any
-    if (remaining != NULL && msec > msec_slept) {
-        msec -= msec_slept;
-        remaining->tv_nsec = (msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
-        remaining->tv_sec = msec / MSEC_PER_SEC;
+    if (remaining != NULL && nanoseconds.QuadPart > nanosecondsPassed.QuadPart) {
+        nanoseconds.QuadPart -= nanosecondsPassed.QuadPart;
+        remaining->tv_nsec = (time_t)(nanoseconds.QuadPart % NSEC_PER_SEC);
+        remaining->tv_sec = (time_t)(nanoseconds.QuadPart / NSEC_PER_SEC);
     }
     return 0;
 }
@@ -161,8 +158,11 @@ int
 thrd_sleepex(
     _In_ size_t msec)
 {
-    time_t msec_slept = 0;
-    Syscall_ThreadSleep(msec, &msec_slept);
+    LargeUInteger_t nanoseconds;
+    LargeUInteger_t nanosecondsPassed;
+
+    nanoseconds.QuadPart = msec * NSEC_PER_MSEC;
+    Syscall_ThreadSleep(&nanoseconds, &nanosecondsPassed);
     return 0;
 }
 

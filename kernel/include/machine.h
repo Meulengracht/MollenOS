@@ -99,11 +99,11 @@ KERNELAPI void KERNELABI
 SetMachineUmaMode(void);
 
 /**
- * InitializeSystemTimers (@arch)
+ * PlatformTimersInitialize (@arch)
  * Register and start all neccessary system timers for the operating system to run.
  */
 KERNELAPI OsStatus_t KERNELABI
-InitializeSystemTimers(void);
+PlatformTimersInitialize(void);
 
 /**
  * @brief Initializes the entire system memory range, selecting ranges that should
