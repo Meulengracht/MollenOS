@@ -29,7 +29,7 @@
 
 struct ioset_event;
 
-KERNELAPI void KERNELABI HandleSetsInitialize(void);
+KERNELAPI OsStatus_t KERNELABI HandleSetsInitialize(void);
 
 /**
  * CreateHandleSet

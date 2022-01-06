@@ -75,12 +75,17 @@ static OsStatus_t AddHandleToSet(struct handle_set*, UUId_t, struct ioset_event*
 static hashtable_t   g_handleSets;
 static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
 
-void HandleSetsInitialize(void)
+OsStatus_t
+HandleSetsInitialize(void)
 {
-    hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
+    int status = hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct handle_sets), handleset_hash,
                         handleset_cmp);
+    if (status) {
+        return OsOutOfMemory;
+    }
     IrqSpinlockConstruct(&g_handleSetsLock);
+    return OsSuccess;
 }
 
 static void

@@ -114,25 +114,32 @@ InitializeMachine(
 #endif
 
     // Create the rest of the OS systems
+    LogInitializeFull();
     osStatus = InitializeHandles();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize the handle subsystem.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
 
-    // initialize subsystems that were waiting for memory allocation
-    LogInitializeFull();
-    HandleSetsInitialize();
+    osStatus = HandleSetsInitialize();
+    if (osStatus != OsSuccess) {
+        ERROR("Failed to initialize the handle set subsystem.");
+        ArchProcessorHalt();
+    }
+
+    // initialize the idle thread for this core
     ThreadingEnable();
+
+    // initialize the interrupt subsystem
     InitializeInterruptTable();
     InitializeInterruptHandlers();
-
     osStatus = PlatformInterruptInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
 
+    // initialize timers
     osStatus = PlatformTimersInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
@@ -142,7 +149,7 @@ InitializeMachine(
     osStatus = InitializeHandleJanitor();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize system janitor.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
 
     // Perform the full acpi initialization sequence
@@ -151,7 +158,7 @@ InitializeMachine(
         AcpiInitialize();
         if (AcpiDevicesScan() != AE_OK) {
             ERROR("Failed to finalize the ACPI setup.");
-            ArchProcessorIdle();
+            ArchProcessorHalt();
         }
     }
 #endif

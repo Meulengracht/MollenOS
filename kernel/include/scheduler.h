@@ -39,9 +39,10 @@ typedef struct list list_t;
 #define SCHEDULER_LEVEL_COUNT           61
 
 // Boosts happen every 5 seconds to prevent starvation in the scheduler
-// Timeslices go from initial => initial + (2 * SCHEDULER_LEVEL_COUNT)
-#define SCHEDULER_TIMESLICE_INITIAL     10
-#define SCHEDULER_BOOST_MS                 5000
+// Timeslices go from initial => initial + (SCHEDULER_TIMESLICE_STEP * SCHEDULER_LEVEL_COUNT)
+#define SCHEDULER_TIMESLICE_INITIAL (10 * NSEC_PER_MSEC)
+#define SCHEDULER_TIMESLICE_STEP    (2  * NSEC_PER_MSEC)
+#define SCHEDULER_BOOST_MS          5000
 
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
@@ -60,12 +61,15 @@ typedef struct SchedulerQueue {
 
 typedef struct Scheduler {
     int                    Enabled;
+    clock_t                LastBoost;
     IrqSpinlock_t          SyncObject;
     SchedulerQueue_t       SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
+
+    // TODO bandwidth should be 64 bit, remove use of atomic here and protect
+    // with a lock insteasd
     _Atomic(int)           ObjectCount;
     _Atomic(unsigned long) Bandwidth;
-    clock_t                LastBoost;
 } Scheduler_t;
 
 #define SCHEDULER_INIT { 1, { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
@@ -82,7 +86,7 @@ SchedulerCreateObject(
  * Cleans up the resources associated with the kernel scheduler. */
 KERNELAPI void KERNELABI
 SchedulerDestroyObject(
-    _In_ SchedulerObject_t* Object);
+    _In_ SchedulerObject_t* object);
 
 /* SchedulerQueueObject
  * Queues up a new object for execution, at the next available timeslot. */

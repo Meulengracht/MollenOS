@@ -122,43 +122,43 @@ GetAvailableTransition(
 
 static int
 ExecuteEvent(
-    _In_ SchedulerObject_t* Object,
-    _In_ int                Event)
+    _In_ SchedulerObject_t* schedulerObject,
+    _In_ int                event)
 {
-    int State = atomic_load(&Object->State);
-    int ResultState;
-    int Update;
+    int state = atomic_load(&schedulerObject->State);
+    int resultState;
+    int update;
     
 TryAgain:
-    ResultState = GetAvailableTransition(State, Event);
-    if (ResultState != STATE_INVALID) {
-        Update = atomic_compare_exchange_strong(&Object->State, &State, ResultState);
-        if (!Update) {
+    resultState = GetAvailableTransition(state, event);
+    if (resultState != STATE_INVALID) {
+        update = atomic_compare_exchange_strong(&schedulerObject->State, &state, resultState);
+        if (!update) {
             goto TryAgain;
         }
     }
     else {
-        TRACE("[scheduler] [execute_event] unhandled %s in %s", 
-            EventDescriptions[Event], StateDescriptions[State]);
+        TRACE("[scheduler] [execute_event] unhandled %s in %s",
+              EventDescriptions[event], StateDescriptions[state]);
     }
-    
+
     TRACE("[scheduler] [execute_event] %s, %s => %s",
-        EventDescriptions[Event], StateDescriptions[State], StateDescriptions[ResultState]);
-    return ResultState;
+          EventDescriptions[event], StateDescriptions[state], StateDescriptions[resultState]);
+    return resultState;
 }
 
 static Scheduler_t*
 SchedulerGetFromCore(
-    _In_ UUId_t CoreId)
+    _In_ UUId_t coreId)
 {
-    return CpuCoreScheduler(GetProcessorCore(CoreId));
+    return CpuCoreScheduler(GetProcessorCore(coreId));
 }
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-    _In_ UUId_t CoreId)
+    _In_ UUId_t coreId)
 {
-    Thread_t* thread = CpuCoreCurrentThread(GetProcessorCore(CoreId));
+    Thread_t* thread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!thread) {
         return NULL;
     }
@@ -167,91 +167,91 @@ SchedulerGetCurrentObject(
 
 static const char*
 GetNameOfObject(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    Thread_t* Thread = Object->Object;
+    Thread_t* Thread = object->Object;
     return ThreadName(Thread);
 }
 
 static void
 __AppendToQueue(
-    _In_ SchedulerQueue_t*  Queue,
-    _In_ SchedulerObject_t* Start,
-    _In_ SchedulerObject_t* End)
+    _In_ SchedulerQueue_t*  queue,
+    _In_ SchedulerObject_t* start,
+    _In_ SchedulerObject_t* end)
 {
     // Always make sure end is pointing to nothing
-    End->Link = NULL;
+    end->Link = NULL;
     
     // Get the tail pointer of the queue to append
-    if (Queue->Head == NULL) {
-        Queue->Head = Start;
-        Queue->Tail = End;
+    if (queue->Head == NULL) {
+        queue->Head = start;
+        queue->Tail = end;
     }
     else {
-        Queue->Tail->Link = Start;
-        Queue->Tail       = End;
+        queue->Tail->Link = start;
+        queue->Tail       = end;
     }
 }
 
 static OsStatus_t
 __RemoveFromQueue(
-    _In_ SchedulerQueue_t*  Queue,
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerQueue_t*  queue,
+    _In_ SchedulerObject_t* object)
 {
-    SchedulerObject_t* Current  = Queue->Head;
-    SchedulerObject_t* Previous = NULL;
+    SchedulerObject_t* current  = queue->Head;
+    SchedulerObject_t* previous = NULL;
 
-    while (Current) {
-        if (Current == Object) {
+    while (current) {
+        if (current == object) {
             // Two cases, previous is NULL, or not
-            if (Previous == NULL) Queue->Head    = Current->Link;
-            else                  Previous->Link = Current->Link;
+            if (previous == NULL) queue->Head    = current->Link;
+            else previous->Link = current->Link;
 
             // Were we also the tail pointer?
-            if (Queue->Tail == Current) {
-                if (Previous == NULL) Queue->Tail = Current->Link;
-                else                  Queue->Tail = Previous;
+            if (queue->Tail == current) {
+                if (previous == NULL) queue->Tail = current->Link;
+                else queue->Tail = previous;
             }
             
             // Reset link
-            Object->Link = NULL;
+            object->Link = NULL;
             return OsSuccess;
         }
-        Previous = Current;
-        Current  = Current->Link;
+        previous = current;
+        current  = current->Link;
     }
     return OsDoesNotExist;
 }
 
 static void
 __QueueForScheduler(
-        _In_ Scheduler_t* Scheduler,
-        _In_ SchedulerObject_t* Object,
-        _In_ int                OutsideAdvance)
+        _In_ Scheduler_t*       scheduler,
+        _In_ SchedulerObject_t* object,
+        _In_ int                outsideAdvance)
 {
     int resultState;
     
     // Verify it doesn't exist in sleep queue, and check both the case where
     // it is the end of the list and if it's not
-    if (Object->Link != NULL ||
-        Scheduler->SleepQueue.Tail == Object ||
-        Scheduler->SleepQueue.Head == Object) {
-        __RemoveFromQueue(&Scheduler->SleepQueue, Object);
+    if (object->Link != NULL ||
+        scheduler->SleepQueue.Tail == object ||
+        scheduler->SleepQueue.Head == object) {
+        __RemoveFromQueue(&scheduler->SleepQueue, object);
     }
 
-    resultState = ExecuteEvent(Object, EVENT_QUEUE_FINISH);
+    resultState = ExecuteEvent(object, EVENT_QUEUE_FINISH);
     if (resultState == STATE_INVALID) {
         FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [queue] object was NOT in correct state for queueing");
     }
-    __AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
+    __AppendToQueue(&scheduler->Queues[object->Queue], object, object);
 }
 
 static void
 __QueueOnCoreFunction(
-    _In_ void* Context)
+    _In_ void* context)
 {
     Scheduler_t*       scheduler = CpuCoreScheduler(CpuCoreCurrent());
-    SchedulerObject_t* object    = (SchedulerObject_t*)Context;
+    SchedulerObject_t* object    = (SchedulerObject_t*)context;
     __QueueForScheduler(scheduler, object, 1);
 
     if (ThreadIsCurrentIdle(object->CoreId)) {
@@ -261,15 +261,15 @@ __QueueOnCoreFunction(
 
 static inline OsStatus_t
 __QueueObjectImmediately(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
     SystemCpuCore_t* core      = CpuCoreCurrent();
     Scheduler_t*     scheduler = CpuCoreScheduler(core);
     
     // If the object is running on our core, just append it
-    if (CpuCoreId(core) == Object->CoreId) {
+    if (CpuCoreId(core) == object->CoreId) {
         IrqSpinlockAcquire(&scheduler->SyncObject);
-        __QueueForScheduler(scheduler, Object, 1);
+        __QueueForScheduler(scheduler, object, 1);
         IrqSpinlockRelease(&scheduler->SyncObject);
 
         // If we are running on the idle thread, we can switch immediately, unless
@@ -279,13 +279,13 @@ __QueueObjectImmediately(
         return OsSuccess;
     }
     else {
-        return TxuMessageSend(Object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, Object, 1);
+        return TxuMessageSend(object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, object, 1);
     }
 }
 
 static void
 __AllocateScheduler(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
     SystemDomain_t*  domain    = GetCurrentDomain();
     SystemCpu_t*     coreGroup = &GetMachine()->Processor;
@@ -305,8 +305,8 @@ __AllocateScheduler(
     // Allocate a processor core for this object
     while (iter) {
         Scheduler_t*  iterScheduler = CpuCoreScheduler(iter);
-        unsigned long Bw1;
-        unsigned long Bw2;
+        unsigned long bandwidth1;
+        unsigned long bandwidth2;
         
         // Skip cores not booted yet, their scheduler is not initialized
         smp_rmb();
@@ -314,10 +314,10 @@ __AllocateScheduler(
             iter = CpuCoreNext(iter);
             continue;
         }
-        
-        Bw1 = atomic_load(&iterScheduler->Bandwidth);
-        Bw2 = atomic_load(&scheduler->Bandwidth);
-        if (Bw1 < Bw2) {
+
+        bandwidth1 = atomic_load(&iterScheduler->Bandwidth);
+        bandwidth2 = atomic_load(&scheduler->Bandwidth);
+        if (bandwidth1 < bandwidth2) {
             scheduler = iterScheduler;
             coreId    = CpuCoreId(iter);
         }
@@ -326,10 +326,10 @@ __AllocateScheduler(
     }
     
     // Select whatever we end up with
-    Object->CoreId = coreId;
+    object->CoreId = coreId;
     
     // Add pressure on this scheduler
-    atomic_fetch_add(&scheduler->Bandwidth, Object->TimeSlice);
+    atomic_fetch_add(&scheduler->Bandwidth, object->TimeSlice);
     atomic_fetch_add(&scheduler->ObjectCount, 1);
 }
 
@@ -350,7 +350,7 @@ SchedulerCreateObject(
 
     if (flags & THREADING_IDLE) {
         object->Queue     = SCHEDULER_LEVEL_LOW;
-        object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
+        object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * SCHEDULER_TIMESLICE_STEP);
         object->CoreId    = ArchGetProcessorCoreId();
         WRITE_VOLATILE(object->Flags, SCHEDULER_FLAG_BOUND);
         // This only happens on the running core, no need for barriers.
@@ -368,16 +368,16 @@ SchedulerCreateObject(
 
 void
 SchedulerDestroyObject(
-    _In_ SchedulerObject_t* Object)
+    _In_ SchedulerObject_t* object)
 {
-    Scheduler_t * Scheduler = SchedulerGetFromCore(Object->CoreId);
+    Scheduler_t * scheduler = SchedulerGetFromCore(object->CoreId);
     
     // Remove pressure, and explicit put a memory barrier to push the
     // memory writes to other cores that allocate objects
-    atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
-    atomic_fetch_sub(&Scheduler->ObjectCount, 1);
+    atomic_fetch_sub(&scheduler->Bandwidth, object->TimeSlice);
+    atomic_fetch_sub(&scheduler->ObjectCount, 1);
     
-    kfree(Object);
+    kfree(object);
 }
 
 int
@@ -553,7 +553,7 @@ __UpdatePressureForObject(
         atomic_fetch_sub(&scheduler->Bandwidth, object->TimeSlice);
 
         object->Queue         = newPressureRank;
-        object->TimeSlice     = (newPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        object->TimeSlice     = (newPressureRank * SCHEDULER_TIMESLICE_STEP) + SCHEDULER_TIMESLICE_INITIAL;
         object->TimeSliceLeft = object->TimeSlice;
         atomic_fetch_add(&scheduler->Bandwidth, object->TimeSlice);
     }
