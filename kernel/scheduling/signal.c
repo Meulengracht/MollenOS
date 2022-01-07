@@ -163,10 +163,10 @@ SignalExecuteLocalThreadTrap(
 
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
-    ContextPushInterceptor(context,
-                           (uintptr_t)thread->Contexts[THREADING_CONTEXT_SIGNAL],
-                           MemorySpaceSignalHandler(thread->MemorySpace), flags,
-                           (uintptr_t)argument0, (uintptr_t)argument1);
+    ArchThreadContextPushInterceptor(context,
+                                     (uintptr_t) thread->Contexts[THREADING_CONTEXT_SIGNAL],
+                                     MemorySpaceSignalHandler(thread->MemorySpace), flags,
+                                     (uintptr_t) argument0, (uintptr_t) argument1);
 #endif
 }
 
@@ -209,8 +209,8 @@ SignalProcessQueued(
         }
 
         flags = ((uint32_t)threadSignal.Signal << 16 | threadSignal.Flags);
-        ContextPushInterceptor(context, alternativeStack, handler, flags,
-                               (uintptr_t)threadSignal.Argument, 0);
+        ArchThreadContextPushInterceptor(context, alternativeStack, handler, flags,
+                                         (uintptr_t) threadSignal.Argument, 0);
         atomic_fetch_sub(&thread->Signaling.Pending, 1);
     }
 #endif // !__OSCONFIG_DISABLE_SIGNALLING

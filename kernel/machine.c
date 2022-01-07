@@ -25,9 +25,13 @@
 #endif
 
 #include <arch/interrupts.h>
+#include <arch/io.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <machine.h>
+
+// Include the private structure for PerCpu data
+#include "components/cpu_private.h"
 
 #include <acpiinterface.h>
 #include <console.h>
@@ -36,12 +40,12 @@
 #include <futex.h>
 #include <handle.h>
 #include <handle_set.h>
+#include <hpet.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <stdio.h>
 #include <threading.h>
 #include <userevent.h>
-#include "arch/io.h"
 
 extern void SpawnBootstrapper(void);
 
@@ -65,7 +69,8 @@ _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
 {
-    OsStatus_t osStatus;
+    SystemCpuCore_t cpuCore;
+    OsStatus_t      osStatus;
 
     // Initialize all our static memory systems and global variables
     LogInitialize();
@@ -85,10 +90,14 @@ InitializeMachine(
     sprintf(&Machine.Date[0],         "%s - %s", __DATE__, __TIME__);
     memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
 
-    InitializePrimaryProcessor(&Machine.Processor);
+    // Initialize the processor structure and the underlying platform. This is called before any
+    // memory is taken care of, which means VBoot environment where all physical memory is present.
+    CpuInitializePlatform(&Machine.Processor, &cpuCore);
 
-    // Initialize machine memory
-    osStatus = MachineInitializeMemorySystems(&Machine);
+    // Initialize memory environment. This should enable and initialize all forms of memory management
+    // and should leave the system ready to allocate memory at will. After this call Per-Core memory
+    // should also be set up
+    osStatus = MachineMemoryInitialize(&Machine, &cpuCore);
     if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
@@ -139,20 +148,38 @@ InitializeMachine(
         ArchProcessorHalt();
     }
 
-    // initialize timers
+    // Initialize all platform timers. Ok so why tho? Timers are a part of the kernel in
+    // vali, as the only form for drivers. This is because the kernel relies on time-management
+    // in some form, and thus to have performance atleast so-so we keep those drivers here. One could
+    // argue we should move them out, but I haven't prioritized this.
+#ifdef __OSCONFIG_ACPI_SUPPORT
+    if (AcpiAvailable() == ACPI_AVAILABLE) {
+        // There is no return code here because to be honest we don't really care
+        // if the HPET is present or not. If it is, great, otherwise wow bad platform.
+        HpetInitialize();
+    }
+#endif
     osStatus = PlatformTimersInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
         ArchProcessorHalt();
     }
 
+    // The handle janitor, which is simply just a thread waiting for handles to destroy, is only made this
+    // way because of threads. Threads are like dirty teenagers refusing to take a bath, so we have to clean
+    // them when they aren't active. So we clean them in a seperate thread, and as threads are handles, we
+    // simply invest in a janitor to clean.
     osStatus = InitializeHandleJanitor();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize system janitor.");
         ArchProcessorHalt();
     }
 
-    // Perform the full acpi initialization sequence
+    // Perform the full acpi initialization sequence. This should not be a part of the kernel
+    // and should be a seperate driver module. We only need the table-parsing capability of ACPICA in
+    // the kernel to discover system metrics/configuration, but the entire ACPICA initialization should
+    // be out of the kernel.
+    // TODO move this out of kernel some day
 #ifdef __OSCONFIG_ACPI_SUPPORT
     if (AcpiAvailable() == ACPI_AVAILABLE) {
         AcpiInitialize();
@@ -176,7 +203,7 @@ InitializeMachine(
     // yield before going to assume new threads
     WARNING("End of initialization, yielding control");
     SchedulerEnable();
-    ThreadingYield();
+    ArchThreadYield();
     goto IdleProcessor;
 
 IdleProcessor:

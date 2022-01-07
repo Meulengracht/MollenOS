@@ -27,6 +27,7 @@
 
 DECL_STRUCT(Context);
 DECL_STRUCT(SystemCpu);
+DECL_STRUCT(SystemCpuCore);
 
 /**
  * @brief Converts a dma type into a page mask used for physical page allocation. This call
@@ -43,16 +44,6 @@ ArchGetPageMaskFromDmaType(
         _Out_ size_t*      pageMaskOut);
 
 /**
- * @brief Dumps the contents of the given thread context for debugging.
- *
- * @param context
- * @return
- */
-KERNELAPI OsStatus_t KERNELABI
-ArchDumpThreadContext(
-    _In_ Context_t *context);
-
-/**
  * @brief Returns the current processor core id.
  *
  * @return
@@ -61,25 +52,28 @@ KERNELAPI UUId_t KERNELABI
 ArchGetProcessorCoreId(void);
 
 /**
- * @brief Initializes and fills in the processor structure for the calling processor.
+ * @brief Initializes the underlying platform and fills the cpu and core structure,
+ * with any available data.
  *
- * @param Processor
+ * @param[In] cpu  A pointer to primary CPU structure for the machine.
+ * @param[In] core A pointer to a structure describing the boot-core.
  */
 KERNELAPI void KERNELABI
-ArchProcessorInitialize(
-    _In_ SystemCpu_t* Processor);
+ArchPlatformInitialize(
+        _In_ SystemCpu_t*     cpu,
+        _In_ SystemCpuCore_t* core);
 
 /**
  * @brief Sends the given interrupt vector to the core specified.
  *
- * @param CoreId
- * @param InterruptId
+ * @param coreId
+ * @param interruptId
  * @return
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchProcessorSendInterrupt(
-    _In_ UUId_t CoreId,
-    _In_ UUId_t InterruptId);
+    _In_ UUId_t coreId,
+    _In_ UUId_t interruptId);
 
 /**
  * @brief Enters idle mode for the current processor core.

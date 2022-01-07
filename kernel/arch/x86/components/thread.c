@@ -52,7 +52,7 @@ extern void clear_ts(void);
 extern void _yield(void);
 
 OsStatus_t
-ThreadingRegister(
+ArchThreadInitialize(
     _In_ Thread_t* Thread)
 {
     uintptr_t* threadData = ThreadData(Thread);
@@ -71,7 +71,7 @@ ThreadingRegister(
 }
 
 OsStatus_t
-ThreadingUnregister(
+ArchThreadDestroy(
     _In_ Thread_t* Thread)
 {
     uintptr_t* threadData = ThreadData(Thread);
@@ -109,7 +109,7 @@ ThreadingFpuException(
 }
 
 void
-ThreadingYield(void)
+ArchThreadYield(void)
 {
     // Never yield in interrupt handlers, could cause wierd stuff to happen
     // instead keep track of how nested we are, flag for yield and do it on the way
@@ -128,7 +128,7 @@ ThreadingYield(void)
 }
 
 void
-SaveThreadState(
+ArchThreadLeave(
     _In_ Thread_t* Thread)
 {
     uintptr_t* threadData = ThreadData(Thread);
@@ -147,7 +147,7 @@ SaveThreadState(
 }
 
 void
-RestoreThreadState(
+ArchThreadEnter(
     _In_ Thread_t* Thread)
 {
     SystemCpuCore_t* core              = CpuCoreCurrent();

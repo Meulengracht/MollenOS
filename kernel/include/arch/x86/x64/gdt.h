@@ -124,35 +124,36 @@ PACKED_TYPESTRUCT(GdtDescriptor, {
  * Describes a task descriptor for the cpu. The cpu then knows
  * which values to fill in when switching between rings. */
 PACKED_TYPESTRUCT(TssDescriptor, {
-    uint32_t            Reserved0;
-    uint64_t            StackTable[3];
-    uint64_t            Reserved1;
-    uint64_t            InterruptTable[7];
-    uint64_t            Reserved2;
-    uint16_t            Reserved3;
-    uint16_t            IoMapBase;
-    uint8_t             IoMap[GDT_IOMAP_SIZE]; // 0 => Granted, 1 => Denied
+    uint32_t Reserved0;
+    uint64_t StackTable[3];
+    uint64_t Reserved1;
+    uint64_t InterruptTable[7];
+    uint64_t Reserved2;
+    uint16_t Reserved3;
+    uint16_t IoMapBase;
+    uint8_t  IoMap[GDT_IOMAP_SIZE]; // 0 => Granted, 1 => Denied
 });
 
-/* GdtInitialize
- * Initialize the gdt table with the 5 default
- * descriptors for kernel/user mode data/code segments */
+/**
+ * @brief Initializes the GDT for the BSP
+ */
 KERNELAPI void KERNELABI
 GdtInitialize(void);
 
-/* GdtInstall
- * This installs the current gdt-object in the
- * gdt register for the calling cpu, use to setup gdt */
+/**
+ * @brief Installs the GDT for the calling core.
+ */
 KERNELAPI void KERNELABI
 GdtInstall(void);
 
-/* TssInitialize
- * Helper for setting up a new task state segment for
- * the given cpu core, this should be done once per
- * core, and it will set default params for the TSS */
+/**
+ * @brief Installs a TSS descriptor for the calling core.
+ *
+ * @param[In] bsp If set, this is the BSP
+ */
 KERNELAPI void KERNELABI
 TssInitialize(
-    _In_ int    PrimaryCore);
+        _In_ int bsp);
 
 /* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current

@@ -24,19 +24,22 @@
 #define __MODULE "SMP0"
 #define __TRACE
 
-#include <component/cpu.h>
+#include <assert.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
 #include <arch/x86/cpu.h>
+#include <component/cpu.h>
 #include <component/timer.h>
 #include <debug.h>
+#include <heap.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <heap.h>
 #include <string.h>
-#include <assert.h>
+
+#include "../../../components/cpu_private.h"
+
 
 #if defined(__i386__)
 #include <arch/x86/x32/gdt.h>
@@ -53,9 +56,10 @@ static int         JumpSpaceInitialized = 0;
 void
 SmpApplicationCoreEntry(void)
 {
+    SystemCpuCore_t* cpuCore;
+
     // Disable interrupts and setup descriptors
     InterruptDisable();
-    CpuInitializeFeatures();
     GdtInstall();
     IdtInstall();
 
@@ -63,14 +67,23 @@ SmpApplicationCoreEntry(void)
     SwitchMemorySpace(GetCurrentMemorySpace());
     InitializeLocalApicForApplicationCore();
 
-    // Install the TSS before any multitasking
-    TssInitialize(0);
+    // We need to get the appropriate core structure based on the current id of this
+    // cpu core. Unlike the boot processor where the structure is stored on the bootstack
+    // additional cores have their structures allocated on the heap.
+    cpuCore = GetProcessorCore(ArchGetProcessorCoreId());
+    if (!cpuCore) {
+        // failed to boot this core!
+        ArchProcessorHalt();
+    }
 
-    // Register with system - no returning
-    ActivateApplicationCore(CpuCoreCurrent());
+    // Initialize core features, install msrs, gdts/tss and then activate the core
+    CpuInitializeFeatures();
+    TssInitialize(0);
+    ActivateApplicationCore(cpuCore);
 }
 
-static void InitializeApplicationJumpSpace(void)
+static void
+InitializeApplicationJumpSpace(void)
 {
     uint64_t* codePointer = (uint64_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length);
     uint64_t  entryCode     = (uint64_t)SmpApplicationCoreEntry;
@@ -89,9 +102,9 @@ static void InitializeApplicationJumpSpace(void)
 
 void
 StartApplicationCore(
-    _In_ SystemCpuCore_t* Core)
+    _In_ SystemCpuCore_t* core)
 {
-    UUId_t coreId = CpuCoreId(Core);
+    UUId_t coreId = CpuCoreId(core);
     int    timeout;
 
     // Initialize jump space
@@ -119,12 +132,12 @@ StartApplicationCore(
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     timeout = 10;
-    while (!(CpuCoreState(Core) & CpuStateRunning) && timeout) {
+    while (!(CpuCoreState(core) & CpuStateRunning) && timeout) {
         SystemTimerStall(NSEC_PER_MSEC);
         timeout--;
     }
     
-    if (!(CpuCoreState(Core) & CpuStateRunning)) {
+    if (!(CpuCoreState(core) & CpuStateRunning)) {
         if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", coreId);
             return;

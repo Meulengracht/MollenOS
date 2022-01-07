@@ -37,76 +37,83 @@
 
 // 256 is a temporary number, once we start getting processors with more than
 // 256 TXU's then we are fucked
-static SystemCpuCore_t* TxuTable[256] = { 0 };
-static SystemCpuCore_t  PrimaryCore   = SYSTEM_CPU_CORE_INIT;
+static SystemCpuCore_t* g_coreTable[256] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
     _In_ UUId_t CoreId)
 {
-    return TxuTable[CoreId];
+    return g_coreTable[CoreId];
 }
 
 SystemCpuCore_t*
 CpuCoreCurrent(void)
 {
-    return TxuTable[ArchGetProcessorCoreId()];
+    return g_coreTable[ArchGetProcessorCoreId()];
+}
+
+static void
+__ConstructCpuCore(
+        _In_ SystemCpuCore_t* core,
+        _In_ UUId_t           coreId,
+        _In_ SystemCpuState_t state,
+        _In_ int              external)
+{
+    // zero out the entire structure first
+    memset(core, 0, sizeof(SystemCpuCore_t));
+
+    core->Id       = coreId;
+    core->State    = state;
+    core->External = external;
+
+    // Scheduler  = { 0 } TODO SchedulerConstruct
+    queue_construct(&core->FunctionQueue[0]);
+    queue_construct(&core->FunctionQueue[1]);
 }
 
 void
-InitializePrimaryProcessor(
-    _In_ SystemCpu_t* Cpu)
+CpuInitializePlatform(
+        _In_ SystemCpu_t*     cpu,
+        _In_ SystemCpuCore_t* core)
 {
     // Initialize the boot cpu's primary core pointer immediately before
     // passing it down to the arch layer - so it can use the storage.
-    Cpu->Cores = &PrimaryCore;
-    ArchProcessorInitialize(Cpu);
+    cpu->NumberOfCores = 1;
+    cpu->Cores         = core;
+
+    __ConstructCpuCore(core, UUID_INVALID, CpuStateRunning, 0);
+    ArchPlatformInitialize(cpu, core);
     
     // Register the primary core that has been registered
-    TxuTable[Cpu->Cores->Id] = Cpu->Cores;
+    g_coreTable[cpu->Cores->Id] = cpu->Cores;
 }
 
 void
 RegisterApplicationCore(
-    _In_ SystemCpu_t*       Cpu,
-    _In_ UUId_t             CoreId,
-    _In_ SystemCpuState_t   InitialState,
-    _In_ int                External)
+    _In_ SystemCpu_t*     cpu,
+    _In_ UUId_t           coreId,
+    _In_ SystemCpuState_t initialState,
+    _In_ int              external)
 {
-    SystemCpuCore_t* Core;
-    SystemCpuCore_t* Iter;
+    SystemCpuCore_t* core;
+    SystemCpuCore_t* i;
 
-    assert(Cpu != NULL);
-    assert(Cpu->NumberOfCores > 1);
+    assert(cpu != NULL);
+    assert(cpu->NumberOfCores > 1);
 
-    Core = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t));
-    assert(Core != NULL);
-    memset(Core, 0, sizeof(SystemCpuCore_t));
+    core = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t));
+    assert(core != NULL);
+    __ConstructCpuCore(core, coreId, initialState, external);
 
-    Core->Id       = CoreId;
-    Core->State    = InitialState;
-    Core->External = External;
-    
-    // IdleThread = { 0 }
-    // Scheduler  = { 0 } TODO SchedulerConstruct
-    queue_construct(&Core->FunctionQueue[0]);
-    queue_construct(&Core->FunctionQueue[1]);
-    
-    // CurrentThread      = NULL
-    // InterruptRegisters = NULL
-    // InterruptNesting   = 0
-    // InterruptPriority  = 0
-    // Link = NULL;
-    
     // Add the core to the list of cores in this cpu
-    Iter = Cpu->Cores;
-    while (Iter->Link) {
-        Iter = Iter->Link;
+    i = cpu->Cores;
+    while (i->Link) {
+        i = i->Link;
     }
-    Iter->Link = Core;
+    i->Link = core;
     
     // Register the TXU in the table for quick access
-    TxuTable[CoreId] = Core;
+    g_coreTable[coreId] = core;
 }
 
 void

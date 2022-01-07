@@ -36,25 +36,22 @@
 #include "../scheduling/threading_private.h"
 
 typedef struct SystemCpuCore {
-    UUId_t            Id;
-    SystemCpuState_t  State;
-    int               External;
+    UUId_t           Id;
+    SystemCpuState_t State;
+    int              External;
 
     // Static resources
-    Thread_t          IdleThread;
-    Scheduler_t       Scheduler;
+    Thread_t         IdleThread;
+    Scheduler_t      Scheduler;
 
     // State resources
-    queue_t           FunctionQueue[CpuFunctionCount];
-    Thread_t*         CurrentThread;
-    Context_t*        InterruptRegisters;
-    int               InterruptNesting;
-    uint32_t          InterruptPriority;
+    queue_t          FunctionQueue[CpuFunctionCount];
+    Thread_t*        CurrentThread;
+    Context_t*       InterruptRegisters;
+    int              InterruptNesting;
+    uint32_t         InterruptPriority;
 
     struct SystemCpuCore* Link;
 } SystemCpuCore_t;
-
-#define SYSTEM_CORE_FN_STATE_INIT { QUEUE_INIT, QUEUE_INIT }
-#define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL, NULL, 0, 0, NULL }
 
 #endif //__VALI_CPU_PRIVATE_H__

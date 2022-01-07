@@ -195,7 +195,7 @@ static void __DestroyContext(
 }
 
 OsStatus_t
-InitializeMemorySpace(
+MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
         _In_ PlatformMemoryMapping_t* kernelMappings)

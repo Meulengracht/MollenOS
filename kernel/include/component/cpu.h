@@ -38,6 +38,14 @@
 #include <threading.h>
 #include <scheduler.h>
 
+#if defined(__i386__) || defined(__amd64__)
+#include <arch/x86/arch.h>
+#else
+#warning "no cpu data exists for current architecture"
+#define __VALI_NO_CPU_DATA
+#endif
+
+
 typedef void(*TxuFunction_t)(void*);
 
 typedef struct SystemCpuCore SystemCpuCore_t;
@@ -65,25 +73,29 @@ typedef struct TxuMessage {
 } TxuMessage_t;
 
 typedef struct SystemCpu {
-    char                Vendor[16];     // zero terminated string
-    char                Brand[64];      // zero terminated string
-    uintptr_t           Data[4];        // data available for usage
-    int                 NumberOfCores;  // always minimum 1
-    SystemCpuCore_t*    Cores;
-    
-    struct SystemCpu*   Link;
+    char              Vendor[16];     // zero terminated string
+    char              Brand[64];      // zero terminated string
+    int               NumberOfCores;  // always minimum 1
+    SystemCpuCore_t*  Cores;
+    struct SystemCpu* Link;
+#ifndef __VALI_NO_CPU_DATA
+    SystemCpuData_t   Data;
+#endif
 } SystemCpu_t;
 
-#define SYSTEM_CPU_INIT { { 0 }, { 0 }, { 0 }, 0, NULL, NULL }
+#define SYSTEM_CPU_INIT { { 0 }, { 0 }, 0, NULL, NULL }
 
 /**
- * InitializePrimaryProcessor
- * * Initializes the processor environment for the calling processor, this also
- * * sets the calling TXU as the boot-TXU and initializes static data for this.
+ * @brief Initializes the processor environment for the calling processor, this also
+ * sets the calling TXU as the boot-TXU and initializes static data for this.
+ *
+ * @param[In] cpu  A pointer to the CPU structure that should be initialized.
+ * @param[In] core A pointer to the PerCpu structure that should be pre-allocated before this call.
  */
 KERNELAPI void KERNELABI
-InitializePrimaryProcessor(
-        _In_ SystemCpu_t* Cpu);
+CpuInitializePlatform(
+        _In_ SystemCpu_t*     cpu,
+        _In_ SystemCpuCore_t* core);
 
 /**
  * EnableMultiProcessoringMode
@@ -101,10 +113,10 @@ EnableMultiProcessoringMode(void);
  */
 KERNELAPI void KERNELABI
 RegisterApplicationCore(
-    _In_ SystemCpu_t*     Cpu,
-    _In_ UUId_t           CoreId,
-    _In_ SystemCpuState_t InitialState,
-    _In_ int              External);
+    _In_ SystemCpu_t*     cpu,
+    _In_ UUId_t           coreId,
+    _In_ SystemCpuState_t initialState,
+    _In_ int              external);
 
 /**
  * ActivateApplicationCore
@@ -122,7 +134,7 @@ ActivateApplicationCore(
  */
 KERNELAPI void KERNELABI
 StartApplicationCore(
-    _In_ SystemCpuCore_t* Core);
+    _In_ SystemCpuCore_t* core);
 
 /**
  * TxuMessageSend

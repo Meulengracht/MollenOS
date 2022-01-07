@@ -303,7 +303,7 @@ FutexWait(
     
     SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     InterruptRestoreState(CpuState);
-    ThreadingYield();
+    ArchThreadYield();
 
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", ThreadCurrentHandle());
@@ -375,7 +375,7 @@ FutexWaitOperation(
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
     InterruptRestoreState(CpuState);
-    ThreadingYield();
+    ArchThreadYield();
     
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", ThreadCurrentHandle());

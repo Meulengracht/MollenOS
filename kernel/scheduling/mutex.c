@@ -124,7 +124,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
         SchedulerBlock(&mutex->blockQueue, timeout * NSEC_PER_MSEC);
         spinlock_release(&mutex->syncObject);
         InterruptRestoreState(intStatus);
-        ThreadingYield();
+        ArchThreadYield();
 
         // at this point we've been waken up either by an unlock or timeout
         if (SchedulerGetTimeoutReason() == OsTimeout) {

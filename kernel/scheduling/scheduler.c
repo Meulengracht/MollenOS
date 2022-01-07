@@ -255,7 +255,7 @@ __QueueOnCoreFunction(
     __QueueForScheduler(scheduler, object, 1);
 
     if (ThreadIsCurrentIdle(object->CoreId)) {
-        ThreadingYield();
+        ArchThreadYield();
     }
 }
 
@@ -274,7 +274,7 @@ __QueueObjectImmediately(
 
         // If we are running on the idle thread, we can switch immediately, unless
         if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {
-            ThreadingYield();
+            ArchThreadYield();
         }
         return OsSuccess;
     }
@@ -407,7 +407,7 @@ SchedulerSleep(
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
-    ThreadingYield();
+    ArchThreadYield();
     
     smp_rmb();
     if (object->TimeoutReason != OsSuccess) {
@@ -539,7 +539,7 @@ void SchedulerEnable(void)
 
     scheduler->Enabled = 1;
     if (ThreadIsCurrentIdle(coreId)) {
-        ThreadingYield();
+        ArchThreadYield();
     }
 }
 

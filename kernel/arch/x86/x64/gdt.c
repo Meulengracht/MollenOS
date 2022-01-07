@@ -45,8 +45,6 @@ GdtInstallDescriptor(
     _In_ uint8_t  upperFlags)
 {
     int i = atomic_fetch_add(&g_nextGdtIndex, 1);
-
-	// Fill descriptor
 	g_descriptorTable[i].BaseLow   = (uint16_t)(baseAddress & 0xFFFF);
     g_descriptorTable[i].BaseMid   = (uint8_t)((baseAddress >> 16) & 0xFF);
     g_descriptorTable[i].BaseHigh  = (uint8_t)((baseAddress >> 24) & 0xFF);
@@ -80,8 +78,7 @@ GdtInitialize(void)
 	// Shared segments
 	// So the GS base segment should be initialized with the kernel core gs address
 	// which is the one that will be loaded from swapgs
-	GdtInstallDescriptor(0, (MEMORY_SEGMENT_EXTRA_SIZE - 1) / PAGE_SIZE,
-		GDT_RING3_DATA, GDT_FLAG_64BIT | GDT_FLAG_PAGES);
+	GdtInstallDescriptor(0, 0, GDT_RING3_DATA, GDT_FLAG_64BIT | GDT_FLAG_PAGES);
 
 	// Prepare gdt and tss for boot cpu
 	GdtInstall();
@@ -90,14 +87,14 @@ GdtInitialize(void)
 
 void
 TssInitialize(
-    _In_ int PrimaryCore)
+        _In_ int bsp)
 {
     UUId_t   coreId = ArchGetProcessorCoreId();
 	uint64_t tssBase;
 	uint32_t tssLimit;
 
 	// If we use the static allocator, it must be the boot cpu
-	if (PrimaryCore) {
+	if (bsp) {
         g_tssTable[coreId] = &g_bootTss;
 	}
 	else {
@@ -113,7 +110,7 @@ TssInitialize(
 
 	// Install TSS into table and hardware
 	TssInstall(GdtInstallDescriptor(tssBase, tssLimit, GDT_TSS_ENTRY, 0x00));
-    if (PrimaryCore == 0) {
+    if (bsp == 0) {
         TssCreateStacks();
     }
 }

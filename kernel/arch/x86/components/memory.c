@@ -637,6 +637,45 @@ ArchMmuVirtualToPhysical(
     return status;
 }
 
+
+OsStatus_t
+MmuCloneVirtualSpace(
+        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* child,
+        _In_ int            inherit)
+{
+    OsStatus_t osStatus;
+    paddr_t    cr3;
+    vaddr_t    pdir;
+
+    osStatus = MmVirtualClone(parent, inherit, &cr3, &pdir);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+    TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", masterAddress, pageMasterTable);
+
+    // Update the configuration data for the memory space
+    child->Data[MEMORY_SPACE_CR3]       = cr3;
+    child->Data[MEMORY_SPACE_DIRECTORY] = pdir;
+
+    // Create new resources for the happy new parent :-)
+    if (!parent) {
+        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+        if (!child->Data[MEMORY_SPACE_IOMAP]) {
+            kfree(pageDirectory);
+            return OsOutOfMemory;
+        }
+
+        if (child->Flags & MEMORY_SPACE_APPLICATION) {
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        }
+        else {
+            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+        }
+    }
+    return OsSuccess;
+}
+
 OsStatus_t
 SetDirectIoAccess(
         _In_ UUId_t         coreId,
@@ -890,6 +929,32 @@ __CreateKernelMappings(
     return OsSuccess;
 }
 
+static OsStatus_t
+__InitializeTLS(
+        _In_ MemorySpace_t* memorySpace)
+{
+    uintptr_t  tlsPhysical;
+    OsStatus_t osStatus;
+    TRACE("__InitializeTLS()");
+
+    osStatus = MachineAllocateBootMemory(
+            PAGE_SIZE,
+            NULL,
+            (paddr_t*)&tlsPhysical
+    );
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    return __InstallFirmwareMapping(
+            memorySpace,
+            MEMORY_LOCATION_TLS_START,
+            tlsPhysical,
+            1,
+            PAGE_PRESENT | PAGE_WRITE
+    );
+}
+
 OsStatus_t
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
@@ -898,56 +963,56 @@ MmuLoadKernel(
 {
     TRACE("MmuLoadKernel()");
 
-    if (CpuCoreCurrent() == GetMachine()->Processor.Cores) {
-        uintptr_t  stackVirtual;
-        uintptr_t  stackPhysical;
-        OsStatus_t osStatus;
+    uintptr_t  stackVirtual;
+    uintptr_t  stackPhysical;
+    OsStatus_t osStatus;
 
-        // Create the system kernel virtual memory space, this call identity maps all
-        // memory allocated by AllocateBootMemory, and also allocates some itself
-        MmuPrepareKernel();
+    // Create the system kernel virtual memory space, this call identity maps all
+    // memory allocated by AllocateBootMemory, and also allocates some itself
+    MmuPrepareKernel();
 
-        // Update the configuration data for the memory space
-        memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
-        memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelpd;
-        memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
+    // Update the configuration data for the memory space
+    memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
+    memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelpd;
+    memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
 
-        // store the physical base of the stack
-        stackPhysical = (uintptr_t)bootInformation->Stack.Base;
+    // store the physical base of the stack
+    stackPhysical = (uintptr_t)bootInformation->Stack.Base;
 
-        // Install any remaining virtual mappings before we enable it. Currently, firmware
-        // mappings still need to be allocated into global access memory. We also need to ensure
-        // that the kernel stack is mapped correctly
-        osStatus = __HandleFirmwareMappings(memorySpace, bootInformation, &stackVirtual);
-        if (osStatus != OsSuccess) {
-            return osStatus;
-        }
-
-        // Remap the framebuffer for good times
-        osStatus = __RemapFramebuffer(memorySpace);
-        if (osStatus != OsSuccess) {
-            return osStatus;
-        }
-
-        // Create all the kernel mappings
-        osStatus = __CreateKernelMappings(memorySpace, kernelMappings);
-        if (osStatus != OsSuccess) {
-            return osStatus;
-        }
-
-        // Update all mappings in vboot to point to virtual ones instead of physical
-        __FixupVBootAddresses(bootInformation);
-
-        // initialize paging and swap the stack address to virtual one, so we don't crap out.
-        TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
-              g_kernelcr3, stackPhysical, stackVirtual);
-        memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
+    // Install the TLS mapping for the boot thread
+    osStatus = __InitializeTLS(memorySpace);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
-    else {
-        // Create a new page directory but copy all kernel mappings to the domain specific memory
-        //iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
-        NOTIMPLEMENTED("MmuLoadKernel implement initialization of other-domain virtaul spaces");
+
+    // Install any remaining virtual mappings before we enable it. Currently, firmware
+    // mappings still need to be allocated into global access memory. We also need to ensure
+    // that the kernel stack is mapped correctly
+    osStatus = __HandleFirmwareMappings(memorySpace, bootInformation, &stackVirtual);
+    if (osStatus != OsSuccess) {
+        return osStatus;
     }
+
+    // Remap the framebuffer for good times
+    osStatus = __RemapFramebuffer(memorySpace);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    // Create all the kernel mappings
+    osStatus = __CreateKernelMappings(memorySpace, kernelMappings);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    // Update all mappings in vboot to point to virtual ones instead of physical
+    __FixupVBootAddresses(bootInformation);
+
+    // initialize paging and swap the stack address to virtual one, so we don't crap out.
+    TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
+          g_kernelcr3, stackPhysical, stackVirtual);
+    memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
+
     return OsSuccess;
 }
 

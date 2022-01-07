@@ -125,4 +125,20 @@ MmVirtualGetTable(
         _In_  int                createIfMissing,
         _Out_ int*               update);
 
+/**
+ * @brief
+ *
+ * @param parent
+ * @param inherit
+ * @param cr3Out
+ * @param pdirOut
+ * @return
+ */
+KERNELAPI OsStatus_t KERNELABI
+MmVirtualClone(
+        _In_ MemorySpace_t* parent,
+        _In_ int            inherit,
+        _Out_ paddr_t*      cr3Out,
+        _Out_ vaddr_t*      pdirOut);
+
 #endif // !_X86_MEMORY_H_

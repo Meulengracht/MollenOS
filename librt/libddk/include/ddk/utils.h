@@ -80,40 +80,51 @@ _CODE_BEGIN
 
 #if defined(i386) || defined(__i386__)
 #define TLS_VALUE   uint32_t
-#define TLS_READ    __asm { __asm mov ebx, [Offset] __asm mov eax, gs:[ebx] __asm mov [Value], eax }
-#define TLS_WRITE   __asm { __asm mov ebx, [Offset] __asm mov eax, [Value] __asm mov gs:[ebx], eax }
+#define TLS_READ(offset, value)  __asm { __asm mov ebx, [offset] __asm mov eax, gs:[ebx] __asm mov [value], eax }
+#define TLS_WRITE(offset, value) __asm { __asm mov ebx, [offset] __asm mov eax, [value] __asm mov gs:[ebx], eax }
 #elif defined(amd64) || defined(__amd64__)
 #define TLS_VALUE   uint64_t
-#define TLS_READ    __asm { __asm mov rbx, [Offset] __asm mov rax, gs:[rbx] __asm mov [Value], rax }
-#define TLS_WRITE   __asm { __asm mov rbx, [Offset] __asm mov rax, [Value] __asm mov gs:[rbx], rax }
+#define TLS_READ(offset, value)  __asm { __asm mov rbx, [offset] __asm mov rax, gs:[rbx] __asm mov [value], rax }
+#define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }
 #else
 #error "Implement rw for tls for this architecture"
 #endif
 
-/* __get_reserved
- * Read and write the magic tls thread-specific
- * pointer, we need to take into account the compiler here */
+/**
+ * @brief Read from the TLS register index. On the X86 architecture this is done by using
+ * the GS register.
+ */
 SERVICEAPI size_t SERVICEABI
-__get_reserved(size_t Index) {
-    TLS_VALUE Value = 0;
-    size_t Offset   = (Index * sizeof(TLS_VALUE));
-    TLS_READ;
-    return (size_t)Value;
+__get_reserved(
+        _In_ size_t tlsIndex)
+{
+    TLS_VALUE tlsValue  = 0;
+    size_t    tlsOffset = (tlsIndex * sizeof(TLS_VALUE));
+    TLS_READ(tlsOffset, tlsValue);
+    return (size_t)tlsValue;
 }
 
-/* __set_reserved
- * Read and write the magic tls thread-specific
- * pointer, we need to take into account the compiler here */
+/**
+ * @brief Write to the TLS register index. On the X86 architecture this is done by using
+ * the GS register.
+ */
 SERVICEAPI void SERVICEABI
-__set_reserved(size_t Index, TLS_VALUE Value) {
-    size_t Offset = (Index * sizeof(TLS_VALUE));
-    TLS_WRITE;
+__set_reserved(
+        _In_ size_t    tlsIndex,
+        _In_ TLS_VALUE tlsValue)
+{
+    size_t tlsOffset = (tlsIndex * sizeof(TLS_VALUE));
+    TLS_WRITE(tlsOffset, tlsValue);
 }
 
 DDKDECL(void, MollenOSEndBoot(void));
 
-/* SystemDebug 
- * Debug/trace printing for userspace application and drivers */
+/**
+ * @brief Debug/trace printing for userspace application and drivers. Writes to the kernel log.
+ *
+ * @param[In] Type   Log type, see values SYSTEM_DEBUG_*
+ * @param[In] Format Sprintf like format, with variadic parameters.
+ */
 DDKDECL(void,
 SystemDebug(
 	_In_ int         Type,

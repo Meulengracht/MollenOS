@@ -48,11 +48,6 @@
 #define CPUID_VENDOR_MICROSOFT_HV "Microsoft Hv"
 #define CPUID_VENDOR_PARALLELS    " lrpepyh vr"
 
-#define CPU_DATA_MAXLEVEL           0
-#define CPU_DATA_MAXEXTENDEDLEVEL   1
-#define CPU_DATA_FEATURES_ECX       2
-#define CPU_DATA_FEATURES_EDX       3
-
 /* Constants and magic values which set the correct
  * bits for x86-specific registers, especially eflags */
 #define CPU_EFLAGS_DEFAULT          0x202
@@ -126,8 +121,15 @@ enum CpuFeatures {
 	CPUID_FEAT_EDX_PBE = 1 << 31
 };
 
-KERNELAPI void KERNELABI       CpuInitializeFeatures(void); // call once for each cpu
-KERNELAPI OsStatus_t KERNELABI CpuHasFeatures(unsigned int Ecx, unsigned int Edx);
+/**
+ * @brief Should be called once for each core, initializes the per-cpu registers for
+ * 64 bit mode, and initializes core features.
+ */
+KERNELAPI void KERNELABI
+CpuInitializeFeatures(void);
+
+
+KERNELAPI OsStatus_t KERNELABI CpuHasFeatures(unsigned int ecx, unsigned int edx);
 KERNELAPI void KERNELABI       CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
 KERNELAPI void KERNELABI       CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
 

@@ -94,7 +94,7 @@ PushContextOntoStack(
 }
 
 void
-ContextPushInterceptor(
+ArchThreadContextPushInterceptor(
     _In_ Context_t* Context,
     _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
@@ -135,7 +135,7 @@ ContextPushInterceptor(
 }
 
 void
-ContextReset(
+ArchThreadContextReset(
     _In_ Context_t* context,
     _In_ int        contextType,
     _In_ uintptr_t  address,
@@ -144,7 +144,7 @@ ContextReset(
     uint64_t codeSegment  = 0;
     uint64_t stackSegment = 0;
     uint64_t rbpInitial   = ((uint64_t)context + sizeof(Context_t));
-    TRACE("[ContextReset] %i: 0x%llx", contextType, context);
+    TRACE("[ArchThreadContextReset] %i: 0x%llx", contextType, context);
 	
 	// Reset context
     memset(context, 0, sizeof(Context_t));
@@ -162,7 +162,7 @@ ContextReset(
 	    context->Rax = CONTEXT_RESET_IDENTIFIER;
     }
 	else {
-		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+		FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
 	}
 
 	// Setup segments for the stack
@@ -180,7 +180,7 @@ ContextReset(
 }
 
 Context_t*
-ContextCreate(
+ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
@@ -200,7 +200,7 @@ ContextCreate(
         memoryFlags |= MAPPING_USERSPACE;
 	}
 	else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
@@ -224,13 +224,13 @@ ContextCreate(
     }
 
     contextAddress += contextSize - sizeof(Context_t);
-    TRACE("[ContextCreate] %i: 0x%llx", contextType, contextAddress);
+    TRACE("[ArchThreadContextCreate] %i: 0x%llx", contextType, contextAddress);
 
 	return (Context_t*)contextAddress;
 }
 
 void
-ContextDestroy(
+ArchThreadContextDestroy(
     _In_ Context_t* context,
     _In_ int        contextType,
     _In_ size_t     contextSize)
@@ -242,7 +242,7 @@ ContextDestroy(
         return;
     }
 
-    TRACE("[ContextDestroy] 0x%llx", context);
+    TRACE("[ArchThreadContextDestroy] 0x%llx", context);
 
     // adjust for size of context_t and then adjust back to base address
     contextAddress  = (uintptr_t)context;
@@ -253,7 +253,7 @@ ContextDestroy(
 }
 
 OsStatus_t
-ArchDumpThreadContext(
+ArchThreadContextDump(
 	_In_ Context_t* context)
 {
 	// Dump general registers

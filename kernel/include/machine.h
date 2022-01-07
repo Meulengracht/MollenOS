@@ -109,12 +109,14 @@ PlatformTimersInitialize(void);
  * @brief Initializes the entire system memory range, selecting ranges that should
  * be reserved and those that are free for system use.
  *
- * @param machine [In] The machine to initialize memory systems for.
- * @return             Status of the initialization.
+ * @param[In] machine The machine to initialize memory systems for.
+ * @param[In] cpuCore The per-core structure of the booting cpu-core.
+ * @return            Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
-MachineInitializeMemorySystems(
-        _In_ SystemMachine_t* machine);
+MachineMemoryInitialize(
+        _In_ SystemMachine_t* machine,
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * @brief

@@ -45,9 +45,13 @@ extern _SyscallHandle
     push gs
     pushad
 
+    ; initialize data segments
     mov ax, 0x10
     mov ds, ax
     mov es, ax
+
+    ; initialize cls segments
+    mov ax, 0x18
     mov fs, ax
     mov gs, ax
 %endmacro

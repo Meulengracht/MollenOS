@@ -157,7 +157,7 @@ DebugPanic(
     }
     
     if (Context) {
-        ArchDumpThreadContext(Context);
+        ArchThreadContextDump(Context);
         DebugStackTrace(Context, 8);
     }
 

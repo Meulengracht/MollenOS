@@ -109,7 +109,7 @@ typedef struct MemoryMappingHandler {
  * @return                        Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
-InitializeMemorySpace(
+MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
         _In_ PlatformMemoryMapping_t* kernelMappings);

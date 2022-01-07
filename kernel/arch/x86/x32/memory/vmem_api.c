@@ -29,7 +29,6 @@
 #include <assert.h>
 #include <handle.h>
 #include <heap.h>
-#include <debug.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -104,7 +103,7 @@ MmVirtualGetTable(
 
 SyncWithParent:
         // Check the parent-mapping
-        if (parentMapping & PAGE_PRESENT) {
+        if (parentPageDirectory && (parentMapping & PAGE_PRESENT)) {
             // Update our page-directory and reload
             atomic_store(&pageDirectory->pTables[pageTableIndex], parentMapping | PAGETABLE_INHERITED);
             pageDirectory->vTables[pageTableIndex] = parentPageDirectory->vTables[pageTableIndex];
@@ -122,7 +121,7 @@ SyncWithParent:
             
             memset((void*)table, 0, sizeof(PageTable_t));
             tablePhysical |= PAGE_PRESENT | PAGE_WRITE;
-            if (address > MEMORY_LOCATION_KERNEL_END) {
+            if (address >= MEMORY_LOCATION_RING3_CODE) {
                 tablePhysical |= PAGE_USER;
             }
 
@@ -155,10 +154,11 @@ SyncWithParent:
 }
 
 OsStatus_t
-MmuCloneVirtualSpace(
+MmVirtualClone(
         _In_ MemorySpace_t* parent,
-        _In_ MemorySpace_t* child,
-        _In_ int            inherit)
+        _In_ int            inherit,
+        _Out_ paddr_t*      cr3Out,
+        _Out_ vaddr_t*      pdirOut)
 {
     PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t* parentDirectory = NULL;
@@ -167,8 +167,9 @@ MmuCloneVirtualSpace(
     int              i;
 
     // Lookup which table-region is the stack region
-    int threadRegion    = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-    int threadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+    int kernelTlsIndex     = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_TLS_START);
+    int userTlsRegionStart = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int userTlsRegionEnd   = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
     pageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &physicalAddress);
     if (!pageDirectory) {
@@ -186,12 +187,12 @@ MmuCloneVirtualSpace(
     for (i = 0; i < ENTRIES_PER_PAGE; i++) {
         uint32_t kernelMapping, currentMapping;
 
-        // Sanitize stack region, never copy
-        if (i >= threadRegion && i <= threadRegionEnd) {
+        // Sanitize TLS regions, never copy
+        if (ISINRANGE(i, userTlsRegionStart, userTlsRegionEnd + 1) || i == kernelTlsIndex) {
             continue;
         }
 
-        // Sanitize if it's inside kernel region
+        // Clone directly if inside kernel region
         if (kernelDirectory->vTables[i] != 0) {
             kernelMapping = atomic_load(&kernelDirectory->pTables[i]);
 
@@ -210,26 +211,8 @@ MmuCloneVirtualSpace(
             }
         }
     }
-
-    // Update the configuration data for the memory space
-	child->Data[MEMORY_SPACE_CR3]       = physicalAddress;
-    child->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageDirectory;
-
-    // Create new resources for the happy new parent :-)
-    if (!parent) {
-        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (!child->Data[MEMORY_SPACE_IOMAP]) {
-            kfree(pageDirectory);
-            return OsOutOfMemory;
-        }
-
-        if (child->Flags & MEMORY_SPACE_APPLICATION) {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
-        }
-        else {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
-        }
-    }
+	*cr3Out  = physicalAddress;
+    *pdirOut = (uintptr_t)pageDirectory;
     return OsSuccess;
 }
 
@@ -265,7 +248,6 @@ MmuDestroyVirtualSpace(
             if ((currentMapping & PAGE_PERSISTENT) || !(currentMapping & PAGE_PRESENT)) {
                 continue;
             }
-
 
             // If it has a mapping - free it
             if ((currentMapping & PAGE_MASK) != 0) {

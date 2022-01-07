@@ -48,12 +48,11 @@ _GdtInstall:
 	done:
 	ret
 
-; void TssInstall(int gdt_index)
+; void TssInstall(int gdtIndex)
 ; Load the given TSS descriptor index
 _TssInstall:
 	mov eax, [esp + 4]
-	mov ecx, 0x8
-	mul ecx
+	shl eax, 3
 	or eax, 0x3
 	ltr ax
 	ret

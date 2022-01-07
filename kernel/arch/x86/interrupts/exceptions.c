@@ -65,7 +65,7 @@ HardFault(
     }
 
     // Enter panic handler
-    ArchDumpThreadContext(context);
+    ArchThreadContextDump(context);
     WRITELINE("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
               context->Irq, context->ErrorCode, CONTEXT_IP(context));
     if (context) {

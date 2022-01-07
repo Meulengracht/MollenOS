@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <arch/mmu.h>
 #include <ddk/io.h>
+#include <ddk/utils.h>
 #include <debug.h>
 #include <heap.h>
 #include <machine.h>
@@ -242,14 +243,16 @@ MachineAllocateBootMemory(
     int        blockCount = DIVUP(size, GetMachine()->MemoryGranularity);
     OsStatus_t osStatus;
     uintptr_t  blocks[blockCount];
-    vaddr_t    virtualBase;
+    vaddr_t    virtualBase = 0;
 
     TRACE("MachineAllocateBootMemory(size=0x%" PRIxIN ")", size);
 
     // Allocate virtual space
-    virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, size);
-    if (!virtualBase) {
-        return OsOutOfMemory;
+    if (virtualBaseOut) {
+        virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, size);
+        if (!virtualBase) {
+            return OsOutOfMemory;
+        }
     }
 
     // Allocate a physical page
@@ -279,13 +282,15 @@ MachineAllocateBootMemory(
     }
 
     // register the kernel mapping, so it will be available after switching to virtual space
-    osStatus = __AddKernelMapping(blocks[0], virtualBase, size);
-    if (osStatus != OsSuccess) {
-        return osStatus;
+    if (virtualBaseOut) {
+        osStatus = __AddKernelMapping(blocks[0], virtualBase, size);
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+        *virtualBaseOut  = virtualBase;
     }
 
     *physicalBaseOut = blocks[0];
-    *virtualBaseOut  = virtualBase;
     return osStatus;
 }
 
@@ -454,15 +459,27 @@ __UpdateSystemAddresses(
 }
 #endif
 
+static void
+__InitializeBootTLS(
+    _In_ SystemCpuCore_t* cpuCore)
+{
+    // Set the first entry of the TLS to point to the core structure,
+    // when threads migrate they need this pointer updated.
+    __set_reserved(0, (uintptr_t)cpuCore);
+
+    // add any other per-core data here
+}
+
 OsStatus_t
-MachineInitializeMemorySystems(
-        _In_ SystemMachine_t* machine)
+MachineMemoryInitialize(
+        _In_ SystemMachine_t* machine,
+        _In_ SystemCpuCore_t* cpuCore)
 {
     struct MemoryBootContext      bootContext;
     PlatformMemoryConfiguration_t configuration;
     size_t                        memorySize;
     OsStatus_t                    osStatus;
-    TRACE("MachineInitializeMemorySystems()");
+    TRACE("MachineMemoryInitialize()");
 
     if (!machine) {
         return OsInvalidParameters;
@@ -471,7 +488,7 @@ MachineInitializeMemorySystems(
     // Verify the size of available memory - require atleast 64mb (configurable some day)
     memorySize = __GetAvailablePhysicalMemory(&machine->BootInformation);
     if (memorySize < (64 * BYTES_PER_MB)) {
-        ERROR("MachineInitializeMemorySystems available system memory was below 64mb (memorySize=%" PRIuIN "B)", memorySize);
+        ERROR("MachineMemoryInitialize available system memory was below 64mb (memorySize=%" PRIuIN "B)", memorySize);
         return OsInvalidParameters;
     }
 
@@ -548,7 +565,7 @@ MachineInitializeMemorySystems(
 
     // Switch to the new virtual space
 #ifdef __OSCONFIG_HAS_MMIO
-    osStatus = InitializeMemorySpace(
+    osStatus = MemorySpaceInitialize(
             &machine->SystemSpace,
             &machine->BootInformation,
             g_kernelMappings
@@ -565,6 +582,9 @@ MachineInitializeMemorySystems(
     machine->BootInformation.Memory.NumberOfEntries = 0;
     machine->BootInformation.Memory.Entries         = 0;
 #endif
+
+    // Initialize per-core memory structures
+    __InitializeBootTLS(cpuCore);
 
     // Initialize the slab allocator now that subsystems are up
     MemoryCacheInitialize();

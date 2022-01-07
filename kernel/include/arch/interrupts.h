@@ -28,15 +28,21 @@
 #include <os/osdefs.h>
 #include <interrupts.h>
 
-/* InterruptInitialize
- * Initialize interrupts in the base system. */
-KERNELAPI OsStatus_t KERNELABI PlatformInterruptInitialize(void);
+/**
+ * @brief Initializes the interrupts for the platform.
+ *
+ * @return Status of the initialization.
+ */
+KERNELAPI OsStatus_t KERNELABI
+PlatformInterruptInitialize(void);
 
 /**
- * Specifies the current interrupt mode. This is currently used on X86 in conjunction with acpi.
- * @param mode [In] 0 = Pic, 1 = Apic
+ * @brief Specifies the current interrupt mode. This is currently used on X86 in conjunction with acpi.
+ *
+ * @param[In] mode 0 = Pic, 1 = Apic
  */
-KERNELAPI void KERNELABI InterruptSetMode(
+KERNELAPI void KERNELABI
+InterruptSetMode(
         _In_ int mode);
 
 /**

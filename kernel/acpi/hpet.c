@@ -364,18 +364,38 @@ HpComparatorStart(
     return OsSuccess;
 }
 
-ACPI_STATUS
-HpInitialize(
-    _In_ ACPI_TABLE_HPET* hpetTable)
-{
-    int        legacy;
-    OsStatus_t osStatus;
-    uintptr_t  updatedAddress;
-    size_t TempValue;
-    int    numTimers;
-    int    i;
 
-    TRACE("HpInitialize(Address 0x%" PRIxIN ", Sequence %" PRIuIN ")",
+/* AcpiDeviceInstallFixed
+ * Scans for fixed devices and initializes them. */
+ACPI_TABLE_HPET*
+__GetHpetTable(void)
+{
+    ACPI_TABLE_HEADER* header;
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &header))) {
+        return (ACPI_TABLE_HPET*)header;
+    }
+    return NULL;
+}
+
+void
+HpetInitialize(void)
+{
+    ACPI_TABLE_HPET* hpetTable;
+    int              legacy;
+    OsStatus_t       osStatus;
+    uintptr_t        updatedAddress;
+    size_t           TempValue;
+    int              numTimers;
+    int              i;
+    TRACE("HpetInitialize()");
+
+    hpetTable = __GetHpetTable();
+    if (!hpetTable) {
+        WARNING("HpetInitialize no HPET detected.");
+        return;
+    }
+
+    TRACE("HpetInitialize address 0x%" PRIxIN ", sequence %" PRIuIN ")",
           (uintptr_t)(hpetTable->Address.Address), hpetTable->Sequence);
 
     memset(&g_hpet, 0, sizeof(HpController_t));

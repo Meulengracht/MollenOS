@@ -127,11 +127,11 @@ typedef struct HpController {
 	clock_t					 Clock;
 } HpController_t;
 
-/* HpInitialize
- * Initializes the ACPI hpet timer from the hpet table. */
-__EXTERN ACPI_STATUS
-HpInitialize(
-	_In_ ACPI_TABLE_HPET *hpetTable);
+/**
+ * @brief Initializes the HPET if present. This requires the presence of ACPI tables.
+ */
+KERNELAPI void KERNELABI
+HpetInitialize(void);
 
 /* HpComparatorStart
  * Starts a new hpet timer. If a legacy irq is provided that will be used

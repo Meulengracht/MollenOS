@@ -332,20 +332,22 @@ ThreadingEnterUsermode(
     );
 
     // Create the userspace stack(s) now that we will need it
-    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1, thread->UserStackSize);
-    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL, thread->UserStackSize);
+    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ArchThreadContextCreate(THREADING_CONTEXT_LEVEL1,
+                                                                         thread->UserStackSize);
+    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ArchThreadContextCreate(THREADING_CONTEXT_SIGNAL,
+                                                                         thread->UserStackSize);
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL1] || !thread->Contexts[THREADING_CONTEXT_SIGNAL]) {
         assert(0);
     }
 
     // initiate the userspace stack with entry point and argument
-    ContextReset(
+    ArchThreadContextReset(
             thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-            (uintptr_t)EntryPoint, (uintptr_t)Argument);
+            (uintptr_t) EntryPoint, (uintptr_t) Argument);
 
     // initiate switch to userspace
     thread->Flags |= THREADING_TRANSITION_USERMODE;
-    ThreadingYield();
+    ArchThreadYield();
     for (;;);
 }
 
@@ -553,7 +555,7 @@ ThreadingAdvance(
     
     // Perform pre-liminary actions only if we are not going to clean up and destroy the thread
     if (!cleanup) {
-        SaveThreadState(currentThread);
+        ArchThreadLeave(currentThread);
         
         // Handle any received signals during runtime in system calls, this must be handled
         // here after any blocking operations has been queued, so we can cancel it.
@@ -625,7 +627,7 @@ GetNextThread:
     // Set next active thread
     if (currentThread != nextThread) {
         CpuCoreSetCurrentThread(core, nextThread);
-        RestoreThreadState(nextThread);
+        ArchThreadEnter(nextThread);
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
@@ -695,9 +697,12 @@ DestroyThread(
     }
 
     // Detroy the thread-contexts
-    ContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
-    ContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1, thread->UserStackSize);
-    ContextDestroy(thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, thread->UserStackSize);
+    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0,
+                             thread->KernelStackSize);
+    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
+                             thread->UserStackSize);
+    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL,
+                             thread->UserStackSize);
 
     // Remove a reference to the memory space if not root, and remove the
     // kernel mapping of the threads' ipc area
@@ -713,7 +718,7 @@ DestroyThread(
         kfree(thread->Signaling.Signals);
     }
 
-    ThreadingUnregister(thread);
+    ArchThreadDestroy(thread);
     kfree(thread);
 }
 
@@ -725,15 +730,16 @@ CreateDefaultThreadContexts(
     TRACE("CreateDefaultThreadContexts(thread=0x%" PRIxIN ")", thread);
 
     // Create the kernel context, for an userspace thread this is always the default
-    thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0, thread->KernelStackSize);
+    thread->Contexts[THREADING_CONTEXT_LEVEL0] = ArchThreadContextCreate(THREADING_CONTEXT_LEVEL0,
+                                                                         thread->KernelStackSize);
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
         status = OsOutOfMemory;
         goto exit;
     }
 
-    ContextReset(
+    ArchThreadContextReset(
             thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0,
-            (uintptr_t)&ThreadingEntryPoint, 0);
+            (uintptr_t) &ThreadingEntryPoint, 0);
 
     // We cannot at this time allocate userspace contexts as they need to be located inside
     // the local thread memory. So they are created as a part of thread startup.'
@@ -803,7 +809,7 @@ InitializeDefaultThread(
     }
 
     thread->SchedulerObject = SchedulerCreateObject(thread, flags);
-    osStatus = ThreadingRegister(thread);
+    osStatus = ArchThreadInitialize(thread);
     if (osStatus != OsSuccess) {
         return osStatus;
     }

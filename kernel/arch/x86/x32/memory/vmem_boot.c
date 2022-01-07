@@ -139,6 +139,15 @@ MmuPrepareKernel(void)
             PAGE_PRESENT | PAGE_WRITE
     );
 
+    TRACE("MmuPrepareKernel pre-mapping kernel TLS memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+          MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
+    MmVirtualMapMemoryRange(
+            pageDirectory,
+            MEMORY_LOCATION_TLS_START,
+            PAGE_SIZE,
+            PAGE_PRESENT | PAGE_WRITE
+    );
+
     TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END);
     MmVirtualMapMemoryRange(

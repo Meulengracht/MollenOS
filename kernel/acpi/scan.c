@@ -230,23 +230,6 @@ AcpiDeviceCreate(
     return OsSuccess;
 }
 
-/* AcpiDeviceInstallFixed 
- * Scans for fixed devices and initializes them. */
-ACPI_STATUS
-AcpiDeviceInstallFixed(void)
-{
-    // Variables
-    ACPI_TABLE_HEADER *Header   = NULL;
-    ACPI_STATUS Status          = AE_OK;
-
-    // Check for HPET presence
-    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header))) {
-        TRACE("Initializing the hpet");
-        Status = HpInitialize((ACPI_TABLE_HPET*)Header);
-    }
-    return Status;
-}
-
 /* AcpiDeviceScanCallback
  * Scan callback from the AcpiGetDevices on new device detection */
 ACPI_STATUS
@@ -299,7 +282,6 @@ AcpiDeviceScanCallback(
 ACPI_STATUS
 AcpiDevicesScan(void)
 {
-    // Debug
     TRACE("AcpiDevicesScan()");
     
     // Initialize list and fixed objects
@@ -321,7 +303,7 @@ AcpiDevicesScan(void)
         if (AcpiUpdateAllGpes() != AE_OK) {
             FATAL(FATAL_SCOPE_KERNEL, "Failed to update Gpes");
         }
-        return AcpiDeviceInstallFixed();
+        return AE_OK;
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to scan the ACPI namespace.");

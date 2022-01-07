@@ -138,7 +138,7 @@ ScThreadGetCurrentId(void)
 OsStatus_t
 ScThreadYield(void)
 {
-    ThreadingYield();
+    ArchThreadYield();
     return OsSuccess;
 }
 

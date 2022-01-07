@@ -164,7 +164,7 @@ ContextReset(
 	    context->Eax = CONTEXT_RESET_IDENTIFIER;
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Setup segments for the stack
@@ -206,7 +206,7 @@ ContextCreate(
         memoryFlags |= MAPPING_USERSPACE;
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
@@ -247,7 +247,7 @@ ContextDestroy(
         return;
     }
 
-    TRACE("[ContextDestroy] 0x%llx", context);
+    TRACE("[ArchThreadContextDestroy] 0x%llx", context);
 
     // adjust for size of context_t and then adjust back to base address
     contextAddress  = (uintptr_t)context;
@@ -258,7 +258,7 @@ ContextDestroy(
 }
 
 OsStatus_t
-ArchDumpThreadContext(
+ArchThreadContextDump(
     _In_ Context_t* context)
 {
     // Dump general registers

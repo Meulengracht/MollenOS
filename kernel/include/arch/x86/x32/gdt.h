@@ -40,19 +40,21 @@
 #define GDT_NULL_SEGMENT            0x00
 #define GDT_KCODE_SEGMENT           0x08    // Kernel
 #define GDT_KDATA_SEGMENT           0x10    // Kernel
-#define GDT_UCODE_SEGMENT           0x18    // Applications
-#define GDT_UDATA_SEGMENT           0x20    // Applications
-#define GDT_EXTRA_SEGMENT           0x28    // Shared
+#define GDT_KTLS_SEGMENT            0x18    // Kernel TLS
+#define GDT_UCODE_SEGMENT           0x20    // Applications
+#define GDT_UDATA_SEGMENT           0x28    // Applications
+#define GDT_EXTRA_SEGMENT           0x30    // Application TLS
 
 /* Gdt type codes, they set the appropriate bits
  * needed for our needs, both for code and data segments
  * where kernel == ring0 and user == ring3 */
-#define GDT_GRANULARITY             0xCF
-#define GDT_RING0_CODE              0x9A
-#define GDT_RING0_DATA              0x92
-#define GDT_RING3_CODE              0xFA
-#define GDT_RING3_DATA              0xF2
-#define GDT_TSS_ENTRY               0xE9
+#define GDT_GRANULARITY_1B  0x4F
+#define GDT_GRANULARITY_4KB 0xCF
+#define GDT_RING0_CODE      0x9A
+#define GDT_RING0_DATA      0x92
+#define GDT_RING3_CODE      0xFA
+#define GDT_RING3_DATA      0xF2
+#define GDT_TSS_ENTRY       0xE9
 
 /* The GDT access flags, they define general information
  * about the code / data segment */
@@ -80,8 +82,8 @@
  * will poin to, that describes the memory range where
  * all the gdt-descriptors reside */
 PACKED_TYPESTRUCT(GdtObject, {
-    uint16_t                Limit;
-    uint32_t                Base;
+    uint16_t Limit;
+    uint32_t Base;
 });
 
 /* GdtDescriptor
@@ -89,9 +91,9 @@ PACKED_TYPESTRUCT(GdtObject, {
  * in the gdt table, and keeps information about the ring
  * segment structure. */
 PACKED_TYPESTRUCT(GdtDescriptor, {
-    uint16_t                LimitLow;    /* Bits  0-15 */
-    uint16_t                BaseLow;    /* Bits  0-15 */
-    uint8_t                 BaseMid;    /* bits 16-23 */
+    uint16_t LimitLow;    /* Bits  0-15 */
+    uint16_t BaseLow;    /* Bits  0-15 */
+    uint8_t  BaseMid;    /* bits 16-23 */
 
     /* Access Flags 
      * Bit 0: Accessed bit, is set by cpu when accessed
@@ -103,78 +105,79 @@ PACKED_TYPESTRUCT(GdtDescriptor, {
      * Bit 4: Reserved, must be 1
      * Bit 5-6: Privilege, 0 (Ring 0 - Highest), 3 (Ring 3 - Lowest) 
      * Bit 7: Present Bit, must be 1 */
-    uint8_t                Access;
+    uint8_t Access;
 
     /* Limit 
      * Bit 0-3: Bits 16-19 of Limit 
      * Bit 4-5: Reserved, 0 
      * Bit 6: 16 Bit Mode (0), 32 Bit Mode (1) 
      * Bit 7: Limit is bytes (0), Limit is page-blocks (1) */
-    uint8_t                Flags;
-    uint8_t                BaseHigh;    /* Base 24:31 */
+    uint8_t Flags;
+    uint8_t BaseHigh;    /* Base 24:31 */
 });
 
 /* TssDescriptor
  * Describes a task descriptor for the cpu. The cpu then knows
  * which values to fill in when switching between rings. */
 PACKED_TYPESTRUCT(TssDescriptor, {
-    uint32_t            PreviousTSS;
-    uint32_t            Esp0;
-    uint32_t            Ss0;
-    uint32_t            Esp1;
-    uint32_t            Ss1;
-    uint32_t            Esp2;
-    uint32_t            Ss2;
-    uint32_t            Cr3;
-    uint32_t            Eip;
-    uint32_t            EFlags;
-    uint32_t            Eax; 
-    uint32_t            Ecx;
-    uint32_t            Edx;
-    uint32_t            Ebx;
-    uint32_t            Esp;
-    uint32_t            Ebp;
-    uint32_t            Esi;
-    uint32_t            Edi;
-    uint32_t            Es;
-    uint32_t            Cs;
-    uint32_t            Ss;
-    uint32_t            Ds;
-    uint32_t            Fs;
-    uint32_t            Gs;
-    uint32_t            Ldt;
-    uint16_t            Trap;
-    uint16_t            IoMapBase;
-    uint8_t             IoMap[GDT_IOMAP_SIZE]; // 0 => Granted, 1 => Denied
+    uint32_t PreviousTSS;
+    uint32_t Esp0;
+    uint32_t Ss0;
+    uint32_t Esp1;
+    uint32_t Ss1;
+    uint32_t Esp2;
+    uint32_t Ss2;
+    uint32_t Cr3;
+    uint32_t Eip;
+    uint32_t EFlags;
+    uint32_t Eax;
+    uint32_t Ecx;
+    uint32_t Edx;
+    uint32_t Ebx;
+    uint32_t Esp;
+    uint32_t Ebp;
+    uint32_t Esi;
+    uint32_t Edi;
+    uint32_t Es;
+    uint32_t Cs;
+    uint32_t Ss;
+    uint32_t Ds;
+    uint32_t Fs;
+    uint32_t Gs;
+    uint32_t Ldt;
+    uint16_t Trap;
+    uint16_t IoMapBase;
+    uint8_t  IoMap[GDT_IOMAP_SIZE]; // 0 => Granted, 1 => Denied
 });
 
-/* GdtInitialize
- * Initialize the gdt table with the 5 default
- * descriptors for kernel/user mode data/code segments */
+/**
+ * @brief Initializes the GDT for the BSP
+ */
 KERNELAPI void KERNELABI
 GdtInitialize(void);
 
-/* GdtInstall
- * This installs the current gdt-object in the
- * gdt register for the calling cpu, use to setup gdt */
+/**
+ * @brief Installs the GDT for the calling core.
+ */
 KERNELAPI void KERNELABI
 GdtInstall(void);
 
-/* TssInitialize
- * Helper for setting up a new task state segment for
- * the given cpu core, this should be done once per
- * core, and it will set default params for the TSS */
+/**
+ * @brief Installs a TSS descriptor for the calling core.
+ *
+ * @param[In] bsp If set, this is the BSP
+ */
 KERNELAPI void KERNELABI
 TssInitialize(
-    _In_ int    PrimaryCore);
+    _In_ int bsp);
 
 /* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
 KERNELAPI void KERNELABI
 TssUpdateThreadStack(
-    _In_ UUId_t     Cpu, 
-    _In_ uintptr_t  Stack);
+    _In_ UUId_t     coreId,
+    _In_ uintptr_t  stackAddress);
 
 /* TssGetBootIoSpace
  * Retrieves the boot-io bitmap space for the kernel threads. */
