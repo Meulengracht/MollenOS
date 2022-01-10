@@ -29,6 +29,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
 #include <arch/x86/cpu.h>
+#include <ddk/ddkdefs.h>
 #include <threading.h>
 #include <interrupts.h>
 #include <debug.h>
@@ -43,6 +44,9 @@
 #include <arch/x86/x64/gdt.h>
 #endif
 
+#define X86_THREAD_UPDATETLS 0x1
+#define X86_THREAD_USEDFPU   0x2
+
 extern void load_fpu(uintptr_t *buffer);
 extern void load_fpu_extended(uintptr_t *buffer);
 extern void save_fpu(uintptr_t *buffer);
@@ -53,14 +57,14 @@ extern void _yield(void);
 
 OsStatus_t
 ArchThreadInitialize(
-    _In_ Thread_t* Thread)
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    uintptr_t* threadData = ThreadData(thread);
     if (!threadData) {
         return OsInvalidParameters;
     }
 
-    threadData[THREAD_DATA_FLAGS]      = 0;
+    threadData[THREAD_DATA_FLAGS]      = X86_THREAD_UPDATETLS;
     threadData[THREAD_DATA_MATHBUFFER] = (uintptr_t)kmalloc(0x1000);
     if (!threadData[THREAD_DATA_MATHBUFFER]) {
         return OsOutOfMemory;
@@ -72,9 +76,9 @@ ArchThreadInitialize(
 
 OsStatus_t
 ArchThreadDestroy(
-    _In_ Thread_t* Thread)
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    uintptr_t* threadData = ThreadData(thread);
     if (!threadData) {
         return OsInvalidParameters;
     }
@@ -87,9 +91,9 @@ ArchThreadDestroy(
 
 OsStatus_t
 ThreadingFpuException(
-    _In_ Thread_t* Thread)
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    uintptr_t* threadData = ThreadData(thread);
     assert(threadData != NULL);
 
     // Clear the task-switch bit
@@ -129,9 +133,9 @@ ArchThreadYield(void)
 
 void
 ArchThreadLeave(
-    _In_ Thread_t* Thread)
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    uintptr_t* threadData = ThreadData(thread);
     assert(threadData != NULL);
 
     // Save FPU/MMX/SSE information if it's
@@ -148,31 +152,24 @@ ArchThreadLeave(
 
 void
 ArchThreadEnter(
-    _In_ Thread_t* Thread)
-{
-    SystemCpuCore_t* core              = CpuCoreCurrent();
-    UUId_t           coreId            = CpuCoreId(core);
-    uintptr_t*       threadData        = ThreadData(Thread);
-    MemorySpace_t*   threadMemorySpace = ThreadMemorySpace(Thread);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread)
+{;
+    UUId_t         coreId            = CpuCoreId(cpuCore);
+    uintptr_t*     threadData        = ThreadData(thread);
+    MemorySpace_t* threadMemorySpace = ThreadMemorySpace(thread);
 
-    assert(core != NULL);
-    assert(Thread != NULL);
-    
-    // Clear the FPU used flag
-    threadData[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
-    
     // Load thread-specific resources
     SwitchMemorySpace(threadMemorySpace);
+
+    // Clear the FPU used flag
+    threadData[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
+    if (threadData[THREAD_DATA_FLAGS] & X86_THREAD_UPDATETLS) {
+        threadData[THREAD_DATA_FLAGS] &= ~X86_THREAD_UPDATETLS;
+        __set_reserved(0, (uintptr_t)cpuCore);
+    }
     
     TssUpdateIo(coreId, (uint8_t*)threadMemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    TssUpdateThreadStack(coreId, (uintptr_t)ThreadContext(Thread, THREADING_CONTEXT_LEVEL0));
-    set_ts(); // Set task switch bit so we get faults on fpu instructions
-    
-    // If we are idle task - disable task priority
-    if (ThreadFlags(Thread) & THREADING_IDLE) {
-        CpuCoreSetPriority(core, 0);
-    }
-    else {
-        CpuCoreSetPriority(core, 61 - SchedulerObjectGetQueue(ThreadSchedulerHandle(Thread)));
-    }
+    TssUpdateThreadStack(coreId, (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL0));
+    set_ts(); // Set task switch bit, so we get faults on fpu instructions
 }

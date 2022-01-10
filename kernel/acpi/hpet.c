@@ -412,8 +412,8 @@ HpetInitialize(void)
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
     if (osStatus != OsSuccess) {
-        ERROR("HpInitialize failed to map address for hpet.");
-        return OsError;
+        ERROR("HpetInitialize failed to map address for hpet.");
+        return;
     }
     g_hpet.BaseAddress = updatedAddress;
 
@@ -428,17 +428,17 @@ HpetInitialize(void)
 
     // Did system fail to initialize
     if (TempValue == 0xFFFFFFFF) {
-        ERROR("HpInitialize failed to initialize HPET (AMD SB700).");
-        return AE_ERROR;
+        ERROR("HpetInitialize failed to initialize HPET (AMD SB700).");
+        return;
     }
 
     // Check the period for a sane value
     HP_READ_32(HPET_REGISTER_CAPABILITIES + 4, &g_hpet.Period);
-    TRACE("HpInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
+    TRACE("HpetInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
 
     if ((g_hpet.Period == 0) || (g_hpet.Period > HPET_MAXPERIOD)) {
-        ERROR("HpInitialize failed to initialize HPET, period is invalid.");
-        return AE_ERROR;
+        ERROR("HpetInitialize failed to initialize HPET, period is invalid.");
+        return;
     }
 
     // Stop timer, zero out counter
@@ -455,18 +455,18 @@ HpetInitialize(void)
     g_hpet.Is64Bit = (TempValue & HPET_64BITSUPPORT) ? 1 : 0;
     legacy    = (TempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
     numTimers = (int)HPET_TIMERCOUNT(TempValue);
-    TRACE("HpInitialize Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "",
+    TRACE("HpetInitialize Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "",
           TempValue, numTimers, (g_hpet.Frequency.u.LowPart / 1000));
 
     if (legacy && numTimers < 2) {
-        ERROR("HpInitialize failed to initialize HPET, legacy is available but not enough timers.");
-        return AE_ERROR;
+        ERROR("HpetInitialize failed to initialize HPET, legacy is available but not enough timers.");
+        return;
     }
 
     // Sanitize the number of timers, must be above 0
     if (numTimers == 0) {
-        ERROR("HpInitialize there was no timers present in HPET");
-        return AE_ERROR;
+        ERROR("HpetInitialize there was no timers present in HPET");
+        return;
     }
 
     // Enable the legacy routings if its are supported
@@ -479,7 +479,7 @@ HpetInitialize(void)
     // Loop through all comparators and configurate them
     for (i = 0; i < numTimers; i++) {
         if (HpComparatorInitialize(i, legacy) == OsError) {
-            ERROR("HpInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
+            ERROR("HpetInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
             g_hpet.Timers[i].Present = 0;
         }
     }
@@ -492,9 +492,8 @@ HpetInitialize(void)
         &g_hpet
     );
     if (osStatus != OsSuccess) {
-        WARNING("HpInitialize failed to register platform timer");
+        WARNING("HpetInitialize failed to register platform timer");
     }
-    return AE_OK;
 }
 
 static void

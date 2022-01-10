@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Memory Support Definitions & Structures
+ * Memory Support Definitions & Structures
  * - This header describes the base memory-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -27,23 +26,21 @@
 #include <ddk/ddkdefs.h>
 
 struct MemoryMappingParameters {
-    uintptr_t VirtualAddress;
-    size_t    Length;
-    unsigned int   Flags;
+    uintptr_t    VirtualAddress;
+    size_t       Length;
+    unsigned int Flags;
 };
 
 /**
- * CreateMemorySpace
- * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings.
+ * @brief Creates a new memory space that can be used to create new mappings, and manipulate existing mappings.
  */
 DDKDECL(OsStatus_t,
 CreateMemorySpace(
     _In_  unsigned int Flags,
-    _Out_ UUId_t* Handle));
+    _Out_ UUId_t*      Handle));
 
 /**
- * GetMemorySpaceForThread
- * Retrieves the memory space that is currently running for the thread handle.
+ * @brief Retrieves the memory space that is currently running for the thread handle.
  */
 DDKDECL(OsStatus_t,
 GetMemorySpaceForThread(

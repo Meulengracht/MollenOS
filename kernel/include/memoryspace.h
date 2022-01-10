@@ -122,8 +122,8 @@ MemorySpaceInitialize(
  */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t*      Handle);
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided

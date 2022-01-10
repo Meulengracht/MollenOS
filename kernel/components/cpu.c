@@ -118,34 +118,34 @@ RegisterApplicationCore(
 
 void
 ActivateApplicationCore(
-    _In_ SystemCpuCore_t* Core)
+    _In_ SystemCpuCore_t* cpuCore)
 {
-    SystemDomain_t*  Domain;
-    SystemCpuCore_t* Iter;
-    TRACE("[activate_core] %u", Core->Id);
+    SystemDomain_t*  domain;
+    SystemCpuCore_t* i;
+    TRACE("ActivateApplicationCore(core=%u)", cpuCore->Id);
 
     // Create the idle-thread and scheduler for the core
     ThreadingEnable();
     
     // Notify everyone that we are running beore switching on interrupts, don't
     // add this flag, overwrite and set only this flag
-    WRITE_VOLATILE(Core->State, CpuStateRunning);
+    WRITE_VOLATILE(cpuCore->State, CpuStateRunning);
     atomic_fetch_add(&GetMachine()->NumberOfActiveCores, 1);
     InterruptEnable();
 
     // Bootup rest of cores in this domain if we are the primary core of
     // this domain. Then our job is simple
-    Domain = GetCurrentDomain();
-    if (Domain != NULL && Core == Domain->CoreGroup.Cores) {
-        Iter = Domain->CoreGroup.Cores->Link;
-        while (Iter) {
-            StartApplicationCore(Iter);
-            Iter = Iter->Link;
+    domain = GetCurrentDomain();
+    if (domain != NULL && cpuCore == domain->CoreGroup.Cores) {
+        i = domain->CoreGroup.Cores->Link;
+        while (i) {
+            StartApplicationCore(i);
+            i = i->Link;
         }
     }
 
     // Enter idle loop
-    WARNING("[activate_core] %" PRIuIN " is online", Core->Id);
+    WARNING("ActivateApplicationCore %" PRIuIN " is online", cpuCore->Id);
 	while (1) {
 		ArchProcessorIdle();
     }
@@ -237,146 +237,159 @@ CpuCoreExitInterrupt(
 
 element_t*
 CpuCorePopQueuedIpc(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return queue_pop(&CpuCore->FunctionQueue[CpuFunctionCustom]);
+    return queue_pop(&cpuCore->FunctionQueue[CpuFunctionCustom]);
 }
 
 void
 CpuCoreQueueIpc(
-        _In_ SystemCpuCore_t*        CpuCore,
-        _In_ SystemCpuFunctionType_t IpcType,
-        _In_ element_t*              Element)
+        _In_ SystemCpuCore_t*        cpuCore,
+        _In_ SystemCpuFunctionType_t functionType,
+        _In_ element_t*              element)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    queue_push(&CpuCore->FunctionQueue[IpcType], Element);
+    queue_push(&cpuCore->FunctionQueue[functionType], element);
 }
 
 UUId_t
 CpuCoreId(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return UUID_INVALID;
     }
-    return CpuCore->Id;
+    return cpuCore->Id;
 }
 
 void
 CpuCoreSetState(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ SystemCpuState_t State)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ SystemCpuState_t cpuState)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    WRITE_VOLATILE(CpuCore->State, State);
+    WRITE_VOLATILE(cpuCore->State, cpuState);
 }
 
 SystemCpuState_t
 CpuCoreState(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return CpuStateUnavailable;
     }
-    return READ_VOLATILE(CpuCore->State);
+    return READ_VOLATILE(cpuCore->State);
 }
 
 SystemCpuCore_t*
 CpuCoreNext(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->Link;
+    return cpuCore->Link;
 }
 
 void
 CpuCoreSetPriority(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ int              Priority)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ int              priority)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->InterruptPriority = Priority;
+    cpuCore->InterruptPriority = (uint32_t)priority;
 }
 
 int
 CpuCorePriority(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return 0;
     }
-    return CpuCore->InterruptPriority;
+    return (int)cpuCore->InterruptPriority;
 }
 
 void
 CpuCoreSetCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Thread_t*        Thread)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->CurrentThread = Thread;
+
+    // If we are idle task - disable task priority
+    if (ThreadFlags(thread) & THREADING_IDLE) {
+        CpuCoreSetPriority(cpuCore, 0);
+    }
+    else {
+        CpuCoreSetPriority(
+                cpuCore,
+                61 - SchedulerObjectGetQueue(
+                        ThreadSchedulerHandle(thread)
+                )
+        );
+    }
+    cpuCore->CurrentThread = thread;
 }
 
 Thread_t*
 CpuCoreCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->CurrentThread;
+    return cpuCore->CurrentThread;
 }
 
 Thread_t*
 CpuCoreIdleThread(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return &CpuCore->IdleThread;
+    return &cpuCore->IdleThread;
 }
 
 Scheduler_t*
 CpuCoreScheduler(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return &CpuCore->Scheduler;
+    return &cpuCore->Scheduler;
 }
 
 void
 CpuCoreSetInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Context_t*       Context)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Context_t*       context)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->InterruptRegisters = Context;
+    cpuCore->InterruptRegisters = context;
 }
 
 Context_t*
 CpuCoreInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->InterruptRegisters;
+    return cpuCore->InterruptRegisters;
 }

@@ -125,7 +125,7 @@ RegisterApplicationCore(
  */
 KERNELAPI void KERNELABI
 ActivateApplicationCore(
-    _In_ SystemCpuCore_t* Core);
+    _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * StartApplicationCore (@arch)
@@ -202,133 +202,133 @@ CpuCoreExitInterrupt(
 
 /**
  * CpuCorePopQueuedIpc
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        The next IPC structure that has been queued, or NULL if none
  */
 KERNELAPI element_t* KERNELABI
 CpuCorePopQueuedIpc(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreQueueIpc
- * @param CpuCore A pointer to a cpu core structure
- * @param Element A pointer to the element header of the IPC message
+ * @param cpuCore A pointer to a cpu core structure
+ * @param element A pointer to the element header of the IPC message
  */
 KERNELAPI void KERNELABI
 CpuCoreQueueIpc(
-        _In_ SystemCpuCore_t*        CpuCore,
-        _In_ SystemCpuFunctionType_t IpcType,
-        _In_ element_t*              Element);
+        _In_ SystemCpuCore_t*        cpuCore,
+        _In_ SystemCpuFunctionType_t functionType,
+        _In_ element_t*              element);
 
 /**
  * CpuCoreId
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        The id of the cpu core instance
  */
 KERNELAPI UUId_t KERNELABI
 CpuCoreId(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreSetState
- * @param CpuCore A pointer to a cpu core structure
- * @param State   The new state of the cpu core
+ * @param cpuCore A pointer to a cpu core structure
+ * @param cpuState   The new state of the cpu core
  */
 KERNELAPI void KERNELABI
 CpuCoreSetState(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ SystemCpuState_t State);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ SystemCpuState_t cpuState);
 
 /**
  * CpuCoreState
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        The current cpu core state
  */
 KERNELAPI SystemCpuState_t KERNELABI
 CpuCoreState(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreNext
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the next cpu core in the cpu
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 CpuCoreNext(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreSetPriority
- * @param CpuCore A pointer to a cpu core structure
- * @param Priority The new priority of the cpu core
+ * @param cpuCore A pointer to a cpu core structure
+ * @param priority The new priority of the cpu core
  */
 KERNELAPI void KERNELABI
 CpuCoreSetPriority(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ int              Priority);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ int              priority);
 
 /**
  * CpuCorePriority
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        The current cpu core priority
  */
 KERNELAPI int KERNELABI
 CpuCorePriority(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreSetCurrentThread
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  */
 KERNELAPI void KERNELABI
 CpuCoreSetCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Thread_t*        Thread);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread);
 
 /**
  * CpuCoreCurrentThread
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the current thread instance
  */
 KERNELAPI Thread_t* KERNELABI
 CpuCoreCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreIdleThread
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the idle thread of the cpu core
  */
 KERNELAPI Thread_t* KERNELABI
 CpuCoreIdleThread(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreScheduler
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the cpu core's scheduler
  */
 KERNELAPI Scheduler_t* KERNELABI
 CpuCoreScheduler(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * CpuCoreSetInterruptContext
- * @param CpuCore A pointer to a cpu core structure
- * @param Context A pointer to the new interrupt context
+ * @param cpuCore A pointer to a cpu core structure
+ * @param context A pointer to the new interrupt context
  */
 KERNELAPI void KERNELABI
 CpuCoreSetInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Context_t*       Context);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Context_t*       context);
 
 /**
  * CpuCoreInterruptContext
- * @param CpuCore A pointer to a cpu core structure
+ * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the current threads interrupt context
  */
 KERNELAPI Context_t* KERNELABI
 CpuCoreInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore);
+        _In_ SystemCpuCore_t* cpuCore);
 
 #endif // !__COMPONENT_CPU__

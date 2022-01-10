@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -27,27 +26,28 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 
-typedef struct Thread Thread_t;
+DECL_STRUCT(Thread);
+DECL_STRUCT(SystemCpuCore);
 
 /**
  * @brief Called whenever a new thread is allocated for the platform to initialize.
  *
- * @param Thread
+ * @param thread
  * @return
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchThreadInitialize(
-    _In_ Thread_t* Thread);
+    _In_ Thread_t* thread);
 
 /**
  * @brief Destroys any resources allocated that the platform needed for the thread.
  *
- * @param Thread
+ * @param thread
  * @return
  */
 KERNELAPI OsStatus_t KERNELABI
 ArchThreadDestroy(
-    _In_ Thread_t* Thread);
+    _In_ Thread_t* thread);
 
 /**
  * @brief Yields the current thread control to the scheduler
@@ -58,20 +58,22 @@ ArchThreadYield(void);
 /**
  * @brief Saves the current state for the thread passed as parameter.
  *
- * @param Thread
+ * @param thread
  */
 KERNELAPI void KERNELABI
 ArchThreadLeave(
-    _In_ Thread_t* Thread);
+    _In_ Thread_t* thread);
 
 /**
  * @brief Restores the thread state to allow the thread to run next.
  *
- * @param Thread
+ * @param[In] cpuCore
+ * @param[In] thread
  */
 KERNELAPI void KERNELABI
 ArchThreadEnter(
-    _In_ Thread_t* Thread);
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread);
 
 /**
  * @brief Creates a new context for a thread, a type and the flags for which

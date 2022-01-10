@@ -31,8 +31,10 @@
 #include <arch/x86/memory.h>
 #include <assert.h>
 #include <debug.h>
+#include <heap.h>
 #include <machine.h>
 #include <os/dmabuf.h>
+#include <string.h>
 
 #if defined(__i386__)
 #include <arch/x86/x32/gdt.h>
@@ -645,24 +647,40 @@ MmuCloneVirtualSpace(
         _In_ int            inherit)
 {
     OsStatus_t osStatus;
-    paddr_t    cr3;
-    vaddr_t    pdir;
+    paddr_t physicalAddress;
+    vaddr_t virtualAddress;
 
-    osStatus = MmVirtualClone(parent, inherit, &cr3, &pdir);
+    osStatus = MmVirtualClone(parent, inherit, &physicalAddress, &virtualAddress);
     if (osStatus != OsSuccess) {
         return osStatus;
     }
     TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", masterAddress, pageMasterTable);
 
     // Update the configuration data for the memory space
-    child->Data[MEMORY_SPACE_CR3]       = cr3;
-    child->Data[MEMORY_SPACE_DIRECTORY] = pdir;
+    child->Data[MEMORY_SPACE_CR3]       = physicalAddress;
+    child->Data[MEMORY_SPACE_DIRECTORY] = virtualAddress;
+
+    // Install the TLS mapping immediately and have it ready for thread switch
+    virtualAddress = MEMORY_LOCATION_TLS_START;
+    osStatus       = MemorySpaceMap(
+            child,
+            &virtualAddress,
+            &physicalAddress,
+            PAGE_SIZE,
+            0,
+            MAPPING_COMMIT,
+            MAPPING_VIRTUAL_FIXED
+    );
+    if (osStatus != OsSuccess) {
+        MmuDestroyVirtualSpace(child);
+        return osStatus;
+    }
 
     // Create new resources for the happy new parent :-)
     if (!parent) {
         child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
         if (!child->Data[MEMORY_SPACE_IOMAP]) {
-            kfree(pageDirectory);
+            MmuDestroyVirtualSpace(child);
             return OsOutOfMemory;
         }
 

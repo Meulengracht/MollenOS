@@ -60,9 +60,6 @@ typedef struct SystemCpuData {
 #define THREAD_DATA_FLAGS               0
 #define THREAD_DATA_MATHBUFFER          1
 
-// Data Flags for threading
-#define X86_THREAD_USEDFPU              0x1
-
 #if defined(i386) || defined(__i386__)
 /**
  * Architecture Memory Layout
@@ -97,17 +94,16 @@ typedef struct SystemCpuData {
  * Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-64 platform in MollenOS 
  * 0x0                =>          0x100000    (Various uses, reserved primarily for bios things)
- * 0x100000           =>          0x200000    (Kernel identity mapping 1 mb)
- * 0x400000          =>           0x401000    (Kernel TLS 4KB)
- * 0x10000000         =>          0x20000000  (Global Access Memory 256 mb)
- * 0x20000000         =>          0xFF000000  (Empty 3.7gb)
- * 0x8000000000       =>          0xFFFFFF0000000000 (Application Memory Space - 260tb)
+ * 0x100000           =>          0x200000    (Kernel identity mapping 1 mb PML4[0]-PDP[0])
+ * 0x10000000         =>          0x20000000  (Kernel Data 256 mb, PML4[0]-PDP[0])
+ * 0x40000000          =>         0x40001000  (Kernel TLS 4KB, PML4[0]-PDP[1])
+ * 0x8000000000       =>          0xFFFFFF0000000000 (Application Memory Space - 260tb PML4[1])
  * 0xFFFFFFFF00000000 =>          0xFFFFFFFFFFFFFFFF (Thread specific region, 16mb)
  */
 #define MEMORY_LOCATION_KERNEL       0x100000ULL    // Kernel Image Space: 1024 kB
-#define MEMORY_LOCATION_TLS_START    0x400000ULL    // Kernel TLS data address
 #define MEMORY_LOCATION_SHARED_START 0x10000000ULL
 #define MEMORY_LOCATION_SHARED_END   0x20000000ULL
+#define MEMORY_LOCATION_TLS_START    0x40000000ULL  // Kernel TLS data address
 
 // Every gigabyte in page size blocks is 131 Kb
 // Every gigabyte in 1mb page blocks is then 512 bytes

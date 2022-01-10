@@ -33,6 +33,7 @@
 #include <component/cpu.h>
 #include <component/timer.h>
 #include <debug.h>
+#include <handle.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <machine.h>
@@ -50,22 +51,37 @@
 #endif
 
 extern const int   __GlbTramplineCode_length;
-extern const char  __GlbTramplineCode[];
-static int         JumpSpaceInitialized = 0;
+extern const char __GlbTramplineCode[];
+static int        g_jumpSpaceInitialized = 0;
 
 void
 SmpApplicationCoreEntry(void)
 {
     SystemCpuCore_t* cpuCore;
+    UUId_t           memorySpace;
+    OsStatus_t       osStatus;
 
-    // Disable interrupts and setup descriptors
+    // Clear out interrupts untill the core is up and running. At this point we are
+    // running in BSP memory space, with BSP's TLS data. We must initialize the core
+    // stuff before building a new "base memoryspace" for this core.
     InterruptDisable();
     GdtInstall();
     IdtInstall();
+    CpuInitializeFeatures();
 
-    // Switch into NUMA memory space if any, otherwise nothing happens
-    SwitchMemorySpace(GetCurrentMemorySpace());
-    InitializeLocalApicForApplicationCore();
+    // Initialize the local apic, so we are ready to receive interrupts, and invoke systems
+    // that rely on being able to retrieve the core id. Again we can do this as we are running
+    // inside the BSPs memory space where the Local Apic address is correctly mapped.
+    ApicInitializeForApplicationCore();
+
+    // Now we need to do a new memory space for this core. We simply create a new memory space
+    // with kernel flags and switch to it.
+    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
+    if (osStatus != OsSuccess) {
+        // failed to boot this core!
+        ArchProcessorHalt();
+    }
+    SwitchMemorySpace(MEMORYSPACE_GET(memorySpace));
 
     // We need to get the appropriate core structure based on the current id of this
     // cpu core. Unlike the boot processor where the structure is stored on the bootstack
@@ -76,8 +92,6 @@ SmpApplicationCoreEntry(void)
         ArchProcessorHalt();
     }
 
-    // Initialize core features, install msrs, gdts/tss and then activate the core
-    CpuInitializeFeatures();
     TssInitialize(0);
     ActivateApplicationCore(cpuCore);
 }
@@ -108,8 +122,8 @@ StartApplicationCore(
     int    timeout;
 
     // Initialize jump space
-    if (!JumpSpaceInitialized) {
-        JumpSpaceInitialized = 1;
+    if (!g_jumpSpaceInitialized) {
+        g_jumpSpaceInitialized = 1;
         InitializeApplicationJumpSpace();
     }
 

@@ -23,12 +23,12 @@
 #define __MODULE "DBGI"
 //#define __TRACE
 
+#include <arch/thread.h>
 #include <arch/utils.h>
+#include <debug.h>
 #include <memoryspace.h>
-#include <interrupts.h>
 #include <machine.h>
 #include <stdio.h>
-#include <debug.h>
 
 OsStatus_t
 DebugSingleStep(

@@ -178,7 +178,7 @@ MmVirtualClone(
     
     memset(pageDirectory, 0, sizeof(PageDirectory_t));
 
-    // Determine parent
+    // determine parent
     if (parent != NULL) {
         parentDirectory = (PageDirectory_t*)parent->Data[MEMORY_SPACE_DIRECTORY];
     }

@@ -150,7 +150,7 @@ GetApicInterruptMode(void);
  * local apic timer, but does not start it.
  */
 KERNELAPI void KERNELABI
-InitializeLocalApicForApplicationCore(void);
+ApicInitializeForApplicationCore(void);
 
 /**
  * @brief Initializes the the local apic timer, using an external timer source

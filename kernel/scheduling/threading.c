@@ -56,8 +56,16 @@ void
 ThreadingEnable(void)
 {
     Thread_t* thread = CpuCoreIdleThread(CpuCoreCurrent());
-    InitializeDefaultThread(thread, "idle", NULL, NULL,
-        THREADING_KERNELMODE | THREADING_IDLE, THREADING_KERNEL_STACK_SIZE, 0);
+
+    InitializeDefaultThread(
+            thread,
+            "idle",
+            NULL,
+            NULL,
+            THREADING_KERNELMODE | THREADING_IDLE,
+            THREADING_KERNEL_STACK_SIZE,
+            0
+    );
     
     // Handle setup of memory space as that is not covered.
     thread->MemorySpace       = GetCurrentMemorySpace();
@@ -92,8 +100,15 @@ ThreadCreate(
         return OsOutOfMemory;
     }
 
-    OsStatus_t status = InitializeDefaultThread(thread, name, entry, arguments,
-                                                flags, kernelMaxStackSize, userMaxStackSize);
+    OsStatus_t status = InitializeDefaultThread(
+            thread,
+            name,
+            entry,
+            arguments,
+            flags,
+            kernelMaxStackSize,
+            userMaxStackSize
+    );
     if (status != OsSuccess) {
         DestroyThread(thread);
         return status;
@@ -627,7 +642,7 @@ GetNextThread:
     // Set next active thread
     if (currentThread != nextThread) {
         CpuCoreSetCurrentThread(core, nextThread);
-        ArchThreadEnter(nextThread);
+        ArchThreadEnter(core, nextThread);
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
@@ -635,7 +650,8 @@ GetNextThread:
 }
 
 // Common entry point for everything
-_Noreturn static void ThreadingEntryPoint(void)
+_Noreturn static void
+ThreadingEntryPoint(void)
 {
     UUId_t    coreId = ArchGetProcessorCoreId();
     Thread_t* thread = ThreadCurrentForCore(coreId);

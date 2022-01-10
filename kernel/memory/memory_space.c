@@ -30,14 +30,9 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
-#include <ddk/barrier.h>
-#include <ds/streambuffer.h>
 #include <debug.h>
-#include <futex.h>
 #include <handle.h>
-#include <handle_set.h>
 #include <heap.h>
-#include <ioset.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <mutex.h>
@@ -72,7 +67,8 @@ typedef struct MemorySpaceContext {
 
 static void DestroyMemorySpace(void* resource);
 
-static void __MemorySyncCallback(
+static void
+__MemorySyncCallback(
     _In_ void* context)
 {
     struct MemorySynchronizationObject* object  = (struct MemorySynchronizationObject*)context;
@@ -90,7 +86,8 @@ static void __MemorySyncCallback(
     atomic_fetch_add(&object->CallsCompleted, 1);
 }
 
-static void __SyncMemoryRegion(
+static void
+__SyncMemoryRegion(
         _In_ MemorySpace_t* memorySpace,
         _In_ uintptr_t      address,
         _In_ size_t         size)
@@ -139,7 +136,8 @@ static void __SyncMemoryRegion(
     }
 }
 
-static OsStatus_t __CreateContext(
+static OsStatus_t
+__CreateContext(
         _In_ MemorySpace_t* memorySpace)
 {
     MemorySpaceContext_t* context = (MemorySpaceContext_t*)kmalloc(sizeof(MemorySpaceContext_t));
@@ -158,7 +156,8 @@ static OsStatus_t __CreateContext(
     return OsSuccess;
 }
 
-static void __CleanupMemoryHandler(
+static void
+__CleanupMemoryHandler(
     _In_ element_t* element,
     _In_ void*      context)
 {
@@ -169,7 +168,8 @@ static void __CleanupMemoryHandler(
     DestroyHandle(handler->Handle); // this frees the handler structure
 }
 
-static void __CleanupMemoryAllocation(
+static void
+__CleanupMemoryAllocation(
         _In_ element_t* element,
         _In_ void*      context)
 {
@@ -180,10 +180,11 @@ static void __CleanupMemoryAllocation(
     kfree(allocation);
 }
 
-static void __DestroyContext(
+static void
+__DestroyContext(
         _In_ MemorySpace_t* memorySpace)
 {
-    if (!memorySpace || !memorySpace->Context) {
+    if (!memorySpace->Context) {
         return;
     }
 
@@ -208,39 +209,72 @@ MemorySpaceInitialize(
     return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
 }
 
+static MemorySpace_t*
+__NewMemorySpace(
+        _In_ unsigned int flags)
+{
+    uintptr_t      threadRegionStart;
+    size_t         threadRegionSize;
+    MemorySpace_t* memorySpace;
+    TRACE("__NewMemorySpace(flags=0x%x)", flags);
+
+    memorySpace = (MemorySpace_t*)kmalloc(sizeof(MemorySpace_t));
+    if (!memorySpace) {
+        return NULL;
+    }
+    memset((void*)memorySpace, 0, sizeof(MemorySpace_t));
+
+    threadRegionStart = GetMachine()->MemoryMap.ThreadLocal.Start;
+    threadRegionSize  = GetMachine()->MemoryMap.ThreadLocal.Length + 1;
+
+    memorySpace->Flags        = flags;
+    memorySpace->ParentHandle = UUID_INVALID;
+    DynamicMemoryPoolConstruct(
+            &memorySpace->ThreadMemory,
+            threadRegionStart,
+            threadRegionSize,
+            GetMemorySpacePageSize()
+    );
+    return memorySpace;
+}
+
 OsStatus_t
 CreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t*      Handle)
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut)
 {
-    // If we want to create a new kernel address
-    // space we instead want to re-use the current 
-    // If kernel is specified, ignore rest 
-    if (Flags == MEMORY_SPACE_INHERIT) {
-        // Inheritance is a bit different, we re-use again
-        // but instead of reusing the kernel, we reuse the current
-        *Handle = GetCurrentMemorySpaceHandle();
+    MemorySpace_t* memorySpace;
+    OsStatus_t     osStatus;
+    TRACE("CreateMemorySpace(flags=0x%x)", flags);
+
+    memorySpace = __NewMemorySpace(flags);
+    if (!memorySpace) {
+        return OsOutOfMemory;
     }
-    else if (Flags & MEMORY_SPACE_APPLICATION) {
-        uintptr_t      threadRegionStart = GetMachine()->MemoryMap.ThreadLocal.Start;
-        size_t         threadRegionSize  = GetMachine()->MemoryMap.ThreadLocal.Length + 1;
-        MemorySpace_t* parent            = NULL;
-        MemorySpace_t* memorySpace;
 
-        memorySpace = (MemorySpace_t*)kmalloc(sizeof(MemorySpace_t));
-        if (!memorySpace) {
-            return OsOutOfMemory;
+    // We must handle two cases here, either we inherit the kernels address-space, or we are
+    // inheritting/creating a new userspace address-space. If we are inheritting the kernel
+    // address-space, we clone it as we still need TLS data-areas in each kernel thread.
+    if (flags == MEMORY_SPACE_INHERIT) {
+        // It doesn't matter which parent we take, they all map the exact same kernel segments
+        // so just pass in the current memory space
+        osStatus = MmuCloneVirtualSpace(
+                GetCurrentMemorySpace(),
+                memorySpace,
+                (flags & MEMORY_SPACE_INHERIT) ? 1 : 0
+        );
+        if (osStatus != OsSuccess) {
+            return osStatus;
         }
-        memset((void*)memorySpace, 0, sizeof(MemorySpace_t));
 
-        memorySpace->Flags        = Flags;
-        memorySpace->ParentHandle = UUID_INVALID;
-        DynamicMemoryPoolConstruct(&memorySpace->ThreadMemory, threadRegionStart,
-                                   threadRegionSize, GetMemorySpacePageSize());
+        *handleOut = GetCurrentMemorySpaceHandle();
+    }
+    else if (flags & MEMORY_SPACE_APPLICATION) {
+        MemorySpace_t* parent = NULL;
 
-        // Parent must be the upper-most instance of the address-space
+        // Parent must be the uppermost instance of the address-space
         // of the process. Only to the point of not having kernel as parent
-        if (Flags & MEMORY_SPACE_INHERIT) {
+        if (flags & MEMORY_SPACE_INHERIT) {
             int i;
             parent = GetCurrentMemorySpace();
             if (parent != GetDomainMemorySpace()) {
@@ -270,14 +304,17 @@ CreateMemorySpace(
         if (memorySpace->ParentHandle == UUID_INVALID) {
             __CreateContext(memorySpace);
         }
-        MmuCloneVirtualSpace(parent, memorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        *Handle = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
+
+        osStatus = MmuCloneVirtualSpace(parent, memorySpace, (flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+
+        *handleOut = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
-    
-    smp_wmb();
     return OsSuccess;
 }
 
@@ -286,6 +323,10 @@ DestroyMemorySpace(
         _In_ void* resource)
 {
     MemorySpace_t* memorySpace = (MemorySpace_t*)resource;
+    if (!memorySpace) {
+        return;
+    }
+
     if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
         DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
         MmuDestroyVirtualSpace(memorySpace);
@@ -347,7 +388,8 @@ AreMemorySpacesRelated(
     return (Space1->Context == Space2->Context) ? OsSuccess : OsError;
 }
 
-static OsStatus_t __CreateAllocation(
+static OsStatus_t
+__CreateAllocation(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         length,
@@ -360,7 +402,7 @@ static OsStatus_t __CreateAllocation(
           memorySpace, address, length, flags);
 
     // We only support allocation tracking for spaces with context
-    if (!memorySpace || !memorySpace->Context) {
+    if (!memorySpace->Context) {
         goto exit;
     }
 
@@ -387,7 +429,8 @@ exit:
     return osStatus;
 }
 
-static vaddr_t __AllocateVirtualMemory(
+static vaddr_t
+__AllocateVirtualMemory(
         _In_ MemorySpace_t* memorySpace,
         _In_ uintptr_t*     virtualAddress,
         _In_ size_t         size,
@@ -512,8 +555,14 @@ MemorySpaceMap(
         return OsInvalidParameters;
     }
 
-    osStatus = ArchMmuSetVirtualPages(memorySpace, virtualBase,
-                                      physicalAddressValues, pageCount, memoryFlags, &pagesUpdated);
+    osStatus = ArchMmuSetVirtualPages(
+            memorySpace,
+            virtualBase,
+            physicalAddressValues,
+            pageCount,
+            memoryFlags,
+            &pagesUpdated
+    );
     if (osStatus != OsSuccess) {
         // Handle cleanup of the pages not mapped
         // TODO
@@ -676,7 +725,8 @@ static OsStatus_t __GetAndVerifyPhysicalMapping(
     return OsSuccess;
 }
 
-static struct MemorySpaceAllocation* __FindAllocation(
+static struct MemorySpaceAllocation*
+__FindAllocation(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address)
 {
@@ -689,13 +739,14 @@ static struct MemorySpaceAllocation* __FindAllocation(
     return NULL;
 }
 
-static struct MemorySpaceAllocation* __AcquireAllocation(
+static struct MemorySpaceAllocation*
+__AcquireAllocation(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        address)
 {
     struct MemorySpaceAllocation* allocation;
 
-    if (!memorySpace || !memorySpace->Context) {
+    if (!memorySpace->Context) {
         return NULL;
     }
 
@@ -708,7 +759,8 @@ static struct MemorySpaceAllocation* __AcquireAllocation(
     return allocation;
 }
 
-static OsStatus_t __ClearPhysicalPages(
+static OsStatus_t
+__ClearPhysicalPages(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         size)
@@ -746,7 +798,8 @@ exit:
     return osStatus;
 }
 
-static OsStatus_t __ReleaseAllocation(
+static OsStatus_t
+__ReleaseAllocation(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         size)
@@ -799,7 +852,8 @@ exit:
     return osStatus;
 }
 
-static void __LinkAllocations(
+static void
+__LinkAllocations(
         _In_ MemorySpace_t*                memorySpace,
         _In_ vaddr_t                       address,
         _In_ struct MemorySpaceAllocation* link)
