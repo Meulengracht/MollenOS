@@ -164,15 +164,15 @@ PS2PortInitialize(
  * require response. */
 __EXTERN OsStatus_t
 PS2PortExecuteCommand(
-    _In_ PS2Port_t* Port,
-    _In_ uint8_t    Command,
-    _In_ uint8_t*   Response);
+    _In_ PS2Port_t* port,
+    _In_ uint8_t    commandValue,
+    _In_ uint8_t*   response);
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
 __EXTERN OsStatus_t
 PS2PortFinishCommand(
-    _In_ PS2Port_t* Port);
+    _In_ PS2Port_t* port);
 
 /* PS2ReadData
  * Reads a byte from the PS2 controller data port */

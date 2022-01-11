@@ -26,14 +26,11 @@
 
 #include <assert.h>
 #include <arch/interrupts.h>
-#include <arch/utils.h>
-#include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
 #include <arch/x86/cpu.h>
 #include <component/cpu.h>
 #include <component/timer.h>
 #include <debug.h>
-#include <handle.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <machine.h>
@@ -57,13 +54,8 @@ static int        g_jumpSpaceInitialized = 0;
 void
 SmpApplicationCoreEntry(void)
 {
-    SystemCpuCore_t* cpuCore;
-    UUId_t           memorySpace;
-    OsStatus_t       osStatus;
-
     // Clear out interrupts untill the core is up and running. At this point we are
-    // running in BSP memory space, with BSP's TLS data. We must initialize the core
-    // stuff before building a new "base memoryspace" for this core.
+    // running in BSP memory space, with BSP's TLS data.
     InterruptDisable();
     GdtInstall();
     IdtInstall();
@@ -74,26 +66,12 @@ SmpApplicationCoreEntry(void)
     // inside the BSPs memory space where the Local Apic address is correctly mapped.
     ApicInitializeForApplicationCore();
 
-    // Now we need to do a new memory space for this core. We simply create a new memory space
-    // with kernel flags and switch to it.
-    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
-    if (osStatus != OsSuccess) {
-        // failed to boot this core!
-        ArchProcessorHalt();
-    }
-    SwitchMemorySpace(MEMORYSPACE_GET(memorySpace));
-
-    // We need to get the appropriate core structure based on the current id of this
-    // cpu core. Unlike the boot processor where the structure is stored on the bootstack
-    // additional cores have their structures allocated on the heap.
-    cpuCore = GetProcessorCore(ArchGetProcessorCoreId());
-    if (!cpuCore) {
-        // failed to boot this core!
-        ArchProcessorHalt();
-    }
-
-    TssInitialize(0);
-    ActivateApplicationCore(cpuCore);
+    // We are now loaded up enough to run the shared setup. The shared setup calls functions
+    // in this order:
+    // Creates new memory space
+    // Initializes threading
+    // Enables interrupts
+    CpuCoreStart();
 }
 
 static void
@@ -102,13 +80,13 @@ InitializeApplicationJumpSpace(void)
     uint64_t* codePointer = (uint64_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length);
     uint64_t  entryCode     = (uint64_t)SmpApplicationCoreEntry;
     int       numberOfCores = atomic_load(&GetMachine()->NumberOfCores);
-    void*     stackSpace    = kmalloc((numberOfCores - 1) * 0x1000);
+    void*     stackSpace    = kmalloc((numberOfCores - 1) * THREADING_KERNEL_STACK_SIZE);
 
     TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (numberOfCores - 1));
     assert(stackSpace != NULL);
 
     *(codePointer - 1) = entryCode;
-    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
+    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->PlatfromData.Cr3PhysicalAddress;
     *(codePointer - 3) = (uint64_t)stackSpace + 0x1000;
     *(codePointer - 4) = 0x1000ULL;
     memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);

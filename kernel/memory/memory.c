@@ -23,7 +23,6 @@
 #include <assert.h>
 #include <arch/mmu.h>
 #include <ddk/io.h>
-#include <ddk/utils.h>
 #include <debug.h>
 #include <heap.h>
 #include <machine.h>

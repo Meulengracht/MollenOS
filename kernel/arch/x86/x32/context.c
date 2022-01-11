@@ -72,7 +72,7 @@
 // context, for handling signals this is effective.
 
 static void
-PushRegister(
+__PushRegister(
 	_In_ uintptr_t* StackReference,
 	_In_ uintptr_t  Value)
 {
@@ -81,7 +81,7 @@ PushRegister(
 }
 
 static void
-PushContextOntoStack(
+__PushContextOntoStack(
 	_In_ uintptr_t* StackReference,
     _In_ Context_t* Context)
 {
@@ -92,7 +92,7 @@ PushContextOntoStack(
 }
 
 void
-ContextPushInterceptor(
+ArchThreadContextPushInterceptor(
     _In_ Context_t* Context,
     _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
@@ -108,16 +108,16 @@ ContextPushInterceptor(
 	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
 	if (!TemporaryStack) {
-		PushRegister(&Context->UserEsp, Context->Eip);
+        __PushRegister(&Context->UserEsp, Context->Eip);
 		
 		NewStackPointer = Context->UserEsp;
-		PushContextOntoStack(&NewStackPointer, Context);
+        __PushContextOntoStack(&NewStackPointer, Context);
 	}
 	else {
 		NewStackPointer = TemporaryStack;
-		
-		PushRegister(&Context->UserEsp, Context->Eip);
-		PushContextOntoStack(&NewStackPointer, Context);
+
+        __PushRegister(&Context->UserEsp, Context->Eip);
+        __PushContextOntoStack(&NewStackPointer, Context);
 	}
 
 	// Store all information provided, and 
@@ -133,7 +133,7 @@ ContextPushInterceptor(
 }
 
 void
-ContextReset(
+ArchThreadContextReset(
     _In_ Context_t* context,
     _In_ int        contextType,
     _In_ uintptr_t  address,
@@ -187,7 +187,7 @@ ContextReset(
 }
 
 Context_t*
-ContextCreate(
+ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
@@ -235,7 +235,7 @@ ContextCreate(
 }
 
 void
-ContextDestroy(
+ArchThreadContextDestroy(
         _In_ Context_t* context,
         _In_ int        contextType,
         _In_ size_t     contextSize)

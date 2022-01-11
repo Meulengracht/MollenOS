@@ -38,27 +38,31 @@
 #endif
 #define MAX_SUPPORTED_INTERRUPTS        256
 
-typedef struct SystemCpuData {
+typedef struct PlatformCpuBlock {
     uint32_t MaxLevel;
     uint32_t MaxLevelExtended;
     uint32_t EcxFeatures;
     uint32_t EdxFeatures;
-} SystemCpuData_t;
+} PlatformCpuBlock_t;
 
-/* MemorySpace (Data) Definitions
- * Definitions, bit definitions and magic constants for address spaces */
-#define MEMORY_SPACE_CR3                0
-#define MEMORY_SPACE_DIRECTORY          1
-#define MEMORY_SPACE_IOMAP              2
+typedef struct PlatformCpuCoreBlock {
+    void* Tss;
+} PlatformCpuCoreBlock_t;
+
+typedef struct PlatformThreadBlock {
+    unsigned int Flags;
+    void*        MathBuffer;
+} PlatformThreadBlock_t;
+
+typedef struct PlatformMemoryBlock {
+    uintptr_t Cr3PhysicalAddress;
+    uintptr_t Cr3VirtualAddress;
+    void*     TssIoMap;
+} PlatformMemoryBlock_t;
 
 #ifndef GDT_IOMAP_SIZE
-#define GDT_IOMAP_SIZE                  ((0xFFFF / 8) + 1)
+#define GDT_IOMAP_SIZE ((0xFFFF / 8) + 1)
 #endif
-
-/* Threading (Data) Definitions
- * Definitions, bit definitions and magic constants for threads */
-#define THREAD_DATA_FLAGS               0
-#define THREAD_DATA_MATHBUFFER          1
 
 #if defined(i386) || defined(__i386__)
 /**
@@ -125,9 +129,6 @@ typedef struct SystemCpuData {
 #define MEMORY_MASK_2GB   0x7FFFFFFF         // Below 2gb for broken 32bit drivers
 #define MEMORY_MASK_32BIT 0xFFFFFFFF         // Below 4gb for 32 bit drivers
 #define MEMORY_MASK_64BIT 0xFFFFFFFFFFFFFFFF // 64 bit
-
-// Special addresses must be between 0x11000000 -> 0x11001000
-#define MEMORY_LOCATION_SIGNAL_RET 0x110000DE // Signal return address
 
 // Task priorities go from (0x0 => 0x60)
 // Software interrupt vectors (0x60 => 0x90)

@@ -184,9 +184,9 @@ ArchMmuSwitchMemorySpace(
     _In_ MemorySpace_t* memorySpace)
 {
     assert(memorySpace != NULL);
-    assert(memorySpace->Data[MEMORY_SPACE_CR3] != 0);
-    assert(memorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
-    memory_load_cr3(memorySpace->Data[MEMORY_SPACE_CR3]);
+    assert(memorySpace->PlatfromData.Cr3PhysicalAddress != 0);
+    assert(memorySpace->PlatfromData.Cr3VirtualAddress != 0);
+    memory_load_cr3(memorySpace->PlatfromData.Cr3PhysicalAddress);
 }
 
 OsStatus_t
@@ -639,6 +639,23 @@ ArchMmuVirtualToPhysical(
     return status;
 }
 
+static OsStatus_t
+__InitializePlatformMemoryData(
+        _In_ MemorySpace_t* memorySpace)
+{
+    memorySpace->PlatfromData.TssIoMap = kmalloc(GDT_IOMAP_SIZE);
+    if (!memorySpace->PlatfromData.TssIoMap) {
+        return OsOutOfMemory;
+    }
+
+    if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+        memset(memorySpace->PlatfromData.TssIoMap, 0xFF, GDT_IOMAP_SIZE);
+    }
+    else {
+        memset(memorySpace->PlatfromData.TssIoMap, 0, GDT_IOMAP_SIZE);
+    }
+    return OsSuccess;
+}
 
 OsStatus_t
 MmuCloneVirtualSpace(
@@ -647,18 +664,18 @@ MmuCloneVirtualSpace(
         _In_ int            inherit)
 {
     OsStatus_t osStatus;
-    paddr_t physicalAddress;
-    vaddr_t virtualAddress;
+    paddr_t    physicalAddress;
+    vaddr_t    virtualAddress;
 
     osStatus = MmVirtualClone(parent, inherit, &physicalAddress, &virtualAddress);
     if (osStatus != OsSuccess) {
         return osStatus;
     }
-    TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", masterAddress, pageMasterTable);
+    TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", physicalAddress, virtualAddress);
 
     // Update the configuration data for the memory space
-    child->Data[MEMORY_SPACE_CR3]       = physicalAddress;
-    child->Data[MEMORY_SPACE_DIRECTORY] = virtualAddress;
+    child->PlatfromData.Cr3PhysicalAddress = physicalAddress;
+    child->PlatfromData.Cr3VirtualAddress  = virtualAddress;
 
     // Install the TLS mapping immediately and have it ready for thread switch
     virtualAddress = MEMORY_LOCATION_TLS_START;
@@ -678,17 +695,10 @@ MmuCloneVirtualSpace(
 
     // Create new resources for the happy new parent :-)
     if (!parent) {
-        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (!child->Data[MEMORY_SPACE_IOMAP]) {
+        osStatus = __InitializePlatformMemoryData(child);
+        if (osStatus != OsSuccess) {
             MmuDestroyVirtualSpace(child);
-            return OsOutOfMemory;
-        }
-
-        if (child->Flags & MEMORY_SPACE_APPLICATION) {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
-        }
-        else {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+            return osStatus;
         }
     }
     return OsSuccess;
@@ -701,7 +711,8 @@ SetDirectIoAccess(
         _In_ uint16_t       port,
         _In_ int            enable)
 {
-    uint8_t* ioMap = (uint8_t*)memorySpace->Data[MEMORY_SPACE_IOMAP];
+    SystemCpuCore_t* cpuCore = CpuCoreCurrent();
+    uint8_t*         ioMap   = (uint8_t*)memorySpace->PlatfromData.TssIoMap;
     if (!ioMap) {
         return OsInvalidParameters;
     }
@@ -709,14 +720,14 @@ SetDirectIoAccess(
     // Update thread's io-map and the active access
     if (enable) {
         ioMap[port / 8] &= ~(1 << (port % 8));
-        if (coreId == ArchGetProcessorCoreId()) {
-            TssEnableIo(coreId, port);
+        if (coreId == CpuCoreId(cpuCore)) {
+            TssEnableIo(CpuCorePlatformBlock(cpuCore), port);
         }
     }
     else {
         ioMap[port / 8] |= (1 << (port % 8));
-        if (coreId == ArchGetProcessorCoreId()) {
-            TssDisableIo(coreId, port);
+        if (coreId == CpuCoreId(cpuCore)) {
+            TssDisableIo(CpuCorePlatformBlock(cpuCore), port);
         }
     }
     return OsSuccess;
@@ -753,7 +764,7 @@ __InstallFirmwareMapping(
         attributes |= PAGE_GLOBAL;
     }
 
-    directory = (PAGE_MASTER_LEVEL*)memorySpace->Data[MEMORY_SPACE_CR3];
+    directory = (PAGE_MASTER_LEVEL*)memorySpace->PlatfromData.Cr3PhysicalAddress;
     while (pageCount) {
         pageTable = MmBootGetPageTable(directory, virtualBase);
         if (!pageTable) {
@@ -987,12 +998,12 @@ MmuLoadKernel(
 
     // Create the system kernel virtual memory space, this call identity maps all
     // memory allocated by AllocateBootMemory, and also allocates some itself
-    MmuPrepareKernel();
+    MmBootPrepareKernel();
 
     // Update the configuration data for the memory space
-    memorySpace->Data[MEMORY_SPACE_CR3]       = g_kernelcr3;
-    memorySpace->Data[MEMORY_SPACE_DIRECTORY] = g_kernelpd;
-    memorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
+    memorySpace->PlatfromData.Cr3PhysicalAddress = g_kernelcr3;
+    memorySpace->PlatfromData.Cr3VirtualAddress  = g_kernelpd;
+    memorySpace->PlatfromData.TssIoMap           = NULL;        // fill this in later when we allocate tss
 
     // store the physical base of the stack
     stackPhysical = (uintptr_t)bootInformation->Stack.Base;

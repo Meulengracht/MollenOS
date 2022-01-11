@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -52,6 +50,8 @@ typedef struct SystemCpuCore {
     uint32_t         InterruptPriority;
 
     struct SystemCpuCore* Link;
+
+    PlatformCpuCoreBlock_t PlatformData;
 } SystemCpuCore_t;
 
 #endif //__VALI_CPU_PRIVATE_H__

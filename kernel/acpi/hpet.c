@@ -133,10 +133,10 @@ HpReadMainCounter(
         HP_READ_32(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->QuadPart);
     }
 #else
-    if (HpetController.Is64Bit) {
+    if (g_hpet.Is64Bit) {
         // This requires us to synchronize with the upper 32 bits from each read to ensure
         // we don't encounter a rollover. Keep a direct pointer for more convenient reading
-        volatile reg32_t *Register = (volatile reg32_t*)(HpetController.BaseAddress + HPET_REGISTER_MAINCOUNTER);
+        volatile reg32_t *Register = (volatile reg32_t*)(g_hpet.BaseAddress + HPET_REGISTER_MAINCOUNTER);
         do {
             Value->u.HighPart = *(Register + 1);
             Value->u.LowPart  = *Register;

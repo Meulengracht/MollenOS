@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
  * Interrupt Interface
  * - Contains the shared kernel interrupt interface
  *   that all sub-layers must conform to
@@ -26,8 +23,8 @@
 #define __MODULE "IRQS"
 //#define __TRACE
 
+#include <arch/thread.h>
 #include <arch/utils.h>
-#include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <assert.h>
 #include <component/cpu.h>

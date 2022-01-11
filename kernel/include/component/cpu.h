@@ -32,23 +32,16 @@
 #ifndef __COMPONENT_CPU__
 #define __COMPONENT_CPU__
 
-#include <os/osdefs.h>
+#include <arch/platform.h>
 #include <ds/queue.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
 
-#if defined(__i386__) || defined(__amd64__)
-#include <arch/x86/arch.h>
-#else
-#warning "no cpu data exists for current architecture"
-#define __VALI_NO_CPU_DATA
-#endif
-
+#define __CPU_MAX_COUNT 256
 
 typedef void(*TxuFunction_t)(void*);
-
-typedef struct SystemCpuCore SystemCpuCore_t;
+DECL_STRUCT(SystemCpuCore);
 
 typedef enum SystemCpuState {
     CpuStateUnavailable     = 0x0U,
@@ -73,14 +66,12 @@ typedef struct TxuMessage {
 } TxuMessage_t;
 
 typedef struct SystemCpu {
-    char              Vendor[16];     // zero terminated string
-    char              Brand[64];      // zero terminated string
-    int               NumberOfCores;  // always minimum 1
-    SystemCpuCore_t*  Cores;
-    struct SystemCpu* Link;
-#ifndef __VALI_NO_CPU_DATA
-    SystemCpuData_t   Data;
-#endif
+    char               Vendor[16];     // zero terminated string
+    char               Brand[64];      // zero terminated string
+    int                NumberOfCores;  // always minimum 1
+    SystemCpuCore_t*   Cores;
+    struct SystemCpu*  Link;
+    PlatformCpuBlock_t PlatformData;
 } SystemCpu_t;
 
 #define SYSTEM_CPU_INIT { { 0 }, { 0 }, 0, NULL, NULL }
@@ -98,34 +89,30 @@ CpuInitializePlatform(
         _In_ SystemCpuCore_t* core);
 
 /**
- * EnableMultiProcessoringMode
- * * If multiple cores are present this will boot them up. If multiple domains are present
- * * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. 
+ * @brief If multiple cores are present this will boot them up. If multiple domains are present
+ * it will boot all primary cores in each domain, then boot up rest of cores in our own domain.
  */
 KERNELAPI void KERNELABI
-EnableMultiProcessoringMode(void);
+CpuEnableMultiProcessorMode(void);
 
 /**
- * RegisterApplicationCore
- * Registers a new cpu application core for the given cpu. The core count and the
+ * @brief Registers a new cpu application core for the given cpu. The core count and the
  * application-core will be initialized on first call to this function. This also allocates a 
  * new instance of the cpu-core.
  */
 KERNELAPI void KERNELABI
-RegisterApplicationCore(
+CpuCoreRegister(
     _In_ SystemCpu_t*     cpu,
     _In_ UUId_t           coreId,
     _In_ SystemCpuState_t initialState,
     _In_ int              external);
 
 /**
- * ActivateApplicationCore
- * Activates the given core and prepares it for usage. This sets up a new 
+ * @brief Activates the given core and prepares it for usage. This sets up a new
  * scheduler and initializes a new idle thread. This function does never return.
  */
 KERNELAPI void KERNELABI
-ActivateApplicationCore(
-    _In_ SystemCpuCore_t* cpuCore);
+CpuCoreStart(void);
 
 /**
  * StartApplicationCore (@arch)
@@ -170,7 +157,7 @@ ProcessorMessageSend(
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetProcessorCore(
-    _In_ UUId_t CoreId);
+    _In_ UUId_t coreId);
 
 /**
  * CpuCoreCurrent
@@ -249,12 +236,23 @@ CpuCoreState(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreNext
+ * @brief Retrieves the next core link. Can be used to iterate through cores on a processor.
+ *
  * @param cpuCore A pointer to a cpu core structure
  * @return        A pointer to the next cpu core in the cpu
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 CpuCoreNext(
+        _In_ SystemCpuCore_t* cpuCore);
+
+/**
+ * @brief Retrieves the platform specific core data block
+ *
+ * @param[In] cpuCore A pointer to a cpu core structure
+ * @return    A pointer to the platform cpu core block structure.
+ */
+KERNELAPI PlatformCpuCoreBlock_t* KERNELABI
+CpuCorePlatformBlock(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**

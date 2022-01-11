@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
  * x86-32 Descriptor Table
  * - Global Descriptor Table
  * - Task State Segment 
@@ -24,21 +22,19 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <arch/x86/x32/gdt.h>
-#include <arch/utils.h>
 #include <assert.h>
-#include <string.h>
+#include <component/cpu.h>
 #include <heap.h>
+#include <string.h>
 
 extern void TssInstall(int gdtIndex);
 
-GdtObject_t __GdtTableObject; // Don't make static, used in asm
-static GdtDescriptor_t  g_descriptors[GDT_MAX_DESCRIPTORS] = { { 0 } };
-static TssDescriptor_t* g_tssTable[GDT_MAX_TSS]            = { 0 };
-static TssDescriptor_t  g_bootTss                          = { 0 };
-static _Atomic(int)     g_gdtIndex                         = ATOMIC_VAR_INIT(0);
+GdtObject_t            __GdtTableObject; // Don't make static, used in asm
+static GdtDescriptor_t g_descriptors[GDT_MAX_DESCRIPTORS] = { { 0 } };
+static _Atomic(int)    g_gdtIndex                         = ATOMIC_VAR_INIT(0);
 
 static int
-GdtInstallDescriptor(
+__InstallDescriptor(
     _In_ uint32_t segmentBase,
     _In_ uint32_t segmentSize,
     _In_ uint8_t  permissions,
@@ -65,15 +61,15 @@ GdtInitialize(void)
 	__GdtTableObject.Base   = (uint32_t)&g_descriptors[0];
 
 	// Install NULL descriptor
-	GdtInstallDescriptor(0, 0, 0, 0);
+    __InstallDescriptor(0, 0, 0, 0);
 
 	// Kernel segments
 	// Kernel segments span the entire virtual address space from 0 -> 0xFFFFFFFF
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT / PAGE_SIZE,
-                         GDT_RING0_CODE, GDT_GRANULARITY_4KB);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT,
-                         GDT_RING0_DATA, GDT_GRANULARITY_4KB);
-    GdtInstallDescriptor(
+    __InstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT / PAGE_SIZE,
+                        GDT_RING0_CODE, GDT_GRANULARITY_4KB);
+    __InstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT,
+                        GDT_RING0_DATA, GDT_GRANULARITY_4KB);
+    __InstallDescriptor(
             MEMORY_LOCATION_TLS_START,
             (MEMORY_SEGMENT_TLS_SIZE - 1) / PAGE_SIZE,
             GDT_RING0_DATA, GDT_GRANULARITY_4KB
@@ -81,114 +77,131 @@ GdtInitialize(void)
 
 	// Application segments
     // Applications are not allowed full access of addressing space
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
-                         GDT_RING3_CODE, GDT_GRANULARITY_4KB);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,
-                         GDT_RING3_DATA, GDT_GRANULARITY_4KB);
-	GdtInstallDescriptor(
+    __InstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
+                        GDT_RING3_CODE, GDT_GRANULARITY_4KB);
+    __InstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,
+                        GDT_RING3_DATA, GDT_GRANULARITY_4KB);
+    __InstallDescriptor(
             MEMORY_SEGMENT_TLS_BASE,
             (MEMORY_SEGMENT_TLS_SIZE - 1) / PAGE_SIZE,
             GDT_RING3_DATA, GDT_GRANULARITY_4KB
     );
-
-	// Prepare gdt and tss for boot cpu
 	GdtInstall();
-	TssInitialize(1);
 }
 
-void
+OsStatus_t
 TssInitialize(
-        _In_ int bsp)
+        _In_ PlatformCpuCoreBlock_t* coreBlock)
 {
-	uint32_t tssBase;
-	uint32_t tssLimit;
-    UUId_t   coreId = ArchGetProcessorCoreId();
+    MemorySpace_t*   memorySpace;
+    TssDescriptor_t* tssDescriptor;
+	uint32_t         tssBase;
+	uint32_t         tssLimit;
 
-	// If we use the static allocator, it must be the boot cpu
-	if (bsp) {
-        g_tssTable[coreId] = &g_bootTss;
-	}
-	else {
-		assert(coreId < GDT_MAX_TSS);
-        g_tssTable[coreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
-	}
+    assert(coreBlock != NULL);
+
+    coreBlock->Tss = kmalloc(sizeof(TssDescriptor_t));
+    if (!coreBlock->Tss) {
+        return OsOutOfMemory;
+    }
+
+    tssDescriptor = coreBlock->Tss;
 
 	// Initialize descriptor by zeroing and set default members
-	memset(g_tssTable[coreId], 0, sizeof(TssDescriptor_t));
-    tssBase  = (uint32_t)g_tssTable[coreId];
+	memset(tssDescriptor, 0, sizeof(TssDescriptor_t));
+    tssBase  = (uint32_t)tssDescriptor;
     tssLimit = tssBase + sizeof(TssDescriptor_t);
 
 	// Setup TSS initial ring0 stack information
 	// this will be filled out properly later by scheduler
-	g_tssTable[coreId]->Ss0 = GDT_KDATA_SEGMENT;
-    g_tssTable[coreId]->Ss2 = GDT_RING3_DATA + 0x03;
+	tssDescriptor->Ss0 = GDT_KDATA_SEGMENT;
+    tssDescriptor->Ss2 = GDT_RING3_DATA + 0x03;
 	
 	// Set initial segment information (Ring0)
-	g_tssTable[coreId]->Cs        = GDT_KCODE_SEGMENT;
-    g_tssTable[coreId]->Ss        = GDT_KDATA_SEGMENT;
-    g_tssTable[coreId]->Ds        = GDT_KDATA_SEGMENT;
-    g_tssTable[coreId]->Es        = GDT_KDATA_SEGMENT;
-    g_tssTable[coreId]->Fs        = GDT_KTLS_SEGMENT;
-    g_tssTable[coreId]->Gs        = GDT_KTLS_SEGMENT;
-    g_tssTable[coreId]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+	tssDescriptor->Cs        = GDT_KCODE_SEGMENT;
+    tssDescriptor->Ss        = GDT_KDATA_SEGMENT;
+    tssDescriptor->Ds        = GDT_KDATA_SEGMENT;
+    tssDescriptor->Es        = GDT_KDATA_SEGMENT;
+    tssDescriptor->Fs        = GDT_KTLS_SEGMENT;
+    tssDescriptor->Gs        = GDT_KTLS_SEGMENT;
+    tssDescriptor->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+
+    // The core might be missing the io-map, so update it now
+    memorySpace = GetCurrentMemorySpace();
+    if (memorySpace && !memorySpace->PlatfromData.TssIoMap) {
+        memorySpace->PlatfromData.TssIoMap = &tssDescriptor->IoMap[0];
+    }
 
 	// Install TSS into table and hardware
 	TssInstall(
-            GdtInstallDescriptor(
+            __InstallDescriptor(
                     tssBase,
                     tssLimit,
                     GDT_TSS_ENTRY,
                     0x00
             )
     );
+    return OsSuccess;
 }
 
 void
 TssUpdateThreadStack(
-    _In_ UUId_t    coreId,
-    _In_ uintptr_t stackAddress)
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uintptr_t               stackAddress)
 {
-    assert(g_tssTable[coreId] != NULL);
-    g_tssTable[coreId]->Esp0 = stackAddress;
-}
+    TssDescriptor_t* tssDescriptor;
+    assert(coreBlock != NULL);
 
-uintptr_t
-TssGetBootIoSpace(void)
-{
-	return (uintptr_t)&g_tssTable[ArchGetProcessorCoreId()]->IoMap[0];
+    tssDescriptor = coreBlock->Tss;
+    assert(tssDescriptor != NULL);
+
+    tssDescriptor->Esp0 = stackAddress;
 }
 
 void
 TssUpdateIo(
-    _In_ UUId_t   Cpu,
-    _In_ uint8_t* IoMap)
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint8_t*                ioMap)
 {
-    assert(g_tssTable[Cpu] != NULL);
-	memcpy(&g_tssTable[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
+    TssDescriptor_t* tssDescriptor;
+    assert(coreBlock != NULL);
+
+    tssDescriptor = coreBlock->Tss;
+    assert(tssDescriptor != NULL);
+
+    memcpy(&tssDescriptor->IoMap[0], ioMap, GDT_IOMAP_SIZE);
 }
 
 void
 TssEnableIo(
-    _In_ UUId_t   Cpu,
-    _In_ uint16_t Port)
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint16_t                port)
 {
-	size_t  Block  = Port / 8;
-	size_t  Offset = Port % 8;
-	uint8_t Bit    = (1u << Offset);
-	
-    assert(g_tssTable[Cpu] != NULL);
-    g_tssTable[Cpu]->IoMap[Block] &= ~(Bit);
+    TssDescriptor_t* tssDescriptor;
+	size_t           block  = port / 8;
+	size_t           offset = port % 8;
+	uint8_t          bit    = (1u << offset);
+
+    assert(coreBlock != NULL);
+
+    tssDescriptor = coreBlock->Tss;
+    assert(tssDescriptor != NULL);
+    tssDescriptor->IoMap[block] &= ~(bit);
 }
 
 void
 TssDisableIo(
-    _In_ UUId_t   Cpu,
-    _In_ uint16_t Port)
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint16_t                port)
 {
-	size_t  Block  = Port / 8;
-	size_t  Offset = Port % 8;
-	uint8_t Bit    = (1u << Offset);
-	
-    assert(g_tssTable[Cpu] != NULL);
-    g_tssTable[Cpu]->IoMap[Block] |= (Bit);
+    TssDescriptor_t* tssDescriptor;
+    size_t           block  = port / 8;
+    size_t           offset = port % 8;
+    uint8_t          bit    = (1u << offset);
+
+    assert(coreBlock != NULL);
+
+    tssDescriptor = coreBlock->Tss;
+    assert(tssDescriptor != NULL);
+    tssDescriptor->IoMap[block] |= (bit);
 }

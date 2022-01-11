@@ -128,16 +128,16 @@ ArchPlatformInitialize(
     //chip_ID = APIC_ID & ~( (1 << (logical_CPU_bits+core_bits) ) -1)
 
     // Store cpu-id level and store the cpu vendor
-    cpu->Data.MaxLevel = cpuRegisters[0];
+    cpu->PlatformData.MaxLevel = cpuRegisters[0];
     memcpy(&cpu->Vendor[0], &cpuRegisters[1], 4);
     memcpy(&cpu->Vendor[4], &cpuRegisters[3], 4);
     memcpy(&cpu->Vendor[8], &cpuRegisters[2], 4);
 
     // Does it support retrieving features?
-    if (cpu->Data.MaxLevel >= 1) {
+    if (cpu->PlatformData.MaxLevel >= 1) {
         __get_cpuid(1, cpuRegisters);
-        cpu->Data.EcxFeatures = cpuRegisters[2];
-        cpu->Data.EdxFeatures = cpuRegisters[3];
+        cpu->PlatformData.EcxFeatures = cpuRegisters[2];
+        cpu->PlatformData.EdxFeatures = cpuRegisters[3];
         if (cpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
             cpu->NumberOfCores = (int)((cpuRegisters[1] >> 16) & 0xFF);
             core->Id           = (cpuRegisters[1] >> 24) & 0xFF;
@@ -158,8 +158,8 @@ ArchPlatformInitialize(
     __get_cpuid(0x80000000, cpuRegisters);
 
     // Extract the processor brand string if it's supported
-    cpu->Data.MaxLevelExtended = cpuRegisters[0];
-    if (cpu->Data.MaxLevelExtended >= 0x80000004) {
+    cpu->PlatformData.MaxLevelExtended = cpuRegisters[0];
+    if (cpu->PlatformData.MaxLevelExtended >= 0x80000004) {
         __get_cpuid(0x80000002, cpuRegisters); // First 16 bytes
         memcpy(&temporaryBrand[0], &cpuRegisters[0], 16);
         __get_cpuid(0x80000003, cpuRegisters); // Middle 16 bytes
@@ -252,14 +252,14 @@ CpuHasFeatures(
 {
 	// Check ECX features @todo multiple cpus
 	if (ecx != 0) {
-		if ((GetMachine()->Processor.Data.EcxFeatures & ecx) != ecx) {
+		if ((GetMachine()->Processor.PlatformData.EcxFeatures & ecx) != ecx) {
 			return OsError;
 		}
 	}
 
 	// Check EDX features @todo multiple cpus
 	if (edx != 0) {
-		if ((GetMachine()->Processor.Data.EdxFeatures & edx) != edx) {
+		if ((GetMachine()->Processor.PlatformData.EdxFeatures & edx) != edx) {
 			return OsError;
 		}
 	}

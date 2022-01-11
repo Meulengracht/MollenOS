@@ -25,6 +25,7 @@
 #define _GDT_H_
 
 #include <os/osdefs.h>
+#include <arch/x86/arch.h>
 
 /* Customization of TSS and GDT entry limits
  * we allow for 16 gdt descriptors and tss descriptors 
@@ -165,50 +166,59 @@ GdtInstall(void);
 /**
  * @brief Installs a TSS descriptor for the calling core.
  *
- * @param[In] bsp If set, this is the BSP
+ * @param[In] coreBlock The platform data block for the cpu core.
+ * @return    The status of the initialization.
+ */
+KERNELAPI OsStatus_t KERNELABI
+TssInitialize(
+        _In_ PlatformCpuCoreBlock_t* coreBlock);
+
+/**
+ * @brief Updates the kernel/interrupt stack for the current cpu tss entry,
+ * this should be updated at each task-switch
+ *
+ * @param[In] coreBlock    The platform data block for the cpu core.
+ * @param[In] stackAddress
  */
 KERNELAPI void KERNELABI
-TssInitialize(
-    _In_ int bsp);
-
-/* TssUpdateThreadStack
- * Updates the kernel/interrupt stack for the current
- * cpu tss entry, this should be updated at each task-switch */
-KERNELAPI void KERNELABI
 TssUpdateThreadStack(
-    _In_ UUId_t     coreId,
-    _In_ uintptr_t  stackAddress);
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uintptr_t               stackAddress);
 
-/* TssGetBootIoSpace
- * Retrieves the boot-io bitmap space for the kernel threads. */
-KERNELAPI uintptr_t KERNELABI
-TssGetBootIoSpace(void);
-
-/* TssUpdateIo
- * Updates the io-map for the current runinng task, should
- * be updated each time there is a task-switch to reflect
- * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
+/**
+ * @brief Updates the io-map for the current runinng task, should be updated each time there
+ * is a task-switch to reflect io-privs. Iomap given must be length GDT_IOMAP_SIZE
+ *
+ * @param[In] coreBlock
+ * @param[In] ioMap
+ */
 KERNELAPI void KERNELABI
 TssUpdateIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint8_t*   IoMap);
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint8_t*                ioMap);
 
-/* TssEnableIo
- * Enables the given port in the given io-map, also updates
- * the change into the current tss for the given cpu to 
- * reflect the port-ownership instantly */
+/**
+ * @brief Enables the given port in the given io-map, also updates the change into the
+ * current tss for the given cpu to reflect the port-ownership instantly
+ *
+ * @param[In] coreBlock
+ * @param[In] port
+ */
 KERNELAPI void KERNELABI
 TssEnableIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port);
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint16_t                port);
 
-/* TssDisableIo
- * Disables the given port in the given io-map, also updates
- * the change into the current tss for the given cpu to 
- * reflect the port-ownership instantly */
+/**
+ * @brief Disables the given port in the given io-map, also updates the change into the
+ * current tss for the given cpu to reflect the port-ownership instantly
+ *
+ * @param[In] coreBlock
+ * @param[In] port
+ */
 KERNELAPI void KERNELABI
 TssDisableIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port);
+        _In_ PlatformCpuCoreBlock_t* coreBlock,
+        _In_ uint16_t                port);
 
 #endif //!_GDT_H_

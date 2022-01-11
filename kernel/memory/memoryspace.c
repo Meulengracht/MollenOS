@@ -59,7 +59,6 @@ struct MemorySynchronizationObject {
 // one per thread group [process]
 typedef struct MemorySpaceContext {
     DynamicMemoryPool_t Heap;
-    list_t              MemoryHandlers;
     list_t              Allocations;
     uintptr_t           SignalHandler;
     Mutex_t             SyncObject;
@@ -149,23 +148,10 @@ __CreateContext(
     DynamicMemoryPoolConstruct(&context->Heap, GetMachine()->MemoryMap.UserHeap.Start,
                                GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
     list_construct(&context->Allocations);
-    list_construct(&context->MemoryHandlers);
     context->SignalHandler = 0;
 
     memorySpace->Context = context;
     return OsSuccess;
-}
-
-static void
-__CleanupMemoryHandler(
-    _In_ element_t* element,
-    _In_ void*      context)
-{
-    MemoryMappingHandler_t* handler     = element->value;
-    MemorySpace_t*          memorySpace = context;
-    
-    DynamicMemoryPoolFree(&memorySpace->Context->Heap, handler->Address);
-    DestroyHandle(handler->Handle); // this frees the handler structure
 }
 
 static void
@@ -189,7 +175,6 @@ __DestroyContext(
     }
 
     MutexDestruct(&memorySpace->Context->SyncObject);
-    list_clear(&memorySpace->Context->MemoryHandlers, __CleanupMemoryHandler, memorySpace);
     list_clear(&memorySpace->Context->Allocations, __CleanupMemoryAllocation, memorySpace);
     DynamicMemoryPoolDestroy(&memorySpace->Context->Heap);
     kfree(memorySpace->Context);
@@ -256,6 +241,16 @@ CreateMemorySpace(
     // inheritting/creating a new userspace address-space. If we are inheritting the kernel
     // address-space, we clone it as we still need TLS data-areas in each kernel thread.
     if (flags == MEMORY_SPACE_INHERIT) {
+        // When cloning kernel memory spaces, we initially just copy the platform block
+        // for the new memory space, and then let the Platfrom call correct anything.
+        if (GetCurrentMemorySpace() != NULL) {
+            memcpy(
+                    &memorySpace->PlatfromData,
+                    &GetCurrentMemorySpace()->PlatfromData,
+                    sizeof(PlatformMemoryBlock_t)
+            );
+        }
+        
         // It doesn't matter which parent we take, they all map the exact same kernel segments
         // so just pass in the current memory space
         osStatus = MmuCloneVirtualSpace(
@@ -275,7 +270,6 @@ CreateMemorySpace(
         // Parent must be the uppermost instance of the address-space
         // of the process. Only to the point of not having kernel as parent
         if (flags & MEMORY_SPACE_INHERIT) {
-            int i;
             parent = GetCurrentMemorySpace();
             if (parent != GetDomainMemorySpace()) {
                 if (parent->ParentHandle != UUID_INVALID) {
@@ -291,9 +285,7 @@ CreateMemorySpace(
 
                 // Add a reference and copy data
                 AcquireHandle(memorySpace->ParentHandle, NULL);
-                for (i = 0; i < MEMORY_DATACOUNT; i++) {
-                    memorySpace->Data[i] = parent->Data[i];
-                }
+                memcpy(&memorySpace->PlatfromData, &parent->PlatfromData, sizeof(PlatformMemoryBlock_t));
             }
             else {
                 parent = NULL;
@@ -341,10 +333,11 @@ DestroyMemorySpace(
 }
 
 void
-SwitchMemorySpace(
-    _In_ MemorySpace_t* MemorySpace)
+MemorySpaceSwitch(
+    _In_ MemorySpace_t* memorySpace)
 {
-    ArchMmuSwitchMemorySpace(MemorySpace);
+    assert(memorySpace != NULL);
+    ArchMmuSwitchMemorySpace(memorySpace);
 }
 
 MemorySpace_t*

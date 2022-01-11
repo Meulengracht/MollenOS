@@ -384,7 +384,7 @@ __EnableApic(void)
     temp |= 0x100; // Enable Apic
 #if defined(i386) || defined(__i386__)
     // This bit is reserved on P4/Xeon and should be cleared
-    Temp &= ~(0x200);
+    temp &= ~(0x200);
 #endif
     temp |= INTERRUPT_SPURIOUS;
     ApicWriteLocal(APIC_SPURIOUS_REG, temp);

@@ -72,10 +72,9 @@ DECL_STRUCT(MemorySpace);
  * to allocate boot memory for the virtual addressing space. It is expected that the addressing
  * space will accomodate all boot memory mappings are available once the switch happens. This means
  * identity mapping the allocated addresses up until this point.
- *
  */
 KERNELAPI void KERNELABI
-MmuPrepareKernel(void);
+MmBootPrepareKernel(void);
 
 /**
  * @brief
@@ -128,7 +127,7 @@ MmVirtualGetTable(
 /**
  * @brief
  *
- * @param parent
+ * @param source
  * @param inherit
  * @param cr3Out
  * @param pdirOut
@@ -136,7 +135,7 @@ MmVirtualGetTable(
  */
 KERNELAPI OsStatus_t KERNELABI
 MmVirtualClone(
-        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* source,
         _In_ int            inherit,
         _Out_ paddr_t*      cr3Out,
         _Out_ vaddr_t*      pdirOut);

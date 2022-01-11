@@ -5,6 +5,6 @@ enable_language (C)
 add_kernel_library (vali-core-memory ""
         heap.c
         memory.c
-        memory_region.c
-        memory_space.c
+        memoryregion.c
+        memoryspace.c
 )

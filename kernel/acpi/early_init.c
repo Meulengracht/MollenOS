@@ -261,7 +261,7 @@ __EnumerateSystemCoresMADT(
                         uint8_t ProcessorId = AcpiCpu->ProcessorId;
                         TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
                         if (ApicId != CpuCoreId(GetMachine()->Processor.Cores)) {
-                            RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
+                            CpuCoreRegister(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }
                 }

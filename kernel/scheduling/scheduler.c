@@ -664,12 +664,12 @@ SchedulerAdvance(
     _In_  SchedulerObject_t* object,
     _In_  int                preemptive,
     _In_  clock_t            nanosecondsPassed,
-    _Out_ size_t*            nextDeadlineOut)
+    _Out_ clock_t*           nextDeadlineOut)
 {
     Scheduler_t*       scheduler  = CpuCoreScheduler(CpuCoreCurrent());
     SchedulerObject_t* nextObject = NULL;
     clock_t            currentClock;
-    size_t             nextDeadline;
+    clock_t            nextDeadline;
     int                i;
     TRACE("[scheduler] [advance] current 0x%llx, forced %i, ns-passed %llu",
           object, preemptive, nanosecondsPassed);

@@ -45,11 +45,11 @@ extern void memory_reload_cr3(void);
 PageDirectory_t*
 MmVirtualGetMasterTable(
         _In_  MemorySpace_t*    memorySpace,
-        _In_  vaddr_t  address,
+        _In_  vaddr_t           address,
         _Out_ PageDirectory_t** parentDirectory,
         _Out_ int*              isCurrentOut)
 {
-    PageDirectory_t* directory = (PageDirectory_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t* directory = (PageDirectory_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
     PageDirectory_t* parent    = NULL;
 
     if (!directory) {
@@ -62,7 +62,7 @@ MmVirtualGetMasterTable(
         if (address < MEMORY_LOCATION_RING3_THREAD_START) {
             MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
-            parent = (PageDirectory_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
+            parent = (PageDirectory_t*)MemorySpaceParent->PlatfromData.Cr3VirtualAddress;
         }
     }
 
@@ -155,15 +155,17 @@ SyncWithParent:
 
 OsStatus_t
 MmVirtualClone(
-        _In_ MemorySpace_t* parent,
+        _In_ MemorySpace_t* source,
         _In_ int            inherit,
         _Out_ paddr_t*      cr3Out,
         _Out_ vaddr_t*      pdirOut)
 {
-    PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
-    PageDirectory_t* parentDirectory = NULL;
+    PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->PlatfromData.Cr3VirtualAddress;
+    PageDirectory_t* sourceDirectory = NULL;
     PageDirectory_t* pageDirectory;
-    uintptr_t        physicalAddress;
+    paddr_t          pagedirectoryPhysical;
+    paddr_t          physicalAddress;
+    vaddr_t          virtualAddress;
     int              i;
 
     // Lookup which table-region is the stack region
@@ -171,17 +173,27 @@ MmVirtualClone(
     int userTlsRegionStart = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
     int userTlsRegionEnd   = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
-    pageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &physicalAddress);
+    pageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &pagedirectoryPhysical);
     if (!pageDirectory) {
         return OsOutOfMemory;
     }
-    
     memset(pageDirectory, 0, sizeof(PageDirectory_t));
 
     // determine parent
-    if (parent != NULL) {
-        parentDirectory = (PageDirectory_t*)parent->Data[MEMORY_SPACE_DIRECTORY];
+    if (source != NULL) {
+        sourceDirectory = (PageDirectory_t*)source->PlatfromData.Cr3VirtualAddress;
     }
+
+    // initialize the kernel TLS pagetable as we will need it right away
+    virtualAddress = (vaddr_t)kmalloc_p(sizeof(PageTable_t), &physicalAddress);
+    if (!virtualAddress) {
+        kfree(pageDirectory);
+        return OsOutOfMemory;
+    }
+    memset((void*)virtualAddress, 0, sizeof(PageTable_t));
+
+    atomic_store(&pageDirectory->pTables[kernelTlsIndex], physicalAddress | PAGE_PRESENT | PAGE_WRITE);
+    pageDirectory->vTables[kernelTlsIndex] = virtualAddress;
 
     // Initialize base mappings
     for (i = 0; i < ENTRIES_PER_PAGE; i++) {
@@ -203,15 +215,15 @@ MmVirtualClone(
 
         // Inherit? We must mark that table inherited to avoid
         // it being freed again
-        if (inherit && parentDirectory) {
-            currentMapping = atomic_load(&parentDirectory->pTables[i]);
+        if (inherit && sourceDirectory) {
+            currentMapping = atomic_load(&sourceDirectory->pTables[i]);
             if (currentMapping & PAGE_PRESENT) {
                 atomic_store(&pageDirectory->pTables[i], currentMapping | PAGETABLE_INHERITED);
-                pageDirectory->vTables[i] = parentDirectory->vTables[i];
+                pageDirectory->vTables[i] = sourceDirectory->vTables[i];
             }
         }
     }
-	*cr3Out  = physicalAddress;
+	*cr3Out  = pagedirectoryPhysical;
     *pdirOut = (uintptr_t)pageDirectory;
     return OsSuccess;
 }
@@ -220,7 +232,7 @@ OsStatus_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
-    PageDirectory_t* pageDirectory = (PageDirectory_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t* pageDirectory = (PageDirectory_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
     int              i, j;
 
     // Iterate page-mappings
@@ -261,7 +273,7 @@ MmuDestroyVirtualSpace(
 
     // Free the resources allocated specifically for this
     if (memorySpace->ParentHandle == UUID_INVALID) {
-        kfree((void*)memorySpace->Data[MEMORY_SPACE_IOMAP]);
+        kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
     return OsSuccess;
 }

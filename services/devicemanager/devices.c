@@ -179,7 +179,7 @@ void DmHandleIoctl2(
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
     OsStatus_t       result  = OsInvalidParameters;
-    uint64_t         storage = (uint64_t)request->parameters.ioctl2.value;
+    size_t           storage = request->parameters.ioctl2.value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDeviceEx(

@@ -62,9 +62,6 @@ PlatformInterruptInitialize(void)
 {
     TRACE("...setting up interrupt handlers");
     InitializeSoftwareHandlers();
-#if defined(amd64) || defined(__amd64__)
-    TssCreateStacks();
-#endif
 
     // Make sure we allocate all device interrupts
     // so system can't take control of them

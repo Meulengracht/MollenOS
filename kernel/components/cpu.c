@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -29,21 +28,24 @@
 #include <component/cpu.h>
 #include <ddk/io.h>
 #include <debug.h>
+#include <handle.h>
 #include <heap.h>
 #include <machine.h>
+#include <memoryspace.h>
 #include <string.h>
 
 #include "cpu_private.h"
 
-// 256 is a temporary number, once we start getting processors with more than
-// 256 TXU's then we are fucked
-static SystemCpuCore_t* g_coreTable[256] = { 0 };
+// So yes, we could remove this and use the list and the TLS area. The reason we still
+// keep this is to provide a quick lookup of core structures.
+static SystemCpuCore_t* g_coreTable[__CPU_MAX_COUNT] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
-    _In_ UUId_t CoreId)
+    _In_ UUId_t coreId)
 {
-    return g_coreTable[CoreId];
+    assert(coreId < __CPU_MAX_COUNT);
+    return g_coreTable[coreId];
 }
 
 SystemCpuCore_t*
@@ -89,7 +91,7 @@ CpuInitializePlatform(
 }
 
 void
-RegisterApplicationCore(
+CpuCoreRegister(
     _In_ SystemCpu_t*     cpu,
     _In_ UUId_t           coreId,
     _In_ SystemCpuState_t initialState,
@@ -117,15 +119,36 @@ RegisterApplicationCore(
 }
 
 void
-ActivateApplicationCore(
-    _In_ SystemCpuCore_t* cpuCore)
+CpuCoreStart(void)
 {
     SystemDomain_t*  domain;
     SystemCpuCore_t* i;
-    TRACE("ActivateApplicationCore(core=%u)", cpuCore->Id);
+    SystemCpuCore_t* cpuCore;
+    OsStatus_t       osStatus;
+    UUId_t           memorySpace;
+
+    TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
+
+    // Now we need to do a new memory space for this core. We simply create a new memory space
+    // with kernel flags and switch to it.
+    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
+    if (osStatus != OsSuccess) {
+        // failed to boot this core!
+        ArchProcessorHalt();
+    }
+    MemorySpaceSwitch(MEMORYSPACE_GET(memorySpace));
+
+    // We need to get the appropriate core structure based on the current id of this
+    // cpu core. Unlike the boot processor where the structure is stored on the bootstack
+    // additional cores have their structures allocated on the heap.
+    cpuCore = GetProcessorCore(ArchGetProcessorCoreId());
+    if (!cpuCore) {
+        // failed to boot this core!
+        ArchProcessorHalt();
+    }
 
     // Create the idle-thread and scheduler for the core
-    ThreadingEnable();
+    ThreadingEnable(cpuCore);
     
     // Notify everyone that we are running beore switching on interrupts, don't
     // add this flag, overwrite and set only this flag
@@ -145,7 +168,7 @@ ActivateApplicationCore(
     }
 
     // Enter idle loop
-    WARNING("ActivateApplicationCore %" PRIuIN " is online", cpuCore->Id);
+    WARNING("CpuCoreStart %" PRIuIN " is online", cpuCore->Id);
 	while (1) {
 		ArchProcessorIdle();
     }
@@ -296,6 +319,17 @@ CpuCoreNext(
         return NULL;
     }
     return cpuCore->Link;
+}
+
+
+PlatformCpuCoreBlock_t*
+CpuCorePlatformBlock(
+        _In_ SystemCpuCore_t* cpuCore)
+{
+    if (!cpuCore) {
+        return NULL;
+    }
+    return &cpuCore->PlatformData;
 }
 
 void

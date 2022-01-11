@@ -64,7 +64,7 @@ BootDomainCores(
 }
 
 void
-EnableMultiProcessoringMode(void)
+CpuEnableMultiProcessorMode(void)
 {
     SystemDomain_t*  CurrentDomain = GetCurrentDomain();
     SystemCpuCore_t* Iter;

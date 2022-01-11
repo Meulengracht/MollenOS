@@ -18,14 +18,9 @@
 #define __MODULE "MACH"
 #define __TRACE
 
-#if defined(__i386__) || defined(__amd64__)
-#include <arch/x86/arch.h>
-#else
-#error "interrupts.c: unsupported platform"
-#endif
-
 #include <arch/interrupts.h>
 #include <arch/io.h>
+#include <arch/platform.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <machine.h>
@@ -137,7 +132,7 @@ InitializeMachine(
     }
 
     // initialize the idle thread for this core
-    ThreadingEnable();
+    ThreadingEnable(&cpuCore);
 
     // initialize the interrupt subsystem
     InitializeInterruptTable();
@@ -191,7 +186,7 @@ InitializeMachine(
 #endif
 
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
-    EnableMultiProcessoringMode();
+    CpuEnableMultiProcessorMode();
 #endif
 
     // Initialize all userspace subsystems here

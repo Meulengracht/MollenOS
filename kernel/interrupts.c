@@ -25,13 +25,8 @@
 #define __MODULE "INIF"
 //#define __TRACE
 
-#if defined(__i386__) || defined(__amd64__)
-#include <arch/x86/arch.h>
-#else
-#error "interrupts.c: unsupported platform"
-#endif
-
 #include <arch/interrupts.h>
+#include <arch/platform.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>

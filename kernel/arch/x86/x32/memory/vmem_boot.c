@@ -99,7 +99,7 @@ MmVirtualMapMemoryRange(
 }
 
 void
-MmuPrepareKernel(void)
+MmBootPrepareKernel(void)
 {
     PageDirectory_t* pageDirectory;
 	PageTable_t*     pageTable;
@@ -108,7 +108,7 @@ MmuPrepareKernel(void)
     vaddr_t          virtualBase;
     OsStatus_t       osStatus;
     unsigned int     kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
-	TRACE("MmuPrepareKernel()");
+	TRACE("MmBootPrepareKernel()");
 
     // Can we use global pages for kernel table?
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
@@ -130,7 +130,7 @@ MmuPrepareKernel(void)
     // tables already are mapped in the uppermost level of the page-directory
 
     // Allocate all neccessary memory before starting to identity map
-    TRACE("MmuPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+    TRACE("MmBootPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
     MmVirtualMapMemoryRange(
             pageDirectory,
@@ -139,8 +139,8 @@ MmuPrepareKernel(void)
             PAGE_PRESENT | PAGE_WRITE
     );
 
-    TRACE("MmuPrepareKernel pre-mapping kernel TLS memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
-          MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
+    TRACE("MmBootPrepareKernel pre-mapping kernel TLS memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+          MEMORY_LOCATION_TLS_START, MEMORY_LOCATION_TLS_START + PAGE_SIZE);
     MmVirtualMapMemoryRange(
             pageDirectory,
             MEMORY_LOCATION_TLS_START,
@@ -148,7 +148,7 @@ MmuPrepareKernel(void)
             PAGE_PRESENT | PAGE_WRITE
     );
 
-    TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+    TRACE("MmBootPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END);
     MmVirtualMapMemoryRange(
             pageDirectory,
@@ -163,7 +163,7 @@ MmuPrepareKernel(void)
     bytesToMap   = BYTES_PER_MB;
     while (bytesToMap) {
         size_t length = MIN(bytesToMap, TABLE_SPACE_SIZE - (virtualBase % TABLE_SPACE_SIZE));
-        TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
+        TRACE("MmBootPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
               virtualBase, virtualBase + length);
 
         pageTable = MmBootGetPageTable(pageDirectory, virtualBase);

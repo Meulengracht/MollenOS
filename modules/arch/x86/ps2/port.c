@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -79,69 +77,69 @@ PS2ResetPort(
 
 unsigned int
 PS2IdentifyPort(
-    _In_ int Index)
+    _In_ int portIndex)
 {
-    uint8_t ResponseExtra   = 0;
-    uint8_t Response        = 0;
+    uint8_t responseExtra;
+    uint8_t response;
 
-    Response = SendPS2PortCommand(Index, PS2_DISABLE_SCANNING);
-    if (Response != PS2_ACK) {
-        ERROR(" > failed to disable scanning for port %i, response 0x%x", Index, Response);
+    response = SendPS2PortCommand(portIndex, PS2_DISABLE_SCANNING);
+    if (response != PS2_ACK) {
+        ERROR(" > failed to disable scanning for port %i, response 0x%x", portIndex, response);
         return 0xFFFFFFFF;
     }
 
-    Response = SendPS2PortCommand(Index, PS2_IDENTIFY_PORT);
-    if (Response != PS2_ACK) {
-        ERROR(" > failed to identify port %i, response 0x%x", Index, Response);
+    response = SendPS2PortCommand(portIndex, PS2_IDENTIFY_PORT);
+    if (response != PS2_ACK) {
+        ERROR(" > failed to identify port %i, response 0x%x", portIndex, response);
         return 0xFFFFFFFF;
     }
 
     // Read response byte
 GetResponse:
-    Response = PS2ReadData(0);
-    if (Response == PS2_ACK) {
+    response = PS2ReadData(0);
+    if (response == PS2_ACK) {
         goto GetResponse;
     }
 
     // Read next response byte
-    ResponseExtra = PS2ReadData(0);
-    if (ResponseExtra == 0xFF) {
-        ResponseExtra = 0;
+    responseExtra = PS2ReadData(0);
+    if (responseExtra == 0xFF) {
+        responseExtra = 0;
     }
-    return (Response << 8) | ResponseExtra;
+    return (response << 8) | responseExtra;
 }
 
 /* PS2RegisterDevice
  * Shortcut function for registering a new device */
 OsStatus_t
 PS2RegisterDevice(
-    _In_ PS2Port_t* Port) 
+    _In_ PS2Port_t* port)
 {
-    BusDevice_t Device = { { 0 } };
+    BusDevice_t busDevice = {{0 } };
 
-    strcpy(&Device.Base.Name[0], "PS2 Child Device");
-    Device.Base.ParentId  = UUID_INVALID;
-    Device.Base.Length    = sizeof(BusDevice_t);
-    Device.Base.VendorId  = 0xFFEF;
-    Device.Base.ProductId = 0x0030;
-    Device.Base.Class     = 0xFF0F;
-    Device.Base.Subclass  = 0xFF0F;
+    strcpy(&busDevice.Base.Name[0], "PS2 Child Device");
+    busDevice.Base.ParentId  = UUID_INVALID;
+    busDevice.Base.Length    = sizeof(BusDevice_t);
+    busDevice.Base.VendorId  = 0xFFEF;
+    busDevice.Base.ProductId = 0x0030;
+    busDevice.Base.Class     = 0xFF0F;
+    busDevice.Base.Subclass  = 0xFF0F;
 
     // Initialize the irq structure
-    Device.InterruptPin         = INTERRUPT_NONE;
-    Device.InterruptAcpiConform = 0;
+    busDevice.InterruptPin         = INTERRUPT_NONE;
+    busDevice.InterruptAcpiConform = 0;
 
     // Select source from port index
-    if (Port->Index == 0) {
-        Device.InterruptLine = PS2_PORT1_IRQ;
+    if (port->Index == 0) {
+        busDevice.InterruptLine = PS2_PORT1_IRQ;
     }
     else {
-        Device.InterruptLine = PS2_PORT2_IRQ;
+        busDevice.InterruptLine = PS2_PORT2_IRQ;
     }
 
     // Lastly just register the device under the controller (todo)
-    Port->DeviceId = RegisterDevice(&Device.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
-    if (Port->DeviceId == UUID_INVALID) {
+    port->DeviceId = RegisterDevice(&busDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
+    if (port->DeviceId == UUID_INVALID) {
         ERROR("Failed to register new device");
         return OsError;
     }
@@ -174,11 +172,9 @@ PS2PortWaitForState(
     _In_ PS2CommandState_t  State)
 {
     volatile PS2CommandState_t* ActiveState;
-    volatile uint8_t* SyncObject;
     int Timeout = 1000;
 
     ActiveState = (volatile PS2CommandState_t*)&Command->State;
-    SyncObject  = &Command->SyncObject;
     while (*ActiveState != State && Timeout > 0) {
         thrd_sleepex(10);
         Timeout -= 10;
@@ -201,68 +197,72 @@ PS2PortWaitForState(
  * require response. */
 OsStatus_t
 PS2PortExecuteCommand(
-    _In_ PS2Port_t* Port,
-    _In_ uint8_t    Command,
-    _In_ uint8_t*   Response)
+    _In_ PS2Port_t* port,
+    _In_ uint8_t    commandValue,
+    _In_ uint8_t*   response)
 {
-    PS2Command_t *pCommand  = &Port->ActiveCommand;
-    OsStatus_t Result       = OsSuccess;
+    PS2Command_t* command = &port->ActiveCommand;
+    OsStatus_t    osStatus;
 
     // Initiate the packet data
-    pCommand->State         = PS2InQueue;
-    pCommand->RetryCount    = 0;
-    pCommand->Command       = Command;
-    pCommand->Response      = Response;
-    pCommand->SyncObject    = 0;
-    Result                  = PS2PortWrite(Port, Command);
-    return PS2PortWaitForState(Port, pCommand, PS2Free);
+    command->State      = PS2InQueue;
+    command->RetryCount = 0;
+    command->Command    = commandValue;
+    command->Response   = response;
+    command->SyncObject = 0;
+
+    osStatus = PS2PortWrite(port, commandValue);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+    return PS2PortWaitForState(port, command, PS2Free);
 }
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
 OsStatus_t
 PS2PortFinishCommand(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* port)
 {
-    PS2Command_t *pCommand  = &Port->ActiveCommand;
-    switch (pCommand->State) {
+    PS2Command_t* command = &port->ActiveCommand;
+    switch (command->State) {
         case PS2InQueue: {
-            if (pCommand->SyncObject == 0) {
+            if (command->SyncObject == 0) {
                 return OsError;
             }
 
-            if (pCommand->Buffer[0] == PS2_RESEND_COMMAND) {
-                if (pCommand->RetryCount < PS2_MAX_RETRIES) {
-                    pCommand->RetryCount++;
-                    pCommand->SyncObject = 0; // Reset
-                    PS2PortWrite(Port, pCommand->Command);
+            if (command->Buffer[0] == PS2_RESEND_COMMAND) {
+                if (command->RetryCount < PS2_MAX_RETRIES) {
+                    command->RetryCount++;
+                    command->SyncObject = 0; // Reset
+                    PS2PortWrite(port, command->Command);
                     return OsError;
                 }
-                pCommand->Command   = PS2_FAILED_COMMAND;
-                pCommand->State     = PS2Free;
+                command->Command = PS2_FAILED_COMMAND;
+                command->State   = PS2Free;
                 // Go to next command
             }
-            else if (pCommand->Buffer[0] == PS2_ACK_COMMAND) {
-                if (pCommand->Response != NULL) {
-                    pCommand->State = PS2WaitingResponse;
+            else if (command->Buffer[0] == PS2_ACK_COMMAND) {
+                if (command->Response != NULL) {
+                    command->State = PS2WaitingResponse;
                     return OsError;
                 }
-                pCommand->State = PS2Free;
+                command->State = PS2Free;
                 // Go to next command
             }
             else {
-                pCommand->Command   = PS2_FAILED_COMMAND;
-                pCommand->State     = PS2Free;
+                command->Command = PS2_FAILED_COMMAND;
+                command->State   = PS2Free;
                 // Go to next command
             }
         } break;
 
         case PS2WaitingResponse: {
-            if (pCommand->SyncObject == 1) {
+            if (command->SyncObject == 1) {
                 return OsError;
             }
-            *(pCommand->Response)   = pCommand->Buffer[1];
-            pCommand->State         = PS2Free;
+            *(command->Response) = command->Buffer[1];
+            command->State = PS2Free;
         } break;
 
         // Reached on PS2Free, should not happen

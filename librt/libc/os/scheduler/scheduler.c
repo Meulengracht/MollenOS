@@ -101,7 +101,7 @@ static void SwitchTask(struct usched_job* current, struct usched_job* next)
             : "rdi", "rsp", "memory");
 #elif defined(__i386__)
     __asm__ (
-            "movl %0, %%eax; movl %1, %%esp; pushl %%eax; call TaskMain\n"
+            "movl %0, %%eax; movl %1, %%esp; pushl %%eax; call _TaskMain\n"
             :: "r"(next), "r"(stack)
             : "eax", "esp", "memory");
 #else

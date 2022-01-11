@@ -70,7 +70,7 @@ ApicTimerHandler(
 
     uint32_t tick         = ApicReadLocal(APIC_CURRENT_COUNT);
     uint32_t ticksPassed  = ApicReadLocal(APIC_INITIAL_COUNT) - tick;
-    size_t   nextDeadline = (20 * NSEC_PER_MSEC) / g_lapicTimer.QuantumUnit; // 20ms baseline
+    clock_t  nextDeadline = (20 * NSEC_PER_MSEC) / g_lapicTimer.QuantumUnit; // 20ms baseline
 
     // clear the initial count if we were interrupted
     if (tick != 0) {
@@ -78,7 +78,7 @@ ApicTimerHandler(
     }
 
     // Increase the global tick-counter
-    g_lapicTimer.Tick += ticksPassed;
+    //g_lapicTimer.Tick += ticksPassed;
 
     // call the threading code, the local apic timer is the one we use for thread
     // switching
@@ -99,7 +99,6 @@ ApicTimerHandler(
 void
 ApicTimerInitialize(void)
 {
-    OsStatus_t osStatus;
     TRACE("ApicTimerInitialize()");
 
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
@@ -109,16 +108,6 @@ ApicTimerInitialize(void)
 
     // Run the calibration code
     ApicTimerRecalibrate(NULL);
-
-    // register as available platform timer
-    osStatus = SystemTimerRegister(
-            &g_lapicOperations,
-            SystemTimeAttributes_COUNTER | SystemTimeAttributes_IRQ | SystemTimeAttributes_CALIBRATED,
-            UUID_INVALID,
-            NULL);
-    if (osStatus != OsSuccess) {
-        WARNING("TscInitialize failed to register platform timer");
-    }
 
     // Start timer for good
     ApicTimerStart(g_lapicTimer.Quantum * 20);
