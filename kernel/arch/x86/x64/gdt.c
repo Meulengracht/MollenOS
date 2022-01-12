@@ -18,13 +18,14 @@
  * - Global Descriptor Table
  * - Task State Segment 
  */
+#define __TRACE
 
 #include <arch/utils.h>
-#include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <arch/x86/x64/gdt.h>
 #include <assert.h>
 #include <component/cpu.h>
+#include <debug.h>
 #include <heap.h>
 #include <string.h>
 
@@ -42,7 +43,10 @@ OsStatus_t
 __CreateTssStacks(
         _In_ TssDescriptor_t* tssDescriptor)
 {
-    uint64_t allStacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
+    uint64_t allStacks;
+    TRACE("__CreateTssStacks()");
+
+    allStacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
     if (!allStacks) {
         return OsOutOfMemory;
     }
@@ -110,6 +114,7 @@ TssInitialize(
     TssDescriptor_t* tssDescriptor;
 	uint64_t         tssBase;
 	uint64_t         tssLimit;
+    TRACE("TssInitialize()");
 
     assert(coreBlock != NULL);
 

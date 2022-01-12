@@ -18,8 +18,8 @@
  * - Contains platform specific things and includes relevant platform headers
  */
 
-#ifndef __PLATFORM_INTEFACE_H__
-#define __PLATFORM_INTEFACE_H__
+#ifndef __PLATFORM_INTERFACE_H__
+#define __PLATFORM_INTERFACE_H__
 
 #include <os/osdefs.h>
 
@@ -31,6 +31,8 @@
 // PlatformMemoryBlock_t  - Data that is specific to the memory space
 //
 // Macros
+// __PLATFORM_MAX_INTERRUPTS
+// __PLATFORM_MAX_CPUS
 // __PLATFORM_READTLS(offset)
 // __PLATFORM_WRITETLS(offset, value)
 //
@@ -41,4 +43,4 @@
 #error "platform.h: Current VALI_ARCH is unrecognized/unimplemented"
 #endif
 
-#endif //!__PLATFORM_INTEFACE_H__
+#endif //!__PLATFORM_INTERFACE_H__

@@ -175,7 +175,7 @@ ArchPlatformInitialize(
         GdtInitialize();
         IdtInitialize();
         PicInitialize();
-        VbeInitialize();
+        OutputInitialize();
         SmBiosInitialize();
     }
 

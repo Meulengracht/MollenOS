@@ -29,7 +29,7 @@
 #include <arch/x86/vbe.h>
 #include <heap.h>
 
-static BootTerminal_t Terminal = { 0 };
+static BootTerminal_t g_bootTerminal = { 0 };
 
 void VideoFlush(void);
 
@@ -48,14 +48,14 @@ VesaDrawPixel(
     _In_ unsigned Y, 
     _In_ uint32_t Color)
 {
-    unsigned int clampedX  = MIN(X, (Terminal.Info.Width - 1));
-    unsigned int clampedY  = MIN(Y, (Terminal.Info.Height - 1));
-    size_t       offset    = (clampedY * Terminal.Info.BytesPerScanline) + (clampedX * (Terminal.Info.Depth / 8));
-    uint32_t*    bbPointer = (uint32_t*)(Terminal.BackBufferAddress + offset);
-    uint32_t*    fbPointer = (uint32_t*)(Terminal.FrameBufferAddress + offset);
+    unsigned int clampedX  = MIN(X, (g_bootTerminal.Info.Width - 1));
+    unsigned int clampedY  = MIN(Y, (g_bootTerminal.Info.Height - 1));
+    size_t       offset    = (clampedY * g_bootTerminal.Info.BytesPerScanline) + (clampedX * (g_bootTerminal.Info.Depth / 8));
+    uint32_t*    bbPointer = (uint32_t*)(g_bootTerminal.BackBufferAddress + offset);
+    uint32_t*    fbPointer = (uint32_t*)(g_bootTerminal.FrameBufferAddress + offset);
 
     (*fbPointer) = (0xFF000000 | Color);
-    if (Terminal.BackBufferAddress) {
+    if (g_bootTerminal.BackBufferAddress) {
         (*bbPointer) = (0xFF000000 | Color);
     }
 }
@@ -75,9 +75,9 @@ VesaDrawCharacter(
     unsigned int row, i;
 
     // Calculate the video-offset
-    fbOffset  = (CursorY * Terminal.Info.BytesPerScanline) + (CursorX * (Terminal.Info.Depth / 8));
-    fbPointer = (uint32_t*)(Terminal.FrameBufferAddress + fbOffset);
-    bbPointer = (uint32_t*)(Terminal.BackBufferAddress + fbOffset);
+    fbOffset  = (CursorY * g_bootTerminal.Info.BytesPerScanline) + (CursorX * (g_bootTerminal.Info.Depth / 8));
+    fbPointer = (uint32_t*)(g_bootTerminal.FrameBufferAddress + fbOffset);
+    bbPointer = (uint32_t*)(g_bootTerminal.BackBufferAddress + fbOffset);
 
     // If it's unicode lookup index
 #ifdef UNICODE
@@ -103,17 +103,17 @@ VesaDrawCharacter(
         // Render data in row
         for (i = 0; i < 8; i++) {
             fbPointer[i] = (bmpData >> (7 - i)) & 0x1 ? (0xFF000000 | FgColor) : (0xFF000000 | BgColor);
-            if (Terminal.BackBufferAddress) {
+            if (g_bootTerminal.BackBufferAddress) {
                 bbPointer[i] = (bmpData >> (7 - i)) & 0x1 ? (0xFF000000 | FgColor) : (0xFF000000 | BgColor);
             }
         }
 
         _fb       = (uintptr_t)fbPointer;
-        _fb      += Terminal.Info.BytesPerScanline;
+        _fb      += g_bootTerminal.Info.BytesPerScanline;
         fbPointer = (uint32_t*)_fb;
 
         _bb       = (uintptr_t)bbPointer;
-        _bb      += Terminal.Info.BytesPerScanline;
+        _bb      += g_bootTerminal.Info.BytesPerScanline;
         bbPointer = (uint32_t*)_bb;
     }
 
@@ -130,52 +130,52 @@ VesaScroll(
     int      i, j;
 
     // How many lines do we need to modify?
-    lines = (Terminal.CursorLimitY - Terminal.CursorStartY);
+    lines = (int)(g_bootTerminal.CursorLimitY - g_bootTerminal.CursorStartY);
 
     // Calculate the initial screen position
-    if (Terminal.BackBufferAddress) {
-        videoPointer = (uint8_t*)(Terminal.BackBufferAddress +
-                                  ((Terminal.CursorStartY * Terminal.Info.BytesPerScanline)
-                                   + (Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    if (g_bootTerminal.BackBufferAddress) {
+        videoPointer = (uint8_t*)(g_bootTerminal.BackBufferAddress +
+                                  ((g_bootTerminal.CursorStartY * g_bootTerminal.Info.BytesPerScanline)
+                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
     }
     else {
-        videoPointer = (uint8_t*)(Terminal.FrameBufferAddress +
-                                  ((Terminal.CursorStartY * Terminal.Info.BytesPerScanline)
-                                   + (Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+        videoPointer = (uint8_t*)(g_bootTerminal.FrameBufferAddress +
+                                  ((g_bootTerminal.CursorStartY * g_bootTerminal.Info.BytesPerScanline)
+                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
     }
 
     // Calculate num of bytes
-    bytesToCopy = ((Terminal.CursorLimitX - Terminal.CursorStartX)
-                   * (Terminal.Info.Depth / 8));
+    bytesToCopy = ((g_bootTerminal.CursorLimitX - g_bootTerminal.CursorStartX)
+                   * (g_bootTerminal.Info.Depth / 8));
 
     // Do the actual scroll, crappy routine since we have borders.... this means we can't do a
     // continous copy
     for (i = 0; i < lineCount; i++) {
         for (j = 0; j < lines; j++) {
             memcpy(videoPointer, videoPointer +
-                                 (Terminal.Info.BytesPerScanline * MCoreFontHeight), bytesToCopy);
-            videoPointer += Terminal.Info.BytesPerScanline;
+                                 (g_bootTerminal.Info.BytesPerScanline * MCoreFontHeight), bytesToCopy);
+            videoPointer += g_bootTerminal.Info.BytesPerScanline;
         }
     }
 
     // Clear out the lines that was scrolled
-    videoPointer = (uint8_t*)(Terminal.FrameBufferAddress +
-                              ((Terminal.CursorStartX * (Terminal.Info.Depth / 8))));
+    videoPointer = (uint8_t*)(g_bootTerminal.FrameBufferAddress +
+                              ((g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
 
     // Scroll pointer down to bottom - n lines
-    videoPointer += (Terminal.Info.BytesPerScanline
-                     * (Terminal.CursorLimitY - (MCoreFontHeight * lineCount)));
+    videoPointer += (g_bootTerminal.Info.BytesPerScanline
+                     * (g_bootTerminal.CursorLimitY - (MCoreFontHeight * lineCount)));
 
     // Clear out lines
     for (i = 0; i < ((int)MCoreFontHeight * lineCount); i++) {
         memset(videoPointer, 0xFF, bytesToCopy);
-        videoPointer += Terminal.Info.BytesPerScanline;
+        videoPointer += g_bootTerminal.Info.BytesPerScanline;
     }
 
     // We did the scroll, modify cursor
-    Terminal.CursorY -= (MCoreFontHeight * lineCount);
+    g_bootTerminal.CursorY -= (MCoreFontHeight * lineCount);
 
-    if (Terminal.BackBufferAddress) {
+    if (g_bootTerminal.BackBufferAddress) {
         VideoFlush();
     }
     return OsSuccess;
@@ -192,14 +192,14 @@ VesaPutCharacter(
         // New-Line
         // Reset X and increase Y
     case '\n': {
-        Terminal.CursorX = Terminal.CursorStartX;
-        Terminal.CursorY += MCoreFontHeight;
+        g_bootTerminal.CursorX = g_bootTerminal.CursorStartX;
+        g_bootTerminal.CursorY += MCoreFontHeight;
     } break;
 
     // Carriage Return
     // Reset X don't increase Y
     case '\r': {
-        Terminal.CursorX = Terminal.CursorStartX;
+        g_bootTerminal.CursorX = g_bootTerminal.CursorStartX;
     } break;
 
     // Default
@@ -207,9 +207,9 @@ VesaPutCharacter(
     default: {
         // Call print with the current location
         // and use the current colors
-        VesaDrawCharacter(Terminal.CursorX, Terminal.CursorY,
-            Character, Terminal.FgColor, Terminal.BgColor);
-        Terminal.CursorX += (MCoreFontWidth + 1);
+        VesaDrawCharacter(g_bootTerminal.CursorX, g_bootTerminal.CursorY,
+                          Character, g_bootTerminal.FgColor, g_bootTerminal.BgColor);
+        g_bootTerminal.CursorX += (MCoreFontWidth + 1);
     } break;
     }
 
@@ -217,13 +217,13 @@ VesaPutCharacter(
     // checks, including new-line and scroll-checks
 
     // Are we at last X position? - New-line
-    if ((Terminal.CursorX + (MCoreFontWidth + 1)) >= Terminal.CursorLimitX) {
-        Terminal.CursorX = Terminal.CursorStartX;
-        Terminal.CursorY += MCoreFontHeight;
+    if ((g_bootTerminal.CursorX + (MCoreFontWidth + 1)) >= g_bootTerminal.CursorLimitX) {
+        g_bootTerminal.CursorX = g_bootTerminal.CursorStartX;
+        g_bootTerminal.CursorY += MCoreFontHeight;
     }
 
     // Do we need to scroll the terminal?
-    if ((Terminal.CursorY + MCoreFontHeight) >= Terminal.CursorLimitY) {
+    if ((g_bootTerminal.CursorY + MCoreFontHeight) >= g_bootTerminal.CursorLimitY) {
         VesaScroll(1);
     }
     return OsSuccess;
@@ -240,8 +240,8 @@ TextDrawCharacter(
     uint16_t  Data = ((uint16_t)Color << 8) | (uint8_t)(Character & 0xFF);
 
     // Calculate video position
-    Video = (uint16_t*)Terminal.FrameBufferAddress +
-        (CursorY * Terminal.Info.Width + CursorX);
+    Video = (uint16_t*)g_bootTerminal.FrameBufferAddress +
+            (CursorY * g_bootTerminal.Info.Width + CursorX);
 
     // Plot it on the screen
     *Video = Data;
@@ -254,28 +254,28 @@ TextScroll(
     _In_ int ByLines)
 {
     // Variables
-    uint16_t *Video = (uint16_t*)Terminal.FrameBufferAddress;
-    uint16_t Color = (uint16_t)(Terminal.FgColor << 8);
+    uint16_t *Video = (uint16_t*)g_bootTerminal.FrameBufferAddress;
+    uint16_t Color = (uint16_t)(g_bootTerminal.FgColor << 8);
     unsigned i;
     int j;
 
     // Move display n lines up
     for (j = 0; j < ByLines; j++) {
-        for (i = 0; i < (Terminal.Info.Height - 1) * Terminal.Info.Width;
+        for (i = 0; i < (g_bootTerminal.Info.Height - 1) * g_bootTerminal.Info.Width;
             i++) {
-            Video[i] = Video[i + Terminal.Info.Width];
+            Video[i] = Video[i + g_bootTerminal.Info.Width];
         }
 
         // Clear last line
-        for (i = ((Terminal.Info.Height - 1) * Terminal.Info.Width);
-            i < (Terminal.Info.Height * Terminal.Info.Width);
+        for (i = ((g_bootTerminal.Info.Height - 1) * g_bootTerminal.Info.Width);
+            i < (g_bootTerminal.Info.Height * g_bootTerminal.Info.Width);
             i++) {
             Video[i] = (uint16_t)(Color | ' ');
         }
     }
 
     // Update new Y cursor position
-    Terminal.CursorY = (Terminal.Info.Height - ByLines);
+    g_bootTerminal.CursorY = (g_bootTerminal.Info.Height - ByLines);
 
     // Done - no errors
     return OsSuccess;
@@ -290,44 +290,44 @@ TextPutCharacter(
 
     // Special case characters
     // Backspace
-    if (Character == 0x08 && Terminal.CursorX)
-        Terminal.CursorX--;
+    if (Character == 0x08 && g_bootTerminal.CursorX)
+        g_bootTerminal.CursorX--;
 
     // Tab
     else if (Character == 0x09)
-        Terminal.CursorX = ((Terminal.CursorX + 8) & ~(8 - 1));
+        g_bootTerminal.CursorX = ((g_bootTerminal.CursorX + 8) & ~(8 - 1));
 
     // Carriage Return
     else if (Character == '\r')
-        Terminal.CursorX = 0;
+        g_bootTerminal.CursorX = 0;
 
     // New Line
     else if (Character == '\n') {
-        Terminal.CursorX = 0;
-        Terminal.CursorY++;
+        g_bootTerminal.CursorX = 0;
+        g_bootTerminal.CursorY++;
     }
     
     // Printable characters
     else if (Character >= ' ') {
-        TextDrawCharacter(Character, Terminal.CursorY, 
-            Terminal.CursorX, LOBYTE(LOWORD(Terminal.FgColor)));
-        Terminal.CursorX++;
+        TextDrawCharacter(Character, g_bootTerminal.CursorY,
+                          g_bootTerminal.CursorX, LOBYTE(LOWORD(g_bootTerminal.FgColor)));
+        g_bootTerminal.CursorX++;
     }
 
     // Go to new line?
-    if (Terminal.CursorX >= Terminal.Info.Width) {
-        Terminal.CursorX = 0;
-        Terminal.CursorY++;
+    if (g_bootTerminal.CursorX >= g_bootTerminal.Info.Width) {
+        g_bootTerminal.CursorX = 0;
+        g_bootTerminal.CursorY++;
     }
 
     // Scroll if at last line
-    if (Terminal.CursorY >= Terminal.Info.Height) {
+    if (g_bootTerminal.CursorY >= g_bootTerminal.Info.Height) {
         TextScroll(1);
     }
 
     // Update HW Cursor
-    CursorLoc = (uint16_t)((Terminal.CursorY * Terminal.Info.Width) 
-        + Terminal.CursorX);
+    CursorLoc = (uint16_t)((g_bootTerminal.CursorY * g_bootTerminal.Info.Width)
+                           + g_bootTerminal.CursorX);
 
     // Send the high byte.
     WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 14);
@@ -342,48 +342,44 @@ TextPutCharacter(
 static void __SetTerminalMode(
         _In_ struct VBootVideo* video)
 {
-    Terminal.Info.Width                 = video->Width;
-    Terminal.Info.Height                = video->Height;
-    Terminal.Info.Depth                 = 16;
-    Terminal.Info.BytesPerScanline      = 2 * video->Width;
-    Terminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
-    Terminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
+    g_bootTerminal.Info.Width                 = video->Width;
+    g_bootTerminal.Info.Height                = video->Height;
+    g_bootTerminal.Info.Depth                 = 16;
+    g_bootTerminal.Info.BytesPerScanline      = 2 * video->Width;
+    g_bootTerminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
+    g_bootTerminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
 
-    Terminal.CursorLimitX = video->Width;
-    Terminal.CursorLimitY = video->Height;
-    Terminal.FgColor      = (0 << 4) | (15 & 0x0F);
-    Terminal.BgColor      = 0;
+    g_bootTerminal.CursorLimitX = video->Width;
+    g_bootTerminal.CursorLimitY = video->Height;
+    g_bootTerminal.FgColor      = (0 << 4) | (15 & 0x0F);
+    g_bootTerminal.BgColor      = 0;
 }
 
 static void __SetFramebufferMode(
         _In_ struct VBootVideo* video)
 {
-    Terminal.FrameBufferAddress         = video->FrameBuffer;
-    Terminal.FrameBufferAddressPhysical = video->FrameBuffer;
-    Terminal.Info.Width                 = video->Width;
-    Terminal.Info.Height                = video->Height;
-    Terminal.Info.Depth                 = (int)video->BitsPerPixel;
-    Terminal.Info.BytesPerScanline      = video->Pitch;
-    Terminal.Info.RedPosition           = (int)video->RedPosition;
-    Terminal.Info.BluePosition          = (int)video->BluePosition;
-    Terminal.Info.GreenPosition         = (int)video->GreenPosition;
-    Terminal.Info.ReservedPosition      = (int)video->ReservedPosition;
-    Terminal.Info.RedMask               = (int)video->RedMask;
-    Terminal.Info.BlueMask              = (int)video->BlueMask;
-    Terminal.Info.GreenMask             = (int)video->GreenMask;
-    Terminal.Info.ReservedMask          = (int)video->ReservedMask;
-    Terminal.CursorLimitX               = Terminal.Info.Width;
-    Terminal.CursorLimitY               = Terminal.Info.Height;
-    Terminal.FgColor                    = 0;
-    Terminal.BgColor                    = 0xFFFFFFFF;
+    g_bootTerminal.FrameBufferAddress         = video->FrameBuffer;
+    g_bootTerminal.FrameBufferAddressPhysical = video->FrameBuffer;
+    g_bootTerminal.Info.Width                 = video->Width;
+    g_bootTerminal.Info.Height                = video->Height;
+    g_bootTerminal.Info.Depth                 = (int)video->BitsPerPixel;
+    g_bootTerminal.Info.BytesPerScanline      = video->Pitch;
+    g_bootTerminal.Info.RedPosition           = (int)video->RedPosition;
+    g_bootTerminal.Info.BluePosition          = (int)video->BluePosition;
+    g_bootTerminal.Info.GreenPosition         = (int)video->GreenPosition;
+    g_bootTerminal.Info.ReservedPosition      = (int)video->ReservedPosition;
+    g_bootTerminal.Info.RedMask               = (int)video->RedMask;
+    g_bootTerminal.Info.BlueMask              = (int)video->BlueMask;
+    g_bootTerminal.Info.GreenMask             = (int)video->GreenMask;
+    g_bootTerminal.Info.ReservedMask          = (int)video->ReservedMask;
+    g_bootTerminal.CursorLimitX               = g_bootTerminal.Info.Width;
+    g_bootTerminal.CursorLimitY               = g_bootTerminal.Info.Height;
+    g_bootTerminal.FgColor                    = 0xFFFFFFFF;
+    g_bootTerminal.BgColor                    = 0xFF000000;
 }
 
-// Unfortunately we have to do the initial parsing before we disable
-// access to the first memory page where this data is located. And this
-// has to be done before create the memory mappings as the virtual paging
-// system has to be made aware of the location of the framebuffer.
 void
-VbeInitialize(void)
+OutputInitialize(void)
 {
     // Which kind of mode has been enabled for us
     if (GetMachine()->BootInformation.Video.FrameBuffer) {
@@ -401,7 +397,7 @@ VbeInitialize(void)
 BootTerminal_t*
 VideoGetTerminal(void)
 {
-    return &Terminal;
+    return &g_bootTerminal;
 }
 
 static inline void memset32(uint32_t* out, uint32_t value, size_t byteCount)
@@ -416,23 +412,23 @@ static inline void memset32(uint32_t* out, uint32_t value, size_t byteCount)
 void
 VideoClear(uint32_t color)
 {
-    if (Terminal.AvailableOutputs & (VIDEO_TEXT | VIDEO_GRAPHICS)) {
-        size_t byteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+    if (g_bootTerminal.AvailableOutputs & (VIDEO_TEXT | VIDEO_GRAPHICS)) {
+        size_t byteCount = g_bootTerminal.Info.BytesPerScanline * g_bootTerminal.Info.Height;
 
-        if (Terminal.BackBufferAddress) {
-            memset32((void*)Terminal.BackBufferAddress, color, byteCount);
+        if (g_bootTerminal.BackBufferAddress) {
+            memset32((void*)g_bootTerminal.BackBufferAddress, color, byteCount);
         }
-        memset32((void*)Terminal.FrameBufferAddress, color, byteCount);
+        memset32((void*)g_bootTerminal.FrameBufferAddress, color, byteCount);
     }
 }
 
 void
 VideoFlush(void)
 {
-    if (Terminal.BackBufferAddress) {
-        void*  source      = (void*)Terminal.BackBufferAddress;
-        void*  destination = (void*)Terminal.FrameBufferAddress;
-        size_t byteCount = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+    if (g_bootTerminal.BackBufferAddress) {
+        void*  source      = (void*)g_bootTerminal.BackBufferAddress;
+        void*  destination = (void*)g_bootTerminal.FrameBufferAddress;
+        size_t byteCount = g_bootTerminal.Info.BytesPerScanline * g_bootTerminal.Info.Height;
         memcpy(destination, source, byteCount);
     }
 }
@@ -443,7 +439,7 @@ VideoDrawPixel(
     _In_ unsigned int Y,
     _In_ uint32_t     Color)
 {
-    if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
+    if (g_bootTerminal.AvailableOutputs & VIDEO_GRAPHICS) {
         VesaDrawPixel(X, Y, Color);
     }
 }
@@ -456,10 +452,10 @@ VideoDrawCharacter(
     _In_ uint32_t     Bg,
     _In_ uint32_t     Fg)
 {
-    if (Terminal.AvailableOutputs & VIDEO_TEXT) {
-        return TextDrawCharacter(Character, Y, X, LOBYTE(LOWORD(Terminal.FgColor)));
+    if (g_bootTerminal.AvailableOutputs & VIDEO_TEXT) {
+        return TextDrawCharacter(Character, Y, X, LOBYTE(LOWORD(g_bootTerminal.FgColor)));
     }
-    else if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
+    else if (g_bootTerminal.AvailableOutputs & VIDEO_GRAPHICS) {
         return VesaDrawCharacter(X, Y, Character, Fg, Bg);
     }
     return OsNotSupported;
@@ -470,10 +466,10 @@ VideoPutCharacter(
     _In_ int character)
 {
     // Start out by determining the kind of draw we want to do
-    if (Terminal.AvailableOutputs & VIDEO_TEXT) {
+    if (g_bootTerminal.AvailableOutputs & VIDEO_TEXT) {
         TextPutCharacter(character);
     }
-    else if (Terminal.AvailableOutputs & VIDEO_GRAPHICS) {
+    else if (g_bootTerminal.AvailableOutputs & VIDEO_GRAPHICS) {
         VesaPutCharacter(character);
     }
 }
@@ -485,7 +481,7 @@ SerialPutCharacter(
     size_t lineStatus      = 0x0;
     size_t characterBuffer = (size_t)(character & 0xFF);
 
-    if (!(Terminal.AvailableOutputs & VIDEO_UART)) {
+    if (!(g_bootTerminal.AvailableOutputs & VIDEO_UART)) {
         return;
     }
 
@@ -500,7 +496,7 @@ SerialPortInitialize(void)
 {
     // Initalize the UART port (1)
 #ifdef __OSCONFIG_DEBUGMODE
-    Terminal.AvailableOutputs |= VIDEO_UART;
+    g_bootTerminal.AvailableOutputs |= VIDEO_UART;
 #endif
     return OsSuccess;
 }
@@ -510,7 +506,7 @@ InitializeFramebufferOutput(void)
 {
     // Which kind of mode has been enabled for us
     if (GetMachine()->BootInformation.Video.FrameBuffer) {
-        size_t   backBufferSize = Terminal.Info.BytesPerScanline * Terminal.Info.Height;
+        size_t   backBufferSize = g_bootTerminal.Info.BytesPerScanline * g_bootTerminal.Info.Height;
         vaddr_t  backBuffer;
         int      pageCount = DIVUP(backBufferSize, GetMemorySpacePageSize());
         paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
@@ -526,17 +522,17 @@ InitializeFramebufferOutput(void)
                     MAPPING_VIRTUAL_GLOBAL
             );
             if (status == OsSuccess) {
-                Terminal.BackBufferAddress = backBuffer;
+                g_bootTerminal.BackBufferAddress = backBuffer;
             }
             kfree(pages);
         }
 
-        Terminal.AvailableOutputs |= VIDEO_GRAPHICS;
+        g_bootTerminal.AvailableOutputs |= VIDEO_GRAPHICS;
     }
     else {
         // Either headless or terminal mode
         if (GetMachine()->BootInformation.Video.Pitch) {
-            Terminal.AvailableOutputs |= VIDEO_TEXT;
+            g_bootTerminal.AvailableOutputs |= VIDEO_TEXT;
         }
     }
     return OsSuccess;

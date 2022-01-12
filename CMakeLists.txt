@@ -22,7 +22,7 @@ option (VALI_RUN_KERNEL_TESTS "Enable kernel-mode testing suites of the operatin
 
 set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
 
-set (VALI_ARCH "i386" CACHE STRING "Platform architecture to build Vali for")
+set (VALI_ARCH "amd64" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
 set (ENV{VALI_ARCH} ${VALI_ARCH})
 

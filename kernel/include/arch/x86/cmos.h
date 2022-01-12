@@ -116,6 +116,8 @@
 typedef struct Cmos {
     uint8_t AcpiCentury;
     int     RtcAvailable;
+    int     RtcLine;
+    int     CalibrationMode;
     UUId_t  Irq;
 } Cmos_t;
 

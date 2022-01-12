@@ -44,7 +44,7 @@
 
 extern void SpawnBootstrapper(void);
 
-static SystemMachine_t Machine = { 
+static SystemMachine_t g_machine = {
     { 0 }, { 0 }, { 0 },                        // Strings
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
     { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
@@ -53,19 +53,19 @@ static SystemMachine_t Machine = {
     ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
     ATOMIC_VAR_INIT(1), 0, 0, 0 // Total Information
 };
+static SystemCpuCore_t g_bootCore = { 0 };
 
 SystemMachine_t*
 GetMachine(void)
 {
-    return &Machine;
+    return &g_machine;
 }
 
 _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
 {
-    SystemCpuCore_t cpuCore;
-    OsStatus_t      osStatus;
+    OsStatus_t osStatus;
 
     // Initialize all our static memory systems and global variables
     LogInitialize();
@@ -80,25 +80,25 @@ InitializeMachine(
             ArchProcessorHalt();
         }
     }
-    sprintf(&Machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
-    sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
-    sprintf(&Machine.Date[0],         "%s - %s", __DATE__, __TIME__);
-    memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
+    sprintf(&g_machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
+    sprintf(&g_machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
+    sprintf(&g_machine.Date[0],         "%s - %s", __DATE__, __TIME__);
+    memcpy(&g_machine.BootInformation, bootInformation, sizeof(struct VBoot));
 
     // Initialize the processor structure and the underlying platform. This is called before any
     // memory is taken care of, which means VBoot environment where all physical memory is present.
-    CpuInitializePlatform(&Machine.Processor, &cpuCore);
+    CpuInitializePlatform(&g_machine.Processor, &g_bootCore);
 
     // Initialize memory environment. This should enable and initialize all forms of memory management
     // and should leave the system ready to allocate memory at will. After this call Per-Core memory
     // should also be set up
-    osStatus = MachineMemoryInitialize(&Machine, &cpuCore);
+    osStatus = MachineMemoryInitialize(&g_machine, &g_bootCore);
     if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
     }
 
-    osStatus = InitializeConsole();
+    osStatus = ConsoleInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
@@ -132,7 +132,7 @@ InitializeMachine(
     }
 
     // initialize the idle thread for this core
-    ThreadingEnable(&cpuCore);
+    ThreadingEnable(&g_bootCore);
 
     // initialize the interrupt subsystem
     InitializeInterruptTable();

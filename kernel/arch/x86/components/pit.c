@@ -189,7 +189,7 @@ PitSetCalibrationMode(
 
     if (HpetIsEmulatingLegacyController() == OsSuccess) {
         // Counter 0 is the IRQ 0 emulator
-        HpComparatorStart(0, g_pit.Frequency, 1, g_pit.InterruptLine);
+        HpetComparatorStart(0, g_pit.Frequency, 1, g_pit.InterruptLine);
     }
     else {
         __StartPit(divisor);

@@ -64,60 +64,79 @@ RtcInterrupt(
     return InterruptHandled;
 }
 
+InterruptStatus_t
+RtcHpetInterrupt(
+        _In_ InterruptFunctionTable_t*  NotUsed,
+        _In_ void*                      Context)
+{
+    _CRT_UNUSED(NotUsed);
+    _CRT_UNUSED(Context);
+
+    if (g_cmos.CalibrationMode) {
+        // this was a calibration irq
+        uint32_t tick = READ_VOLATILE(g_calibrationTick);
+        WRITE_VOLATILE(g_calibrationTick, tick + 1);
+        return InterruptHandled;
+    }
+
+    // Should we ever try to resync the time at specific intervals?
+    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
+        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
+    }
+    else {
+        // Update system time with 1 second
+        SystemTimerWallClockAddTime(1);
+    }
+    return InterruptHandled;
+}
+
+static uint8_t
+__DisableRtc(void)
+{
+    uint8_t statusB;
+
+    statusB = CmosRead(CMOS_REGISTER_STATUS_B);
+    statusB &= ~(CMOSB_IRQ_PERIODIC | CMOSB_IRQ_ALARM | CMOSB_IRQ_UPDATE | CMOSB_IRQ_SQWAVFRQ);
+    CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
+    return CmosRead(CMOS_REGISTER_STATUS_B);
+}
+
 OsStatus_t
 RtcInitialize(
     _In_ Cmos_t* cmos)
 {
     DeviceInterrupt_t deviceInterrupt = {{0 } };
-    uint8_t           statusB;
     uint8_t           rate = 0x06; // must be between 3 and 15
     TRACE("RtcInitialize()");
 
-    // clear all irqs enabled from the RTC
-    statusB = CmosRead(CMOS_REGISTER_STATUS_B);
-    statusB &= ~(CMOSB_IRQ_PERIODIC | CMOSB_IRQ_ALARM | CMOSB_IRQ_UPDATE | CMOSB_IRQ_SQWAVFRQ);
-    CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
-    (void)CmosRead(CMOS_REGISTER_STATUS_B);
+    // disable the RTC for starters
+    (void)__DisableRtc();
 
+    // write default tick rate
     CmosWrite(CMOS_REGISTER_STATUS_A, CMOSA_DIVIDER_32KHZ | rate);
 
     // initialize the device interrupt
     deviceInterrupt.Line                  = CMOS_RTC_IRQ;
     deviceInterrupt.Pin                   = INTERRUPT_NONE;
     deviceInterrupt.Vectors[0]            = INTERRUPT_NONE;
-    deviceInterrupt.ResourceTable.Handler = RtcInterrupt;
+    deviceInterrupt.ResourceTable.Handler = (HpetIsEmulatingLegacyController() == OsSuccess ? RtcHpetInterrupt : RtcInterrupt);
     deviceInterrupt.Context               = cmos;
 
-    cmos->Irq = InterruptRegister(&deviceInterrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
+    cmos->Irq = InterruptRegister(
+            &deviceInterrupt,
+            INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL
+    );
     if (cmos->Irq == UUID_INVALID) {
         ERROR("RtcInitialize failed to register interrupt for rtc");
         return OsError;
     }
 
-    // Read the status register to make sure any ints are acknowledged before
-    // starting usage
-    CmosRead(CMOS_REGISTER_STATUS_C);
+    // Store the interrupt line for the RTC
+    g_cmos.RtcLine = deviceInterrupt.Line;
 
-    // Detect whether we are emulated by the hpet
-    if (HpetIsEmulatingLegacyController() == OsSuccess) {
-        TRACE("RtcInitialize RTC is emulated, syncing CMOS time");
-        // If we are emulated then we sync the clock immediately and start a timer that should fire
-        // once every second
-        CmosWaitForUpdate();
-        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
+    // Set calibration mode
+    RtcSetCalibrationMode(1);
 
-    	// Counter 1 is the IRQ 8 emulator
-        HpComparatorStart(1, 1, 1, deviceInterrupt.Line);
-    }
-    else {
-        // start the RTC update and frequency timer
-        statusB = CmosRead(CMOS_REGISTER_STATUS_B);
-        statusB |= CMOSB_IRQ_UPDATE | CMOSB_IRQ_PERIODIC | CMOSB_IRQ_SQWAVFRQ;
-        CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
-    }
-
-    // Clear pending interrupt again
-    CmosRead(CMOS_REGISTER_STATUS_C);
     return OsSuccess;
 }
 
@@ -131,12 +150,22 @@ RtcSetCalibrationMode(
         return;
     }
 
-    // disable interrupts
-    statusB = CmosRead(CMOS_REGISTER_STATUS_B);
-    statusB &= ~(CMOSB_IRQ_PERIODIC | CMOSB_IRQ_ALARM | CMOSB_IRQ_UPDATE | CMOSB_IRQ_SQWAVFRQ);
-    CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
+    g_cmos.CalibrationMode = enable;
 
-    statusB = CmosRead(CMOS_REGISTER_STATUS_B);
+    // In calibration mode, we request a frequency of 1000hz, in default mode
+    // we just want an interrupt once every second
+    if (HpetIsEmulatingLegacyController() == OsSuccess) {
+        uint64_t frequency = MAX(1, 1000 * enable);
+        if (!enable) {
+            // very naive attempt at syncing the comparator with the CMOS clock update
+            CmosWaitForUpdate();
+        }
+        HpetComparatorStart(1, frequency, 1, g_cmos.RtcLine);
+        return;
+    }
+
+    statusB = __DisableRtc();
+    CmosRead(CMOS_REGISTER_STATUS_C);
     if (enable) {
         statusB |= CMOSB_IRQ_UPDATE | CMOSB_IRQ_PERIODIC | CMOSB_IRQ_SQWAVFRQ;
     }

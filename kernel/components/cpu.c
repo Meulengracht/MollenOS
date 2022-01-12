@@ -118,6 +118,17 @@ CpuCoreRegister(
     g_coreTable[coreId] = core;
 }
 
+static void
+__InitializeTLS(
+        _In_ SystemCpuCore_t* cpuCore)
+{
+    // Set the first entry of the TLS to point to the core structure,
+    // when threads migrate they need this pointer updated.
+    __set_reserved(0, (uintptr_t)cpuCore);
+
+    // add any other per-core data here
+}
+
 void
 CpuCoreStart(void)
 {
@@ -129,23 +140,25 @@ CpuCoreStart(void)
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
 
+    // Retrieve the current core structure
+    cpuCore = CpuCoreCurrent();
+    if (!cpuCore) {
+        ERROR("CpuCoreStart coreId=%u do not match one of the registered cores", ArchGetProcessorCoreId());
+        ArchProcessorHalt();
+    }
+
     // Now we need to do a new memory space for this core. We simply create a new memory space
     // with kernel flags and switch to it.
     osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
     if (osStatus != OsSuccess) {
         // failed to boot this core!
+        ERROR("CpuCoreStart failed to create idle memoryspace for coreId=%u", ArchGetProcessorCoreId());
         ArchProcessorHalt();
     }
     MemorySpaceSwitch(MEMORYSPACE_GET(memorySpace));
 
-    // We need to get the appropriate core structure based on the current id of this
-    // cpu core. Unlike the boot processor where the structure is stored on the bootstack
-    // additional cores have their structures allocated on the heap.
-    cpuCore = GetProcessorCore(ArchGetProcessorCoreId());
-    if (!cpuCore) {
-        // failed to boot this core!
-        ArchProcessorHalt();
-    }
+    // Now that we have a proper memoryspace for this idle thread, we can install TLS
+    __InitializeTLS(cpuCore);
 
     // Create the idle-thread and scheduler for the core
     ThreadingEnable(cpuCore);

@@ -64,6 +64,6 @@ PACKED_TYPESTRUCT(VbeMode, {
 	uint16_t        OffScreenMemSize;
 });
 
-KERNELAPI void KERNELABI VbeInitialize(void);
+KERNELAPI void KERNELABI OutputInitialize(void);
 
 #endif // !_X86_VBE_H_

@@ -79,7 +79,7 @@ typedef struct SystemMachine {
  *
  * @param bootInformation [In] A pointer to the VBoot protocol structure.
  */
-_Noreturn void
+__attribute__((unused)) _Noreturn void
 InitializeMachine(
         _In_ struct VBoot* bootInformation);
 

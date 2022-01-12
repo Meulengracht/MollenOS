@@ -23,8 +23,8 @@
  *
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
-#define __MODULE        "IRQS"
-//#define __TRACE
+
+#define __TRACE
 
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
@@ -32,36 +32,38 @@
 #include <interrupts.h>
 #include <debug.h>
 
-#if defined(amd64) || defined(__amd64__)
-#include <arch/x86/x64/gdt.h>
-#endif
-
 static void
-InitializeSoftwareHandlers(void)
+__InstallSoftwareHandlers(void)
 {
-    DeviceInterrupt_t Interrupt = { { 0 } };
-    Interrupt.Vectors[0]            = INTERRUPT_NONE;
-    Interrupt.Pin                   = INTERRUPT_NONE;
+    DeviceInterrupt_t deviceInterrupt = {{0 } };
+    TRACE("__InstallSoftwareHandlers()");
+
+    deviceInterrupt.Vectors[0] = INTERRUPT_NONE;
+    deviceInterrupt.Pin = INTERRUPT_NONE;
     
     // Install local apic handlers
     // - LVT Error handler
-    Interrupt.Line                  = INTERRUPT_LVTERROR;
-    Interrupt.ResourceTable.Handler = ApicErrorHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL
-                                  | INTERRUPT_EXCLUSIVE);
+    deviceInterrupt.Line                  = INTERRUPT_LVTERROR;
+    deviceInterrupt.ResourceTable.Handler = ApicErrorHandler;
+    InterruptRegister(
+            &deviceInterrupt,
+            INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE
+    );
     
     // - Timer handler
-    Interrupt.Line                  = INTERRUPT_LAPIC;
-    Interrupt.ResourceTable.Handler = ApicTimerHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL
-                                  | INTERRUPT_EXCLUSIVE);
+    deviceInterrupt.Line                  = INTERRUPT_LAPIC;
+    deviceInterrupt.ResourceTable.Handler = ApicTimerHandler;
+    InterruptRegister(
+            &deviceInterrupt,
+            INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE
+    );
 }
 
 OsStatus_t
 PlatformInterruptInitialize(void)
 {
-    TRACE("...setting up interrupt handlers");
-    InitializeSoftwareHandlers();
+    TRACE("PlatformInterruptInitialize()");
+    __InstallSoftwareHandlers();
 
     // Make sure we allocate all device interrupts
     // so system can't take control of them
@@ -84,8 +86,8 @@ PlatformInterruptInitialize(void)
         ApicInitialize();
     }
     else {
-        ERROR(" > cpu does not have a local apic. This model is too old and not supported.");
-        return OsError;
+        ERROR("PlatformInterruptInitialize cpu does not have a local apic. This model is too old and not supported.");
+        return OsNotSupported;
     }
     return OsSuccess;
 }

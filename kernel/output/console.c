@@ -26,88 +26,23 @@
 #include <math.h>
 #include <log.h>
 
-#define COLOR_BG     0xFF000000
-#define COLOR_FG     0xFFFFFFFF
-#define COLOR_BORDER 0xFFFFFFFF
-
-static const char* g_bootConsoleTitle = "Startup Debug Console";
-
-static void 
-__DrawLine(
-	_In_ unsigned int startX,
-	_In_ unsigned int startY,
-	_In_ unsigned int endX,
-	_In_ unsigned int endY,
-	_In_ unsigned int color)
-{
-	// Variables - clam some values
-	int dx  = abs(endX - startX), sx = startX < endX ? 1 : -1;
-	int dy  = abs(endY - startY), sy = startY < endY ? 1 : -1;
-	int err = (dx > dy ? dx : -dy) / 2, e2;
-
-	// Draw the line by brute force
-	for (;;) {
-		VideoDrawPixel(startX, startY, color);
-		if (startX == endX && startY == endY) break;
-		e2 = err;
-		if (e2 >-dx) { err -= dy; startX += sx; }
-		if (e2 < dy) { err += dx; startY += sy; }
-	}
-}
-
-static void
-__DrawBootTerminal(
-	_In_ unsigned int X,
-	_In_ unsigned int Y,
-	_In_ size_t       Width,
-	_In_ size_t       Height)
-{
-	unsigned int TitleStartX = X + 8 + 32 + 8;
-	unsigned int TitleStartY = Y + 18;
-	int          i;
-
-	// Instantiate a pointer to title
-	char *TitlePtr = (char*)g_bootConsoleTitle;
-
-	// Draw the header
-	for (i = 0; i < 48; i++) {
-        __DrawLine(X, Y + i, X + Width, Y + i, COLOR_BORDER);
-	}
-	
-	// Draw remaining borders
-    __DrawLine(X, Y, X, Y + Height, COLOR_BORDER);
-    __DrawLine(X + Width, Y, X + Width, Y + Height, COLOR_BORDER);
-    __DrawLine(X, Y + Height, X + Width, Y + Height, COLOR_BORDER);
-
-	// Render title in middle of header
-	while (*TitlePtr) {
-		VideoDrawCharacter(TitleStartX, TitleStartY, *TitlePtr, COLOR_FG, COLOR_BG);
-		TitleStartX += 10;
-		TitlePtr++;
-	}
-
-	// Define some virtual borders to prettify just a little
-	VideoGetTerminal()->CursorX = VideoGetTerminal()->CursorStartX = X + 11;
-	VideoGetTerminal()->CursorLimitX = X + Width - 1;
-	VideoGetTerminal()->CursorY = VideoGetTerminal()->CursorStartY = Y + 49;
-	VideoGetTerminal()->CursorLimitY = Y + Height - 17;
-    VideoGetTerminal()->BgColor = COLOR_BG;
-    VideoGetTerminal()->FgColor = COLOR_FG;
-}
+#define COLOR_BG 0xFF000000
+#define COLOR_FG 0xFFFFFFFF
 
 OsStatus_t
 VideoQuery(
-	_Out_ VideoDescriptor_t *Descriptor)
+	_Out_ VideoDescriptor_t* videoDescriptor)
 {
-	if (Descriptor == NULL || VideoGetTerminal() == NULL) {
-		return OsError;
+	if (videoDescriptor == NULL || VideoGetTerminal() == NULL) {
+		return OsNotSupported;
 	}
-	memcpy(Descriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
+
+	memcpy(videoDescriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
 	return OsSuccess;
 }
 
 OsStatus_t 
-InitializeConsole(void)
+ConsoleInitialize(void)
 {
     OsStatus_t osStatus;
 
@@ -117,10 +52,15 @@ InitializeConsole(void)
     if (osStatus == OsSuccess) {
         VideoClear(COLOR_BG);
 #ifdef __OSCONFIG_DEBUGCONSOLE
-		if (VideoGetTerminal()->AvailableOutputs & VIDEO_GRAPHICS) {
-            __DrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 375, 0,
-                               MIN(750, VideoGetTerminal()->Info.Width), VideoGetTerminal()->Info.Height);
-		}
+        // Define some virtual borders to prettify just a little
+        VideoGetTerminal()->CursorX = VideoGetTerminal()->CursorStartX = 5;
+        VideoGetTerminal()->CursorLimitX -= 10;
+        VideoGetTerminal()->CursorY = VideoGetTerminal()->CursorStartY = 5;
+        VideoGetTerminal()->CursorLimitY -= 10;
+
+        // Set colors as requested
+        VideoGetTerminal()->BgColor = COLOR_BG;
+        VideoGetTerminal()->FgColor = COLOR_FG;
 #endif
     }
 #endif

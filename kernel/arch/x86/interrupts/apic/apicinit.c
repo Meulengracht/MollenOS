@@ -488,7 +488,7 @@ GetApicInterruptMode(void)
 OsStatus_t
 ApicIsInitialized(void)
 {
-    return (g_localApicBaseAddress == 0) ? OsError : OsSuccess;
+    return (g_localApicBaseAddress == 0) ? OsNotSupported : OsSuccess;
 }
 
 void

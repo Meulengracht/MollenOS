@@ -37,13 +37,13 @@ InitializeFramebufferOutput(void);
  * Initializes the output environment. This enables either visual representation
  * and debugging of the kernel and enables a serial debugger. */
 KERNELAPI OsStatus_t KERNELABI
-InitializeConsole(void);
+ConsoleInitialize(void);
 
 /* VideoQuery
  * Renders a character with default colors
  * at the current terminal position */
 KERNELAPI OsStatus_t KERNELABI
 VideoQuery(
-	_Out_ VideoDescriptor_t *Descriptor);
+	_Out_ VideoDescriptor_t *videoDescriptor);
 
 #endif //!__CONSOLE_INTERFACE_H__
