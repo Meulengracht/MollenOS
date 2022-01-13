@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -20,7 +19,9 @@
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
+
 //#define __TRACE
+#define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 
 #include <assert.h>
 #include <os/mollenos.h>
