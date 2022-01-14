@@ -18,8 +18,15 @@
 #include <os/mollenos.h>
 #include <time.h>
 
+static LargeUInteger_t g_clockFrequency = { 0 };
+
 clock_t
 clock_getfreq(void)
 {
-        
+    if (g_clockFrequency.u.LowPart != 0) {
+        return (clock_t)g_clockFrequency.QuadPart;
+    }
+
+    VaGetClockFrequency(VaClockSourceType_MONOTONIC, &g_clockFrequency);
+    return (clock_t)g_clockFrequency.QuadPart;
 }

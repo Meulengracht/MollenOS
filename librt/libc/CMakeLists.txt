@@ -396,6 +396,7 @@ set (SOURCES_OS
     os/shared_objects.c
     os/syscalls.c
     os/system.c
+        os/time.c
     os/thread_helpers.c
     os/unwind.c
 )

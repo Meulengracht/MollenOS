@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,8 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Definitions & Structures
+ * OS Interface
  * - This header describes the os-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -27,11 +24,11 @@
 
 #include <os/osdefs.h>
 #include <os/types/file.h>
-#include <os/types/storage.h>
-#include <os/types/path.h>
-#include <os/types/thread.h>
 #include <os/types/memory.h>
-#include <time.h>
+#include <os/types/path.h>
+#include <os/types/storage.h>
+#include <os/types/thread.h>
+#include <os/types/time.h>
 
 PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t NumberOfProcessors;
@@ -72,24 +69,57 @@ CRTDECL(OsStatus_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned 
  * System Extensions
  *******************************************************************************/
 CRTDECL(int,        OsStatusToErrno(OsStatus_t Status));
-CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t * descriptor));
+CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
 
 /*******************************************************************************
  * Time Interface
  *******************************************************************************/
-CRTDECL(OsStatus_t, VaGetWallClock(SystemTime_t* timeOut));
-CRTDECL(OsStatus_t, VaGetTimeTick(int tickBase, LargeUInteger_t* tickOut));
-CRTDECL(OsStatus_t, VaGetTimeFrequency(int tickBase, LargeUInteger_t* frequencyOut));
-CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* frequency));
-CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* value));
+
+/**
+ * @brief Reads the current wall clock from the kernel wallclock driver. No guarantee is made to
+ * the precision of this time other than second-precision.
+ *
+ * @param[Out] timeOut Pointer to a SystemTime_t structure, where the time will be stored.
+ * @return     Returns OsSuccess if the clock was read, otherwise OsNotSupported.
+ */
+CRTDECL(OsStatus_t,
+VaGetWallClock(
+        _In_ SystemTime_t* timeOut));
+
+/**
+ * @brief Reads the current clock tick for the given clock source type. No guarantees are made for their
+ * precision or availability. If the system is in low-precision mode, the return status will be OsNotSupported
+ * for the _HPC source.
+ *
+ * @param[In]  source  The clock source to read the tick for.
+ * @param[Out] tickOut Pointer to a large integer value that can hold the current tick value.
+ * @return     Returns OsSuccess if the tick was read, otherwise OsNotSupported.
+ */
+CRTDECL(OsStatus_t,
+VaGetClockTick(
+        _In_ enum VaClockSourceType source,
+        _In_ LargeUInteger_t*       tickOut));
+
+/**
+ * @brief Reads the frequency of the clock source type. Use this to calculate the resolution of a given
+ * clock source.
+ *
+ * @param[In]  source       The clock source to read the frequency for
+ * @param[Out] frequencyOut Pointer to a large integer value that can hold the frequency value.
+ * @return     Returns OsSuccess if the tick was read, otherwise OsNotSupported.
+ */
+CRTDECL(OsStatus_t,
+VaGetClockFrequency(
+        _In_ enum VaClockSourceType source,
+        _In_ LargeUInteger_t*       frequencyOut));
 
 /*******************************************************************************
  * Threading Extensions
  *******************************************************************************/
 CRTDECL(void,       InitializeThreadParameters(ThreadParameters_t* Paramaters));
-CRTDECL(OsStatus_t, SetCurrentThreadName(const char *ThreadName));
-CRTDECL(OsStatus_t, GetCurrentThreadName(char *ThreadNameBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, SetCurrentThreadName(const char* ThreadName));
+CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLength));
 
 /*******************************************************************************
  * Path Extensions

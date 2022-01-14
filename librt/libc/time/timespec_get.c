@@ -24,6 +24,19 @@
 #include <time.h>
 #include "local.h"
 
+static enum VaClockSourceType
+__get_va_type(
+        _In_ int base)
+{
+    if (base == TIME_THREAD) {
+        return VaClockSourceType_THREAD;
+    }
+    else if (base == TIME_PROCESS) {
+        return VaClockSourceType_PROCESS;
+    }
+    return VaClockSourceType_MONOTONIC;
+}
+
 int
 timespec_get(
     _In_ struct timespec* ts,
@@ -65,7 +78,7 @@ timespec_get(
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            VaGetTimeTick(base, &tick);
+            VaGetClockTick(__get_va_type(base), &tick);
             ts->tv_sec  = (time_t)(tick.QuadPart / CLOCKS_PER_SEC);
             ts->tv_nsec = (long)((tick.QuadPart % CLOCKS_PER_SEC) * NSEC_PER_MSEC);
         } break;

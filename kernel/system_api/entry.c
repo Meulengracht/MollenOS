@@ -23,13 +23,11 @@
 #include <ddk/acpi.h>
 #include <ddk/video.h>
 #include <ddk/io.h>
-#include <ddk/device.h>
+#include <debug.h>
 #include <internal/_utils.h>
 #include <ipc_context.h>
 #include <os/mollenos.h>
-#include <time.h>
 #include <threading.h>
-#include <debug.h>
 
 DECL_STRUCT(DeviceInterrupt);
 
@@ -122,16 +120,14 @@ extern OsStatus_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
 // Misc interface
 extern OsStatus_t ScInstallSignalHandler(uintptr_t handler);
 extern OsStatus_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
-extern OsStatus_t ScSystemQuery(SystemDescriptor_t* Descriptor);
+extern OsStatus_t ScSystemQuery(SystemDescriptor_t*);
 
 // Timing interface
-extern OsStatus_t ScSystemTimeTick(int tickBase, LargeUInteger_t* tickOut);
-extern OsStatus_t ScSystemTimeFrequency(int tickBase, LargeUInteger_t* frequencyOut);
-extern OsStatus_t ScPerformanceFrequency(LargeUInteger_t *Frequency);
-extern OsStatus_t ScPerformanceTick(LargeUInteger_t *Value);
-extern OsStatus_t ScSystemWallClock(SystemTime_t* wallClock);
+extern OsStatus_t ScSystemClockTick(enum VaClockSourceType, LargeUInteger_t*);
+extern OsStatus_t ScSystemClockFrequency(enum VaClockSourceType, LargeUInteger_t*);
+extern OsStatus_t ScSystemWallClock(SystemTime_t*);
 
-#define SYSTEM_CALL_COUNT 67
+#define SYSTEM_CALL_COUNT 65
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -233,11 +229,9 @@ static struct SystemCallDescriptor {
         DefineSyscall(61, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(62, ScSystemTimeTick),
-        DefineSyscall(63, ScSystemTimeFrequency),
-        DefineSyscall(64, ScPerformanceFrequency),
-        DefineSyscall(65, ScPerformanceTick),
-        DefineSyscall(66, ScSystemWallClock)
+        DefineSyscall(62, ScSystemClockTick),
+        DefineSyscall(63, ScSystemClockFrequency),
+        DefineSyscall(64, ScSystemWallClock)
 };
 
 Context_t*
@@ -257,7 +251,7 @@ SyscallHandle(
     thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
     handler = &SystemCallsTable[index];
 
-    TRACE("%s: syscall %s", ThreadName(thread), handler->Name);
+    TRACE("SyscallHandle %s", handler->Name);
     returnValue = ((SystemCallHandlerFn)handler->HandlerAddress)(
             (void*)CONTEXT_SC_ARG0(context), (void*)CONTEXT_SC_ARG1(context),
             (void*)CONTEXT_SC_ARG2(context), (void*)CONTEXT_SC_ARG3(context),

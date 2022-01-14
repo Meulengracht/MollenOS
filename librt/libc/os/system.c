@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -20,11 +18,8 @@
  * MollenOS System Interface
  */
 
-#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <os/process.h>
 
 OsStatus_t
 SystemQuery(
@@ -34,52 +29,6 @@ SystemQuery(
 		return OsInvalidParameters;
 	}
 	return Syscall_SystemQuery(descriptor);
-}
-
-OsStatus_t
-VaGetWallClock(
-	_In_ SystemTime_t* time)
-{
-    if (!time) {
-        return OsInvalidParameters;
-    }
-    return Syscall_SystemTime(time);
-}
-
-OsStatus_t
-VaGetTimeTick(
-    _In_ int              tickBase,
-    _In_ LargeUInteger_t* tick)
-{
-    if (!tick) {
-        return OsInvalidParameters;
-    }
-
-    if (tickBase == TIME_PROCESS && !__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        OsStatus_t               osStatus;
-        
-        sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &osStatus,
-                                         &tick->u.LowPart, &tick->u.HighPart);
-        return osStatus;
-    }
-    return Syscall_SystemTimeTick(tickBase, tick);
-}
-
-OsStatus_t
-QueryPerformanceFrequency(
-	_In_ LargeInteger_t* Frequency)
-{
-    return Syscall_SystemPerformanceFrequency(Frequency);
-}
-
-OsStatus_t
-QueryPerformanceTimer(
-	_In_ LargeInteger_t* Value)
-{
-    return Syscall_SystemPerformanceTime(Value);
 }
 
 OsStatus_t

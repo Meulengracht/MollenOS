@@ -95,19 +95,19 @@ ScFlushHardwareCache(
 }
 
 OsStatus_t
-ScSystemTimeTick(
-    _In_ int              tickBase,
-    _In_ LargeUInteger_t* tickOut)
+ScSystemClockTick(
+    _In_ enum VaClockSourceType source,
+    _In_ LargeUInteger_t*       tickOut)
 {
     if (!tickOut) {
         return OsInvalidParameters;
     }
 
-    switch (tickBase) {
-        case TIME_MONOTONIC:
-            SystemTimerGetClockTick(tickOut);
-            break;
-        case TIME_THREAD:
+    switch (source) {
+        case VaClockSourceType_HPC:
+            return SystemTimerGetPerformanceTick(tickOut);
+
+        case VaClockSourceType_THREAD:
             SystemTimerGetClockTick(tickOut);
             Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
@@ -116,43 +116,27 @@ ScSystemTimeTick(
             break;
 
         default:
-            return OsNotSupported;
+            SystemTimerGetClockTick(tickOut);
+            break;
     }
     return OsSuccess;
 }
 
 OsStatus_t
-ScSystemTimeFrequency(
-        _In_ int              tickBase,
-        _In_ LargeUInteger_t* frequencyOut)
+ScSystemClockFrequency(
+        _In_ enum VaClockSourceType source,
+        _In_ LargeUInteger_t*       frequencyOut)
 {
     if (!frequencyOut) {
         return OsInvalidParameters;
     }
 
+    if (source == VaClockSourceType_HPC) {
+        return SystemTimerGetPerformanceFrequency(frequencyOut);
+    }
+
     SystemTimerGetClockFrequency(frequencyOut);
-
     return OsSuccess;
-}
-
-OsStatus_t
-ScPerformanceFrequency(
-    _Out_ LargeUInteger_t *Frequency)
-{
-    if (Frequency == NULL) {
-        return OsInvalidParameters;
-    }
-    return SystemTimerGetPerformanceFrequency(Frequency);
-}
-
-OsStatus_t
-ScPerformanceTick(
-    _Out_ LargeUInteger_t *Value)
-{
-    if (Value == NULL) {
-        return OsError;
-    }
-    return SystemTimerGetPerformanceTick(Value);
 }
 
 OsStatus_t

@@ -845,11 +845,11 @@ __CreateCookie(
         _In_ Thread_t* thread,
         _In_ Thread_t* parent)
 {
-    UUId_t cookie = thread->StartedAt ^ parent->StartedAt;
+    UUId_t cookie = thread->StartedAt.u.LowPart ^ parent->StartedAt.u.LowPart;
     for (int i = 0; i < 5; i++) {
         cookie >>= i;
-        cookie += thread->StartedAt;
-        cookie *= parent->StartedAt;
+        cookie += thread->StartedAt.u.LowPart;
+        cookie *= parent->StartedAt.u.LowPart;
     }
     return cookie;
 }

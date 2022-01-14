@@ -31,24 +31,33 @@
 #define SYSTEM_DEBUG_WARNING		0x00000001
 #define SYSTEM_DEBUG_ERROR			0x00000002
 
-#define STR(str)                    str
-#define WARNING(...)				SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
-#define WARNING_IF(cond, ...)       { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
-#define ERROR(...)					SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
-#define TODO(str)                   SystemDebug(SYSTEM_DEBUG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, str)
+#define STR(str)               str
+#define WARNING(...)           SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+#define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
+#define WARNING_ONCE(id, ...)  { \
+                                    static _Atomic(int) __gi_ ##id ## _trigger = ATOMIC_VAR_INIT(0); \
+                                    if (!atomic_exchange(&__gi_ ##id ## _trigger, 1)) { \
+                                        SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); \
+                                    } \
+                               }
+#define ERROR(...)	           SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
+#define TODO(msg)              SystemDebug(SYSTEM_DEBUG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, msg)
 
 /**
  * Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion
  */
 #ifdef __TRACE
-#define TRACE(...)					SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
-#define ENTRY(...)                  LargeUInteger_t start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); GetSystemTick(TIME_UTC, &start)
-#define EXIT(str)                   GetSystemTick(TIME_UTC, &end); SystemDebug(SYSTEM_DEBUG_TRACE, str " completed in %llu ms", end.QuadPart - start.QuadPart)
+#include <time.h>
+#define __TS_DIFF_MS(start, end) (((end.tv_sec - start.tv_sec) * MSEC_PER_SEC) + ((end.tv_nsec - start.tv_nsec) / NSEC_PER_MSEC))
+
+#define TRACE(...) SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
+#define ENTRY(...) struct timespec start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); timespec_get(&start, TIME_UTC)
+#define EXIT(msg)  timespec_get(&end, TIME_UTC); SystemDebug(SYSTEM_DEBUG_TRACE, msg " completed in %llu ms", __TS_DIFF_MS(start, end))
 #else
 #define TRACE(...)
 #define ENTRY(...)
-#define EXIT(str)
+#define EXIT(msg)
 #endif
 
 /* Threading Utility
@@ -69,8 +78,8 @@
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-			 fault = 1; \
+        if (timeout_ >= (runs)) {\
+			 (fault) = 1; \
              break;\
 		}\
         thrd_sleepex(wait);\
@@ -95,9 +104,9 @@ SystemDebug(
  * @brief Requests to have the boot ramdisk mapped into the current memory space and
  * returns a pointer to the ramdisk. The memory can be freed by calling MemoryFree.
  *
- * @param bufferOut       [Out] A pointer to storage of a void* pointer that will be set to the ramdisk.
- * @param bufferLengthOut [Out] Size of the ramdisk buffer
- * @return                Status of the operation.
+ * @param[Out] bufferOut       A pointer to storage of a void* pointer that will be set to the ramdisk.
+ * @param[Out] bufferLengthOut Size of the ramdisk buffer
+ * @return     Status of the operation.
  */
 DDKDECL(OsStatus_t,
 DdkUtilsMapRamdisk(

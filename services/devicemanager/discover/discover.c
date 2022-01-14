@@ -206,7 +206,9 @@ __IsIdentificationsMatch(
         return 1;
     }
 
-    if (lh->Class != 0 && lh->Subclass != 0 &&
+    // Detect based on class/subclass. Let assume a class and subclass of 0
+    // is invalid, but either of them can be 0.
+    if ((lh->Class != 0 || lh->Subclass != 0) &&
         lh->Class == rh->Class &&
         lh->Subclass == rh->Subclass) {
         return 1;
