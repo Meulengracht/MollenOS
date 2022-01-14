@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -17,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C11-Support Time Implementation
+ * C11-Support Time Implementation
  * - Definitions, prototypes and information needed.
  */
 
@@ -51,12 +49,21 @@ typedef unsigned long long clock_t;
 #endif
 #endif
 
-#define CLOCKS_PER_SEC      1000
-#define TIME_UTC            0 // The epoch for this clock is 1970-01-01 00:00:00 in Coordinated Universal Time (UTC)
-#define TIME_TAI            1 // The epoch for this clock is 1970-01-01 00:00:00 in International Atomic Time (TAI)
-#define TIME_MONOTONIC      2 // The epoch is when the computer was booted.
-#define TIME_PROCESS        3 // The epoch for this clock is at some time during the generation of the current process.
-#define TIME_THREAD         4 // The epic is like TIME_PROCESS, but locally for the calling thread.
+/**
+ * The frequency of the clock varies based on the clock source. So the CLOCKS_PER_SEC
+ * macro is actually a function call.
+ */
+CRTDECL(clock_t, clock_getfreq(void));
+#define CLOCKS_PER_SEC clock_getfreq()
+
+/**
+ * On Vali UTC and TAI are almost alike. The difference is that UTC is affected by daylight savings, NTP etc.
+ */
+#define TIME_UTC       0 // The epoch for this clock is 1970-01-01 00:00:00 in Coordinated Universal Time (UTC)
+#define TIME_TAI       1 // The epoch for this clock is 1970-01-01 00:00:00 in International Atomic Time (TAI)
+#define TIME_MONOTONIC 2 // The epoch is when the computer was booted.
+#define TIME_PROCESS   3 // The epoch for this clock is at some time during the generation of the current process.
+#define TIME_THREAD    4 // The epic is like TIME_PROCESS, but locally for the calling thread.
 
 #ifndef _TM_DEFINED
 #define _TM_DEFINED
@@ -74,13 +81,12 @@ struct tm {
     char *tm_zone;
 };
 #endif
+
 struct timespec {
     time_t tv_sec;
     long tv_nsec;
 };
 
-/* tzrule_struct
- * Define the timezone rule structure, this is related to the current timezone */
 typedef struct __tzrule_struct {
     char ch;
     char p[3];
@@ -94,9 +100,6 @@ typedef struct __tzrule_struct {
     int p2;
 } __tzrule_type;
 
-/* tzinfo_type
- * The timezone information structure, used by
- * locale and current timezone settings given by getenv */
 typedef struct __tzinfo_struct {
     int __tznorth;
     int __tzyear;
@@ -105,41 +108,56 @@ typedef struct __tzinfo_struct {
 
 _CODE_BEGIN
 /**
- * time
  * Returns the current calendar time encoded as a time_t object, and 
  * also stores it in the time_t object pointed to by arg (unless arg is a null pointer).
  */
-_CRTIMP time_t
+CRTDECL(time_t,
 time(
-    _Out_Opt_ time_t *arg);
+    _Out_Opt_ time_t *arg));
 
 /**
- * timespec_get
- * 1. Modifies the timespec object pointed to by ts to hold the current calendar 
+ * @brief
+ * 1. Modifies the timespec object pointed to by ts to hold the current calendar
  *    time in the time base base.
  * 2. Expands to a value suitable for use as the base argument of timespec_get
  * Other macro constants beginning with TIME_ may be provided by the implementation 
  * to indicate additional time bases. If base is TIME_UTC, then
- * 1. ts->tv_sec is set to the number of seconds since an implementation defined epoch, 
+ * 1. ts->tv_sec is set to the number of seconds since an implementation defined epoch,
  *    truncated to a whole value
- * 2. ts->tv_nsec member is set to the integral number of nanoseconds, rounded to the 
+ * 2. ts->tv_nsec member is set to the integral number of nanoseconds, rounded to the
  *    resolution of the system clock
+ *
+ * @param[In] ts   pointer to an object of type struct timespec
+ * @param[In] base TIME_UTC or another nonzero integer value indicating the time base
+ * @return The value of base if base is supported, zero otherwise
  */
-_CRTIMP
-int
+CRTDECL(int,
 timespec_get(
     _In_ struct timespec* ts,
-    _In_ int              base);
+    _In_ int              base));
+
+/**
+ * @brief If ts is non-null and base is supported by timespec_get, modifies *ts to hold the resolution
+ * of time provided by timespec_get for base. For each supported base, multiple calls to timespec_getres
+ * during the same program execution have identical results.
+ *
+ * @param[In] ts   pointer to an object of type struct timespec
+ * @param[In] base TIME_UTC or another nonzero integer value indicating the time base
+ * @return The value of base if base is supported, zero otherwise.
+ */
+CRTDECL(int,
+timespec_getres(
+        _In_ struct timespec* ts,
+        _In_ int              base));
 
 /* timespec_diff
  * The difference between two timespec with the same base. Result
  * is stored in static storage provided by user. */
-_CRTIMP
-void
+CRTDECL(void,
 timespec_diff(
     _In_ const struct timespec* start,
     _In_ const struct timespec* stop,
-    _In_ struct timespec*       result);
+    _In_ struct timespec*       result));
 
 /* mktime
  * Renormalizes local calendar time expressed as a struct tm object and also 

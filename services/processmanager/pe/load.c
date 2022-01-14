@@ -794,14 +794,14 @@ PeParseAndMapImage(
         // Is there any directory available for the handler?
         if (DirectoryContents[dataDirectoryIndex] != NULL) {
             dstrace("parsing data-directory[%i]", dataDirectoryIndex);
-            Timing = PeImplGetTimestamp();
+            Timing = PeImplGetTimestampMs();
             osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
                                                         DirectoryContents[dataDirectoryIndex],
                                                         Directories[dataDirectoryIndex].Size);
             if (osStatus != OsSuccess) {
                 dserror("handling of data-directory failed, status %u", osStatus);
             }
-            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestamp() - Timing);
+            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestampMs() - Timing);
         }
     }
 

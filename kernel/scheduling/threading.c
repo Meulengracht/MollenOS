@@ -436,14 +436,14 @@ ThreadHandle(
     return Thread->Handle;
 }
 
-clock_t
+LargeUInteger_t*
 ThreadStartTime(
         _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return 0;
     }
-    return Thread->StartedAt;
+    return &Thread->StartedAt;
 }
 
 UUId_t
@@ -807,7 +807,7 @@ __InitializeDefaultsForThread(
     thread->ParentHandle    = UUID_INVALID;
     thread->KernelStackSize = kernelStackSize;
     thread->UserStackSize   = userStackSize;
-    SystemTimerGetTimestamp(&thread->StartedAt);
+    SystemTimerGetClockTick(&thread->StartedAt);
 
     osStatus = streambuffer_create(
             sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,

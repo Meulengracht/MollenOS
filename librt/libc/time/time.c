@@ -33,7 +33,7 @@ time_t time(time_t* Timer)
 	time_t       Result     = 0;
 
     // Retrieve structure in our format, convert and mktime
-	if (GetSystemTime(&SystemTime) == OsSuccess) {
+	if (VaGetWallClock(&SystemTime) == OsSuccess) {
         Temporary.tm_sec  = SystemTime.Second;
         Temporary.tm_min  = SystemTime.Minute;
         Temporary.tm_hour = SystemTime.Hour;

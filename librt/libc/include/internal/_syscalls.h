@@ -95,9 +95,10 @@ _CODE_END
 #define Syscall_InstallSignalHandler(HandlerAddress)                       (OsStatus_t)syscall1(59, SCPARAM(HandlerAddress))
 #define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (OsStatus_t)syscall3(60, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
 #define Syscall_SystemQuery(SystemInformation)                             (OsStatus_t)syscall1(61, SCPARAM(SystemInformation))
-#define Syscall_SystemTick(Base, Tick)                                     (OsStatus_t)syscall2(62, SCPARAM(Base), SCPARAM(Tick))
-#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(63, SCPARAM(Frequency))
-#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(64, SCPARAM(Value))
-#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(65, SCPARAM(Time))
+#define Syscall_SystemTimeTick(Base, TickOut)                              (OsStatus_t)syscall2(62, SCPARAM(Base), SCPARAM(TickOut))
+#define Syscall_SystemTimeFrequency(Base, FrequencyOut)                    (OsStatus_t)syscall2(63, SCPARAM(Base), SCPARAM(FrequencyOut))
+#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(64, SCPARAM(Frequency))
+#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(65, SCPARAM(Value))
+#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(66, SCPARAM(Time))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

@@ -95,32 +95,43 @@ ScFlushHardwareCache(
 }
 
 OsStatus_t
-ScSystemTime(
-    _In_ SystemTime_t* systemTime)
+ScSystemTimeTick(
+    _In_ int              tickBase,
+    _In_ LargeUInteger_t* tickOut)
 {
-    if (systemTime == NULL) {
-        return OsError;
+    if (!tickOut) {
+        return OsInvalidParameters;
     }
-    memcpy(systemTime, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
+
+    switch (tickBase) {
+        case TIME_MONOTONIC:
+            SystemTimerGetClockTick(tickOut);
+            break;
+        case TIME_THREAD:
+            SystemTimerGetClockTick(tickOut);
+            Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+            if (Thread != NULL) {
+                tickOut->QuadPart -= ThreadStartTime(Thread)->QuadPart;
+            }
+            break;
+
+        default:
+            return OsNotSupported;
+    }
     return OsSuccess;
 }
 
 OsStatus_t
-ScSystemTick(
-    _In_ int              tickBase,
-    _In_ LargeUInteger_t* tick)
+ScSystemTimeFrequency(
+        _In_ int              tickBase,
+        _In_ LargeUInteger_t* frequencyOut)
 {
-    if (tick == NULL) {
+    if (!frequencyOut) {
         return OsInvalidParameters;
     }
 
-    SystemTimerGetTimestamp((clock_t*)&tick->QuadPart);
-    if (tickBase == TIME_THREAD) {
-        Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-        if (Thread != NULL) {
-            tick->QuadPart -= ThreadStartTime(Thread);
-        }
-    }
+    SystemTimerGetClockFrequency(frequencyOut);
+
     return OsSuccess;
 }
 
@@ -142,6 +153,17 @@ ScPerformanceTick(
         return OsError;
     }
     return SystemTimerGetPerformanceTick(Value);
+}
+
+OsStatus_t
+ScSystemWallClock(
+        _In_ SystemTime_t* wallClock)
+{
+    if (wallClock == NULL) {
+        return OsError;
+    }
+    memcpy(wallClock, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
+    return OsSuccess;
 }
 
 OsStatus_t

@@ -78,7 +78,7 @@ typedef struct PeExecutable {
  *******************************************************************************/
 __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
-__EXTERN clock_t    PeImplGetTimestamp(void);
+__EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN OsStatus_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
 __EXTERN OsStatus_t PeImplLoadFile(MString_t*, void**, size_t*);
 __EXTERN void       PeImplUnloadFile(MString_t*, void*);

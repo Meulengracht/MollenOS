@@ -31,11 +31,22 @@
 static struct usched_scheduler g_scheduler;
 static atomic_int g_timerid = ATOMIC_VAR_INIT(1);
 
-struct usched_scheduler* __usched_get_scheduler(void) {
+struct usched_scheduler*
+__usched_get_scheduler(void)
+{
     return &g_scheduler;
 }
 
-void usched_init(void)
+static clock_t
+__get_timestamp_ms(void)
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
+}
+
+void
+usched_init(void)
 {
     if (g_scheduler.magic == SCHEDULER_MAGIC) {
         return;
@@ -48,7 +59,8 @@ void usched_init(void)
     g_scheduler.magic = SCHEDULER_MAGIC;
 }
 
-static struct usched_job* GetNextReady(struct usched_scheduler* scheduler)
+static struct usched_job*
+__get_next_ready(struct usched_scheduler* scheduler)
 {
     struct usched_job* next = scheduler->ready;
 
@@ -61,7 +73,8 @@ static struct usched_job* GetNextReady(struct usched_scheduler* scheduler)
     return next;
 }
 
-void TaskMain(struct usched_job* job)
+void
+TaskMain(struct usched_job* job)
 {
     job->state = JobState_RUNNING;
     job->entry(job->argument, job);
@@ -69,7 +82,8 @@ void TaskMain(struct usched_job* job)
     usched_yield();
 }
 
-static void SwitchTask(struct usched_job* current, struct usched_job* next)
+static void
+__switch_task(struct usched_job* current, struct usched_job* next)
 {
     char* stack;
 
@@ -109,13 +123,15 @@ static void SwitchTask(struct usched_job* current, struct usched_job* next)
 #endif
 }
 
-static void TaskDestroy(struct usched_job* job)
+static void
+__task_destroy(struct usched_job* job)
 {
     free(job->stack);
     free(job);
 }
 
-static void EmptyGarbageBin(void)
+static void
+__empty_garbage_bin(void)
 {
     struct usched_job* i;
 
@@ -123,20 +139,21 @@ static void EmptyGarbageBin(void)
     i = g_scheduler.garbage_bin;
     while (i) {
         struct usched_job* next = i->next;
-        TaskDestroy(i);
+        __task_destroy(i);
         i = next;
     }
     g_scheduler.garbage_bin = NULL;
     mtx_unlock(&g_scheduler.lock);
 }
 
-static void UpdateTimers(void)
+static void
+__update_timers(void)
 {
     clock_t                currentTime;
     struct usched_timeout* timer;
 
     mtx_lock(&g_scheduler.lock);
-    currentTime = clock();
+    currentTime = __get_timestamp_ms();
     timer = g_scheduler.timers;
     while (timer) {
         if (timer->deadline <= currentTime) {
@@ -148,14 +165,15 @@ static void UpdateTimers(void)
     mtx_unlock(&g_scheduler.lock);
 }
 
-static int GetTimeUntillNextDeadline()
+static int
+__get_next_deadline(void)
 {
     clock_t                currentTime;
     struct usched_timeout* timer;
     int                    shortest = INT_MAX;
 
     mtx_lock(&g_scheduler.lock);
-    currentTime = clock();
+    currentTime = __get_timestamp_ms();
     timer = g_scheduler.timers;
     while (timer) {
         if (timer->active) {
@@ -171,27 +189,28 @@ static int GetTimeUntillNextDeadline()
     return shortest;
 }
 
-int usched_yield(void)
+int
+usched_yield(void)
 {
     struct usched_job* current;
     struct usched_job* next;
 
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
-    UpdateTimers();
+    __update_timers();
 
     if (!g_scheduler.current) {
         // if no active thread and no ready threads then we can safely just return
         if (!g_scheduler.ready) {
-            return GetTimeUntillNextDeadline();
+            return __get_next_deadline();
         }
 
         // we are running in scheduler context, make sure we store
         // this context, so we can return to here when we run out of tasks
         // to execute
         if (setjmp(g_scheduler.context)) {
-            EmptyGarbageBin();
-            return GetTimeUntillNextDeadline();
+            __empty_garbage_bin();
+            return __get_next_deadline();
         }
     }
 
@@ -206,16 +225,17 @@ int usched_yield(void)
             AppendJob(&g_scheduler.garbage_bin, current);
         }
     }
-    next = GetNextReady(&g_scheduler);
+    next = __get_next_ready(&g_scheduler);
     g_scheduler.current = next;
     mtx_unlock(&g_scheduler.lock);
 
     // Should always be the last call
-    SwitchTask(current, next);
+    __switch_task(current, next);
     return 0;
 }
 
-void* usched_task_queue(usched_task_fn entry, void* argument)
+void*
+usched_task_queue(usched_task_fn entry, void* argument)
 {
     struct usched_job* job;
 
@@ -243,7 +263,8 @@ void* usched_task_queue(usched_task_fn entry, void* argument)
     return job;
 }
 
-void usched_task_cancel(void* cancellationToken)
+void
+usched_task_cancel(void* cancellationToken)
 {
     if (!cancellationToken) {
         return;
@@ -252,7 +273,8 @@ void usched_task_cancel(void* cancellationToken)
     ((struct usched_job*)cancellationToken)->cancelled = 1;
 }
 
-int usched_ct_is_cancelled(void* cancellationToken)
+int
+usched_ct_is_cancelled(void* cancellationToken)
 {
     if (!cancellationToken) {
         return 0;
@@ -261,7 +283,8 @@ int usched_ct_is_cancelled(void* cancellationToken)
     return ((struct usched_job*)cancellationToken)->cancelled;
 }
 
-int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
+int
+__usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
 {
     struct usched_timeout* timer;
 
@@ -277,7 +300,7 @@ int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
     }
 
     timer->id = atomic_fetch_add(&g_timerid, 1);
-    timer->deadline = clock() + timeout;
+    timer->deadline = __get_timestamp_ms() + timeout;
     timer->signal = cond;
     timer->next = NULL;
 
@@ -289,7 +312,8 @@ int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
     return timer->id;
 }
 
-int __usched_timeout_finish(int id)
+int
+__usched_timeout_finish(int id)
 {
     struct usched_timeout* timer;
     struct usched_timeout* previousTimer = NULL;

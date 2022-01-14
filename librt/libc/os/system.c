@@ -28,38 +28,44 @@
 
 OsStatus_t
 SystemQuery(
-	_In_ SystemDescriptor_t* Descriptor)
+	_In_ SystemDescriptor_t* descriptor)
 {
-	// Sanitize parameters
-	if (Descriptor == NULL) {
-		return OsError;
+	if (!descriptor) {
+		return OsInvalidParameters;
 	}
-	return Syscall_SystemQuery(Descriptor);
+	return Syscall_SystemQuery(descriptor);
 }
 
 OsStatus_t
-GetSystemTime(
-	_In_ SystemTime_t* Time)
+VaGetWallClock(
+	_In_ SystemTime_t* time)
 {
-    return Syscall_SystemTime(Time);
+    if (!time) {
+        return OsInvalidParameters;
+    }
+    return Syscall_SystemTime(time);
 }
 
 OsStatus_t
-GetSystemTick(
-    _In_ int              TickBase,
-    _In_ LargeUInteger_t* Tick)
+VaGetTimeTick(
+    _In_ int              tickBase,
+    _In_ LargeUInteger_t* tick)
 {
-    if (TickBase == TIME_PROCESS && !__crt_is_phoenix()) {
+    if (!tick) {
+        return OsInvalidParameters;
+    }
+
+    if (tickBase == TIME_PROCESS && !__crt_is_phoenix()) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        OsStatus_t               status;
+        OsStatus_t               osStatus;
         
         sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status,
-            &Tick->u.LowPart, &Tick->u.HighPart);
-        return status;
+        sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &osStatus,
+                                         &tick->u.LowPart, &tick->u.HighPart);
+        return osStatus;
     }
-    return Syscall_SystemTick(TickBase, Tick);
+    return Syscall_SystemTimeTick(tickBase, tick);
 }
 
 OsStatus_t

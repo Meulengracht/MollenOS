@@ -281,9 +281,13 @@ PeImplGetBaseAddress(void)
 }
 
 clock_t
-PeImplGetTimestamp(void)
+PeImplGetTimestampMs(void)
 {
-    return clock();
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+
+    // return timestamp in ms
+    return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
 OsStatus_t

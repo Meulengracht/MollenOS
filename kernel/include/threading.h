@@ -164,11 +164,10 @@ ThreadHandle(
         _In_ Thread_t* Thread);
 
 /**
- * ThreadStartTime
  * @param Thread A pointer to a thread structure
  * @return       The start time for the thread
  */
-KERNELAPI clock_t KERNELABI
+KERNELAPI LargeUInteger_t* KERNELABI
 ThreadStartTime(
         _In_ Thread_t* Thread);
 

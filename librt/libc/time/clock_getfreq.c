@@ -19,9 +19,7 @@
 #include <time.h>
 
 clock_t
-clock(void)
+clock_getfreq(void)
 {
-    LargeUInteger_t tick = {{0 } };
-    VaGetTimeTick(TIME_MONOTONIC, &tick);
-    return (clock_t)tick.QuadPart;
+        
 }

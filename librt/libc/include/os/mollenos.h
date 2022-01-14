@@ -72,12 +72,17 @@ CRTDECL(OsStatus_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned 
  * System Extensions
  *******************************************************************************/
 CRTDECL(int,        OsStatusToErrno(OsStatus_t Status));
-CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* Descriptor));
-CRTDECL(OsStatus_t, GetSystemTime(SystemTime_t* Time));
-CRTDECL(OsStatus_t, GetSystemTick(int TickBase, LargeUInteger_t* Tick));
-CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* Frequency));
-CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* Value));
+CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t * descriptor));
 CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
+
+/*******************************************************************************
+ * Time Interface
+ *******************************************************************************/
+CRTDECL(OsStatus_t, VaGetWallClock(SystemTime_t* timeOut));
+CRTDECL(OsStatus_t, VaGetTimeTick(int tickBase, LargeUInteger_t* tickOut));
+CRTDECL(OsStatus_t, VaGetTimeFrequency(int tickBase, LargeUInteger_t* frequencyOut));
+CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* frequency));
+CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* value));
 
 /*******************************************************************************
  * Threading Extensions

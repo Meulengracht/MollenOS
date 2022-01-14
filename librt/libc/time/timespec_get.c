@@ -29,9 +29,9 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    SystemTime_t    systemTime = {{{0 } } };
-	struct tm       temporary = {0 };
-    LargeUInteger_t tick      = {{0 } };
+    SystemTime_t    systemTime = { { { 0 } } };
+	struct tm       temporary = { 0 };
+    LargeUInteger_t tick      = { { 0 } };
 
     if (ts == NULL) {
         return -1;
@@ -41,7 +41,7 @@ timespec_get(
     switch (base) {
         case TIME_TAI:
         case TIME_UTC: {
-            if (GetSystemTime(&systemTime) == OsSuccess) {
+            if (VaGetWallClock(&systemTime) == OsSuccess) {
                 if (base == TIME_UTC) {
                     temporary.tm_sec  = systemTime.Second;
                     temporary.tm_min  = systemTime.Minute;
@@ -65,7 +65,7 @@ timespec_get(
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            GetSystemTick(base, &tick);
+            VaGetTimeTick(base, &tick);
             ts->tv_sec  = (time_t)(tick.QuadPart / CLOCKS_PER_SEC);
             ts->tv_nsec = (long)((tick.QuadPart % CLOCKS_PER_SEC) * NSEC_PER_MSEC);
         } break;
@@ -74,19 +74,4 @@ timespec_get(
             break;
     }
     return 0;
-}
-
-void
-timespec_diff(
-    _In_ const struct timespec* start,
-    _In_ const struct timespec* stop,
-    _In_ struct timespec*       result)
-{
-    if ((stop->tv_nsec - start->tv_nsec) < 0) {
-        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    } else {
-        result->tv_sec = stop->tv_sec - start->tv_sec;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
-    }
 }
