@@ -91,7 +91,7 @@ ApicTimerHandler(
     // restart timer
     ApicWriteLocal(
             APIC_INITIAL_COUNT,
-            MAX(g_lapicTimer.Quantum * (nextDeadline / g_lapicTimer.QuantumUnit), 0xFFFFFFFF)
+            MIN(g_lapicTimer.Quantum * (nextDeadline / g_lapicTimer.QuantumUnit), 0xFFFFFFFF)
     );
     return InterruptHandled;
 }

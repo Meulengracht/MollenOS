@@ -386,7 +386,7 @@ SchedulerSleep(
     _Out_ clock_t* interruptedAt)
 {
     SchedulerObject_t* object;
-    TRACE("[scheduler] [sleep] %" PRIuIN, nanoseconds);
+    TRACE("SchedulerSleep %" PRIuIN, nanoseconds);
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
@@ -446,7 +446,7 @@ SchedulerExpediteObject(
     _In_ SchedulerObject_t* object)
 {
     int resultState;
-    TRACE("[scheduler] [expedite]");
+    TRACE("SchedulerExpediteObject()");
 
     resultState = ExecuteEvent(object, EVENT_QUEUE);
     if (resultState != STATE_INVALID) {
@@ -465,7 +465,7 @@ SchedulerExpediteObject(
         }
     }
     else {
-        TRACE("[scheduler] [expedite] object 0x%" PRIxIN " was in invalid state", object);
+        TRACE("SchedulerExpediteObject object 0x%" PRIxIN " was in invalid state", object);
     }
 }
 
@@ -476,13 +476,13 @@ SchedulerQueueObject(
     OsStatus_t osStatus = OsSuccess;
     int        resultState;
     
-    TRACE("[scheduler] [queue]");
+    TRACE("SchedulerQueueObject()");
     
     assert(object != NULL);
 
     resultState = ExecuteEvent(object, EVENT_QUEUE);
     if (resultState == STATE_INVALID) {
-        WARNING("[scheduler] [queue] object %s was in invalid state", GetNameOfObject(object));
+        WARNING("SchedulerQueueObject object %s was in invalid state", GetNameOfObject(object));
         return OsInvalidParameters;
     }
     
@@ -592,7 +592,7 @@ __PerformObjectTimeout(
         __QueueForScheduler(scheduler, object, 0);
     }
     else {
-        WARNING("[scheduler] [timeout] object 0x%" PRIxIN " was in invalid state", object);
+        WARNING("__PerformObjectTimeout object 0x%" PRIxIN " was in invalid state", object);
     }
 }
 
@@ -634,12 +634,12 @@ __HandleObjectRequeue(
 
     resultState = ExecuteEvent(object, EVENT_SCHEDULE);
     if (resultState == STATE_INVALID) {
-        FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [advance] encounted a state that was not running/blocking");
+        FATAL(FATAL_SCOPE_KERNEL, "__HandleObjectRequeue encounted a state that was not running/blocking");
     }
     
     // Accepted outcome states currently are QUEUEING & BLOCKED
     if (resultState == STATE_QUEUEING) {
-        TRACE("[scheduler] [advance] reschedule");
+        TRACE("__HandleObjectRequeue reschedule");
         // Did it yield itself?
         if (preemptive) {
             // Nah, we interrupted it, demote it for that unless we are at max
@@ -651,7 +651,7 @@ __HandleObjectRequeue(
         __QueueForScheduler(scheduler, object, 0);
     }
     else if (object->TimeLeft != 0) {
-        TRACE("[scheduler] [advance] sleep 0x%llx (Head 0x%llx, Tail 0x%llx)",
+        TRACE("__HandleObjectRequeue sleep 0x%llx (Head 0x%llx, Tail 0x%llx)",
               object->Link, scheduler->SleepQueue.Head, scheduler->SleepQueue.Tail);
         // OK, so we are blocking this object which means we won't be
         // queuing the object up again, should we track the sleep?
@@ -671,7 +671,7 @@ SchedulerAdvance(
     clock_t            currentClock;
     clock_t            nextDeadline;
     int                i;
-    TRACE("[scheduler] [advance] current 0x%llx, forced %i, ns-passed %llu",
+    TRACE("SchedulerAdvance(current 0x%llx, forced %i, ns-passed %llu)",
           object, preemptive, nanosecondsPassed);
     
     // Allow Object to be NULL but not NextDeadlineOut
@@ -685,7 +685,7 @@ SchedulerAdvance(
         object->TimeSliceLeft -= nanosecondsPassed;
         nextDeadline = __UpdateSleepQueue(scheduler, NULL, nanosecondsPassed);
         *nextDeadlineOut = MIN(object->TimeSliceLeft, nextDeadline);
-        TRACE("[scheduler] [advance] redeploy next deadline %llu", *nextDeadlineOut);
+        TRACE("SchedulerAdvance redeploy next deadline %llu", *nextDeadlineOut);
         return object->Object;
     }
 
@@ -726,13 +726,13 @@ SchedulerAdvance(
             }
         }
         *nextDeadlineOut = nextDeadline;
-        TRACE("[scheduler] [advance] next 0x%llx, deadline in %llu", nextObject, nextDeadline);
+        TRACE("SchedulerAdvance next 0x%llx, deadline in %llu", nextObject, nextDeadline);
     }
     else {
         // Reset boost
         scheduler->LastBoost = 0;
         *nextDeadlineOut = (nextDeadline == __MASK) ? 0 : nextDeadline;
-        TRACE("[scheduler] [advance] no next object, deadline in %llu", *nextDeadlineOut);
+        TRACE("SchedulerAdvance no next object, deadline in %llu", *nextDeadlineOut);
     }
     
     return (nextObject == NULL) ? NULL : nextObject->Object;

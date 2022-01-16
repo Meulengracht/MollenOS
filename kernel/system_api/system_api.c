@@ -22,14 +22,12 @@
 
 #include <arch/output.h>
 #include <arch/utils.h>
-#include <component/timer.h>
 #include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <console.h>
 #include <machine.h>
 #include <debug.h>
-#include <string.h>
 
 OsStatus_t
 ScSystemDebug(
@@ -52,7 +50,6 @@ ScSystemDebug(
     }
     return OsSuccess;
 }
-
 
 OsStatus_t ScEndBootSequence(void) {
     TRACE("Ending console session");
@@ -92,62 +89,6 @@ ScFlushHardwareCache(
         return OsSuccess;
     }
     return OsError;
-}
-
-OsStatus_t
-ScSystemClockTick(
-    _In_ enum VaClockSourceType source,
-    _In_ LargeUInteger_t*       tickOut)
-{
-    if (!tickOut) {
-        return OsInvalidParameters;
-    }
-
-    switch (source) {
-        case VaClockSourceType_HPC:
-            return SystemTimerGetPerformanceTick(tickOut);
-
-        case VaClockSourceType_THREAD:
-            SystemTimerGetClockTick(tickOut);
-            Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-            if (Thread != NULL) {
-                tickOut->QuadPart -= ThreadStartTime(Thread)->QuadPart;
-            }
-            break;
-
-        default:
-            SystemTimerGetClockTick(tickOut);
-            break;
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-ScSystemClockFrequency(
-        _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       frequencyOut)
-{
-    if (!frequencyOut) {
-        return OsInvalidParameters;
-    }
-
-    if (source == VaClockSourceType_HPC) {
-        return SystemTimerGetPerformanceFrequency(frequencyOut);
-    }
-
-    SystemTimerGetClockFrequency(frequencyOut);
-    return OsSuccess;
-}
-
-OsStatus_t
-ScSystemWallClock(
-        _In_ SystemTime_t* wallClock)
-{
-    if (wallClock == NULL) {
-        return OsError;
-    }
-    memcpy(wallClock, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
-    return OsSuccess;
 }
 
 OsStatus_t

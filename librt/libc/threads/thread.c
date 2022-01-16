@@ -127,31 +127,40 @@ thrd_current(void)
 
 int
 thrd_sleep(
-    _In_     const struct timespec* time_point,
+    _In_     const struct timespec* duration,
     _In_Opt_ struct timespec*       remaining)
 {
-    LargeUInteger_t nanoseconds;
-    LargeUInteger_t nanosecondsPassed = { 0 };
+    LargeUInteger_t ns;
+    LargeUInteger_t nsRemaining = { 0 };
+    struct timespec current;
+    OsStatus_t      osStatus;
 
-    // Sanitize just in case - to save a syscall
-    if (time_point->tv_sec == 0 && time_point->tv_nsec == 0) {
+    if (!duration || (duration->tv_sec == 0 && duration->tv_nsec == 0)) {
         return thrd_error;
     }
 
-    // Add up to msec granularity, we don't support sub-ms
-    nanoseconds.QuadPart = time_point->tv_sec * NSEC_PER_SEC;
-    nanoseconds.QuadPart += time_point->tv_nsec;
+    // the duration value is actually a timepoint specified in UTC. So we actually need to
+    // convert this to a relative value here.
+    timespec_get(&current, TIME_UTC);
 
-    // Redirect the call
-    Syscall_ThreadSleep(&nanoseconds, &nanosecondsPassed);
-
-    // Update out if any
-    if (remaining != NULL && nanoseconds.QuadPart > nanosecondsPassed.QuadPart) {
-        nanoseconds.QuadPart -= nanosecondsPassed.QuadPart;
-        remaining->tv_nsec = (time_t)(nanoseconds.QuadPart % NSEC_PER_SEC);
-        remaining->tv_sec = (time_t)(nanoseconds.QuadPart / NSEC_PER_SEC);
+    // make sure that we haven't already stepped over the timeline
+    if (current.tv_sec > duration->tv_sec || (current.tv_sec == duration->tv_sec && current.tv_nsec >= duration->tv_nsec)) {
+        return thrd_success;
     }
-    return 0;
+
+    // calculate duration
+    ns.QuadPart = (duration->tv_sec * NSEC_PER_SEC) + duration->tv_nsec;
+    ns.QuadPart -= (current.tv_sec * NSEC_PER_SEC) + current.tv_nsec;
+
+    osStatus = Syscall_Sleep(&ns, &nsRemaining);
+    if (osStatus == OsInterrupted) {
+        if (remaining) {
+            remaining->tv_sec  = (time_t)(nsRemaining.QuadPart / NSEC_PER_SEC);
+            remaining->tv_nsec = (long)(nsRemaining.QuadPart % NSEC_PER_SEC);
+        }
+        return thrd_error;
+    }
+    return thrd_success;
 }
 
 int
@@ -159,10 +168,10 @@ thrd_sleepex(
     _In_ size_t msec)
 {
     LargeUInteger_t nanoseconds;
-    LargeUInteger_t nanosecondsPassed;
+    LargeUInteger_t remaining;
 
     nanoseconds.QuadPart = msec * NSEC_PER_MSEC;
-    Syscall_ThreadSleep(&nanoseconds, &nanosecondsPassed);
+    VaSleep(&nanoseconds, &remaining);
     return 0;
 }
 

@@ -31,7 +31,7 @@ VaGetWallClock(
     if (!time) {
         return OsInvalidParameters;
     }
-    return Syscall_SystemTime(time);
+    return Syscall_ReadWallClock(time);
 }
 
 OsStatus_t
@@ -53,7 +53,7 @@ VaGetClockTick(
                                          &tickOut->u.LowPart, &tickOut->u.HighPart);
         return osStatus;
     }
-    return Syscall_SystemTimeTick(source, tickOut);
+    return Syscall_ClockTick(source, tickOut);
 }
 
 OsStatus_t
@@ -67,5 +67,28 @@ VaGetClockFrequency(
 
     // The frequency is a bit more funny, because all ticks inheritly source the same frequency
     // so the source, unless HPC is requested, is relatively #dontcare.
-    return Syscall_SystemTimeFrequency(source, frequencyOut);
+    return Syscall_ClockFrequency(source, frequencyOut);
+}
+
+OsStatus_t
+VaSleep(
+        _In_      LargeUInteger_t* duration,
+        _Out_Opt_ LargeUInteger_t* remaining)
+{
+    if (!duration || !duration->QuadPart) {
+        return OsInvalidParameters;
+    }
+
+    return Syscall_Sleep(duration, remaining);
+}
+
+OsStatus_t
+VaStall(
+        _In_ LargeUInteger_t* duration)
+{
+    if (!duration || !duration->QuadPart) {
+        return OsInvalidParameters;
+    }
+
+    return Syscall_Stall(duration);
 }

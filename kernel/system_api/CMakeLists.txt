@@ -9,5 +9,6 @@ add_kernel_library (vali-core-api ""
         ossupport_api.c
         synchonization_api.c
         system_api.c
+        time_api.c
         thread_api.c
 )

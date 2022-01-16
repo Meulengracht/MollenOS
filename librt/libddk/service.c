@@ -39,7 +39,7 @@ static UUId_t FileServiceId    = UUID_INVALID;
 static UUId_t NetServiceId     = UUID_INVALID;
 
 static UUId_t
-GetHandleFromPath(
+__GetHandleFromPath(
     _In_ const char* Path)
 {
     UUId_t Handle;
@@ -50,26 +50,26 @@ GetHandleFromPath(
 }
 
 static OsStatus_t
-WaitForService(
-    _In_ thrd_t (*Callback)(void),
-    _In_ size_t Timeout)
+__WaitForService(
+    _In_ thrd_t (*getHandleCallback)(void),
+    _In_ size_t timeout)
 {
-    size_t TimeLeft = Timeout;
-    UUId_t Handle   = Callback();
-    if (!Timeout) {
-        while (Handle == UUID_INVALID) {
+    size_t timeLeft = timeout;
+    UUId_t handle   = getHandleCallback();
+    if (!timeout) {
+        while (handle == UUID_INVALID) {
             thrd_sleepex(10);
-            Handle = Callback();
+            handle = getHandleCallback();
         }
     }
     else {
-        while (TimeLeft && Handle == UUID_INVALID) {
+        while (timeLeft && handle == UUID_INVALID) {
             thrd_sleepex(10);
-            TimeLeft -= 10;
-            Handle   = Callback();
+            timeLeft -= 10;
+            handle = getHandleCallback();
         }
     }
-    return (Handle == UUID_INVALID) ? OsTimeout : OsSuccess;
+    return (handle == UUID_INVALID) ? OsTimeout : OsSuccess;
 }
 
 OsStatus_t 
@@ -86,7 +86,7 @@ RegisterPath(
 thrd_t GetSessionService(void)
 {
     if (SessionServiceId == UUID_INVALID) {
-        SessionServiceId = GetHandleFromPath(SERVICE_SESSION_PATH);
+        SessionServiceId = __GetHandleFromPath(SERVICE_SESSION_PATH);
     }
     return (thrd_t)SessionServiceId;
 }
@@ -94,7 +94,7 @@ thrd_t GetSessionService(void)
 thrd_t GetDeviceService(void)
 {
     if (DeviceServiceId == UUID_INVALID) {
-        DeviceServiceId = GetHandleFromPath(SERVICE_DEVICE_PATH);
+        DeviceServiceId = __GetHandleFromPath(SERVICE_DEVICE_PATH);
     }
     return (thrd_t)DeviceServiceId;
 }
@@ -102,7 +102,7 @@ thrd_t GetDeviceService(void)
 thrd_t GetUsbService(void)
 {
     if (UsbServiceId == UUID_INVALID) {
-        UsbServiceId = GetHandleFromPath(SERVICE_USB_PATH);
+        UsbServiceId = __GetHandleFromPath(SERVICE_USB_PATH);
     }
     return (thrd_t)UsbServiceId;
 }
@@ -110,7 +110,7 @@ thrd_t GetUsbService(void)
 thrd_t GetProcessService(void)
 {
     if (ProcessServiceId == UUID_INVALID) {
-        ProcessServiceId = GetHandleFromPath(SERVICE_PROCESS_PATH);
+        ProcessServiceId = __GetHandleFromPath(SERVICE_PROCESS_PATH);
     }
     return (thrd_t)ProcessServiceId;
 }
@@ -118,7 +118,7 @@ thrd_t GetProcessService(void)
 thrd_t GetFileService(void)
 {
     if (FileServiceId == UUID_INVALID) {
-        FileServiceId = GetHandleFromPath(SERVICE_FILE_PATH);
+        FileServiceId = __GetHandleFromPath(SERVICE_FILE_PATH);
     }
     return (thrd_t)FileServiceId;
 }
@@ -126,7 +126,7 @@ thrd_t GetFileService(void)
 thrd_t GetNetService(void)
 {
     if (NetServiceId == UUID_INVALID) {
-        NetServiceId = GetHandleFromPath(SERVICE_NET_PATH);
+        NetServiceId = __GetHandleFromPath(SERVICE_NET_PATH);
     }
     return (thrd_t)NetServiceId;
 }
@@ -135,40 +135,40 @@ OsStatus_t
 WaitForSessionService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetSessionService, Timeout);
+    return __WaitForService(GetSessionService, Timeout);
 }
 
 OsStatus_t
 WaitForDeviceService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetDeviceService, Timeout);
+    return __WaitForService(GetDeviceService, Timeout);
 }
 
 OsStatus_t
 WaitForUsbService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetUsbService, Timeout);
+    return __WaitForService(GetUsbService, Timeout);
 }
 
 OsStatus_t
 WaitForProcessService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetProcessService, Timeout);
+    return __WaitForService(GetProcessService, Timeout);
 }
 
 OsStatus_t
 WaitForFileService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetFileService, Timeout);
+    return __WaitForService(GetFileService, Timeout);
 }
 
 OsStatus_t
 WaitForNetService(
     _In_ size_t Timeout)
 {
-    return WaitForService(GetNetService, Timeout);
+    return __WaitForService(GetNetService, Timeout);
 }

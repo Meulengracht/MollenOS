@@ -77,6 +77,30 @@ CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
  *******************************************************************************/
 
 /**
+ * @brief Puts the calling thread to sleep for the requested duration. The actual time
+ * slept is not guaranteed, but will be returned in the remaining value.
+ *
+ * @param[In]            duration  The duration to sleep in nanoseconds.
+ * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
+ * @return OsSuccess if the sleep was not interrupted. Otherwise returns OsInterrupted.
+ */
+CRTDECL(OsStatus_t,
+VaSleep(
+        _In_      LargeUInteger_t* duration,
+        _Out_Opt_ LargeUInteger_t* remaining));
+
+/**
+ * @brief Stalls the current thread for the given duration. It will stall for atleast the duration
+ * provided, but can be stalled for longer if the thread is scheduled.
+ *
+ * @param[In] duration The duration to stall the thread for in nanoseconds.
+ * @return Will always succeed.
+ */
+CRTDECL(OsStatus_t,
+VaStall(
+        _In_ LargeUInteger_t* duration));
+
+/**
  * @brief Reads the current wall clock from the kernel wallclock driver. No guarantee is made to
  * the precision of this time other than second-precision.
  *
