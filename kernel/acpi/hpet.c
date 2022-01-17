@@ -88,8 +88,8 @@ __ReadComparatorValue(
 #if __BITS == 64
     HP_READ_64(offset, valueOut);
 #else
-    *ValueOut = 0;
-    HP_READ_32(Offset, (reg32_t*)ValueOut);
+    *valueOut = 0;
+    HP_READ_32(offset, (reg32_t*)valueOut);
 #endif
 }
 
@@ -101,7 +101,7 @@ __WriteComparatorValue(
 #if __BITS == 64
     HP_WRITE_64(offset, value);
 #else
-    HP_WRITE_32(Offset, Value);
+    HP_WRITE_32(offset, value);
 #endif
 }
 
