@@ -380,7 +380,7 @@ SchedulerDestroyObject(
     kfree(object);
 }
 
-int
+OsStatus_t
 SchedulerSleep(
     _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt)
@@ -391,7 +391,7 @@ SchedulerSleep(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
         SystemTimerStall(nanoseconds);
-        return SCHEDULER_SLEEP_OK;
+        return OsSuccess;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
@@ -410,11 +410,11 @@ SchedulerSleep(
     ArchThreadYield();
     
     smp_rmb();
-    if (object->TimeoutReason != OsSuccess) {
+    if (object->TimeoutReason != OsTimeout) {
         *interruptedAt = object->InterruptedAt;
-        return SCHEDULER_SLEEP_INTERRUPTED;
+        return OsInterrupted;
     }
-    return SCHEDULER_SLEEP_OK;
+    return OsSuccess;
 }
 
 void

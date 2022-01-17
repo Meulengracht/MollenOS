@@ -42,10 +42,6 @@ typedef struct list list_t;
 #define SCHEDULER_TIMESLICE_STEP    (2  * NSEC_PER_MSEC)
 #define SCHEDULER_BOOST_MS          5000
 
-#define SCHEDULER_TIMEOUT_INFINITE      0
-#define SCHEDULER_SLEEP_OK              0
-#define SCHEDULER_SLEEP_INTERRUPTED     1
-
 #define SCHEDULER_FLAG_BOUND            0x1
 
 typedef struct SchedulerObject SchedulerObject_t;
@@ -69,8 +65,6 @@ typedef struct Scheduler {
     _Atomic(int)           ObjectCount;
     _Atomic(unsigned long) Bandwidth;
 } Scheduler_t;
-
-#define SCHEDULER_INIT { 1, { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
 /* SchedulerCreateObject
  * Creates a new scheduling object and allocates a cpu core for the object.
@@ -107,7 +101,7 @@ SchedulerExpediteObject(
  * @param[Out] interruptedAt The timestamp the thread were awakened at if return is SCHEDULER_SLEEP_INTERRUPTED.
  * @return     Returns SCHEDULER_SLEEP_INTERRUPTED if a full sleep was not done, otherwise SCHEDULER_SLEEP_OK.
  */
-KERNELAPI int KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerSleep(
     _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt);

@@ -84,7 +84,7 @@ ApicTimerHandler(
     // switching
     (void)ThreadingAdvance(
             tick == 0 ? 1 : 0,
-            ((ticksPassed / g_lapicTimer.QuantumUnit) / g_lapicTimer.Quantum),
+            (ticksPassed / g_lapicTimer.Quantum) * g_lapicTimer.QuantumUnit,
             &nextDeadline
     );
 
