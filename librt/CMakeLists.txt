@@ -120,6 +120,9 @@ add_subdirectory (libm)
 # C Standard Library for Vali
 add_subdirectory (libc)
 
+# Libraries that depend on the c lib
+add_subdirectory(libyaml)
+
 # Export all the ddk targets for easier use
 install(EXPORT ddk_targets
     FILE ValiDDKTargets.cmake

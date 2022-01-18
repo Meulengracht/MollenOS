@@ -15,6 +15,7 @@ include_directories (
         ../../librt/libddk/include
         ../../librt/libds/include
         ../../librt/libc/include
+        ../../librt/libyaml/include
         include
 )
 
@@ -39,11 +40,13 @@ add_service_target(devicemanager ""
         ${ADDITONAL_SOURCES}
 
         discover/ramdisk.c
+        discover/parser.c
         discover/discover.c
 
         devices.c
         main.c
         requests.c
 )
+target_link_libraries(devicemanager libyaml)
 add_dependencies(devicemanager service_servers contract_clients)
 deploy_to_initrd(devicemanager ON)

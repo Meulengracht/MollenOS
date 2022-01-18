@@ -26,6 +26,7 @@
 #include <ddk/utils.h>
 #include <discover.h>
 #include <ds/mstring.h>
+#include <ramdisk.h>
 #include <stdlib.h>
 
 static OsStatus_t
@@ -56,6 +57,7 @@ __ParseRamdiskFile(
 
     path = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(path, (const char*)name, StrUTF8);
+    (void)DmParseDriverYaml(NULL, 0);
 
     identification.VendorId  = moduleHeader->VendorId;
     identification.ProductId = moduleHeader->DeviceId;

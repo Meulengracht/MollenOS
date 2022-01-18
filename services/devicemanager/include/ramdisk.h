@@ -29,4 +29,16 @@
 extern void
 DmRamdiskDiscover(void);
 
+/**
+ * @brief Parses a yaml configuration file and if valid, registers a new driver object.
+ *
+ * @param[In] yaml   The yaml file content.
+ * @param[In] length The length of the file content.
+ * @return    Returns OsSuccess if the yaml configuration was valid, otherwise OsError
+ */
+extern OsStatus_t
+DmParseDriverYaml(
+        _In_ const uint8_t* yaml,
+        _In_ size_t         length);
+
 #endif //!__RAMDISK_H__

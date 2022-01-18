@@ -9,7 +9,6 @@ include_directories (
     ../libddk/include
     ../libds/include
     ../libc/include
-    ../include
     ./include
 )
 
