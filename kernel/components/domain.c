@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * MollenOS System Component Infrastructure 
  * - Components mostly belong to system domains. This is the representation
@@ -64,7 +64,7 @@ BootDomainCores(
 }
 
 void
-EnableMultiProcessoringMode(void)
+CpuEnableMultiProcessorMode(void)
 {
     SystemDomain_t*  CurrentDomain = GetCurrentDomain();
     SystemCpuCore_t* Iter;

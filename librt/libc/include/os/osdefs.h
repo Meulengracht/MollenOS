@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * OS Basic Definitions & Structures
@@ -30,6 +30,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+/**
+ * Include some C11 headers if the environment supports it.
+ */
 #if !defined(__cplusplus)
 #if defined __STDC_VERSION__ && __STDC_VERSION__ >= 201112L
 #include <stdatomic.h>
@@ -38,8 +41,12 @@
 #endif // __STDC_VERSION__ >= 201112L
 #endif // !__cplusplus
 
+// TODO move this to kernel.h
 #define DECL_STRUCT(Type) typedef struct Type Type##_t
 
+/**
+ * Define _T and TCHAR types to introduce some form of compatability with other prograns
+ */
 #ifdef _UNICODE
 # define TCHAR wchar_t
 # define _T(x) L ##x
@@ -49,13 +56,18 @@
 #endif
 
 /**
- * Memory / Addressing types below 
- * these will switch in size based upon target-arch 
+ * Introduce registry types for drivers
+ * TODO move reg* types to ddkdefs.h
  */
-
 typedef uint32_t reg32_t;
 typedef uint64_t reg64_t;
 
+/**
+ * Define various memory types that are based on the underlying platform.
+ * Introduce __BITS and __MASK to allow programs and easy way to detect 32/64 bits
+ * TODO move paddr_t/vaddr_t to kernel.h
+ * TODO move reg_t to ddkdefs.h
+ */
 #if defined(i386) || defined(__i386__)
 #define __BITS       32
 #define __MASK       0xFFFFFFFF
@@ -74,7 +86,7 @@ typedef reg64_t            reg_t;
  * Operation System Types 
  * these are usually fixed no matter arch and include stuff as threading, processing etc 
  */
-typedef unsigned int IntStatus_t;
+typedef unsigned int IntStatus_t; // TODO move this to kernel.h
 typedef unsigned int UUId_t;
 typedef void*        Handle_t;
 
@@ -115,6 +127,10 @@ typedef enum OsStatus {
     OsErrorCodeCount
 } OsStatus_t;
 
+/**
+ * Introduce interrupt status codes for drivers, these are used in the fast interrupt handlers.
+ * TODO move this to ddkdefs.h
+ */
 typedef enum {
     InterruptNotHandled,
     InterruptHandled
@@ -203,11 +219,8 @@ NextPowerOfTwo(size_t value)
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))
-#define DIVUP(a, b)                             ((a / b) + (((a % b) > 0) ? 1 : 0))
-#define INCLIMIT(i, limit)                      i++; if (i == limit) i = 0;
-#define ADDLIMIT(Base, Current, Step, Limit)    ((Current + Step) >= Limit) ? Base : (Current + Step) 
-#define ALIGN(Val, Alignment, Roundup)          ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
-#define ISALIGNED(Val, Alignment)               ((Val & (Alignment-1)) == 0)
+#define DIVUP(a, b)                             (((a) / (b)) + ((((a) % (b)) > 0) ? 1 : 0))
+#define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
@@ -218,30 +231,33 @@ NextPowerOfTwo(size_t value)
 #define COMPILE_TIME_ASSERT(X)                  COMPILE_TIME_ASSERT2(X,__LINE__)
 #endif
 
-#define FSEC_PER_NSEC                           1000000L
-#define NSEC_PER_MSEC                           1000000L
-#define MSEC_PER_SEC                            1000L
-#define NSEC_PER_SEC                            1000000000L
-#define FSEC_PER_SEC                            1000000000000000LL
+#define FSEC_PER_NSEC 1000000L // Femptoseconds per nanosecond
+#define FSEC_PER_SEC  1000000000000000LL
+#define NSEC_PER_USEC 1000L    // Nanoseconds per microsecond
+#define NSEC_PER_MSEC 1000000L // Nanoseconds per millisecond
+#define NSEC_PER_SEC  1000000000L
+#define USEC_PER_MSEC 1000L
+#define USEC_PER_SEC  1000000L
+#define MSEC_PER_SEC  1000L
 
 #define BYTES_PER_KB 1024
 #define BYTES_PER_MB (BYTES_PER_KB * 1024)
 #define BYTES_PER_GB (BYTES_PER_MB * 1024)
 
 #ifndef LOWORD
-#define LOWORD(l)                               ((uint16_t)(uint32_t)(l))
+#define LOWORD(l) ((uint16_t)(uint32_t)(l))
 #endif
 
 #ifndef HIWORD
-#define HIWORD(l)                               ((uint16_t)((((uint32_t)(l)) >> 16) & 0xFFFF))
+#define HIWORD(l) ((uint16_t)((((uint32_t)(l)) >> 16) & 0xFFFF))
 #endif
 
 #ifndef LOBYTE
-#define LOBYTE(l)                               ((uint8_t)(uint16_t)(l))
+#define LOBYTE(l) ((uint8_t)(uint16_t)(l))
 #endif
 
 #ifndef HIBYTE
-#define HIBYTE(l)                               ((uint8_t)((((uint16_t)(l)) >> 8) & 0xFF))
+#define HIBYTE(l) ((uint8_t)((((uint16_t)(l)) >> 8) & 0xFF))
 #endif
 
 #ifdef _X86_16
@@ -255,7 +271,7 @@ NextPowerOfTwo(size_t value)
 #define HIDWORD(l)                              (0)
 #endif
 #else
-#ifdef _MOLLENOS_NO_64BIT
+#ifdef __OSCONFIG_DISABLE_64BIT
 /* int is 32-bits, no 64-bit support on this platform */
 #ifndef LODWORD
 #define LODWORD(l)                              ((u32)(l))
@@ -271,7 +287,7 @@ NextPowerOfTwo(size_t value)
 #endif
 
 #ifndef HIDWORD
-#define HIDWORD(l)                              (((*(LargeInteger_t*)(&l))).u.HighPart)
+#define HIDWORD(l)                              (((*(LargeInteger_t*)(&(l)))).u.HighPart)
 #endif
 #endif
 #endif

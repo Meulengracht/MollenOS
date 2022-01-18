@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * DDK Definitions & Structures
@@ -29,5 +29,44 @@
 
 #define DDKDECL(ReturnType, Function) extern ReturnType Function
 #define DDKDECL_DATA(Type, Name) extern Type Name
+
+#if defined(i386) || defined(__i386__)
+#define TLS_VALUE   uint32_t
+#define TLS_READ(offset, value)  __asm { __asm mov ebx, [offset] __asm mov eax, gs:[ebx] __asm mov [value], eax }
+#define TLS_WRITE(offset, value) __asm { __asm mov ebx, [offset] __asm mov eax, [value] __asm mov gs:[ebx], eax }
+#elif defined(amd64) || defined(__amd64__)
+#define TLS_VALUE   uint64_t
+#define TLS_READ(offset, value)  __asm { __asm mov rbx, [offset] __asm mov rax, gs:[rbx] __asm mov [value], rax }
+#define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }
+#else
+#error "Implement rw for tls for this architecture"
+#endif
+
+/**
+ * @brief Read from the TLS register index. On the X86 architecture this is done by using
+ * the GS register.
+ */
+SERVICEAPI size_t SERVICEABI
+__get_reserved(
+        _In_ size_t tlsIndex)
+{
+    TLS_VALUE tlsValue  = 0;
+    size_t    tlsOffset = (tlsIndex * sizeof(TLS_VALUE));
+    TLS_READ(tlsOffset, tlsValue);
+    return (size_t)tlsValue;
+}
+
+/**
+ * @brief Write to the TLS register index. On the X86 architecture this is done by using
+ * the GS register.
+ */
+SERVICEAPI void SERVICEABI
+__set_reserved(
+        _In_ size_t    tlsIndex,
+        _In_ TLS_VALUE tlsValue)
+{
+    size_t tlsOffset = (tlsIndex * sizeof(TLS_VALUE));
+    TLS_WRITE(tlsOffset, tlsValue);
+}
 
 #endif //!__DDK_DEFINITIONS_H__

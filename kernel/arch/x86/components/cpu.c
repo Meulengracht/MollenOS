@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86 Cpu Information Header
@@ -25,17 +23,24 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <machine.h>
-#include <memory.h>
-#include <smbios.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/smbios.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/pic.h>
+#include <arch/x86/vbe.h>
 #include <debug.h>
-#include <apic.h>
-#include <cpu.h>
-#include <gdt.h>
-#include <idt.h>
-#include <pic.h>
+#include <machine.h>
 #include <string.h>
-#include <vbe.h>
+
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#include <arch/x86/x32/idt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#include <arch/x86/x64/idt.h>
+#endif
 
 #include "../../../components/cpu_private.h"
 
@@ -84,7 +89,7 @@ TrimWhitespaces(char *str)
 }
 
 static void
-ExtractCoreTopology(
+__ExtractCoreTopology(
     _In_  void* Brand,
     _Out_ int*  CoreBits,
     _Out_ int*  LogicalBits)
@@ -103,81 +108,80 @@ ExtractCoreTopology(
 }
 
 void
-ArchProcessorInitialize(
-    _In_ SystemCpu_t* Processor)
+ArchPlatformInitialize(
+        _In_ SystemCpu_t*     cpu,
+        _In_ SystemCpuCore_t* core)
 {
-    SystemCpuCore_t* PrimaryCore = Processor->Cores;
+	uint32_t cpuRegisters[4]    = { 0 };
+    char     temporaryBrand[64] = { 0 };
+    char*    brandPointer = &temporaryBrand[0];
+    int      coreBits;
+    int      logicalBits;
+
+    __get_cpuid(0, cpuRegisters);
     
-	uint32_t CpuRegisters[4]    = { 0 };
-    char     TemporaryBrand[64] = { 0 };
-    char*    BrandPointer       = &TemporaryBrand[0];
-    int      CoreBits;
-    int      LogicalBits;
-    __get_cpuid(0, CpuRegisters);
-    
-    // Set default number of cores params
-    Processor->NumberOfCores = 1;
-    PrimaryCore->Id          = 0;
-    PrimaryCore->State       = CpuStateRunning;
-    PrimaryCore->External    = 0;
+    // Set default id of the primary core
+    core->Id = 0;
     
     //logical_CPU_number_within_core = APIC_ID & ( (1 << logical_CPU_bits) -1)
     //core_number_within_chip = (APIC_ID >> logical_CPU_bits) & ( (1 << core_bits) -1)
     //chip_ID = APIC_ID & ~( (1 << (logical_CPU_bits+core_bits) ) -1)
 
     // Store cpu-id level and store the cpu vendor
-    Processor->Data[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
-    memcpy(&Processor->Vendor[0], &CpuRegisters[1], 4);
-    memcpy(&Processor->Vendor[4], &CpuRegisters[3], 4);
-    memcpy(&Processor->Vendor[8], &CpuRegisters[2], 4);
+    cpu->PlatformData.MaxLevel = cpuRegisters[0];
+    memcpy(&cpu->Vendor[0], &cpuRegisters[1], 4);
+    memcpy(&cpu->Vendor[4], &cpuRegisters[3], 4);
+    memcpy(&cpu->Vendor[8], &cpuRegisters[2], 4);
 
     // Does it support retrieving features?
-    if (Processor->Data[CPU_DATA_MAXLEVEL] >= 1) {
-        __get_cpuid(1, CpuRegisters);
-        Processor->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
-        Processor->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
-        if (CpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
-            Processor->NumberOfCores = (int)((CpuRegisters[1] >> 16) & 0xFF);
-            PrimaryCore->Id          = (CpuRegisters[1] >> 24) & 0xFF;
+    if (cpu->PlatformData.MaxLevel >= 1) {
+        __get_cpuid(1, cpuRegisters);
+        cpu->PlatformData.EcxFeatures = cpuRegisters[2];
+        cpu->PlatformData.EdxFeatures = cpuRegisters[3];
+        if (cpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
+            cpu->NumberOfCores = (int)((cpuRegisters[1] >> 16) & 0xFF);
+            core->Id           = (cpuRegisters[1] >> 24) & 0xFF;
         }
         
         // This can be reported as 0, which means we assume a single cpu
-        if (Processor->NumberOfCores == 0) {
-            Processor->NumberOfCores = 1;
+        if (cpu->NumberOfCores == 0) {
+            cpu->NumberOfCores = 1;
         }
     }
     
     // Get core bits and logical bits
-    if (Processor->NumberOfCores != 1) {
+    if (cpu->NumberOfCores != 1) {
         //ExtractCoreTopology(&Processor->Vendor[0], &CoreBits, &LogicalBits);
     }
 
     // Get extensions supported
-    __get_cpuid(0x80000000, CpuRegisters);
+    __get_cpuid(0x80000000, cpuRegisters);
 
     // Extract the processor brand string if it's supported
-    Processor->Data[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
-    if (Processor->Data[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
-        __get_cpuid(0x80000002, CpuRegisters); // First 16 bytes
-        memcpy(&TemporaryBrand[0], &CpuRegisters[0], 16);
-        __get_cpuid(0x80000003, CpuRegisters); // Middle 16 bytes
-        memcpy(&TemporaryBrand[16], &CpuRegisters[0], 16);
-        __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
-        memcpy(&TemporaryBrand[32], &CpuRegisters[0], 16);
-        BrandPointer = TrimWhitespaces(BrandPointer);
-        memcpy(&Processor->Brand[0], BrandPointer, strlen(BrandPointer));
+    cpu->PlatformData.MaxLevelExtended = cpuRegisters[0];
+    if (cpu->PlatformData.MaxLevelExtended >= 0x80000004) {
+        __get_cpuid(0x80000002, cpuRegisters); // First 16 bytes
+        memcpy(&temporaryBrand[0], &cpuRegisters[0], 16);
+        __get_cpuid(0x80000003, cpuRegisters); // Middle 16 bytes
+        memcpy(&temporaryBrand[16], &cpuRegisters[0], 16);
+        __get_cpuid(0x80000004, cpuRegisters); // Last 16 bytes
+        memcpy(&temporaryBrand[32], &cpuRegisters[0], 16);
+        brandPointer = TrimWhitespaces(brandPointer);
+        memcpy(&cpu->Brand[0], brandPointer, strlen(brandPointer));
     }
 
-    // Enable cpu features
-    CpuInitializeFeatures();
+    // Initialize kernel GDT/IDT and perform some other things while we are doing pre-memory setup.
+    if (cpu == &GetMachine()->Processor) {
+        GdtInitialize();
+        IdtInitialize();
+        PicInitialize();
+        OutputInitialize();
+        SmBiosInitialize();
+    }
 
-    // Initialize cpu systems, only do this for primary processor
-    // @todo
-    GdtInitialize();
-    IdtInitialize();
-    PicInitialize();
-    VbeInitialize();
-    SmBiosInitialize();
+    // Enable cpu features, this will also install the GS bases. We have to do this after loading the
+    // GS/FS segment descriptors, otherwise they will clear the addresses in 64 bit.
+    CpuInitializeFeatures();
 }
 
 void
@@ -193,14 +197,14 @@ SetMachineUmaMode(void)
 
 OsStatus_t
 ArchProcessorSendInterrupt(
-    _In_ UUId_t CoreId,
-    _In_ UUId_t InterruptId)
+    _In_ UUId_t coreId,
+    _In_ UUId_t interruptId)
 {
-    OsStatus_t Status = ApicSendInterrupt(InterruptSpecific, CoreId, InterruptId & 0xFF);
-    if (Status != OsSuccess) {
+    OsStatus_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
+    if (osStatus != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
-    return Status;
+    return osStatus;
 }
 
 void
@@ -235,25 +239,27 @@ CpuInitializeFeatures(void)
     // we fill the kernel GS base with the user-one is that we start in kernel mode
     // and don't want the user-one swapped in untill later
     uint64_t userGsBase = MEMORY_SEGMENT_GS_USER_BASE;
-    uint64_t kernGsBase = 0;
+    uint64_t kernGsBase = MEMORY_LOCATION_TLS_START;
     CpuWriteModelRegister(CPU_MSR_KERNEL_GS_BASE, &userGsBase);
     CpuWriteModelRegister(CPU_MSR_GS_BASE, &kernGsBase);
 #endif
 }
 
 OsStatus_t
-CpuHasFeatures(unsigned int Ecx, unsigned int Edx)
+CpuHasFeatures(
+        _In_ unsigned int ecx,
+        _In_ unsigned int edx)
 {
 	// Check ECX features @todo multiple cpus
-	if (Ecx != 0) {
-		if ((GetMachine()->Processor.Data[CPU_DATA_FEATURES_ECX] & Ecx) != Ecx) {
+	if (ecx != 0) {
+		if ((GetMachine()->Processor.PlatformData.EcxFeatures & ecx) != ecx) {
 			return OsError;
 		}
 	}
 
 	// Check EDX features @todo multiple cpus
-	if (Edx != 0) {
-		if ((GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & Edx) != Edx) {
+	if (edx != 0) {
+		if ((GetMachine()->Processor.PlatformData.EdxFeatures & edx) != edx) {
 			return OsError;
 		}
 	}
@@ -268,7 +274,7 @@ ArchGetProcessorCoreId(void)
     }
 
     // If the local apic is not initialized this is single-core old system
-    // OR we are still in startup phase and thus we just return the boot-core
+    // OR we are still in startup phase, and thus we just return the boot-core
     if (!GetMachine()->Processor.Cores) {
         return 0;
     }
@@ -339,25 +345,4 @@ void CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
     else {
         ERROR("[write_msr] MSR is not supported on this cpu: %u", registerIndex);
     }
-}
-
-extern void _rdtsc(uint64_t *Value);
-
-void
-ArchStallProcessorCore(
-    size_t MilliSeconds)
-{
-	// Variables
-	volatile uint64_t TimeOut = 0;
-	uint64_t Counter = 0;
-
-	if (!(GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
-		FATAL(FATAL_SCOPE_KERNEL, "DelayMs() was called, but no TSC support in CPU.");
-		ArchProcessorIdle();
-	}
-
-	// Use the read timestamp counter
-	_rdtsc(&Counter);
-	TimeOut = Counter + (uint64_t)(MilliSeconds * 100000);
-	while (Counter < TimeOut) { _rdtsc(&Counter); }
 }

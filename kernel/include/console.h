@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS Console Interface (Boot)
@@ -37,13 +37,13 @@ InitializeFramebufferOutput(void);
  * Initializes the output environment. This enables either visual representation
  * and debugging of the kernel and enables a serial debugger. */
 KERNELAPI OsStatus_t KERNELABI
-InitializeConsole(void);
+ConsoleInitialize(void);
 
 /* VideoQuery
  * Renders a character with default colors
  * at the current terminal position */
 KERNELAPI OsStatus_t KERNELABI
 VideoQuery(
-	_Out_ VideoDescriptor_t *Descriptor);
+	_Out_ VideoDescriptor_t *videoDescriptor);
 
 #endif //!__CONSOLE_INTERFACE_H__

@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86-64 Virtual Memory Manager
@@ -26,12 +26,12 @@
 #define __TRACE
 #define __COMPILE_ASSERT
 
-#include <arch.h>
+#include <arch/x86/arch.h>
 #include <assert.h>
-#include <cpu.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/memory.h>
 #include <debug.h>
 #include <machine.h>
-#include <memory.h>
 #include <string.h>
 
 uintptr_t g_kernelcr3 = 0;
@@ -188,7 +188,7 @@ MmVirtualMapMemoryRange(
 }
 
 void
-MmuPrepareKernel(void)
+MmBootPrepareKernel(void)
 {
     PageMasterTable_t* pageMasterTable;
 	PageTable_t*       pageTable;
@@ -197,7 +197,7 @@ MmuPrepareKernel(void)
     vaddr_t            virtualBase;
     OsStatus_t         osStatus;
     unsigned int       kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
-	TRACE("MmuPrepareKernel()");
+	TRACE("MmBootPrepareKernel()");
 
     // Can we use global pages for kernel table?
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
@@ -217,9 +217,10 @@ MmuPrepareKernel(void)
 
     // Due to how it works with multiple cpu's, we need to make sure all shared
     // tables already are mapped in the uppermost level of the page-directory
+    // except for TLS structures
 
     // Allocate all neccessary memory before starting to identity map
-    TRACE("MmuPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+    TRACE("MmBootPrepareKernel pre-mapping kernel memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL + BYTES_PER_MB);
     MmVirtualMapMemoryRange(
             pageMasterTable,
@@ -228,12 +229,21 @@ MmuPrepareKernel(void)
             PAGE_PRESENT | PAGE_WRITE
     );
 
-    TRACE("MmuPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+    TRACE("MmBootPrepareKernel pre-mapping shared memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
           MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END);
     MmVirtualMapMemoryRange(
             pageMasterTable,
             MEMORY_LOCATION_SHARED_START,
             MEMORY_LOCATION_SHARED_END - MEMORY_LOCATION_SHARED_START,
+            PAGE_PRESENT | PAGE_WRITE
+    );
+
+    TRACE("MmBootPrepareKernel pre-mapping kernel TLS memory from 0x%" PRIxIN " => 0x%" PRIxIN "",
+          MEMORY_LOCATION_TLS_START, MEMORY_LOCATION_TLS_START + PAGE_SIZE);
+    MmVirtualMapMemoryRange(
+            pageMasterTable,
+            MEMORY_LOCATION_TLS_START,
+            PAGE_SIZE,
             PAGE_PRESENT | PAGE_WRITE
     );
 
@@ -243,7 +253,7 @@ MmuPrepareKernel(void)
     bytesToMap   = BYTES_PER_MB;
     while (bytesToMap) {
         size_t length = MIN(bytesToMap, TABLE_SPACE_SIZE - (virtualBase % TABLE_SPACE_SIZE));
-        TRACE("MmuPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
+        TRACE("MmBootPrepareKernel identity mapping 0x%" PRIxIN " => 0x%" PRIxIN "",
               virtualBase, virtualBase + length);
 
         pageTable = MmBootGetPageTable(pageMasterTable, virtualBase);

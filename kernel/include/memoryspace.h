@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Memory Space Interface
@@ -25,6 +25,7 @@
 #ifndef __MEMORY_SPACE_INTERFACE__
 #define __MEMORY_SPACE_INTERFACE__
 
+#include <arch/platform.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
 #include <mutex.h>
@@ -34,12 +35,6 @@
 DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);
 DECL_STRUCT(PlatformMemoryMapping);
-
-/**
- * MemorySpace Definitions
- * Definitions, bit definitions and magic constants for memory spaces
- */
-#define MEMORY_DATACOUNT 4
 
 /**
  * MemorySpace (Type) Definitions
@@ -86,18 +81,10 @@ typedef struct MemorySpaceContext MemorySpaceContext_t;
 typedef struct MemorySpace {
     UUId_t                ParentHandle;
     unsigned int          Flags;
-    uintptr_t             Data[MEMORY_DATACOUNT];
     DynamicMemoryPool_t   ThreadMemory;
     MemorySpaceContext_t* Context;
+    PlatformMemoryBlock_t PlatfromData;
 } MemorySpace_t;
-
-typedef struct MemoryMappingHandler {
-    element_t      Header;
-    MemorySpace_t* MemorySpace;
-    UUId_t         Handle;
-    uintptr_t      Address;
-    size_t         Length;
-} MemoryMappingHandler_t;
 
 /**
  * @brief Initializes the system memory space. This initializes a static version of the
@@ -109,7 +96,7 @@ typedef struct MemoryMappingHandler {
  * @return                        Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
-InitializeMemorySpace(
+MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
         _In_ PlatformMemoryMapping_t* kernelMappings);
@@ -122,8 +109,8 @@ InitializeMemorySpace(
  */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t*      Handle);
+    _In_  unsigned int flags,
+    _Out_ UUId_t*      handleOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided
@@ -132,7 +119,7 @@ CreateMemorySpace(
  * @param memorySpace [In] The memory space that should be switched to.
  */
 KERNELAPI void KERNELABI
-SwitchMemorySpace(
+MemorySpaceSwitch(
         _In_ MemorySpace_t* memorySpace);
 
 KERNELAPI UUId_t KERNELABI         GetCurrentMemorySpaceHandle(void);

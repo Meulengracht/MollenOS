@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * MollenOS Machine Structure
  * - Is the definition of what makes the currently running machine. From this
@@ -38,6 +35,7 @@
 #include <component/memory.h>
 #include <component/cpu.h>
 #include <component/ic.h>
+#include <component/timer.h>
 
 typedef struct SystemMachine {
     char         Architecture[32];
@@ -53,11 +51,11 @@ typedef struct SystemMachine {
     // Global Hardware Resources
     StaticMemoryPool_t          GlobalAccessMemory;
     SystemMemoryMap_t           MemoryMap;
-    list_t                      SystemDomains;
+    list_t                      SystemDomains; // list<SystemDomain_t*>
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
-    SystemTime_t                SystemTime;
+    SystemTimers_t              SystemTimers;
 
     // Total information across domains
     _Atomic(int)                NumberOfProcessors;
@@ -81,7 +79,7 @@ typedef struct SystemMachine {
  *
  * @param bootInformation [In] A pointer to the VBoot protocol structure.
  */
-_Noreturn void
+__attribute__((unused)) _Noreturn void
 InitializeMachine(
         _In_ struct VBoot* bootInformation);
 
@@ -101,22 +99,24 @@ KERNELAPI void KERNELABI
 SetMachineUmaMode(void);
 
 /**
- * InitializeSystemTimers (@arch)
+ * PlatformTimersInitialize (@arch)
  * Register and start all neccessary system timers for the operating system to run.
  */
 KERNELAPI OsStatus_t KERNELABI
-InitializeSystemTimers(void);
+PlatformTimersInitialize(void);
 
 /**
  * @brief Initializes the entire system memory range, selecting ranges that should
  * be reserved and those that are free for system use.
  *
- * @param machine [In] The machine to initialize memory systems for.
- * @return             Status of the initialization.
+ * @param[In] machine The machine to initialize memory systems for.
+ * @param[In] cpuCore The per-core structure of the booting cpu-core.
+ * @return            Status of the initialization.
  */
 KERNELAPI OsStatus_t KERNELABI
-MachineInitializeMemorySystems(
-        _In_ SystemMachine_t* machine);
+MachineMemoryInitialize(
+        _In_ SystemMachine_t* machine,
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
  * @brief

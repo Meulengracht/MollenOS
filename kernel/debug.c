@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS Debugging Interface
@@ -23,12 +23,12 @@
 #define __MODULE "DBGI"
 //#define __TRACE
 
+#include <arch/thread.h>
 #include <arch/utils.h>
+#include <debug.h>
 #include <memoryspace.h>
-#include <interrupts.h>
 #include <machine.h>
 #include <stdio.h>
-#include <debug.h>
 
 OsStatus_t
 DebugSingleStep(
@@ -157,7 +157,7 @@ DebugPanic(
     }
     
     if (Context) {
-        ArchDumpThreadContext(Context);
+        ArchThreadContextDump(Context);
         DebugStackTrace(Context, 8);
     }
 

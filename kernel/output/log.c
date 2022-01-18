@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Logging Interface
@@ -24,6 +24,7 @@
 #include <arch/output.h>
 #include <arch/utils.h>
 #include <assert.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -33,7 +34,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <threading.h>
-#include <timers.h>
 
 typedef struct SystemLogLine {
     int     level;
@@ -156,7 +156,7 @@ LogRenderMessages(void)
         else {
             VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
             snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
-                     "%09" PRIuIN " [%s-%u-%s] %s\n",
+                     "%09llu [%s-%u-%s] %s\n",
                      logLine->timeStamp,
                      g_typeNames[logLine->level],
                      logLine->coreId,
@@ -212,7 +212,8 @@ LogAppendMessage(
     logLine->level        = level;
     logLine->coreId       = coreId;
     logLine->threadHandle = ThreadCurrentHandle();
-    TimersGetSystemTick(&logLine->timeStamp);
+    SystemTimerGetTimestamp(&logLine->timeStamp);
+    logLine->timeStamp /= NSEC_PER_MSEC;
     
 	va_start(arguments, format);
     vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);

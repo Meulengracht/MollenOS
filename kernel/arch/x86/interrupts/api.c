@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Interrupt Interface
@@ -26,15 +26,15 @@
 
 //#define __TRACE
 
-#include <apic.h>
-#include <arch.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/pic.h>
 #include <assert.h>
 #include <ddk/interrupt.h>
 #include <debug.h>
 #include <machine.h>
-#include <pic.h>
 
 #define EFLAGS_INTERRUPT_FLAG         (1 << 9)
 #define APIC_DESTINATION_ALL          0x1
@@ -299,7 +299,7 @@ InterruptConfigure(
     }
 
 UpdateEntry:
-    if (GetApicInterruptMode() == InterruptModePic) {
+    if (GetApicInterruptMode() == InterruptMode_PIC) {
         PicConfigureLine(systemInterrupt->Source, enable, -1);
     }
     else {

@@ -32,7 +32,7 @@
 
 ## About <a name="about"></a>
 
-![Desktop - Terminal](docs/images/desktop_terminal.png)
+![Desktop - g_bootTerminal](docs/images/desktop_terminal.png)
 ![Desktop - Launcher](docs/images/desktop_launcher.png)
 ![Desktop - Doom](docs/images/desktop_doom.png)
 

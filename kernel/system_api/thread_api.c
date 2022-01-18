@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * System API - Threading calls
  */
@@ -27,8 +24,6 @@
 #include <assert.h>
 #include <os/mollenos.h>
 #include <threading.h>
-#include <scheduler.h>
-#include <timers.h>
 #include <string.h>
 #include <debug.h>
 
@@ -108,26 +103,6 @@ ScThreadSignal(
     return Result;
 }
 
-OsStatus_t
-ScThreadSleep(
-    _In_  time_t  milliseconds,
-    _Out_ time_t* millisecondsSlept)
-{
-    clock_t start = 0;
-    clock_t end   = 0;
-
-    TimersGetSystemTick(&start);
-    if (SchedulerSleep(milliseconds, &end) != SCHEDULER_SLEEP_INTERRUPTED) {
-        TimersGetSystemTick(&end);
-    }
-
-    // Update outs
-    if (millisecondsSlept != NULL) {
-        *millisecondsSlept = (time_t)(end - start);
-    }
-    return OsSuccess;
-}
-
 UUId_t
 ScThreadGetCurrentId(void)
 {
@@ -137,7 +112,7 @@ ScThreadGetCurrentId(void)
 OsStatus_t
 ScThreadYield(void)
 {
-    ThreadingYield();
+    ArchThreadYield();
     return OsSuccess;
 }
 

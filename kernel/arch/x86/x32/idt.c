@@ -13,17 +13,17 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86-32 Descriptor Table
  * - Interrupt Descriptor Table
  */
 
-#include <arch.h>
-#include <gdt.h>
-#include <idt.h>
-#include <idt_stubs.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/x32/gdt.h>
+#include <arch/x86/x32/idt.h>
+#include <arch/x86/idt_stubs.h>
 
 extern idt_stub_t IdtStubs[IDT_DESCRIPTOR_COUNT];
 

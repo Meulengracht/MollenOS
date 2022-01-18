@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * C11-Support Threading Implementation
@@ -120,16 +120,22 @@ thrd_equal(
 CRTDECL(thrd_t,
 thrd_current(void));
 
-/* thrd_sleep
- * Blocks the execution of the current thread for at least until the TIME_UTC 
+/**
+ * @brief Blocks the execution of the current thread for at least until the TIME_UTC
  * based time point pointed to by time_point has been reached.
- * The sleep may resume earlier if a signal that is not ignored is received. 
+ *
+ * The sleep may resume earlier if a signal that is not ignored is received.
  * In such case, if remaining is not NULL, the remaining time duration is stored 
- * into the object pointed to by remaining. */
+ * into the object pointed to by remaining.
+ *
+ * @param[In]            duration Pointer to the duration to sleep for
+ * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
+ * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
+ */
 CRTDECL(int,
 thrd_sleep(
-    _In_     const struct timespec* time_point,
-    _In_Opt_ struct timespec*       remaining));
+    _In_      const struct timespec* duration,
+    _Out_Opt_ struct timespec*       remaining));
 
 /* thrd_sleep
  * Blocks the execution of the current thread for at least given milliseconds */

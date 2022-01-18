@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * MollenOS System Component Infrastructure 
  * - The Interrupt Controller component. This component has the task
@@ -26,9 +26,9 @@
 #include <os/osdefs.h>
 
 typedef struct SystemInterruptOverride {
-    unsigned int     OverrideFlags;
-    int         SourceLine;
-    int         DestinationLine;
+    unsigned int OverrideFlags;
+    int          SourceLine;
+    int          DestinationLine;
 } SystemInterruptOverride_t;
 
 typedef struct SystemInterruptController {

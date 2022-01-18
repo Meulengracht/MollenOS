@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Threading Interface
@@ -26,6 +24,7 @@
 #define __VALI_THREADING_PRIVATE_H__
 
 #include <os/osdefs.h>
+#include <arch/platform.h>
 
 // Forward some structures we need
 DECL_STRUCT(MemorySpace);
@@ -62,7 +61,7 @@ typedef struct Thread {
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
-    clock_t                 StartedAt;
+    LargeUInteger_t         StartedAt;
     struct Thread*          Children;
     struct Thread*          Sibling;
 
@@ -78,7 +77,7 @@ typedef struct Thread {
     size_t                  UserStackSize;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
-    uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
+    PlatformThreadBlock_t   PlatformData;
 
     // signal support
     ThreadSignals_t         Signaling;

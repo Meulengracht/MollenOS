@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -13,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * System Component Infrastructure 
  * - The Central Processing Unit Component is one of the primary actors
@@ -29,116 +28,160 @@
 #include <component/cpu.h>
 #include <ddk/io.h>
 #include <debug.h>
+#include <handle.h>
 #include <heap.h>
 #include <machine.h>
+#include <memoryspace.h>
 #include <string.h>
 
 #include "cpu_private.h"
 
-// 256 is a temporary number, once we start getting processors with more than
-// 256 TXU's then we are fucked
-static SystemCpuCore_t* TxuTable[256] = { 0 };
-static SystemCpuCore_t  PrimaryCore   = SYSTEM_CPU_CORE_INIT;
+// So yes, we could remove this and use the list and the TLS area. The reason we still
+// keep this is to provide a quick lookup of core structures.
+static SystemCpuCore_t* g_coreTable[__CPU_MAX_COUNT] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
-    _In_ UUId_t CoreId)
+    _In_ UUId_t coreId)
 {
-    return TxuTable[CoreId];
+    assert(coreId < __CPU_MAX_COUNT);
+    return g_coreTable[coreId];
 }
 
 SystemCpuCore_t*
 CpuCoreCurrent(void)
 {
-    return TxuTable[ArchGetProcessorCoreId()];
+    return g_coreTable[ArchGetProcessorCoreId()];
+}
+
+static void
+__ConstructCpuCore(
+        _In_ SystemCpuCore_t* core,
+        _In_ UUId_t           coreId,
+        _In_ SystemCpuState_t state,
+        _In_ int              external)
+{
+    // zero out the entire structure first
+    memset(core, 0, sizeof(SystemCpuCore_t));
+
+    core->Id       = coreId;
+    core->State    = state;
+    core->External = external;
+
+    // Scheduler  = { 0 } TODO SchedulerConstruct
+    queue_construct(&core->FunctionQueue[0]);
+    queue_construct(&core->FunctionQueue[1]);
 }
 
 void
-InitializePrimaryProcessor(
-    _In_ SystemCpu_t* Cpu)
+CpuInitializePlatform(
+        _In_ SystemCpu_t*     cpu,
+        _In_ SystemCpuCore_t* core)
 {
     // Initialize the boot cpu's primary core pointer immediately before
     // passing it down to the arch layer - so it can use the storage.
-    Cpu->Cores = &PrimaryCore;
-    ArchProcessorInitialize(Cpu);
+    cpu->NumberOfCores = 1;
+    cpu->Cores         = core;
+
+    __ConstructCpuCore(core, UUID_INVALID, CpuStateRunning, 0);
+    ArchPlatformInitialize(cpu, core);
     
     // Register the primary core that has been registered
-    TxuTable[Cpu->Cores->Id] = Cpu->Cores;
+    g_coreTable[cpu->Cores->Id] = cpu->Cores;
 }
 
 void
-RegisterApplicationCore(
-    _In_ SystemCpu_t*       Cpu,
-    _In_ UUId_t             CoreId,
-    _In_ SystemCpuState_t   InitialState,
-    _In_ int                External)
+CpuCoreRegister(
+    _In_ SystemCpu_t*     cpu,
+    _In_ UUId_t           coreId,
+    _In_ SystemCpuState_t initialState,
+    _In_ int              external)
 {
-    SystemCpuCore_t* Core;
-    SystemCpuCore_t* Iter;
+    SystemCpuCore_t* core;
+    SystemCpuCore_t* i;
 
-    assert(Cpu != NULL);
-    assert(Cpu->NumberOfCores > 1);
+    assert(cpu != NULL);
+    assert(cpu->NumberOfCores > 1);
 
-    Core = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t));
-    assert(Core != NULL);
-    memset(Core, 0, sizeof(SystemCpuCore_t));
+    core = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t));
+    assert(core != NULL);
+    __ConstructCpuCore(core, coreId, initialState, external);
 
-    Core->Id       = CoreId;
-    Core->State    = InitialState;
-    Core->External = External;
-    
-    // IdleThread = { 0 }
-    // Scheduler  = { 0 } TODO SchedulerConstruct
-    queue_construct(&Core->FunctionQueue[0]);
-    queue_construct(&Core->FunctionQueue[1]);
-    
-    // CurrentThread      = NULL
-    // InterruptRegisters = NULL
-    // InterruptNesting   = 0
-    // InterruptPriority  = 0
-    // Link = NULL;
-    
     // Add the core to the list of cores in this cpu
-    Iter = Cpu->Cores;
-    while (Iter->Link) {
-        Iter = Iter->Link;
+    i = cpu->Cores;
+    while (i->Link) {
+        i = i->Link;
     }
-    Iter->Link = Core;
+    i->Link = core;
     
     // Register the TXU in the table for quick access
-    TxuTable[CoreId] = Core;
+    g_coreTable[coreId] = core;
+}
+
+static void
+__InitializeTLS(
+        _In_ SystemCpuCore_t* cpuCore)
+{
+    // Set the first entry of the TLS to point to the core structure,
+    // when threads migrate they need this pointer updated.
+    __set_reserved(0, (uintptr_t)cpuCore);
+
+    // add any other per-core data here
 }
 
 void
-ActivateApplicationCore(
-    _In_ SystemCpuCore_t* Core)
+CpuCoreStart(void)
 {
-    SystemDomain_t*  Domain;
-    SystemCpuCore_t* Iter;
-    TRACE("[activate_core] %u", Core->Id);
+    SystemDomain_t*  domain;
+    SystemCpuCore_t* i;
+    SystemCpuCore_t* cpuCore;
+    OsStatus_t       osStatus;
+    UUId_t           memorySpace;
+
+    TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
+
+    // Retrieve the current core structure
+    cpuCore = CpuCoreCurrent();
+    if (!cpuCore) {
+        ERROR("CpuCoreStart coreId=%u do not match one of the registered cores", ArchGetProcessorCoreId());
+        ArchProcessorHalt();
+    }
+
+    // Now we need to do a new memory space for this core. We simply create a new memory space
+    // with kernel flags and switch to it.
+    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
+    if (osStatus != OsSuccess) {
+        // failed to boot this core!
+        ERROR("CpuCoreStart failed to create idle memoryspace for coreId=%u", ArchGetProcessorCoreId());
+        ArchProcessorHalt();
+    }
+    MemorySpaceSwitch(MEMORYSPACE_GET(memorySpace));
+
+    // Now that we have a proper memoryspace for this idle thread, we can install TLS
+    __InitializeTLS(cpuCore);
 
     // Create the idle-thread and scheduler for the core
-    ThreadingEnable();
+    ThreadingEnable(cpuCore);
     
     // Notify everyone that we are running beore switching on interrupts, don't
     // add this flag, overwrite and set only this flag
-    WRITE_VOLATILE(Core->State, CpuStateRunning);
+    WRITE_VOLATILE(cpuCore->State, CpuStateRunning);
     atomic_fetch_add(&GetMachine()->NumberOfActiveCores, 1);
     InterruptEnable();
 
     // Bootup rest of cores in this domain if we are the primary core of
     // this domain. Then our job is simple
-    Domain = GetCurrentDomain();
-    if (Domain != NULL && Core == Domain->CoreGroup.Cores) {
-        Iter = Domain->CoreGroup.Cores->Link;
-        while (Iter) {
-            StartApplicationCore(Iter);
-            Iter = Iter->Link;
+    domain = GetCurrentDomain();
+    if (domain != NULL && cpuCore == domain->CoreGroup.Cores) {
+        i = domain->CoreGroup.Cores->Link;
+        while (i) {
+            StartApplicationCore(i);
+            i = i->Link;
         }
     }
 
     // Enter idle loop
-    WARNING("[activate_core] %" PRIuIN " is online", Core->Id);
+    WARNING("CpuCoreStart %" PRIuIN " is online", cpuCore->Id);
 	while (1) {
 		ArchProcessorIdle();
     }
@@ -230,146 +273,170 @@ CpuCoreExitInterrupt(
 
 element_t*
 CpuCorePopQueuedIpc(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return queue_pop(&CpuCore->FunctionQueue[CpuFunctionCustom]);
+    return queue_pop(&cpuCore->FunctionQueue[CpuFunctionCustom]);
 }
 
 void
 CpuCoreQueueIpc(
-        _In_ SystemCpuCore_t*        CpuCore,
-        _In_ SystemCpuFunctionType_t IpcType,
-        _In_ element_t*              Element)
+        _In_ SystemCpuCore_t*        cpuCore,
+        _In_ SystemCpuFunctionType_t functionType,
+        _In_ element_t*              element)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    queue_push(&CpuCore->FunctionQueue[IpcType], Element);
+    queue_push(&cpuCore->FunctionQueue[functionType], element);
 }
 
 UUId_t
 CpuCoreId(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return UUID_INVALID;
     }
-    return CpuCore->Id;
+    return cpuCore->Id;
 }
 
 void
 CpuCoreSetState(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ SystemCpuState_t State)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ SystemCpuState_t cpuState)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    WRITE_VOLATILE(CpuCore->State, State);
+    WRITE_VOLATILE(cpuCore->State, cpuState);
 }
 
 SystemCpuState_t
 CpuCoreState(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return CpuStateUnavailable;
     }
-    return READ_VOLATILE(CpuCore->State);
+    return READ_VOLATILE(cpuCore->State);
 }
 
 SystemCpuCore_t*
 CpuCoreNext(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->Link;
+    return cpuCore->Link;
+}
+
+
+PlatformCpuCoreBlock_t*
+CpuCorePlatformBlock(
+        _In_ SystemCpuCore_t* cpuCore)
+{
+    if (!cpuCore) {
+        return NULL;
+    }
+    return &cpuCore->PlatformData;
 }
 
 void
 CpuCoreSetPriority(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ int              Priority)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ int              priority)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->InterruptPriority = Priority;
+    cpuCore->InterruptPriority = (uint32_t)priority;
 }
 
 int
 CpuCorePriority(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return 0;
     }
-    return CpuCore->InterruptPriority;
+    return (int)cpuCore->InterruptPriority;
 }
 
 void
 CpuCoreSetCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Thread_t*        Thread)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->CurrentThread = Thread;
+
+    // If we are idle task - disable task priority
+    if (ThreadFlags(thread) & THREADING_IDLE) {
+        CpuCoreSetPriority(cpuCore, 0);
+    }
+    else {
+        CpuCoreSetPriority(
+                cpuCore,
+                61 - SchedulerObjectGetQueue(
+                        ThreadSchedulerHandle(thread)
+                )
+        );
+    }
+    cpuCore->CurrentThread = thread;
 }
 
 Thread_t*
 CpuCoreCurrentThread(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->CurrentThread;
+    return cpuCore->CurrentThread;
 }
 
 Thread_t*
 CpuCoreIdleThread(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return &CpuCore->IdleThread;
+    return &cpuCore->IdleThread;
 }
 
 Scheduler_t*
 CpuCoreScheduler(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return &CpuCore->Scheduler;
+    return &cpuCore->Scheduler;
 }
 
 void
 CpuCoreSetInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore,
-        _In_ Context_t*       Context)
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Context_t*       context)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return;
     }
-    CpuCore->InterruptRegisters = Context;
+    cpuCore->InterruptRegisters = context;
 }
 
 Context_t*
 CpuCoreInterruptContext(
-        _In_ SystemCpuCore_t* CpuCore)
+        _In_ SystemCpuCore_t* cpuCore)
 {
-    if (!CpuCore) {
+    if (!cpuCore) {
         return NULL;
     }
-    return CpuCore->InterruptRegisters;
+    return cpuCore->InterruptRegisters;
 }

@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * PE/COFF Image Loader
@@ -281,9 +281,13 @@ PeImplGetBaseAddress(void)
 }
 
 clock_t
-PeImplGetTimestamp(void)
+PeImplGetTimestampMs(void)
 {
-    return clock();
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+
+    // return timestamp in ms
+    return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
 OsStatus_t

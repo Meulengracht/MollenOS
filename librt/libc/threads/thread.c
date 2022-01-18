@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Threading Support Definitions & Structures
@@ -28,7 +26,6 @@
 #include <os/mollenos.h>
 #include "tls.h"
 #include <stdlib.h>
-#include <signal.h>
 #include <threads.h>
 
 CRTDECL(void, __cxa_threadinitialize(void));
@@ -123,46 +120,58 @@ thrd_current(void)
         return tls_current()->thr_id;
     }
 
-    // Otherwise invoke OS to refresh id
+    // Otherwise, invoke OS to refresh id
     tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
     return tls_current()->thr_id;
 }
 
 int
 thrd_sleep(
-    _In_     const struct timespec* time_point,
+    _In_     const struct timespec* duration,
     _In_Opt_ struct timespec*       remaining)
 {
-    // Add up to msec granularity, we don't support sub-ms
-    time_t msec         = time_point->tv_sec * MSEC_PER_SEC;
-    time_t msec_slept   = 0;
-    if (time_point->tv_nsec != 0) {
-        msec += ((time_point->tv_nsec - 1) / NSEC_PER_MSEC) + 1;
+    LargeUInteger_t ns;
+    LargeUInteger_t nsRemaining = { 0 };
+    struct timespec current;
+    OsStatus_t      osStatus;
+
+    if (!duration || (duration->tv_sec == 0 && duration->tv_nsec == 0)) {
+        return thrd_error;
     }
 
-    // Sanitize just in case - to save a syscall
-    if (time_point->tv_sec == 0 && time_point->tv_nsec == 0) {
-        return 0;
+    // the duration value is actually a timepoint specified in UTC. So we actually need to
+    // convert this to a relative value here.
+    timespec_get(&current, TIME_UTC);
+
+    // make sure that we haven't already stepped over the timeline
+    if (current.tv_sec > duration->tv_sec || (current.tv_sec == duration->tv_sec && current.tv_nsec >= duration->tv_nsec)) {
+        return thrd_success;
     }
 
-    // Redirect the call
-    Syscall_ThreadSleep(msec, &msec_slept);
+    // calculate duration
+    ns.QuadPart = (duration->tv_sec * NSEC_PER_SEC) + duration->tv_nsec;
+    ns.QuadPart -= (current.tv_sec * NSEC_PER_SEC) + current.tv_nsec;
 
-    // Update out if any
-    if (remaining != NULL && msec > msec_slept) {
-        msec -= msec_slept;
-        remaining->tv_nsec = (msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
-        remaining->tv_sec = msec / MSEC_PER_SEC;
+    osStatus = Syscall_Sleep(&ns, &nsRemaining);
+    if (osStatus == OsInterrupted) {
+        if (remaining) {
+            remaining->tv_sec  = (time_t)(nsRemaining.QuadPart / NSEC_PER_SEC);
+            remaining->tv_nsec = (long)(nsRemaining.QuadPart % NSEC_PER_SEC);
+        }
+        return thrd_error;
     }
-    return 0;
+    return thrd_success;
 }
 
 int
 thrd_sleepex(
     _In_ size_t msec)
 {
-    time_t msec_slept = 0;
-    Syscall_ThreadSleep(msec, &msec_slept);
+    LargeUInteger_t nanoseconds;
+    LargeUInteger_t remaining;
+
+    nanoseconds.QuadPart = msec * NSEC_PER_MSEC;
+    VaSleep(&nanoseconds, &remaining);
     return 0;
 }
 

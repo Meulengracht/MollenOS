@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS X86 IO Driver
@@ -25,8 +25,8 @@
 #include <arch/io.h>
 #include <ddk/barrier.h>
 #include <debug.h>
-#include <arch.h>
-#include <pci.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/pci.h>
 
 extern uint8_t  inb(uint16_t port);
 extern uint16_t inw(uint16_t port);

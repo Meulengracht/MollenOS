@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Interrupt Interface
@@ -25,8 +25,8 @@
 #define __MODULE "INIF"
 //#define __TRACE
 
-#include <arch.h>
 #include <arch/interrupts.h>
+#include <arch/platform.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>

@@ -396,6 +396,7 @@ set (SOURCES_OS
     os/shared_objects.c
     os/syscalls.c
     os/system.c
+        os/time.c
     os/thread_helpers.c
     os/unwind.c
 )
@@ -408,23 +409,26 @@ set (SOURCES_THREADS
 )
 
 set (SOURCES_TIME
-    ${SOURCES_TIME_COMMON}
-    time/asctime.c
-    time/clock.c
-    time/ctime.c
-    time/difftime.c
-    time/gettzinfo.c
-    time/gmtime.c
-    time/lcltime.c
-    time/mktime.c
-    time/strftime.c
-    time/time.c
-    time/timespec.c
-    time/tzcalc_limits.c
-    time/tzlock.c
-    time/tzset.c
-    time/tzset_r.c
-    time/wcsftime.c
+        ${SOURCES_TIME_COMMON}
+        time/asctime.c
+        time/clock.c
+        time/clock_getfreq.c
+        time/ctime.c
+        time/difftime.c
+        time/gettzinfo.c
+        time/gmtime.c
+        time/lcltime.c
+        time/mktime.c
+        time/strftime.c
+        time/time.c
+        time/timespec_get.c
+        time/timespec_getres.c
+        time/timespec_diff.c
+        time/tzcalc_limits.c
+        time/tzlock.c
+        time/tzset.c
+        time/tzset_r.c
+        time/wcsftime.c
 )
 
 set (SOURCES_WSTRING

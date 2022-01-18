@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Futex Synchronization
  *
@@ -301,9 +301,9 @@ FutexWait(
         return OsInterrupted;
     }
     
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout);
+    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     InterruptRestoreState(CpuState);
-    ThreadingYield();
+    ArchThreadYield();
 
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", ThreadCurrentHandle());
@@ -371,11 +371,11 @@ FutexWaitOperation(
         return OsInterrupted;
     }
     
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout);
+    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
     InterruptRestoreState(CpuState);
-    ThreadingYield();
+    ArchThreadYield();
     
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
     TRACE("%u: woke up", ThreadCurrentHandle());

@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86-64 Virtual Memory Manager
@@ -26,13 +26,13 @@
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-#include <arch.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/memory.h>
 #include <assert.h>
 #include <handle.h>
 #include <heap.h>
 #include <debug.h>
 #include <machine.h>
-#include <memory.h>
 #include <memoryspace.h>
 #include <string.h>
 
@@ -62,14 +62,14 @@ MmVirtualGetMasterTable(
         if (address < MEMORY_LOCATION_RING3_THREAD_START) {
             MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
-            parent = (PageMasterTable_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
+            parent = (PageMasterTable_t*)MemorySpaceParent->PlatfromData.Cr3VirtualAddress;
         }
     }
 
     // Update the provided pointers
     *isCurrentOut    = (memorySpace == GetCurrentMemorySpace()) ? 1 : 0;
     *parentDirectory = parent;
-    return (PageMasterTable_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    return (PageMasterTable_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
 }
 
 static PageDirectoryTable_t*
@@ -249,31 +249,85 @@ SyncPd:
 	return table;
 }
 
-OsStatus_t
-MmuCloneVirtualSpace(
-        _In_ MemorySpace_t* parent,
-        _In_ MemorySpace_t* child,
-        _In_ int            inherit)
+static OsStatus_t
+__CloneKernelDirectory(
+        _In_ PageMasterTable_t* source,
+        _In_ PageMasterTable_t* destination)
 {
-    PageMasterTable_t*    kernelMasterTable = (PageMasterTable_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
-    PageMasterTable_t*    parentMasterTable;
+    PageDirectoryTable_t* sourcePdp;
+    PageDirectoryTable_t* destinationPdp;
+    paddr_t               physicalAddress;
+    vaddr_t               virtualAddress;
+
+    int kernelPml4Entry;
+    int kernelSharedEntry;
+    int kernelTlsEntry;
+
+    kernelPml4Entry   = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_KERNEL);
+    kernelSharedEntry = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_KERNEL);
+    kernelTlsEntry    = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_TLS_START);
+
+    // get a pointer to the source Pdp where we will copy the shared entry
+    sourcePdp = (PageDirectoryTable_t*)source->vTables[kernelPml4Entry];
+    if (!sourcePdp) {
+        ERROR("__CloneKernelDirectory kernel PML4 was not present in source directory!");
+        return OsInvalidParameters;
+    }
+
+    // create the pml4 entry, we create a custom copy of this for each PML4.
+    destinationPdp = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &physicalAddress);
+    if (!destinationPdp) {
+        return OsOutOfMemory;
+    }
+    memset(destinationPdp, 0, sizeof(PageDirectoryTable_t));
+
+    // install the PML4[kernel_data] entry
+    atomic_store(&destination->pTables[kernelPml4Entry], physicalAddress | PAGE_WRITE | PAGE_PRESENT);
+    destination->vTables[kernelPml4Entry] = (uint64_t)destinationPdp;
+
+    // transfer over the shared pml4 entry and mark inherited, we are not allowed to free anything on cleanup
+    physicalAddress = atomic_load(&sourcePdp->pTables[kernelSharedEntry]) | PAGETABLE_INHERITED;
+    atomic_store(&destinationPdp->pTables[kernelSharedEntry], physicalAddress);
+    destinationPdp->vTables[kernelSharedEntry] = sourcePdp->vTables[kernelSharedEntry];
+
+    // install the kernelTlsEntry
+    virtualAddress = (vaddr_t)kmalloc_p(sizeof(PageDirectory_t), &physicalAddress);
+    if (!virtualAddress) {
+        kfree(destinationPdp);
+        return OsOutOfMemory;
+    }
+    memset((void*)virtualAddress, 0, sizeof(PageDirectory_t));
+    atomic_store(&destinationPdp->pTables[kernelTlsEntry], physicalAddress | PAGE_PRESENT | PAGE_WRITE);
+    destinationPdp->vTables[kernelTlsEntry] = virtualAddress;
+    return OsSuccess;
+}
+
+OsStatus_t
+MmVirtualClone(
+        _In_  MemorySpace_t* source,
+        _In_  int            inherit,
+        _Out_ paddr_t*       cr3Out,
+        _Out_ vaddr_t*       pdirOut)
+{
+    PageMasterTable_t*    kernelMasterTable = (PageMasterTable_t*)GetDomainMemorySpace()->PlatfromData.Cr3VirtualAddress;
+    PageMasterTable_t*    sourceMasterTable;
     PageMasterTable_t*    pageMasterTable;
     PageDirectoryTable_t* directoryTable;
     uintptr_t             physicalAddress;
     uintptr_t             masterAddress;
-    TRACE("MmuCloneVirtualSpace(Inherit %" PRIiIN ")", inherit);
+    OsStatus_t            osStatus;
+    TRACE("MmuCloneVirtualSpace(inherit=%" PRIiIN ")", inherit);
 
     // lookup and sanitize regions
-    int sharedPml4Entry      = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_KERNEL);
-    int applicationPml4Entry = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_RING3_CODE);
-    int threadPml4Entry      = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int kernelPml4Entry  = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_KERNEL);
+    int appDataPml4Entry = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_RING3_CODE);
+    int appTlsPml4Entry  = PAGE_LEVEL_4_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
 
-    assert(sharedPml4Entry != applicationPml4Entry);
-    assert(sharedPml4Entry != threadPml4Entry);
+    assert(kernelPml4Entry != appDataPml4Entry);
+    assert(kernelPml4Entry != appTlsPml4Entry);
 
-    // Determine parent
-    if (parent != NULL) {
-        parentMasterTable = (PageMasterTable_t*)parent->Data[MEMORY_SPACE_DIRECTORY];
+    if (source != NULL) {
+        sourceMasterTable = (PageMasterTable_t*)source->PlatfromData.Cr3VirtualAddress;
     }
 
     // create the new PML4
@@ -284,58 +338,38 @@ MmuCloneVirtualSpace(
     memset(pageMasterTable, 0, sizeof(PageMasterTable_t));
 
     // transfer over the shared pml4 entry and mark inherited, we are not allowed to free anything on cleanup
-    physicalAddress = atomic_load(&kernelMasterTable->pTables[sharedPml4Entry]);
-    pageMasterTable->pTables[sharedPml4Entry] = physicalAddress | PAGETABLE_INHERITED;
-    pageMasterTable->vTables[sharedPml4Entry] = kernelMasterTable->vTables[sharedPml4Entry];
+    osStatus = __CloneKernelDirectory(kernelMasterTable, pageMasterTable);
+    if (osStatus != OsSuccess) {
+        kfree(pageMasterTable);
+        return osStatus;
+    }
 
-    // create the new thread-specific pml4 entry
+    // create the new thread-specific pml4 application entry
     directoryTable = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &physicalAddress);
     if (!directoryTable) {
         kfree(pageMasterTable);
         return OsOutOfMemory;
     }
     memset((void*)directoryTable, 0, sizeof(PageDirectoryTable_t));
-    pageMasterTable->vTables[threadPml4Entry] = (uint64_t)directoryTable;
-    atomic_store(&pageMasterTable->pTables[threadPml4Entry], physicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+    pageMasterTable->vTables[appTlsPml4Entry] = (uint64_t)directoryTable;
+    atomic_store(&pageMasterTable->pTables[appTlsPml4Entry], physicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
 
     // inherit all application pml4 entries
-    if (inherit && parentMasterTable) {
+    if (inherit && sourceMasterTable) {
         for (int i = 0; i < ENTRIES_PER_PAGE; i++) {
-            if (i == sharedPml4Entry || i == threadPml4Entry) {
+            if (i == kernelPml4Entry || i == appTlsPml4Entry) {
                 continue; // skip thread and kernel
             }
 
-            physicalAddress = atomic_load(&parentMasterTable->pTables[i]);
+            physicalAddress = atomic_load(&sourceMasterTable->pTables[i]);
             if (physicalAddress & PAGE_PRESENT) {
                 atomic_store(&pageMasterTable->pTables[i], physicalAddress | PAGETABLE_INHERITED);
-                pageMasterTable->vTables[i] = parentMasterTable->vTables[i];
+                pageMasterTable->vTables[i] = sourceMasterTable->vTables[i];
             }
         }
     }
-
-    // Update the configuration data for the memory space
-    TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", masterAddress, pageMasterTable);
-	child->Data[MEMORY_SPACE_CR3]       = masterAddress;
-    child->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)pageMasterTable;
-
-    // Create new resources for the happy new parent :-)
-    if (!parent) {
-        child->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (!child->Data[MEMORY_SPACE_IOMAP]) {
-            // crap
-            kfree((void*)pageMasterTable->vTables[threadPml4Entry]);
-            kfree(pageMasterTable);
-            return OsOutOfMemory;
-        }
-
-        // For application memory spaces the IO map has all ports disabled, otherwise enabled
-        if (child->Flags & MEMORY_SPACE_APPLICATION) {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
-        }
-        else {
-            memset((void*)child->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
-        }
-    }
+    *cr3Out  = masterAddress;
+    *pdirOut = (uintptr_t)pageMasterTable;
     return OsSuccess;
 }
 
@@ -392,7 +426,7 @@ OsStatus_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
-    PageMasterTable_t* current = (PageMasterTable_t*)memorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    PageMasterTable_t* current = (PageMasterTable_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
 
     // Handle PML4[0..511] normally, the PML4 itself always needs cleaning up as every thread
     // has their own version
@@ -409,7 +443,7 @@ MmuDestroyVirtualSpace(
 
     // Free the resources allocated specifically for this
     if (memorySpace->ParentHandle == UUID_INVALID) {
-        kfree((void*)memorySpace->Data[MEMORY_SPACE_IOMAP]);
+        kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
     return OsSuccess;
 }

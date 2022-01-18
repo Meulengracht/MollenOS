@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Symmetrical Multiprocessoring
@@ -24,75 +24,69 @@
 #define __MODULE "SMP0"
 #define __TRACE
 
-#include <component/cpu.h>
+#include <assert.h>
 #include <arch/interrupts.h>
-#include <arch/utils.h>
-#include <arch/time.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <component/cpu.h>
+#include <component/timer.h>
+#include <debug.h>
+#include <heap.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <timers.h>
-#include <debug.h>
-#include <apic.h>
-#include <heap.h>
-#include <gdt.h>
-#include <idt.h>
-#include <cpu.h>
 #include <string.h>
-#include <assert.h>
+
+#include "../../../components/cpu_private.h"
+
+
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#include <arch/x86/x32/idt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#include <arch/x86/x64/idt.h>
+#endif
 
 extern const int   __GlbTramplineCode_length;
-extern const char  __GlbTramplineCode[];
-static int         JumpSpaceInitialized = 0;
-
-void
-PollTimerForMilliseconds(size_t Milliseconds)
-{
-    volatile clock_t current;
-    clock_t          end;
-    
-    if (TimersGetSystemTick((clock_t*)&current) != OsSuccess) {
-        ArchStallProcessorCore(Milliseconds);
-        return;
-    }
-
-    end = current + Milliseconds;
-    while (current < end) {
-        TimersGetSystemTick((clock_t*)&current);
-    }
-}
+extern const char __GlbTramplineCode[];
+static int        g_jumpSpaceInitialized = 0;
 
 void
 SmpApplicationCoreEntry(void)
 {
-    // Disable interrupts and setup descriptors
+    // Clear out interrupts untill the core is up and running. At this point we are
+    // running in BSP memory space, with BSP's TLS data.
     InterruptDisable();
-    CpuInitializeFeatures();
     GdtInstall();
     IdtInstall();
+    CpuInitializeFeatures();
 
-    // Switch into NUMA memory space if any, otherwise nothing happens
-    SwitchMemorySpace(GetCurrentMemorySpace());
-    InitializeLocalApicForApplicationCore();
+    // Initialize the local apic, so we are ready to receive interrupts, and invoke systems
+    // that rely on being able to retrieve the core id. Again we can do this as we are running
+    // inside the BSPs memory space where the Local Apic address is correctly mapped.
+    ApicInitializeForApplicationCore();
 
-    // Install the TSS before any multitasking
-    TssInitialize(0);
-
-    // Register with system - no returning
-    ActivateApplicationCore(CpuCoreCurrent());
+    // We are now loaded up enough to run the shared setup. The shared setup calls functions
+    // in this order:
+    // Creates new memory space
+    // Initializes threading
+    // Enables interrupts
+    CpuCoreStart();
 }
 
-static void InitializeApplicationJumpSpace(void)
+static void
+InitializeApplicationJumpSpace(void)
 {
     uint64_t* codePointer = (uint64_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length);
     uint64_t  entryCode     = (uint64_t)SmpApplicationCoreEntry;
     int       numberOfCores = atomic_load(&GetMachine()->NumberOfCores);
-    void*     stackSpace    = kmalloc((numberOfCores - 1) * 0x1000);
+    void*     stackSpace    = kmalloc((numberOfCores - 1) * THREADING_KERNEL_STACK_SIZE);
 
     TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (numberOfCores - 1));
     assert(stackSpace != NULL);
 
     *(codePointer - 1) = entryCode;
-    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
+    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->PlatfromData.Cr3PhysicalAddress;
     *(codePointer - 3) = (uint64_t)stackSpace + 0x1000;
     *(codePointer - 4) = 0x1000ULL;
     memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
@@ -100,14 +94,14 @@ static void InitializeApplicationJumpSpace(void)
 
 void
 StartApplicationCore(
-    _In_ SystemCpuCore_t* Core)
+    _In_ SystemCpuCore_t* core)
 {
-    UUId_t coreId = CpuCoreId(Core);
+    UUId_t coreId = CpuCoreId(core);
     int    timeout;
 
     // Initialize jump space
-    if (!JumpSpaceInitialized) {
-        JumpSpaceInitialized = 1;
+    if (!g_jumpSpaceInitialized) {
+        g_jumpSpaceInitialized = 1;
         InitializeApplicationJumpSpace();
     }
 
@@ -117,7 +111,7 @@ StartApplicationCore(
         ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", coreId);
         return;
     }
-    PollTimerForMilliseconds(10);
+    SystemTimerStall(10 * NSEC_PER_MSEC);
     // ApicPerformIPI(Core->Id, 0); is needed on older cpus, but not supported on newer.
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
@@ -130,12 +124,12 @@ StartApplicationCore(
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     timeout = 10;
-    while (!(CpuCoreState(Core) & CpuStateRunning) && timeout) {
-        PollTimerForMilliseconds(1);
+    while (!(CpuCoreState(core) & CpuStateRunning) && timeout) {
+        SystemTimerStall(NSEC_PER_MSEC);
         timeout--;
     }
     
-    if (!(CpuCoreState(Core) & CpuStateRunning)) {
+    if (!(CpuCoreState(core) & CpuStateRunning)) {
         if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", coreId);
             return;

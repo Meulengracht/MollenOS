@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * x86 Advanced Programmable Interrupt Controller Driver
@@ -21,33 +21,8 @@
  */
 
 #include <arch/utils.h>
-#include <threading.h>
+#include <arch/x86/apic.h>
 #include <interrupts.h>
-#include <threading.h>
-#include <acpi.h>
-#include <apic.h>
-
-extern size_t GlbTimerQuantum;
-
-InterruptStatus_t
-ApicTimerHandler(
-        _In_ InterruptFunctionTable_t* NotUsed,
-        _In_ void*                     Context)
-{
-    _CRT_UNUSED(NotUsed);
-    _CRT_UNUSED(Context);
-    
-    uint32_t Count        = ApicReadLocal(APIC_CURRENT_COUNT);
-    uint32_t Passed       = ApicReadLocal(APIC_INITIAL_COUNT) - Count;
-    size_t   NextDeadline = 20;
-    if (Count != 0) {
-        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
-    }
-    
-    (void)ThreadingAdvance(Count == 0 ? 1 : 0, DIVUP(Passed, GlbTimerQuantum), &NextDeadline);
-    ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * NextDeadline);
-    return InterruptHandled;
-}
 
 InterruptStatus_t
 ApicErrorHandler(

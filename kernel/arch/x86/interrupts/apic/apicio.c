@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * MollenOS x86 Advanced Programmable Interrupt Controller Driver
@@ -21,28 +21,28 @@
  */
 
 #include <assert.h>
-#include <apic.h>
+#include <arch/x86/apic.h>
 #include <acpi.h>
 
-__EXTERN uintptr_t GlbLocalApicBase;
+__EXTERN uintptr_t g_localApicBaseAddress;
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
 uint32_t ApicReadLocal(size_t Register) {
-	assert(GlbLocalApicBase != 0);
-	return (uint32_t)(*(volatile uint32_t*)(GlbLocalApicBase + Register));
+	assert(g_localApicBaseAddress != 0);
+	return (uint32_t)(*(volatile uint32_t*)(g_localApicBaseAddress + Register));
 }
 
 /* Write to the local apic registers 
  * Reads and writes from and to the local apic registers must always be 32 bit */
 void ApicWriteLocal(size_t Register, uint32_t Value) {
-	assert(GlbLocalApicBase != 0);
+	assert(g_localApicBaseAddress != 0);
 
 	/* Write the value, then re-read it to 
 	 * ensure memory synchronization */
-	(*(volatile uint32_t*)(GlbLocalApicBase + Register)) = Value;
-	Value = (*(volatile uint32_t*)(GlbLocalApicBase + Register));
+	(*(volatile uint32_t*)(g_localApicBaseAddress + Register)) = Value;
+	Value = (*(volatile uint32_t*)(g_localApicBaseAddress + Register));
 }
 
 /* Set the io-apic register selctor

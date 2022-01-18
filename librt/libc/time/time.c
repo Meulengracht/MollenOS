@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Get System Time
@@ -33,7 +33,7 @@ time_t time(time_t* Timer)
 	time_t       Result     = 0;
 
     // Retrieve structure in our format, convert and mktime
-	if (GetSystemTime(&SystemTime) == OsSuccess) {
+	if (VaGetWallClock(&SystemTime) == OsSuccess) {
         Temporary.tm_sec  = SystemTime.Second;
         Temporary.tm_min  = SystemTime.Minute;
         Temporary.tm_hour = SystemTime.Hour;

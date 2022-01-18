@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Threading Interface
@@ -35,9 +35,10 @@
 
 // Forward some structures we need
 DECL_STRUCT(MemorySpace);
-DECL_STRUCT(SystemProcess);
+DECL_STRUCT(SystemCpuCore);
 DECL_STRUCT(SchedulerObject);
 DECL_STRUCT(Thread);
+DECL_STRUCT(PlatformThreadBlock);
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -64,7 +65,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_KERNELMODE            0x00000000U
 #define THREADING_USERMODE              0x00000001U
 #define THREADING_MODEMASK              0x00000001U
-#define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
+#define THREADING_RUNMODE(Flags)        ((Flags) & THREADING_MODEMASK)
 
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
@@ -76,8 +77,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREAD_GET(Handle) (Thread_t*)LookupHandleOfType(Handle, HandleTypeThread)
 
 /**
- * ThreadCreate
- * Creates a new thread that will execute the given function as soon as possible. The 
+ * @brief Creates a new thread that will execute the given function as soon as possible. The
  * thread can be supplied with arguments, mode and a custom memory space.
  */
 KERNELAPI OsStatus_t KERNELABI
@@ -92,8 +92,7 @@ ThreadCreate(
         _In_ UUId_t*       handle);
 
 /**
- * ThreadTerminate
- * Marks the thread with the given id for finished, and it will be cleaned up
+ * @brief Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored.
  */
 KERNELAPI OsStatus_t KERNELABI
@@ -103,8 +102,8 @@ ThreadTerminate(
     _In_ int    TerminateChildren);
 
 /**
- * ThreadJoin
- * Can be used to wait for a thread
+ * @brief Can be used to wait for a thread
+ *
  * @param ThreadId The thread handle
  * @return         Exit code of the joined thread
  */
@@ -113,8 +112,7 @@ ThreadJoin(
     _In_ UUId_t ThreadId);
 
 /**
- * ThreadDetach
- * Detaches a running thread by marking it without parent, this will make
+ * @brief Detaches a running thread by marking it without parent, this will make
  * sure it runs untill it kills itself.
  */
 KERNELAPI OsStatus_t KERNELABI
@@ -122,29 +120,26 @@ ThreadDetach(
     _In_  UUId_t ThreadId);
 
 /**
- * ThreadIsCurrentIdle
- * Is the given cpu running it's idle task?
+ * @brief Is the given cpu running it's idle task?
  */
 KERNELAPI int KERNELABI
 ThreadIsCurrentIdle(
     _In_ UUId_t CoreId);
 
 /**
- * ThreadCurrentMode
- * Returns the current run-mode for the current thread on the current cpu
+ * @brief Returns the current run-mode for the current thread on the current cpu
  */
 KERNELAPI unsigned int KERNELABI
 ThreadCurrentMode(void);
 
 /**
- * ThreadCurrentHandle
- * Retrives the current thread handle on the current cpu */
+ * @brief Retrives the current thread handle on the current cpu
+ */
 KERNELAPI UUId_t KERNELABI
 ThreadCurrentHandle(void);
 
 /**
- * ThreadCurrentForCore
- * Retrieves the current thread on the given cpu if there is any issues it returns NULL
+ * @brief Retrieves the current thread on the given cpu if there is any issues it returns NULL
  * @TODO Move this to cpu file
  */
 KERNELAPI Thread_t* KERNELABI
@@ -152,22 +147,12 @@ ThreadCurrentForCore(
     _In_ UUId_t CoreId);
 
 /**
- * ThreadIsRelated
- * Returns whether or not the threads are running in same address space context.
+ * @brief Returns whether or not the threads are running in same address space context.
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadIsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2);
-
-/**
- * ThreadIsRoot
- * @param Thread A pointer to a thread structure
- * @return       1 If the thread is a root thread
- */
-KERNELAPI int KERNELABI
-ThreadIsRoot(
-        _In_ Thread_t* Thread);
 
 /**
  * ThreadHandle
@@ -179,11 +164,10 @@ ThreadHandle(
         _In_ Thread_t* Thread);
 
 /**
- * ThreadStartTime
  * @param Thread A pointer to a thread structure
  * @return       The start time for the thread
  */
-KERNELAPI clock_t KERNELABI
+KERNELAPI LargeUInteger_t* KERNELABI
 ThreadStartTime(
         _In_ Thread_t* Thread);
 
@@ -252,13 +236,12 @@ ThreadSchedulerHandle(
         _In_ Thread_t* Thread);
 
 /**
- * ThreadData
- * @param Thread A pointer to a thread structure
- * @return       A pointer to the thread configuration data of size THREADING_CONFIGDATA_COUNT
+ * @param[In] thread A pointer to a thread structure
+ * @return    A pointer to the thread-specific platform data
  */
-KERNELAPI uintptr_t* KERNELABI
-ThreadData(
-        _In_ Thread_t* Thread);
+KERNELAPI PlatformThreadBlock_t* KERNELABI
+ThreadPlatformBlock(
+        _In_ Thread_t* thread);
 
 /**
  * ThreadContext
@@ -308,32 +291,29 @@ SignalProcessQueued(
     _In_ Context_t*     context);
 
 /**
- * ThreadingEnable
- * Enables the threading system for the given cpu calling the function.
+ * @brief Enables the threading system for the given cpu calling the function. It will
+ * initialize the Idle thread for the calling core, and update the active thread to be the
+ * idle thread.
+ *
+ * Prerequisites for calling this is that the correct memory space for the core
+ * must be loaded, and memory allocations must be working.
  */
-KERNELAPI void KERNELABI ThreadingEnable(void);
+KERNELAPI void KERNELABI
+ThreadingEnable(
+        _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * ThreadingEnterUsermode
- * Initializes non-kernel mode and marks the thread
- * for transitioning, there is no return from this function
- * @param EntryPoint The entry point from where to execute code in usermode
- * @param Argument A pointer or value that should be passed to entry point as argument
- */
-KERNELAPI _Noreturn void KERNELABI
-ThreadingEnterUsermode(
-        _In_ ThreadEntry_t EntryPoint,
-        _In_ void*         Argument);
-
-/**
- * ThreadingAdvance
- * This is the thread-switch function and must be be called from the below architecture
- * to get the next thread to run
+ * @brief This is the primary tick function for multithreading.
+ *
+ * @param[In]  preemptive        Non-zero if this was due to preemptive scheduling.
+ * @param[In]  nanosecondsPassed The nanoseconds passed since last scheduling.
+ * @param[Out] nextDeadlineOut   The nanoseconds untill next scheduling.
+ * @return     Status of the tick.
  */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingAdvance(
         _In_  int     preemptive,
-        _In_  size_t  millisecondsPassed,
-        _Out_ size_t* nextDeadlineOut);
+        _In_  clock_t nanosecondsPassed,
+        _Out_ clock_t* nextDeadlineOut);
 
 #endif //!__THREADING_H__

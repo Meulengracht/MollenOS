@@ -12,17 +12,21 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 #define __MODULE "MACH"
 #define __TRACE
 
-#include <arch.h>
 #include <arch/interrupts.h>
+#include <arch/io.h>
+#include <arch/platform.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <machine.h>
+
+// Include the private structure for PerCpu data
+#include "components/cpu_private.h"
 
 #include <acpiinterface.h>
 #include <console.h>
@@ -31,30 +35,30 @@
 #include <futex.h>
 #include <handle.h>
 #include <handle_set.h>
+#include <hpet.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <stdio.h>
 #include <threading.h>
-#include <timers.h>
 #include <userevent.h>
-#include "arch/io.h"
 
 extern void SpawnBootstrapper(void);
 
-static SystemMachine_t Machine = { 
+static SystemMachine_t g_machine = {
     { 0 }, { 0 }, { 0 },                        // Strings
     { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },              // BootInformation, Processor, MemorySpace, PhysicalMemory
     { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL,                                     // InterruptControllers
-    { { { 0 } } },                                     // SystemTime
+    SYSTEM_TIMERS_INIT,                                     // SystemTimers
     ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
     ATOMIC_VAR_INIT(1), 0, 0, 0 // Total Information
 };
+static SystemCpuCore_t g_bootCore = { 0 };
 
 SystemMachine_t*
 GetMachine(void)
 {
-    return &Machine;
+    return &g_machine;
 }
 
 _Noreturn void
@@ -76,21 +80,25 @@ InitializeMachine(
             ArchProcessorHalt();
         }
     }
-    sprintf(&Machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
-    sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
-    sprintf(&Machine.Date[0],         "%s - %s", __DATE__, __TIME__);
-    memcpy(&Machine.BootInformation, bootInformation, sizeof(struct VBoot));
+    sprintf(&g_machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
+    sprintf(&g_machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
+    sprintf(&g_machine.Date[0],         "%s - %s", __DATE__, __TIME__);
+    memcpy(&g_machine.BootInformation, bootInformation, sizeof(struct VBoot));
 
-    InitializePrimaryProcessor(&Machine.Processor);
+    // Initialize the processor structure and the underlying platform. This is called before any
+    // memory is taken care of, which means VBoot environment where all physical memory is present.
+    CpuInitializePlatform(&g_machine.Processor, &g_bootCore);
 
-    // Initialize machine memory
-    osStatus = MachineInitializeMemorySystems(&Machine);
+    // Initialize memory environment. This should enable and initialize all forms of memory management
+    // and should leave the system ready to allocate memory at will. After this call Per-Core memory
+    // should also be set up
+    osStatus = MachineMemoryInitialize(&g_machine, &g_bootCore);
     if (osStatus != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
     }
 
-    osStatus = InitializeConsole();
+    osStatus = ConsoleInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
@@ -110,49 +118,75 @@ InitializeMachine(
 #endif
 
     // Create the rest of the OS systems
+    LogInitializeFull();
     osStatus = InitializeHandles();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize the handle subsystem.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
 
-    HandleSetsInitialize();
-    ThreadingEnable();
+    osStatus = HandleSetsInitialize();
+    if (osStatus != OsSuccess) {
+        ERROR("Failed to initialize the handle set subsystem.");
+        ArchProcessorHalt();
+    }
+
+    // initialize the idle thread for this core
+    ThreadingEnable(&g_bootCore);
+
+    // initialize the interrupt subsystem
     InitializeInterruptTable();
     InitializeInterruptHandlers();
-    osStatus = InterruptInitialize();
+    osStatus = PlatformInterruptInitialize();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
-    LogInitializeFull();
 
+    // Initialize all platform timers. Ok so why tho? Timers are a part of the kernel in
+    // vali, as the only form for drivers. This is because the kernel relies on time-management
+    // in some form, and thus to have performance atleast so-so we keep those drivers here. One could
+    // argue we should move them out, but I haven't prioritized this.
+#ifdef __OSCONFIG_ACPI_SUPPORT
+    if (AcpiAvailable() == ACPI_AVAILABLE) {
+        // There is no return code here because to be honest we don't really care
+        // if the HPET is present or not. If it is, great, otherwise wow bad platform.
+        HpetInitialize();
+    }
+#endif
+    osStatus = PlatformTimersInitialize();
+    if (osStatus != OsSuccess) {
+        ERROR("Failed to initialize timers for system.");
+        ArchProcessorHalt();
+    }
+
+    // The handle janitor, which is simply just a thread waiting for handles to destroy, is only made this
+    // way because of threads. Threads are like dirty teenagers refusing to take a bath, so we have to clean
+    // them when they aren't active. So we clean them in a seperate thread, and as threads are handles, we
+    // simply invest in a janitor to clean.
     osStatus = InitializeHandleJanitor();
     if (osStatus != OsSuccess) {
         ERROR("Failed to initialize system janitor.");
-        ArchProcessorIdle();
+        ArchProcessorHalt();
     }
 
-    // Perform the full acpi initialization sequence
+    // Perform the full acpi initialization sequence. This should not be a part of the kernel
+    // and should be a seperate driver module. We only need the table-parsing capability of ACPICA in
+    // the kernel to discover system metrics/configuration, but the entire ACPICA initialization should
+    // be out of the kernel.
+    // TODO move this out of kernel some day
 #ifdef __OSCONFIG_ACPI_SUPPORT
     if (AcpiAvailable() == ACPI_AVAILABLE) {
         AcpiInitialize();
         if (AcpiDevicesScan() != AE_OK) {
             ERROR("Failed to finalize the ACPI setup.");
-            ArchProcessorIdle();
+            ArchProcessorHalt();
         }
     }
 #endif
 
-    // Last step is to enable timers that kickstart all the other threads
-    osStatus = InitializeSystemTimers();
-    if (osStatus != OsSuccess) {
-        ERROR("Failed to initialize timers for system.");
-        ArchProcessorHalt();
-    }
-    TimersSynchronizeTime();
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
-    EnableMultiProcessoringMode();
+    CpuEnableMultiProcessorMode();
 #endif
 
     // Initialize all userspace subsystems here
@@ -164,7 +198,7 @@ InitializeMachine(
     // yield before going to assume new threads
     WARNING("End of initialization, yielding control");
     SchedulerEnable();
-    ThreadingYield();
+    ArchThreadYield();
     goto IdleProcessor;
 
 IdleProcessor:

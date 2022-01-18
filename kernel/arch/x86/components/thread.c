@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 Common Threading Interface
@@ -26,18 +26,27 @@
 #include <component/cpu.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
+#include <ddk/ddkdefs.h>
 #include <threading.h>
 #include <interrupts.h>
 #include <debug.h>
 #include <heap.h>
-#include <apic.h>
-#include <gdt.h>
-#include <cpu.h>
 
 #include <assert.h>
 #include <string.h>
 
-extern size_t GlbTimerQuantum;
+#if defined(__i386__)
+#include <arch/x86/x32/gdt.h>
+#else
+#include <arch/x86/x64/gdt.h>
+#endif
+
+#define X86_THREAD_UPDATETLS 0x1
+#define X86_THREAD_USEDFPU   0x2
+
 extern void load_fpu(uintptr_t *buffer);
 extern void load_fpu_extended(uintptr_t *buffer);
 extern void save_fpu(uintptr_t *buffer);
@@ -47,72 +56,84 @@ extern void clear_ts(void);
 extern void _yield(void);
 
 OsStatus_t
-ThreadingRegister(
-    _In_ Thread_t* Thread)
+ArchThreadInitialize(
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
+    OsStatus_t             osStatus;
+
     if (!threadData) {
         return OsInvalidParameters;
     }
 
-    threadData[THREAD_DATA_FLAGS]      = 0;
-    threadData[THREAD_DATA_MATHBUFFER] = (uintptr_t)kmalloc(0x1000);
-    if (!threadData[THREAD_DATA_MATHBUFFER]) {
+    // Are we creating the idle thread? Then perform some additional setup for the core
+    if (ThreadFlags(thread) & THREADING_IDLE) {
+        SystemCpuCore_t* currentCore = GetProcessorCore(ArchGetProcessorCoreId());
+        osStatus = TssInitialize(CpuCorePlatformBlock(currentCore));
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+    }
+
+    threadData->Flags      = X86_THREAD_UPDATETLS;
+    threadData->MathBuffer = kmalloc(0x1000);
+    if (!threadData->MathBuffer) {
         return OsOutOfMemory;
     }
-    
-    memset((void*)threadData[THREAD_DATA_MATHBUFFER], 0, 0x1000);
+    memset(threadData->MathBuffer, 0, 0x1000);
     return OsSuccess;
 }
 
 OsStatus_t
-ThreadingUnregister(
-    _In_ Thread_t* Thread)
+ArchThreadDestroy(
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
     if (!threadData) {
         return OsInvalidParameters;
     }
 
-    if (threadData[THREAD_DATA_MATHBUFFER]) {
-        kfree((void*)threadData[THREAD_DATA_MATHBUFFER]);
+    if (threadData->MathBuffer) {
+        kfree(threadData->MathBuffer);
     }
     return OsSuccess;
 }
 
 OsStatus_t
 ThreadingFpuException(
-    _In_ Thread_t* Thread)
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
-    assert(threadData != NULL);
+    PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
+    if (!threadData) {
+        return OsInvalidParameters;
+    }
 
     // Clear the task-switch bit
     clear_ts();
 
-    if (!(threadData[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU)) {
+    if (!(threadData->Flags & X86_THREAD_USEDFPU)) {
         if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
-            load_fpu_extended((uintptr_t*)threadData[THREAD_DATA_MATHBUFFER]);
+            load_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {
-            load_fpu((uintptr_t*)threadData[THREAD_DATA_MATHBUFFER]);
+            load_fpu((uintptr_t*)threadData->MathBuffer);
         }
-        threadData[THREAD_DATA_FLAGS] |= X86_THREAD_USEDFPU;
+        threadData->Flags |= X86_THREAD_USEDFPU;
         return OsSuccess;
     }
     return OsError;
 }
 
 void
-ThreadingYield(void)
+ArchThreadYield(void)
 {
     // Never yield in interrupt handlers, could cause wierd stuff to happen
     // instead keep track of how nested we are, flag for yield and do it on the way
     // out of last nesting to ensure we've run all interrupt handlers
     if (InterruptGetActiveStatus()) {
         if (ThreadIsCurrentIdle(ArchGetProcessorCoreId())) {
-            OsStatus_t Status = ApicSendInterrupt(InterruptSelf, UUID_INVALID, INTERRUPT_LAPIC);
-            if (Status != OsSuccess) {
+            OsStatus_t osStatus = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
+            if (osStatus != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
             }
         }
@@ -123,51 +144,44 @@ ThreadingYield(void)
 }
 
 void
-SaveThreadState(
-    _In_ Thread_t* Thread)
+ArchThreadLeave(
+    _In_ Thread_t* thread)
 {
-    uintptr_t* threadData = ThreadData(Thread);
+    PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
     assert(threadData != NULL);
 
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
-    if (threadData[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
+    if (threadData->Flags & X86_THREAD_USEDFPU) {
         if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
-            save_fpu_extended((uintptr_t*)threadData[THREAD_DATA_MATHBUFFER]);
+            save_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {
-            save_fpu((uintptr_t*)threadData[THREAD_DATA_MATHBUFFER]);
+            save_fpu((uintptr_t*)threadData->MathBuffer);
         }
     }
 }
 
 void
-RestoreThreadState(
-    _In_ Thread_t* Thread)
+ArchThreadEnter(
+        _In_ SystemCpuCore_t* cpuCore,
+        _In_ Thread_t*        thread)
 {
-    SystemCpuCore_t* core              = CpuCoreCurrent();
-    UUId_t           coreId            = CpuCoreId(core);
-    uintptr_t*       threadData        = ThreadData(Thread);
-    MemorySpace_t*   threadMemorySpace = ThreadMemorySpace(Thread);
+    PlatformCpuCoreBlock_t* coreBlock   = CpuCorePlatformBlock(cpuCore);
+    PlatformThreadBlock_t*  threadData  = ThreadPlatformBlock(thread);
+    MemorySpace_t*          memorySpace = ThreadMemorySpace(thread);
 
-    assert(core != NULL);
-    assert(Thread != NULL);
-    
-    // Clear the FPU used flag
-    threadData[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
-    
     // Load thread-specific resources
-    SwitchMemorySpace(threadMemorySpace);
-    
-    TssUpdateIo(coreId, (uint8_t*)threadMemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    TssUpdateThreadStack(coreId, (uintptr_t)ThreadContext(Thread, THREADING_CONTEXT_LEVEL0));
-    set_ts(); // Set task switch bit so we get faults on fpu instructions
-    
-    // If we are idle task - disable task priority
-    if (ThreadFlags(Thread) & THREADING_IDLE) {
-        CpuCoreSetPriority(core, 0);
+    MemorySpaceSwitch(memorySpace);
+
+    // Clear the FPU used flag
+    threadData->Flags &= ~X86_THREAD_USEDFPU;
+    if (threadData->Flags & X86_THREAD_UPDATETLS) {
+        threadData->Flags &= ~X86_THREAD_UPDATETLS;
+        __set_reserved(0, (uintptr_t)cpuCore);
     }
-    else {
-        CpuCoreSetPriority(core, 61 - SchedulerObjectGetQueue(ThreadSchedulerHandle(Thread)));
-    }
+    
+    TssUpdateIo(coreBlock, (uint8_t*)memorySpace->PlatfromData.TssIoMap);
+    TssUpdateThreadStack(coreBlock, (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL0));
+    set_ts(); // Set task switch bit, so we get faults on fpu instructions
 }

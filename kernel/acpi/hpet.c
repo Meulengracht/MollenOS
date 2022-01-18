@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * High Performance Event Timer (HPET) Driver
@@ -23,49 +23,90 @@
 //#define __TRACE
 
 #include <arch/io.h>
+#include <component/timer.h>
 #include <memoryspace.h>
 #include <interrupts.h>
-#include <timers.h>
 #include <debug.h>
 #include <hpet.h>
 #include <heap.h>
 #include <stdlib.h>
 
-static HpController_t HpetController = { 0 };
+typedef struct HpetComparator {
+    UUId_t Interrupt;
+    int	   Present;
+    int	   Enabled;
+    int	   SystemTimer;
+    int	   Is64Bit;
+    int	   MsiSupport;
+    int	   PeriodicSupport;
 
-#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + (Offset)), (void*)(ValueOut), 4)
-#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(HpetController.BaseAddress + (Offset)), (void*)(ValueOut), 8)
+    // Normal interrupt
+    int		Irq;
+    reg32_t	InterruptMap;
 
-#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + (Offset)), (void*)&(Value), 4)
-#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory((volatile void*)(HpetController.BaseAddress + (Offset)), (void*)&(Value), 8)
+    // Msi interrupt
+    reg32_t	MsiAddress;
+    reg32_t	MsiValue;
+} HpetComparator_t;
 
-void
-HpReadCounter(
-    _In_  size_t   Offset,
-    _Out_ reg64_t* ValueOut)
+typedef struct HpetController {
+    uintptr_t        BaseAddress;
+    HpetComparator_t Timers[HPET_MAXTIMERCOUNT];
+
+    int	            Is64Bit;
+    size_t          TickMinimum;
+    size_t          Period;
+    LargeUInteger_t Frequency;
+    clock_t	        Clock;
+} HpetController_t;
+
+static void HpetGetCount(void*, LargeUInteger_t*);
+static void HpetGetFrequency(void*, LargeUInteger_t*);
+static void HpetNoOperation(void*);
+
+/**
+ * Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
+ */
+static SystemTimerOperations_t g_hpetOperations = {
+        .Read = HpetGetCount,
+        .GetFrequency = HpetGetFrequency,
+        .Recalibrate = HpetNoOperation
+};
+static HpetController_t g_hpet = { 0 };
+
+#define HP_READ_32(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(g_hpet.BaseAddress + (Offset)), (void*)(ValueOut), 4)
+#define HP_READ_64(Offset, ValueOut) ReadVolatileMemory((const volatile void*)(g_hpet.BaseAddress + (Offset)), (void*)(ValueOut), 8)
+
+#define HP_WRITE_32(Offset, Value)   WriteVolatileMemory((volatile void*)(g_hpet.BaseAddress + (Offset)), (void*)&(Value), 4)
+#define HP_WRITE_64(Offset, Value)   WriteVolatileMemory((volatile void*)(g_hpet.BaseAddress + (Offset)), (void*)&(Value), 8)
+
+static void
+__ReadComparatorValue(
+    _In_  size_t   offset,
+    _Out_ reg64_t* valueOut)
 {
 #if __BITS == 64
-    HP_READ_64(Offset, ValueOut);
+    HP_READ_64(offset, valueOut);
 #else
-    *ValueOut = 0;
-    HP_READ_32(Offset, (reg32_t*)ValueOut);
+    *valueOut = 0;
+    HP_READ_32(offset, (reg32_t*)valueOut);
 #endif
 }
 
-void
-HpWriteCounter(
-    _In_ size_t  Offset,
-    _In_ reg64_t Value)
+static void
+__WriteComparatorValue(
+    _In_ size_t  offset,
+    _In_ reg64_t value)
 {
 #if __BITS == 64
-    HP_WRITE_64(Offset, Value);
+    HP_WRITE_64(offset, value);
 #else
-    HP_WRITE_32(Offset, Value);
+    HP_WRITE_32(offset, value);
 #endif
 }
 
-void
-HpStop(void)
+static void
+__StopHpet(void)
 {
     size_t Config;
     HP_READ_32(HPET_REGISTER_CONFIG, &Config);
@@ -79,8 +120,8 @@ HpStop(void)
     }
 }
 
-void
-HpStart(void)
+static void
+__StartHpet(void)
 {
     size_t Config;
     HP_READ_32(HPET_REGISTER_CONFIG, &Config);
@@ -89,44 +130,31 @@ HpStart(void)
 }
 
 OsStatus_t
-HpHasLegacyController(void)
+HpetIsEmulatingLegacyController(void)
 {
-    size_t Config;
-    if (HpetController.BaseAddress != 0) {
-       HP_READ_32(HPET_REGISTER_CONFIG, &Config);
-        if (Config & HPET_CONFIG_LEGACY) {
+    if (g_hpet.BaseAddress != 0) {
+        size_t hpetConfig;
+        HP_READ_32(HPET_REGISTER_CONFIG, &hpetConfig);
+        if (hpetConfig & HPET_CONFIG_LEGACY) {
             return OsSuccess;
         }     
     }
     return OsNotSupported;    
 }
 
-void
-HpResetTicks(void)
+static void
+__ReadFrequency(
+    _Out_ LargeUInteger_t *Value)
 {
-    HpetController.Clock = 0;
+    Value->QuadPart = g_hpet.Frequency.QuadPart;
 }
 
-clock_t
-HpGetTicks(void)
+static void
+__ReadMainCounter(
+    _Out_ LargeUInteger_t* Value)
 {
-    return HpetController.Clock;
-}
-
-void
-HpReadFrequency(
-    _Out_ LargeInteger_t *Value)
-{
-    memcpy(Value, &HpetController.Frequency, sizeof(LargeInteger_t));
-}
-
-void
-HpReadMainCounter(
-    _Out_ LargeInteger_t* Value)
-{
-    // Variables
 #if __BITS == 64
-    if (HpetController.Is64Bit) {
+    if (g_hpet.Is64Bit) {
         HP_READ_64(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->QuadPart);
     }
     else {
@@ -134,10 +162,10 @@ HpReadMainCounter(
         HP_READ_32(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->QuadPart);
     }
 #else
-    if (HpetController.Is64Bit) {
+    if (g_hpet.Is64Bit) {
         // This requires us to synchronize with the upper 32 bits from each read to ensure
         // we don't encounter a rollover. Keep a direct pointer for more convenient reading
-        volatile reg32_t *Register = (volatile reg32_t*)(HpetController.BaseAddress + HPET_REGISTER_MAINCOUNTER);
+        volatile reg32_t *Register = (volatile reg32_t*)(g_hpet.BaseAddress + HPET_REGISTER_MAINCOUNTER);
         do {
             Value->u.HighPart = *(Register + 1);
             Value->u.LowPart  = *Register;
@@ -174,12 +202,11 @@ HpInterrupt(
     // Iterate the port-map and check if the interrupt
     // came from that timer
     for (i = 0; i < HPET_MAXTIMERCOUNT; i++) {
-        if (InterruptStatus & (1 << i) && HpetController.Timers[i].Enabled) {
-            if (HpetController.Timers[i].SystemTimer) {
-                HpetController.Clock++;
-                TimersInterrupt(HpetController.Timers[i].Interrupt);
+        if (InterruptStatus & (1 << i) && g_hpet.Timers[i].Enabled) {
+            if (g_hpet.Timers[i].SystemTimer) {
+                g_hpet.Clock++;
             }
-            if (!HpetController.Timers[i].PeriodicSupport) {
+            if (!g_hpet.Timers[i].PeriodicSupport) {
                 // Non-periodic timer fired, what now?
                 WARNING("HPET::NON-PERIODIC TIMER FIRED");
             }
@@ -192,75 +219,75 @@ HpInterrupt(
 }
 
 static OsStatus_t
-HpComparatorInitialize(
-    _In_ int Index,
-    _In_ int Legacy)
+__InitializeComparator(
+    _In_ int index,
+    _In_ int legacyRoutings)
 {
-    HpTimer_t *Timer     = &HpetController.Timers[Index];
-    size_t Configuration = 0;
-    size_t InterruptMap  = 0;
+    HpetComparator_t* comparator    = &g_hpet.Timers[index];
+    size_t            configuration = 0;
+    size_t            interruptMap  = 0;
 
-    TRACE("HpComparatorInitialize(%" PRIiIN ")", Index);
+    TRACE("__InitializeComparator(%i)", index);
 
     // Read values
-    HP_READ_32(HPET_TIMER_CONFIG(Index), &Configuration);
+    HP_READ_32(HPET_TIMER_CONFIG(index), &configuration);
     
     // Fixup the interrupt map that won't be present in some cases for timer
     // 0 and 1, when legacy has been enabled
-    if (Legacy && (Index <= 1)) {
+    if (legacyRoutings && (index <= 1)) {
         // 0 = Irq 0
         // 1 = Irq 8
-        InterruptMap = 1 << (Index * 8);
+        interruptMap = 1 << (index * 8);
     }
     else {
-        HP_READ_32(HPET_TIMER_CONFIG(Index) + 4, &InterruptMap);
+        HP_READ_32(HPET_TIMER_CONFIG(index) + 4, &interruptMap);
     }
     
-    if (Configuration == 0xFFFFFFFF || InterruptMap == 0) {
-        WARNING("Configuration: 0x%x, Map 0x%x", LODWORD(Configuration), LODWORD(InterruptMap));
+    if (configuration == 0xFFFFFFFF || interruptMap == 0) {
+        WARNING("__InitializeComparator configuration=0x%x, map=0x%x", LODWORD(configuration), LODWORD(interruptMap));
         return OsError;
     }
 
     // Setup basic information
-    Timer->Present      = 1;
-    Timer->Irq          = INTERRUPT_NONE;
-    Timer->InterruptMap = LODWORD(InterruptMap);
+    comparator->Present      = 1;
+    comparator->Irq          = INTERRUPT_NONE;
+    comparator->InterruptMap = LODWORD(interruptMap);
 
     // Store some features
-    if (Configuration & HPET_TIMER_CONFIG_64BITMODESUPPORT) {
-        Timer->Is64Bit = 1;
+    if (configuration & HPET_TIMER_CONFIG_64BITMODESUPPORT) {
+        comparator->Is64Bit = 1;
     }
-    if (Configuration & HPET_TIMER_CONFIG_FSBSUPPORT) {
-        Timer->MsiSupport = 1;
+    if (configuration & HPET_TIMER_CONFIG_FSBSUPPORT) {
+        comparator->MsiSupport = 1;
     }
-    if (Configuration & HPET_TIMER_CONFIG_PERIODICSUPPORT) {
-        Timer->PeriodicSupport = 1;
+    if (configuration & HPET_TIMER_CONFIG_PERIODICSUPPORT) {
+        comparator->PeriodicSupport = 1;
     }
     
     // Process timer configuration and disable it for now
-    Configuration &= ~(HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_POLARITY | HPET_TIMER_CONFIG_FSBMODE);
-    HP_WRITE_32(HPET_TIMER_CONFIG(Index), Configuration);
+    configuration &= ~(HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_POLARITY | HPET_TIMER_CONFIG_FSBMODE);
+    HP_WRITE_32(HPET_TIMER_CONFIG(index), configuration);
     return OsSuccess;
 }
 
 static void
-HpAllocateInterrupt(
-    _In_ HpTimer_t* Timer)
+__AllocateInterrupt(
+        _In_ HpetComparator_t* comparator)
 {
-    DeviceInterrupt_t HpetInterrupt;
-    int i, j;
+    DeviceInterrupt_t hpetInterrupt;
+    int               i, j;
     
-    memset(&HpetInterrupt, 0, sizeof(DeviceInterrupt_t));
-    HpetInterrupt.ResourceTable.Handler = HpInterrupt;
-    HpetInterrupt.Context               = Timer;
-    HpetInterrupt.Line                  = INTERRUPT_NONE;
-    HpetInterrupt.Pin                   = INTERRUPT_NONE;
-    TRACE(" > Gathering interrupts from irq-map 0x%" PRIxIN "", Timer->InterruptMap);
+    memset(&hpetInterrupt, 0, sizeof(DeviceInterrupt_t));
+    hpetInterrupt.ResourceTable.Handler = HpInterrupt;
+    hpetInterrupt.Context               = comparator;
+    hpetInterrupt.Line                  = INTERRUPT_NONE;
+    hpetInterrupt.Pin                   = INTERRUPT_NONE;
+    TRACE("__AllocateInterrupt Gathering interrupts from irq-map 0x%" PRIxIN "", comparator->InterruptMap);
 
     // From the interrupt map, calculate possible int's
     for (i = 0, j = 0; i < 32; i++) {
-        if (Timer->InterruptMap & (1 << i)) {
-            HpetInterrupt.Vectors[j++] = i;
+        if (comparator->InterruptMap & (1 << i)) {
+            hpetInterrupt.Vectors[j++] = i;
             if (j == INTERRUPT_MAXVECTORS) {
                 break;
             }
@@ -269,230 +296,258 @@ HpAllocateInterrupt(
 
     // Place an end marker
     if (j != INTERRUPT_MAXVECTORS) {
-        HpetInterrupt.Vectors[j] = INTERRUPT_NONE;
+        hpetInterrupt.Vectors[j] = INTERRUPT_NONE;
     }
 
     // Handle MSI interrupts > normal
-    if (Timer->MsiSupport) {
-        Timer->Interrupt  = 
-            InterruptRegister(&HpetInterrupt, INTERRUPT_MSI | INTERRUPT_KERNEL);
-        Timer->MsiAddress = (reg32_t)HpetInterrupt.MsiAddress;
-        Timer->MsiValue   = (reg32_t)HpetInterrupt.MsiValue;
-        TRACE(" > Using msi interrupts (untested)");
+    if (comparator->MsiSupport) {
+        comparator->Interrupt  = InterruptRegister(
+                &hpetInterrupt,
+                INTERRUPT_MSI | INTERRUPT_KERNEL
+        );
+        comparator->MsiAddress = (reg32_t)hpetInterrupt.MsiAddress;
+        comparator->MsiValue   = (reg32_t)hpetInterrupt.MsiValue;
+        TRACE("__AllocateInterrupt Using msi interrupts (untested)");
     }
     else {
-        Timer->Interrupt =
-            InterruptRegister(&HpetInterrupt, INTERRUPT_VECTOR | INTERRUPT_KERNEL);
-        Timer->Irq       = HpetInterrupt.Line;
-        TRACE(" > Using irq interrupt %" PRIiIN "", Timer->Irq);
+        comparator->Interrupt = InterruptRegister(
+                &hpetInterrupt,
+                INTERRUPT_VECTOR | INTERRUPT_KERNEL
+        );
+        comparator->Irq       = hpetInterrupt.Line;
+        TRACE("__AllocateInterrupt Using irq interrupt %" PRIiIN "", comparator->Irq);
     }
 }
 
 OsStatus_t
-HpComparatorStart(
-    _In_ int      Index,
-    _In_ uint64_t Frequency,
-    _In_ int      Periodic,
-    _In_ int      LegacyIrq)
+HpetComparatorStart(
+    _In_ int      index,
+    _In_ uint64_t frequency,
+    _In_ int      periodic,
+    _In_ int      legacyIrq)
 {
-    LargeInteger_t    Now;
-    uint64_t          Delta;
-    size_t            TempValue;
-    size_t            TempValue2;
-    HpTimer_t *Timer = &HpetController.Timers[Index];
+    HpetComparator_t* comparator = &g_hpet.Timers[index];
+    LargeUInteger_t   now;
+    uint64_t          delta;
+    size_t            tempValue;
+    size_t            tempValue2;
 
-    TRACE("HpComparatorStart(%" PRIiIN ", %" PRIuIN ", %" PRIiIN ")", Index, LODWORD(Frequency), Periodic);
+    TRACE("HpetComparatorStart(index=%i, frequency=%" PRIuIN ", periodic=%i)",
+          index, LODWORD(Frequency), periodic);
 
     // Calculate the delta
-    Delta = (uint64_t)HpetController.Frequency.QuadPart / Frequency;
-    if (Delta < HpetController.TickMinimum) {
-        Delta = HpetController.TickMinimum;
+    delta = (uint64_t)g_hpet.Frequency.QuadPart / frequency;
+    if (delta < g_hpet.TickMinimum) {
+        delta = g_hpet.TickMinimum;
     }
-    TRACE(" > Delta 0x%" PRIxIN "", LODWORD(Delta));
+    TRACE("HpetComparatorStart delta=0x%x", LODWORD(delta));
 
     // Stop main timer and calculate the next irq
-    HpStop();
-    HpReadMainCounter(&Now);
-    Now.QuadPart += Delta;
+    __StopHpet();
+    __ReadMainCounter(&now);
+    now.QuadPart += delta;
     
     // Allocate interrupt for timer?
-    if (LegacyIrq != INTERRUPT_NONE) {
-        Timer->Irq = LegacyIrq;
+    if (legacyIrq != INTERRUPT_NONE) {
+        comparator->Irq = legacyIrq;
     }
     
-    if (Timer->Irq == INTERRUPT_NONE) {
-        HpAllocateInterrupt(Timer);
+    if (comparator->Irq == INTERRUPT_NONE) {
+        __AllocateInterrupt(comparator);
     }
     
     // At this point all resources are ready
-    Timer->Enabled = 1;
+    comparator->Enabled = 1;
 
     // Process configuration
     // We must initially configure as 32 bit as I read some hw doesn't handle 64 bit that well
-    HP_READ_32(HPET_TIMER_CONFIG(Index), &TempValue);
-    TempValue |= HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_32BITMODE;
+    HP_READ_32(HPET_TIMER_CONFIG(index), &tempValue);
+    tempValue |= HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_32BITMODE;
     
     // Set some extra bits if periodic
-    if (Timer->PeriodicSupport && Periodic) {
-        TRACE(" > Configuring for periodic");
-        TempValue |= HPET_TIMER_CONFIG_PERIODIC;
-        TempValue |= HPET_TIMER_CONFIG_SET_CMP_VALUE;
+    if (comparator->PeriodicSupport && periodic) {
+        TRACE("HpetComparatorStart configuring for periodic");
+        tempValue |= HPET_TIMER_CONFIG_PERIODIC;
+        tempValue |= HPET_TIMER_CONFIG_SET_CMP_VALUE;
     }
 
     // Set interrupt vector
     // MSI must be set to edge-triggered
-    if (Timer->MsiSupport) {
-        TempValue |= HPET_TIMER_CONFIG_FSBMODE;
-        HP_WRITE_32(HPET_TIMER_FSB(Index),     Timer->MsiValue);
-        HP_WRITE_32(HPET_TIMER_FSB(Index) + 4, Timer->MsiAddress);
+    if (comparator->MsiSupport) {
+        tempValue |= HPET_TIMER_CONFIG_FSBMODE;
+        HP_WRITE_32(HPET_TIMER_FSB(index), comparator->MsiValue);
+        HP_WRITE_32(HPET_TIMER_FSB(index) + 4, comparator->MsiAddress);
     }
     else {
-        TempValue |= HPET_TIMER_CONFIG_IRQ(Timer->Irq);
-        if (Timer->Irq > 15) {
-            TempValue |= HPET_TIMER_CONFIG_POLARITY;
+        tempValue |= HPET_TIMER_CONFIG_IRQ(comparator->Irq);
+        if (comparator->Irq > 15) {
+            tempValue |= HPET_TIMER_CONFIG_POLARITY;
         }
     }
 
     // Update configuration and comparator
-    TempValue2 = (1 << Index);
-    HP_WRITE_32(HPET_REGISTER_INTSTATUS, TempValue2);
-    TRACE(" > Writing config value 0x%" PRIxIN "", TempValue);
-    HP_WRITE_32(HPET_TIMER_CONFIG(Index), TempValue);
-    HpWriteCounter(HPET_TIMER_COMPARATOR(Index), (reg64_t)Now.QuadPart);
-    if (Timer->PeriodicSupport && Periodic) {
-        HpWriteCounter(HPET_TIMER_COMPARATOR(Index), Delta);
+    tempValue2 = (1 << index);
+    HP_WRITE_32(HPET_REGISTER_INTSTATUS, tempValue2);
+    TRACE("HpetComparatorStart writing config value 0x%" PRIxIN "", tempValue);
+    HP_WRITE_32(HPET_TIMER_CONFIG(index), tempValue);
+    __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), (reg64_t) now.QuadPart);
+    if (comparator->PeriodicSupport && periodic) {
+        __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), delta);
     }
-    HpStart();
+    __StartHpet();
     return OsSuccess;
 }
 
-ACPI_STATUS
-HpInitialize(
-    _In_ ACPI_TABLE_HPET *Table)
+ACPI_TABLE_HPET*
+__GetHpetTable(void)
 {
-    // Variables
-    SystemPerformanceTimerOps_t PerformanceOps = { 
-        HpReadFrequency, HpReadMainCounter
-    };
-    
-    int        legacy;
-    OsStatus_t osStatus;
-    uintptr_t  updatedAddress;
-    size_t     TempValue;
-    int        NumTimers;
-    int        i;
+    ACPI_TABLE_HEADER* header;
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &header))) {
+        return (ACPI_TABLE_HPET*)header;
+    }
+    return NULL;
+}
 
-    TRACE("HpInitialize(Address 0x%" PRIxIN ", Sequence %" PRIuIN ")",
-        (uintptr_t)(Table->Address.Address), Table->Sequence);
+void
+HpetInitialize(void)
+{
+    ACPI_TABLE_HPET* hpetTable;
+    int              legacy;
+    OsStatus_t       osStatus;
+    uintptr_t        updatedAddress;
+    size_t           tempValue;
+    int              numTimers;
+    int              i;
+    TRACE("HpetInitialize()");
 
-    memset(&HpetController, 0, sizeof(HpController_t));
-    HpetController.BaseAddress = (uintptr_t)(Table->Address.Address);
-    HpetController.TickMinimum = Table->MinimumTick;
+    hpetTable = __GetHpetTable();
+    if (!hpetTable) {
+        WARNING("HpetInitialize no HPET detected.");
+        return;
+    }
+
+    TRACE("HpetInitialize address 0x%" PRIxIN ", sequence %" PRIuIN ")",
+          (uintptr_t)(hpetTable->Address.Address), hpetTable->Sequence);
+
+    memset(&g_hpet, 0, sizeof(HpetController_t));
+    g_hpet.BaseAddress = (uintptr_t)(hpetTable->Address.Address);
+    g_hpet.TickMinimum = hpetTable->MinimumTick;
 
     osStatus = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &updatedAddress,
-            &HpetController.BaseAddress,
+            &g_hpet.BaseAddress,
             GetMemorySpacePageSize(),
             0,
             MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
     if (osStatus != OsSuccess) {
-        ERROR("Failed to map address for hpet.");
-        return OsError;
+        ERROR("HpetInitialize failed to map address for hpet.");
+        return;
     }
-    HpetController.BaseAddress = updatedAddress;
+    g_hpet.BaseAddress = updatedAddress;
 
     // AMD SB700 Systems initialise HPET on first register access,
     // wait for it to set up HPET, its config register reads 0xFFFFFFFF meanwhile
     for (i = 0; i < 10000; i++) {
-        HP_READ_32(HPET_REGISTER_CONFIG, &TempValue);
-        if (TempValue != 0xFFFFFFFF) {
+        HP_READ_32(HPET_REGISTER_CONFIG, &tempValue);
+        if (tempValue != 0xFFFFFFFF) {
             break;
         }
     }
 
     // Did system fail to initialize
-    if (TempValue == 0xFFFFFFFF) {
-        ERROR("Failed to initialize HPET (AMD SB700).");
-        return AE_ERROR;
+    if (tempValue == 0xFFFFFFFF) {
+        ERROR("HpetInitialize failed to initialize HPET (AMD SB700).");
+        return;
     }
 
     // Check the period for a sane value
-    HP_READ_32(HPET_REGISTER_CAPABILITIES + 4, &HpetController.Period);
-    TRACE("Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", HpetController.TickMinimum, HpetController.Period);
+    HP_READ_32(HPET_REGISTER_CAPABILITIES + 4, &g_hpet.Period);
+    TRACE("HpetInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
 
-    if ((HpetController.Period == 0) || (HpetController.Period > HPET_MAXPERIOD)) {
-        ERROR("Failed to initialize HPET, period is invalid.");
-        return AE_ERROR;
+    if ((g_hpet.Period == 0) || (g_hpet.Period > HPET_MAXPERIOD)) {
+        ERROR("HpetInitialize failed to initialize HPET, period is invalid.");
+        return;
     }
 
     // Stop timer, zero out counter
-    HpStop();
-    TempValue = 0;
-    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER, TempValue);
-    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER + 4, TempValue);
+    __StopHpet();
+    tempValue = 0;
+    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER, tempValue);
+    HP_WRITE_32(HPET_REGISTER_MAINCOUNTER + 4, tempValue);
 
     // Calculate the frequency
-    HpetController.Frequency.QuadPart = (int64_t)DIVUP(FSEC_PER_SEC, (uint64_t)HpetController.Period);
+    g_hpet.Frequency.QuadPart = (int64_t)DIVUP(FSEC_PER_SEC, (uint64_t)g_hpet.Period);
 
     // Process the capabilities
-    HP_READ_32(HPET_REGISTER_CAPABILITIES, &TempValue);
-    HpetController.Is64Bit = (TempValue & HPET_64BITSUPPORT) ? 1 : 0;
-    legacy    = (TempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
-    NumTimers = (int)HPET_TIMERCOUNT(TempValue);
-    TRACE("Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "", 
-        TempValue, NumTimers, (HpetController.Frequency.u.LowPart / 1000));
+    HP_READ_32(HPET_REGISTER_CAPABILITIES, &tempValue);
+    g_hpet.Is64Bit = (tempValue & HPET_64BITSUPPORT) ? 1 : 0;
+    legacy    = (tempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
+    numTimers = (int)HPET_TIMERCOUNT(tempValue);
+    TRACE("HpetInitialize Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "",
+          TempValue, numTimers, (g_hpet.Frequency.u.LowPart / 1000));
 
-    if (legacy && NumTimers < 2) {
-        ERROR("Failed to initialize HPET, legacy is available but not enough timers.");
-        return AE_ERROR;
+    if (legacy && numTimers < 2) {
+        ERROR("HpetInitialize failed to initialize HPET, legacy is available but not enough timers.");
+        return;
     }
 
     // Sanitize the number of timers, must be above 0
-    if (NumTimers == 0) {
-        ERROR("There was no timers present in HPET");
-        return AE_ERROR;
+    if (numTimers == 0) {
+        ERROR("HpetInitialize there was no timers present in HPET");
+        return;
     }
 
     // Enable the legacy routings if its are supported
-    HP_READ_32(HPET_REGISTER_CONFIG, &TempValue);
+    HP_READ_32(HPET_REGISTER_CONFIG, &tempValue);
     if (legacy) {
-        TempValue |= HPET_CONFIG_LEGACY;
+        tempValue |= HPET_CONFIG_LEGACY;
     }
-    HP_WRITE_32(HPET_REGISTER_CONFIG, TempValue);
+    HP_WRITE_32(HPET_REGISTER_CONFIG, tempValue);
 
     // Loop through all comparators and configurate them
-    for (i = 0; i < NumTimers; i++) {
-        if (HpComparatorInitialize(i, legacy) == OsError) {
-            ERROR("HPET Failed to initialize comparator %" PRIiIN "", i);
-            HpetController.Timers[i].Present = 0;
+    for (i = 0; i < numTimers; i++) {
+        if (__InitializeComparator(i, legacy) == OsError) {
+            ERROR("HpetInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
+            g_hpet.Timers[i].Present = 0;
         }
     }
 
-    // If the system is using legacy replacmenet options, then don't initialize
-    // any of the hpet timers just yet. Let the base drivers initialize them correctly.
-    for (i = 0; !legacy && i < NumTimers; i++) {
-        if (HpetController.Timers[i].Present && HpetController.Timers[i].PeriodicSupport) {
-            if (HpComparatorStart(i, 1000, 1, INTERRUPT_NONE) != OsSuccess) {
-                ERROR("Failed to initialize periodic timer %" PRIiIN "", i);
-            }
-            else {
-                if (TimersRegisterSystemTimer(HpetController.Timers[i].Interrupt, 1000, HpGetTicks, HpResetTicks) != OsSuccess) {
-                    ERROR("Failed register timer %" PRIiIN " as the system timer", i);
-                }
-                else {
-                    HpetController.Timers[i].SystemTimer = 1;
-                    break;
-                }
-            }
-        }
+    // Register the HPET as an available HPC
+    osStatus = SystemTimerRegister(
+        &g_hpetOperations,
+        SystemTimeAttributes_COUNTER | SystemTimeAttributes_HPC,
+        UUID_INVALID,
+        &g_hpet
+    );
+    if (osStatus != OsSuccess) {
+        WARNING("HpetInitialize failed to register platform timer");
     }
+}
 
-    // Register high performance timers
-    if (TimersRegisterPerformanceTimer(&PerformanceOps) != OsSuccess) {
-        ERROR("Failed to register the performance handlers");
-    }    
-    return AE_OK;
+static void
+HpetGetCount(
+        _In_  void*            context,
+        _Out_ LargeUInteger_t* tickOut)
+{
+    _CRT_UNUSED(context);
+    __ReadMainCounter(tickOut);
+}
+
+static void
+HpetGetFrequency(
+        _In_  void*            context,
+        _Out_ LargeUInteger_t* frequencyOut)
+{
+    _CRT_UNUSED(context);
+    __ReadFrequency(frequencyOut);
+}
+
+static void
+HpetNoOperation(
+        _In_ void* context)
+{
+    _CRT_UNUSED(context);
 }

@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * PE/COFF Image Loader
@@ -794,14 +794,14 @@ PeParseAndMapImage(
         // Is there any directory available for the handler?
         if (DirectoryContents[dataDirectoryIndex] != NULL) {
             dstrace("parsing data-directory[%i]", dataDirectoryIndex);
-            Timing = PeImplGetTimestamp();
+            Timing = PeImplGetTimestampMs();
             osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
                                                         DirectoryContents[dataDirectoryIndex],
                                                         Directories[dataDirectoryIndex].Size);
             if (osStatus != OsSuccess) {
                 dserror("handling of data-directory failed, status %u", osStatus);
             }
-            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestamp() - Timing);
+            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestampMs() - Timing);
         }
     }
 

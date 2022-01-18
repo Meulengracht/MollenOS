@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Synchronization (Mutex)
@@ -121,10 +121,10 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
     __SetFlags(mutex, MUTEX_FLAG_PENDING);
     while (1) {
         // block task and then reenable interrupts
-        SchedulerBlock(&mutex->blockQueue, timeout);
+        SchedulerBlock(&mutex->blockQueue, timeout * NSEC_PER_MSEC);
         spinlock_release(&mutex->syncObject);
         InterruptRestoreState(intStatus);
-        ThreadingYield();
+        ArchThreadYield();
 
         // at this point we've been waken up either by an unlock or timeout
         if (SchedulerGetTimeoutReason() == OsTimeout) {

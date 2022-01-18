@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 Advanced Programmable Interrupt Controller Driver
@@ -22,38 +22,37 @@
 #define __TRACE
 
 #include <component/cpu.h>
-#include <cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/io.h>
+#include <arch/x86/arch.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/apic.h>
+#include <arch/x86/mp.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <timers.h>
 #include <debug.h>
-#include <apic.h>
-#include <mp.h>
 
 static SystemInterruptController_t* g_ioApicI8259Apic = NULL;
 static int                          g_ioApicI8259Pin = 0;
-static SystemInterruptMode_t        g_interruptMode  = InterruptModePic;
+static InterruptMode_t              g_interruptMode  = InterruptMode_PIC;
 
-size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
-uintptr_t GlbLocalApicBase = 0;
+uintptr_t g_localApicBaseAddress = 0;
 
 static unsigned int
-GetSystemLvtByAcpi(
-    _In_ uint8_t Lvt)
+__GetSystemLvtByAcpi(
+    _In_ uint8_t lvt)
 {
-    ACPI_TABLE_HEADER* Header   = NULL;
-    unsigned int       LvtSetup = 0;
+    ACPI_TABLE_HEADER* header = NULL;
+    unsigned int       lvtSetup = 0;
 
     // Check for MADT presence and enumerate
     if (AcpiAvailable() == ACPI_AVAILABLE && 
-        ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
+        ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &header))) {
         ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
-        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
+        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)header;
         void *MadtTableStart        = (void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT));
         void *MadtTableEnd          = (void*)((uintptr_t)MadtTable + MadtTable->Header.Length);
         for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtTableStart; (void *)MadtEntry < MadtTableEnd;) {
@@ -64,10 +63,10 @@ GetSystemLvtByAcpi(
                 case ACPI_MADT_TYPE_LOCAL_APIC_NMI: {
                     ACPI_MADT_LOCAL_APIC_NMI *Nmi = (ACPI_MADT_LOCAL_APIC_NMI*)MadtEntry;
                     if (Nmi->ProcessorId == 0xFF || Nmi->ProcessorId == ArchGetProcessorCoreId()) {
-                        if (Nmi->Lint == Lvt) {
-                            LvtSetup = APIC_NMI_ROUTE;
-                            LvtSetup |= (AcpiGetPolarityMode(Nmi->IntiFlags, 0) << 13);
-                            LvtSetup |= (AcpiGetTriggerMode(Nmi->IntiFlags, 0) << 15);
+                        if (Nmi->Lint == lvt) {
+                            lvtSetup = APIC_NMI_ROUTE;
+                            lvtSetup |= (AcpiGetPolarityMode(Nmi->IntiFlags, 0) << 13);
+                            lvtSetup |= (AcpiGetTriggerMode(Nmi->IntiFlags, 0) << 15);
                             break;
                         }
                     }
@@ -84,55 +83,60 @@ GetSystemLvtByAcpi(
         }
         AcpiPutTable((ACPI_TABLE_HEADER*)MadtTable);
     }
-    return LvtSetup;
+    return lvtSetup;
 }
 
-/* InitializeApicLvt
- * Initializes the given lvt entry by checking acpi tables. If setup is not
- * specified in there, sane default values will be set. */
+/**
+ * @brief Initializes the given lvt entry by checking acpi tables. If setup is not
+ * specified in there, sane default values will be set.
+ *
+ * @param[In] lvt The lvt to initialize
+ */
 static void
-InitializeApicLvt(
-    _In_ uint8_t Lvt)
+__InitializeLvt(
+    _In_ uint8_t lvt)
 {
-    // Variables
-    uint32_t Temp = GetSystemLvtByAcpi(Lvt);
+    uint32_t temp = __GetSystemLvtByAcpi(lvt);
 
     // Sanity - LVT 0 Default Settings
     // Always set to EXTINT and level trigger
-    if (Temp == 0 && Lvt == 0) {
-        Temp = APIC_EXTINT_ROUTE | APIC_LEVEL_TRIGGER;
+    if (temp == 0 && lvt == 0) {
+        temp = APIC_EXTINT_ROUTE | APIC_LEVEL_TRIGGER;
     }
 
     // Sanity - LVT 1 Default Settings
     // They can be dependent on whether the apic is integrated or a seperated chip
-    if (Temp == 0 && Lvt == 1) {
-        Temp = APIC_NMI_ROUTE;
+    if (temp == 0 && lvt == 1) {
+        temp = APIC_NMI_ROUTE;
         if (!ApicIsIntegrated()) {
-            Temp |= APIC_LEVEL_TRIGGER;
+            temp |= APIC_LEVEL_TRIGGER;
         }
     }
 
     // Disable the lvt entry for all other than the boot processor
     if (ArchGetProcessorCoreId() != CpuCoreId(GetMachine()->Processor.Cores)) {
-        Temp |= APIC_MASKED;
+        temp |= APIC_MASKED;
     }
-    ApicWriteLocal(APIC_LINT0_REGISTER + (Lvt * 0x10), Temp);
+    ApicWriteLocal(APIC_LINT0_REGISTER + (lvt * 0x10), temp);
 }
 
-/* This code initializes an io-apic, looks for the 
- * 8259 pin, clears out interrupts and makes sure
- * interrupts are masked */
+/**
+ * @brief initializes an io-apic, looks for the 8259 pin, clears out interrupts and makes sure
+ * interrupts are masked
+ *
+ * @param[In] ioApic The io-apic controller that should be initialized.
+ */
 void 
-ParseIoApic(
-    _In_ SystemInterruptController_t* Controller)
+__InitializeIoApic(
+    _In_ SystemInterruptController_t* ioApic)
 {
     uintptr_t originalAddress, remappedAddress;
-    int       ioEntries, i, j;
-
-    TRACE("ParseIoApic initialing io-apic %" PRIuIN "", Controller->Id);
+    uint32_t  ioEntryCount;
+    int       i, j;
+    TRACE("__InitializeIoApic(ioApic=%" PRIuIN ")", ioApic->Id);
 
     // Relocate the io-apic
-    originalAddress = Controller->MemoryAddress;
+    originalAddress = ioApic->MemoryAddress;
     MemorySpaceMap(
             GetCurrentMemorySpace(),
             &remappedAddress,
@@ -142,18 +146,18 @@ ParseIoApic(
             MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
             MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
     );
-    Controller->MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
+    ioApic->MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
 
     /**
      * Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
      * entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
      * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239.
      */
-    ioEntries = ApicIoRead(Controller, 1);
-    ioEntries >>= 16;
-    ioEntries &= 0xFF;
-    Controller->NumberOfInterruptLines = ioEntries + 1;
-    TRACE(" > number of interrupt pins: %" PRIiIN "", ioEntries);
+    ioEntryCount = ApicIoRead(ioApic, 1);
+    ioEntryCount >>= 16;
+    ioEntryCount &= 0xFF;
+    ioApic->NumberOfInterruptLines = (int)(ioEntryCount + 1);
+    TRACE("__InitializeIoApic number of interrupt pins: %" PRIiIN "", ioEntryCount);
 
     /**
      * Structure of IO Entry Register:
@@ -181,26 +185,25 @@ ParseIoApic(
      */
 
     // Step 1 - find the i8259 connection
-    for (i = 0; i <= ioEntries; i++) {
-        uint64_t Entry = ApicReadIoEntry(Controller, i);
+    for (i = 0; i <= ioEntryCount; i++) {
+        uint64_t Entry = ApicReadIoEntry(ioApic, i);
 
         // Unmasked and ExtINT? 
         // - Then we found it, and should lock the interrupt route
         if ((Entry & (APIC_MASKED | APIC_EXTINT_ROUTE)) == APIC_EXTINT_ROUTE) {
-            g_ioApicI8259Apic = Controller;
+            g_ioApicI8259Apic = ioApic;
             g_ioApicI8259Pin  = i;
             InterruptIncreasePenalty(i);
             break;
         }
     }
 
-    /* Now clear interrupts */
-    for (i = Controller->InterruptLineBase, j = 0; j <= ioEntries; i++, j++) {
-        uint64_t Entry = ApicReadIoEntry(Controller, j);
+    // Next step is to clear interrupts for the io-apic
+    for (i = ioApic->InterruptLineBase, j = 0; j <= ioEntryCount; i++, j++) {
+        uint64_t Entry = ApicReadIoEntry(ioApic, j);
 
         /* Sanitize the entry
-         * We do NOT want to clear the SMI 
-         * and if it's an ISA we want to disable
+         * We do NOT want to clear the SMI and if it's an ISA we want to disable
          * it for allocation */
         if (Entry & APIC_SMI_ROUTE) {
             if (j < 16) {
@@ -212,8 +215,8 @@ ParseIoApic(
         /* Make sure entry is masked */
         if (!(Entry & APIC_MASKED)) {
             Entry |= APIC_MASKED;
-            ApicWriteIoEntry(Controller, j, Entry);
-            Entry = ApicReadIoEntry(Controller, j);
+            ApicWriteIoEntry(ioApic, j, Entry);
+            Entry = ApicReadIoEntry(ioApic, j);
         }
 
         /* Check if Remote IRR is set 
@@ -224,38 +227,39 @@ ParseIoApic(
              * it, so modify it */
             if (!(Entry & APIC_LEVEL_TRIGGER)) {
                 Entry |= APIC_LEVEL_TRIGGER;
-                ApicWriteIoEntry(Controller, j, Entry);
+                ApicWriteIoEntry(ioApic, j, Entry);
             }
             ApicSendEoi(j, (uint32_t)(Entry & 0xFF));
         }
-        ApicWriteIoEntry(Controller, j, APIC_MASKED);
+        ApicWriteIoEntry(ioApic, j, APIC_MASKED);
     }
 }
 
-void ApicClear(void)
+static void
+__ClearApic(void)
 {
-    int      MaxLvt = ApicGetMaxLvt();
-    uint32_t Temp = 0;
+    int      maxLvt = ApicGetMaxLvt();
+    uint32_t temp;
 
     // Work around AMD Erratum 411
     ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 
     //  Masking an LVT entry on a P6 can trigger a local APIC error
     // if the vector is zero. Mask LVTERR first to prevent this.
-    if (MaxLvt >= 3) {
+    if (maxLvt >= 3) {
         ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR | APIC_MASKED);
     }
 
     // Carefully mask these before deactivating
-    Temp = ApicReadLocal(APIC_TIMER_VECTOR);
-    ApicWriteLocal(APIC_TIMER_VECTOR, Temp | APIC_MASKED);
-    Temp = ApicReadLocal(APIC_LINT0_REGISTER);
-    ApicWriteLocal(APIC_LINT0_REGISTER, Temp | APIC_MASKED);
-    Temp = ApicReadLocal(APIC_LINT1_REGISTER);
-    ApicWriteLocal(APIC_LINT1_REGISTER, Temp | APIC_MASKED);
-    if (MaxLvt >= 4) {
-        Temp = ApicReadLocal(APIC_PERF_MONITOR);
-        ApicWriteLocal(APIC_PERF_MONITOR, Temp | APIC_MASKED);
+    temp = ApicReadLocal(APIC_TIMER_VECTOR);
+    ApicWriteLocal(APIC_TIMER_VECTOR, temp | APIC_MASKED);
+    temp = ApicReadLocal(APIC_LINT0_REGISTER);
+    ApicWriteLocal(APIC_LINT0_REGISTER, temp | APIC_MASKED);
+    temp = ApicReadLocal(APIC_LINT1_REGISTER);
+    ApicWriteLocal(APIC_LINT1_REGISTER, temp | APIC_MASKED);
+    if (maxLvt >= 4) {
+        temp = ApicReadLocal(APIC_PERF_MONITOR);
+        ApicWriteLocal(APIC_PERF_MONITOR, temp | APIC_MASKED);
     }
 
     // Don't touch this untill further notice
@@ -266,9 +270,9 @@ void ApicClear(void)
     }
 #endif
 
-    if (MaxLvt >= 6) {
-        Temp = ApicReadLocal(APIC_CMCI);
-        ApicWriteLocal(APIC_CMCI, Temp | APIC_MASKED);
+    if (maxLvt >= 6) {
+        temp = ApicReadLocal(APIC_CMCI);
+        ApicWriteLocal(APIC_CMCI, temp | APIC_MASKED);
     }
 
     // Clean out apic states
@@ -276,11 +280,11 @@ void ApicClear(void)
     ApicWriteLocal(APIC_LINT0_REGISTER, APIC_MASKED);
     ApicWriteLocal(APIC_LINT1_REGISTER, APIC_MASKED);
 
-    if (MaxLvt >= 3) {
+    if (maxLvt >= 3) {
         ApicWriteLocal(APIC_ERROR_REGISTER, APIC_MASKED);
     }
 
-    if (MaxLvt >= 4) {
+    if (maxLvt >= 4) {
         ApicWriteLocal(APIC_PERF_MONITOR, APIC_MASKED);
     }
 
@@ -290,28 +294,29 @@ void ApicClear(void)
     }
 #endif
 
-    if (MaxLvt >= 6) {
+    if (maxLvt >= 6) {
         ApicWriteLocal(APIC_CMCI, APIC_MASKED);
     }
 
     // Integrated APIC (!82489DX) ?
     if (ApicIsIntegrated()) {
         // Clear ESR due to Pentium errata 3AP and 11AP
-        if (MaxLvt > 3) {
+        if (maxLvt > 3) {
             ApicWriteLocal(APIC_ESR, 0);
         }
         ApicReadLocal(APIC_ESR);
     }
 }
 
-void ApicInitialSetup(UUId_t CoreId)
+static void
+__PrepareApic(
+        _In_ UUId_t coreId)
 {
-    // Variables
-    uint32_t Temp = 0;
-    int i = 0, j = 0;
+    uint32_t temp;
+    int      i, j;
 
     // Clear apic state and hammer the ESR to 0
-    ApicClear();
+    __ClearApic();
 
 #if defined(i386) || defined(__i386__)
     if (ApicIsIntegrated()) {
@@ -326,27 +331,27 @@ void ApicInitialSetup(UUId_t CoreId)
 
     // Set the destination to flat and compute a logical index
     ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
-    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(CoreId)));
+    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(coreId)));
     ApicSetTaskPriority(0);
 
     // Last thing is clear status and interrupt registers
     for (i = 8 - 1; i >= 0; i--) {
-        Temp = ApicReadLocal(0x100 + i * 0x10);
+        temp = ApicReadLocal(0x100 + i * 0x10);
         for (j = 31; j >= 0; j--) {
-            if (Temp & (1 << j)) {
+            if (temp & (1 << j)) {
                 ApicSendEoi(0, 0);
             }
         }
     }
 }
 
-/* Initialization code for the local apic
- * ESR. It clears out the error registers and
- * the ESR register */
-void
-ApicSetupESR(void)
+/**
+ * @brief Initializes error registers and the ESR
+ */
+static void
+__InitializeESR(void)
 {
-    int maxLvt = 0;
+    int maxLvt;
 
     // Sanitize whether this is an integrated chip, because if not ESR is not needed
     if (!ApicIsIntegrated()) {
@@ -368,32 +373,21 @@ ApicSetupESR(void)
     }
 }
 
-/* ApicEnable
- * Sets the current cpu into apic mode by enabling the apic. */
-void
-ApicEnable(void)
+static void
+__EnableApic(void)
 {
-    uint32_t Temp = 0;
+    uint32_t temp;
 
     // Enable local apic
-    Temp = ApicReadLocal(APIC_SPURIOUS_REG);
-    Temp &= ~(0x000FF);
-    Temp |= 0x100; // Enable Apic
+    temp = ApicReadLocal(APIC_SPURIOUS_REG);
+    temp &= ~(0x000FF);
+    temp |= 0x100; // Enable Apic
 #if defined(i386) || defined(__i386__)
     // This bit is reserved on P4/Xeon and should be cleared
-    Temp &= ~(0x200);
+    temp &= ~(0x200);
 #endif
-    Temp |= INTERRUPT_SPURIOUS;
-    ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
-}
-
-void
-ApicStartTimer(
-    _In_ size_t Quantum)
-{
-    ApicWriteLocal(APIC_TIMER_VECTOR,    APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,   Quantum);
+    temp |= INTERRUPT_SPURIOUS;
+    ApicWriteLocal(APIC_SPURIOUS_REG, temp);
 }
 
 void
@@ -447,26 +441,16 @@ ApicInitialize(void)
             MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
-    GlbLocalApicBase = remappedApAddress + (originalApAddress & 0xFFF);
-    bspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    g_localApicBaseAddress = remappedApAddress + (originalApAddress & 0xFFF);
+    bspApicId              = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     TRACE("ApicInitialize local bsp id %u", bspApicId);
 
-    // Do some initial shared Apic setup
-    // for this processor id
-    ApicInitialSetup(bspApicId);
-
-    // Actually enable APIC on the
-    // boot processor, afterwards
-    // we do some more setup
-    ApicEnable();
-
-    // Setup LVT0 & LVT1
-    InitializeApicLvt(0);
-    InitializeApicLvt(1);
-
-    // Do the last shared setup code, which 
-    // sets up error registers
-    ApicSetupESR();
+    // Initialize and enable the local apic for the processor
+    __PrepareApic(bspApicId);
+    __EnableApic();
+    __InitializeLvt(0);
+    __InitializeLvt(1);
+    __InitializeESR();
 
     // Disable Apic Timer while we set up the io-apics
     // we need to be careful still
@@ -480,9 +464,9 @@ ApicInitialize(void)
     TRACE("ApicInitialize initializing interrupt controllers");
     ic = GetMachine()->InterruptController;
     if (ic) {
-        g_interruptMode = InterruptModeApic;
+        g_interruptMode = InterruptMode_APIC;
         while (ic) {
-            ParseIoApic(ic);
+            __InitializeIoApic(ic);
             ic = ic->Link;
         }
     }
@@ -495,7 +479,7 @@ ApicInitialize(void)
     ApicSendEoi(0, 0);
 }
 
-SystemInterruptMode_t
+InterruptMode_t
 GetApicInterruptMode(void)
 {
     return g_interruptMode;
@@ -504,55 +488,21 @@ GetApicInterruptMode(void)
 OsStatus_t
 ApicIsInitialized(void)
 {
-    return (GlbLocalApicBase == 0) ? OsError : OsSuccess;
+    return (g_localApicBaseAddress == 0) ? OsNotSupported : OsSuccess;
 }
 
 void
-InitializeLocalApicForApplicationCore(void)
+ApicInitializeForApplicationCore(void)
 {
     // Perform inital preperations for the APIC
-    ApicInitialSetup(ArchGetProcessorCoreId());
-    ApicEnable();
+    __PrepareApic(ArchGetProcessorCoreId());
+    __EnableApic();
 
     // Set up the LVT channels
-    InitializeApicLvt(0);
-    InitializeApicLvt(1);
+    __InitializeLvt(0);
+    __InitializeLvt(1);
 
     // Set up the ESR and disable timer
-    ApicSetupESR();
-    ApicStartTimer(0);
-}
-
-void
-ApicRecalibrateTimer(void)
-{
-    volatile clock_t InitialTick = 0;
-    volatile clock_t Tick        = 0;
-    clock_t          PassedTicks;
-    size_t           TimerTicks;
-    TRACE("ApicRecalibrateTimer()");
-
-    // Setup initial local apic timer registers
-    ApicWriteLocal(APIC_TIMER_VECTOR,    INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
-
-    // Sleep for 100 ms
-    if (TimersGetSystemTick((clock_t*)&InitialTick) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "No system timers are present, can't calibrate APIC");
-    }
-    while (Tick < (InitialTick + 100)) {
-        TimersGetSystemTick((clock_t*)&Tick);
-    }
-    PassedTicks = Tick - InitialTick;
-    
-    // Stop counter and calibrate
-    ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
-    TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-    TRACE("ApicRecalibrateTimer BusSpeed: %" PRIuIN " Hz", (TimerTicks * 10));
-    GlbTimerQuantum = (TimerTicks / PassedTicks) + 1;
-    TRACE("ApicRecalibrateTimer ApicQuantum(1ms): %" PRIuIN "", GlbTimerQuantum);
-
-    // Start timer for good
-    ApicStartTimer(GlbTimerQuantum * 20);
+    __InitializeESR();
+    ApicTimerStart(0);
 }

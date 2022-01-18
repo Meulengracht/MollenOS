@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Interrupt Interface
  * - Contains the shared kernel interrupt interface
@@ -26,20 +23,20 @@
 #define __MODULE "IRQS"
 //#define __TRACE
 
-#include <arch.h>
+#include <arch/thread.h>
 #include <arch/utils.h>
+#include <arch/x86/memory.h>
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
 #include <memoryspace.h>
 #include <threading.h>
-#include <paging.h>
 
 #define PAGE_FAULT_PRESENT 0x1
 #define PAGE_FAULT_WRITE   0x2
 #define PAGE_FAULT_USER    0x4
 
-extern OsStatus_t ThreadingFpuException(Thread_t *Thread);
+extern OsStatus_t ThreadingFpuException(Thread_t *thread);
 extern reg_t      __getcr2(void);
 
 static void
@@ -65,7 +62,7 @@ HardFault(
     }
 
     // Enter panic handler
-    ArchDumpThreadContext(context);
+    ArchThreadContextDump(context);
     WRITELINE("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
               context->Irq, context->ErrorCode, CONTEXT_IP(context));
     if (context) {

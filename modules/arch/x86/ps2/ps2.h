@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86 PS2 Controller (Controller) Driver
@@ -164,15 +164,15 @@ PS2PortInitialize(
  * require response. */
 __EXTERN OsStatus_t
 PS2PortExecuteCommand(
-    _In_ PS2Port_t* Port,
-    _In_ uint8_t    Command,
-    _In_ uint8_t*   Response);
+    _In_ PS2Port_t* port,
+    _In_ uint8_t    commandValue,
+    _In_ uint8_t*   response);
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
 __EXTERN OsStatus_t
 PS2PortFinishCommand(
-    _In_ PS2Port_t* Port);
+    _In_ PS2Port_t* port);
 
 /* PS2ReadData
  * Reads a byte from the PS2 controller data port */

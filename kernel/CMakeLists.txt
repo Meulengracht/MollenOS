@@ -6,7 +6,6 @@ enable_language (C)
 include_directories (
 	${CMAKE_BINARY_DIR}
 	${CMAKE_BINARY_DIR}/protocols
-	arch/include
 	include
 	../boot/include
     ../librt/libc/include
@@ -45,7 +44,6 @@ add_executable (vali-core
 		interrupts_handlers.c
 		interrupts_table.c
 		machine.c
-		time.c
 )
 
 # add all subprojects after defining the vali-core target

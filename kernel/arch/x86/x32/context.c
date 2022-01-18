@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * X86-32 Thread Contexts
@@ -22,12 +22,11 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <cpu.h>
+#include <arch/x86/cpu.h>
+#include <arch/x86/memory.h>
+#include <arch/x86/x32/gdt.h>
 #include <debug.h>
-#include <gdt.h>
 #include <log.h>
-#include <os/context.h>
-#include <memory.h>
 #include <memoryspace.h>
 #include <string.h>
 #include <threading.h>
@@ -73,7 +72,7 @@
 // context, for handling signals this is effective.
 
 static void
-PushRegister(
+__PushRegister(
 	_In_ uintptr_t* StackReference,
 	_In_ uintptr_t  Value)
 {
@@ -82,7 +81,7 @@ PushRegister(
 }
 
 static void
-PushContextOntoStack(
+__PushContextOntoStack(
 	_In_ uintptr_t* StackReference,
     _In_ Context_t* Context)
 {
@@ -93,7 +92,7 @@ PushContextOntoStack(
 }
 
 void
-ContextPushInterceptor(
+ArchThreadContextPushInterceptor(
     _In_ Context_t* Context,
     _In_ uintptr_t  TemporaryStack,
     _In_ uintptr_t  Address,
@@ -109,16 +108,16 @@ ContextPushInterceptor(
 	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
 	if (!TemporaryStack) {
-		PushRegister(&Context->UserEsp, Context->Eip);
+        __PushRegister(&Context->UserEsp, Context->Eip);
 		
 		NewStackPointer = Context->UserEsp;
-		PushContextOntoStack(&NewStackPointer, Context);
+        __PushContextOntoStack(&NewStackPointer, Context);
 	}
 	else {
 		NewStackPointer = TemporaryStack;
-		
-		PushRegister(&Context->UserEsp, Context->Eip);
-		PushContextOntoStack(&NewStackPointer, Context);
+
+        __PushRegister(&Context->UserEsp, Context->Eip);
+        __PushContextOntoStack(&NewStackPointer, Context);
 	}
 
 	// Store all information provided, and 
@@ -134,7 +133,7 @@ ContextPushInterceptor(
 }
 
 void
-ContextReset(
+ArchThreadContextReset(
     _In_ Context_t* context,
     _In_ int        contextType,
     _In_ uintptr_t  address,
@@ -165,7 +164,7 @@ ContextReset(
 	    context->Eax = CONTEXT_RESET_IDENTIFIER;
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Setup segments for the stack
@@ -188,7 +187,7 @@ ContextReset(
 }
 
 Context_t*
-ContextCreate(
+ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
@@ -207,7 +206,7 @@ ContextCreate(
         memoryFlags |= MAPPING_USERSPACE;
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
     // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
@@ -236,7 +235,7 @@ ContextCreate(
 }
 
 void
-ContextDestroy(
+ArchThreadContextDestroy(
         _In_ Context_t* context,
         _In_ int        contextType,
         _In_ size_t     contextSize)
@@ -248,7 +247,7 @@ ContextDestroy(
         return;
     }
 
-    TRACE("[ContextDestroy] 0x%llx", context);
+    TRACE("[ArchThreadContextDestroy] 0x%llx", context);
 
     // adjust for size of context_t and then adjust back to base address
     contextAddress  = (uintptr_t)context;
@@ -259,7 +258,7 @@ ContextDestroy(
 }
 
 OsStatus_t
-ArchDumpThreadContext(
+ArchThreadContextDump(
     _In_ Context_t* context)
 {
     // Dump general registers

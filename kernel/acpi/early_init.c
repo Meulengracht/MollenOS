@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * ACPI(CA) Table Enumeration Interface
@@ -261,7 +261,7 @@ __EnumerateSystemCoresMADT(
                         uint8_t ProcessorId = AcpiCpu->ProcessorId;
                         TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
                         if (ApicId != CpuCoreId(GetMachine()->Processor.Cores)) {
-                            RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
+                            CpuCoreRegister(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }
                 }

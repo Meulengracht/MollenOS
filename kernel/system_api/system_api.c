@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * System Calls
  */
@@ -27,9 +27,7 @@
 #include <threading.h>
 #include <console.h>
 #include <machine.h>
-#include <timers.h>
 #include <debug.h>
-#include <string.h>
 
 OsStatus_t
 ScSystemDebug(
@@ -52,7 +50,6 @@ ScSystemDebug(
     }
     return OsSuccess;
 }
-
 
 OsStatus_t ScEndBootSequence(void) {
     TRACE("Ending console session");
@@ -92,62 +89,6 @@ ScFlushHardwareCache(
         return OsSuccess;
     }
     return OsError;
-}
-
-OsStatus_t
-ScSystemTime(
-    _In_ SystemTime_t* systemTime)
-{
-    if (systemTime == NULL) {
-        return OsError;
-    }
-    memcpy(systemTime, &GetMachine()->SystemTime, sizeof(SystemTime_t));
-    return OsSuccess;
-}
-
-OsStatus_t
-ScSystemTick(
-    _In_ int              tickBase,
-    _In_ LargeUInteger_t* tick)
-{
-    if (tick == NULL) {
-        return OsError;
-    }
-
-    if (TimersGetSystemTick((clock_t*)&tick->QuadPart) == OsSuccess) {
-        if (tickBase == TIME_THREAD) {
-            Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-            if (Thread != NULL) {
-                tick->QuadPart -= ThreadStartTime(Thread);
-            }
-        }
-        return OsSuccess;
-    }
-
-    // Default the result to 0 to indicate unsupported
-    tick->QuadPart = 0;
-    return OsError;
-}
-
-OsStatus_t
-ScPerformanceFrequency(
-    _Out_ LargeInteger_t *Frequency)
-{
-    // Sanitize input
-    if (Frequency == NULL) {
-        return OsError;
-    }
-    return TimersQueryPerformanceFrequency(Frequency);
-}
-
-OsStatus_t
-ScPerformanceTick(
-    _Out_ LargeInteger_t *Value)
-{
-    if (Value == NULL) {
-        return OsError;
-    }
-    return TimersQueryPerformanceTick(Value);
 }
 
 OsStatus_t

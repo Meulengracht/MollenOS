@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
  * Device Manager
@@ -179,7 +179,7 @@ void DmHandleIoctl2(
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
     OsStatus_t       result  = OsInvalidParameters;
-    uint64_t         storage = (uint64_t)request->parameters.ioctl2.value;
+    size_t           storage = request->parameters.ioctl2.value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDeviceEx(
