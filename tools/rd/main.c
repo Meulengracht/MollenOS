@@ -1,88 +1,30 @@
-/* Ramdisk Builder Utility 
- * Author: Philip Meulengracht
- * Date: 30-05-17
- * Used as a utility for MollenOS to build the initial ramdisk */
+/**
+ * Copyright 2022, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * VaFs Builder
+ * - Contains the implementation of the VaFs.
+ *   This filesystem is used to store the initrd of the kernel.
+ */
 
-// Includes
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef _MSC_VER
-#include "dirent.h"
-#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
-#else
-#include <dirent.h>
-#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
-#endif
-#include <sys/stat.h>
-
-#define POLYNOMIAL 0x04c11db7L      // Standard CRC-32 ppolynomial
-
-PACKED_TYPESTRUCT(BitmapFileHeader, {
-    uint16_t bfType;  //specifies the file type
-    uint32_t bfSize;  //specifies the size in bytes of the bitmap file
-    uint16_t bfReserved1;  //reserved; must be 0
-    uint16_t bfReserved2;  //reserved; must be 0
-    uint32_t bfOffBits;  //species the offset in bytes from the bitmapfileheader to the bitmap bits
-});
-
-PACKED_TYPESTRUCT(BitmapInfoHeader, {
-    uint32_t biSize;  //specifies the number of bytes required by the struct
-    uint32_t biWidth;  //specifies width in pixels
-    uint32_t biHeight;  //species height in pixels
-    uint16_t biPlanes; //specifies the number of color planes, must be 1
-    uint16_t biBitCount; //specifies the number of bit per pixel
-    uint32_t biCompression;//spcifies the type of compression
-    uint32_t biSizeImage;  //size of image in bytes
-    long biXPelsPerMeter;  //number of pixels per meter in x axis
-    long biYPelsPerMeter;  //number of pixels per meter in y axis
-    uint32_t biClrUsed;  //number of colors used by th ebitmap
-    uint32_t biClrImportant;  //number of colors that are important
-});
-
-/**
- * The ramdisk header, this is present in the first few bytes of the ramdisk image, members
- * do not vary in length
- */
-PACKED_TYPESTRUCT(MCoreRamDiskHeader, {
-    uint32_t Magic;
-    uint32_t Version;
-    uint32_t Architecture;
-    int32_t  FileCount;
-});
-
-/**
- * This is the ramdisk entry, which describes an entry in the ramdisk. The ramdisk entry area
- * contains headers right after each other
- */
-PACKED_TYPESTRUCT(MCoreRamDiskEntry, {
-    uint8_t     Name[64]; // UTF-8 Encoded filename
-    uint32_t    Type; // Check the ramdisk entry definitions
-    uint32_t    DataHeaderOffset; // offset in the ramdisk
-});
-
-/* MCoreRamDiskModuleHeader
- * This is the module header, and contains basic information
- * about the module data that follow this header. */
-PACKED_TYPESTRUCT(MCoreRamDiskModuleHeader, {
-    uint32_t    Flags;
-    uint32_t    LengthOfData; // Excluding this header
-    uint32_t    Crc32OfData;
-    
-    uint32_t    VendorId;
-    uint32_t    DeviceId;
-    uint32_t    DeviceType;
-    uint32_t    DeviceSubType;
-});
-
-// Statics
-uint32_t CrcTable[256] = { 0 };
-MCoreRamDiskHeader_t RdHeaderStatic = {
-	0x3144524D,
-	0x00000001,
-	0, 0
-};
+#include <platform.h>
+#include <vafs.h>
 
 // Prints usage format of this program
 static void ShowSyntax(void)
@@ -91,232 +33,22 @@ static void ShowSyntax(void)
            "    Build    :  rd --arch <arch> --initrd <path to initrd folder> --out <output>\n\n");
 }
 
-void
-Crc32GenerateTable(void)
+
+static enum VaFsArchitecture __get_vafs_arch(
+	const char* arch)
 {
-    // Variables
-    register uint32_t CrcAccumulator;
-    register int i, j;
-
-    // Iterate and fill the table
-    for (i=0;  i < 256; i++) {
-        CrcAccumulator = ((uint32_t) i << 24);
-        for (j = 0;  j < 8;  j++) {
-            if (CrcAccumulator & 0x80000000L) {
-                CrcAccumulator = (CrcAccumulator << 1) ^ POLYNOMIAL;
-            }
-            else {
-                CrcAccumulator = (CrcAccumulator << 1);
-            }
-        }
-        CrcTable[i] = CrcAccumulator;
-    }
-}
-
-/* Crc32Generate
- * Generates an crc-32 checksum from the given accumulator and
- * the given data. */
-uint32_t
-Crc32Generate(
-    uint32_t CrcAccumulator, 
-    uint8_t *DataPointer, 
-    size_t DataSize)
-{
-    // Variables
-    register size_t i, j;
-
-    // Iterate each byte and accumulate crc
-    for (j = 0; j < DataSize; j++) {
-        i = ((int) (CrcAccumulator >> 24) ^ *DataPointer++) & 0xFF;
-        CrcAccumulator = (CrcAccumulator << 8) ^ CrcTable[i];
-    }
-    CrcAccumulator = ~CrcAccumulator;
-    return CrcAccumulator;
-}
-
-// Determines if a file has a corresponding driver descriptor
-static FILE *GetDriver(const char *path)
-{
-	FILE *drv = NULL;
-	char *copy = malloc(strlen(path) + 4);
-	memset(copy, 0, strlen(path) + 4);
-	memcpy(copy, path, strlen(path));
-	char *dot = strrchr(copy, '.');
-	if (dot != NULL) {
-		memcpy(dot, ".mdrv", 5);
-		drv = fopen(copy, "r");
-		free(copy);
-		return drv;
-	}
+	if (!strcmp(arch, "x86") || !strcmp(arch, "i386"))
+		return VaFsArchitecture_X86;
+	else if (!strcmp(arch, "x64") || !strcmp(arch, "amd64"))
+		return VaFsArchitecture_X64;
+	else if (strcmp(arch, "arm") == 0)
+		return VaFsArchitecture_ARM;
+	else if (strcmp(arch, "arm64") == 0)
+		return VaFsArchitecture_ARM64;
 	else {
-		free(copy);
-		return NULL;
+		printf("mkvafs: unknown architecture '%s'\n", arch);
+		exit(-1);
 	}
-}
-
-// Removes the file-extension from a file-name
-char *RemoveExtension(char* mystr, char dot, char sep) 
-{
-	char *retstr, *lastdot, *lastsep;
-
-	// Error checks and allocate string.
-	if (mystr == NULL)
-		return NULL;
-	if ((retstr = malloc(strlen(mystr) + 1)) == NULL)
-		return NULL;
-
-	// Make a copy and find the relevant characters.
-	strcpy(retstr, mystr);
-	lastdot = strrchr(retstr, dot);
-	lastsep = (sep == 0) ? NULL : strrchr(retstr, sep);
-
-	// If it has an extension separator.
-	if (lastdot != NULL) {
-		// and it's before the extenstion separator.
-		if (lastsep != NULL) {
-			if (lastsep < lastdot) {
-				// then remove it.
-				*lastdot = '\0';
-			}
-		}
-		else {
-			// Has extension separator with no path separator.
-			*lastdot = '\0';
-		}
-	}
-
-	// Return the modified string.
-	return retstr;
-}
-
-// Retrieves the next text-line from a file
-int GetNextLine(FILE *handle, char **tokens, int *count)
-{
-	// Variables
-	char buffer[512];
-	char character;
-	int bufindex = 0;
-	int result = 0;
-	int tokenindex = 0;
-
-	// Reset
-	*count = 0;
-	memset(buffer, 0, sizeof(buffer));
-
-	// Iterate entire file content
-	while ((character = fgetc(handle)) != EOF) {
-		// Skip newlines and line-feed
-		if (character == '\r'
-			|| character == '\t') {
-			continue;
-		}
-
-		// Detect end of line
-		if (character == '\n') {
-			break;
-		}
-
-		// Store in temporary buffer
-		buffer[bufindex++] = character;
-	}
-
-	// Did we reach eof?
-	if (character == EOF) {
-		result = 1;
-	}
-
-	// Get initial token
-	char *Token = strtok(buffer, " ");
-
-	// Iterate tokens on line
-	while (Token != NULL) {
-		memset(tokens[tokenindex], 0, 64);
-		strcpy(tokens[tokenindex], Token);
-
-		// Increase index and get next
-		tokenindex++;
-		Token = strtok(NULL, " ");
-	}
-
-	// Update count and return
-	*count = tokenindex;
-	return result;
-}
-
-int GetBitmapData(char *in, char **out, long *pixelcount)
-{
-    BitmapFileHeader_t *FileHeader = (BitmapFileHeader_t*)in;
-    BitmapInfoHeader_t *InfoHeader;
-    uint8_t *pointer = (uint8_t*)in;
-    uint32_t i;
-
-    // Verify header
-    if (FileHeader->bfType != 0x4D42) {
-        printf("invalid bmp header value 0x%x\n", FileHeader->bfType);
-        return 1;
-    }
-
-    pointer    += sizeof(BitmapFileHeader_t);
-    InfoHeader  = (BitmapInfoHeader_t*)pointer;
-    pointer     = (uint8_t*)in + FileHeader->bfOffBits;
-
-    // Pointer is now pointing at bitmap data
-    (*out)          = (char*)malloc(InfoHeader->biSizeImage);
-    (*pixelcount)   = 0;
-    
-    //swap the r and b values to get RGB (bitmap is BGR)
-    for (i = 0; i < InfoHeader->biSizeImage; i += 3) // fixed semicolon
-    {
-        uint8_t temp = pointer[i];
-        pointer[i] = pointer[i + 2];
-        pointer[i + 2] = temp;
-        (*pixelcount)++;
-    }
-    return 0;
-}
-
-// Performs run length compression on the data buffer, only really
-// useful on bmp images
-char *PerformRLE(char *data, long length, long *new_length)
-{
-    long data_length_needed = sizeof(BitmapFileHeader_t) + sizeof(BitmapInfoHeader_t);
-    char *pixeldata;
-    char *rledata;
-    uint32_t *rlepointer;
-    long pixelcount;
-    long i, counter;
-
-    if (GetBitmapData(data, &pixeldata, &pixelcount)) {
-        printf("failed to parse the bmp image\n");
-        return NULL;
-    }
-
-    // Bitmaps are RGB, we extend this to ARGB
-    uint32_t last_value = 0xdeadbeef;
-    for (i = 0; i < pixelcount; i++) {
-        uint32_t value = ((uint32_t)pixeldata[(i * 3) + 2] << 16) | ((uint32_t)pixeldata[(i * 3) + 1] << 8) | pixeldata[(i * 3)];
-        if (last_value != value || (i + 1) == pixelcount) {
-            data_length_needed += 8; // 4 bytes count, 4 bytes value
-            last_value          = value;
-        }
-    }
-
-    // Allocate the data now that we know the required length
-    rledata     = (char*)malloc(data_length_needed);
-    rlepointer  = (uint32_t*)rledata;
-    counter     = 1;
-    last_value  = 0xFF000000 | ((long)pixeldata[2] << 16) | ((long)pixeldata[1] << 8) | pixeldata[0];
-    for (i = 1; i < pixelcount; i++) {
-        long value = 0xFF000000 | ((long)pixeldata[(i * 3) + 2] << 16) | ((long)pixeldata[(i * 3) + 1] << 8) | pixeldata[(i * 3)];
-        if (last_value != value || (i + 1) == pixelcount) {
-            *(rlepointer++) = (uint32_t)counter;
-            *(rlepointer++) = last_value;
-            counter         = 0;
-            last_value      = value;
-        }
-    }
-    *new_length = data_length_needed;
-    return rledata;
 }
 
 // main
@@ -332,6 +64,10 @@ int main(int argc, char *argv[])
 	char **tokens;
 	int tokencount;
 
+
+	void* vafsHandle;
+	int   status;
+
     // parameters
     char* archParameter = NULL;
     char* initrdPath = NULL;
@@ -339,7 +75,7 @@ int main(int argc, char *argv[])
 
 	// Print header
 	printf("MollenOS Ramdisk Builder\n"
-           "Copyright 2017 Philip Meulengracht (www.mollenos.com)\n\n");
+           "Copyright 2022 Philip Meulengracht (www.mollenos.com)\n\n");
 
 	// Validate the number of arguments
 	// format: rd $(arch) $(out)
@@ -360,31 +96,11 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// Create the output file
-	out = fopen(outPath, "wb+");
-	if (out == NULL) {
-		printf("%s was an invalid output file\n", outPath);
+	status = vafs_create(outPath, __get_vafs_arch(archParameter), VaFsCompressionType_NONE, &vafsHandle);
+	if (status) {
+		printf("mkvafs: cannot create vafs output file: %s\n", outPath);
 		return 1;
-    }
-    
-    // Initialize CRC
-    printf("Generating crc-table\n");
-    Crc32GenerateTable();
-
-	// Fill in architecture
-	// Arch - x86_32 = 0x08, x86_64 = 0x10
-    if (!strcmp(archParameter, "i386") || !strcmp(archParameter, "__i386__")) {
-	    RdHeaderStatic.Architecture = 0x08;
-    }
-    else if (!strcmp(archParameter, "amd64") || !strcmp(archParameter, "__amd64__")) {
-	    RdHeaderStatic.Architecture = 0x10;
-    }
-    else {
-		printf("%s was an unsupported architecture\n", archParameter);
-		return 1;
-    }
-
-	RdHeaderStatic.FileCount = 0;
+	}
 
     // Open directory
     printf("Counting available files for rd\n");
@@ -392,34 +108,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Can't open initrd folder\n");
 		return 1;
 	}
-
-	// Count files of type .dll
-	while ((dp = readdir(dfd)) != NULL) {
-		char *dot = strrchr(dp->d_name, '.');
-		if (dot && !strcmp(dot, ".dll")) {
-			RdHeaderStatic.FileCount++;
-		}
-	}
-
-	// Rewind
-	rewinddir(dfd);
-
-    // Write header
-    printf("Generating ramdisk header\n");
-	fwrite(&RdHeaderStatic, 1, sizeof(MCoreRamDiskHeader_t), out);
-	fflush(out);
-
-	// Store current position
-	fentrypos = ftell(out);
-
-	// Fill rest of entry space with 0
-	dataptr = malloc(0x1000 - sizeof(MCoreRamDiskHeader_t));
-	memset(dataptr, 0, 0x1000 - sizeof(MCoreRamDiskHeader_t));
-	fwrite(dataptr, 1, 0x1000 - sizeof(MCoreRamDiskHeader_t), out);
-	free(dataptr);
-	fflush(out);
-	fdatapos = ftell(out);
-
+	
 	// Init token storage
 	tokens = (char**)malloc(sizeof(char*) * 24);
 	for (int i = 0; i < 24; i++)
