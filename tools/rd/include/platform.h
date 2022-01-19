@@ -29,13 +29,47 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #endif
 
-#ifdef _MSC_VER
+#if defined(_WIN32) || defined(_WIN64)
 #include <dirent_win32.h>
-#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
+#include <windows.h>
+
+typedef CRITICAL_SECTION mtx_t;
+#define thrd_success 0
+#define thrd_error   -1
+
+#define mtx_plain NULL
+
+static inline int mtx_init(mtx_t* mtx, void* unused) {
+    InitializeCriticalSection(mtx);
+    return thrd_success;
+}
+
+#define mtx_destroy DeleteCriticalSection
+
+static inline int mtx_trylock(mtx_t* mtx) {
+    BOOL status = TryEnterCriticalSection(mtx);
+    return status == TRUE ? thrd_success : thrd_error;
+}
+
+static inline int mtx_lock(mtx_t* mtx) {
+    EnterCriticalSection(mtx);
+    return thrd_success;
+}
+
+static inline int mtx_unlock(mtx_t* mtx) {
+    LeaveCriticalSection(mtx);
+    return thrd_success;
+}
+
 #else
 #include <dirent.h>
+#include <threads.h>
+#endif
+
+#ifdef _MSC_VER
+#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
+#else
 #define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
 #endif
-#include <sys/stat.h>
 
 #endif //!__PLATFORM_H__

@@ -22,10 +22,39 @@
 #include "crc.h"
 #include <errno.h>
 #include "private.h"
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 #define STREAM_TYPE_FILE   0
 #define STREAM_TYPE_MEMORY 1
+
+struct VaFsStream {
+    int                      Type;
+    uint32_t                 BlockSize;
+    enum VaFsCompressionType CompressionType;
+    mtx_t                    Lock;
+
+    // The stage buffer is used for staging data before
+    // we flush it to the data stream. The staging buffer
+    // is always the size of the block size.
+    void*  StageBuffer;
+    size_t StageBufferIndex;
+
+    // The stream index is the uncompressed location into the
+    // data stream. This is used to determine the current location
+    // of uncompressed data.
+    size_t StreamIndex;
+
+    union {
+        struct {
+            void*  Buffer;
+            size_t Length;
+            long   Offset;
+        } Memory;
+        FILE* File;
+    };
+};
 
 static int __new_stream(
     int                      type,
@@ -41,6 +70,7 @@ static int __new_stream(
         return -1;
     }
 
+    mtx_init(&stream->Lock, mtx_plain);
     stream->Type = type;
     stream->BlockSize = blockSize;
     stream->CompressionType = compressionType;
@@ -120,7 +150,37 @@ int vafs_stream_open_memory(
     return 0;
 }
 
-off_t __get_position(
+int vafs_stream_lock(
+    struct VaFsStream* stream)
+{
+    if (!stream) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (mtx_trylock(&stream->Lock) != thrd_success) {
+        errno = EBUSY;
+        return -1;
+    }
+    return 0;
+}
+
+int vafs_stream_unlock(
+    struct VaFsStream* stream)
+{
+    if (!stream) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (mtx_unlock(&stream->Lock) != thrd_success) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    return 0;
+}
+
+long __get_position(
     struct VaFsStream* stream)
 {
     if (stream->Type == STREAM_TYPE_FILE) {
@@ -136,23 +196,30 @@ int vafs_stream_position(
     uint16_t*          blockOut,
     uint32_t*          offsetOut)
 {
-    off_t position;
-
     if (stream == NULL || blockOut == NULL || offsetOut == NULL) {
         errno = EINVAL;
         return -1;
     }
 
-    if (stream->Type == STREAM_TYPE_FILE) {
-        position = ftell(stream->File);
-    }
-    else {
-        position = stream->Memory.Offset;
+    *blockOut = (uint16_t)(stream->StreamIndex / stream->BlockSize);
+    *offsetOut = (uint32_t)(stream->StreamIndex % stream->BlockSize);
+    return 0;
+}
+
+extern size_t vafs_stream_size(
+    struct VaFsStream* stream)
+{
+    if (stream == NULL) {
+        errno = EINVAL;
+        return 0;
     }
 
-    *blockOut = (uint16_t)(position / stream->BlockSize);
-    *offsetOut = (uint32_t)(position % stream->BlockSize);
-    return 0;
+    if (stream->Type == STREAM_TYPE_FILE) {
+        return ftell(stream->File);
+    }
+    else {
+        return stream->Memory.Offset;
+    }
 }
 
 static int __grow_buffer(
@@ -180,7 +247,6 @@ static inline int __memsize_available(
 }
 
 static uint32_t __get_crc(
-#include <vafs.h>
     struct VaFsStream* stream)
 {
     return crc_calculate(
@@ -197,7 +263,10 @@ static int __write_stream(
 {
     // flush the actual block data
     if (stream->Type == STREAM_TYPE_FILE) {
-        return fwrite(buffer, 1, size, stream->File);
+        size_t bytesWritten = fwrite(buffer, 1, size, stream->File);
+        if (bytesWritten != size) {
+            return -1;
+        }
     }
     else if (stream->Type == STREAM_TYPE_MEMORY) {
         // if the stream is a memory stream, then ensure enough space in buffer
@@ -211,8 +280,8 @@ static int __write_stream(
 
         memcpy(stream->Memory.Buffer, buffer, size);
         stream->Memory.Offset += size;
-        return 0;
     }
+    return 0;
 }
 
 static int __write_block_header(
@@ -243,10 +312,16 @@ static int __flush_block(
 
     // flush the block to the stream, write header first
     if (__write_block_header(stream, compressedSize)) {
+        fprintf(stderr, "__flush_block: failed to write block header\n");
         return -1;
     }
 
     status = __write_stream(stream, compressedData, compressedSize);
+    if (status) {
+        fprintf(stderr, "__flush_block: failed to write block data\n");
+        return -1;
+    }
+
     stream->StageBufferIndex = 0;
     return status;
 }
@@ -279,6 +354,7 @@ int vafs_stream_write(
 
         if (stream->StageBufferIndex == stream->BlockSize) {
             if (__flush_block(stream)) {
+                fprintf(stderr, "vafs_stream_write: failed to flush block\n");
                 return -1;
             }
         }
@@ -287,10 +363,28 @@ int vafs_stream_write(
     return 0;
 }
 
+static int __fcopy(FILE* destination, FILE* source)
+{
+    char chr;
+    int  status;
+
+    status = fseek(source, 0, SEEK_SET);
+    if (status) {
+        return status;
+    }
+
+    while ((chr = fgetc(source)) != EOF) {
+        fputc(chr, destination);
+    }
+    return 0;
+}
+
 int vafs_stream_copy(
     struct VaFsStream* stream,
     struct VaFsStream* source)
 {
+    int status = 0;
+
     if (stream == NULL || source == NULL) {
         errno = EINVAL;
         return -1;
@@ -298,31 +392,48 @@ int vafs_stream_copy(
 
     if (stream->Type == STREAM_TYPE_FILE) {
         if (source->Type == STREAM_TYPE_FILE) {
-            return fcopy(source->File, stream->File);
+            status = __fcopy(stream->File, source->File);
         }
         else if (source->Type == STREAM_TYPE_MEMORY) {
-            return fwrite(source->Memory.Buffer, 1, source->Memory.Length, stream->File);
+            if (fwrite(source->Memory.Buffer, 1, source->Memory.Offset, stream->File) != source->Memory.Offset) {
+                return -1;
+            }
         }
     }
     else if (stream->Type == STREAM_TYPE_MEMORY) {
+        long sourceSize = vafs_stream_size(source);
+        while (stream->Memory.Length < (stream->Memory.Offset + sourceSize)) {
+            if (__grow_buffer(stream)) {
+                return -1;
+            }
+        }
+
         if (source->Type == STREAM_TYPE_FILE) {
-            return fread(stream->Memory.Buffer, 1, stream->Memory.Length, source->File);
+            if (fread(stream->Memory.Buffer + stream->Memory.Offset, 1, sourceSize, source->File) != sourceSize) {
+                return -1;
+            }
         }
         else if (source->Type == STREAM_TYPE_MEMORY) {
-            if (stream->Memory.Length < source->Memory.Length) {
-                if (__grow_buffer(stream)) {
-                    return -1;
-                }
-            }
+            memcpy(stream->Memory.Buffer + stream->Memory.Offset, source->Memory.Buffer, sourceSize);
+        }
 
-            memcpy(stream->Memory.Buffer, source->Memory.Buffer, source->Memory.Length);
-            stream->Memory.Offset = source->Memory.Length;
-            return source->Memory.Length;
+        if (!status) {
+            stream->Memory.Offset += sourceSize;
         }
     }
 
-    errno = EINVAL;
-    return -1;
+    return status;
+}
+
+int vafs_stream_flush(
+    struct VaFsStream* stream)
+{
+    if (!stream) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    return __flush_block(stream);
 }
 
 int vafs_stream_close(

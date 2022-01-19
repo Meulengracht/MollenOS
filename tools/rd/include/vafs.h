@@ -25,6 +25,10 @@
 #include <platform.h>
 #include <stdint.h>
 
+struct VaFs;
+struct VaFsDirectoryHandle;
+struct VaFsFileHandle;
+
 enum VaFsCompressionType {
     VaFsCompressionType_NONE
 };
@@ -34,7 +38,8 @@ enum VaFsArchitecture {
     VaFsArchitecture_X64 = 0x8664,
     VaFsArchitecture_ARM = 0xA12B,
     VaFsArchitecture_ARM64 = 0xAA64,
-    VaFsArchitecture_RISCV = 0x5032
+    VaFsArchitecture_RISCV32 = 0x5032,
+    VaFsArchitecture_RISCV64 = 0x5064,
 };
 
 /**
@@ -43,14 +48,25 @@ enum VaFsArchitecture {
  * @param[In]  path 
  * @param[In]  architecture 
  * @param[In]  compressionType
- * @param[Out] handleOut
+ * @param[Out] vafsOut
  * @return int
  */
 extern int vafs_create(
     const char*              path, 
     enum VaFsArchitecture    architecture, 
     enum VaFsCompressionType compressionType,
-    void**                   handleOut);
+    struct VaFs**            vafsOut);
+
+/**
+ * @brief 
+ * 
+ * @param path 
+ * @param vafsOut 
+ * @return int 
+ */
+extern int vafs_open(
+    const char*   path,
+    struct VaFs** vafsOut);
 
 /**
  * @brief 
@@ -59,7 +75,7 @@ extern int vafs_create(
  * @return int 
  */
 extern int vafs_close(
-    void* handle);
+    struct VaFs* vafs);
 
 /**
  * @brief 
@@ -69,36 +85,30 @@ extern int vafs_close(
  * @param handleOut 
  * @return int 
  */
-extern int vafs_opendir(
-    void*       handle,
-    const char* path,
-    void**      handleOut);
+extern int vafs_directory_open(
+    struct VaFs*                 vafs,
+    const char*                  path,
+    struct VaFsDirectoryHandle** handleOut);
 
 /**
  * @brief 
  * 
  * @param handle 
- * @param entry 
  * @return int 
  */
-extern int vafs_dir_read(
-    void*          handle,
-    struct dirent* entry);
+extern int vafs_directory_close(
+    struct VaFsDirectoryHandle* handle);
 
 /**
  * @brief 
  * 
- * @param handle 
- * @param name 
- * @param content 
- * @param size 
- * @return int 
+ * @param[In]  handle The directory handle to read an entry from.
+ * @param[Out] entry  A pointer to a dirent that is filled with information if an entry is available. 
+ * @return int Returns -1 on error or if no more entries are available (errno is set accordingly), 0 on success
  */
-extern int vafs_dir_write_file(
-    void*       handle,
-    const char* name,
-    void*       content,
-    size_t      size);
+extern int vafs_directory_read(
+    struct VaFsDirectoryHandle* handle,
+    struct dirent*              entry);
 
 /**
  * @brief 
@@ -108,10 +118,22 @@ extern int vafs_dir_write_file(
  * @param handleOut 
  * @return int 
  */
-extern int vafs_dir_write_directory(
-    void*       handle,
-    const char* name,
-    void**      handleOut);
+extern int vafs_directory_open_directory(
+    struct VaFsDirectoryHandle*  handle,
+    const char*                  name,
+    struct VaFsDirectoryHandle** handleOut);
+
+/**
+ * @brief 
+ * 
+ * @param handle 
+ * @param name 
+ * @return int 
+ */
+extern int vafs_directory_open_file(
+    struct VaFsDirectoryHandle* handle,
+    const char*                 name,
+    struct VaFsFileHandle**     handleOut);
 
 /**
  * @brief 
@@ -119,7 +141,55 @@ extern int vafs_dir_write_directory(
  * @param handle 
  * @return int 
  */
-extern int vafs_dir_close(
-    void* handle);
+extern int vafs_file_close(
+    struct VaFsFileHandle* handle);
+
+/**
+ * @brief 
+ * 
+ * @param handle 
+ * @return size_t 
+ */
+extern size_t vafs_file_length(
+    struct VaFsFileHandle* handle);
+
+/**
+ * @brief 
+ * 
+ * @param handle 
+ * @param offset 
+ * @param whence 
+ * @return int 
+ */
+extern int vafs_file_seek(
+    struct VaFsFileHandle* handle,
+    off_t                  offset,
+    int                    whence);
+
+/**
+ * @brief 
+ * 
+ * @param handle 
+ * @param buffer 
+ * @param size 
+ * @return size_t 
+ */
+extern size_t vafs_file_read(
+    struct VaFsFileHandle* handle,
+    void*                  buffer,
+    size_t                 size);
+
+/**
+ * @brief 
+ * 
+ * @param handle 
+ * @param buffer 
+ * @param size 
+ * @return size_t 
+ */
+extern size_t vafs_file_write(
+    struct VaFsFileHandle* handle,
+    void*                  buffer,
+    size_t                 size);
 
 #endif //!__VAFS_H__

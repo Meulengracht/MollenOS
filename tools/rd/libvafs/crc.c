@@ -19,12 +19,12 @@
  *   integrity checks.
  */
 
-#include <crc.h>
+#include "crc.h"
 
 static uint32_t g_crcTable[256] = { 0 };
 
 void
-Crc32GenerateTable(void)
+crc_init(void)
 {
     uint32_t accumulator;
     int      i, j;
@@ -44,7 +44,7 @@ Crc32GenerateTable(void)
 }
 
 uint32_t
-Crc32Generate(
+crc_calculate(
     uint32_t accumulator, 
     uint8_t* data, 
     size_t   length)

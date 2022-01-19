@@ -27,9 +27,14 @@
 #include <stdio.h>
 #include <vafs.h>
 
-#define VA_FS_MAGIC      0x3144524D
-#define VA_FS_VERSION    0x00010000
-#define VA_FS_BLOCKMAGIC 0xAE305532
+struct VaFsStream;
+
+#define VA_FS_MAGIC       0x3144524D
+#define VA_FS_VERSION     0x00010000
+#define VA_FS_BLOCKMAGIC  0xAE305532
+
+#define VA_FS_INVALID_BLOCK  0xFFFF
+#define VA_FS_INVALID_OFFSET 0xFFFFFFFF
 
 // Default ramdisk block size is 64 kb
 #define VA_FS_BLOCKSIZE (64 * 1024)
@@ -61,13 +66,13 @@ PACKED_TYPESTRUCT(VaFsHeader, {
 
 PACKED_TYPESTRUCT(VaFsDescriptor, {
     uint16_t Type;
-    uint16_t Length;
-    uint8_t  Name[64]; // UTF-8 Encoded filename
+    uint16_t Length; // Length of the descriptor
 });
 
 PACKED_TYPESTRUCT(VaFsFileDescriptor, {
     VaFsDescriptor_t    Base;
     VaFsBlockPosition_t Data;
+    uint32_t            FileLength;
 });
 
 PACKED_TYPESTRUCT(VaFsDirectoryDescriptor, {
@@ -75,39 +80,25 @@ PACKED_TYPESTRUCT(VaFsDirectoryDescriptor, {
     VaFsBlockPosition_t Descriptor;
 });
 
-struct VaFsStream {
-    int                      Type;
-    uint32_t                 BlockSize;
-    enum VaFsCompressionType CompressionType;
-
-    // The stage buffer is used for staging data before
-    // we flush it to the data stream. The staging buffer
-    // is always the size of the block size.
-    void*  StageBuffer;
-    size_t StageBufferIndex;
-
-    // The stream index is the uncompressed location into the
-    // data stream. This is used to determine the current location
-    // of uncompressed data.
-    size_t StreamIndex;
-
-    union {
-        struct {
-            void*  Buffer;
-            size_t Length;
-            off_t  Offset;
-        } Memory;
-        FILE* File;
-    };
-};
-
-struct VaFsDirectory {
-    VaFsDirectoryDescriptor_t Descriptor;
-};
+PACKED_TYPESTRUCT(VaFsDirectoryHeader, {
+    int Count;
+});
 
 enum VaFsMode {
     VaFsMode_Read,
     VaFsMode_Write
+};
+
+struct VaFsFile {
+    struct VaFs*         VaFs;
+    VaFsFileDescriptor_t Descriptor;
+    const char*          Name;
+};
+
+struct VaFsDirectory {
+    struct VaFs*              VaFs;
+    VaFsDirectoryDescriptor_t Descriptor;
+    const char*               Name;
 };
 
 struct VaFs {
@@ -146,6 +137,27 @@ extern int vafs_stream_open_memory(
     uint32_t                 blockSize,
     enum VaFsCompressionType compressionType,
     struct VaFsStream**      streamOut);
+
+/**
+ * @brief Locks a specific stream for exclusive access, this is neccessary while
+ * writing dat to the stream, to avoid any concurrent access to those streams, or
+ * the user deciding to write two files at once. For read access this is not as neccessary
+ * but could still be done.
+ * 
+ * @param[In] stream The stream that should be locked.
+ * @return int Returns -1 if the stream is already locked, 0 on success.
+ */
+extern int vafs_stream_lock(
+    struct VaFsStream* stream);
+
+/**
+ * @brief Unlocks a previously locked stream.
+ * 
+ * @param[In] stream The stream that should be unlocked.
+ * @return int Returns -1 if the stream was not locked, 0 on success.
+ */
+extern int vafs_stream_unlock(
+    struct VaFsStream* stream);
 
 /**
  * @brief 
@@ -190,6 +202,24 @@ extern int vafs_stream_copy(
  * @param stream 
  * @return int 
  */
+extern int vafs_stream_flush(
+    struct VaFsStream* stream);
+
+/**
+ * @brief 
+ * 
+ * @param stream 
+ * @return size_t 
+ */
+extern size_t vafs_stream_size(
+    struct VaFsStream* stream);
+
+/**
+ * @brief 
+ * 
+ * @param stream 
+ * @return int 
+ */
 extern int vafs_stream_close(
     struct VaFsStream* stream);
 
@@ -202,8 +232,17 @@ extern int vafs_stream_close(
  * @return int 
  */
 extern int vafs_directory_create_root(
-    struct VaFs*          vafs,
-    struct VaFsDirecory** directoryOut);
+    struct VaFs*           vafs,
+    struct VaFsDirectory** directoryOut);
+
+/**
+ * @brief 
+ * 
+ * @param directory 
+ * @return int 
+ */
+extern int vafs_directory_flush(
+    struct VaFsDirectory* directory);
 
 /**
  * @brief 
@@ -214,6 +253,16 @@ extern int vafs_directory_create_root(
  */
 extern int vafs_directory_open_root(
     struct VaFs*           vafs,
+    VaFsBlockPosition_t*   position,
     struct VaFsDirectory** directoryOut);
+
+/**
+ * @brief 
+ * 
+ * @param fileEntry 
+ * @return struct VaFsFileHandle* 
+ */
+extern struct VaFsFileHandle* vafs_file_create_handle(
+    struct VaFsFile* fileEntry);
 
 #endif // __VAFS_PRIVATE_H__
