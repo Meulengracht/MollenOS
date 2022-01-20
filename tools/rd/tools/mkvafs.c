@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	status = vafs_create(imagePath, __get_vafs_arch(arch), VaFsCompressionType_NONE, &vafsHandle);
+	status = vafs_create(imagePath, __get_vafs_arch(arch), &vafsHandle);
 	if (status) {
 		fprintf(stderr, "mkvafs: cannot create vafs output file: %s\n", imagePath);
 		return -1;

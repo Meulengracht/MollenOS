@@ -31,7 +31,6 @@
 
 struct VaFsStream {
     uint32_t                 BlockSize;
-    enum VaFsCompressionType CompressionType;
     struct VaFsStreamDevice* Device;
     long                     DeviceOffset;
 
@@ -47,10 +46,11 @@ static int __new_stream(
     struct VaFsStreamDevice* device,
     long                     deviceOffset,
     uint32_t                 blockSize,
-    enum VaFsCompressionType compressionType,
     struct VaFsStream**      streamOut)
 {
     struct VaFsStream* stream;
+    VAFS_DEBUG("__new_stream(offset=%lu, blockSize=%u)\n",
+        deviceOffset, blockSize);
     
     stream = (struct VaFsStream*)malloc(sizeof(struct VaFsStream));
     if (!stream) {
@@ -61,7 +61,6 @@ static int __new_stream(
     stream->Device = device;
     stream->DeviceOffset = deviceOffset;
     stream->BlockSize = blockSize;
-    stream->CompressionType = compressionType;
 
     stream->BlockBuffer = malloc(blockSize);
     if (!stream->BlockBuffer) {
@@ -80,7 +79,6 @@ int vafs_stream_create(
     struct VaFsStreamDevice* device,
     long                     deviceOffset,
     uint32_t                 blockSize,
-    enum VaFsCompressionType compressionType,
     struct VaFsStream**      streamOut)
 {
     struct VaFsStream* stream;
@@ -90,7 +88,7 @@ int vafs_stream_create(
         return -1;
     }
 
-    if (__new_stream(device, deviceOffset, blockSize, compressionType, &stream)) {
+    if (__new_stream(device, deviceOffset, blockSize, &stream)) {
         return -1;
     }
 
@@ -118,6 +116,11 @@ static int __load_blockbuffer(
     uint32_t           length)
 {
     size_t read;
+    VAFS_DEBUG("__load_blockbuffer(length=%u)\n", length);
+
+    // Handle decompressions
+    // TODO
+
     return vafs_streamdevice_read(stream->Device, stream->BlockBuffer, length, &read);
 }
 
@@ -133,6 +136,8 @@ int vafs_stream_seek(
     uint32_t    targetOffset = blockOffset;
     size_t      read;
     uint16_t    i = 0;
+    VAFS_DEBUG("vafs_stream_seek(blockIndex=%u, blockOffset=%u)\n",
+        blockIndex, blockOffset);
 
     if (stream == NULL) {
         errno = EINVAL;
@@ -143,12 +148,14 @@ int vafs_stream_seek(
     offset = stream->DeviceOffset;
     while (1) {
         status = vafs_streamdevice_seek(stream->Device, offset, SEEK_SET);
-        if (status) {
+        if (status < 0) {
+            VAFS_ERROR("vafs_stream_seek: seek failed in stream device: %i\n", status);
             return status;
         }
         
         status = vafs_streamdevice_read(stream->Device, &block, sizeof(VaFsBlock_t), &read);
         if (status) {
+            VAFS_ERROR("vafs_stream_seek: read failed from stream device: %i\n", status);
             return status;
         }
         
@@ -169,6 +176,7 @@ int vafs_stream_seek(
 
     status = __load_blockbuffer(stream, block.Length);
     if (status) {
+        VAFS_ERROR("vafs_stream_seek: load blockbuffer failed: %i\n", status);
         return status;
     }
 
@@ -193,6 +201,7 @@ static int __write_block_header(
 {
     VaFsBlock_t header;
     size_t      written;
+    VAFS_DEBUG("__write_block_header(blockLength=%u)\n", blockLength);
 
     header.Magic = VA_FS_BLOCKMAGIC;
     header.Crc = __get_crc(stream);
@@ -208,11 +217,10 @@ static int __flush_block(
     size_t compressedSize = stream->BlockBufferOffset;
     size_t written;
     int    status;
+    VAFS_DEBUG("__flush_block(blockLength=%u)\n", stream->BlockBufferOffset);
     
-    // compress data first
-    if (stream->CompressionType != VaFsCompressionType_NONE) {
-
-    }
+    // Handle compressions
+    // TODO
 
     // flush the block to the stream, write header first
     if (__write_block_header(stream, compressedSize)) {
@@ -238,6 +246,7 @@ int vafs_stream_write(
 {
     uint32_t bytesLeftInBlock;
     size_t   bytesToWrite = size;
+    VAFS_DEBUG("vafs_stream_write(size=%u)\n", size);
 
     if (stream == NULL || buffer == NULL || size == 0) {
         errno = EINVAL;
@@ -273,6 +282,7 @@ int vafs_stream_read(
 {
     size_t bytesLeftInBlock;
     size_t bytesToRead = size;
+    VAFS_DEBUG("vafs_stream_read(size=%u)\n", size);
 
     if (stream == NULL || buffer == NULL || size == 0) {
         errno = EINVAL;
@@ -317,6 +327,7 @@ int vafs_stream_read(
 int vafs_stream_flush(
     struct VaFsStream* stream)
 {
+    VAFS_DEBUG("vafs_stream_flush()\n");
     if (!stream) {
         errno = EINVAL;
         return -1;
@@ -328,6 +339,7 @@ int vafs_stream_flush(
 int vafs_stream_close(
     struct VaFsStream* stream)
 {
+    VAFS_DEBUG("vafs_stream_close()\n");
     if (!stream) {
         errno = EINVAL;
         return -1;

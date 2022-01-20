@@ -37,6 +37,10 @@ struct VaFsStreamDevice;
 #define VA_FS_INVALID_BLOCK  0xFFFF
 #define VA_FS_INVALID_OFFSET 0xFFFFFFFF
 
+// I mean, do we really need more? But it's just a lazy implementation
+// decision this.
+#define VA_FS_MAX_FEATURES 16
+
 // Default ramdisk block size is 64 kb
 #define VA_FS_BLOCKSIZE (64 * 1024)
 
@@ -46,24 +50,24 @@ struct VaFsStreamDevice;
 #define VAFS_INFO(...)   vafs_log_message(VaFsLogLevel_Info, "libvafs: " __VA_ARGS__)
 #define VAFS_DEBUG(...)  vafs_log_message(VaFsLogLevel_Debug, "libvafs: " __VA_ARGS__)
 
-PACKED_TYPESTRUCT(VaFsBlock, {
+VAFS_STRUCT(VaFsBlock, {
     uint32_t Magic;
     uint32_t Length;
     uint32_t Crc;
     uint16_t Flags;
 });
 
-PACKED_TYPESTRUCT(VaFsBlockPosition, {
+VAFS_STRUCT(VaFsBlockPosition, {
     uint16_t Index;
     uint32_t Offset;
 });
 
-PACKED_TYPESTRUCT(VaFsHeader, {
+VAFS_STRUCT(VaFsHeader, {
     uint32_t            Magic;
     uint32_t            Version;
     uint32_t            Architecture;
     uint16_t            FeatureCount;
-    uint16_t            CompressionType;
+    uint16_t            Reserved;
     uint32_t            BlockSize;
     uint32_t            Attributes;
     uint32_t            DescriptorBlockOffset;
@@ -71,36 +75,26 @@ PACKED_TYPESTRUCT(VaFsHeader, {
     VaFsBlockPosition_t RootDescriptor;
 });
 
-PACKED_TYPESTRUCT(VaFsFeatureHeader, {
-    uint32_t Signature;
-    uint32_t Length;
-});
-
-PACKED_TYPESTRUCT(VaFsFeatureEncryption, {
-    VaFsFeatureHeader_t Header;
-    uint32_t            Type;
-});
-
 #define VA_FS_DESCRIPTOR_TYPE_FILE      0x01
 #define VA_FS_DESCRIPTOR_TYPE_DIRECTORY 0x02
 
-PACKED_TYPESTRUCT(VaFsDescriptor, {
+VAFS_STRUCT(VaFsDescriptor, {
     uint16_t Type;
     uint16_t Length; // Length of the descriptor
 });
 
-PACKED_TYPESTRUCT(VaFsFileDescriptor, {
+VAFS_STRUCT(VaFsFileDescriptor, {
     VaFsDescriptor_t    Base;
     VaFsBlockPosition_t Data;
     uint32_t            FileLength;
 });
 
-PACKED_TYPESTRUCT(VaFsDirectoryDescriptor, {
+VAFS_STRUCT(VaFsDirectoryDescriptor, {
     VaFsDescriptor_t    Base;
     VaFsBlockPosition_t Descriptor;
 });
 
-PACKED_TYPESTRUCT(VaFsDirectoryHeader, {
+VAFS_STRUCT(VaFsDirectoryHeader, {
     int Count;
 });
 
@@ -124,6 +118,10 @@ struct VaFsDirectory {
 struct VaFs {
     VaFsHeader_t  Header;
     enum VaFsMode Mode;
+
+    // Features present
+    struct VaFsFeatureHeader** Features;
+    int                        FeatureCount;
     
     // The file stream device
     struct VaFsStreamDevice* ImageDevice;
@@ -191,7 +189,6 @@ extern int vafs_streamdevice_unlock(
  * @param device 
  * @param deviceOffset 
  * @param blockSize 
- * @param compressionType 
  * @param streamOut 
  * @return int 
  */
@@ -199,7 +196,6 @@ extern int vafs_stream_create(
     struct VaFsStreamDevice* device,
     long                     deviceOffset,
     uint32_t                 blockSize,
-    enum VaFsCompressionType compressionType,
     struct VaFsStream**      streamOut);
 
 /**

@@ -67,9 +67,9 @@ static inline int mtx_unlock(mtx_t* mtx) {
 #endif
 
 #ifdef _MSC_VER
-#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
+#define VAFS_STRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
 #else
-#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
+#define VAFS_STRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
 #endif
 
 #endif //!__PLATFORM_H__

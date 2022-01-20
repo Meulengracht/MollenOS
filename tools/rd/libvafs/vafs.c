@@ -36,15 +36,137 @@ static void vafs_init(void)
     g_initialized = 1;
 }
 
+static inline int __compare_guids(
+    struct VaFsGuid* lh,
+    struct VaFsGuid* rh)
+{
+    return memcmp(lh, rh, sizeof(struct VaFsGuid));
+}
+
+int vafs_feature_add(
+    struct VaFs*              vafs,
+    struct VaFsFeatureHeader* feature)
+{
+    int status;
+    int i;
+
+    if (vafs == NULL || feature == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for (i = 0; i < vafs->FeatureCount; i++) {
+        if (!__compare_guids(&vafs->Features[i]->Guid, &feature->Guid)) {
+            errno = EEXIST;
+            return -1;
+        }
+    }
+
+    vafs->Features[vafs->FeatureCount] = malloc(feature->Length);
+    if (!vafs->Features[vafs->FeatureCount]) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    memcpy(vafs->Features[vafs->FeatureCount], feature, feature->Length);
+    vafs->FeatureCount++;
+    return 0;
+}
+
+int vafs_feature_query(
+    struct VaFs*               vafs,
+    struct VaFsGuid*           guid,
+    struct VaFsFeatureHeader** featureOut)
+{
+    int status;
+    int i;
+
+    if (vafs == NULL || guid == NULL || featureOut == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for (i = 0; i < vafs->FeatureCount; i++) {
+        if (!__compare_guids(&vafs->Features[i]->Guid, guid)) {
+            *featureOut = vafs->Features[i];
+            return 0;
+        }
+    }
+    
+    errno = ENOENT;
+    return -1;
+}
+
 static int __initialize_root(
     struct VaFs* vafs)
 {
     if (vafs->Mode == VaFsMode_Read) {
-        return vafs_directory_open_root(vafs, NULL, &vafs->RootDirectory);
+        return vafs_directory_open_root(vafs, &vafs->Header.RootDescriptor, &vafs->RootDirectory);
     }
     else {
         return vafs_directory_create_root(vafs, &vafs->RootDirectory);
     }
+}
+
+static struct VaFsFeatureHeader* __load_feature(
+    struct VaFs* vafs)
+{
+    struct VaFsFeatureHeader  header;
+    struct VaFsFeatureHeader* feature;
+    int                       status;
+    long                      offset;
+    size_t                    read;
+
+    offset = vafs_streamdevice_seek(vafs->ImageDevice, 0, SEEK_CUR);
+    if (offset < 0) {
+        VAFS_ERROR("__load_feature: failed to retrieve current offset: %i\n", offset);
+        return NULL;
+    }
+
+    status = vafs_streamdevice_read(vafs->ImageDevice, &header, sizeof(struct VaFsFeatureHeader), &read);
+    if (status || read != sizeof(struct VaFsFeatureHeader)) {
+        VAFS_ERROR("__load_feature: failed to read feature header %i\n", status);
+        return NULL;
+    }
+
+    feature = malloc(header.Length);
+    if (!feature) {
+        VAFS_ERROR("__load_feature: failed to allocate memory\n");
+        return NULL;
+    }
+
+    status = vafs_streamdevice_seek(vafs->ImageDevice, offset, SEEK_SET);
+    if (status) {
+        VAFS_ERROR("__load_feature: failed to seek to offset %i\n", offset);
+        free(feature);
+        return NULL;
+    }
+
+    status = vafs_streamdevice_read(vafs->ImageDevice, feature, header.Length, &read);
+    if (status || read != header.Length) {
+        VAFS_ERROR("__load_feature: failed to read feature %i\n", status);
+        free(feature);
+        return NULL;
+    }
+    return feature;
+}
+
+static int __load_features(
+    struct VaFs* vafs)
+{
+    int i;
+
+    if (!vafs->Header.FeatureCount) {
+        return 0;
+    }
+    
+    for (i = 0; i < vafs->Header.FeatureCount; i++) {
+        vafs->Features[i] = __load_feature(vafs);
+        if (vafs->Features[i] == NULL) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 static int __verify_header(
@@ -63,16 +185,15 @@ static int __verify_header(
     return 0;
 }
 
-static int __initialize_header(
+static void __initialize_header(
     struct VaFs*             vafs,
-    enum VaFsArchitecture    architecture,
-    enum VaFsCompressionType compressionType)
+    enum VaFsArchitecture    architecture)
 {
     vafs->Header.Magic = VA_FS_MAGIC;
     vafs->Header.Version = VA_FS_VERSION;
     vafs->Header.Architecture = architecture;
     vafs->Header.FeatureCount = 0;
-    vafs->Header.CompressionType = compressionType;
+    vafs->Header.Reserved = 0;
     vafs->Header.BlockSize = VA_FS_BLOCKSIZE;
     vafs->Header.Attributes = 0;
 }
@@ -80,8 +201,7 @@ static int __initialize_header(
 static int __initialize_imagestream(
     struct VaFs*             vafs,
     const char*              path,
-    enum VaFsArchitecture    architecture,
-    enum VaFsCompressionType compressionType)
+    enum VaFsArchitecture    architecture)
 {
     int status;
 
@@ -104,6 +224,12 @@ static int __initialize_imagestream(
         }
 
         status = __verify_header(vafs);
+        if (status) {
+            VAFS_ERROR("__initialize_imagestream: failed to verify image header: %i\n", status);
+            return status;
+        }
+
+        status = __load_features(vafs);
     }
     else {
         status = vafs_streamdevice_create_file(path, &vafs->ImageDevice);
@@ -112,7 +238,7 @@ static int __initialize_imagestream(
             return status;
         }
 
-        __initialize_header(vafs, architecture, compressionType);
+        __initialize_header(vafs, architecture);
     }
     return status;
 }
@@ -129,7 +255,6 @@ static int __initialize_fsstreams_read(
         vafs->ImageDevice, 
         vafs->Header.DescriptorBlockOffset,
         VA_FS_BLOCKSIZE,
-        vafs->Header.CompressionType,
         &vafs->DescriptorStream
     );
     if (status) {
@@ -141,7 +266,6 @@ static int __initialize_fsstreams_read(
         vafs->ImageDevice, 
         vafs->Header.DataBlockOffset,
         VA_FS_BLOCKSIZE,
-        vafs->Header.CompressionType,
         &vafs->DataStream
     );
     return status;
@@ -173,7 +297,6 @@ static int __initialize_fsstreams_write(
         vafs->DescriptorDevice, 
         0,
         vafs->Header.BlockSize,
-        vafs->Header.CompressionType,
         &vafs->DescriptorStream
     );
     if (status) {
@@ -185,7 +308,6 @@ static int __initialize_fsstreams_write(
         vafs->DataDevice, 
         0,
         vafs->Header.BlockSize,
-        vafs->Header.CompressionType,
         &vafs->DataStream
     );
     return status;
@@ -206,7 +328,6 @@ static int __new_vafs(
     enum VaFsMode            mode,
     const char*              path,
     enum VaFsArchitecture    architecture,
-    enum VaFsCompressionType compressionType,
     struct VaFs**            vafsOut)
 {
     struct VaFs*       vafs;
@@ -231,21 +352,31 @@ static int __new_vafs(
 
     vafs->Mode = mode;
 
+    vafs->Features = malloc(sizeof(struct VaFsFeatureHeader*) * VA_FS_MAX_FEATURES);
+    if (!vafs->Features) {
+        vafs_destroy(vafs);
+        errno = ENOMEM;
+        return -1;
+    }
+
     // try to create the output file, otherwise do not continue
-    status = __initialize_imagestream(vafs, path, architecture, compressionType);
+    status = __initialize_imagestream(vafs, path, architecture);
     if (status) {
+        VAFS_ERROR("__new_vafs: failed to initialize image stream: %i\n", status);
         vafs_destroy(vafs);
         return -1;
     }
 
     status = __initialize_fsstreams(vafs);
     if (status) {
+        VAFS_ERROR("__new_vafs: failed to initialize filesystem streams: %i\n", status);
         vafs_destroy(vafs);
         return -1;
     }
 
     status = __initialize_root(vafs);
     if (status) {
+        VAFS_ERROR("__new_vafs: failed to initialize root directory: %i\n", status);
         vafs_destroy(vafs);
         return -1;
     }
@@ -257,11 +388,10 @@ static int __new_vafs(
 int vafs_create(
     const char*              path,
     enum VaFsArchitecture    architecture,
-    enum VaFsCompressionType compressionType,
     struct VaFs**            vafsOut)
 {
     VAFS_INFO("vafs_create: creating new image file\n");
-    return __new_vafs(VaFsMode_Write, path, architecture, compressionType, vafsOut);
+    return __new_vafs(VaFsMode_Write, path, architecture, vafsOut);
 }
 
 int vafs_open(
@@ -269,7 +399,7 @@ int vafs_open(
     struct VaFs** vafsOut)
 {
     VAFS_INFO("vafs_open: opening existing image file\n");
-    return __new_vafs(VaFsMode_Read, path, 0, 0, vafsOut);
+    return __new_vafs(VaFsMode_Read, path, 0, vafsOut);
 }
 
 static int __write_vafs_header(
@@ -280,6 +410,10 @@ static int __write_vafs_header(
     VAFS_INFO("__write_vafs_header: writing header\n");
 
     offset = vafs_streamdevice_seek(vafs->DescriptorDevice, 0, SEEK_CUR);
+    if (offset < 0) {
+        VAFS_ERROR("__write_vafs_header: failed to seek to current position: %i\n", offset);
+        return -1;
+    }
 
     vafs->Header.DescriptorBlockOffset = sizeof(VaFsHeader_t);
     vafs->Header.DataBlockOffset = sizeof(VaFsHeader_t) + (uint32_t)offset;
@@ -369,5 +503,6 @@ static void vafs_destroy(
         vafs_streamdevice_close(vafs->DataDevice);
     }
     vafs_streamdevice_close(vafs->ImageDevice);
+    free(vafs->Features);
     free(vafs);
 }

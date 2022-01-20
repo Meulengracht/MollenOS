@@ -22,22 +22,32 @@
 #ifndef __VAFS_H__
 #define __VAFS_H__
 
-#include <platform.h>
 #include <stdint.h>
 
 struct VaFs;
 struct VaFsDirectoryHandle;
 struct VaFsFileHandle;
 
+struct VaFsGuid {
+    uint32_t Data1;
+    uint16_t Data2;
+    uint16_t Data3;
+    uint8_t  Data4[8];
+};
+
+/**
+ * List of builtin features for the filesystem
+ * VA_FS_FEATURE_COMPRESSION     - Compression is used for data streams
+ * VA_FS_FEATURE_COMPRESSION_OPS - Compression operations (Not persistant)
+ */
+#define VA_FS_FEATURE_COMPRESSION     { 0x99C25D91, 0xFA99, 0x4A71, {0x9C, 0xB5, 0x96, 0x1A, 0xA9, 0x3D, 0xDF, 0xBB } }
+#define VA_FS_FEATURE_COMPRESSION_OPS { 0x17BC0212, 0x7DF3, 0x4BDD, {0x99, 0x24, 0x5A, 0xC8, 0x13, 0xBE, 0x72, 0x49 } }
+
 enum VaFsLogLevel {
     VaFsLogLevel_Error,
     VaFsLogLevel_Warning,
     VaFsLogLevel_Info,
     VaFsLogLevel_Debug
-};
-
-enum VaFsCompressionType {
-    VaFsCompressionType_NONE
 };
 
 enum VaFsArchitecture {
@@ -49,8 +59,28 @@ enum VaFsArchitecture {
     VaFsArchitecture_RISCV64 = 0x5064,
 };
 
+struct VaFsFeatureHeader {
+    struct VaFsGuid Guid;
+    uint32_t        Length; // Length of the entire feature data including this header
+};
+
 /**
- * @brief 
+ * @brief The compression feature must be installed both when creating the image, and
+ * when loading the image. The feature is used by the underlying streams to compress or 
+ * decompress data while loading/writing. This means the user must supply the type of compression
+ * to use, as there is no predefined way of compressing or decompressing data. 
+ * 
+ * This feature data is not transferred to the disk image, but rather used if present.
+ */
+struct VaFsFeatureCompressionOps {
+    struct VaFsFeatureHeader Header;
+    int                     (*Compress)(void* Source, size_t SourceLength, void* Destination, size_t* DestinationLength);
+    int                     (*Decompress)(void* Source, size_t SourceLength, void* Destination, size_t* DestinationLength);
+};
+
+/**
+ * @brief Control the log level of the library. This is useful for debugging. The default
+ * log level is set to VaFsLogLevel_Warning.
  * 
  * @param[In] level The level of log output to enable
  */
@@ -58,39 +88,65 @@ extern void vafs_log_initalize(
     enum VaFsLogLevel level);
 
 /**
- * @brief 
+ * @brief Creates a new filesystem image. The image handle only permits operations that write
+ * to the image. This means that reading from the image will fail.
  * 
- * @param[In]  path 
- * @param[In]  architecture 
- * @param[In]  compressionType
- * @param[Out] vafsOut
- * @return int
+ * @param[In]  path         The path the image file should be created at.
+ * @param[In]  architecture The architecture of the image platform.
+ * @param[Out] vafsOut      A pointer where the handle of the filesystem instance will be stored.
+ * @return int 0 on success, -1 on failure.
  */
 extern int vafs_create(
     const char*              path, 
-    enum VaFsArchitecture    architecture, 
-    enum VaFsCompressionType compressionType,
+    enum VaFsArchitecture    architecture,
     struct VaFs**            vafsOut);
 
 /**
- * @brief 
+ * @brief Opens an existing filesystem image. The image handle only permits operations that read
+ * from the image. All images that are created by this library are read-only.
  * 
- * @param path 
- * @param vafsOut 
- * @return int 
+ * @param[In]  path    Path to the filesystem image. 
+ * @param[Out] vafsOut A pointer where the handle of the filesystem instance will be stored.
+ * @return int 0 on success, -1 on failure. See errno for more details.
  */
 extern int vafs_open(
     const char*   path,
     struct VaFs** vafsOut);
 
 /**
- * @brief 
+ * @brief Closes the filesystem handle. If the image was just created, the data streams are kept in 
+ * memory at this point and will not be written to disk before this function is called.
  * 
- * @param handle 
- * @return int 
+ * @param[In] vafs The filesystem handle to close. 
+ * @return int Returns 0 on success, -1 on failure.
  */
 extern int vafs_close(
     struct VaFs* vafs);
+
+/**
+ * @brief This installs a feature into the filesystem. The features must be installed after
+ * creating or opening the image, before any other operations are performed.
+ * 
+ * @param[In] vafs    The filesystem to install the feature into.
+ * @param[In] feature The feature to install. The feature data is copied, so no need to keep the feature around.
+ * @return int Returns -1 if the feature is already installed, 0 on success. 
+ */
+extern int vafs_feature_add(
+    struct VaFs*              vafs,
+    struct VaFsFeatureHeader* feature);
+
+/**
+ * @brief Checks if a specific feature is present in the filesystem image. 
+ * 
+ * @param[In]  vafs       The filesystem image to check.
+ * @param[In]  guid       The GUID of the feature to check for.
+ * @param[Out] featureOut A pointer to a feature header pointer which will be set to the feature.
+ * @return int Returns -1 if the feature is not present, 0 if it is present.
+ */
+extern int vafs_feature_query(
+    struct VaFs*               vafs,
+    struct VaFsGuid*           guid,
+    struct VaFsFeatureHeader** featureOut);
 
 /**
  * @brief 

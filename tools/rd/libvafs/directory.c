@@ -61,6 +61,7 @@ static void __initialize_file_descriptor(
 {
     descriptor->Base.Type = VA_FS_DESCRIPTOR_TYPE_FILE;
     descriptor->Base.Length = sizeof(VaFsFileDescriptor_t);
+
     descriptor->Data.Index = VA_FS_INVALID_BLOCK;
     descriptor->Data.Offset = VA_FS_INVALID_OFFSET;
     descriptor->FileLength = 0;
@@ -71,6 +72,7 @@ static void __initialize_directory_descriptor(
 {
     descriptor->Base.Type = VA_FS_DESCRIPTOR_TYPE_DIRECTORY;
     descriptor->Base.Length = sizeof(VaFsDirectoryDescriptor_t);
+
     descriptor->Descriptor.Index = VA_FS_INVALID_BLOCK;
     descriptor->Descriptor.Offset = VA_FS_INVALID_OFFSET;
 }
@@ -134,27 +136,35 @@ static int __read_descriptor(
         buffer, sizeof(VaFsDescriptor_t)
     );
     if (status) {
+        VAFS_ERROR("__read_descriptor: failed to read base descriptor: %i\n", status);
         return status;
     }
 
     if (base->Length < sizeof(VaFsDescriptor_t) || !__get_descriptor_size(base->Type)) {
+        VAFS_ERROR("__read_descriptor: invalid descriptor size: %i for type %i\n", base->Length, base->Type);
         errno = EINVAL;
         return -1;
     }
 
     if (base->Length > sizeof(VaFsDescriptor_t)) {
+        VAFS_DEBUG("__read_descriptor: reading extended descriptor\n");
+
         status = vafs_stream_read(
             reader->Base.VaFs->DescriptorStream, 
             ext, __get_descriptor_size(base->Type) - sizeof(VaFsDescriptor_t)
         );
         if (status) {
+            VAFS_ERROR("__read_descriptor: failed to read extension descriptor: %i\n", status);
             return status;
         }
 
         if (base->Length > __get_descriptor_size(base->Type)) {
+            VAFS_DEBUG("__read_descriptor: reading descriptor name data\n");
+
             // read name, todo other data will come here in future
             char* name = (char*)malloc(base->Length - sizeof(VaFsDescriptor_t));
             if (!name) {
+                VAFS_ERROR("__read_descriptor: failed to allocate name buffer: %i\n", status);
                 errno = ENOMEM;
                 return -1;
             }
@@ -164,6 +174,7 @@ static int __read_descriptor(
                 name, base->Length - sizeof(VaFsDescriptor_t)
             );
             if (status) {
+                VAFS_ERROR("__read_descriptor: failed to read name data: %i\n", status);
                 free(name);
                 return status;
             }
@@ -247,6 +258,13 @@ static int __load_directory(
     int                   status;
     int                   i;
 
+    if (reader == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    VAFS_DEBUG("__load_directory(directory=%s)\n", reader->Base.Name);
+
     // if the directory has no entries, we can skip loading it
     if (reader->Base.Descriptor.Descriptor.Index == VA_FS_INVALID_BLOCK) {
         reader->State = VaFsDirectoryState_Loaded;
@@ -255,6 +273,7 @@ static int __load_directory(
 
     status = vafs_stream_lock(reader->Base.VaFs->DescriptorStream);
     if (status) {
+        VAFS_ERROR("__load_directory: failed to get lock on stream\n");
         return status;
     }
 
@@ -267,6 +286,7 @@ static int __load_directory(
         reader->Base.Descriptor.Descriptor.Offset
     );
     if (status) {
+        VAFS_ERROR("__load_directory: failed to seek to directory data\n");
         vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
         return status;
     }
@@ -277,6 +297,7 @@ static int __load_directory(
         &header, sizeof(VaFsDirectoryHeader_t)
     );
     if (status) {
+        VAFS_ERROR("__load_directory: failed to read directory header\n");
         vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
         return status;
     }
@@ -289,6 +310,7 @@ static int __load_directory(
         
         status = __read_descriptor(reader, &buffer[0], &name);
         if (status) {
+            VAFS_ERROR("__load_directory: failed to read descriptor\n");
             vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
             return status;
         }
@@ -296,6 +318,7 @@ static int __load_directory(
         // create a new entry
         entry = __create_entry_from_descriptor(reader->Base.VaFs, (VaFsDescriptor_t*)&buffer[0], name);
         if (!entry) {
+            VAFS_ERROR("__load_directory: failed to create entry\n");
             vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
             return -1;
         }
@@ -321,13 +344,16 @@ int vafs_directory_open_root(
     struct VaFsDirectoryReader* reader;
     int                         status;
     
-    if (vafs == NULL || directoryOut == NULL) {
+    if (vafs == NULL || position == NULL || directoryOut == NULL) {
         errno = EINVAL;
         return -1;
     }
+
+    VAFS_DEBUG("vafs_directory_open_root(pos=%u/%u)\n", position->Index, position->Offset);
     
     reader = (struct VaFsDirectoryReader*)malloc(sizeof(struct VaFsDirectoryReader));
     if (!reader) {
+        VAFS_ERROR("vafs_directory_open_root: failed to allocate directory reader\n");
         errno = ENOMEM;
         return -1;
     }
@@ -340,6 +366,7 @@ int vafs_directory_open_root(
     // load the directory immediately
     status = __load_directory(reader);
     if (status != 0) {
+        VAFS_ERROR("vafs_directory_open_root: failed to load directory\n");
         free((void*)reader->Base.Name);
         free(reader);
         return status;
