@@ -40,6 +40,12 @@ struct VaFsStreamDevice;
 // Default ramdisk block size is 64 kb
 #define VA_FS_BLOCKSIZE (64 * 1024)
 
+// Logging macros
+#define VAFS_ERROR(...)  vafs_log_message(VaFsLogLevel_Error, "libvafs: " __VA_ARGS__)
+#define VAFS_WARN(...)   vafs_log_message(VaFsLogLevel_Warning, "libvafs: " __VA_ARGS__)
+#define VAFS_INFO(...)   vafs_log_message(VaFsLogLevel_Info, "libvafs: " __VA_ARGS__)
+#define VAFS_DEBUG(...)  vafs_log_message(VaFsLogLevel_Debug, "libvafs: " __VA_ARGS__)
+
 PACKED_TYPESTRUCT(VaFsBlock, {
     uint32_t Magic;
     uint32_t Length;
@@ -327,5 +333,17 @@ extern int vafs_directory_open_root(
  */
 extern struct VaFsFileHandle* vafs_file_create_handle(
     struct VaFsFile* fileEntry);
+
+/**
+ * @brief 
+ * 
+ * @param level 
+ * @param format 
+ * @param ... 
+ */
+extern void vafs_log_message(
+    enum VaFsLogLevel level,
+    const char*       format,
+    ...);
 
 #endif // __VAFS_PRIVATE_H__

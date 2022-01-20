@@ -602,7 +602,7 @@ int vafs_directory_flush(
         &block, &offset
     );
     if (status) {
-        fprintf(stderr, "vafs_directory_flush: failed to get stream position\n");
+        VAFS_ERROR("vafs_directory_flush: failed to get stream position\n");
         return status;
     }
 
@@ -611,7 +611,7 @@ int vafs_directory_flush(
 
     status = __write_directory_header(writer, entryCount);
     if (status) {
-        fprintf(stderr, "vafs_directory_flush: failed to write directory header\n");
+        VAFS_ERROR("vafs_directory_flush: failed to write directory header\n");
         return status;
     }
 
@@ -625,12 +625,12 @@ int vafs_directory_flush(
             status = __write_directory_descriptor(writer, entry);
         }
         else {
-            fprintf(stderr, "vafs_directory_flush: unknown descriptor type\n");
+            VAFS_ERROR("vafs_directory_flush: unknown descriptor type\n");
             return -1;
         }
 
         if (status) {
-            fprintf(stderr, "vafs_directory_flush: failed to write descriptor: %i\n", status);
+            VAFS_ERROR("vafs_directory_flush: failed to write descriptor: %i\n", status);
             return status;
         }
         entry = entry->Link;

@@ -29,6 +29,13 @@ struct VaFs;
 struct VaFsDirectoryHandle;
 struct VaFsFileHandle;
 
+enum VaFsLogLevel {
+    VaFsLogLevel_Error,
+    VaFsLogLevel_Warning,
+    VaFsLogLevel_Info,
+    VaFsLogLevel_Debug
+};
+
 enum VaFsCompressionType {
     VaFsCompressionType_NONE
 };
@@ -41,6 +48,14 @@ enum VaFsArchitecture {
     VaFsArchitecture_RISCV32 = 0x5032,
     VaFsArchitecture_RISCV64 = 0x5064,
 };
+
+/**
+ * @brief 
+ * 
+ * @param[In] level The level of log output to enable
+ */
+extern void vafs_log_initalize(
+    enum VaFsLogLevel level);
 
 /**
  * @brief 

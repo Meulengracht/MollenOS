@@ -216,13 +216,13 @@ static int __flush_block(
 
     // flush the block to the stream, write header first
     if (__write_block_header(stream, compressedSize)) {
-        fprintf(stderr, "__flush_block: failed to write block header\n");
+        VAFS_ERROR("__flush_block: failed to write block header\n");
         return -1;
     }
 
     status = vafs_streamdevice_write(stream->Device, compressedData, compressedSize, &written);
     if (status) {
-        fprintf(stderr, "__flush_block: failed to write block data\n");
+        VAFS_ERROR("__flush_block: failed to write block data\n");
         return -1;
     }
 
@@ -257,7 +257,7 @@ int vafs_stream_write(
 
         if (stream->BlockBufferOffset == stream->BlockSize) {
             if (__flush_block(stream)) {
-                fprintf(stderr, "vafs_stream_write: failed to flush block\n");
+                VAFS_ERROR("vafs_stream_write: failed to flush block\n");
                 return -1;
             }
         }
@@ -297,12 +297,12 @@ int vafs_stream_read(
 
             status = vafs_streamdevice_read(stream->Device, &block, sizeof(VaFsBlock_t), &read);
             if (status) {
-                fprintf(stderr, "vafs_stream_read: failed to read block header\n");
+                VAFS_ERROR("vafs_stream_read: failed to read block header\n");
                 return -1;
             }
 
             if (__load_blockbuffer(stream, stream->BlockSize)) {
-                fprintf(stderr, "vafs_stream_read: failed to load block\n");
+                VAFS_ERROR("vafs_stream_read: failed to load block\n");
                 return -1;
             }
 

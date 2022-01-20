@@ -180,6 +180,12 @@ int main(int argc, char *argv[])
         if (!strcmp(argv[i], "--out") && (i + 1) < argc) {
             destinationPath = argv[++i];
         }
+		else if (!strcmp(argv[i], "--v")) {
+			vafs_log_initalize(VaFsLogLevel_Info);
+		}
+		else if (!strcmp(argv[i], "--vv")) {
+			vafs_log_initalize(VaFsLogLevel_Debug);
+		}
         else {
             imagePath = argv[i];
         }

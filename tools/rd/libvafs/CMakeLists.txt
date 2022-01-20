@@ -2,6 +2,7 @@ add_library(vafs STATIC
     crc.c
     directory.c
     file.c
+    log.c
     vafs.c
     stream.c
     streamdevice.c

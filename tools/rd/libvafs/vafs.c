@@ -51,10 +51,12 @@ static int __verify_header(
     struct VaFs* vafs)
 {
     if (vafs->Header.Magic != VA_FS_MAGIC) {
+        VAFS_ERROR("__verify_header: invalid image magic 0x%x\n", vafs->Header.Magic);
         return -1;
     }
     
     if (vafs->Header.Version != VA_FS_VERSION) {
+        VAFS_ERROR("__verify_header: invalid image version 0x%x\n", vafs->Header.Version);
         return -1;
     }
     
@@ -83,6 +85,7 @@ static int __initialize_imagestream(
 {
     int status;
 
+    VAFS_DEBUG("__initialize_imagestream: path: %s\n", path);
     // initalize the underlying stream device, if we are opening
     // an existing image, we need to read and verify the header
     if (vafs->Mode == VaFsMode_Read) {
@@ -90,11 +93,13 @@ static int __initialize_imagestream(
 
         status = vafs_streamdevice_open_file(path, &vafs->ImageDevice);
         if (status) {
+            VAFS_ERROR("__initialize_imagestream: failed to open image file: %i\n", status);
             return status;
         }
         
         status = vafs_streamdevice_read(vafs->ImageDevice, &vafs->Header, sizeof(VaFsHeader_t), &read);
         if (status) {
+            VAFS_ERROR("__initialize_imagestream: failed to read image header: %i\n", status);
             return status;
         }
 
@@ -103,6 +108,7 @@ static int __initialize_imagestream(
     else {
         status = vafs_streamdevice_create_file(path, &vafs->ImageDevice);
         if (status) {
+            VAFS_ERROR("__initialize_imagestream: failed to create image file: %i\n", status);
             return status;
         }
 
@@ -116,6 +122,7 @@ static int __initialize_fsstreams_read(
 {
     int status;
     
+    VAFS_DEBUG("__initialize_fsstreams_read: vafs: %p\n", vafs);
     // create the descriptor and data streams, when reading we do not
     // provide any compression parameter as its set on block level.
     status = vafs_stream_create(
@@ -126,6 +133,7 @@ static int __initialize_fsstreams_read(
         &vafs->DescriptorStream
     );
     if (status) {
+        VAFS_ERROR("__initialize_fsstreams_read: failed to create descriptor stream: %i\n", status);
         return status;
     }
 
@@ -144,10 +152,12 @@ static int __initialize_fsstreams_write(
 {
     int status;
     
+    VAFS_DEBUG("__initialize_fsstreams_write: vafs: %p\n", vafs);
     status = vafs_streamdevice_create_memory(
         vafs->Header.BlockSize, &vafs->DescriptorDevice
     );
     if (status) {
+        VAFS_ERROR("__initialize_fsstreams_write: failed to create descriptor stream device: %i\n", status);
         return status;
     }
 
@@ -155,6 +165,7 @@ static int __initialize_fsstreams_write(
         vafs->Header.BlockSize, &vafs->DataDevice
     );
     if (status) {
+        VAFS_ERROR("__initialize_fsstreams_write: failed to create data stream device: %i\n", status);
         return status;
     }
 
@@ -166,6 +177,7 @@ static int __initialize_fsstreams_write(
         &vafs->DescriptorStream
     );
     if (status) {
+        VAFS_ERROR("__initialize_fsstreams_write: failed to create descriptor stream: %i\n", status);
         return status;
     }
 
@@ -248,6 +260,7 @@ int vafs_create(
     enum VaFsCompressionType compressionType,
     struct VaFs**            vafsOut)
 {
+    VAFS_INFO("vafs_create: creating new image file\n");
     return __new_vafs(VaFsMode_Write, path, architecture, compressionType, vafsOut);
 }
 
@@ -255,6 +268,7 @@ int vafs_open(
     const char*   path,
     struct VaFs** vafsOut)
 {
+    VAFS_INFO("vafs_open: opening existing image file\n");
     return __new_vafs(VaFsMode_Read, path, 0, 0, vafsOut);
 }
 
@@ -263,6 +277,7 @@ static int __write_vafs_header(
 {
     size_t written;
     long   offset;
+    VAFS_INFO("__write_vafs_header: writing header\n");
 
     offset = vafs_streamdevice_seek(vafs->DescriptorDevice, 0, SEEK_CUR);
 
@@ -281,38 +296,43 @@ static int __create_image(
     int status;
 
     // flush files
+    VAFS_DEBUG("__create_image: flushing files\n");
     status = vafs_directory_flush(vafs->RootDirectory);
     if (status) {
-        fprintf(stderr, "Failed to flush files: %i\n", status);
+        VAFS_ERROR("Failed to flush files: %i\n", status);
         return -1;
     }
 
     // flush streams
+    VAFS_DEBUG("__create_image: flushing streams\n");
     status = vafs_stream_flush(vafs->DescriptorStream);
     if (status) {
-        fprintf(stderr, "Failed to flush descriptor stream: %i\n", status);
+        VAFS_ERROR("Failed to flush descriptor stream: %i\n", status);
         return -1;
     }
-
+    
     status = vafs_stream_flush(vafs->DataStream);
     if (status) {
-        fprintf(stderr, "Failed to flush data stream: %i\n", status);
+        VAFS_ERROR("Failed to flush data stream: %i\n", status);
         return -1;
     }
 
     // write the header
+    VAFS_DEBUG("__create_image: writing header\n");
     status = __write_vafs_header(vafs);
     if (status) {
         return -1;
     }
 
     // write the descriptor stream
+    VAFS_DEBUG("__create_image: writing descriptor stream\n");
     status = vafs_streamdevice_copy(vafs->ImageDevice, vafs->DescriptorDevice);
     if (status) {
         return -1;
     }
 
     // write the data stream
+    VAFS_DEBUG("__create_image: writing data stream\n");
     return vafs_streamdevice_copy(vafs->ImageDevice, vafs->DataDevice);
 }
 
@@ -325,6 +345,7 @@ int vafs_close(
     }
 
     if (vafs->Mode == VaFsMode_Write) {
+        VAFS_INFO("vafs_close: flushing image file\n");
         int status = __create_image(vafs);
         if (status) {
             vafs_destroy(vafs);
@@ -339,6 +360,7 @@ int vafs_close(
 static void vafs_destroy(
     struct VaFs* vafs)
 {
+    VAFS_INFO("vafs_close: cleaning up\n");
     vafs_stream_close(vafs->DescriptorStream);
     vafs_stream_close(vafs->DataStream);
 
