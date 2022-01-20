@@ -70,10 +70,9 @@ macro (deploy_to_initrd)
 endmacro ()
 
 # Setup tools
-set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
-set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
+set (TOOL_RD ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/bin/mkvafs)
 set (TOOL_DU ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/diskutility/osbuilder)
-set (TOOL_RV ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision)
+set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
 
 # Create neccessary directories
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
@@ -155,7 +154,7 @@ add_custom_target (install_applications
 
 add_custom_target (install_prepare
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --out ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_INITRD}
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_SYSTEM}/kernel.mos
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_SYSTEM}
@@ -205,7 +204,7 @@ add_custom_target(package
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-ddk --zip-out vali-ddk.zip
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/package_os
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_DEPLOY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern *.sys
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --out ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_INITRD}
     COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${CMAKE_BINARY_DIR}/package_os/initrd.mos
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${CMAKE_BINARY_DIR}/package_os/kernel.mos
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/package_os/

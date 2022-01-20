@@ -173,12 +173,9 @@ int main(int argc, char *argv[])
     struct VaFs*                vafsHandle;
     int                         status;
 
-    // parameters
     char* imagePath = NULL;
     char* destinationPath = "";
 
-    // Validate the number of arguments
-    // format: rd $(arch) $(out)
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--out") && (i + 1) < argc) {
             destinationPath = argv[++i];

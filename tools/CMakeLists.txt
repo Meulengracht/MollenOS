@@ -9,15 +9,8 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Build the diskutility, since this is a c# project it is a bit tricky
 add_subdirectory (diskutility)
 
-# target_compile_options(example PUBLIC -std=c++1y -Wall -Wfloat-conversion)
-if (MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif ()
-
 # Build the ramdisk utility
-add_executable (rd rd/main.c)
-install(TARGETS rd EXPORT tools_rd DESTINATION bin)
-install(EXPORT tools_rd NAMESPACE rd_ DESTINATION lib/tools_rd)
+add_subdirectory(rd)
 
 # Build the image compressor utility
 add_executable (lzss lzss/main.c)

@@ -47,7 +47,151 @@ static int __initialize_root(
     }
 }
 
-int vafs_create(
+static int __verify_header(
+    struct VaFs* vafs)
+{
+    if (vafs->Header.Magic != VA_FS_MAGIC) {
+        return -1;
+    }
+    
+    if (vafs->Header.Version != VA_FS_VERSION) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int __initialize_header(
+    struct VaFs*             vafs,
+    enum VaFsArchitecture    architecture,
+    enum VaFsCompressionType compressionType)
+{
+    vafs->Header.Magic = VA_FS_MAGIC;
+    vafs->Header.Version = VA_FS_VERSION;
+    vafs->Header.Architecture = architecture;
+    vafs->Header.FeatureCount = 0;
+    vafs->Header.CompressionType = compressionType;
+    vafs->Header.BlockSize = VA_FS_BLOCKSIZE;
+    vafs->Header.Attributes = 0;
+}
+
+static int __initialize_imagestream(
+    struct VaFs*             vafs,
+    const char*              path,
+    enum VaFsArchitecture    architecture,
+    enum VaFsCompressionType compressionType)
+{
+    int status;
+
+    // initalize the underlying stream device, if we are opening
+    // an existing image, we need to read and verify the header
+    if (vafs->Mode == VaFsMode_Read) {
+        size_t read;
+
+        status = vafs_streamdevice_open_file(path, &vafs->ImageDevice);
+        if (status) {
+            return status;
+        }
+        
+        status = vafs_streamdevice_read(vafs->ImageDevice, &vafs->Header, sizeof(VaFsHeader_t), &read);
+        if (status) {
+            return status;
+        }
+
+        status = __verify_header(vafs);
+    }
+    else {
+        status = vafs_streamdevice_create_file(path, &vafs->ImageDevice);
+        if (status) {
+            return status;
+        }
+
+        __initialize_header(vafs, architecture, compressionType);
+    }
+    return status;
+}
+
+static int __initialize_fsstreams_read(
+    struct VaFs* vafs)
+{
+    int status;
+    
+    // create the descriptor and data streams, when reading we do not
+    // provide any compression parameter as its set on block level.
+    status = vafs_stream_create(
+        vafs->ImageDevice, 
+        vafs->Header.DescriptorBlockOffset,
+        VA_FS_BLOCKSIZE,
+        vafs->Header.CompressionType,
+        &vafs->DescriptorStream
+    );
+    if (status) {
+        return status;
+    }
+
+    status = vafs_stream_create(
+        vafs->ImageDevice, 
+        vafs->Header.DataBlockOffset,
+        VA_FS_BLOCKSIZE,
+        vafs->Header.CompressionType,
+        &vafs->DataStream
+    );
+    return status;
+}
+
+static int __initialize_fsstreams_write(
+    struct VaFs* vafs)
+{
+    int status;
+    
+    status = vafs_streamdevice_create_memory(
+        vafs->Header.BlockSize, &vafs->DescriptorDevice
+    );
+    if (status) {
+        return status;
+    }
+
+    status = vafs_streamdevice_create_memory(
+        vafs->Header.BlockSize, &vafs->DataDevice
+    );
+    if (status) {
+        return status;
+    }
+
+    status = vafs_stream_create(
+        vafs->DescriptorDevice, 
+        0,
+        vafs->Header.BlockSize,
+        vafs->Header.CompressionType,
+        &vafs->DescriptorStream
+    );
+    if (status) {
+        return status;
+    }
+
+    status = vafs_stream_create(
+        vafs->DataDevice, 
+        0,
+        vafs->Header.BlockSize,
+        vafs->Header.CompressionType,
+        &vafs->DataStream
+    );
+    return status;
+}
+
+static int __initialize_fsstreams(
+    struct VaFs* vafs)
+{
+    if (vafs->Mode == VaFsMode_Read) {
+        return __initialize_fsstreams_read(vafs);
+    }
+    else {
+        return __initialize_fsstreams_write(vafs);
+    }
+}
+
+static int __new_vafs(
+    enum VaFsMode            mode,
     const char*              path,
     enum VaFsArchitecture    architecture,
     enum VaFsCompressionType compressionType,
@@ -66,12 +210,6 @@ int vafs_create(
         vafs_init();
     }
 
-    // try to create the output file, otherwise do not continue
-    status = vafs_stream_open_file(path, VA_FS_BLOCKSIZE, compressionType, &stream);
-    if (status) {
-        return -1;
-    }
-
     vafs = (struct VaFs*)malloc(sizeof(struct VaFs));
     if (!vafs) {
         errno = ENOMEM;
@@ -79,17 +217,16 @@ int vafs_create(
     }
     memset(vafs, 0, sizeof(struct VaFs));
 
-    vafs->Stream = stream;
-    vafs->Architecture = architecture;
-    vafs->Mode = VaFsMode_Write;
+    vafs->Mode = mode;
 
-    status = vafs_stream_open_memory(VA_FS_BLOCKSIZE, compressionType, &vafs->DescriptorStream);
+    // try to create the output file, otherwise do not continue
+    status = __initialize_imagestream(vafs, path, architecture, compressionType);
     if (status) {
         vafs_destroy(vafs);
         return -1;
     }
 
-    status = vafs_stream_open_memory(VA_FS_BLOCKSIZE, compressionType, &vafs->DataStream);
+    status = __initialize_fsstreams(vafs);
     if (status) {
         vafs_destroy(vafs);
         return -1;
@@ -105,29 +242,37 @@ int vafs_create(
     return 0;
 }
 
+int vafs_create(
+    const char*              path,
+    enum VaFsArchitecture    architecture,
+    enum VaFsCompressionType compressionType,
+    struct VaFs**            vafsOut)
+{
+    return __new_vafs(VaFsMode_Write, path, architecture, compressionType, vafsOut);
+}
+
 int vafs_open(
     const char*   path,
     struct VaFs** vafsOut)
 {
-    
+    return __new_vafs(VaFsMode_Read, path, 0, 0, vafsOut);
 }
 
 static int __write_vafs_header(
     struct VaFs* vafs)
 {
-    VaFsHeader_t header;
+    size_t written;
+    long   offset;
 
-    header.Magic = VA_FS_MAGIC;
-    header.Version = VA_FS_VERSION;
-    header.Architecture = vafs->Architecture;
+    offset = vafs_streamdevice_seek(vafs->DescriptorDevice, 0, SEEK_CUR);
 
-    header.DescriptorBlockOffset = sizeof(VaFsHeader_t);
-    header.DataBlockOffset = sizeof(VaFsHeader_t) + (uint32_t)vafs_stream_size(vafs->DescriptorStream);
+    vafs->Header.DescriptorBlockOffset = sizeof(VaFsHeader_t);
+    vafs->Header.DataBlockOffset = sizeof(VaFsHeader_t) + (uint32_t)offset;
 
-    header.RootDescriptor.Index = vafs->RootDirectory->Descriptor.Descriptor.Index;
-    header.RootDescriptor.Offset = vafs->RootDirectory->Descriptor.Descriptor.Offset;
+    vafs->Header.RootDescriptor.Index = vafs->RootDirectory->Descriptor.Descriptor.Index;
+    vafs->Header.RootDescriptor.Offset = vafs->RootDirectory->Descriptor.Descriptor.Offset;
 
-    return vafs_stream_write(vafs->Stream, &header, sizeof(VaFsHeader_t));
+    return vafs_streamdevice_write(vafs->ImageDevice, &vafs->Header, sizeof(VaFsHeader_t), &written);
 }
 
 static int __create_image(
@@ -162,13 +307,13 @@ static int __create_image(
     }
 
     // write the descriptor stream
-    status = vafs_stream_copy(vafs->Stream, vafs->DescriptorStream);
+    status = vafs_streamdevice_copy(vafs->ImageDevice, vafs->DescriptorDevice);
     if (status) {
         return -1;
     }
 
     // write the data stream
-    return vafs_stream_copy(vafs->Stream, vafs->DataStream);
+    return vafs_streamdevice_copy(vafs->ImageDevice, vafs->DataDevice);
 }
 
 int vafs_close(
@@ -194,8 +339,13 @@ int vafs_close(
 static void vafs_destroy(
     struct VaFs* vafs)
 {
-    vafs_stream_close(vafs->Stream);
     vafs_stream_close(vafs->DescriptorStream);
     vafs_stream_close(vafs->DataStream);
+
+    if (vafs->Mode == VaFsMode_Write) {
+        vafs_streamdevice_close(vafs->DescriptorDevice);
+        vafs_streamdevice_close(vafs->DataDevice);
+    }
+    vafs_streamdevice_close(vafs->ImageDevice);
     free(vafs);
 }

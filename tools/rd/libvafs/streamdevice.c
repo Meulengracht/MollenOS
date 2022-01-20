@@ -35,9 +35,8 @@ struct VaFsStreamDevice {
     union {
         struct {
             void*  Buffer;
-            size_t Length;
-            size_t BlockSize;
-            long   Offset;
+            long   Capacity;
+            long   Position;
         } Memory;
         FILE* File;
     };
@@ -59,7 +58,7 @@ static int __new_streamdevice(
     mtx_init(&device->Lock, mtx_plain);
     device->Type = type;
 
-    *streamOut = stream;
+    *deviceOut = device;
     return 0;
 }
 
@@ -85,9 +84,9 @@ int vafs_streamdevice_open_file(
         return -1;
     }
 
-    stream->File = handle;
+    device->File = handle;
     
-    *streamOut = stream;
+    *deviceOut = device;
     return 0;
 }
 
@@ -97,24 +96,22 @@ int vafs_streamdevice_open_memory(
     struct VaFsStreamDevice** deviceOut)
 {
     struct VaFsStreamDevice* device;
-    void*                    buffer;
 
     if (buffer == NULL || length == 0 || deviceOut == NULL) {
         errno = EINVAL;
         return -1;
     }
 
-    if (__new_streamdevice(STREAMDEVICE_MEMORY, &stream)) {
+    if (__new_streamdevice(STREAMDEVICE_MEMORY, &device)) {
         free(buffer);
         return -1;
     }
 
-    stream->Memory.Buffer = buffer;
-    stream->Memory.Length = length;
-    stream->Memory.BlockSize = 0;
-    stream->Memory.Offset = 0;
+    device->Memory.Buffer = buffer;
+    device->Memory.Capacity = length;
+    device->Memory.Position = 0;
     
-    *streamOut = stream;
+    *deviceOut = device;
     return 0;
 }
 
@@ -140,9 +137,9 @@ int vafs_streamdevice_create_file(
         return -1;
     }
 
-    stream->File = handle;
+    device->File = handle;
     
-    *streamOut = stream;
+    *deviceOut = device;
     return 0;
 }
 
@@ -164,17 +161,16 @@ int vafs_streamdevice_create_memory(
         return -1;
     }
 
-    if (__new_streamdevice(STREAMDEVICE_MEMORY, &stream)) {
+    if (__new_streamdevice(STREAMDEVICE_MEMORY, &device)) {
         free(buffer);
         return -1;
     }
 
-    stream->Memory.Buffer = buffer;
-    stream->Memory.Length = blockSize;
-    stream->Memory.BlockSize = blockSize;
-    stream->Memory.Offset = 0;
+    device->Memory.Buffer = buffer;
+    device->Memory.Capacity = blockSize;
+    device->Memory.Position = 0;
     
-    *streamOut = stream;
+    *deviceOut = device;
     return 0;
 }
 
@@ -198,6 +194,17 @@ int vafs_streamdevice_close(
     return 0;
 }
 
+long __get_position(
+    struct VaFsStreamDevice* device)
+{
+    if (device->Type == STREAMDEVICE_FILE) {
+        return ftell(device->File);
+    }
+    else {
+        return device->Memory.Position;
+    }
+}
+
 long vafs_streamdevice_seek(
     struct VaFsStreamDevice* device,
     long                     offset,
@@ -206,6 +213,10 @@ long vafs_streamdevice_seek(
     if (device == NULL) {
         errno = EINVAL;
         return -1;
+    }
+
+    if (offset == 0 && whence == SEEK_CUR) {
+        return __get_position(device);
     }
 
     if (device->Type == STREAMDEVICE_FILE) {
@@ -218,20 +229,20 @@ long vafs_streamdevice_seek(
     else if (device->Type == STREAMDEVICE_MEMORY) {
         switch (whence) {
             case SEEK_SET:
-                device->Memory.Offset = offset;
+                device->Memory.Position = offset;
                 break;
             case SEEK_CUR:
-                device->Memory.Offset += offset;
+                device->Memory.Position += offset;
                 break;
             case SEEK_END:
-                device->Memory.Offset = device->Memory.Length + offset;
+                device->Memory.Position = device->Memory.Capacity + offset;
                 break;
             default:
                 errno = EINVAL;
                 return -1;
         }
-        device->Memory.Offset = MIN(MAX(device->Memory.Offset, 0), device->Memory.Length);
-        return device->Memory.Offset;
+        device->Memory.Position = MIN(MAX(device->Memory.Position, 0), device->Memory.Capacity);
+        return device->Memory.Position;
     }
 
     errno = EINVAL;
@@ -257,10 +268,10 @@ int vafs_streamdevice_read(
         return 0;
     }
     else if (device->Type == STREAMDEVICE_MEMORY) {
-        size_t bytesRead = MIN(length, device->Memory.Length - device->Memory.Offset);
-        memcpy(buffer, device->Memory.Buffer + device->Memory.Offset, bytesRead);
-        device->Memory.Offset += bytesRead;
-        *bytesRead = bytesRead;
+        size_t byteCount = MIN(length, device->Memory.Capacity - device->Memory.Position);
+        memcpy(buffer, device->Memory.Buffer + device->Memory.Position, byteCount);
+        device->Memory.Position += byteCount;
+        *bytesRead = byteCount;
         return 0;
     }
 
@@ -269,17 +280,13 @@ int vafs_streamdevice_read(
 }
 
 static int __grow_buffer(
-    struct VaFsStreamDevice* device)
+    struct VaFsStreamDevice* device,
+    size_t                   length)
 {
     void*  buffer;
     size_t newSize;
     
-    if (!device->Memory.BlockSize) {
-        errno = ENOTSUP;
-        return -1;
-    }
-
-    newSize = device->Memory.Length + device->Memory.BlockSize;
+    newSize = device->Memory.Capacity + length;
     buffer = realloc(device->Memory.Buffer, newSize);
     if (!buffer) {
         errno = ENOMEM;
@@ -287,14 +294,14 @@ static int __grow_buffer(
     }
 
     device->Memory.Buffer = buffer;
-    device->Memory.Length = newSize;
+    device->Memory.Capacity = newSize;
     return 0;
 }
 
 static inline int __memsize_available(
-    struct VaFsStream* stream)
+    struct VaFsStreamDevice* device)
 {
-    return stream->Memory.Length - stream->Memory.Offset;
+    return device->Memory.Capacity - device->Memory.Position;
 }
 
 int vafs_streamdevice_write(
@@ -309,27 +316,90 @@ int vafs_streamdevice_write(
     }
 
     // flush the actual block data
-    if (stream->Type == STREAM_TYPE_FILE) {
-        *bytesWritten = fwrite(buffer, 1, size, stream->File);
-        if (*bytesWritten != size) {
+    if (device->Type == STREAMDEVICE_FILE) {
+        *bytesWritten = fwrite(buffer, 1, length, device->File);
+        if (*bytesWritten != length) {
             return -1;
         }
     }
-    else if (stream->Type == STREAM_TYPE_MEMORY) {
+    else if (device->Type == STREAMDEVICE_MEMORY) {
         // if the stream is a memory stream, then ensure enough space in buffer
-        if (stream->Type == STREAM_TYPE_MEMORY) {
-            while (size > __memsize_available(stream)) {
-                if (__grow_buffer(stream)) {
+        if (device->Type == STREAMDEVICE_MEMORY) {
+            while (length > __memsize_available(device)) {
+                if (__grow_buffer(device, length - __memsize_available(device))) {
                     return -1;
                 }
             }
         }
 
-        memcpy(stream->Memory.Buffer + stream->Memory.Offset, buffer, size);
-        stream->Memory.Offset += size;
-        *bytesWritten = size;
+        memcpy(device->Memory.Buffer + device->Memory.Position, buffer, length);
+        device->Memory.Position += length;
+        *bytesWritten = length;
     }
     return 0;
+}
+
+static int __fcopy(FILE* destination, FILE* source)
+{
+    char chr;
+    int  status;
+
+    status = fseek(source, 0, SEEK_SET);
+    if (status) {
+        return status;
+    }
+
+    while ((chr = fgetc(source)) != EOF) {
+        fputc(chr, destination);
+    }
+    return 0;
+}
+
+int vafs_streamdevice_copy(
+    struct VaFsStreamDevice* destination,
+    struct VaFsStreamDevice* source)
+{
+    int status = 0;
+
+    if (destination == NULL || source == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (destination->Type == STREAMDEVICE_FILE) {
+        if (source->Type == STREAMDEVICE_FILE) {
+            status = __fcopy(destination->File, source->File);
+        }
+        else if (source->Type == STREAMDEVICE_MEMORY) {
+            if (fwrite(source->Memory.Buffer, 1, source->Memory.Position, destination->File) != source->Memory.Position) {
+                return -1;
+            }
+        }
+    }
+    else if (destination->Type == STREAMDEVICE_MEMORY) {
+        long sourceSize = __get_position(source);
+        long capacityRequired = destination->Memory.Position + sourceSize;
+        while (destination->Memory.Capacity < capacityRequired) {
+            if (__grow_buffer(destination, capacityRequired - destination->Memory.Capacity)) {
+                return -1;
+            }
+        }
+
+        if (source->Type == STREAMDEVICE_FILE) {
+            if (fread(destination->Memory.Buffer + destination->Memory.Position, 1, sourceSize, source->File) != sourceSize) {
+                return -1;
+            }
+        }
+        else if (source->Type == STREAMDEVICE_MEMORY) {
+            memcpy(destination->Memory.Buffer + destination->Memory.Position, source->Memory.Buffer, sourceSize);
+        }
+
+        if (!status) {
+            destination->Memory.Position += sourceSize;
+        }
+    }
+
+    return status;
 }
 
 int vafs_streamdevice_lock(

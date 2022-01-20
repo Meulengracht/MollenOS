@@ -28,6 +28,7 @@
 #include <vafs.h>
 
 struct VaFsStream;
+struct VaFsStreamDevice;
 
 #define VA_FS_MAGIC       0x3144524D
 #define VA_FS_VERSION     0x00010000
@@ -43,7 +44,6 @@ PACKED_TYPESTRUCT(VaFsBlock, {
     uint32_t Magic;
     uint32_t Length;
     uint32_t Crc;
-    uint16_t CompressionType;
     uint16_t Flags;
 });
 
@@ -56,9 +56,23 @@ PACKED_TYPESTRUCT(VaFsHeader, {
     uint32_t            Magic;
     uint32_t            Version;
     uint32_t            Architecture;
+    uint16_t            FeatureCount;
+    uint16_t            CompressionType;
+    uint32_t            BlockSize;
+    uint32_t            Attributes;
     uint32_t            DescriptorBlockOffset;
     uint32_t            DataBlockOffset;
     VaFsBlockPosition_t RootDescriptor;
+});
+
+PACKED_TYPESTRUCT(VaFsFeatureHeader, {
+    uint32_t Signature;
+    uint32_t Length;
+});
+
+PACKED_TYPESTRUCT(VaFsFeatureEncryption, {
+    VaFsFeatureHeader_t Header;
+    uint32_t            Type;
 });
 
 #define VA_FS_DESCRIPTOR_TYPE_FILE      0x01
@@ -102,62 +116,85 @@ struct VaFsDirectory {
 };
 
 struct VaFs {
-    enum VaFsArchitecture Architecture;
-    enum VaFsMode         Mode;
-    struct VaFsStream*    Stream;
-    struct VaFsStream*    DescriptorStream;
-    struct VaFsStream*    DataStream;
+    VaFsHeader_t  Header;
+    enum VaFsMode Mode;
+    
+    // The file stream device
+    struct VaFsStreamDevice* ImageDevice;
+
+    // The following two streams are either tied up to the
+    // the image device (reading), or to a temporary device (writing).
+    struct VaFsStreamDevice* DescriptorDevice;
+    struct VaFsStream*       DescriptorStream;
+    struct VaFsStreamDevice* DataDevice;
+    struct VaFsStream*       DataStream;
+
     struct VaFsDirectory* RootDirectory;
 };
 
+extern int vafs_streamdevice_open_file(
+    const char*               path,
+    struct VaFsStreamDevice** deviceOut);
+
+extern int vafs_streamdevice_open_memory(
+    void*                     buffer,
+    size_t                    length,
+    struct VaFsStreamDevice** deviceOut);
+
+extern int vafs_streamdevice_create_file(
+    const char*               path,
+    struct VaFsStreamDevice** deviceOut);
+
+extern int vafs_streamdevice_create_memory(
+    size_t                    blockSize,
+    struct VaFsStreamDevice** deviceOut);
+
+extern int vafs_streamdevice_close(
+    struct VaFsStreamDevice* device);
+
+extern long vafs_streamdevice_seek(
+    struct VaFsStreamDevice* device,
+    long                     offset,
+    int                      whence);
+
+extern int vafs_streamdevice_read(
+    struct VaFsStreamDevice* device,
+    void*                    buffer,
+    size_t                   length,
+    size_t*                  bytesRead);
+
+extern int vafs_streamdevice_write(
+    struct VaFsStreamDevice* device,
+    void*                    buffer,
+    size_t                   length,
+    size_t*                  bytesWritten);
+
+extern int vafs_streamdevice_copy(
+    struct VaFsStreamDevice* destination,
+    struct VaFsStreamDevice* source);
+
+extern int vafs_streamdevice_lock(
+    struct VaFsStreamDevice* device);
+
+extern int vafs_streamdevice_unlock(
+    struct VaFsStreamDevice* device);
+
 /**
  * @brief 
  * 
- * @param path 
+ * @param device 
+ * @param deviceOffset 
  * @param blockSize 
  * @param compressionType 
  * @param streamOut 
  * @return int 
  */
-extern int vafs_stream_open_file(
-    const char*              path,
+extern int vafs_stream_create(
+    struct VaFsStreamDevice* device,
+    long                     deviceOffset,
     uint32_t                 blockSize,
     enum VaFsCompressionType compressionType,
     struct VaFsStream**      streamOut);
-
-/**
- * @brief 
- * 
- * @param blockSize 
- * @param compressionType 
- * @param streamOut 
- * @return int 
- */
-extern int vafs_stream_open_memory(
-    uint32_t                 blockSize,
-    enum VaFsCompressionType compressionType,
-    struct VaFsStream**      streamOut);
-
-/**
- * @brief Locks a specific stream for exclusive access, this is neccessary while
- * writing dat to the stream, to avoid any concurrent access to those streams, or
- * the user deciding to write two files at once. For read access this is not as neccessary
- * but could still be done.
- * 
- * @param[In] stream The stream that should be locked.
- * @return int Returns -1 if the stream is already locked, 0 on success.
- */
-extern int vafs_stream_lock(
-    struct VaFsStream* stream);
-
-/**
- * @brief Unlocks a previously locked stream.
- * 
- * @param[In] stream The stream that should be unlocked.
- * @return int Returns -1 if the stream was not locked, 0 on success.
- */
-extern int vafs_stream_unlock(
-    struct VaFsStream* stream);
 
 /**
  * @brief 
@@ -176,6 +213,19 @@ extern int vafs_stream_position(
  * @brief 
  * 
  * @param stream 
+ * @param blockOut 
+ * @param offsetOut 
+ * @return int 
+ */
+extern int vafs_stream_seek(
+    struct VaFsStream* stream, 
+    uint16_t           blockIndex,
+    uint32_t           blockOffset);
+
+/**
+ * @brief 
+ * 
+ * @param stream 
  * @param buffer 
  * @param size 
  * @return int 
@@ -189,12 +239,14 @@ extern int vafs_stream_write(
  * @brief 
  * 
  * @param stream 
- * @param source 
+ * @param buffer 
+ * @param size 
  * @return int 
  */
-extern int vafs_stream_copy(
+extern int vafs_stream_read(
     struct VaFsStream* stream,
-    struct VaFsStream* source);
+    void*              buffer,
+    size_t             size);
 
 /**
  * @brief 
@@ -209,20 +261,31 @@ extern int vafs_stream_flush(
  * @brief 
  * 
  * @param stream 
- * @return size_t 
- */
-extern size_t vafs_stream_size(
-    struct VaFsStream* stream);
-
-/**
- * @brief 
- * 
- * @param stream 
  * @return int 
  */
 extern int vafs_stream_close(
     struct VaFsStream* stream);
 
+/**
+ * @brief Locks a specific stream for exclusive access, this is neccessary while
+ * writing data to the stream, to avoid any concurrent access to those streams, or
+ * the user deciding to write two files at once. For read access this is not as neccessary
+ * but could still be done.
+ * 
+ * @param[In] stream The stream that should be locked.
+ * @return int Returns -1 if the stream is already locked, 0 on success.
+ */
+extern int vafs_stream_lock(
+    struct VaFsStream* stream);
+
+/**
+ * @brief Unlocks a previously locked stream.
+ * 
+ * @param[In] stream The stream that should be unlocked.
+ * @return int Returns -1 if the stream was not locked, 0 on success.
+ */
+extern int vafs_stream_unlock(
+    struct VaFsStream* stream);
 
 /**
  * @brief 

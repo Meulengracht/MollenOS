@@ -26,8 +26,15 @@
 
 struct VaFsDirectoryEntry;
 
+enum VaFsDirectoryState {
+    VaFsDirectoryState_Open,
+    VaFsDirectoryState_Loaded
+};
+
 struct VaFsDirectoryReader {
-    struct VaFsDirectory Base;
+    struct VaFsDirectory       Base;
+    enum VaFsDirectoryState    State;
+    struct VaFsDirectoryEntry* Entries;
 };
 
 struct VaFsDirectoryWriter {
@@ -95,12 +102,251 @@ int vafs_directory_create_root(
     return 0;
 }
 
+static int __get_descriptor_size(
+    int type)
+{
+    switch (type) {
+        case VA_FS_DESCRIPTOR_TYPE_FILE:
+            return sizeof(VaFsFileDescriptor_t);
+        case VA_FS_DESCRIPTOR_TYPE_DIRECTORY:
+            return sizeof(VaFsDirectoryDescriptor_t);
+        default:
+            return 0;
+    }
+}
+
+static int __read_descriptor(
+    struct VaFsDirectoryReader* reader,
+    char*                       buffer,
+    const char**                nameOut)
+{
+    VaFsDescriptor_t* base = (VaFsDescriptor_t*)buffer;
+    char*             ext  = (char*)buffer + sizeof(VaFsDescriptor_t);
+    int               status;
+
+    if (reader == NULL || buffer == NULL || nameOut == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    status = vafs_stream_read(
+        reader->Base.VaFs->DescriptorStream, 
+        buffer, sizeof(VaFsDescriptor_t)
+    );
+    if (status) {
+        return status;
+    }
+
+    if (base->Length < sizeof(VaFsDescriptor_t) || !__get_descriptor_size(base->Type)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (base->Length > sizeof(VaFsDescriptor_t)) {
+        status = vafs_stream_read(
+            reader->Base.VaFs->DescriptorStream, 
+            ext, __get_descriptor_size(base->Type) - sizeof(VaFsDescriptor_t)
+        );
+        if (status) {
+            return status;
+        }
+
+        if (base->Length > __get_descriptor_size(base->Type)) {
+            // read name, todo other data will come here in future
+            char* name = (char*)malloc(base->Length - sizeof(VaFsDescriptor_t));
+            if (!name) {
+                errno = ENOMEM;
+                return -1;
+            }
+
+            status = vafs_stream_read(
+                reader->Base.VaFs->DescriptorStream, 
+                name, base->Length - sizeof(VaFsDescriptor_t)
+            );
+            if (status) {
+                free(name);
+                return status;
+            }
+            *nameOut = (const char*)name;
+        }
+    }
+
+    return 0;
+}
+
+static struct VaFsFile* __create_file_from_descriptor(
+    struct VaFs*          vafs,
+    VaFsFileDescriptor_t* descriptor,
+    const char*           name)
+{
+    struct VaFsFile* file;
+    
+    file = (struct VaFsFile*)malloc(sizeof(struct VaFsFile));
+    if (!file) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    
+    memcpy(&file->Descriptor, descriptor, sizeof(VaFsFileDescriptor_t));
+    file->Name = name;
+    file->VaFs = vafs;
+    return file;
+}
+
+static struct VaFsDirectory* __create_directory_from_descriptor(
+    struct VaFs*               vafs,
+    VaFsDirectoryDescriptor_t* descriptor,
+    const char*                name)
+{
+    struct VaFsDirectory* directory;
+    
+    directory = (struct VaFsDirectory*)malloc(sizeof(struct VaFsDirectory));
+    if (!directory) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    
+    memcpy(&directory->Descriptor, descriptor, sizeof(VaFsDirectoryDescriptor_t));
+    directory->Name = name;
+    directory->VaFs = vafs;
+    return directory;
+}
+
+static struct VaFsDirectoryEntry* __create_entry_from_descriptor(
+    struct VaFs*      vafs,
+    VaFsDescriptor_t* descriptor,
+    const char*       name)
+{
+    struct VaFsDirectoryEntry* entry;
+    
+    entry = (struct VaFsDirectoryEntry*)malloc(sizeof(struct VaFsDirectoryEntry));
+    if (!entry) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    memset(entry, 0, sizeof(struct VaFsDirectoryEntry));
+
+    entry->Type = descriptor->Type;
+    if (entry->Type == VA_FS_DESCRIPTOR_TYPE_FILE) {
+        entry->File = __create_file_from_descriptor(vafs, (VaFsFileDescriptor_t*)descriptor, name);
+    }
+    else if (entry->Type == VA_FS_DESCRIPTOR_TYPE_DIRECTORY) {
+        entry->Directory = __create_directory_from_descriptor(vafs, (VaFsDirectoryDescriptor_t*)descriptor, name);
+    }
+    else {
+        errno = EINVAL;
+        return NULL;
+    }
+    return entry;
+}
+
+static int __load_directory(
+    struct VaFsDirectoryReader* reader)
+{
+    VaFsDirectoryHeader_t header;
+    int                   status;
+    int                   i;
+
+    // if the directory has no entries, we can skip loading it
+    if (reader->Base.Descriptor.Descriptor.Index == VA_FS_INVALID_BLOCK) {
+        reader->State = VaFsDirectoryState_Loaded;
+        return 0;
+    }
+
+    status = vafs_stream_lock(reader->Base.VaFs->DescriptorStream);
+    if (status) {
+        return status;
+    }
+
+    // we lock the descriptor stream while reading the directory
+    // as only one can access the underlying media at the time due
+    // the c file interface.
+    status = vafs_stream_seek(
+        reader->Base.VaFs->DescriptorStream,
+        reader->Base.Descriptor.Descriptor.Index,
+        reader->Base.Descriptor.Descriptor.Offset
+    );
+    if (status) {
+        vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
+        return status;
+    }
+
+    // read the directory descriptor
+    status = vafs_stream_read(
+        reader->Base.VaFs->DescriptorStream,
+        &header, sizeof(VaFsDirectoryHeader_t)
+    );
+    if (status) {
+        vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
+        return status;
+    }
+
+    // read the directory entries
+    for (i = 0; i < header.Count; i++) {
+        struct VaFsDirectoryEntry* entry;
+        char                       buffer[64];
+        const char*                name = NULL;
+        
+        status = __read_descriptor(reader, &buffer[0], &name);
+        if (status) {
+            vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
+            return status;
+        }
+
+        // create a new entry
+        entry = __create_entry_from_descriptor(reader->Base.VaFs, (VaFsDescriptor_t*)&buffer[0], name);
+        if (!entry) {
+            vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
+            return -1;
+        }
+
+        // add the entry to the directory
+        entry->Link = reader->Entries;
+        reader->Entries = entry;
+    }
+
+    // unlock the descriptor stream
+    vafs_stream_unlock(reader->Base.VaFs->DescriptorStream);
+
+    // set state to loaded
+    reader->State = VaFsDirectoryState_Loaded;
+    return 0;
+}
+
 int vafs_directory_open_root(
     struct VaFs*           vafs,
     VaFsBlockPosition_t*   position,
     struct VaFsDirectory** directoryOut)
 {
-    return -1;
+    struct VaFsDirectoryReader* reader;
+    int                         status;
+    
+    if (vafs == NULL || directoryOut == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    reader = (struct VaFsDirectoryReader*)malloc(sizeof(struct VaFsDirectoryReader));
+    if (!reader) {
+        errno = ENOMEM;
+        return -1;
+    }
+    memset(reader, 0, sizeof(struct VaFsDirectoryReader));
+
+    reader->Base.VaFs = vafs;
+    reader->Base.Name = strdup("root");
+    reader->State     = VaFsDirectoryState_Open;
+
+    // load the directory immediately
+    status = __load_directory(reader);
+    if (status != 0) {
+        free((void*)reader->Base.Name);
+        free(reader);
+        return status;
+    }
+
+    *directoryOut = &reader->Base;
+    return 0;
 }
 
 static int __get_path_token(
@@ -150,7 +396,13 @@ static struct VaFsDirectoryEntry* __get_first_entry(
     struct VaFsDirectory* directory)
 {
     if (directory->VaFs->Mode == VaFsMode_Read) {
-        return NULL;
+        struct VaFsDirectoryReader* reader = (struct VaFsDirectoryReader*)directory;
+        if (reader->State != VaFsDirectoryState_Loaded) {
+            if (__load_directory(reader)) {
+                return NULL;
+            }
+        }
+        return reader->Entries;
     }
     else {
         struct VaFsDirectoryWriter* writer = (struct VaFsDirectoryWriter*)directory;
@@ -243,7 +495,7 @@ int vafs_directory_open(
                     return 0;
                 }
 
-                entries = __get_first_entry(vafs->RootDirectory);
+                entries = __get_first_entry(entries->Directory);
                 break;
             }
             entries = entries->Link;
@@ -382,6 +634,51 @@ int vafs_directory_flush(
             return status;
         }
         entry = entry->Link;
+    }
+    return 0;
+}
+
+
+int vafs_directory_read(
+    struct VaFsDirectoryHandle* handle,
+    struct dirent*              entryOut)
+{
+    struct VaFsDirectoryEntry*  entry;
+    int                         status;
+    int                         i;
+
+    if (handle == NULL || entry == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    entry = __get_first_entry(handle->Directory);
+    i       = 0;
+    while (entry != NULL) {
+        if (i == handle->Index) {
+            break;
+        }
+        entry = entry->Link;
+    }
+
+    if (entry == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    // we found an entry, move to next
+    handle->Index++;
+
+    // initialize the dirent structure
+    entryOut->d_ino = 0;
+    entryOut->d_off = 0;
+    entryOut->d_reclen = 0;
+    strcpy(entryOut->d_name, __get_entry_name(entry));
+    if (entry->Type == VA_FS_DESCRIPTOR_TYPE_DIRECTORY) {
+        entryOut->d_type = DT_DIR;
+    }
+    else {
+        entryOut->d_type = DT_REG;
     }
     return 0;
 }

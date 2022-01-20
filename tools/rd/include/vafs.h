@@ -100,7 +100,7 @@ extern int vafs_directory_close(
     struct VaFsDirectoryHandle* handle);
 
 /**
- * @brief 
+ * @brief Reads an entry from the directory handle.
  * 
  * @param[In]  handle The directory handle to read an entry from.
  * @param[Out] entry  A pointer to a dirent that is filled with information if an entry is available. 

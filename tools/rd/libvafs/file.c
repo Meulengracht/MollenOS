@@ -33,7 +33,7 @@ enum VaFsFileState {
 struct VaFsFileHandle {
     struct VaFsFile*   File;
     enum VaFsFileState State;
-    uint32_t           Offset;
+    uint32_t           Position;
 };
 
 struct VaFsFileHandle* vafs_file_create_handle(
@@ -48,7 +48,7 @@ struct VaFsFileHandle* vafs_file_create_handle(
     }
     
     handle->File = fileEntry;
-    handle->Offset = 0;
+    handle->Position = 0;
     handle->State = VaFsFileState_Open;
     
     return handle;
@@ -99,20 +99,22 @@ int vafs_file_seek(
 
     switch (whence) {
         case SEEK_SET:
-            handle->Offset = offset;
+            handle->Position = offset;
             break;
         case SEEK_CUR:
-            handle->Offset += offset;
+            handle->Position += offset;
             break;
         case SEEK_END:
-            handle->Offset = handle->File->Descriptor.FileLength + offset;
+            handle->Position = handle->File->Descriptor.FileLength + offset;
             break;
         default:
             errno = EINVAL;
             return -1;
     }
 
-    handle->Offset = MIN(MAX(handle->Offset, 0), handle->File->Descriptor.FileLength);
+    handle->Position = MIN(MAX(handle->Position, 0), handle->File->Descriptor.FileLength);
+    
+    // reset the block buffer
     return 0;
 }
 
@@ -121,6 +123,9 @@ size_t vafs_file_read(
     void*                  buffer,
     size_t                 size)
 {
+    size_t read;
+    int    status;
+
     if (!handle) {
         errno = EINVAL;
         return -1;
@@ -131,6 +136,26 @@ size_t vafs_file_read(
         errno = ENOTSUP;
         return -1;
     }
+
+    status = vafs_stream_lock(handle->File->VaFs->DataStream);
+    if (status) {
+        return -1;
+    }
+
+    status = vafs_stream_seek(
+        handle->File->VaFs->DataStream,
+        handle->File->Descriptor.Data.Index,
+        handle->File->Descriptor.Data.Offset + handle->Position
+    );
+    if (status) {
+        vafs_stream_unlock(handle->File->VaFs->DataStream);
+        return -1;
+    }
+
+    read = vafs_stream_read(handle->File->VaFs->DataStream, buffer, size);
+    vafs_stream_unlock(handle->File->VaFs->DataStream);
+    
+    return read;
 }
 
 size_t vafs_file_write(
