@@ -429,8 +429,8 @@ static struct VaFsDirectoryEntry* __get_first_entry(
     if (directory->VaFs->Mode == VaFsMode_Read) {
         struct VaFsDirectoryReader* reader = (struct VaFsDirectoryReader*)directory;
         if (reader->State != VaFsDirectoryState_Loaded) {
-            VAFS_ERROR("__get_first_entry: directory not loaded\n");
             if (__load_directory(reader)) {
+                VAFS_ERROR("__get_first_entry: directory not loaded\n");
                 return NULL;
             }
         }

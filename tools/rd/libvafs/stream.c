@@ -166,15 +166,20 @@ static int __load_blockbuffer(
 
     // Handle data filters
     if (stream->Decode) {
-        status = stream->Decode(blockData, blockSize, stream->BlockBuffer, &blockSize);
+        uint32_t blockBufferSize = stream->BlockSize;
+
+        VAFS_DEBUG("__load_blockbuffer decoding buffer of size %u\n", blockSize);
+        status = stream->Decode(blockData, blockSize, stream->BlockBuffer, &blockBufferSize);
         if (status) {
             free(blockData);
             return status;
         }
+        VAFS_DEBUG("__load_blockbuffer decoded buffer size %u\n", blockBufferSize);
 
         // TODO we should keep a current length of block
         // verify the length of the block is correct, the actual size
         // of the decoded data is now in blockSize
+        blockSize = blockBufferSize;
     }
     else {
         memcpy(stream->BlockBuffer, blockData, blockSize);
@@ -263,7 +268,7 @@ static int __write_block_header(
     header.Crc = __get_blockbuffer_crc(stream, stream->BlockBufferOffset);
     header.Length = blockLength;
     header.Flags = 0;
-    return vafs_streamdevice_write(stream->Device, &header, sizeof(header), &written);
+    return vafs_streamdevice_write(stream->Device, &header, sizeof(VaFsBlock_t), &written);
 }
 
 static int __flush_block(
@@ -281,6 +286,7 @@ static int __flush_block(
         if (status) {
             return status;
         }
+        VAFS_DEBUG("__flush_block compressed buffer size %u\n", compressedSize);
     }
 
     // flush the block to the stream, write header first

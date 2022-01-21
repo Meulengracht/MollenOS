@@ -45,7 +45,7 @@ static inline int __compare_guids(
     return memcmp(lh, rh, sizeof(struct VaFsGuid));
 }
 
-static void __handle_known_feature(
+static int __handle_feature_ops(
     struct VaFs*              vafs,
     struct VaFsFeatureHeader* feature)
 {
@@ -53,7 +53,9 @@ static void __handle_known_feature(
         struct VaFsFeatureFilterOps* ops = (struct VaFsFeatureFilterOps*)feature;
         vafs_stream_set_filter(vafs->DescriptorStream, ops->Encode, ops->Decode);
         vafs_stream_set_filter(vafs->DataStream, ops->Encode, ops->Decode);
+        return 0;
     }
+    return -1;
 }
 
 int vafs_feature_add(
@@ -66,6 +68,12 @@ int vafs_feature_add(
     if (vafs == NULL || feature == NULL) {
         errno = EINVAL;
         return -1;
+    }
+
+    // So we have the operation features which we do not want installed, but rather
+    // just extract some handlers for.
+    if (!__handle_feature_ops(vafs, feature)) {
+        return 0;
     }
 
     for (i = 0; i < vafs->FeatureCount; i++) {
@@ -82,7 +90,6 @@ int vafs_feature_add(
     }
 
     memcpy(vafs->Features[vafs->FeatureCount], feature, feature->Length);
-    __handle_known_feature(vafs, vafs->Features[vafs->FeatureCount]);
 
     vafs->FeatureCount++;
     return 0;
@@ -151,7 +158,7 @@ static struct VaFsFeatureHeader* __load_feature(
     }
 
     status = vafs_streamdevice_seek(vafs->ImageDevice, offset, SEEK_SET);
-    if (status) {
+    if (status < 0) {
         VAFS_ERROR("__load_feature: failed to seek to offset %i\n", offset);
         free(feature);
         return NULL;
@@ -449,21 +456,56 @@ int vafs_open(
     return __new_vafs(VaFsMode_Read, path, 0, vafsOut);
 }
 
+static int __write_vafs_features(
+    struct VaFs* vafs)
+{
+    size_t written;
+    int    status;
+    int    i;
+    VAFS_DEBUG("__write_vafs_features: count=%i\n", vafs->FeatureCount);
+
+    for (i = 0; i < vafs->FeatureCount; i++) {
+        VAFS_INFO("__write_vafs_features: writing feature: %i\n", i);
+        status = vafs_streamdevice_write(
+            vafs->ImageDevice,
+            vafs->Features[i],
+            vafs->Features[i]->Length,
+            &written
+        );
+        if (status) {
+            VAFS_ERROR("__write_vafs_features: failed to write feature header: %i\n", status);
+            return status;
+        }
+    }
+
+    return 0;
+}
+
 static int __write_vafs_header(
     struct VaFs* vafs)
 {
     size_t written;
-    long   offset;
+    long   descriptorBlockSize;
+    long   descriptorBlockOffset;
+    int    i;
     VAFS_INFO("__write_vafs_header: writing header\n");
 
-    offset = vafs_streamdevice_seek(vafs->DescriptorDevice, 0, SEEK_CUR);
-    if (offset < 0) {
-        VAFS_ERROR("__write_vafs_header: failed to seek to current position: %i\n", offset);
+    descriptorBlockSize = vafs_streamdevice_seek(vafs->DescriptorDevice, 0, SEEK_CUR);
+    if (descriptorBlockSize < 0) {
+        VAFS_ERROR("__write_vafs_header: failed to seek to current position: %i\n", descriptorBlockSize);
         return -1;
     }
 
-    vafs->Header.DescriptorBlockOffset = sizeof(VaFsHeader_t);
-    vafs->Header.DataBlockOffset = sizeof(VaFsHeader_t) + (uint32_t)offset;
+    vafs->Header.FeatureCount = (uint16_t)vafs->FeatureCount;
+
+    // calculate the data block offsets
+    descriptorBlockOffset = sizeof(VaFsHeader_t);
+    for (i = 0; i < vafs->FeatureCount; i++) {
+        descriptorBlockOffset += vafs->Features[i]->Length;
+    }
+
+    vafs->Header.DescriptorBlockOffset = descriptorBlockOffset;
+    vafs->Header.DataBlockOffset = descriptorBlockOffset + (uint32_t)descriptorBlockSize;
     VAFS_DEBUG("__write_vafs_header: descriptor block offset: %i\n", vafs->Header.DescriptorBlockOffset);
     VAFS_DEBUG("__write_vafs_header: data block offset: %i\n", vafs->Header.DataBlockOffset);
 
@@ -505,6 +547,13 @@ static int __create_image(
     // write the header
     VAFS_DEBUG("__create_image: writing header\n");
     status = __write_vafs_header(vafs);
+    if (status) {
+        return -1;
+    }
+
+    // write the features
+    VAFS_DEBUG("__create_image: writing features\n");
+    status = __write_vafs_features(vafs);
     if (status) {
         return -1;
     }

@@ -210,6 +210,7 @@ long vafs_streamdevice_seek(
     long                     offset,
     int                      whence)
 {
+    VAFS_DEBUG("vafs_streamdevice_seek(offset=%ld, whence=%i)\n", offset, whence);
     if (device == NULL) {
         errno = EINVAL;
         return -1;

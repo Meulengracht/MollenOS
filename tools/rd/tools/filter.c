@@ -62,9 +62,9 @@ static CB_CALLCONV int callback(unsigned int insize, unsigned int inpos,
 
 static int __aplib_encode(void* Input, uint32_t InputLength, void** Output, uint32_t* OutputLength)
 {
-    void*  compressed;
+    void*    compressed;
     uint32_t compressedSize;
-    void*  workmemory;
+    void*    workmemory;
 
     compressed = malloc(aP_max_packed_size(InputLength));
     if (!compressed) {
@@ -128,7 +128,7 @@ static int __set_filter_ops(
         case VaFsFilterType_APLIB: {
             filterOps.Encode = __aplib_encode;
             filterOps.Decode = __aplib_decode;
-        }
+        } break;
 #endif
         default: {
             fprintf(stderr, "unsupported filter type %i\n", filter->Type);
@@ -157,7 +157,7 @@ static enum VaFsFilterType __get_filter_from_name(
     const char* filterName)
 {
 #if defined(__VAFS_FILTER_APLIB)
-    if (strcmp(filterName, "aplib") == 0)
+    if (!strcmp(filterName, "aplib"))
         return VaFsFilterType_APLIB;
 #endif
     return -1;
