@@ -1,0 +1,5 @@
+# Standard configuration file for drivers in the OS
+driver:
+  type:
+    - class: 0x10006
+    - subclass: 0x10000

@@ -9,10 +9,6 @@ macro (add_filesystem_target)
         set (SERVICE_SOURCES "${ARGN}")
         list (POP_FRONT SERVICE_SOURCES) # target
 
-        if (DEFINED VALI_PATH_INITRD)
-            configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.mdrv ${VALI_PATH_INITRD}/${ARGV0}.mdrv COPYONLY)
-        endif ()
-
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         set_target_properties (${ARGV0}
             PROPERTIES
@@ -20,12 +16,6 @@ macro (add_filesystem_target)
                 RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
-
-        if (DEFINED VALI_PATH_INITRD)
-            add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_INITRD}
-            )
-        endif ()
     else ()
         message (FATAL_ERROR "Not enough parameters for add_module_target")
     endif ()
@@ -37,10 +27,6 @@ macro (add_module_target)
         list (POP_FRONT SERVICE_SOURCES) # target
         list (POP_FRONT SERVICE_SOURCES) # compile flags
 
-        if (DEFINED VALI_PATH_INITRD)
-            configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.mdrv ${VALI_PATH_INITRD}/${ARGV0}.mdrv COPYONLY)
-        endif ()
-
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         set_target_properties (${ARGV0}
             PROPERTIES
@@ -49,12 +35,6 @@ macro (add_module_target)
                 RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
-
-        if (DEFINED VALI_PATH_INITRD)
-            add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_INITRD}
-            )
-        endif ()
     else ()
         message (FATAL_ERROR "Not enough parameters for add_module_target")
     endif ()

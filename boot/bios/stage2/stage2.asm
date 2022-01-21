@@ -204,15 +204,6 @@ LoaderEntry32:
     ; LoadFile returns 
     ; eax - pointer to file
     ; ecx - number of bytes read
-    push eax 
-    call UnpackFile
-    add esp, 4
-    test eax, eax
-    jz .Stage2Failed
-
-    ; UnpackFile returns
-    ; eax - pointer to unpacked file
-    ; ecx - size of unpacked file
     mov dword [BootHeader + VBoot.RamdiskBase], eax
     mov dword [BootHeader + VBoot.RamdiskLength], ecx
 

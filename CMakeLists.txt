@@ -57,14 +57,14 @@ macro (deploy_to_initrd)
         # ARGV1 = mdrv on/off
         if (${ARGC} EQUAL 2 AND ${ARGV1})
             get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
-            configure_file(${D2RD_SOURCE_DIR}/${ARGV0}.mdrv ${VALI_PATH_INITRD}/${ARGV0}.mdrv COPYONLY)
+            configure_file(${D2RD_SOURCE_DIR}/${ARGV0}.yaml ${VALI_PATH_INITRD}/${ARGV0}.yaml COPYONLY)
         endif ()
 
         add_custom_command (TARGET ${ARGV0} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_INITRD}
         )
     else ()
-        message (STATUS "usage: deploy_to_initrd <target> <copy mdrv ON/OFF>")
+        message (STATUS "usage: deploy_to_initrd <target> <copy config ON/OFF>")
         message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_to_initrd")
     endif ()
 endmacro ()
@@ -154,8 +154,7 @@ add_custom_target (install_applications
 
 add_custom_target (install_prepare
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --out ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_INITRD}
-    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos ${VALI_PATH_INITRD}
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_SYSTEM}/kernel.mos
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_SYSTEM}
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
@@ -204,8 +203,7 @@ add_custom_target(package
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-ddk --zip-out vali-ddk.zip
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/package_os
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_DEPLOY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern *.sys
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --out ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_INITRD}
-    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${CMAKE_BINARY_DIR}/package_os/initrd.mos
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_BINARY_DIR}/package_os/initrd.mos ${VALI_PATH_INITRD}
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${CMAKE_BINARY_DIR}/package_os/kernel.mos
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/package_os/
     COMMAND ${CMAKE_COMMAND} -E copy ${TOOL_DU} ${CMAKE_BINARY_DIR}/package_os/

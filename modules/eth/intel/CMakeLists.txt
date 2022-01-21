@@ -34,3 +34,4 @@ add_module_target(e1000 ""
         e1000_phy.c
 )
 add_dependencies(e1000 contract_servers)
+deploy_to_initrd(e1000 ON)

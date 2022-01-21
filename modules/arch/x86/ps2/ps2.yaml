@@ -1,0 +1,9 @@
+# Standard configuration file for drivers in the OS
+driver:
+  type:
+    - class: 0
+    - subclass: 0
+
+  vendors:
+  - 0xFFEF:
+    - 0x30

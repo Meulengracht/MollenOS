@@ -39,3 +39,4 @@ add_module_target(hid ""
 )
 add_dependencies(hid contract_servers)
 target_link_libraries(hid libusb)
+deploy_to_initrd(hid ON)
