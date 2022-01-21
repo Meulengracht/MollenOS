@@ -19,8 +19,10 @@
  *   This filesystem is used to store the initrd of the kernel.
  */
 
+#include <errno.h>
 #include <vafs/vafs.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -38,16 +40,76 @@ static struct VaFsGuid g_filterOpsGuid = VA_FS_FEATURE_FILTER_OPS;
 
 #if defined(__VAFS_FILTER_APLIB)
 #include <aplib.h>
+#ifndef CB_CALLCONV
+# if defined(AP_DLL)
+#  define CB_CALLCONV __stdcall
+# elif defined(__GNUC__)
+#  define CB_CALLCONV
+# else
+#  define CB_CALLCONV __cdecl
+# endif
+#endif
+
+static CB_CALLCONV int callback(unsigned int insize, unsigned int inpos,
+	unsigned int outpos, void *cbparam)
+{
+	(void)insize;
+	(void)inpos;
+	(void)outpos;
+	(void)cbparam;
+	return 1;
+}
 
 static int __aplib_encode(void* Input, uint32_t InputLength, void** Output, uint32_t* OutputLength)
 {
+    void*  compressed;
+    uint32_t compressedSize;
+    void*  workmemory;
 
+    compressed = malloc(aP_max_packed_size(InputLength));
+    if (!compressed) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    workmemory = malloc(aP_workmem_size(InputLength));
+    if (!workmemory) {
+        free(compressed);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    compressedSize = aPsafe_pack(Input, compressed, InputLength, workmemory, callback, NULL);
+    if (compressedSize == APLIB_ERROR) {
+        free(compressed);
+        free(workmemory);
+        errno = EINVAL;
+        return -1;
+    }
+    free(workmemory);
+
+    *Output = compressed;
+    *OutputLength = compressedSize;
     return 0;
 }
 
 static int __aplib_decode(void* Input, uint32_t InputLength, void* Output, uint32_t* OutputLength)
 {
+    size_t decompressedSize;
 
+    decompressedSize = aPsafe_get_orig_size(Input);
+    if (decompressedSize == APLIB_ERROR) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (decompressedSize > *OutputLength) {
+        errno = ENODATA;
+        return -1;
+    }
+
+    decompressedSize = aPsafe_depack(Input, InputLength, Output, decompressedSize);
+    *OutputLength = decompressedSize;
     return 0;
 }
 #endif
