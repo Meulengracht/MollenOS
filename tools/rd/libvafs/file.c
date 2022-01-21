@@ -83,7 +83,7 @@ size_t vafs_file_length(
 
 int vafs_file_seek(
     struct VaFsFileHandle* handle,
-    off_t                  offset,
+    long                   offset,
     int                    whence)
 {
     if (!handle) {

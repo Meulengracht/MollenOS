@@ -23,6 +23,7 @@
 #define __VAFS_H__
 
 #include <stdint.h>
+#include <stddef.h>
 
 struct VaFs;
 struct VaFsDirectoryHandle;
@@ -259,7 +260,7 @@ extern size_t vafs_file_length(
  */
 extern int vafs_file_seek(
     struct VaFsFileHandle* handle,
-    off_t                  offset,
+    long                   offset,
     int                    whence);
 
 /**

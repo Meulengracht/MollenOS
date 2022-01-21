@@ -33,12 +33,14 @@
 #endif
 #include <sys/stat.h>
 
+extern int __handle_filter(struct VaFs* vafs);
+
 // Prints usage format of this program
 static void __show_help(void)
 {
-    printf("usage: unmkvafs [options] image \n"
-           "    --compression       {---}\n"
-           "    --out               A path to where the disk image should be extracted to\n");
+    printf("usage: unmkvafs [options] image\n"
+           "    --out               A path to where the disk image should be extracted to\n"
+           "    --v,vv              Enables extra tracing output for debugging\n");
 }
 
 static const char* __get_relative_path(
@@ -211,14 +213,23 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    status = __handle_filter(vafsHandle);
+    if (status) {
+        vafs_close(vafsHandle);
+        fprintf(stderr, "unmkvafs: failed to handle image filter\n");
+        return -1;
+    }
+
     status = vafs_directory_open(vafsHandle, "/", &directoryHandle);
     if (status) {
+        vafs_close(vafsHandle);
         fprintf(stderr, "unmkvafs: cannot open root directory: /\n");
         return -1;
     }
 
     status = __extract_directory(directoryHandle, destinationPath, destinationPath);
     if (status != 0) {
+        vafs_close(vafsHandle);
         fprintf(stderr, "unmkvafs: unable to extract to directory %s\n", destinationPath);
         return -1;
     }

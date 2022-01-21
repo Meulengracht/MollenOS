@@ -8,7 +8,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_subdirectory(libvafs)
+add_subdirectory(filters)
 
 if (VAFS_BUILD_TOOLS)
     add_subdirectory(tools)
-endif()
+endif(VAFS_BUILD_TOOLS)

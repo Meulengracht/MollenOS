@@ -32,13 +32,16 @@
 #endif
 #include <sys/stat.h>
 
+extern int __install_filter(struct VaFs* vafs, const char* filterName);
+
 // Prints usage format of this program
 static void __show_help(void)
 {
-	printf("usage: mkvafs [options] dir/files ... \n"
+	printf("usage: mkvafs [options] dir/files ...\n"
            "    --arch              {i386,amd64,arm,arm64,rv32,rv64}\n"
-		   "    --compression       {---}\n"
-		   "    --out               A path to where the disk image should be written to\n");
+		   "    --compression       {aplib}\n"
+		   "    --out               A path to where the disk image should be written to\n"
+           "    --v,vv              Enables extra tracing output for debugging\n");
 }
 
 
@@ -194,12 +197,16 @@ int main(int argc, char *argv[])
 	char  pathCount = 0;
     char* arch = NULL;
     char* imagePath = "image.vafs"; 
+    char* compressionName = NULL; 
 
 	// Validate the number of arguments
-	// format: rd $(arch) $(out)
+	// compression
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--arch") && (i + 1) < argc) {
             arch = argv[++i];
+        }
+        else if (!strcmp(argv[i], "--compression") && (i + 1) < argc) {
+            compressionName = argv[++i];
         }
         else if (!strcmp(argv[i], "--out") && (i + 1) < argc) {
             imagePath = argv[++i];
@@ -224,6 +231,15 @@ int main(int argc, char *argv[])
 	if (status) {
 		fprintf(stderr, "mkvafs: cannot create vafs output file: %s\n", imagePath);
 		return -1;
+	}
+
+	// Was a compression requested?
+	if (compressionName != NULL) {
+		status = __install_filter(vafsHandle, compressionName);
+		if (status) {
+			fprintf(stderr, "mkvafs: cannot set compression: %s\n", compressionName);
+			return -1;
+		}
 	}
 
 	status = vafs_directory_open(vafsHandle, "/", &directoryHandle);
