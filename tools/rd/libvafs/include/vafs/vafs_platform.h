@@ -30,7 +30,6 @@
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-#include <dirent_win32.h>
 #include <windows.h>
 
 typedef CRITICAL_SECTION mtx_t;
@@ -62,7 +61,6 @@ static inline int mtx_unlock(mtx_t* mtx) {
 }
 
 #else
-#include <dirent.h>
 #include <threads.h>
 #endif
 

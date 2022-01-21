@@ -37,11 +37,11 @@ struct VaFsGuid {
 
 /**
  * List of builtin features for the filesystem
- * VA_FS_FEATURE_COMPRESSION     - Compression is used for data streams
- * VA_FS_FEATURE_COMPRESSION_OPS - Compression operations (Not persistant)
+ * VA_FS_FEATURE_FILTER     - Data filters can be applied for data streams
+ * VA_FS_FEATURE_FILTER_OPS - Filter operations (Not persistant)
  */
-#define VA_FS_FEATURE_COMPRESSION     { 0x99C25D91, 0xFA99, 0x4A71, {0x9C, 0xB5, 0x96, 0x1A, 0xA9, 0x3D, 0xDF, 0xBB } }
-#define VA_FS_FEATURE_COMPRESSION_OPS { 0x17BC0212, 0x7DF3, 0x4BDD, {0x99, 0x24, 0x5A, 0xC8, 0x13, 0xBE, 0x72, 0x49 } }
+#define VA_FS_FEATURE_FILTER     { 0x99C25D91, 0xFA99, 0x4A71, {0x9C, 0xB5, 0x96, 0x1A, 0xA9, 0x3D, 0xDF, 0xBB } }
+#define VA_FS_FEATURE_FILTER_OPS { 0x17BC0212, 0x7DF3, 0x4BDD, {0x99, 0x24, 0x5A, 0xC8, 0x13, 0xBE, 0x72, 0x49 } }
 
 enum VaFsLogLevel {
     VaFsLogLevel_Error,
@@ -64,18 +64,43 @@ struct VaFsFeatureHeader {
     uint32_t        Length; // Length of the entire feature data including this header
 };
 
+enum VaFsEntryType {
+    VaFsEntryType_Unknown,
+    VaFsEntryType_File,
+    VaFsEntryType_Directory
+};
+
+struct VaFsEntry {
+    const char*        Name;
+    enum VaFsEntryType Type;
+};
+
 /**
- * @brief The compression feature must be installed both when creating the image, and
- * when loading the image. The feature is used by the underlying streams to compress or 
- * decompress data while loading/writing. This means the user must supply the type of compression
- * to use, as there is no predefined way of compressing or decompressing data. 
+ * @brief The filter feature must be installed both when creating the image, and
+ * when loading the image. The feature is used by the underlying streams to apply data manipulation 
+ * while loading/writing. This means the user must supply the filter operations to use,
+ * as there is no predefined way of compressing or encrypting data.
  * 
  * This feature data is not transferred to the disk image, but rather used if present.
  */
-struct VaFsFeatureCompressionOps {
+
+/**
+ * @brief It is expected of the encode function to allocate a buffer of the size of the data and provide
+ * the size of the allocated buffer for the encoded data in the Output/OutputLength parameters.
+ */
+typedef int(*VaFsFilterEncodeFunc)(void* Input, uint32_t InputLength, void** Output, uint32_t* OutputLength);
+
+/**
+ * @brief The decode function will be provided with a buffer of the encoded data, and the size of the encoded data. The
+ * decode function will also be provided with a buffer of the size of the decoded data, and the maximum size of the decoded data.
+ * If the decoded data size varies from the maximum size provided, the size should be set to the actual decoded data size. 
+ */
+typedef int(*VaFsFilterDecodeFunc)(void* Input, uint32_t InputLength, void* Output, uint32_t* OutputLength);
+
+struct VaFsFeatureFilterOps {
     struct VaFsFeatureHeader Header;
-    int                     (*Compress)(void* Source, size_t SourceLength, void* Destination, size_t* DestinationLength);
-    int                     (*Decompress)(void* Source, size_t SourceLength, void* Destination, size_t* DestinationLength);
+    VaFsFilterEncodeFunc     Encode;
+    VaFsFilterDecodeFunc     Decode;
 };
 
 /**
@@ -174,12 +199,12 @@ extern int vafs_directory_close(
  * @brief Reads an entry from the directory handle.
  * 
  * @param[In]  handle The directory handle to read an entry from.
- * @param[Out] entry  A pointer to a dirent that is filled with information if an entry is available. 
+ * @param[Out] entry  A pointer to a struct VaFsEntry that is filled with information if an entry is available. 
  * @return int Returns -1 on error or if no more entries are available (errno is set accordingly), 0 on success
  */
 extern int vafs_directory_read(
     struct VaFsDirectoryHandle* handle,
-    struct dirent*              entry);
+    struct VaFsEntry*           entry);
 
 /**
  * @brief 

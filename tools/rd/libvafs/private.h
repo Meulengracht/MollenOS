@@ -22,7 +22,7 @@
 #ifndef __VAFS_PRIVATE_H__
 #define __VAFS_PRIVATE_H__
 
-#include <platform.h>
+#include <vafs_platform.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <vafs.h>
@@ -197,6 +197,19 @@ extern int vafs_stream_create(
     long                     deviceOffset,
     uint32_t                 blockSize,
     struct VaFsStream**      streamOut);
+
+/**
+ * @brief 
+ * 
+ * @param stream 
+ * @param encode 
+ * @param decode 
+ * @return int 
+ */
+extern int vafs_stream_set_filter(
+    struct VaFsStream*   stream,
+    VaFsFilterEncodeFunc encode,
+    VaFsFilterDecodeFunc decode);
 
 /**
  * @brief 

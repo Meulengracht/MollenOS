@@ -125,6 +125,7 @@ static int __read_descriptor(
     VaFsDescriptor_t* base = (VaFsDescriptor_t*)buffer;
     char*             ext  = (char*)buffer + sizeof(VaFsDescriptor_t);
     int               status;
+    int               size;
 
     if (reader == NULL || buffer == NULL || nameOut == NULL) {
         errno = EINVAL;
@@ -140,29 +141,35 @@ static int __read_descriptor(
         return status;
     }
 
-    if (base->Length < sizeof(VaFsDescriptor_t) || !__get_descriptor_size(base->Type)) {
+    VAFS_INFO("__read_descriptor: desciptor found type=%u, length=%u\n",
+        base->Type, base->Length);
+    
+    size = __get_descriptor_size(base->Type);
+    if (base->Length < sizeof(VaFsDescriptor_t) || !size) {
         VAFS_ERROR("__read_descriptor: invalid descriptor size: %i for type %i\n", base->Length, base->Type);
         errno = EINVAL;
         return -1;
     }
 
     if (base->Length > sizeof(VaFsDescriptor_t)) {
-        VAFS_DEBUG("__read_descriptor: reading extended descriptor\n");
+        VAFS_DEBUG("__read_descriptor: read %u/%u descriptor bytes, reading rest\n", 
+            sizeof(VaFsDescriptor_t), size);
 
         status = vafs_stream_read(
             reader->Base.VaFs->DescriptorStream, 
-            ext, __get_descriptor_size(base->Type) - sizeof(VaFsDescriptor_t)
+            ext, size - sizeof(VaFsDescriptor_t)
         );
         if (status) {
             VAFS_ERROR("__read_descriptor: failed to read extension descriptor: %i\n", status);
             return status;
         }
 
-        if (base->Length > __get_descriptor_size(base->Type)) {
-            VAFS_DEBUG("__read_descriptor: reading descriptor name data\n");
+        if (base->Length > size) {
+            VAFS_DEBUG("__read_descriptor: read %u/%u bytes, reading descriptor extension data\n",
+                size, base->Length);
 
             // read name, todo other data will come here in future
-            char* name = (char*)malloc(base->Length - sizeof(VaFsDescriptor_t));
+            char* name = (char*)malloc(base->Length - size + 1); // include a byte for zero termination
             if (!name) {
                 VAFS_ERROR("__read_descriptor: failed to allocate name buffer: %i\n", status);
                 errno = ENOMEM;
@@ -171,13 +178,16 @@ static int __read_descriptor(
 
             status = vafs_stream_read(
                 reader->Base.VaFs->DescriptorStream, 
-                name, base->Length - sizeof(VaFsDescriptor_t)
+                name, base->Length - size
             );
             if (status) {
                 VAFS_ERROR("__read_descriptor: failed to read name data: %i\n", status);
                 free(name);
                 return status;
             }
+            
+            // zero terminate the name
+            name[base->Length - size] = '\0';
             *nameOut = (const char*)name;
         }
     }
@@ -303,10 +313,12 @@ static int __load_directory(
     }
 
     // read the directory entries
+    VAFS_INFO("__load_directory: reading %i entries\n", header.Count);
     for (i = 0; i < header.Count; i++) {
         struct VaFsDirectoryEntry* entry;
         char                       buffer[64];
         const char*                name = NULL;
+        VAFS_INFO("__load_directory: reading entry %i/%u\n", i, header.Count);
         
         status = __read_descriptor(reader, &buffer[0], &name);
         if (status) {
@@ -363,15 +375,6 @@ int vafs_directory_open_root(
     reader->Base.Name = strdup("root");
     reader->State     = VaFsDirectoryState_Open;
 
-    // load the directory immediately
-    status = __load_directory(reader);
-    if (status != 0) {
-        VAFS_ERROR("vafs_directory_open_root: failed to load directory\n");
-        free((void*)reader->Base.Name);
-        free(reader);
-        return status;
-    }
-
     *directoryOut = &reader->Base;
     return 0;
 }
@@ -422,9 +425,11 @@ static int __get_path_token(
 static struct VaFsDirectoryEntry* __get_first_entry(
     struct VaFsDirectory* directory)
 {
+    VAFS_INFO("__get_first_entry(directory=%s)\n", directory->Name);
     if (directory->VaFs->Mode == VaFsMode_Read) {
         struct VaFsDirectoryReader* reader = (struct VaFsDirectoryReader*)directory;
         if (reader->State != VaFsDirectoryState_Loaded) {
+            VAFS_ERROR("__get_first_entry: directory not loaded\n");
             if (__load_directory(reader)) {
                 return NULL;
             }
@@ -536,6 +541,7 @@ static int __write_directory_header(
     int                         count)
 {
     VaFsDirectoryHeader_t header;
+    VAFS_DEBUG("vafs_directory_write_header(count=%d)\n", count);
 
     header.Count = count;
 
@@ -551,6 +557,7 @@ static int __write_file_descriptor(
     struct VaFsDirectoryEntry*  entry)
 {
     int status;
+    VAFS_DEBUG("vafs_directory_write_file_descriptor(name=%s)\n", entry->File->Name);
 
     // increase descriptor length by name, do not account
     // for the null terminator
@@ -578,6 +585,7 @@ static int __write_directory_descriptor(
     struct VaFsDirectoryEntry*  entry)
 {
     int status;
+    VAFS_DEBUG("vafs_directory_write_directory_descriptor(name=%s)\n", entry->Directory->Name);
     
     // increase descriptor length by name, do not account
     // for the null terminator
@@ -609,6 +617,7 @@ int vafs_directory_flush(
     int                         entryCount = 0;
     uint16_t                    block;
     uint32_t                    offset;
+    VAFS_DEBUG("vafs_directory_flush(name=%s)\n", directory->Name);
 
     // We must flush all subdirectories first to initalize their
     // index and offset. Otherwise we will be writing empty descriptors
@@ -635,6 +644,7 @@ int vafs_directory_flush(
 
     directory->Descriptor.Descriptor.Index  = block;
     directory->Descriptor.Descriptor.Offset = offset;
+    VAFS_DEBUG("directory %s index %d offset %d\n", directory->Name, block, offset);
 
     status = __write_directory_header(writer, entryCount);
     if (status) {
@@ -668,17 +678,19 @@ int vafs_directory_flush(
 
 int vafs_directory_read(
     struct VaFsDirectoryHandle* handle,
-    struct dirent*              entryOut)
+    struct VaFsEntry*           entryOut)
 {
     struct VaFsDirectoryEntry*  entry;
     int                         status;
     int                         i;
+    VAFS_INFO("vafs_directory_read(handle=%p)\n", handle);
 
-    if (handle == NULL || entry == NULL) {
+    if (handle == NULL || entryOut == NULL) {
         errno = EINVAL;
         return -1;
     }
 
+    VAFS_DEBUG("vafs_directory_read: locate index %i\n", handle->Index);
     entry = __get_first_entry(handle->Directory);
     i       = 0;
     while (entry != NULL) {
@@ -686,27 +698,22 @@ int vafs_directory_read(
             break;
         }
         entry = entry->Link;
+        i++;
     }
 
     if (entry == NULL) {
+        VAFS_INFO("vafs_directory_read: end of directory\n");
         errno = ENOENT;
         return -1;
     }
+    VAFS_DEBUG("vafs_directory_read: found entry %s\n", entry->File->Name);
 
     // we found an entry, move to next
     handle->Index++;
 
-    // initialize the dirent structure
-    entryOut->d_ino = 0;
-    entryOut->d_off = 0;
-    entryOut->d_reclen = 0;
-    strcpy(entryOut->d_name, __get_entry_name(entry));
-    if (entry->Type == VA_FS_DESCRIPTOR_TYPE_DIRECTORY) {
-        entryOut->d_type = DT_DIR;
-    }
-    else {
-        entryOut->d_type = DT_REG;
-    }
+    // initialize the entry structure
+    entryOut->Name = __get_entry_name(entry);
+    entryOut->Type = (enum VaFsEntryType)entry->Type;
     return 0;
 }
 
@@ -897,6 +904,7 @@ int vafs_directory_open_file(
     struct VaFsDirectoryEntry* entry;
     const char*                remainingPath = name;
     char                       token[128];
+    VAFS_DEBUG("vafs_directory_open_file(name=%s)\n", name);
 
     if (handle == NULL || name == NULL || handleOut == NULL) {
         errno = EINVAL;
@@ -910,6 +918,7 @@ int vafs_directory_open_file(
     }
 
     // find the name in the directory
+    VAFS_DEBUG("vafs_directory_open_file: locating %s\n", token);
     entry = __find_entry(handle->Directory, token);
     if (entry == NULL) {
         if (handle->Directory->VaFs->Mode == VaFsMode_Read) {

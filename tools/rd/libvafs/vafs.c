@@ -28,7 +28,9 @@
 
 static void vafs_destroy(struct VaFs* vafs);
 
-static int g_initialized = 0;
+static struct VaFsGuid g_filterGuid    = VA_FS_FEATURE_FILTER;
+static struct VaFsGuid g_filterOpsGuid = VA_FS_FEATURE_FILTER_OPS;
+static int             g_initialized   = 0;
 
 static void vafs_init(void)
 {
@@ -41,6 +43,17 @@ static inline int __compare_guids(
     struct VaFsGuid* rh)
 {
     return memcmp(lh, rh, sizeof(struct VaFsGuid));
+}
+
+static void __handle_known_feature(
+    struct VaFs*              vafs,
+    struct VaFsFeatureHeader* feature)
+{
+    if (!__compare_guids(&feature->Guid, &g_filterOpsGuid)) {
+        struct VaFsFeatureFilterOps* ops = (struct VaFsFeatureFilterOps*)feature;
+        vafs_stream_set_filter(vafs->DescriptorStream, ops->Encode, ops->Decode);
+        vafs_stream_set_filter(vafs->DataStream, ops->Encode, ops->Decode);
+    }
 }
 
 int vafs_feature_add(
@@ -69,6 +82,8 @@ int vafs_feature_add(
     }
 
     memcpy(vafs->Features[vafs->FeatureCount], feature, feature->Length);
+    __handle_known_feature(vafs, vafs->Features[vafs->FeatureCount]);
+
     vafs->FeatureCount++;
     return 0;
 }
@@ -151,6 +166,32 @@ static struct VaFsFeatureHeader* __load_feature(
     return feature;
 }
 
+static int __default_fail_encode()
+{
+    VAFS_ERROR("__default_fail_encode: encode handler not installed\n");
+    errno = ENOTSUP;
+    return -1;
+}
+
+static int __default_fail_decode()
+{
+    VAFS_ERROR("__default_fail_decode: decode handler not installed\n");
+    errno = ENOTSUP;
+    return -1;
+}
+
+static void __parse_known_features(
+    struct VaFs* vafs)
+{
+    for (int i = 0; i < vafs->Header.FeatureCount; i++) {
+        if (!__compare_guids(&vafs->Features[i]->Guid, &g_filterGuid)) {
+            // A filter is present, force the use of filter ops
+            vafs_stream_set_filter(vafs->DescriptorStream, __default_fail_encode, __default_fail_decode);
+            vafs_stream_set_filter(vafs->DataStream, __default_fail_encode, __default_fail_decode);
+        }
+    }
+}
+
 static int __load_features(
     struct VaFs* vafs)
 {
@@ -166,6 +207,7 @@ static int __load_features(
             return -1;
         }
     }
+    vafs->FeatureCount = vafs->Header.FeatureCount;
     return 0;
 }
 
@@ -381,6 +423,11 @@ static int __new_vafs(
         return -1;
     }
 
+    // Handle any known features that have been loaded
+    if (vafs->Mode == VaFsMode_Read) {
+        __parse_known_features(vafs);
+    }
+
     *vafsOut = vafs;
     return 0;
 }
@@ -417,9 +464,13 @@ static int __write_vafs_header(
 
     vafs->Header.DescriptorBlockOffset = sizeof(VaFsHeader_t);
     vafs->Header.DataBlockOffset = sizeof(VaFsHeader_t) + (uint32_t)offset;
+    VAFS_DEBUG("__write_vafs_header: descriptor block offset: %i\n", vafs->Header.DescriptorBlockOffset);
+    VAFS_DEBUG("__write_vafs_header: data block offset: %i\n", vafs->Header.DataBlockOffset);
 
     vafs->Header.RootDescriptor.Index = vafs->RootDirectory->Descriptor.Descriptor.Index;
     vafs->Header.RootDescriptor.Offset = vafs->RootDirectory->Descriptor.Descriptor.Offset;
+    VAFS_DEBUG("__write_vafs_header: root descriptor index: %i\n", vafs->Header.RootDescriptor.Index);
+    VAFS_DEBUG("__write_vafs_header: root descriptor offset: %i\n", vafs->Header.RootDescriptor.Offset);
 
     return vafs_streamdevice_write(vafs->ImageDevice, &vafs->Header, sizeof(VaFsHeader_t), &written);
 }

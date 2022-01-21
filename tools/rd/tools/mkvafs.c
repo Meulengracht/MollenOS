@@ -23,9 +23,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <platform.h>
-#include <vafs.h>
+#include <vafs/vafs.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <dirent_win32.h>
+#else
+#include <dirent.h>
+#endif
 #include <sys/stat.h>
 
 // Prints usage format of this program

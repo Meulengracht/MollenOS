@@ -33,6 +33,8 @@ struct VaFsStream {
     uint32_t                 BlockSize;
     struct VaFsStreamDevice* Device;
     long                     DeviceOffset;
+    VaFsFilterEncodeFunc     Encode;
+    VaFsFilterDecodeFunc     Decode;
 
     // The block buffer is used for staging data before
     // we flush it to the data stream. The staging buffer
@@ -61,6 +63,8 @@ static int __new_stream(
     stream->Device = device;
     stream->DeviceOffset = deviceOffset;
     stream->BlockSize = blockSize;
+    stream->Encode = NULL;
+    stream->Decode = NULL;
 
     stream->BlockBuffer = malloc(blockSize);
     if (!stream->BlockBuffer) {
@@ -96,6 +100,21 @@ int vafs_stream_create(
     return 0;
 }
 
+int vafs_stream_set_filter(
+    struct VaFsStream*   stream,
+    VaFsFilterEncodeFunc encode,
+    VaFsFilterDecodeFunc decode)
+{
+    if (stream == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    stream->Encode = encode;
+    stream->Decode = decode;
+    return 0;
+}
+
 int vafs_stream_position(
     struct VaFsStream* stream, 
     uint16_t*          blockOut,
@@ -111,17 +130,64 @@ int vafs_stream_position(
     return 0;
 }
 
+static uint32_t __get_blockbuffer_crc(
+    struct VaFsStream* stream,
+    size_t             length)
+{
+    return crc_calculate(
+        CRC_BEGIN, 
+        (uint8_t*)stream->BlockBuffer, 
+        length
+    );
+}
+
 static int __load_blockbuffer(
     struct VaFsStream* stream,
-    uint32_t           length)
+    VaFsBlock_t*       block)
 {
-    size_t read;
-    VAFS_DEBUG("__load_blockbuffer(length=%u)\n", length);
+    void*    blockData;
+    uint32_t blockSize;
+    size_t   read;
+    uint32_t crc;
+    int      status;
+    VAFS_DEBUG("__load_blockbuffer(length=%u)\n", block->Length);
 
-    // Handle decompressions
-    // TODO
+    blockSize = block->Length;
+    blockData = malloc(block->Length);
+    if (!blockData) {
+        errno = ENOMEM;
+        return -1;
+    }
 
-    return vafs_streamdevice_read(stream->Device, stream->BlockBuffer, length, &read);
+    status = vafs_streamdevice_read(stream->Device, blockData, blockSize, &read);
+    if (status) {
+        return status;
+    }
+
+    // Handle data filters
+    if (stream->Decode) {
+        status = stream->Decode(blockData, blockSize, stream->BlockBuffer, &blockSize);
+        if (status) {
+            free(blockData);
+            return status;
+        }
+
+        // TODO we should keep a current length of block
+        // verify the length of the block is correct, the actual size
+        // of the decoded data is now in blockSize
+    }
+    else {
+        memcpy(stream->BlockBuffer, blockData, blockSize);
+    }
+    free(blockData);
+
+    crc = __get_blockbuffer_crc(stream, blockSize);
+    if (crc != block->Crc) {
+        VAFS_WARN("__load_blockbuffer: CRC mismatch: %u != %u\n", crc, block->Crc);
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 int vafs_stream_seek(
@@ -174,7 +240,7 @@ int vafs_stream_seek(
         i++;
     }
 
-    status = __load_blockbuffer(stream, block.Length);
+    status = __load_blockbuffer(stream, &block);
     if (status) {
         VAFS_ERROR("vafs_stream_seek: load blockbuffer failed: %i\n", status);
         return status;
@@ -183,16 +249,6 @@ int vafs_stream_seek(
     stream->BlockBufferIndex = targetBlock;
     stream->BlockBufferOffset = targetOffset;
     return 0;
-}
-
-static uint32_t __get_crc(
-    struct VaFsStream* stream)
-{
-    return crc_calculate(
-        CRC_BEGIN, 
-        (uint8_t*)stream->BlockBuffer, 
-        stream->BlockBufferOffset
-    );
 }
 
 static int __write_block_header(
@@ -204,7 +260,7 @@ static int __write_block_header(
     VAFS_DEBUG("__write_block_header(blockLength=%u)\n", blockLength);
 
     header.Magic = VA_FS_BLOCKMAGIC;
-    header.Crc = __get_crc(stream);
+    header.Crc = __get_blockbuffer_crc(stream, stream->BlockBufferOffset);
     header.Length = blockLength;
     header.Flags = 0;
     return vafs_streamdevice_write(stream->Device, &header, sizeof(header), &written);
@@ -213,14 +269,19 @@ static int __write_block_header(
 static int __flush_block(
     struct VaFsStream* stream)
 {
-    void*  compressedData = stream->BlockBuffer;
-    size_t compressedSize = stream->BlockBufferOffset;
-    size_t written;
-    int    status;
+    void*    compressedData = stream->BlockBuffer;
+    uint32_t compressedSize = stream->BlockBufferOffset;
+    size_t   written;
+    int      status;
     VAFS_DEBUG("__flush_block(blockLength=%u)\n", stream->BlockBufferOffset);
     
     // Handle compressions
-    // TODO
+    if (stream->Encode) {
+        status = stream->Encode(stream->BlockBuffer, stream->BlockBufferOffset, &compressedData, &compressedSize);
+        if (status) {
+            return status;
+        }
+    }
 
     // flush the block to the stream, write header first
     if (__write_block_header(stream, compressedSize)) {
@@ -232,6 +293,11 @@ static int __flush_block(
     if (status) {
         VAFS_ERROR("__flush_block: failed to write block data\n");
         return -1;
+    }
+
+    // In the case of a compressed stream, we need to free the compressed data
+    if (stream->Encode) {
+        free(compressedData);
     }
 
     stream->BlockBufferIndex++;
@@ -311,7 +377,7 @@ int vafs_stream_read(
                 return -1;
             }
 
-            if (__load_blockbuffer(stream, stream->BlockSize)) {
+            if (__load_blockbuffer(stream, &block)) {
                 VAFS_ERROR("vafs_stream_read: failed to load block\n");
                 return -1;
             }

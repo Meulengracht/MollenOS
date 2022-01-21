@@ -24,9 +24,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <platform.h>
-#include <vafs.h>
+#include <vafs/vafs.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <dirent_win32.h>
+#else
+#include <dirent.h>
+#endif
 #include <sys/stat.h>
 
 // Prints usage format of this program
@@ -95,9 +99,9 @@ static int __extract_directory(
     const char*                 root,
     const char*                 path)
 {
-    struct dirent dp;
-    int           status;
-    char*         filepathBuffer;
+    struct VaFsEntry dp;
+    int              status;
+    char*            filepathBuffer;
 
     // ensure the directory exists
     status = __directory_exists(path);
@@ -114,18 +118,19 @@ static int __extract_directory(
         status = vafs_directory_read(directoryHandle, &dp);
         if (status) {
             if (errno != ENOENT) {
-                fprintf(stderr, "unmkvafs: failed to read directory '%s'\n", __get_relative_path(root, path));
+                fprintf(stderr, "unmkvafs: failed to read directory '%s' - %i\n",
+                    __get_relative_path(root, path), status);
                 return -1;
             }
             break;
         }
 
-        filepathBuffer = malloc(strlen(path) + strlen(dp.d_name) + 2);
-        sprintf(filepathBuffer, "%s/%s", path, dp.d_name);
+        filepathBuffer = malloc(strlen(path) + strlen(dp.Name) + 2);
+        sprintf(filepathBuffer, "%s/%s", path, dp.Name);
 
-        if (dp.d_type == DT_DIR) {
+        if (dp.Type == VaFsEntryType_Directory) {
             struct VaFsDirectoryHandle* subdirectoryHandle;
-            status = vafs_directory_open_directory(directoryHandle, dp.d_name, &subdirectoryHandle);
+            status = vafs_directory_open_directory(directoryHandle, dp.Name, &subdirectoryHandle);
             if (status) {
                 fprintf(stderr, "unmkvafs: failed to open directory '%s'\n", __get_relative_path(root, filepathBuffer));
                 return -1;
@@ -145,9 +150,10 @@ static int __extract_directory(
         }
         else {
             struct VaFsFileHandle* fileHandle;
-            status = vafs_directory_open_file(directoryHandle, dp.d_name, &fileHandle);
+            status = vafs_directory_open_file(directoryHandle, dp.Name, &fileHandle);
             if (status) {
-                fprintf(stderr, "unmkvafs: failed to open file '%s'\n", __get_relative_path(root, filepathBuffer));
+                fprintf(stderr, "unmkvafs: failed to open file '%s' - %i\n",
+                    __get_relative_path(root, filepathBuffer), status);
                 return -1;
             }
 
@@ -165,6 +171,8 @@ static int __extract_directory(
         }
         free(filepathBuffer);
     } while(1);
+
+    return 0;
 }
 
 int main(int argc, char *argv[])
