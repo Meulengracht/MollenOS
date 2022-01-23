@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.14.3)
+project(lzap C)
+
+add_executable (lzss main.c)
+if (MSVC)
+    target_link_libraries (lzss PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/aplib64.lib)
+else ()
+    target_link_libraries (lzss PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/aplib64.a)
+endif ()
+install(TARGETS lzss DESTINATION bin)

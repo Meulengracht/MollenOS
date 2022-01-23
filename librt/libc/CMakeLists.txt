@@ -6,18 +6,6 @@ enable_language (C)
 set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
 set (MATH_FLAGS "")
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ../libgracht/include
-    ../libusb/include
-    ../libddk/include
-    ../libds/include
-    ../libm/include
-    ../include
-    ./include
-)
-
 if (${VALI_ARCH} STREQUAL "i386")
     set (MATH_FLAGS -D_DOUBLE_IS_32BITS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL)
     include_directories(../../kernel/include ../../kernel/x86/x32)
@@ -506,23 +494,24 @@ set (SOURCES_LIBC
 )
 
 add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
-target_compile_options(libk
-  PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL>
-)
+target_compile_options(libk PRIVATE -mno-sse)
+target_compile_definitions(libk PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL)
+target_include_directories(libk PUBLIC include)
+target_link_libraries(libk libdsk)
 
 add_library(libc STATIC ${ASM_SOURCES} ${SOURCES_LIBC})
-target_compile_options(libc
-        PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL>
-)
+target_compile_definitions(libc PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL)
+target_include_directories(libc PUBLIC include)
+target_include_directories(libc PRIVATE ../libusb/include ../libddk/include)
+target_link_libraries(libc libm libds gracht_static)
 
 add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
 target_compile_options(c
   PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL>
 )
-set_target_properties(c
-    PROPERTIES
-        LINK_FLAGS "-Xlinker -def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def"
-)
+target_include_directories(c PUBLIC include)
+target_include_directories(c PRIVATE ../libusb/include ../libddk/include)
+target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
 
 target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c

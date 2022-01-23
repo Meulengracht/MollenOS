@@ -70,9 +70,9 @@ macro (deploy_to_initrd)
 endmacro ()
 
 # Setup tools
-set (TOOL_RD ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/bin/mkvafs)
-set (TOOL_DU ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/diskutility/osbuilder)
-set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
+set (TOOL_RD ${CMAKE_BINARY_DIR}/tools/host/bin/mkvafs)
+set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
+set (TOOL_LZ ${CMAKE_BINARY_DIR}/tools/host/bin/lzss)
 
 # Create neccessary directories
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
@@ -93,20 +93,6 @@ file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS_SHARE})
 # Read the project version
 file(READ "VERSION" VALI_VERSION)
 
-# Run early build initialization that require host compiler
-include (ExternalProject)
-ExternalProject_Add(tools
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/tools
-    CMAKE_CACHE_ARGS
-        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
-)
-
-ExternalProject_Add(unit_tests
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/unit_tests
-    CMAKE_CACHE_ARGS
-    -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
-)
-
 # Configure projects that are specified
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cmake")
     message (FATAL_ERROR "The specified platform ${VALI_ARCH} has no configuration file")
@@ -120,6 +106,7 @@ add_subdirectory (boot)
 
 # Generate all the neccessary files for the builds
 add_subdirectory (protocols)
+include_directories (${CMAKE_BINARY_DIR}/protocols)
 
 # Configure the runtime libraries
 add_subdirectory (librt)
@@ -132,6 +119,9 @@ add_subdirectory (services)
 
 # Build modules
 add_subdirectory (modules)
+
+# Build tools
+add_subdirectory (tools)
 
 # Build userspace applications
 # these are not the entire userspace that exists, most of these applications
@@ -162,7 +152,7 @@ add_custom_target (install_prepare
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare tools)
+add_dependencies(install_prepare diskutility rd lzss)
 
 add_custom_target (install_img
     COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img

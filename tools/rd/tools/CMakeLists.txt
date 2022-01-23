@@ -34,3 +34,6 @@ add_executable(unmkvafs
 target_include_directories(unmkvafs PRIVATE ${ADDITIONAL_INCLUDES})
 target_compile_definitions(unmkvafs PRIVATE ${ADDITIONAL_DEFINES})
 target_link_libraries(unmkvafs ${ADDITIONAL_LIBS})
+
+# add support for installing
+install(TARGETS mkvafs unmkvafs DESTINATION bin)

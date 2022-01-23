@@ -11,8 +11,8 @@ endif ()
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/smp_trampoline.c
-    COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/file2c ${VALI_PATH_DEPLOY}/ap.sys ${CMAKE_BINARY_DIR}/smp_trampoline.c __GlbTramplineCode
-    DEPENDS tools ap
+    COMMAND ${CMAKE_BINARY_DIR}/tools/host/bin/file2c ${VALI_PATH_DEPLOY}/ap.sys ${CMAKE_BINARY_DIR}/smp_trampoline.c __GlbTramplineCode
+    DEPENDS file2c ap
 )
 
 add_kernel_library(vali-x86 ""

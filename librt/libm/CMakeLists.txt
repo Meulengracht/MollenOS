@@ -1,18 +1,11 @@
 # Project setup
-project (ValiMath)
+project (vali-libm)
 enable_language (ASM_NASM)
 enable_language (C)
 
 set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
 set (MATH_FLAGS "")
 set (EXTRA_SOURCES "")
-
-# Configure include paths
-include_directories (
-    ../libc/include
-    ../include
-    ./include
-)
 
 # Get all the source files for the arch
 file(GLOB ASM_SOURCES ${VALI_ARCH}/*.s)
@@ -56,22 +49,31 @@ set_source_files_properties(${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES}
         COMPILE_FLAGS "${MATH_FLAGS} -fno-builtin -fno-strict-aliasing"
 )
 
-add_library(libm STATIC ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
+add_library(libm STATIC
+        ${ASM_SOURCES}
+        ${C_ARCH_SOURCES}
+        ${C_SOURCES}
+        ${EXTRA_SOURCES}
+)
+target_include_directories(libm PUBLIC include)
+target_include_directories(libm PRIVATE ../libc/include)
+
 install(TARGETS libm LIBRARY
     ARCHIVE DESTINATION vali-sdk/lib
     LIBRARY DESTINATION vali-sdk/lib
     RUNTIME DESTINATION vali-sdk/bin
 )
 
-add_library(m SHARED ${ASM_SOURCES} ${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES})
-set_target_properties(m
-    PROPERTIES
-        COMPILE_FLAGS "-D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL"
-        LINK_FLAGS "-Xlinker -def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def -Xlinker -noentry"
-        #LINK_LIBRARIES ""
-        #VERSION ${PROJECT_VERSION}
-        #PUBLIC_HEADER include/mylib.h
+add_library(m SHARED
+        ${ASM_SOURCES}
+        ${C_ARCH_SOURCES}
+        ${C_SOURCES}
+        ${EXTRA_SOURCES}
 )
+target_include_directories(m PUBLIC include)
+target_include_directories(m PRIVATE ../libc/include)
+target_compile_definitions(m PRIVATE -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL)
+target_link_options(m PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def,-noentry")
 
 install(TARGETS m
     ARCHIVE DESTINATION vali-sdk/lib

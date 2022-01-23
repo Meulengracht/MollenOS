@@ -72,6 +72,7 @@ macro (merge_libraries)
 endmacro ()
 
 # COMPILER-RT
+include (ExternalProject)
 ExternalProject_Add(compiler-rt
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compiler-rt
     CMAKE_ARGS
