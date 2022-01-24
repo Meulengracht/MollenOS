@@ -37,17 +37,6 @@ set (GENERATED_SOURCES
 )
 set_source_files_properties ( ${GENERATED_SOURCES} PROPERTIES GENERATED TRUE )
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libds/include
-    ../../librt/libc/include
-    ../../include
-    ./include
-)
-
 set(ASM_SOURCES
     arch/${VALI_ARCH}/_io.s
 )
@@ -82,6 +71,7 @@ target_include_directories(libddk
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/vali-ddk/include>"
 )
+target_include_directories(libddk PRIVATE ../libgracht/include ../libc/include ../libusb/include ../libds/include)
 
 install(TARGETS libddk
     EXPORT ddk_targets

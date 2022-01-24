@@ -82,7 +82,6 @@ int vafs_directory_create_root(
     struct VaFsDirectory** directoryOut)
 {
     struct VaFsDirectoryWriter* directory;
-    int                         status;
     
     if (vafs == NULL || directoryOut == NULL) {
         errno = EINVAL;
@@ -100,7 +99,7 @@ int vafs_directory_create_root(
     directory->Base.Name = strdup("root");
     __initialize_directory_descriptor(&directory->Base.Descriptor);
 
-    *directoryOut = &directory->Base;
+    *directoryOut = (struct VaFsDirectory*)directory;
     return 0;
 }
 
@@ -127,7 +126,7 @@ static int __read_descriptor(
     int               status;
     int               size;
 
-    if (reader == NULL || buffer == NULL || nameOut == NULL) {
+    if (buffer == NULL || nameOut == NULL) {
         errno = EINVAL;
         return -1;
     }
@@ -168,7 +167,7 @@ static int __read_descriptor(
             VAFS_DEBUG("__read_descriptor: read %u/%u bytes, reading descriptor extension data\n",
                 size, base->Length);
 
-            // read name, todo other data will come here in future
+            // read name, other data will come here in future
             char* name = (char*)malloc(base->Length - size + 1); // include a byte for zero termination
             if (!name) {
                 VAFS_ERROR("__read_descriptor: failed to allocate name buffer: %i\n", status);
@@ -268,11 +267,6 @@ static int __load_directory(
     int                   status;
     int                   i;
 
-    if (reader == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-
     VAFS_DEBUG("__load_directory(directory=%s)\n", reader->Base.Name);
 
     // if the directory has no entries, we can skip loading it
@@ -354,7 +348,6 @@ int vafs_directory_open_root(
     struct VaFsDirectory** directoryOut)
 {
     struct VaFsDirectoryReader* reader;
-    int                         status;
     
     if (vafs == NULL || position == NULL || directoryOut == NULL) {
         errno = EINVAL;
@@ -375,7 +368,7 @@ int vafs_directory_open_root(
     reader->Base.Name = strdup("root");
     reader->State     = VaFsDirectoryState_Open;
 
-    *directoryOut = &reader->Base;
+    *directoryOut = (struct VaFsDirectory*)reader;
     return 0;
 }
 
@@ -419,7 +412,7 @@ static int __get_path_token(
         token[j] = path[i];
     }
     token[j] = '\0';
-    return i;
+    return (int)i;
 }
 
 static struct VaFsDirectoryEntry* __get_first_entry(
@@ -445,7 +438,7 @@ static struct VaFsDirectoryEntry* __get_first_entry(
 static int __is_root(
     const char* path)
 {
-    int len = strlen(path);
+    size_t len = strlen(path);
     if (len == 1 && path[0] == '/') {
         return 1;
     }
@@ -620,7 +613,7 @@ int vafs_directory_flush(
     VAFS_DEBUG("vafs_directory_flush(name=%s)\n", directory->Name);
 
     // We must flush all subdirectories first to initalize their
-    // index and offset. Otherwise we will be writing empty descriptors
+    // index and offset. Otherwise, we will be writing empty descriptors
     // for subdirectories.
     entry = writer->Entries;
     while (entry != NULL) {
@@ -680,9 +673,8 @@ int vafs_directory_read(
     struct VaFsDirectoryHandle* handle,
     struct VaFsEntry*           entryOut)
 {
-    struct VaFsDirectoryEntry*  entry;
-    int                         status;
-    int                         i;
+    struct VaFsDirectoryEntry* entry;
+    int                        i;
     VAFS_INFO("vafs_directory_read(handle=%p)\n", handle);
 
     if (handle == NULL || entryOut == NULL) {
@@ -854,7 +846,6 @@ int vafs_directory_open_directory(
     struct VaFsDirectoryHandle** handleOut)
 {
     struct VaFsDirectoryEntry* entry;
-    const char*                remainingPath = name;
     char                       token[128];
 
     if (handle == NULL || name == NULL || handleOut == NULL) {
@@ -902,7 +893,6 @@ int vafs_directory_open_file(
     struct VaFsFileHandle**     handleOut)
 {
     struct VaFsDirectoryEntry* entry;
-    const char*                remainingPath = name;
     char                       token[128];
     VAFS_DEBUG("vafs_directory_open_file(name=%s)\n", name);
 

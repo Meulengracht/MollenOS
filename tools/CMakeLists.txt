@@ -24,4 +24,4 @@ add_host_project (file2c)
 # build native tool projects
 set (VAFS_BUILD_TOOLS OFF CACHE BOOL "Disable vafs tools for native build")
 add_subdirectory (rd)
-add_dependencies(vafs c)
+target_link_libraries(vafs c)

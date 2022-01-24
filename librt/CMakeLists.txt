@@ -130,4 +130,3 @@ install(EXPORT ddk_targets
     NAMESPACE ValiDDK::
     DESTINATION vali-ddk/lib/cmake
 )
-

@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
     }
     
     
-    status = vafs_open(imagePath, &vafsHandle);
+    status = vafs_open_file(imagePath, &vafsHandle);
     if (status) {
         fprintf(stderr, "unmkvafs: cannot open vafs image: %s\n", imagePath);
         return -1;

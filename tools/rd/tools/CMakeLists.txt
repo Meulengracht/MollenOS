@@ -3,7 +3,6 @@
 
 # build a list of additional libraries to link against
 set(ADDITIONAL_LIBS vafs)
-set(ADDITIONAL_INCLUDES ../libvafs/include)
 set(ADDITIONAL_DEFINES)
 
 # add platform libraries
@@ -21,7 +20,6 @@ add_executable(mkvafs
     mkvafs.c
     filter.c
 )
-target_include_directories(mkvafs PRIVATE ${ADDITIONAL_INCLUDES})
 target_compile_definitions(mkvafs PRIVATE ${ADDITIONAL_DEFINES})
 target_link_libraries(mkvafs ${ADDITIONAL_LIBS})
 
@@ -31,7 +29,6 @@ add_executable(unmkvafs
     unmkvafs.c
     filter.c
 )
-target_include_directories(unmkvafs PRIVATE ${ADDITIONAL_INCLUDES})
 target_compile_definitions(unmkvafs PRIVATE ${ADDITIONAL_DEFINES})
 target_link_libraries(unmkvafs ${ADDITIONAL_LIBS})
 

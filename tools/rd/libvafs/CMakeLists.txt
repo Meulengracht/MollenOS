@@ -8,3 +8,4 @@ add_library(vafs STATIC
     streamdevice.c
 )
 target_include_directories(vafs PRIVATE include/vafs)
+target_include_directories(vafs PUBLIC include)

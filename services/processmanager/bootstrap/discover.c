@@ -21,62 +21,40 @@
 
 #define __TRACE
 
-#include <ddk/crc32.h>
-#include <ddk/ramdisk.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <ds/list.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "pe.h"
 #include "process.h"
+#include <vafs/vafs.h>
 
-struct RamdiskFile {
-    element_t   ListHeader;
-    MString_t*  Name;
-    const void* Data;
-    size_t      DataLength;
-    int         IsService;
-};
+extern int __handle_filter(struct VaFs* vafs);
 
 static void*  g_ramdiskBuffer = NULL;
 static size_t g_ramdiskSize   = 0;
-static list_t g_ramdiskFiles  = LIST_INIT;
 
-static OsStatus_t
-__ParseRamdiskFile(
-        _In_ const uint8_t*         name,
-        _In_ RamdiskModuleHeader_t* moduleHeader)
+static int
+__EndsWith(
+        _In_ const char* str,
+        _In_ const char* suffix)
 {
-    struct RamdiskFile* ramdiskFile;
-    uint8_t*            moduleData;
-    uint32_t            crcOfData;
-    TRACE("__ParseRamdiskFile(name=%s)", name);
+    size_t lenstr;
+    size_t lensuffix;
 
-    // calculate CRC32 of data
-    moduleData = (uint8_t*)((uintptr_t)moduleHeader + sizeof(RamdiskModuleHeader_t));
-    crcOfData  = Crc32Calculate(-1, moduleData, moduleHeader->LengthOfData);
-    if (crcOfData != moduleHeader->Crc32OfData) {
-        ERROR("__ParseRamdiskModule crc validation failed!");
-        return OsError;
+    if (!str || !suffix){
+        return 0;
     }
 
-    // we found a file
-    ramdiskFile = malloc(sizeof(struct RamdiskFile));
-    if (!ramdiskFile) {
-        ERROR("__ParseRamdiskFile ran out of memory for file entry allocation");
-        return OsOutOfMemory;
+    lenstr = strlen(str);
+    lensuffix = strlen(suffix);
+    if (lensuffix >  lenstr) {
+        return 0;
     }
 
-    ELEMENT_INIT(&ramdiskFile->ListHeader, 0, ramdiskFile);
-
-    ramdiskFile->Name = MStringCreate("rd:/", StrUTF8);
-    MStringAppendCharacters(ramdiskFile->Name, (const char*)name, StrUTF8);
-
-    ramdiskFile->Data       = moduleData;
-    ramdiskFile->DataLength = moduleHeader->LengthOfData;
-    ramdiskFile->IsService  = (moduleHeader->Flags & RAMDISK_MODULE_SERVER) != 0 ? 1 : 0;
-    list_append(&g_ramdiskFiles, &ramdiskFile->ListHeader);
-    return OsSuccess;
+    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
 static OsStatus_t
@@ -84,53 +62,45 @@ __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
 {
-    RamdiskHeader_t* header;
-    RamdiskEntry_t*  entry;
-    OsStatus_t       osStatus;
-    int              i;
+    struct VaFsDirectoryHandle* directoryHandle;
+    struct VaFsEntry            entry;
+    struct VaFs*                vafs;
+    int                         status;
+    char*                       pathBuffer;
+    OsStatus_t                  osStatus;
+    ProcessConfiguration_t      processConfiguration;
 
-    TRACE("__ParseRamdisk(buffer=0x%" PRIxIN ", size=0x%" PRIxIN ")",
-          ramdiskBuffer, ramdiskSize);
-
-    header = ramdiskBuffer;
-    if (header->Magic != RAMDISK_MAGIC) {
-        ERROR("__ParseRamdisk invalid header magic");
+    status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
+    if (status) {
         return OsError;
     }
 
-    if (header->Version != RAMDISK_VERSION_1) {
-        ERROR("__ParseRamdisk invalid header version");
-        return OsError;
+    status = __handle_filter(vafs);
+    if (status) {
+        vafs_close(vafs);
+        return OsNotSupported;
     }
 
-    entry = (RamdiskEntry_t*)((uintptr_t)ramdiskBuffer + sizeof(RamdiskHeader_t));
-    for (i = 0; i < header->FileCount; i++, entry++) {
-        if (entry->Type == RAMDISK_MODULE || entry->Type == RAMDISK_FILE) {
-            RamdiskModuleHeader_t* moduleHeader =
-                    (RamdiskModuleHeader_t*)((uintptr_t)ramdiskBuffer + entry->DataHeaderOffset);
-            osStatus = __ParseRamdiskFile(&entry->Name[0], moduleHeader);
-            if (osStatus != OsSuccess) {
-                return osStatus;
-            }
-        }
+    status = vafs_directory_open(vafs, "/services", &directoryHandle);
+    if (status) {
+        vafs_close(vafs);
+        return OsNotSupported;
     }
-    return OsSuccess;
-}
 
-static void
-__SpawnServices(void)
-{
-    UUId_t                 handle;
-    ProcessConfiguration_t processConfiguration;
-    TRACE("__SpawnServices()");
+    pathBuffer = malloc(128);
+    if (!pathBuffer) {
+        vafs_close(vafs);
+        return OsOutOfMemory;
+    }
 
     ProcessConfigurationInitialize(&processConfiguration);
+    while (vafs_directory_read(directoryHandle, &entry) == 0) {
+        if (!__EndsWith(entry.Name, ".dll")) {
+            UUId_t handle;
 
-    foreach (i, &g_ramdiskFiles) {
-        struct RamdiskFile* file = i->value;
-        if (file->IsService) {
-            OsStatus_t osStatus = PmCreateProcessInternal(
-                    MStringRaw(file->Name),
+            snprintf(pathBuffer, 128-1, "/services/%s", entry.Name);
+            osStatus = PmCreateProcessInternal(
+                    (const char*)pathBuffer,
                     NULL,
                     NULL,
                     &processConfiguration,
@@ -138,10 +108,14 @@ __SpawnServices(void)
                     &handle
             );
             if (osStatus != OsSuccess) {
-                WARNING("__SpawnServices failed to spawn service %s", MStringRaw(file->Name));
+                WARNING("__ParseRamdisk failed to spawn service %s", pathBuffer);
             }
         }
     }
+
+    free(pathBuffer);
+    vafs_close(vafs);
+    return OsSuccess;
 }
 
 void PmBootstrap(void)
@@ -158,20 +132,15 @@ void PmBootstrap(void)
         return;
     }
 
-    // Initialize the CRC32 table
-    Crc32GenerateTable();
-
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
     if (osStatus != OsSuccess) {
         ERROR("ProcessBootstrap failed to parse ramdisk");
         return;
     }
-    __SpawnServices();
 
     // store buffer and size for later cleanup
     g_ramdiskBuffer = ramdisk;
     g_ramdiskSize   = ramdiskSize;
-
 }
 
 void

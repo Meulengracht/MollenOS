@@ -69,7 +69,7 @@ int vafs_streamdevice_open_file(
     struct VaFsStreamDevice* device;
     FILE*                    handle;
 
-    if (path == NULL  || device == NULL) {
+    if (path == NULL  || deviceOut == NULL) {
         errno = EINVAL;
         return -1;
     }
@@ -122,7 +122,7 @@ int vafs_streamdevice_create_file(
     struct VaFsStreamDevice* device;
     FILE*                    handle;
 
-    if (path == NULL  || device == NULL) {
+    if (path == NULL  || deviceOut == NULL) {
         errno = EINVAL;
         return -1;
     }
@@ -394,10 +394,7 @@ int vafs_streamdevice_copy(
         else if (source->Type == STREAMDEVICE_MEMORY) {
             memcpy(destination->Memory.Buffer + destination->Memory.Position, source->Memory.Buffer, sourceSize);
         }
-
-        if (!status) {
-            destination->Memory.Position += sourceSize;
-        }
+        destination->Memory.Position += sourceSize;
     }
 
     return status;

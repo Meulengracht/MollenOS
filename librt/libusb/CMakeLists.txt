@@ -2,19 +2,10 @@
 project (ValiUSB)
 enable_language (C)
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ../libgracht/include
-    ../libddk/include
-    ../libds/include
-    ../libc/include
-    ./include
-)
-
 add_library(libusb functions.c)
-add_dependencies(libusb libddk)
+target_link_libraries(libusb PUBLIC libddk)
 
+target_include_directories(libusb PRIVATE ../libc/include ../libds/include ../libgracht/include)
 target_include_directories(libusb
     PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

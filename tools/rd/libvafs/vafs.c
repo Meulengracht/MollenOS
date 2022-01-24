@@ -62,7 +62,6 @@ int vafs_feature_add(
     struct VaFs*              vafs,
     struct VaFsFeatureHeader* feature)
 {
-    int status;
     int i;
 
     if (vafs == NULL || feature == NULL) {
@@ -100,7 +99,6 @@ int vafs_feature_query(
     struct VaFsGuid*           guid,
     struct VaFsFeatureHeader** featureOut)
 {
-    int status;
     int i;
 
     if (vafs == NULL || guid == NULL || featureOut == NULL) {
@@ -157,7 +155,7 @@ static struct VaFsFeatureHeader* __load_feature(
         return NULL;
     }
 
-    status = vafs_streamdevice_seek(vafs->ImageDevice, offset, SEEK_SET);
+    status = (int)vafs_streamdevice_seek(vafs->ImageDevice, offset, SEEK_SET);
     if (status < 0) {
         VAFS_ERROR("__load_feature: failed to seek to offset %i\n", offset);
         free(feature);
@@ -249,23 +247,20 @@ static void __initialize_header(
 
 static int __initialize_imagestream(
     struct VaFs*             vafs,
-    const char*              path,
+    struct VaFsStreamDevice* imageDevice,
     enum VaFsArchitecture    architecture)
 {
     int status;
 
-    VAFS_DEBUG("__initialize_imagestream: path: %s\n", path);
+    VAFS_DEBUG("__initialize_imagestream()\n");
+
     // initalize the underlying stream device, if we are opening
     // an existing image, we need to read and verify the header
+    vafs->ImageDevice = imageDevice;
+
     if (vafs->Mode == VaFsMode_Read) {
         size_t read;
 
-        status = vafs_streamdevice_open_file(path, &vafs->ImageDevice);
-        if (status) {
-            VAFS_ERROR("__initialize_imagestream: failed to open image file: %i\n", status);
-            return status;
-        }
-        
         status = vafs_streamdevice_read(vafs->ImageDevice, &vafs->Header, sizeof(VaFsHeader_t), &read);
         if (status) {
             VAFS_ERROR("__initialize_imagestream: failed to read image header: %i\n", status);
@@ -281,12 +276,6 @@ static int __initialize_imagestream(
         status = __load_features(vafs);
     }
     else {
-        status = vafs_streamdevice_create_file(path, &vafs->ImageDevice);
-        if (status) {
-            VAFS_ERROR("__initialize_imagestream: failed to create image file: %i\n", status);
-            return status;
-        }
-
         __initialize_header(vafs, architecture);
     }
     return status;
@@ -299,7 +288,7 @@ static int __initialize_fsstreams_read(
     
     VAFS_DEBUG("__initialize_fsstreams_read: vafs: %p\n", vafs);
     // create the descriptor and data streams, when reading we do not
-    // provide any compression parameter as its set on block level.
+    // provide any compression parameter as it's set on block level.
     status = vafs_stream_create(
         vafs->ImageDevice, 
         vafs->Header.DescriptorBlockOffset,
@@ -375,15 +364,14 @@ static int __initialize_fsstreams(
 
 static int __new_vafs(
     enum VaFsMode            mode,
-    const char*              path,
+    struct VaFsStreamDevice* imageDevice,
     enum VaFsArchitecture    architecture,
     struct VaFs**            vafsOut)
 {
     struct VaFs*       vafs;
-    struct VaFsStream* stream;
     int                status;
 
-    if (path == NULL || vafsOut == NULL) {
+    if (imageDevice == NULL || vafsOut == NULL) {
         errno = EINVAL;
         return -1;
     }
@@ -409,7 +397,7 @@ static int __new_vafs(
     }
 
     // try to create the output file, otherwise do not continue
-    status = __initialize_imagestream(vafs, path, architecture);
+    status = __initialize_imagestream(vafs, imageDevice, architecture);
     if (status) {
         VAFS_ERROR("__new_vafs: failed to initialize image stream: %i\n", status);
         vafs_destroy(vafs);
@@ -440,20 +428,54 @@ static int __new_vafs(
 }
 
 int vafs_create(
-    const char*              path,
-    enum VaFsArchitecture    architecture,
-    struct VaFs**            vafsOut)
+    const char*           path,
+    enum VaFsArchitecture architecture,
+    struct VaFs**         vafsOut)
 {
+    struct VaFsStreamDevice* imageDevice;
+    int                      status;
+
     VAFS_INFO("vafs_create: creating new image file\n");
-    return __new_vafs(VaFsMode_Write, path, architecture, vafsOut);
+
+    status = vafs_streamdevice_create_file(path, &imageDevice);
+    if (status) {
+        VAFS_ERROR("vafs_create: failed to create image file: %i\n", status);
+        return status;
+    }
+    return __new_vafs(VaFsMode_Write, imageDevice, architecture, vafsOut);
 }
 
-int vafs_open(
+int vafs_open_file(
     const char*   path,
     struct VaFs** vafsOut)
 {
-    VAFS_INFO("vafs_open: opening existing image file\n");
-    return __new_vafs(VaFsMode_Read, path, 0, vafsOut);
+    struct VaFsStreamDevice* imageDevice;
+    int                      status;
+    VAFS_INFO("vafs_open_file: opening existing image file\n");
+
+    status = vafs_streamdevice_open_file(path, &imageDevice);
+    if (status) {
+        VAFS_ERROR("vafs_open_file: failed to open image file: %i\n", status);
+        return status;
+    }
+    return __new_vafs(VaFsMode_Read, imageDevice, 0, vafsOut);
+}
+
+int vafs_open_memory(
+        const void*   buffer,
+        size_t        size,
+        struct VaFs** vafsOut)
+{
+    struct VaFsStreamDevice* imageDevice;
+    int                      status;
+    VAFS_INFO("vafs_open_memory: parsing image buffer\n");
+
+    status = vafs_streamdevice_open_memory(buffer, size, &imageDevice);
+    if (status) {
+        VAFS_ERROR("vafs_open_file: failed to parse image buffer: %i\n", status);
+        return status;
+    }
+    return __new_vafs(VaFsMode_Read, imageDevice, 0, vafsOut);
 }
 
 static int __write_vafs_features(

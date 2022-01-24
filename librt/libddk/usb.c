@@ -29,6 +29,8 @@
 #include <internal/_utils.h>
 #include <gracht/server.h>
 
+#include <sys_usb_service_client.h>
+
 extern int __crt_get_server_iod(void);
 
 OsStatus_t

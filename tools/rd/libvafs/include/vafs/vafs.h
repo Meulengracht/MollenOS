@@ -135,9 +135,23 @@ extern int vafs_create(
  * @param[Out] vafsOut A pointer where the handle of the filesystem instance will be stored.
  * @return int 0 on success, -1 on failure. See errno for more details.
  */
-extern int vafs_open(
+extern int vafs_open_file(
     const char*   path,
     struct VaFs** vafsOut);
+
+/**
+ * @brief Opens an existing filesystem image. The image handle only permits operations that read
+ * from the image. All images that are created by this library are read-only.
+ *
+ * @param[In]  buffer  Pointer to the filesystem image buffer.
+ * @param[In]  size    Size of the filesystem image buffer.
+ * @param[Out] vafsOut A pointer where the handle of the filesystem instance will be stored.
+ * @return int 0 on success, -1 on failure. See errno for more details.
+ */
+extern int vafs_open_memory(
+        const void*   buffer,
+        size_t        size,
+        struct VaFs** vafsOut);
 
 /**
  * @brief Closes the filesystem handle. If the image was just created, the data streams are kept in 

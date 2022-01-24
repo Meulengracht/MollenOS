@@ -11,19 +11,6 @@ else ()
     message(FATAL "phoenix: unsupported architecture ${VALI_ARCH}")
 endif ()
 
-# Configure include paths
-include_directories (
-        ${CMAKE_BINARY_DIR}
-        ${CMAKE_BINARY_DIR}/protocols
-        ${CMAKE_CURRENT_BINARY_DIR}
-        ../../librt/libgracht/include
-        ../../librt/libusb/include
-        ../../librt/libddk/include
-        ../../librt/libds/include
-        ../../librt/libc/include
-        include
-)
-
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_library_service_server.c
     ${CMAKE_BINARY_DIR}/protocols/sys_process_service_server.c
@@ -34,6 +21,7 @@ add_executable (phoenix
         ${ADDITONAL_SOURCES}
 
         bootstrap/discover.c
+        bootstrap/filter.c
 
         pe/glue.c
         pe/load.c
@@ -49,13 +37,14 @@ add_executable (phoenix
         requests.c
 )
 
+target_include_directories(phoenix PRIVATE include)
+target_compile_options(phoenix PRIVATE -nostdlib -Wno-address-of-packed-member)
+target_compile_definitions(phoenix PRIVATE -D__SERVICE_IMPL)
+target_link_options(phoenix PRIVATE "LINKER:-entry:__phoenix_main,-fixed-base:\"${PHOENIX_BASE_ADDRESS}\"")
 set_target_properties (phoenix
         PROPERTIES
-            COMPILE_OPTIONS "-nostdlib;-Wno-address-of-packed-member"
-            COMPILE_DEFINITIONS "__SERVICE_IMPL"
-            LINK_FLAGS "-Xlinker -entry:__phoenix_main -Xlinker -fixed -Xlinker -base:\"${PHOENIX_BASE_ADDRESS}\""
             OUTPUT_NAME "phoenix"
             SUFFIX ".mos"
 )
-target_link_libraries (phoenix libc libm libds libddk librt gracht_static)
+target_link_libraries (phoenix libds libddk librt gracht_static vafs libc libm)
 add_dependencies(phoenix service_servers)
