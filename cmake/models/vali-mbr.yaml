@@ -4,18 +4,18 @@ size: 2GB
 
 # initialize partitions for disk
 partitions:
-  - label: vali-system
+  - label: vali-boot
     type: MFS
     guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
     # attributes can be: boot, readonly, shadow, noautomount
     attributes:
       - boot
       - readonly
-      - readonly
+      - noautomount
     size: 128MB
     sources:
       - type: dir
-        path: deploy/hdd/system
+        path: deploy/hdd/boot
         target: /
 
   - label: vali-data

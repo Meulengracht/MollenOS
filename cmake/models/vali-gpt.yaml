@@ -4,7 +4,7 @@ size: 2GB
 
 # initialize partitions for disk
 partitions:
-  - label: vali-efi
+  - label: vali-boot
     type: FAT  # FAT16 for any size less than 512mb, size must be above 64mb
     guid: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     size: 128MB
@@ -13,28 +13,14 @@ partitions:
         path: boot/bin/VBOOT.efi
         target: /EFI/BOOT/BOOTX64.EFI
       - type: file
-        path: deploy/hdd/system/kernel.mos
+        path: deploy/hdd/boot/kernel.mos
         target: /EFI/vali/kernel.mos
       - type: file
-        path: deploy/hdd/system/initrd.mos
+        path: deploy/hdd/boot/initrd.mos
         target: /EFI/vali/initrd.mos
       - type: file
-        path: deploy/hdd/system/phoenix.mos
+        path: deploy/hdd/boot/phoenix.mos
         target: /EFI/vali/phoenix.mos
-  
-  - label: vali-system
-    type: MFS
-    guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
-    # attributes can be: boot, readonly, shadow, noautomount
-    attributes:
-      - boot
-      - readonly
-    size: 128MB
-    sources:
-      - type: dir
-        path: deploy/hdd/system
-        target: /
-  
   - label: vali-data
     type: MFS
     guid: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
