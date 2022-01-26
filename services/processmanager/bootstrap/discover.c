@@ -33,8 +33,9 @@
 
 extern int __handle_filter(struct VaFs* vafs);
 
-static void*  g_ramdiskBuffer = NULL;
-static size_t g_ramdiskSize   = 0;
+static struct VaFs* g_vafs          = NULL;
+static void*        g_ramdiskBuffer = NULL;
+static size_t       g_ramdiskSize   = 0;
 
 static int
 __EndsWith(
@@ -64,32 +65,31 @@ __ParseRamdisk(
 {
     struct VaFsDirectoryHandle* directoryHandle;
     struct VaFsEntry            entry;
-    struct VaFs*                vafs;
     int                         status;
     char*                       pathBuffer;
     OsStatus_t                  osStatus;
     ProcessConfiguration_t      processConfiguration;
 
-    status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
+    status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
     if (status) {
         return OsError;
     }
 
-    status = __handle_filter(vafs);
+    status = __handle_filter(g_vafs);
     if (status) {
-        vafs_close(vafs);
+        vafs_close(g_vafs);
         return OsNotSupported;
     }
 
-    status = vafs_directory_open(vafs, "/services", &directoryHandle);
+    status = vafs_directory_open(g_vafs, "/services", &directoryHandle);
     if (status) {
-        vafs_close(vafs);
+        vafs_close(g_vafs);
         return OsNotSupported;
     }
 
     pathBuffer = malloc(128);
     if (!pathBuffer) {
-        vafs_close(vafs);
+        vafs_close(g_vafs);
         return OsOutOfMemory;
     }
 
@@ -114,7 +114,6 @@ __ParseRamdisk(
     }
 
     free(pathBuffer);
-    vafs_close(vafs);
     return OsSuccess;
 }
 
@@ -132,15 +131,15 @@ void PmBootstrap(void)
         return;
     }
 
+    // store buffer and size for later cleanup
+    g_ramdiskBuffer = ramdisk;
+    g_ramdiskSize   = ramdiskSize;
+
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
     if (osStatus != OsSuccess) {
         ERROR("ProcessBootstrap failed to parse ramdisk");
         return;
     }
-
-    // store buffer and size for later cleanup
-    g_ramdiskBuffer = ramdisk;
-    g_ramdiskSize   = ramdiskSize;
 }
 
 void
@@ -154,6 +153,7 @@ PmBootstrapCleanup(void)
             ERROR("PmBootstrapCleanup failed to free the ramdisk memory");
         }
     }
+    vafs_close(g_vafs);
 }
 
 OsStatus_t
