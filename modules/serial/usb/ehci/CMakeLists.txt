@@ -30,4 +30,4 @@ add_module_target(ehci ""
     transfer_isoc.c
 )
 target_link_libraries(ehci usb-common)
-deploy_to_initrd(ehci ON)
+deploy_file_to_initrd(ehci "modules" ehci.yaml)

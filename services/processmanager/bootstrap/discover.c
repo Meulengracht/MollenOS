@@ -21,17 +21,15 @@
 
 #define __TRACE
 
+#include <ddk/initrd.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>
-#include <ds/list.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "pe.h"
 #include "process.h"
 #include <vafs/vafs.h>
-
-extern int __handle_filter(struct VaFs* vafs);
 
 static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
@@ -69,13 +67,14 @@ __ParseRamdisk(
     char*                       pathBuffer;
     OsStatus_t                  osStatus;
     ProcessConfiguration_t      processConfiguration;
+    TRACE("__ParseRamdisk()");
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
     if (status) {
         return OsError;
     }
 
-    status = __handle_filter(g_vafs);
+    status = DdkInitrdHandleVafsFilter(g_vafs);
     if (status) {
         vafs_close(g_vafs);
         return OsNotSupported;
@@ -89,6 +88,7 @@ __ParseRamdisk(
 
     pathBuffer = malloc(128);
     if (!pathBuffer) {
+        vafs_directory_close(directoryHandle);
         vafs_close(g_vafs);
         return OsOutOfMemory;
     }
@@ -98,7 +98,8 @@ __ParseRamdisk(
         if (!__EndsWith(entry.Name, ".dll")) {
             UUId_t handle;
 
-            snprintf(pathBuffer, 128-1, "/services/%s", entry.Name);
+            snprintf(pathBuffer, 128-1, "rd:/services/%s", entry.Name);
+            TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);
             osStatus = PmCreateProcessInternal(
                     (const char*)pathBuffer,
                     NULL,
@@ -113,6 +114,8 @@ __ParseRamdisk(
         }
     }
 
+    // close the directory and cleanup
+    vafs_directory_close(directoryHandle);
     free(pathBuffer);
     return OsSuccess;
 }
@@ -147,13 +150,15 @@ PmBootstrapCleanup(void)
 {
     OsStatus_t osStatus;
 
+    // close the vafs handle before freeing the buffer
+    vafs_close(g_vafs);
+
     if (g_ramdiskBuffer && g_ramdiskSize) {
         osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
         if (osStatus != OsSuccess) {
             ERROR("PmBootstrapCleanup failed to free the ramdisk memory");
         }
     }
-    vafs_close(g_vafs);
 }
 
 OsStatus_t
@@ -162,15 +167,64 @@ PmBootstrapFindRamdiskFile(
         _Out_ void**     bufferOut,
         _Out_ size_t*    bufferSizeOut)
 {
+    struct VaFsDirectoryHandle* directoryHandle;
+    struct VaFsFileHandle*      fileHandle;
+    char*                       internPath;
+    char*                       internFilename;
+    int                         status;
+    char                        tempbuf[64] = { 0 };
+
     TRACE("PmBootstrapFindRamdiskFile(path=%s)", MStringRaw(path));
 
-    foreach (i, &g_ramdiskFiles) {
-        struct RamdiskFile* file = i->value;
-        if (MStringCompare(file->Name, path, 0) == MSTRING_FULL_MATCH) {
-            if (bufferOut) *bufferOut = (void*)file->Data;
-            if (bufferSizeOut) *bufferSizeOut = file->DataLength;
-            return OsSuccess;
-        }
+    // skip the rd:/ prefix
+    internPath = strchr(MStringRaw(path), '/');
+    internFilename = strrchr(MStringRaw(path), '/');
+
+    // Ok, so max out at len(tempbuf) - 1, but minimum 1 char to include the initial '/'
+    strncpy(
+            &tempbuf[0],
+            internPath,
+            MAX(1, MIN(internFilename - internPath, sizeof(tempbuf) - 1))
+    );
+
+    // skip the starting '/'
+    internFilename++;
+
+    status = vafs_directory_open(g_vafs, &tempbuf[0], &directoryHandle);
+    if (status) {
+        ERROR("PmBootstrapFindRamdiskFile failed to open service folder, corrupt image buffer");
+        return OsError;
     }
-    return OsDoesNotExist;
+
+    // now lets access the file
+    status = vafs_directory_open_file(directoryHandle, internFilename, &fileHandle);
+    if (status) {
+        ERROR("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
+        return OsDoesNotExist;
+    }
+
+    // allocate a buffer for the file, and read the data
+    if (bufferOut && bufferSizeOut)
+    {
+        size_t bytesRead;
+        size_t fileSize = vafs_file_length(fileHandle);
+        void*  fileBuffer = malloc(fileSize);
+        if (!fileBuffer) {
+            return OsError;
+        }
+
+        bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
+        if (bytesRead != fileSize) {
+            WARNING("PmBootstrapFindRamdiskFile read %" PRIuIN "/%" PRIuIN " bytes from file", bytesRead, fileSize);
+        }
+
+        *bufferOut = fileBuffer;
+        *bufferSizeOut = fileSize;
+    }
+
+    // close the file and directory handle
+    vafs_file_close(fileHandle);
+    vafs_directory_close(directoryHandle);
+
+    return OsSuccess;
 }

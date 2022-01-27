@@ -37,6 +37,7 @@ struct VaFsStreamDevice {
             void*  Buffer;
             long   Capacity;
             long   Position;
+            int    Owned;
         } Memory;
         FILE* File;
     };
@@ -91,7 +92,7 @@ int vafs_streamdevice_open_file(
 }
 
 int vafs_streamdevice_open_memory(
-    void*                     buffer,
+    const void*               buffer,
     size_t                    length,
     struct VaFsStreamDevice** deviceOut)
 {
@@ -103,13 +104,13 @@ int vafs_streamdevice_open_memory(
     }
 
     if (__new_streamdevice(STREAMDEVICE_MEMORY, &device)) {
-        free(buffer);
         return -1;
     }
 
-    device->Memory.Buffer = buffer;
-    device->Memory.Capacity = length;
+    device->Memory.Buffer = (void*)buffer;
+    device->Memory.Capacity = (long)length;
     device->Memory.Position = 0;
+    device->Memory.Owned = 0;
     
     *deviceOut = device;
     return 0;
@@ -167,8 +168,9 @@ int vafs_streamdevice_create_memory(
     }
 
     device->Memory.Buffer = buffer;
-    device->Memory.Capacity = blockSize;
+    device->Memory.Capacity = (long)blockSize;
     device->Memory.Position = 0;
+    device->Memory.Owned = 1;
     
     *deviceOut = device;
     return 0;
@@ -185,7 +187,7 @@ int vafs_streamdevice_close(
     if (device->Type == STREAMDEVICE_FILE) {
         fclose(device->File);
     }
-    else if (device->Type == STREAMDEVICE_MEMORY) {
+    else if (device->Type == STREAMDEVICE_MEMORY && device->Memory.Owned) {
         free(device->Memory.Buffer);
     }
 

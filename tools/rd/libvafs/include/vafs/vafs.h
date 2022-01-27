@@ -140,8 +140,9 @@ extern int vafs_open_file(
     struct VaFs** vafsOut);
 
 /**
- * @brief Opens an existing filesystem image. The image handle only permits operations that read
- * from the image. All images that are created by this library are read-only.
+ * @brief Opens an existing filesystem image buffer. The image handle only permits operations that read
+ * from the image. All images that are created by this library are read-only. The image buffer needs to stay
+ * valid for duration of the time the vafs handle is used.
  *
  * @param[In]  buffer  Pointer to the filesystem image buffer.
  * @param[In]  size    Size of the filesystem image buffer.

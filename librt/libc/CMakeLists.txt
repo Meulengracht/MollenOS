@@ -528,4 +528,4 @@ install(DIRECTORY include/ DESTINATION vali-sdk/include
 )
 
 # make sure the C library is deployed as the services/modules depend on it
-deploy_to_initrd(c OFF)
+deploy_target_to_initrd(c)

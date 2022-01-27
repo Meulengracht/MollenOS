@@ -10,12 +10,11 @@ macro (add_filesystem_target)
         list (POP_FRONT SERVICE_SOURCES) # target
 
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
-        set_target_properties (${ARGV0}
-            PROPERTIES
-                LINK_FLAGS "-Xlinker -noentry"
-                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
-        )
+        target_link_options(${ARGV0} PRIVATE "LINKER:-noentry")
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
+        add_custom_command (TARGET ${ARGV0} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
+        )
     else ()
         message (FATAL_ERROR "Not enough parameters for add_module_target")
     endif ()
@@ -31,10 +30,12 @@ macro (add_module_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__DRIVER_IMPL ${ARGV1}"
-                LINK_FLAGS "-Xlinker -entry:__CrtModuleEntry"
-                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
+        target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtModuleEntry")
         target_link_libraries (${ARGV0} gracht libds libddk c librt)
+        add_custom_command (TARGET ${ARGV0} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
+        )
     else ()
         message (FATAL_ERROR "Not enough parameters for add_module_target")
     endif ()

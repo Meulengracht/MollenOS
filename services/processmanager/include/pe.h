@@ -81,7 +81,7 @@ __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN OsStatus_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
 __EXTERN OsStatus_t PeImplLoadFile(MString_t*, void**, size_t*);
-__EXTERN void       PeImplUnloadFile(MString_t*, void*);
+__EXTERN void       PeImplUnloadFile(void*);
 __EXTERN OsStatus_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
 __EXTERN OsStatus_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
 __EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);

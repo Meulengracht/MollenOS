@@ -470,7 +470,7 @@ int vafs_open_memory(
     int                      status;
     VAFS_INFO("vafs_open_memory: parsing image buffer\n");
 
-    status = vafs_streamdevice_open_memory((void*)buffer, size, &imageDevice);
+    status = vafs_streamdevice_open_memory(buffer, size, &imageDevice);
     if (status) {
         VAFS_ERROR("vafs_open_file: failed to parse image buffer: %i\n", status);
         return status;

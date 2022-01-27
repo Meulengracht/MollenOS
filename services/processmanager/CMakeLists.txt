@@ -21,7 +21,6 @@ add_executable (phoenix
         ${ADDITONAL_SOURCES}
 
         bootstrap/discover.c
-        bootstrap/filter.c
 
         pe/glue.c
         pe/load.c

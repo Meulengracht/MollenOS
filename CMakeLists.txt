@@ -52,22 +52,27 @@ if (DEFINED ENV{VALI_APPLICATION_PATH})
 endif ()
 
 # Setup utility macros for targets
-macro (deploy_to_initrd)
-    if ((${ARGC} EQUAL 1) OR (${ARGC} EQUAL 2))
-        # ARGV0 = target
-        # ARGV1 = mdrv on/off
-        if (${ARGC} EQUAL 2 AND ${ARGV1})
-            get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
-            get_target_property(D2RD_DEPLOY_DIR ${ARGV0} RUNTIME_OUTPUT_DIRECTORY)
-            configure_file(${D2RD_SOURCE_DIR}/${ARGV0}.yaml ${D2RD_DEPLOY_DIR}/${ARGV0}.yaml COPYONLY)
-        endif ()
+macro (deploy_target_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_BIN}
+    )
+endmacro ()
 
-        add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_BIN}
-        )
+macro (deploy_file_to_initrd)
+    if (${ARGC} GREATER_EQUAL 3)
+        set (FILES_TO_DEPLOY "${ARGN}")
+        list (POP_FRONT FILES_TO_DEPLOY) # target
+        list (POP_FRONT FILES_TO_DEPLOY) # path
+
+        get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
+        foreach (RD_FILE ${FILES_TO_DEPLOY})
+            add_custom_command (TARGET ${ARGV0} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy "${D2RD_SOURCE_DIR}/${RD_FILE}" "${VALI_PATH_DEPLOY_SYSTEM}/${ARGV1}"
+            )
+        endforeach ()
     else ()
-        message (STATUS "usage: deploy_to_initrd <target> <copy config ON/OFF>")
-        message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_to_initrd")
+        message (STATUS "usage: deploy_file_to_initrd <target> <path> files ...")
+        message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_file_to_initrd")
     endif ()
 endmacro ()
 

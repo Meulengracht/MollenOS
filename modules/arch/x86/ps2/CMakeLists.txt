@@ -33,4 +33,4 @@ add_module_target(ps2 ""
     port.c
 )
 add_dependencies(ps2 contract_servers)
-deploy_to_initrd(ps2 ON)
+deploy_file_to_initrd(ps2 "modules" ps2.yaml)

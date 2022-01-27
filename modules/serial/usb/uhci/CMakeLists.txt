@@ -29,4 +29,4 @@ add_module_target(uhci ""
     transfer_generic.c
 )
 target_link_libraries(uhci usb-common)
-deploy_to_initrd(uhci ON)
+deploy_file_to_initrd(uhci "modules" uhci.yaml)

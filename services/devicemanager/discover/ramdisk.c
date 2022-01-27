@@ -21,18 +21,41 @@
 
 //#define __TRACE
 
-#include <ddk/crc32.h>
-#include <ddk/ramdisk.h>
+#include <ddk/initrd.h>
 #include <ddk/utils.h>
 #include <discover.h>
 #include <ds/mstring.h>
 #include <ramdisk.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <vafs/vafs.h>
+
+static int
+__EndsWith(
+        _In_ const char* str,
+        _In_ const char* suffix)
+{
+    size_t lenstr;
+    size_t lensuffix;
+
+    if (!str || !suffix){
+        return 0;
+    }
+
+    lenstr = strlen(str);
+    lensuffix = strlen(suffix);
+    if (lensuffix >  lenstr) {
+        return 0;
+    }
+
+    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+}
 
 static OsStatus_t
-__ParseRamdiskFile(
-        _In_ const uint8_t*         name,
-        _In_ RamdiskModuleHeader_t* moduleHeader)
+__ParseModuleConfiguration(
+        _In_ struct VaFsDirectoryHandle* directoryHandle,
+        _In_ const char*                 name)
 {
     struct DriverIdentification identification;
 
@@ -49,12 +72,7 @@ __ParseRamdiskFile(
 
     // calculate CRC32 of data
     moduleData = (uint8_t*)((uintptr_t)moduleHeader + sizeof(RamdiskModuleHeader_t));
-    crcOfData  = Crc32Calculate(-1, moduleData, moduleHeader->LengthOfData);
-    if (crcOfData != moduleHeader->Crc32OfData) {
-        ERROR("__ParseRamdiskModule crc validation failed!");
-        return OsError;
-    }
-
+    
     path = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(path, (const char*)name, StrUTF8);
     (void)DmParseDriverYaml(NULL, 0);
@@ -73,37 +91,43 @@ __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
 {
-    RamdiskHeader_t* header;
-    RamdiskEntry_t*  entry;
-    OsStatus_t       osStatus;
-    int              i;
+    struct VaFs*                vafs;
+    struct VaFsDirectoryHandle* directoryHandle;
+    struct VaFsEntry            entry;
+    int                         status;
+    OsStatus_t                  osStatus = OsSuccess;
+    TRACE("__ParseRamdisk()");
 
-    TRACE("__ParseRamdisk(buffer=0x%" PRIxIN ", size=0x%" PRIxIN ")",
-          ramdiskBuffer, ramdiskSize);
-
-    header = ramdiskBuffer;
-    if (header->Magic != RAMDISK_MAGIC) {
-        ERROR("__ParseRamdisk invalid header magic");
+    status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
+    if (status) {
         return OsError;
     }
 
-    if (header->Version != RAMDISK_VERSION_1) {
-        ERROR("__ParseRamdisk invalid header version");
-        return OsError;
+    status = DdkInitrdHandleVafsFilter(vafs);
+    if (status) {
+        vafs_close(vafs);
+        return OsNotSupported;
     }
 
-    entry = (RamdiskEntry_t*)((uintptr_t)ramdiskBuffer + sizeof(RamdiskHeader_t));
-    for (i = 0; i < header->FileCount; i++, entry++) {
-        if (entry->Type == RAMDISK_MODULE) {
-            RamdiskModuleHeader_t* moduleHeader =
-                    (RamdiskModuleHeader_t*)((uintptr_t)ramdiskBuffer + entry->DataHeaderOffset);
-            osStatus = __ParseRamdiskFile(&entry->Name[0], moduleHeader);
+    status = vafs_directory_open(vafs, "/modules", &directoryHandle);
+    if (status) {
+        vafs_close(vafs);
+        return OsNotSupported;
+    }
+
+    while (vafs_directory_read(directoryHandle, &entry) == 0) {
+        if (!__EndsWith(entry.Name, ".dll")) {
+            osStatus = __ParseModuleConfiguration(directoryHandle, entry.Name);
             if (osStatus != OsSuccess) {
-                return osStatus;
+                break;
             }
         }
     }
-    return OsSuccess;
+
+    // close the directory and cleanup
+    vafs_directory_close(directoryHandle);
+    vafs_close(vafs);
+    return osStatus;
 }
 
 void
@@ -120,9 +144,6 @@ DmRamdiskDiscover(void)
         TRACE("DmRamdiskDiscover failed to map ramdisk into address space %u", osStatus);
         return;
     }
-
-    // Initialize the CRC32 table
-    Crc32GenerateTable();
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
     if (osStatus != OsSuccess) {

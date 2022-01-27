@@ -972,7 +972,7 @@ PeLoadImage(
     // Parse the headers, directories and handle them.
     osStatus = PeParseAndMapImage(parent, image, buffer, sizeOfMetaData, sectionAddress,
                                   (int)peHeader->NumSections, directoryPtr);
-    PeImplUnloadFile(fullPath, (void*)buffer);
+    PeImplUnloadFile((void*)buffer);
     if (osStatus != OsSuccess) {
         PeUnloadLibrary(parent, image);
         return OsError;

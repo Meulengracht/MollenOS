@@ -140,8 +140,18 @@ extern int vafs_streamdevice_open_file(
     const char*               path,
     struct VaFsStreamDevice** deviceOut);
 
+/**
+ * @brief Wraps the provided buffer in a streamdevice object. Enabling the use
+ * of the entire stremadevice API for the buffer. The buffer must stay valid untill
+ * vafs_streamdevice_close has been called. This will not free the buffer.
+ *
+ * @param[In]  buffer    A pointer to the image buffer that should be used.
+ * @param[In]  length    The length of the image buffer.
+ * @param[Out] deviceOut A pointer to where to store the handle of the stream device.
+ * @return Returns -1 if any error occured, otherwise 0.
+ */
 extern int vafs_streamdevice_open_memory(
-    void*                     buffer,
+    const void*               buffer,
     size_t                    length,
     struct VaFsStreamDevice** deviceOut);
 

@@ -6,19 +6,6 @@ endif ()
 
 enable_language(C)
 
-# Configure include paths
-include_directories (
-        ${CMAKE_BINARY_DIR}/protocols
-        ${CMAKE_CURRENT_BINARY_DIR}
-        ../../librt/libgracht/include
-        ../../librt/libusb/include
-        ../../librt/libddk/include
-        ../../librt/libds/include
-        ../../librt/libc/include
-        ../../librt/libyaml/include
-        include
-)
-
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_device_service_server.c
     ${CMAKE_BINARY_DIR}/protocols/ctt_driver_service_client.c
@@ -47,6 +34,7 @@ add_service_target(devicemanager ""
         main.c
         requests.c
 )
-target_link_libraries(devicemanager libyaml)
+target_include_directories(devicemanager PRIVATE include)
+target_link_libraries(devicemanager libyaml vafs libds libddk librt gracht_static libc libm)
 add_dependencies(devicemanager service_servers contract_clients)
-deploy_to_initrd(devicemanager ON)
+deploy_file_to_initrd(devicemanager "services" devicemanager.yaml)

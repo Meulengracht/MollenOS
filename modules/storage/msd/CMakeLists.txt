@@ -35,4 +35,4 @@ add_module_target(msd ""
 )
 add_dependencies(msd contract_servers)
 target_link_libraries(msd libusb)
-deploy_to_initrd(msd ON)
+deploy_file_to_initrd(msd "modules" msd.yaml)

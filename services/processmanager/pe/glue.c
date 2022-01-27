@@ -122,7 +122,7 @@ __ResolveRelativePath(
     // Let's test against parent being loaded through the ramdisk
     if (parentPath && MStringFindCString(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
         // create the full path for the ramdisk
-        temporaryResult = MStringCreate("rd:/", StrUTF8);
+        temporaryResult = MStringCreate("rd:/bin/", StrUTF8);
         MStringAppend(temporaryResult, path);
 
         // try to find the file in the ramdisk
@@ -249,16 +249,9 @@ exit:
 
 void
 PeImplUnloadFile(
-        _In_ MString_t* fullPath,
-        _In_ void*      buffer)
+        _In_ void* buffer)
 {
-    // do not free the buffer if the buffer came from the ramdisk
-    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
-        return;
-    }
-
-    // otherwise, we will simply free the buffer,
-    // but when we implement caching we will check if it should stay cached
+    // When we implement caching we will check if it should stay cached
     free(buffer);
 }
 
