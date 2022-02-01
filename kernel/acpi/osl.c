@@ -44,20 +44,22 @@ struct _acpi_osc {
 	ACPI_BUFFER retval;
 };
 
-/* OSI Stuff */
 #define OSI_STRING_LENGTH_MAX 64        /* arbitrary */
 #define OSI_STRING_ENTRIES_MAX 16       /* arbitrary */
 
 typedef struct OsiSetupEntry {
-	char String[OSI_STRING_LENGTH_MAX];
+	char    String[OSI_STRING_LENGTH_MAX];
 	uint8_t Enable;
 } OsiSetupEntry_t;
 
-static OsiSetupEntry_t OsiSetupEntries[OSI_STRING_ENTRIES_MAX] = {
+static OsiSetupEntry_t g_osiFeatures[OSI_STRING_ENTRIES_MAX] = {
 	{"Module Device", 1},
 	{"Processor Device", 1},
 	{"3.0 _SCP Extensions", 1},
 	{"Processor Aggregator Device", 1},
+    {"Linux-Dell-Video", 1},
+    {"Linux-Lenovo-NV-HDMI-Audio", 1},
+    {"Linux-HPI-Hybrid-Graphics", 1},
 };
 
 extern void AcpiUtConvertStringToUuid(char*, UINT8*);
@@ -250,7 +252,7 @@ void AcpiOsiSetup(const char *OsiString)
 			
 			for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++) 
 			{
-				osi = &OsiSetupEntries[i];
+				osi = &g_osiFeatures[i];
 				osi->Enable = 0;
 			}
 			
@@ -262,13 +264,13 @@ void AcpiOsiSetup(const char *OsiString)
 	
 	for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++) 
 	{
-		osi = &OsiSetupEntries[i];
-		if (!strcmp(osi->String, OsiString)) 
+		osi = &g_osiFeatures[i];
+		if (!strcmp(osi->String, OsiString))
 		{
 			osi->Enable = Enable;
 			break;
 		}
-		else if (osi->String[0] == '\0') 
+		else if (osi->String[0] == '\0')
 		{
 			osi->Enable = Enable;
 			strncpy(osi->String, OsiString, OSI_STRING_LENGTH_MAX);
@@ -289,7 +291,7 @@ void AcpiOsiInstall(void)
 	/* Install ALL OSI Interfaces */
 	for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++)
 	{
-		osi = &OsiSetupEntries[i];
+		osi = &g_osiFeatures[i];
 		str = osi->String;
 
 		if (*str == '\0')

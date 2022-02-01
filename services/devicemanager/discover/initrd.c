@@ -25,8 +25,7 @@
 #include <ddk/utils.h>
 #include <discover.h>
 #include <ds/mstring.h>
-#include <ramdisk.h>
-#include <stdio.h>
+#include <configparser.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vafs/vafs.h>
@@ -53,35 +52,89 @@ __EndsWith(
 }
 
 static OsStatus_t
+__ReadFile(
+        _In_  struct VaFsDirectoryHandle* directoryHandle,
+        _In_  const char*                 filename,
+        _Out_ void**                      bufferOut,
+        _Out_ size_t*                     lengthOut)
+{
+    struct VaFsFileHandle* fileHandle;
+    size_t                 bytesRead;
+    size_t                 fileSize;
+    void*                  fileBuffer;
+    int                    status;
+
+    // now lets access the file
+    status = vafs_directory_open_file(directoryHandle, filename, &fileHandle);
+    if (status) {
+        ERROR("__ReadFile file %s was not found", filename);
+        return OsDoesNotExist;
+    }
+
+    // allocate a buffer for the file, and read the data
+    fileSize = vafs_file_length(fileHandle);
+    fileBuffer = malloc(fileSize);
+    if (!fileBuffer) {
+        return OsError;
+    }
+
+    bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
+    if (bytesRead != fileSize) {
+        WARNING("__ReadFile read %" PRIuIN "/%" PRIuIN " bytes from file", bytesRead, fileSize);
+    }
+
+    vafs_file_close(fileHandle);
+    *bufferOut = fileBuffer;
+    *lengthOut = fileSize;
+    return OsSuccess;
+}
+
+static OsStatus_t
 __ParseModuleConfiguration(
         _In_ struct VaFsDirectoryHandle* directoryHandle,
         _In_ const char*                 name)
 {
-    struct DriverIdentification identification;
-
-    MString_t* path;
-    uint8_t*   moduleData;
-    uint32_t   crcOfData;
-    OsStatus_t osStatus;
+    struct DriverConfiguration* driverConfig;
+    MString_t*           path;
+    OsStatus_t           osStatus;
+    void*                buffer;
+    size_t               length;
     TRACE("__ParseRamdiskFile(name=%s)", name);
 
-    // skip services
-    if (moduleHeader->Flags & RAMDISK_MODULE_SERVER) {
-        return OsSuccess;
+    // build the path for the config first
+    path = MStringCreate(name, StrUTF8);
+    if (!path) {
+        return OsOutOfMemory;
     }
 
-    // calculate CRC32 of data
-    moduleData = (uint8_t*)((uintptr_t)moduleHeader + sizeof(RamdiskModuleHeader_t));
-    
-    path = MStringCreate("rd:/", StrUTF8);
-    MStringAppendCharacters(path, (const char*)name, StrUTF8);
-    (void)DmParseDriverYaml(NULL, 0);
+    // we make an assumption here that .dll exists as that was what triggered this function
+    (void)MStringReplace(path, ".dll", ".yaml");
+    osStatus = __ReadFile(directoryHandle, MStringRaw(path), &buffer, &length);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 
-    identification.VendorId  = moduleHeader->VendorId;
-    identification.ProductId = moduleHeader->DeviceId;
-    identification.Class     = moduleHeader->DeviceType;
-    identification.Subclass  = moduleHeader->DeviceSubType;
-    osStatus = DmDiscoverAddDriver(path, &identification, 1);
+    driverConfig = malloc(sizeof(struct DriverConfiguration));
+    if (!driverConfig) {
+        MStringDestroy(path);
+        free(buffer);
+        return OsOutOfMemory;
+    }
+
+    osStatus = DmDriverConfigParseYaml(buffer, length, driverConfig);
+    free(buffer);
+
+    if (osStatus != OsSuccess) {
+        MStringDestroy(path);
+        free(driverConfig);
+        return osStatus;
+    }
+
+    // now we build the actual path to the file itself
+    MStringReset(path, "rd:/modules/", StrUTF8);
+    MStringAppendCharacters(path, (const char*)name, StrUTF8);
+
+    osStatus = DmDiscoverAddDriver(path, driverConfig);
     MStringDestroy(path);
     return osStatus;
 }

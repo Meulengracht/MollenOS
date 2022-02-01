@@ -122,54 +122,29 @@ enum state {
     STATE_STOP
 };
 
-struct yaml_product {
-    element_t list_header;
-    uint32_t  product_id;
-};
-
-struct yaml_vendor {
-    element_t list_header;
-    uint32_t  vendor_id;
-    list_t    products;
-};
-
-struct yaml_resource {
-    element_t list_header;
-    int       type;
-    uintptr_t base;
-    size_t    length;
-};
-
-struct yaml_driver {
-    uint32_t class;
-    uint32_t subclass;
-    list_t vendors;
-    list_t resources;
-};
-
 struct parser_state {
-    enum state            state;
-    struct yaml_driver    driver;
-    struct yaml_vendor*   vendor;
-    struct yaml_resource* resource;
+    enum state             state;
+    struct DriverConfiguration    driver;
+    struct DriverVendor*   vendor;
+    struct DriverResource* resource;
 };
 
 static OsStatus_t
 __AddProduct(
-        _In_ struct yaml_vendor* vendor,
-        _In_ uint32_t            productId)
+        _In_ struct DriverVendor* vendor,
+        _In_ uint32_t             productId)
 {
-    struct yaml_product* product;
+    struct DriverProduct* product;
 
-    product = malloc(sizeof(struct yaml_product));
+    product = malloc(sizeof(struct DriverProduct));
     if (!product) {
         ERROR("__AddProduct out of memory for product!");
         return OsOutOfMemory;
     }
 
-    ELEMENT_INIT(&product->list_header, 0, product);
-    product->product_id = productId;
-    list_append(&vendor->products, &product->list_header);
+    ELEMENT_INIT(&product->ListHeader, 0, product);
+    product->Id = productId;
+    list_append(&vendor->Products, &product->ListHeader);
     return OsSuccess;
 }
 
@@ -334,7 +309,7 @@ __ConsumeEvent(
         case STATE_TYPECLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->driver.class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    s->driver.Class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -349,7 +324,7 @@ __ConsumeEvent(
         case STATE_TYPESUBCLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->driver.subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    s->driver.Subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -386,7 +361,7 @@ __ConsumeEvent(
         case STATE_VENDOR:
             switch (s->state) {
                 case YAML_MAPPING_END_EVENT:
-                    list_append(&s->driver.vendors, &s->vendor->list_header);
+                    list_append(&s->driver.Vendors, &s->vendor->ListHeader);
                     s->vendor = NULL;
                     s->state = STATE_DRIVERVENDORS;
                     break;
@@ -398,14 +373,14 @@ __ConsumeEvent(
 
                 case YAML_SCALAR_EVENT:
                     // Occurs on a new vendor entry
-                    s->vendor = malloc(sizeof(struct yaml_vendor));
+                    s->vendor = malloc(sizeof(struct DriverVendor));
                     if (!s->vendor) {
                         ERROR("__ConsumeEvent out of memory allocating yaml vendor");
                         return -1;
                     }
-                    ELEMENT_INIT(&s->vendor->list_header, 0, s->vendor);
-                    list_construct(&s->vendor->products);
-                    s->vendor->vendor_id = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    ELEMENT_INIT(&s->vendor->ListHeader, 0, s->vendor);
+                    list_construct(&s->vendor->Products);
+                    s->vendor->Id = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
                     break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
@@ -446,13 +421,13 @@ __ConsumeEvent(
 
                 case YAML_MAPPING_START_EVENT:
                     // Occurs on a new resource entry
-                    s->resource = malloc(sizeof(struct yaml_resource));
+                    s->resource = malloc(sizeof(struct DriverResource));
                     if (!s->resource) {
                         ERROR("__ConsumeEvent out of memory allocating yaml resource");
                         return -1;
                     }
-                    memset(s->resource, 0, sizeof(struct yaml_resource));
-                    ELEMENT_INIT(&s->resource->list_header, 0, s->resource);
+                    memset(s->resource, 0, sizeof(struct DriverResource));
+                    ELEMENT_INIT(&s->resource->ListHeader, 0, s->resource);
                     s->state = STATE_RESOURCE;
                     break;
 
@@ -471,7 +446,7 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_MAPPING_END_EVENT:
                     // end of resource
-                    list_append(&s->driver.resources, &s->resource->list_header);
+                    list_append(&s->driver.Resources, &s->resource->ListHeader);
                     s->resource = NULL;
                     s->state = STATE_DRIVERRESOURCES;
                     break;
@@ -498,7 +473,7 @@ __ConsumeEvent(
         case STATE_RESOURCETYPE:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->type = (int)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    s->resource->Type = (int)strtol((const char*)event->data.scalar.value, NULL, 10);
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -510,7 +485,7 @@ __ConsumeEvent(
         case STATE_RESOURCEBASE:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->base = (uintptr_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
+                    s->resource->Base = (uintptr_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -522,7 +497,7 @@ __ConsumeEvent(
         case STATE_RESOURCELENGTH:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->length = (size_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
+                    s->resource->Length = (size_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -537,41 +512,95 @@ __ConsumeEvent(
     return 0;
 }
 
+static void
+__CleanupProduct(
+        _In_ element_t* item,
+        _In_ void*      context)
+{
+    _CRT_UNUSED(context);
+    free(item);
+}
+
+static void
+__CleanupVendor(
+        _In_ element_t* item,
+        _In_ void*      context)
+{
+    struct DriverVendor* vendor = item->value;
+    _CRT_UNUSED(context);
+    list_clear(&vendor->Products, __CleanupProduct, NULL);
+    free(vendor);
+}
+
+static void
+__CleanupResource(
+        _In_ element_t* item,
+        _In_ void*      context)
+{
+    struct DriverResource* resource = item->value;
+    _CRT_UNUSED(context);
+    free(resource);
+}
+
+static void
+__CleanupDriverConfiguration(
+        _In_ struct DriverConfiguration* driverConfig)
+{
+    list_clear(&driverConfig->Vendors, __CleanupVendor, NULL);
+    list_clear(&driverConfig->Resources, __CleanupResource, NULL);
+}
+
 OsStatus_t
-DmParseDriverYaml(
-        _In_ const uint8_t* yaml,
-        _In_ size_t         length)
+DmDriverConfigParseYaml(
+        _In_  const uint8_t*              yaml,
+        _In_  size_t                      length,
+        _Out_ struct DriverConfiguration* driverConfig)
 {
     yaml_parser_t       parser;
     yaml_event_t        event;
     struct parser_state state;
     int                 status;
 
-    TRACE("DmParseDriverYaml()");
-    if (!yaml || !length) {
+    TRACE("DmDriverConfigParseYaml()");
+    if (!yaml || !length || !driverConfig) {
         return OsInvalidParameters;
     }
 
     memset(&state, 0, sizeof(state));
     state.state = STATE_START;
-    list_construct(&state.driver.vendors);
-    list_construct(&state.driver.resources);
+    list_construct(&state.driver.Vendors);
+    list_construct(&state.driver.Resources);
 
     yaml_parser_initialize(&parser);
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
-            ERROR("DmParseDriverYaml failed to parse driver configuration");
+            ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
+            __CleanupDriverConfiguration(&state.driver);
             return OsError;
         }
         status = __ConsumeEvent(&state, &event);
         if (status == 0) {
-            ERROR("DmParseDriverYaml failed to parse driver configuration");
+            ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
+            __CleanupDriverConfiguration(&state.driver);
             return OsError;
         }
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);
 
+    memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
     return OsSuccess;
+}
+
+void
+DmDriverConfigDestroy(
+        _In_ struct DriverConfiguration* driverConfig)
+{
+    if (!driverConfig) {
+        return;
+    }
+
+    __CleanupDriverConfiguration(driverConfig);
+    free(driverConfig);
 }

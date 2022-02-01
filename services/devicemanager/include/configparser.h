@@ -32,13 +32,24 @@ DmRamdiskDiscover(void);
 /**
  * @brief Parses a yaml configuration file and if valid, registers a new driver object.
  *
- * @param[In] yaml   The yaml file content.
- * @param[In] length The length of the file content.
- * @return    Returns OsSuccess if the yaml configuration was valid, otherwise OsError
+ * @param[In]  yaml   The yaml file content.
+ * @param[In]  length The length of the file content.
+ * @param[Out] driverConfig The driver configuration instance to store the parsed data.
+ * @return     Returns OsSuccess if the yaml configuration was valid, otherwise OsError
  */
 extern OsStatus_t
-DmParseDriverYaml(
-        _In_ const uint8_t* yaml,
-        _In_ size_t         length);
+DmDriverConfigParseYaml(
+        _In_  const uint8_t*              yaml,
+        _In_  size_t                      length,
+        _Out_ struct DriverConfiguration* driverConfig);
+
+/**
+ * @brief Cleans up a previously allocated driver configuration structure.
+ *
+ * @param[In] driverConfig A pointer to the driver configuration class that should be freed.
+ */
+extern void
+DmDriverConfigDestroy(
+        _In_ struct DriverConfiguration* driverConfig);
 
 #endif //!__RAMDISK_H__

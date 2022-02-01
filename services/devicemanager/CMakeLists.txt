@@ -26,9 +26,9 @@ endif ()
 add_service_target(devicemanager ""
         ${ADDITONAL_SOURCES}
 
-        discover/ramdisk.c
-        discover/parser.c
+        discover/configparser.c
         discover/discover.c
+        discover/initrd.c
 
         devices.c
         main.c

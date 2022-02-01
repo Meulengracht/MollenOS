@@ -25,6 +25,32 @@
 
 #include <os/osdefs.h>
 #include <ds/mstring.h>
+#include <ds/list.h>
+
+struct DriverProduct {
+    element_t ListHeader;
+    uint32_t  Id;
+};
+
+struct DriverVendor {
+    element_t ListHeader;
+    uint32_t  Id;
+    list_t    Products;
+};
+
+struct DriverResource {
+    element_t ListHeader;
+    int       Type;
+    uintptr_t Base;
+    size_t    Length;
+};
+
+struct DriverConfiguration {
+    uint32_t Class;
+    uint32_t Subclass;
+    list_t   Vendors;
+    list_t   Resources;
+};
 
 struct DriverIdentification {
     uint32_t VendorId;
@@ -45,15 +71,13 @@ DmDiscoverInitialize(void);
  * @brief
  *
  * @param[In] driverPath
- * @param[In] identifiers
- * @param[In] identifiersCount
+ * @param[In] driverConfig
  * @return
  */
 OsStatus_t
 DmDiscoverAddDriver(
-        _In_ MString_t*                   driverPath,
-        _In_ struct DriverIdentification* identifiers,
-        _In_ int                          identifiersCount);
+        _In_ MString_t*                  driverPath,
+        _In_ struct DriverConfiguration* driverConfig);
 
 /**
  *
