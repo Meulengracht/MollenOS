@@ -96,7 +96,7 @@ namespace OSBuilder.FileSystems.FAT
             {
                 return false;
             }
-
+            
             var file = _fileSystem.OpenFile(localPath.Replace('/', '\\'), System.IO.FileMode.CreateNew, System.IO.FileAccess.ReadWrite);
             file.Write(buffer, 0, buffer.Length);
             file.Close();

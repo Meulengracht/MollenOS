@@ -31,6 +31,11 @@ namespace OSBuilder
 
         public static ProjectConfiguration Parse(string path)
         {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+
             var data = File.ReadAllText(path);
             var deserializer = new DeserializerBuilder()
                 .WithNamingConvention(HyphenatedNamingConvention.Instance)

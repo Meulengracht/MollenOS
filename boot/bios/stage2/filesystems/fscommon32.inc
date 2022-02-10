@@ -104,6 +104,7 @@ LoadFile32:
     ; read the file into the buffer
     .read:
         .loop:
+            xchg bx, bx
             push FileHandle
             call MfsReadFile
             add esp, 8

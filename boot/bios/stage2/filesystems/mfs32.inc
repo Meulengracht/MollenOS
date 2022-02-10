@@ -470,6 +470,7 @@ MfsReadFile:
         ; nope, we only read part of the bucket, add the number
         ; of buckets read to the offset
         add dword [esi + FsFileHandle.Data3], edx
+        mov eax, edx
         jmp .exit
 
         .next_link:

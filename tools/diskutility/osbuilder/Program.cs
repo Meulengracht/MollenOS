@@ -55,6 +55,9 @@ namespace OSBuilder
             {
                 Console.WriteLine($"Installing directory: {source.Path}");
 
+                // create target directory
+                fileSystem.CreateDirectory(source.Target, 0);
+
                 // create directory structure first
                 string[] directories = Directory.GetDirectories(source.Path, "*", SearchOption.AllDirectories);
                 foreach (string dir in directories) {
