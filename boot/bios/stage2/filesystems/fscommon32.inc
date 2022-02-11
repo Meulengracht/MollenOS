@@ -104,7 +104,6 @@ LoadFile32:
     ; read the file into the buffer
     .read:
         .loop:
-            xchg bx, bx
             push FileHandle
             call MfsReadFile
             add esp, 8
@@ -112,7 +111,7 @@ LoadFile32:
             jz  .exit
 
             ; add bytes read to position
-            mov dword [FileHandle + FsFileHandle.Position], eax
+            add dword [FileHandle + FsFileHandle.Position], eax
             mov ecx, dword [FileHandle + FsFileHandle.Position]
             mov edx, dword [FileHandle + FsFileHandle.Size]
             cmp ecx, edx

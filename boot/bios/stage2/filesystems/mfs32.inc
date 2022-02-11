@@ -427,10 +427,12 @@ MfsReadFile:
     ; Calculate the number of buckets that fit into bay area
     mov eax, dword [esi + FsFileHandle.BaySize]
     xor ecx, ecx
+    xor edx, edx
     mov cx, word [MfsBootSector + MfsBootSectorStruct.BytesPerSector]
     div ecx
     
     mov cx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+    xor edx, edx
     div ecx
 
     ; eax now contains the number of buckets that fit into bay area
@@ -440,11 +442,17 @@ MfsReadFile:
     sub ebx, ecx                              ; available length of bucket
     jz .no_data
 
+    ; eax contains limit
+    ; ebx contains the number of buckets to read
     cmp ebx, eax                              ; does it fit?
-    jbe .load_data                            ; it fits
+    jbe .fixup_length                         ; it fits
 
     ; otherwise we fit it
     mov ebx, eax                              ; cap it
+    jmp .load_data
+
+    .fixup_length:
+        mov ebx, dword [esi + FsFileHandle.Data2]
 
     .load_data:
         mov eax, dword [esi + FsFileHandle.BayOffset]
