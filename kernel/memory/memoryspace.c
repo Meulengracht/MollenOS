@@ -689,6 +689,8 @@ static OsStatus_t __GetAndVerifyPhysicalMapping(
     OsStatus_t osStatus;
     int        pagesRetrieved;
     int        i;
+    TRACE("__GetAndVerifyPhysicalMapping(address=0x%" PRIxIN ", pageCount=%i",
+          address, pageCount);
 
     // Get the physical mappings first and verify them. They _MUST_ be committed in order for us to clone
     // the mapping, otherwise the mapping can get out of sync. And we do not want that.
@@ -705,17 +707,18 @@ static OsStatus_t __GetAndVerifyPhysicalMapping(
     }
 
     // Verify mappings
+    TRACE("__GetAndVerifyPhysicalMapping pagesRetrieved=%i", pagesRetrieved);
     for (i = 0; i < pagesRetrieved; i++) {
         if (!physicalAddresses[i]) {
             ERROR("__GetAndVerifyPhysicalMapping offset %i was 0 [0x%" PRIxIN "]",
                   i, address + (i * GetMemorySpacePageSize()));
-            return OsError;
+            osStatus = OsError;
         }
     }
 
     *physicalAddressesOut = physicalAddresses;
     *pagesRetrievedOut = pagesRetrieved;
-    return OsSuccess;
+    return osStatus;
 }
 
 static struct MemorySpaceAllocation*
@@ -880,7 +883,7 @@ MemorySpaceCloneMapping(
     int                           pagesUpdated;
     uintptr_t*                    physicalAddressValues = NULL;
     OsStatus_t                    osStatus;
-    
+
     TRACE("MemorySpaceCloneMapping(sourceSpace=0x%" PRIxIN ", destinationSpace=0x%" PRIxIN
           ", sourceAddress=0x%" PRIxIN ", length=0x%" PRIxIN ", memoryFlags=0x%x)",
           sourceSpace, destinationSpace, sourceAddress, length, memoryFlags);

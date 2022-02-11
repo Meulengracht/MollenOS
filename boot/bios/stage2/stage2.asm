@@ -245,7 +245,6 @@ LoaderEntry32:
     ; eax - size
     ; ecx - (lower 32 bits) entry point
     ; edx - (upper 32 bits) entry point
-    xchg bx, bx
     mov dword [BootHeader + VBoot.PhoenixLength], eax
     mov dword [BootHeader + VBoot.PhoenixEntry], ecx
     mov dword [BootHeader + VBoot.PhoenixEntry + 4], edx

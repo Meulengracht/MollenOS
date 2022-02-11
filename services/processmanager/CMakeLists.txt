@@ -39,7 +39,7 @@ add_executable (phoenix
 target_include_directories(phoenix PRIVATE include)
 target_compile_options(phoenix PRIVATE -nostdlib -Wno-address-of-packed-member)
 target_compile_definitions(phoenix PRIVATE -D__SERVICE_IMPL)
-target_link_options(phoenix PRIVATE "LINKER:-entry:__phoenix_main,-fixed-base:\"${PHOENIX_BASE_ADDRESS}\"")
+target_link_options(phoenix PRIVATE "LINKER:-entry:__phoenix_main,-fixed,-base:${PHOENIX_BASE_ADDRESS}")
 set_target_properties (phoenix
         PROPERTIES
             OUTPUT_NAME "phoenix"
