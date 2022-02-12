@@ -71,23 +71,27 @@ __ParseRamdisk(
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
     if (status) {
+        ERROR("__ParseRamdisk failed to open vafs image");
         return OsError;
     }
 
     status = DdkInitrdHandleVafsFilter(g_vafs);
     if (status) {
+        ERROR("__ParseRamdisk vafs image is using an unsupported filter");
         vafs_close(g_vafs);
         return OsNotSupported;
     }
 
     status = vafs_directory_open(g_vafs, "/services", &directoryHandle);
     if (status) {
+        ERROR("__ParseRamdisk failed to open /services in vafs image");
         vafs_close(g_vafs);
         return OsNotSupported;
     }
 
     pathBuffer = malloc(128);
     if (!pathBuffer) {
+        ERROR("__ParseRamdisk out of memory");
         vafs_directory_close(directoryHandle);
         vafs_close(g_vafs);
         return OsOutOfMemory;
@@ -95,6 +99,7 @@ __ParseRamdisk(
 
     ProcessConfigurationInitialize(&processConfiguration);
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
+        TRACE("__ParseRamdisk found entry %s", entry.Name);
         if (!__EndsWith(entry.Name, ".dll")) {
             UUId_t handle;
 

@@ -150,10 +150,11 @@ LoaderEntry32:
 
     ; load kernel image to memory and unpack/relocate it
     TRACE32 szLoadKernelMessage
+    push VBOOT_MEMORY_TYPE_BOOT
     push szKernelUtf
     push szKernel
     call LoadFile32
-    add esp, 8
+    add esp, 12
     test eax, eax
     jz .Stage2Failed
 
@@ -194,10 +195,11 @@ LoaderEntry32:
 
     ; load ramdisk image to memory
     TRACE32 szLoadRdMessage
+    push VBOOT_MEMORY_TYPE_FIRMWARE
     push szRamdiskUtf
     push szRamdisk
     call LoadFile32
-    add esp, 8
+    add esp, 12
     test eax, eax
     jz .Stage2Failed
 
@@ -209,10 +211,11 @@ LoaderEntry32:
 
     ; load bootstrapper to memory
     TRACE32 szLoadPhoenixMessage
+    push VBOOT_MEMORY_TYPE_BOOT
     push szPhoenixUtf
     push szPhoenix
     call LoadFile32
-    add esp, 8
+    add esp, 12
     test eax, eax
     jz .Stage2Failed
 

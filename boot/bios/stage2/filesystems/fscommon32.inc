@@ -49,6 +49,7 @@ endstruc
 ; on the size of the file. The maximum chunk size is 400 kb.
 ; @param filenameDos   [0, In] The filename to load in the format of 8:3
 ; @param filenameUtf8  [1, In] The filename to load in the format of utf8
+; @param memoryType    [2, In] The memory type to allocate for the filebuffer
 ; @return [eax] A pointer to the filebuffer
 ; @return [ecx] The number of bytes read
 ; ****************************
@@ -94,7 +95,8 @@ LoadFile32:
         jz .exit
 
     ; allocate space for the file
-    push VBOOT_MEMORY_TYPE_BOOT
+    mov eax, ARG2_32
+    push eax
     push dword [FileHandle + FsFileHandle.Size]
     call MemoryAllocate
     add esp, 4
