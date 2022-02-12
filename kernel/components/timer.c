@@ -85,6 +85,8 @@ SystemTimerRegister(
         GetMachine()->SystemTimers.Hpc = systemTimer;
     }
     else if (attributes & SystemTimeAttributes_COUNTER) {
+        operations->Read(context, &systemTimer->InitialTick);
+
         // Might be a new tick counter, lets compare resolution of
         // what we already have
         if (!GetMachine()->SystemTimers.Clock) {
@@ -120,6 +122,9 @@ SystemTimerGetTimestamp(
     // get clock precision metrics
     clock->Operations.Read(clock->Context, &tick);
     clock->Operations.GetFrequency(clock->Context, &frequency);
+
+    // subtract initial timestamp
+    tick.QuadPart -= clock->InitialTick.QuadPart;
 
     if (frequency.QuadPart <= MSEC_PER_SEC) {
         *timestampOut = (MSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart * NSEC_PER_MSEC;

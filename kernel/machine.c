@@ -65,17 +65,19 @@ static void __DumpVBoot(
         _In_ struct VBoot* bootInformation)
 {
     TRACE("Dumping VBOOT Information:");
-    TRACE("Magic:            0x%x", bootInformation->Magic);
-    TRACE("Version:          0x%x", bootInformation->Version);
-    TRACE("Firmware:         0x%x", bootInformation->Firmware);
-    TRACE("ConfigTableCount: 0x%x", bootInformation->ConfigurationTableCount);
+    TRACE("---------------------------------------");
+    TRACE("Magic:            0x%x",   bootInformation->Magic);
+    TRACE("Version:          0x%x",   bootInformation->Version);
+    TRACE("Firmware:         0x%x",   bootInformation->Firmware);
+    TRACE("ConfigTableCount: 0x%x",   bootInformation->ConfigurationTableCount);
     TRACE("ConfigTable:      0x%llx", bootInformation->ConfigurationTable);
     TRACE("Kernel.Base       0x%llx", bootInformation->Kernel.Base);
-    TRACE("Kernel.Length     0x%x", bootInformation->Kernel.Length);
+    TRACE("Kernel.Length     0x%x",   bootInformation->Kernel.Length);
     TRACE("Ramdisk.Data      0x%llx", bootInformation->Ramdisk.Data);
-    TRACE("Ramdisk.Length    0x%x", bootInformation->Ramdisk.Length);
+    TRACE("Ramdisk.Length    0x%x",   bootInformation->Ramdisk.Length);
     TRACE("Phoenix.Base      0x%llx", bootInformation->Phoenix.Base);
     TRACE("Phoenix.Length    0x%llx", bootInformation->Phoenix.Length);
+    TRACE("---------------------------------------");
 }
 
 _Noreturn void
