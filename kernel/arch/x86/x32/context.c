@@ -262,22 +262,22 @@ ArchThreadContextDump(
     _In_ Context_t* context)
 {
     // Dump general registers
-    WRITELINE("EAX: 0x%" PRIxIN ", EBX 0x%" PRIxIN ", ECX 0x%" PRIxIN ", EDX 0x%" PRIxIN "",
-              context->Eax, context->Ebx, context->Ecx, context->Edx);
+    DEBUG("EAX: 0x%" PRIxIN ", EBX 0x%" PRIxIN ", ECX 0x%" PRIxIN ", EDX 0x%" PRIxIN "",
+          context->Eax, context->Ebx, context->Ecx, context->Edx);
 
     // Dump stack registers
-    WRITELINE("ESP 0x%" PRIxIN " (UserESP 0x%" PRIxIN "), EBP 0x%" PRIxIN ", Flags 0x%" PRIxIN "",
-              context->Esp, context->UserEsp, context->Ebp, context->Eflags);
+    DEBUG("ESP 0x%" PRIxIN " (UserESP 0x%" PRIxIN "), EBP 0x%" PRIxIN ", Flags 0x%" PRIxIN "",
+          context->Esp, context->UserEsp, context->Ebp, context->Eflags);
         
     // Dump copy registers
-    WRITELINE("ESI 0x%" PRIxIN ", EDI 0x%" PRIxIN "", context->Esi, context->Edi);
+    DEBUG("ESI 0x%" PRIxIN ", EDI 0x%" PRIxIN "", context->Esi, context->Edi);
 
     // Dump segments
-    WRITELINE("CS 0x%" PRIxIN ", DS 0x%" PRIxIN ", GS 0x%" PRIxIN ", ES 0x%" PRIxIN ", FS 0x%" PRIxIN "",
-              context->Cs, context->Ds, context->Gs, context->Es, context->Fs);
+    DEBUG("CS 0x%" PRIxIN ", DS 0x%" PRIxIN ", GS 0x%" PRIxIN ", ES 0x%" PRIxIN ", FS 0x%" PRIxIN "",
+          context->Cs, context->Ds, context->Gs, context->Es, context->Fs);
 
     // Dump IRQ information
-    WRITELINE("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
-              context->Irq, context->ErrorCode, context->UserSs);
+    DEBUG("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
+          context->Irq, context->ErrorCode, context->UserSs);
     return OsSuccess;
 }

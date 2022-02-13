@@ -334,7 +334,7 @@ __SlabDumpInformation(
     uintptr_t EndAddress   = StartAddress + (cache->ObjectCount * (cache->ObjectSize + cache->ObjectPadding));
     
     // Write slab information
-    WRITELINE(" -- slab: 0x%" PRIxIN " => 0x%" PRIxIN ", FreeObjects %" PRIuIN "", StartAddress, EndAddress, slab->NumberOfFreeObjects);
+    DEBUG(" -- slab: 0x%" PRIxIN " => 0x%" PRIxIN ", FreeObjects %" PRIuIN "", StartAddress, EndAddress, slab->NumberOfFreeObjects);
 }
 
 static void
@@ -344,26 +344,26 @@ __CacheDumpInformation(
     element_t* i;
     
     // Write cache information
-    WRITELINE("%s: Object Size %" PRIuIN ", Alignment %" PRIuIN ", Padding %" PRIuIN ", Count %" PRIuIN ", FreeObjects %" PRIuIN "",
-              cache->Name, cache->ObjectSize, cache->ObjectAlignment, cache->ObjectPadding,
-              cache->ObjectCount, cache->NumberOfFreeObjects);
+    DEBUG("%s: Object Size %" PRIuIN ", Alignment %" PRIuIN ", Padding %" PRIuIN ", Count %" PRIuIN ", FreeObjects %" PRIuIN "",
+          cache->Name, cache->ObjectSize, cache->ObjectAlignment, cache->ObjectPadding,
+          cache->ObjectCount, cache->NumberOfFreeObjects);
         
     // Dump slabs
-    WRITELINE("* full slabs");
+    DEBUG("* full slabs");
     _foreach(i, &cache->FullSlabs) {
         __SlabDumpInformation(cache, i->value);
     }
     
-    WRITELINE("* partial slabs");
+    DEBUG("* partial slabs");
     _foreach(i, &cache->PartialSlabs) {
         __SlabDumpInformation(cache, i->value);
     }
     
-    WRITELINE("* free slabs");
+    DEBUG("* free slabs");
     _foreach(i, &cache->FreeSlabs) {
         __SlabDumpInformation(cache, i->value);
     }
-    WRITELINE("");
+    DEBUG("");
 }
 
 struct FindSlabContext {
@@ -955,7 +955,7 @@ MemoryCacheDump(
     }
     
     // Dump memory information
-    WRITELINE("\nMemory Stats: %" PRIuIN "/%" PRIuIN " Bytes, %" PRIuIN "/%" PRIuIN " Blocks",
+    DEBUG("\nMemory Stats: %" PRIuIN "/%" PRIuIN " Bytes, %" PRIuIN "/%" PRIuIN " Blocks",
               (maxBlocks - freeBlocks) * GetMemorySpacePageSize(),
               maxBlocks * GetMemorySpacePageSize(), maxBlocks - freeBlocks, maxBlocks);
 }

@@ -211,13 +211,13 @@ DebugStackTrace(
         if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
             Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
             context != NULL) {
-            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
+            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
             Itr--;
         }
 
         // Check for kernelspace code address
         if (Value >= 0x100000 && Value < 0x200000 && context == NULL) {
-            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
+            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
             Itr--;
         }
         StackPtr++;

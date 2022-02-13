@@ -52,8 +52,8 @@ __PrintMemoryUsage(void) {
     size_t allocatedBlocks = maxBlocks - freeBlocks;
     size_t memoryInUse     = ((size_t)allocatedBlocks * (size_t)GetMemorySpacePageSize());
 
-    WRITELINE("Memory in use %" PRIuIN " Bytes", memoryInUse);
-    WRITELINE("Block status %" PRIuIN "/%" PRIuIN, allocatedBlocks, maxBlocks);
+    DEBUG("Memory in use %" PRIuIN " Bytes", memoryInUse);
+    DEBUG("Block status %" PRIuIN "/%" PRIuIN, allocatedBlocks, maxBlocks);
 }
 
 static size_t

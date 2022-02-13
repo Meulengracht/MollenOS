@@ -97,10 +97,10 @@ AcpiEventHandler(
     
     // Trace
     if (EventType == ACPI_EVENT_TYPE_GPE) {
-        WRITELINE("ACPI Gpe Event - 0x%" PRIxIN "", EventNumber);
+        DEBUG("ACPI Gpe Event - 0x%" PRIxIN "", EventNumber);
     }
     else if (EventType == ACPI_EVENT_TYPE_FIXED) {
-        WRITELINE("ACPI Fixed Event - 0x%" PRIxIN "", EventNumber);
+        DEBUG("ACPI Fixed Event - 0x%" PRIxIN "", EventNumber);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid ACPI Global Event %" PRIuIN "", EventType);

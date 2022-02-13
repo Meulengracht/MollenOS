@@ -19,7 +19,8 @@
  * C Standard Library
  * - Standard IO Support functions
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -28,14 +29,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int*       stdio_fd_bitmap = NULL;
-static spinlock_t stdio_fd_lock   = _SPN_INITIALIZER_NP(spinlock_plain);
+static int*       g_stdioHandles     = NULL;
+static spinlock_t g_stdioHandlesLock = _SPN_INITIALIZER_NP(spinlock_plain);
 
 int stdio_bitmap_initialize(void)
 {
-    stdio_fd_bitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
-    assert(stdio_fd_bitmap != NULL);
-    memset(stdio_fd_bitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
+    TRACE("stdio_bitmap_initialize(0x%llx)", &g_stdioHandles);
+    BOCHSBREAK;
+
+    g_stdioHandles = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
+    assert(g_stdioHandles != NULL);
+    TRACE("stdio_bitmap_initialize g_stdioHandles=0x%llx", g_stdioHandles);
+
+    // reset all to 0 (available)
+    memset(g_stdioHandles, 0, DIVUP(INTERNAL_MAXFILES, 8));
     return 0;
 }
 
@@ -45,7 +52,9 @@ int stdio_bitmap_allocate(int fd)
     int i, j;
 
     TRACE("stdio_bitmap_allocate(%i)", fd);
-    assert(stdio_fd_bitmap != NULL);
+    BOCHSBREAK;
+    TRACE("stdio_bitmap_allocate g_stdioHandles=0x%llx", g_stdioHandles);
+    assert(g_stdioHandles != NULL);
     
     if (fd >= INTERNAL_MAXFILES) {
         _set_errno(ENOENT);
@@ -53,15 +62,15 @@ int stdio_bitmap_allocate(int fd)
     }
 
     // Trying to allocate a specific fd?
-    spinlock_acquire(&stdio_fd_lock);
+    spinlock_acquire(&g_stdioHandlesLock);
     if (fd >= 0) {
         int Block  = fd / (8 * sizeof(int));
         int Offset = fd % (8 * sizeof(int));
-        if (stdio_fd_bitmap[Block] & (1 << Offset)) {
+        if (g_stdioHandles[Block] & (1 << Offset)) {
             result = -1;
         }
         else {
-            stdio_fd_bitmap[Block] |= (1 << Offset);
+            g_stdioHandles[Block] |= (1 << Offset);
             result = fd;
         }
     }
@@ -72,8 +81,8 @@ int stdio_bitmap_allocate(int fd)
 
         for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
             for (; j < (8 * sizeof(int)); j++) {
-                if (!(stdio_fd_bitmap[i] & (1 << j))) {
-                    stdio_fd_bitmap[i] |= (1 << j);
+                if (!(g_stdioHandles[i] & (1 << j))) {
+                    g_stdioHandles[i] |= (1 << j);
                     result = (i * (8 * sizeof(int))) + j;
                     break;
                 }
@@ -86,7 +95,7 @@ int stdio_bitmap_allocate(int fd)
             j = 0;
         }
     }
-    spinlock_release(&stdio_fd_lock);
+    spinlock_release(&g_stdioHandlesLock);
     return result;
 }
 
@@ -95,15 +104,15 @@ void stdio_bitmap_free(int fd)
     int block;
     int offset;
 
-    assert(stdio_fd_bitmap != NULL);
+    assert(g_stdioHandles != NULL);
 
     if (fd > STDERR_FILENO && fd < INTERNAL_MAXFILES) {
         block  = fd / (8 * sizeof(int));
         offset = fd % (8 * sizeof(int));
 
         // Set the given fd index to free
-        spinlock_acquire(&stdio_fd_lock);
-        stdio_fd_bitmap[block] &= ~(1 << offset);
-        spinlock_release(&stdio_fd_lock);
+        spinlock_acquire(&g_stdioHandlesLock);
+        g_stdioHandles[block] &= ~(1 << offset);
+        spinlock_release(&g_stdioHandlesLock);
     }
 }

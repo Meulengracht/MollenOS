@@ -53,18 +53,18 @@ HardFault(
         // Bit 1 - present status 
         // Bit 2 - write access
         // Bit 4 - user/kernel
-        WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", pfAddress, context->ErrorCode);
+        DEBUG("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", pfAddress, context->ErrorCode);
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &physicalBase) == OsSuccess) {
             GetMemorySpaceAttributes(GetCurrentMemorySpace(), pfAddress, PAGE_SIZE, &attributes);
-            WRITELINE("existing mapping for address: 0x%" PRIxIN "", physicalBase);
-            WRITELINE("existing attribs for address: 0x%" PRIxIN "", attributes);
+            DEBUG("existing mapping for address: 0x%" PRIxIN "", physicalBase);
+            DEBUG("existing attribs for address: 0x%" PRIxIN "", attributes);
         }
     }
 
     // Enter panic handler
     ArchThreadContextDump(context);
-    WRITELINE("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
-              context->Irq, context->ErrorCode, CONTEXT_IP(context));
+    DEBUG("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
+          context->Irq, context->ErrorCode, CONTEXT_IP(context));
     if (context) {
         __asm { xchg bx, bx };
         return;

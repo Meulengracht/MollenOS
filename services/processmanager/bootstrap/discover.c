@@ -37,23 +37,23 @@ static size_t       g_ramdiskSize   = 0;
 
 static int
 __EndsWith(
-        _In_ const char* str,
+        _In_ const char* text,
         _In_ const char* suffix)
 {
-    size_t lenstr;
-    size_t lensuffix;
+    size_t lengthOfText;
+    size_t lengthOfSuffix;
 
-    if (!str || !suffix){
+    if (!text || !suffix){
         return 0;
     }
 
-    lenstr = strlen(str);
-    lensuffix = strlen(suffix);
-    if (lensuffix >  lenstr) {
+    lengthOfText   = strlen(text);
+    lengthOfSuffix = strlen(suffix);
+    if (lengthOfSuffix > lengthOfText) {
         return 0;
     }
 
-    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+    return strncmp(text + lengthOfText - lengthOfSuffix, suffix, lengthOfSuffix);
 }
 
 static OsStatus_t
@@ -182,7 +182,7 @@ PmBootstrapFindRamdiskFile(
     TRACE("PmBootstrapFindRamdiskFile(path=%s)", MStringRaw(path));
 
     // skip the rd:/ prefix
-    internPath = strchr(MStringRaw(path), '/');
+    internPath = strchr(MStringRaw(path), '/') + 1;
     internFilename = strrchr(MStringRaw(path), '/');
 
     // Ok, so max out at len(tempbuf) - 1, but minimum 1 char to include the initial '/'
@@ -197,7 +197,7 @@ PmBootstrapFindRamdiskFile(
 
     status = vafs_directory_open(g_vafs, &tempbuf[0], &directoryHandle);
     if (status) {
-        ERROR("PmBootstrapFindRamdiskFile failed to open service folder, corrupt image buffer");
+        ERROR("PmBootstrapFindRamdiskFile failed to open %s, corrupt image buffer", &tempbuf[0]);
         return OsError;
     }
 

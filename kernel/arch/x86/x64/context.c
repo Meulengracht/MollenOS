@@ -257,23 +257,23 @@ ArchThreadContextDump(
 	_In_ Context_t* context)
 {
 	// Dump general registers
-	WRITELINE("RAX: 0x%llx, RBX 0x%llx, RCX 0x%llx, RDX 0x%llx",
-              context->Rax, context->Rbx, context->Rcx, context->Rdx);
-	WRITELINE("R8: 0x%llx, R9 0x%llx, R10 0x%llx, R11 0x%llx",
-              context->R8, context->R9, context->R10, context->R11);
-	WRITELINE("R12: 0x%llx, R13 0x%llx, R14 0x%llx, R15 0x%llx",
-              context->R12, context->R13, context->R14, context->R15);
+	DEBUG("RAX: 0x%llx, RBX 0x%llx, RCX 0x%llx, RDX 0x%llx",
+          context->Rax, context->Rbx, context->Rcx, context->Rdx);
+	DEBUG("R8: 0x%llx, R9 0x%llx, R10 0x%llx, R11 0x%llx",
+          context->R8, context->R9, context->R10, context->R11);
+	DEBUG("R12: 0x%llx, R13 0x%llx, R14 0x%llx, R15 0x%llx",
+          context->R12, context->R13, context->R14, context->R15);
 
 	// Dump stack registers
-	WRITELINE("RSP 0x%llx (UserRSP 0x%llx), RBP 0x%llx, Flags 0x%llx",
-              context->Rsp, context->UserRsp, context->Rbp, context->Rflags);
+	DEBUG("RSP 0x%llx (UserRSP 0x%llx), RBP 0x%llx, Flags 0x%llx",
+          context->Rsp, context->UserRsp, context->Rbp, context->Rflags);
         
     // Dump copy registers
-	WRITELINE("RIP 0x%llx", context->Rip);
-	WRITELINE("RSI 0x%llx, RDI 0x%llx", context->Rsi, context->Rdi);
+	DEBUG("RIP 0x%llx", context->Rip);
+	DEBUG("RSI 0x%llx, RDI 0x%llx", context->Rsi, context->Rdi);
 
 	// Dump IRQ information
-	WRITELINE("IRQ 0x%llx, ErrorCode 0x%llx, UserSS 0x%llx",
-              context->Irq, context->ErrorCode, context->UserSs);
+	DEBUG("IRQ 0x%llx, ErrorCode 0x%llx, UserSS 0x%llx",
+          context->Irq, context->ErrorCode, context->UserSs);
 	return OsSuccess;
 }
