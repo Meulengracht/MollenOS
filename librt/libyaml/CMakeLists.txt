@@ -9,4 +9,4 @@ add_library(libyaml STATIC
         scanner.c
 )
 target_include_directories(libyaml PUBLIC include)
-target_link_libraries(libyaml libc)
+target_include_directories(libyaml PRIVATE ../libc/include)

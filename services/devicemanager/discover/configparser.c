@@ -102,17 +102,17 @@ enum state {
     STATE_DOCUMENT, /* start/end document */
     STATE_SECTION,  /* top level */
 
-    STATE_DRIVER,          // driver object discovered
+    STATE_DRIVER,          // 4, driver object discovered
     STATE_DRIVERKEY,       // driver key discovered, followed by scalar
     STATE_DRIVERTYPE,      // driver type mapping
     STATE_DRIVERVENDORS,   // driver vendors mapping
-    STATE_DRIVERRESOURCES, // driver resource mappings
+    STATE_DRIVERRESOURCES, // 8, driver resource mappings
 
     STATE_TYPECLASS,       // inside driver.type.class
     STATE_TYPESUBCLASS,    // inside driver.type.subclass
 
-    STATE_VENDOR,          // found key/value pair inside driver.vendors
-    STATE_VENDORPRODUCT,   // vendor product list
+    STATE_VENDOR,          // 11, found key/value pair inside driver.vendors
+    STATE_VENDORPRODUCT,   // 12, vendor product list
 
     STATE_RESOURCE,       // new resource entry found
     STATE_RESOURCETYPE,   // resource.type found
@@ -123,10 +123,10 @@ enum state {
 };
 
 struct parser_state {
-    enum state             state;
-    struct DriverConfiguration    driver;
-    struct DriverVendor*   vendor;
-    struct DriverResource* resource;
+    enum state                 state;
+    struct DriverConfiguration driver;
+    struct DriverVendor*       vendor;
+    struct DriverResource*     resource;
 };
 
 static OsStatus_t
@@ -257,6 +257,7 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
+                    TRACE("__ConsumeEvent STATE_DRIVERKEY/%s", value);
                     if (strcmp(value, "type") == 0) {
                         s->state = STATE_DRIVERTYPE;
                     } else if (strcmp(value, "vendors") == 0) {
@@ -292,6 +293,7 @@ __ConsumeEvent(
 
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
+                    TRACE("__ConsumeEvent STATE_DRIVERTYPE/%s", value);
                     if (strcmp(value, "class") == 0) {
                         s->state = STATE_TYPECLASS;
                     } else if (strcmp(value, "subclass") == 0) {
@@ -309,7 +311,8 @@ __ConsumeEvent(
         case STATE_TYPECLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->driver.Class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    TRACE("__ConsumeEvent STATE_TYPECLASS/%s", (const char*)event->data.scalar.value);
+                    s->driver.Class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -324,7 +327,8 @@ __ConsumeEvent(
         case STATE_TYPESUBCLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->driver.Subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    TRACE("__ConsumeEvent STATE_TYPESUBCLASS/%s", (const char*)event->data.scalar.value);
+                    s->driver.Subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -359,7 +363,7 @@ __ConsumeEvent(
             break;
 
         case STATE_VENDOR:
-            switch (s->state) {
+            switch (event->type) {
                 case YAML_MAPPING_END_EVENT:
                     list_append(&s->driver.Vendors, &s->vendor->ListHeader);
                     s->vendor = NULL;
@@ -380,8 +384,10 @@ __ConsumeEvent(
                     }
                     ELEMENT_INIT(&s->vendor->ListHeader, 0, s->vendor);
                     list_construct(&s->vendor->Products);
+                    TRACE("__ConsumeEvent STATE_VENDOR/%s", (const char*)event->data.scalar.value);
                     s->vendor->Id = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
                     break;
+
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
                     return -1;
@@ -389,13 +395,14 @@ __ConsumeEvent(
             break;
 
         case STATE_VENDORPRODUCT:
-            switch (s->state) {
+            switch (event->type) {
                 case YAML_SEQUENCE_END_EVENT:
                     // end of products, go back to vendor
                     s->state = STATE_VENDOR;
                     break;
 
                 case YAML_SCALAR_EVENT:
+                    TRACE("__ConsumeEvent STATE_VENDORPRODUCT/%s", (const char*)event->data.scalar.value);
                     uint32_t productId = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
                     if (!productId) {
                         WARNING("__ConsumeEvent failed to parse product id: %s",
@@ -473,7 +480,7 @@ __ConsumeEvent(
         case STATE_RESOURCETYPE:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->Type = (int)strtol((const char*)event->data.scalar.value, NULL, 10);
+                    s->resource->Type = (int)strtol((const char*)event->data.scalar.value, NULL, 0);
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -580,8 +587,9 @@ DmDriverConfigParseYaml(
             __CleanupDriverConfiguration(&state.driver);
             return OsError;
         }
+
         status = __ConsumeEvent(&state, &event);
-        if (status == 0) {
+        if (status) {
             ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
             __CleanupDriverConfiguration(&state.driver);
             return OsError;

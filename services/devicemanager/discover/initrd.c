@@ -19,7 +19,7 @@
  * drivers and loads them if any matching device is present.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/initrd.h>
 #include <ddk/utils.h>
@@ -108,7 +108,7 @@ __ParseModuleConfiguration(
     }
 
     // we make an assumption here that .dll exists as that was what triggered this function
-    (void)MStringReplace(path, ".dll", ".yaml");
+    (void)MStringReplaceC(path, ".dll", ".yaml");
     osStatus = __ReadFile(directoryHandle, MStringRaw(path), &buffer, &length);
     if (osStatus != OsSuccess) {
         return osStatus;
@@ -169,7 +169,7 @@ __ParseRamdisk(
     }
 
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
-        if (!__EndsWith(entry.Name, ".dll")) {
+        if (__EndsWith(entry.Name, ".dll")) {
             osStatus = __ParseModuleConfiguration(directoryHandle, entry.Name);
             if (osStatus != OsSuccess) {
                 break;

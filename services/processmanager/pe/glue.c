@@ -88,8 +88,8 @@ __GuessBasePath(
     // At this point we have to run through all PATH values
     // Look at the type of file we are trying to load. .app? .dll?
     // for other types its most likely resource load
-    isApp = MStringFindCString(path, ".run");
-    isDll = MStringFindCString(path, ".dll");
+    isApp = MStringFindC(path, ".run");
+    isDll = MStringFindC(path, ".dll");
     if (isApp != MSTRING_NOT_FOUND || isDll != MSTRING_NOT_FOUND) {
         MStringReset(result, "$bin/", StrUTF8);
     }
@@ -120,7 +120,7 @@ __ResolveRelativePath(
           processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
 
     // Let's test against parent being loaded through the ramdisk
-    if (parentPath && MStringFindCString(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (parentPath && MStringFindC(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
         // create the full path for the ramdisk
         temporaryResult = MStringCreate("rd:/bin/", StrUTF8);
         MStringAppend(temporaryResult, path);
@@ -207,7 +207,7 @@ PeImplLoadFile(
 
     // special case:
     // load from ramdisk
-    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (MStringFindC(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
         return PmBootstrapFindRamdiskFile(fullPath, bufferOut, lengthOut);
     }
 

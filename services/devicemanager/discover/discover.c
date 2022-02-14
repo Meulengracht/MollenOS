@@ -19,7 +19,7 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <discover.h>
 #include <devices.h>
@@ -91,8 +91,8 @@ DmDiscoverAddDriver(
         _In_ struct DriverConfiguration* driverConfig)
 {
     struct DmDriver* driver;
-    TRACE("DmDiscoverAddDriver(path=%s, identifiersCount=%i)",
-          MStringRaw(driverPath), identifiersCount);
+    TRACE("DmDiscoverAddDriver(path=%s, class=%u, subclass=%u)",
+          MStringRaw(driverPath), driverConfig->Class, driverConfig->Subclass);
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
@@ -204,7 +204,7 @@ __IsDriverMatch(
         }
     }
 
-    if (deviceIdentification->Class != 0 && deviceIdentification->Subclass != 0 &&
+    if (!(deviceIdentification->Class == 0 && deviceIdentification->Subclass == 0) &&
         deviceIdentification->Class == driver->configuration->Class &&
         deviceIdentification->Subclass == driver->configuration->Subclass) {
         return 1;
@@ -218,6 +218,8 @@ DmDiscoverFindDriver(
         _In_ struct DriverIdentification* deviceIdentification)
 {
     OsStatus_t osStatus = OsDoesNotExist;
+    TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
+          deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {

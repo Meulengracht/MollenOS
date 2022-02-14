@@ -20,7 +20,7 @@
  * - Standard IO Support functions
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -34,12 +34,8 @@ static spinlock_t g_stdioHandlesLock = _SPN_INITIALIZER_NP(spinlock_plain);
 
 int stdio_bitmap_initialize(void)
 {
-    TRACE("stdio_bitmap_initialize(0x%llx)", &g_stdioHandles);
-    BOCHSBREAK;
-
     g_stdioHandles = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
     assert(g_stdioHandles != NULL);
-    TRACE("stdio_bitmap_initialize g_stdioHandles=0x%llx", g_stdioHandles);
 
     // reset all to 0 (available)
     memset(g_stdioHandles, 0, DIVUP(INTERNAL_MAXFILES, 8));
@@ -52,8 +48,6 @@ int stdio_bitmap_allocate(int fd)
     int i, j;
 
     TRACE("stdio_bitmap_allocate(%i)", fd);
-    BOCHSBREAK;
-    TRACE("stdio_bitmap_allocate g_stdioHandles=0x%llx", g_stdioHandles);
     assert(g_stdioHandles != NULL);
     
     if (fd >= INTERNAL_MAXFILES) {
