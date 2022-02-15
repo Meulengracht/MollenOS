@@ -1,4 +1,4 @@
-name: Vali AMD64 CI
+name: Build
 
 on:
   push:
@@ -10,6 +10,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ 'amd64', 'i386' ]
+
     steps:
     - uses: actions/checkout@v2
       with:
@@ -24,7 +30,7 @@ jobs:
     - name: Build and push
       uses: docker/build-push-action@v2
       with:
-        build-args: ARCH=amd64
+        build-args: ARCH=${{ matrix.platform }}
         file: build.Dockerfile
         push: true
-        tags: valios/os-base-amd64:latest
+        tags: valios/os-base-${{ matrix.platform }}:latest

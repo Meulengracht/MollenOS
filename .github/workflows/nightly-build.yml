@@ -1,4 +1,4 @@
-name: Vali AMD64 Nightly Image CI
+name: Nightly Image
 
 on:
   # Nightly builds
@@ -9,6 +9,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ 'amd64', 'i386' ]
+
     steps:
     - uses: actions/checkout@v2
       with:
@@ -19,7 +25,7 @@ jobs:
       uses: dawidd6/action-download-artifact@v2
       continue-on-error: true
       with:
-        workflow: nightly-amd64.yml
+        workflow: nightly-${{ matrix.platform }}.yml
         workflow_conclusion: success
         branch: master
         repo: Meulengracht/vali-userspace
@@ -29,11 +35,11 @@ jobs:
       uses: docker/build-push-action@v2
       with:
         context: .
-        build-args: ARCH=amd64
+        build-args: ARCH=${{ matrix.platform }}
         file: nightly.Dockerfile
         target: artifact
         outputs: type=local,dest=.
     - uses: actions/upload-artifact@v2
       with:
-        name: vali-nightly-amd64
+        name: vali-nightly-${{ matrix.platform }}
         path: ./vali-nightly.tar.gz

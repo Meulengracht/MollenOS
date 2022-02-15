@@ -204,7 +204,7 @@ ExceptionEntry(
         }
         else {
             // Page was not present, this could be because of lazy-comitting, lets try
-            // to fix it by comitting the address. 
+            // to fix it by comitting the address.
             if (address > 0x1000 && DebugPageFault(context, address) == OsSuccess) {
                 issueFixed = 1;
             }

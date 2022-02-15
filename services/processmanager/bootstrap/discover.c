@@ -204,7 +204,7 @@ PmBootstrapFindRamdiskFile(
     // now lets access the file
     status = vafs_directory_open_file(directoryHandle, internFilename, &fileHandle);
     if (status) {
-        ERROR("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
+        WARNING("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
         return OsDoesNotExist;
     }
 

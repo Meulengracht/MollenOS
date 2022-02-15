@@ -107,6 +107,28 @@ __GuessBasePath(
     }
 }
 
+static MString_t*
+__TestRamdiskPath(
+        _In_ const char* basePath,
+        _In_  MString_t* path)
+{
+    OsStatus_t osStatus;
+    MString_t* temporaryResult;
+    TRACE("__TestRamdiskPath(basePath=%s, path=%s)", basePath, MStringRaw(path));
+
+    // create the full path for the ramdisk
+    temporaryResult = MStringCreate(basePath, StrUTF8);
+    MStringAppend(temporaryResult, path);
+
+    // try to find the file in the ramdisk
+    osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
+    if (osStatus == OsSuccess) {
+        return temporaryResult;
+    }
+    MStringDestroy(temporaryResult);
+    return NULL;
+}
+
 static OsStatus_t
 __ResolveRelativePath(
         _In_  UUId_t      processId,
@@ -114,7 +136,7 @@ __ResolveRelativePath(
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
 {
-    OsStatus_t osStatus;
+    OsStatus_t osStatus        = OsError;
     MString_t* temporaryResult = path;
     TRACE("__ResolveRelativePath(processId=%u, parentPath=%s, path=%s)",
           processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
@@ -122,18 +144,18 @@ __ResolveRelativePath(
     // Let's test against parent being loaded through the ramdisk
     if (parentPath && MStringFindC(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
         // create the full path for the ramdisk
-        temporaryResult = MStringCreate("rd:/bin/", StrUTF8);
-        MStringAppend(temporaryResult, path);
-
-        // try to find the file in the ramdisk
-        osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
-        if (osStatus == OsSuccess) {
-            *fullPathOut = temporaryResult;
-            return osStatus;
+        temporaryResult = __TestRamdiskPath("rd:/bin/", path);
+        if (!temporaryResult) {
+            // sometimes additional modules will be loaded (i.e fs modules)
+            temporaryResult = __TestRamdiskPath("rd:/modules/", path);
         }
 
-        // cleanup our attempt at resolving
-        MStringDestroy(temporaryResult);
+        if (temporaryResult) {
+            *fullPathOut = temporaryResult;
+            return OsSuccess;
+        }
+
+        // restore temporaryResult
         temporaryResult = path;
     }
 

@@ -152,8 +152,11 @@ VesaScroll(
     // continous copy
     for (i = 0; i < lineCount; i++) {
         for (j = 0; j < lines; j++) {
-            memcpy(videoPointer, videoPointer +
-                                 (g_bootTerminal.Info.BytesPerScanline * MCoreFontHeight), bytesToCopy);
+            memcpy(
+                    videoPointer,
+                    videoPointer + (g_bootTerminal.Info.BytesPerScanline * MCoreFontHeight),
+                    bytesToCopy
+            );
             videoPointer += g_bootTerminal.Info.BytesPerScanline;
         }
     }
@@ -174,10 +177,7 @@ VesaScroll(
 
     // We did the scroll, modify cursor
     g_bootTerminal.CursorY -= (MCoreFontHeight * lineCount);
-
-    if (g_bootTerminal.BackBufferAddress) {
-        VideoFlush();
-    }
+    VideoFlush();
     return OsSuccess;
 }
 
@@ -373,7 +373,7 @@ static void __SetFramebufferMode(
     g_bootTerminal.Info.GreenMask             = (int)video->GreenMask;
     g_bootTerminal.Info.ReservedMask          = (int)video->ReservedMask;
     g_bootTerminal.CursorLimitX               = g_bootTerminal.Info.Width;
-    g_bootTerminal.CursorLimitY               = g_bootTerminal.Info.Height;
+    g_bootTerminal.CursorLimitY               = (g_bootTerminal.Info.Height - MCoreFontHeight);
     g_bootTerminal.FgColor                    = 0xFFFFFFFF;
     g_bootTerminal.BgColor                    = 0xFF000000;
 }

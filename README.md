@@ -18,10 +18,10 @@ Discord - https://discord.gg/kgQ5uD2mH2
 
 #### Current build status and nightly build download 
 
-| Platform | Nightly Image (.img)                                                                        | Status                                                                                           |
-|----------|---------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------|
-| I386     | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-i386-nightly.yml)  | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg)   |
-| AMD64    | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/vali-amd64-nightly.yml) | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
+| Platform | Nightly Image (.img)                                                                   | Status                                                                                           |
+|----------|----------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------|
+| i386     | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/nightly-build.yml) | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg)   |
+| amd64    | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/nightly-build.yml) | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
 
 ### Noteable projects
 
