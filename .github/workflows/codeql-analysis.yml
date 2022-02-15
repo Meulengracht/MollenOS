@@ -20,6 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         language: [ 'cpp' ]
+        platform: [ 'amd64', 'i386' ]
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
         # Learn more about CodeQL language support at https://git.io/codeql-language-support
 
@@ -37,11 +38,17 @@ jobs:
         languages: ${{ matrix.language }}
 
     - name: Build
+      env: 
+        DEBIAN_FRONTEND: noninteractive
+        DEBCONF_NONINTERACTIVE_SEEN: true
+        VALI_ARCH: ${{ matrix.platform }}
+        CROSS: /usr/workspace/toolchain-out
+        PATH: "/github/home/.dotnet:${PATH}"
       run: |
         sed -i 's/\r$//' ./tools/depends.sh
         chmod +x ./tools/depends.sh
         chmod +x ./tools/dotnet-install.sh
-        DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true ./tools/depends.sh
+        ./tools/depends.sh
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
         cmake --build build
 
