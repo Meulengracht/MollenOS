@@ -55,6 +55,10 @@ jobs:
 
     - name: Build
       run: |
+        sed -i 's/\r$//' ./tools/depends.sh
+        chmod +x ./tools/depends.sh
+        chmod +x ./tools/dotnet-install.sh
+        ./tools/depends.sh
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
         cmake --build build
 
