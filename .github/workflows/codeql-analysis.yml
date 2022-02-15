@@ -43,14 +43,13 @@ jobs:
         DEBCONF_NONINTERACTIVE_SEEN: true
         VALI_ARCH: ${{ matrix.platform }}
         CROSS: /usr/workspace/toolchain-out
-        PATH: "/github/home/.dotnet:${PATH}"
       run: |
         sed -i 's/\r$//' ./tools/depends.sh
         chmod +x ./tools/depends.sh
         chmod +x ./tools/dotnet-install.sh
         ./tools/depends.sh
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
-        cmake --build build
+        PATH="/github/home/.dotnet:${PATH}" cmake --build build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
