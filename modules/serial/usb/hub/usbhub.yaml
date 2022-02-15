@@ -1,0 +1,5 @@
+# Standard configuration file for drivers in the OS
+driver:
+  type:
+    - class: 0xCABB
+    - subclass: 0x90000

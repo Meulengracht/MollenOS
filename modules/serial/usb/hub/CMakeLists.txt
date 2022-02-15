@@ -31,3 +31,4 @@ add_module_target(usbhub ""
 )
 add_dependencies(usbhub contract_servers)
 target_link_libraries(usbhub libusb)
+deploy_file_to_initrd(usbhub "modules" usbhub.yaml)

@@ -111,21 +111,18 @@ void AcpiInitialize(void)
     ACPI_STATUS status;
 
     // Create the ACPI namespace from ACPI tables
-    TRACE(" > loading acpi tables");
+    TRACE("AcpiInitialize loading acpi tables");
     status = AcpiLoadTables();
     if (ACPI_FAILURE(status)) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed LoadTables, %" PRIuIN "!", status);
+        FATAL(FATAL_SCOPE_KERNEL, "AcpiInitialize Failed LoadTables, %" PRIuIN "!", status);
     }
 
     // Install the OSI strings that we respond to
-    TRACE(" > initializing osi interface, windows/vali");
+    TRACE("AcpiInitialize initializing osi interface");
     status = AcpiInstallInterfaceHandler(AcpiOsi);
     if (ACPI_FAILURE(status)) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInstallInterfaceHandler, %" PRIuIN "!", status);
+        FATAL(FATAL_SCOPE_KERNEL, "AcpiInitialize Failed AcpiInstallInterfaceHandler, %" PRIuIN "!", status);
     }
-    AcpiOsiSetup("Windows 2009");
-    AcpiOsiSetup("Windows 2013");
-    AcpiOsiSetup("Vali 2018");
     AcpiOsiInstall();
 
     // Install default handlers for acpi before EnableSubsystem if we want
@@ -137,7 +134,7 @@ void AcpiInitialize(void)
     //}
 
     // Initialize the ACPI hardware
-    TRACE(" > enabling acpi");
+    TRACE("AcpiInitialize enabling acpi");
     status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(status)) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiEnableSubsystem, %" PRIuIN "!", status);
@@ -145,7 +142,7 @@ void AcpiInitialize(void)
     
     // Initialize the ec if present
     if (EmbeddedController.Handle != NULL) {
-        TRACE(" > initializing the embedded controller");
+        TRACE("AcpiInitialize initializing the embedded controller");
         // Retrieve handle and initialize handlers
         status = AcpiGetHandle(ACPI_ROOT_OBJECT, &EmbeddedController.NsPath[0], &EmbeddedController.Handle);
         if (ACPI_SUCCESS(status)){
@@ -155,7 +152,7 @@ void AcpiInitialize(void)
 
     // Handles must be installed after enabling subsystems, but before
     // initializing all acpi-objects 
-    TRACE(" > setup acpi handlers");
+    TRACE("AcpiInitialize setup acpi handlers");
     AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
     AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
     //AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
@@ -163,7 +160,7 @@ void AcpiInitialize(void)
     //ACPI_BUTTON_TYPE_LID
     
     // Complete the ACPI namespace object initialization
-    TRACE(" > initializing acpi namespace");
+    TRACE("AcpiInitialize initializing acpi namespace");
     status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(status)){
         FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInitializeObjects, %" PRIuIN "!", status);

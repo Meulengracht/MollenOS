@@ -26,7 +26,7 @@
 #include <ds/dsdefs.h>
 
 typedef uint32_t mchar_t;
-#define MSTRING_NOT_FOUND		-1          // Returned if an occurence is not found
+#define MSTRING_NOT_FOUND		((int)-1)     // Returned if an occurence is not found
 #define MSTRING_EOS				0xFFFD      // Marker for identifying end of string
 #define MSTRING_NO_MATCH		0           // No match was found
 #define MSTRING_FULL_MATCH		1           // A full match was found
@@ -66,7 +66,26 @@ DSDECL(void, MStringAppendHex64(MString_t* String, uint64_t Value));
  * can be given to set the start position of the search. */
 DSDECL(int, MStringFind(MString_t* String, mchar_t Character, int StartIndex));
 DSDECL(int, MStringFindReverse(MString_t* String, mchar_t Character, int StartIndex));
-DSDECL(int, MStringFindCString(MString_t* String, const char* Chars));
+
+/**
+ * @brief Find first occurence of the given UTF8 string
+ *
+ * @param text
+ * @param lookFor
+ * @return Returns the character index for the start of the found string
+ */
+DSDECL(int, MStringFindC(MString_t* text, const char* lookFor));
+
+/**
+ * @brief Replace string occurences, this function replaces occurence of <SearchFor> string
+ * with <ReplaceWith> string. The strings must be of format of UTF8.
+ *
+ * @param[In] String
+ * @param[In] SearchFor
+ * @param[In] ReplaceWith
+ * @return returns 0 if a match was replaced, otherwise -1.
+ */
+DSDECL(int, MStringReplaceC(MString_t* String, const char* SearchFor, const char* ReplaceWith));
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
@@ -77,7 +96,6 @@ DSDECL(mchar_t, MStringGetCharAt(MString_t* String, int Index));
  * the first time, it holds the state. And Index = 0. */
 DSDECL(mchar_t,    MStringIterate(MString_t* String, char      ** Iterator, size_t* Index));
 DSDECL(MString_t*, MStringSubString(MString_t * string, int    index, int length));
-DSDECL(int,        MStringReplace(MString_t* String, const char* SearchFor, const char* ReplaceWith));
 
 DSDECL(size_t,      MStringLength(MString_t * string)); // Number of characters
 DSDECL(size_t,      MStringSize(MString_t * string));   // Number of bytes

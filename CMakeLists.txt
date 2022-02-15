@@ -32,7 +32,9 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set (VALI_PATH_DEPLOY               ${CMAKE_BINARY_DIR}/deploy)
 set (VALI_PATH_DEPLOY_HDD           ${CMAKE_BINARY_DIR}/deploy/hdd)
+set (VALI_PATH_DEPLOY_BOOT          ${CMAKE_BINARY_DIR}/deploy/hdd/boot)
 set (VALI_PATH_DEPLOY_SYSTEM        ${CMAKE_BINARY_DIR}/deploy/hdd/system)
+set (VALI_PATH_DEPLOY_SYSTEM_BIN    ${CMAKE_BINARY_DIR}/deploy/hdd/system/bin)
 set (VALI_PATH_DEPLOY_SYSTEM_SRV    ${CMAKE_BINARY_DIR}/deploy/hdd/system/services)
 set (VALI_PATH_DEPLOY_SYSTEM_MODS   ${CMAKE_BINARY_DIR}/deploy/hdd/system/modules)
 set (VALI_PATH_DEPLOY_SHARED        ${CMAKE_BINARY_DIR}/deploy/hdd/shared)
@@ -41,7 +43,6 @@ set (VALI_PATH_DEPLOY_SHARED_LIB    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
 set (VALI_PATH_DEPLOY_SHARED_INC    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/include)
 set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
 set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
-set (VALI_PATH_INITRD               ${CMAKE_BINARY_DIR}/initrd)
 set (VALI_PATH_APPLICATIONS         ${CMAKE_BINARY_DIR}/apps)
 set (VALI_PATH_APPLICATIONS_SHARE   ${CMAKE_BINARY_DIR}/apps/share)
 
@@ -51,34 +52,41 @@ if (DEFINED ENV{VALI_APPLICATION_PATH})
 endif ()
 
 # Setup utility macros for targets
-macro (deploy_to_initrd)
-    if ((${ARGC} EQUAL 1) OR (${ARGC} EQUAL 2))
-        # ARGV0 = target
-        # ARGV1 = mdrv on/off
-        if (${ARGC} EQUAL 2 AND ${ARGV1})
-            get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
-            configure_file(${D2RD_SOURCE_DIR}/${ARGV0}.mdrv ${VALI_PATH_INITRD}/${ARGV0}.mdrv COPYONLY)
-        endif ()
+macro (deploy_target_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_BIN}
+    )
+endmacro ()
 
-        add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_INITRD}
-        )
+macro (deploy_file_to_initrd)
+    if (${ARGC} GREATER_EQUAL 3)
+        set (FILES_TO_DEPLOY "${ARGN}")
+        list (POP_FRONT FILES_TO_DEPLOY) # target
+        list (POP_FRONT FILES_TO_DEPLOY) # path
+
+        get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
+        foreach (RD_FILE ${FILES_TO_DEPLOY})
+            add_custom_command (TARGET ${ARGV0} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy "${D2RD_SOURCE_DIR}/${RD_FILE}" "${VALI_PATH_DEPLOY_SYSTEM}/${ARGV1}"
+            )
+        endforeach ()
     else ()
-        message (STATUS "usage: deploy_to_initrd <target> <copy mdrv ON/OFF>")
-        message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_to_initrd")
+        message (STATUS "usage: deploy_file_to_initrd <target> <path> files ...")
+        message (FATAL_ERROR "Invalid number of arguments (${ARGC}) for deploy_file_to_initrd")
     endif ()
 endmacro ()
 
 # Setup tools
-set (TOOL_RD ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/rd)
-set (TOOL_LZ ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lzss)
-set (TOOL_DU ${CMAKE_BINARY_DIR}/tools-prefix/src/tools-build/diskutility/osbuilder)
-set (TOOL_RV ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/revision)
+set (TOOL_RD ${CMAKE_BINARY_DIR}/tools/host/bin/mkvafs)
+set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
+set (TOOL_LZ ${CMAKE_BINARY_DIR}/tools/host/bin/lzss)
 
 # Create neccessary directories
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_HDD})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_BOOT})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM})
+file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_BIN})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_SRV})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_MODS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED})
@@ -87,26 +95,11 @@ file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_INC})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_MAPS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_SHARE})
-file (MAKE_DIRECTORY ${VALI_PATH_INITRD})
 file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
 file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS_SHARE})
 
 # Read the project version
 file(READ "VERSION" VALI_VERSION)
-
-# Run early build initialization that require host compiler
-include (ExternalProject)
-ExternalProject_Add(tools
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/tools
-    CMAKE_CACHE_ARGS
-        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
-)
-
-ExternalProject_Add(unit_tests
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/unit_tests
-    CMAKE_CACHE_ARGS
-    -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
-)
 
 # Configure projects that are specified
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cmake")
@@ -121,6 +114,7 @@ add_subdirectory (boot)
 
 # Generate all the neccessary files for the builds
 add_subdirectory (protocols)
+include_directories (${CMAKE_BINARY_DIR}/protocols)
 
 # Configure the runtime libraries
 add_subdirectory (librt)
@@ -133,6 +127,9 @@ add_subdirectory (services)
 
 # Build modules
 add_subdirectory (modules)
+
+# Build tools
+add_subdirectory (tools)
 
 # Build userspace applications
 # these are not the entire userspace that exists, most of these applications
@@ -154,17 +151,15 @@ add_custom_target (install_applications
 )
 
 add_custom_target (install_prepare
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources/ ${VALI_PATH_DEPLOY_HDD}
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_SYSTEM}/kernel.mos
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_SYSTEM}
+    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare tools)
+add_dependencies(install_prepare diskutility rd lzss)
 
 add_custom_target (install_img
     COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
@@ -198,20 +193,4 @@ add_custom_target (run_qemu
             -serial file:./qserial.txt
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
-)
-
-add_custom_target(package
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-sdk --zip-out vali-sdk.zip
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_INSTALL_PREFIX}/vali-ddk --zip-out vali-ddk.zip
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/package_os
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_DEPLOY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern *.sys
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --initrd ${VALI_PATH_INITRD} --out ${CMAKE_BINARY_DIR}/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_BINARY_DIR}/initrd.mos ${CMAKE_BINARY_DIR}/package_os/initrd.mos
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${CMAKE_BINARY_DIR}/package_os/kernel.mos
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/package_os/
-    COMMAND ${CMAKE_COMMAND} -E copy ${TOOL_DU} ${CMAKE_BINARY_DIR}/package_os/
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${CMAKE_BINARY_DIR}/package_os --pattern DiscUtils*
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --create-zip --zip-dir ${CMAKE_BINARY_DIR}/package_os --zip-out vali.zip
-    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/package_os
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )

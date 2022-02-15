@@ -1,0 +1,17 @@
+# Standard configuration file for drivers in the OS
+driver:
+  type:
+    - class: 0
+    - subclass: 0
+
+  vendors:
+  - 0x8086:
+    - 0x1000
+    - 0x1001
+    - 0x1004
+    - 0x1008
+    - 0x1009
+    - 0x100C
+    - 0x100D
+    - 0x100E
+    - 0x1015

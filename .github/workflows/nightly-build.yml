@@ -1,0 +1,45 @@
+name: Nightly Image
+
+on:
+  # Nightly builds
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ 'amd64', 'i386' ]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Download vali applications
+      uses: dawidd6/action-download-artifact@v2
+      continue-on-error: true
+      with:
+        workflow: nightly-${{ matrix.platform }}.yml
+        workflow_conclusion: success
+        branch: master
+        repo: Meulengracht/vali-userspace
+        check_artifacts: true
+        path: ${{ github.workspace }}
+    - name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        build-args: ARCH=${{ matrix.platform }}
+        file: nightly.Dockerfile
+        target: artifact
+        outputs: type=local,dest=.
+    - uses: actions/upload-artifact@v2
+      with:
+        name: vali-nightly-${{ matrix.platform }}
+        path: ./vali-nightly.tar.gz

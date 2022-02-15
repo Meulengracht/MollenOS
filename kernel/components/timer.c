@@ -45,8 +45,11 @@ __CalculateResolution(
         return NSEC_PER_USEC * (USEC_PER_SEC / frequency->QuadPart);
     }
 
-    // ns resolution
-    return NSEC_PER_SEC / frequency->QuadPart;
+    if (frequency->QuadPart <= NSEC_PER_SEC) {
+        // ns resolution
+        return NSEC_PER_SEC / frequency->QuadPart;
+    }
+    return frequency->QuadPart / NSEC_PER_SEC;
 }
 
 OsStatus_t
@@ -82,6 +85,8 @@ SystemTimerRegister(
         GetMachine()->SystemTimers.Hpc = systemTimer;
     }
     else if (attributes & SystemTimeAttributes_COUNTER) {
+        operations->Read(context, &systemTimer->InitialTick);
+
         // Might be a new tick counter, lets compare resolution of
         // what we already have
         if (!GetMachine()->SystemTimers.Clock) {
@@ -118,14 +123,20 @@ SystemTimerGetTimestamp(
     clock->Operations.Read(clock->Context, &tick);
     clock->Operations.GetFrequency(clock->Context, &frequency);
 
+    // subtract initial timestamp
+    tick.QuadPart -= clock->InitialTick.QuadPart;
+
     if (frequency.QuadPart <= MSEC_PER_SEC) {
         *timestampOut = (MSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart * NSEC_PER_MSEC;
     }
     else if (frequency.QuadPart <= USEC_PER_SEC) {
         *timestampOut = ((USEC_PER_SEC / frequency.QuadPart) * tick.QuadPart) * NSEC_PER_USEC;
     }
-    else { // we assume ns
+    else if (frequency.QuadPart < NSEC_PER_SEC) {
         *timestampOut = ((NSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart);
+    }
+    else {
+        *timestampOut = tick.QuadPart;
     }
 }
 
@@ -196,19 +207,24 @@ SystemTimerStall(
     clock->Operations.GetFrequency(clock->Context, &frequency);
 
     // calculate end tick
-    vPerTicks = NSEC_PER_SEC / frequency.QuadPart;
-    if (vPerTicks >= NSEC_PER_USEC) { // USEC precision
-        vPerTicks = USEC_PER_SEC / frequency.QuadPart;
-        if (vPerTicks >= USEC_PER_MSEC) { // MS precision
-            vPerTicks = MSEC_PER_SEC / frequency.QuadPart;
-            tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_MSEC) / vPerTicks) + 1;
-        }
-        else {
-            tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_USEC) / vPerTicks) + 1;
-        }
+    if (NSEC_PER_SEC >= frequency.QuadPart) {
+        tickEnd.QuadPart = tick.QuadPart + ns;
     }
     else {
-        tickEnd.QuadPart = tick.QuadPart + (ns / vPerTicks) + 1;
+        vPerTicks = NSEC_PER_SEC / frequency.QuadPart;
+        if (vPerTicks >= NSEC_PER_USEC) { // USEC precision
+            vPerTicks = USEC_PER_SEC / frequency.QuadPart;
+            if (vPerTicks >= USEC_PER_MSEC) { // MS precision
+                vPerTicks = MSEC_PER_SEC / frequency.QuadPart;
+                tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_MSEC) / vPerTicks) + 1;
+            }
+            else {
+                tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_USEC) / vPerTicks) + 1;
+            }
+        }
+        else {
+            tickEnd.QuadPart = tick.QuadPart + (ns / vPerTicks) + 1;
+        }
     }
 
     // wait for it

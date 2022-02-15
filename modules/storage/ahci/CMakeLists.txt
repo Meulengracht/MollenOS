@@ -35,3 +35,4 @@ add_module_target(ahci ""
     transactions.c
 )
 add_dependencies(ahci contract_servers)
+deploy_file_to_initrd(ahci "modules" ahci.yaml)

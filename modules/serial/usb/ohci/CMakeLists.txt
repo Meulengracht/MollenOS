@@ -30,3 +30,4 @@ add_module_target(ohci ""
     transfer_isoc.c
 )
 target_link_libraries(ohci usb-common)
+deploy_file_to_initrd(ohci "modules" ohci.yaml)

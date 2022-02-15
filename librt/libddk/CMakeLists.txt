@@ -37,17 +37,6 @@ set (GENERATED_SOURCES
 )
 set_source_files_properties ( ${GENERATED_SOURCES} PROPERTIES GENERATED TRUE )
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libds/include
-    ../../librt/libc/include
-    ../../include
-    ./include
-)
-
 set(ASM_SOURCES
     arch/${VALI_ARCH}/_io.s
 )
@@ -56,31 +45,45 @@ set(ASM_SOURCES
 set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
 
 add_library(libddk
-    ${GENERATED_SOURCES}
-    ${ASM_SOURCES}
+        ${GENERATED_SOURCES}
+        ${ASM_SOURCES}
+
+        initrd/depacks.c
+        initrd/filter.c
     
-    acsupport.c
-    bufferpool.c
-    bytepool.c
-    crc32.c
-    debug.c
-    device.c
-    deviceio.c
-    eventqueue.c
-    handle.c
-    interrupt.c
-    io.c
-    mappings.c
-    service.c
-    threadpool.c
-    usb.c
-    utils.c
+        acsupport.c
+        bufferpool.c
+        bytepool.c
+        crc32.c
+        debug.c
+        device.c
+        deviceio.c
+        eventqueue.c
+        handle.c
+        interrupt.c
+        io.c
+        mappings.c
+        service.c
+        threadpool.c
+        usb.c
+        utils.c
 )
 add_dependencies(libddk service_clients contract_clients)
 target_include_directories(libddk
     PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/vali-ddk/include>"
+)
+
+# avoid using target_link_libraries for the RT libraries as it could result
+# in cyclic dependencies, and most are static libraries and do not actually really
+# depend on each other
+target_include_directories(libddk PRIVATE
+        ../../tools/rd/libvafs/include
+        ../libgracht/include
+        ../libc/include
+        ../libusb/include
+        ../libds/include
 )
 
 install(TARGETS libddk

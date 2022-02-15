@@ -21,7 +21,7 @@
  */
 
 #include <ctype.h>
-#include "../libc/threads/tls.h"
+#include "../../libc/threads/tls.h"
 #include <os/process.h>
 #include <stdlib.h>
 #include <string.h>

@@ -261,8 +261,8 @@ __LoadRamdisk(
     UINTN      BufferSize;
     ConsoleWrite(L"__LoadRamdisk()\n");
 
-    // Load and relocate the ramdisk
-    Status = __LoadFile(L"\\EFI\\VALI\\initrd.mos", 1, &Buffer, &BufferSize);
+    // Load the ramdisk
+    Status = __LoadFile(L"\\EFI\\VALI\\initrd.mos", 0, &Buffer, &BufferSize);
     if (EFI_ERROR(Status)) {
         return Status;
     }

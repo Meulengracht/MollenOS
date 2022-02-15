@@ -47,6 +47,7 @@ typedef struct SystemTimer {
     enum SystemTimeAttributes Attributes;
     UUId_t                    Interrupt;
     tick_t                    Resolution;
+    LargeUInteger_t           InitialTick;
     void*                     Context;
 } SystemTimer_t;
 

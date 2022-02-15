@@ -32,6 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <ctt_usbhost_service_client.h>
+#include <ctt_usbhub_service_client.h>
+
 static _Atomic(UUId_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
 static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool*      DmaPool                  = NULL;

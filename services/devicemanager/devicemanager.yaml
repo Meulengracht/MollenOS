@@ -1,0 +1,5 @@
+# Standard yaml configuration for services in the OS
+service:
+  name: devicemanager
+  path: /service/device
+  #depends: none

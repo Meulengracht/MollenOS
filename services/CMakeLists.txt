@@ -8,10 +8,12 @@ macro (add_service_target)
         set_target_properties (${ARGV0}
             PROPERTIES
                 COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL ${ARGV1}"
-                LINK_FLAGS "-Xlinker -entry:__CrtServiceEntry"
-                RUNTIME_OUTPUT_DIRECTORY ${VALI_PATH_DEPLOY_SYSTEM_SRV}
         )
+        target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtServiceEntry")
         target_link_libraries (${ARGV0} gracht libusb libds libddk c librt)
+        add_custom_command (TARGET ${ARGV0} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_SRV}
+        )
     else ()
         message (FATAL_ERROR "Not enough parameters for add_service_target")
     endif ()

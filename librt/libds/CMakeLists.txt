@@ -6,7 +6,6 @@ enable_language (C)
 set (SHARED_INCLUDES
     ../libddk/include
     ../libc/include
-    ../include
     ./include
 )
 set (KERNEL_INCLUDES
@@ -57,13 +56,14 @@ set (SHARED_SOURCES
 )
 
 add_library(libdsk ${SHARED_SOURCES} support/dsk.c)
-target_compile_options(libdsk
-    PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -D__LIBDS_KERNEL__ -D_KRNL_DLL>
-)
-target_include_directories(libdsk PUBLIC ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
+target_compile_options(libdsk PRIVATE -mno-sse)
+target_compile_definitions(libdsk PRIVATE -D__LIBDS_KERNEL__ -D_KRNL_DLL)
+target_include_directories(libdsk PRIVATE ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
+target_include_directories(libdsk PUBLIC include)
 
 add_library(libds ${SHARED_SOURCES} support/ds.c)
-target_include_directories(libds PUBLIC ${SHARED_INCLUDES})
+target_include_directories(libds PRIVATE ${SHARED_INCLUDES})
+target_include_directories(libds PUBLIC include)
 install(TARGETS libds
     ARCHIVE DESTINATION vali-sdk/lib
     LIBRARY DESTINATION vali-sdk/lib

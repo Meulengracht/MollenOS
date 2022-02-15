@@ -24,12 +24,14 @@
 
 //#define __TRACE
 
+#include <assert.h>
 #include <ds/ds.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
+#include <ddk/utils.h>
 #include <os/mollenos.h>
 #include <string.h>
-#include <assert.h>
+#include <stdlib.h>
 #include "pe.h"
 
 typedef struct SectionMapping {
@@ -80,11 +82,11 @@ GetSectionFromRVA(
     }
 
     // Debug why this happens
-    dserror("GetSectionFromRVA(0x%x) => error segment not found", RVA);
+    ERROR("GetSectionFromRVA(0x%x) => error segment not found", RVA);
     for (i = 0; i < SectionCount; i++) {
         uintptr_t SectionStart = SectionMappings[i].RVA;
         uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
-        dswarning("section(%i) => 0x%x, 0x%x", i, SectionStart, SectionEnd);
+        WARNING("section(%i) => 0x%x, 0x%x", i, SectionStart, SectionEnd);
     }
     assert(0);
     return NULL;
@@ -149,101 +151,103 @@ GetExportedFunctionByNameDescriptor(
 
 static OsStatus_t
 PeHandleSections(
-    _In_ PeExecutable_t*   Parent,
-    _In_ PeExecutable_t*   Image,
-    _In_ uint8_t*          Data,
-    _In_ uintptr_t         SectionAddress,
-    _In_ int               SectionCount,
-    _In_ SectionMapping_t* SectionHandles)
+    _In_ PeExecutable_t*   parent,
+    _In_ PeExecutable_t*   image,
+    _In_ uint8_t*          data,
+    _In_ uintptr_t         sectionsAddress,
+    _In_ int               sectionCount,
+    _In_ SectionMapping_t* sectionHandles)
 {
-    PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
-    uintptr_t          CurrentAddress = Image->VirtualAddress;
-    OsStatus_t         Status;
-    MemoryMapHandle_t  MapHandle;
-    char               SectionName[PE_SECTION_NAME_LENGTH + 1];
+    PeSectionHeader_t* section        = (PeSectionHeader_t*)sectionsAddress;
+    uintptr_t          currentAddress = image->VirtualAddress;
+    OsStatus_t         osStatus;
+    MemoryMapHandle_t  mapHandle;
+    char               sectionName[PE_SECTION_NAME_LENGTH + 1];
     int                i;
 
-    for (i = 0; i < SectionCount; i++) {
+    for (i = 0; i < sectionCount; i++) {
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
-        uintptr_t    VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
-        uint8_t*     FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
+        uintptr_t    VirtualDestination = image->VirtualAddress + section->VirtualAddress;
+        uint8_t*     FileBuffer         = (uint8_t*)(data + section->RawAddress);
         unsigned int PageFlags          = MEMORY_READ;
-        size_t       SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
+        size_t       SectionSize        = MAX(section->RawSize, section->VirtualSize);
         uint8_t*     Destination;
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
-        memcpy(&SectionName[0], &Section->Name[0], 8);
-        SectionName[8] = 0;
+        memcpy(&sectionName[0], &section->Name[0], PE_SECTION_NAME_LENGTH);
+        sectionName[8] = 0;
 
         // Handle page flags for this section
-        if (Section->Flags & PE_SECTION_EXECUTE) {
+        if (section->Flags & PE_SECTION_EXECUTE) {
             PageFlags |= MEMORY_EXECUTABLE;
         }
-        if (Section->Flags & PE_SECTION_WRITE) {
+        if (section->Flags & PE_SECTION_WRITE) {
             PageFlags |= MEMORY_WRITE;
         }
 
         // Iterate pages and map them in our memory space
-        Status = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &MapHandle);
-        if (Status != OsSuccess) {
-            dserror("%s: Failed to map section %s at 0x%" PRIxIN ": %u", 
-                MStringRaw(Image->Name), &SectionName[0], VirtualDestination, Status);
-            return Status;
+        osStatus = PeImplAcquireImageMapping(image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &mapHandle);
+        if (osStatus != OsSuccess) {
+            ERROR("%s: Failed to map section %s at 0x%" PRIxIN ": %u",
+                  MStringRaw(image->Name), &sectionName[0], VirtualDestination, osStatus);
+            return osStatus;
         }
         Destination = (uint8_t*)VirtualDestination;
 
-        SectionHandles[i].Handle      = MapHandle;
-        SectionHandles[i].BasePointer = Destination;
-        SectionHandles[i].RVA         = Section->VirtualAddress;
-        SectionHandles[i].Size        = SectionSize;
+        sectionHandles[i].Handle      = mapHandle;
+        sectionHandles[i].BasePointer = Destination;
+        sectionHandles[i].RVA         = section->VirtualAddress;
+        sectionHandles[i].Size        = SectionSize;
 
         // Store first code segment we encounter
-        if (Section->Flags & PE_SECTION_CODE) {
-            if (Image->CodeBase == 0) {
-                Image->CodeBase = (uintptr_t)Image->VirtualAddress + Section->VirtualAddress;
-                Image->CodeSize = Section->VirtualSize;
+        if (section->Flags & PE_SECTION_CODE) {
+            if (image->CodeBase == 0) {
+                image->CodeBase = (uintptr_t)image->VirtualAddress + section->VirtualAddress;
+                image->CodeSize = section->VirtualSize;
             }
         }
 
         // Handle sections specifics, we want to:
         // BSS: Zero out the memory 
         // Code: Copy memory 
-        // Data: Copy memory
-        if (Section->RawSize == 0 || (Section->Flags & PE_SECTION_BSS)) {
-            dstrace("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize, Destination,
-                Image->VirtualAddress + Section->VirtualAddress, PageFlags);
-            memset(Destination, 0, Section->VirtualSize);
+        // data: Copy memory
+        if (section->RawSize == 0 || (section->Flags & PE_SECTION_BSS)) {
+            TRACE("section(%i, %s): clearing %u bytes => 0x%x (0x%x, 0x%x)",
+                  i, &sectionName[0], section->VirtualSize, Destination,
+                  image->VirtualAddress + section->VirtualAddress, PageFlags);
+            memset(Destination, 0, section->VirtualSize);
         }
-        else if ((Section->Flags & PE_SECTION_CODE) || (Section->Flags & PE_SECTION_DATA)) {
-            dstrace("section(%i): copying %u bytes 0x%" PRIxIN " => 0x%" PRIxIN " (0x%" PRIxIN ", 0x%x)", i, 
-                Section->RawSize, FileBuffer, Destination,
-                Image->VirtualAddress + Section->VirtualAddress, PageFlags);
-            memcpy(Destination, FileBuffer, Section->RawSize);
+        else if ((section->Flags & PE_SECTION_CODE) || (section->Flags & PE_SECTION_DATA)) {
+            TRACE("section(%i, %s): copying %u bytes 0x%" PRIxIN " => 0x%" PRIxIN " (0x%" PRIxIN ", 0x%x)",
+                  i, &sectionName[0], section->RawSize, FileBuffer, Destination,
+                  image->VirtualAddress + section->VirtualAddress, PageFlags);
+            memcpy(Destination, FileBuffer, section->RawSize);
 
             // Sanitize this special case, if the virtual size
             // is large, this means there needs to be zeroed space afterwards
-            if (Section->VirtualSize > Section->RawSize) {
-                Destination += Section->RawSize;
-                dstrace("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize - Section->RawSize, 
-                    Destination, Image->VirtualAddress + Section->VirtualAddress, PageFlags);
-                memset(Destination, 0, (Section->VirtualSize - Section->RawSize));
+            if (section->VirtualSize > section->RawSize) {
+                Destination += section->RawSize;
+                TRACE("section(%i, %s): clearing %u bytes => 0x%x (0x%x, 0x%x)",
+                      i, &sectionName[0], section->VirtualSize - section->RawSize,
+                      Destination, image->VirtualAddress + section->VirtualAddress, PageFlags);
+                memset(Destination, 0, (section->VirtualSize - section->RawSize));
             }
         }
-        CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
-        Section++;
+        currentAddress = (image->VirtualAddress + section->VirtualAddress + SectionSize);
+        section++;
     }
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (CurrentAddress % PeImplGetPageSize()) {
-        CurrentAddress += (PeImplGetPageSize() - (CurrentAddress % PeImplGetPageSize()));
+    if (currentAddress % PeImplGetPageSize()) {
+        currentAddress += (PeImplGetPageSize() - (currentAddress % PeImplGetPageSize()));
     }
 
-    if (Parent != NULL) Parent->NextLoadingAddress = CurrentAddress;
-    else                Image->NextLoadingAddress  = CurrentAddress;
+    if (parent != NULL) parent->NextLoadingAddress = currentAddress;
+    else image->NextLoadingAddress  = currentAddress;
     return OsSuccess;
 }
 
@@ -261,13 +265,13 @@ PeResolveImportDescriptor(
     uintptr_t                 AddressOfImportTable;
     PeImportNameDescriptor_t* NameDescriptor;
 
-    dstrace("PeResolveImportDescriptor(%s, %s)", 
+    TRACE("PeResolveImportDescriptor(%s, %s)", 
         MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
 
     // Resolve the library from the import chunk
     ResolvedLibrary = PeResolveLibrary(ParentImage, Image, ImportDescriptorName);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
-        dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
+        ERROR("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
         return OsError;
     }
     Exports              = ResolvedLibrary->ExportedFunctions;
@@ -287,7 +291,7 @@ PeResolveImportDescriptor(
                 int Ordinal = (int)(Value & 0xFFFF);
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
                 if (!Function) {
-                    dserror("Failed to locate function (%i)", Ordinal);
+                    ERROR("Failed to locate function (%i)", Ordinal);
                     return OsError;
                 }
             }
@@ -295,7 +299,7 @@ PeResolveImportDescriptor(
                 NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
                 if (!Function) {
-                    dserror("Failed to locate function (%s)", &NameDescriptor->Name[0]);
+                    ERROR("Failed to locate function (%s)", &NameDescriptor->Name[0]);
                     return OsError;
                 }
             }
@@ -314,7 +318,7 @@ PeResolveImportDescriptor(
                 int Ordinal = (int)(Value & 0xFFFF);
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
                 if (!Function) {
-                    dserror("Failed to locate function (%i)", Ordinal);
+                    ERROR("Failed to locate function (%i)", Ordinal);
                     return OsError;
                 }
             }
@@ -322,7 +326,7 @@ PeResolveImportDescriptor(
                 NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
                 if (!Function) {
-                    dserror("Failed to locate function (%s)", &NameDescriptor->Name[0]);
+                    ERROR("Failed to locate function (%s)", &NameDescriptor->Name[0]);
                     return OsError;
                 }
             }
@@ -335,105 +339,107 @@ PeResolveImportDescriptor(
 
 OsStatus_t
 PeHandleRelocations(
-    _In_ PeExecutable_t*    ParentImage,
-    _In_ PeExecutable_t*    Image,
-    _In_ SectionMapping_t*  Sections,
-    _In_ int                SectionCount,
-    _In_ uint8_t*           DirectoryContent,
-    _In_ size_t             DirectorySize)
+    _In_ PeExecutable_t*    parentImage,
+    _In_ PeExecutable_t*    image,
+    _In_ SectionMapping_t*  sectionMappings,
+    _In_ int                sectionCount,
+    _In_ uint8_t*           directoryContent,
+    _In_ size_t             directorySize)
 {
-    size_t    BytesLeft         = DirectorySize;
-    uint32_t* RelocationPointer = (uint32_t*)DirectoryContent;
-    uintptr_t ImageDelta        = Image->VirtualAddress - Image->OriginalImageBase;
+    size_t    bytesLeft         = directorySize;
+    uint32_t* relocationPointer = (uint32_t*)directoryContent;
+    intptr_t imageDelta         = (intptr_t)image->VirtualAddress - (intptr_t)image->OriginalImageBase;
     uint32_t  i;
+    TRACE("PeHandleRelocations(count=%i, size=%" PRIuIN ", delta=0x%" PRIxIN ")",
+          sectionCount, directorySize, imageDelta);
 
     // Sanitize the image delta
-    if (ImageDelta == 0) {
+    if (imageDelta == 0) {
         return OsSuccess;
     }
 
-    while (BytesLeft > 0) {
-        uint16_t*         RelocationTable;
-        uint32_t          NumRelocs;
-        SectionMapping_t* Section;
-        uintptr_t sectionOffset;
+    while (bytesLeft > 0) {
+        uint16_t*         relocationTable;
+        uint32_t          relocationCount;
+        SectionMapping_t* section;
+        uintptr_t         sectionOffset;
 
         // Get the next block
-        uint32_t PageRVA   = RelocationPointer[0];
-        uint32_t BlockSize = RelocationPointer[1];
-        if (PageRVA == 0 || BlockSize == 0) {
+        uint32_t pageRva   = relocationPointer[0];
+        uint32_t blockSize = relocationPointer[1];
+        if (pageRva == 0 || blockSize == 0) {
             int Index = 0;
-            dserror("%s: Directory 0x%" PRIxIN ", Size %" PRIuIN, 
-                MStringRaw(Image->Name), DirectoryContent, DirectorySize);
-            dserror("BytesLeft %" PRIuIN ", ", BytesLeft);
-            dserror("PageRVA is 0, BlockSize %u", BlockSize);
+            ERROR("%s: Directory 0x%" PRIxIN ", Size %" PRIuIN,
+                  MStringRaw(image->Name), directoryContent, directorySize);
+            ERROR("bytesLeft %" PRIuIN ", ", bytesLeft);
+            ERROR("pageRva is 0, blockSize %u", blockSize);
             for (i = 0; i < 4; i++, Index += 16) {
-                dswarning("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", DirectoryContent[Index],
-                    DirectoryContent[Index + 1], DirectoryContent[Index + 2], DirectoryContent[Index + 3],
-                    DirectoryContent[Index + 4], DirectoryContent[Index + 5], DirectoryContent[Index + 6],
-                    DirectoryContent[Index + 7], DirectoryContent[Index + 8], DirectoryContent[Index + 9],
-                    DirectoryContent[Index + 10], DirectoryContent[Index + 11], DirectoryContent[Index + 12],
-                    DirectoryContent[Index + 13], DirectoryContent[Index + 14], DirectoryContent[Index + 15]);
+                WARNING("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", directoryContent[Index],
+                        directoryContent[Index + 1], directoryContent[Index + 2], directoryContent[Index + 3],
+                        directoryContent[Index + 4], directoryContent[Index + 5], directoryContent[Index + 6],
+                        directoryContent[Index + 7], directoryContent[Index + 8], directoryContent[Index + 9],
+                        directoryContent[Index + 10], directoryContent[Index + 11], directoryContent[Index + 12],
+                        directoryContent[Index + 13], directoryContent[Index + 14], directoryContent[Index + 15]);
             }
             assert(0);
         }
 
-        Section       = GetSectionFromRVA(Sections, SectionCount, PageRVA);
-        sectionOffset = OFFSET_IN_SECTION(Section, PageRVA);
+        section       = GetSectionFromRVA(sectionMappings, sectionCount, pageRva);
+        sectionOffset = OFFSET_IN_SECTION(section, pageRva);
 
-        if (BlockSize > BytesLeft) {
-            dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
+        if (blockSize > bytesLeft) {
+            ERROR("Invalid relocation data: blockSize > bytesLeft, bailing");
             assert(0);
         }
-        
-        NumRelocs       = (BlockSize - 8) / sizeof(uint16_t);
-        RelocationTable = (uint16_t*)&RelocationPointer[2];
 
-        for (i = 0; i < NumRelocs; i++) {
-            uint16_t RelocationEntry = RelocationTable[i];
-            uint16_t Type            = (RelocationEntry >> 12);
-            uint16_t Value           = RelocationEntry & 0x0FFF;
+        relocationCount = (blockSize - 8) / sizeof(uint16_t);
+        relocationTable = (uint16_t*)&relocationPointer[2];
+
+        for (i = 0; i < relocationCount; i++) {
+            uint16_t relocationEntry = relocationTable[i];
+            uint16_t type            = (relocationEntry >> 12);
+            uint16_t value           = relocationEntry & 0x0FFF;
             
             // 32/64 Bit Relative
-            if (Type == PE_RELOCATION_HIGHLOW || Type == PE_RELOCATION_RELATIVE64) { 
-                // Create a pointer, the low 12 bits have an offset into the PageRVA
-                volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(sectionOffset + Value);
-                uintptr_t           UpdatedAddress = *AddressPointer + ImageDelta;
+            if (type == PE_RELOCATION_HIGHLOW || type == PE_RELOCATION_RELATIVE64) {
+                // Create a pointer, the low 12 bits have an offset into the pageRva
+                uintptr_t* fixupAddress = (uintptr_t*)(sectionOffset + value);
+                intptr_t   fixupValue = (intptr_t)(*fixupAddress) + imageDelta;
 #if __BITS == 32
-                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000) {
-                    dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
-                    dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
-                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
-                        Section->BasePointer, sectionOffset, AddressPointer, *AddressPointer);
-                    dserror("Relocation caused invalid pointer: 0x%x, 0x%x, New Base 0x%x, Old Base 0x%x",
-                        UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
+                if ((uintptr_t)fixupValue < image->VirtualAddress || (uintptr_t)fixupValue >= 0x30000000) {
+                    ERROR("%s: Rel %u, value %u (%u/%u)", MStringRaw(image->Name), type, value, i, relocationCount);
+                    ERROR("pageRva 0x%x of SectionRVA 0x%x. Current blocksize %u", pageRva, section->RVA, blockSize);
+                    ERROR("section 0x%x, SectionAddress 0x%x, Address 0x%x, value 0x%x",
+                        section->BasePointer, sectionOffset, fixupAddress, *fixupAddress);
+                    ERROR("Relocation caused invalid pointer: 0x%x, 0x%x, New Base 0x%x, Old Base 0x%x",
+                        fixupValue, imageDelta, image->VirtualAddress, image->OriginalImageBase);
                     assert(0);
                 }
 #endif
 #if __BITS == 64
-                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x8100000000ULL) {
-                    dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
-                    dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
-                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x",
-                            Section->BasePointer, sectionOffset, AddressPointer, *AddressPointer);
-                    dserror("Relocation caused invalid pointer: 0x%llx, 0x%llx, New Base 0x%llx, Old Base 0x%llx",
-                        UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
+                if ((uintptr_t)fixupValue < image->VirtualAddress || (uintptr_t)fixupValue >= 0x8100000000ULL) {
+                    ERROR("%s: Rel %u, value %u (%u/%u)", MStringRaw(image->Name), type, value, i, relocationCount);
+                    ERROR("pageRva 0x%x of SectionRVA 0x%x. Current blocksize %u", pageRva, section->RVA, blockSize);
+                    ERROR("section 0x%x, SectionAddress 0x%x, Address 0x%x, value 0x%x",
+                          section->BasePointer, sectionOffset, fixupAddress, *fixupAddress);
+                    ERROR("Relocation caused invalid pointer: 0x%llx, 0x%llx, New Base 0x%llx, Old Base 0x%llx",
+                          fixupValue, imageDelta, image->VirtualAddress, image->OriginalImageBase);
                     assert(0);
                 }
 #endif
-                *AddressPointer = UpdatedAddress;
+                *fixupAddress = (uintptr_t)fixupValue;
             }
-            else if (Type == PE_RELOCATION_ALIGN) {
+            else if (type == PE_RELOCATION_ALIGN) {
                 // End of alignment
                 break;
             }
             else {
-                dserror("Implement support for reloc type: %u", Type);
+                ERROR("Implement support for reloc type: %u", type);
                 assert(0);
             }
         }
-        RelocationPointer += (BlockSize / sizeof(uint32_t));
-        BytesLeft         -= BlockSize;
+        relocationPointer += (blockSize / sizeof(uint32_t));
+        bytesLeft         -= blockSize;
     }
     return OsSuccess;
 }
@@ -465,13 +471,13 @@ static void HandleRelocationsV1(
         _In_ const uint8_t*    RelocationsEnd)
 {
     RuntimeRelocationEntryV1_t* entry = (RuntimeRelocationEntryV1_t*)RelocationEntries;
-    dstrace("HandleRelocationsV1(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
+    TRACE("HandleRelocationsV1(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
 
     while ((uint8_t*)entry < RelocationsEnd) {
         uintptr_t sectionOffset = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Offset);
-        dstrace("HandleRelocationsV1 sectionOffset=0x%" PRIxIN " from entry->Offset=0x%x",
+        TRACE("HandleRelocationsV1 sectionOffset=0x%" PRIxIN " from entry->Offset=0x%x",
                 sectionOffset, entry->Offset);
-        dstrace("HandleRelocationsV1 value=0x%" PRIxIN " += 0x%x",
+        TRACE("HandleRelocationsV1 value=0x%" PRIxIN " += 0x%x",
                 *((uintptr_t*)sectionOffset), entry->Value);
 
         *((uintptr_t*)sectionOffset) += entry->Value;
@@ -487,7 +493,7 @@ static OsStatus_t HandleRelocationsV2(
         _In_ const uint8_t*    RelocationsEnd)
 {
     RuntimeRelocationEntryV2_t* entry = (RuntimeRelocationEntryV2_t*)RelocationEntries;
-    dstrace("HandleRelocationsV2(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
+    TRACE("HandleRelocationsV2(start=0x%" PRIxIN ", end=0x%" PRIxIN ")", RelocationEntries, RelocationsEnd);
 
     while ((uint8_t*)entry < RelocationsEnd) {
         uintptr_t symbolSectionAddress = GetOffsetInSectionFromRVA(Sections, SectionCount, entry->Symbol);
@@ -496,11 +502,11 @@ static OsStatus_t HandleRelocationsV2(
         uint8_t   relocSize = (uint8_t)(entry->Flags & 0xFF);
         intptr_t  relocData;
 
-        dstrace("HandleRelocationsV2 symbolSectionAddress=0x%" PRIxIN " from entry->Symbol=0x%x",
+        TRACE("HandleRelocationsV2 symbolSectionAddress=0x%" PRIxIN " from entry->Symbol=0x%x",
                 symbolSectionAddress, entry->Symbol);
-        dstrace("HandleRelocationsV2 targetSectionAddress=0x%" PRIxIN " from entry->Offset=0x%x",
+        TRACE("HandleRelocationsV2 targetSectionAddress=0x%" PRIxIN " from entry->Offset=0x%x",
                 targetSectionAddress, entry->Offset);
-        dstrace("HandleRelocationsV2 symbolValue=0x%" PRIxIN ", relocSize=0x%x",
+        TRACE("HandleRelocationsV2 symbolValue=0x%" PRIxIN ", relocSize=0x%x",
                 symbolValue, relocSize);
 
         switch (relocSize) {
@@ -530,16 +536,16 @@ static OsStatus_t HandleRelocationsV2(
             } break;
 #endif
             default: {
-                dserror("HandleRelocationsV2 invalid relocation size %u", relocSize);
+                ERROR("HandleRelocationsV2 invalid relocation size %u", relocSize);
                 return OsError;
             }
         }
 
-        dstrace("HandleRelocationsV2 relocData=0x%" PRIxIN ", Image->VirtualAddress=0x%" PRIxIN,
+        TRACE("HandleRelocationsV2 relocData=0x%" PRIxIN ", Image->VirtualAddress=0x%" PRIxIN,
                 relocData, Image->VirtualAddress);
         relocData -= ((intptr_t)Image->VirtualAddress + entry->Symbol);
         relocData += symbolValue;
-        dstrace("HandleRelocationsV2 relocData=0x%" PRIxIN, relocData);
+        TRACE("HandleRelocationsV2 relocData=0x%" PRIxIN, relocData);
 
         switch (relocSize) {
             case 8: *((uint8_t*)targetSectionAddress) = (uint8_t)((uintptr_t)relocData & 0xFF); break;
@@ -565,7 +571,7 @@ OsStatus_t PeHandleRuntimeRelocations(
 {
     RuntimeRelocationHeader_t* header = (RuntimeRelocationHeader_t*)DirectoryContent;
     uint8_t*                   endOfEntries = DirectoryContent + DirectorySize;
-    dstrace("PeHandleRuntimeRelocations(size=%" PRIuIN ")", DirectorySize);
+    TRACE("PeHandleRuntimeRelocations(size=%" PRIuIN ")", DirectorySize);
 
     if (DirectorySize < 8) {
         return OsInvalidParameters;
@@ -605,18 +611,18 @@ PeHandleExports(
     int                  OrdinalBase;
     int                  i;
 
-    dstrace("PeHandleExports(%s, Address 0x%x, Size 0x%x)",
+    TRACE("PeHandleExports(%s, Address 0x%x, Size 0x%x)",
         MStringRaw(Image->Name), DirectoryContent, DirectorySize);
 
     // The following tables are the access we need
     ExportTable = (PeExportDirectory_t*)DirectoryContent;
     if (ExportTable->AddressOfFunctions == 0) {
         int Index = 0;
-        dswarning("Export table present, but address of functions table is zero.");
-        dswarning("ExportTable(0x%x, %u) => Size of Directory %u", 
+        WARNING("Export table present, but address of functions table is zero.");
+        WARNING("ExportTable(0x%x, %u) => Size of Directory %u", 
             ExportTable->Flags, ExportTable->NumberOfFunctions, DirectorySize);
         for (i = 0; i < 4; i++, Index += 16) {
-            dswarning("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", DirectoryContent[Index],
+            WARNING("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", DirectoryContent[Index],
                 DirectoryContent[Index + 1], DirectoryContent[Index + 2], DirectoryContent[Index + 3],
                 DirectoryContent[Index + 4], DirectoryContent[Index + 5], DirectoryContent[Index + 6],
                 DirectoryContent[Index + 7], DirectoryContent[Index + 8], DirectoryContent[Index + 9],
@@ -634,12 +640,12 @@ PeHandleExports(
 
     // Allocate array for exports
     Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfNames;
-    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * Image->NumberOfExportedFunctions);
+    Image->ExportedFunctions         = (PeExportedFunction_t*)malloc(sizeof(PeExportedFunction_t) * Image->NumberOfExportedFunctions);
     memset(Image->ExportedFunctions, 0, sizeof(PeExportedFunction_t) * Image->NumberOfExportedFunctions);
 
     // Fill the exported list, we export all the function addresses first with ordinals, and get
     // an idea of how much space we need to store names of each function
-    dstrace("Number of functions to iterate: %u", Image->NumberOfExportedFunctions);
+    TRACE("Number of functions to iterate: %u", Image->NumberOfExportedFunctions);
     FunctionNameLengths = 0;
     for (i = 0; i < Image->NumberOfExportedFunctions; i++) {
         PeExportedFunction_t* ExFunc      = &Image->ExportedFunctions[i];
@@ -657,12 +663,12 @@ PeHandleExports(
         else {
             uintptr_t MaxImageValue = (ParentImage == NULL) ? Image->NextLoadingAddress : ParentImage->NextLoadingAddress; 
             if (!ISINRANGE(ExFunc->Address, Image->CodeBase, MaxImageValue)) {
-                dserror("%s: Address 0x%x (Table RVA value: 0x%x), %i", 
+                ERROR("%s: Address 0x%x (Table RVA value: 0x%x), %i", 
                     MStringRaw(Image->Name), ExFunc->Address, FunctionAddressTable[ExFunc->Ordinal], i);
-                dserror("The function to export was located outside the image code boundaries (0x%x => 0x%x)",
+                ERROR("The function to export was located outside the image code boundaries (0x%x => 0x%x)",
                     Image->CodeBase, MaxImageValue);
-                dserror("ExportTable->NumberOfFunctions [%u]", ExportTable->NumberOfFunctions);
-                dserror("ExportTable->AddressOfFunctions [0x%x]", ExportTable->AddressOfFunctions);
+                ERROR("ExportTable->NumberOfFunctions [%u]", ExportTable->NumberOfFunctions);
+                ERROR("ExportTable->AddressOfFunctions [0x%x]", ExportTable->AddressOfFunctions);
                 assert(0);
             }
         }
@@ -670,8 +676,8 @@ PeHandleExports(
     }
 
     // Allocate name array
-    dstrace("Number of names/ordinals to iterate: %u (name table size %u)", ExportTable->NumberOfNames, FunctionNameLengths);
-    Image->ExportedFunctionNames = (char*)dsalloc(FunctionNameLengths);
+    TRACE("Number of names/ordinals to iterate: %u (name table size %u)", ExportTable->NumberOfNames, FunctionNameLengths);
+    Image->ExportedFunctionNames = (char*)malloc(FunctionNameLengths);
     FunctionNameLengths          = 0;
     for (i = 0; i < ExportTable->NumberOfNames; i++) {
         PeExportedFunction_t* ExFunc     = &Image->ExportedFunctions[i];
@@ -738,24 +744,24 @@ PeParseAndMapImage(
     OsStatus_t        osStatus;
     clock_t           Timing;
     int                i, j;
-    dswarning("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
+    WARNING("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Copy metadata of image to base address
     osStatus = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
                                          MEMORY_READ | MEMORY_WRITE, &MapHandle);
     if (osStatus != OsSuccess) {
-        dserror("Failed to map pe's metadata, out of memory?");
+        ERROR("Failed to map pe's metadata, out of memory?");
         return OsError;
     }
     memcpy((void*)VirtualAddress, ImageBuffer, SizeOfMetaData);
     PeImplReleaseImageMapping(MapHandle);
 
     // Allocate an array of mappings that we can keep sections in
-    SectionMappings = (SectionMapping_t*)dsalloc(sizeof(SectionMapping_t) * SectionCount);
+    SectionMappings = (SectionMapping_t*)malloc(sizeof(SectionMapping_t) * SectionCount);
     memset(SectionMappings, 0, sizeof(SectionMapping_t) * SectionCount);
 
     // Now we want to handle all the directories and sections in the image
-    dstrace("Handling sections and data directory mappings");
+    TRACE("Handling sections and data directory mappings");
     osStatus = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount, SectionMappings);
     if (osStatus != OsSuccess) {
         return OsError;
@@ -793,15 +799,15 @@ PeParseAndMapImage(
 
         // Is there any directory available for the handler?
         if (DirectoryContents[dataDirectoryIndex] != NULL) {
-            dstrace("parsing data-directory[%i]", dataDirectoryIndex);
+            TRACE("parsing data-directory[%i]", dataDirectoryIndex);
             Timing = PeImplGetTimestampMs();
             osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
                                                         DirectoryContents[dataDirectoryIndex],
                                                         Directories[dataDirectoryIndex].Size);
             if (osStatus != OsSuccess) {
-                dserror("handling of data-directory failed, status %u", osStatus);
+                ERROR("handling of data-directory failed, status %u", osStatus);
             }
-            dstrace("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestampMs() - Timing);
+            TRACE("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestampMs() - Timing);
         }
     }
 
@@ -811,7 +817,7 @@ PeParseAndMapImage(
             PeImplReleaseImageMapping(SectionMappings[i].Handle);
         }
     }
-    dsfree(SectionMappings);
+    free(SectionMappings);
     return osStatus;
 }
 
@@ -835,14 +841,14 @@ __ResolveImagePath(
             &fullPath
     );
     if (osStatus != OsSuccess) {
-        dserror("Failed to resolve path for executable: %s (%u)", MStringRaw(path), osStatus);
+        ERROR("Failed to resolve path for executable: %s (%u)", MStringRaw(path), osStatus);
         return osStatus;
     }
     
     // Load the file
     osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
     if (osStatus != OsSuccess) {
-        dserror("Failed to load file for path %s (%u)", MStringRaw(fullPath), osStatus);
+        ERROR("Failed to load file for path %s (%u)", MStringRaw(fullPath), osStatus);
         MStringDestroy(fullPath);
         return osStatus;
     }
@@ -875,7 +881,7 @@ PeLoadImage(
     uint8_t*           buffer;
     int                index;
 
-    dstrace("PeLoadImage(Path %s, Parent %s)",
+    TRACE("PeLoadImage(Path %s, Parent %s)",
             MStringRaw(path), (parent == NULL) ? "None" : MStringRaw(parent->Name));
 
     osStatus = __ResolveImagePath(owner, parent, path, &buffer, &fullPath);
@@ -890,7 +896,7 @@ PeLoadImage(
     peHeader       = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
     optionalHeader = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
     if (peHeader->Machine != PE_CURRENT_MACHINE) {
-        dserror("The image as built for machine type 0x%x, "
+        ERROR("The image as built for machine type 0x%x, "
                 "which is not the current machine type.",
                 peHeader->Machine);
         return OsError;
@@ -899,7 +905,7 @@ PeLoadImage(
     // Validate the current architecture,
     // again we don't load 32 bit modules for 64 bit
     if (optionalHeader->Architecture != PE_CURRENT_ARCH) {
-        dserror("The image was built for architecture 0x%x, "
+        ERROR("The image was built for architecture 0x%x, "
                 "and was not supported by the current architecture.",
                 optionalHeader->Architecture);
         return OsError;
@@ -926,11 +932,11 @@ PeLoadImage(
         directoryPtr   = (PeDataDirectory_t*)&optionalHeader64->Directories[0];
     }
     else {
-        dserror("Unsupported architecture %u", optionalHeader->Architecture);
+        ERROR("Unsupported architecture %u", optionalHeader->Architecture);
         return OsError;
     }
 
-    image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
+    image = (PeExecutable_t*)malloc(sizeof(PeExecutable_t));
     if (!image) {
         return OsOutOfMemory;
     }
@@ -943,11 +949,11 @@ PeLoadImage(
     image->FullPath          = fullPath;
     image->Architecture      = optionalHeader->Architecture;
     image->VirtualAddress    = (parent == NULL) ? PeImplGetBaseAddress() : parent->NextLoadingAddress;
-    image->Libraries         = dsalloc(sizeof(list_t));
+    image->Libraries         = malloc(sizeof(list_t));
     image->References        = 1;
     image->OriginalImageBase = imageBase;
     list_construct(image->Libraries);
-    dstrace("library (%s) => 0x%x", MStringRaw(image->Name), image->VirtualAddress);
+    TRACE("library (%s) => 0x%" PRIxIN, MStringRaw(image->Name), image->VirtualAddress);
 
     // Set the entry point if there is any
     if (optionalHeader->EntryPoint != 0) {
@@ -957,11 +963,11 @@ PeLoadImage(
     if (parent == NULL) {
         osStatus = PeImplCreateImageSpace(&image->MemorySpace);
         if (osStatus != OsSuccess) {
-            dserror("Failed to create pe's memory space");
+            ERROR("Failed to create pe's memory space");
             MStringDestroy(image->Name);
             MStringDestroy(image->FullPath);
-            dsfree(image->Libraries);
-            dsfree(image);
+            free(image->Libraries);
+            free(image);
             return OsError;
         }
     }
@@ -972,7 +978,7 @@ PeLoadImage(
     // Parse the headers, directories and handle them.
     osStatus = PeParseAndMapImage(parent, image, buffer, sizeOfMetaData, sectionAddress,
                                   (int)peHeader->NumSections, directoryPtr);
-    PeImplUnloadFile(fullPath, (void*)buffer);
+    PeImplUnloadFile((void*)buffer);
     if (osStatus != OsSuccess) {
         PeUnloadLibrary(parent, image);
         return OsError;
@@ -989,11 +995,11 @@ PeUnloadImage(
         return OsInvalidParameters;
     }
 
-    dstrace("PeUnloadImage(image=%s)", MStringRaw(image->Name));
+    TRACE("PeUnloadImage(image=%s)", MStringRaw(image->Name));
     MStringDestroy(image->Name);
     MStringDestroy(image->FullPath);
     if (image->ExportedFunctions) {
-        dsfree(image->ExportedFunctions);
+        free(image->ExportedFunctions);
     }
 
     if (image->Libraries != NULL) {
@@ -1005,7 +1011,7 @@ PeUnloadImage(
             i = list_front(image->Libraries);
         }
     }
-    dsfree(image);
+    free(image);
     return OsSuccess;
 }
 

@@ -170,7 +170,7 @@ RegisterHandlePath(
     struct resource_handle* handle;
     struct handle_mapping*  mapping;
     MString_t*              internalPath;
-    TRACE("[handle_register_path] %u => %s", handleId, path);
+    DEBUG("[handle_register_path] %u => %s", handleId, path);
 
     internalPath = MStringCreate(path, StrUTF8);
     if (!MStringLength(internalPath)) {

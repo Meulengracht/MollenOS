@@ -19,11 +19,11 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <discover.h>
 #include <devices.h>
-#include <ramdisk.h>
+#include <configparser.h>
 #include <requests.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
@@ -50,8 +50,7 @@ struct DmDriver {
     UUId_t                       handle;
     enum DmDriverState           state;
     MString_t*                   path;
-    struct DriverIdentification* identifiers;
-    int                          identifiers_count;
+    struct DriverConfiguration*  configuration;
     list_t                       devices; // list<struct DmDevice>
     struct usched_mtx            devices_lock;
 };
@@ -81,20 +80,19 @@ __DestroyDriver(
         _In_ struct DmDriver* driver)
 {
     // freeing NULLS behave as noops
-    free(driver->identifiers);
+    DmDriverConfigDestroy(driver->configuration);
     MStringDestroy(driver->path);
     free(driver);
 }
 
 OsStatus_t
 DmDiscoverAddDriver(
-        _In_ MString_t*                   driverPath,
-        _In_ struct DriverIdentification* identifiers,
-        _In_ int                          identifiersCount)
+        _In_ MString_t*                  driverPath,
+        _In_ struct DriverConfiguration* driverConfig)
 {
     struct DmDriver* driver;
-    TRACE("DmDiscoverAddDriver(path=%s, identifiersCount=%i)",
-          MStringRaw(driverPath), identifiersCount);
+    TRACE("DmDiscoverAddDriver(path=%s, class=%u, subclass=%u)",
+          MStringRaw(driverPath), driverConfig->Class, driverConfig->Subclass);
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
@@ -106,7 +104,7 @@ DmDiscoverAddDriver(
     driver->id                = g_driverId++;
     driver->handle            = UUID_INVALID;
     driver->state             = DmDriverState_NOTLOADED;
-    driver->identifiers_count = identifiersCount;
+    driver->configuration     = driverConfig;
     list_construct(&driver->devices);
     usched_mtx_init(&driver->devices_lock);
 
@@ -115,13 +113,6 @@ DmDiscoverAddDriver(
         __DestroyDriver(driver);
         return OsOutOfMemory;
     }
-
-    driver->identifiers = malloc(sizeof(struct DriverIdentification) * identifiersCount);
-    if (!driver->identifiers) {
-        __DestroyDriver(driver);
-        return OsOutOfMemory;
-    }
-    memcpy(driver->identifiers, identifiers, sizeof(struct DriverIdentification) * identifiersCount);
 
     usched_mtx_lock(&g_driversLock);
     list_append(&g_drivers, &driver->list_header);
@@ -195,37 +186,28 @@ __RegisterDeviceForDriver(
 }
 
 static int
-__IsIdentificationsMatch(
-        _In_ struct DriverIdentification* lh,
-        _In_ struct DriverIdentification* rh)
-{
-    // We must have a vendor/product match, or a generic match
-    if (lh->VendorId != 0 && lh->ProductId != 0 &&
-        lh->VendorId == rh->VendorId &&
-        lh->ProductId == rh->ProductId) {
-        return 1;
-    }
-
-    // Detect based on class/subclass. Let assume a class and subclass of 0
-    // is invalid, but either of them can be 0.
-    if ((lh->Class != 0 || lh->Subclass != 0) &&
-        lh->Class == rh->Class &&
-        lh->Subclass == rh->Subclass) {
-        return 1;
-    }
-
-    return 0;
-}
-
-static int
 __IsDriverMatch(
         _In_ struct DmDriver*             driver,
         _In_ struct DriverIdentification* deviceIdentification)
 {
-    for (int i = 0; i < driver->identifiers_count; i++) {
-        if (__IsIdentificationsMatch(deviceIdentification, &driver->identifiers[i])) {
-            return 1;
+    if (deviceIdentification->VendorId != 0) {
+        foreach (i, &driver->configuration->Vendors) {
+            struct DriverVendor* vendor = i->value;
+            if (vendor->Id == deviceIdentification->VendorId) {
+                foreach (j, &vendor->Products) {
+                    struct DriverProduct* product = i->value;
+                    if (product->Id == deviceIdentification->ProductId) {
+                        return 1;
+                    }
+                }
+            }
         }
+    }
+
+    if (!(deviceIdentification->Class == 0 && deviceIdentification->Subclass == 0) &&
+        deviceIdentification->Class == driver->configuration->Class &&
+        deviceIdentification->Subclass == driver->configuration->Subclass) {
+        return 1;
     }
     return 0;
 }
@@ -236,6 +218,8 @@ DmDiscoverFindDriver(
         _In_ struct DriverIdentification* deviceIdentification)
 {
     OsStatus_t osStatus = OsDoesNotExist;
+    TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
+          deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
@@ -306,6 +290,7 @@ void DmHandleNotify(
     // driver is now booted, we can send all the devices that have
     // been registered
     struct DmDriver* driver;
+    _CRT_UNUSED(cancellationToken);
     TRACE("DmHandleNotify(driverId=%u)",
           request->parameters.notify.driver_id);
 

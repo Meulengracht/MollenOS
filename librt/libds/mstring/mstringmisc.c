@@ -23,155 +23,95 @@
 
 #include "mstringprivate.h"
 
-/* MStringFindCString
- * Find first occurence of the given UTF8 string
- * in the given string. This does not accept UTF16 or UTF32.
- * returns the index if found, otherwise -1 */
-int
-MStringFindCString(
-    _In_ MString_t  *String,
-    _In_ const char *Chars)
+static int __IsMatch(
+        const char* string1,
+        const char* string2,
+        size_t      count)
 {
-    // Variables
-    char *SourcePointer = NULL;
-    int Result          = -1;
-    int iSource         = 0;
-    int iDest           = 0;
+    size_t i = 0;
+    while (i < count && string1[i] == string2[i]) {
+        i++;
+    }
+    return i != count;
+}
 
-    // Sanitize input
-    if (String == NULL || String->Length == 0) {
-        goto Out;
+int
+MStringFindC(
+    _In_ MString_t*  text,
+    _In_ const char* lookFor)
+{
+    const char* data;
+    int         i  = 0;
+    int         ci = 0;
+    size_t      lookForLength = strlen(lookFor);
+
+    if (!text || !text->Length || !lookForLength) {
+        goto _exit;
     }
 
-    // Initiate pointer
-    SourcePointer           = (char*)String->Data;
-    
-    // Iterate all characters and try to find a match
-    mchar_t SourceCharacter = 0;
-    mchar_t DestCharacter   = 0;
-    while (SourcePointer[iSource]) {
-        iDest               = 0;
-        SourceCharacter     = Utf8GetNextCharacterInString(SourcePointer, &iSource);
-        DestCharacter       = Utf8GetNextCharacterInString(Chars, &iDest);
+    data = (const char*)text->Data;
+    while (i < text->Length) {
+        if (!__IsMatch(&data[i], lookFor, lookForLength)) {
+            return ci;
+        }
+        Utf8GetNextCharacterInString(data, &i);
+        ci++;
+    }
 
-        // Test for equal, if they are continue match
-        if (SourceCharacter == DestCharacter) {
-            int iTemp       = iSource;
-            while (SourcePointer[iTemp] && Chars[iDest] 
-                && SourceCharacter == DestCharacter) {
-                SourceCharacter = Utf8GetNextCharacterInString(SourcePointer, &iTemp);
-                DestCharacter   = Utf8GetNextCharacterInString(Chars, &iDest);
-            }
+_exit:
+    errno = ENOENT;
+    return MSTRING_NOT_FOUND;
+}
 
-            // Make sure final character is still equal after loop
-            if (SourceCharacter == DestCharacter) {
-                if (!Chars[iDest]) { // Must be end of string, otherwise there are chars left
-                    Result = iSource;
-                    break;
-                }
-            }
+int MStringReplaceC(
+        _In_ MString_t*  text,
+        _In_ const char* lookFor,
+        _In_ const char* replaceWith)
+{
+    const char* source;
+    char*       dest;
+    int         sourceIndex;
+    int         destIndex;
+    size_t      lookForLength     = strlen(lookFor);
+    size_t      replaceWithLength = strlen(replaceWith);
+    int         matchFound        = 0;
+
+    if (!text || !text->Data || !lookForLength || !replaceWithLength) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    source = (const char*)text->Data;
+    dest   = dsalloc(1024);
+    if (!dest) {
+        errno = ENOMEM;
+        return -1;
+    }
+    memset(dest, 0, 1024);
+
+    // now iterate through source string and look for match
+    sourceIndex = 0;
+    destIndex   = 0;
+    while (sourceIndex < text->Length) {
+        if (!__IsMatch(&source[sourceIndex], lookFor, lookForLength)) {
+            memcpy(&dest[destIndex], replaceWith, replaceWithLength);
+            matchFound = 1;
+
+            sourceIndex += (int)lookForLength;
+            destIndex   += (int)replaceWithLength;
+        }
+        else {
+            dest[destIndex++] = source[sourceIndex++];
         }
     }
 
-    // Cleanup and return
-Out:
-    return Result;
+    if (matchFound) {
+        MStringReset(text, (const char*)dest, StrUTF8);
+    }
+    dsfree(dest);
+    return (matchFound == 0) ? MSTRING_NO_MATCH : MSTRING_FULL_MATCH;
 }
 
-/* MStringReplace
- * Replace string occurences, this function replaces occurence of <SearchFor> string 
- * with <ReplaceWith> string. The strings must be of format of UTF8. returns MSTRING_NO_MATCH
- * on any errors. */
-int
-MStringReplace(
-    _In_ MString_t  *String,
-    _In_ const char *SearchFor,
-    _In_ const char *ReplaceWith)
-{
-    // Variables
-    char *TemporaryBuffer   = NULL;
-    char *TemporaryPointer  = NULL;
-    char *SourcePointer     = NULL;
-    int Result              = MSTRING_NO_MATCH;
-    int iSource             = 0;
-    int iDest               = 0;
-    int iLast               = 0;
-    size_t ReplaceLength    = 0;
-
-    // Sanitize input
-    if (String == NULL || String->Length == 0
-        || SearchFor == NULL || ReplaceWith == NULL) {
-        goto Out;
-    }
-
-    // Initialize pointers
-    SourcePointer       = (char*)String->Data;
-    ReplaceLength       = strlen(ReplaceWith);
-    TemporaryBuffer     = (char*)dsalloc(1024);
-    TemporaryPointer    = TemporaryBuffer;
-    memset(TemporaryBuffer, 0, 1024);
-
-     // Iterate all characters and try to find a match
-     // between string and SearchFor
-    mchar_t SourceCharacter = 0;
-    mchar_t DestCharacter   = 0;
-    while (SourcePointer[iSource]) {
-        iLast               = iSource;
-        iDest               = 0;
-        SourceCharacter     = Utf8GetNextCharacterInString(SourcePointer, &iSource);
-        DestCharacter       = Utf8GetNextCharacterInString(SearchFor, &iDest);
-
-        // Test for equal, if they are continue match
-        if (SourceCharacter == DestCharacter) {
-            int iTemp       = iSource;
-            while (SourcePointer[iTemp] && SearchFor[iDest] 
-                && SourceCharacter == DestCharacter) {
-                SourceCharacter = Utf8GetNextCharacterInString(SourcePointer, &iTemp);
-                DestCharacter   = Utf8GetNextCharacterInString(SearchFor, &iDest);
-            }
-
-            // Make sure final character is still equal after loop
-            if (SourceCharacter == DestCharacter) {
-                if (!SearchFor[iDest]) { // Must be end of string, otherwise there are chars left
-                    Result          = MSTRING_FULL_MATCH;
-                    memcpy(TemporaryBuffer, ReplaceWith, ReplaceLength);
-                    TemporaryBuffer += ReplaceLength;
-                    continue;
-                }
-            }
-        }
-
-        // Continue building a resulting string on the fly
-        memcpy(TemporaryBuffer, &SourcePointer[iLast], (iSource - iLast));
-        TemporaryBuffer += (iSource - iLast);
-    }
-
-    // Did we find any matches? Otherwise early quit
-    if (Result == MSTRING_NO_MATCH) {
-        goto Out;
-    }
-
-    // Reconstruct the string into source
-    ReplaceLength = strlen((const char*)TemporaryPointer);
-    if (ReplaceLength > String->MaxLength) {
-        MStringResize(String, ReplaceLength);
-    }
-
-    // Copy the data
-    memcpy(String->Data, TemporaryPointer, ReplaceLength);
-    String->Length = ReplaceLength;
-
-    // Cleanup and return
-Out:
-    if (TemporaryPointer != NULL) {
-        dsfree(TemporaryPointer);
-    }
-    return Result;
-}
-
-/* MStringGetAscii
- * Converts the given MString into Ascii string and stores it
- * in the given buffer. Unicode characters are truncated. */
 void
 MStringGetAscii(
     _In_ MString_t  *String,

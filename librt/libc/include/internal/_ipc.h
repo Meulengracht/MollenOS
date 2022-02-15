@@ -11,12 +11,9 @@
 #include <sys_session_service_client.h>
 #include <sys_socket_service_client.h>
 #include <sys_storage_service_client.h>
-#include <sys_usb_service_client.h>
 
 #include <ctt_driver_service_client.h>
 #include <ctt_storage_service_client.h>
-#include <ctt_usbhost_service_client.h>
-#include <ctt_usbhub_service_client.h>
 
 #include <ddk/service.h>
 #include <gracht/link/vali.h>

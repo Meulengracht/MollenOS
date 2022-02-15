@@ -5,18 +5,6 @@ enable_language (C)
 
 set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ../libgracht/include
-    ../libusb/include
-    ../libds/include
-    ../libddk/include
-    ../libc/include
-    ../include
-    ./
-)
-
 set (MSCRT_SOURCES 
     mscrt/_alldiv.s
     mscrt/_alldvrm.s
@@ -47,6 +35,7 @@ add_library(libcrt
     module.c
     service.c
 )
+target_include_directories(libcrt PRIVATE ../libc/include ../libddk/include ../libgracht/include ../libds/include)
 add_dependencies(libcrt libddk)
 
 install(TARGETS libcrt

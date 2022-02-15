@@ -138,6 +138,7 @@ LogRenderMessages(void)
     SystemLogLine_t* logLine;
     Thread_t*        thread;
     char             sprintBuffer[256];
+    int              written;
 
     while (g_kernelLog.RenderIndex != g_kernelLog.LineIndex) {
 
@@ -155,13 +156,17 @@ LogRenderMessages(void)
         }
         else {
             VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
-            snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
+
+            written = snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
                      "%09llu [%s-%u-%s] %s\n",
                      logLine->timeStamp,
                      g_typeNames[logLine->level],
                      logLine->coreId,
                      thread ? ThreadName(thread) : "boot",
-                     &logLine->data[0]);
+                     &logLine->data[0]
+            );
+            sprintBuffer[written] = '\0';
+
             __WriteMessageToSerial(&sprintBuffer[0]);
             if (logLine->level >= LOG_DEBUG && g_kernelLog.AllowRender) {
                 __WriteMessageToScreen(&sprintBuffer[0]);
@@ -192,6 +197,7 @@ LogAppendMessage(
     SystemLogLine_t* logLine;
 	va_list          arguments;
 	UUId_t           coreId = ArchGetProcessorCoreId();
+    int              written;
 
 	if (!format) {
 	    return;
@@ -216,8 +222,9 @@ LogAppendMessage(
     logLine->timeStamp /= NSEC_PER_MSEC;
     
 	va_start(arguments, format);
-    vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
+    written = vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
     va_end(arguments);
+    logLine->data[written] = '\0';
 
 	LogRenderMessages();
 	IrqSpinlockRelease(&g_kernelLog.SyncObject);

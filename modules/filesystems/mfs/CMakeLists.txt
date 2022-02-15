@@ -23,3 +23,4 @@ add_filesystem_target(mfs
     records.c
     utilities.c
 )
+deploy_file_to_initrd(mfs "modules" mfs.yaml)

@@ -61,6 +61,25 @@ GetMachine(void)
     return &g_machine;
 }
 
+static void __DumpVBoot(
+        _In_ struct VBoot* bootInformation)
+{
+    TRACE("Dumping VBOOT Information:");
+    TRACE("---------------------------------------");
+    TRACE("Magic:            0x%x",   bootInformation->Magic);
+    TRACE("Version:          0x%x",   bootInformation->Version);
+    TRACE("Firmware:         0x%x",   bootInformation->Firmware);
+    TRACE("ConfigTableCount: 0x%x",   bootInformation->ConfigurationTableCount);
+    TRACE("ConfigTable:      0x%llx", bootInformation->ConfigurationTable);
+    TRACE("Kernel.Base       0x%llx", bootInformation->Kernel.Base);
+    TRACE("Kernel.Length     0x%x",   bootInformation->Kernel.Length);
+    TRACE("Ramdisk.Data      0x%llx", bootInformation->Ramdisk.Data);
+    TRACE("Ramdisk.Length    0x%x",   bootInformation->Ramdisk.Length);
+    TRACE("Phoenix.Base      0x%llx", bootInformation->Phoenix.Base);
+    TRACE("Phoenix.Length    0x%llx", bootInformation->Phoenix.Length);
+    TRACE("---------------------------------------");
+}
+
 _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
@@ -80,6 +99,8 @@ InitializeMachine(
             ArchProcessorHalt();
         }
     }
+
+    __DumpVBoot(bootInformation);
     sprintf(&g_machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
     sprintf(&g_machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&g_machine.Date[0],         "%s - %s", __DATE__, __TIME__);

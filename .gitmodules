@@ -4,3 +4,6 @@
 [submodule "librt/libgracht"]
 	path = librt/libgracht
 	url = ../libgracht
+[submodule "tools/rd"]
+	path = tools/rd
+	url = ../vali-rofs

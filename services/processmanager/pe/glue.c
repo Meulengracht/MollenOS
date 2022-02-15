@@ -88,8 +88,8 @@ __GuessBasePath(
     // At this point we have to run through all PATH values
     // Look at the type of file we are trying to load. .app? .dll?
     // for other types its most likely resource load
-    isApp = MStringFindCString(path, ".run");
-    isDll = MStringFindCString(path, ".dll");
+    isApp = MStringFindC(path, ".run");
+    isDll = MStringFindC(path, ".dll");
     if (isApp != MSTRING_NOT_FOUND || isDll != MSTRING_NOT_FOUND) {
         MStringReset(result, "$bin/", StrUTF8);
     }
@@ -107,6 +107,28 @@ __GuessBasePath(
     }
 }
 
+static MString_t*
+__TestRamdiskPath(
+        _In_ const char* basePath,
+        _In_  MString_t* path)
+{
+    OsStatus_t osStatus;
+    MString_t* temporaryResult;
+    TRACE("__TestRamdiskPath(basePath=%s, path=%s)", basePath, MStringRaw(path));
+
+    // create the full path for the ramdisk
+    temporaryResult = MStringCreate(basePath, StrUTF8);
+    MStringAppend(temporaryResult, path);
+
+    // try to find the file in the ramdisk
+    osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
+    if (osStatus == OsSuccess) {
+        return temporaryResult;
+    }
+    MStringDestroy(temporaryResult);
+    return NULL;
+}
+
 static OsStatus_t
 __ResolveRelativePath(
         _In_  UUId_t      processId,
@@ -114,26 +136,26 @@ __ResolveRelativePath(
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
 {
-    OsStatus_t osStatus;
+    OsStatus_t osStatus        = OsError;
     MString_t* temporaryResult = path;
     TRACE("__ResolveRelativePath(processId=%u, parentPath=%s, path=%s)",
           processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
 
     // Let's test against parent being loaded through the ramdisk
-    if (parentPath && MStringFindCString(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (parentPath && MStringFindC(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
         // create the full path for the ramdisk
-        temporaryResult = MStringCreate("rd:/", StrUTF8);
-        MStringAppend(temporaryResult, path);
-
-        // try to find the file in the ramdisk
-        osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
-        if (osStatus == OsSuccess) {
-            *fullPathOut = temporaryResult;
-            return osStatus;
+        temporaryResult = __TestRamdiskPath("rd:/bin/", path);
+        if (!temporaryResult) {
+            // sometimes additional modules will be loaded (i.e fs modules)
+            temporaryResult = __TestRamdiskPath("rd:/modules/", path);
         }
 
-        // cleanup our attempt at resolving
-        MStringDestroy(temporaryResult);
+        if (temporaryResult) {
+            *fullPathOut = temporaryResult;
+            return OsSuccess;
+        }
+
+        // restore temporaryResult
         temporaryResult = path;
     }
 
@@ -207,7 +229,7 @@ PeImplLoadFile(
 
     // special case:
     // load from ramdisk
-    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (MStringFindC(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
         return PmBootstrapFindRamdiskFile(fullPath, bufferOut, lengthOut);
     }
 
@@ -249,16 +271,9 @@ exit:
 
 void
 PeImplUnloadFile(
-        _In_ MString_t* fullPath,
-        _In_ void*      buffer)
+        _In_ void* buffer)
 {
-    // do not free the buffer if the buffer came from the ramdisk
-    if (MStringFindCString(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
-        return;
-    }
-
-    // otherwise, we will simply free the buffer,
-    // but when we implement caching we will check if it should stay cached
+    // When we implement caching we will check if it should stay cached
     free(buffer);
 }
 
