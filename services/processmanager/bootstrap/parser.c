@@ -573,5 +573,7 @@ DmParseDriverYaml(
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);
 
+    yaml_parser_delete(&parser);
+
     return OsSuccess;
 }
