@@ -597,6 +597,8 @@ DmDriverConfigParseYaml(
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);
 
+    yaml_parser_delete(&parser);
+
     memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
     return OsSuccess;
 }
