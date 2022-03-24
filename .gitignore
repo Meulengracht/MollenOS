@@ -6,6 +6,9 @@ serial.txt
 *.ko
 .sonar-out/
 .scannerwork/
+.fridge/
+.oven/
+*.pack
 
 #################
 ## Eclipse

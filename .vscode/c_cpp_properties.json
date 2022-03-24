@@ -117,7 +117,8 @@
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "compilerPath": "${env:CROSS}/bin/clang"
+            "compilerPath": "${env:CROSS}/bin/clang",
+            "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
     "version": 4

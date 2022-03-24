@@ -1,0 +1,35 @@
+project: 
+  name: Vali SDK for C
+  description: |
+    The base SDK and runtime for the C language. It is required to build any C applications
+    against the MollenOS/Vali operating system.
+  type: ingredient
+  author: Philip Meulengracht
+  email: the_meulengracht@hotmail.com
+  version: 1.0
+  license: LGPL
+  homepage: www.mollenos.com
+
+ingredients:
+- name: vali/clang-cc
+  description: Use the clang cross-compiler to build the OS
+  channel: devel
+
+recipes:
+- name: vali
+  path: /
+  toolchain: vali/clang-cc
+  steps:
+  - type: generate
+    system: cmake
+    arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
+    env:
+      # Use the toolchain path defined by chef when using the 'toolchain'
+      # member in the recipe
+      CROSS: ${{ TOOLCHAIN_PREFIX }}
+      # Forward the host defined VALI_ARCH environmental variable
+      VALI_ARCH: ${ VALI_ARCH }
+
+  - type: build
+    depends: [generate]
+    system: make
