@@ -219,7 +219,7 @@ NextPowerOfTwo(size_t value)
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))
-#define DIVUP(a, b)                             (((a) / (b)) + ((((a) % (b)) > 0) ? 1 : 0))
+#define DIVUP(a, b)                             (((a) + ((b) - 1)) / (b))
 #define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");

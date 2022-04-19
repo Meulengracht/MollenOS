@@ -1,12 +1,11 @@
 project: 
-  name: Vali SDK for C
+  summary: Vali SDK for C
   description: |
     The base SDK and runtime for the C language. It is required to build any C applications
     against the MollenOS/Vali operating system.
-  type: ingredient
   author: Philip Meulengracht
   email: the_meulengracht@hotmail.com
-  version: 1.0
+  version: 1.0.0
   license: LGPL
   homepage: www.mollenos.com
 
@@ -27,9 +26,11 @@ recipes:
       # Use the toolchain path defined by chef when using the 'toolchain'
       # member in the recipe
       CROSS: ${{ TOOLCHAIN_PREFIX }}
-      # Forward the host defined VALI_ARCH environmental variable
-      VALI_ARCH: ${ VALI_ARCH }
 
   - type: build
     depends: [generate]
     system: make
+
+packs:
+- name: sdk-c
+  type: ingredient
