@@ -70,8 +70,7 @@ pull in all built applications and libraries into the OS image.
 
 | Option        |                                  Description                                  |
 |---------------|:-----------------------------------------------------------------------------:|
-| VALI_SDK_PATH | The path to the installed SDK, usually where Vali is installed with /vali-sdk |
-| VALI_DDK_PATH | The path to the installed DDK, usually where Vali is installed with /valk-ddk |
+| VALI_SDK_PATH | The path to the installed SDK, usually the prefix Vali is installed with      |
 
 Then follow the instructions located [here](https://github.com/Meulengracht/vali-userspace) to get the sources for the applications.
 

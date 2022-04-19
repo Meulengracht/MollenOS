@@ -59,9 +59,9 @@ target_include_directories(libm PUBLIC include)
 target_include_directories(libm PRIVATE ../libc/include)
 
 install(TARGETS libm LIBRARY
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
 add_library(m SHARED
@@ -76,8 +76,8 @@ target_compile_definitions(m PRIVATE -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAR
 target_link_options(m PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def,-noentry")
 
 install(TARGETS m
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
-install(DIRECTORY include/ DESTINATION vali-sdk/include)
+install(DIRECTORY include/ DESTINATION include)

@@ -39,7 +39,7 @@ target_include_directories(libcrt PRIVATE ../libc/include ../libddk/include ../l
 add_dependencies(libcrt libddk)
 
 install(TARGETS libcrt
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )

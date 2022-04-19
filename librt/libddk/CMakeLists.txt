@@ -72,7 +72,7 @@ add_dependencies(libddk service_clients contract_clients)
 target_include_directories(libddk
     PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/vali-ddk/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
 )
 
 # avoid using target_link_libraries for the RT libraries as it could result
@@ -88,10 +88,10 @@ target_include_directories(libddk PRIVATE
 
 install(TARGETS libddk
     EXPORT ddk_targets
-    ARCHIVE DESTINATION vali-ddk/lib
-    LIBRARY DESTINATION vali-ddk/lib
-    RUNTIME DESTINATION vali-ddk/bin
-    INCLUDES DESTINATION vali-ddk/include
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
 )
-install(DIRECTORY include/ DESTINATION vali-ddk/include)
-install(DIRECTORY ../../protocols/ DESTINATION vali-ddk/share/vali/protocols)
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY ../../protocols/ DESTINATION share/vali/protocols)

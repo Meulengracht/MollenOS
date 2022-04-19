@@ -516,12 +516,12 @@ target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def"
 
 target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY include/ DESTINATION vali-sdk/include
+install(DIRECTORY include/ DESTINATION include
     FILES_MATCHING
         PATTERN "*.h"
         PATTERN "internal" EXCLUDE

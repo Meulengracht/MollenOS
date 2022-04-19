@@ -65,8 +65,8 @@ add_library(libds ${SHARED_SOURCES} support/ds.c)
 target_include_directories(libds PRIVATE ${SHARED_INCLUDES})
 target_include_directories(libds PUBLIC include)
 install(TARGETS libds
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
-install(DIRECTORY include/ DESTINATION vali-sdk/include)
+install(DIRECTORY include/ DESTINATION include)

@@ -103,9 +103,9 @@ add_subdirectory (libddk)
 merge_libraries (librt libcrt ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/valicc/${VALI_COMPILER_RT_TARGET})
 add_dependencies (librt compiler-rt)
 install (TARGETS librt
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
 # Libraries used by building of everything
@@ -128,5 +128,5 @@ add_subdirectory(libyaml)
 install(EXPORT ddk_targets
     FILE ValiDDKTargets.cmake
     NAMESPACE ValiDDK::
-    DESTINATION vali-ddk/lib/cmake
+    DESTINATION lib/cmake
 )
