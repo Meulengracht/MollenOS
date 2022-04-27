@@ -11,7 +11,8 @@ project:
 
 ingredients:
 - name: vali/clang-cc
-  description: Use the clang cross-compiler to build the OS
+  platform: host
+  arch: host
   channel: devel
 
 recipes:
@@ -19,7 +20,8 @@ recipes:
   path: /
   toolchain: vali/clang-cc
   steps:
-  - type: generate
+  - name: config
+    type: generate
     system: cmake
     arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
     env:
@@ -27,8 +29,9 @@ recipes:
       # member in the recipe
       CROSS: ${{ TOOLCHAIN_PREFIX }}
 
-  - type: build
-    depends: [generate]
+  - name: build
+    type: build
+    depends: [config]
     system: make
 
 packs:
