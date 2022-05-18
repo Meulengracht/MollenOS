@@ -16,7 +16,7 @@ macro (add_host_project PROJECT_DIR)
 endmacro ()
 
 # build host tool projects
-add_host_project (diskutility)
+add_host_project (imager)
 add_host_project (rd)
 add_host_project (lzss)
 add_host_project (file2c)

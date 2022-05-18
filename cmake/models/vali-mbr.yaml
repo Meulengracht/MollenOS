@@ -1,18 +1,17 @@
-# options: MBR; GPT
 scheme: MBR
 size: 2GB
 
-# initialize partitions for disk
 partitions:
   - label: vali-boot
     type: MFS
     guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
-    # attributes can be: boot, readonly, shadow, noautomount
     attributes:
       - boot
       - readonly
       - noautomount
     size: 128MB
+    vbr-image: deploy/stage1.sys
+    reserved-sectors-image: deploy/stage2.sys
     sources:
       - type: dir
         path: deploy/hdd/boot
@@ -23,5 +22,11 @@ partitions:
     guid: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
     sources:
       - type: dir
-        path: deploy/hdd/shared
-        target: /
+        path: deploy/hdd/system
+        target: /system/
+      - type: chef
+        package: vali/vioarr
+        channel: devel
+        platform: vali
+        arch: amd64
+        target: /setup/

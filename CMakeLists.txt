@@ -43,13 +43,6 @@ set (VALI_PATH_DEPLOY_SHARED_LIB    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
 set (VALI_PATH_DEPLOY_SHARED_INC    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/include)
 set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
 set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
-set (VALI_PATH_APPLICATIONS         ${CMAKE_BINARY_DIR}/apps)
-set (VALI_PATH_APPLICATIONS_SHARE   ${CMAKE_BINARY_DIR}/apps/share)
-
-if (DEFINED ENV{VALI_APPLICATION_PATH})
-    set (VALI_PATH_APPLICATIONS       $ENV{VALI_APPLICATION_PATH})
-    set (VALI_PATH_APPLICATIONS_SHARE $ENV{VALI_APPLICATION_PATH}/share)
-endif ()
 
 # Setup utility macros for targets
 macro (deploy_target_to_initrd RDTARGET)
@@ -95,8 +88,6 @@ file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_INC})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_MAPS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_SHARE})
-file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
-file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS_SHARE})
 
 # Read the project version
 file(READ "VERSION" VALI_VERSION)
@@ -139,17 +130,6 @@ add_subdirectory (tools)
 add_subdirectory (apps)
 
 # Installation and utility targets
-add_custom_target (install_applications
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.run
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/maps --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
-    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/include/ ${VALI_PATH_DEPLOY_SHARED_INC}
-    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/lib/ ${VALI_PATH_DEPLOY_SHARED_LIB}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/share/ ${VALI_PATH_DEPLOY_SHARED_SHARE}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 add_custom_target (install_prepare
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
@@ -159,19 +139,19 @@ add_custom_target (install_prepare
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare diskutility rd lzss)
+add_dependencies(install_prepare imager rd lzss)
 
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
+    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-add_dependencies(install_img install_prepare install_applications)
+add_dependencies(install_img install_prepare)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
+    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-add_dependencies(install_vmdk install_prepare install_applications)
+add_dependencies(install_vmdk install_prepare)
 
 add_custom_command(
     OUTPUT always_run.special mollenos_usb.img
