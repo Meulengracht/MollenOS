@@ -38,7 +38,7 @@ extern void PmCreateProcess(Request_t* request, void*);
 extern void PmGetProcessStartupInformation(Request_t* request, void*);
 extern void PmJoinProcess(Request_t* request, void*);
 extern void PmTerminateProcess(Request_t* request, void*);
-extern void PmKillProcess(Request_t* request, void*);
+extern void PmSignalProcess(Request_t* request, void*);
 extern void PmLoadLibrary(Request_t* request, void*);
 extern void PmGetLibraryFunction(Request_t* request, void*);
 extern void PmUnloadLibrary(Request_t* request, void*);
@@ -178,7 +178,7 @@ void sys_process_terminate_invocation(struct gracht_message* message, const UUId
     usched_task_queue((usched_task_fn)PmTerminateProcess, request);
 }
 
-void sys_process_kill_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_process_signal_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle, const int signal)
 {
     Request_t* request;
     TRACE("sys_process_kill_invocation()");
@@ -192,7 +192,7 @@ void sys_process_kill_invocation(struct gracht_message* message, const UUId_t pr
     // initialize parameters
     request->parameters.kill.killer_handle = processId;
     request->parameters.kill.victim_handle = handle;
-    usched_task_queue((usched_task_fn)PmKillProcess, request);
+    usched_task_queue((usched_task_fn)PmSignalProcess, request);
 }
 
 void sys_library_load_invocation(struct gracht_message* message, const UUId_t processId, const char* path)

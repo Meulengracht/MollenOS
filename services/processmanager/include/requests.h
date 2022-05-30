@@ -68,7 +68,8 @@ typedef struct Request {
         struct {
             UUId_t killer_handle;
             UUId_t victim_handle;
-        } kill;
+            int    signal;
+        } signal;
         struct {
             UUId_t      handle;
             const char* path;

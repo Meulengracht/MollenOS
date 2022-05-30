@@ -20,7 +20,7 @@ struct process_configuration {
 service process (5) {
     func spawn(string path, string arguments, uint8[] inheritBlock, process_configuration configuration) : (OsStatus_t result, UUId_t handle) = 1;
     func join(UUId_t handle, uint timeout) : (OsStatus_t result, int exitCode) = 2;
-    func kill(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 3;
+    func signal(UUId_t processId, UUId_t handle, int signal) : (OsStatus_t result) = 3;
     func terminate(UUId_t handle, int exitCode) : (OsStatus_t result) = 4;
     func set_working_directory(UUId_t handle, string path) : (OsStatus_t result) = 5;
     
@@ -29,7 +29,7 @@ service process (5) {
     func get_assembly_directory(UUId_t handle) : (OsStatus_t result, string path) = 8;
     
     func get_tick_base(UUId_t handle) : (OsStatus_t result, uint low, uint high) = 9;
-    func get_startup_information(UUId_t handle, UUId_t bufferHandle, ulong offset) : (OsStatus_t result, UUId_t handle, ulong argumentLength, ulong inheritationLength, ulong modulesLength) = 10;
+    func get_startup_information(UUId_t handle, UUId_t bufferHandle, ulong offset) : (OsStatus_t result, UUId_t handle) = 10;
     func get_modules(UUId_t handle) : (uintptr_t[] modules, int count) = 11;
     
     func report_crash(UUId_t threadId, UUId_t processId, uint8[] crashContext, int reason) : (OsStatus_t result) = 12;

@@ -224,6 +224,7 @@ NextPowerOfTwo(size_t value)
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
+
 #ifdef __COMPILE_ASSERT
 #define STATIC_ASSERT(COND,MSG)                 typedef char static_assertion_##MSG[(!!(COND))*2-1]
 #define COMPILE_TIME_ASSERT3(X,L)               STATIC_ASSERT(X,static_assertion_at_line_##L)
@@ -243,6 +244,9 @@ NextPowerOfTwo(size_t value)
 #define BYTES_PER_KB 1024
 #define BYTES_PER_MB (BYTES_PER_KB * 1024)
 #define BYTES_PER_GB (BYTES_PER_MB * 1024)
+#define KB(x)        (x * BYTES_PER_KB)
+#define MB(x)        (x * BYTES_PER_MB)
+#define GB(x)        (x * BYTES_PER_GB)
 
 #ifndef LOWORD
 #define LOWORD(l) ((uint16_t)(uint32_t)(l))

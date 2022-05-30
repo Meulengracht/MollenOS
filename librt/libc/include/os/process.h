@@ -30,116 +30,164 @@
 
 _CODE_BEGIN
 
-/* ProcessConfigurationInitialize
- * Resets all values of the startup information structure to default values. */
+/**
+ * @brief Resets all values of the startup information structure to default values.
+ *
+ * @param Configuration
+ */
 CRTDECL(void,
 ProcessConfigurationInitialize(
-	_In_ ProcessConfiguration_t* Configuration));
-
-/* ProcessSpawn
- * Spawns a new process by the given path and optionally the given parameters are passed 
- * returns UUID_INVALID in case of failure. */
-CRTDECL(OsStatus_t,
-ProcessSpawn(
-	_In_     const char* Path,
-	_In_Opt_ const char* Arguments,
-    _Out_    UUId_t*     HandleOut));
-
-/* ProcessSpawnEx
- * Spawns a new process by the given path and the given startup information block. 
- * Returns UUID_INVALID in case of failure. */
-CRTDECL(OsStatus_t,
-ProcessSpawnEx(
-    _In_     const char*             Path,
-    _In_Opt_ const char*             Arguments,
-    _In_     ProcessConfiguration_t* Configuration,
-    _Out_    UUId_t*                 HandleOut));
+	_In_ ProcessConfiguration_t* configuration));
 
 /**
- * ProcessJoin
- * Waits for the given process to terminate and returns the return-code the process exit'ed with
- * @param Handle
- * @param Timeout
- * @param ExitCode
- * @return         Status of the operation
+ * @brief Spawn a new process with default parameters. The process will inherit the current process's environment
+ * block, but run in it's own context (no io-descriptor share and does not inherit std handles).
+ *
+ * @param path
+ * @param arguments
+ * @param handleOut
+ * @return
+ */
+CRTDECL(OsStatus_t,
+ProcessSpawn(
+	_In_     const char* path,
+	_In_Opt_ const char* arguments,
+    _Out_    UUId_t*     handleOut));
+
+/**
+ * @brief Spawn a new process with a more detailed configuration. Allows for customization of io
+ * descriptors, environmental block and custom limitations.
+ *
+ * @param path
+ * @param arguments
+ * @param configuration
+ * @param handleOut
+ * @return
+ */
+CRTDECL(OsStatus_t,
+ProcessSpawnEx(
+    _In_     const char*             path,
+    _In_Opt_ const char*             arguments,
+    _In_Opt_ const char* const*      environment,
+    _In_     ProcessConfiguration_t* configuration,
+    _Out_    UUId_t*                 handleOut));
+
+/**
+ * @brief Wait for a process to terminate, and retrieve the exit code of the process.
+ *
+ * @param handle The handle of the process to wait for.
+ * @param timeout The timeout for this operation. If 0 is given the operation returns immediately.
+ * @param exitCode If this function returns OsSuccess the exit code will be a valid value.
+ * @return OsTimeout if the timeout was reached without the process terminating
+ *         OsSuccess if the process has terminated within the given timeout or at the time at the call
+ *         OsError in any other case.
  */
 CRTDECL(OsStatus_t,
 ProcessJoin(
-	_In_  UUId_t Handle,
-    _In_  size_t Timeout,
-    _Out_ int*   ExitCode));
+	_In_  UUId_t handle,
+    _In_  size_t timeout,
+    _Out_ int*   exitCodeOut));
 
 /**
- * Delivers a kill signal to the target process if security checks are passed against the process.
- * @param Handle Handle of the process to signal.
- * @return       Status of the operation.
- */
-CRTDECL(OsStatus_t,
-ProcessKill(
-        _In_ UUId_t Handle));
-
-/**
- * Dispatches a signal to the target process, the target process must be listening to asynchronous signals
+ * @brief Dispatches a signal to the target process, the target process must be listening to asynchronous signals
  * otherwise the signal is ignored. Both SIGKILL and SIGQUIT will terminate the process in any event, if security
  * checks are passed.
- * @param Handle The handle of the target process
- * @param Signal The signal that should be sent to the process
+ *
+ * @param handle The handle of the target process
+ * @param signal The signal that should be sent to the process
  * @return       The status of the operation
  */
 CRTDECL(OsStatus_t,
 ProcessSignal(
-    _In_ UUId_t Handle,
-    _In_ int    Signal));
+    _In_ UUId_t handle,
+    _In_ int    signal));
 
-/* ProcessGetCurrentId
- * Retrieves the current process identifier. */
+/**
+ * @brief Retrieves the current process identifier.
+ *
+ * @return The ID of the current process.
+ */
 CRTDECL(UUId_t, 
 ProcessGetCurrentId(void));
 
-/* ProcessGetTickBase
- * Retrieves the current process tick base. The tick base is set upon process startup. */
+/**
+ * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
+ * frequency can be retrieved by CLOCKS_PER_SEC in time.h
+ *
+ * @param tickOut
+ * @return
+ */
 CRTDECL(OsStatus_t, 
 ProcessGetTickBase(
-    _Out_ clock_t* Tick));
+    _Out_ clock_t* tickOut));
 
-/* GetProcessCommandLine
- * Retrieves startup information about the process. 
- * Data buffers must be supplied with a max length. */
+/**
+ * @brief Retrieves a copy of the command line that the current process was invoked with.
+ *
+ * @param buffer The buffer to store the command line in.
+ * @param length If buffer is NULL then length will be set the length of the command line. Otherwise
+ *               this shall be the max length of the buffer provided. This parameter will also be updated
+ *               to the actual length of data stored into the buffer.
+ * @return OsInvalidParameters if both parameters are invalid.
+ */
 CRTDECL(OsStatus_t,
 GetProcessCommandLine(
-    _In_    char*   Buffer,
-    _InOut_ size_t* Length));
+        _In_    char*   buffer,
+        _InOut_ size_t* length));
 
-/* ProcessGetCurrentName
- * Retrieves the current process identifier. */
+/**
+ * @brief Retrieves the current process name.
+ *
+ * @param buffer The buffer to store the name in.
+ * @param maxLength The maximum number of bytes to be stored in the provided buffer.
+ * @return OsInvalidParameters if either of the inputs are nil.
+ */
 CRTDECL(OsStatus_t, 
 ProcessGetCurrentName(
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength));
+        _In_ char*  buffer,
+        _In_ size_t maxLength));
 
-/* ProcessGetAssemblyDirectory
- * Retrieves the current assembly directory of a process handle. Use UUID_INVALID for the
- * current process. */
+/**
+ * @brief Retrieves the current assembly directory of a process handle. Use UUID_INVALID for the
+ * current process.
+ *
+ * @param handle
+ * @param buffer The buffer to store the path in.
+ * @param maxLength The maximum number of bytes to be stored in the provided buffer.
+ * @return OsDoesNotExist if the handle was invalid,
+ *         OsInvalidParameters if either of buffer/length are invalid.
+ */
 CRTDECL(OsStatus_t, 
 ProcessGetAssemblyDirectory(
-    _In_ UUId_t Handle,
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength));
+        _In_ UUId_t handle,
+        _In_ char*  buffer,
+        _In_ size_t maxLength));
 
-/* ProcessGetWorkingDirectory
- * Retrieves the current working directory of a process handle. Use UUID_INVALID for the
- * current process. */
+/**
+ * @brief Retrieves the current working directory of a process handle. Use UUID_INVALID for the
+ * current process.
+ *
+ * @param handle
+ * @param buffer The buffer to store the path in.
+ * @param maxLength The maximum number of bytes to be stored in the provided buffer.
+ * @return OsDoesNotExist if the handle was invalid,
+ *         OsInvalidParameters if either of buffer/length are invalid.
+ */
 CRTDECL(OsStatus_t, 
 ProcessGetWorkingDirectory(
-    _In_ UUId_t Handle,
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength));
+        _In_ UUId_t handle,
+        _In_ char*  buffer,
+        _In_ size_t maxLength));
 
-/* ProcessSetWorkingDirectory
- * Sets the working directory of the current process. */
+/**
+ * @brief Sets the working directory of the current process.
+ *
+ * @param path
+ * @return
+ */
 CRTDECL(OsStatus_t, 
 ProcessSetWorkingDirectory(
-    _In_ const char* Path));
+    _In_ const char* path));
 
 _CODE_END
 #endif //!__PROCESS_H__

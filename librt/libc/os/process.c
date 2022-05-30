@@ -36,42 +36,47 @@
 
 void
 ProcessConfigurationInitialize(
-    _In_ ProcessConfiguration_t* Configuration)
+    _In_ ProcessConfiguration_t* configuration)
 {
-    memset(Configuration, 0, sizeof(ProcessConfiguration_t));
+    memset(configuration, 0, sizeof(ProcessConfiguration_t));
 
     // Reset handles
-    Configuration->StdOutHandle = STDOUT_FILENO;
-    Configuration->StdInHandle  = STDIN_FILENO;
-    Configuration->StdErrHandle = STDERR_FILENO;
+    configuration->StdOutHandle = STDOUT_FILENO;
+    configuration->StdInHandle  = STDIN_FILENO;
+    configuration->StdErrHandle = STDERR_FILENO;
 }
 
 OsStatus_t
 ProcessSpawn(
-    _In_     const char* Path,
-    _In_Opt_ const char* Arguments,
-    _Out_    UUId_t*     HandleOut)
+    _In_     const char* path,
+    _In_Opt_ const char* arguments,
+    _Out_    UUId_t*     handleOut)
 {
-    ProcessConfiguration_t Configuration;
+    ProcessConfiguration_t configuration;
 
-    // Sanitize parameters
-    if (Path == NULL) {
+    if (path == NULL) {
         _set_errno(EINVAL);
         return UUID_INVALID;
     }
 
-    // Setup information block
-    ProcessConfigurationInitialize(&Configuration);
-    Configuration.InheritFlags = PROCESS_INHERIT_NONE;
-    return ProcessSpawnEx(Path, Arguments, &Configuration, HandleOut);
+    ProcessConfigurationInitialize(&configuration);
+    configuration.InheritFlags = PROCESS_INHERIT_NONE;
+    return ProcessSpawnEx(
+            path,
+            arguments,
+            __crt_environment(),
+            &configuration,
+            handleOut
+    );
 }
 
 OsStatus_t
 ProcessSpawnEx(
-    _In_     const char*             Path,
-    _In_Opt_ const char*             Arguments,
-    _In_     ProcessConfiguration_t* Configuration,
-    _Out_    UUId_t*                 HandleOut)
+    _In_     const char*             path,
+    _In_Opt_ const char*             arguments,
+    _In_Opt_ const char* const*      environment,
+    _In_     ProcessConfiguration_t* configuration,
+    _Out_    UUId_t*                 handleOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     void*                            inheritationBlock       = NULL;
@@ -79,19 +84,20 @@ ProcessSpawnEx(
     OsStatus_t                       status;
     struct sys_process_configuration gconfiguration;
     
-    if (!Path || !Configuration || !HandleOut) {
+    if (!path || !configuration || !handleOut) {
         return OsInvalidParameters;
     }
     
-    StdioCreateInheritanceBlock(Configuration, &inheritationBlock, &inheritationBlockLength);
+    StdioCreateInheritanceBlock(configuration, &inheritationBlock, &inheritationBlockLength);
 
-    // convert parameters
-    to_sys_process_configuration(Configuration, &gconfiguration);
-    
-    sys_process_spawn(GetGrachtClient(), &msg.base, Path,
-        Arguments, inheritationBlock, inheritationBlockLength, &gconfiguration);
+    to_sys_process_configuration(configuration, &gconfiguration);
+    sys_process_spawn(GetGrachtClient(), &msg.base, path,
+                      arguments,
+                      inheritationBlock,
+                      inheritationBlockLength,
+                      &gconfiguration);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_spawn_result(GetGrachtClient(), &msg.base, &status, HandleOut);
+    sys_process_spawn_result(GetGrachtClient(), &msg.base, &status, handleOut);
     
     if (inheritationBlock) {
         free(inheritationBlock);
@@ -101,30 +107,31 @@ ProcessSpawnEx(
 
 OsStatus_t 
 ProcessJoin(
-	_In_  UUId_t Handle,
-    _In_  size_t Timeout,
-    _Out_ int*   ExitCode)
+	_In_  UUId_t handle,
+    _In_  size_t timeout,
+    _Out_ int*   exitCodeOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    OsStatus_t               osStatus;
     
-    sys_process_join(GetGrachtClient(), &msg.base, Handle, Timeout);
+    sys_process_join(GetGrachtClient(), &msg.base, handle, timeout);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_join_result(GetGrachtClient(), &msg.base, &status, ExitCode);
-    return status;
+    sys_process_join_result(GetGrachtClient(), &msg.base, &osStatus, exitCodeOut);
+    return osStatus;
 }
 
 OsStatus_t
-ProcessKill(
-	_In_ UUId_t Handle)
+ProcessSignal(
+	_In_ UUId_t handle,
+    _In_ int    signal)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    OsStatus_t               osStatus;
     
-    sys_process_kill(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Handle);
+    sys_process_signal(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), handle, signal);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_kill_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_process_signal_result(GetGrachtClient(), &msg.base, &osStatus);
+    return osStatus;
 }
 
 UUId_t
@@ -156,29 +163,33 @@ ProcessGetTickBase(
 OsStatus_t
 GetProcessCommandLine(
     _In_    char*   buffer,
-    _InOut_ size_t* maxLength)
+    _InOut_ size_t* length)
 {
     const char* commandLine = __crt_cmdline();
-	size_t      length      = strlen(&commandLine[0]);
+	size_t      clLength    = strlen(&commandLine[0]);
 
-    if (!buffer || maxLength == 0) {
-        return OsInvalidParameters;
+    if (buffer == NULL) {
+        if (length == NULL) {
+            return OsInvalidParameters;
+        }
+        *length = clLength;
+        return OsSuccess;
     }
 
-    memcpy(buffer, commandLine, MIN(*maxLength, length));
-	*maxLength = length;
+    memcpy(buffer, commandLine, MIN(*length, clLength));
+	*length = clLength;
 	return OsSuccess;
 }
 
 OsStatus_t
 ProcessGetCurrentName(
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength)
+        _In_ char*  buffer,
+        _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
 
-    if (!Buffer || MaxLength == 0) {
+    if (buffer == NULL && maxLength == 0) {
         return OsInvalidParameters;
     }
 
@@ -186,71 +197,80 @@ ProcessGetCurrentName(
 
     sys_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_get_name_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
+    sys_process_get_name_result(GetGrachtClient(), &msg.base,
+                                &status,
+                                buffer,
+                                maxLength);
     return status;
 }
 
 OsStatus_t
 ProcessGetAssemblyDirectory(
-    _In_ UUId_t Handle,
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength)
+        _In_ UUId_t handle,
+        _In_ char*  buffer,
+        _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
 
-    if (!Buffer || MaxLength == 0) {
+    if (buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
     }
 
-    if (Handle == UUID_INVALID) {
+    if (handle == UUID_INVALID) {
         assert(__crt_is_phoenix() == 0);
-        Handle = ProcessGetCurrentId();
+        handle = ProcessGetCurrentId();
     }
     
-    sys_process_get_assembly_directory(GetGrachtClient(), &msg.base, Handle);
+    sys_process_get_assembly_directory(GetGrachtClient(), &msg.base, handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_get_assembly_directory_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
+    sys_process_get_assembly_directory_result(GetGrachtClient(), &msg.base,
+                                              &status,
+                                              buffer,
+                                              maxLength);
     return status;
 }
 
 OsStatus_t
 ProcessGetWorkingDirectory(
-    _In_ UUId_t Handle,
-    _In_ char*  Buffer,
-    _In_ size_t MaxLength)
+        _In_ UUId_t handle,
+        _In_ char*  buffer,
+        _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
 
-    if (!Buffer || MaxLength == 0) {
+    if (buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
     }
     
-    if (Handle == UUID_INVALID) {
+    if (handle == UUID_INVALID) {
         assert(__crt_is_phoenix() == 0);
-        Handle = ProcessGetCurrentId();
+        handle = ProcessGetCurrentId();
     }
 	
-    sys_process_get_working_directory(GetGrachtClient(), &msg.base, Handle);
+    sys_process_get_working_directory(GetGrachtClient(), &msg.base, handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_get_working_directory_result(GetGrachtClient(), &msg.base, &status, Buffer, MaxLength);
+    sys_process_get_working_directory_result(GetGrachtClient(), &msg.base,
+                                             &status,
+                                             buffer,
+                                             maxLength);
     return status;
 }
 
 OsStatus_t
 ProcessSetWorkingDirectory(
-    _In_ const char* Path)
+    _In_ const char* path)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     OsStatus_t               status;
 
-    if (!Path) {
+    if (path == NULL) {
         return OsInvalidParameters;
     }
     assert(__crt_is_phoenix() == 0);
 	
-    sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), Path);
+    sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_set_working_directory_result(GetGrachtClient(), &msg.base, &status);
     return status;

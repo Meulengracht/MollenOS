@@ -581,17 +581,19 @@ cleanup:
     RequestDestroy(request);
 }
 
-void PmKillProcess(
+void PmSignalProcess(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
     Process_t* victim;
     OsStatus_t osStatus;
-    TRACE("PmKillProcess(process=%u)", request->parameters.kill.victim_handle);
+    TRACE("PmSignalProcess(process=%u, signal=%i)",
+          request->parameters.signal.victim_handle,
+          request->parameters.signal.signal);
 
     // ok how to handle this, optimally we should check that the process
     // has license to kill before executing the signal
-    victim = RegisterProcessRequest(request->parameters.kill.victim_handle, request);
+    victim = RegisterProcessRequest(request->parameters.signal.victim_handle, request);
     if (!victim) {
         osStatus = OsDoesNotExist;
         goto exit;
@@ -600,7 +602,7 @@ void PmKillProcess(
     // try to send a kill signal to primary thread
     usched_mtx_lock(&victim->lock);
     if (victim->state == ProcessState_RUNNING) {
-        osStatus = Syscall_ThreadSignal(victim->primary_thread_id, SIGKILL);
+        osStatus = Syscall_ThreadSignal(victim->primary_thread_id, request->parameters.signal.signal);
     }
     else {
         osStatus = OsInProgress;
@@ -609,7 +611,7 @@ void PmKillProcess(
     UnregisterProcessRequest(victim, request);
 
 exit:
-    sys_process_kill_response(request->message, osStatus);
+    sys_process_signal_response(request->message, osStatus);
     RequestDestroy(request);
 }
 

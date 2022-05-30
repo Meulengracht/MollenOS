@@ -44,12 +44,10 @@ typedef struct ProcessConfiguration {
 } ProcessConfiguration_t;
 
 typedef struct ProcessStartupInformation {
-    void*  Arguments;
     size_t ArgumentsLength;
-    void*  Inheritation;
     size_t InheritationLength;
-    void*  LibraryEntries;
     size_t LibraryEntriesLength;
+    size_t EnvironmentBlockLength;
 } ProcessStartupInformation_t;
 
 #endif //!__TYPES_PROCESS_H__

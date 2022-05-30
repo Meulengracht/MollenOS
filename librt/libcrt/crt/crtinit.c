@@ -31,15 +31,16 @@ extern void __cxa_module_global_init(void);
 extern void __cxa_module_global_finit(void);
 extern void __cxa_module_tls_thread_init(void);
 extern void __cxa_module_tls_thread_finit(void);
-extern int  __crt_parse_cmdline(char* rawCommandLine, char** argv);
+extern int  __crt_parse_cmdline(const char* rawCommandLine, char** argv);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-CRTDECL(void, __cxa_runinitializers(ProcessStartupInformation_t*,
+CRTDECL(void, __cxa_runinitializers(const uint8_t*,
 	void (*)(void), void (*)(void), void (*)(void), void (*)(void)));
-CRTDECL(void, __crt_process_initialize(int isPhoenix, ProcessStartupInformation_t* startupInformation));
+CRTDECL(void, __crt_process_initialize(int isPhoenix));
 CRTDECL(const char*, __crt_cmdline(void));
+CRTDECL(const uintptr_t*, __crt_base_libraries(void));
 
 char**
 __crt_initialize(
@@ -47,20 +48,22 @@ __crt_initialize(
     _In_  int               isPhoenix,
     _Out_ int*              argumentCount)
 {
-    ProcessStartupInformation_t startupInformation = { 0 };
-	char**                      argv = NULL;
+	char** argv = NULL;
     
 	tls_create(threadStorage);
-    __crt_process_initialize(isPhoenix, &startupInformation);
+    __crt_process_initialize(isPhoenix);
 
     // Handle process arguments
     if (argumentCount != NULL) {
         int argc = 0;
 
-        if (strlen((const char*)startupInformation.Arguments) != 0) {
-            argc = __crt_parse_cmdline(startupInformation.Arguments, NULL);
+        if (strlen(__crt_cmdline()) != 0) {
+            argc = __crt_parse_cmdline(__crt_cmdline(), NULL);
             argv = (char**)calloc(sizeof(char*), argc + 1);
-            __crt_parse_cmdline(startupInformation.Arguments, argv);
+            if (argv == NULL) {
+                return NULL;
+            }
+            __crt_parse_cmdline(__crt_cmdline(), argv);
         }
 
         *argumentCount = argc;
@@ -69,7 +72,7 @@ __crt_initialize(
     // The following library function handles running static initializers and TLS data for the primary
     // library object (the loaded exe/dll).
     __cxa_runinitializers(
-            &startupInformation,
+            __crt_base_libraries(),
     	    __cxa_module_global_init,
     	    __cxa_module_global_finit,
             __cxa_module_tls_thread_init,

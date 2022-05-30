@@ -50,8 +50,8 @@ __unescape_quotes(
 
 int
 __crt_parse_cmdline(
-        _In_ char*  rawCommandLine,
-        _In_ char** argv)
+        _In_ const char* rawCommandLine,
+        _In_ char**      argv)
 {
     char* bufferPointer;
     char* lastPointer = NULL;

@@ -208,7 +208,7 @@ CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dso_symb
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
-    _In_ ProcessStartupInformation_t* processInformation,
+    _In_ const uint8_t* libraries,
     _In_ void (*module_init)(void), 
     _In_ void (*module_cleanup)(void),
     _In_ void (*module_thread_init)(void),
