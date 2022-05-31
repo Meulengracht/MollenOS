@@ -33,9 +33,10 @@
 // Number of tls entries
 #define TLS_NUMBER_ENTRIES 64
 
-PACKED_TYPESTRUCT(thread_storage, {
+typedef struct thread_storage {
     thrd_t                thr_id;
     void*                 handle;
+    const char* const*    env_block;
     errno_t               err_no;
     void*                 locale;
     mbstate_t             mbst;
@@ -46,7 +47,7 @@ PACKED_TYPESTRUCT(thread_storage, {
     char                  tmpname_buffer[L_tmpnam];
     struct dma_attachment transfer_buffer;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
-});
+} thread_storage_t;
 
 _CODE_BEGIN
 /* tls_current 
@@ -56,11 +57,11 @@ CRTDECL(thread_storage_t*, tls_current(void));
 /* tls_create
  * Initializes a new thread-storage space for the caller thread.
  * Part of CRT initialization routines. */
-CRTDECL(OsStatus_t, tls_create(thread_storage_t *Tls));
+CRTDECL(OsStatus_t, tls_create(thread_storage_t * tls));
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
-CRTDECL(OsStatus_t, tls_destroy(thread_storage_t *Tls));
+CRTDECL(OsStatus_t, tls_destroy(thread_storage_t * tls));
 
 /* tls_cleanup
  * Destroys the TLS for the specific thread

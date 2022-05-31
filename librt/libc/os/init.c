@@ -205,6 +205,7 @@ static int __get_startup_info(void)
     status = __parse_startup_info(mapping.buffer);
     if (status) {
         dma_detach(&mapping);
+        free(mapping.buffer);
         return -1;
     }
 

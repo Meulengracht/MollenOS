@@ -43,6 +43,7 @@
 #include <errno.h>
 #include "../../libc/locale/setlocale.h"
 #include "tls.h"
+#include "internal/_utils.h"
 
 #define TLS_MAX_KEYS			    64
 #define TLS_ATEXIT_CXA              1
@@ -82,65 +83,108 @@ static TlsProcessInstance_t g_tls     = { {0 }, { 0 },
                                          COLLECTION_INIT(KeyId),
                                          0
 };
+static const char* g_nullEnvironment[] = {
+        NULL
+};
+
+static const char* const* __clone_env_block(void)
+{
+    const char* const* source = __crt_environment();
+    char**             copy;
+    int                count;
+
+    if (source == NULL) {
+        return (const char* const*)g_nullEnvironment;
+    }
+
+    count = 0;
+    while (source[count]) {
+        count++;
+    }
+
+    copy = calloc(count + 1, sizeof(char*));
+    if (copy == NULL) {
+        return (const char* const*)g_nullEnvironment;
+    }
+
+    count = 0;
+    while (source[count]) {
+        copy[count] = strdup(source[count]);
+        count++;
+    }
+    return (const char* const*)copy;
+}
 
 OsStatus_t 
 tls_create(
-    _In_ thread_storage_t* Tls)
+    _In_ thread_storage_t* tls)
 {
     struct dma_buffer_info info;
-    void* buffer;
+    void*                  buffer;
     
-    memset(Tls, 0, sizeof(thread_storage_t));
+    memset(tls, 0, sizeof(thread_storage_t));
 
     // Store it at reserved pointer place first
-    __set_reserved(0, (size_t)Tls);
-    __set_reserved(1, (size_t)&Tls->tls_array[0]);
-    __set_reserved(11, (size_t)&Tls->tls_array[0]);
+    __set_reserved(0, (size_t)tls);
+    __set_reserved(1, (size_t)&tls->tls_array[0]);
+    __set_reserved(11, (size_t)&tls->tls_array[0]);
     
     // Initialize members to default values
-    Tls->thr_id = UUID_INVALID;
-    Tls->err_no = EOK;
-    Tls->locale = __get_global_locale();
-    Tls->seed   = 1;
+    tls->thr_id = UUID_INVALID;
+    tls->err_no = EOK;
+    tls->locale = __get_global_locale();
+    tls->seed   = 1;
+
+    // this may end up returning NULL environment for the primary thread if the
+    // CRT hasn't fully initialized yet. Ignore it, and see what happens
+    tls->env_block = __clone_env_block();
 
     // Setup a local transfer buffer for stdio operations
     // TODO: do on first read/write instead?
     buffer = malloc(BUFSIZ);
-    
+    if (buffer == NULL) {
+        return OsOutOfMemory;
+    }
+
+    info.name     = "thread_tls";
     info.length   = BUFSIZ;
     info.capacity = BUFSIZ;
     info.flags    = DMA_PERSISTANT;
     info.type     = DMA_TYPE_DRIVER_32;
-    return dma_export(buffer, &info, &Tls->transfer_buffer);
+    return dma_export(buffer, &info, &tls->transfer_buffer);
 }
 
-/* tls_destroy
- * Destroys a thread-storage space should be called by thread crt */
+static void __destroy_env_block(char** env)
+{
+    for (int i = 0; env[i] != NULL; i++) {
+        free(env[i]);
+    }
+    free(env);
+}
+
 OsStatus_t
 tls_destroy(
-    _In_ thread_storage_t* Tls)
+    _In_ thread_storage_t* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
-    if (Tls->transfer_buffer.buffer != NULL) {
-        dma_detach(&Tls->transfer_buffer);
-        free(Tls->transfer_buffer.buffer);
+    if (tls->transfer_buffer.buffer != NULL) {
+        dma_detach(&tls->transfer_buffer);
+        free(tls->transfer_buffer.buffer);
+        tls->transfer_buffer.buffer = NULL;
+    }
+    if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
+        __destroy_env_block((char**)tls->env_block);
+        tls->env_block = NULL;
     }
     return OsSuccess;
 }
 
-/* tls_current 
- * Retrieves the local storage space for the current thread */
 thread_storage_t*
 tls_current(void)
 {
     return (thread_storage_t*)__get_reserved(0);
 }
 
-/* tss_create
- * Creates new thread-specific storage key and stores it in the object pointed to by tss_key. 
- * Although the same key value may be used by different threads, 
- * the values bound to the key by tss_set are maintained on a per-thread 
- * basis and persist for the life of the calling thread. */
 int
 tss_create(
     _In_ tss_t*     tss_key,

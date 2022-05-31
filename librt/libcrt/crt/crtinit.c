@@ -31,9 +31,6 @@ extern void __cxa_module_global_finit(void);
 extern void __cxa_module_tls_thread_init(void);
 extern void __cxa_module_tls_thread_finit(void);
 extern int  __crt_parse_cmdline(const char* rawCommandLine, char** argv);
-#ifndef __clang__
-CRTDECL(void, __CppInitVectoredEH(void));
-#endif
 
 CRTDECL(void, __cxa_runinitializers(const uintptr_t*,
 	void (*)(void), void (*)(void), void (*)(void), void (*)(void)));
