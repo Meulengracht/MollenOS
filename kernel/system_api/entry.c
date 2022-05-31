@@ -124,7 +124,7 @@ extern OsStatus_t ScSystemQuery(SystemDescriptor_t*);
 // Timing interface
 extern OsStatus_t ScSystemClockTick(enum VaClockSourceType, LargeUInteger_t*);
 extern OsStatus_t ScSystemClockFrequency(enum VaClockSourceType, LargeUInteger_t*);
-extern OsStatus_t ScSystemWallClock(SystemTime_t*);
+extern OsStatus_t ScSystemWallClock(LargeInteger_t*);
 extern OsStatus_t ScTimeSleep(LargeUInteger_t*, LargeUInteger_t*);
 extern OsStatus_t ScTimeStall(LargeUInteger_t*);
 

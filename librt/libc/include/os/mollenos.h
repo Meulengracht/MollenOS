@@ -30,7 +30,7 @@
 #include <os/types/thread.h>
 #include <os/types/time.h>
 
-PACKED_TYPESTRUCT(SystemDescriptor, {
+typedef struct SystemDescriptor {
     size_t NumberOfProcessors;
     size_t NumberOfActiveCores;
 
@@ -38,17 +38,7 @@ PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t PagesUsed;
     size_t PageSizeBytes;
     size_t AllocationGranularityBytes;
-});
-
-PACKED_TYPESTRUCT(SystemTime, {
-    LargeUInteger_t Nanoseconds;
-    int             Second;
-    int             Minute;
-    int             Hour;
-    int             DayOfMonth;
-    int             Month;
-    int             Year;
-});
+} SystemDescriptor_t;
 
 /* Cache Type Definitions
  * Flags that can be used when requesting a flush of one of the hardware caches */
@@ -102,14 +92,15 @@ VaStall(
 
 /**
  * @brief Reads the current wall clock from the kernel wallclock driver. No guarantee is made to
- * the precision of this time other than second-precision.
+ * the precision of this time other than second-precision. However the value is in microseconds. The time
+ * is represented in microseconds since Jaunary 1, 2020 UTC.
  *
- * @param[Out] timeOut Pointer to a SystemTime_t structure, where the time will be stored.
+ * @param[Out] time Pointer to where the time will be stored.
  * @return     Returns OsSuccess if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(OsStatus_t,
 VaGetWallClock(
-        _In_ SystemTime_t* timeOut));
+        _In_ LargeInteger_t* time));
 
 /**
  * @brief Reads the current clock tick for the given clock source type. No guarantees are made for their
@@ -148,10 +139,64 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLengt
 /*******************************************************************************
  * Path Extensions
  *******************************************************************************/
-CRTDECL(OsStatus_t, PathCanonicalize(const char* Path, char* Buffer, size_t MaxLength));
-CRTDECL(OsStatus_t, PathResolveEnvironment(EnvironmentPath_t Base, char* Buffer, size_t MaxLength));
-CRTDECL(OsStatus_t, SetWorkingDirectory(const char *Path));
-CRTDECL(OsStatus_t, GetWorkingDirectory(char* PathBuffer, size_t MaxLength));
+
+/**
+ * @brief Resolves the full path of the relative/incomplete path provided.
+ *
+ * @param[In] path The path that should be resolved into an absolute path.
+ * @param[In] followSymlinks Whether links should be followed to the true path.
+ * @param[In] buffer The buffer where the final path should be stored.
+ * @param[In] maxLength The size of the buffer.
+ * @return OsDoesNotExist if the path could not be resolved.
+ *         OsInvalidParameters if the parameters passed were not valid.
+ */
+CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer, size_t maxLength));
+
+/**
+ * @brief Canonicalize a path. This expands any variables and removes any navigational
+ * sequences (. or ..), and removes any dublicate seperators. This does not resolve any
+ * relative paths.
+ *
+ * @param[In] path The path to canonicalize.
+ * @param[In] buffer The buffer where the final path should be stored.
+ * @param[In] maxLength The size of the buffer.
+ * @return OsError if the path contains any invalid sequences.
+ *         OsInvalidParameters if the parameters passed were not valid.
+ */
+CRTDECL(OsStatus_t, PathCanonicalize(const char* path, char* buffer, size_t maxLength));
+
+/**
+ * @brief Resolves a special environmental path. The environmental path denotes special paths
+ * in the operating system, and work like a utility function to discover where they are.
+ *
+ * @param[In] base A value of the EnvironmentPath enumeration.
+ * @param[In] buffer The buffer where the path should be stored.
+ * @param[In] maxLength The size of the buffer.
+ * @return OsInvalidParameters if the parameters passed were not valid.
+ */
+CRTDECL(OsStatus_t, PathResolveEnvironment(EnvironmentPath_t base, char* buffer, size_t maxLength));
+
+/**
+ * @brief Changes the current working directory. Validation of the target path will be done
+ * as a part of this call.
+ *
+ * @param[In] path The relative or absolute path that should be the new working directory.
+ * @return OsInvalidParameters if the parameters passed were not valid.
+ *         OsDoesNotExist if the path could not be resolved
+ *         OsPathIsNotDirectory If the path is not a directory
+ */
+CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));
+
+/**
+ * @brief Retrieves the current working directory.
+ *
+ * @param[In] buffer The buffer where the path should be stored.
+ * @param[In] maxLength The size of the buffer.
+ * @return OsInvalidParameters if the parameters passed were not valid.
+ */
+CRTDECL(OsStatus_t, GetWorkingDirectory(char* buffer, size_t maxLength));
+
+// Utility functions that act as wrappers around PathResolveEnvironment
 CRTDECL(OsStatus_t, GetAssemblyDirectory(char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetUserDirectory(char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetUserCacheDirectory(char *PathBuffer, size_t MaxLength));
@@ -171,12 +216,12 @@ CRTDECL(OsStatus_t, SetFileSizeFromFd(int fileDescriptor, size_t size));
 CRTDECL(OsStatus_t, ChangeFilePermissionsFromPath(const char* path, unsigned int permissions));
 CRTDECL(OsStatus_t, ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissions));
 CRTDECL(OsStatus_t, GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLength));
-CRTDECL(OsStatus_t, GetFilePathFromFd(int fileDescriptor, char *pathBuffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *path, OsStorageDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFilePathFromFd(int fileDescriptor, char *buffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *path, int followLinks, OsStorageDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, GetStorageInformationFromFd(int fileDescriptor, OsStorageDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *path, OsFileSystemDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *path, int followLinks, OsFileSystemDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int fileDescriptor, OsFileSystemDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *path, OsFileDescriptor_t* descriptor));
+CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *path, int followLinks, OsFileDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, GetFileInformationFromFd(int fileDescriptor, OsFileDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, CreateFileMapping(int fileDescriptor, int flags, uint64_t offset, size_t length, void** mapping));
 CRTDECL(OsStatus_t, FlushFileMapping(void* mapping, size_t length));

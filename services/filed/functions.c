@@ -916,7 +916,7 @@ void SetSize(
     VfsRequestDestroy(request);
 }
 
-void GetFullPath(
+void GetFullPathByHandle(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {

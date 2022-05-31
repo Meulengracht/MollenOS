@@ -51,6 +51,26 @@ PathResolveEnvironment(
 }
 
 OsStatus_t
+GetFullPath(
+        const char* path,
+        int         followLinks,
+        char*       buffer,
+        size_t      maxLength)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    OsStatus_t               status;
+
+    if (!buffer) {
+        return OsInvalidParameters;
+    }
+
+    sys_path_realpath(GetGrachtClient(), &msg.base, path, followLinks);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+    return status;
+}
+
+OsStatus_t
 PathCanonicalize(
     _In_ const char* path,
     _In_ char*       buffer,
@@ -79,43 +99,47 @@ GetWorkingDirectory(
 }
 
 OsStatus_t
-SetWorkingDirectory(
-    _In_ const char* Path)
+ChangeWorkingDirectory(
+    _In_ const char* path)
 {
     OsFileDescriptor_t fileInfo;
 	char               canonBuffer[_MAXPATH];
     char               outBuffer[_MAXPATH];
     OsStatus_t         osStatus;
-    TRACE("SetWorkingDirectory(Path=%s)", Path);
+    TRACE("ChangeWorkingDirectory(path=%s)", path);
 
-	if (Path == NULL || strlen(Path) == 0) {
-		return OsError;
+	if (path == NULL || strlen(path) == 0) {
+		return OsInvalidParameters;
 	}
 
 	memset(&canonBuffer[0], 0, _MAXPATH);
-    if (strstr(Path, ":/") != NULL || strstr(Path, ":\\") != NULL) {
-        TRACE("SetWorkingDirectory absolute path detected");
-        memcpy(&canonBuffer[0], Path, strnlen(Path, _MAXPATH - 1));
-    }
-    else {
-        TRACE("SetWorkingDirectory relative path detected");
-        if (GetWorkingDirectory(&canonBuffer[0], _MAXPATH) != OsSuccess) {
-            return OsError;
+    if (strstr(path, ":/") != NULL || strstr(path, ":\\") != NULL) {
+        TRACE("ChangeWorkingDirectory absolute path detected");
+        memcpy(&canonBuffer[0], path, strnlen(path, _MAXPATH - 1));
+    } else {
+        TRACE("ChangeWorkingDirectory relative path detected");
+        osStatus = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
+        if (osStatus != OsSuccess) {
+            return osStatus;
         }
-        strncat(&canonBuffer[0], Path, _MAXPATH);
+        strncat(&canonBuffer[0], path, _MAXPATH);
     }
 
-    TRACE("SetWorkingDirectory canonicalizing %s", &canonBuffer[0]);
+    TRACE("ChangeWorkingDirectory canonicalizing %s", &canonBuffer[0]);
     memset(&outBuffer[0], 0, _MAXPATH);
     osStatus = PathCanonicalize(&canonBuffer[0], &outBuffer[0], _MAXPATH);
     if (osStatus == OsSuccess) {
-        TRACE("SetWorkingDirectory canonicalized path=%s", &outBuffer[0]);
+        TRACE("ChangeWorkingDirectory canonicalized path=%s", &outBuffer[0]);
 
         osStatus = GetFileInformationFromPath(&outBuffer[0], &fileInfo);
-        if (osStatus == OsSuccess && (fileInfo.Flags & FILE_FLAG_DIRECTORY)) {
+        if (osStatus != OsSuccess) {
+            return osStatus;
+        }
+
+        if (fileInfo.Flags & FILE_FLAG_DIRECTORY) {
             size_t currentLength;
 
-            TRACE("SetWorkingDirectory path exists and is a directory");
+            TRACE("ChangeWorkingDirectory path exists and is a directory");
             currentLength = strlen(&outBuffer[0]);
             if (outBuffer[currentLength - 1] != '/') {
                 outBuffer[currentLength] = '/';
@@ -123,14 +147,12 @@ SetWorkingDirectory(
 
             // Handle this differently based on a module or application
             return ProcessSetWorkingDirectory(&outBuffer[0]);
+        } else {
+            ERROR("ChangeWorkingDirectory path was not a directory: %u", fileInfo.Flags);
+            return OsPathIsNotDirectory;
         }
-        else {
-            ERROR("SetWorkingDirectory path was not a directory: %u, %u",
-                  osStatus, fileInfo.Flags);
-        }
-    }
-    else {
-        ERROR("SetWorkingDirectory failed to canonicalize path=%s", &canonBuffer[0]);
+    } else {
+        ERROR("ChangeWorkingDirectory failed to canonicalize path=%s", &canonBuffer[0]);
     }
     return osStatus;
 }

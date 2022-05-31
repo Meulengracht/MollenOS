@@ -55,7 +55,8 @@ extern void StatFromPath(FileSystemRequest_t* request, void*);
 extern void StatLinkPathFromPath(FileSystemRequest_t* request, void*);
 extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
 extern void StatStorageByPath(FileSystemRequest_t* request, void*);
-extern void GetFullPath(FileSystemRequest_t* request, void*);
+extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
+extern void GetFullPathByPath(FileSystemRequest_t* request, void*);
 extern void CanonicalizePath(FileSystemRequest_t* request, void*);
 extern void ResolvePath(FileSystemRequest_t* request, void*);
 
@@ -397,7 +398,7 @@ void sys_file_get_path_invocation(struct gracht_message* message, const UUId_t p
     }
 
     request->parameters.stat_handle.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetFullPath, request);
+    usched_task_queue((usched_task_fn)GetFullPathByHandle, request);
 }
 
 void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
@@ -416,7 +417,7 @@ void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t proc
     usched_task_queue((usched_task_fn)StatFromHandle, request);
 }
 
-void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
+void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path, const int followLinks)
 {
     struct sys_file_descriptor gdescriptor = { 0 };
     FileSystemRequest_t* request;
@@ -434,6 +435,7 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t
     }
 
     request->parameters.stat_path.path = strdup(path);
+    request->parameters.stat_path.follow_links = followLinks;
     usched_task_queue((usched_task_fn)StatFromPath, request);
 }
 
@@ -473,7 +475,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t pro
     sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
 }
 
-void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
+void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path, const int followLinks)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*             request;
@@ -524,6 +526,27 @@ void sys_path_canonicalize_invocation(struct gracht_message* message, const char
     usched_task_queue((usched_task_fn)CanonicalizePath, request);
 }
 
+void sys_path_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_path_realpath_invocation(path=%s)", path);
+    if (!strlen(path)) {
+        sys_path_canonicalize_response(message, OsInvalidParameters, "");
+        return;
+    }
+
+    request = CreateRequest(message, UUID_INVALID);
+    if (!request) {
+        sys_path_canonicalize_response(message, OsOutOfMemory, "");
+        return;
+    }
+
+    request->parameters.stat_path.path = strdup(path);
+    request->parameters.stat_path.follow_links = followLinks;
+    usched_task_queue((usched_task_fn) GetFullPathByPath, request);
+}
+
 void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
@@ -540,7 +563,7 @@ void sys_storage_get_descriptor_invocation(struct gracht_message* message, const
     usched_task_queue((usched_task_fn)StatStorageByHandle, request);
 }
 
-void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath)
+void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath, const int followLinks)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
@@ -558,5 +581,6 @@ void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, 
     }
 
     request->parameters.stat_path.path = strdup(filePath);
+    request->parameters.stat_path.follow_links = followLinks;
     usched_task_queue((usched_task_fn)StatStorageByPath, request);
 }

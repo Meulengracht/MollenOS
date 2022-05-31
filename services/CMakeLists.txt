@@ -20,9 +20,10 @@ macro (add_service_target)
 endmacro ()
 
 # build services
-add_subdirectory(devicemanager)
-add_subdirectory(filemanager)
-add_subdirectory(processmanager)
-add_subdirectory(sessionmanager)
-add_subdirectory(usbmanager)
-add_subdirectory(netmanager)
+add_subdirectory(deviced)
+add_subdirectory(filed)
+add_subdirectory(processd)
+add_subdirectory(sessiond)
+add_subdirectory(usbd)
+add_subdirectory(netd)
+

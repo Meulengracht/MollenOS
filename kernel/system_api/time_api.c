@@ -74,12 +74,12 @@ ScSystemClockFrequency(
 
 OsStatus_t
 ScSystemWallClock(
-        _In_ SystemTime_t* wallClock)
+        _In_ LargeInteger_t* time)
 {
-    if (wallClock == NULL) {
-        return OsError;
+    if (time == NULL) {
+        return OsInvalidParameters;
     }
-    memcpy(wallClock, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
+    SystemTimerGetWallClockTime(time);
     return OsSuccess;
 }
 

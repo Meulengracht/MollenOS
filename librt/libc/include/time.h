@@ -108,12 +108,15 @@ typedef struct __tzinfo_struct {
 
 _CODE_BEGIN
 /**
- * Returns the current calendar time encoded as a time_t object, and 
- * also stores it in the time_t object pointed to by arg (unless arg is a null pointer).
+ * @brief Returns the current calendar time encoded as a time_t object, and
+ * also stores it in the time_t object pointed to by tim (unless tim is a null pointer).
+ *
+ * @param tim
+ * @return
  */
 CRTDECL(time_t,
 time(
-    _Out_Opt_ time_t *arg));
+    _Out_Opt_ time_t* tim));
 
 /**
  * @brief
@@ -150,46 +153,57 @@ timespec_getres(
         _In_ struct timespec* ts,
         _In_ int              base));
 
-/* timespec_diff
- * The difference between two timespec with the same base. Result
- * is stored in static storage provided by user. */
+/**
+ * @brief The difference between two timespec with the same base. Result
+ * is stored in static storage provided by user.
+ *
+ * @param start
+ * @param stop
+ * @param result
+ */
 CRTDECL(void,
 timespec_diff(
     _In_ const struct timespec* start,
     _In_ const struct timespec* stop,
     _In_ struct timespec*       result));
 
-/* mktime
- * Renormalizes local calendar time expressed as a struct tm object and also 
- * converts it to time since epoch as a time_t object. time->tm_wday and 
- * time->tm_yday are ignored. The values in time are not checked for being out of range. */
+/**
+ * @brief Renormalizes local calendar tm expressed as a struct tm object and also
+ * converts it to tm since epoch as a time_t object. tm->tm_wday and
+ * tm->tm_yday are ignored. The values in tm are not checked for being out of range.
+ *
+ * @param tm
+ * @return
+ */
 _CRTIMP
 time_t
 mktime(
-    _In_ struct tm *time);
+    _In_ struct tm *tm);
 
-/* difftime
- * Computes difference between two calendar times as time_t objects 
- * (time_end - time_beg) in seconds. If time_end refers to time point 
- * before time_beg then the result is negative. */
+/**
+ * @brief Computes difference between two calendar times as time_t objects
+ * (time_end - time_beg) in seconds. If time_end refers to time point
+ * before time_beg then the result is negative
+ *
+ * @param time_end
+ * @param time_beg
+ * @return
+ */
 _CRTIMP
 double
 difftime(
     _In_ time_t time_end,
     _In_ time_t time_beg);
 
-/* clock
- * Returns the approximate processor time used by the process since the beginning of 
- * an implementation-defined era related to the program's execution. 
- * To convert result value to seconds, divide it by CLOCKS_PER_SEC. */
-_CRTIMP
-clock_t
-clock(void);
-
-/* Timezone functions */
-_CRTIMP
-__tzinfo_type*
-__gettzinfo(void);
+/**
+ * @brief Returns the approximate processor time used by the process since the beginning of
+ * an implementation-defined era related to the program's execution.
+ * To convert result value to seconds, divide it by CLOCKS_PER_SEC.
+ *
+ * @return
+ */
+_CRTIMP clock_t clock(void);
+_CRTIMP __tzinfo_type* __gettzinfo(void);
 
 /* gmtime
  * Converts given time since epoch (a time_t value pointed to by time) into calendar time,

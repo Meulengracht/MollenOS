@@ -13,9 +13,9 @@ service storage (2) {
     func register(UUId_t driverId, UUId_t deviceId, storage_flags flags) : () = 1;
     func unregister(UUId_t deviceId, bool forced) : () = 2;
     
-    // I'm not sure whether or not they should be here or in the file service
+    // These should be in the file service
     func get_descriptor(UUId_t fileHandle) : (OsStatus_t result, disk_descriptor descriptor) = 3;
-    func get_descriptor_path(string filePath) : (OsStatus_t result, disk_descriptor descriptor) = 4;
+    func get_descriptor_path(string filePath, int followLinks) : (OsStatus_t result, disk_descriptor descriptor) = 4;
 }
 
 enum file_flags {
@@ -71,8 +71,8 @@ service file (3) {
     func fstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, file_descriptor descriptor) = 16;
     func fstat_link(UUId_t processId, string path) : (OsStatus_t result, string path) = 17;
     func fsstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, filesystem_descriptor descriptor) = 19;
-    func fstat_path(UUId_t processId, string path) : (OsStatus_t result, file_descriptor descriptor) = 20;
-    func fsstat_path(UUId_t processId, string path) : (OsStatus_t result, filesystem_descriptor descriptor) = 21;
+    func fstat_path(UUId_t processId, string path, int followLinks) : (OsStatus_t result, file_descriptor descriptor) = 20;
+    func fsstat_path(UUId_t processId, string path, int followLinks) : (OsStatus_t result, filesystem_descriptor descriptor) = 21;
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status
@@ -96,4 +96,5 @@ enum system_paths {
 service path (4) {
     func resolve(system_paths path) : (OsStatus_t result, string resolved) = 1;
     func canonicalize(string path) : (OsStatus_t result, string canonicalized) = 2;
+    func realpath(string path, int followLinks) : (OsStatus_t result, string resolved) = 3;
 }

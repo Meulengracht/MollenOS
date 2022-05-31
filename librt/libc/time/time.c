@@ -15,10 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Get System Time
- *  - Retrieves the system time in sec/min/day/mon/year format, and converts it to local
- *    time in time_t format.
  */
 
 #include <os/mollenos.h>
@@ -26,24 +22,23 @@
 #include <time.h>
 #include "local.h"
 
-time_t time(time_t* Timer)
+time_t time(time_t* tim)
 {
-    SystemTime_t SystemTime = { { { 0 } } };
-	struct tm    Temporary  = { 0 };
-	time_t       Result     = 0;
+    LargeInteger_t timeValue;
+    time_t         converted = 0;
 
-    // Retrieve structure in our format, convert and mktime
-	if (VaGetWallClock(&SystemTime) == OsSuccess) {
-        Temporary.tm_sec  = SystemTime.Second;
-        Temporary.tm_min  = SystemTime.Minute;
-        Temporary.tm_hour = SystemTime.Hour;
-        Temporary.tm_mday = SystemTime.DayOfMonth;
-        Temporary.tm_mon  = SystemTime.Month - 1;
-        Temporary.tm_year = SystemTime.Year - YEAR_BASE;
-        Result = mktime(&Temporary);
-        if (Timer != NULL) {
-            *Timer = Result;
+	if (VaGetWallClock(&timeValue) == OsSuccess) {
+        // time is expected to return a time since the epoch of Jaunary 1, 1970
+        // but the time epoch in Vali is January 1, 2000. So we fix this by adding
+        // the below difference which is the exact number of seconds between those
+        // dates
+        converted = timeValue.QuadPart / USEC_PER_SEC;
+        converted += EPOCH_DIFFERENCE;
+
+        // TODO time-zone support?
+        if (tim != NULL) {
+            *tim = converted;
         }
 	}
-	return Result;
+	return converted;
 }

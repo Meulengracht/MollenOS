@@ -105,6 +105,83 @@ SystemTimerRegister(
     return OsSuccess;
 }
 
+// Our system wall clock is valid down to microseconds precision, which allows us for
+// a precision of 292.277 years in either direction. This should be sufficient for our
+// needs.
+static void __LinearTime(SystemTime_t* time, LargeInteger_t* linear)
+{
+    // Ok we convert the format of SystemTime to a total second count. We count
+    // time starting from January 1, 2000. (UTC) from the value of 0.
+    int isLeap = isleap(time->Year);
+    int seconds;
+    int days;
+
+    if (time->Year < 2000) {
+        // calculate the time left in the day, and the days left in the current year
+        seconds = SECSPERDAY - (time->Second + (time->Minute * (int)SECSPERMIN) + (time->Hour * (int)SECSPERHOUR));
+        days    = DAYSPERYEAR(time->Year) - (__days_before_month[isLeap][time->Month] + time->DayOfMonth);
+
+        // date is in the past, we must count backwards from that date, start by calculating
+        // the full number of days
+        for (int i = 1999; i > time->Year; i--) {
+            days += DAYSPERYEAR(i);
+        }
+
+        // do the last conversion of days to seconds and return that value as a negative
+        linear->QuadPart = -(((days * SECSPERDAY) + seconds) * USEC_PER_SEC);
+    } else {
+        seconds = time->Second + (time->Minute * (int)SECSPERMIN) + (time->Hour * (int)SECSPERHOUR);
+        days    = __days_before_month[isLeap][time->Month] + time->DayOfMonth;
+        for (int i = 2000; i < time->Year; i++) {
+            days += DAYSPERYEAR(i);
+        }
+        linear->QuadPart = ((days * SECSPERDAY) + seconds) * USEC_PER_SEC;
+    }
+}
+
+OsStatus_t
+SystemWallClockRegister(
+        _In_ SystemWallClockOperations_t* operations,
+        _In_ void*                        context)
+{
+    SystemWallClock_t* clock;
+
+    if (GetMachine()->SystemTimers.WallClock != NULL) {
+        return OsExists;
+    }
+
+    clock = kmalloc(sizeof(SystemWallClock_t));
+    if (clock == NULL) {
+        return OsOutOfMemory;
+    }
+
+    clock->BaseTick.QuadPart = 0;
+    clock->Context = context;
+    memcpy(&clock->Operations, operations, sizeof(SystemWallClockOperations_t));
+
+    // store it as our primary wall clock
+    GetMachine()->SystemTimers.WallClock = clock;
+    return OsSuccess;
+}
+
+void
+SystemTimerGetWallClockTime(
+        _In_ LargeInteger_t* time)
+{
+    tick_t timestamp;
+
+    // The wall clock and default system timer are synchronized. Which means
+    // we use the BaseTick of the wall clock, and then add clock timestamp
+    // to that to get the final time.
+    time->QuadPart = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
+
+    // The timestamp is in nanosecond precision, however we want microsecond
+    // precision here, so we adjust
+    SystemTimerGetTimestamp(&timestamp);
+    timestamp /= 1000UL;
+    time->QuadPart += (int64_t)timestamp;
+}
+
 void
 SystemTimerGetTimestamp(
         _Out_ tick_t* timestampOut)
@@ -230,38 +307,5 @@ SystemTimerStall(
     // wait for it
     while (tick.QuadPart < tickEnd.QuadPart) {
         clock->Operations.Read(clock->Context, &tick);
-    }
-}
-
-void
-SystemTimerWallClockAddTime(
-        _In_ int seconds)
-{
-    SystemTime_t* systemTime = &GetMachine()->SystemTimers.WallClock;
-    int           IsLeap;
-    int           DaysInMonth;
-
-    systemTime->Second += seconds;
-    if (systemTime->Second >= SECSPERMIN) {
-        systemTime->Second %= SECSPERMIN;
-        systemTime->Minute++;
-        if (systemTime->Minute == MINSPERHOUR) {
-            systemTime->Minute = 0;
-            systemTime->Hour++;
-            if (systemTime->Hour == HOURSPERDAY) {
-                systemTime->Hour = 0;
-                IsLeap      = isleap(systemTime->Year);
-                DaysInMonth = __month_lengths[IsLeap][systemTime->Month - 1];
-                systemTime->DayOfMonth++;
-                if (systemTime->DayOfMonth > DaysInMonth) {
-                    systemTime->DayOfMonth = 1;
-                    systemTime->Month++;
-                    if (systemTime->Month > MONSPERYEAR) {
-                        systemTime->Month = 0;
-                        systemTime->Year++;
-                    }
-                }
-            }
-        }
     }
 }

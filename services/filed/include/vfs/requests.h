@@ -112,6 +112,7 @@ typedef struct FileSystemRequest {
         } stat_handle;
         struct {
             const char* path;
+            int         follow_links;
         } stat_path;
         struct {
             int base;

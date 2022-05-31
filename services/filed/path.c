@@ -373,3 +373,8 @@ VfsPathResolve(
     TRACE("VfsPathResolve returns=%s", MStringRaw(resolvedPath));
     return resolvedPath;
 }
+
+void GetFullPathByPath(FileSystemRequest_t* request, void* cancellationToken)
+{
+    
+}

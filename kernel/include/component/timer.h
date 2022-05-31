@@ -28,6 +28,18 @@
 
 typedef clock_t tick_t;
 
+/**
+ * SystemTime is a helper structure that represents onboard time in UTC.
+ */
+typedef struct SystemTime {
+    int Second;     // Range 0-59
+    int Minute;     // Range 0-59
+    int Hour;       // Range 0-23
+    int DayOfMonth; // Range 0-31
+    int Month;      // Range 0-11
+    int Year;
+} SystemTime_t;
+
 enum SystemTimeAttributes {
     SystemTimeAttributes_COUNTER    = 0x1,
     SystemTimeAttributes_IRQ        = 0x2,
@@ -51,18 +63,28 @@ typedef struct SystemTimer {
     void*                     Context;
 } SystemTimer_t;
 
+typedef struct SystemWallClockOperations {
+    void (*Read)(void*, SystemTime_t*);
+} SystemWallClockOperations_t;
+
+typedef struct SystemWallClock {
+    SystemWallClockOperations_t Operations;
+    LargeInteger_t              BaseTick;
+    void*                       Context;
+} SystemWallClock_t;
+
 typedef struct SystemTimers {
-    list_t         Timers; // list<SystemTimer_t*>
-    SystemTime_t   WallClock;
-    SystemTimer_t* Clock;
-    SystemTimer_t* Hpc;
+    list_t             Timers; // list<SystemTimer_t*>
+    SystemWallClock_t* WallClock;
+    SystemTimer_t*     Clock;
+    SystemTimer_t*     Hpc;
 } SystemTimers_t;
-#define SYSTEM_TIMERS_INIT { LIST_INIT, { 0 }, NULL, NULL }
+#define SYSTEM_TIMERS_INIT { LIST_INIT, NULL, NULL, NULL }
 
 /**
  * @brief Registers a new system timer with the Machine.
  *
- * @param[In] operations A pointer to various operations the timer can support
+ * @param[In] operations A pointer to various operations the timer supports
  * @param[In] attributes The attributes/features of the timer
  * @param[In] interrupt  If the timer is occupying an interrupt, this is its interrupt handle
  * @param[In] context    A context pointer that will be passed to operations
@@ -76,13 +98,28 @@ SystemTimerRegister(
         _In_ void*                     context);
 
 /**
- * @brief Adds a number of seconds to the system wallclock
+ * @brief Registers a new wall clock source with the machine instance. The wall clock will
+ * be immediately synchronized with a timer source once threading is up and running. Only one
+ * wall clock can be registered.
  *
- * @param[In] seconds The number of seconds to add to the wallclock
+ * @param[In] operations A pointer to various operations the wall clock supports
+ * @param[In] context    A context pointer that will be passed to operations
+ * @return OsExists if a clock source is already registered
+ */
+KERNELAPI OsStatus_t KERNELABI
+SystemWallClockRegister(
+        _In_ SystemWallClockOperations_t* operations,
+        _In_ void*                        context);
+
+/**
+ * @brief Retrieves the current system wall clock. The wall clock is retrieved as
+ * a 64 bit signed timestamp in microseconds since January 1, 2000 UTC.
+ *
+ * @param[In] time A pointer to where to store the time.
  */
 KERNELAPI void KERNELABI
-SystemTimerWallClockAddTime(
-        _In_ int seconds);
+SystemTimerGetWallClockTime(
+        _In_ LargeInteger_t* time);
 
 /**
  * @brief Retrieves the current system tick as a timestamp

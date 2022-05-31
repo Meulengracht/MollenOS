@@ -26,7 +26,7 @@
 
 OsStatus_t
 VaGetWallClock(
-	_In_ SystemTime_t* time)
+        _In_ LargeInteger_t* time)
 {
     if (!time) {
         return OsInvalidParameters;

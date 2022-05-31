@@ -9,6 +9,7 @@
 #define DAYSPERWEEK  7
 #define MONSPERYEAR  12
 
+#define EPOCH_DIFFERENCE               946684800LL
 #define YEAR_BASE                      1900
 #define EPOCH_YEAR                     1970
 #define EPOCH_WDAY                     4
