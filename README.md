@@ -1,5 +1,10 @@
 
-# The Mollen(/Vali) Operating System 
+<h1 align="center" style="margin-top: 0px;">The Mollen(/Vali) Operating System </h1>
+<div align="center" >
+
+[![Community](https://img.shields.io/static/v1?label=Discord&logo=Discord&message=Community&colorB=7289da&style=for-the-badge)](https://discord.gg/kgQ5uD2mH2)
+
+</div>
 
 MollenOS/Vali is an **open-source operating system**. The operating system is build with focus
 on modern principles. The inspiration for building this was originally to learn about operating
@@ -12,16 +17,15 @@ system is packed into a read-only filesystem which gets mounted during boot. App
 read-only filesystem images which get mounted when installed. This ensures that both the operating system and its
 software operate within as safe constraints as possible.
 
-Discord - https://discord.gg/kgQ5uD2mH2
-
 ![Desktop - Terminal](docs/images/desktop_terminal.png)
 
-#### Current build status and nightly build download 
+### Current build status and nightly build download
 
 | Platform | Nightly Image (.img)                                                                   | Status                                                                                           |
 |----------|----------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------|
 | i386     | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/nightly-build.yml) | ![Vali I386 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20I386%20CI/badge.svg)   |
 | amd64    | [Builds](https://github.com/Meulengracht/MollenOS/actions/workflows/nightly-build.yml) | ![Vali AMD64 CI](https://github.com/Meulengracht/MollenOS/workflows/Vali%20AMD64%20CI/badge.svg) |
+
 
 ### Noteable projects
 
