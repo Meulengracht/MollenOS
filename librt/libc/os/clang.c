@@ -24,10 +24,8 @@
 #include <assert.h>
 #include <ddk/utils.h>
 #include <os/osdefs.h>
-#include <os/types/process.h>
 #include <math.h>
 #include <stdlib.h>
-#include <string.h>
 #include <threads.h>
 #include "../threads/tls.h"
 
@@ -43,12 +41,12 @@ extern void StdioCleanup(void);
 extern void tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 extern void tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 
-static int       g_cleanupPerformed                  = 0;
-static uintptr_t g_moduleEntries[PROCESS_MAXMODULES] = { 0 };
-static int       g_moduleCount                       = 0;
-static void      (*__cxa_primary_cleanup)(void);
-static void      (*__cxa_primary_tls_thread_init)(void);
-static void      (*__cxa_primary_tls_thread_finit)(void);
+static int              g_cleanupPerformed = 0;
+static const uintptr_t* g_moduleEntries    = NULL;
+
+static void (*__cxa_primary_cleanup)(void);
+static void (*__cxa_primary_tls_thread_init)(void);
+static void (*__cxa_primary_tls_thread_finit)(void);
 
 CRTDECL(void,
 __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
@@ -119,7 +117,7 @@ __cxa_exithandlers(
     if (!Quick) {
         // Run at-exit lists for all the modules
         if (DoAtExit != 0) {
-            for (int i = 0; i < g_moduleCount; i++) {
+            for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
                 ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);
             }
             // Cleanup primary app
@@ -140,8 +138,8 @@ CRTDECL(void, __cxa_threadinitialize(void))
 {
     TRACE("__cxa_threadinitialize()");
     fpreset();
-    
-    for (int i = 0; i < g_moduleCount; i++) {
+
+    for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADATTACH);
     }
     __cxa_primary_tls_thread_init();
@@ -152,7 +150,7 @@ CRTDECL(void, __cxa_threadinitialize(void))
 CRTDECL(void, __cxa_threadfinalize(void))
 {
     TRACE("__cxa_threadfinalize()");
-    for (int i = 0; i < g_moduleCount; i++) {
+    for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
     }
     __cxa_primary_tls_thread_finit();
@@ -208,28 +206,23 @@ CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dso_symb
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
-    _In_ const uint8_t* libraries,
+    _In_ const uintptr_t* libraries,
     _In_ void (*module_init)(void), 
     _In_ void (*module_cleanup)(void),
     _In_ void (*module_thread_init)(void),
     _In_ void (*module_thread_finit)(void)))
 {
-    TRACE("[__cxa_runinitializers] info 0x%" PRIxIN, processInformation);
+    TRACE("__cxa_runinitializers(modules=0x%" PRIxIN ")", processInformation);
     fpreset();
     
     __cxa_primary_cleanup          = module_cleanup;
     __cxa_primary_tls_thread_init  = module_thread_init;
     __cxa_primary_tls_thread_finit = module_thread_finit;
 
-    if (processInformation->LibraryEntriesLength) {
-        memcpy(&g_moduleEntries[0], processInformation->LibraryEntries, processInformation->LibraryEntriesLength);
-        g_moduleCount = (int)(processInformation->LibraryEntriesLength / sizeof(uintptr_t));
-
-        TRACE("[__cxa_runinitializers] count %i, array 0x%" PRIxIN, g_moduleCount, g_moduleEntries);
-        for (int i = 0; i < g_moduleCount; i++) {
-            TRACE("[__cxa_runinitializers] module entry 0x%" PRIxIN, g_moduleEntries[i]);
-            ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);
-        }
+    g_moduleEntries = libraries;
+    for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
+        TRACE("__cxa_runinitializers: module entry 0x%" PRIxIN, g_moduleEntries[i]);
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);
     }
 
     // Run global and primary thread setup for process

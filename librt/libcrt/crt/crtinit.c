@@ -22,7 +22,6 @@
 
 #include <ctype.h>
 #include "../../libc/threads/tls.h"
-#include <os/process.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,9 +35,9 @@ extern int  __crt_parse_cmdline(const char* rawCommandLine, char** argv);
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-CRTDECL(void, __cxa_runinitializers(const uint8_t*,
+CRTDECL(void, __cxa_runinitializers(const uintptr_t*,
 	void (*)(void), void (*)(void), void (*)(void), void (*)(void)));
-CRTDECL(void, __crt_process_initialize(int isPhoenix));
+CRTDECL(void, __crt_process_initialize(int));
 CRTDECL(const char*, __crt_cmdline(void));
 CRTDECL(const uintptr_t*, __crt_base_libraries(void));
 

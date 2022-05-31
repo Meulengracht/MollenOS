@@ -27,10 +27,10 @@
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/types/process.h>
 #include <stdlib.h>
+#include <string.h>
 #include <threads.h>
 #include "../threads/tls.h"
 
@@ -108,6 +108,26 @@ static int __create_startup_buffer(struct dma_buffer_info* buffer, struct dma_at
     return dma_create(buffer, mapping);
 }
 
+static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
+{
+    size_t     entries = length / sizeof(uintptr_t);
+    uintptr_t* libraries;
+
+    if (!entries) {
+        return NULL;
+    }
+
+    libraries = calloc(entries + 1, sizeof(uintptr_t));
+    if (libraries == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < (int)entries; i++) {
+        libraries[i] = ((uintptr_t*)buffer)[i];
+    }
+    return libraries;
+}
+
 static int __parse_startup_info(const char* buffer)
 {
     ProcessStartupInformation_t* source = (ProcessStartupInformation_t*)buffer;
@@ -137,8 +157,7 @@ static int __parse_startup_info(const char* buffer)
     // Required - the list of library entry points that needs to be called upon
     // CRT init/finit. This is the base library list, which are the libraries that
     // were automatically loaded during load of this process.
-    // TODO this needs to be a zero terminated array of uintptr_t
-    g_baseLibraries = memdup(data, source->LibraryEntriesLength);
+    g_baseLibraries = __parse_library_handles(data, source->LibraryEntriesLength);
     if (g_baseLibraries == NULL) {
         return -1;
     }
