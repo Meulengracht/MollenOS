@@ -29,7 +29,70 @@
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <os/process.h>
+#include <stdio.h>
 #include <string.h>
+
+char* PathJoin(
+        _In_ const char* path1,
+        _In_ const char* path2)
+{
+    char*  combined;
+    int    status;
+    size_t path1Length;
+    size_t path2Length;
+
+    if (path1 == NULL && path2 == NULL) {
+        return NULL;
+    }
+
+    if (path1 == NULL) {
+        return strdup(path2);
+    } else if (path2 == NULL) {
+        return strdup(path1);
+    }
+
+    path1Length = strlen(path1);
+    path2Length = strlen(path2);
+
+    if (path1Length == 0) {
+        return strdup(path2);
+    } else if (path2Length == 0) {
+        return strdup(path1);
+    }
+
+    if (path2[0] == '/') {
+        path2++;
+        path2Length--;
+    };
+
+    combined = malloc(path1Length + path2Length + 2);
+    if (combined == NULL) {
+        return NULL;
+    }
+
+    if (path1[path1Length - 1] != '/') {
+        status = sprintf(combined, "%s/%s", path1, path2);
+    } else {
+        status = sprintf(combined, "%s%s", path1, path2);
+    }
+
+    if (status < 0) {
+        free(combined);
+        return NULL;
+    }
+    return combined;
+}
+
+bool
+PathIsAbsolute(
+        _In_ const char* path)
+{
+    // Check against a root path
+    if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
+        return true;
+    }
+    return false;
+}
 
 OsStatus_t
 PathResolveEnvironment(
@@ -52,21 +115,47 @@ PathResolveEnvironment(
 
 OsStatus_t
 GetFullPath(
-        const char* path,
-        int         followLinks,
-        char*       buffer,
-        size_t      maxLength)
+        _In_ const char* path,
+        _In_ int         followLinks,
+        _In_ char*       buffer,
+        _In_ size_t      maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     OsStatus_t               status;
 
-    if (!buffer) {
+    if (path == NULL || buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
     }
 
-    sys_path_realpath(GetGrachtClient(), &msg.base, path, followLinks);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+    if (!PathIsAbsolute(path)) {
+        char* fullPath = NULL;
+        char* token    = getenv("PATH");
+        for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
+            OsFileDescriptor_t descriptor;
+            char*              combined = PathJoin(i, path);
+            if (GetFileInformationFromPath(combined, 0, &descriptor) == OsSuccess) {
+                fullPath = combined;
+                break;
+            }
+            free(combined);
+        }
+
+        // path was invalid, we can early exit here
+        if (fullPath == NULL) {
+            return OsDoesNotExist;
+        }
+
+        // we were asked to follow symlinks, this means we want to resolve the real path of the symlink, which
+        // we need vfs assistance for.
+        sys_path_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+        free(fullPath);
+    } else {
+        sys_path_realpath(GetGrachtClient(), &msg.base, path, followLinks);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+    }
     return status;
 }
 
@@ -113,7 +202,7 @@ ChangeWorkingDirectory(
 	}
 
 	memset(&canonBuffer[0], 0, _MAXPATH);
-    if (strstr(path, ":/") != NULL || strstr(path, ":\\") != NULL) {
+    if (PathIsAbsolute(path)) {
         TRACE("ChangeWorkingDirectory absolute path detected");
         memcpy(&canonBuffer[0], path, strnlen(path, _MAXPATH - 1));
     } else {
@@ -131,7 +220,7 @@ ChangeWorkingDirectory(
     if (osStatus == OsSuccess) {
         TRACE("ChangeWorkingDirectory canonicalized path=%s", &outBuffer[0]);
 
-        osStatus = GetFileInformationFromPath(&outBuffer[0], &fileInfo);
+        osStatus = GetFileInformationFromPath(&outBuffer[0], 1, &fileInfo);
         if (osStatus != OsSuccess) {
             return osStatus;
         }
