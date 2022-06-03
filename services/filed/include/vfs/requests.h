@@ -117,9 +117,6 @@ typedef struct FileSystemRequest {
         struct {
             int base;
         } resolve;
-        struct {
-            const char* path;
-        } canonicalize;
     } parameters;
 
     // must be last member of struct

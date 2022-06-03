@@ -95,6 +95,5 @@ enum system_paths {
 
 service path (4) {
     func resolve(system_paths path) : (OsStatus_t result, string resolved) = 1;
-    func canonicalize(string path) : (OsStatus_t result, string canonicalized) = 2;
-    func realpath(string path, int followLinks) : (OsStatus_t result, string resolved) = 3;
+    func realpath(string path, int followLinks) : (OsStatus_t result, string resolved) = 2;
 }

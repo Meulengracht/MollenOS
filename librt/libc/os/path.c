@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,10 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Path Definitions & Structures
- * - This header describes the path-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 //#define __TRACE
@@ -30,7 +24,9 @@
 #include <os/mollenos.h>
 #include <os/process.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <io.h>
 
 char* PathJoin(
         _In_ const char* path1,
@@ -88,7 +84,7 @@ PathIsAbsolute(
         _In_ const char* path)
 {
     // Check against a root path
-    if (strchr(path, ':') == NULL && strchr(path, '$') == NULL) {
+    if (path != NULL && (path[0] == '/' || strchr(path, ':') != NULL)) {
         return true;
     }
     return false;
@@ -103,7 +99,7 @@ PathResolveEnvironment(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
 	OsStatus_t               status;
 	
-	if (!buffer) {
+	if (buffer == NULL || maxLength == 0) {
 	    return OsInvalidParameters;
 	}
 	
@@ -128,16 +124,29 @@ GetFullPath(
     }
 
     if (!PathIsAbsolute(path)) {
-        char* fullPath = NULL;
-        char* token    = getenv("PATH");
-        for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
-            OsFileDescriptor_t descriptor;
-            char*              combined = PathJoin(i, path);
-            if (GetFileInformationFromPath(combined, 0, &descriptor) == OsSuccess) {
-                fullPath = combined;
-                break;
+        OsFileDescriptor_t descriptor;
+        char*              fullPath = NULL;
+
+        // Test current working directory, we are a bit out of line here but we reuse
+        // the provided buffer :-)
+        GetWorkingDirectory(&buffer[0], maxLength);
+        fullPath = PathJoin(&buffer[0], path);
+        if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OsSuccess) {
+            free(fullPath);
+            fullPath = NULL;
+        }
+
+        // Now we test all paths in PATH
+        if (fullPath == NULL) {
+            char* token = getenv("PATH");
+            for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
+                char* combined = PathJoin(i, path);
+                if (GetFileInformationFromPath(combined, 0, &descriptor) == OsSuccess) {
+                    fullPath = combined;
+                    break;
+                }
+                free(combined);
             }
-            free(combined);
         }
 
         // path was invalid, we can early exit here
@@ -145,8 +154,6 @@ GetFullPath(
             return OsDoesNotExist;
         }
 
-        // we were asked to follow symlinks, this means we want to resolve the real path of the symlink, which
-        // we need vfs assistance for.
         sys_path_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
@@ -160,41 +167,23 @@ GetFullPath(
 }
 
 OsStatus_t
-PathCanonicalize(
-    _In_ const char* path,
-    _In_ char*       buffer,
-    _In_ size_t      maxLength)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-	OsStatus_t               status;
-	
-	if (!path || !buffer) {
-	    return OsInvalidParameters;
-	}
-	
-	sys_path_canonicalize(GetGrachtClient(), &msg.base, path);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	sys_path_canonicalize_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
-	return status;
-}
-
-OsStatus_t
 GetWorkingDirectory(
-    _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-    // Use the process version instead of the path version
-    return ProcessGetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
+    if (buffer == NULL || maxLength == 0) {
+        return OsInvalidParameters;
+    }
+    return ProcessGetWorkingDirectory(UUID_INVALID, buffer, maxLength);
 }
 
 OsStatus_t
 ChangeWorkingDirectory(
     _In_ const char* path)
 {
-    OsFileDescriptor_t fileInfo;
-	char               canonBuffer[_MAXPATH];
-    char               outBuffer[_MAXPATH];
-    OsStatus_t         osStatus;
+	char        canonBuffer[_MAXPATH];
+    OsStatus_t  osStatus;
+    struct DIR* dir;
     TRACE("ChangeWorkingDirectory(path=%s)", path);
 
 	if (path == NULL || strlen(path) == 0) {
@@ -214,90 +203,78 @@ ChangeWorkingDirectory(
         strncat(&canonBuffer[0], path, _MAXPATH);
     }
 
-    TRACE("ChangeWorkingDirectory canonicalizing %s", &canonBuffer[0]);
-    memset(&outBuffer[0], 0, _MAXPATH);
-    osStatus = PathCanonicalize(&canonBuffer[0], &outBuffer[0], _MAXPATH);
-    if (osStatus == OsSuccess) {
-        TRACE("ChangeWorkingDirectory canonicalized path=%s", &outBuffer[0]);
-
-        osStatus = GetFileInformationFromPath(&outBuffer[0], 1, &fileInfo);
-        if (osStatus != OsSuccess) {
-            return osStatus;
-        }
-
-        if (fileInfo.Flags & FILE_FLAG_DIRECTORY) {
-            size_t currentLength;
-
-            TRACE("ChangeWorkingDirectory path exists and is a directory");
-            currentLength = strlen(&outBuffer[0]);
-            if (outBuffer[currentLength - 1] != '/') {
-                outBuffer[currentLength] = '/';
-            }
-
-            // Handle this differently based on a module or application
-            return ProcessSetWorkingDirectory(&outBuffer[0]);
-        } else {
-            ERROR("ChangeWorkingDirectory path was not a directory: %u", fileInfo.Flags);
-            return OsPathIsNotDirectory;
-        }
-    } else {
-        ERROR("ChangeWorkingDirectory failed to canonicalize path=%s", &canonBuffer[0]);
+    if (opendir(&canonBuffer[0], 0, &dir)) {
+        // TODO convert errno to osstatus
+        return OsError;
     }
-    return osStatus;
+
+    osStatus = GetFilePathFromFd(dir->d_handle, &canonBuffer[0], _MAXPATH);
+    closedir(dir);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+    return ProcessSetWorkingDirectory(&canonBuffer[0]);
 }
 
 OsStatus_t
 GetAssemblyDirectory(
-    _In_ char*  PathBuffer,
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-    return ProcessGetAssemblyDirectory(UUID_INVALID, PathBuffer, MaxLength);
+    if (buffer == NULL || maxLength == 0) {
+        return OsInvalidParameters;
+    }
+    return ProcessGetAssemblyDirectory(UUID_INVALID, buffer, maxLength);
 }
 
 OsStatus_t
 GetUserDirectory(
-    _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
+	if (buffer == NULL || maxLength == 0) {
+		return OsInvalidParameters;
 	}
     return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
+                                  PathSystemDirectory : UserDataDirectory,
+                                  buffer, maxLength);
 }
 
 OsStatus_t
 GetUserCacheDirectory(
-    _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
+	if (buffer == NULL || maxLength == 0) {
+		return OsInvalidParameters;
 	}
     return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
+                                  PathSystemDirectory : UserCacheDirectory,
+                                  buffer, maxLength);
 }
 
 OsStatus_t
 GetApplicationDirectory(
-    _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
+	if (buffer == NULL || maxLength == 0) {
+		return OsInvalidParameters;
 	}
     return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
+                                  PathSystemDirectory : ApplicationDataDirectory,
+                                  buffer, maxLength);
 }
 
 OsStatus_t
 GetApplicationTemporaryDirectory(
-    _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength)
+    _In_ char*  buffer,
+    _In_ size_t maxLength)
 {
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
+	if (buffer == NULL || maxLength == 0) {
+		return OsInvalidParameters;
 	}
     return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
+                                  PathSystemDirectory : ApplicationTemporaryDirectory,
+                                  buffer, maxLength);
 }

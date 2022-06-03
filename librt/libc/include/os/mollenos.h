@@ -197,11 +197,11 @@ CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));
 CRTDECL(OsStatus_t, GetWorkingDirectory(char* buffer, size_t maxLength));
 
 // Utility functions that act as wrappers around PathResolveEnvironment
-CRTDECL(OsStatus_t, GetAssemblyDirectory(char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetUserDirectory(char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetUserCacheDirectory(char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetApplicationDirectory(char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetAssemblyDirectory(char            *buffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetUserDirectory(char                *buffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetUserCacheDirectory(char           *buffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetApplicationDirectory(char         *buffer, size_t maxLength));
+CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char*buffer, size_t maxLength));
 
 /*******************************************************************************
  * File Extensions

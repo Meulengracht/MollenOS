@@ -59,6 +59,7 @@ typedef struct FileSystemDisk {
 } FileSystemDisk_t;
 
 typedef struct FileSystemBase {
+    MString_t*       Label;
     unsigned int     Flags;
     FileSystemDisk_t Disk;
     uint64_t         SectorStart;

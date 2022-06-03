@@ -22,9 +22,9 @@
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
-#include <internal/_ipc.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ioset.h>
 
 // Module Interface
@@ -35,11 +35,8 @@ extern OsStatus_t OnEvent(struct ioset_event* event);
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
-extern char**
-__crt_initialize(
-    _In_  thread_storage_t* threadStorage,
-    _In_  int               isPhoenix,
-    _Out_ int*              argumentCount);
+extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
+extern char** __crt_argv(int* argcOut);
 
 int __crt_get_server_iod(void)
 {
@@ -124,7 +121,8 @@ void __CrtModuleEntry(void)
     int                           argc;
 
     // initialize runtime environment
-    argv = __crt_initialize(&threadStorage, 0, &argc);
+    __crt_initialize(&threadStorage, 0);
+    argv = __crt_argv(&argc);
     if (!argv || argc < 3) {
         ERROR("__CrtModuleEntry invalid argument count for module");
         exit(-1);

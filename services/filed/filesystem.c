@@ -14,9 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * File Manager Service
- * - Handles all file related services and disk services
  */
 
 #define __TRACE
@@ -36,6 +33,14 @@ struct mount_point {
     FileSystem_t* filesystem;
 };
 
+// mount all partitions here
+// /fs/<label>
+struct default_mounts {
+    MString_t*   label;
+    MString_t*   path;
+    unsigned int flags;
+};
+
 extern void
 VfsFileSystemCacheInitialize(
         _In_ FileSystem_t* fileSystem);
@@ -49,6 +54,12 @@ static guid_t g_mfsSystemGuid = GUID_EMPTY;
 static guid_t g_mfsUserDataGuid = GUID_EMPTY;
 static guid_t g_mfsUserGuid = GUID_EMPTY;
 static guid_t g_mfsDataGuid = GUID_EMPTY;
+
+static struct default_mounts g_defaultMounts[] = {
+        { "vali-efi",  "/efi", MOUNT_READONLY },
+        { "vali-boot", "/boot", MOUNT_READONLY },
+        { "vali-data", "/", 0 },
+};
 
 static list_t            g_mounts = LIST_INIT;
 static struct usched_mtx g_mountsLock;

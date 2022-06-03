@@ -57,7 +57,6 @@ extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
 extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
 extern void GetFullPathByPath(FileSystemRequest_t* request, void*);
-extern void CanonicalizePath(FileSystemRequest_t* request, void*);
 extern void ResolvePath(FileSystemRequest_t* request, void*);
 
 static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
@@ -504,26 +503,6 @@ void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_
 
     request->parameters.resolve.base = (int)path;
     usched_task_queue((usched_task_fn)ResolvePath, request);
-}
-
-void sys_path_canonicalize_invocation(struct gracht_message* message, const char* path)
-{
-    FileSystemRequest_t* request;
-
-    TRACE("svc_path_canonicalize_callback(path=%s)", path);
-    if (!strlen(path)) {
-        sys_path_canonicalize_response(message, OsInvalidParameters, "");
-        return;
-    }
-
-    request = CreateRequest(message, UUID_INVALID);
-    if (!request) {
-        sys_path_canonicalize_response(message, OsOutOfMemory, "");
-        return;
-    }
-
-    request->parameters.canonicalize.path = strdup(path);
-    usched_task_queue((usched_task_fn)CanonicalizePath, request);
 }
 
 void sys_path_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)

@@ -44,7 +44,7 @@ thrd_initialize(
     ThreadPackage_t*    Tp;
     int                 ExitCode;
 
-    tls_create(&Tls);
+    __crt_tls_create(&Tls);
     __cxa_threadinitialize();
     
     Tp       = (ThreadPackage_t*)Data;

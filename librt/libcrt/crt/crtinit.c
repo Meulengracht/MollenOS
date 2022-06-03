@@ -38,32 +38,27 @@ CRTDECL(void, __crt_process_initialize(int));
 CRTDECL(const char*, __crt_cmdline(void));
 CRTDECL(const uintptr_t*, __crt_base_libraries(void));
 
-char**
-__crt_initialize(
-    _In_  thread_storage_t* threadStorage,
-    _In_  int               isPhoenix,
-    _Out_ int*              argumentCount)
-{
-	char** argv = NULL;
-    
-	tls_create(threadStorage);
-    __crt_process_initialize(isPhoenix);
+char** __crt_argv(int* argcOut) {
+    char** argv = NULL;
+    int    argc = 0;
 
-    // Handle process arguments
-    if (argumentCount != NULL) {
-        int argc = 0;
-
-        if (strlen(__crt_cmdline()) != 0) {
-            argc = __crt_parse_cmdline(__crt_cmdline(), NULL);
-            argv = (char**)calloc(sizeof(char*), argc + 1);
-            if (argv == NULL) {
-                return NULL;
-            }
-            __crt_parse_cmdline(__crt_cmdline(), argv);
+    if (strlen(__crt_cmdline()) != 0) {
+        argc = __crt_parse_cmdline(__crt_cmdline(), NULL);
+        argv = (char**)calloc(sizeof(char*), argc + 1);
+        if (argv == NULL) {
+            return NULL;
         }
-
-        *argumentCount = argc;
+        __crt_parse_cmdline(__crt_cmdline(), argv);
     }
+
+    *argcOut = argc;
+    return argv;
+}
+
+void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix)
+{
+	__crt_tls_create(threadStorage);
+    __crt_process_initialize(isPhoenix);
 
     // The following library function handles running static initializers and TLS data for the primary
     // library object (the loaded exe/dll).
@@ -74,7 +69,6 @@ __crt_initialize(
             __cxa_module_tls_thread_init,
             __cxa_module_tls_thread_finit
     );
-    return argv;
 }
 
 #if 0

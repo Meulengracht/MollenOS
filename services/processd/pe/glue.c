@@ -52,7 +52,7 @@ __TestFilePath(
         _In_ MString_t* path)
 {
     OsFileDescriptor_t fileDescriptor;
-    return GetFileInformationFromPath(MStringRaw(path), &fileDescriptor);
+    return GetFileInformationFromPath(MStringRaw(path), 1, &fileDescriptor);
 }
 
 static OsStatus_t
@@ -159,35 +159,15 @@ __ResolveRelativePath(
         temporaryResult = path;
     }
 
-    // should we resolve any form for variables?
-    if (MStringFind(path, '$', 0) == MSTRING_NOT_FOUND) {
-        osStatus = __GuessBasePath(processId, path, &temporaryResult);
-        TRACE("__ResolveRelativePath basePath=%s", MStringRaw(temporaryResult));
+    osStatus = __GuessBasePath(processId, path, &temporaryResult);
+    TRACE("__ResolveRelativePath basePath=%s", MStringRaw(temporaryResult));
 
-        // If we already deduced an absolute path skip the canonicalizing moment
-        if (osStatus == OsSuccess && MStringFind(temporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
-            *fullPathOut = temporaryResult;
-            return osStatus;
-        }
+    // If we already deduced an absolute path skip the canonicalizing moment
+    if (osStatus == OsSuccess && MStringFind(temporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
+        *fullPathOut = temporaryResult;
+        return osStatus;
     }
-
-    // Take into account we might have failed to guess base path
-    if (osStatus == OsSuccess) {
-        char* canonicalizedPath = (char*)malloc(_MAXPATH);
-        if (!canonicalizedPath) {
-            ERROR("__ResolveRelativePath failed to allocate memory buffer for the canonicalized path");
-            return OsOutOfMemory;
-        }
-        memset(canonicalizedPath, 0, _MAXPATH);
-
-        osStatus = PathCanonicalize(MStringRaw(temporaryResult), canonicalizedPath, _MAXPATH);
-        TRACE("__ResolveRelativePath canonicalizedPath=%s", canonicalizedPath);
-        if (osStatus == OsSuccess) {
-            *fullPathOut = MStringCreate(canonicalizedPath, StrUTF8);
-        }
-        free(canonicalizedPath);
-    }
-    return osStatus;
+    return OsDoesNotExist;
 }
 
 OsStatus_t

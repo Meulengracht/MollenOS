@@ -22,12 +22,12 @@
  *   and functionality, refer to the individual things for descriptions
  * 
  * Process Flow:
- *  - Startup:          tls_create(main_thread)
+ *  - Startup:          __crt_tls_create(main_thread)
  *  - Cleanup (Normal)  __cxa_exithandlers, tls_cleanup(thread/process), tls_destroy
  *  - Cleanup (Quick)   __cxa_exithandlers, tls_cleanup_quick(thread/process), tls_destroy
  * 
  * Thread Flow:
- *  - Startup:          tls_create(new_thread), __cxa_threadinitialize
+ *  - Startup:          __crt_tls_create(new_thread), __cxa_threadinitialize
  *  - Cleanup:          tls_cleanup(thread), tls_destroy, __cxa_threadfinalize
  */
 //#define __TRACE
@@ -116,7 +116,7 @@ static const char* const* __clone_env_block(void)
 }
 
 OsStatus_t 
-tls_create(
+__crt_tls_create(
     _In_ thread_storage_t* tls)
 {
     struct dma_buffer_info info;

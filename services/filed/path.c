@@ -276,27 +276,6 @@ void ResolvePath(
     VfsRequestDestroy(request);
 }
 
-void CanonicalizePath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
-{
-    MString_t* canonicalizedPath;
-
-    // we do not register these requests, they go about anonoumously
-    canonicalizedPath = VfsPathCanonicalize(request->parameters.canonicalize.path);
-    if (!canonicalizedPath) {
-        sys_path_canonicalize_response(request->message, OsDoesNotExist, "");
-        goto cleanup_request;
-    }
-
-    sys_path_canonicalize_response(request->message, OsSuccess, MStringRaw(canonicalizedPath));
-    MStringDestroy(canonicalizedPath);
-
-cleanup_request:
-    free((void*)request->parameters.canonicalize.path);
-    VfsRequestDestroy(request);
-}
-
 static OsStatus_t
 VfsGuessBasePath(
         _In_ const char* path,

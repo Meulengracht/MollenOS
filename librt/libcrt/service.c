@@ -33,11 +33,7 @@ extern OsStatus_t OnUnload(void);
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
-extern char**
-__crt_initialize(
-    _In_  thread_storage_t* threadStorage,
-    _In_  int               isPhoenix,
-    _Out_ int*              argumentCount);
+extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 
 int
 __crt_get_server_iod(void)
@@ -140,13 +136,13 @@ __crt_service_init(void)
 void __CrtServiceEntry(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 0, NULL);
+    __crt_initialize(&threadStorage, 0);
     __crt_service_init();
 }
 
 void __phoenix_main(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 1, NULL);
+    __crt_initialize(&threadStorage, 1);
     __crt_service_init();
 }

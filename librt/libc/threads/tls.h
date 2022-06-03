@@ -54,10 +54,11 @@ _CODE_BEGIN
  * Retrieves the local storage space for the current thread */
 CRTDECL(thread_storage_t*, tls_current(void));
 
-/* tls_create
- * Initializes a new thread-storage space for the caller thread.
- * Part of CRT initialization routines. */
-CRTDECL(OsStatus_t, tls_create(thread_storage_t * tls));
+/**
+ * @brief Initializes a new thread-storage space for the caller thread.
+ *
+ */
+CRTDECL(OsStatus_t, __crt_tls_create(thread_storage_t* tls));
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
