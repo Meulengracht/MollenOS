@@ -362,6 +362,7 @@ FsInitialize(
     memcpy(&mfsInstance->MasterRecord, masterRecord, sizeof(MasterRecord_t));
 
     // Parse the master record
+    fileSystemBase->Label = MStringCreate((const char*)&masterRecord->PartitionName[0], StrUTF8);
     if (masterRecord->Flags & MFS_MASTERRECORD_SYSTEM_DRIVE) {
         fileSystemBase->Flags |= __FILESYSTEM_BOOT;
     }

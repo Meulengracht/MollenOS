@@ -31,6 +31,7 @@
 #include "filesystem_types.h"
 #include "filesystem_module.h"
 #include "requests.h"
+#include "vfs.h"
 
 #define __FILE_OPERATION_NONE  0x00000000
 #define __FILE_OPERATION_READ  0x00000001
@@ -52,7 +53,7 @@ typedef struct FileSystem {
     enum FileSystemType    type;
     enum FileSystemState   state;
 
-    MString_t*             mount_point;
+    struct VFSNode*        MountNode;
     FileSystemModule_t*    module;
 
     struct usched_mtx      lock;
@@ -104,7 +105,7 @@ VfsFileSystemMount(
  * @param fileSystem A pointer to the filesystem that should be unmounted.
  * @param flags      The type of unmount that is occuring.
  */
-extern void
+extern OsStatus_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
@@ -190,15 +191,5 @@ extern OsStatus_t
 VfsFileSystemGetByPathSafe(
         _In_ const char*    path,
         _In_ FileSystem_t** fileSystem);
-
-/**
- * @brief Retrieves a system partition [vali-system, vali-data, vali-user] by specifying the flags
- * the partition should match. This is a speciality function.
- * @param partitionFlags The flags that the partition must match.
- * @return               A pointer to the relevant filesystem.
- */
-extern FileSystem_t*
-VfsFileSystemGetByFlags(
-        _In_ unsigned int partitionFlags);
 
 #endif //!__VFS_FILESYSTEM_H__

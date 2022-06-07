@@ -74,16 +74,6 @@ static struct VfsIdentifier {
     { NULL, SYS_SYSTEM_PATHS_PATH_COUNT }
 };
 
-static inline OsStatus_t __ResolveDriveIdentifier(MString_t* destination, unsigned int flags)
-{
-    FileSystem_t* fileSystem = VfsFileSystemGetByFlags(flags);
-    if (fileSystem) {
-        MStringAppend(destination, fileSystem->mount_point);
-        return OsSuccess;
-    }
-    return OsDoesNotExist;
-}
-
 MString_t*
 VfsPathResolveEnvironment(
     _In_ enum sys_system_paths base)
