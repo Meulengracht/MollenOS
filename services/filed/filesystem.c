@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/filesystem.h>
+#include <vfs/scope.h>
 #include <vfs/vfs.h>
 
 struct mount_point {
@@ -53,6 +54,8 @@ static guid_t g_mfsSystemGuid = GUID_EMPTY;
 static guid_t g_mfsUserDataGuid = GUID_EMPTY;
 static guid_t g_mfsUserGuid = GUID_EMPTY;
 static guid_t g_mfsDataGuid = GUID_EMPTY;
+
+#define MOUNT_READONLY 0
 
 static struct default_mounts g_defaultMounts[] = {
         { "vali-efi",  "/efi",  MOUNT_READONLY },
@@ -143,6 +146,7 @@ static OsStatus_t
 __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
+    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* deviceNode;
     struct VFSNode* partitionNode;
     OsStatus_t      osStatus;
@@ -156,7 +160,7 @@ __MountFileSystemAtDefault(
 
     // retrieve the device node, this WILL be mounted earlier once the disk is registered with
     // the file service
-    osStatus = VFSNodeLookup(NULL, path, &deviceNode);
+    osStatus = VFSNodeLookup(fsScope, path, &deviceNode);
     if (osStatus != OsSuccess) {
         ERROR("__MountFileSystemAtDefault failed to lookup node %s", MStringRaw(path));
         return osStatus;
@@ -164,12 +168,12 @@ __MountFileSystemAtDefault(
 
     // now we create the partition node, and we format this for the partition label.
     // TODO verify the name of the partition label
-    osStatus = VFSNodeChildNew(NULL, deviceNode, fileSystem->base.Label, VFS_NODE_FILESYSTEM, &partitionNode);
+    osStatus = VFSNodeChildNew(fsScope, deviceNode, fileSystem->base.Label, VFS_NODE_FILESYSTEM, &partitionNode);
     if (osStatus) {
         return osStatus;
     }
 
-    osStatus = VFSNodeDataSet(partitionNode, fileSystem);
+    osStatus = VFSNodeFileSystemDataSet(partitionNode, fileSystem);
     if (osStatus != OsSuccess) {
         return osStatus;
     }
@@ -184,16 +188,17 @@ __MountFileSystemAt(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    path)
 {
+    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
     OsStatus_t      osStatus;
 
-    osStatus = VFSNodeNew(NULL, path, 0, &bindNode);
+    osStatus = VFSNodeNew(fsScope, path, 0, &bindNode);
     if (osStatus != OsSuccess && osStatus != OsExists) {
         ERROR("__MountFileSystemAt failed to create node %s", MStringRaw(path));
         return osStatus;
     }
 
-    return VFSNodeBind(NULL, NULL, bindNode);
+    return VFSNodeBind(fsScope, fileSystem->MountNode, bindNode);
 }
 
 void
@@ -269,11 +274,12 @@ VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
-    OsStatus_t osStatus;
+    struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
+    OsStatus_t  osStatus;
 
     usched_mtx_lock(&fileSystem->lock);
     if (fileSystem->state == FileSystemState_MOUNTED) {
-        osStatus = VFSNodeDestroy(NULL, fileSystem->MountNode);
+        osStatus = VFSNodeDestroy(fsScope, fileSystem->MountNode);
         if (osStatus != OsSuccess) {
             usched_mtx_unlock(&fileSystem->lock);
             ERROR("VfsFileSystemUnmount failed to unmount filesystem %s", MStringRaw(fileSystem->base.Label));
@@ -317,83 +323,6 @@ void VfsFileSystemUnregisterRequest(
     usched_mtx_unlock(&fileSystem->lock);
 
     VfsRequestSetState(request, FileSystemRequest_DONE);
-}
-
-OsStatus_t
-VfsFileSystemGetByPath(
-        _In_  MString_t*     path,
-        _Out_ MString_t**    subPathOut,
-        _Out_ FileSystem_t** filesystemOut)
-{
-    element_t*    header;
-    int           index;
-    FileSystem_t* result = NULL;
-    TRACE("VfsFileSystemGetByPath(path=%s)", MStringRaw(path));
-
-    MString_t* i = MStringClone(path);
-    while (1) {
-        struct VFSNode* node;
-        OsStatus_t      osStatus = VFSNodeLookup(NULL, i, &node);
-        if (osStatus != OsSuccess) {
-            MStringDestroy(i);
-            return osStatus;
-        }
-
-        if (VFSNodeType(node) == VFS_NODE_FILESYSTEM) {
-            *subPathOut = MStringSubString(path, (int)MStringLength(i), -1);
-            *filesystemOut = VFSNodeDataGet(node);
-            return OsSuccess;
-        }
-
-        // get base path of i, as we move backwards
-    }
-
-
-
-    // To open a new file we need to find the correct
-    // filesystem identifier and seperate it from its absolute path
-    index = MStringFind(path, ':', 0);
-    if (index == MSTRING_NOT_FOUND) {
-        return NULL;
-    }
-
-    usched_mtx_lock(&g_mountsLock);
-    _foreach(header, &g_mounts) {
-        struct mount_point* mount = (struct mount_point*)header->value;
-
-        // accept partial matches
-        index = MStringCompare(mount->path, path, 0);
-        TRACE("VfsFileSystemGetByPath comparing %s==%s", MStringRaw(mount->path), MStringRaw(path));
-        if (index != MSTRING_NO_MATCH) {
-            index = (int)MStringLength(mount->path);
-            if (subPathOut) {
-                // we skip ':/' here
-                *subPathOut = MStringSubString(path, index + 2, -1);
-                TRACE("VfsFileSystemGetByPath subpath=%s", MStringRaw(*subPathOut));
-            }
-            result = mount->filesystem;
-            break;
-        }
-    }
-    usched_mtx_unlock(&g_mountsLock);
-    return result;
-}
-
-OsStatus_t
-VfsFileSystemGetByPathSafe(
-        _In_  const char*    path,
-        _Out_ FileSystem_t** fileSystem)
-{
-    MString_t* fspath = MStringCreate(path, StrUTF8);
-    if (!fspath) {
-        return OsInvalidParameters;
-    }
-
-    *fileSystem = VfsFileSystemGetByPath(fspath, NULL);
-    if (!(*fileSystem)) {
-        return OsDoesNotExist;
-    }
-    return OsSuccess;
 }
 
 static uint64_t vfs_request_hash(const void* element)

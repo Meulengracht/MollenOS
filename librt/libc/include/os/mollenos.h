@@ -153,30 +153,6 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLengt
 CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer, size_t maxLength));
 
 /**
- * @brief Canonicalize a path. This expands any variables and removes any navigational
- * sequences (. or ..), and removes any dublicate seperators. This does not resolve any
- * relative paths.
- *
- * @param[In] path The path to canonicalize.
- * @param[In] buffer The buffer where the final path should be stored.
- * @param[In] maxLength The size of the buffer.
- * @return OsError if the path contains any invalid sequences.
- *         OsInvalidParameters if the parameters passed were not valid.
- */
-CRTDECL(OsStatus_t, PathCanonicalize(const char* path, char* buffer, size_t maxLength));
-
-/**
- * @brief Resolves a special environmental path. The environmental path denotes special paths
- * in the operating system, and work like a utility function to discover where they are.
- *
- * @param[In] base A value of the EnvironmentPath enumeration.
- * @param[In] buffer The buffer where the path should be stored.
- * @param[In] maxLength The size of the buffer.
- * @return OsInvalidParameters if the parameters passed were not valid.
- */
-CRTDECL(OsStatus_t, PathResolveEnvironment(EnvironmentPath_t base, char* buffer, size_t maxLength));
-
-/**
  * @brief Changes the current working directory. Validation of the target path will be done
  * as a part of this call.
  *
@@ -196,7 +172,6 @@ CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));
  */
 CRTDECL(OsStatus_t, GetWorkingDirectory(char* buffer, size_t maxLength));
 
-// Utility functions that act as wrappers around PathResolveEnvironment
 CRTDECL(OsStatus_t, GetAssemblyDirectory(char            *buffer, size_t maxLength));
 CRTDECL(OsStatus_t, GetUserDirectory(char                *buffer, size_t maxLength));
 CRTDECL(OsStatus_t, GetUserCacheDirectory(char           *buffer, size_t maxLength));

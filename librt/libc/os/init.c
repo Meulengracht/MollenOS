@@ -203,12 +203,9 @@ static int __get_startup_info(void)
     assert(osStatus == OsSuccess);
 
     status = __parse_startup_info(mapping.buffer);
-    if (status) {
-        dma_detach(&mapping);
-        free(mapping.buffer);
-        return -1;
-    }
-
+    dma_detach(&mapping);
+    free(mapping.buffer);
+    return status;
 }
 
 void __crt_process_initialize(
@@ -260,12 +257,10 @@ void __crt_process_initialize(
     // down during crt finalizing
     __mark_iod_priority(gracht_client_iod(g_gclient));
     
-    // Get startup information
+    // Unless it's the phoenix bootstrapper, we retrieve startup information
+    // and various process related configurations before proceeding.
     TRACE("__crt_process_initialize receiving startup configuration");
-    if (isPhoenix) {
-        // for phoenix, we have no booter or environment
-    }
-    else {
+    if (!isPhoenix) {
         status = __get_startup_info();
         if (status) {
             ERROR("__crt_process_initialize failed to get process startup information");

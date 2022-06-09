@@ -91,25 +91,6 @@ PathIsAbsolute(
 }
 
 OsStatus_t
-PathResolveEnvironment(
-    _In_ EnvironmentPath_t environment,
-    _In_ char*             buffer,
-    _In_ size_t            maxLength)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-	OsStatus_t               status;
-	
-	if (buffer == NULL || maxLength == 0) {
-	    return OsInvalidParameters;
-	}
-	
-	sys_path_resolve(GetGrachtClient(), &msg.base, (enum sys_system_paths)environment);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	sys_path_resolve_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
-	return status;
-}
-
-OsStatus_t
 GetFullPath(
         _In_ const char* path,
         _In_ int         followLinks,
@@ -154,14 +135,14 @@ GetFullPath(
             return OsDoesNotExist;
         }
 
-        sys_path_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
+        sys_file_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+        sys_file_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
         free(fullPath);
     } else {
-        sys_path_realpath(GetGrachtClient(), &msg.base, path, followLinks);
+        sys_file_realpath(GetGrachtClient(), &msg.base, path, followLinks);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_path_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
+        sys_file_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
     }
     return status;
 }
@@ -232,12 +213,17 @@ GetUserDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
+    char* path;
 	if (buffer == NULL || maxLength == 0) {
 		return OsInvalidParameters;
 	}
-    return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : UserDataDirectory,
-                                  buffer, maxLength);
+
+    path = getenv("USRDIR");
+    if (path) {
+        strncpy(&buffer[0], path, maxLength);
+        return OsSuccess;
+    }
+    return OsNotSupported;
 }
 
 OsStatus_t
@@ -245,12 +231,18 @@ GetUserCacheDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
+    char* path;
 	if (buffer == NULL || maxLength == 0) {
 		return OsInvalidParameters;
 	}
-    return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : UserCacheDirectory,
-                                  buffer, maxLength);
+
+    path = getenv("USRDIR");
+    if (path) {
+        strncpy(&buffer[0], path, maxLength);
+        strncat(&buffer[0], "/.cache", maxLength);
+        return OsSuccess;
+    }
+    return OsNotSupported;
 }
 
 OsStatus_t
@@ -258,12 +250,17 @@ GetApplicationDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
+    char* path;
 	if (buffer == NULL || maxLength == 0) {
 		return OsInvalidParameters;
 	}
-    return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : ApplicationDataDirectory,
-                                  buffer, maxLength);
+
+    path = getenv("APPDIR");
+    if (path) {
+        strncpy(&buffer[0], path, maxLength);
+        return OsSuccess;
+    }
+    return OsNotSupported;
 }
 
 OsStatus_t
@@ -271,10 +268,16 @@ GetApplicationTemporaryDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
+    char* path;
 	if (buffer == NULL || maxLength == 0) {
 		return OsInvalidParameters;
 	}
-    return PathResolveEnvironment(__crt_is_phoenix() ?
-                                  PathSystemDirectory : ApplicationTemporaryDirectory,
-                                  buffer, maxLength);
+
+    path = getenv("APPDIR");
+    if (path) {
+        strncpy(&buffer[0], path, maxLength);
+        strncat(&buffer[0], "/.clear", maxLength);
+        return OsSuccess;
+    }
+    return OsNotSupported;
 }

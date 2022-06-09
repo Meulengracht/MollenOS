@@ -1,0 +1,13 @@
+/**
+ * Device Service
+ * Provides the means to discover and manipulate devices in the system.
+ */
+ 
+import "types"
+
+namespace sys
+
+service storage (2) {
+    func register(UUId_t driverId, UUId_t deviceId, storage_flags flags) : () = 1;
+    func unregister(UUId_t deviceId, bool forced) : () = 2;
+}

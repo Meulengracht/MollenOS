@@ -25,6 +25,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <os/dmabuf.h>
 #include <os/types/file.h>
@@ -32,8 +33,7 @@
 #include <vfs/cache.h>
 #include <vfs/filesystem.h>
 #include <vfs/handle.h>
-#include <vfs/utils.h>
-#include <ddk/convert.h>
+#include <vfs/scope.h>
 
 #include "sys_file_service_server.h"
 
@@ -88,28 +88,25 @@ void OpenFile(
 {
     FileSystem_t* fileSystem;
     OsStatus_t    osStatus;
-    MString_t*    resolvedPath;
-    MString_t*    subPath;
     UUId_t        fileHandle;
+    struct VFS*     fsScope;
+    struct VFSNode* fileNode;
+    MString_t*      path;
 
     TRACE("OpenFile(path=%s, options=0x%x, access=0x%x)",
           request->parameters.open.path,
           request->parameters.open.options,
           request->parameters.open.access);
 
-    // If path is not absolute or special, we must try the working directory of caller
-    resolvedPath = VfsPathResolve(request->processId, request->parameters.open.path);
-    if (!resolvedPath) {
-        sys_file_open_response(request->message, OsDoesNotExist, UUID_INVALID);
+    fsScope = VFSScopeGet(request->processId);
+    assert(fsScope != NULL);
+
+    path = MStringCreate(request->parameters.open.path, StrUTF8);
+    if (path == NULL) {
+        sys_file_open_response(request->message, OsOutOfMemory, UUID_INVALID);
         goto cleanup;
     }
 
-    fileSystem = VfsFileSystemGetByPath(resolvedPath, &subPath);
-    MStringDestroy(resolvedPath);
-    if (!fileSystem) {
-        sys_file_open_response(request->message, OsDoesNotExist, UUID_INVALID);
-        goto cleanup;
-    }
     VfsFileSystemRegisterRequest(fileSystem, request);
 
     // START OF REQUEST
@@ -1086,4 +1083,9 @@ void StatLinkPathFromPath(
 cleanup:
     free((void*)request->parameters.stat_path.path);
     VfsRequestDestroy(request);
+}
+
+void GetFullPathByPath(FileSystemRequest_t* request, void* cancellationToken)
+{
+
 }

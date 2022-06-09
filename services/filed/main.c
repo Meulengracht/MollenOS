@@ -24,6 +24,7 @@
 #include <internal/_ipc.h>
 #include <vfs/filesystem.h>
 #include <vfs/handle.h>
+#include <vfs/scope.h>
 #include <vfs/storage.h>
 
 #include <sys_file_service_server.h>
@@ -46,6 +47,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
 OsStatus_t OnLoad(void)
 {
     // Initialize subsystems
+    VFSScopeInitialize();
     VfsHandleInitialize();
     VfsStorageInitialize();
     VfsFileSystemInitialize();

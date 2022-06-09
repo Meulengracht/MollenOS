@@ -168,28 +168,4 @@ VfsFileSystemGetByFileHandle(
         _In_  UUId_t         fileHandle,
         _Out_ FileSystem_t** fileSystem);
 
-/**
- * @brief Retrieves the filesystem that is associated with the path. It also returns the sub-path
- * that is relative to the start of that filesystem
- * @param path       Absolute path to resolve.
- * @param subPathOut Returns the remainder of the path after the initial mount is resolved.
- * @return           A pointer to the relevant filesystem.
- */
-extern FileSystem_t*
-VfsFileSystemGetByPath(
-        _In_ MString_t*  path,
-        _In_ MString_t** subPathOut);
-
-/**
- * @brief Queries filesystem information from a filesystem path.
- *
- * @param path        A zero terminated string
- * @param fileSystem  A pointer to where the filesystem pointer will be stored.
- * @return OsStatus_t Status of the lookup operation
- */
-extern OsStatus_t
-VfsFileSystemGetByPathSafe(
-        _In_ const char*    path,
-        _In_ FileSystem_t** fileSystem);
-
 #endif //!__VFS_FILESYSTEM_H__

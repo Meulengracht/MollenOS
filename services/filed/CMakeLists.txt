@@ -18,9 +18,10 @@ set (SERVICE_HEADERS
         include/vfs/filesystem_types.h
         include/vfs/gpt.h
         include/vfs/mbr.h
-        include/vfs/storage.h
         include/vfs/requests.h
-        include/vfs/utils.h
+        include/vfs/scope.h
+        include/vfs/storage.h
+        include/vfs/vfs.h
 )
 
 set (SERVICE_SOURCES
@@ -36,9 +37,9 @@ set (SERVICE_SOURCES
         functions.c
         handle.c
         modules.c
-        path.c
         main.c
         requests.c
+        scope.c
 )
 
 set (ADDITONAL_SOURCES

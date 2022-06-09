@@ -31,7 +31,6 @@
 #include <vfs/requests.h>
 
 #include "sys_file_service_server.h"
-#include "sys_path_service_server.h"
 #include "sys_storage_service_server.h"
 
 extern void OpenFile(FileSystemRequest_t* request, void*);
@@ -57,7 +56,6 @@ extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
 extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
 extern void GetFullPathByPath(FileSystemRequest_t* request, void*);
-extern void ResolvePath(FileSystemRequest_t* request, void*);
 
 static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
 
@@ -490,21 +488,6 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_
     sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
 }
 
-void sys_path_resolve_invocation(struct gracht_message* message, const enum sys_system_paths path)
-{
-    FileSystemRequest_t* request;
-
-    TRACE("svc_path_resolve_callback(base=%u)", path);
-    request = CreateRequest(message, UUID_INVALID);
-    if (!request) {
-        sys_path_resolve_response(message, OsOutOfMemory, "");
-        return;
-    }
-
-    request->parameters.resolve.base = (int)path;
-    usched_task_queue((usched_task_fn)ResolvePath, request);
-}
-
 void sys_path_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
 {
     FileSystemRequest_t* request;
@@ -526,15 +509,15 @@ void sys_path_realpath_invocation(struct gracht_message* message, const char* pa
     usched_task_queue((usched_task_fn) GetFullPathByPath, request);
 }
 
-void sys_storage_get_descriptor_invocation(struct gracht_message* message, const UUId_t fileHandle)
+void sys_file_ststat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t fileHandle)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
 
-    TRACE("sys_storage_get_descriptor_invocation()");
+    TRACE("sys_file_ststat_invocation()");
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        sys_storage_get_descriptor_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_ststat_response(message, OsOutOfMemory, &gdescriptor);
         return;
     }
 
@@ -542,20 +525,20 @@ void sys_storage_get_descriptor_invocation(struct gracht_message* message, const
     usched_task_queue((usched_task_fn)StatStorageByHandle, request);
 }
 
-void sys_storage_get_descriptor_path_invocation(struct gracht_message* message, const char* filePath, const int followLinks)
+void sys_file_ststat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* filePath, const int followLinks)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
 
-    TRACE("sys_storage_get_descriptor_path_invocation()");
+    TRACE("sys_file_ststat_path_invocation()");
     if (!strlen(filePath)) {
-        sys_storage_get_descriptor_path_response(message, OsInvalidParameters, &gdescriptor);
+        sys_file_ststat_path_response(message, OsInvalidParameters, &gdescriptor);
         return;
     }
 
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        sys_storage_get_descriptor_path_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_ststat_path_response(message, OsOutOfMemory, &gdescriptor);
         return;
     }
 

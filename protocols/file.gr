@@ -9,25 +9,19 @@ import "types"
 
 namespace sys
 
-service storage (2) {
-    func register(UUId_t driverId, UUId_t deviceId, storage_flags flags) : () = 1;
-    func unregister(UUId_t deviceId, bool forced) : () = 2;
-    
-    // These should be in the file service
-    func get_descriptor(UUId_t fileHandle) : (OsStatus_t result, disk_descriptor descriptor) = 3;
-    func get_descriptor_path(string filePath, int followLinks) : (OsStatus_t result, disk_descriptor descriptor) = 4;
-}
-
 enum file_flags {
-    FILE = 0,
+    FILE      = 0,
     DIRECTORY = 0x1,
-    LINK = 0x2
+    LINK      = 0x2
 }
 
 enum file_permissions {
-    READ = 0x1,
-    WRITE = 0x2,
-    EXECUTE = 0x4
+    OWNER_READ    = 0x1,
+    OWNER_WRITE   = 0x2,
+    OWNER_EXECUTE = 0x4,
+    OTHER_READ    = 0x8,
+    OTHER_WRITE   = 0x10,
+    OTHER_EXECUTE = 0x20
 }
 
 struct file_descriptor {
@@ -73,27 +67,10 @@ service file (3) {
     func fsstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, filesystem_descriptor descriptor) = 19;
     func fstat_path(UUId_t processId, string path, int followLinks) : (OsStatus_t result, file_descriptor descriptor) = 20;
     func fsstat_path(UUId_t processId, string path, int followLinks) : (OsStatus_t result, filesystem_descriptor descriptor) = 21;
+    func ststat(UUId_t processId, UUId_t fileHandle) : (OsStatus_t result, disk_descriptor descriptor) = 22;
+    func ststat_path(UUId_t processId, string filePath, int followLinks) : (OsStatus_t result, disk_descriptor descriptor) = 23;
+    func realpath(string path, int followLinks) : (OsStatus_t result, string resolved) = 24;
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status
-}
-
-enum system_paths {
-    PATH_SYSTEM,
-    PATH_SYSTEM_THEMES,
-    PATH_DATA,
-    PATH_DATA_BIN,
-    PATH_DATA_INC,
-    PATH_DATA_LIB,
-    PATH_DATA_SHARE,
-    PATH_USER,
-    PATH_USER_CACHE,
-    PATH_APP,
-    PATH_APP_TEMP,
-    PATH_COUNT
-}
-
-service path (4) {
-    func resolve(system_paths path) : (OsStatus_t result, string resolved) = 1;
-    func realpath(string path, int followLinks) : (OsStatus_t result, string resolved) = 2;
 }

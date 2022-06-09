@@ -41,6 +41,8 @@ extern OsStatus_t VFSNodeDestroy(struct VFS*, struct VFSNode*);
 
 extern OsStatus_t       VFSNodeDataSet(struct VFSNode*, const void*);
 extern const void*      VFSNodeDataGet(struct VFSNode*);
+extern OsStatus_t       VFSNodeFileSystemDataSet(struct VFSNode*, const void*);
+extern const void*      VFSNodeFileSystemDataGet(struct VFSNode*);
 extern MString_t*       VFSNodePath(struct VFSNode*);
 extern enum VFSNodeType VFSNodeType(struct VFSNode*);
 

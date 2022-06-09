@@ -14,25 +14,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Virtual File Definitions & Structures
- * - This header describes the base virtual file-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __VFS_UTILS_H__
-#define __VFS_UTILS_H__
+#ifndef __SCOPE_H__
+#define __SCOPE_H__
+
+#include <os/osdefs.h>
 
 /**
- * @brief
- *
+ * @brief Initializes the filesystem scope subsystem
+ */
+extern void VFSScopeInitialize(void);
+
+/**
+ * @brief Retrieves the relevant filesystem scope for the given process
  * @param processId
- * @param path
  * @return
  */
-extern MString_t*
-VfsPathResolve(
-        _In_ UUId_t      processId,
-        _In_ const char* path);
+extern struct VFS*
+VFSScopeGet(
+        _In_ UUId_t processId);
 
-#endif //!__VFS_UTILS_H__
+#endif //!__SCOPE_H__

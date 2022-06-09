@@ -114,9 +114,6 @@ typedef struct FileSystemRequest {
             const char* path;
             int         follow_links;
         } stat_path;
-        struct {
-            int base;
-        } resolve;
     } parameters;
 
     // must be last member of struct
