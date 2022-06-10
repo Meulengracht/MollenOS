@@ -32,6 +32,8 @@ set (SERVICE_SOURCES
         storage/storage.c
         storage/utils.c
 
+        vfs/vfs.c
+
         cache.c
         filesystem.c
         functions.c

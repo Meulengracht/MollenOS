@@ -363,15 +363,6 @@ FsInitialize(
 
     // Parse the master record
     fileSystemBase->Label = MStringCreate((const char*)&masterRecord->PartitionName[0], StrUTF8);
-    if (masterRecord->Flags & MFS_MASTERRECORD_SYSTEM_DRIVE) {
-        fileSystemBase->Flags |= __FILESYSTEM_BOOT;
-    }
-    if (masterRecord->Flags & MFS_MASTERRECORD_DATA_DRIVE) {
-        fileSystemBase->Flags |= __FILESYSTEM_DATA;
-    }
-    if (masterRecord->Flags & MFS_MASTERRECORD_USER_DRIVE) {
-        fileSystemBase->Flags |= __FILESYSTEM_USER;
-    }
     TRACE("Partition flags: 0x%x", fileSystemBase->Flags);
 
     dma_attachment_unmap(&mfsInstance->TransferBuffer);

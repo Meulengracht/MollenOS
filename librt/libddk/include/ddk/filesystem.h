@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,10 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Filesystem Definitions & Structures
- * - This header describes the filesystem-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #ifndef __DDK_FILESYSTEM_H_
@@ -41,15 +35,6 @@
 #endif
 
 typedef struct MString MString_t;
-
-/**
- * FileSystem definitions
- * Used the describe the various possible flags for the given filesystem
- */
-#define __FILESYSTEM_NONE 0           // disk is a standard storage drive
-#define __FILESYSTEM_BOOT 0x00000001  // disk is system drive
-#define __FILESYSTEM_DATA 0x00000002  // disk is system data drive
-#define __FILESYSTEM_USER 0x00000004  // disk is user data drive
 
 typedef struct FileSystemDisk {
     UUId_t              driver_id;

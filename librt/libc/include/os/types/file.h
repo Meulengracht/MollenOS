@@ -27,17 +27,6 @@
 #include <os/osdefs.h>
 #include <time.h>
 
-typedef enum {
-    FsOk,
-    FsDeleted,
-    FsInvalidParameters,
-    FsPathNotFound,
-    FsAccessDenied,
-    FsPathIsNotDirectory,
-    FsPathExists,
-    FsDiskError
-} FileSystemCode_t;
-
 typedef struct OsFileSystemDescriptor {
     long            Id;
     unsigned int    Flags;

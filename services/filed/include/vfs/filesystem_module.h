@@ -20,10 +20,10 @@
 #define __VFS_FILESYSTEM_MODULE_H__
 
 #include <ds/list.h>
+#include <ddk/filesystem.h>
 #include <os/osdefs.h>
 #include <os/usched/mutex.h>
 #include "filesystem_types.h"
-#include <ddk/filesystem.h>
 
 typedef struct FileSystemModule {
     element_t           header;
