@@ -35,7 +35,7 @@ enum FileSystemRequestState {
     FileSystemRequest_DONE
 };
 
-typedef struct FileSystemRequest {
+typedef struct VFSRequest {
     UUId_t                      id;
     enum FileSystemRequestState state;
     UUId_t                      processId;

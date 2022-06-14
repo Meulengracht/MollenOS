@@ -24,6 +24,7 @@
 
 struct VFS;
 struct VFSNode;
+struct VFSRequest;
 
 enum VFSNodeType {
     VFS_NODE_DEVICE,
@@ -48,9 +49,26 @@ extern OsStatus_t VFSNodeUnmount(struct VFS*, MString_t* path);
 extern OsStatus_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode* to);
 extern OsStatus_t VFSNodeUnbind(struct VFS*, struct VFSNode*);
 
-extern OsStatus_t VFSNodeOpen(struct VFS*, MString_t* path, struct VFSNode**);
+extern void VFSNodeOpen(struct VFS*, struct VFSRequest*);
+extern void VFSNodeClose(struct VFS*, struct VFSRequest*);
+extern void VFSNodeDelete(struct VFS*, struct VFSRequest*);
+extern void VFSNodeMove(struct VFS*, struct VFSRequest*);
+extern void VFSNodeLink(struct VFS*, struct VFSRequest*);
 
+extern void VFSNodeRead(struct VFS*, struct VFSRequest*);
+extern void VFSNodeReadAt(struct VFS*, struct VFSRequest*);
+extern void VFSNodeWrite(struct VFS*, struct VFSRequest*);
+extern void VFSNodeWriteAt(struct VFS*, struct VFSRequest*);
+extern void VFSNodeSeek(struct VFS*, struct VFSRequest*);
+extern void VFSNodeFlush(struct VFS*, struct VFSRequest*);
 
+extern void VFSNodeGetPosition(struct VFS*, struct VFSRequest*);
+extern void VFSNodeGetOptions(struct VFS*, struct VFSRequest*);
+extern void VFSNodeSetOptions(struct VFS*, struct VFSRequest*);
+extern void VFSNodeGetSize(struct VFS*, struct VFSRequest*);
+extern void VFSNodeSetSize(struct VFS*, struct VFSRequest*);
+extern void VFSNodeStatHandle(struct VFS*, struct VFSRequest*);
+extern void VFSNodeStatStorageHandle(struct VFS*, struct VFSRequest*);
 
 extern OsStatus_t VFSNodeNew(struct VFS*, MString_t* path, enum VFSNodeType, struct VFSNode**);
 extern OsStatus_t VFSNodeChildNew(struct VFS*, struct VFSNode*, MString_t* name, enum VFSNodeType, struct VFSNode**);
