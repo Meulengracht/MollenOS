@@ -32,6 +32,7 @@ set (SERVICE_SOURCES
         storage/storage.c
         storage/utils.c
 
+        vfs/handlers.c
         vfs/vfs.c
 
         cache.c
