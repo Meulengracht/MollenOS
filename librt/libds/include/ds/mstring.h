@@ -51,6 +51,7 @@ DSDECL(void,       MStringCopy(MString_t* Destination, MString_t* Source, int De
 DSDECL(void,       MStringDestroy(MString_t* string));
 
 // Append Character to a given string the character is assumed to be either ASCII, UTF16 or UTF32
+DSDECL(void, MStringPrepend(MString_t* destination, MString_t* source));
 DSDECL(void, MStringAppend(MString_t* destination, MString_t* source));
 DSDECL(void, MStringAppendCharacter(MString_t* string, mchar_t character));
 DSDECL(void, MStringAppendCharacters(MString_t* string, const char* characters, MStringType_t dataType));

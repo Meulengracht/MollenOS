@@ -17,13 +17,40 @@
  */
 
 #include <ddk/utils.h>
+#include <ds/hashtable.h>
 #include <vfs/vfs.h>
+#include "private.h"
+
+static hashtable_t g_handles;
+
+
 
 OsStatus_t
-VFSNew(
-        _In_  struct VFSOperations* ops,
-        _Out_ struct VFS**          vfsOut)
+VFSNodeHandleAdd(
+        _In_ UUId_t          handleId,
+        _In_ struct VFSNode* node)
 {
 
+    return OsSuccess;
+}
+
+OsStatus_t
+VFSNodeHandleFind(
+        _In_  UUId_t           handleId,
+        _Out_ struct VFSNode** nodeOut)
+{
+
+}
+
+OsStatus_t
+VFSNodeHandleRemove(
+        _In_ UUId_t handleId)
+{
+    void* found;
+
+    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
+    if (found == NULL) {
+        return OsDoesNotExist;
+    }
     return OsSuccess;
 }

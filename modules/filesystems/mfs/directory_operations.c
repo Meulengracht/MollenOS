@@ -24,8 +24,15 @@
 
 #include <ddk/utils.h>
 #include <string.h>
-#include <io.h>
 #include "mfs.h"
+
+static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
+{
+    stat->Name  = MStringCreate((const char*)&record->Name[0], StrUTF8);
+    stat->Owner = 0; // TODO not supported by MFS
+    stat->Size  = record->Size;
+    MfsFileRecordFlagsToVfsFlags(record, &stat->Flags, &stat->Permissions);
+}
 
 OsStatus_t
 FsReadFromDirectory(
@@ -41,7 +48,7 @@ FsReadFromDirectory(
     OsStatus_t       osStatus    = OsSuccess;
     size_t           bytesToRead = unitCount;
     uint64_t         position    = handle->Base.Position;
-    struct DIRENT*   currentEntry = (struct DIRENT*)((uint8_t*)buffer + bufferOffset);
+    struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
 
     TRACE("FsReadFromDirectory(entry=%s, position=%u, count=%u)",
           MStringRaw(entry->Base.Name), LODWORD(position), LODWORD(unitCount));
@@ -51,13 +58,9 @@ FsReadFromDirectory(
 
     // Readjust the stored position since it's stored in units of DIRENT, however we
     // iterate in units of MfsRecords
-    position /= sizeof(struct DIRENT);
+    position /= sizeof(struct VFSStat);
     position *= sizeof(FileRecord_t);
 
-    if ((unitCount % sizeof(struct DIRENT)) != 0) {
-        return OsInvalidParameters;
-    }
-    
     TRACE(" > dma: fpos %u, bytes-total %u, offset %u", LODWORD(position), bytesToRead, bufferOffset);
     TRACE(" > dma: databucket-pos %u, databucket-len %u, databucket-bound %u",
           LODWORD(handle->DataBucketPosition), LODWORD(handle->DataBucketLength),
@@ -65,7 +68,7 @@ FsReadFromDirectory(
     TRACE(" > sec %u, count %u, offset %u", LODWORD(MFS_GETSECTOR(mfs, handle->DataBucketPosition)),
           LODWORD(MFS_SECTORCOUNT(mfs, handle->DataBucketLength)), LODWORD(position - handle->BucketByteBoundary));
 
-    while (bytesToRead) {
+    while (bytesToRead > sizeof(struct VFSStat)) {
         uint64_t sector       = MFS_GETSECTOR(mfs, handle->DataBucketPosition);
         size_t   sectorCount  = MFS_SECTORCOUNT(mfs, handle->DataBucketLength);
         size_t   bucketOffset = position - handle->BucketByteBoundary;
@@ -90,10 +93,8 @@ FsReadFromDirectory(
                     fileRecord++, bucketOffset += sizeof(FileRecord_t), position += sizeof(FileRecord_t)) {
                 if (fileRecord->Flags & MFS_FILERECORD_INUSE) {
                     TRACE("Gathering entry %s", &fileRecord->Name[0]);
-                    MfsFileRecordFlagsToVfsFlags(fileRecord, &currentEntry->d_options, &currentEntry->d_perms);
-                    memcpy(&currentEntry->d_name[0], &fileRecord->Name[0],
-                           MIN(sizeof(currentEntry->d_name), sizeof(fileRecord->Name)));
-                    bytesToRead -= sizeof(struct DIRENT);
+                    __ConvertEntry(fileRecord, currentEntry);
+                    bytesToRead -= sizeof(struct VFSStat);
                     currentEntry++;
                 }
             }
@@ -119,13 +120,14 @@ FsReadFromDirectory(
     // of DIRENT instead of MfsRecords, and then readjust again for the number of
     // bytes read, since they are added to position in the vfs layer
     position              /= sizeof(FileRecord_t);
-    position              *= sizeof(struct DIRENT);
+    position              *= sizeof(struct VFSStat);
     handle->Base.Position = position - (unitCount - bytesToRead);
     
     *unitsRead = (unitCount - bytesToRead);
     return osStatus;
 }
 
+// TODO this is wrong
 OsStatus_t
 FsSeekInDirectory(
         _In_ FileSystemBase_t*      fileSystemBase,
@@ -134,7 +136,7 @@ FsSeekInDirectory(
         _In_ uint64_t               absolutePosition)
 {
     FileSystemMFS_t* mfs            = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    uint64_t         actualPosition = absolutePosition * sizeof(struct DIRENT);
+    uint64_t         actualPosition = absolutePosition * sizeof(struct VFSStat);
     size_t           initialBucketMax;
 
     // Trace

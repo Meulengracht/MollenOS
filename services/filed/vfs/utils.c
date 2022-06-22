@@ -16,14 +16,10 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <vfs/vfs.h>
+#include "private.h"
 
-OsStatus_t
-VFSNew(
-        _In_  struct VFSOperations* ops,
-        _Out_ struct VFS**          vfsOut)
+MString_t* VFSMakePath(const char* path)
 {
 
-    return OsSuccess;
 }

@@ -46,6 +46,7 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
     
     ENOLINK,      // OsDeleted               Error - Resource was deleted
     ENOTDIR,      // OsPathIsNotDirectory    Error - Path is not a directory
+    EISDIR,       // OsPathIsDirectory       Error - Path is a directory
     ENODEV,       // OsDeviceError           Error - Device error occurred during operation
     
     EPROTOTYPE,   // OsInvalidProtocol       Error - Protocol was invalid

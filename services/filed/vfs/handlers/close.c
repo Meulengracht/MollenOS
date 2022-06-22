@@ -16,14 +16,21 @@
  *
  */
 
+#include <ddk/handle.h>
 #include <ddk/utils.h>
+#include <vfs/requests.h>
 #include <vfs/vfs.h>
+#include "../private.h"
 
-OsStatus_t
-VFSNew(
-        _In_  struct VFSOperations* ops,
-        _Out_ struct VFS**          vfsOut)
+OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
 {
+    struct VFSNode* node;
+    OsStatus_t      osStatus;
 
-    return OsSuccess;
+    osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &node);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+
 }

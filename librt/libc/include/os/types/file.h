@@ -82,9 +82,8 @@ PACKED_TYPESTRUCT(FileMappingParameters, {
 
 // Options flag
 #define __FILE_CREATE                           0x00000001
-#define __FILE_CREATE_RECURSIVE                 0x00000002
-#define __FILE_TRUNCATE                         0x00000004
-#define __FILE_FAILONEXIST                      0x00000008
+#define __FILE_TRUNCATE                         0x00000002
+#define __FILE_FAILONEXIST                      0x00000004
 #define __FILE_APPEND                           0x00000100
 #define __FILE_BINARY                           0x00000200
 #define __FILE_VOLATILE                         0x00000400

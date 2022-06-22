@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,10 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * DLL Service Definitions & Structures
- * - This header describes the base library-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <ctype.h>

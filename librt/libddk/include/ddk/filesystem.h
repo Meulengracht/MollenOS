@@ -52,6 +52,14 @@ typedef struct FileSystemBase {
     uintptr_t*       ExtensionData;
 } FileSystemBase_t;
 
+struct VFSStat {
+    MString_t* Name;
+    uint32_t   Owner;
+    uint32_t   Permissions; // Permissions come from os/file/types.h
+    uint32_t   Flags;       // Flags come from os/file/types.h
+    uint64_t   Size;
+};
+
 /* The shared filesystem entry structure
  * Used as a file-definition by the filemanager and the loaded filesystem modules */
 typedef struct FileSystemEntryBase {
@@ -85,14 +93,35 @@ __FSDECL(FsDestroy)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ unsigned int      unmountFlags);
 
-/* FsOpenEntry 
- * Fills the entry structure with information needed to access and manipulate the given path.
- * The entry can be any given type, file, directory, link etc. */
 __FSAPI OsStatus_t
-__FSDECL(FsOpenEntry)(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  MString_t*              path,
-        _Out_ FileSystemEntryBase_t** baseOut);
+__FSDECL(FsOpen)(
+        _In_      FileSystemBase_t* fileSystemBase,
+        _In_      MString_t*        path,
+        _Out_Opt_ void**            dataOut);
+
+__FSAPI OsStatus_t
+__FSDECL(FsCreate)(
+        _In_      FileSystemBase_t* fileSystemBase,
+        _In_      void*             data,
+        _In_      MString_t*        Name,
+        _In_      uint32_t          Owner,
+        _In_      uint32_t          Flags,
+        _In_      uint32_t          Permissions);
+
+__FSAPI OsStatus_t
+__FSDECL(FsClose)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ void*             data);
+
+__FSAPI OsStatus_t
+__FSDECL(FsRead)(
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  void*             data,
+        _In_  UUId_t            bufferHandle,
+        _In_  void*             buffer,
+        _In_  size_t            bufferOffset,
+        _In_  size_t            unitCount,
+        _Out_ size_t*           unitsRead);
 
 /* FsCreatePath 
  * Creates the path specified and fills the entry structure with similar information as

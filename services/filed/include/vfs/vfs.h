@@ -24,20 +24,9 @@
 
 struct VFS;
 struct VFSNode;
+struct VFSNodeHandle;
 struct VFSRequest;
-
-enum VFSNodeType {
-    VFS_NODE_DEVICE,
-    VFS_NODE_DIRECTORY,
-};
-
-struct VFSOperations {
-    OsStatus_t (*Initialize)(void);
-    OsStatus_t (*Destroy)(void);
-
-    OsStatus_t (*Open)(void);
-
-};
+struct VFSStat;
 
 extern OsStatus_t VFSNew(struct VFSOperations*, struct VFS**);
 extern OsStatus_t VFSChildNew(struct VFS*, struct VFS**);
@@ -50,7 +39,7 @@ extern OsStatus_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode*
 extern OsStatus_t VFSNodeUnbind(struct VFS*, struct VFSNode*);
 
 extern OsStatus_t VFSNodeNew(struct VFS*, MString_t* path, enum VFSNodeType, struct VFSNode**);
-extern OsStatus_t VFSNodeChildNew(struct VFS*, struct VFSNode*, MString_t* name, enum VFSNodeType, struct VFSNode**);
+extern OsStatus_t VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*, struct VFSNode**);
 extern OsStatus_t VFSNodeDestroy(struct VFS*, struct VFSNode*);
 
 extern OsStatus_t       VFSNodeDataSet(struct VFSNode*, const void*);
@@ -62,8 +51,8 @@ extern OsStatus_t VFSNodeChildCount(struct VFS*, struct VFSNode*);
 extern OsStatus_t VFSNodeChildGetIndex(struct VFS*, struct VFSNode*, int);
 extern OsStatus_t VFSNodeLookup(struct VFS*, MString_t* path, struct VFSNode**);
 
-extern void VFSNodeOpen(struct VFS*, struct VFSRequest*);
-extern void VFSNodeClose(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeOpen(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
+extern OsStatus_t VFSNodeClose(struct VFS*, struct VFSRequest*);
 extern void VFSNodeDelete(struct VFS*, struct VFSRequest*);
 extern void VFSNodeMove(struct VFS*, struct VFSRequest*);
 extern void VFSNodeLink(struct VFS*, struct VFSRequest*);

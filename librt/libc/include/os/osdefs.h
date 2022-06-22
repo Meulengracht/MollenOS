@@ -114,6 +114,7 @@ typedef enum OsStatus {
     
     OsDeleted,              // Error - Resource was deleted
     OsPathIsNotDirectory,   // Error - Path is not a directory
+    OsPathIsDirectory,      // Error - Path is a directory
     OsDeviceError,          // Error - Device error occurred during operation
     
     OsInvalidProtocol,      // Error - Protocol was invalid
