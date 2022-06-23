@@ -54,8 +54,11 @@ CreateHandle(
 /**
  * @brief Reduces the reference count of the given handle, and cleans up the handle on
  * reaching 0 references.
+ * @param handleId
+ * @return OsIncomplete if there are still active references
+ *         OsSuccess if the handle was destroyed
  */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 DestroyHandle(
     _In_ UUId_t handleId);
 

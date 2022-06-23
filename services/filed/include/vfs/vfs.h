@@ -53,7 +53,7 @@ extern OsStatus_t VFSNodeLookup(struct VFS*, MString_t* path, struct VFSNode**);
 
 extern OsStatus_t VFSNodeOpen(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
 extern OsStatus_t VFSNodeClose(struct VFS*, struct VFSRequest*);
-extern void VFSNodeDelete(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeDelete(struct VFS*, struct VFSRequest*);
 extern void VFSNodeMove(struct VFS*, struct VFSRequest*);
 extern void VFSNodeLink(struct VFS*, struct VFSRequest*);
 extern void VFSNodeStat(struct VFS*, struct VFSRequest*);
@@ -61,6 +61,7 @@ extern void VFSNodeStatFs(struct VFS*, struct VFSRequest*);
 extern void VFSNodeStatStorage(struct VFS*, struct VFSRequest*);
 extern void VFSNodeRealPath(struct VFS*, struct VFSRequest*);
 
+extern OsStatus_t VFSNodeDuplicate(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
 extern void VFSNodeRead(struct VFS*, struct VFSRequest*);
 extern void VFSNodeReadAt(struct VFS*, struct VFSRequest*);
 extern void VFSNodeWrite(struct VFS*, struct VFSRequest*);

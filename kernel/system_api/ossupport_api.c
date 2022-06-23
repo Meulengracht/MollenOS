@@ -78,8 +78,7 @@ ScDestroyHandle(
     if (Handle == UUID_INVALID) {
         return OsInvalidParameters;
     }
-    DestroyHandle(Handle);
-    return OsSuccess;
+    return DestroyHandle(Handle);
 }
 
 OsStatus_t

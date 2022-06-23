@@ -261,7 +261,7 @@ static void AddHandleToCleanup(
     SemaphoreSignal(&g_eventHandle, 1);
 }
 
-void
+OsStatus_t
 DestroyHandle(
     _In_ UUId_t handleId)
 {
@@ -274,14 +274,14 @@ DestroyHandle(
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
-        return;
+        return OsDoesNotExist;
     }
 
     // do nothing if there still is active handles
     handle->references--;
     if (handle->references) {
         IrqSpinlockRelease(&g_handlesLock);
-        return;
+        return OsIncomplete;
     }
 
     // store some resources before releaseing lock
@@ -295,6 +295,7 @@ DestroyHandle(
     IrqSpinlockRelease(&g_handlesLock);
 
     AddHandleToCleanup(resource, dctor, path);
+    return OsSuccess;
 }
 
 _Noreturn static void

@@ -17,10 +17,23 @@
  */
 
 #include <ddk/handle.h>
-#include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
+
+static OsStatus_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
+{
+    struct __VFSHandle* handle;
+
+    usched_mtx_lock(&node->HandlesLock);
+    handle = hashtable_remove(&node->Handles, &(struct __VFSHandle) { .Id = handleId });
+    usched_mtx_unlock(&node->HandlesLock);
+
+    if (handle == NULL) {
+        return OsDoesNotExist;
+    }
+    return OsSuccess;
+}
 
 OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
 {
@@ -32,5 +45,23 @@ OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
         return osStatus;
     }
 
+    // When processes inherit files, they gain additional references for a handle
+    // which means we try to destroy the handle first, and only if we were the final
+    // call we handle cleanup of this file-handle. This also acts as a barrier for
+    // synchronization.
+    osStatus = handle_destroy(request->parameters.close.fileHandle);
+    if (osStatus == OsIncomplete) {
+        return OsSuccess;
+    } else if (osStatus != OsSuccess) {
+        return osStatus;
+    }
 
+    // Ok last reference was destroyed
+    osStatus = VFSNodeHandleRemove(request->parameters.close.fileHandle);
+    if (osStatus != OsSuccess) {
+        return osStatus;
+    }
+
+    // Also remove the handle from the node
+    return __RemoveHandle(node, request->parameters.close.fileHandle);
 }

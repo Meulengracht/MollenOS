@@ -165,8 +165,33 @@ VFSNodeHandleAdd(
 extern OsStatus_t
 VFSNodeHandleFind(
         _In_  UUId_t           handleId,
-        _Out_ struct VFSNode** nodeOut)
+        _Out_ struct VFSNode** nodeOut);
+
+extern OsStatus_t
+VFSNodeHandleRemove(
+        _In_ UUId_t handleId);
 
 extern MString_t* VFSMakePath(const char* path);
+
+/**
+ * @brief VFSNodeFind locates a named entry in a node. If the node is unloaded the node
+ * will be loaded. Note: A reader lock must be held on node
+ * @param node
+ * @param name
+ * @param nodeOut
+ * @return
+ */
+extern OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
+
+/**
+ * @brief
+ * @param node
+ * @param name
+ * @param flags
+ * @param permissions
+ * @param nodeOut
+ * @return
+ */
+extern OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
 
 #endif //!__VFS_PRIVATE_H__
