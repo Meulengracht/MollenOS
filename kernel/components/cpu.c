@@ -150,7 +150,7 @@ CpuCoreStart(void)
     // Now we need to do a new memory space for this core. We simply create a new memory space
     // with kernel flags and switch to it.
     osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // failed to boot this core!
         ERROR("CpuCoreStart failed to create idle memoryspace for coreId=%u", ArchGetProcessorCoreId());
         ArchProcessorHalt();
@@ -221,7 +221,7 @@ ProcessorMessageSend(
         
         if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
             Status = TxuMessageSend(Iter->Id, Type, Function, Argument, Asynchronous);
-            if (Status == OsSuccess) {
+            if (Status == OsOK) {
                 Executions++;
             }
         }

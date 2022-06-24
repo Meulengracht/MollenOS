@@ -145,7 +145,7 @@ __AddProduct(
     ELEMENT_INIT(&product->ListHeader, 0, product);
     product->Id = productId;
     list_append(&vendor->Products, &product->ListHeader);
-    return OsSuccess;
+    return OsOK;
 }
 
 static int
@@ -409,7 +409,7 @@ __ConsumeEvent(
                                 (const char*)event->data.scalar.value);
                     }
                     else {
-                        if (__AddProduct(s->vendor, productId) != OsSuccess) {
+                        if (__AddProduct(s->vendor, productId) != OsOK) {
                             return -1;
                         }
                     }
@@ -600,7 +600,7 @@ DmDriverConfigParseYaml(
     yaml_parser_delete(&parser);
 
     memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
-    return OsSuccess;
+    return OsOK;
 }
 
 void

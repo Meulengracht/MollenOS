@@ -256,7 +256,7 @@ streamout_char(FILE *stream, int chr)
     }
 
 #ifdef LIBC_KERNEL
-    return VideoPutCharacter(chr) == OsSuccess;
+    return VideoPutCharacter(chr) == OsOK;
 #else
     return fputtc((TCHAR)chr, stream) != _TEOF;
 #endif

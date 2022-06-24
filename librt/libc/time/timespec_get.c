@@ -74,7 +74,7 @@ timespec_get(
             LargeInteger_t timeValue;
 
             osStatus = VaGetWallClock(&timeValue);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 return OsStatusToErrno(osStatus);
             }
 
@@ -95,7 +95,7 @@ timespec_get(
             clock_t         timestamp;
 
             osStatus = VaGetClockTick(__get_va_type(base), &tick);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 return OsStatusToErrno(osStatus);
             }
 

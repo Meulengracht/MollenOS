@@ -76,7 +76,7 @@ OsStatus_t CreateEventQueue(EventQueue_t** EventQueueOut)
     }
 
     *EventQueueOut = eventQueue;
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __CleanupEvent(element_t* element, void* context)
@@ -122,7 +122,7 @@ UUId_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback,
 OsStatus_t CancelEvent(EventQueue_t* eventQueue, UUId_t eventHandle)
 {
     element_t* element;
-    OsStatus_t osStatus = OsDoesNotExist;
+    OsStatus_t osStatus = OsNotExists;
     
     mtx_lock(&eventQueue->EventLock);
     element = list_find(&eventQueue->Events, (void*)(uintptr_t)eventHandle);
@@ -130,7 +130,7 @@ OsStatus_t CancelEvent(EventQueue_t* eventQueue, UUId_t eventHandle)
         struct EventQueueEvent* event = element->value;
         if (event->State != EVENT_EXECUTED) {
             event->State = EVENT_CANCELLED;
-            osStatus = OsSuccess;
+            osStatus = OsOK;
         }
     }
     mtx_unlock(&eventQueue->EventLock);

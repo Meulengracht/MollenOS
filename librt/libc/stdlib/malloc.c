@@ -255,7 +255,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
 	if (MemoryAllocate(NULL, Size, 
-	    MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_READ | MEMORY_WRITE, &ptr) != OsSuccess) {
+	    MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_READ | MEMORY_WRITE, &ptr) != OsOK) {
 		return MFAIL;
 	}
 	else {
@@ -270,7 +270,7 @@ static FORCEINLINE void* mosdirect_mmap(size_t Size) {
 
 /* This function supports releasing coalesed segments */
 static FORCEINLINE int mosmunmap(void* Ptr, size_t Size) {
-	return MemoryFree(Ptr, Size) == OsSuccess ? 0 : -1;
+	return MemoryFree(Ptr, Size) == OsOK ? 0 : -1;
 }
 
 #define MMAP_DEFAULT(s)             mosmmap(s)

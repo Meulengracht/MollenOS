@@ -16,14 +16,14 @@
  *
  */
 
+#include <ddk/handle.h>
 #include <ddk/utils.h>
+#include <vfs/requests.h>
 #include <vfs/vfs.h>
+#include "../private.h"
 
-OsStatus_t
-VFSNew(
-        _In_  struct VFSOperations* ops,
-        _Out_ struct VFS**          vfsOut)
+OsStatus_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
+    // Verify the target of the link exists
 
-    return OsOK;
 }

@@ -53,7 +53,7 @@ BulkReset(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -86,7 +86,7 @@ BulkResetRecovery(
     // Perform an initial reset
     if (resetType & BULK_RESET) {
         status = BulkReset(device);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             ERROR("Failed to reset bulk interface");
             return OsError;
         }
@@ -95,7 +95,7 @@ BulkResetRecovery(
     // Clear HALT/STALL features on both in and out endpoints
     if (resetType & BULK_RESET_IN) {
         status = ClearAndResetEndpoint(device, device->In);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             ERROR("Failed to clear STALL on endpoint (in)");
             return status;
         }
@@ -103,7 +103,7 @@ BulkResetRecovery(
     
     if (resetType & BULK_RESET_OUT) {
         status = ClearAndResetEndpoint(device, device->Out);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             ERROR("Failed to clear STALL on endpoint (out)");
             return status;
         }
@@ -370,25 +370,25 @@ BulkInitialize(
     }
 
     // Perform a bulk reset
-    if (BulkReset(Device) != OsSuccess) {
+    if (BulkReset(Device) != OsOK) {
         ERROR("Failed to reset the bulk interface");
         return OsError;
     }
 
     // Reset data toggles for bulk-endpoints
     if (UsbEndpointReset(&Device->Base.DeviceContext,
-            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsSuccess) {
+            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
     if (UsbEndpointReset(&Device->Base.DeviceContext, 
-            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsSuccess) {
+            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
     }
 
     // Done
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t
@@ -456,7 +456,7 @@ BulkSendCommand(
         ERROR("Failed to send the CBW command, transfer-code %u", Result);
         if (Result == TransferStalled) {
             ERROR("Performing a recovery-reset on device.");
-            if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsSuccess) {
+            if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsOK) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }

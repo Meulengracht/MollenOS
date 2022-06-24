@@ -299,7 +299,7 @@ __CloneKernelDirectory(
     memset((void*)virtualAddress, 0, sizeof(PageDirectory_t));
     atomic_store(&destinationPdp->pTables[kernelTlsEntry], physicalAddress | PAGE_PRESENT | PAGE_WRITE);
     destinationPdp->vTables[kernelTlsEntry] = virtualAddress;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -339,7 +339,7 @@ MmVirtualClone(
 
     // transfer over the shared pml4 entry and mark inherited, we are not allowed to free anything on cleanup
     osStatus = __CloneKernelDirectory(kernelMasterTable, pageMasterTable);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         kfree(pageMasterTable);
         return osStatus;
     }
@@ -370,7 +370,7 @@ MmVirtualClone(
     }
     *cr3Out  = masterAddress;
     *pdirOut = (uintptr_t)pageMasterTable;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -387,7 +387,7 @@ MmVirtualDestroyPageTable(
         FreePhysicalMemory(1, &address);
     }
     kfree(pageTable);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -403,7 +403,7 @@ MmVirtualDestroyPageDirectory(
         MmVirtualDestroyPageTable((PageTable_t*)pageDirectory->vTables[i]);
     }
     kfree(pageDirectory);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -419,7 +419,7 @@ MmVirtualDestroyPageDirectoryTable(
         MmVirtualDestroyPageDirectory((PageDirectory_t*)pageDirectoryTable->vTables[i]);
     }
     kfree(pageDirectoryTable);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -445,7 +445,7 @@ MmuDestroyVirtualSpace(
     if (memorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 #if defined(__clang__)

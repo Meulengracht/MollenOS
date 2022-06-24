@@ -63,7 +63,7 @@ __ExtendStack(
                    &space, NULL, newSize, 0,
                    MAPPING_COMMIT | MAPPING_DOMAIN,
                    MAPPING_VIRTUAL_GLOBAL);
-    assert(osStatus == OsSuccess);
+    assert(osStatus == OsOK);
 
     // copy the data
     memcpy((void*)space, stack->items, stack->data_size);
@@ -72,7 +72,7 @@ __ExtendStack(
     osStatus = MemorySpaceUnmap(GetCurrentMemorySpace(),
                                 (vaddr_t)stack->items,
                                 stack->data_size);
-    assert(osStatus == OsSuccess);
+    assert(osStatus == OsOK);
 
     // update the stack with new space, capacity and pointer
     stack->capacity = (int)(newSize / sizeof(struct MemoryStackItem));
@@ -203,5 +203,5 @@ MemoryStackPop(
         }
     }
 
-    return OsSuccess;
+    return OsOK;
 }

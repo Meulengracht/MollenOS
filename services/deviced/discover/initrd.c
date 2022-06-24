@@ -68,7 +68,7 @@ __ReadFile(
     status = vafs_directory_open_file(directoryHandle, filename, &fileHandle);
     if (status) {
         ERROR("__ReadFile file %s was not found", filename);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // allocate a buffer for the file, and read the data
@@ -86,7 +86,7 @@ __ReadFile(
     vafs_file_close(fileHandle);
     *bufferOut = fileBuffer;
     *lengthOut = fileSize;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -110,7 +110,7 @@ __ParseModuleConfiguration(
     // we make an assumption here that .dll exists as that was what triggered this function
     (void)MStringReplaceC(path, ".dll", ".yaml");
     osStatus = __ReadFile(directoryHandle, MStringRaw(path), &buffer, &length);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -124,7 +124,7 @@ __ParseModuleConfiguration(
     osStatus = DmDriverConfigParseYaml(buffer, length, driverConfig);
     free(buffer);
 
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         MStringDestroy(path);
         free(driverConfig);
         return osStatus;
@@ -148,7 +148,7 @@ __ParseRamdisk(
     struct VaFsDirectoryHandle* directoryHandle;
     struct VaFsEntry            entry;
     int                         status;
-    OsStatus_t                  osStatus = OsSuccess;
+    OsStatus_t                  osStatus = OsOK;
     TRACE("__ParseRamdisk()");
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
@@ -171,7 +171,7 @@ __ParseRamdisk(
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
         if (__EndsWith(entry.Name, ".dll")) {
             osStatus = __ParseModuleConfiguration(directoryHandle, entry.Name);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 break;
             }
         }
@@ -193,20 +193,20 @@ DmRamdiskDiscover(void)
 
     // Let's map in the ramdisk and discover various service modules
     osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         TRACE("DmRamdiskDiscover failed to map ramdisk into address space %u", osStatus);
         return;
     }
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("DmRamdiskDiscover failed to parse ramdisk");
         return;
     }
 
     // cleanup the memory immediately as we no longer need it
     osStatus = MemoryFree(ramdisk, ramdiskSize);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("DmRamdiskDiscover failed to free the ramdisk memory");
     }
 }

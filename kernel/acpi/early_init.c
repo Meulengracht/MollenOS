@@ -48,7 +48,7 @@ __RegisterDomainCore(
     else {
 
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /**
@@ -199,7 +199,7 @@ __EnumerateSystemCoresForDomainSRAT(
                     DomainId         |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
                     DomainId         |= CpuAffinity->ProximityDomainLo;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsSuccess) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -211,7 +211,7 @@ __EnumerateSystemCoresForDomainSRAT(
                 if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
                     uint32_t DomainId = CpuAffinity->ProximityDomain;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsSuccess) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -347,14 +347,14 @@ __EnumerateSystemHardwareMADT(
             case ACPI_MADT_TYPE_IO_APIC: {
                 ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)madtEntry;
                 TRACE(" > io-apic: %" PRIuIN "", IoApic->Id);
-                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsSuccess) {
+                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsOK) {
                     ERROR("Failed to register interrupt-controller");   
                 }
             } break;
 
             case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE: {
                 ACPI_MADT_INTERRUPT_OVERRIDE *Override = (ACPI_MADT_INTERRUPT_OVERRIDE*)madtEntry;
-                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsSuccess) {
+                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsOK) {
                     ERROR("Failed to register interrupt-override");
                 }
             } break;
@@ -470,14 +470,14 @@ __ParseMADT(
 
     // Now enumerate the present hardware as now know where they go
     __EnumerateSystemHardwareMADT(madtStart, madtEnd);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
 AcpiInitializeEarly(void)
 {
     ACPI_TABLE_HEADER* header;
-    OsStatus_t         osStatus = OsSuccess;
+    OsStatus_t         osStatus = OsOK;
     ACPI_STATUS        acpiStatus;
     TRACE("AcpiInitializeEarly()");
 

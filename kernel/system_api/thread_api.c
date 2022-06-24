@@ -74,7 +74,7 @@ ScThreadJoin(
     int        ResultCode;
     OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
 
-    if (Result == OsSuccess) {
+    if (Result == OsOK) {
         ResultCode = ThreadJoin(ThreadId);
         if (ExitCode != NULL) {
             *ExitCode = ResultCode;
@@ -97,7 +97,7 @@ ScThreadSignal(
     _In_ int    SignalCode)
 {
     OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
-    if (Result == OsSuccess) {
+    if (Result == OsOK) {
         Result = SignalSend(ThreadId, SignalCode, NULL);
     }
     return Result;
@@ -113,7 +113,7 @@ OsStatus_t
 ScThreadYield(void)
 {
     ArchThreadYield();
-    return OsSuccess;
+    return OsOK;
 }
 
 UUId_t
@@ -138,5 +138,5 @@ ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength)
     }
 
     strncpy(ThreadNameBuffer, threadName, MaxLength);
-    return OsSuccess;
+    return OsOK;
 }

@@ -84,12 +84,12 @@ MfsUpdateMasterRecord(
     memset(Mfs->TransferBuffer.buffer, 0, FileSystem->Disk.descriptor.SectorSize);
     memcpy(Mfs->TransferBuffer.buffer, &Mfs->MasterRecord, sizeof(MasterRecord_t));
 
-    if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, Mfs->MasterRecordSector, 1, &SectorsTransferred)       != OsSuccess || 
-        MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, Mfs->MasterRecordMirrorSector, 1, &SectorsTransferred) != OsSuccess) {
+    if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, Mfs->MasterRecordSector, 1, &SectorsTransferred) != OsOK ||
+        MfsWriteSectors(FileSystem, Mfs->TransferBuffer.handle, 0, Mfs->MasterRecordMirrorSector, 1, &SectorsTransferred) != OsOK) {
         ERROR("Failed to write master-record to disk");
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -105,7 +105,7 @@ MfsGetBucketLink(
         link->Link   = Mfs->BucketMap[(bucket * 2)];
         link->Length = Mfs->BucketMap[(bucket * 2) + 1];
         TRACE("... link %u, length %u", link->Link, link->Length);
-        return OsSuccess;
+        return OsOK;
     }
     return OsInvalidParameters;
 }
@@ -142,12 +142,12 @@ MfsSetBucketLink(
 
     // Flush buffer to disk
     if (MfsWriteSectors(fileSystemBase, mfs->TransferBuffer.handle, 0,
-                        mfs->MasterRecord.MapSector + sectorOffset, 1, &sectorsTransferred) != OsSuccess) {
+                        mfs->MasterRecord.MapSector + sectorOffset, 1, &sectorsTransferred) != OsOK) {
         ERROR("Failed to update the given map-sector %u on disk",
             LODWORD(mfs->MasterRecord.MapSector + sectorOffset));
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -160,19 +160,19 @@ MfsSwitchToNextBucketLink(
     uint32_t    nextDataBucketPosition;
 
     // We have to lookup the link for current bucket
-    if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &link) != OsSuccess) {
+    if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &link) != OsOK) {
         ERROR("Failed to get link for bucket %u", handle->DataBucketPosition);
         return OsDeviceError;
     }
 
     // Check for EOL
     if (link.Link == MFS_ENDOFCHAIN) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     nextDataBucketPosition = link.Link;
 
     // Lookup length of link
-    if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &link) != OsSuccess) {
+    if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &link) != OsOK) {
         ERROR("Failed to get length for bucket %u", handle->DataBucketPosition);
         return OsDeviceError;
     }
@@ -181,7 +181,7 @@ MfsSwitchToNextBucketLink(
     handle->DataBucketPosition = nextDataBucketPosition;
     handle->DataBucketLength   = link.Length;
     handle->BucketByteBoundary += (link.Length * bucketSizeBytes);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -206,7 +206,7 @@ MfsAllocateBuckets(
     // allocations to satisfy the demand
     while (counter > 0) {
         // Get next free bucket
-        if (MfsGetBucketLink(fileSystemBase, bucket, &record) != OsSuccess) {
+        if (MfsGetBucketLink(fileSystemBase, bucket, &record) != OsOK) {
             ERROR("Failed to retrieve link for bucket %u", bucket);
             return OsError;
         }
@@ -243,8 +243,8 @@ MfsAllocateBuckets(
             // only a chunk of the available length
             // Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
             // Map[Bucket + Counter] = (Length - Counter) | PreviousLink
-            if (MfsSetBucketLink(fileSystemBase, bucket, &Update, 1) != OsSuccess &&
-                MfsSetBucketLink(fileSystemBase, bucket + counter, &Next, 1) != OsSuccess) {
+            if (MfsSetBucketLink(fileSystemBase, bucket, &Update, 1) != OsOK &&
+                MfsSetBucketLink(fileSystemBase, bucket + counter, &Next, 1) != OsOK) {
                 ERROR("Failed to update link for bucket %u and %u",
                       bucket, bucket + counter);
                 return OsError;
@@ -275,7 +275,7 @@ MfsAllocateBuckets(
     record.Link = MFS_ENDOFCHAIN;
 
     // Update the previous bucket to MFS_ENDOFCHAIN
-    if (MfsSetBucketLink(fileSystemBase, previousBucket, &record, 0) != OsSuccess) {
+    if (MfsSetBucketLink(fileSystemBase, previousBucket, &record, 0) != OsOK) {
         ERROR("Failed to update link for bucket %u", previousBucket);
         return OsError;
     }
@@ -315,7 +315,7 @@ MfsFreeBuckets(
     PreviousBucket = MFS_ENDOFCHAIN;
     while (Record.Link != MFS_ENDOFCHAIN) {
         PreviousBucket = Record.Link;
-        if (MfsGetBucketLink(fileSystemBase, Record.Link, &Record) != OsSuccess) {
+        if (MfsGetBucketLink(fileSystemBase, Record.Link, &Record) != OsOK) {
             ERROR("Failed to retrieve the next bucket-link");
             return OsError;
         }
@@ -333,7 +333,7 @@ MfsFreeBuckets(
         Mfs->MasterRecord.FreeBucket = startBucket;
         return MfsUpdateMasterRecord(fileSystemBase);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /* MfsZeroBucket
@@ -355,12 +355,12 @@ MfsZeroBucket(
         // Calculate the sector
         uint64_t AbsoluteSector = MFS_GETSECTOR(Mfs, bucket + i);
         if (MfsWriteSectors(fileSystemBase, Mfs->TransferBuffer.handle, 0, AbsoluteSector,
-                            Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
+                            Mfs->SectorsPerBucket, &SectorsTransferred) != OsOK) {
             ERROR("Failed to write bucket to disk");
             return OsError;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 unsigned int
@@ -433,7 +433,7 @@ MfsUpdateRecord(
         _In_ int                     action)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t     osStatus = OsSuccess;
+    OsStatus_t     osStatus = OsOK;
     FileRecord_t*  record;
     size_t         sectorsTransferred;
 
@@ -442,7 +442,7 @@ MfsUpdateRecord(
     // Read the stored data bucket where the record is
     if (MfsReadSectors(fileSystemBase, mfs->TransferBuffer.handle, 0,
                        MFS_GETSECTOR(mfs, entry->DirectoryBucket),
-                       MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsSuccess) {
+                       MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsOK) {
         ERROR("Failed to read bucket %u", entry->DirectoryBucket);
         osStatus = OsDeviceError;
         goto Cleanup;
@@ -479,7 +479,7 @@ MfsUpdateRecord(
     
     // Write the bucket back to the disk
     if (MfsWriteSectors(fileSystemBase, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, entry->DirectoryBucket),
-                        MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsSuccess) {
+                        MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsOK) {
         ERROR("Failed to update bucket %u", entry->DirectoryBucket);
         osStatus = OsDeviceError;
     }
@@ -509,7 +509,7 @@ MfsEnsureRecordSpace(
         MapRecord_t Iterator, Link;
 
         // Perform the allocation of buckets
-        if (MfsAllocateBuckets(fileSystemBase, NumBuckets, &Link) != OsSuccess) {
+        if (MfsAllocateBuckets(fileSystemBase, NumBuckets, &Link) != OsOK) {
             ERROR("Failed to allocate %u buckets for file", NumBuckets);
             return OsDeviceError;
         }
@@ -519,7 +519,7 @@ MfsEnsureRecordSpace(
         PreviousBucketPointer = MFS_ENDOFCHAIN;
         while (BucketPointer != MFS_ENDOFCHAIN) {
             PreviousBucketPointer = BucketPointer;
-            if (MfsGetBucketLink(fileSystemBase, BucketPointer, &Iterator) != OsSuccess) {
+            if (MfsGetBucketLink(fileSystemBase, BucketPointer, &Iterator) != OsOK) {
                 ERROR("Failed to get link for bucket %u", BucketPointer);
                 return OsDeviceError;
             }
@@ -533,7 +533,7 @@ MfsEnsureRecordSpace(
             entry->StartLength = Link.Length;
         }
         else {
-            if (MfsSetBucketLink(fileSystemBase, PreviousBucketPointer, &Link, 1) != OsSuccess) {
+            if (MfsSetBucketLink(fileSystemBase, PreviousBucketPointer, &Link, 1) != OsOK) {
                 ERROR("Failed to set link for bucket %u", PreviousBucketPointer);
                 return OsDeviceError;
             }
@@ -543,5 +543,5 @@ MfsEnsureRecordSpace(
         entry->AllocatedSize += (NumBuckets * BucketSizeBytes);
         entry->ActionOnClose  = MFS_ACTION_UPDATE;
     }
-    return OsSuccess;
+    return OsOK;
 }

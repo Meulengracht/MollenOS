@@ -238,7 +238,7 @@ InterruptResolve(
         // Bits 07-00: Vector
         deviceInterrupt->MsiValue = (0x100 | (*tableIndex & 0xFF));
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void InterruptSetMode(
@@ -272,7 +272,7 @@ InterruptConfigure(
 
     // Is this a software interrupt? Don't install
     if (systemInterrupt->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
-        return OsSuccess;
+        return OsOK;
     }
 
     // Are we disabling? Skip configuration
@@ -333,7 +333,7 @@ UpdateEntry:
             return OsError;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 IntStatus_t

@@ -38,7 +38,7 @@ int
 dlclose(
     _In_ void* handle)
 {
-    // OsSuccess resolves to 0 luckily
+    // OsOK resolves to 0 luckily
     return (int)SharedObjectUnload((Handle_t)handle);
 }
 

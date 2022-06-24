@@ -64,7 +64,7 @@ UsbSchedulerLinkPeriodicElement(
 
             // Get element and validate existance
             Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-            assert(Result == OsSuccess);
+            assert(Result == OsOK);
             ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
 
             // Isochronous always have first right regardless of interval
@@ -120,7 +120,7 @@ UsbSchedulerLinkPeriodicElement(
             }
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -149,7 +149,7 @@ UsbSchedulerUnlinkPeriodicElement(
 
         // Get element and validate existance
         Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-        assert(Result == OsSuccess);
+        assert(Result == OsOK);
         ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
 
         // Two cases, root or not

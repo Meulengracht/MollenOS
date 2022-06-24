@@ -173,12 +173,12 @@ GetProcessCommandLine(
             return OsInvalidParameters;
         }
         *length = clLength;
-        return OsSuccess;
+        return OsOK;
     }
 
     memcpy(buffer, commandLine, MIN(*length, clLength));
 	*length = clLength;
-	return OsSuccess;
+	return OsOK;
 }
 
 OsStatus_t

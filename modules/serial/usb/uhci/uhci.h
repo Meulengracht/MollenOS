@@ -237,14 +237,14 @@ UhciGetStatusCode(
     _In_ int                        conditionCode);
 
 /* UhciStart
- * Boots the controller, if it succeeds OsSuccess is returned. */
+ * Boots the controller, if it succeeds OsOK is returned. */
 __EXTERN OsStatus_t
 UhciStart(
     _In_ UhciController_t*          Controller,
     _In_ int                        Wait);
 
 /* UhciStop
- * Stops the controller, if it succeeds OsSuccess is returned. */
+ * Stops the controller, if it succeeds OsOK is returned. */
 __EXTERN OsStatus_t
 UhciStop(
     _In_ UhciController_t*          Controller);

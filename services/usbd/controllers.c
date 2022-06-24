@@ -64,13 +64,13 @@ UsbCoreControllerRegister(
 
     // Register root hub
     osStatus = UsbCoreHubsRegister(device->Id, device->Id, driverId, rootPorts);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(controller);
         return osStatus;
     }
 
     list_append(&g_controllers, &controller->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -88,7 +88,7 @@ UsbCoreControllerUnregister(
     free(controller);
 
     UsbCoreHubsUnregister(deviceId);
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbController_t*
@@ -116,11 +116,11 @@ UsbCoreControllerReserveAddress(
             if (!(controller->AddressMap[i] & (1 << j))) {
                 controller->AddressMap[i] |= (1 << j);
                 *address = (i * 4) + j;
-                return OsSuccess;
+                return OsOK;
             }
         }
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 void

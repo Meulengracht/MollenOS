@@ -55,7 +55,7 @@ void __crt_module_load(
 
     // Call the driver load function 
     // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
+    if (OnLoad() != OsOK) {
         exit(-2001);
     }
 
@@ -82,7 +82,7 @@ __crt_module_main(
             }
             else {
                 // Check if the driver had any IRQs registered
-                if (OnEvent(&events[i]) == OsSuccess) {
+                if (OnEvent(&events[i]) == OsOK) {
                     continue;
                 }
                 gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
@@ -102,11 +102,11 @@ __ParseModuleOptions(
             long moduleId = strtol(argv[i + 1], NULL, 10);
             if (moduleId != 0) {
                 *moduleIdOut = (UUId_t)moduleId;
-                return OsSuccess;
+                return OsOK;
             }
         }
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 void __CrtModuleEntry(void)
@@ -130,7 +130,7 @@ void __CrtModuleEntry(void)
 
     // parse the options provided for this module
     osStatus = __ParseModuleOptions(argv, argc, &moduleId);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__CrtModuleEntry missing --id parameter for module");
         exit(-1);
     }
@@ -168,7 +168,7 @@ void __CrtModuleEntry(void)
 
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.
-    if (WaitForDeviceService(2000) != OsSuccess) {
+    if (WaitForDeviceService(2000) != OsOK) {
         exit(-2002);
     }
 

@@ -41,7 +41,7 @@ _lock_stream(
     if (!(file->_flag & _IOSTRG)) {
         spinlock_acquire(&__GlbPrintLock);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -55,7 +55,7 @@ _unlock_stream(
     if (!(file->_flag & _IOSTRG)) {
         spinlock_release(&__GlbPrintLock);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 FILE *
@@ -120,7 +120,7 @@ StdioIsHandleInheritable(
     _In_ ProcessConfiguration_t* configuration,
     _In_ stdio_handle_t*         handle)
 {
-    OsStatus_t osSuccess = OsSuccess;
+    OsStatus_t osSuccess = OsOK;
 
     if (handle->wxflag & WX_DONTINHERIT) {
         osSuccess = OsError;
@@ -150,7 +150,7 @@ StdioIsHandleInheritable(
 
     TRACE("[can_inherit] iod %i, handle %u: %s",
             handle->fd, handle->object.handle,
-            (osSuccess == OsSuccess) ? "yes" : "no");
+          (osSuccess == OsOK) ? "yes" : "no");
     return osSuccess;
 }
 
@@ -162,7 +162,7 @@ StdioGetNumberOfInheritableHandles(
     LOCK_FILES();
     foreach(Node, &g_stdioObjects) {
         stdio_handle_t* object = (stdio_handle_t*)Node->Data;
-        if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
+        if (StdioIsHandleInheritable(configuration, object) == OsOK) {
             numberOfFiles++;
         }
     }
@@ -183,7 +183,7 @@ StdioCreateInheritanceBlock(
     assert(configuration != NULL);
 
     if (configuration->InheritFlags == PROCESS_INHERIT_NONE) {
-        return OsSuccess;
+        return OsOK;
     }
 
     numberOfObjects = StdioGetNumberOfInheritableHandles(configuration);
@@ -202,7 +202,7 @@ StdioCreateInheritanceBlock(
         LOCK_FILES();
         foreach(Node, &g_stdioObjects) {
             stdio_handle_t* object = (stdio_handle_t*)Node->Data;
-            if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
+            if (StdioIsHandleInheritable(configuration, object) == OsOK) {
                 memcpy(&inheritationBlock->handles[i], object, sizeof(struct stdio_handle));
                 
                 // Check for this fd to be equal to one of the custom handles
@@ -224,7 +224,7 @@ StdioCreateInheritanceBlock(
         *inheritationBlockOut       = (void*)inheritationBlock;
         *inheritationBlockLengthOut = inheritationBlockLength;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -248,7 +248,7 @@ StdioInheritObject(
         }
 
         stdio_handle_clone(handle, inheritHandle);
-        if (handle->ops.inherit(handle) != OsSuccess) {
+        if (handle->ops.inherit(handle) != OsOK) {
             TRACE(" > failed to inherit fd %i", inheritHandle->fd);
             stdio_handle_destroy(handle, 0);
         }
@@ -484,7 +484,7 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
     OsStatus_t status = handle_post_notification(handle->object.handle, activity);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         OsStatusToErrno(status);
         return -1;
     }

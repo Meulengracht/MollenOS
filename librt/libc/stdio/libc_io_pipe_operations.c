@@ -40,7 +40,7 @@ OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     bytesRead = streambuffer_stream_in(stream, buffer, length, options);
     *bytes_read = bytesRead;
     TRACE("stdio_pipe_op_read returns %" PRIuIN, bytesRead);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
@@ -56,7 +56,7 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
 
     *bytes_written = bytesWritten;
     TRACE("stdio_pipe_op_write returns %" PRIuIN, bytesWritten);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
@@ -81,7 +81,7 @@ OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     if (options & STDIO_CLOSE_FULL) {
         handle_destroy(handle->object.handle);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
@@ -90,7 +90,7 @@ OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 
     status = dma_attach(handle->object.data.pipe.attachment.handle,
         &handle->object.data.pipe.attachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
     
@@ -112,7 +112,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
                 handle->object.data.pipe.options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
-        return OsSuccess;
+        return OsOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
@@ -121,7 +121,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
             streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

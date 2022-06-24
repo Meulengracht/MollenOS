@@ -188,7 +188,7 @@ AcquireSystemDeviceIo(
                 &MappedAddress, BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
                 MAPPING_VIRTUAL_PROCESS);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 ERROR(" > Failed to allocate memory for device io memory");
                 SystemIo->Owner = UUID_INVALID;
                 return Status;
@@ -198,14 +198,14 @@ AcquireSystemDeviceIo(
             MappedAddress                       += BaseAddress % PageSize;
             IoSpace->Access.Memory.VirtualBase   = MappedAddress;
             SystemIo->MappedAddress              = MappedAddress;
-            return OsSuccess;
+            return OsOK;
         } break;
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
                 SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
-            return OsSuccess;
+            return OsOK;
         } break;
 
         default:
@@ -257,7 +257,7 @@ ReleaseSystemDeviceIo(
     IoSpace->Access.Memory.VirtualBase      = 0;
     SystemIo->MappedAddress                 = 0;
     SystemIo->Owner                         = UUID_INVALID;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -281,7 +281,7 @@ CreateKernelSystemDeviceIo(
                 &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
                 MAPPING_VIRTUAL_GLOBAL);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 ERROR(" > failed to create mapping");
                 return OsError;
             }
@@ -292,7 +292,7 @@ CreateKernelSystemDeviceIo(
             break;
     }
     *SystemIoSpace = &SystemIo->Io;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -319,7 +319,7 @@ ReleaseKernelSystemDeviceIo(
         default:
             break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 // @interrupt context

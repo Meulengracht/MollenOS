@@ -73,10 +73,10 @@ static OsStatus_t __FunctionWriteStream(
 {
     streambuffer_t* stream;
 
-    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsSuccess) {
+    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsOK) {
         streambuffer_stream_out(stream, (void*)buffer, length, STREAMBUFFER_NO_BLOCK);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __FunctionTrace(const char* format, ...)

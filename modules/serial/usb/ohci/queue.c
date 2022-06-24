@@ -99,7 +99,7 @@ OhciQueueResetInternalData(
     NulliTd->BufferEnd = 0;
     NulliTd->Cbp       = 0;
     NulliTd->Link      = OHCI_LINK_HALTED;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -155,7 +155,7 @@ OhciQueueDestroy(
 
     OhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t

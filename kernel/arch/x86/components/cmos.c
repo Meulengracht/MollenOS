@@ -45,7 +45,7 @@ CmosInitialize(
         return RtcInitialize(&g_cmos);
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 

@@ -66,14 +66,14 @@ SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
     _In_ size_t       Timeout)
 {
-    OsStatus_t Status = OsSuccess;
+    OsStatus_t Status = OsOK;
     int        Value;
     
     while (1) {
         Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 break;
             }
             Value = atomic_load(&(Semaphore->Value));
@@ -112,7 +112,7 @@ SemaphoreSignal(
             }
             FutexWake(&Semaphore->Value, 1, 0);
         }
-        Status = OsSuccess;
+        Status = OsOK;
     }
     return Status;
 }

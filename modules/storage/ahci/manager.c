@@ -79,7 +79,7 @@ AhciManagerInitialize(void)
 
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
-    if (Status == OsSuccess) {
+    if (Status == OsOK) {
         g_frameSize = Descriptor.PageSizeBytes;
     }
     return Status;
@@ -182,14 +182,14 @@ AhciManagerRegisterDevice(
 
     osStatus = AhciTransactionControlCreate(ahciDevice, AtaPIOIdentifyDevice,
                                             sizeof(ATAIdentify_t), __STORAGE_OPERATION_READ);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AhciManagerRegisterDevice osStatus=%u", osStatus);
         free(ahciDevice);
         return osStatus;
     }
 
     list_append(&devices, &ahciDevice->header);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -339,11 +339,11 @@ AhciManagerHandleControlResponse(
 void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    OsStatus_t                 status = OsDoesNotExist;
+    OsStatus_t                 status = OsNotExists;
     AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsSuccess;
+        status = OsOK;
     }
     
     ctt_storage_stat_response(message, status, &gdescriptor);

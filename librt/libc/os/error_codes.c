@@ -31,7 +31,7 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
     EOK,
     EINVAL,       // OsError                 Error - Generic
     EEXIST,       // OsExists                Error - Resource already exists
-    ENOENT,       // OsDoesNotExist          Error - Resource does not exist
+    ENOENT,       // OsNotExists             Error - Resource does not exist
     EINVAL,       // OsInvalidParameters     Error - Bad parameters given
     EACCES,       // OsInvalidPermissions    Error - Bad permissions
     ETIME,        // OsTimeout               Error - Operation timeout
@@ -47,6 +47,7 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
     ENOLINK,      // OsDeleted               Error - Resource was deleted
     ENOTDIR,      // OsPathIsNotDirectory    Error - Path is not a directory
     EISDIR,       // OsPathIsDirectory       Error - Path is a directory
+    ENOENT,       // OsDirectoryNotEmpty     Error - Directory is not empty
     ENODEV,       // OsDeviceError           Error - Device error occurred during operation
     
     EPROTOTYPE,   // OsInvalidProtocol       Error - Protocol was invalid
@@ -61,16 +62,15 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
 
 int
 OsStatusToErrno(
-    _In_ OsStatus_t Status)
+    _In_ OsStatus_t osStatus)
 {
     int errnoCode;
-    if (Status >= OsErrorCodeCount) {
+    if (osStatus >= OsErrorCodeCount) {
         _set_errno(EINVAL);
         return -1;
     }
 
-
-    errnoCode = g_errorCodeTable[Status];
+    errnoCode = g_errorCodeTable[osStatus];
     _set_errno(errnoCode);
-    return Status == OsSuccess ? 0 : -1;
+    return osStatus == OsOK ? 0 : -1;
 }

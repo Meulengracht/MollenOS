@@ -93,7 +93,7 @@ thrd_create(
     InitializeThreadParameters(&Paramaters);
 
     Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         OsStatusToErrno(Status);
         free(Package);
         return thrd_error;
@@ -197,7 +197,7 @@ thrd_join(
     _In_  thrd_t thr,
     _Out_ int*   res)
 {
-    if (Syscall_ThreadJoin(thr, res) == OsSuccess) {
+    if (Syscall_ThreadJoin(thr, res) == OsOK) {
         return thrd_success;
     }
     return thrd_error;
@@ -208,7 +208,7 @@ thrd_detach(
     _In_ thrd_t thr)
 {
     // The syscall actually does most of the work
-    if (Syscall_ThreadDetach(thr) == OsSuccess) {
+    if (Syscall_ThreadDetach(thr) == OsOK) {
         return thrd_success;
     }
     return thrd_error;

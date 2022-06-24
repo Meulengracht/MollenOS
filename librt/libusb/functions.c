@@ -52,12 +52,12 @@ UsbInitialize(void)
     info.type     = DMA_TYPE_DRIVER_32;
     
     status = dma_create(&info, &DmaAttachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
     
     status = dma_pool_create(&DmaAttachment, &DmaPool);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         (void)dma_detach(&DmaAttachment);
     }
     return status;
@@ -73,7 +73,7 @@ UsbCleanup(void)
     dma_pool_destroy(DmaPool);
     dma_detach(&DmaAttachment);
     DmaPool = NULL;
-    return OsSuccess;
+    return OsOK;
 }
 
 struct dma_pool*
@@ -198,7 +198,7 @@ UsbTransferIn(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -226,7 +226,7 @@ UsbTransferOut(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t
@@ -362,14 +362,14 @@ UsbExecutePacket(
     usb_packet_t*       packet;
     UsbTransfer_t       transfer;
     
-    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsSuccess) {
+    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsOK) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
     if (length != 0) {
         OsStatus_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(DmaPool, dmaPacketStorage);
             return TransferInvalid;

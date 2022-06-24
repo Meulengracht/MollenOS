@@ -77,9 +77,9 @@ ProcessSpawnEx(
  *
  * @param handle The handle of the process to wait for.
  * @param timeout The timeout for this operation. If 0 is given the operation returns immediately.
- * @param exitCode If this function returns OsSuccess the exit code will be a valid value.
+ * @param exitCode If this function returns OsOK the exit code will be a valid value.
  * @return OsTimeout if the timeout was reached without the process terminating
- *         OsSuccess if the process has terminated within the given timeout or at the time at the call
+ *         OsOK if the process has terminated within the given timeout or at the time at the call
  *         OsError in any other case.
  */
 CRTDECL(OsStatus_t,
@@ -154,7 +154,7 @@ ProcessGetCurrentName(
  * @param handle
  * @param buffer The buffer to store the path in.
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
- * @return OsDoesNotExist if the handle was invalid,
+ * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
 CRTDECL(OsStatus_t, 
@@ -170,7 +170,7 @@ ProcessGetAssemblyDirectory(
  * @param handle
  * @param buffer The buffer to store the path in.
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
- * @return OsDoesNotExist if the handle was invalid,
+ * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
 CRTDECL(OsStatus_t, 

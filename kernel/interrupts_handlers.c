@@ -33,7 +33,7 @@
 #include <machine.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
-fault = OsSuccess; \
+fault = OsOK; \
 for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     if (timeout_ >= (runs)) {\
          (fault) = OsTimeout; \
@@ -118,7 +118,7 @@ TxuMessageSend(
 
     CpuCoreQueueIpc(Core, Type, &Message->Header);
     Status = ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         if (!Asynchronous) {
             ERROR("[txu] [send] failed to execute a synchronous handler");
         }
@@ -127,7 +127,7 @@ TxuMessageSend(
     
     if (!Asynchronous) {
         WaitForConditionWithFault(Status, atomic_load(&Message->Delivered) == 0, 100, 10)
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             ERROR("[txu] [send] timeout executing synchronous handler");
         }
     }

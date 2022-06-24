@@ -44,7 +44,7 @@ OsStatus_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length
     streambuffer_read_packet_end(stream, base, bytesAvailable);
 
     *bytes_read = MIN(length, bytesAvailable);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_ipc_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
@@ -76,7 +76,7 @@ OsStatus_t stdio_ipc_op_close(stdio_handle_t* handle, int options)
 OsStatus_t stdio_ipc_op_inherit(stdio_handle_t* handle)
 {
     // Is not supported
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
@@ -93,7 +93,7 @@ OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
                 handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
-        return OsSuccess;
+        return OsOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
@@ -102,7 +102,7 @@ OsStatus_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
             streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

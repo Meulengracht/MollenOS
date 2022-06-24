@@ -274,8 +274,8 @@ FutexWait(
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
 
@@ -344,8 +344,8 @@ FutexWaitOperation(
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
     
@@ -391,7 +391,7 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    OsStatus_t            Status = OsDoesNotExist;
+    OsStatus_t            Status = OsNotExists;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
@@ -405,8 +405,8 @@ FutexWake(
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
     
@@ -414,7 +414,7 @@ FutexWake(
 
     FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     WaiterCount = atomic_load(&FutexItem->Waiters);
@@ -437,7 +437,7 @@ WakeWaiters:
         
         if (Front) {
             Status = SchedulerQueueObject(Front->value);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 break;
             }
         }

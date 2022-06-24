@@ -71,7 +71,7 @@ PACKED_TYPESTRUCT(SmBiosStructureHeader, {
 
 /**
  * Initializes and finds if the smbios table is present on the system. The 
- * function will return OsSuccess if the table is present and everything is alright.
+ * function will return OsOK if the table is present and everything is alright.
  */
 KERNELAPI OsStatus_t KERNELABI
 SmBiosInitialize(void);

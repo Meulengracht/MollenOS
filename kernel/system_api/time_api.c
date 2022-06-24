@@ -52,7 +52,7 @@ ScSystemClockTick(
             SystemTimerGetClockTick(tickOut);
             break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -69,7 +69,7 @@ ScSystemClockFrequency(
     }
 
     SystemTimerGetClockFrequency(frequencyOut);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -80,7 +80,7 @@ ScSystemWallClock(
         return OsInvalidParameters;
     }
     SystemTimerGetWallClockTime(time);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -122,5 +122,5 @@ ScTimeStall(
     while (current < end) {
         SystemTimerGetTimestamp(&current);
     }
-    return OsSuccess;
+    return OsOK;
 }

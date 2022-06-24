@@ -49,14 +49,14 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     }
     
     os_status = Syscall_IpcContextCreate(len, &handle, &stream);
-    if (os_status != OsSuccess) {
+    if (os_status != OsOK) {
         OsStatusToErrno(os_status);
         return -1;
     }
     
     if (addr && addr->type == IPMSG_ADDRESS_PATH) {
         os_status = handle_set_path(handle, addr->data.path);
-        if (os_status != OsSuccess) {
+        if (os_status != OsOK) {
             handle_destroy(handle);
             OsStatusToErrno(os_status);
             return -1;

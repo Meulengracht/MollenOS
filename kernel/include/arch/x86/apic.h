@@ -132,8 +132,8 @@ KERNELAPI void KERNELABI
 ApicInitialize(void);
 
 /**
- * @brief Returns OsSuccess if the local apic is initialized and memory mapped.
- * @return OsSuccess if the Local Apic is available.
+ * @brief Returns OsOK if the local apic is initialized and memory mapped.
+ * @return OsOK if the Local Apic is available.
  */
 KERNELAPI OsStatus_t KERNELABI
 ApicIsInitialized(void);

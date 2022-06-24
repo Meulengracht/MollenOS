@@ -139,7 +139,7 @@ StdInvokeSignal(
     int          i;
 
     // SPECIAL CASE MEMORY HANDLERS
-    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OsSuccess) {
+    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OsOK) {
         return;
     }
     
@@ -182,7 +182,7 @@ void
 StdSignalInitialize()
 {
     // Install default handler
-    if (Syscall_InstallSignalHandler(__signalentry) != OsSuccess) {
+    if (Syscall_InstallSignalHandler(__signalentry) != OsOK) {
         assert(0);
     }
 }

@@ -31,6 +31,7 @@ struct VFSOperations {
     FsDestroy_t         Destroy;
     FsOpen_t            Open;
     FsClose_t           Close;
+    FsUnlink_t          Unlink;
     FsCreate_t          Create;
     FsCreatePath_t      CreatePath;
     FsDeleteEntry_t     Delete;

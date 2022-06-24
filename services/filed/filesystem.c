@@ -161,7 +161,7 @@ __MountFileSystemAtDefault(
     // retrieve the device node, this WILL be mounted earlier once the disk is registered with
     // the file service
     osStatus = VFSNodeLookup(fsScope, path, &deviceNode);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__MountFileSystemAtDefault failed to lookup node %s", MStringRaw(path));
         return osStatus;
     }
@@ -174,13 +174,13 @@ __MountFileSystemAtDefault(
     }
 
     osStatus = VFSNodeFileSystemDataSet(partitionNode, fileSystem);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     // Store the root mount node, so we can unmount later (ez)
     fileSystem->MountNode = partitionNode;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -193,7 +193,7 @@ __MountFileSystemAt(
     OsStatus_t      osStatus;
 
     osStatus = VFSNodeNew(fsScope, path, 0, &bindNode);
-    if (osStatus != OsSuccess && osStatus != OsExists) {
+    if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAt failed to create node %s", MStringRaw(path));
         return osStatus;
     }
@@ -221,7 +221,7 @@ VfsFileSystemMount(
     }
 
     osStatus = fileSystem->module->Initialize(&fileSystem->base);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("VfsFileSystemMount failed to initialize filesystem of type %u: %u", fileSystem->type, osStatus);
         fileSystem->state = FileSystemState_ERROR;
         return;
@@ -229,7 +229,7 @@ VfsFileSystemMount(
 
     // Start out by mounting access to this partition under the device node
     osStatus = __MountFileSystemAtDefault(fileSystem);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("VfsFileSystemMount failed to mount filesystem %s", MStringRaw(fileSystem->base.Label));
         fileSystem->state = FileSystemState_ERROR;
         return;
@@ -242,7 +242,7 @@ VfsFileSystemMount(
     // but otherwise we will be checking the default list
     if (mountPoint) {
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
                     MStringRaw(mountPoint), MStringRaw(fileSystem->base.Label));
         }
@@ -253,7 +253,7 @@ VfsFileSystemMount(
             if (label && MStringCompare(label, fileSystem->base.Label, 0) == MSTRING_FULL_MATCH) {
                 MString_t* bindPath = MStringCreate(g_defaultMounts[i].path, StrUTF8);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
-                if (osStatus != OsSuccess) {
+                if (osStatus != OsOK) {
                     WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
                             MStringRaw(mountPoint), MStringRaw(fileSystem->base.Label));
                     MStringDestroy(label);
@@ -280,7 +280,7 @@ VfsFileSystemUnmount(
     usched_mtx_lock(&fileSystem->lock);
     if (fileSystem->state == FileSystemState_MOUNTED) {
         osStatus = VFSNodeDestroy(fsScope, fileSystem->MountNode);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             usched_mtx_unlock(&fileSystem->lock);
             ERROR("VfsFileSystemUnmount failed to unmount filesystem %s", MStringRaw(fileSystem->base.Label));
             return osStatus;

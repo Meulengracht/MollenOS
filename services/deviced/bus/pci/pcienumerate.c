@@ -80,13 +80,13 @@ void BusEnumerate(void)
     g_rootDevice->IsBridge = 1;
 
     // Are we on an acpi-capable system?
-    if (AcpiQueryStatus(&acpi) == OsSuccess) {
+    if (AcpiQueryStatus(&acpi) == OsOK) {
         TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)",
               acpi.Version, acpi.BootFlags);
         g_acpiAvailable = 1;
 
         // Uh, even better, do we have PCI-e controllers?
-        if (AcpiQueryTable(ACPI_SIG_MCFG, &header) == OsSuccess) {
+        if (AcpiQueryTable(ACPI_SIG_MCFG, &header) == OsOK) {
             TRACE("PCI-Express Controller (mcfg length 0x%x)", header->Length);
             //McfgTable = (ACPI_TABLE_MCFG*)Header;
             //remember to free(McfgTable)
@@ -123,7 +123,7 @@ void BusEnumerate(void)
             memset(bus, 0, sizeof(PciBus_t));
 
             length = (mcfgEntry->EndBus - mcfgEntry->StartBus + 1) << 20;
-            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OsSuccess) {
+            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OsOK) {
                 ERROR(" > failed to create pcie address space");
                 return;
             }
@@ -155,13 +155,13 @@ void BusEnumerate(void)
 
         // PCI buses use io
         osStatus = CreateDevicePortIo(&bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR(" > failed to initialize pci io space");
             return;
         }
 
         osStatus = AcquireDeviceIo(&bus->IoSpace);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR(" > failed to acquire pci io space");
             return;
         }
@@ -345,7 +345,7 @@ static void __ResolveInterruptLineAndPin(
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
-        OsStatus_t   hasRouting    = OsDoesNotExist;
+        OsStatus_t   hasRouting    = OsNotExists;
         TRACE("__ResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
         // Sanitize legals
@@ -369,7 +369,7 @@ static void __ResolveInterruptLineAndPin(
                         &interruptLine, &acpiConform);
 
                 // Did routing exist?
-                if (hasRouting == OsSuccess) {
+                if (hasRouting == OsOK) {
                     break;
                 }
 
@@ -380,7 +380,7 @@ static void __ResolveInterruptLineAndPin(
             }
 
             // Update the irq-line if we found a new line
-            if (hasRouting == OsSuccess) {
+            if (hasRouting == OsOK) {
                 TRACE("__ResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
                 __UpdateInterruptLine(parent, bus, slot, function, interruptLine, pciDevice);
                 pciDevice->AcpiConform = acpiConform;
@@ -407,7 +407,7 @@ static OsStatus_t __GetPciDeviceNativeHeader(
     PciReadFunction(nativeHeader, parent->BusIo, (unsigned int)bus, (unsigned int)slot, (unsigned int)function);
 
     *headerOut = nativeHeader;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -427,7 +427,7 @@ PciCheckFunction(
     }
 
     osStatus = __GetPciDeviceNativeHeader(parent, bus, slot, function, &device->Header);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(device);
         return osStatus;
     }
@@ -470,7 +470,7 @@ PciCheckFunction(
     else {
         __ResolveInterruptLineAndPin(parent, bus, slot, function, device);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -645,13 +645,13 @@ BusRegisterPS2Controller(void)
     // Status/Command port - 0x64
     // one byte each
     Status = CreateDevicePortIo(&Device.IoSpaces[0], 0x60, 1);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR(" > failed to initialize ps2 data io space");
         return OsError;
     }
 
     Status = CreateDevicePortIo(&Device.IoSpaces[1], 0x64, 1);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR(" > failed to initialize ps2 command/status io space");
         return OsError;
     }
@@ -681,7 +681,7 @@ DmIoctlDevice(
     // Sanitize
     if (pciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // Read value, modify and write back
@@ -721,7 +721,7 @@ DmIoctlDevice(
 
     // Write back settings
     PciWrite16(pciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04, settings);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -747,7 +747,7 @@ DmIoctlDeviceEx(
 
     if (pciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     if (direction == __DEVICEMANAGER_IOCTL_EXT_READ) {
@@ -784,5 +784,5 @@ DmIoctlDeviceEx(
             return OsInvalidParameters;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

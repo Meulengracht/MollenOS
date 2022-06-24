@@ -33,7 +33,7 @@
 static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     FutexParameters_t parameters;
-    OsStatus_t        status = OsSuccess;
+    OsStatus_t        status = OsOK;
     int               value;
 
     parameters._futex0  = sync_address;
@@ -49,7 +49,7 @@ static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
 
             parameters._val0 = value;
             status = Syscall_FutexWait(&parameters);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 break;
             }
 
@@ -90,7 +90,7 @@ static OsStatus_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, un
 
     if (parameters._val0) {
         Syscall_FutexWake(&parameters);
-        status = OsSuccess;
+        status = OsOK;
     }
 
     return status;
@@ -108,7 +108,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
     }
 
     result = evt_lock(handle->object.data.evt.sync_address, handle->object.data.evt.options);
-    if (result != OsSuccess) {
+    if (result != OsOK) {
         return result;
     }
 
@@ -121,7 +121,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
         *(unsigned int*)buffer = 1;
         *bytes_read            = sizeof(unsigned int);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
@@ -136,7 +136,7 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
         *bytes_written = sizeof(unsigned int);
 
         result = evt_unlock(handle->object.data.evt.sync_address, 1, 1);
-        if (result == OsSuccess) {
+        if (result == OsOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
     }
@@ -146,7 +146,7 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
         result = evt_unlock(handle->object.data.evt.sync_address,
                             handle->object.data.evt.initialValue,
                             value);
-        if (result == OsSuccess) {
+        if (result == OsOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
         *bytes_written = sizeof(size_t);
@@ -172,7 +172,7 @@ OsStatus_t stdio_evt_op_close(stdio_handle_t* handle, int options)
             return handle_destroy(handle->object.handle);
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_evt_op_inherit(stdio_handle_t* handle)
@@ -193,14 +193,14 @@ OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
                 handle->object.data.evt.options &= ~(EVT_OPTION_NON_BLOCKING);
             }
         }
-        return OsSuccess;
+        return OsOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             *bytesAvailableOut = atomic_load(handle->object.data.evt.sync_address);
         }
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

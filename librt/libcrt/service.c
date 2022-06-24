@@ -124,7 +124,7 @@ __crt_service_init(void)
 
     // Call the driver load function
     // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
+    if (OnLoad() != OsOK) {
         exit(-2001);
     }
 

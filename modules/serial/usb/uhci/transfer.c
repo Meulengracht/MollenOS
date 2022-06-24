@@ -59,7 +59,7 @@ HciTransactionFinalize(
         USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
     UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -68,5 +68,5 @@ HciDequeueTransfer(
 {
     // Mark for unscheduling on next interrupt/check
     Transfer->Flags |= TransferFlagUnschedule;
-    return OsSuccess;
+    return OsOK;
 }

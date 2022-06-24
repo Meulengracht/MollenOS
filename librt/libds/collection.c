@@ -63,7 +63,7 @@ CollectionClear(
         CollectionDestroyNode(Collection, Node);
         Node = CollectionPopFront(Collection);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -127,7 +127,7 @@ CollectionDestroyNode(
     assert(Collection != NULL);
     assert(Node != NULL);
     if (Node->Dynamic == false) {
-        return OsSuccess;
+        return OsOK;
     }
 
     // Behave different based on the type of key
@@ -142,7 +142,7 @@ CollectionDestroyNode(
 
     // Cleanup node and return
     dsfree(Node);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -169,7 +169,7 @@ CollectionInsert(
     }
     atomic_fetch_add(&Collection->Length, 1);
     dsunlock(&Collection->SyncObject);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -199,7 +199,7 @@ CollectionAppend(
     atomic_fetch_add(&Collection->Length, 1);
     smp_wmb();
     dsunlock(&Collection->SyncObject);
-    return OsSuccess;
+    return OsOK;
 }
 
 CollectionItem_t*
@@ -413,7 +413,7 @@ CollectionRemoveByNode(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node)
 {
-    OsStatus_t Status = OsSuccess;
+    OsStatus_t Status = OsOK;
     
     assert(Collection != NULL);
     assert(Node != NULL);
@@ -423,17 +423,17 @@ CollectionRemoveByNode(
     if (Node->Link == NULL) {
         // Then the node should be the end of the list
         if (Collection->Tail != Node) {
-            Status = OsDoesNotExist;
+            Status = OsNotExists;
         }
     }
     else if (Node->Prev == NULL) {
         // Then the node should be the initial
         if (Collection->Head != Node) {
-            Status = OsDoesNotExist;
+            Status = OsNotExists;
         }
     }
     
-    if (Status != OsDoesNotExist) {
+    if (Status != OsNotExists) {
         __collection_remove_node(Collection, Node);
         Node->Link = NULL;
         Node->Prev = NULL;
@@ -455,10 +455,10 @@ CollectionRemoveByKey(
     Node = CollectionGetNodeByKey(Collection, Key, 0);
     if (Node != NULL) {
         Status = CollectionRemoveByNode(Collection, Node);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             return Status;
         }
         return CollectionDestroyNode(Collection, Node);
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }

@@ -88,7 +88,7 @@ VerifyHandleAccess(
         _In_  FileSystemCacheEntry_t* entry,
         _In_  unsigned int            access)
 {
-    OsStatus_t osStatus = OsSuccess;
+    OsStatus_t osStatus = OsOK;
 
     // keep lock while inspecting element
     usched_mtx_lock(&entry->lock);
@@ -135,7 +135,7 @@ VfsHandleCreate(
     // we should at this point check other handles to see how many have this file
     // opened, and see if there is any other handles using it
     osStatus = VerifyHandleAccess(entry, access);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -147,7 +147,7 @@ VfsHandleCreate(
     TRACE("VfsHandleCreate opening %s", MStringRaw(entry->path));
     filesystem = entry->filesystem;
     osStatus   = filesystem->module->OpenHandle(&filesystem->base, entry->base, &handle->base);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("VfsHandleCreate failed to initiate a new entry-handle, code %i", osStatus);
         free(handle);
         return osStatus;
@@ -216,7 +216,7 @@ VfsHandleDestroy(
     usched_mtx_unlock(&g_handlesLock);
 
     osStatus = fileSystem->module->CloseHandle(&fileSystem->base, handle->base);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         // Take care of any entry cleanup / reduction
         handle->entry->references--;
         if (!handle->entry->references) {
@@ -259,7 +259,7 @@ VfsHandleAccess(
     }
 
     *handleOut = wrapper->handle;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -275,9 +275,9 @@ VfsFileSystemGetByFileHandle(
 
     if (wrapper) {
         *fileSystem = wrapper->handle->entry->filesystem;
-        return OsSuccess;
+        return OsOK;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 static uint64_t vfs_handle_hash(const void* element)

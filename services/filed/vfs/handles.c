@@ -31,7 +31,7 @@ VFSNodeHandleAdd(
         _In_ struct VFSNode* node)
 {
 
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -50,7 +50,7 @@ VFSNodeHandleRemove(
 
     found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
     if (found == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
-    return OsSuccess;
+    return OsOK;
 }

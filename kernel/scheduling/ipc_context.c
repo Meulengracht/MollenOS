@@ -80,7 +80,7 @@ IpcContextCreate(
             UserContextOut,
             &Context->MemoryRegionHandle
     );
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         kfree(Context);
         return Status;
     }
@@ -117,7 +117,7 @@ AllocateMessage(
     else {
         UUId_t     handle;
         OsStatus_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("AllocateMessage could not find target path %s", message->addr->data.path);
             return osStatus;
         }
@@ -127,7 +127,7 @@ AllocateMessage(
     
     if (!ipcContext) {
         ERROR("AllocateMessage could not find target handle %u", message->addr->data.handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     bytesAvailable = streambuffer_write_packet_start(ipcContext->KernelStream,
@@ -139,7 +139,7 @@ AllocateMessage(
     }
     
     *targetContext = ipcContext;
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -187,12 +187,12 @@ IpcContextSendMultiple(
     for (int i = 0; i < messageCount; i++) {
         IpcContext_t* targetContext;
         OsStatus_t    status = AllocateMessage(messages[i], timeout, &state, &targetContext);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             // todo store status in context and return incomplete
             return OsIncomplete;
         }
         WriteMessage(targetContext, messages[i], &state);
         SendMessage(targetContext, messages[i], &state);
     }
-    return OsSuccess;
+    return OsOK;
 }

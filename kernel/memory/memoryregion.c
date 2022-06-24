@@ -62,7 +62,7 @@ static OsStatus_t __CreateUserMapping(
             (vaddr_t*)allocatedMapping, region->Capacity,
             requiredFlags | region->Flags | accessFlags,
             MAPPING_VIRTUAL_PROCESS);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
     
@@ -90,7 +90,7 @@ static OsStatus_t __CreateKernelMapping(
             memorySpace,
             (vaddr_t*)&region->KernelMapping, region->Capacity,
             region->Flags, MAPPING_VIRTUAL_GLOBAL);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
 
@@ -111,7 +111,7 @@ static OsStatus_t __CreateKernelMappingFromExisting(
     OsStatus_t status = GetMemorySpaceMapping(
             memorySpace, (uintptr_t)userAddress,
             region->PageCount, &region->Pages[0]);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
 
@@ -171,13 +171,13 @@ MemoryRegionCreate(
     memoryRegion->PageMask  = pageMask;
 
     osStatus = __CreateKernelMapping(memoryRegion, GetCurrentMemorySpace());
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("[shared_region] [create] __CreateKernelMapping failed with %u", osStatus);
         goto ErrorHandler;
     }
 
     osStatus = __CreateUserMapping(memoryRegion, GetCurrentMemorySpace(), (uintptr_t*) userMapping, 0);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("[shared_region] [create] __CreateUserMapping failed with %u", osStatus);
         goto ErrorHandler;
     }
@@ -227,7 +227,7 @@ MemoryRegionCreateExisting(
     region->PageMask  = __MASK;    // not relevant on exported regions
 
     osStatus = __CreateKernelMappingFromExisting(region, GetCurrentMemorySpace(), (uintptr_t) memory);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("[shared_region] [create_existing] __CreateKernelMappingFromExisting failed with %u", osStatus);
         goto ErrorHandler;
     }
@@ -248,13 +248,13 @@ MemoryRegionAttach(
 {
     MemoryRegion_t* Region;
     
-    if (AcquireHandle(Handle, (void**)&Region) != OsSuccess) {
+    if (AcquireHandle(Handle, (void**)&Region) != OsOK) {
         ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", Handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     *Length = Region->Length;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -277,7 +277,7 @@ MemoryRegionInherit(
 
     region = (MemoryRegion_t*)LookupHandleOfType(regionHandle, HandleTypeMemoryRegion);
     if (!region) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     MutexLock(&region->SyncObject);
@@ -289,7 +289,7 @@ MemoryRegionInherit(
     osStatus = __CreateUserMapping(region, GetCurrentMemorySpace(), &address, accessFlags);
     MutexUnlock(&region->SyncObject);
     
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("[shared_region] [create] __CreateUserMapping failed with %u", osStatus);
         return osStatus;
     }
@@ -315,7 +315,7 @@ MemoryRegionUnherit(
 
     memoryRegion = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!memoryRegion) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     address = (uintptr_t)memory;
@@ -334,7 +334,7 @@ static OsStatus_t __FillInMemoryRegion(
 
     uintptr_t  kernelAddress = memoryRegion->KernelMapping;
     uintptr_t  userAddress   = userStart;
-    OsStatus_t osStatus      = OsSuccess;
+    OsStatus_t osStatus      = OsOK;
 
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize(), kernelAddress += GetMemorySpacePageSize()) {
         if (!memoryRegion->Pages[i]) {
@@ -347,7 +347,7 @@ static OsStatus_t __FillInMemoryRegion(
                     memoryRegion->PageMask,
                     0
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("MemoryRegionResize failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
                 break;
             }
@@ -361,7 +361,7 @@ static OsStatus_t __FillInMemoryRegion(
                     memoryRegion->PageMask,
                     MAPPING_PHYSICAL_FIXED
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("MemoryRegionResize failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;
             }
@@ -383,7 +383,7 @@ static OsStatus_t __ExpandMemoryRegion(
     // then we now treat it as one continously buffered region, and this means
     // we fill in all blanks
     osStatus = __FillInMemoryRegion(memoryRegion, userAddress, currentPageCount);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -397,7 +397,7 @@ static OsStatus_t __ExpandMemoryRegion(
             memoryRegion->PageMask,
             0
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -428,7 +428,7 @@ MemoryRegionResize(
     // Lookup region
     memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!memoryRegion) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // Verify that the new length is not exceeding capacity
@@ -450,7 +450,7 @@ MemoryRegionResize(
         osStatus = __ExpandMemoryRegion(memoryRegion, (uintptr_t)memory, currentPages, newLength);
     }
 
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         memoryRegion->Length = newLength;
     }
 
@@ -466,10 +466,10 @@ static OsStatus_t __RefreshMemoryRegion(
         _In_ int             pageCount)
 {
     uintptr_t  userAddress   = userStart;
-    OsStatus_t osStatus      = OsSuccess;
+    OsStatus_t osStatus      = OsOK;
 
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize()) {
-        if (memoryRegion->Pages[i] && IsMemorySpacePagePresent(GetCurrentMemorySpace(), userAddress) != OsSuccess) {
+        if (memoryRegion->Pages[i] && IsMemorySpacePagePresent(GetCurrentMemorySpace(), userAddress) != OsOK) {
             osStatus = MemorySpaceCommit(
                     GetCurrentMemorySpace(),
                     userAddress,
@@ -478,7 +478,7 @@ static OsStatus_t __RefreshMemoryRegion(
                     memoryRegion->PageMask,
                     MAPPING_PHYSICAL_FIXED
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("__RefreshMemoryRegion failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;
             }
@@ -503,7 +503,7 @@ MemoryRegionRefresh(
     // Lookup region
     memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!memoryRegion) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     MutexLock(&memoryRegion->SyncObject);
@@ -520,7 +520,7 @@ MemoryRegionRefresh(
     // if the region has been scattered. It's not that we need to do this, but it's the behaviour we want
     // the region to have
     osStatus = __RefreshMemoryRegion(memoryRegion, (uintptr_t)memory, currentPages);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto exit;
     }
     
@@ -565,7 +565,7 @@ MemoryRegionCommit(
     // Lookup region
     memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!memoryRegion) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     i     = DIVUP((uintptr_t)memoryBase - userAddress, GetMemorySpacePageSize());
@@ -584,7 +584,7 @@ MemoryRegionCommit(
                     memoryRegion->PageMask,
                     0
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("MemoryRegionCommit failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
                 break;
             }
@@ -598,7 +598,7 @@ MemoryRegionCommit(
                     memoryRegion->PageMask,
                     MAPPING_PHYSICAL_FIXED
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("MemoryRegionCommit failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
                 break;
             }
@@ -626,7 +626,7 @@ MemoryRegionRead(
     
     Region = (MemoryRegion_t*)LookupHandleOfType(Handle, HandleTypeMemoryRegion);
     if (!Region) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (Offset >= Region->Length) {
@@ -638,7 +638,7 @@ MemoryRegionRead(
         (volatile void*)Buffer, ClampedLength);
     
     *BytesRead = ClampedLength;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -658,7 +658,7 @@ MemoryRegionWrite(
     
     Region = (MemoryRegion_t*)LookupHandleOfType(Handle, HandleTypeMemoryRegion);
     if (!Region) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (Offset >= Region->Length) {
@@ -670,7 +670,7 @@ MemoryRegionWrite(
         (void*)Buffer, ClampedLength);
     
     *BytesWritten = ClampedLength;
-    return OsSuccess;
+    return OsOK;
 }
 
 #define SG_IS_SAME_REGION(memory_region, idx, idx2, pageSize) \
@@ -692,7 +692,7 @@ MemoryRegionGetSg(
 
     memoryRegion = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!memoryRegion) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // Requested count of the scatter-gather units, so count
@@ -727,7 +727,7 @@ MemoryRegionGetSg(
         // Adjust the initial sg entry for offset
         sgListOut[0].length -= sgListOut[0].address % pageSize;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -743,9 +743,9 @@ MemoryRegionGetKernelMapping(
 
     region = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
     if (!region) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     *bufferOut = (void*)region->KernelMapping;
-    return OsSuccess;
+    return OsOK;
 }

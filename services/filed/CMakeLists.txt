@@ -33,8 +33,9 @@ set (SERVICE_SOURCES
         storage/utils.c
 
         vfs/handlers/close.c
-        vfs/handlers/delete.c
+        vfs/handlers/link.c
         vfs/handlers/open.c
+        vfs/handlers/unlink.c
         vfs/handles.c
         vfs/utils.c
         vfs/vfs.c

@@ -35,7 +35,7 @@ static UUId_t WindowingSystemId = UUID_INVALID;
 
 OsStatus_t OnUnload(void)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 void GetServiceAddress(struct ipmsg_addr* address)
@@ -49,7 +49,7 @@ OnLoad(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_session_server_protocol);
-    return OsSuccess;
+    return OsOK;
 }
 
 void sys_session_login_invocation(struct gracht_message* message, const char* user, const char* password)

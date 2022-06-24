@@ -44,7 +44,7 @@ BinarySemaphoreConstruct(
     mtx_init(&BinarySemaphore->Mutex, mtx_plain);
     cnd_init(&BinarySemaphore->Condition);
 	BinarySemaphore->Value = Value;
-	return OsSuccess;
+	return OsOK;
 }
 
 /* BinarySemaphoreReset

@@ -244,7 +244,7 @@ static OsStatus_t __DispatchCommand(
     //thrd_sleepex(5000);
     __DumpCurrentState(controller, port);
 #endif
-    return OsSuccess;
+    return OsOK;
 }
 
 void

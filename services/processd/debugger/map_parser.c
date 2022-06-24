@@ -133,7 +133,7 @@ SymbolParseMapFile(
 
     TRACE(STR("[SymbolParseMapFile] Loading objects.."));
     LoadObjectsInMap(symbolContext, fileBuffer, fileLength);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void

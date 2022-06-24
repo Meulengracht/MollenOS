@@ -42,7 +42,7 @@ ScCreateHandle(
 {
     *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsOutOfMemory;
 }
@@ -92,7 +92,7 @@ ScCreateHandleSet(
     
     *HandleOut = CreateHandleSet(Flags);
     if (*HandleOut != UUID_INVALID) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsOutOfMemory;
 }

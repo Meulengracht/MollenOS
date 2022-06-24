@@ -102,7 +102,7 @@ SystemTimerRegister(
 
     // Store it in the list of available system timers
     list_append(&GetMachine()->SystemTimers.Timers, &systemTimer->ListHeader);
-    return OsSuccess;
+    return OsOK;
 }
 
 // Our system wall clock is valid down to microseconds precision, which allows us for
@@ -161,7 +161,7 @@ SystemWallClockRegister(
 
     // store it as our primary wall clock
     GetMachine()->SystemTimers.WallClock = clock;
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -252,7 +252,7 @@ SystemTimerGetPerformanceFrequency(
         return OsNotSupported;
     }
     hpc->Operations.GetFrequency(hpc->Context, frequency);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -264,7 +264,7 @@ SystemTimerGetPerformanceTick(
         return OsNotSupported;
     }
     hpc->Operations.Read(hpc->Context, tick);
-    return OsSuccess;
+    return OsOK;
 }
 
 void

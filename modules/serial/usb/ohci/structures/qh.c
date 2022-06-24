@@ -39,7 +39,7 @@ OhciQhInitialize(
     _In_ size_t                 Endpoint)
 {
     OhciQueueHead_t* Qh        = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    OsStatus_t       Status    = OsSuccess;
+    OsStatus_t       Status    = OsOK;
     uintptr_t        LinkEnd   = 0;
     uint16_t         LastIndex;
 

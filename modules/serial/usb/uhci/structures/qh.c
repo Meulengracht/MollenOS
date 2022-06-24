@@ -51,7 +51,7 @@ UhciQhInitialize(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
-    OsStatus_t       osStatus = OsSuccess;
+    OsStatus_t       osStatus = OsOK;
 
     queueHead->Link  = UHCI_LINK_END;
     queueHead->Child = UHCI_LINK_END;

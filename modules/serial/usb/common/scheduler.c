@@ -72,7 +72,7 @@ UsbSchedulerResetInternalData(
             Scheduler->Settings.FrameList[i] = NoLink;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -94,7 +94,7 @@ AllocateMemoryForPool(
 
     TRACE("... allocating element pool memory (%u bytes)", elementBytes);
     osStatus = dma_create(&dmaBufferInfo, &Pool->ElementPoolDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("... failed! %u", osStatus);
         return osStatus;
     }
@@ -102,7 +102,7 @@ AllocateMemoryForPool(
 
     TRACE("... address 0x%" PRIxIN, Pool->ElementPoolDMATable.entries[0].address);
     Pool->ElementPool = Pool->ElementPoolDMA.buffer;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -123,7 +123,7 @@ AllocateMemoryForFrameList(
 
     TRACE("... allocating frame list memory (%u bytes)", FrameListBytes);
     Status = dma_create(&DmaInfo, &Scheduler->Settings.FrameListDMA);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("... failed! %u", Status);
         return Status;
     }
@@ -133,7 +133,7 @@ AllocateMemoryForFrameList(
     TRACE("... address 0x%" PRIxIN, Scheduler->Settings.FrameListDMATable.entries[0].address);
     Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
     Scheduler->Settings.FrameListPhysical = Scheduler->Settings.FrameListDMATable.entries[0].address;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -163,7 +163,7 @@ UsbSchedulerInitialize(
     // Start out by allocating the frame list if requested by the user
     if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
         Status = AllocateMemoryForFrameList(Scheduler);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             UsbSchedulerDestroy(Scheduler);
             return Status;
         }
@@ -185,7 +185,7 @@ UsbSchedulerInitialize(
     // for them.
     for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
         Status = AllocateMemoryForPool(&Scheduler->Settings.Pools[i]);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             UsbSchedulerDestroy(Scheduler);
             return Status;
         }
@@ -312,7 +312,7 @@ UsbSchedulerGetPoolElement(
     if (ElementPhysicalOut != NULL) {
         *ElementPhysicalOut = USB_ELEMENT_PHYSICAL((&Scheduler->Settings.Pools[Pool]), Index);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -326,7 +326,7 @@ UsbSchedulerGetPoolFromElement(
         uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
         if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
-            return OsSuccess;
+            return OsOK;
         }
     }
     return OsError;
@@ -371,7 +371,7 @@ UsbSchedulerAllocateElement(
         break;
     }
     spinlock_release(&Scheduler->Lock);
-    return (i == sPool->ElementCount) ? OsError : OsSuccess;
+    return (i == sPool->ElementCount) ? OsError : OsOK;
 }
 
 OsStatus_t
@@ -383,7 +383,7 @@ UsbSchedulerAllocateBandwidthSubframe(
     _In_  int                   Validate,
     _Out_ reg32_t*              FrameMask)
 {
-    OsStatus_t Result = OsSuccess;
+    OsStatus_t Result = OsOK;
     size_t     j;
 
     // Either we create a mask
@@ -422,7 +422,7 @@ UsbSchedulerTryAllocateBandwidth(
     _In_ UsbSchedulerObject_t* sObject,
     _In_ int                   NumberOfTransactions)
 {
-    OsStatus_t Result     = OsSuccess;
+    OsStatus_t Result     = OsOK;
     reg32_t    StartFrame = (reg32_t)-1;
     reg32_t    FrameMask  = 0;
     int        Validated  = 0;
@@ -468,14 +468,14 @@ UsbSchedulerTryAllocateBandwidth(
         }
 
         // Perform another iteration?
-        if (Validated == 0 && Result == OsSuccess) {
+        if (Validated == 0 && Result == OsOK) {
             Validated = 1;
             continue;
         }
         break;
     }
     spinlock_release(&Scheduler->Lock);
-    if (Result != OsSuccess) {
+    if (Result != OsOK) {
         return Result;
     }
 
@@ -508,7 +508,7 @@ UsbSchedulerAllocateBandwidth(
 
     // Validate element and lookup pool
     result = UsbSchedulerGetPoolFromElement(scheduler, element, &schedulerPool);
-    if (result != OsSuccess) {
+    if (result != OsOK) {
         return result;
     }
 
@@ -556,14 +556,14 @@ UsbSchedulerAllocateBandwidth(
         do {
             schedulerObject->FrameInterval = 1 << exponent;
             result = UsbSchedulerTryAllocateBandwidth(scheduler, schedulerObject, numberOfTransactions);
-        } while (result != OsSuccess && --exponent >= 0);
+        } while (result != OsOK && --exponent >= 0);
     }
     else {
         schedulerObject->FrameInterval = 1 << exponent;
         result = UsbSchedulerTryAllocateBandwidth(scheduler, schedulerObject, numberOfTransactions);
     }
 
-    if (result == OsSuccess) {
+    if (result == OsOK) {
         schedulerObject->Flags |= USB_ELEMENT_BANDWIDTH;
     }
     return result;
@@ -576,12 +576,12 @@ UsbSchedulerFreeBandwidth(
 {
     UsbSchedulerObject_t* sObject = NULL;
     UsbSchedulerPool_t*   sPool   = NULL;
-    OsStatus_t            Result  = OsSuccess;
+    OsStatus_t            Result  = OsOK;
     size_t                i, j;
 
     // Validate element and lookup pool
     Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
-    assert(Result == OsSuccess);
+    assert(Result == OsOK);
     sObject = USB_ELEMENT_OBJECT(sPool, Element);
 
     // Iterate the requested period and clean up
@@ -613,11 +613,11 @@ UsbSchedulerFreeElement(
 {
     UsbSchedulerObject_t* sObject = NULL;
     UsbSchedulerPool_t*   sPool   = NULL;
-    OsStatus_t            Result  = OsSuccess;
+    OsStatus_t            Result  = OsOK;
     
     // Validate element and lookup pool
     Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
-    assert(Result == OsSuccess);
+    assert(Result == OsOK);
     sObject = USB_ELEMENT_OBJECT(sPool, Element);
 
     // Should we free bandwidth?

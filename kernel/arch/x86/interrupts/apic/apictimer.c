@@ -101,7 +101,7 @@ ApicTimerInitialize(void)
 {
     TRACE("ApicTimerInitialize()");
 
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsOK) {
         WARNING("ApicTimerInitialize lapic timer not supported");
         return;
     }

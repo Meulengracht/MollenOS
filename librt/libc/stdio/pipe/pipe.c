@@ -75,7 +75,7 @@ int pipe(long size, int flags)
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = dma_create(&bufferInfo, &attachment);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return OsStatusToErrno(osStatus);
     }
 

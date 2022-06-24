@@ -89,7 +89,7 @@ streambuffer_create(
     
     streambuffer_construct(stream, capacity, options);
     *stream_out = stream;
-    return OsSuccess;
+    return OsOK;
 }
 
 void

@@ -103,15 +103,20 @@ __FSAPI OsStatus_t
 __FSDECL(FsCreate)(
         _In_      FileSystemBase_t* fileSystemBase,
         _In_      void*             data,
-        _In_      MString_t*        Name,
-        _In_      uint32_t          Owner,
-        _In_      uint32_t          Flags,
-        _In_      uint32_t          Permissions);
+        _In_      MString_t*        name,
+        _In_      uint32_t          owner,
+        _In_      uint32_t          flags,
+        _In_      uint32_t          permissions);
 
 __FSAPI OsStatus_t
 __FSDECL(FsClose)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ void*             data);
+
+__FSAPI OsStatus_t
+__FSDECL(FsUnlink)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ MString_t*        path);
 
 __FSAPI OsStatus_t
 __FSDECL(FsRead)(

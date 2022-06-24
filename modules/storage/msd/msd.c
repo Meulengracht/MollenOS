@@ -192,30 +192,30 @@ MsdDeviceCreate(
           g_deviceProtocolNames[msdDevice->Protocol]);
 
     // Initialize the kind of profile we discovered
-    if (MsdDeviceInitialize(msdDevice) != OsSuccess) {
+    if (MsdDeviceInitialize(msdDevice) != OsOK) {
         ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;
     }
 
     // Allocate reusable buffers
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
-        (void**)&msdDevice->CommandBlock) != OsSuccess) {
+        (void**)&msdDevice->CommandBlock) != OsOK) {
         ERROR("Failed to allocate reusable buffer (command-block)");
         goto Error;
     }
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
-        (void**)&msdDevice->StatusBlock) != OsSuccess) {
+        (void**)&msdDevice->StatusBlock) != OsOK) {
         ERROR("Failed to allocate reusable buffer (status-block)");
         goto Error;
     }
 
-    if (MsdDeviceStart(msdDevice) != OsSuccess) {
+    if (MsdDeviceStart(msdDevice) != OsOK) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
 
     // Wait for the disk service to finish loading
-    if (WaitForFileService(1000) != OsSuccess) {
+    if (WaitForFileService(1000) != OsOK) {
         ERROR("[msd] disk ready but storage service did not start");
         // TODO: what do
         return msdDevice;
@@ -251,5 +251,5 @@ MsdDeviceDestroy(
 
     // Free data allocated
     free(Device);
-    return OsSuccess;
+    return OsOK;
 }

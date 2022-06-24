@@ -106,7 +106,7 @@ SystemMemoryFree(
         _In_ uintptr_t*      pages)
 {
 
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -116,7 +116,7 @@ SystemMemoryContainsAddress(
 {
     if (address >= systemMemory->PhysicalBase &&
         address < (systemMemory->PhysicalBase + systemMemory->Size)) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }

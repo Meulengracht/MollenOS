@@ -105,7 +105,7 @@ SignalSend(
     
     if (!target) {
         ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     if (Signal < 0 || Signal >= NUMSIGNALS) {
@@ -127,7 +127,7 @@ SignalSend(
     targetCore = SchedulerObjectGetAffinity(target->SchedulerObject);
     if (targetCore == ArchGetProcessorCoreId()) {
         ExecuteSignalOnCoreFunction(target);
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return TxuMessageSend(targetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, target, 1);

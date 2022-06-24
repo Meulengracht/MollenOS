@@ -85,7 +85,7 @@ HandleSetsInitialize(void)
         return OsOutOfMemory;
     }
     IrqSpinlockConstruct(&g_handleSetsLock);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -146,7 +146,7 @@ ControlHandleSet(
     TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
 
     if (!set) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (operation == IOSET_ADD) {
@@ -165,18 +165,18 @@ ControlHandleSet(
         
         leaf = rb_tree_lookup(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
         
         setElement                = leaf->value;
         setElement->Configuration = event->events;
         setElement->Context       = event->data;
-        osStatus                  = OsSuccess;
+        osStatus                  = OsOK;
     }
     else if (operation == IOSET_DEL) {
         rb_leaf_t* leaf = rb_tree_remove(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
         
         setElement = leaf->value;
@@ -205,7 +205,7 @@ WaitForHandleSet(
     TRACE("WaitForHandleSet(%u, %i, %i, %" PRIuIN ")", handle, maxEvents, pollEvents, timeout);
 
     if (!set) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // If there are no queued events, but there were pollEvents, let the user
@@ -213,13 +213,13 @@ WaitForHandleSet(
     numberOfEvents = atomic_exchange(&set->events_pending, 0);
     if (!numberOfEvents && pollEvents > 0) {
         *numEventsOut = pollEvents;
-        return OsSuccess;
+        return OsOK;
     }
     
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
         OsStatus_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             return osStatus;
         }
         numberOfEvents = atomic_exchange(&set->events_pending, 0);
@@ -259,7 +259,7 @@ WaitForHandleSet(
         k++;
     }
     *numEventsOut = k;
-    return OsSuccess;
+    return OsOK;
 }
 
 static int
@@ -300,11 +300,11 @@ MarkHandle(
     IrqSpinlockRelease(&g_handleSetsLock);
 
     if (!element) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_enumerate(&element->sets, MarkHandleCallback, (void*)(uintptr_t)flags);
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -329,7 +329,7 @@ DestroySetElement(
     // If we have an event queued up, we should now remove it
     list_remove(&setElement->set->events, &setElement->event_header);
     kfree(setElement);
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -377,13 +377,13 @@ AddHandleToSet(
     
     // Register the target handle in the current set, so we can clean up again
     osStatus = rb_tree_append(&set->handles, &setElement->handle_header);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AddHandleToSet rb_tree_append failed with %u", osStatus);
         list_remove(&element->sets, &setElement->set_header);
         kfree(setElement);
         return osStatus;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static uint64_t handleset_hash(const void* element)

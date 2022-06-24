@@ -48,13 +48,13 @@ ScSystemDebug(
     else {
         LogAppendMessage(LOG_ERROR, message);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t ScEndBootSequence(void) {
     TRACE("Ending console session");
     LogSetRenderMode(0);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -71,7 +71,7 @@ ScSystemQuery(
     Descriptor->PageSizeBytes = GetMemorySpacePageSize();
     Descriptor->PagesTotal = maxBlocks;
     Descriptor->PagesUsed  = maxBlocks - freeBlocks;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -82,11 +82,11 @@ ScFlushHardwareCache(
 {
     if (Cache == CACHE_INSTRUCTION) {
         CpuFlushInstructionCache(Start, Length);
-        return OsSuccess;
+        return OsOK;
     }
     else if (Cache == CACHE_MEMORY) {
         CpuInvalidateMemoryCache(Start, Length);
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }
@@ -123,7 +123,7 @@ ScMapBootFramebuffer(
             MAPPING_VIRTUAL_PROCESS
     );
 
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *bufferOut = (void*)fbVirtual;
     }
     return osStatus;
@@ -146,7 +146,7 @@ ScMapRamdisk(
             MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
             MAPPING_VIRTUAL_PROCESS
     );
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *bufferOut = (void*)mapping;
         *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }

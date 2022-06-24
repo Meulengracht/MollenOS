@@ -176,7 +176,7 @@ tls_destroy(
         __destroy_env_block((char**)tls->env_block);
         tls->env_block = NULL;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 thread_storage_t*
@@ -454,7 +454,7 @@ tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
 
     // Cleanup all stored tls-keys by this thread
     spinlock_acquire(&g_tlsLock);
-    while (CollectionRemoveByKey(&g_tls.Tls, Key) == OsSuccess);
+    while (CollectionRemoveByKey(&g_tls.Tls, Key) == OsOK);
     spinlock_release(&g_tlsLock);
     __callatexit(&g_tls.TlsAtExit, thr, DsoHandle, ExitCode);
 }

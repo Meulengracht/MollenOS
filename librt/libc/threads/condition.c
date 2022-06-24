@@ -66,7 +66,7 @@ cnd_signal(
     parameters._val0    = 1;
     parameters._flags   = FUTEX_WAKE_PRIVATE;
 	status = Syscall_FutexWake(&parameters);
-	if (status != OsSuccess && status != OsDoesNotExist) {
+	if (status != OsOK && status != OsNotExists) {
 	    return thrd_error;
 	}
     return thrd_success;
@@ -110,7 +110,7 @@ cnd_wait(
     
     status = Syscall_FutexWait(&parameters);
     mtx_lock(mutex);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return thrd_error;
     }
     return thrd_success;
@@ -156,7 +156,7 @@ cnd_timedwait(
 	if (status  == OsTimeout) {
 		return thrd_timedout;
 	}
-	else if (status != OsSuccess) {
+	else if (status != OsOK) {
 	    return thrd_error;
 	}
 	return thrd_success;

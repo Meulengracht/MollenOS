@@ -30,9 +30,9 @@ static OsStatus_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
     usched_mtx_unlock(&node->HandlesLock);
 
     if (handle == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
@@ -41,7 +41,7 @@ OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
     OsStatus_t      osStatus;
 
     osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &node);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -51,14 +51,14 @@ OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
     // synchronization.
     osStatus = handle_destroy(request->parameters.close.fileHandle);
     if (osStatus == OsIncomplete) {
-        return OsSuccess;
-    } else if (osStatus != OsSuccess) {
+        return OsOK;
+    } else if (osStatus != OsOK) {
         return osStatus;
     }
 
     // Ok last reference was destroyed
     osStatus = VFSNodeHandleRemove(request->parameters.close.fileHandle);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 

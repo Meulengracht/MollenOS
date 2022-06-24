@@ -136,7 +136,7 @@ HpetIsEmulatingLegacyController(void)
         size_t hpetConfig;
         HP_READ_32(HPET_REGISTER_CONFIG, &hpetConfig);
         if (hpetConfig & HPET_CONFIG_LEGACY) {
-            return OsSuccess;
+            return OsOK;
         }     
     }
     return OsNotSupported;    
@@ -267,7 +267,7 @@ __InitializeComparator(
     // Process timer configuration and disable it for now
     configuration &= ~(HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_POLARITY | HPET_TIMER_CONFIG_FSBMODE);
     HP_WRITE_32(HPET_TIMER_CONFIG(index), configuration);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -395,7 +395,7 @@ HpetComparatorStart(
         __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), delta);
     }
     __StartHpet();
-    return OsSuccess;
+    return OsOK;
 }
 
 ACPI_TABLE_HPET*
@@ -442,7 +442,7 @@ HpetInitialize(void)
             MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HpetInitialize failed to map address for hpet.");
         return;
     }
@@ -522,7 +522,7 @@ HpetInitialize(void)
         UUID_INVALID,
         &g_hpet
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("HpetInitialize failed to register platform timer");
     }
 }

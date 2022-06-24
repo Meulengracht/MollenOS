@@ -289,7 +289,7 @@ MfsSetBucketLink(
         _In_ int               updateLength);
 
 /* MfsSwitchToNextBucketLink
- * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsDoesNotExist
+ * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsNotExists
  * when end-of-chain. */
 extern OsStatus_t
 MfsSwitchToNextBucketLink(
@@ -343,7 +343,7 @@ MfsUpdateRecord(
 
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
- * directories. File is only allocated and set if the function returns OsSuccess */
+ * directories. File is only allocated and set if the function returns OsOK */
 extern OsStatus_t
 MfsLocateRecord(
         _In_ FileSystemBase_t*     fileSystemBase,

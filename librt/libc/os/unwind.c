@@ -50,7 +50,7 @@ UnwindGetSection(
     int      ModuleCount;
     
     if (__crt_is_phoenix()) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     ProcessGetLibraryHandles(ModuleList, &ModuleCount);
@@ -97,8 +97,8 @@ UnwindGetSection(
             }
             
             if (foundObj && foundHdr)
-                return OsSuccess;
+                return OsOK;
         }
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }

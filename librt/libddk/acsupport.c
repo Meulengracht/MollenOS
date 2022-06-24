@@ -42,7 +42,7 @@ AcpiQueryTable(
     OsStatus_t         osStatus;
 
     osStatus = Syscall_AcpiGetHeader(signature, &header);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -51,7 +51,7 @@ AcpiQueryTable(
         return OsOutOfMemory;
     }
     osStatus = Syscall_AcpiGetTable(signature, table);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(table);
         return osStatus;
     }

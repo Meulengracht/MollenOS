@@ -116,13 +116,13 @@ VfsFileSystemCacheGet(
 
         // Let the module do the rest
         status = fileSystem->module->OpenEntry(&fileSystem->base, subPath, &entry);
-        if (status == OsDoesNotExist && (options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
+        if (status == OsNotExists && (options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
             TRACE("VfsCacheGetFile file was not found, but options are to create 0x%x", options);
             status  = fileSystem->module->CreatePath(&fileSystem->base, subPath, options, &entry);
             created = 1;
         }
 
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             WARNING("VfsCacheGetFile %s opening/creation failed with code: %i", MStringRaw(subPath), status);
             return status;
         }
@@ -142,7 +142,7 @@ VfsFileSystemCacheGet(
     }
 
     *entryOut = (cacheEntry ? cacheEntry->entry : NULL);
-    return OsSuccess;
+    return OsOK;
 }
 
 void

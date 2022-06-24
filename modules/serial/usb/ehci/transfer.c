@@ -71,7 +71,7 @@ HciTransactionFinalize(
         Transfer->Flags |= TransferFlagCleanup;
         EhciRingDoorbell((EhciController_t*)Controller);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -99,5 +99,5 @@ HciDequeueTransfer(
             USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
     }
     
-    return OsSuccess;
+    return OsOK;
 }

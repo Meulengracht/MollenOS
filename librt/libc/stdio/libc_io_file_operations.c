@@ -55,7 +55,7 @@ perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction,
         
         TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
             bytesTransferred, status);
-        if (status != OsSuccess || bytesTransferred == 0) {
+        if (status != OsOK || bytesTransferred == 0) {
             break;
         }
 
@@ -89,7 +89,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
         if ((uintptr_t)buffer & 0x3) {
             size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
             status = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 return status;
             }
             adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
@@ -103,7 +103,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
         info.type     = DMA_TYPE_DRIVER_32;
         
         status = dma_export(adjustedPointer, &info, &attachment);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             return status;
         }
         
@@ -120,7 +120,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     
     status = perform_transfer(handle->object.handle, builtinHandle, 0,
         builtinLength, 0, length, &bytesRead);
-    if (status == OsSuccess && bytesRead > 0) {
+    if (status == OsOK && bytesRead > 0) {
         memcpy(buffer, tls_current()->transfer_buffer.buffer, bytesRead);
     }
     
@@ -150,7 +150,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         if ((uintptr_t)buffer & 0x3) {
             size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
             status = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 return status;
             }
             adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
@@ -164,7 +164,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         info.type     = DMA_TYPE_DRIVER_32;
         
         status = dma_export(adjustedPointer, &info, &attachment);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             return status;
         }
         
@@ -199,7 +199,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
             sys_file_get_position(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
             sys_file_get_position_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 ERROR("failed to get file position");
                 return status;
             }
@@ -215,7 +215,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
             sys_file_get_size(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
             sys_file_get_size_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 ERROR("failed to get file size");
                 return status;
             }
@@ -229,7 +229,7 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
     // no reason to invoke the service
     if (origin == SEEK_CUR && offset == 0) {
         *position_out = seekFinal.QuadPart;
-        return OsSuccess;
+        return OsOK;
     }
 
     // Now perform the seek
@@ -237,9 +237,9 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
                   handle->object.handle, seekFinal.u.LowPart, seekFinal.u.HighPart);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_seek_result(GetGrachtClient(), &msg.base, &status);
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         *position_out = seekFinal.QuadPart;
-        return OsSuccess;
+        return OsOK;
     }
     TRACE("stdio::fseek::fail %u", status);
     *position_out = (off_t)-1;
@@ -254,7 +254,7 @@ OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-	OsStatus_t               status = OsSuccess;
+	OsStatus_t               status = OsOK;
 	
 	if (options & STDIO_CLOSE_FULL) {
         sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
@@ -266,7 +266,7 @@ OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
 
 OsStatus_t stdio_file_op_inherit(stdio_handle_t* handle)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_file_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)

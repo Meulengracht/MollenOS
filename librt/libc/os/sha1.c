@@ -129,7 +129,7 @@ Sha1Init(
 	Context->state[4] = 0xC3D2E1F0;
 	Context->count[0] = Context->count[1] = 0;
 
-	return OsSuccess;
+	return OsOK;
 }
 
 /* Sha1Add
@@ -159,7 +159,7 @@ Sha1Add(
 	else
 		i = 0;
 	memcpy(&Context->buffer[j], &Data[i], Length - i);
-	return OsSuccess;
+	return OsOK;
 }
 
 /* Sha1Finalize
@@ -200,7 +200,7 @@ Sha1Finalize(
 		Sha1Transform(Context->handsoff, Context->state, Context->buffer);
 	}
 
-	return OsSuccess;
+	return OsOK;
 }
 
 /* Sha1DigestToHex
@@ -228,5 +228,5 @@ Sha1DigestToHex(
 
 	/* Null-terminate */
 	*(c - 1) = '\0';
-	return OsSuccess;
+	return OsOK;
 }

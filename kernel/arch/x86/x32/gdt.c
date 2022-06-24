@@ -141,7 +141,7 @@ TssInitialize(
                     0x00
             )
     );
-    return OsSuccess;
+    return OsOK;
 }
 
 void

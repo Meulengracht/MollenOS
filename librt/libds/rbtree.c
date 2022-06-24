@@ -256,7 +256,7 @@ rb_tree_append(
         fixup_tree(tree, leaf);
     }
     TREE_UNLOCK;
-    return OsSuccess;
+    return OsOK;
 }
 
 static rb_leaf_t*

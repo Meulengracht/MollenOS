@@ -117,7 +117,7 @@ OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
     AhciManagerDestroy();
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t OnEvent(struct ioset_event* event)
@@ -132,9 +132,9 @@ OsStatus_t OnEvent(struct ioset_event* event)
         }
 
         OnInterrupt(controller);
-        return OsSuccess;
+        return OsOK;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 OsStatus_t
@@ -147,7 +147,7 @@ OnRegister(
     }
 
     list_append(&controllers, &controller->header);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message,
@@ -162,7 +162,7 @@ OnUnregister(
 {
     AhciController_t* controller = list_find_value(&controllers, (void*)(uintptr_t)device->Id);
     if (controller == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     list_remove(&controllers, &controller->header);

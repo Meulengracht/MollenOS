@@ -84,10 +84,10 @@ ProcessInterrupt:
     // HC Fatal Error
     // Clear all queued, reset controller
     if (interruptStatus & EHCI_STATUS_HOSTERROR) {
-        if (EhciQueueReset(controller) != OsSuccess) {
+        if (EhciQueueReset(controller) != OsOK) {
             ERROR("EHCI-Failure: Failed to reset queue after fatal error");
         }
-        if (EhciRestart(controller) != OsSuccess) {
+        if (EhciRestart(controller) != OsOK) {
             ERROR("EHCI-Failure: Failed to reset controller after fatal error");
         }
     }

@@ -83,7 +83,7 @@ io_buffer_flush(
         file->_ptr = file->_base;
         file->_cnt = 0;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 int
@@ -117,9 +117,9 @@ _lock_stream(
     }
 
     if (!(file->_flag & _IOSTRG)) {
-        return iolock(file->_fd) == 0 ? OsSuccess : OsBusy;
+        return iolock(file->_fd) == 0 ? OsOK : OsBusy;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -132,7 +132,7 @@ _unlock_stream(
     }
 
     if (!(file->_flag & _IOSTRG)) {
-        return iounlock(file->_fd) == 0 ? OsSuccess : OsError;
+        return iounlock(file->_fd) == 0 ? OsOK : OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }

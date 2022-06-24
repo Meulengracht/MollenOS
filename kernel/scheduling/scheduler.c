@@ -215,12 +215,12 @@ __RemoveFromQueue(
             
             // Reset link
             object->Link = NULL;
-            return OsSuccess;
+            return OsOK;
         }
         previous = current;
         current  = current->Link;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 static void
@@ -276,7 +276,7 @@ __QueueObjectImmediately(
         if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {
             ArchThreadYield();
         }
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return TxuMessageSend(object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, object, 1);
@@ -391,13 +391,13 @@ SchedulerSleep(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
         SystemTimerStall(nanoseconds);
-        return OsSuccess;
+        return OsOK;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
     // we would a minimum value of 1
     object->TimeLeft        = MAX(nanoseconds, 1);
-    object->TimeoutReason   = OsSuccess;
+    object->TimeoutReason   = OsOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = NULL;
     
@@ -414,7 +414,7 @@ SchedulerSleep(
         *interruptedAt = object->InterruptedAt;
         return OsInterrupted;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -429,7 +429,7 @@ SchedulerBlock(
     assert(object != NULL);
 
     object->TimeLeft        = timeout;
-    object->TimeoutReason   = OsSuccess;
+    object->TimeoutReason   = OsOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = blockQueue;
 
@@ -473,7 +473,7 @@ OsStatus_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* object)
 {
-    OsStatus_t osStatus = OsSuccess;
+    OsStatus_t osStatus = OsOK;
     int        resultState;
     
     TRACE("SchedulerQueueObject()");

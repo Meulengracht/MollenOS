@@ -200,7 +200,7 @@ static int __get_startup_info(void)
             &osStatus,
             &g_processId
     );
-    assert(osStatus == OsSuccess);
+    assert(osStatus == OsOK);
 
     status = __parse_startup_info(mapping.buffer);
     dma_detach(&mapping);

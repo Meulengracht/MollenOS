@@ -148,7 +148,7 @@ static OsStatus_t __GetDeviceConfiguration(
     }
 
     UsbFreeConfigDescriptor(&configuration);
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t __GetSuperSpeedHubDescriptor(
@@ -171,7 +171,7 @@ static OsStatus_t __GetSuperSpeedHubDescriptor(
     hubDevice->PortCount = descriptor.NumberOfPorts;
     hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t __GetHubDescriptor(
@@ -198,7 +198,7 @@ static OsStatus_t __GetHubDescriptor(
     hubDevice->PortCount = descriptor.NumberOfPorts;
     hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
-    return OsSuccess;
+    return OsOK;
 }
 
 static HubDevice_t* __CreateHubDevice(
@@ -230,7 +230,7 @@ static void __EnumeratePorts(
     // Power on ports
     for (i = 1; i <= hubDevice->PortCount; i++) {
         OsStatus_t osStatus = HubPowerOnPort(hubDevice, i);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__EnumeratePorts failed to power on port %u", i);
         }
 
@@ -249,7 +249,7 @@ static void __EnumeratePorts(
         OsStatus_t   osStatus;
 
         osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__EnumeratePorts failed to get status for port %u", i);
             continue;
         }
@@ -282,12 +282,12 @@ HubDeviceCreate(
     }
 
     osStatus = __GetDeviceConfiguration(hubDevice);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto error_exit;
     }
 
     osStatus = __GetHubDescriptor(hubDevice);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto error_exit;
     }
 
@@ -299,13 +299,13 @@ HubDeviceCreate(
 
     // Reset interrupt ep
     interruptEpAddress = USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address);
-    if (UsbEndpointReset(&hubDevice->Base.DeviceContext, interruptEpAddress) != OsSuccess) {
+    if (UsbEndpointReset(&hubDevice->Base.DeviceContext, interruptEpAddress) != OsOK) {
         ERROR("HubDeviceCreate failed to reset endpoint (interrupt)");
         goto error_exit;
     }
 
     // Allocate a ringbuffer for use
-    if (dma_pool_allocate(UsbRetrievePool(), 0x100, (void**)&hubDevice->Buffer) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), 0x100, (void**)&hubDevice->Buffer) != OsOK) {
         ERROR("HubDeviceCreate failed to allocate reusable buffer (interrupt-buffer)");
         goto error_exit;
     }
@@ -315,7 +315,7 @@ HubDeviceCreate(
 
     // Register us with the usb stack before enumerating ports
     osStatus = UsbHubRegister(&hubDevice->Base, (int)hubDevice->PortCount);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HubDeviceCreate failed to register hub with usb stack");
         goto error_exit;
     }
@@ -387,14 +387,14 @@ static void __HandleHubOverCurrentEvent(
     while (1) {
         HubStatus_t hubStatus;
         OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__HandleHubOverCurrentEvent failed to get hub status");
             return;
         }
 
         if (!(hubStatus.Status & HUB_STATUS_OVERCURRENT_ACTIVE)) {
             osStatus = HubClearChange(hubDevice, HUB_CHANGE_OVERCURRENT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("__HandleHubOverCurrentEvent failed to clear overcurrent change");
             }
             break;
@@ -410,7 +410,7 @@ static void __EnumerateSinglePort(
 {
     PortStatus_t portStatus;
     OsStatus_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__EnumerateSinglePort failed to power on port %u", portIndex);
         return;
     }
@@ -419,7 +419,7 @@ static void __EnumerateSinglePort(
     thrd_sleepex(hubDevice->PowerOnDelay);
 
     osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__EnumerateSinglePort failed to get status for port %u", portIndex);
         return;
     }
@@ -444,14 +444,14 @@ static void __HandlePortOverCurrentEvent(
     while (1) {
         PortStatus_t portStatus;
         OsStatus_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__HandlePortOverCurrentEvent failed to get hub status");
             return;
         }
 
         if (!(portStatus.Status & HUB_STATUS_OVERCURRENT_ACTIVE)) {
             osStatus = HubPortClearChange(hubDevice, portIndex, HUB_PORT_CHANGE_OVERCURRENT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("__HandlePortOverCurrentEvent failed to clear overcurrent change");
             }
             break;
@@ -474,7 +474,7 @@ HubInterrupt(
     if (changeMap[0] & 0x1) {
         HubStatus_t hubStatus;
         OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("HubInterrupt failed to get hub status");
         }
         else {
@@ -494,7 +494,7 @@ HubInterrupt(
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
         if (changeMap[i / 8] & (i << (i % 8))) {
             OsStatus_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("HubInterrupt failed to get port %u status", i);
                 continue;
             }

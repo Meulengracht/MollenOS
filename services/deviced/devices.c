@@ -88,7 +88,7 @@ DmDevicesRegister(
           driverHandle, deviceId);
 
     if (!device) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // store the driver loaded
@@ -97,7 +97,7 @@ DmDevicesRegister(
     ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)device->device,
                                device->device->Length);
     ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, device->device->Id);
-    return OsSuccess;
+    return OsOK;
 }
 
 void DmHandleDeviceCreate(
@@ -282,5 +282,5 @@ DmDeviceCreate(
         DmDiscoverFindDriver(deviceCopy->Id, &driverIdentification);
     }
 #endif
-    return OsSuccess;
+    return OsOK;
 }

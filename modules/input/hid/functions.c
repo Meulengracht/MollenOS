@@ -48,7 +48,7 @@ static OsStatus_t __FillHidDescriptor(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -74,7 +74,7 @@ static OsStatus_t __FillReportDescriptor(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -91,7 +91,7 @@ HidGetProtocol(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -108,7 +108,7 @@ HidSetProtocol(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -126,7 +126,7 @@ HidSetIdle(
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                          HID_SET_IDLE, reportId, duration,
                          (uint16_t)hidDevice->InterfaceId, 0, NULL) == TransferFinished) {
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return OsNotSupported;
@@ -144,7 +144,7 @@ HidSetupGeneric(
     TRACE("HidSetupGeneric(hidDevice=0x%" PRIxIN ")", hidDevice);
 
     osStatus = __FillHidDescriptor(hidDevice, &hidDescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HidSetupGeneric failed to retrieve the default hid descriptor");
         return osStatus;
     }
@@ -153,14 +153,14 @@ HidSetupGeneric(
     if (hidDevice->CurrentProtocol == HID_DEVICE_PROTOCOL_BOOT) {
         uint8_t currentProtocol;
         osStatus = HidGetProtocol(hidDevice, &currentProtocol);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("HidSetupGeneric failed to get the current hid device protocol");
             return osStatus;
         }
 
         if (currentProtocol != HID_DEVICE_PROTOCOL_REPORT) {
             osStatus = HidSetProtocol(hidDevice, HID_DEVICE_PROTOCOL_REPORT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("HidSetupGeneric failed to set the hid device into report protocol");
                 return osStatus;
             }
@@ -172,7 +172,7 @@ HidSetupGeneric(
     // We might have to set Duration to 500 ms for keyboards, but has to be tested
     // time is calculated in 4ms resolution, so 500ms = Duration = 125
     osStatus = HidSetIdle(hidDevice, 0, 0);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("HidSetupGeneric SetIdle failed, it might be unsupported by the HID");
     }
 
@@ -183,7 +183,7 @@ HidSetupGeneric(
 
     osStatus = __FillReportDescriptor(hidDevice, hidDescriptor.ClassDescriptorType,
                                       hidDescriptor.ClassDescriptorLength, reportDescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HidSetupGeneric failed to retrieve the report descriptor");
         free(reportDescriptor);
         return osStatus;
@@ -193,5 +193,5 @@ HidSetupGeneric(
     free(reportDescriptor);
 
     hidDevice->ReportLength = reportLength;
-    return OsSuccess;
+    return OsOK;
 }

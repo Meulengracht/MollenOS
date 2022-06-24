@@ -49,7 +49,7 @@ VfsStorageDetectFileSystem(
 
 	// Make sure the MBR is loaded
 	status = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
-	if (status != OsSuccess) {
+	if (status != OsOK) {
 		return status;
 	}
 
@@ -114,13 +114,13 @@ VfsStorageParse(
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     osStatus = dma_create(&dmaInfo, &dmaAttachment);
-	if (osStatus != OsSuccess) {
+	if (osStatus != OsOK) {
 		return osStatus;
 	}
 
     // Always check for GPT table first
     osStatus = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
-    if (osStatus == OsDoesNotExist) {
+    if (osStatus == OsNotExists) {
         osStatus = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 

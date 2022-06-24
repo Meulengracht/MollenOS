@@ -35,7 +35,7 @@ OsStatus_t
 OnUnload(void)
 {
     PmBootstrapCleanup();
-    return OsSuccess;
+    return OsOK;
 }
 
 void GetServiceAddress(struct ipmsg_addr* address)
@@ -58,5 +58,5 @@ OnLoad(void)
     // Queue up a task that bootstraps the system, it must run in scheduler
     // context as it uses scheduler primitives.
     usched_task_queue((usched_task_fn)PmBootstrap, NULL);
-    return OsSuccess;
+    return OsOK;
 }

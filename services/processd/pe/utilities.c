@@ -65,7 +65,7 @@ PeResolveLibrary(
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
         Status = PeLoadImage(ExportParent->Owner, ExportParent, LibraryName, &Exports);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             dserror("Library %s could not be loaded %u", MStringRaw(LibraryName), Status);
         }
     }
@@ -122,7 +122,7 @@ PeGetModuleHandles(
     }
     
     *moduleCount = index;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -158,5 +158,5 @@ PeGetModuleEntryPoints(
     }
     
     *moduleCount = index;
-    return OsSuccess;
+    return OsOK;
 }

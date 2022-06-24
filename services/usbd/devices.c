@@ -143,7 +143,7 @@ UsbDeviceLoadDrivers(
     if (device->DeviceId == UUID_INVALID) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static UsbTransferStatus_t __GetDeviceDescriptor(
@@ -238,7 +238,7 @@ UsbCoreDevicesCreate(
     usbPort->Device = device;
 
     // Initialize the port by resetting it
-    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OsSuccess) {
+    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OsOK) {
         ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
               usbHub->PortAddress, usbPort->Address, usbHub->DeviceId);
         goto device_error;
@@ -272,7 +272,7 @@ UsbCoreDevicesCreate(
 	thrd_sleepex(100);
 
     // Allocate a device-address
-    if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OsSuccess) {
+    if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OsOK) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
               usbController->Device, usbHub->PortAddress, usbPort->Address);
         goto device_error;
@@ -347,5 +347,5 @@ UsbCoreDevicesDestroy(
 
     free(device);
     port->Device = NULL;
-    return OsSuccess;
+    return OsOK;
 }

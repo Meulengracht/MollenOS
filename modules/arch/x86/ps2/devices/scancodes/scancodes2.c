@@ -83,5 +83,5 @@ ScancodeSet2ToVKey(
     else {
         keyState->keycode = g_scancodeSet2Table[scancode];
     }
-    return OsSuccess;
+    return OsOK;
 }

@@ -45,7 +45,7 @@ FsReadFromDirectory(
         _Out_ size_t*                unitsRead)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t       osStatus    = OsSuccess;
+    OsStatus_t       osStatus    = OsOK;
     size_t           bytesToRead = unitCount;
     uint64_t         position    = handle->Base.Position;
     struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
@@ -81,7 +81,7 @@ FsReadFromDirectory(
         if (bucketSize > bucketOffset) {
             // The code here is simple because we assume we can fit entire bucket at any time
             if (MfsReadSectors(fileSystemBase, mfs->TransferBuffer.handle,
-                               0, sector, sectorCount, &sectorsRead) != OsSuccess) {
+                               0, sector, sectorCount, &sectorsRead) != OsOK) {
                 ERROR("Failed to read sector");
                 osStatus = OsDeviceError;
                 break;
@@ -107,9 +107,9 @@ FsReadFromDirectory(
                 LODWORD(handle->BucketByteBoundary + bucketSize));
             osStatus = MfsSwitchToNextBucketLink(fileSystemBase, handle,
                                                  mfs->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize);
-            if (osStatus != OsSuccess) {
-                if (osStatus == OsDoesNotExist) {
-                    osStatus = OsSuccess;
+            if (osStatus != OsOK) {
+                if (osStatus == OsNotExists) {
+                    osStatus = OsOK;
                 }
                 break;
             }
@@ -188,7 +188,7 @@ FsSeekInDirectory(
                 }
 
                 // Get link
-                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsSuccess) {
+                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -201,7 +201,7 @@ FsSeekInDirectory(
                 BucketPtr = Link.Link;
 
                 // Get length of link
-                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsSuccess) {
+                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -219,5 +219,5 @@ FsSeekInDirectory(
     
     // Update the new position since everything went ok
     handle->Base.Position = actualPosition;
-    return OsSuccess;
+    return OsOK;
 }

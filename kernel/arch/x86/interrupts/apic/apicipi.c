@@ -44,7 +44,7 @@ ApicWaitForIdle(void)
 {
     int Error = 0;
     WaitForConditionWithFault(Error, (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0, 200, 1);
-	return (Error == 0) ? OsSuccess : OsError;
+	return (Error == 0) ? OsOK : OsError;
 }
 
 void
@@ -107,7 +107,7 @@ ApicSendInterrupt(
     // busy we don't want to clear it as we already a send pending, just queue up interrupt
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsSuccess) {
+    if (Status == OsOK) {
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
         Status = ApicWaitForIdle();
@@ -137,7 +137,7 @@ ApicPerformIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsSuccess) {        
+    if (Status == OsOK) {
         // Always write upper first, irq is sent when low is written
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
@@ -167,7 +167,7 @@ ApicPerformSIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsSuccess) {        
+    if (Status == OsOK) {
         // Always write upper first, irq is sent when low is written
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);

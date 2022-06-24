@@ -111,7 +111,7 @@ MsdGetMaximumLunCount(
     else {
         Device->Descriptor.LUNCount = 0;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t 
@@ -179,7 +179,7 @@ MsdDevicePrepare(
 
     // Allocate memory buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiSense_t), 
-        (void**)&SenseBlock) != OsSuccess) {
+        (void**)&SenseBlock) != OsOK) {
         ERROR("Failed to allocate buffer (sense)");
         return OsError;
     }
@@ -222,7 +222,7 @@ MsdDevicePrepare(
 
     // Mark ready and return
     Device->IsReady = 1;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t 
@@ -234,7 +234,7 @@ MsdReadCapabilities(
 
     // Allocate buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
-        (void**)&CapabilitesPointer) != OsSuccess) {
+        (void**)&CapabilitesPointer) != OsOK) {
         ERROR("Failed to allocate buffer (caps)");
         return OsError;
     }
@@ -268,7 +268,7 @@ MsdReadCapabilities(
             Descriptor->SectorSize);
         Device->IsExtended = 1;
         dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
-        return OsSuccess;
+        return OsOK;
     }
 
     // Capabilities are returned in reverse byte-order
@@ -277,7 +277,7 @@ MsdReadCapabilities(
     TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
         &Descriptor->SectorCount, Descriptor->SectorCount, Descriptor->SectorSize);
     dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -293,7 +293,7 @@ MsdDeviceStart(
     i = (msdDevice->Protocol != ProtocolCB && msdDevice->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsOK) {
         ERROR("Failed to allocate buffer (inquiry)");
         return OsError;
     }
@@ -415,7 +415,7 @@ MsdTransferSectors(
             *sectorsTransferred -= SectorsLeft;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,

@@ -88,7 +88,7 @@ UsbSchedulerChainElement(
     TRACE("Indices of existing element is (0x%x:0x%x), indices of new element are now (0x%x:0x%x)",
         RootObject->BreathIndex, RootObject->DepthIndex, Object->BreathIndex, Object->DepthIndex);
 
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -138,7 +138,7 @@ UsbSchedulerUnchainElement(
         else                               RootObject->DepthIndex  = sObject->DepthIndex;
         USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = USB_ELEMENT_LINK(sPool, Element, Direction);
         dma_wmb();
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }

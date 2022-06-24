@@ -47,7 +47,7 @@ ScAcpiQueryStatus(
         AcpiDescriptor->BootFlags       = AcpiGbl_FADT.BootFlags;
         AcpiDescriptor->ArmBootFlags    = AcpiGbl_FADT.ArmBootFlags;
         AcpiDescriptor->Version         = ACPI_VERSION_6_0;
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -67,7 +67,7 @@ ScAcpiQueryTableHeader(
     if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -90,7 +90,7 @@ ScAcpiQueryTable(
     }
 
     memcpy(table, header, header->Length);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -142,7 +142,7 @@ ScIoSpaceDestroy(
         return OsInvalidParameters;
     }
     DestroyHandle(ioSpace->Id);
-    return OsSuccess;
+    return OsOK;
 }
 
 UUId_t
@@ -170,7 +170,7 @@ ScGetProcessBaseAddress(
 {
     if (baseAddress != NULL) {
         *baseAddress = GetMachine()->MemoryMap.UserCode.Start;
-        return OsSuccess;
+        return OsOK;
     }
     return OsInvalidParameters;
 }

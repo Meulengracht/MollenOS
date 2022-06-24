@@ -58,7 +58,7 @@ __CreateTssStacks(
         tssDescriptor->InterruptTable[i] = allStacks;
         allStacks -= PAGE_SIZE;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static int
@@ -130,7 +130,7 @@ TssInitialize(
     tssBase  = (uint64_t)tssDescriptor;
     tssLimit = tssBase + sizeof(TssDescriptor_t);
     tssDescriptor->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
-    if (__CreateTssStacks(tssDescriptor) != OsSuccess) {
+    if (__CreateTssStacks(tssDescriptor) != OsOK) {
         kfree(coreBlock->Tss);
         return OsOutOfMemory;
     }
@@ -150,7 +150,7 @@ TssInitialize(
                     0x00
             )
     );
-    return OsSuccess;
+    return OsOK;
 }
 
 void

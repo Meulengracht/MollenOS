@@ -65,14 +65,14 @@ __TryQuickLock(
         if (free == currentThread) {
             assert(__HasFlags(mutex, MUTEX_FLAG_RECURSIVE));
             mutex->referenceCount++;
-            return OsSuccess;
+            return OsOK;
         }
         *ownerOut = free;
         return OsBusy;
     }
 
     mutex->referenceCount = 1;
-    return OsSuccess;
+    return OsOK;
 }
 
 // On multicore systems the lock might be released rather quickly
@@ -87,8 +87,8 @@ static OsStatus_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
         SchedulerObject_t* ownerSchedulerObject = ThreadSchedulerHandle(THREAD_GET(owner));
         if (CpuCoreId(CpuCoreCurrent()) != SchedulerObjectGetAffinity(ownerSchedulerObject)) {
             for (int i = 0; i < MUTEX_SPINS && currentOwner == owner; i++) {
-                if (__TryQuickLock(mutex, &currentOwner) == OsSuccess) {
-                    return OsSuccess;
+                if (__TryQuickLock(mutex, &currentOwner) == OsOK) {
+                    return OsOK;
                 }
             }
         }
@@ -104,16 +104,16 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
     // Disable interrupts and try to acquire the lock or wait for the lock
     // to unlock if its held on another CPU - however we only wait for a brief period
     intStatus = InterruptDisable();
-    if (__TryQuickLock(mutex, &owner) == OsSuccess ||
-        __TrySpinOnOwner(mutex, owner) == OsSuccess) {
+    if (__TryQuickLock(mutex, &owner) == OsOK ||
+        __TrySpinOnOwner(mutex, owner) == OsOK) {
         InterruptRestoreState(intStatus);
-        return OsSuccess;
+        return OsOK;
     }
 
     // After we acquire the lock we want to make sure that we still cant
     // get the lock before adding us to the queue
     spinlock_acquire(&mutex->syncObject);
-    if (__TryQuickLock(mutex, &owner) == OsSuccess) {
+    if (__TryQuickLock(mutex, &owner) == OsOK) {
         goto exit;
     }
 
@@ -139,7 +139,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
         // try acquiring the mutex
         intStatus = InterruptDisable();
         spinlock_acquire(&mutex->syncObject);
-        if (__TryQuickLock(mutex, &owner) == OsSuccess) {
+        if (__TryQuickLock(mutex, &owner) == OsOK) {
             break;
         }
     }
@@ -147,7 +147,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
 exit:
     spinlock_release(&mutex->syncObject);
     InterruptRestoreState(intStatus);
-    return OsSuccess;
+    return OsOK;
 }
 
 void

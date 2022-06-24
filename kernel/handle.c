@@ -79,7 +79,7 @@ InitializeHandles(void)
                         handle_cmp);
     IrqSpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -153,13 +153,13 @@ AcquireHandle(
 {
     struct resource_handle* handle = AcquireHandleInstance(handleId);
     if (!handle) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (resourceOut) {
         *resourceOut = handle->resource;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -182,7 +182,7 @@ RegisterHandlePath(
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
         MStringDestroy(internalPath);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     if (handle->path) {
@@ -203,7 +203,7 @@ RegisterHandlePath(
     handle->path = internalPath;
     IrqSpinlockRelease(&g_handlesLock);
 
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -227,7 +227,7 @@ LookupHandleByPath(
     }
     IrqSpinlockRelease(&g_handlesLock);
     MStringDestroy(internalPath);
-    return mapping != NULL ? OsSuccess : OsDoesNotExist;
+    return mapping != NULL ? OsOK : OsNotExists;
 }
 
 void*
@@ -274,7 +274,7 @@ DestroyHandle(
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // do nothing if there still is active handles
@@ -295,7 +295,7 @@ DestroyHandle(
     IrqSpinlockRelease(&g_handlesLock);
 
     AddHandleToCleanup(resource, dctor, path);
-    return OsSuccess;
+    return OsOK;
 }
 
 _Noreturn static void

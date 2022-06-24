@@ -66,5 +66,5 @@ MpGetLocalApicAddress(
         return OsError;
     }
     *Address = (uintptr_t)MpConfigurationTable.LocalApicAddress;
-    return OsSuccess;
+    return OsOK;
 }

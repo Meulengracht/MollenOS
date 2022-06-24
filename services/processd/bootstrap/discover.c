@@ -113,7 +113,7 @@ __ParseRamdisk(
                     NULL,
                     &handle
             );
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 WARNING("__ParseRamdisk failed to spawn service %s", pathBuffer);
             }
         }
@@ -122,7 +122,7 @@ __ParseRamdisk(
     // close the directory and cleanup
     vafs_directory_close(directoryHandle);
     free(pathBuffer);
-    return OsSuccess;
+    return OsOK;
 }
 
 void PmBootstrap(void)
@@ -134,7 +134,7 @@ void PmBootstrap(void)
 
     // Let's map in the ramdisk and discover various service modules
     osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         TRACE("ProcessBootstrap failed to map ramdisk into address space %u", osStatus);
         return;
     }
@@ -144,7 +144,7 @@ void PmBootstrap(void)
     g_ramdiskSize   = ramdiskSize;
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("ProcessBootstrap failed to parse ramdisk");
         return;
     }
@@ -160,7 +160,7 @@ PmBootstrapCleanup(void)
 
     if (g_ramdiskBuffer && g_ramdiskSize) {
         osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("PmBootstrapCleanup failed to free the ramdisk memory");
         }
     }
@@ -205,7 +205,7 @@ PmBootstrapFindRamdiskFile(
     status = vafs_directory_open_file(directoryHandle, internFilename, &fileHandle);
     if (status) {
         WARNING("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // allocate a buffer for the file, and read the data
@@ -231,5 +231,5 @@ PmBootstrapFindRamdiskFile(
     vafs_file_close(fileHandle);
     vafs_directory_close(directoryHandle);
 
-    return OsSuccess;
+    return OsOK;
 }

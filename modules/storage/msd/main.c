@@ -84,7 +84,7 @@ OnRegister(
     }
 
     list_append(&g_devices, &MsdDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
@@ -108,7 +108,7 @@ OnUnregister(
 void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    OsStatus_t                 status     = OsDoesNotExist;
+    OsStatus_t                 status     = OsNotExists;
     MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
@@ -117,7 +117,7 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t de
             device->Descriptor.SectorCount,
             device->Descriptor.SectorSize);
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsSuccess;
+        status = OsOK;
     }
     
     ctt_storage_stat_response(message, status, &gdescriptor);

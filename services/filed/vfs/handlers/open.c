@@ -96,12 +96,12 @@ static OsStatus_t __OpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t
     }
 
     osStatus = handle_create(&handleId);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto cleanup;
     }
 
     osStatus = VFSNodeHandleAdd(handleId, node);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         handle_destroy(handleId);
         goto cleanup;
     }
@@ -155,12 +155,12 @@ static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, U
 
         // Next is finding this token inside the current VFSNode
         osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus == OsDoesNotExist) {
+        if (osStatus == OsNotExists) {
             // Ok, did not exist, were creation flags passed?
             if (endIndex != MSTRING_NOT_FOUND) {
                 // Not end of path, did not exist
                 MStringDestroy(token);
-                osStatus = OsDoesNotExist;
+                osStatus = OsNotExists;
                 break;
             }
 
@@ -171,12 +171,12 @@ static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, U
                                               request->parameters.open.options,
                                               request->parameters.open.access,
                                               &child);
-                if (osStatus != OsSuccess) {
+                if (osStatus != OsOK) {
                     MStringDestroy(token);
                     break;
                 }
             }
-        } else if (osStatus != OsSuccess) {
+        } else if (osStatus != OsOK) {
             MStringDestroy(token);
             break;
         }
@@ -256,12 +256,12 @@ static OsStatus_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, UUId_t
 
         // Next is finding this token inside the current VFSNode
         osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus == OsDoesNotExist) {
+        if (osStatus == OsNotExists) {
             // Ok, did not exist, were creation flags passed?
             if (endIndex != MSTRING_NOT_FOUND) {
                 // Not end of path, did not exist
                 MStringDestroy(token);
-                osStatus = OsDoesNotExist;
+                osStatus = OsNotExists;
                 break;
             }
 
@@ -272,12 +272,12 @@ static OsStatus_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, UUId_t
                                               request->parameters.open.options,
                                               request->parameters.open.access,
                                               &child);
-                if (osStatus != OsSuccess) {
+                if (osStatus != OsOK) {
                     MStringDestroy(token);
                     break;
                 }
             }
-        } else if (osStatus != OsSuccess) {
+        } else if (osStatus != OsOK) {
             MStringDestroy(token);
             break;
         }

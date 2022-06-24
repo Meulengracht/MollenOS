@@ -26,7 +26,7 @@ void VFSScopeInitialize(void)
     OsStatus_t osStatus;
 
     osStatus = VFSNew(&g_rootScope);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
     }
 }

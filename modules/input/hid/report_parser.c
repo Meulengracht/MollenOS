@@ -592,7 +592,7 @@ HidCollectionDestroy(
 
     // Last step is to free the given collection
     free(reportCollection);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t

@@ -45,7 +45,7 @@ RegisterDevice(
         return UUID_INVALID;
     }
     
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return UUID_INVALID;
     }
     

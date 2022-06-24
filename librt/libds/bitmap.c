@@ -40,7 +40,7 @@ BitmapCreate(
     Data    = (uintptr_t*)dsalloc(Size);
 
     // Construct the bitmap
-    if (BitmapConstruct(Bitmap, Data, Size) != OsSuccess) {
+    if (BitmapConstruct(Bitmap, Data, Size) != OsOK) {
         dsfree((void*)Data);
         dsfree((void*)Bitmap);
         return NULL;
@@ -68,7 +68,7 @@ BitmapConstruct(
     Bitmap->Data        = Data;
     Bitmap->SizeInBytes = Size;
     Bitmap->BitCount    = (Size * 8);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -82,7 +82,7 @@ BitmapDestroy(
         dsfree((void*)Bitmap->Data);
         dsfree((void*)Bitmap);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 int

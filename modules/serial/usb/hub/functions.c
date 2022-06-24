@@ -39,7 +39,7 @@ HubGetStatus(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -57,7 +57,7 @@ HubGetPortStatus(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -75,7 +75,7 @@ HubClearChange(
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -95,7 +95,7 @@ HubPortClearChange(
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -113,7 +113,7 @@ HubPowerOnPort(
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -133,5 +133,5 @@ HubResetPort(
     }
 
     thrd_sleepex(100);
-    return OsSuccess;
+    return OsOK;
 }

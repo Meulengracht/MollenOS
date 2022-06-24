@@ -53,7 +53,7 @@ int write(int fd, const void* buffer, unsigned int length)
 
 	// If we aren't in text mode, raw write the data without any text-processing
     status = handle->ops.write(handle, (char*)buffer, length, &bytesWritten);
-	if (status != OsSuccess) {
+	if (status != OsOK) {
 	    res = OsStatusToErrno(status);
 	}
 	else {
@@ -121,7 +121,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 			pcnt = (wrcnt / bufsiz) * bufsiz;
 
 			// Flush stream buffer
-			if (io_buffer_flush(stream) != OsSuccess) {
+			if (io_buffer_flush(stream) != OsOK) {
 				break;
 			}
 

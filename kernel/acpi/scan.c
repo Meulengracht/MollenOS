@@ -227,7 +227,7 @@ AcpiDeviceCreate(
 
     list_append(&g_acpiDevices, &acpiDevice->Header);
     TRACE("AcpiDeviceCreate returns=0");
-    return OsSuccess;
+    return OsOK;
 }
 
 /* AcpiDeviceScanCallback
@@ -273,7 +273,7 @@ AcpiDeviceScanCallback(
 
     // Retrieve the parent device handle
     Status = AcpiGetParent(Handle, &Parent);
-    if (AcpiDeviceCreate(Handle, Parent, (int)Type) != OsSuccess) {
+    if (AcpiDeviceCreate(Handle, Parent, (int)Type) != OsOK) {
         ERROR("Failed to initialize acpi-device of type %" PRIuIN "", Type);
     }
     return AE_OK;
@@ -287,13 +287,13 @@ AcpiDevicesScan(void)
     // Initialize list and fixed objects
     if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
         TRACE("Initializing power button");
-        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {
+        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsOK) {
             ERROR("Failed to initialize power-button");
         }
     }
     if (AcpiGbl_FADT.Flags & ACPI_FADT_SLEEP_BUTTON) {
         TRACE("Initializing sleep button");
-        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_SLEEP) != OsSuccess) {
+        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_SLEEP) != OsOK) {
             ERROR("Failed to initialize sleep-button");
         }
     }

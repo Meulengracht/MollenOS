@@ -39,7 +39,7 @@ extern gracht_server_t* __crt_get_service_server(void);
 OsStatus_t
 OnUnload(void)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -66,5 +66,5 @@ OnLoad(void)
     // Start the enumeration process in a new thread, so we can quickly return
     // and be ready for requests.
     usched_task_queue((usched_task_fn)BusEnumerate, NULL);
-    return OsSuccess;
+    return OsOK;
 }

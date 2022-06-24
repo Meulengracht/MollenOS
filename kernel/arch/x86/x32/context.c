@@ -211,7 +211,7 @@ ArchThreadContextCreate(
 
     // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
     status = MemorySpaceMapReserved(memorySpace, &contextAddress, contextSize, memoryFlags, placementFlags);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return NULL;
     }
 
@@ -224,7 +224,7 @@ ArchThreadContextCreate(
             0,
             0
     );
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         MemorySpaceUnmap(memorySpace, contextAddress, contextSize);
         return NULL;
     }
@@ -279,5 +279,5 @@ ArchThreadContextDump(
     // Dump IRQ information
     DEBUG("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
           context->Irq, context->ErrorCode, context->UserSs);
-    return OsSuccess;
+    return OsOK;
 }

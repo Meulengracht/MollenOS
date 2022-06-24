@@ -55,7 +55,7 @@ CreateInterruptController(
         }
         IcHead->Link = Ic;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -76,7 +76,7 @@ CreateInterruptOverrides(
     for (i = 0; i < NumberOfInterruptOverrides; i++) {
         GetMachine()->Overrides[i].SourceLine = -1;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -95,7 +95,7 @@ RegisterInterruptOverride(
             GetMachine()->Overrides[i].SourceLine       = SourceInterruptLine;
             GetMachine()->Overrides[i].DestinationLine  = DestinationInterruptLine;
             GetMachine()->Overrides[i].OverrideFlags    = ConvertAcpiFlagsToConformFlags(InterruptFlags, DestinationInterruptLine);
-            return OsSuccess;
+            return OsOK;
         }
     }
     return OsError;

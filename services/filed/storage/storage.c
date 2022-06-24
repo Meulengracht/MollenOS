@@ -80,7 +80,7 @@ VfsStorageRegisterFileSystem(
     if (fileSystem->type == FileSystemType_MFS) {;
         VfsFileSystemMount(fileSystem, NULL);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -100,7 +100,7 @@ VfsStorageEnumerate(
     ctt_storage_stat(GetGrachtClient(), &msg.base, storage->storage.device_id);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // TODO: disk states
         // Disk->State = Crashed
         return;
@@ -110,7 +110,7 @@ VfsStorageEnumerate(
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
     osStatus = VfsStorageParse(storage);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // TODO: disk states
         // Disk->State = Unmounted // no filesystems exposed
     }
@@ -218,7 +218,7 @@ StatStorageByHandle(
     OsStatus_t                 status;
 
     status = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
     }
     sys_storage_get_descriptor_response(request->message, status, &gdescriptor);
@@ -235,7 +235,7 @@ StatStorageByPath(
     OsStatus_t                 status;
 
     status = VfsFileSystemGetByPathSafe(request->parameters.stat_path.path, &fileSystem);
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
     }
     sys_storage_get_descriptor_path_response(request->message, OsNotSupported, &gdescriptor);

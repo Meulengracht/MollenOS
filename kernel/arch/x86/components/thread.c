@@ -70,7 +70,7 @@ ArchThreadInitialize(
     if (ThreadFlags(thread) & THREADING_IDLE) {
         SystemCpuCore_t* currentCore = GetProcessorCore(ArchGetProcessorCoreId());
         osStatus = TssInitialize(CpuCorePlatformBlock(currentCore));
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             return osStatus;
         }
     }
@@ -81,7 +81,7 @@ ArchThreadInitialize(
         return OsOutOfMemory;
     }
     memset(threadData->MathBuffer, 0, 0x1000);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -96,7 +96,7 @@ ArchThreadDestroy(
     if (threadData->MathBuffer) {
         kfree(threadData->MathBuffer);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -112,14 +112,14 @@ ThreadingFpuException(
     clear_ts();
 
     if (!(threadData->Flags & X86_THREAD_USEDFPU)) {
-        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
             load_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {
             load_fpu((uintptr_t*)threadData->MathBuffer);
         }
         threadData->Flags |= X86_THREAD_USEDFPU;
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }
@@ -133,7 +133,7 @@ ArchThreadYield(void)
     if (InterruptGetActiveStatus()) {
         if (ThreadIsCurrentIdle(ArchGetProcessorCoreId())) {
             OsStatus_t osStatus = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
             }
         }
@@ -153,7 +153,7 @@ ArchThreadLeave(
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
     if (threadData->Flags & X86_THREAD_USEDFPU) {
-        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
             save_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {

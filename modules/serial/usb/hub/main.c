@@ -86,7 +86,7 @@ OsStatus_t OnRegister(
     }
 
     list_append(&g_devices, &hubDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
@@ -99,12 +99,12 @@ OsStatus_t OnUnregister(
 {
     HubDevice_t* hubDevice = HubDeviceGet(device->Id);
     if (hubDevice == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_remove(&g_devices, &hubDevice->Header);
     HubDeviceDestroy(hubDevice);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
@@ -190,7 +190,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
     }
 
     osStatus = HubResetPort(hubDevice, portId);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto respond;
     }
 

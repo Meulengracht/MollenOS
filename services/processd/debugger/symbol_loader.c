@@ -68,7 +68,7 @@ SymbolsLoadContext(
 
     TRACE("[SymbolsLoadContext] loading map file");
     status = SymbolLoadMapFile(binaryName, &fileBuffer, &fileSize);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         WARNING("[SymbolsLoadContext] failed to load map for %s", binaryName);
         return status;
     }
@@ -76,7 +76,7 @@ SymbolsLoadContext(
     TRACE("[SymbolsLoadContext] parsing map file, 0x%llx - %llu", fileBuffer, fileSize);
     status = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
     free(fileBuffer);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         WARNING("[SymbolsLoadContext] failed to parse map for %s", binaryName);
         return status;
     }
@@ -87,7 +87,7 @@ SymbolsLoadContext(
     TRACE("[SymbolsLoadContext] context loaded %s", symbolContext.key);
     hashtable_set(&g_loadedSymbolContexts, &symbolContext);
     *symbolContextOut = hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -110,7 +110,7 @@ SymbolLookup(
     symbolContext = (struct symbol_context*)hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
     if (!symbolContext) {
         status = SymbolsLoadContext(binaryName, &symbolContext);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             return status;
         }
     }
@@ -132,7 +132,7 @@ SymbolLookup(
 
     *symbolName   = symbol->name;
     *symbolOffset = binaryOffset - symbol->address;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -164,7 +164,7 @@ SymbolLoadMapFile(
     if (!file) {
         // map did not exist
         ERROR("[SymbolsLoadContext] map file not found at %s", &path[0]);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     fseek(file, 0, SEEK_END);
@@ -192,7 +192,7 @@ SymbolLoadMapFile(
 
     *fileBufferOut = fileBuffer;
     *fileSizeOut   = fileSize;
-    return OsSuccess;
+    return OsOK;
 }
 
 static uint64_t SymbolContextHash(const void* element)

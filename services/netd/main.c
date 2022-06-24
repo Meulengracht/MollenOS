@@ -34,7 +34,7 @@ extern gracht_server_t* __crt_get_service_server(void);
 
 OsStatus_t OnUnload(void)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 void GetServiceAddress(struct ipmsg_addr* address)

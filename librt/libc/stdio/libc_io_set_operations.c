@@ -55,7 +55,7 @@ OsStatus_t stdio_set_op_close(stdio_handle_t* handle, int options)
 
 OsStatus_t stdio_set_op_inherit(stdio_handle_t* handle)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t stdio_set_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)

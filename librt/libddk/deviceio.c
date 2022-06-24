@@ -185,7 +185,7 @@ WriteDeviceIo(
     _In_ size_t         Value,
     _In_ size_t         Length)
 {
-    OsStatus_t Status = OsSuccess;
+    OsStatus_t Status = OsOK;
     assert(IoSpace != NULL);
 
     switch (IoSpace->Type) {

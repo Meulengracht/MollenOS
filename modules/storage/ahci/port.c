@@ -205,7 +205,7 @@ AhciPortFinishSetup(
     // any bits that were set as part of the port reset.
     WRITE_VOLATILE(port->Registers->SERR, 0xFFFFFFFF);
     WRITE_VOLATILE(port->Registers->InterruptStatus, 0xFFFFFFFF);
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -228,7 +228,7 @@ AllocateOperationalMemory(
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = dma_create(&bufferInfo, &port->CommandListDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command list.");
         return OsOutOfMemory;
     }
@@ -241,7 +241,7 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = dma_create(&bufferInfo, &port->CommandTableDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
     }
@@ -254,11 +254,11 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = dma_create(&bufferInfo, &port->RecievedFisDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -278,7 +278,7 @@ AhciPortRebase(
           controller, port);
 
     Status = AllocateOperationalMemory(controller, port);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         return Status;
     }
     
@@ -306,7 +306,7 @@ AhciPortRebase(
     }
 
     free(SgTable.entries);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -432,7 +432,7 @@ AhciPortStart(
 
     if (AHCI_PORT_STSS_DET(status) != AHCI_PORT_SSTS_DET_ENABLED) {
         TRACE("AhciPortStart port %i has nothing present: 0x%x", port->Index, port->Registers->STSS);
-        return OsSuccess;
+        return OsOK;
     }
     return AhciPortEnable(controller, port);
 }
@@ -458,7 +458,7 @@ AhciPortAllocateCommandSlot(
     OsStatus_t osStatus = OsError;
     int        i;
     
-    while (osStatus != OsSuccess) {
+    while (osStatus != OsOK) {
         int slots = atomic_load(&port->Slots);
         
         for (i = 0; i < port->SlotCount; i++) {
@@ -475,7 +475,7 @@ AhciPortAllocateCommandSlot(
                 continue;
             }
 
-            osStatus = OsSuccess;
+            osStatus = OsOK;
             *slotOut = i;
             break;
         }

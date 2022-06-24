@@ -127,7 +127,7 @@ __AllocateVirtualPages(
             memoryFlags,
             MAPPING_VIRTUAL_GLOBAL
     );
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         ERROR("__AllocateVirtualPages Ran out of memory for allocation in the heap");
         return 0;
     }
@@ -142,7 +142,7 @@ __FreeVirtualPages(
     size_t     PageSize = GetMemorySpacePageSize();
     OsStatus_t Status   = MemorySpaceUnmap(
         GetCurrentMemorySpace(), Address, PageSize * PageCount);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to free allocation 0x%" PRIxIN " of size 0x%" PRIxIN "", Address, PageSize * PageCount);
     }
 }
@@ -899,7 +899,7 @@ void* kmalloc_p(size_t Size, uintptr_t* DmaOut)
     if (Allocation != NULL && DmaOut != NULL) {
         OsStatus_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(),
                                                   (vaddr_t)Allocation, 1, DmaOut);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             // ehm what?
             assert(0);
         }

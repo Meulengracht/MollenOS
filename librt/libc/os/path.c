@@ -112,7 +112,7 @@ GetFullPath(
         // the provided buffer :-)
         GetWorkingDirectory(&buffer[0], maxLength);
         fullPath = PathJoin(&buffer[0], path);
-        if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OsSuccess) {
+        if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OsOK) {
             free(fullPath);
             fullPath = NULL;
         }
@@ -122,7 +122,7 @@ GetFullPath(
             char* token = getenv("PATH");
             for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
                 char* combined = PathJoin(i, path);
-                if (GetFileInformationFromPath(combined, 0, &descriptor) == OsSuccess) {
+                if (GetFileInformationFromPath(combined, 0, &descriptor) == OsOK) {
                     fullPath = combined;
                     break;
                 }
@@ -132,7 +132,7 @@ GetFullPath(
 
         // path was invalid, we can early exit here
         if (fullPath == NULL) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
 
         sys_file_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
@@ -178,7 +178,7 @@ ChangeWorkingDirectory(
     } else {
         TRACE("ChangeWorkingDirectory relative path detected");
         osStatus = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             return osStatus;
         }
         strncat(&canonBuffer[0], path, _MAXPATH);
@@ -191,7 +191,7 @@ ChangeWorkingDirectory(
 
     osStatus = GetFilePathFromFd(dir->d_handle, &canonBuffer[0], _MAXPATH);
     closedir(dir);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
     return ProcessSetWorkingDirectory(&canonBuffer[0]);
@@ -221,7 +221,7 @@ GetUserDirectory(
     path = getenv("USRDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }
@@ -240,7 +240,7 @@ GetUserCacheDirectory(
     if (path) {
         strncpy(&buffer[0], path, maxLength);
         strncat(&buffer[0], "/.cache", maxLength);
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }
@@ -258,7 +258,7 @@ GetApplicationDirectory(
     path = getenv("APPDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }
@@ -277,7 +277,7 @@ GetApplicationTemporaryDirectory(
     if (path) {
         strncpy(&buffer[0], path, maxLength);
         strncat(&buffer[0], "/.clear", maxLength);
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

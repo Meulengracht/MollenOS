@@ -104,7 +104,7 @@ HciPortReset(
         }
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -142,7 +142,7 @@ EhciPortCheck(
     // is now disabled and to disable anything related to this device
     if (Status & EHCI_PORT_OC_EVENT) {
         ERROR("Port %u reported over current. TODO");
-        return OsSuccess;
+        return OsOK;
     }
 
     // Connection event?
@@ -157,7 +157,7 @@ EhciPortCheck(
                 if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
                     EhciPortSetBits(Controller, Index, EHCI_PORT_COMPANION_HC);
                 }
-                return OsSuccess;
+                return OsOK;
             }
         }
         return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
@@ -167,7 +167,7 @@ EhciPortCheck(
     // like suspend or that i imagine.
     if (Status & EHCI_PORT_ENABLE_EVENT) {
         ERROR("Port %u is now disabled. TODO");
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }

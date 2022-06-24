@@ -96,7 +96,7 @@ AhciControllerCreate(
 
     // Acquire the io-space
     osStatus = AcquireDeviceIo(ioBase);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(controller);
         return NULL;
@@ -121,7 +121,7 @@ AhciControllerCreate(
     // Enable device
     osStatus = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (osStatus != OsSuccess || controller->InterruptId == UUID_INVALID) {
+    if (osStatus != OsOK || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(controller->InterruptId);
         ReleaseDeviceIo(controller->IoBase);
@@ -131,7 +131,7 @@ AhciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (AhciSetup(controller) == OsSuccess) {
+    if (AhciSetup(controller) == OsOK) {
         return controller;
     }
     else {
@@ -157,7 +157,7 @@ AhciControllerDestroy(
     UnregisterInterruptSource(controller->InterruptId);
     ReleaseDeviceIo(controller->IoBase);
     free(controller);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -205,7 +205,7 @@ AhciReset(
         }
         TRACE(" > port %i status after reset: 0x%x", i, controller->Ports[i]->Registers->CommandAndStatus);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -240,7 +240,7 @@ AhciTakeOwnership(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -256,7 +256,7 @@ AhciSetup(
     TRACE("AhciSetup()");
 
     // Take ownership of the controller
-    if (AhciTakeOwnership(controller) != OsSuccess) {
+    if (AhciTakeOwnership(controller) != OsOK) {
         ERROR("Failed to take ownership of the controller.");
         return OsError;
     }
@@ -302,7 +302,7 @@ AhciSetup(
     // Finish the stop sequences
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OsSuccess) {
+            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OsOK) {
                 ERROR(" > failed to initialize port %i", i);
                 fullResetRequired = 1;
                 break;
@@ -312,7 +312,7 @@ AhciSetup(
 
     // Perform full reset if required here
     if (fullResetRequired) {
-        if (AhciReset(controller) != OsSuccess) {
+        if (AhciReset(controller) != OsOK) {
             ERROR("Failed to initialize the AHCI controller, aborting");
             return OsError;
         }
@@ -325,10 +325,10 @@ AhciSetup(
     WRITE_VOLATILE(controller->Registers->GlobalHostControl, ghc | AHCI_HOSTCONTROL_IE);
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortStart(controller, controller->Ports[i]) != OsSuccess) {
+            if (AhciPortStart(controller, controller->Ports[i]) != OsOK) {
                 ERROR(" > failed to start port %i", i);
             }
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

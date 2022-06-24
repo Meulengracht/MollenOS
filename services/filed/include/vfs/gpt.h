@@ -75,7 +75,7 @@ typedef struct GptPartitionEntry {
  * @param storage      The storage device to parse.
  * @param bufferHandle A buffer handle that can be used to read from the disk.
  * @param buffer       The usermapped buffer handle.
- * @return             Status of the parsing. Returns non-OsSuccess if the storage device is not GPT partitioned.
+ * @return             Status of the parsing. Returns non-OsOK if the storage device is not GPT partitioned.
  */
 extern OsStatus_t
 GptEnumerate(

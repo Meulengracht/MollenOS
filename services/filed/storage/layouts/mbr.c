@@ -50,7 +50,7 @@ static OsStatus_t ParsePartitionEntry(
     enum FileSystemType type = FileSystemType_UNKNOWN;
 
     if (!IS_PARTITION_PRESENT(entry)) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // Check extended partitions first
@@ -132,7 +132,7 @@ MbrEnumeratePartitions(
 
     // Start out by reading the mbr to detect whether there is a partition table
     status = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return OsError;
     }
 
@@ -145,13 +145,13 @@ MbrEnumeratePartitions(
     memcpy(mbr, buffer, sizeof(MasterBootRecord_t));
 
     for (i = 0; i < MBR_PARTITION_COUNT; i++) {
-        if (ParsePartitionEntry(storage, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OsSuccess) {
+        if (ParsePartitionEntry(storage, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OsOK) {
             partitionCount++;
         }
     }
     
     free(mbr);
-    return partitionCount != 0 ? OsSuccess : OsError;
+    return partitionCount != 0 ? OsOK : OsError;
 }
 
 OsStatus_t
@@ -166,7 +166,7 @@ MbrEnumerate(
     // First, we want to detect whether there is a partition table available
     // otherwise we treat the entire disk as one partition
     osStatus = MbrEnumeratePartitions(storage, bufferHandle, buffer, 0);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return VfsStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->storage.descriptor.SectorCount);
     }
     return osStatus;

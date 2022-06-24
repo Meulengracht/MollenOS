@@ -58,7 +58,7 @@ CRTDECL(OsStatus_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned 
 /*******************************************************************************
  * System Extensions
  *******************************************************************************/
-CRTDECL(int,        OsStatusToErrno(OsStatus_t Status));
+CRTDECL(int,        OsStatusToErrno(OsStatus_t osStatus));
 CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* descriptor));
 CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
 
@@ -72,7 +72,7 @@ CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
  *
  * @param[In]            duration  The duration to sleep in nanoseconds.
  * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
- * @return OsSuccess if the sleep was not interrupted. Otherwise returns OsInterrupted.
+ * @return OsOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
  */
 CRTDECL(OsStatus_t,
 VaSleep(
@@ -96,7 +96,7 @@ VaStall(
  * is represented in microseconds since Jaunary 1, 2020 UTC.
  *
  * @param[Out] time Pointer to where the time will be stored.
- * @return     Returns OsSuccess if the clock was read, otherwise OsNotSupported.
+ * @return     Returns OsOK if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(OsStatus_t,
 VaGetWallClock(
@@ -109,7 +109,7 @@ VaGetWallClock(
  *
  * @param[In]  source  The clock source to read the tick for.
  * @param[Out] tickOut Pointer to a large integer value that can hold the current tick value.
- * @return     Returns OsSuccess if the tick was read, otherwise OsNotSupported.
+ * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(OsStatus_t,
 VaGetClockTick(
@@ -122,7 +122,7 @@ VaGetClockTick(
  *
  * @param[In]  source       The clock source to read the frequency for
  * @param[Out] frequencyOut Pointer to a large integer value that can hold the frequency value.
- * @return     Returns OsSuccess if the tick was read, otherwise OsNotSupported.
+ * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(OsStatus_t,
 VaGetClockFrequency(
@@ -147,7 +147,7 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLengt
  * @param[In] followSymlinks Whether links should be followed to the true path.
  * @param[In] buffer The buffer where the final path should be stored.
  * @param[In] maxLength The size of the buffer.
- * @return OsDoesNotExist if the path could not be resolved.
+ * @return OsNotExists if the path could not be resolved.
  *         OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer, size_t maxLength));
@@ -158,7 +158,7 @@ CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer,
  *
  * @param[In] path The relative or absolute path that should be the new working directory.
  * @return OsInvalidParameters if the parameters passed were not valid.
- *         OsDoesNotExist if the path could not be resolved
+ *         OsNotExists if the path could not be resolved
  *         OsPathIsNotDirectory If the path is not a directory
  */
 CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));

@@ -615,7 +615,7 @@ bpool(
     /* Definition of ESent assumes two's complement! */
     assert((~0) == -1);
     bn->bsize = ESent;
-	return OsSuccess;
+	return OsOK;
 }
 
 #ifdef BufStats
@@ -835,6 +835,6 @@ bpoolv(
 	}
 	b = BFH(((char *) b) + bs);
     }
-    return OsSuccess;
+    return OsOK;
 }
 #endif /* BufValid */

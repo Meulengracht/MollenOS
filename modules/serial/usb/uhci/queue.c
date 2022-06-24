@@ -187,7 +187,7 @@ UhciQueueResetInternalData(
         Controller->Base.Scheduler->VirtualFrameList[i]   = (uintptr_t)Qh;
         Controller->Base.Scheduler->Settings.FrameList[i] = AsyncQhPhysical | UHCI_LINK_QH;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -223,7 +223,7 @@ UhciQueueReset(
     TRACE("UhciQueueReset()");
 
     // Stop Controller
-    if (UhciStop(Controller) != OsSuccess) {
+    if (UhciStop(Controller) != OsOK) {
         ERROR("Failed to stop the controller");
         return OsError;
     }
@@ -240,7 +240,7 @@ UhciQueueDestroy(
     // Make sure everything is unscheduled, reset and clean
     UhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsSuccess;
+    return OsOK;
 }
 
 // This should be called regularly to keep the stored frame relevant

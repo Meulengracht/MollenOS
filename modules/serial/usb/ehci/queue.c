@@ -90,7 +90,7 @@ EhciQueueResetInternalData(
     NullTd->Status                      = EHCI_TD_HALTED;
     NullTd->Link                        = EHCI_LINK_END;
     NullTd->AlternativeLink             = EHCI_LINK_END;
-    return OsSuccess;
+    return OsOK;
 }
 
 /* EhciQueueInitialize
@@ -182,7 +182,7 @@ EhciQueueDestroy(
     // Reset first
     EhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* EhciConditionCodeToIndex
@@ -265,7 +265,7 @@ EhciSetPrefetching(
             WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void

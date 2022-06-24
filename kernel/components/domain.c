@@ -34,7 +34,7 @@ CreateNumaDomain(
     _In_  uintptr_t         MemoryRangeLength,
     _Out_ SystemDomain_t**  Domain)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 SystemDomain_t*

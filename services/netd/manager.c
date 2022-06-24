@@ -87,7 +87,7 @@ HandleSocketEvent(
         }
     
         OsStatus_t osStatus = DomainSend(socket);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("HandleSocketEvent failed to send message");
             // TODO deliver ESOCKPIPE signal to process
             // proc_signal()
@@ -125,7 +125,7 @@ SocketMonitor(
     while (RunForever) {
         Status = notification_queue_wait(SocketSet, Events,
             NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
-        if (Status != OsSuccess && Status != OsInterrupted) {
+        if (Status != OsOK && Status != OsInterrupted) {
             ERROR("[socket_monitor] notification_queue_wait FAILED: %u", Status);
             continue;
         }
@@ -172,7 +172,7 @@ NetworkManagerInitialize(void)
     
     rb_tree_construct(&Sockets);
     Status = notification_queue_create(0, &SocketSet);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("[net_manager] failed to create socket handle set");
         return Status;
     }
@@ -210,7 +210,7 @@ NetworkManagerSocketCreate(
     }
     
     Status = SocketCreateImpl(Domain, Type, Protocol, &Socket);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         WARNING("SocketCreateImpl failed with %u", Status);
         return Status;
     }
@@ -220,7 +220,7 @@ NetworkManagerSocketCreate(
     event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
     Status = notification_queue_ctrl(SocketSet, IOSET_ADD,
                                      (UUId_t)(uintptr_t)Socket->Header.key, &event);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         // what the fuck TODO
         assert(0);
     }
@@ -254,7 +254,7 @@ NetworkManagerSocketShutdown(
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         ERROR("[net_manager] [shutdown] invalid handle %u", Handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // Before initiating the actual destruction, remove it from our handle list.
@@ -262,11 +262,11 @@ NetworkManagerSocketShutdown(
         // If removing it failed, then assume that it was already destroyed, and we just
         // encountered a race condition
         if (!rb_tree_remove(&Sockets, (void*)(uintptr_t)Handle)) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
         
         Status = notification_queue_ctrl(SocketSet, IOSET_DEL, Handle, NULL);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }
     }
@@ -292,7 +292,7 @@ NetworkManagerSocketBind(
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         ERROR("[net_manager] [bind] invalid handle %u", Handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
@@ -300,7 +300,7 @@ NetworkManagerSocketBind(
     }
     
     Status = DomainUpdateAddress(Socket, Address);
-    if (Status == OsSuccess) {
+    if (Status == OsOK) {
         Socket->Configuration.Bound = 1;
     }
     return Status;
@@ -357,7 +357,7 @@ NetworkManagerSocketConnect(
 
     socket->Configuration.Connecting = 1;
     status = DomainConnect(message, socket, address);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         socket->Configuration.Connecting = 0;
     }
     return status;
@@ -367,7 +367,7 @@ void sys_socket_connect_invocation(struct gracht_message* message, const UUId_t 
         const uint8_t* address, const uint32_t address_count)
 {
     OsStatus_t status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         sys_socket_connect_response(message, status);
     }
 }
@@ -386,7 +386,7 @@ NetworkManagerSocketAccept(
     socket = NetworkManagerSocketGet(handle);
     if (!socket) {
         ERROR("[net_manager] [accept] invalid handle %u", handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (!socket->Configuration.Passive) {
@@ -398,7 +398,7 @@ NetworkManagerSocketAccept(
 void sys_socket_accept_invocation(struct gracht_message* message, const UUId_t handle)
 {
     OsStatus_t status = NetworkManagerSocketAccept(message, handle);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         sys_socket_accept_response(message, status, NULL, 0, UUID_INVALID, UUID_INVALID, UUID_INVALID);
     }
 }
@@ -415,7 +415,7 @@ NetworkManagerSocketListen(
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
         ERROR("[net_manager] [listen] invalid handle %u", Handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
@@ -451,7 +451,7 @@ NetworkManagerSocketPair(
         if (!Socket2) {
             ERROR("[net_manager] [pair] invalid handle2 %u", Handle2);
         }
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (Socket1->Configuration.Passive || Socket2->Configuration.Passive) {
@@ -467,7 +467,7 @@ NetworkManagerSocketPair(
     }
     
     Status = DomainPair(Socket1, Socket2);
-    if (Status == OsSuccess) {
+    if (Status == OsOK) {
         Socket1->Configuration.Connecting = 0;
         Socket1->Configuration.Connected  = 1;
         
@@ -495,7 +495,7 @@ NetworkManagerSocketSetOption(
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
 }
@@ -519,7 +519,7 @@ NetworkManagerSocketGetOption(
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     return GetSocketOptionImpl(Socket, Protocol, Option, Data, DataLengthOut);
 }
@@ -543,7 +543,7 @@ NetworkManagerSocketGetAddress(
     
     Socket = NetworkManagerSocketGet(Handle);
     if (!Socket) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     return DomainGetAddress(Socket, Source, Address);
 }

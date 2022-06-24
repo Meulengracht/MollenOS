@@ -112,5 +112,5 @@ PeValidateImageBuffer(
             return OsError;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

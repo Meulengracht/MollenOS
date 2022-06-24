@@ -38,7 +38,7 @@ FsReadFromFile(
         _Out_ size_t*                unitsRead)
 {
     FileSystemMFS_t* Mfs             = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t       osStatus        = OsSuccess;
+    OsStatus_t       osStatus        = OsOK;
     uint64_t         position        = handle->Base.Position;
     size_t           bucketSizeBytes = Mfs->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize;
     size_t           bytesToRead     = unitCount;
@@ -52,16 +52,16 @@ FsReadFromFile(
     // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((position + bytesToRead) > entry->Base.Descriptor.Size.QuadPart) {
         if (position >= entry->Base.Descriptor.Size.QuadPart) {
-            return OsSuccess;
+            return OsOK;
         }
         bytesToRead = (size_t)(entry->Base.Descriptor.Size.QuadPart - position);
     }
 
     if (handle->DataBucketPosition == MFS_ENDOFCHAIN) {
         // No buckets allocated for this file. Guard against this as there are two cases;
-        // Case 1 - Newly created file, return OsSuccess;
+        // Case 1 - Newly created file, return OsOK;
         if (entry->Base.Descriptor.Size.QuadPart == 0) {
-            return OsSuccess;
+            return OsOK;
         }
         else {
             // Read from integrated data
@@ -146,7 +146,7 @@ FsReadFromFile(
                 LODWORD(Sector), LODWORD(Sector) - SectorIndex, SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
     
             if (MfsReadSectors(fileSystemBase, SelectedHandle, SelectedOffset,
-                               Sector, SectorCount, &SectorsRead) != OsSuccess) {
+                               Sector, SectorCount, &SectorsRead) != OsOK) {
                 ERROR("Failed to read sector");
                 osStatus = OsDeviceError;
                 break;
@@ -174,9 +174,9 @@ FsReadFromFile(
         // We do if the position we have read to equals end of bucket
         if (position == (handle->BucketByteBoundary + (handle->DataBucketLength * bucketSizeBytes))) {
             osStatus = MfsSwitchToNextBucketLink(fileSystemBase, handle, bucketSizeBytes);
-            if (osStatus != OsSuccess) {
-                if (osStatus == OsDoesNotExist) {
-                    osStatus = OsSuccess;
+            if (osStatus != OsOK) {
+                if (osStatus == OsNotExists) {
+                    osStatus = OsOK;
                 }
                 break;
             }
@@ -216,7 +216,7 @@ FsWriteToFile(
     // We do not have the same boundary limits here as we do when reading, when we
     // write to a file we can do so untill we run out of space on the filesystem.
     osStatus = MfsEnsureRecordSpace(fileSystemBase, entry, position + bytesToWrite);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -288,7 +288,7 @@ FsWriteToFile(
                 // bytes in a sector. This must occur when we either have a <SectorOffset> != 0
                 // or when the <SectorOffset> == 0 and <ByteCount> is less than a sector. 
                 if (MfsReadSectors(fileSystemBase, mfs->TransferBuffer.handle, 0,
-                                   Sector, SectorCount, &SectorsWritten) != OsSuccess) {
+                                   Sector, SectorCount, &SectorsWritten) != OsOK) {
                     ERROR("Failed to read sector %u for combination step", 
                         LODWORD(Sector));
                     osStatus = OsDeviceError;
@@ -302,7 +302,7 @@ FsWriteToFile(
             
             // Write either the intermediate buffer or directly from user
             if (MfsWriteSectors(fileSystemBase, SelectedHandle, SelectedOffset,
-                                Sector, SectorCount, &SectorsWritten) != OsSuccess) {
+                                Sector, SectorCount, &SectorsWritten) != OsOK) {
                 ERROR("Failed to write sector %u", LODWORD(Sector));
                 osStatus = OsDeviceError;
                 break;
@@ -325,7 +325,7 @@ FsWriteToFile(
             MapRecord_t Link;
 
             // We have to lookup the link for current bucket
-            if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &Link) != OsSuccess) {
+            if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &Link) != OsOK) {
                 ERROR("Failed to get link for bucket %u", handle->DataBucketPosition);
                 osStatus = OsDeviceError;
                 break;
@@ -338,7 +338,7 @@ FsWriteToFile(
             handle->DataBucketPosition = Link.Link;
 
             // Lookup length of link
-            if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &Link) != OsSuccess) {
+            if (MfsGetBucketLink(fileSystemBase, handle->DataBucketPosition, &Link) != OsOK) {
                 ERROR("Failed to get length for bucket %u", handle->DataBucketPosition);
                 osStatus = OsDeviceError;
                 break;
@@ -410,7 +410,7 @@ FsSeekInFile(
                 }
 
                 // Get link
-                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsSuccess) {
+                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -426,7 +426,7 @@ FsSeekInFile(
                 BucketPtr = Link.Link;
 
                 // Get length of link
-                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsSuccess) {
+                if (MfsGetBucketLink(fileSystemBase, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -446,7 +446,7 @@ FsSeekInFile(
     
     // Update the new position since everything went ok
     handle->Base.Position = absolutePosition;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -456,7 +456,7 @@ FsChangeFileSize(
         _In_ uint64_t               size)
 {
     FileSystemEntryMFS_t* entry    = (FileSystemEntryMFS_t*)entryBase;
-    OsStatus_t            osStatus = OsSuccess;
+    OsStatus_t            osStatus = OsOK;
 
     TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(entry->Base.Name), LODWORD(size));
 
@@ -465,14 +465,14 @@ FsChangeFileSize(
         // Free all buckets allocated, if any are allocated
         if (entry->StartBucket != MFS_ENDOFCHAIN) {
             OsStatus_t Status = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 ERROR("Failed to free the buckets at start 0x%x, length 0x%x. when truncating",
                       entry->StartBucket, entry->StartLength);
                 osStatus = OsDeviceError;
             }
         }
 
-        if (osStatus == OsSuccess) {
+        if (osStatus == OsOK) {
             entry->AllocatedSize = 0;
             entry->StartBucket   = MFS_ENDOFCHAIN;
             entry->StartLength   = 0;
@@ -482,7 +482,7 @@ FsChangeFileSize(
         osStatus = MfsEnsureRecordSpace(fileSystemBase, entry, size);
     }
 
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         // entry->modified = now
         entry->Base.Descriptor.Size.QuadPart = size;
         entry->ActionOnClose                 = MFS_ACTION_UPDATE;

@@ -45,7 +45,7 @@ GptEnumeratePartitionTable(
     // No partitions on this disk, skip parse!
     if (!gptHeader->PartitionCount) {
         TRACE("GptEnumeratePartitionTable no partitions present on disk");
-        return OsSuccess;
+        return OsOK;
     }
 
     // Calculate the number of sectors we need to parse
@@ -61,7 +61,7 @@ GptEnumeratePartitionTable(
         osStatus = VfsStorageReadHelper(storage, bufferHandle,
                                         gptHeader->PartitionTableLBA,
                                         1, &sectorsRead);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             return OsError;
         }
 
@@ -91,7 +91,7 @@ GptEnumeratePartitionTable(
     }
 
 parse_done:
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -103,7 +103,7 @@ GptValidateHeader(
     // Check for matching signature, probably the most important for this to determine
     // whether the GPT is present
     if (memcmp(&gptHeader->Signature[0], GPT_SIGNATURE, 8) != 0) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     if (gptHeader->Revision != GPT_REVISION || gptHeader->HeaderSize < 92 ||
@@ -117,7 +117,7 @@ GptValidateHeader(
     // Perform CRC check of header
     // @todo
 
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -134,7 +134,7 @@ GptEnumerate(
 
     // Start out by reading the gpt-header to detect whether there is a valid GPT table
     osStatus = VfsStorageReadHelper(storage, bufferHandle, 1, 1, &sectorsRead);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return OsError;
     }
 
@@ -147,7 +147,7 @@ GptEnumerate(
     memcpy(gpt, buffer, sizeof(GptHeader_t));
 
     osStatus = GptValidateHeader(gpt);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         osStatus = GptEnumeratePartitionTable(storage, gpt, bufferHandle, buffer);
     }
     free(gpt);

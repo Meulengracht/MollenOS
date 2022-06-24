@@ -86,7 +86,7 @@ VesaDrawCharacter(
             break;
     }
     if (i == MCoreFontNumChars) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 #else
     i = (unsigned)Character
@@ -117,7 +117,7 @@ VesaDrawCharacter(
         bbPointer = (uint32_t*)_bb;
     }
 
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t 
@@ -178,7 +178,7 @@ VesaScroll(
     // We did the scroll, modify cursor
     g_bootTerminal.CursorY -= (MCoreFontHeight * lineCount);
     VideoFlush();
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t 
@@ -226,7 +226,7 @@ VesaPutCharacter(
     if ((g_bootTerminal.CursorY + MCoreFontHeight) >= g_bootTerminal.CursorLimitY) {
         VesaScroll(1);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t 
@@ -246,7 +246,7 @@ TextDrawCharacter(
     // Plot it on the screen
     *Video = Data;
 
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t 
@@ -278,7 +278,7 @@ TextScroll(
     g_bootTerminal.CursorY = (g_bootTerminal.Info.Height - ByLines);
 
     // Done - no errors
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t 
@@ -336,7 +336,7 @@ TextPutCharacter(
     // Send the low byte.
     WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 15);
     WriteDirectIo(DeviceIoPortBased, 0x3D5, 1, (uint8_t)CursorLoc);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __SetTerminalMode(
@@ -498,7 +498,7 @@ SerialPortInitialize(void)
 #ifdef __OSCONFIG_DEBUGMODE
     g_bootTerminal.AvailableOutputs |= VIDEO_UART;
 #endif
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -521,7 +521,7 @@ InitializeFramebufferOutput(void)
                     MAPPING_COMMIT,
                     MAPPING_VIRTUAL_GLOBAL
             );
-            if (status == OsSuccess) {
+            if (status == OsOK) {
                 g_bootTerminal.BackBufferAddress = backBuffer;
             }
             kfree(pages);
@@ -535,5 +535,5 @@ InitializeFramebufferOutput(void)
             g_bootTerminal.AvailableOutputs |= VIDEO_TEXT;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

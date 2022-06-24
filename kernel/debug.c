@@ -36,7 +36,7 @@ DebugSingleStep(
 {
     TRACE("DebugSingleStep(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -45,7 +45,7 @@ DebugBreakpoint(
 {
     TRACE("DebugBreakpoint(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -61,7 +61,7 @@ DebugPageFault(
 
     // get information about the allocation
     osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         // userspace allocation, perform additional checks.
         // 1) Was a guard page hit?
         // 2) Should the exception be propegated (i.e. memory handlers)
@@ -86,7 +86,7 @@ DebugPageFault(
             0
     );
     if (osStatus == OsExists) {
-        osStatus = OsSuccess;
+        osStatus = OsOK;
     }
 
 exit:
@@ -112,7 +112,7 @@ DebugHaltAllProcessorCores(
         }
         Iter = CpuCoreNext(Iter);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -176,7 +176,7 @@ DebugPanic(
         ArchProcessorHalt();
     }
     for(;;);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -222,7 +222,7 @@ DebugStackTrace(
         }
         StackPtr++;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -281,7 +281,7 @@ DebugMemory(
 
     // And print the final ASCII bit.
     LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* Disassembles Memory */

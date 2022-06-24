@@ -86,7 +86,7 @@ OsStatus_t OnRegister(
     }
 
     list_append(&g_devices, &hidDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
@@ -99,12 +99,12 @@ OsStatus_t OnUnregister(
 {
     HidDevice_t* hidDevice = HidDeviceGet(device->Id);
     if (hidDevice == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_remove(&g_devices, &hidDevice->Header);
     HidDeviceDestroy(hidDevice);
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)

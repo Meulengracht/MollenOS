@@ -95,7 +95,7 @@ static OsStatus_t __ReadCurrentBucket(
 
     // Get the length of the bucket
     osStatus = MfsGetBucketLink(fileSystem, currentBucket, mapRecord);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__ReadCurrentBucket: failed to get length of bucket %u", currentBucket);
         return osStatus;
     }
@@ -108,7 +108,7 @@ static OsStatus_t __ReadCurrentBucket(
     // Start out by loading the bucket buffer with data
     osStatus = MfsReadSectors(fileSystem, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, currentBucket),
                               MFS_SECTORCOUNT(mfs, mapRecord->Length), &sectorsTransferred);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__ReadCurrentBucket: failed to read directory-bucket %u", currentBucket);
     }
 
@@ -124,21 +124,21 @@ static OsStatus_t __ExpandDirectory(
 
     // Allocate bucket
     osStatus = MfsAllocateBuckets(fileSystem, MFS_DIRECTORYEXPANSION, mapRecord);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to allocate bucket for expansion");
         return osStatus;
     }
 
     // Update link
     osStatus = MfsSetBucketLink(fileSystem, currentBucket, mapRecord, 1);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to update bucket-link for expansion");
         return osStatus;
     }
 
     // Zero the bucket
     osStatus = MfsZeroBucket(fileSystem, mapRecord->Link, mapRecord->Length);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to zero bucket %u", mapRecord->Link);
     }
     return osStatus;
@@ -153,7 +153,7 @@ static OsStatus_t __ExpandDirectory(
  * @param entryName         [In] Name of the entry that we are searchin for.
  * @param allowExpansion    [In] Whether or not we can expand the directory if no free entry was found.
  * @param resultEntry       [In] A pointer to an MfsEntry_t structure where the found entry can be stored.
- * @return                  OsExists if entry with <entryName> was found, OsDoesNotExist if a free entry was found.
+ * @return                  OsExists if entry with <entryName> was found, OsNotExists if a free entry was found.
  *                          Any other Os* value is indicative of an error.
  */
 static OsStatus_t __FindEntryOrFreeInDirectoryBucket(
@@ -175,7 +175,7 @@ static OsStatus_t __FindEntryOrFreeInDirectoryBucket(
         int           exitLoop = 0;
 
         osStatus = __ReadCurrentBucket(fileSystem, mfs, currentBucket, &link);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__FindEntryOrFreeInDirectoryBucket failed to read directory bucket");
             break;
         }
@@ -229,7 +229,7 @@ static OsStatus_t __FindEntryOrFreeInDirectoryBucket(
             if (resultEntry->DirectoryBucket == 0 && allowExpansion) {
                 // Expand directory as we have not found a free record
                 osStatus = __ExpandDirectory(fileSystem, currentBucket, &link);
-                if (osStatus != OsSuccess) {
+                if (osStatus != OsOK) {
                     ERROR("__FindEntryOrFreeInDirectoryBucket failed to expand directory");
                     break;
                 }
@@ -240,7 +240,7 @@ static OsStatus_t __FindEntryOrFreeInDirectoryBucket(
                 resultEntry->DirectoryIndex  = 0;
             }
             else {
-                osStatus = OsDoesNotExist;
+                osStatus = OsNotExists;
             }
             break;
         }
@@ -263,7 +263,7 @@ static OsStatus_t __InitiateDirectory(
 
     // Allocate bucket
     osStatus = MfsAllocateBuckets(fileSystem, 1, &expansion);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__InitiateDirectory failed to allocate bucket");
         return osStatus;
     }
@@ -277,14 +277,14 @@ static OsStatus_t __InitiateDirectory(
     osStatus = MfsWriteSectors(fileSystem, mfs->TransferBuffer.handle,
                                0, MFS_GETSECTOR(mfs, currentBucket),
                                mfs->SectorsPerBucket, &sectorsTransferred);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__InitiateDirectory failed to update bucket %u", currentBucket);
         return osStatus;
     }
 
     // Zero the bucket
     osStatus = MfsZeroBucket(fileSystem, record->StartBucket, record->StartLength);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__InitiateDirectory failed to zero bucket %u", record->StartBucket);
     }
 
@@ -313,7 +313,7 @@ static OsStatus_t __CreateEntryInDirectory(
     entry.DirectoryIndex = directoryIndex;
 
     osStatus = MfsUpdateRecord(fileSystem, &entry, MFS_ACTION_CREATE);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -325,7 +325,7 @@ static OsStatus_t __CreateEntryInDirectory(
         }
         memcpy(*entryOut, &entry, sizeof(FileSystemEntryMFS_t));
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t __CreateDirectory(
@@ -340,14 +340,14 @@ static OsStatus_t __CreateDirectory(
     osStatus = __CreateEntryInDirectory(fileSystem, name, MFS_FILERECORD_DIRECTORY,
                                         directoryEntry->DirectoryBucket, directoryEntry->DirectoryLength,
                                         directoryEntry->DirectoryIndex, NULL);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__CreateDirectory failed to create directory record");
         return osStatus;
     }
 
     record   = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * directoryEntry->DirectoryIndex));
     osStatus = __InitiateDirectory(fileSystem, mfs, directoryEntry->DirectoryBucket, record);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__CreateDirectory failed to initiate new directory record");
     }
     return osStatus;
@@ -383,14 +383,14 @@ MfsLocateRecord(
             isEndOfPath = 1;
             if (currentToken == NULL) {
                 MfsFileRecordToVfsFile(fileSystemBase, &mfs->RootRecord, entry);
-                return OsSuccess;
+                return OsOK;
             }
         }
     }
     else {
         // end of path
         MfsFileRecordToVfsFile(fileSystemBase, &mfs->RootRecord, entry);
-        return OsSuccess;
+        return OsOK;
     }
 
     // Iterate untill we reach end of folder
@@ -404,7 +404,7 @@ MfsLocateRecord(
             }
 
             if (nextEntry.StartBucket == MFS_ENDOFCHAIN) {
-                osStatus = OsDoesNotExist;
+                osStatus = OsNotExists;
                 goto exit;
             }
 
@@ -412,7 +412,7 @@ MfsLocateRecord(
         }
         else {
             memcpy(entry, &nextEntry, sizeof(FileSystemEntryMFS_t));
-            osStatus = OsSuccess;
+            osStatus = OsOK;
         }
     }
 
@@ -456,7 +456,7 @@ MfsCreateRecord(
     }
 
     osStatus = __FindEntryOrFreeInDirectoryBucket(fileSystemBase, mfs, bucketOfDirectory, currentToken, 1, &nextEntry);
-    if (osStatus == OsDoesNotExist) {
+    if (osStatus == OsNotExists) {
         // if this is not the end of path, recursive create flag must be provided
         if (!isEndOfPath && !(flags & __FILE_CREATE_RECURSIVE)) {
             goto exit;
@@ -465,7 +465,7 @@ MfsCreateRecord(
         // create either a new directory entry
         if (!isEndOfPath) {
             osStatus = __CreateDirectory(fileSystemBase, mfs, currentToken, &nextEntry);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 goto exit;
             }
 
@@ -496,7 +496,7 @@ MfsCreateRecord(
         if (nextEntry.StartBucket == MFS_ENDOFCHAIN) {
             FileRecord_t* record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * nextEntry.DirectoryIndex));
             osStatus = __InitiateDirectory(fileSystemBase, mfs, nextEntry.DirectoryBucket, record);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("MfsCreateRecord failed to initiate directory");
                 goto exit;
             }

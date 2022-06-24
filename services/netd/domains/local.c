@@ -116,16 +116,16 @@ DomainLocalGetAddress(
     switch (source) {
         case SYS_ADDRESS_TYPE_THIS: {
             if (!record) {
-                return OsDoesNotExist;
+                return OsNotExists;
             }
             strcpy(&lcAddress->slc_addr[0], (const char*)record->Header.key);
-            return OsSuccess;
+            return OsOK;
         } break;
         
         case SYS_ADDRESS_TYPE_PEER: {
             Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
             if (!peerSocket) {
-                return OsDoesNotExist;
+                return OsNotExists;
             }
             return DomainLocalGetAddress(peerSocket,
                                          SYS_ADDRESS_TYPE_THIS,
@@ -156,7 +156,7 @@ HandleSocketStreamData(
     if (!TargetSocket) {
         TRACE("[socket] [local] [send_stream] target socket %u was not found",
             LODWORD(socket->Domain->ConnectedSocket));
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     TargetStream = GetSocketRecvStream(TargetSocket);
@@ -175,7 +175,7 @@ HandleSocketStreamData(
                 // This can happen if the first event or last event got out of sync
                 // we handle this by ignoring the event and just returning. Do not mark
                 // anything
-                return OsSuccess;
+                return OsOK;
             }
         }
         DoRead = 1;
@@ -200,7 +200,7 @@ HandleSocketStreamData(
         }
     }
     handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
-    return OsSuccess;
+    return OsOK;
 }
 
 static Socket_t*
@@ -309,7 +309,7 @@ HandleSocketPacketData(
         }
         free(Buffer);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -335,7 +335,7 @@ DomainLocalPair(
 {
     Socket1->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket2->Header.key;
     Socket2->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket1->Header.key;
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -371,7 +371,7 @@ DomainLocalAllocateAddress(
     Record->Socket = Socket;
     Socket->Domain->Record = Record;
     list_append(&AddressRegister, &Record->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -417,7 +417,7 @@ DomainLocalBind(
     PreviousBuffer = (char*)Socket->Domain->Record->Header.key;
     Socket->Domain->Record->Header.key = strdup(&Address->sa_data[0]);
     free(PreviousBuffer);
-    return OsSuccess;
+    return OsOK;
 }
 
 static ConnectionRequest_t*
@@ -470,7 +470,7 @@ AcceptConnectionRequest(
     status = NetworkManagerSocketCreate(connectSocket->DomainType,
         connectSocket->Type, connectSocket->Protocol, &handle,
         &recv_handle, &send_handle);
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         NetworkManagerSocketPair(handle, (UUId_t)(uintptr_t)connectSocket->Header.key);
     }
     
@@ -522,7 +522,7 @@ HandleLocalConnectionRequest(
         AcceptConnectionRequest(&acceptRequest->Response[0], sourceSocket, message);
         free(acceptRequest);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -550,7 +550,7 @@ DomainLocalConnect(
     }
     else {
         // Don't handle this scenario. It is handled locally in libc
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -569,7 +569,7 @@ DomainLocalDisconnect(
         peerSocket->Domain->ConnectedSocket = UUID_INVALID;
         peerSocket->Configuration.Connected = 0;
         handle_post_notification(socket->Domain->ConnectedSocket, IOSETCTL);
-        osStatus = OsSuccess;
+        osStatus = OsOK;
     }
 
     // update our stats
@@ -587,7 +587,7 @@ DomainLocalAccept(
     ConnectionRequest_t* connectionRequest;
     AcceptRequest_t*     acceptRequest;
     element_t*           element;
-    OsStatus_t           status = OsSuccess;
+    OsStatus_t           status = OsOK;
     TRACE("[domain] [local] [accept] %u", LODWORD(socket->Header.key));
     
     // Check if there is any requests available
@@ -688,5 +688,5 @@ DomainLocalCreate(
     Domain->Record          = NULL;
     
     *DomainOut = Domain;
-    return OsSuccess;
+    return OsOK;
 }

@@ -96,7 +96,7 @@ JobQueueInitialize(
     JobQueue->HasJobs = (BinarySemaphore_t*)malloc(sizeof(BinarySemaphore_t));
     mtx_init(&JobQueue->Lock, mtx_plain);
     BinarySemaphoreConstruct(JobQueue->HasJobs, 0);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* JobQueuePush
@@ -200,7 +200,7 @@ JobQueueClear(
     JobQueue->Tail = NULL;
     BinarySemaphoreReset(JobQueue->HasJobs);
     JobQueue->Length = 0;
-    return OsSuccess;
+    return OsOK;
 }
 
 /* JobQueueDestroy
@@ -361,7 +361,7 @@ ThreadPoolInitialize(
     Instance->ThreadsKeepAlive = 1;
 
     // Initialize job queue
-    if (JobQueueInitialize(&Instance->JobQueue) != OsSuccess) {
+    if (JobQueueInitialize(&Instance->JobQueue) != OsOK) {
         free(Instance->Threads);
         free(Instance);
         return OsError;
@@ -379,7 +379,7 @@ ThreadPoolInitialize(
     // Wait for all threads to spin-up
     while (Instance->ThreadsAlive != NumThreads);
     *ThreadPool = Instance;
-    return OsSuccess;
+    return OsOK;
 }
 
 /* ThreadPoolAddWork
@@ -432,7 +432,7 @@ ThreadPoolWait(
 
     // Done, unlock again
     mtx_unlock(&ThreadPool->ThreadLock);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* ThreadPoolPause
@@ -454,7 +454,7 @@ ThreadPoolPause(
     for (i = 0; i < ThreadPool->ThreadsAlive; i++) {
         thrd_signal(ThreadPool->Threads[i]->Thread, SIGUSR1);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /* ThreadPoolResume
@@ -468,7 +468,7 @@ ThreadPoolResume(
         return OsError;
     }
     ThreadPool->ThreadsOnHold = 0;
-    return OsSuccess;
+    return OsOK;
 }
 
 /* ThreadPoolDestroy
@@ -517,7 +517,7 @@ ThreadPoolDestroy(
     // Cleanup
     free(ThreadPool->Threads);
     free(ThreadPool);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* ThreadPoolGetWorkingCount

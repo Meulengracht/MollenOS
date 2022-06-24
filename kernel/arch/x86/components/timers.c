@@ -50,14 +50,14 @@ TimersDiscover(void)
     // we use the RTC primarily if it's available, for both calibration stage and
     // the time-keeping.
     osStatus = CmosInitialize(rtcAvailable);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("TimersDiscover failed to initialize the CMOS or RTC");
     }
 
     // if the RTC should not be available, then we must resort to the PIT if that is available.
     // otherwise, we require the HPET to be available.
     osStatus = PitInitialize(rtcAvailable);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("TimersDiscover failed to initialize the PIT");
     }
     return osStatus;
@@ -85,7 +85,7 @@ PlatformTimersInitialize(void)
 
     // Activate fixed system timers
     osStatus = TimersDiscover();
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -98,5 +98,5 @@ PlatformTimersInitialize(void)
     // Disable calibration mode
     RtcSetCalibrationMode(0);
     PitSetCalibrationMode(0);
-    return OsSuccess;
+    return OsOK;
 }

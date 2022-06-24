@@ -46,7 +46,7 @@ OsStatus_t
 OnUnload(void)
 {
     UsbManagerDestroy();
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t OnEvent(struct ioset_event* event)
@@ -62,10 +62,10 @@ OsStatus_t OnEvent(struct ioset_event* event)
         }
 
         HciInterruptCallback(controller);
-        return OsSuccess;
+        return OsOK;
     }
 
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 OsStatus_t
@@ -79,7 +79,7 @@ OnRegister(
     if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message,
@@ -109,7 +109,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId
     }
 
     HciPortGetStatus(controller, (int)portId, &descriptor);
-    ctt_usbhub_query_port_response(message, OsSuccess, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_query_port_response(message, OsOK, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
 void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)

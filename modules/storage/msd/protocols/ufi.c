@@ -117,17 +117,17 @@ UfiInitialize(
 
     // Reset data toggles for bulk-endpoints
     if (UsbEndpointReset(&Device->Base.DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsSuccess) {
+        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
     if (UsbEndpointReset(&Device->Base.DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsSuccess) {
+        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
     }
 
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t 

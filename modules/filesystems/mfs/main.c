@@ -57,7 +57,7 @@ FsOpenEntry(
     memset(mfsEntry, 0, sizeof(FileSystemEntryMFS_t));
     osStatus = MfsLocateRecord(fileSystemBase, mfs->MasterRecord.RootIndex, mfsEntry, path);
     *baseOut = (FileSystemEntryBase_t*)mfsEntry;
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(mfsEntry);
     }
     return osStatus;
@@ -80,7 +80,7 @@ FsCreatePath(
 
     mfs      = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
     osStatus = MfsCreateRecord(fileSystemBase, options, mfs->MasterRecord.RootIndex, path, &entry);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *baseOut = &entry->Base;
     }
     return osStatus;
@@ -91,7 +91,7 @@ FsCloseEntry(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryBase_t* entryBase)
 {
-    OsStatus_t            osStatus = OsSuccess;
+    OsStatus_t            osStatus = OsOK;
     FileSystemEntryMFS_t* entry = (FileSystemEntryMFS_t*)entryBase;
     
     TRACE("FsCloseEntry(%i)", entry->ActionOnClose);
@@ -114,14 +114,14 @@ FsDeleteEntry(
     OsStatus_t             osStatus;
 
     osStatus = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
               entry->StartBucket, entry->StartLength);
         return OsDeviceError;
     }
 
     osStatus = MfsUpdateRecord(fileSystemBase, entry, MFS_ACTION_DELETE);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         osStatus = FsCloseEntry(fileSystemBase, &entry->Base);
     }
     return osStatus;
@@ -146,7 +146,7 @@ FsOpenHandle(
     handle->DataBucketPosition = entry->StartBucket;
     handle->DataBucketLength   = entry->StartLength;
     *handleBaseOut = &handle->Base;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -156,7 +156,7 @@ FsCloseHandle(
 {
     FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
     free(handle);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -257,7 +257,7 @@ FsDestroy(
     // Free structure and return
     free(fileSystem);
     fileSystemBase->ExtensionData = NULL;
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -306,14 +306,14 @@ FsInitialize(
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(mfsInstance);
         return osStatus;
     }
 
     // Read the boot-sector
     if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle,
-                       0, 0, 1, &sectorsTransferred) != OsSuccess) {
+                       0, 0, 1, &sectorsTransferred) != OsOK) {
         ERROR("Failed to read mfs boot-sector record");
         goto error_exit;
     }
@@ -344,7 +344,7 @@ FsInitialize(
 
     // Read the master-record
     if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
-                       mfsInstance->MasterRecordSector, 1, &sectorsTransferred) != OsSuccess) {
+                       mfsInstance->MasterRecordSector, 1, &sectorsTransferred) != OsOK) {
         ERROR("Failed to read mfs master-sectofferfferr record");
         osStatus = OsError;
         goto error_exit;
@@ -373,7 +373,7 @@ FsInitialize(
     bufferInfo.length   = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
     bufferInfo.capacity = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(mfsInstance);
         return osStatus;
     }
@@ -398,7 +398,7 @@ FsInitialize(
 
         osStatus = MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
                                   mapSector, sectorCount, &sectorsTransferred);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
             goto error_exit;
         }
@@ -437,13 +437,13 @@ FsInitialize(
     DmaInfo.type     = DMA_TYPE_DRIVER_32;
     
     Status = dma_export(bMap, &mapInfo, &mapAttachment);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("[mfs] [init] failed to export buffer for sector-map");
         goto Error;
     }
 
     if (MfsReadSectors(Descriptor, mapAttachment.handle, 0, 
-            mapSector, sectorCount, &SectorsTransferred) != OsSuccess) {
+            mapSector, sectorCount, &SectorsTransferred) != OsOK) {
         ERROR("[mfs] [init] failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
         goto Error;
     }
@@ -458,7 +458,7 @@ FsInitialize(
 #endif
     
     FsInitializeRootRecord(mfsInstance);
-    return OsSuccess;
+    return OsOK;
 
 error_exit:
     FsDestroy(fileSystemBase, 0);

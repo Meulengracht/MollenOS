@@ -58,7 +58,7 @@ void* CreateDisplayFramebuffer(void)
 {
     void*      framebuffer;
     OsStatus_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return NULL;
     }
     return framebuffer;

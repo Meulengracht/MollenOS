@@ -211,7 +211,7 @@ GetStorageInformationFromPath(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_storage_get_descriptor_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -236,7 +236,7 @@ GetStorageInformationFromFd(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_storage_get_descriptor_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -260,7 +260,7 @@ GetFileSystemInformationFromPath(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -285,7 +285,7 @@ GetFileSystemInformationFromFd(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -309,7 +309,7 @@ GetFileInformationFromPath(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -334,7 +334,7 @@ GetFileInformationFromFd(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -404,7 +404,7 @@ CreateFileMapping(
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = dma_create(&bufferInfo, &fileView->dmaAttachment);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         free(fileView);
         return osStatus;
     }
@@ -446,7 +446,7 @@ OsStatus_t FlushFileMapping(
     }
 
     osStatus = MemoryQueryAttributes(fileView->dmaAttachment.buffer, fileView->length, &attributes[0]);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto exit;
     }
 
@@ -498,12 +498,12 @@ DestroyFileMapping(
     }
 
     osStatus = dma_attachment_unmap(&fileView->dmaAttachment);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // ignore for now
     }
 
     osStatus = dma_detach(&fileView->dmaAttachment);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // ignore for now
     }
 
@@ -524,7 +524,7 @@ OsStatus_t HandleMemoryMappingEvent(
     size_t            bytesTransferred;
 
     if (!fileView) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // Prepare the memory that we want to fill
@@ -532,8 +532,8 @@ OsStatus_t HandleMemoryMappingEvent(
 
     fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer);
     osStatus            = dma_attachment_map_commit(&fileView->dmaAttachment, (vaddr_t)vaddressPtr, __GetPageSize());
-    if (osStatus != OsSuccess) {
-        return OsDoesNotExist;
+    if (osStatus != OsOK) {
+        return OsNotExists;
     }
 
     // Now we perform the actual filling on the memory area

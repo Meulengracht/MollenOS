@@ -48,7 +48,7 @@ GetModuleAndOffset(
     if (address < process->image->CodeBase) {
         *moduleBase = process->image->VirtualAddress;
         *moduleName = (char*)MStringRaw(process->image->Name);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     // Was it not main executable?
@@ -60,17 +60,17 @@ GetModuleAndOffset(
                 if (address >= Library->CodeBase && address < (Library->CodeBase + Library->CodeSize)) {
                     *moduleName = MStringRaw(Library->Name);
                     *moduleBase = Library->VirtualAddress;
-                    return OsSuccess;
+                    return OsOK;
                 }
             }
         }
 
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     *moduleBase = process->image->VirtualAddress;
     *moduleName = (char*) MStringRaw(process->image->Name);
-    return OsSuccess;
+    return OsOK;
 }
 
 static OsStatus_t
@@ -106,18 +106,18 @@ HandleProcessCrashReport(
         OsStatus_t status;
 
         status = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), &topOfStack, &stack);
-        if (status == OsSuccess) {
+        if (status == OsOK) {
             // Traverse the memory region up to stack max
             uintptr_t* stackAddress = (uintptr_t*)stack;
             uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
             ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
-                if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OsSuccess) {
+                if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OsOK) {
                     const char* symbolName;
                     uintptr_t   symbolOffset;
 
-                    if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OsSuccess) {
+                    if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OsOK) {
                         ERROR("%i: %s+%x in module %s", i, symbolName, symbolOffset, moduleName);
                     }
                     else {
@@ -140,7 +140,7 @@ HandleProcessCrashReport(
         ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
     }
 
-    return OsSuccess;
+    return OsOK;
 }
 
 void PmHandleCrash(
@@ -154,7 +154,7 @@ void PmHandleCrash(
     process = RegisterProcessRequest(request->parameters.crash.process_handle, request);
     if (!process) {
         // what the *?
-        sys_process_report_crash_response(request->message, OsDoesNotExist);
+        sys_process_report_crash_response(request->message, OsNotExists);
         goto cleanup;
     }
 

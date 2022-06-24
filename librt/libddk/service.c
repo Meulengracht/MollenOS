@@ -43,7 +43,7 @@ __GetHandleFromPath(
     _In_ const char* Path)
 {
     UUId_t Handle;
-    if (Syscall_LookupHandle(Path, &Handle) != OsSuccess) {
+    if (Syscall_LookupHandle(Path, &Handle) != OsOK) {
         return UUID_INVALID;
     }
     return Handle;
@@ -69,7 +69,7 @@ __WaitForService(
             handle = getHandleCallback();
         }
     }
-    return (handle == UUID_INVALID) ? OsTimeout : OsSuccess;
+    return (handle == UUID_INVALID) ? OsTimeout : OsOK;
 }
 
 OsStatus_t 

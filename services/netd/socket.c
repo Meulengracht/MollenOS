@@ -59,13 +59,13 @@ CreateSocketPipe(
     Buffer.type     = 0;
     
     Status = dma_create(&Buffer, &Pipe->DmaAttachment);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         return Status;
     }
     
     Pipe->Stream = Pipe->DmaAttachment.buffer;
     InitializeStreambuffer(Pipe->Stream);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -114,14 +114,14 @@ SocketCreateImpl(
     queue_construct(&Socket->AcceptRequests);
     
     Status = handle_create(&Handle);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to create socket handle");
         return Status;
     }
     RB_LEAF_INIT(&Socket->Header, Handle, Socket);
     
     Status = DomainCreate(Domain, &Socket->Domain);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to initialize the socket domain");
         (void)handle_destroy(Handle);
         free(Socket);
@@ -129,7 +129,7 @@ SocketCreateImpl(
     }
     
     Status = DomainAllocateAddress(Socket);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to initialize the socket domain address");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Handle);
@@ -138,7 +138,7 @@ SocketCreateImpl(
     }
     
     Status = CreateSocketPipe(&Socket->Receive);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Handle);
@@ -147,7 +147,7 @@ SocketCreateImpl(
     }
     
     Status = CreateSocketPipe(&Socket->Send);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
@@ -157,7 +157,7 @@ SocketCreateImpl(
     }
     
     *SocketOut = Socket;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -177,7 +177,7 @@ SocketShutdownImpl(
         DestroySocketPipe(&Socket->Send);
         (void)handle_destroy((UUId_t)(uintptr_t)Socket->Header.key);
         free(Socket);
-        return OsSuccess;
+        return OsOK;
     }
     else {
         if (Options & SYS_CLOSE_OPTIONS_WRITE) {
@@ -205,7 +205,7 @@ SocketListenImpl(
     
     Socket->Configuration.Passive = 1;
     Socket->Configuration.Backlog = ConnectionCount;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -252,7 +252,7 @@ SocketSetQueuedPacket(
 {
     Socket->QueuedPacket.Length = Length;
     Socket->QueuedPacket.Data   = (void*)Payload;
-    return OsSuccess;
+    return OsOK;
 }
 
 size_t

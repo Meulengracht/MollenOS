@@ -79,7 +79,7 @@ AllocateSyncAddress(
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
     status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
                                          (vaddr_t)kernelAddress, 1, &dmaAddress);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -93,7 +93,7 @@ AllocateSyncAddress(
             MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
             MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
     );
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -101,7 +101,7 @@ AllocateSyncAddress(
     event->kernel_mapping    = (atomic_int*)kernelAddress;
     event->userspace_mapping = (atomic_int*)(userAddress + offsetInPage);
     atomic_store(event->kernel_mapping, 0);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -125,7 +125,7 @@ UserEventCreate(
     }
 
     status = AllocateSyncAddress(event);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         kfree(event);
         return status;
     }
@@ -146,7 +146,7 @@ UserEventCreate(
 
     *handleOut      = handle;
     *syncAddressOut = event->userspace_mapping;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t

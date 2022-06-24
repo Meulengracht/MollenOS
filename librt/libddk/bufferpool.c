@@ -67,7 +67,7 @@ dma_pool_destroy(
     free(pool->table.entries);
     free(pool->pool);
     free(pool);
-    return OsSuccess;
+    return OsOK;
 }
 
 static uintptr_t
@@ -79,7 +79,7 @@ dma_pool_get_dma(
     size_t     sg_offset;
     OsStatus_t status = dma_sg_table_offset(
         &pool->table, offset, &entry_index, &sg_offset);
-    return status != OsSuccess ? 0 : pool->table.entries[entry_index].address + sg_offset;
+    return status != OsOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 
 OsStatus_t
@@ -99,7 +99,7 @@ dma_pool_allocate(
     }
     
     *address_out = allocation;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -108,7 +108,7 @@ dma_pool_free(
     _In_ void*            address)
 {
     brel(pool->pool, address);
-    return OsSuccess;
+    return OsOK;
 }
 
 UUId_t

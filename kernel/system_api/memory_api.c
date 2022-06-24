@@ -100,7 +100,7 @@ static OsStatus_t __PerformAllocation(
         osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, 0, memoryFlags, placementFlags);
     }
 
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *memoryOut = (void*)allocatedAddress;
     }
 
@@ -138,13 +138,13 @@ ScMemoryAllocate(
 
         osStatus = MemorySpaceCloneMapping(memorySpace, memorySpace, (vaddr_t)hint, &allocatedAddress,
                                            length, memoryFlags, placementFlags);
-        if (osStatus == OsSuccess) {
+        if (osStatus == OsOK) {
             *memoryOut = (void*)allocatedAddress;
         }
     }
     else {
         osStatus = __PerformAllocation(memorySpace, hint, length, memoryFlags, placementFlags, memoryOut);
-        if (osStatus == OsSuccess) {
+        if (osStatus == OsOK) {
             if ((flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
                 memset((void*)*memoryOut, 0, length);
             }
@@ -174,7 +174,7 @@ ScMemoryProtect(
     _Out_ unsigned int* previousFlags)
 {
     if (!memoryPointer || !length) {
-        return OsSuccess;
+        return OsOK;
     }
     return MemorySpaceChangeProtection(GetCurrentMemorySpace(),
                                        (uintptr_t)memoryPointer, length,
@@ -193,12 +193,12 @@ ScMemoryQueryAllocation(
     }
 
     osStatus = MemorySpaceQuery(GetCurrentMemorySpace(), (vaddr_t)memoryPointer, descriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     descriptor->Attributes = __ConvertToUserMemoryFlags(descriptor->Attributes);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -218,14 +218,14 @@ ScMemoryQueryAttributes(
     }
 
     osStatus = GetMemorySpaceAttributes(memorySpace, address, length, attributesArray);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     for (i = 0; i < entries; i++) {
         attributesArray[i] = __ConvertToUserMemoryFlags(attributesArray[i]);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -244,7 +244,7 @@ ScDmaCreate(
     
     TRACE("[sc_mem] [dma_create] %u, 0x%x", LODWORD(info->length), info->flags);
     osStatus = ArchGetPageMaskFromDmaType(info->type, &pageMask);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("ScDmaCreate unsupported dma buffer type %u on this platform", info->type);
         return osStatus;
     }
@@ -262,7 +262,7 @@ ScDmaCreate(
             &attachment->buffer,
             &attachment->handle
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
     
@@ -296,7 +296,7 @@ ScDmaExport(
 
     osStatus = MemoryRegionCreateExisting(buffer, info->length,
                                           flags, &attachment->handle);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -330,7 +330,7 @@ ScDmaDetach(
         return OsInvalidParameters;
     }
     DestroyHandle(Attachment->handle);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -448,9 +448,9 @@ ScGetThreadMemorySpaceHandle(
     thread = THREAD_GET(threadHandle);
     if (thread != NULL) {
         *handleOut = ThreadMemorySpaceHandle(thread);
-        return OsSuccess;
+        return OsOK;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 OsStatus_t 
@@ -473,7 +473,7 @@ ScCreateMemorySpaceMapping(
     }
     
     if (memorySpace == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     pageCount = DIVUP(mappingParameters->Length, GetMemorySpacePageSize());
@@ -495,7 +495,7 @@ ScCreateMemorySpaceMapping(
                               mappingParameters->Length, 0, memoryFlags, MAPPING_VIRTUAL_FIXED);
     kfree(pages);
     
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
         return osStatus;
     }
@@ -506,7 +506,7 @@ ScCreateMemorySpaceMapping(
     osStatus = MemorySpaceCloneMapping(memorySpace, GetCurrentMemorySpace(),
                                        mappingParameters->VirtualAddress, &copyPlacement, mappingParameters->Length,
                                        memoryFlags, MAPPING_VIRTUAL_PROCESS);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
         MemorySpaceUnmap(memorySpace, mappingParameters->VirtualAddress, mappingParameters->Length);
     }
@@ -531,7 +531,7 @@ ScMapThreadMemoryRegion(
 
     thread = THREAD_GET(threadHandle);
     if (!thread) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     correctLength = (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL1) - stackPointer;
@@ -539,7 +539,7 @@ ScMapThreadMemoryRegion(
                                             stackPointer, &copiedAddress, correctLength,
                                      MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
                                             MAPPING_VIRTUAL_PROCESS);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
 
@@ -548,5 +548,5 @@ ScMapThreadMemoryRegion(
 
     *pointerOut = (void*)copiedAddress;
     *topOfStack = (void*)(copiedAddress + correctLength);
-    return OsSuccess;
+    return OsOK;
 }

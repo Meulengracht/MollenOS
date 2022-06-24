@@ -71,7 +71,7 @@ ThreadingEnable(
             THREADING_KERNEL_STACK_SIZE,
             0
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         assert(0);
     }
     
@@ -117,7 +117,7 @@ ThreadCreate(
             kernelMaxStackSize,
             userMaxStackSize
     );
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         __DestroyThread(thread);
         return status;
     }
@@ -136,7 +136,7 @@ ThreadCreate(
         MemorySpace_t* memorySpace;
 
         status = AcquireHandle(memorySpaceHandle, (void**)&memorySpace);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             __DestroyThread(thread);
             return status;
         }
@@ -163,7 +163,7 @@ ThreadCreate(
             }
 
             status = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
-            if (status != OsSuccess) {
+            if (status != OsOK) {
                 __DestroyThread(thread);
                 return OsError;
             }
@@ -178,7 +178,7 @@ ThreadCreate(
     TRACE("[ThreadCreate] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
     SchedulerQueueObject(thread->SchedulerObject);
     *handle = thread->Handle;
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -187,18 +187,18 @@ ThreadDetach(
 {
     Thread_t*  Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     Thread_t*  Target = THREAD_GET(ThreadId);
-    OsStatus_t Status = OsDoesNotExist;
+    OsStatus_t Status = OsNotExists;
     
     // Detach is allowed if the caller is the spawner or the caller is in same process
     if (Target != NULL) {
         Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
-        if (Target->ParentHandle == Thread->Handle || Status == OsSuccess) {
+        if (Target->ParentHandle == Thread->Handle || Status == OsOK) {
             Thread_t* Parent = THREAD_GET(Target->ParentHandle);
             if (Parent) {
                 __RemoveChild(Parent, Target);
             }
             Target->ParentHandle = UUID_INVALID;
-            Status               = OsSuccess;
+            Status               = OsOK;
         }
     }
     return Status;
@@ -223,13 +223,13 @@ __TerminateWithChildren(
     value = atomic_load(&thread->Cleanup);
     if (value) {
         MutexUnlock(&thread->SyncObject);
-        return OsSuccess;
+        return OsOK;
     }
 
     child = thread->Children;
     while (child) {
         OsStatus_t Status = __TerminateWithChildren(child, exitCode);
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             ERROR("__TerminateWithChildren failed to terminate child %s of %s", child->Name, thread->Name);
         }
         child = child->Sibling;
@@ -244,7 +244,7 @@ __TerminateWithChildren(
     if (thread->Handle != ThreadCurrentHandle()) {
         SchedulerExpediteObject(thread->SchedulerObject);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -257,7 +257,7 @@ ThreadTerminate(
     int       value;
     
     if (!thread) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // Never, ever kill system idle threads
@@ -271,7 +271,7 @@ ThreadTerminate(
     value = atomic_load(&thread->Cleanup);
     if (value) {
         MutexUnlock(&thread->SyncObject);
-        return OsSuccess;
+        return OsOK;
     }
 
     if (thread->ParentHandle != UUID_INVALID) {
@@ -290,7 +290,7 @@ ThreadTerminate(
         Thread_t* child = thread->Children;
         while (child) {
             OsStatus_t osStatus = __TerminateWithChildren(child, ExitCode);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("[terminate_thread] failed to terminate child %s of %s", child->Name, thread->Name);
             }
             child = child->Sibling;
@@ -305,7 +305,7 @@ ThreadTerminate(
     if (ThreadId != ThreadCurrentHandle()) {
         SchedulerExpediteObject(thread->SchedulerObject);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 int
@@ -354,7 +354,7 @@ __EnterUsermode(
             MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
             MAPPING_VIRTUAL_THREAD
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         FATAL(FATAL_SCOPE_THREAD, "__EnterUsermode failed to map TLS page");
     }
 
@@ -404,7 +404,7 @@ ThreadIsRelated(
     Thread_t* First  = THREAD_GET(Thread1);
     Thread_t* Second = THREAD_GET(Thread2);
     if (First == NULL || Second == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     return AreMemorySpacesRelated(First->MemorySpace, Second->MemorySpace);
 }
@@ -476,7 +476,7 @@ ThreadSetName(
 
     Thread->Name = (const char*)nameCopy;
     kfree((void*)previousName);
-    return OsSuccess;
+    return OsOK;
 }
 
 const char*
@@ -648,7 +648,7 @@ GetNextThread:
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
-    return OsSuccess;
+    return OsOK;
 }
 
 // Common entry point for everything
@@ -744,7 +744,7 @@ static OsStatus_t
 __CreateThreadContexts(
         _In_ Thread_t* thread)
 {
-    OsStatus_t status = OsSuccess;
+    OsStatus_t status = OsOK;
     TRACE("__CreateThreadContexts(thread=0x%" PRIxIN ")", thread);
 
     // Create the kernel context, for an userspace thread this is always the default
@@ -813,7 +813,7 @@ __InitializeDefaultsForThread(
             sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
             STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
             &thread->Signaling.Signals);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return OsOutOfMemory;
     }
 
@@ -833,7 +833,7 @@ __InitializeDefaultsForThread(
 
     thread->SchedulerObject = SchedulerCreateObject(thread, flags);
     osStatus = ArchThreadInitialize(thread);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 

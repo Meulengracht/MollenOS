@@ -96,10 +96,10 @@ typedef void*        Handle_t;
 #define HANDLE_GLOBAL  (Handle_t)1
 
 typedef enum OsStatus {
-    OsSuccess = 0,
+    OsOK = 0,
     OsError,                // Error - Generic
     OsExists,               // Error - Resource already exists
-    OsDoesNotExist,         // Error - Resource does not exist
+    OsNotExists,            // Error - Resource does not exist
     OsInvalidParameters,    // Error - Bad parameters given
     OsInvalidPermissions,   // Error - Bad permissions
     OsTimeout,              // Error - Operation timeout
@@ -115,6 +115,7 @@ typedef enum OsStatus {
     OsDeleted,              // Error - Resource was deleted
     OsPathIsNotDirectory,   // Error - Path is not a directory
     OsPathIsDirectory,      // Error - Path is a directory
+    OsDirectoryNotEmpty,    // Error - Directory is not empty
     OsDeviceError,          // Error - Device error occurred during operation
     
     OsInvalidProtocol,      // Error - Protocol was invalid

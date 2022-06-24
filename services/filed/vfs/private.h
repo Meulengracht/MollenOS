@@ -173,6 +173,16 @@ VFSNodeHandleRemove(
 
 extern MString_t* VFSMakePath(const char* path);
 
+extern MString_t* VFSNodeMakePath(struct VFSNode* node);
+
+/**
+ * @brief Ensures a node is loaded if the node is a directory node. A reader lock
+ * must be held on the node.
+ * @param node
+ * @return
+ */
+extern OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node);
+
 /**
  * @brief VFSNodeFind locates a named entry in a node. If the node is unloaded the node
  * will be loaded. Note: A reader lock must be held on node

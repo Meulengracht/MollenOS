@@ -117,14 +117,14 @@ DmDiscoverAddDriver(
     usched_mtx_lock(&g_driversLock);
     list_append(&g_drivers, &driver->list_header);
     usched_mtx_unlock(&g_driversLock);
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
 DmDiscoverRemoveDriver(
         _In_ MString_t* driverPath)
 {
-    OsStatus_t osStatus = OsDoesNotExist;
+    OsStatus_t osStatus = OsNotExists;
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
@@ -136,7 +136,7 @@ DmDiscoverRemoveDriver(
                 __DestroyDriver(driver);
             }
 
-            osStatus =  OsSuccess;
+            osStatus =  OsOK;
             break;
         }
     }
@@ -155,14 +155,14 @@ __SpawnDriver(
     sprintf(&args[0], "--id %u", driver->id);
 
     osStatus = ProcessSpawn(MStringRaw(driver->path), &args[0], &handle);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     // update driver state
     driver->state = DmDriverState_LOADING;
 
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -217,7 +217,7 @@ DmDiscoverFindDriver(
         _In_ UUId_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification)
 {
-    OsStatus_t osStatus = OsDoesNotExist;
+    OsStatus_t osStatus = OsNotExists;
     TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
           deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
@@ -233,7 +233,7 @@ DmDiscoverFindDriver(
                 osStatus = DmDevicesRegister(driver->handle, deviceId);
             }
             else {
-                osStatus = OsSuccess;
+                osStatus = OsOK;
             }
             break;
         }
@@ -276,7 +276,7 @@ __NotifyDevices(
     foreach (i, &driver->devices) {
         struct DmDevice* device   = i->value;
         OsStatus_t       osStatus = DmDevicesRegister(driver->handle, device->id);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
         }
     }

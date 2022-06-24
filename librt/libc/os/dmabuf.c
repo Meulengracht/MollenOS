@@ -141,7 +141,7 @@ dma_get_sg_table(
     sg_table->count = max_count;
     if (max_count <= 0) {
         status = Syscall_DmaGetMetrics(attachment->handle, &sg_table->count, NULL);
-        if (status != OsSuccess) {
+        if (status != OsOK) {
             return status;
         }
     }
@@ -169,7 +169,7 @@ dma_sg_table_offset(
         if (offset < sg_table->entries[i].length) {
             *sg_index_out  = i;
             *sg_offset_out = offset;
-            return OsSuccess;
+            return OsOK;
         }
         offset -= sg_table->entries[i].length;
     }

@@ -29,7 +29,7 @@ int main(int argc, char** argv)
     uint64_t           memoryInUse;
 
     osStatus = SystemQuery(&systemDescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         OsStatusToErrno(osStatus);
         printf("systat: failed to retrieve system stats: %i\n", errno);
         return -1;

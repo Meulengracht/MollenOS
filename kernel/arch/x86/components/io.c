@@ -156,7 +156,7 @@ ReadDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %" PRIuIN "", Type);
         } break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -193,7 +193,7 @@ WriteDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %" PRIuIN "", Type);
         } break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -219,7 +219,7 @@ ReadDirectPci(
         ERROR("(PciRead) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 OsStatus_t
@@ -245,5 +245,5 @@ WriteDirectPci(
         ERROR("(PciWrite) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }

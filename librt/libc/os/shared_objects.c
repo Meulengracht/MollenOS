@@ -61,7 +61,7 @@ SharedObjectLoad(
     SOInitializer_t          Initializer;
     struct library_element*  library;
     Handle_t                 handle   = HANDLE_INVALID;
-    OsStatus_t               osStatus = OsSuccess;
+    OsStatus_t               osStatus = OsOK;
     uintptr_t                entryAddress;
 
     // Special case
@@ -85,7 +85,7 @@ SharedObjectLoad(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_library_load_result(GetGrachtClient(), &msg.base, &osStatus, (uintptr_t*)&handle, &entryAddress);
 
-    if (osStatus == OsSuccess && handle != HANDLE_INVALID) {
+    if (osStatus == OsOK && handle != HANDLE_INVALID) {
         struct library_element element;
         element.references = (atomic_int*)malloc(sizeof(atomic_int));
         if (!element.references) {
@@ -140,7 +140,7 @@ SharedObjectGetFunction(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
     OsStatusToErrno(Status);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         return NULL;
     }
     return (void*)AddressOfFunction;
@@ -158,7 +158,7 @@ SharedObjectUnload(
     SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
-    OsStatus_t             status = OsSuccess;
+    OsStatus_t             status = OsOK;
 
 	if (Handle == HANDLE_INVALID) {
 	    _set_errno(EINVAL);
@@ -166,7 +166,7 @@ SharedObjectUnload(
 	}
     
     if (Handle == HANDLE_GLOBAL) {
-        return OsSuccess;
+        return OsOK;
     }
 
     assert(__crt_is_phoenix() == 0);
@@ -179,7 +179,7 @@ SharedObjectUnload(
     if (!enumContext.library) {
         mtx_unlock(&g_librariesLock);
         errno = ENOENT;
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     references = atomic_fetch_sub(enumContext.library->references, 1);
