@@ -70,7 +70,7 @@ static OsStatus_t __DeleteNode(struct VFSNode* node)
     struct VFS*           vfs = node->FileSystem;
     struct VFSNode*       parent;
     OsStatus_t            osStatus;
-    MString_t*            nodePath = VFSNodeMakePath(node);
+    MString_t*            nodePath = VFSNodeMakePath(node, 1);
 
     if (nodePath == NULL)  {
         return OsOutOfMemory;

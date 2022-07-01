@@ -33,8 +33,13 @@ set (SERVICE_SOURCES
         storage/utils.c
 
         vfs/handlers/close.c
+        vfs/handlers/handle_stat.c
         vfs/handlers/link.c
+        vfs/handlers/move.c
         vfs/handlers/open.c
+        vfs/handlers/read.c
+        vfs/handlers/realpath.c
+        vfs/handlers/stat.c
         vfs/handlers/unlink.c
         vfs/handles.c
         vfs/utils.c

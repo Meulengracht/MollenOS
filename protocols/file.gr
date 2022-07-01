@@ -56,8 +56,8 @@ service file (3) {
     func flush(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 7;
     func move(UUId_t processId, string source, string destination, bool copy) : (OsStatus_t result) = 8;
     func link(UUId_t processId, string source, string destination, bool symbolic) : (OsStatus_t result) = 9;
-    func set_options(UUId_t processId, UUId_t handle, uint options, uint access) : (OsStatus_t result) = 10;
-    func get_options(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint options, uint access) = 11;
+    func set_access(UUId_t processId, UUId_t handle, uint access) : (OsStatus_t result) = 10;
+    func get_access(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint access) = 11;
     func get_position(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 12;
     func set_size(UUId_t processId, UUId_t handle, uint sizeLow, uint sizeHigh) : (OsStatus_t result) = 13;
     func get_size(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 14;

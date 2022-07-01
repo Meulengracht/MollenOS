@@ -100,6 +100,7 @@ static OsStatus_t __OpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t
         goto cleanup;
     }
 
+    //
     osStatus = VFSNodeHandleAdd(handleId, node);
     if (osStatus != OsOK) {
         handle_destroy(handleId);

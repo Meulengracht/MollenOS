@@ -20,6 +20,7 @@
 #define __VFS_H__
 
 #include <os/osdefs.h>
+#include <ddk/storage.h>
 #include <ds/mstring.h>
 
 struct VFS;
@@ -27,6 +28,7 @@ struct VFSNode;
 struct VFSNodeHandle;
 struct VFSRequest;
 struct VFSStat;
+struct VFSStatFS;
 
 extern OsStatus_t VFSNew(struct VFSOperations*, struct VFS**);
 extern OsStatus_t VFSChildNew(struct VFS*, struct VFS**);
@@ -47,28 +49,28 @@ extern OsStatus_t VFSNodeOpen(struct VFS*, struct VFSRequest*, UUId_t* handleOut
 extern OsStatus_t VFSNodeClose(struct VFS*, struct VFSRequest*);
 extern OsStatus_t VFSNodeLink(struct VFS*, struct VFSRequest*);
 extern OsStatus_t VFSNodeUnlink(struct VFS*, struct VFSRequest*);
-extern void VFSNodeMove(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStat(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStatFs(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStatStorage(struct VFS*, struct VFSRequest*);
-extern void VFSNodeRealPath(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeMove(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeStat(struct VFS*, struct VFSRequest*, struct VFSStat*);
+extern OsStatus_t VFSNodeStatFs(struct VFS*, struct VFSRequest*, struct VFSStatFS*);
+extern OsStatus_t VFSNodeStatStorage(struct VFS*, struct VFSRequest*, StorageDescriptor_t*);
+extern OsStatus_t VFSNodeRealPath(struct VFS*, struct VFSRequest*, MString_t**);
 
 extern OsStatus_t VFSNodeDuplicate(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
-extern void VFSNodeRead(struct VFS*, struct VFSRequest*);
-extern void VFSNodeReadAt(struct VFS*, struct VFSRequest*);
-extern void VFSNodeWrite(struct VFS*, struct VFSRequest*);
-extern void VFSNodeWriteAt(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeRead(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeReadAt(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeWrite(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeWriteAt(struct VFS*, struct VFSRequest*);
 extern void VFSNodeSeek(struct VFS*, struct VFSRequest*);
 extern void VFSNodeFlush(struct VFS*, struct VFSRequest*);
 
-extern void VFSNodeGetPosition(struct VFS*, struct VFSRequest*);
-extern void VFSNodeGetOptions(struct VFS*, struct VFSRequest*);
-extern void VFSNodeSetOptions(struct VFS*, struct VFSRequest*);
-extern void VFSNodeGetSize(struct VFS*, struct VFSRequest*);
-extern void VFSNodeSetSize(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStatHandle(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStatFsHandle(struct VFS*, struct VFSRequest*);
-extern void VFSNodeStatStorageHandle(struct VFS*, struct VFSRequest*);
-extern void VFSNodeGetPathHandle(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeGetPosition(struct VFSRequest*, uint64_t* positionOut);
+extern OsStatus_t VFSNodeGetAccess(struct VFSRequest*, uint32_t* accessKindOut);
+extern OsStatus_t VFSNodeSetAccess(struct VFSRequest*);
+extern OsStatus_t VFSNodeGetSize(struct VFSRequest*, uint64_t* sizeOut);
+extern OsStatus_t VFSNodeSetSize(struct VFSRequest*);
+extern OsStatus_t VFSNodeStatHandle(struct VFSRequest*, struct VFSStat*);
+extern OsStatus_t VFSNodeStatFsHandle(struct VFSRequest*, struct VFSStatFS*);
+extern OsStatus_t VFSNodeStatStorageHandle(struct VFSRequest*, StorageDescriptor_t*);
+extern OsStatus_t VFSNodeGetPathHandle(struct VFSRequest*, MString_t**);
 
 #endif //!__VFS_H__

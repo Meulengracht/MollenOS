@@ -31,8 +31,8 @@
 #define __STORAGE_OPERATION_WRITE           0x00000002
 
 typedef struct StorageDescriptor {
-    UUId_t       Device;
-    UUId_t       Driver;
+    UUId_t       DeviceID;
+    UUId_t       DriverID;
     unsigned int Flags;
     char         Model[64];
     char         Serial[32];

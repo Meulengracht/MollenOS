@@ -155,25 +155,60 @@ struct VFSNodeHandle {
     UUId_t          Id;
     struct VFSNode* Node;
     uint32_t        AccessKind;
+    uint64_t        Position;
+    void*           Data;
 };
 
+/**
+ * @brief Adds a new node handle to the register.
+ * @param handleId
+ * @param node
+ * @return
+ */
 extern OsStatus_t
 VFSNodeHandleAdd(
         _In_ UUId_t          handleId,
-        _In_ struct VFSNode* node);
+        _In_ struct VFSNode* node,
+        _In_ void*           data,
+        _In_ uint32_t        accessKind);
 
+/**
+ * @brief Retrieves a file handle, this will automatically acquire one reader lock
+ * if this returns OsOK. For each call to this function, one call to VFSNodeHandlePut
+ * must be called.
+ * @param handleId
+ * @param handleOut
+ * @return
+ */
 extern OsStatus_t
-VFSNodeHandleFind(
-        _In_  UUId_t           handleId,
-        _Out_ struct VFSNode** nodeOut);
+VFSNodeHandleGet(
+        _In_  UUId_t                 handleId,
+        _Out_ struct VFSNodeHandle** handleOut);
 
+/**
+ * @brief Releases one reader lock on the handles. This should be called exactly once per
+ * call to VFSNodeHandleGet.
+ * @param handle
+ * @return
+ */
+extern OsStatus_t
+VFSNodeHandlePut(
+        _In_ struct VFSNodeHandle* handle);
+
+/**
+ * @brief Removes a vfs node handle from the register. This can only be called if the
+ * caller already has a reader-lock (from calling VFSNodeHandleGet first). After this
+ * call the struct VFSNodeHandle instance is no longer valid and should NOT be used anymore
+ * except for a final call to VFSNodeHandlePut.
+ * @param handleId
+ * @return
+ */
 extern OsStatus_t
 VFSNodeHandleRemove(
         _In_ UUId_t handleId);
 
 extern MString_t* VFSMakePath(const char* path);
-
-extern MString_t* VFSNodeMakePath(struct VFSNode* node);
+extern MString_t* VFSNodeMakePath(struct VFSNode* node, int local);
 
 /**
  * @brief Ensures a node is loaded if the node is a directory node. A reader lock
@@ -193,8 +228,14 @@ extern OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node);
  */
 extern OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
 
+
+
+extern OsStatus_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
+extern OsStatus_t VFSNodePut(struct VFSNode* node);
+
 /**
- * @brief
+ * @brief Creates a new child in the node. This will create the node on the filesystem as well. A reader lock on the
+ * node must be held when calling this function.
  * @param node
  * @param name
  * @param flags
@@ -203,5 +244,16 @@ extern OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSN
  * @return
  */
 extern OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
+
+/**
+ * @brief
+ * @param node
+ * @param name
+ * @param target
+ * @param symbolic
+ * @param nodeOut
+ * @return
+ */
+extern OsStatus_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
 
 #endif //!__VFS_PRIVATE_H__

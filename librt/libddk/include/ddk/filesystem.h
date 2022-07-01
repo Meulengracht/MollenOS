@@ -36,20 +36,13 @@
 
 typedef struct MString MString_t;
 
-typedef struct FileSystemDisk {
-    UUId_t              driver_id;
-    UUId_t              device_id;
-    unsigned int        flags;
-    StorageDescriptor_t descriptor;
-} FileSystemDisk_t;
-
 typedef struct FileSystemBase {
-    MString_t*       Label;
-    unsigned int     Flags;
-    FileSystemDisk_t Disk;
-    uint64_t         SectorStart;
-    uint64_t         SectorCount;
-    uintptr_t*       ExtensionData;
+    MString_t*          Label;
+    StorageDescriptor_t Storage;
+    unsigned int        Flags;
+    uint64_t            SectorStart;
+    uint64_t            SectorCount;
+    void*               Data;
 } FileSystemBase_t;
 
 struct VFSStat {
@@ -60,12 +53,11 @@ struct VFSStat {
     uint64_t   Size;
 };
 
-/* The shared filesystem entry structure
- * Used as a file-definition by the filemanager and the loaded filesystem modules */
-typedef struct FileSystemEntryBase {
-    OsFileDescriptor_t Descriptor;
-    MString_t*         Name;
-} FileSystemEntryBase_t;
+struct VFSStatFS {
+    MString_t* Label;
+    uint64_t   BlocksTotal;
+    uint64_t   BlocksFree;
+};
 
 /* This is the per-handle entry instance
  * structure, so multiple handles can be opened
@@ -94,6 +86,11 @@ __FSDECL(FsDestroy)(
         _In_ unsigned int      unmountFlags);
 
 __FSAPI OsStatus_t
+__FSDECL(FsStat)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ struct VFSStatFS* stat);
+
+__FSAPI OsStatus_t
 __FSDECL(FsOpen)(
         _In_      FileSystemBase_t* fileSystemBase,
         _In_      MString_t*        path,
@@ -101,12 +98,13 @@ __FSDECL(FsOpen)(
 
 __FSAPI OsStatus_t
 __FSDECL(FsCreate)(
-        _In_      FileSystemBase_t* fileSystemBase,
-        _In_      void*             data,
-        _In_      MString_t*        name,
-        _In_      uint32_t          owner,
-        _In_      uint32_t          flags,
-        _In_      uint32_t          permissions);
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  void*             data,
+        _In_  MString_t*        name,
+        _In_  uint32_t          owner,
+        _In_  uint32_t          flags,
+        _In_  uint32_t          permissions,
+        _Out_ void**            dataOut);
 
 __FSAPI OsStatus_t
 __FSDECL(FsClose)(
@@ -114,9 +112,24 @@ __FSDECL(FsClose)(
         _In_ void*             data);
 
 __FSAPI OsStatus_t
+__FSDECL(FsLink)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ void*             data,
+        _In_ MString_t*        linkName,
+        _In_ MString_t*        linkTarget,
+        _In_ int               symbolic);
+
+__FSAPI OsStatus_t
 __FSDECL(FsUnlink)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ MString_t*        path);
+
+__FSAPI OsStatus_t
+__FSDECL(FsMove)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ MString_t*        from,
+        _In_ MString_t*        to,
+        _In_ int               copy);
 
 __FSAPI OsStatus_t
 __FSDECL(FsRead)(
@@ -128,97 +141,26 @@ __FSDECL(FsRead)(
         _In_  size_t            unitCount,
         _Out_ size_t*           unitsRead);
 
-/* FsCreatePath 
- * Creates the path specified and fills the entry structure with similar information as
- * FsOpenEntry. This function (if success) acts like FsOpenEntry. The entry type is specified
- * by options and can be any type. */
 __FSAPI OsStatus_t
-__FSDECL(FsCreatePath)(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  MString_t*              path,
-        _In_  unsigned int            options,
-        _Out_ FileSystemEntryBase_t** baseOut);
+__FSDECL(FsWrite)(
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  void*             data,
+        _In_  UUId_t            bufferHandle,
+        _In_  void*             buffer,
+        _In_  size_t            bufferOffset,
+        _In_  size_t            unitCount,
+        _Out_ size_t*           unitsWritten);
 
-/* FsCloseEntry 
- * Releases resources allocated in the Open/Create function. If entry was opened in
- * exclusive access this is now released. */
 __FSAPI OsStatus_t
-__FSDECL(FsCloseEntry)(
-        _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryBase_t* entryBase);
+__FSDECL(FsTruncate)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ void*             data,
+        _In_ uint64_t          size);
 
-/* FsDeleteEntry 
- * Deletes the entry specified. If the entry is a directory it must be opened in
- * exclusive access to lock all subentries. Otherwise, this can result in zombie handles.
- * This also acts as a FsCloseHandle and FsCloseEntry. */
 __FSAPI OsStatus_t
-__FSDECL(FsDeleteEntry)(
-        _In_ FileSystemBase_t*       fileSystemBase,
-        _In_ FileSystemEntryBase_t*  entryBase);
-
-/* FsOpenHandle 
- * Opens a new handle to a entry, this allows various interactions with the base entry, 
- * like read and write. Neccessary resources and initialization of the Handle
- * should be done here too */
-__FSAPI OsStatus_t
-__FSDECL(FsOpenHandle)(
-        _In_  FileSystemBase_t*        fileSystemBase,
-        _In_  FileSystemEntryBase_t*   entryBase,
-        _Out_ FileSystemHandleBase_t** handleBaseOut);
-
-/* FsCloseHandle 
- * Closes the entry handle and cleans up any resources allocated by the FsOpenHandle equivelent. 
- * Handle is not released by this function but should be cleaned up. */
-__FSAPI OsStatus_t
-__FSDECL(FsCloseHandle)(
-        _In_ FileSystemBase_t*       fileSystemBase,
-        _In_ FileSystemHandleBase_t* handleBase);
-
-/* FsReadEntry 
- * Reads the requested number of units from the entry handle into the supplied buffer. This
- * can be handled differently based on the type of entry. */
-__FSAPI OsStatus_t
-__FSDECL(FsReadEntry)(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  FileSystemEntryBase_t*  entryBase,
-        _In_  FileSystemHandleBase_t* handleBase,
-        _In_  UUId_t                  bufferHandle,
-        _In_  void*                   buffer,
-        _In_  size_t                  bufferOffset,
-        _In_  size_t                  unitCount,
-        _Out_ size_t*                 unitsRead);
-
-/* FsWriteEntry
- * Writes the requested number of bytes to the given
- * file handle and outputs the number of bytes actually written */
-__FSAPI OsStatus_t
-__FSDECL(FsWriteEntry)(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  FileSystemEntryBase_t*  entryBase,
-        _In_  FileSystemHandleBase_t* handleBase,
-        _In_  UUId_t                  bufferHandle,
-        _In_  void*                   buffer,
-        _In_  size_t                  bufferOffset,
-        _In_  size_t                  unitCount,
-        _Out_ size_t*                 unitsWritten);
-
-/* FsSeekInEntry 
- * Seeks in the given entry-handle to the absolute position
- * given, must be within boundaries otherwise a seek won't take a place */
-__FSAPI OsStatus_t
-__FSDECL(FsSeekInEntry)(
-        _In_ FileSystemBase_t*       fileSystemBase,
-        _In_ FileSystemEntryBase_t*  entryBase,
-        _In_ FileSystemHandleBase_t* handleBase,
-        _In_ uint64_t                absolutePosition);
-
-/* FsChangeFileSize
- * Either expands or shrinks the allocated space for the given
- * file-handle to the requested size. */
-__FSAPI OsStatus_t
-__FSDECL(FsChangeFileSize)(
-        _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryBase_t* entryBase,
-        _In_ uint64_t               size);
+__FSDECL(FsSeek)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ void*             data,
+        _In_ uint64_t          absolutePosition);
 
 #endif //!__DDK_FILESYSTEM_H_

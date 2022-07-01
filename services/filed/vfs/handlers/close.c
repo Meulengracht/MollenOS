@@ -37,13 +37,16 @@ static OsStatus_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
 
 OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
 {
-    struct VFSNode* node;
-    OsStatus_t      osStatus;
+    struct VFSNodeHandle* handle;
+    struct VFSNode*       node;
+    OsStatus_t            osStatus;
 
-    osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &node);
+    osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }
+
+    node = handle->Node;
 
     // When processes inherit files, they gain additional references for a handle
     // which means we try to destroy the handle first, and only if we were the final

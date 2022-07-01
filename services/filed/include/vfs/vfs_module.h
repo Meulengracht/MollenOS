@@ -25,24 +25,23 @@
 #include <os/usched/mutex.h>
 #include "filesystem_types.h"
 
-
 struct VFSOperations {
     FsInitialize_t      Initialize;
     FsDestroy_t         Destroy;
+    FsStat_t            Stat;
+
     FsOpen_t            Open;
     FsClose_t           Close;
+    FsLink_t            Link;
     FsUnlink_t          Unlink;
     FsCreate_t          Create;
-    FsCreatePath_t      CreatePath;
-    FsDeleteEntry_t     Delete;
-    FsChangeFileSize_t  ChangeFileSize;
-    FsOpenHandle_t      OpenHandle;
-    FsCloseHandle_t     CloseHandle;
-    FsRead_t            Read;
-    FsWriteEntry_t      Write;
-    FsSeekInEntry_t     Seek;
-};
+    FsMove_t            Move;
 
+    FsTruncate_t        Truncate;
+    FsRead_t            Read;
+    FsWrite_t           Write;
+    FsSeek_t            Seek;
+};
 
 struct VFSModule {
     element_t            header;
