@@ -31,31 +31,33 @@
 #include <vfs/requests.h>
 
 #include "sys_file_service_server.h"
-#include "sys_storage_service_server.h"
 
 extern void OpenFile(FileSystemRequest_t* request, void*);
 extern void CloseFile(FileSystemRequest_t* request, void*);
 extern void DeletePath(FileSystemRequest_t* request, void*);
 extern void ReadFile(FileSystemRequest_t* request, void*);
 extern void WriteFile(FileSystemRequest_t* request, void*);
-extern void Seek(FileSystemRequest_t* request, void*);
 extern void ReadFileAbsolute(FileSystemRequest_t* request, void*);
 extern void WriteFileAbsolute(FileSystemRequest_t* request, void*);
+extern void Seek(FileSystemRequest_t* request, void*);
 extern void Flush(FileSystemRequest_t* request, void*);
 extern void Move(FileSystemRequest_t* request, void*);
 extern void Link(FileSystemRequest_t* request, void*);
+extern void Duplicate(FileSystemRequest_t* request, void*);
 extern void GetPosition(FileSystemRequest_t* request, void*);
-extern void GetOptions(FileSystemRequest_t* request, void*);
-extern void SetOptions(FileSystemRequest_t* request, void*);
+extern void GetAccess(FileSystemRequest_t* request, void*);
+extern void SetAccess(FileSystemRequest_t* request, void*);
 extern void GetSize(FileSystemRequest_t* request, void*);
 extern void SetSize(FileSystemRequest_t* request, void*);
 extern void StatFromHandle(FileSystemRequest_t* request, void*);
 extern void StatFromPath(FileSystemRequest_t* request, void*);
 extern void StatLinkPathFromPath(FileSystemRequest_t* request, void*);
+extern void StatFileSystemByHandle(FileSystemRequest_t* request, void*);
+extern void StatFileSystemByPath(FileSystemRequest_t* request, void*);
 extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
 extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
-extern void GetFullPathByPath(FileSystemRequest_t* request, void*);
+extern void RealPath(FileSystemRequest_t* request, void*);
 
 static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
 
@@ -316,37 +318,51 @@ void sys_file_get_position_invocation(struct gracht_message* message, const UUId
     usched_task_queue((usched_task_fn)GetPosition, request);
 }
 
-void sys_file_get_options_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_duplicate_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     FileSystemRequest_t* request;
 
-    TRACE("sys_file_get_options_invocation()");
+    TRACE("sys_file_duplicate_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_get_options_response(message, OsOutOfMemory, 0, 0);
+        sys_file_get_access_response(message, OsOutOfMemory, 0);
         return;
     }
 
-    request->parameters.get_options.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetOptions, request);
+    request->parameters.duplicate.fileHandle = handle;
+    usched_task_queue((usched_task_fn)Duplicate, request);
 }
 
-void sys_file_set_options_invocation(struct gracht_message* message, const UUId_t processId,
-                                     const UUId_t handle, const unsigned int options, const unsigned int access)
+void sys_file_get_access_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
 {
     FileSystemRequest_t* request;
 
-    TRACE("sys_file_set_options_invocation()");
+    TRACE("sys_file_get_access_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_set_options_response(message, OsOutOfMemory);
+        sys_file_get_access_response(message, OsOutOfMemory, 0);
         return;
     }
 
-    request->parameters.set_options.fileHandle = handle;
-    request->parameters.set_options.options = options;
-    request->parameters.set_options.access = access;
-    usched_task_queue((usched_task_fn)SetOptions, request);
+    request->parameters.get_access.fileHandle = handle;
+    usched_task_queue((usched_task_fn)GetAccess, request);
+}
+
+void sys_file_set_access_invocation(struct gracht_message* message, const UUId_t processId,
+                                     const UUId_t handle, const unsigned int access)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_file_set_access_invocation()");
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_file_set_access_response(message, OsOutOfMemory);
+        return;
+    }
+
+    request->parameters.set_access.fileHandle = handle;
+    request->parameters.set_access.access = access;
+    usched_task_queue((usched_task_fn)SetAccess, request);
 }
 
 void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
@@ -468,8 +484,8 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t pro
         return;
     }
 
-    // @todo not implemented
-    sys_file_fsstat_response(message, OsNotSupported, &gdescriptor);
+    request->parameters.stat_handle.fileHandle = handle;
+    usched_task_queue((usched_task_fn)StatFileSystemByHandle, request);
 }
 
 void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path, const int followLinks)
@@ -484,29 +500,30 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_
         return;
     }
 
-    // @todo not implemented
-    sys_file_fsstat_path_response(message, OsNotSupported, &gdescriptor);
+    request->parameters.stat_path.path = strdup(path);
+    request->parameters.stat_path.follow_links = followLinks;
+    usched_task_queue((usched_task_fn)StatFileSystemByPath, request);
 }
 
-void sys_path_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
+void sys_file_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
 {
     FileSystemRequest_t* request;
 
-    TRACE("sys_path_realpath_invocation(path=%s)", path);
+    TRACE("sys_file_realpath_invocation(path=%s)", path);
     if (!strlen(path)) {
-        sys_path_canonicalize_response(message, OsInvalidParameters, "");
+        sys_file_realpath_response(message, OsInvalidParameters, "");
         return;
     }
 
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        sys_path_canonicalize_response(message, OsOutOfMemory, "");
+        sys_file_realpath_response(message, OsOutOfMemory, "");
         return;
     }
 
     request->parameters.stat_path.path = strdup(path);
     request->parameters.stat_path.follow_links = followLinks;
-    usched_task_queue((usched_task_fn) GetFullPathByPath, request);
+    usched_task_queue((usched_task_fn)RealPath, request);
 }
 
 void sys_file_ststat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t fileHandle)
@@ -515,7 +532,7 @@ void sys_file_ststat_invocation(struct gracht_message* message, const UUId_t pro
     FileSystemRequest_t*       request;
 
     TRACE("sys_file_ststat_invocation()");
-    request = CreateRequest(message, UUID_INVALID);
+    request = CreateRequest(message, processId);
     if (!request) {
         sys_file_ststat_response(message, OsOutOfMemory, &gdescriptor);
         return;
@@ -536,7 +553,7 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const UUId_
         return;
     }
 
-    request = CreateRequest(message, UUID_INVALID);
+    request = CreateRequest(message, processId);
     if (!request) {
         sys_file_ststat_path_response(message, OsOutOfMemory, &gdescriptor);
         return;

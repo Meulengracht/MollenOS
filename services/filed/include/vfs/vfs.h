@@ -24,6 +24,7 @@
 #include <ds/mstring.h>
 
 struct VFS;
+struct VFSOperations;
 struct VFSNode;
 struct VFSNodeHandle;
 struct VFSRequest;
@@ -42,7 +43,7 @@ extern OsStatus_t VFSNodeUnbind(struct VFS*, struct VFSNode*);
 
 extern OsStatus_t VFSNodeNew(struct VFS*, MString_t* path, enum VFSNodeType, struct VFSNode**);
 extern OsStatus_t VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*, struct VFSNode**);
-extern void VFSNodeDestroy(struct VFS*, struct VFSNode*);
+extern void       VFSNodeDestroy(struct VFS*, struct VFSNode*);
 extern OsStatus_t VFSNodeLookup(struct VFS*, MString_t* path, struct VFSNode**);
 
 extern OsStatus_t VFSNodeOpen(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
@@ -55,13 +56,13 @@ extern OsStatus_t VFSNodeStatFs(struct VFS*, struct VFSRequest*, struct VFSStatF
 extern OsStatus_t VFSNodeStatStorage(struct VFS*, struct VFSRequest*, StorageDescriptor_t*);
 extern OsStatus_t VFSNodeRealPath(struct VFS*, struct VFSRequest*, MString_t**);
 
-extern OsStatus_t VFSNodeDuplicate(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
-extern OsStatus_t VFSNodeRead(struct VFS*, struct VFSRequest*);
-extern OsStatus_t VFSNodeReadAt(struct VFS*, struct VFSRequest*);
-extern OsStatus_t VFSNodeWrite(struct VFS*, struct VFSRequest*);
-extern OsStatus_t VFSNodeWriteAt(struct VFS*, struct VFSRequest*);
-extern void VFSNodeSeek(struct VFS*, struct VFSRequest*);
-extern void VFSNodeFlush(struct VFS*, struct VFSRequest*);
+extern OsStatus_t VFSNodeDuplicate(struct VFSRequest*, UUId_t* handleOut);
+extern OsStatus_t VFSNodeRead(struct VFSRequest*, size_t* readOut);
+extern OsStatus_t VFSNodeReadAt(struct VFSRequest*, size_t* readOut);
+extern OsStatus_t VFSNodeWrite(struct VFSRequest*, size_t* writtenOut);
+extern OsStatus_t VFSNodeWriteAt(struct VFSRequest*, size_t* writtenOut);
+extern OsStatus_t VFSNodeSeek(struct VFSRequest*, uint64_t* positionOut);
+extern OsStatus_t VFSNodeFlush(struct VFSRequest*);
 
 extern OsStatus_t VFSNodeGetPosition(struct VFSRequest*, uint64_t* positionOut);
 extern OsStatus_t VFSNodeGetAccess(struct VFSRequest*, uint32_t* accessKindOut);

@@ -30,7 +30,6 @@
 #include <os/dmabuf.h>
 #include <os/types/file.h>
 #include <stdlib.h>
-#include <vfs/cache.h>
 #include <vfs/filesystem.h>
 #include <vfs/handle.h>
 #include <vfs/scope.h>
@@ -783,7 +782,7 @@ void GetOptions(
     unsigned int        options = 0;
     unsigned int        access = 0;
 
-    osStatus = VfsFileSystemGetByFileHandle(request->parameters.get_options.fileHandle, &fileSystem);
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.get_access.fileHandle, &fileSystem);
     if (osStatus != OsOK) {
         sys_file_get_options_response(request->message, osStatus, 0, 0);
         VfsRequestDestroy(request);
@@ -817,7 +816,7 @@ void SetOptions(
     FileSystemHandle_t* handle;
     OsStatus_t          osStatus;
 
-    osStatus = VfsFileSystemGetByFileHandle(request->parameters.set_options.fileHandle, &fileSystem);
+    osStatus = VfsFileSystemGetByFileHandle(request->parameters.set_access.fileHandle, &fileSystem);
     if (osStatus != OsOK) {
         sys_file_set_options_response(request->message, osStatus);
         VfsRequestDestroy(request);
@@ -831,8 +830,8 @@ void SetOptions(
                                request->parameters.get_position.fileHandle,
                                0, &handle);
     if (osStatus != OsOK) {
-        handle->base->Options = request->parameters.set_options.options;
-        handle->base->Access  = request->parameters.set_options.access;
+        handle->base->Options = request->parameters.set_access.options;
+        handle->base->Access  = request->parameters.set_access.access;
     }
 
     sys_file_set_options_response(request->message, osStatus);

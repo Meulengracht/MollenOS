@@ -16,7 +16,6 @@
  *
  */
 
-#include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
@@ -38,87 +37,6 @@ static bool __NodeIsDirectory(struct VFSNode* node)
     return false;
 }
 
-struct __HandleExcCheckContext {
-    uint32_t AccessKind;
-    bool     Success;
-};
-
-static inline bool __IsAccessKindExclusive(uint32_t accessKind)
-{
-    // Exclusive read access?
-    if ((accessKind & (__FILE_READ_ACCESS | __FILE_READ_SHARE)) == __FILE_READ_ACCESS) {
-        return true;
-    }
-
-    // Exclusive write access?
-    if ((accessKind & (__FILE_WRITE_ACCESS | __FILE_WRITE_SHARE)) == __FILE_WRITE_ACCESS) {
-        return true;
-    }
-    return false;
-}
-
-static void __VerifyHandleExclusivityEnum(int index, const void* element, void* userContext)
-{
-    struct __HandleExcCheckContext* context = userContext;
-    const struct __VFSHandle*       handle  = element;
-
-    if (context->Success == false) {
-        return;
-    }
-
-    if (__IsAccessKindExclusive(context->AccessKind)) {
-        context->Success = false;
-        return;
-    }
-
-    if (__IsAccessKindExclusive(handle->AccessKind)) {
-        context->Success = false;
-        return;
-    }
-}
-
-static OsStatus_t __OpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut)
-{
-    struct __HandleExcCheckContext context;
-    struct VFSNodeHandle*          result;
-    OsStatus_t                     osStatus;
-    UUId_t                         handleId;
-
-    usched_mtx_lock(&node->HandlesLock);
-
-    // Perform a handle exclusivity check before opening new handles.
-    context.Success = true;
-    context.AccessKind = accessKind;
-    hashtable_enumerate(&node->Handles, __VerifyHandleExclusivityEnum, &context);
-    if (!context.Success) {
-        osStatus = OsInvalidPermissions;
-        goto cleanup;
-    }
-
-    osStatus = handle_create(&handleId);
-    if (osStatus != OsOK) {
-        goto cleanup;
-    }
-
-    //
-    osStatus = VFSNodeHandleAdd(handleId, node);
-    if (osStatus != OsOK) {
-        handle_destroy(handleId);
-        goto cleanup;
-    }
-
-    // Everything OK, we can add a new handle
-    hashtable_set(&node->Handles, &(struct __VFSHandle) {
-        .Id = handleId,
-        .AccessKind = accessKind
-    });
-    *handleOut = handleId;
-
-cleanup:
-    usched_mtx_unlock(&node->HandlesLock);
-    return osStatus;
-}
-
 static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, UUId_t* handleOut)
 {
     struct VFSNode* node;
@@ -134,7 +52,7 @@ static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, U
 
     if (__IsPathRoot(path)) {
         MStringDestroy(path);
-        return __OpenHandle(vfs->Root, request->parameters.open.access, handleOut);
+        return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
     }
 
     startIndex = 1;
@@ -147,7 +65,7 @@ static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, U
         // If we run out of tokens (for instance path ends on '/') then we can assume at this
         // point that we are standing at the directory. So return a handle to the current node
         if (MStringLength(token) == 0) {
-            osStatus = __OpenHandle(node, request->parameters.open.access, handleOut);
+            osStatus = VFSNodeOpenHandle(node, request->parameters.open.access, handleOut);
             break;
         }
 
@@ -200,7 +118,7 @@ static OsStatus_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, U
 
             // So at this point child is valid and points to the target node we were looking
             // for, so we can now acquire a lock on that based on permissions
-            osStatus = __OpenHandle(child, request->parameters.open.access, handleOut);
+            osStatus = VFSNodeOpenHandle(child, request->parameters.open.access, handleOut);
             break;
         } else {
             node = child;
@@ -295,7 +213,7 @@ static OsStatus_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, UUId_t
 
             // So at this point child is valid and points to the target node we were looking
             // for, so we can now acquire a lock on that based on permissions
-            osStatus = __OpenHandle(child, request->parameters.open.access, handleOut);
+            osStatus = VFSNodeOpenHandle(child, request->parameters.open.access, handleOut);
             break;
         } else if (!__NodeIsDirectory(child)) {
             osStatus = OsPathIsNotDirectory;

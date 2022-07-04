@@ -5,7 +5,6 @@
 
 #include <sys_device_service_client.h>
 #include <sys_file_service_client.h>
-#include <sys_path_service_client.h>
 #include <sys_library_service_client.h>
 #include <sys_process_service_client.h>
 #include <sys_session_service_client.h>

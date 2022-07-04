@@ -21,12 +21,122 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-OsStatus_t VFSNodeRead(struct VFS* vfs, struct VFSRequest* request)
+static OsStatus_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachment)
 {
+    OsStatus_t osStatus;
 
+    osStatus = dma_attach(handle, attachment);
+    if (osStatus != OsOK) {
+        return osStatus;
+    }
+
+    osStatus = dma_attachment_map(attachment, 0);
+    if (osStatus != OsOK) {
+        dma_detach(attachment);
+        return osStatus;
+    }
+    return OsOK;
 }
 
-OsStatus_t VFSNodeReadAt(struct VFS* vfs, struct VFSRequest* request)
+OsStatus_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 {
+    struct VFSNodeHandle* handle;
+    struct VFS*           nodeVfs;
+    OsStatus_t            osStatus, osStatus2;
+    struct dma_attachment attachment;
 
+    osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
+    if (osStatus != OsOK) {
+        return osStatus;
+    }
+
+    osStatus = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
+    if (osStatus != OsOK) {
+        goto cleanup;
+    }
+
+    nodeVfs = handle->Node->FileSystem;
+
+    usched_rwlock_r_lock(&handle->Node->Lock);
+    osStatus = nodeVfs->Module->Operations.Read(
+            &nodeVfs->Base, handle->Data,
+            attachment.handle, attachment.buffer,
+            request->parameters.transfer.offset,
+            request->parameters.transfer.length,
+            readOut);
+    usched_rwlock_r_unlock(&handle->Node->Lock);
+    if (osStatus == OsOK) {
+        handle->Mode     = MODE_READ;
+        handle->Position += *readOut;
+    }
+
+    osStatus2 = dma_detach(&attachment);
+    if (osStatus2 != OsOK) {
+        WARNING("VFSNodeRead failed to detach read buffer");
+    }
+
+cleanup:
+    osStatus2 = VFSNodeHandlePut(handle);
+    if (osStatus2 != OsOK) {
+        WARNING("VFSNodeRead failed to release handle lock");
+    }
+    return osStatus;
+}
+
+OsStatus_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
+{
+    struct VFSNodeHandle* handle;
+    struct VFS*           nodeVfs;
+    OsStatus_t            osStatus, osStatus2;
+    struct dma_attachment attachment;
+    LargeUInteger_t       position, result;
+
+    position.u.LowPart  = request->parameters.transfer_absolute.position_low;
+    position.u.HighPart = request->parameters.transfer_absolute.position_high;
+
+    osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
+    if (osStatus != OsOK) {
+        return osStatus;
+    }
+
+    osStatus = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
+    if (osStatus != OsOK) {
+        goto cleanup;
+    }
+
+    nodeVfs = handle->Node->FileSystem;
+
+    usched_rwlock_r_lock(&handle->Node->Lock);
+    osStatus = nodeVfs->Module->Operations.Seek(
+            &nodeVfs->Base, handle->Data,
+            position.QuadPart, &result.QuadPart);
+    if (osStatus != OsOK) {
+        goto unmap;
+    }
+    handle->Position = result.QuadPart;
+
+    osStatus = nodeVfs->Module->Operations.Read(
+            &nodeVfs->Base, handle->Data,
+            attachment.handle, attachment.buffer,
+            request->parameters.transfer.offset,
+            request->parameters.transfer.length,
+            readOut);
+    if (osStatus == OsOK) {
+        handle->Mode     = MODE_READ;
+        handle->Position += *readOut;
+    }
+
+unmap:
+    usched_rwlock_r_unlock(&handle->Node->Lock);
+    osStatus2 = dma_detach(&attachment);
+    if (osStatus2 != OsOK) {
+        WARNING("VFSNodeReadAt failed to detach read buffer");
+    }
+
+cleanup:
+    osStatus2 = VFSNodeHandlePut(handle);
+    if (osStatus2 != OsOK) {
+        WARNING("VFSNodeReadAt failed to release handle lock");
+    }
+    return osStatus;
 }

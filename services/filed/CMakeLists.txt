@@ -12,7 +12,6 @@ include_directories (
 )
 
 set (SERVICE_HEADERS
-        include/vfs/cache.h
         include/vfs/filesystem.h
         include/vfs/filesystem_module.h
         include/vfs/filesystem_types.h
@@ -33,19 +32,23 @@ set (SERVICE_SOURCES
         storage/utils.c
 
         vfs/handlers/close.c
+        vfs/handlers/duplicate.c
+        vfs/handlers/flush.c
         vfs/handlers/handle_stat.c
         vfs/handlers/link.c
         vfs/handlers/move.c
         vfs/handlers/open.c
         vfs/handlers/read.c
         vfs/handlers/realpath.c
+        vfs/handlers/seek.c
         vfs/handlers/stat.c
         vfs/handlers/unlink.c
+        vfs/handlers/write.c
+        vfs/api.c
         vfs/handles.c
         vfs/utils.c
         vfs/vfs.c
 
-        cache.c
         filesystem.c
         functions.c
         handle.c

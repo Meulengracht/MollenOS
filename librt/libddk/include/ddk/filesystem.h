@@ -159,8 +159,9 @@ __FSDECL(FsTruncate)(
 
 __FSAPI OsStatus_t
 __FSDECL(FsSeek)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ void*             data,
-        _In_ uint64_t          absolutePosition);
+        _In_  FileSystemBase_t* fileSystemBase,
+        _In_  void*             data,
+        _In_  uint64_t          absolutePosition,
+        _Out_ uint64_t*         absolutePositionOut);
 
 #endif //!__DDK_FILESYSTEM_H_

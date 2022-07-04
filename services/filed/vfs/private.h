@@ -151,12 +151,19 @@ struct __VFSHandle {
     uint32_t AccessKind;
 };
 
+enum VFSNodeMode {
+    MODE_NONE,
+    MODE_READ,
+    MODE_WRITE
+};
+
 struct VFSNodeHandle {
-    UUId_t          Id;
-    struct VFSNode* Node;
-    uint32_t        AccessKind;
-    uint64_t        Position;
-    void*           Data;
+    UUId_t           Id;
+    struct VFSNode*  Node;
+    enum VFSNodeMode Mode;
+    uint32_t         AccessKind;
+    uint64_t         Position;
+    void*            Data;
 };
 
 /**
@@ -255,5 +262,14 @@ extern OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint
  * @return
  */
 extern OsStatus_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
+
+/**
+ * @brief
+ * @param node
+ * @param accessKind
+ * @param handleOut
+ * @return
+ */
+extern OsStatus_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut);
 
 #endif //!__VFS_PRIVATE_H__

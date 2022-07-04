@@ -16,6 +16,7 @@
  *
  */
 
+#include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include "private.h"
@@ -283,7 +284,83 @@ cleanup:
     return osStatus;
 }
 
-OsStatus_t VFSNodeDuplicate(struct VFS* vfs, struct VFSRequest* request, UUId_t* handleOut)
-{
+struct __HandleExcCheckContext {
+    uint32_t AccessKind;
+    bool     Success;
+};
 
+static inline bool __IsAccessKindExclusive(uint32_t accessKind)
+{
+    // Exclusive read access?
+    if ((accessKind & (__FILE_READ_ACCESS | __FILE_READ_SHARE)) == __FILE_READ_ACCESS) {
+        return true;
+    }
+
+    // Exclusive write access?
+    if ((accessKind & (__FILE_WRITE_ACCESS | __FILE_WRITE_SHARE)) == __FILE_WRITE_ACCESS) {
+        return true;
+    }
+    return false;
+}
+
+static void __VerifyHandleExclusivityEnum(int index, const void* element, void* userContext)
+{
+    struct __HandleExcCheckContext* context = userContext;
+    const struct __VFSHandle*       handle  = element;
+
+    if (context->Success == false) {
+        return;
+    }
+
+    if (__IsAccessKindExclusive(context->AccessKind)) {
+        context->Success = false;
+        return;
+    }
+
+    if (__IsAccessKindExclusive(handle->AccessKind)) {
+        context->Success = false;
+        return;
+    }
+}
+
+OsStatus_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut)
+{
+    struct __HandleExcCheckContext context;
+    struct VFSNodeHandle*          result;
+    OsStatus_t                     osStatus;
+    UUId_t                         handleId;
+
+    usched_mtx_lock(&node->HandlesLock);
+
+    // Perform a handle exclusivity check before opening new handles.
+    context.Success = true;
+    context.AccessKind = accessKind;
+    hashtable_enumerate(&node->Handles, __VerifyHandleExclusivityEnum, &context);
+    if (!context.Success) {
+        osStatus = OsInvalidPermissions;
+        goto cleanup;
+    }
+
+    osStatus = handle_create(&handleId);
+    if (osStatus != OsOK) {
+        goto cleanup;
+    }
+
+    //
+    osStatus = VFSNodeHandleAdd(handleId, node);
+    if (osStatus != OsOK) {
+        handle_destroy(handleId);
+        goto cleanup;
+    }
+
+    // Everything OK, we can add a new handle
+    hashtable_set(&node->Handles, &(struct __VFSHandle) {
+            .Id = handleId,
+            .AccessKind = accessKind
+    });
+    *handleOut = handleId;
+
+    cleanup:
+    usched_mtx_unlock(&node->HandlesLock);
+    return osStatus;
 }

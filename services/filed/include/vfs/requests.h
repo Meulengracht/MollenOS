@@ -90,15 +90,17 @@ typedef struct VFSRequest {
         } link;
         struct {
             UUId_t fileHandle;
+        } duplicate;
+        struct {
+            UUId_t fileHandle;
         } get_position;
         struct {
             UUId_t fileHandle;
-        } get_options;
+        } get_access;
         struct {
             UUId_t       fileHandle;
-            unsigned int options;
             unsigned int access;
-        } set_options;
+        } set_access;
         struct {
             UUId_t fileHandle;
         } get_size;
