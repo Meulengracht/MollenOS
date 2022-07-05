@@ -50,7 +50,6 @@ set (SERVICE_SOURCES
         vfs/vfs.c
 
         filesystem.c
-        functions.c
         handle.c
         modules.c
         main.c
