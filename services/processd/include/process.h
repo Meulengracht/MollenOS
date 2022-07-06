@@ -92,7 +92,7 @@ extern void PmBootstrapCleanup(void);
  * @param bufferSizeOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 PmBootstrapFindRamdiskFile(
         _In_  MString_t* path,
         _Out_ void**     bufferOut,
@@ -135,7 +135,7 @@ UnregisterProcessRequest(
  * @param[Out] handleOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 PmCreateProcessInternal(
         _In_  const char*             path,
         _In_  const char*             args,

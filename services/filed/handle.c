@@ -83,12 +83,12 @@ RegisterHandle(
     usched_mtx_unlock(&g_handlesLock);
 }
 
-static OsStatus_t
+static oscode_t
 VerifyHandleAccess(
         _In_  FileSystemCacheEntry_t* entry,
         _In_  unsigned int            access)
 {
-    OsStatus_t osStatus = OsOK;
+    oscode_t osStatus = OsOK;
 
     // keep lock while inspecting element
     usched_mtx_lock(&entry->lock);
@@ -113,7 +113,7 @@ VerifyHandleAccess(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 VfsHandleCreate(
         _In_  UUId_t                  processId,
         _In_  FileSystemCacheEntry_t* entry,
@@ -123,7 +123,7 @@ VfsHandleCreate(
 {
     FileSystem_t*       filesystem;
     FileSystemHandle_t* handle;
-    OsStatus_t          osStatus;
+    oscode_t          osStatus;
 
     TRACE("VfsHandleCreate(entry=0x%" PRIxIN ", handleOut=0x%" PRIxIN ")",
           entry, handleOut);
@@ -195,13 +195,13 @@ VfsHandleCreate(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 VfsHandleDestroy(
         _In_ UUId_t              processId,
         _In_ FileSystemHandle_t* handle)
 {
     FileSystem_t* fileSystem;
-    OsStatus_t    osStatus;
+    oscode_t    osStatus;
 
     TRACE("VfsHandleDestroy(processId=%u)", processId);
     if (!handle) {
@@ -227,7 +227,7 @@ VfsHandleDestroy(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 VfsHandleAccess(
         _In_  UUId_t               processId,
         _In_  UUId_t               handleId,
@@ -262,7 +262,7 @@ VfsHandleAccess(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 VfsFileSystemGetByFileHandle(
         _In_  UUId_t         handleId,
         _Out_ FileSystem_t** fileSystem)

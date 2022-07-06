@@ -41,7 +41,7 @@ ProcessGetLibraryHandles(
                                    PROCESS_MAXMODULES, ModuleCountOut);
 }
 
-OsStatus_t
+oscode_t
 UnwindGetSection(
     _In_ void*            MemoryAddress,
     _In_ UnwindSection_t* Section)

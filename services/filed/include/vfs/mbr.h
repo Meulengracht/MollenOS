@@ -73,7 +73,7 @@ PACKED_TYPESTRUCT(MasterBootRecord, {
  * @param buffer       The usermapped buffer handle.
  * @return             Status of the parsing. Returns non-OsOK if the storage device is not MBR partitioned.
  */
-extern OsStatus_t
+extern oscode_t
 MbrEnumerate(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,

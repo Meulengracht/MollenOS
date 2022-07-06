@@ -135,7 +135,7 @@ ApicInitialize(void);
  * @brief Returns OsOK if the local apic is initialized and memory mapped.
  * @return OsOK if the Local Apic is available.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ApicIsInitialized(void);
 
 /**
@@ -236,7 +236,7 @@ ApicMaskGsi(
  * @param[In] vector
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ApicSendInterrupt(
     _In_ InterruptTarget_t type,
     _In_ UUId_t            specific,
@@ -248,7 +248,7 @@ ApicSendInterrupt(
  * @param[In] assert
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ApicPerformIPI(
     _In_ UUId_t coreId,
     _In_ int    assert);
@@ -260,7 +260,7 @@ ApicPerformIPI(
  * @param[In] address
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ApicPerformSIPI(
     _In_ UUId_t    coreId,
     _In_ uintptr_t address);
@@ -314,7 +314,7 @@ ApicGetTaskPriority(void);
 /* ApicTimerHandler
  * The scheduler interrupt handler. The only functionality this handler has is
  * to switch threads. */
-KERNELAPI InterruptStatus_t KERNELABI
+KERNELAPI irqstatus_t KERNELABI
 ApicTimerHandler(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context);
@@ -322,7 +322,7 @@ ApicTimerHandler(
 /* ApicErrorHandler
  * Handles any internally errors that the apic encounters. Most of these
  * don't have any resolution. */
-KERNELAPI InterruptStatus_t KERNELABI
+KERNELAPI irqstatus_t KERNELABI
 ApicErrorHandler(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context);

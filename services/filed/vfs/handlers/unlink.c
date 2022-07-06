@@ -37,7 +37,7 @@ static bool __NodeIsDirectory(struct VFSNode* node)
     return false;
 }
 
-static OsStatus_t __VerifyCanDelete(struct VFSNode* node)
+static oscode_t __VerifyCanDelete(struct VFSNode* node)
 {
     // We do not allow bind mounted nodes to be deleted.
     if (node->Type != VFS_NODE_TYPE_REGULAR) {
@@ -64,12 +64,12 @@ static OsStatus_t __VerifyCanDelete(struct VFSNode* node)
 // __DeleteNode is a helper for deleting a VFS node. The node that has been
 // passed must not be locked by the caller, AND the caller must hold a read lock
 // on the parent
-static OsStatus_t __DeleteNode(struct VFSNode* node)
+static oscode_t __DeleteNode(struct VFSNode* node)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct VFSNode*       parent;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
 
     if (nodePath == NULL)  {
@@ -112,10 +112,10 @@ error:
     return osStatus;
 }
 
-static OsStatus_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
+static oscode_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* node;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     MString_t*      path;
     size_t          pathLength;
     int             startIndex;
@@ -191,10 +191,10 @@ static OsStatus_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
     return osStatus;
 }
 
-static OsStatus_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
+static oscode_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* node;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     MString_t*      path;
     size_t          pathLength;
     int             startIndex;
@@ -262,7 +262,7 @@ static OsStatus_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
     return osStatus;
 }
 
-OsStatus_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
+oscode_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
 {
     if (request->parameters.delete_path.options & __FILE_DIRECTORY) {
         return __UnlinkDirectory(vfs, request);

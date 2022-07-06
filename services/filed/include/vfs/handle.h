@@ -44,7 +44,7 @@ extern void VfsHandleInitialize(void);
  * @param handleOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VfsHandleCreate(
         _In_  UUId_t                  processId,
         _In_  FileSystemCacheEntry_t* entry,
@@ -58,7 +58,7 @@ VfsHandleCreate(
  * @param handle
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VfsHandleDestroy(
         _In_ UUId_t              processId,
         _In_ FileSystemHandle_t* handle);
@@ -72,7 +72,7 @@ VfsHandleDestroy(
  * @param handleOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VfsHandleAccess(
         _In_  UUId_t               processId,
         _In_  UUId_t               handleId,

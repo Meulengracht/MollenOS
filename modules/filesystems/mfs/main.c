@@ -31,22 +31,22 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-OsStatus_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
-OsStatus_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
-OsStatus_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
+oscode_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+oscode_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+oscode_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 // Directory specific operation handlers
-OsStatus_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
-OsStatus_t FsSeekInDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
+oscode_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
+oscode_t FsSeekInDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
-OsStatus_t 
+oscode_t
 FsOpenEntry(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  MString_t*              path,
         _Out_ FileSystemEntryBase_t** baseOut)
 {
     FileSystemMFS_t*      mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
     FileSystemEntryMFS_t* mfsEntry;
 
     mfsEntry = (FileSystemEntryMFS_t*)malloc(sizeof(FileSystemEntryMFS_t));
@@ -63,7 +63,7 @@ FsOpenEntry(
     return osStatus;
 }
 
-OsStatus_t 
+oscode_t
 FsCreatePath(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  MString_t*              path,
@@ -71,7 +71,7 @@ FsCreatePath(
         _Out_ FileSystemEntryBase_t** baseOut)
 {
     FileSystemMFS_t*      mfs;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
     FileSystemEntryMFS_t* entry;
 
     if (!fileSystemBase || !baseOut) {
@@ -86,12 +86,12 @@ FsCreatePath(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 FsCloseEntry(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryBase_t* entryBase)
 {
-    OsStatus_t            osStatus = OsOK;
+    oscode_t            osStatus = OsOK;
     FileSystemEntryMFS_t* entry = (FileSystemEntryMFS_t*)entryBase;
     
     TRACE("FsCloseEntry(%i)", entry->ActionOnClose);
@@ -105,13 +105,13 @@ FsCloseEntry(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 FsDeleteEntry(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryBase_t* entryBase)
 {
     FileSystemEntryMFS_t*  entry = (FileSystemEntryMFS_t*)entryBase;
-    OsStatus_t             osStatus;
+    oscode_t             osStatus;
 
     osStatus = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
     if (osStatus != OsOK) {
@@ -127,7 +127,7 @@ FsDeleteEntry(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 FsOpenHandle(
         _In_  FileSystemBase_t*        fileSystemBase,
         _In_  FileSystemEntryBase_t*   entryBase,
@@ -149,7 +149,7 @@ FsOpenHandle(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 FsCloseHandle(
         _In_ FileSystemBase_t*       fileSystemBase,
         _In_ FileSystemHandleBase_t* handleBase)
@@ -159,7 +159,7 @@ FsCloseHandle(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 FsReadEntry(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  FileSystemEntryBase_t*  entryBase,
@@ -182,7 +182,7 @@ FsReadEntry(
     }
 }
 
-OsStatus_t
+oscode_t
 FsWriteEntry(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  FileSystemEntryBase_t*  entryBase,
@@ -203,7 +203,7 @@ FsWriteEntry(
     return OsInvalidParameters;
 }
 
-OsStatus_t
+oscode_t
 FsSeekInEntry(
         _In_ FileSystemBase_t*       fileSystemBase,
         _In_ FileSystemEntryBase_t*  entryBase,
@@ -221,7 +221,7 @@ FsSeekInEntry(
     }
 }
 
-OsStatus_t
+oscode_t
 FsDestroy(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ unsigned int      unmountFlags)
@@ -273,7 +273,7 @@ FsInitializeRootRecord(
     fileSystem->RootRecord.StartLength = MFS_ROOTSIZE;
 }
 
-OsStatus_t
+oscode_t
 FsInitialize(
         _In_ FileSystemBase_t* fileSystemBase)
 {
@@ -283,7 +283,7 @@ FsInitialize(
     uint8_t*         bMap;
     uint64_t         bytesRead;
     uint64_t         bytesLeft;
-    OsStatus_t       osStatus;
+    oscode_t       osStatus;
     size_t           i, imax;
     size_t           sectorsTransferred;
     

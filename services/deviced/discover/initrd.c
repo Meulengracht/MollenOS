@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vafs/vafs.h>
+#include <vafs/directory.h>
+#include <vafs/file.h>
 
 static int
 __EndsWith(
@@ -51,7 +53,7 @@ __EndsWith(
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
-static OsStatus_t
+static oscode_t
 __ReadFile(
         _In_  struct VaFsDirectoryHandle* directoryHandle,
         _In_  const char*                 filename,
@@ -89,14 +91,14 @@ __ReadFile(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __ParseModuleConfiguration(
         _In_ struct VaFsDirectoryHandle* directoryHandle,
         _In_ const char*                 name)
 {
     struct DriverConfiguration* driverConfig;
     MString_t*           path;
-    OsStatus_t           osStatus;
+    oscode_t           osStatus;
     void*                buffer;
     size_t               length;
     TRACE("__ParseRamdiskFile(name=%s)", name);
@@ -139,7 +141,7 @@ __ParseModuleConfiguration(
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
@@ -148,7 +150,7 @@ __ParseRamdisk(
     struct VaFsDirectoryHandle* directoryHandle;
     struct VaFsEntry            entry;
     int                         status;
-    OsStatus_t                  osStatus = OsOK;
+    oscode_t                  osStatus = OsOK;
     TRACE("__ParseRamdisk()");
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
@@ -169,6 +171,10 @@ __ParseRamdisk(
     }
 
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
+        if (entry.Type != VaFsEntryType_File) {
+            continue;
+        }
+
         if (__EndsWith(entry.Name, ".dll")) {
             osStatus = __ParseModuleConfiguration(directoryHandle, entry.Name);
             if (osStatus != OsOK) {
@@ -186,7 +192,7 @@ __ParseRamdisk(
 void
 DmRamdiskDiscover(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
     TRACE("DmRamdiskDiscover()");

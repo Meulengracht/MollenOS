@@ -155,14 +155,14 @@ typedef struct PS2Controller {
 
 /* PS2PortInitialize
  * Initializes the given port and tries to identify the device on the port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2PortInitialize(
     _In_ PS2Port_t* port);
 
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that
  * require response. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2PortExecuteCommand(
     _In_ PS2Port_t* port,
     _In_ uint8_t    commandValue,
@@ -170,7 +170,7 @@ PS2PortExecuteCommand(
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2PortFinishCommand(
     _In_ PS2Port_t* port);
 
@@ -182,7 +182,7 @@ PS2ReadData(
 
 /* PS2WriteData
  * Writes a data byte to the PS2 controller data port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2WriteData(
     _In_ uint8_t Value);
 
@@ -194,14 +194,14 @@ PS2SendCommand(
 
 /* PS2MouseInitialize 
  * Initializes an instance of an ps2-mouse on the given PS2-Controller port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2MouseInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              index);
 
 /* PS2MouseCleanup 
  * Cleans up the ps2-mouse instance on the given PS2-Controller port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2MouseCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              index);
@@ -214,7 +214,7 @@ PS2MouseInterrupt(
 
 /* PS2KeyboardInitialize 
  * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2KeyboardInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              portIndex,
@@ -222,7 +222,7 @@ PS2KeyboardInitialize(
 
 /* PS2KeyboardCleanup 
  * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PS2KeyboardCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              portIndex);

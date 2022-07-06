@@ -25,21 +25,21 @@
 #include <ddk/acpi.h>
 #include <stdlib.h>
 
-OsStatus_t
+oscode_t
 AcpiQueryStatus(
     _In_ AcpiDescriptor_t* AcpiDescriptor)
 {
     return Syscall_AcpiQuery(AcpiDescriptor);
 }
 
-OsStatus_t
+oscode_t
 AcpiQueryTable(
     _In_  const char*         signature,
     _Out_ ACPI_TABLE_HEADER** tableOut)
 {
     ACPI_TABLE_HEADER header;
     ACPI_TABLE_HEADER* table;
-    OsStatus_t         osStatus;
+    oscode_t         osStatus;
 
     osStatus = Syscall_AcpiGetHeader(signature, &header);
     if (osStatus != OsOK) {
@@ -60,7 +60,7 @@ AcpiQueryTable(
     return osStatus;
 }
 
-OsStatus_t AcpiQueryInterrupt(
+oscode_t AcpiQueryInterrupt(
     _In_  unsigned int Bus,
     _In_  unsigned int Device,
     _In_  int       Pin,

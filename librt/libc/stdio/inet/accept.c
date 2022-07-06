@@ -73,7 +73,7 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     UUId_t                   socket_handle;
     UUId_t                   send_handle;
     UUId_t                   recv_handle;
-    OsStatus_t               status;
+    oscode_t               status;
     int                      accept_iod;
     
     if (!handle) {
@@ -97,7 +97,7 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *address_length,
         &socket_handle, &recv_handle, &send_handle);
     if (status != OsOK) {
-        OsStatusToErrno(status);
+        OsCodeToErrNo(status);
         return -1;
     }
     

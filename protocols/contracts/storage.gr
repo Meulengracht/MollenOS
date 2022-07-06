@@ -9,6 +9,6 @@ import "../types"
 namespace ctt
  
 service storage (17) {
-    func stat(UUId_t deviceId) : (OsStatus_t result, disk_descriptor descriptor) = 1;
-    func transfer(UUId_t deviceId, transfer_direction direction, uint sectorLow, uint sectorHigh, UUId_t bufferId, ulong offset, ulong sectorCount) : (OsStatus_t result, ulong sectorsTransferred) = 2;
+    func stat(UUId_t deviceId) : (oscode_t result, disk_descriptor descriptor) = 1;
+    func transfer(UUId_t deviceId, transfer_direction direction, uint sectorLow, uint sectorHigh, UUId_t bufferId, ulong offset, ulong sectorCount) : (oscode_t result, ulong sectorsTransferred) = 2;
 }

@@ -35,10 +35,10 @@ typedef struct SocketDescriptor SocketDescriptor_t;
 
 #define NETWORK_MANAGER_MONITOR_MAX_EVENTS 32
 
-OsStatus_t
+oscode_t
 NetworkManagerInitialize(void);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketCreate(
     _In_  int     Domain,
     _In_  int     Type,
@@ -47,38 +47,38 @@ NetworkManagerSocketCreate(
     _Out_ UUId_t* SendBufferHandleOut,
     _Out_ UUId_t* RecvBufferHandleOut);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketShutdown(
     _In_ UUId_t Handle,
     _In_ int    Options);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketBind(
     _In_ UUId_t                 Handle,
     _In_ const struct sockaddr* Address);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketConnect(
     _In_ struct gracht_message* message,
     _In_ UUId_t                 handle,
     _In_ const struct sockaddr* address);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketAccept(
     _In_ struct gracht_message* message,
     _In_ UUId_t                 handle);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketPair(
     _In_ UUId_t Handle1,
     _In_ UUId_t Handle2);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketListen(
     _In_ UUId_t Handle,
     _In_ int    ConnectionCount);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketSetOption(
     _In_ UUId_t           Handle,
     _In_ int              Protocol,
@@ -86,7 +86,7 @@ NetworkManagerSocketSetOption(
     _In_ const void*      Data,
     _In_ socklen_t        DataLength);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketGetOption(
     _In_  UUId_t           Handle,
     _In_  int              Protocol,
@@ -94,7 +94,7 @@ NetworkManagerSocketGetOption(
     _In_  void*            Data,
     _Out_ socklen_t*       DataLengthOut);
 
-OsStatus_t
+oscode_t
 NetworkManagerSocketGetAddress(
     _In_ UUId_t           Handle,
     _In_ int              Source,

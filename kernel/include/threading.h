@@ -80,7 +80,7 @@ typedef void(*ThreadEntry_t)(void*);
  * @brief Creates a new thread that will execute the given function as soon as possible. The
  * thread can be supplied with arguments, mode and a custom memory space.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadCreate(
         _In_ const char*   name,
         _In_ ThreadEntry_t entry,
@@ -95,7 +95,7 @@ ThreadCreate(
  * @brief Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadTerminate(
     _In_ UUId_t ThreadId,
     _In_ int    ExitCode,
@@ -115,7 +115,7 @@ ThreadJoin(
  * @brief Detaches a running thread by marking it without parent, this will make
  * sure it runs untill it kills itself.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadDetach(
     _In_  UUId_t ThreadId);
 
@@ -149,7 +149,7 @@ ThreadCurrentForCore(
 /**
  * @brief Returns whether or not the threads are running in same address space context.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadIsRelated(
     _In_ UUId_t Thread1,
     _In_ UUId_t Thread2);
@@ -167,7 +167,7 @@ ThreadHandle(
  * @param Thread A pointer to a thread structure
  * @return       The start time for the thread
  */
-KERNELAPI LargeUInteger_t* KERNELABI
+KERNELAPI UInteger64_t* KERNELABI
 ThreadStartTime(
         _In_ Thread_t* Thread);
 
@@ -185,7 +185,7 @@ ThreadCookie(
  * @param Thread A pointer to a thread structure
  * @return       Status of the operation
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadSetName(
         _In_ Thread_t*   Thread,
         _In_ const char* Name);
@@ -259,7 +259,7 @@ ThreadContext(
  * * Dispatches a signal to a thread in the system from an external 
  * * source (i.e another thread).
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SignalSend(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,
@@ -310,7 +310,7 @@ ThreadingEnable(
  * @param[Out] nextDeadlineOut   The nanoseconds untill next scheduling.
  * @return     Status of the tick.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ThreadingAdvance(
         _In_  int     preemptive,
         _In_  clock_t nanosecondsPassed,

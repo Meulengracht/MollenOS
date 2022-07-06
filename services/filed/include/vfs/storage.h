@@ -48,7 +48,7 @@ extern void VfsStorageInitialize(void);
  * @brief Registers a new filesystem of the given type, on the given disk with the given position on the disk
  * and assigns it an identifier.
  */
-extern OsStatus_t
+extern oscode_t
 VfsStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
@@ -64,7 +64,7 @@ VfsStorageRegisterFileSystem(
  * @param Disk
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VfsStorageParse(
         _In_ FileSystemStorage_t* storage);
 
@@ -73,7 +73,7 @@ VfsStorageParse(
  * with the given sector count. It then loads the correct driver
  * and installs it
  */
-extern OsStatus_t
+extern oscode_t
 VfsStorageDetectFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
@@ -111,7 +111,7 @@ VfsIdentifierFree(
  * @param sectorsRead
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VfsStorageReadHelper(
         _In_  FileSystemStorage_t* storage,
         _In_  UUId_t               bufferHandle,

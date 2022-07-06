@@ -31,7 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-OsStatus_t
+oscode_t
 OhciQhInitialize(
     _In_ OhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer,
@@ -39,7 +39,7 @@ OhciQhInitialize(
     _In_ size_t                 Endpoint)
 {
     OhciQueueHead_t* Qh        = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    OsStatus_t       Status    = OsOK;
+    oscode_t       Status    = OsOK;
     uintptr_t        LinkEnd   = 0;
     uint16_t         LastIndex;
 

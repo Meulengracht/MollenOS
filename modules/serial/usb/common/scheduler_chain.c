@@ -29,7 +29,7 @@
 #include <os/mollenos.h>
 #include "scheduler.h"
 
-OsStatus_t
+oscode_t
 UsbSchedulerChainElement(
     _In_ UsbScheduler_t* Scheduler,
     _In_ int             ElementRootPool,
@@ -91,7 +91,7 @@ UsbSchedulerChainElement(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UsbSchedulerUnchainElement(
     _In_ UsbScheduler_t* Scheduler,
     _In_ int             ElementRootPool,

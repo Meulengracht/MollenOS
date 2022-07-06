@@ -26,7 +26,7 @@
 #include <string.h>
 #include "mfs.h"
 
-OsStatus_t
+oscode_t
 FsReadFromFile(
         _In_  FileSystemBase_t*      fileSystemBase,
         _In_  FileSystemEntryMFS_t*  entry,
@@ -38,7 +38,7 @@ FsReadFromFile(
         _Out_ size_t*                unitsRead)
 {
     FileSystemMFS_t* Mfs             = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    OsStatus_t       osStatus        = OsOK;
+    oscode_t       osStatus        = OsOK;
     uint64_t         position        = handle->Base.Position;
     size_t           bucketSizeBytes = Mfs->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize;
     size_t           bytesToRead     = unitCount;
@@ -190,7 +190,7 @@ FsReadFromFile(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 FsWriteToFile(
         _In_  FileSystemBase_t*      fileSystemBase,
         _In_  FileSystemEntryMFS_t*  entry,
@@ -205,7 +205,7 @@ FsWriteToFile(
     uint64_t         position        = handle->Base.Position;
     size_t           bucketSizeBytes = mfs->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize;
     size_t           bytesToWrite    = unitCount;
-    OsStatus_t       osStatus;
+    oscode_t       osStatus;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
           handle->Base.Id, LODWORD(position), unitCount);
@@ -353,7 +353,7 @@ FsWriteToFile(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 FsSeekInFile(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryMFS_t*  entry,
@@ -449,14 +449,14 @@ FsSeekInFile(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 FsChangeFileSize(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryBase_t* entryBase,
         _In_ uint64_t               size)
 {
     FileSystemEntryMFS_t* entry    = (FileSystemEntryMFS_t*)entryBase;
-    OsStatus_t            osStatus = OsOK;
+    oscode_t            osStatus = OsOK;
 
     TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(entry->Base.Name), LODWORD(size));
 
@@ -464,7 +464,7 @@ FsChangeFileSize(
     if (size == 0) {
         // Free all buckets allocated, if any are allocated
         if (entry->StartBucket != MFS_ENDOFCHAIN) {
-            OsStatus_t Status = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
+            oscode_t Status = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
             if (Status != OsOK) {
                 ERROR("Failed to free the buckets at start 0x%x, length 0x%x. when truncating",
                       entry->StartBucket, entry->StartLength);

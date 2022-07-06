@@ -19,7 +19,7 @@
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 
-OsStatus_t
+oscode_t
 VFSNew(
         _In_  struct VFSOperations* ops,
         _Out_ struct VFS**          vfsOut)

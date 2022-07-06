@@ -34,14 +34,14 @@ InitializeThreadParameters(
     Paramaters->MaximumStackSize  = __MASK;
 }
 
-OsStatus_t 
+oscode_t
 SetCurrentThreadName(
     _In_ const char* ThreadName)
 {
     return Syscall_ThreadSetCurrentName(ThreadName);
 }
 
-OsStatus_t 
+oscode_t
 GetCurrentThreadName(
     _In_ char*  ThreadNameBuffer,
     _In_ size_t MaxLength)

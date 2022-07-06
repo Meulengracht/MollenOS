@@ -27,7 +27,7 @@
 #include <string.h>
 #include <debug.h>
 
-OsStatus_t
+oscode_t
 ScThreadCreate(
     _In_  ThreadEntry_t       Entry,
     _In_  void*               Arguments,
@@ -58,7 +58,7 @@ ScThreadCreate(
                         0, 0, HandleOut);
 }
 
-OsStatus_t
+oscode_t
 ScThreadExit(
     _In_ int ExitCode)
 {
@@ -66,13 +66,13 @@ ScThreadExit(
     return ThreadTerminate(ThreadCurrentHandle(), ExitCode, 1);
 }
 
-OsStatus_t
+oscode_t
 ScThreadJoin(
     _In_  UUId_t ThreadId,
     _Out_ int*   ExitCode)
 {
     int        ResultCode;
-    OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
+    oscode_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
 
     if (Result == OsOK) {
         ResultCode = ThreadJoin(ThreadId);
@@ -84,19 +84,19 @@ ScThreadJoin(
     return Result;
 }
 
-OsStatus_t
+oscode_t
 ScThreadDetach(
     _In_ UUId_t ThreadId)
 {
     return ThreadDetach(ThreadId);
 }
 
-OsStatus_t
+oscode_t
 ScThreadSignal(
     _In_ UUId_t ThreadId,
     _In_ int    SignalCode)
 {
-    OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
+    oscode_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
     if (Result == OsOK) {
         Result = SignalSend(ThreadId, SignalCode, NULL);
     }
@@ -109,7 +109,7 @@ ScThreadGetCurrentId(void)
     return ThreadCurrentHandle();
 }
 
-OsStatus_t
+oscode_t
 ScThreadYield(void)
 {
     ArchThreadYield();
@@ -122,14 +122,14 @@ ScThreadCookie(void)
     return ThreadCookie(ThreadCurrentForCore(ArchGetProcessorCoreId()));
 }
 
-OsStatus_t
+oscode_t
 ScThreadSetCurrentName(const char* ThreadName)
 {
     Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     return ThreadSetName(thread, ThreadName);
 }
 
-OsStatus_t
+oscode_t
 ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength)
 {
     const char* threadName = ThreadName(ThreadCurrentForCore(ArchGetProcessorCoreId()));

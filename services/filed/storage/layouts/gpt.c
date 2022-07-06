@@ -30,7 +30,7 @@
 
 static guid_t g_emptyGuid = GUID_EMPTY;
 
-OsStatus_t
+oscode_t
 GptEnumeratePartitionTable(
         _In_ FileSystemStorage_t* storage,
         _In_ GptHeader_t*         gptHeader,
@@ -39,7 +39,7 @@ GptEnumeratePartitionTable(
 {
     size_t     partitionTableSectorCount;
     size_t     sectorsRead;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("GptEnumeratePartitionTable()");
 
     // No partitions on this disk, skip parse!
@@ -94,7 +94,7 @@ parse_done:
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 GptValidateHeader(
         _In_ GptHeader_t* gptHeader)
 {
@@ -120,7 +120,7 @@ GptValidateHeader(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 GptEnumerate(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
@@ -128,7 +128,7 @@ GptEnumerate(
 {
     GptHeader_t* gpt;
     size_t       sectorsRead;
-    OsStatus_t   osStatus;
+    oscode_t   osStatus;
 
     TRACE("GptEnumerate()");
 

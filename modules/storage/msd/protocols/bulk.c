@@ -31,7 +31,7 @@
 #include <ddk/utils.h>
 #include "../msd.h"
 
-OsStatus_t
+oscode_t
 BulkReset(
     _In_ MsdDevice_t *Device)
 {
@@ -57,7 +57,7 @@ BulkReset(
     }
 }
 
-static OsStatus_t
+static oscode_t
 ClearAndResetEndpoint(
     _In_ MsdDevice_t*               device,
     _In_ usb_endpoint_descriptor_t* endpoint)
@@ -73,12 +73,12 @@ ClearAndResetEndpoint(
         USB_ENDPOINT_ADDRESS(endpoint->Address));
 }
 
-OsStatus_t
+oscode_t
 BulkResetRecovery(
     _In_ MsdDevice_t* device,
     _In_ int          resetType)
 {
-    OsStatus_t status;
+    oscode_t status;
     
     // Debug
     TRACE("MsdRecoveryReset(Type %i)", resetType);
@@ -359,7 +359,7 @@ BulkScsiCommandConstruct(
     }
 }
 
-OsStatus_t
+oscode_t
 BulkInitialize(
     _In_ MsdDevice_t *Device)
 {

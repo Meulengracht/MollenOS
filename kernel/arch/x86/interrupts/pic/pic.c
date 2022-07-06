@@ -27,7 +27,7 @@ static int g_elcrInitialized = 0;
 
 /* PicGetElcr 
  * Retrieves the elcr status register(s). */
-OsStatus_t
+oscode_t
 PicGetElcr(
     _Out_ uint16_t* Elcr)
 {

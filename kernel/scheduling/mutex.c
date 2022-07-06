@@ -53,7 +53,7 @@ static inline void __SetFlags(Mutex_t* mutex, unsigned int flags)
 }
 
 // Try performing a quick lock of the mutex by using cmpxchg
-static OsStatus_t
+static oscode_t
 __TryQuickLock(
         _In_  Mutex_t* mutex,
         _Out_ UUId_t*  ownerOut)
@@ -78,7 +78,7 @@ __TryQuickLock(
 // On multicore systems the lock might be released rather quickly
 // so we perform a number of initial spins before going to sleep,
 // and only in the case that there are no sleepers && locked
-static OsStatus_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
+static oscode_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
 {
     UUId_t currentOwner = owner;
 
@@ -96,7 +96,7 @@ static OsStatus_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
     return OsError;
 }
 
-static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
+static oscode_t __SlowLock(Mutex_t* mutex, size_t timeout)
 {
     IntStatus_t intStatus;
     UUId_t      owner;
@@ -188,7 +188,7 @@ MutexDestruct(
     spinlock_release(&mutex->syncObject);
 }
 
-OsStatus_t
+oscode_t
 MutexTryLock(
     _In_ Mutex_t* mutex)
 {
@@ -210,7 +210,7 @@ MutexLock(
     (void)__SlowLock(mutex, 0);
 }
 
-OsStatus_t
+oscode_t
 MutexLockTimed(
     _In_ Mutex_t* mutex,
     _In_ size_t   timeout)

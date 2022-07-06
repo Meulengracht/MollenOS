@@ -39,8 +39,8 @@ typedef enum HandleType {
 
 typedef void (*HandleDestructorFn)(void*);
 
-KERNELAPI OsStatus_t KERNELABI InitializeHandles(void);
-KERNELAPI OsStatus_t KERNELABI InitializeHandleJanitor(void);
+KERNELAPI oscode_t KERNELABI InitializeHandles(void);
+KERNELAPI oscode_t KERNELABI InitializeHandleJanitor(void);
 
 /**
  * @brief Allocates a new handle for a system resource with a reference of 1.
@@ -58,7 +58,7 @@ CreateHandle(
  * @return OsIncomplete if there are still active references
  *         OsOK if the handle was destroyed
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 DestroyHandle(
     _In_ UUId_t handleId);
 
@@ -68,7 +68,7 @@ DestroyHandle(
  * @param handleId [In] The handle to register the path with.
  * @param path   [In] The path at which the handle should reside.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 RegisterHandlePath(
     _In_ UUId_t      handleId,
     _In_ const char* path);
@@ -79,7 +79,7 @@ RegisterHandlePath(
  * @param path      [In]  The path to resolve a handle for.
  * @param handleOut [Out] A pointer to handle storage.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 LookupHandleByPath(
     _In_  const char* path,
     _Out_ UUId_t*     handleOut);
@@ -89,7 +89,7 @@ LookupHandleByPath(
  * turns out to be invalid, otherwise the resource will be returned.
  * @param handleId [In] The handle that should be acquired.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 AcquireHandle(
     _In_  UUId_t handleId,
     _Out_ void** resourceOut);

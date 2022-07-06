@@ -66,7 +66,7 @@ typedef struct SchedulerObject {
     
     list_t*                 WaitQueueHandle;
     clock_t                 TimeLeft;
-    OsStatus_t              TimeoutReason;
+    oscode_t              TimeoutReason;
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
 
@@ -193,7 +193,7 @@ __AppendToQueue(
     }
 }
 
-static OsStatus_t
+static oscode_t
 __RemoveFromQueue(
     _In_ SchedulerQueue_t*  queue,
     _In_ SchedulerObject_t* object)
@@ -259,7 +259,7 @@ __QueueOnCoreFunction(
     }
 }
 
-static inline OsStatus_t
+static inline oscode_t
 __QueueObjectImmediately(
     _In_ SchedulerObject_t* object)
 {
@@ -380,7 +380,7 @@ SchedulerDestroyObject(
     kfree(object);
 }
 
-OsStatus_t
+oscode_t
 SchedulerSleep(
     _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt)
@@ -469,11 +469,11 @@ SchedulerExpediteObject(
     }
 }
 
-OsStatus_t
+oscode_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* object)
 {
-    OsStatus_t osStatus = OsOK;
+    oscode_t osStatus = OsOK;
     int        resultState;
     
     TRACE("SchedulerQueueObject()");
@@ -513,7 +513,7 @@ SchedulerObjectGetAffinity(
     return object->CoreId;
 }
 
-OsStatus_t
+oscode_t
 SchedulerGetTimeoutReason(void)
 {
     SchedulerObject_t* object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());

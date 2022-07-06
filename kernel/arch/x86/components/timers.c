@@ -31,10 +31,10 @@
 
 uint32_t g_calibrationTick = 0;
 
-OsStatus_t
+oscode_t
 TimersDiscover(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        rtcAvailable = 1;
     
     TRACE("TimersDiscover()");
@@ -63,10 +63,10 @@ TimersDiscover(void)
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 PlatformTimersInitialize(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     // Free all the allocated isa's now for drivers
     InterruptDecreasePenalty(0); // PIT

@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-static OsStatus_t
+static oscode_t
 EhciTransferFill(
     _In_ EhciController_t*     Controller,
     _In_ UsbManagerTransfer_t* Transfer)

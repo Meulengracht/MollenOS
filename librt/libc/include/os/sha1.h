@@ -48,18 +48,18 @@ _CODE_BEGIN
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-CRTDECL( 
-OsStatus_t,
-Sha1Init(
+CRTDECL(
+        oscode_t,
+        Sha1Init(
 	_In_ Sha1Context_t *Context, 
 	_In_ int Handsoff));
 
 /* Sha1Add
  * Add data to the given SHA1 context,
  * this is the function for using the context */
-CRTDECL( 
-OsStatus_t,
-Sha1Add(
+CRTDECL(
+        oscode_t,
+        Sha1Add(
 	_In_ Sha1Context_t *Context, 
 	_In_ __CONST uint8_t *Data,
 	_In_ __CONST size_t Length));
@@ -67,18 +67,18 @@ Sha1Add(
 /* Sha1Finalize
  * Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-CRTDECL( 
-OsStatus_t,
-Sha1Finalize(
+CRTDECL(
+        oscode_t,
+        Sha1Finalize(
 	_In_ Sha1Context_t *Context, 
 	_Out_ uint8_t Digest[SHA1_DIGEST_SIZE]));
 
 /* Sha1DigestToHex
  * Converts the digest buffer to a hex-string 
  * by calling this function */
-CRTDECL( 
-OsStatus_t,
-Sha1DigestToHex(
+CRTDECL(
+        oscode_t,
+        Sha1DigestToHex(
 	_In_ uint8_t Digest[SHA1_DIGEST_SIZE], 
 	_Out_ char *Output));
 _CODE_END

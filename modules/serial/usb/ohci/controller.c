@@ -32,8 +32,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-OsStatus_t        OhciSetup(OhciController_t *Controller);
-InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
+oscode_t        OhciSetup(OhciController_t *Controller);
+irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
 HciControllerCreate(
@@ -43,7 +43,7 @@ HciControllerCreate(
     DeviceIo_t*            IoBase  = NULL;
     DeviceInterrupt_t      Interrupt;
     OhciController_t*      Controller;
-    OsStatus_t             Status;
+    oscode_t             Status;
     int i;
 
     Controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
@@ -142,7 +142,7 @@ HciControllerCreate(
     }
 }
 
-OsStatus_t
+oscode_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
@@ -187,7 +187,7 @@ OhciSetMode(
     WRITE_VOLATILE(Controller->Registers->HcControl, Value);
 }
 
-OsStatus_t
+oscode_t
 OhciTakeControl(
     _In_ OhciController_t* Controller)
 {
@@ -236,7 +236,7 @@ OhciTakeControl(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 OhciReset(
     _In_ OhciController_t* Controller)
 {
@@ -342,7 +342,7 @@ OhciReset(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 OhciSetup(
     _In_ OhciController_t* Controller)
 {

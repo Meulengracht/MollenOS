@@ -49,7 +49,7 @@ CollectionCreate(
     return Collection;
 }
 
-OsStatus_t
+oscode_t
 CollectionClear(
     _In_ Collection_t* Collection)
 {
@@ -66,11 +66,11 @@ CollectionClear(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 CollectionDestroy(
     _In_ Collection_t* Collection)
 {
-    OsStatus_t Status = CollectionClear(Collection);
+    oscode_t Status = CollectionClear(Collection);
     if (Status != OsInvalidParameters) {
         dsfree(Collection);
     }
@@ -119,7 +119,7 @@ CollectionCreateNode(
 
 /* CollectionDestroyNode
  * Cleans up a Collection node and frees all resources it had */
-OsStatus_t
+oscode_t
 CollectionDestroyNode(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node)
@@ -145,7 +145,7 @@ CollectionDestroyNode(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 CollectionInsert(
     _In_ Collection_t*     Collection, 
     _In_ CollectionItem_t* Node)
@@ -172,7 +172,7 @@ CollectionInsert(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 CollectionAppend(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node)
@@ -408,12 +408,12 @@ CollectionUnlinkNode(
     return Item;
 }
 
-OsStatus_t
+oscode_t
 CollectionRemoveByNode(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node)
 {
-    OsStatus_t Status = OsOK;
+    oscode_t Status = OsOK;
     
     assert(Collection != NULL);
     assert(Node != NULL);
@@ -442,13 +442,13 @@ CollectionRemoveByNode(
     return Status;
 }
 
-OsStatus_t
+oscode_t
 CollectionRemoveByKey(
     _In_ Collection_t* Collection, 
     _In_ DataKey_t     Key)
 {
     CollectionItem_t* Node;
-    OsStatus_t        Status;
+    oscode_t        Status;
     
     assert(Collection != NULL);
 

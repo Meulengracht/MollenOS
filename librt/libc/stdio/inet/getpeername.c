@@ -31,7 +31,7 @@ int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    OsStatus_t               status;
+    oscode_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -52,7 +52,7 @@ int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_get_address_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address_out, *address_length_out);
     if (status != OsOK) {
-        OsStatusToErrno(status);
+        OsCodeToErrNo(status);
         return -1;
     }
     

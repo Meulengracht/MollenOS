@@ -56,8 +56,8 @@ RegisterDevice(
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-DDKDECL(OsStatus_t,
-UnregisterDevice(
+DDKDECL(oscode_t,
+        UnregisterDevice(
     _In_ UUId_t DeviceId));
 
 #endif //!__DDK_DEVICE_H__

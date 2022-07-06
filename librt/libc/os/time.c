@@ -24,9 +24,9 @@
 #include <os/mollenos.h>
 #include <os/process.h>
 
-OsStatus_t
+oscode_t
 VaGetWallClock(
-        _In_ LargeInteger_t* time)
+        _In_ Integer64_t* time)
 {
     if (!time) {
         return OsInvalidParameters;
@@ -34,10 +34,10 @@ VaGetWallClock(
     return Syscall_ReadWallClock(time);
 }
 
-OsStatus_t
+oscode_t
 VaGetClockTick(
         _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       tickOut)
+        _In_ UInteger64_t*       tickOut)
 {
     if (!tickOut) {
         return OsInvalidParameters;
@@ -45,7 +45,7 @@ VaGetClockTick(
 
     if (source == VaClockSourceType_PROCESS && !__crt_is_phoenix()) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        OsStatus_t               osStatus;
+        oscode_t               osStatus;
         
         sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -56,10 +56,10 @@ VaGetClockTick(
     return Syscall_ClockTick(source, tickOut);
 }
 
-OsStatus_t
+oscode_t
 VaGetClockFrequency(
         _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       frequencyOut)
+        _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {
         return OsInvalidParameters;
@@ -70,10 +70,10 @@ VaGetClockFrequency(
     return Syscall_ClockFrequency(source, frequencyOut);
 }
 
-OsStatus_t
+oscode_t
 VaSleep(
-        _In_      LargeUInteger_t* duration,
-        _Out_Opt_ LargeUInteger_t* remaining)
+        _In_      UInteger64_t* duration,
+        _Out_Opt_ UInteger64_t* remaining)
 {
     if (!duration || !duration->QuadPart) {
         return OsInvalidParameters;
@@ -82,9 +82,9 @@ VaSleep(
     return Syscall_Sleep(duration, remaining);
 }
 
-OsStatus_t
+oscode_t
 VaStall(
-        _In_ LargeUInteger_t* duration)
+        _In_ UInteger64_t* duration)
 {
     if (!duration || !duration->QuadPart) {
         return OsInvalidParameters;

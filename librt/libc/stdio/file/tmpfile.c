@@ -35,7 +35,7 @@ FILE* tmpfile(void)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     int                      status;
-    OsStatus_t               osStatus;
+    oscode_t               osStatus;
     stdio_handle_t*          object;
     UUId_t                   handle;
     char                     path[64];
@@ -65,7 +65,7 @@ FILE* tmpfile(void)
     }
 
     sys_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
-    if (OsStatusToErrno(osStatus)) {
+    if (OsCodeToErrNo(osStatus)) {
         ERROR("open(path=%s) failed with code: %u", &path[0], osStatus);
         return NULL;
     }

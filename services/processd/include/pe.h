@@ -79,11 +79,11 @@ typedef struct PeExecutable {
 __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
-__EXTERN OsStatus_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
-__EXTERN OsStatus_t PeImplLoadFile(MString_t*, void**, size_t*);
+__EXTERN oscode_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
+__EXTERN oscode_t PeImplLoadFile(MString_t*, void**, size_t*);
 __EXTERN void       PeImplUnloadFile(void*);
-__EXTERN OsStatus_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
-__EXTERN OsStatus_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
+__EXTERN oscode_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
+__EXTERN oscode_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
 __EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);
 
 /*******************************************************************************
@@ -98,7 +98,7 @@ __EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);
  * @param Length
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 PeValidateImageBuffer(
     _In_ uint8_t* Buffer,
     _In_ size_t   Length);
@@ -114,7 +114,7 @@ PeValidateImageBuffer(
  * @param[Out] imageOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 PeLoadImage(
     _In_  UUId_t           owner,
     _In_  PeExecutable_t*  parent,
@@ -127,14 +127,14 @@ PeLoadImage(
  * @param image
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 PeUnloadImage(
     _In_ PeExecutable_t* image);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
  * This only cleans up in the case there are no more references */
-extern OsStatus_t
+extern oscode_t
 PeUnloadLibrary(
     _In_ PeExecutable_t* parent,
     _In_ PeExecutable_t* library);
@@ -158,7 +158,7 @@ PeResolveFunction(
 
 /* PeGetModuleHandles
  * Retrieves a list of loaded module handles currently loaded for the process. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PeGetModuleHandles(
     _In_  PeExecutable_t* executable,
     _Out_ Handle_t*       moduleList,
@@ -166,7 +166,7 @@ PeGetModuleHandles(
 
 /* PeGetModuleEntryPoints
  * Retrieves a list of loaded module entry points currently loaded for the process. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 PeGetModuleEntryPoints(
     _In_  PeExecutable_t* executable,
     _Out_ Handle_t*       moduleList,

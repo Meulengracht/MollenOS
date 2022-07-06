@@ -37,8 +37,8 @@ _CODE_BEGIN
  * UnwindGetSection
  * * Retrieve the unwind section for the module containing the given address
  */
-CRTDECL(OsStatus_t,
-UnwindGetSection(
+CRTDECL(oscode_t,
+        UnwindGetSection(
 	_In_ void*            MemoryAddress,
 	_In_ UnwindSection_t* Section));
 

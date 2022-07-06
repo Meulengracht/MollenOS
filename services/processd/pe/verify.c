@@ -53,7 +53,7 @@ PeCalculateChecksum(
     return (uint32_t)(CheckSum & UINT32_MAX);
 }
 
-OsStatus_t
+oscode_t
 PeValidateImageBuffer(
     _In_ uint8_t* Buffer,
     _In_ size_t   Length)

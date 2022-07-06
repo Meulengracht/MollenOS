@@ -115,7 +115,7 @@ RegisterInterruptSource(
 	return Syscall_InterruptAdd(interrupt, flags);
 }
 
-OsStatus_t
+oscode_t
 UnregisterInterruptSource(
     _In_ UUId_t interruptHandle)
 {

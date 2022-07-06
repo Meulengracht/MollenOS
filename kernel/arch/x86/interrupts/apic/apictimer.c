@@ -42,8 +42,8 @@ typedef struct LocalApicTimer {
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
 
-static void ApicTimerGetCount(void*, LargeUInteger_t*);
-static void ApicTimerGetFrequency(void*, LargeUInteger_t*);
+static void ApicTimerGetCount(void*, UInteger64_t*);
+static void ApicTimerGetFrequency(void*, UInteger64_t*);
 static void ApicTimerRecalibrate(void*);
 
 // TODO this should be per-core
@@ -60,7 +60,7 @@ static SystemTimerOperations_t g_lapicOperations = {
         .Recalibrate = ApicTimerRecalibrate
 };
 
-InterruptStatus_t
+irqstatus_t
 ApicTimerHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     Context)
@@ -93,7 +93,7 @@ ApicTimerHandler(
             APIC_INITIAL_COUNT,
             MIN(g_lapicTimer.Quantum * (nextDeadline / g_lapicTimer.QuantumUnit), 0xFFFFFFFF)
     );
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void
@@ -125,7 +125,7 @@ ApicTimerStart(
 static void
 ApicTimerGetCount(
         _In_ void*            context,
-        _In_ LargeUInteger_t* count)
+        _In_ UInteger64_t* count)
 {
     // So we need to get the number of ticks passed for the current timeslice, otherwise
     // we will return the same value each time a thread calls this function, which we do
@@ -143,7 +143,7 @@ ApicTimerGetCount(
 static void
 ApicTimerGetFrequency(
         _In_ void*            context,
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);
     frequency->QuadPart = g_lapicTimer.Frequency;

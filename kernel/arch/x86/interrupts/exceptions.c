@@ -36,7 +36,7 @@
 #define PAGE_FAULT_WRITE   0x2
 #define PAGE_FAULT_USER    0x4
 
-extern OsStatus_t ThreadingFpuException(Thread_t *thread);
+extern oscode_t ThreadingFpuException(Thread_t *thread);
 extern reg_t      __getcr2(void);
 
 static void

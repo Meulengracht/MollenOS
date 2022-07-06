@@ -115,7 +115,7 @@ static const char* const* __clone_env_block(void)
     return (const char* const*)copy;
 }
 
-OsStatus_t 
+oscode_t
 __crt_tls_create(
     _In_ thread_storage_t* tls)
 {
@@ -162,7 +162,7 @@ static void __destroy_env_block(char** env)
     free(env);
 }
 
-OsStatus_t
+oscode_t
 tls_destroy(
     _In_ thread_storage_t* tls)
 {

@@ -34,7 +34,7 @@
 extern uint32_t g_calibrationTick;
 extern Cmos_t   g_cmos;
 
-InterruptStatus_t
+irqstatus_t
 RtcInterrupt(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
@@ -50,21 +50,12 @@ RtcInterrupt(
         // this was a calibration irq
         uint32_t tick = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, tick + 1);
-        return InterruptHandled;
+        return IRQSTATUS_HANDLED;
     }
-
-    // Should we ever try to resync the time at specific intervals?
-    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
-        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
-    }
-    else {
-        // Update system time with 1 second
-        SystemTimerWallClockAddTime(1);
-    }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-InterruptStatus_t
+irqstatus_t
 RtcHpetInterrupt(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
@@ -76,18 +67,9 @@ RtcHpetInterrupt(
         // this was a calibration irq
         uint32_t tick = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, tick + 1);
-        return InterruptHandled;
+        return IRQSTATUS_HANDLED;
     }
-
-    // Should we ever try to resync the time at specific intervals?
-    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
-        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
-    }
-    else {
-        // Update system time with 1 second
-        SystemTimerWallClockAddTime(1);
-    }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 static uint8_t
@@ -101,7 +83,7 @@ __DisableRtc(void)
     return CmosRead(CMOS_REGISTER_STATUS_B);
 }
 
-OsStatus_t
+oscode_t
 RtcInitialize(
     _In_ Cmos_t* cmos)
 {

@@ -27,7 +27,7 @@
 #include <machine.h>
 #include <string.h>
 
-OsStatus_t
+oscode_t
 CreateInterruptController(
     _In_ UUId_t     Id,
     _In_ int        InterruptLineBase,
@@ -58,7 +58,7 @@ CreateInterruptController(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides)
 {
@@ -79,7 +79,7 @@ CreateInterruptOverrides(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,

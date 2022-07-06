@@ -76,7 +76,7 @@ uint64_t rev64(uint64_t qword)
     return y;
 }
 
-OsStatus_t
+oscode_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device)
 {
@@ -89,7 +89,7 @@ MsdDeviceInitialize(
     return Device->Operations->Initialize(Device);
 }
 
-OsStatus_t
+oscode_t
 MsdGetMaximumLunCount(
     _In_ MsdDevice_t *Device)
 {
@@ -167,7 +167,7 @@ MsdScsiCommand(
     return Device->Operations->GetStatus(Device);
 }
 
-OsStatus_t
+oscode_t
 MsdDevicePrepare(
     MsdDevice_t *Device)
 {
@@ -225,7 +225,7 @@ MsdDevicePrepare(
     return OsOK;
 }
 
-OsStatus_t 
+oscode_t
 MsdReadCapabilities(
     _In_ MsdDevice_t *Device)
 {
@@ -280,7 +280,7 @@ MsdReadCapabilities(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MsdDeviceStart(
     _In_ MsdDevice_t* msdDevice)
 {
@@ -350,7 +350,7 @@ SelectScsiTransferCommand(
     }
 }
 
-OsStatus_t
+oscode_t
 MsdTransferSectors(
     _In_  MsdDevice_t* device,
     _In_  int          direction,
@@ -423,8 +423,8 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_
         const UUId_t bufferId, const size_t offset, const size_t sectorCount)
 {
     MsdDevice_t*    device = MsdDeviceGet(deviceId);
-    OsStatus_t      status;
-    LargeUInteger_t sector;
+    oscode_t      status;
+    UInteger64_t sector;
     size_t          sectorsTransferred;
     
     sector.u.LowPart = sectorLow;

@@ -63,7 +63,7 @@ MmuGetMemoryConfiguration(
  * @param kernelMappings     [In]
  * @return                     Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -79,7 +79,7 @@ MmuLoadKernel(
  * @param inherit [In] Whether userspace mappings should be inheritted.
  * @return             Status of the cloning.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 MmuCloneVirtualSpace(
         _In_ MemorySpace_t* parent,
         _In_ MemorySpace_t* child,
@@ -90,7 +90,7 @@ MmuCloneVirtualSpace(
  *
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace);
 
@@ -116,7 +116,7 @@ ArchMmuSwitchMemorySpace(
  * 
  * @return Status of the page attribute lookup.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuGetPageAttributes(
         _In_  MemorySpace_t*,
         _In_  vaddr_t,
@@ -136,7 +136,7 @@ ArchMmuGetPageAttributes(
  * 
  * @return OsOK if operation was fully completed, otherwise OsIncomplete
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuUpdatePageAttributes(
         _In_  MemorySpace_t*,
         _In_  vaddr_t,
@@ -155,7 +155,7 @@ ArchMmuUpdatePageAttributes(
  * 
  * @return Status of the address mapping update.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuCommitVirtualPage(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -176,7 +176,7 @@ ArchMmuCommitVirtualPage(
  * 
  * @return Status of the address mapping creation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuSetContiguousVirtualPages(
         _In_  MemorySpace_t*,
         _In_  vaddr_t,
@@ -196,7 +196,7 @@ ArchMmuSetContiguousVirtualPages(
  * 
  * @return Status of the address mapping reservation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuReserveVirtualPages(
         _In_  MemorySpace_t*,
         _In_  vaddr_t,
@@ -218,7 +218,7 @@ ArchMmuReserveVirtualPages(
  * 
  * @return Status of the address mapping creation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuSetVirtualPages(
         _In_  MemorySpace_t*           memorySpace,
         _In_  vaddr_t         startAddress,
@@ -242,7 +242,7 @@ ArchMmuSetVirtualPages(
  * 
  * @return Status of the address mapping removal.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuClearVirtualPages(
         _In_  MemorySpace_t*     memorySpace,
         _In_  vaddr_t   startAddress,
@@ -264,7 +264,7 @@ ArchMmuClearVirtualPages(
  * 
  * @return Status of the address space translation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchMmuVirtualToPhysical(
         _In_  MemorySpace_t*,
         _In_  vaddr_t,

@@ -74,7 +74,7 @@ DmDiscoverInitialize(void);
  * @param[In] driverConfig
  * @return
  */
-OsStatus_t
+oscode_t
 DmDiscoverAddDriver(
         _In_ MString_t*                  driverPath,
         _In_ struct DriverConfiguration* driverConfig);
@@ -84,7 +84,7 @@ DmDiscoverAddDriver(
  * @param[In] driverPath
  * @return
  */
-OsStatus_t
+oscode_t
 DmDiscoverRemoveDriver(
         _In_ MString_t* driverPath);
 
@@ -95,7 +95,7 @@ DmDiscoverRemoveDriver(
  * @param[In] deviceIdentification
  * @return
  */
-OsStatus_t
+oscode_t
 DmDiscoverFindDriver(
         _In_ UUId_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification);

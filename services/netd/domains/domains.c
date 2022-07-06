@@ -32,12 +32,12 @@ typedef struct SocketDomain {
 } SocketDomain_t;
 
 // Supported domains
-extern OsStatus_t DomainUnspecCreate(SocketDomain_t**);
-extern OsStatus_t DomainLocalCreate(SocketDomain_t**);
-extern OsStatus_t DomainInternetCreate(int, SocketDomain_t**);
-extern OsStatus_t DomainBluetoothCreate(SocketDomain_t**);
+extern oscode_t DomainUnspecCreate(SocketDomain_t**);
+extern oscode_t DomainLocalCreate(SocketDomain_t**);
+extern oscode_t DomainInternetCreate(int, SocketDomain_t**);
+extern oscode_t DomainBluetoothCreate(SocketDomain_t**);
 
-OsStatus_t
+oscode_t
 DomainCreate(
     _In_ int              DomainType,
     _In_ SocketDomain_t** DomainOut)
@@ -73,7 +73,7 @@ DomainDestroy(
     Domain->Ops.Destroy(Domain);
 }
 
-OsStatus_t
+oscode_t
 DomainAllocateAddress(
     _In_ Socket_t* Socket)
 {
@@ -83,7 +83,7 @@ DomainAllocateAddress(
     return Socket->Domain->Ops.AddressAllocate(Socket);
 }
 
-OsStatus_t
+oscode_t
 DomainUpdateAddress(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
@@ -104,7 +104,7 @@ DomainFreeAddress(
     Socket->Domain->Ops.AddressFree(Socket);
 }
 
-OsStatus_t
+oscode_t
 DomainConnect(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket,
@@ -116,7 +116,7 @@ DomainConnect(
     return socket->Domain->Ops.Connect(message, socket, address);
 }
 
-OsStatus_t
+oscode_t
 DomainDisconnect(
     _In_ Socket_t* Socket)
 {
@@ -126,7 +126,7 @@ DomainDisconnect(
     return Socket->Domain->Ops.Disconnect(Socket);
 }
 
-OsStatus_t
+oscode_t
 DomainAccept(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket)
@@ -137,7 +137,7 @@ DomainAccept(
     return socket->Domain->Ops.Accept(message, socket);
 }
 
-OsStatus_t
+oscode_t
 DomainPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2)
@@ -148,7 +148,7 @@ DomainPair(
     return Socket1->Domain->Ops.Pair(Socket1, Socket2);
 }
 
-OsStatus_t
+oscode_t
 DomainSend(
     _In_ Socket_t* Socket)
 {
@@ -158,7 +158,7 @@ DomainSend(
     return Socket->Domain->Ops.Send(Socket);
 }
 
-OsStatus_t
+oscode_t
 DomainReceive(
     _In_ Socket_t* Socket)
 {
@@ -168,7 +168,7 @@ DomainReceive(
     return Socket->Domain->Ops.Receive(Socket);
 }
 
-OsStatus_t
+oscode_t
 DomainGetAddress(
     _In_ Socket_t*        Socket,
     _In_ int              Source,

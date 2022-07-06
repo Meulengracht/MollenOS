@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static OsStatus_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
+static oscode_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
 {
     struct __VFSHandle* handle;
 
@@ -35,11 +35,11 @@ static OsStatus_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
     return OsOK;
 }
 
-OsStatus_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
+oscode_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
     struct VFSNode*       node;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &handle);
     if (osStatus != OsOK) {

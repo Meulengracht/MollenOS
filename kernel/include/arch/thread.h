@@ -35,7 +35,7 @@ DECL_STRUCT(SystemCpuCore);
  * @param thread
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchThreadInitialize(
     _In_ Thread_t* thread);
 
@@ -45,7 +45,7 @@ ArchThreadInitialize(
  * @param thread
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchThreadDestroy(
     _In_ Thread_t* thread);
 
@@ -143,7 +143,7 @@ ArchThreadContextPushInterceptor(
  * @param context
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchThreadContextDump(
         _In_ Context_t *context);
 

@@ -154,7 +154,7 @@ struct parser_state {
     struct yaml_resource* resource;
 };
 
-static OsStatus_t
+static oscode_t
 __AddProduct(
         _In_ struct yaml_vendor* vendor,
         _In_ uint32_t            productId)
@@ -537,7 +537,7 @@ __ConsumeEvent(
     return 0;
 }
 
-OsStatus_t
+oscode_t
 DmParseDriverYaml(
         _In_ const uint8_t* yaml,
         _In_ size_t         length)

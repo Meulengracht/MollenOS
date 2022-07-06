@@ -95,7 +95,7 @@ typedef void*        Handle_t;
 #define HANDLE_INVALID (Handle_t)0
 #define HANDLE_GLOBAL  (Handle_t)1
 
-typedef enum OsStatus {
+typedef enum oscode {
     OsOK = 0,
     OsError,                // Error - Generic
     OsExists,               // Error - Resource already exists
@@ -115,6 +115,7 @@ typedef enum OsStatus {
     OsDeleted,              // Error - Resource was deleted
     OsPathIsNotDirectory,   // Error - Path is not a directory
     OsPathIsDirectory,      // Error - Path is a directory
+    OsLinkInvalid,          // Error - Link is invalid
     OsDirectoryNotEmpty,    // Error - Directory is not empty
     OsDeviceError,          // Error - Device error occurred during operation
     
@@ -127,18 +128,9 @@ typedef enum OsStatus {
     OsAlreadyConnected,     // Error - Already connected
     
     OsErrorCodeCount
-} OsStatus_t;
+} oscode_t;
 
-/**
- * Introduce interrupt status codes for drivers, these are used in the fast interrupt handlers.
- * TODO move this to ddkdefs.h
- */
-typedef enum {
-    InterruptNotHandled,
-    InterruptHandled
-} InterruptStatus_t;
-
-typedef union LargeInteger {
+typedef union Integer64 {
     struct {
         uint32_t LowPart;
         int32_t  HighPart;
@@ -148,9 +140,9 @@ typedef union LargeInteger {
         uint32_t HighPart;
     } u;
     int64_t QuadPart;
-} LargeInteger_t;
+} Integer64_t;
 
-typedef union LargeUInteger {
+typedef union UInteger64 {
     struct {
         uint32_t LowPart;
         int32_t  HighPart;
@@ -160,7 +152,7 @@ typedef union LargeUInteger {
         uint32_t HighPart;
     } u;
     uint64_t QuadPart;
-} LargeUInteger_t;
+} UInteger64_t;
 
 static inline int
 FirstSetBit(size_t value)
@@ -246,9 +238,9 @@ NextPowerOfTwo(size_t value)
 #define BYTES_PER_KB 1024
 #define BYTES_PER_MB (BYTES_PER_KB * 1024)
 #define BYTES_PER_GB (BYTES_PER_MB * 1024)
-#define KB(x)        (x * BYTES_PER_KB)
-#define MB(x)        (x * BYTES_PER_MB)
-#define GB(x)        (x * BYTES_PER_GB)
+#define KB(x)        ((x) * BYTES_PER_KB)
+#define MB(x)        ((x) * BYTES_PER_MB)
+#define GB(x)        ((x) * BYTES_PER_GB)
 
 #ifndef LOWORD
 #define LOWORD(l) ((uint16_t)(uint32_t)(l))
@@ -293,7 +285,7 @@ NextPowerOfTwo(size_t value)
 #endif
 
 #ifndef HIDWORD
-#define HIDWORD(l)                              (((*(LargeInteger_t*)(&(l)))).u.HighPart)
+#define HIDWORD(l)                              (((*(Integer64_t*)(&(l)))).u.HighPart)
 #endif
 #endif
 #endif

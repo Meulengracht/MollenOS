@@ -43,6 +43,14 @@
 #endif
 
 /**
+ * Introduce interrupt status codes for drivers, these are used in the fast interrupt handlers.
+ */
+typedef enum {
+    IRQSTATUS_NOT_HANDLED,
+    IRQSTATUS_HANDLED
+} irqstatus_t;
+
+/**
  * @brief Read from the TLS register index. On the X86 architecture this is done by using
  * the GS register.
  */

@@ -46,17 +46,34 @@ typedef struct FileSystemBase {
 } FileSystemBase_t;
 
 struct VFSStat {
+    // These are filled in by the VFS
+    UUId_t ID;
+    UUId_t StorageID;
+
     MString_t* Name;
+    MString_t* LinkTarget;
     uint32_t   Owner;
     uint32_t   Permissions; // Permissions come from os/file/types.h
     uint32_t   Flags;       // Flags come from os/file/types.h
     uint64_t   Size;
+
+    struct timespec Accessed;
+    struct timespec Modified;
+    struct timespec Created;
 };
 
 struct VFSStatFS {
+    // These are filled in by the VFS
+    UUId_t     ID;
     MString_t* Label;
-    uint64_t   BlocksTotal;
-    uint64_t   BlocksFree;
+    MString_t* Serial;
+
+    // These should be filled in by the underlying FS.
+    uint32_t   MaxFilenameLength;
+    uint32_t   BlockSize;
+    uint32_t   BlocksPerSegment;
+    uint64_t   SegmentsTotal;
+    uint64_t   SegmentsFree;
 };
 
 /* This is the per-handle entry instance
@@ -73,30 +90,30 @@ typedef struct FileSystemHandleBase {
 /* FsInitialize 
  * Initializes a new instance of the file system
  * and allocates resources for the given descriptor */
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsInitialize)(
         _In_ FileSystemBase_t* fileSystemBase);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsDestroy)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ unsigned int      unmountFlags);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsStat)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ struct VFSStatFS* stat);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsOpen)(
         _In_      FileSystemBase_t* fileSystemBase,
         _In_      MString_t*        path,
         _Out_Opt_ void**            dataOut);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsCreate)(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  void*             data,
@@ -106,12 +123,12 @@ __FSDECL(FsCreate)(
         _In_  uint32_t          permissions,
         _Out_ void**            dataOut);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsClose)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ void*             data);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsLink)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ void*             data,
@@ -119,19 +136,25 @@ __FSDECL(FsLink)(
         _In_ MString_t*        linkTarget,
         _In_ int               symbolic);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsUnlink)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ MString_t*        path);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
+__FSDECL(FsReadLink)(
+        _In_ FileSystemBase_t* fileSystemBase,
+        _In_ MString_t*        path,
+        _In_ MString_t*        pathOut);
+
+__FSAPI oscode_t
 __FSDECL(FsMove)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ MString_t*        from,
         _In_ MString_t*        to,
         _In_ int               copy);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsRead)(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  void*             data,
@@ -141,7 +164,7 @@ __FSDECL(FsRead)(
         _In_  size_t            unitCount,
         _Out_ size_t*           unitsRead);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsWrite)(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  void*             data,
@@ -151,13 +174,13 @@ __FSDECL(FsWrite)(
         _In_  size_t            unitCount,
         _Out_ size_t*           unitsWritten);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsTruncate)(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ void*             data,
         _In_ uint64_t          size);
 
-__FSAPI OsStatus_t
+__FSAPI oscode_t
 __FSDECL(FsSeek)(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  void*             data,

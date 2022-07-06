@@ -33,8 +33,8 @@
 #include <debug.h>
 #include <heap.h>
 
-extern OsStatus_t ScFutexWait(FutexParameters_t*);
-extern OsStatus_t ScFutexWake(FutexParameters_t*);
+extern oscode_t ScFutexWait(FutexParameters_t*);
+extern oscode_t ScFutexWake(FutexParameters_t*);
 #else
 #include <internal/_syscalls.h>
 #include <ddk/utils.h>

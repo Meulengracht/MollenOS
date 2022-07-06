@@ -65,11 +65,11 @@ typedef struct AcceptRequest {
 // TODO: should be hashtable
 static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
 
-static OsStatus_t HandleInvalidType(Socket_t*);
-static OsStatus_t HandleSocketStreamData(Socket_t*);
-static OsStatus_t HandleSocketPacketData(Socket_t*);
+static oscode_t HandleInvalidType(Socket_t*);
+static oscode_t HandleSocketStreamData(Socket_t*);
+static oscode_t HandleSocketPacketData(Socket_t*);
 
-typedef OsStatus_t (*LocalTypeHandler)(Socket_t*);
+typedef oscode_t (*LocalTypeHandler)(Socket_t*);
 static LocalTypeHandler LocalTypeHandlers[6] = {
     HandleInvalidType,
     HandleSocketStreamData, // SOCK_STREAM
@@ -93,7 +93,7 @@ GetSocketFromAddress(
     return Record->Socket;
 }
 
-static OsStatus_t
+static oscode_t
 HandleInvalidType(
     _In_ Socket_t* Socket)
 {
@@ -101,7 +101,7 @@ HandleInvalidType(
     return OsNotSupported;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalGetAddress(
     _In_ Socket_t*        socket,
     _In_ int              source,
@@ -138,7 +138,7 @@ DomainLocalGetAddress(
     return OsInvalidParameters;
 }
 
-static OsStatus_t
+static oscode_t
 HandleSocketStreamData(
     _In_ Socket_t* socket)
 {
@@ -247,7 +247,7 @@ ProcessSocketPacket(
     return TargetSocket;
 }
 
-static OsStatus_t
+static oscode_t
 HandleSocketPacketData(
     _In_ Socket_t* Socket)
 {
@@ -312,7 +312,7 @@ HandleSocketPacketData(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalSend(
     _In_ Socket_t* Socket)
 {
@@ -320,7 +320,7 @@ DomainLocalSend(
     return LocalTypeHandlers[Socket->Type](Socket);
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalReceive(
     _In_ Socket_t* Socket)
 {
@@ -328,7 +328,7 @@ DomainLocalReceive(
     return OsNotSupported;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2)
@@ -338,7 +338,7 @@ DomainLocalPair(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalAllocateAddress(
     _In_ Socket_t* Socket)
 {
@@ -395,7 +395,7 @@ DomainLocalFreeAddress(
     }
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalBind(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
@@ -458,7 +458,7 @@ AcceptConnectionRequest(
 {
     UUId_t                  handle, recv_handle, send_handle;
     struct sockaddr_storage address;
-    OsStatus_t              status;
+    oscode_t              status;
     
     TRACE("[net_manager] [accept_request]");
     
@@ -482,7 +482,7 @@ AcceptConnectionRequest(
         handle, recv_handle, send_handle);
 }
 
-static OsStatus_t
+static oscode_t
 HandleLocalConnectionRequest(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              sourceSocket,
@@ -525,7 +525,7 @@ HandleLocalConnectionRequest(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalConnect(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket,
@@ -554,12 +554,12 @@ DomainLocalConnect(
     }
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
     Socket_t*  peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
-    OsStatus_t osStatus   = OsNotConnected;
+    oscode_t osStatus   = OsNotConnected;
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
     
@@ -578,7 +578,7 @@ DomainLocalDisconnect(
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 DomainLocalAccept(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket)
@@ -587,7 +587,7 @@ DomainLocalAccept(
     ConnectionRequest_t* connectionRequest;
     AcceptRequest_t*     acceptRequest;
     element_t*           element;
-    OsStatus_t           status = OsOK;
+    oscode_t           status = OsOK;
     TRACE("[domain] [local] [accept] %u", LODWORD(socket->Header.key));
     
     // Check if there is any requests available
@@ -661,7 +661,7 @@ DomainLocalDestroy(
     free(Domain);
 }
 
-OsStatus_t
+oscode_t
 DomainLocalCreate(
     _Out_ SocketDomain_t** DomainOut)
 {

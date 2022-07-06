@@ -74,7 +74,7 @@ streambuffer_construct(
     stream->options  = options;
 }
 
-OsStatus_t
+oscode_t
 streambuffer_create(
     _In_  size_t           capacity,
     _In_  unsigned int     options,

@@ -29,7 +29,7 @@ typedef struct SocketDomain {
     SocketDomainOps_t Ops;
 } SocketDomain_t;
 
-OsStatus_t
+oscode_t
 DomainInternetCreate(
     _In_  int              DomainType,
     _Out_ SocketDomain_t** DomainOut)

@@ -46,7 +46,7 @@ static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
 static MemoryCache_t* TxuMessageCache                     = NULL;
 static queue_t        TxuReusableBin                      = QUEUE_INIT;
 
-InterruptStatus_t
+irqstatus_t
 ProcessorHaltHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     NotUsedEither)
@@ -54,10 +54,10 @@ ProcessorHaltHandler(
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
     ArchProcessorHalt();
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-InterruptStatus_t
+irqstatus_t
 FunctionExecutionInterruptHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     NotUsedEither)
@@ -80,10 +80,10 @@ FunctionExecutionInterruptHandler(
         queue_push(&TxuReusableBin, Element);
         Element = CpuCorePopQueuedIpc(Core);
     }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-OsStatus_t
+oscode_t
 TxuMessageSend(
     _In_ UUId_t                  CoreId,
     _In_ SystemCpuFunctionType_t Type,
@@ -94,7 +94,7 @@ TxuMessageSend(
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;
     TxuMessage_t*    Message;
-    OsStatus_t       Status;
+    oscode_t       Status;
     
     assert(Core != NULL);
     assert(Type < CpuFunctionCount);

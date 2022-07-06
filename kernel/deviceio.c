@@ -122,7 +122,7 @@ DestroySystemDeviceIo(
     kfree(SystemIo);
 }
 
-OsStatus_t
+oscode_t
 RegisterSystemDeviceIo(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -157,7 +157,7 @@ RegisterSystemDeviceIo(
     return list_append(&g_ioSpaces, &systemIo->Header);
 }
 
-OsStatus_t
+oscode_t
 AcquireSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
 {
@@ -184,10 +184,10 @@ AcquireSystemDeviceIo(
             uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
-                &MappedAddress, BaseAddress, Length, 
-                MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_VIRTUAL_PROCESS);
+            oscode_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
+                                                           &MappedAddress, BaseAddress, Length,
+                MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                                                           MAPPING_VIRTUAL_PROCESS);
             if (Status != OsOK) {
                 ERROR(" > Failed to allocate memory for device io memory");
                 SystemIo->Owner = UUID_INVALID;
@@ -216,7 +216,7 @@ AcquireSystemDeviceIo(
     return OsError;
 }
 
-OsStatus_t
+oscode_t
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
 {
@@ -260,7 +260,7 @@ ReleaseSystemDeviceIo(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 CreateKernelSystemDeviceIo(
     _In_  DeviceIo_t*  SourceIoSpace,
     _Out_ DeviceIo_t** SystemIoSpace)
@@ -277,10 +277,10 @@ CreateKernelSystemDeviceIo(
             uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t PageSize       = GetMemorySpacePageSize();
             size_t Length         = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
-                &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length, 
-                MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_VIRTUAL_GLOBAL);
+            oscode_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
+                                                           &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length,
+                MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                                                           MAPPING_VIRTUAL_GLOBAL);
             if (Status != OsOK) {
                 ERROR(" > failed to create mapping");
                 return OsError;
@@ -295,7 +295,7 @@ CreateKernelSystemDeviceIo(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ReleaseKernelSystemDeviceIo(
     _In_ DeviceIo_t* SystemIoSpace)
 {

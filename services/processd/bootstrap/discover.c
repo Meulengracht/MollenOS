@@ -30,6 +30,8 @@
 #include "pe.h"
 #include "process.h"
 #include <vafs/vafs.h>
+#include <vafs/directory.h>
+#include <vafs/file.h>
 
 static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
@@ -56,7 +58,7 @@ __EndsWith(
     return strncmp(text + lengthOfText - lengthOfSuffix, suffix, lengthOfSuffix);
 }
 
-static OsStatus_t
+static oscode_t
 __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
@@ -65,7 +67,7 @@ __ParseRamdisk(
     struct VaFsEntry            entry;
     int                         status;
     char*                       pathBuffer;
-    OsStatus_t                  osStatus;
+    oscode_t                  osStatus;
     ProcessConfiguration_t      processConfiguration;
     TRACE("__ParseRamdisk()");
 
@@ -100,6 +102,10 @@ __ParseRamdisk(
     ProcessConfigurationInitialize(&processConfiguration);
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
         TRACE("__ParseRamdisk found entry %s", entry.Name);
+        if (entry.Type != VaFsEntryType_File) {
+            continue;
+        }
+
         if (!__EndsWith(entry.Name, ".dll")) {
             UUId_t handle;
 
@@ -127,7 +133,7 @@ __ParseRamdisk(
 
 void PmBootstrap(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
     TRACE("PmBootstrap()");
@@ -153,7 +159,7 @@ void PmBootstrap(void)
 void
 PmBootstrapCleanup(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     // close the vafs handle before freeing the buffer
     vafs_close(g_vafs);
@@ -166,7 +172,7 @@ PmBootstrapCleanup(void)
     }
 }
 
-OsStatus_t
+oscode_t
 PmBootstrapFindRamdiskFile(
         _In_  MString_t* path,
         _Out_ void**     bufferOut,

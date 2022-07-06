@@ -32,7 +32,7 @@ int socketpair(int domain, int type, int protocol, int* iods)
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          io_object1;
     stdio_handle_t*          io_object2;
-    OsStatus_t               status;
+    oscode_t               status;
     
     if (!iods) {
         _set_errno(EINVAL);
@@ -58,7 +58,7 @@ int socketpair(int domain, int type, int protocol, int* iods)
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_pair_result(GetGrachtClient(), &msg.base, &status);
     if (status != OsOK) {
-        (void)OsStatusToErrno(status);
+        (void)OsCodeToErrNo(status);
         return -1;
     }
     return 0;

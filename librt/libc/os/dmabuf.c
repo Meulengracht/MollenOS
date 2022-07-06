@@ -26,7 +26,7 @@
 #include <os/dmabuf.h>
 #include <stdlib.h>
 
-OsStatus_t
+oscode_t
 dma_create(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
@@ -37,7 +37,7 @@ dma_create(
     return Syscall_DmaCreate(info, attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_export(
     _In_ void*                   buffer,
     _In_ struct dma_buffer_info* info,
@@ -49,7 +49,7 @@ dma_export(
     return Syscall_DmaExport(buffer, info, attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_attach(
     _In_ UUId_t                 handle,
     _In_ struct dma_attachment* attachment)
@@ -60,7 +60,7 @@ dma_attach(
     return Syscall_DmaAttach(handle, attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_attachment_map(
     _In_ struct dma_attachment* attachment,
     _In_ unsigned int           accessFlags)
@@ -71,7 +71,7 @@ dma_attachment_map(
     return Syscall_DmaAttachmentMap(attachment, accessFlags);
 }
 
-OsStatus_t
+oscode_t
 dma_attachment_resize(
     _In_ struct dma_attachment* attachment,
     _In_ size_t                 length)
@@ -82,7 +82,7 @@ dma_attachment_resize(
     return Syscall_DmaAttachmentResize(attachment, length);
 }
 
-OsStatus_t
+oscode_t
 dma_attachment_refresh_map(
     struct dma_attachment* attachment)
 {
@@ -92,7 +92,7 @@ dma_attachment_refresh_map(
     return Syscall_DmaAttachmentRefresh(attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_attachment_map_commit(
         _In_ struct dma_attachment* attachment,
         _In_ vaddr_t                address,
@@ -104,7 +104,7 @@ dma_attachment_map_commit(
     return Syscall_DmaAttachmentCommit(attachment, address, length);
 }
 
-OsStatus_t
+oscode_t
 dma_attachment_unmap(
     struct dma_attachment* attachment)
 {
@@ -114,7 +114,7 @@ dma_attachment_unmap(
     return Syscall_DmaAttachmentUnmap(attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_detach(
     struct dma_attachment* attachment)
 {
@@ -124,13 +124,13 @@ dma_detach(
     return Syscall_DmaDetach(attachment);
 }
 
-OsStatus_t
+oscode_t
 dma_get_sg_table(
     _In_ struct dma_attachment* attachment,
     _In_ struct dma_sg_table*   sg_table,
     _In_ int                    max_count)
 {
-    OsStatus_t status;
+    oscode_t status;
     
     if (!attachment || !sg_table) {
         return OsInvalidParameters;
@@ -154,7 +154,7 @@ dma_get_sg_table(
 }
 
 
-OsStatus_t
+oscode_t
 dma_sg_table_offset(
     _In_  struct dma_sg_table* sg_table,
     _In_  size_t               offset,

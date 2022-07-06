@@ -39,8 +39,8 @@ _CODE_BEGIN
 
 // The ability to associate the current thread handle 
 // with a global path to access services without knowing the thread
-DDKDECL(OsStatus_t, 
-RegisterPath(
+DDKDECL(oscode_t,
+        RegisterPath(
     _In_ const char* Path));
 
 // Service targets that are available for Vali
@@ -54,23 +54,23 @@ DDKDECL(thrd_t, GetNetService(void));
 // When a service is required for a module it is
 // possible to wait for it to be available. Be careful
 // about not giving a timeout
-DDKDECL(OsStatus_t,
-WaitForSessionService(
+DDKDECL(oscode_t,
+        WaitForSessionService(
     _In_ size_t Timeout));
-DDKDECL(OsStatus_t,
-WaitForDeviceService(
+DDKDECL(oscode_t,
+        WaitForDeviceService(
     _In_ size_t Timeout));
-DDKDECL(OsStatus_t,
-WaitForUsbService(
+DDKDECL(oscode_t,
+        WaitForUsbService(
     _In_ size_t Timeout));
-DDKDECL(OsStatus_t,
-WaitForProcessService(
+DDKDECL(oscode_t,
+        WaitForProcessService(
     _In_ size_t Timeout));
-DDKDECL(OsStatus_t,
-WaitForFileService(
+DDKDECL(oscode_t,
+        WaitForFileService(
     _In_ size_t Timeout));
-DDKDECL(OsStatus_t,
-WaitForNetService(
+DDKDECL(oscode_t,
+        WaitForNetService(
     _In_ size_t Timeout));
 
 _CODE_END

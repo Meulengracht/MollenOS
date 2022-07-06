@@ -29,7 +29,7 @@
 #define COLOR_BG 0xFF000000
 #define COLOR_FG 0xFFFFFFFF
 
-OsStatus_t
+oscode_t
 VideoQuery(
 	_Out_ VideoDescriptor_t* videoDescriptor)
 {
@@ -41,10 +41,10 @@ VideoQuery(
 	return OsOK;
 }
 
-OsStatus_t 
+oscode_t
 ConsoleInitialize(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     // Initialize visual representation by framebuffer
 #ifdef __OSCONFIG_HAS_VIDEO

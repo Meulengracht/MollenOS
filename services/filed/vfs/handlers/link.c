@@ -29,12 +29,12 @@ static bool __NodeIsDirectory(struct VFSNode* node)
     return false;
 }
 
-OsStatus_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
+oscode_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* node;
     MString_t*      path   = VFSMakePath(request->parameters.link.from);
     MString_t*      target = MStringCreate(request->parameters.link.to, StrUTF8);
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     size_t          pathLength;
     int             startIndex;
 

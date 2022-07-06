@@ -27,10 +27,12 @@
 #include <string.h>
 #include <ioset.h>
 
+#include <sys_device_service_client.h>
+
 // Module Interface
-extern OsStatus_t OnLoad(void);
-extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnEvent(struct ioset_event* event);
+extern oscode_t OnLoad(void);
+extern oscode_t OnUnload(void);
+extern oscode_t OnEvent(struct ioset_event* event);
 
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
@@ -91,7 +93,7 @@ __crt_module_main(
     }
 }
 
-static OsStatus_t
+static oscode_t
 __ParseModuleOptions(
         _In_  char**  argv,
         _In_  int     argc,
@@ -114,7 +116,7 @@ void __CrtModuleEntry(void)
     thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
-    OsStatus_t                    osStatus;
+    oscode_t                    osStatus;
     UUId_t                        moduleId;
     int                           status;
     char**                        argv;

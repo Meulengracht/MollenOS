@@ -31,7 +31,7 @@ typedef struct {
     unsigned int        Flags;
     char           SerialNumber[32];
     unsigned long  SectorSize;
-    LargeInteger_t SectorsTotal;
+    Integer64_t SectorsTotal;
 } OsStorageDescriptor_t;
 
 // OsStorageDescriptor_t::Flags

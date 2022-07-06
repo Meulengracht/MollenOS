@@ -274,7 +274,7 @@ HidDeviceDestroy(
  * @param hidDevice
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 HidSetupGeneric(
     _In_ HidDevice_t *hidDevice);
 
@@ -284,7 +284,7 @@ HidSetupGeneric(
  * @param protocol
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 HidGetProtocol(
         _In_ HidDevice_t* hidDevice,
         _In_ uint8_t*     protocol);
@@ -295,7 +295,7 @@ HidGetProtocol(
  * @param protocol
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 HidSetProtocol(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      protocol);
@@ -306,7 +306,7 @@ HidSetProtocol(
  * Set Duration = 0 to apply indefinite duration. Use this
  * to set the report time-out time, minimum value is device polling rate */
 __EXTERN
-OsStatus_t
+oscode_t
 HidSetIdle(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportId,
@@ -333,7 +333,7 @@ HidHandleReportEvent(
 
 /* HidCollectionCleanup
  * Cleans up any resources allocated by the collection parser. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 HidCollectionCleanup(
     _In_ HidDevice_t *hidDevice);
 

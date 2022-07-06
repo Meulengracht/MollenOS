@@ -36,7 +36,7 @@ int write(int fd, const void* buffer, unsigned int length)
 	stdio_handle_t* handle       = stdio_handle_get(fd);
 	size_t          bytesWritten = 0;
 	int             res;
-	OsStatus_t      status;
+	oscode_t      status;
 	TRACE("write(fd=%i, buffer=0x%" PRIxIN ", length=%u)", fd, buffer, length);
 
 	// Don't write uneven bytes in case of UTF8/16
@@ -54,7 +54,7 @@ int write(int fd, const void* buffer, unsigned int length)
 	// If we aren't in text mode, raw write the data without any text-processing
     status = handle->ops.write(handle, (char*)buffer, length, &bytesWritten);
 	if (status != OsOK) {
-	    res = OsStatusToErrno(status);
+	    res = OsCodeToErrNo(status);
 	}
 	else {
 	    res = (int)bytesWritten;

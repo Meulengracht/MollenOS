@@ -38,10 +38,9 @@ PACKED_TYPESTRUCT(ServiceObject, {
 });
 
 PACKED_TYPESTRUCT(SessionObject, {
-    OsStatus_t    Status;
-
-    char          SessionId[16];
-    time_t        LastLogin;
+    oscode_t Status;
+    char     SessionId[16];
+    time_t   LastLogin;
  /* UserProfile_t Profile; */
 });
 

@@ -26,7 +26,7 @@
 int fflush(
 	_In_ FILE *file)
 {
-	OsStatus_t Result = OsOK;
+	oscode_t Result = OsOK;
 
 	// If fflush is called with NULL argument
 	// we need to flush all buffers present

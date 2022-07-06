@@ -77,7 +77,7 @@ thrd_create(
 {
     ThreadParameters_t Paramaters;
     ThreadPackage_t*   Package;
-    OsStatus_t         Status;
+    oscode_t         Status;
     assert(thr != NULL);
 
     // Allocate a new startup-package
@@ -94,7 +94,7 @@ thrd_create(
 
     Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr);
     if (Status != OsOK) {
-        OsStatusToErrno(Status);
+        OsCodeToErrNo(Status);
         free(Package);
         return thrd_error;
     }
@@ -130,10 +130,10 @@ thrd_sleep(
     _In_     const struct timespec* duration,
     _In_Opt_ struct timespec*       remaining)
 {
-    LargeUInteger_t ns;
-    LargeUInteger_t nsRemaining = { 0 };
+    UInteger64_t ns;
+    UInteger64_t nsRemaining = {0 };
     struct timespec current;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
 
     if (!duration || (duration->tv_sec == 0 && duration->tv_nsec == 0)) {
         return thrd_error;
@@ -167,8 +167,8 @@ int
 thrd_sleepex(
     _In_ size_t msec)
 {
-    LargeUInteger_t nanoseconds;
-    LargeUInteger_t remaining;
+    UInteger64_t nanoseconds;
+    UInteger64_t remaining;
 
     nanoseconds.QuadPart = msec * NSEC_PER_MSEC;
     VaSleep(&nanoseconds, &remaining);

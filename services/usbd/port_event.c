@@ -42,7 +42,7 @@ void __HandlePortEvent(
 {
     UsbController_t*      controller = NULL;
     UsbHcPortDescriptor_t portDescriptor;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
     UsbHub_t*             hub;
     UsbPort_t*            port = NULL;
 

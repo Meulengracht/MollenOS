@@ -35,7 +35,7 @@
 
 static list_t g_controllers = LIST_INIT;
 
-OsStatus_t
+oscode_t
 UsbCoreControllerRegister(
         _In_ UUId_t              driverId,
         _In_ Device_t*           device,
@@ -43,7 +43,7 @@ UsbCoreControllerRegister(
         _In_ int                 rootPorts)
 {
     UsbController_t* controller;
-    OsStatus_t       osStatus;
+    oscode_t       osStatus;
     TRACE("UsbCoreControllerRegister(driverId=%u, device=0x%" PRIxIN ", controllerType=%u, rootPorts=%i)",
           driverId, device, controllerType, rootPorts);
 
@@ -73,7 +73,7 @@ UsbCoreControllerRegister(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UsbCoreControllerUnregister(
         _In_ UUId_t deviceId)
 {
@@ -104,7 +104,7 @@ UsbCoreControllerGet(
     return NULL;
 }
 
-OsStatus_t
+oscode_t
 UsbCoreControllerReserveAddress(
         _In_  UsbController_t* controller,
         _Out_ int*             address)

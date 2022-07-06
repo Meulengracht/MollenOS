@@ -38,7 +38,7 @@ PmDebuggerInitialize(void)
     SymbolInitialize();
 }
 
-static OsStatus_t
+static oscode_t
 GetModuleAndOffset(
         _In_  Process_t*   process,
         _In_  uintptr_t    address,
@@ -73,7 +73,7 @@ GetModuleAndOffset(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 HandleProcessCrashReport(
         _In_ Process_t*       process,
         _In_ UUId_t           threadHandle,
@@ -103,7 +103,7 @@ HandleProcessCrashReport(
     if (CONTEXT_USERSP(crashContext)) {
         void*      stack;
         void*      topOfStack;
-        OsStatus_t status;
+        oscode_t status;
 
         status = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), &topOfStack, &stack);
         if (status == OsOK) {
@@ -148,7 +148,7 @@ void PmHandleCrash(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("PmHandleCrash(process=%u)", request->parameters.crash.process_handle);
 
     process = RegisterProcessRequest(request->parameters.crash.process_handle, request);

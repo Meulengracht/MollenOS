@@ -10,10 +10,10 @@ namespace sys
 service device (7) {
     func notify(UUId_t driverId, UUId_t driverHandle) : () = 1;
     
-    func register(uint8[] buffer, uint flags) : (OsStatus_t result, UUId_t id) = 2;
-    func unregister(UUId_t deviceId) : (OsStatus_t result) = 3;
-    func ioctl(UUId_t deviceId, uint command, uint flags) : (OsStatus_t result) = 4;
-    func ioctlex(UUId_t deviceId, int direction, uint command, ulong value, uint width) : (OsStatus_t result, ulong value) = 5;
+    func register(uint8[] buffer, uint flags) : (oscode_t result, UUId_t id) = 2;
+    func unregister(UUId_t deviceId) : (oscode_t result) = 3;
+    func ioctl(UUId_t deviceId, uint command, uint flags) : (oscode_t result) = 4;
+    func ioctlex(UUId_t deviceId, int direction, uint command, ulong value, uint width) : (oscode_t result, ulong value) = 5;
     
     func get_devices_by_protocol(uint8 protocolId) : () = 6;
     

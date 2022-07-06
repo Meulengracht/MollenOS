@@ -40,11 +40,11 @@ static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool*      DmaPool                  = NULL;
 static struct dma_attachment DmaAttachment;
 
-OsStatus_t
+oscode_t
 UsbInitialize(void)
 {
     struct dma_buffer_info info;
-    OsStatus_t             status;
+    oscode_t             status;
     
     info.length   = LIBUSB_SHAREDBUFFER_SIZE;
     info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
@@ -63,7 +63,7 @@ UsbInitialize(void)
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbCleanup(void)
 {
     if (!DmaPool) {
@@ -173,7 +173,7 @@ UsbTransferPeriodic(
     Transfer->TransactionCount   = 1;
 }
 
-OsStatus_t
+oscode_t
 UsbTransferIn(
 	_In_ UsbTransfer_t* Transfer,
     _In_ UUId_t         BufferHandle,
@@ -201,7 +201,7 @@ UsbTransferIn(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UsbTransferOut(
 	_In_ UsbTransfer_t* Transfer,
     _In_ UUId_t         BufferHandle,
@@ -265,13 +265,13 @@ UsbTransferQueuePeriodic(
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
         _In_ UUId_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oscode_t               status;
 
     ctt_usbhost_reset_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
                         deviceContext->controller_device_id, transferId);
@@ -280,13 +280,13 @@ UsbTransferResetPeriodic(
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbTransferDequeuePeriodic(
     _In_ usb_device_context_t* deviceContext,
 	_In_ UUId_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oscode_t               status;
     
     ctt_usbhost_dequeue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->controller_device_id, transferId);
@@ -295,7 +295,7 @@ UsbTransferDequeuePeriodic(
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbHubResetPort(
 	_In_ UUId_t                 hubDriverId,
 	_In_ UUId_t                 deviceId,
@@ -303,7 +303,7 @@ UsbHubResetPort(
 	_In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
-    OsStatus_t               status;
+    oscode_t               status;
     
     ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -311,7 +311,7 @@ UsbHubResetPort(
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbHubQueryPort(
 	_In_ UUId_t                 hubDriverId,
 	_In_ UUId_t                 deviceId,
@@ -319,7 +319,7 @@ UsbHubQueryPort(
 	_In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
-    OsStatus_t               status;
+    oscode_t               status;
     
     ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -327,13 +327,13 @@ UsbHubQueryPort(
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbEndpointReset(
 	_In_ usb_device_context_t* deviceContext, 
     _In_ uint8_t               endpointAddress)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oscode_t               status;
     
     ctt_usbhost_reset_endpoint(GetGrachtClient(), &msg.base, deviceContext->controller_device_id,
         deviceContext->hub_address, deviceContext->port_address,
@@ -368,7 +368,7 @@ UsbExecutePacket(
     }
 
     if (length != 0) {
-        OsStatus_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
+        oscode_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
         if (osStatus != OsOK) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(DmaPool, dmaPacketStorage);

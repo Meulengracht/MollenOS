@@ -47,7 +47,7 @@ _CODE_BEGIN
 
 /* QueryDisplayInformation
  * Queries the current display driver for information. */
-DDKDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
+DDKDECL(oscode_t, QueryDisplayInformation(VideoDescriptor_t * Descriptor));
 
 /* CreateDisplayFramebuffer
  * Creates a new display framebuffer to use for direct drawing. */

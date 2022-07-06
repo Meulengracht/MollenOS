@@ -29,7 +29,7 @@
 #include <machine.h>
 #include <debug.h>
 
-OsStatus_t
+oscode_t
 ScSystemDebug(
     _In_ int         level,
     _In_ const char* message)
@@ -51,13 +51,13 @@ ScSystemDebug(
     return OsOK;
 }
 
-OsStatus_t ScEndBootSequence(void) {
+oscode_t ScEndBootSequence(void) {
     TRACE("Ending console session");
     LogSetRenderMode(0);
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ScSystemQuery(
     _In_ SystemDescriptor_t* Descriptor)
 {
@@ -74,7 +74,7 @@ ScSystemQuery(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ScFlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
@@ -91,7 +91,7 @@ ScFlushHardwareCache(
     return OsError;
 }
 
-OsStatus_t
+oscode_t
 ScQueryDisplayInformation(
     _In_ VideoDescriptor_t *Descriptor) {
     if (Descriptor == NULL) {
@@ -100,7 +100,7 @@ ScQueryDisplayInformation(
     return VideoQuery(Descriptor);
 }
 
-OsStatus_t
+oscode_t
 ScMapBootFramebuffer(
         _Out_ void** bufferOut)
 {
@@ -108,7 +108,7 @@ ScMapBootFramebuffer(
     uintptr_t      addressPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t      fbVirtual       = 0;
     size_t         fbSize          = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    OsStatus_t     osStatus;
+    oscode_t     osStatus;
 
     if (!VideoGetTerminal()->FrameBufferAddressPhysical) {
         return OsNotSupported;
@@ -129,12 +129,12 @@ ScMapBootFramebuffer(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 ScMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* lengthOut)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     vaddr_t    mapping;
 
     osStatus = MemorySpaceCloneMapping(

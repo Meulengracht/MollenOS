@@ -485,7 +485,7 @@ GetApicInterruptMode(void)
     return g_interruptMode;
 }
 
-OsStatus_t
+oscode_t
 ApicIsInitialized(void)
 {
     return (g_localApicBaseAddress == 0) ? OsNotSupported : OsOK;

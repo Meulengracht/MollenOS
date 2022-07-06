@@ -46,7 +46,7 @@ ProcessConfigurationInitialize(
     configuration->StdErrHandle = STDERR_FILENO;
 }
 
-OsStatus_t
+oscode_t
 ProcessSpawn(
     _In_     const char* path,
     _In_Opt_ const char* arguments,
@@ -70,7 +70,7 @@ ProcessSpawn(
     );
 }
 
-OsStatus_t
+oscode_t
 ProcessSpawnEx(
     _In_     const char*             path,
     _In_Opt_ const char*             arguments,
@@ -81,7 +81,7 @@ ProcessSpawnEx(
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     void*                            inheritationBlock       = NULL;
     size_t                           inheritationBlockLength = 0;
-    OsStatus_t                       status;
+    oscode_t                       status;
     struct sys_process_configuration gconfiguration;
     
     if (!path || !configuration || !handleOut) {
@@ -105,14 +105,14 @@ ProcessSpawnEx(
     return status;
 }
 
-OsStatus_t 
+oscode_t
 ProcessJoin(
 	_In_  UUId_t handle,
     _In_  size_t timeout,
     _Out_ int*   exitCodeOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               osStatus;
+    oscode_t               osStatus;
     
     sys_process_join(GetGrachtClient(), &msg.base, handle, timeout);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -120,13 +120,13 @@ ProcessJoin(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 ProcessSignal(
 	_In_ UUId_t handle,
     _In_ int    signal)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               osStatus;
+    oscode_t               osStatus;
     
     sys_process_signal(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), handle, signal);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -140,13 +140,13 @@ ProcessGetCurrentId(void)
     return *__crt_processid_ptr();
 }
 
-OsStatus_t
+oscode_t
 ProcessGetTickBase(
     _Out_ clock_t* tickOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
-    LargeUInteger_t          tick;
+    oscode_t               status;
+    UInteger64_t          tick;
 
     if (!tickOut) {
         return OsInvalidParameters;
@@ -160,7 +160,7 @@ ProcessGetTickBase(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetProcessCommandLine(
     _In_    char*   buffer,
     _InOut_ size_t* length)
@@ -181,13 +181,13 @@ GetProcessCommandLine(
 	return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ProcessGetCurrentName(
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    oscode_t               status;
 
     if (buffer == NULL && maxLength == 0) {
         return OsInvalidParameters;
@@ -204,14 +204,14 @@ ProcessGetCurrentName(
     return status;
 }
 
-OsStatus_t
+oscode_t
 ProcessGetAssemblyDirectory(
         _In_ UUId_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    oscode_t               status;
 
     if (buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
@@ -231,14 +231,14 @@ ProcessGetAssemblyDirectory(
     return status;
 }
 
-OsStatus_t
+oscode_t
 ProcessGetWorkingDirectory(
         _In_ UUId_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    oscode_t               status;
 
     if (buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
@@ -258,12 +258,12 @@ ProcessGetWorkingDirectory(
     return status;
 }
 
-OsStatus_t
+oscode_t
 ProcessSetWorkingDirectory(
     _In_ const char* path)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t               status;
+    oscode_t               status;
 
     if (path == NULL) {
         return OsInvalidParameters;

@@ -99,7 +99,7 @@ UfiConstructCommand(
     }
 }
 
-OsStatus_t
+oscode_t
 UfiInitialize(
     _In_ MsdDevice_t *Device)
 {

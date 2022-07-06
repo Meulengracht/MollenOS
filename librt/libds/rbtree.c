@@ -200,7 +200,7 @@ fixup_tree(
     tree->root->color = COLOR_BLACK;
 }
 
-OsStatus_t
+oscode_t
 rb_tree_append(
     _In_ rb_tree_t* tree,
     _In_ rb_leaf_t* leaf)

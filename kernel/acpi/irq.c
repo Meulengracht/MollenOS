@@ -552,7 +552,7 @@ exit:
     return acpiStatus;
 }
 
-OsStatus_t
+oscode_t
 AcpiDeviceGetInterrupt(
         _In_  int           bus,
         _In_  int           device,

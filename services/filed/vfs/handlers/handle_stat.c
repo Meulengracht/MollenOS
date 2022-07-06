@@ -22,10 +22,10 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-OsStatus_t VFSNodeGetPosition(struct VFSRequest* request, uint64_t* positionOut)
+oscode_t VFSNodeGetPosition(struct VFSRequest* request, uint64_t* positionOut)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -41,10 +41,10 @@ OsStatus_t VFSNodeGetPosition(struct VFSRequest* request, uint64_t* positionOut)
     return OsOK;
 }
 
-OsStatus_t VFSNodeGetAccess(struct VFSRequest* request, uint32_t* accessKindOut)
+oscode_t VFSNodeGetAccess(struct VFSRequest* request, uint32_t* accessKindOut)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -60,10 +60,10 @@ OsStatus_t VFSNodeGetAccess(struct VFSRequest* request, uint32_t* accessKindOut)
     return OsOK;
 }
 
-OsStatus_t VFSNodeSetAccess(struct VFSRequest* request)
+oscode_t VFSNodeSetAccess(struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -82,10 +82,10 @@ OsStatus_t VFSNodeSetAccess(struct VFSRequest* request)
     return OsOK;
 }
 
-OsStatus_t VFSNodeGetSize(struct VFSRequest* request, uint64_t* sizeOut)
+oscode_t VFSNodeGetSize(struct VFSRequest* request, uint64_t* sizeOut)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -103,11 +103,11 @@ OsStatus_t VFSNodeGetSize(struct VFSRequest* request, uint64_t* sizeOut)
     return OsOK;
 }
 
-OsStatus_t VFSNodeSetSize(struct VFSRequest* request)
+oscode_t VFSNodeSetSize(struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus, osStatus2;
-    LargeUInteger_t       size;
+    oscode_t            osStatus, osStatus2;
+    UInteger64_t       size;
 
     size.u.LowPart  = request->parameters.set_size.size_low;
     size.u.HighPart = request->parameters.set_size.size_high;
@@ -132,10 +132,10 @@ OsStatus_t VFSNodeSetSize(struct VFSRequest* request)
     return osStatus;
 }
 
-OsStatus_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
+oscode_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -153,10 +153,10 @@ OsStatus_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
     return OsOK;
 }
 
-OsStatus_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
+oscode_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t            osStatus, osStatus2;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -175,10 +175,10 @@ OsStatus_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* sta
     return osStatus;
 }
 
-OsStatus_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t* stat)
+oscode_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t* stat)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -196,10 +196,10 @@ OsStatus_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescripto
     return OsOK;
 }
 
-OsStatus_t VFSNodeGetPathHandle(struct VFSRequest* request, MString_t** pathOut)
+oscode_t VFSNodeGetPathHandle(struct VFSRequest* request, MString_t** pathOut)
 {
     struct VFSNodeHandle* handle;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {

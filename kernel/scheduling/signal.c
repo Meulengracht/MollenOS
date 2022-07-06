@@ -89,7 +89,7 @@ ExecuteSignalOnCoreFunction(
     }
 }
 
-OsStatus_t
+oscode_t
 SignalSend(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,

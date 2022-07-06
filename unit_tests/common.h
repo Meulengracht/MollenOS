@@ -9,7 +9,7 @@
 #define _MAXPATH 512
 #define __BITS 64
 
-typedef int OsStatus_t;
+typedef int Oscode_t;
 typedef unsigned int UUId_t;
 
 #define OsSuccess     (int)0

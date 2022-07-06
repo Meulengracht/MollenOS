@@ -21,18 +21,18 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static OsStatus_t __FlushHandle(struct VFSNodeHandle* handle)
+static oscode_t __FlushHandle(struct VFSNodeHandle* handle)
 {
     // TODO Implement
     return OsOK;
 }
 
-OsStatus_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
+oscode_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    OsStatus_t            osStatus, osStatus2;
-    LargeUInteger_t       position, result;
+    oscode_t            osStatus, osStatus2;
+    UInteger64_t       position, result;
 
     position.u.LowPart  = request->parameters.seek.position_low;
     position.u.HighPart = request->parameters.seek.position_high;

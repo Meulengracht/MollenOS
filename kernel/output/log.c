@@ -105,7 +105,7 @@ LogInitialize(void)
 
     // Initialize the serial interface if any
 #ifdef __OSCONFIG_HAS_UART
-    OsStatus_t osStatus = SerialPortInitialize();
+    oscode_t osStatus = SerialPortInitialize();
     if (osStatus != OsOK) {
         WARNING("LogInitialize failed to initialize serial output!");
     }

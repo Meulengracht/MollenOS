@@ -68,7 +68,7 @@ static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
 static queue_t         g_cleanQueue    = QUEUE_INIT;
 static UUId_t          g_janitorHandle = UUID_INVALID;
 
-OsStatus_t
+oscode_t
 InitializeHandles(void)
 {
     hashtable_construct(&g_handlemappings, HASHTABLE_MINIMUM_CAPACITY,
@@ -82,7 +82,7 @@ InitializeHandles(void)
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 InitializeHandleJanitor(void)
 {
     // Create the thread with all defaults
@@ -146,7 +146,7 @@ CreateHandle(
     return handle.id;
 }
 
-OsStatus_t
+oscode_t
 AcquireHandle(
     _In_  UUId_t handleId,
     _Out_ void** resourceOut)
@@ -162,7 +162,7 @@ AcquireHandle(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 RegisterHandlePath(
     _In_ UUId_t      handleId,
     _In_ const char* path)
@@ -206,7 +206,7 @@ RegisterHandlePath(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 LookupHandleByPath(
     _In_  const char* path,
     _Out_ UUId_t*     handleOut)
@@ -261,7 +261,7 @@ static void AddHandleToCleanup(
     SemaphoreSignal(&g_eventHandle, 1);
 }
 
-OsStatus_t
+oscode_t
 DestroyHandle(
     _In_ UUId_t handleId)
 {

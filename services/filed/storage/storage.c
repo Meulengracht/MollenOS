@@ -46,7 +46,7 @@ extern void VfsStorageInitialize(void)
     usched_mtx_init(&g_diskLock);
 }
 
-OsStatus_t
+oscode_t
 VfsStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
@@ -89,7 +89,7 @@ VfsStorageEnumerate(
         _In_ void*                cancellationToken)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(storage->storage.driver_id);
-    OsStatus_t                 osStatus;
+    oscode_t                 osStatus;
     struct sys_disk_descriptor gdescriptor;
     TRACE("VfsStorageEnumerate()");
 
@@ -215,7 +215,7 @@ StatStorageByHandle(
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystem_t*              fileSystem;
-    OsStatus_t                 status;
+    oscode_t                 status;
 
     status = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
     if (status == OsOK) {
@@ -232,7 +232,7 @@ StatStorageByPath(
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystem_t*              fileSystem;
-    OsStatus_t                 status;
+    oscode_t                 status;
 
     status = VfsFileSystemGetByPathSafe(request->parameters.stat_path.path, &fileSystem);
     if (status == OsOK) {

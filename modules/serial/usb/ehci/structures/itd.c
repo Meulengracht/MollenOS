@@ -30,7 +30,7 @@
 #include <assert.h>
 #include <string.h>
 
-OsStatus_t
+oscode_t
 EhciTdIsochronous(
     _In_ EhciController_t*            controller,
     _In_ UsbTransfer_t*               transfer,
@@ -43,7 +43,7 @@ EhciTdIsochronous(
 {
     uintptr_t  BufferIterator = bufferAddress;
     uintptr_t  PageMask       = ~((uintptr_t)0xFFF);
-    OsStatus_t Status         = OsOK;
+    oscode_t Status         = OsOK;
     size_t     BytesLeft      = byteCount;
     size_t     PageIndex      = 0;
     int        i;

@@ -47,6 +47,7 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
     ENOLINK,      // OsDeleted               Error - Resource was deleted
     ENOTDIR,      // OsPathIsNotDirectory    Error - Path is not a directory
     EISDIR,       // OsPathIsDirectory       Error - Path is a directory
+    ENOLINK,      // OsLinkInvalid           Error - Bad link
     ENOENT,       // OsDirectoryNotEmpty     Error - Directory is not empty
     ENODEV,       // OsDeviceError           Error - Device error occurred during operation
     
@@ -61,16 +62,16 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
 };
 
 int
-OsStatusToErrno(
-    _In_ OsStatus_t osStatus)
+OsCodeToErrNo(
+        _In_ oscode_t code)
 {
     int errnoCode;
-    if (osStatus >= OsErrorCodeCount) {
+    if (code >= OsErrorCodeCount) {
         _set_errno(EINVAL);
         return -1;
     }
 
-    errnoCode = g_errorCodeTable[osStatus];
+    errnoCode = g_errorCodeTable[code];
     _set_errno(errnoCode);
-    return osStatus == OsOK ? 0 : -1;
+    return code == OsOK ? 0 : -1;
 }

@@ -16,13 +16,13 @@ typedef struct _iobuf FILE;
 typedef struct stdio_handle stdio_handle_t;
 
 // Stdio descriptor operations
-typedef OsStatus_t(*stdio_inherit)(stdio_handle_t*);
-typedef OsStatus_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
-typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
-typedef OsStatus_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
-typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
+typedef oscode_t(*stdio_inherit)(stdio_handle_t*);
+typedef oscode_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
+typedef oscode_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
+typedef oscode_t(*stdio_resize)(stdio_handle_t*, long long);
+typedef oscode_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
+typedef oscode_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
+typedef oscode_t(*stdio_close)(stdio_handle_t*, int);
 
 typedef struct stdio_ops {
     stdio_inherit inherit;

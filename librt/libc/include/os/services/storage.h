@@ -28,14 +28,14 @@
 
 /* QueryStorageByPath
  * Queries information about a storage medium that belong to the given file path. */
-CRTDECL(OsStatus_t,
+CRTDECL(oscode_t,
 QueryStorageByPath(
     _In_ const char*            Path,
     _In_ OsStorageDescriptor_t* StorageDescriptor));
 
 /* QueryStorageByHandle
  * Queries information about a storage medium that belong to the given file handle. */
-CRTDECL(OsStatus_t,
+CRTDECL(oscode_t,
 QueryStorageByHandle(
     _In_ UUId_t                 Handle,
     _In_ OsStorageDescriptor_t* StorageDescriptor));

@@ -191,7 +191,7 @@ ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
-    OsStatus_t     status;
+    oscode_t     status;
     uintptr_t      physicalContextAddress;
     uintptr_t      contextAddress = 0;
     unsigned int   placementFlags = 0;
@@ -257,7 +257,7 @@ ArchThreadContextDestroy(
     MemorySpaceUnmap(GetCurrentMemorySpace(), contextAddress, contextSize);
 }
 
-OsStatus_t
+oscode_t
 ArchThreadContextDump(
     _In_ Context_t* context)
 {

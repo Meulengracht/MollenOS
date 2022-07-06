@@ -56,7 +56,7 @@ int bitScanForward(uint64_t bb) {
     return g_lsbTable[folded * 0x78291ACF >> 26];
 }
 
-InterruptStatus_t
+irqstatus_t
 PS2MouseFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
@@ -83,7 +83,7 @@ PS2MouseFastInterrupt(
         }
     }
 
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 static void __ParseButtonData(
@@ -154,7 +154,7 @@ PS2MouseInterrupt(
     port->ResponseReadIndex = index;
 }
 
-OsStatus_t
+oscode_t
 PS2SetSampling(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Sampling)
@@ -166,7 +166,7 @@ PS2SetSampling(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 PS2EnableExtensions(
     _In_ PS2Port_t* Port)
 {
@@ -190,7 +190,7 @@ PS2EnableExtensions(
 }
 
 // The 'unlock' sequence of 200-100-80 sample
-OsStatus_t
+oscode_t
 PS2EnableScroll(
     _In_ PS2Port_t* Port)
 {
@@ -214,7 +214,7 @@ PS2EnableScroll(
     }
 }
 
-OsStatus_t
+oscode_t
 PS2MouseInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              index)
@@ -249,7 +249,7 @@ PS2MouseInitialize(
     return PS2PortExecuteCommand(port, PS2_ENABLE_SCANNING, NULL);
 }
 
-OsStatus_t
+oscode_t
 PS2MouseCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              index)

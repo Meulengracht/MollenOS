@@ -49,18 +49,18 @@ _CODE_BEGIN
 /*******************************************************************************
  * Memory Extensions
  *******************************************************************************/
-CRTDECL(OsStatus_t, MemoryAllocate(void* Hint, size_t Length, unsigned int Flags, void** MemoryOut));
-CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
-CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, unsigned int Flags, unsigned int* PreviousFlags));
-CRTDECL(OsStatus_t, MemoryQueryAllocation(void* Memory, MemoryDescriptor_t* DescriptorOut));
-CRTDECL(OsStatus_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned int* AttributeArray));
+CRTDECL(oscode_t, MemoryAllocate(void* Hint, size_t Length, unsigned int Flags, void** MemoryOut));
+CRTDECL(oscode_t, MemoryFree(void* Memory, size_t Length));
+CRTDECL(oscode_t, MemoryProtect(void* Memory, size_t Length, unsigned int Flags, unsigned int* PreviousFlags));
+CRTDECL(oscode_t, MemoryQueryAllocation(void* Memory, MemoryDescriptor_t* DescriptorOut));
+CRTDECL(oscode_t, MemoryQueryAttributes(void* Memory, size_t Length, unsigned int* AttributeArray));
 
 /*******************************************************************************
  * System Extensions
  *******************************************************************************/
-CRTDECL(int,        OsStatusToErrno(OsStatus_t osStatus));
-CRTDECL(OsStatus_t, SystemQuery(SystemDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
+CRTDECL(int,      OsCodeToErrNo(oscode_t code));
+CRTDECL(oscode_t, SystemQuery(SystemDescriptor_t * descriptor));
+CRTDECL(oscode_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
 
 /*******************************************************************************
  * Time Interface
@@ -74,10 +74,10 @@ CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
  * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
  * @return OsOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
  */
-CRTDECL(OsStatus_t,
-VaSleep(
-        _In_      LargeUInteger_t* duration,
-        _Out_Opt_ LargeUInteger_t* remaining));
+CRTDECL(oscode_t,
+        VaSleep(
+        _In_      UInteger64_t* duration,
+        _Out_Opt_ UInteger64_t* remaining));
 
 /**
  * @brief Stalls the current thread for the given duration. It will stall for atleast the duration
@@ -86,9 +86,9 @@ VaSleep(
  * @param[In] duration The duration to stall the thread for in nanoseconds.
  * @return Will always succeed.
  */
-CRTDECL(OsStatus_t,
-VaStall(
-        _In_ LargeUInteger_t* duration));
+CRTDECL(oscode_t,
+        VaStall(
+        _In_ UInteger64_t* duration));
 
 /**
  * @brief Reads the current wall clock from the kernel wallclock driver. No guarantee is made to
@@ -98,9 +98,9 @@ VaStall(
  * @param[Out] time Pointer to where the time will be stored.
  * @return     Returns OsOK if the clock was read, otherwise OsNotSupported.
  */
-CRTDECL(OsStatus_t,
-VaGetWallClock(
-        _In_ LargeInteger_t* time));
+CRTDECL(oscode_t,
+        VaGetWallClock(
+        _In_ Integer64_t* time));
 
 /**
  * @brief Reads the current clock tick for the given clock source type. No guarantees are made for their
@@ -111,10 +111,10 @@ VaGetWallClock(
  * @param[Out] tickOut Pointer to a large integer value that can hold the current tick value.
  * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
  */
-CRTDECL(OsStatus_t,
-VaGetClockTick(
+CRTDECL(oscode_t,
+        VaGetClockTick(
         _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       tickOut));
+        _In_ UInteger64_t*       tickOut));
 
 /**
  * @brief Reads the frequency of the clock source type. Use this to calculate the resolution of a given
@@ -124,17 +124,17 @@ VaGetClockTick(
  * @param[Out] frequencyOut Pointer to a large integer value that can hold the frequency value.
  * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
  */
-CRTDECL(OsStatus_t,
-VaGetClockFrequency(
+CRTDECL(oscode_t,
+        VaGetClockFrequency(
         _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       frequencyOut));
+        _In_ UInteger64_t*       frequencyOut));
 
 /*******************************************************************************
  * Threading Extensions
  *******************************************************************************/
 CRTDECL(void,       InitializeThreadParameters(ThreadParameters_t* Paramaters));
-CRTDECL(OsStatus_t, SetCurrentThreadName(const char* ThreadName));
-CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLength));
+CRTDECL(oscode_t, SetCurrentThreadName(const char* ThreadName));
+CRTDECL(oscode_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLength));
 
 /*******************************************************************************
  * Path Extensions
@@ -150,7 +150,7 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLengt
  * @return OsNotExists if the path could not be resolved.
  *         OsInvalidParameters if the parameters passed were not valid.
  */
-CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer, size_t maxLength));
+CRTDECL(oscode_t, GetFullPath(const char* path, int followLinks, char* buffer, size_t maxLength));
 
 /**
  * @brief Changes the current working directory. Validation of the target path will be done
@@ -161,7 +161,7 @@ CRTDECL(OsStatus_t, GetFullPath(const char* path, int followLinks, char* buffer,
  *         OsNotExists if the path could not be resolved
  *         OsPathIsNotDirectory If the path is not a directory
  */
-CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));
+CRTDECL(oscode_t, ChangeWorkingDirectory(const char *path));
 
 /**
  * @brief Retrieves the current working directory.
@@ -170,13 +170,13 @@ CRTDECL(OsStatus_t, ChangeWorkingDirectory(const char *path));
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
-CRTDECL(OsStatus_t, GetWorkingDirectory(char* buffer, size_t maxLength));
+CRTDECL(oscode_t, GetWorkingDirectory(char* buffer, size_t maxLength));
 
-CRTDECL(OsStatus_t, GetAssemblyDirectory(char            *buffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetUserDirectory(char                *buffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetUserCacheDirectory(char           *buffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetApplicationDirectory(char         *buffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char*buffer, size_t maxLength));
+CRTDECL(oscode_t, GetAssemblyDirectory(char            *buffer, size_t maxLength));
+CRTDECL(oscode_t, GetUserDirectory(char                *buffer, size_t maxLength));
+CRTDECL(oscode_t, GetUserCacheDirectory(char           *buffer, size_t maxLength));
+CRTDECL(oscode_t, GetApplicationDirectory(char         *buffer, size_t maxLength));
+CRTDECL(oscode_t, GetApplicationTemporaryDirectory(char*buffer, size_t maxLength));
 
 /*******************************************************************************
  * File Extensions
@@ -186,21 +186,21 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char*buffer, size_t maxLeng
 #define FILE_MAPPING_WRITE      0x00000002U
 #define FILE_MAPPING_EXECUTE    0x00000004U
 
-CRTDECL(OsStatus_t, SetFileSizeFromPath(const char* path, size_t size));
-CRTDECL(OsStatus_t, SetFileSizeFromFd(int fileDescriptor, size_t size));
-CRTDECL(OsStatus_t, ChangeFilePermissionsFromPath(const char* path, unsigned int permissions));
-CRTDECL(OsStatus_t, ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissions));
-CRTDECL(OsStatus_t, GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLength));
-CRTDECL(OsStatus_t, GetFilePathFromFd(int fileDescriptor, char *buffer, size_t maxLength));
-CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *path, int followLinks, OsStorageDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetStorageInformationFromFd(int fileDescriptor, OsStorageDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileSystemInformationFromPath(const char *path, int followLinks, OsFileSystemDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileSystemInformationFromFd(int fileDescriptor, OsFileSystemDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *path, int followLinks, OsFileDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, GetFileInformationFromFd(int fileDescriptor, OsFileDescriptor_t* descriptor));
-CRTDECL(OsStatus_t, CreateFileMapping(int fileDescriptor, int flags, uint64_t offset, size_t length, void** mapping));
-CRTDECL(OsStatus_t, FlushFileMapping(void* mapping, size_t length));
-CRTDECL(OsStatus_t, DestroyFileMapping(void* mapping));
+CRTDECL(oscode_t, SetFileSizeFromPath(const char* path, size_t size));
+CRTDECL(oscode_t, SetFileSizeFromFd(int fileDescriptor, size_t size));
+CRTDECL(oscode_t, ChangeFilePermissionsFromPath(const char* path, unsigned int permissions));
+CRTDECL(oscode_t, ChangeFilePermissionsFromFd(int fileDescriptor, unsigned int permissions));
+CRTDECL(oscode_t, GetFileLink(const char* path, char* linkPathBuffer, size_t bufferLength));
+CRTDECL(oscode_t, GetFilePathFromFd(int fileDescriptor, char *buffer, size_t maxLength));
+CRTDECL(oscode_t, GetStorageInformationFromPath(const char *path, int followLinks, OsStorageDescriptor_t* descriptor));
+CRTDECL(oscode_t, GetStorageInformationFromFd(int fileDescriptor, OsStorageDescriptor_t* descriptor));
+CRTDECL(oscode_t, GetFileSystemInformationFromPath(const char *path, int followLinks, OsFileSystemDescriptor_t* descriptor));
+CRTDECL(oscode_t, GetFileSystemInformationFromFd(int fileDescriptor, OsFileSystemDescriptor_t* descriptor));
+CRTDECL(oscode_t, GetFileInformationFromPath(const char *path, int followLinks, OsFileDescriptor_t* descriptor));
+CRTDECL(oscode_t, GetFileInformationFromFd(int fileDescriptor, OsFileDescriptor_t* descriptor));
+CRTDECL(oscode_t, CreateFileMapping(int fileDescriptor, int flags, uint64_t offset, size_t length, void** mapping));
+CRTDECL(oscode_t, FlushFileMapping(void* mapping, size_t length));
+CRTDECL(oscode_t, DestroyFileMapping(void* mapping));
 
 _CODE_END
 #endif //!__MOLLENOS_H__

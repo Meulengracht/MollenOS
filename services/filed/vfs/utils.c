@@ -55,10 +55,10 @@ MString_t* VFSNodeMakePath(struct VFSNode* node, int local)
     return path;
 }
 
-static OsStatus_t __AddEntry(struct VFSNode* node, struct VFSStat* entry)
+static oscode_t __AddEntry(struct VFSNode* node, struct VFSStat* entry)
 {
     struct VFSNode* entryNode;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
 
     osStatus = VFSNodeChildNew(node->FileSystem, node, entry, &entryNode);
     if (osStatus != OsOK) {
@@ -67,12 +67,12 @@ static OsStatus_t __AddEntry(struct VFSNode* node, struct VFSStat* entry)
     return OsOK;
 }
 
-static OsStatus_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
+static oscode_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
     struct VFSStat* i              = (struct VFSStat*)buffer;
     size_t          bytesAvailable = length;
 
     while (bytesAvailable) {
-        OsStatus_t osStatus = __AddEntry(node, i);
+        oscode_t osStatus = __AddEntry(node, i);
         if (osStatus != OsOK) {
             return osStatus;
         }
@@ -82,10 +82,10 @@ static OsStatus_t __ParseEntries(struct VFSNode* node, void* buffer, size_t leng
     return OsOK;
 }
 
-static OsStatus_t __LoadNode(struct VFSNode* node) {
+static oscode_t __LoadNode(struct VFSNode* node) {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t              osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
@@ -122,9 +122,9 @@ static OsStatus_t __LoadNode(struct VFSNode* node) {
     return osStatus;
 }
 
-OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node)
+oscode_t VFSNodeEnsureLoaded(struct VFSNode* node)
 {
-    OsStatus_t osStatus = OsOK;
+    oscode_t osStatus = OsOK;
 
     if (!node->IsLoaded) {
         usched_rwlock_w_promote(&node->Lock);
@@ -143,10 +143,10 @@ OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node)
     return osStatus;
 }
 
-OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut)
+oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut)
 {
     struct __VFSChild* result;
-    OsStatus_t         osStatus;
+    oscode_t         osStatus;
 
     // check once while having the reader lock only, this is a performance optimization,
     // so we don't on following checks acquire the writer lock for nothing
@@ -173,12 +173,12 @@ OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** n
     return OsOK;
 }
 
-OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
+oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t            osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data, *fileData;
 
@@ -232,12 +232,12 @@ close:
     return osStatus;
 }
 
-OsStatus_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut)
+oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t            osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
@@ -323,11 +323,11 @@ static void __VerifyHandleExclusivityEnum(int index, const void* element, void* 
     }
 }
 
-OsStatus_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut)
+oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut)
 {
     struct __HandleExcCheckContext context;
     struct VFSNodeHandle*          result;
-    OsStatus_t                     osStatus;
+    oscode_t                     osStatus;
     UUId_t                         handleId;
 
     usched_mtx_lock(&node->HandlesLock);

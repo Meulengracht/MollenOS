@@ -179,7 +179,7 @@ static int __get_startup_info(void)
     struct dma_attachment    mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
-    OsStatus_t               osStatus;
+    oscode_t                 osStatus;
 
     status = __create_startup_buffer(&buffer, &mapping);
     if (status) {
@@ -212,7 +212,6 @@ void __crt_process_initialize(
         _In_ int isPhoenix)
 {
     gracht_client_configuration_t clientConfig;
-    OsStatus_t                    osStatus;
     int                           status;
     TRACE("__crt_process_initialize(isPhoenix=%i)", );
     

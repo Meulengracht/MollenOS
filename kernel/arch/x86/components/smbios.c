@@ -28,7 +28,7 @@ static __EFI_GUID    g_smbiosGuid  = SMBIOS_TABLE_GUID;
 static __EFI_GUID    g_smbios3Guid = SMBIOS3_TABLE_GUID;
 static SmBiosTable_t g_smbios      = { 0 };
 
-OsStatus_t
+oscode_t
 SmBiosLocate(void)
 {
     // Search for magic string on 16 byte boundaries
@@ -43,7 +43,7 @@ SmBiosLocate(void)
     return OsError;
 }
 
-static OsStatus_t
+static oscode_t
 __FindSmBiosInConfigurationTable(
         _In_ void*        configurationTable,
         _In_ unsigned int count)
@@ -68,12 +68,12 @@ __FindSmBiosInConfigurationTable(
     return OsNotExists;
 }
 
-OsStatus_t
+oscode_t
 SmBiosInitialize(void)
 {
     // If the configuration table is NULL this is a non-ufi system
     // and we should locate it in memory
-    OsStatus_t osStatus = __FindSmBiosInConfigurationTable(
+    oscode_t osStatus = __FindSmBiosInConfigurationTable(
             (void*)GetMachine()->BootInformation.ConfigurationTable,
             GetMachine()->BootInformation.ConfigurationTableCount);
     if (osStatus != OsOK) {

@@ -47,7 +47,7 @@ static uintptr_t          g_systemBaseAddress = 0;
 /*******************************************************************************
  * Support Methods (PE)
  *******************************************************************************/
-static inline OsStatus_t
+static inline oscode_t
 __TestFilePath(
         _In_ MString_t* path)
 {
@@ -55,7 +55,7 @@ __TestFilePath(
     return GetFileInformationFromPath(MStringRaw(path), 1, &fileDescriptor);
 }
 
-static OsStatus_t
+static oscode_t
 __GuessBasePath(
         _In_  UUId_t      processHandle,
         _In_  MString_t*  path,
@@ -112,7 +112,7 @@ __TestRamdiskPath(
         _In_ const char* basePath,
         _In_  MString_t* path)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     MString_t* temporaryResult;
     TRACE("__TestRamdiskPath(basePath=%s, path=%s)", basePath, MStringRaw(path));
 
@@ -129,14 +129,14 @@ __TestRamdiskPath(
     return NULL;
 }
 
-static OsStatus_t
+static oscode_t
 __ResolveRelativePath(
         _In_  UUId_t      processId,
         _In_  MString_t*  parentPath,
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
 {
-    OsStatus_t osStatus        = OsError;
+    oscode_t osStatus        = OsError;
     MString_t* temporaryResult = path;
     TRACE("__ResolveRelativePath(processId=%u, parentPath=%s, path=%s)",
           processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
@@ -170,14 +170,14 @@ __ResolveRelativePath(
     return OsNotExists;
 }
 
-OsStatus_t
+oscode_t
 PeImplResolveFilePath(
         _In_  UUId_t      processId,
         _In_  MString_t*  parentPath,
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
 {
-    OsStatus_t osStatus = OsOK;
+    oscode_t osStatus = OsOK;
     ENTRY("ResolveFilePath(processId=%u, path=%s)", processId, MStringRaw(path));
 
     if (MStringFind(path, ':', 0) == MSTRING_NOT_FOUND) {
@@ -194,7 +194,7 @@ PeImplResolveFilePath(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 PeImplLoadFile(
         _In_  MString_t* fullPath,
         _Out_ void**     bufferOut,
@@ -204,7 +204,7 @@ PeImplLoadFile(
     long       fileSize;
     void*      fileBuffer;
     size_t     bytesRead;
-    OsStatus_t osStatus = OsOK;
+    oscode_t osStatus = OsOK;
     ENTRY("LoadFile %s", MStringRaw(fullPath));
 
     // special case:
@@ -285,12 +285,12 @@ PeImplGetTimestampMs(void)
     return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
-OsStatus_t
+oscode_t
 PeImplCreateImageSpace(
         _Out_ MemorySpaceHandle_t* handleOut)
 {
     UUId_t     memorySpaceHandle = UUID_INVALID;
-    OsStatus_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
+    oscode_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
     if (osStatus != OsOK) {
         return osStatus;
     }
@@ -300,7 +300,7 @@ PeImplCreateImageSpace(
 
 // Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly
 // accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
-OsStatus_t
+oscode_t
 PeImplAcquireImageMapping(
         _In_    MemorySpaceHandle_t memorySpaceHandle,
         _InOut_ uintptr_t*          address,
@@ -309,7 +309,7 @@ PeImplAcquireImageMapping(
         _In_    MemoryMapHandle_t*  handleOut)
 {
     MemoryMappingState_t* stateObject = (MemoryMappingState_t*)malloc(sizeof(MemoryMappingState_t));
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     if (!stateObject) {
         return OsOutOfMemory;

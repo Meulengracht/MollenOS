@@ -142,14 +142,14 @@ void FileSystemDestroy(FileSystem_t* fileSystem)
     free(fileSystem);
 }
 
-static OsStatus_t
+static oscode_t
 __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* deviceNode;
     struct VFSNode* partitionNode;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     MString_t*      path;
 
     path = MStringCreate("/storage/", StrUTF8);
@@ -183,14 +183,14 @@ __MountFileSystemAtDefault(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __MountFileSystemAt(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    path)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
 
     osStatus = VFSNodeNew(fsScope, path, 0, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
@@ -206,7 +206,7 @@ VfsFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    mountPoint)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     if (!fileSystem) {
         return;
@@ -269,13 +269,13 @@ VfsFileSystemMount(
     __NotifySessionManager(VFSNodePath(fileSystem->MountNode));
 }
 
-OsStatus_t
+oscode_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
     struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
-    OsStatus_t  osStatus;
+    oscode_t  osStatus;
 
     usched_mtx_lock(&fileSystem->lock);
     if (fileSystem->state == FileSystemState_MOUNTED) {

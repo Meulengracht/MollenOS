@@ -29,7 +29,7 @@
 
 struct ioset_event;
 
-KERNELAPI OsStatus_t KERNELABI HandleSetsInitialize(void);
+KERNELAPI oscode_t KERNELABI HandleSetsInitialize(void);
 
 /**
  * CreateHandleSet
@@ -49,7 +49,7 @@ CreateHandleSet(
  * @param Flags     [In] The flags that should be configured with the handle.
  * @param Context   [In] The context pointer that should be included in events.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ControlHandleSet(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
@@ -66,7 +66,7 @@ ControlHandleSet(
  * @param Timeout           [In]
  * @param NumberOfEventsOut [Out]
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 WaitForHandleSet(
     _In_  UUId_t              handle,
     _In_  struct ioset_event* events,
@@ -81,7 +81,7 @@ WaitForHandleSet(
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags that are defined in ioset.h.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 MarkHandle(
     _In_ UUId_t       handle,
     _In_ unsigned int flags);

@@ -55,7 +55,7 @@ __ExtendStack(
         _In_ MemoryStack_t* stack)
 {
     // double up each time
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     size_t     newSize = stack->data_size << 1;
     vaddr_t    space;
 
@@ -154,7 +154,7 @@ MemoryStackPushMultiple(
     }
 }
 
-OsStatus_t
+oscode_t
 MemoryStackPop(
         _In_ MemoryStack_t* stack,
         _In_ int*           blockCount,

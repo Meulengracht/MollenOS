@@ -249,7 +249,7 @@ SyncPd:
 	return table;
 }
 
-static OsStatus_t
+static oscode_t
 __CloneKernelDirectory(
         _In_ PageMasterTable_t* source,
         _In_ PageMasterTable_t* destination)
@@ -302,7 +302,7 @@ __CloneKernelDirectory(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MmVirtualClone(
         _In_  MemorySpace_t* source,
         _In_  int            inherit,
@@ -315,7 +315,7 @@ MmVirtualClone(
     PageDirectoryTable_t* directoryTable;
     uintptr_t             physicalAddress;
     uintptr_t             masterAddress;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
     TRACE("MmuCloneVirtualSpace(inherit=%" PRIiIN ")", inherit);
 
     // lookup and sanitize regions
@@ -373,7 +373,7 @@ MmVirtualClone(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MmVirtualDestroyPageTable(
 	_In_ PageTable_t* pageTable)
 {
@@ -390,7 +390,7 @@ MmVirtualDestroyPageTable(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MmVirtualDestroyPageDirectory(
 	_In_ PageDirectory_t* pageDirectory)
 {
@@ -406,7 +406,7 @@ MmVirtualDestroyPageDirectory(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MmVirtualDestroyPageDirectoryTable(
 	_In_ PageDirectoryTable_t* pageDirectoryTable)
 {
@@ -422,7 +422,7 @@ MmVirtualDestroyPageDirectoryTable(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {

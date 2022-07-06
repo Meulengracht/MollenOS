@@ -26,7 +26,7 @@
 #include <internal/_utils.h>
 #include <ddk/handle.h>
 
-OsStatus_t
+oscode_t
 handle_create(
     _Out_ UUId_t* handleOut)
 {
@@ -36,14 +36,14 @@ handle_create(
     return Syscall_CreateHandle(handleOut);
 }
 
-OsStatus_t
+oscode_t
 handle_destroy(
     _In_ UUId_t handle)
 {
     return Syscall_DestroyHandle(handle);
 }
 
-OsStatus_t
+oscode_t
 handle_set_path(
     _In_ UUId_t      handle,
     _In_ const char* path)
@@ -54,7 +54,7 @@ handle_set_path(
     return Syscall_RegisterHandlePath(handle, path);
 }
 
-OsStatus_t
+oscode_t
 handle_post_notification(
     _In_ UUId_t       handle,
     _In_ unsigned int flags)
@@ -62,7 +62,7 @@ handle_post_notification(
     return Syscall_HandleSetActivity(handle, flags);
 }
 
-OsStatus_t
+oscode_t
 notification_queue_create(
     _In_  unsigned int flags,
     _Out_ UUId_t*      handleOut)
@@ -73,7 +73,7 @@ notification_queue_create(
     return Syscall_CreateHandleSet(flags, handleOut);
 }
 
-OsStatus_t
+oscode_t
 notification_queue_ctrl(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
@@ -83,7 +83,7 @@ notification_queue_ctrl(
     return Syscall_ControlHandleSet(setHandle, operation, handle, event);
 }
 
-OsStatus_t
+oscode_t
 notification_queue_wait(
     _In_  UUId_t              handle,
     _In_  struct ioset_event* events,

@@ -71,11 +71,11 @@ FlipStringBuffer(
     }
 }
 
-OsStatus_t
+oscode_t
 AhciManagerInitialize(void)
 {
     SystemDescriptor_t Descriptor;
-    OsStatus_t         Status;
+    oscode_t         Status;
 
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
@@ -143,7 +143,7 @@ static AhciDevice_t* __CreateInitialDevice(
     return device;
 }
 
-OsStatus_t
+oscode_t
 AhciManagerRegisterDevice(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port,
@@ -151,7 +151,7 @@ AhciManagerRegisterDevice(
 {
     AhciDevice_t* ahciDevice;
     DeviceType_t  deviceType;
-    OsStatus_t    osStatus;
+    oscode_t    osStatus;
 
     TRACE("AhciManagerRegisterDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", signature=0x%x)",
           controller, port, signature);
@@ -339,7 +339,7 @@ AhciManagerHandleControlResponse(
 void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    OsStatus_t                 status = OsNotExists;
+    oscode_t                 status = OsNotExists;
     AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);

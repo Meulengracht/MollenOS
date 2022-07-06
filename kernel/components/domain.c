@@ -26,7 +26,7 @@
 
 #include "cpu_private.h"
 
-OsStatus_t
+oscode_t
 CreateNumaDomain(
     _In_  UUId_t            DomainId,
     _In_  int               NumberOfCores,

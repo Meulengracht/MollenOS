@@ -71,7 +71,7 @@ static unsigned int __ConvertToUserMemoryFlags(
     return flags;
 }
 
-static OsStatus_t __PerformAllocation(
+static oscode_t __PerformAllocation(
         _In_  MemorySpace_t* memorySpace,
         _In_  void*          hint,
         _In_  size_t         length,
@@ -82,7 +82,7 @@ static OsStatus_t __PerformAllocation(
     uintptr_t  allocatedAddress;
     int        pageCount;
     uintptr_t* pages;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     pageCount = DIVUP(length, GetMemorySpacePageSize());
     pages     = kmalloc(sizeof(uintptr_t) * pageCount);
@@ -108,7 +108,7 @@ static OsStatus_t __PerformAllocation(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 ScMemoryAllocate(
     _In_      void*        hint,
     _In_      size_t       length,
@@ -118,7 +118,7 @@ ScMemoryAllocate(
     unsigned int   memoryFlags;
     unsigned int   placementFlags;
     MemorySpace_t* memorySpace;
-    OsStatus_t     osStatus;
+    oscode_t     osStatus;
     TRACE("ScMemoryAllocate(length=0x%" PRIxIN ", flags=%u)", length, flags);
     
     if (!length || !memoryOut) {
@@ -154,7 +154,7 @@ ScMemoryAllocate(
     return osStatus;
 }
 
-OsStatus_t 
+oscode_t
 ScMemoryFree(
     _In_ uintptr_t address,
     _In_ size_t    length)
@@ -166,7 +166,7 @@ ScMemoryFree(
     return MemorySpaceUnmap(GetCurrentMemorySpace(), address, length);
 }
 
-OsStatus_t
+oscode_t
 ScMemoryProtect(
     _In_  void*         memoryPointer,
     _In_  size_t        length,
@@ -181,12 +181,12 @@ ScMemoryProtect(
                                        flags | MAPPING_USERSPACE, previousFlags);
 }
 
-OsStatus_t
+oscode_t
 ScMemoryQueryAllocation(
         _In_ void*               memoryPointer,
         _In_ MemoryDescriptor_t* descriptor)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     if (!memoryPointer || !descriptor) {
         return OsInvalidParameters;
@@ -201,7 +201,7 @@ ScMemoryQueryAllocation(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ScMemoryQueryAttributes(
         _In_ void*         memoryPointer,
         _In_ size_t        length,
@@ -210,7 +210,7 @@ ScMemoryQueryAttributes(
     MemorySpace_t* memorySpace = GetCurrentMemorySpace();
     int            entries = DIVUP(length, GetMemorySpacePageSize());
     uintptr_t      address = (uintptr_t)memoryPointer;
-    OsStatus_t     osStatus;
+    oscode_t     osStatus;
     int            i;
 
     if (!address || !entries || !attributesArray) {
@@ -228,12 +228,12 @@ ScMemoryQueryAttributes(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ScDmaCreate(
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
-    OsStatus_t   osStatus;
+    oscode_t   osStatus;
     unsigned int flags = 0;
     size_t       pageMask;
     void*        kernelMapping;
@@ -274,13 +274,13 @@ ScDmaCreate(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 ScDmaExport(
     _In_ void*                   buffer,
     _In_ struct dma_buffer_info* info,
     _In_ struct dma_attachment*  attachment)
 {
-    OsStatus_t   osStatus;
+    oscode_t   osStatus;
     unsigned int flags = 0;
 
     if (!info || !attachment) {
@@ -305,7 +305,7 @@ ScDmaExport(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttach(
     _In_ UUId_t                 handle,
     _In_ struct dma_attachment* attachment)
@@ -322,7 +322,7 @@ ScDmaAttach(
     return MemoryRegionAttach(handle, &attachment->length);
 }
 
-OsStatus_t
+oscode_t
 ScDmaDetach(
     _In_ struct dma_attachment* Attachment)
 {
@@ -333,7 +333,7 @@ ScDmaDetach(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ScDmaRead(
     _In_  UUId_t  Handle,
     _In_  size_t  Offset,
@@ -344,7 +344,7 @@ ScDmaRead(
     return MemoryRegionRead(Handle, Offset, Buffer, Length, BytesRead);
 }
 
-OsStatus_t
+oscode_t
 ScDmaWrite(
     _In_  UUId_t      Handle,
     _In_  size_t      Offset,
@@ -355,7 +355,7 @@ ScDmaWrite(
     return MemoryRegionWrite(Handle, Offset, Buffer, Length, BytesWritten);
 }
 
-OsStatus_t
+oscode_t
 ScDmaGetMetrics(
     _In_  UUId_t         Handle,
     _Out_ int*           SgCountOut,
@@ -364,7 +364,7 @@ ScDmaGetMetrics(
     return MemoryRegionGetSg(Handle, SgCountOut, SgListOut);
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttachmentMap(
     _In_ struct dma_attachment* attachment,
     _In_ unsigned int           accessFlags)
@@ -380,7 +380,7 @@ ScDmaAttachmentMap(
     return MemoryRegionInherit(attachment->handle, &attachment->buffer, &attachment->length, memoryFlags);
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttachmentResize(
     _In_ struct dma_attachment* attachment,
     _In_ size_t                 length)
@@ -391,7 +391,7 @@ ScDmaAttachmentResize(
     return MemoryRegionResize(attachment->handle, attachment->buffer, length);
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttachmentRefresh(
     _In_ struct dma_attachment* attachment)
 {
@@ -402,7 +402,7 @@ ScDmaAttachmentRefresh(
         attachment->length, &attachment->length);
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttachmentCommit(
         _In_ struct dma_attachment* attachment,
         _In_ void*                  address,
@@ -414,7 +414,7 @@ ScDmaAttachmentCommit(
     return MemoryRegionCommit(attachment->handle, attachment->buffer, address, length);
 }
 
-OsStatus_t
+oscode_t
 ScDmaAttachmentUnmap(
     _In_ struct dma_attachment* attachment)
 {
@@ -424,7 +424,7 @@ ScDmaAttachmentUnmap(
     return MemoryRegionUnherit(attachment->handle, attachment->buffer);
 }
 
-OsStatus_t 
+oscode_t
 ScCreateMemorySpace(
     _In_  unsigned int flags,
     _Out_ UUId_t*      handleOut)
@@ -435,7 +435,7 @@ ScCreateMemorySpace(
     return CreateMemorySpace(flags | MEMORY_SPACE_APPLICATION, handleOut);
 }
 
-OsStatus_t 
+oscode_t
 ScGetThreadMemorySpaceHandle(
     _In_  UUId_t  threadHandle,
     _Out_ UUId_t* handleOut)
@@ -453,7 +453,7 @@ ScGetThreadMemorySpaceHandle(
     return OsNotExists;
 }
 
-OsStatus_t 
+oscode_t
 ScCreateMemorySpaceMapping(
     _In_  UUId_t                          handle,
     _In_  struct MemoryMappingParameters* mappingParameters,
@@ -464,7 +464,7 @@ ScCreateMemorySpaceMapping(
     vaddr_t        copyPlacement = 0;
     int            pageCount;
     uintptr_t*     pages;
-    OsStatus_t     osStatus;
+    oscode_t     osStatus;
     TRACE("[sc_map] target address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
           mappingParameters->VirtualAddress, mappingParameters->Flags, mappingParameters->Length);
     
@@ -517,7 +517,7 @@ ScCreateMemorySpaceMapping(
 }
 
 
-OsStatus_t
+oscode_t
 ScMapThreadMemoryRegion(
     _In_  UUId_t    threadHandle,
     _In_  uintptr_t stackPointer,
@@ -526,7 +526,7 @@ ScMapThreadMemoryRegion(
 {
     Thread_t*  thread;
     uintptr_t  copiedAddress;
-    OsStatus_t status;
+    oscode_t status;
     size_t     correctLength;
 
     thread = THREAD_GET(threadHandle);

@@ -53,13 +53,13 @@ static MString_t* __CombineNodePath(struct VFSNode* directoryNode, MString_t* na
     return nodePath;
 }
 
-static OsStatus_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
+static oscode_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
 {
     struct VFSOperations* ops        = &sourceNode->FileSystem->Module->Operations;
     struct VFS*           vfs        = sourceNode->FileSystem;
     MString_t*            sourcePath = VFSNodeMakePath(sourceNode, 1);
     MString_t*            targetPath = __CombineNodePath(directoryNode, targetName);
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     if (sourcePath == NULL || targetPath == NULL) {
         MStringDestroy(sourcePath);
@@ -118,11 +118,11 @@ unlock:
     return osStatus;
 }
 
-static OsStatus_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
+static oscode_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
 {
     struct dma_buffer_info buffer;
     struct dma_attachment  attachment;
-    OsStatus_t             osStatus;
+    oscode_t             osStatus;
 
     buffer.name     = "vfs_transfer_file";
     buffer.flags    = 0;
@@ -156,11 +156,11 @@ static OsStatus_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct
     return OsOK;
 }
 
-static OsStatus_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
+static oscode_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
 {
     MString_t* sourcePath = VFSNodeMakePath(sourceNode, 1);
     MString_t* targetPath = __CombineNodePath(directoryNode, targetName);
-    OsStatus_t osStatus, osStatus2;
+    oscode_t osStatus, osStatus2;
 
     if (sourcePath == NULL || targetPath == NULL) {
         MStringDestroy(sourcePath);
@@ -234,7 +234,7 @@ cleanup:
     return osStatus;
 }
 
-OsStatus_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
+oscode_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* from;
     MString_t*      fromPath = VFSMakePath(request->parameters.move.from);
@@ -242,7 +242,7 @@ OsStatus_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     MString_t*      toPath = VFSMakePath(request->parameters.move.to);
     MString_t*      path;
     MString_t*      targetName;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
 
     if (fromPath == NULL || toPath == NULL) {
         MStringDestroy(fromPath);

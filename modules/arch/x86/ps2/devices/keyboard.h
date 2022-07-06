@@ -50,7 +50,7 @@ struct key_state {
 
 /* ScancodeSet2ToVKey
  * Converts a scancode 2 key to the standard-defined virtual key-layout */
-__EXTERN OsStatus_t 
+__EXTERN oscode_t
 ScancodeSet2ToVKey(
     _In_ struct key_state* keyState,
     _In_ uint8_t           scancode);

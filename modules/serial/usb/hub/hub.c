@@ -111,7 +111,7 @@ static inline void __GetDeviceProtocol(
     hubDevice->InterfaceId = interface->base.NumInterface;
 }
 
-static OsStatus_t __GetDeviceConfiguration(
+static oscode_t __GetDeviceConfiguration(
         _In_ HubDevice_t* hubDevice)
 {
     usb_device_configuration_t configuration;
@@ -151,7 +151,7 @@ static OsStatus_t __GetDeviceConfiguration(
     return OsOK;
 }
 
-static OsStatus_t __GetSuperSpeedHubDescriptor(
+static oscode_t __GetSuperSpeedHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
     UsbTransferStatus_t     transferStatus;
@@ -174,7 +174,7 @@ static OsStatus_t __GetSuperSpeedHubDescriptor(
     return OsOK;
 }
 
-static OsStatus_t __GetHubDescriptor(
+static oscode_t __GetHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
     UsbTransferStatus_t transferStatus;
@@ -229,7 +229,7 @@ static void __EnumeratePorts(
 
     // Power on ports
     for (i = 1; i <= hubDevice->PortCount; i++) {
-        OsStatus_t osStatus = HubPowerOnPort(hubDevice, i);
+        oscode_t osStatus = HubPowerOnPort(hubDevice, i);
         if (osStatus != OsOK) {
             ERROR("__EnumeratePorts failed to power on port %u", i);
         }
@@ -246,7 +246,7 @@ static void __EnumeratePorts(
     // then send a notification to the usb service that its ready for enumeration
     for (i = 1; i <= hubDevice->PortCount; i++) {
         PortStatus_t portStatus;
-        OsStatus_t   osStatus;
+        oscode_t   osStatus;
 
         osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
         if (osStatus != OsOK) {
@@ -272,7 +272,7 @@ HubDeviceCreate(
     HubDevice_t*        hubDevice;
     uint8_t             interruptEpAddress;
     UsbTransferStatus_t transferStatus;
-    OsStatus_t          osStatus;
+    oscode_t          osStatus;
 
     TRACE("HubDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
@@ -386,7 +386,7 @@ static void __HandleHubOverCurrentEvent(
     // we have to wait for the overcurrent status bit to clear
     while (1) {
         HubStatus_t hubStatus;
-        OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
+        oscode_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
         if (osStatus != OsOK) {
             ERROR("__HandleHubOverCurrentEvent failed to get hub status");
             return;
@@ -409,7 +409,7 @@ static void __EnumerateSinglePort(
         _In_ uint8_t      portIndex)
 {
     PortStatus_t portStatus;
-    OsStatus_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
+    oscode_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
     if (osStatus != OsOK) {
         ERROR("__EnumerateSinglePort failed to power on port %u", portIndex);
         return;
@@ -443,7 +443,7 @@ static void __HandlePortOverCurrentEvent(
     // we have to wait for the overcurrent status bit to clear
     while (1) {
         PortStatus_t portStatus;
-        OsStatus_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
+        oscode_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
         if (osStatus != OsOK) {
             ERROR("__HandlePortOverCurrentEvent failed to get hub status");
             return;
@@ -473,7 +473,7 @@ HubInterrupt(
     // If the first bit is set - there was an hub event
     if (changeMap[0] & 0x1) {
         HubStatus_t hubStatus;
-        OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
+        oscode_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
         if (osStatus != OsOK) {
             ERROR("HubInterrupt failed to get hub status");
         }
@@ -493,7 +493,7 @@ HubInterrupt(
     // we do detect all change events
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
         if (changeMap[i / 8] & (i << (i % 8))) {
-            OsStatus_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
+            oscode_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
             if (osStatus != OsOK) {
                 ERROR("HubInterrupt failed to get port %u status", i);
                 continue;

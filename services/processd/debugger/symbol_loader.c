@@ -33,7 +33,7 @@
 #include <strings.h>
 #include <ctype.h>
 
-static OsStatus_t
+static oscode_t
 SymbolLoadMapFile(
         _In_  const char* binaryName,
         _Out_ void**      fileBufferOut,
@@ -55,7 +55,7 @@ SymbolInitialize(void)
                         SymbolContextCmp);
 }
 
-OsStatus_t
+oscode_t
 SymbolsLoadContext(
         _In_  const char*             binaryName,
         _Out_ struct symbol_context** symbolContextOut)
@@ -64,7 +64,7 @@ SymbolsLoadContext(
     struct symbol_context symbolContext = { 0 };
     long                  fileSize;
     void*                 fileBuffer;
-    OsStatus_t            status;
+    oscode_t            status;
 
     TRACE("[SymbolsLoadContext] loading map file");
     status = SymbolLoadMapFile(binaryName, &fileBuffer, &fileSize);
@@ -90,7 +90,7 @@ SymbolsLoadContext(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 SymbolLookup(
         _In_  const char*  binaryName,
         _In_  uintptr_t    binaryOffset,
@@ -99,7 +99,7 @@ SymbolLookup(
 {
     struct symbol_context* symbolContext;
     struct map_symbol*     symbol = NULL;
-    OsStatus_t             status;
+    oscode_t             status;
     int                    i;
 
     if (!binaryName) {
@@ -135,7 +135,7 @@ SymbolLookup(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 SymbolLoadMapFile(
         _In_  const char* binaryName,
         _Out_ void**      fileBufferOut,

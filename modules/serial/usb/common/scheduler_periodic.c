@@ -29,13 +29,13 @@
 #include <os/mollenos.h>
 #include "scheduler.h"
 
-OsStatus_t
+oscode_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t* Scheduler,
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    OsStatus_t            Result;
+    oscode_t            Result;
     UsbSchedulerObject_t* sObject         = NULL;
     UsbSchedulerPool_t*   sPool           = NULL;
     uintptr_t             PhysicalAddress = 0;
@@ -129,7 +129,7 @@ UsbSchedulerUnlinkPeriodicElement(
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    OsStatus_t            Result;
+    oscode_t            Result;
     UsbSchedulerObject_t* sObject = NULL;
     UsbSchedulerPool_t*   sPool   = NULL;
     reg32_t               NoLink  = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;

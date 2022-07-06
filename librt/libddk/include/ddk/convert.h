@@ -64,8 +64,8 @@ static void from_sys_disk_descriptor_dkk(struct sys_disk_descriptor* in, Storage
     size_t serialLen = strnlen(in->serial, sizeof(out->Serial) - 1);
     size_t modelLen  = strnlen(in->model, sizeof(out->Model) - 1);
 
-    out->Device = in->device_id;
-    out->Driver = in->driver_id;
+    out->DeviceID = in->device_id;
+    out->DriverID = in->driver_id;
     out->Flags = (unsigned int)in->flags;
     out->SectorSize = in->geometry.sector_size;
     out->SectorCount = in->geometry.sectors_total;
@@ -80,8 +80,8 @@ static void from_sys_disk_descriptor_dkk(struct sys_disk_descriptor* in, Storage
 
 static void to_sys_disk_descriptor_dkk(StorageDescriptor_t* in, struct sys_disk_descriptor* out)
 {
-    out->device_id = in->Device;
-    out->driver_id = in->Driver;
+    out->device_id = in->DeviceID;
+    out->driver_id = in->DriverID;
     out->flags = (enum sys_storage_flags)in->Flags;
     out->geometry.sector_size = in->SectorSize;
     out->geometry.sectors_total = in->SectorCount;

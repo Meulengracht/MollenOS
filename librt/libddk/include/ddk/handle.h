@@ -33,8 +33,8 @@
  * @param handleOut A unique identifier to a generic OS handle
  * @return          Status of the handle creation
  */
-DDKDECL(OsStatus_t,
-handle_create(
+DDKDECL(oscode_t,
+        handle_create(
     _Out_ UUId_t* handleOut));
 
 /**
@@ -42,8 +42,8 @@ handle_create(
  * @param handle A generic OS handle
  * @return       Status of the operation
  */
-DDKDECL(OsStatus_t,
-handle_destroy(
+DDKDECL(oscode_t,
+        handle_destroy(
     _In_ UUId_t handle));
 
 /**
@@ -53,8 +53,8 @@ handle_destroy(
  * @param path   The path to be registered for the handle
  * @return       Whether or not the path was successfully registered for the handle
  */
-DDKDECL(OsStatus_t,
-handle_set_path(
+DDKDECL(oscode_t,
+        handle_set_path(
     _In_ UUId_t      handle,
     _In_ const char* path));
 
@@ -64,8 +64,8 @@ handle_set_path(
  * @param handleOut A unique identifier to an OS handle of the type Set
  * @return          status of the queue creation
  */
-DDKDECL(OsStatus_t,
-notification_queue_create(
+DDKDECL(oscode_t,
+        notification_queue_create(
     _In_  unsigned int flags,
     _Out_ UUId_t*      handleOut));
 
@@ -77,8 +77,8 @@ notification_queue_create(
  * @param handle    [In] The handle that should be operated on.
  * @param event     [In] The configuration for the event to be recieved.
  */
-DDKDECL(OsStatus_t,
-notification_queue_ctrl(
+DDKDECL(oscode_t,
+        notification_queue_ctrl(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
     _In_ UUId_t              handle,
@@ -93,8 +93,8 @@ notification_queue_ctrl(
  * @param maxEvents [In]
  * @param timeout   [In]
  */
-DDKDECL(OsStatus_t,
-notification_queue_wait(
+DDKDECL(oscode_t,
+        notification_queue_wait(
     _In_  UUId_t              handle,
     _In_  struct ioset_event * events,
     _In_  int                 maxEvents,
@@ -109,8 +109,8 @@ notification_queue_wait(
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags which denote which kind of event.
  */
-DDKDECL(OsStatus_t,
-handle_post_notification(
+DDKDECL(oscode_t,
+        handle_post_notification(
     _In_ UUId_t       handle,
     _In_ unsigned int flags));
 

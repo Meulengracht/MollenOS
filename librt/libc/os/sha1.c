@@ -113,7 +113,7 @@ void Sha1Transform(int handsoff, uint32_t state[5], const uint8_t buffer[64])
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-OsStatus_t
+oscode_t
 Sha1Init(
 	_In_ Sha1Context_t *Context, 
 	_In_ int Handsoff)
@@ -135,7 +135,7 @@ Sha1Init(
 /* Sha1Add
  * Add data to the given SHA1 context,
  * this is the function for using the context */
-OsStatus_t
+oscode_t
 Sha1Add(
 	_In_ Sha1Context_t *Context, 
 	_In_ __CONST uint8_t *Data,
@@ -165,7 +165,7 @@ Sha1Add(
 /* Sha1Finalize
  * Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-OsStatus_t
+oscode_t
 Sha1Finalize(
 	_In_ Sha1Context_t *Context, 
 	_Out_ uint8_t Digest[SHA1_DIGEST_SIZE])
@@ -206,7 +206,7 @@ Sha1Finalize(
 /* Sha1DigestToHex
  * Converts the digest buffer to a hex-string 
  * by calling this function */
-OsStatus_t
+oscode_t
 Sha1DigestToHex(
 	_In_ uint8_t Digest[SHA1_DIGEST_SIZE], 
 	_Out_ char *Output)

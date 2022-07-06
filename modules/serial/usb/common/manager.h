@@ -82,7 +82,7 @@ typedef int(*UsbSchedulerElementCallback)(
  * Initializes the common usb manager that all usb drivers can use to keep track of controllers
  * @return Status of the initialization.
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UsbManagerInitialize(void);
 
 /**
@@ -109,7 +109,7 @@ UsbManagerCreateController(
  * @param controller The controller that should be registered with the usb service.
  * @return           Status of the operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller);
 
@@ -118,7 +118,7 @@ UsbManagerRegisterController(
  * @param controller The controller that should be unregistered from the usb service and cleaned up.
  * @return           Status of the operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller);
 
@@ -187,7 +187,7 @@ UsbManagerGetToggle(
  * @param address  Address of the endpoint.
  * @return         Status of the update operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UsbManagerSetToggle(
     _In_ UUId_t          deviceId,
     _In_ UsbHcAddress_t* address,

@@ -38,7 +38,7 @@ DECL_STRUCT(SystemCpuCore);
  * @param pageMaskOut [Out]
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchGetPageMaskFromDmaType(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut);
@@ -70,7 +70,7 @@ ArchPlatformInitialize(
  * @param interruptId
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 ArchProcessorSendInterrupt(
     _In_ UUId_t coreId,
     _In_ UUId_t interruptId);

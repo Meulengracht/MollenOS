@@ -49,14 +49,14 @@ IpcContextDestroy(
     kfree(context);
 }
 
-OsStatus_t
+oscode_t
 IpcContextCreate(
     _In_  size_t  Size,
     _Out_ UUId_t* HandleOut,
     _Out_ void**  UserContextOut)
 {
     IpcContext_t* Context;
-    OsStatus_t    Status;
+    oscode_t    Status;
     void*         KernelMapping;
     TRACE("IpcContextCreate(%u)", Size);
     
@@ -99,7 +99,7 @@ struct message_state {
     unsigned int state;
 };
 
-static OsStatus_t
+static oscode_t
 AllocateMessage(
     _In_  struct ipmsg*          message,
     _In_  size_t                 timeout,
@@ -116,7 +116,7 @@ AllocateMessage(
     }
     else {
         UUId_t     handle;
-        OsStatus_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
+        oscode_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
         if (osStatus != OsOK) {
             ERROR("AllocateMessage could not find target path %s", message->addr->data.path);
             return osStatus;
@@ -171,7 +171,7 @@ SendMessage(
     MarkHandle(context->Handle, IOSETIN);
 }
 
-OsStatus_t
+oscode_t
 IpcContextSendMultiple(
     _In_ struct ipmsg** messages,
     _In_ int            messageCount,
@@ -186,7 +186,7 @@ IpcContextSendMultiple(
     
     for (int i = 0; i < messageCount; i++) {
         IpcContext_t* targetContext;
-        OsStatus_t    status = AllocateMessage(messages[i], timeout, &state, &targetContext);
+        oscode_t    status = AllocateMessage(messages[i], timeout, &state, &targetContext);
         if (status != OsOK) {
             // todo store status in context and return incomplete
             return OsIncomplete;

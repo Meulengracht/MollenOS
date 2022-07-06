@@ -50,7 +50,7 @@ static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 
 static IrqSpinlock_t   g_interruptTableLock                             = OS_IRQ_SPINLOCK_INIT;
 static _Atomic(UUId_t) g_nextInterruptId                                = ATOMIC_VAR_INIT(0);
 
-OsStatus_t
+oscode_t
 InterruptIncreasePenalty(
     _In_ int Source)
 {
@@ -62,7 +62,7 @@ InterruptIncreasePenalty(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 InterruptDecreasePenalty(
     _In_ int Source)
 {
@@ -127,12 +127,12 @@ InterruptGetLeastLoaded(
 
 /* InterruptCleanupIoResources
  * Releases all kernel copies of the io-resources. */
-static OsStatus_t
+static oscode_t
 InterruptCleanupIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
     InterruptResourceTable_t* Resources = &Interrupt->KernelResources;
-    OsStatus_t                Status    = OsOK;
+    oscode_t                Status    = OsOK;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Resources->IoResources[i] != NULL) {
@@ -150,14 +150,14 @@ InterruptCleanupIoResources(
 /* InterruptResolveIoResources
  * Retrieves kernel copies of all requested io-resources, and remaps them into
  * kernel space to allow the handler to access them. */
-static OsStatus_t
+static oscode_t
 InterruptResolveIoResources(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ SystemInterrupt_t* systemInterrupt)
 {
     InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
-    OsStatus_t                Status      = OsOK;
+    oscode_t                Status      = OsOK;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Source->IoResources[i] != NULL) {
@@ -178,12 +178,12 @@ InterruptResolveIoResources(
 
 /* InterruptCleanupMemoryResources
  * Releases all memory copies of the interrupt memory resources. */
-static OsStatus_t
+static oscode_t
 InterruptCleanupMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
     InterruptResourceTable_t * Resources = &Interrupt->KernelResources;
-    OsStatus_t Status                       = OsOK;
+    oscode_t Status                       = OsOK;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Resources->MemoryResources[i].Address != 0) {
@@ -205,14 +205,14 @@ InterruptCleanupMemoryResources(
 /* InterruptResolveMemoryResources
  * Retrieves kernel copies of all requested memory-resources, and remaps them into
  * kernel space to allow the handler to access them. */
-static OsStatus_t
+static oscode_t
 InterruptResolveMemoryResources(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ SystemInterrupt_t* systemInterrupt)
 {
     InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
-    OsStatus_t                success = OsOK;
+    oscode_t                success = OsOK;
     uintptr_t                 updatedMapping;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
@@ -253,7 +253,7 @@ InterruptResolveMemoryResources(
  * @param systemInterrupt
  * @return
  */
-static OsStatus_t
+static oscode_t
 InterruptResolveResources(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ SystemInterrupt_t* systemInterrupt)
@@ -262,7 +262,7 @@ InterruptResolveResources(
     InterruptResourceTable_t * Destination = &systemInterrupt->KernelResources;
     unsigned int               PlacementFlags;
     unsigned int               PageFlags;
-    OsStatus_t                 Status;
+    oscode_t                 Status;
     uintptr_t                  Virtual;
     uintptr_t                  Offset;
     size_t                     Length;
@@ -301,12 +301,12 @@ InterruptResolveResources(
 
 /* InterruptReleaseResources
  * Releases previously allocated resources for the system interrupt. */
-static OsStatus_t
+static oscode_t
 InterruptReleaseResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
     InterruptResourceTable_t * Resources = &Interrupt->KernelResources;
-    OsStatus_t Status;
+    oscode_t Status;
     uintptr_t Offset;
     size_t Length;
 
@@ -444,13 +444,13 @@ InterruptRegister(
     return systemInterrupt->Id;
 }
 
-OsStatus_t
+oscode_t
 InterruptUnregister(
     _In_ UUId_t Source)
 {
     SystemInterrupt_t* Entry;
     SystemInterrupt_t* Previous   = NULL;
-    OsStatus_t         Result     = OsError;
+    oscode_t         Result     = OsError;
     uint16_t           TableIndex = LOWORD(Source);
     int                Found      = 0;
 
@@ -553,7 +553,7 @@ InterruptHandle(
 {
     uint32_t           initialPriority = InterruptsGetPriority();
     int                interruptSource = INTERRUPT_NONE;
-    InterruptStatus_t  interruptStatus;
+    irqstatus_t  interruptStatus;
     SystemInterrupt_t* entry;
 
     InterruptsSetPriority(tableIndex);
@@ -569,7 +569,7 @@ InterruptHandle(
             interruptStatus = entry->KernelResources.Handler(GetFastInterruptTable(), &entry->KernelResources);
         }
 
-        if (interruptStatus == InterruptHandled) {
+        if (interruptStatus == IRQSTATUS_HANDLED) {
             interruptSource = entry->Source;
             break;
         }

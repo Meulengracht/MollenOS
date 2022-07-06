@@ -34,24 +34,24 @@ _CODE_BEGIN
 /* BufferPoolCreate
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
-DDKDECL(OsStatus_t,
-dma_pool_create(
+DDKDECL(oscode_t,
+        dma_pool_create(
     _In_  struct dma_attachment* attachment,
     _Out_ struct dma_pool**      pool_out));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
  * allocated. This does not destroy the buffer-object. */
-DDKDECL(OsStatus_t,
-dma_pool_destroy(
+DDKDECL(oscode_t,
+        dma_pool_destroy(
     _In_ struct dma_pool* pool));
 
 /* BufferPoolAllocate
  * Allocates the requested size and outputs two addresses. The
  * virtual pointer to the accessible data, and the address of its 
  * corresponding physical address for hardware. */
-DDKDECL(OsStatus_t,
-dma_pool_allocate(
+DDKDECL(oscode_t,
+        dma_pool_allocate(
     _In_  struct dma_pool* pool,
     _In_  size_t           length,
     _Out_ void**           address_out));
@@ -59,8 +59,8 @@ dma_pool_allocate(
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
-DDKDECL(OsStatus_t,
-dma_pool_free(
+DDKDECL(oscode_t,
+        dma_pool_free(
     _In_ struct dma_pool* pool,
     _In_ void*            address));
 

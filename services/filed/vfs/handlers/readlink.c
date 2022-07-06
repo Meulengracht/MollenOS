@@ -21,27 +21,28 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeFlush(struct VFSRequest* request)
+oscode_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, MString_t** linkOut)
 {
     struct VFSNodeHandle* handle;
-    struct VFS*           nodeVfs;
     oscode_t            osStatus, osStatus2;
-    UInteger64_t       position;
 
-    position.u.LowPart  = request->parameters.seek.position_low;
-    position.u.HighPart = request->parameters.seek.position_high;
-
-    osStatus = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(request->parameters.stat_handle.fileHandle, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }
 
-    // TODO implement
-    osStatus = OsNotSupported;
+    usched_rwlock_r_lock(&handle->Node->Lock);
+    if (handle->Node->Stats.Flags & __FILE_LINK) {
+        *linkOut = MStringClone(handle->Node->Stats.LinkTarget);
+        osStatus = OsOK;
+    } else {
+        osStatus = OsLinkInvalid;
+    }
+    usched_rwlock_r_unlock(&handle->Node->Lock);
 
     osStatus2 = VFSNodeHandlePut(handle);
     if (osStatus2 != OsOK) {
-        WARNING("VFSNodeFlush failed to release handle lock");
+        WARNING("VFSNodeReadLink failed to release handle lock");
     }
     return osStatus;
 }

@@ -21,7 +21,7 @@
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
 
-OsStatus_t
+oscode_t
 SystemQuery(
 	_In_ SystemDescriptor_t* descriptor)
 {
@@ -31,7 +31,7 @@ SystemQuery(
 	return Syscall_SystemQuery(descriptor);
 }
 
-OsStatus_t
+oscode_t
 FlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 

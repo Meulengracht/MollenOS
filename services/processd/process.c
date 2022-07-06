@@ -181,7 +181,7 @@ PmInitialize(void)
     usched_mtx_init(&g_processHistoryLock);
 }
 
-static OsStatus_t
+static oscode_t
 __BuildArguments(
         _In_ Process_t*  process,
         _In_ const char* argsIn)
@@ -220,7 +220,7 @@ __BuildArguments(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __BuildInheritationBlock(
         _In_ Process_t*  process,
         _In_ const void* inheritationBuffer)
@@ -243,12 +243,12 @@ __BuildInheritationBlock(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __LoadProcessImage(
         _In_  const char*      path,
         _Out_ PeExecutable_t** image)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     MString_t* pathUnified;
 
     ENTRY("__LoadProcessImage(path=%s)", path);
@@ -260,7 +260,7 @@ __LoadProcessImage(
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 __ProcessNew(
         _In_  ProcessConfiguration_t* config,
         _In_  UUId_t                  handle,
@@ -308,12 +308,12 @@ __ProcessNew(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __StartProcess(
         _In_ Process_t* process)
 {
     ThreadParameters_t threadParameters;
-    OsStatus_t         osStatus;
+    oscode_t         osStatus;
 
     // Initialize threading paramaters for the new thread
     InitializeThreadParameters(&threadParameters);
@@ -331,7 +331,7 @@ __StartProcess(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 PmCreateProcessInternal(
         _In_  const char*             path,
         _In_  const char*             args,
@@ -343,7 +343,7 @@ PmCreateProcessInternal(
     PeExecutable_t* image;
     Process_t*      process;
     UUId_t          handle;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
 
     osStatus = __LoadProcessImage(path, &image);
@@ -410,7 +410,7 @@ void PmCreateProcess(
         _In_ void*      cancellationToken)
 {
     UUId_t     handle;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     ENTRY("PmCreateProcess(path=%s, args=%s)",
           request->parameters.spawn.path,
           request->parameters.spawn.args);
@@ -441,47 +441,57 @@ void PmGetProcessStartupInformation(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t* process            = GetProcessByThread(request->parameters.get_initblock.threadHandle);
-    OsStatus_t osStatus           = OsNotExists;
-    UUId_t     processHandle      = UUID_INVALID;
-    size_t     argumentLength     = 0;
-    size_t     inheritationLength = 0;
-    int        moduleCount        = PROCESS_MAXMODULES;
+    Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
+    oscode_t   osStatus      = OsNotExists;
+    UUId_t     processHandle = UUID_INVALID;
+    int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
 
-    if (process) {
-        struct dma_attachment dmaAttachment;
-        osStatus = dma_attach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
-        if (osStatus == OsOK) {
-            osStatus = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
-            if (osStatus == OsOK) {
-                char* buffer = dmaAttachment.buffer;
+    if (process == NULL) {
+        goto exit;
+    }
+    processHandle = process->handle;
 
-                processHandle      = process->handle;
-                argumentLength     = process->arguments_length;
-                inheritationLength = process->inheritation_block_length;
-
-                memcpy(&buffer[0], process->arguments, argumentLength);
-                if (inheritationLength) {
-                    memcpy(&buffer[argumentLength], process->inheritation_block, inheritationLength);
-                }
-
-                osStatus = PeGetModuleEntryPoints(process->image,
-                                                  (Handle_t *)&buffer[argumentLength + inheritationLength],
-                                                  &moduleCount);
-                dma_attachment_unmap(&dmaAttachment);
-            }
-            dma_detach(&dmaAttachment);
-        }
+    struct dma_attachment dmaAttachment;
+    osStatus = dma_attach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
+    if (osStatus != OsOK) {
+        goto exit;
     }
 
-    sys_process_get_startup_information_response(
-            request->message,
-            osStatus,
-            processHandle,
-            argumentLength,
-            inheritationLength,
-            moduleCount * sizeof(Handle_t));
+    osStatus = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
+    if (osStatus != OsOK) {
+        goto detach;
+    }
+
+    ProcessStartupInformation_t* startupInfo = dmaAttachment.buffer;
+    char*                        buffer      = (char*)dmaAttachment.buffer + sizeof(ProcessStartupInformation_t);
+    memcpy(&buffer[0], process->arguments, process->arguments_length);
+    if (process->inheritation_block_length) {
+        memcpy(
+                &buffer[process->arguments_length],
+                process->inheritation_block,
+                process->inheritation_block_length);
+    }
+
+    osStatus = PeGetModuleEntryPoints(
+            process->image,
+            (Handle_t *)&buffer[process->arguments_length + process->inheritation_block_length],
+            &moduleCount);
+
+    // fill in the startup header as we now have all info
+    startupInfo->ArgumentsLength = process->arguments_length;
+    startupInfo->EnvironmentBlockLength = 0;
+    startupInfo->InheritationLength = process->inheritation_block_length;
+    startupInfo->LibraryEntriesLength = moduleCount * sizeof(Handle_t);
+
+    // unmap and cleanup
+    dma_attachment_unmap(&dmaAttachment);
+
+detach:
+    dma_detach(&dmaAttachment);
+
+exit:
+    sys_process_get_startup_information_response(request->message, osStatus, processHandle);
     RequestDestroy(request);
 }
 
@@ -586,7 +596,7 @@ void PmSignalProcess(
         _In_ void*      cancellationToken)
 {
     Process_t* victim;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("PmSignalProcess(process=%u, signal=%i)",
           request->parameters.signal.victim_handle,
           request->parameters.signal.signal);
@@ -622,7 +632,7 @@ void PmLoadLibrary(
     Process_t*      process;
     PeExecutable_t* executable;
     MString_t*      path;
-    OsStatus_t      osStatus = OsNotExists;
+    oscode_t      osStatus = OsNotExists;
     Handle_t        handle   = HANDLE_INVALID;
     uintptr_t       entry    = 0;
 
@@ -666,7 +676,7 @@ void PmGetLibraryFunction(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    OsStatus_t osStatus = OsNotExists;
+    oscode_t osStatus = OsNotExists;
     uintptr_t  address  = 0;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)",
           request->parameters.get_function.handle,
@@ -700,7 +710,7 @@ void PmUnloadLibrary(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    OsStatus_t osStatus = OsNotExists;
+    oscode_t osStatus = OsNotExists;
     TRACE("PmUnloadLibrary(process=%u)",
           request->parameters.unload_library.handle);
 
@@ -749,7 +759,7 @@ void PmGetName(
         _In_ void*      cancellationToken)
 {
     Process_t*  process;
-    OsStatus_t  status = OsInvalidParameters;
+    oscode_t  status = OsInvalidParameters;
     const char* name = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -772,8 +782,8 @@ void PmGetTickBase(
         _In_ void*      cancellationToken)
 {
     Process_t*      process;
-    OsStatus_t      status = OsInvalidParameters;
-    LargeUInteger_t tick;
+    oscode_t      status = OsInvalidParameters;
+    UInteger64_t tick;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
     if (process) {
@@ -795,7 +805,7 @@ void PmGetWorkingDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t*  process;
-    OsStatus_t  status = OsInvalidParameters;
+    oscode_t  status = OsInvalidParameters;
     const char* path   = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -819,7 +829,7 @@ void PmSetWorkingDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    OsStatus_t status = OsInvalidParameters;
+    oscode_t status = OsInvalidParameters;
 
     process = PmGetProcessByHandle(request->parameters.set_cwd.handle);
     if (process) {
@@ -844,7 +854,7 @@ void PmGetAssemblyDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t * process;
-    OsStatus_t  osStatus = OsInvalidParameters;
+    oscode_t  osStatus = OsInvalidParameters;
     const char* path    = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);

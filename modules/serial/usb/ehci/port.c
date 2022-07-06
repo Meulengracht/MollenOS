@@ -52,7 +52,7 @@ EhciPortSetBits(
     WRITE_VOLATILE(Controller->OpRegisters->Ports[Index], PortBits);
 }
 
-OsStatus_t
+oscode_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -128,7 +128,7 @@ HciPortGetStatus(
     port->Speed     = USB_SPEED_HIGH; // Ehci only has high-speed root ports
 }
 
-OsStatus_t
+oscode_t
 EhciPortCheck(
     _In_ EhciController_t*          Controller,
     _In_ size_t                     Index)

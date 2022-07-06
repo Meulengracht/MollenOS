@@ -33,13 +33,13 @@
 
 static guid_t g_emptyGuid = GUID_EMPTY;
 
-OsStatus_t MbrEnumeratePartitions(
+oscode_t MbrEnumeratePartitions(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
         _In_ void*                buffer,
         _In_ uint64_t             sector);
 
-static OsStatus_t ParsePartitionEntry(
+static oscode_t ParsePartitionEntry(
         _In_ FileSystemStorage_t*       storage,
         _In_ UUId_t                     bufferHandle,
         _In_ void*                      buffer,
@@ -115,7 +115,7 @@ static OsStatus_t ParsePartitionEntry(
     );
 }
 
-OsStatus_t
+oscode_t
 MbrEnumeratePartitions(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
@@ -126,7 +126,7 @@ MbrEnumeratePartitions(
     int                 partitionCount = 0;
     int                 i;
     size_t              sectorsRead;
-    OsStatus_t          status;
+    oscode_t          status;
 
     TRACE("MbrEnumeratePartitions(Sector %u)", LODWORD(sector));
 
@@ -154,13 +154,13 @@ MbrEnumeratePartitions(
     return partitionCount != 0 ? OsOK : OsError;
 }
 
-OsStatus_t
+oscode_t
 MbrEnumerate(
         _In_ FileSystemStorage_t* storage,
         _In_ UUId_t               bufferHandle,
         _In_ void*                buffer)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("MbrEnumerate()");
     
     // First, we want to detect whether there is a partition table available

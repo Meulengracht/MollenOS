@@ -48,8 +48,8 @@ enum SystemTimeAttributes {
 };
 
 typedef struct SystemTimerOperations {
-    void (*Read)(void*, LargeUInteger_t*);
-    void (*GetFrequency)(void*, LargeUInteger_t*);
+    void (*Read)(void*, UInteger64_t*);
+    void (*GetFrequency)(void*, UInteger64_t*);
     void (*Recalibrate)(void*);
 } SystemTimerOperations_t;
 
@@ -59,7 +59,7 @@ typedef struct SystemTimer {
     enum SystemTimeAttributes Attributes;
     UUId_t                    Interrupt;
     tick_t                    Resolution;
-    LargeUInteger_t           InitialTick;
+    UInteger64_t           InitialTick;
     void*                     Context;
 } SystemTimer_t;
 
@@ -69,7 +69,7 @@ typedef struct SystemWallClockOperations {
 
 typedef struct SystemWallClock {
     SystemWallClockOperations_t Operations;
-    LargeInteger_t              BaseTick;
+    Integer64_t              BaseTick;
     void*                       Context;
 } SystemWallClock_t;
 
@@ -90,7 +90,7 @@ typedef struct SystemTimers {
  * @param[In] context    A context pointer that will be passed to operations
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
@@ -106,7 +106,7 @@ SystemTimerRegister(
  * @param[In] context    A context pointer that will be passed to operations
  * @return OsExists if a clock source is already registered
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemWallClockRegister(
         _In_ SystemWallClockOperations_t* operations,
         _In_ void*                        context);
@@ -119,7 +119,7 @@ SystemWallClockRegister(
  */
 KERNELAPI void KERNELABI
 SystemTimerGetWallClockTime(
-        _In_ LargeInteger_t* time);
+        _In_ Integer64_t* time);
 
 /**
  * @brief Retrieves the current system tick as a timestamp
@@ -137,7 +137,7 @@ SystemTimerGetTimestamp(
  */
 KERNELAPI void KERNELABI
 SystemTimerGetClockTick(
-        _In_ LargeUInteger_t* tickOut);
+        _In_ UInteger64_t* tickOut);
 
 /**
  * @brief Retrieves the system tick frequency
@@ -146,7 +146,7 @@ SystemTimerGetClockTick(
  */
 KERNELAPI void KERNELABI
 SystemTimerGetClockFrequency(
-        _In_ LargeUInteger_t* frequencyOut);
+        _In_ UInteger64_t* frequencyOut);
 
 /**
  * @brief Retrieves the frequency of the high performance counter (if present)
@@ -154,9 +154,9 @@ SystemTimerGetClockFrequency(
  * @param[Out] frequency A pointer where to store the frequency.
  * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemTimerGetPerformanceFrequency(
-        _Out_ LargeUInteger_t* frequency);
+        _Out_ UInteger64_t* frequency);
 
 /**
  * @brief Retrieves the current tick of the high performance counter (if present)
@@ -164,9 +164,9 @@ SystemTimerGetPerformanceFrequency(
  * @param[Out] tick A pointer where to store the current tick.
  * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemTimerGetPerformanceTick(
-        _Out_ LargeUInteger_t* tick);
+        _Out_ UInteger64_t* tick);
 
 /**
  * @brief Stalls the CPU for the a specified amount of time in nanoseconds resolution.

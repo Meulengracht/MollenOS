@@ -35,7 +35,7 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
 {
     stdio_handle_t* ioObject;
     int             status;
-    OsStatus_t      osStatus;
+    oscode_t      osStatus;
     TRACE("[socket] creating from handle %u", LODWORD(handle));
     
     status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &ioObject);
@@ -63,7 +63,7 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
     TRACE("[socket] mapping pipes");
     osStatus = ioObject->ops.inherit(ioObject);
     if (osStatus != OsOK) {
-        (void)OsStatusToErrno(osStatus);
+        (void)OsCodeToErrNo(osStatus);
         ioObject->ops.close(ioObject, 0);
         stdio_handle_destroy(ioObject, 0);
         return -1;

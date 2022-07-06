@@ -54,7 +54,7 @@ const char *OhciErrorMessages[] = {
 
 /* OhciQueueResetInternalData
  * Removes and cleans up any existing transfers, then reinitializes. */
-OsStatus_t
+oscode_t
 OhciQueueResetInternalData(
     _In_ OhciController_t*          Controller)
 {
@@ -102,7 +102,7 @@ OhciQueueResetInternalData(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 OhciQueueInitialize(
     _In_ OhciController_t* Controller)
 {
@@ -136,7 +136,7 @@ OhciQueueInitialize(
     return OhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oscode_t
 OhciQueueReset(
     _In_ OhciController_t* Controller)
 {
@@ -147,7 +147,7 @@ OhciQueueReset(
     return OhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oscode_t
 OhciQueueDestroy(
     _In_ OhciController_t* Controller)
 {

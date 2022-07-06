@@ -43,7 +43,7 @@ static int                      g_kernelMappingIndex    = 0;
 static int                      g_kernelMappingCapacity = 0;
 
 // static methods in this file
-static OsStatus_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
+static oscode_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
 
 static void
 __PrintMemoryUsage(void) {
@@ -77,7 +77,7 @@ __GetAvailablePhysicalMemory(
     return memorySize;
 }
 
-static OsStatus_t
+static oscode_t
 __AddKernelMapping(
         _In_ paddr_t physicalBase,
         _In_ vaddr_t virtualBase,
@@ -99,12 +99,12 @@ __AddKernelMapping(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __InitializeKernelMappings(
         _In_ struct MemoryBootContext*      bootContext,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("__InitializeKernelMappings()");
 
     osStatus = __AllocateIdentity(
@@ -126,7 +126,7 @@ __InitializeKernelMappings(
     return OsOK;
 }
 
-static OsStatus_t
+static oscode_t
 __InitializeIdentityMemory(
         _In_ struct MemoryBootContext*      bootContext,
         _In_ struct VBoot*                  bootInformation,
@@ -165,12 +165,12 @@ __InitializeIdentityMemory(
     return OsOutOfMemory;
 }
 
-static OsStatus_t
+static oscode_t
 __DisableIdentityMemory(
         _In_ struct MemoryBootContext* bootContext,
         _In_ StaticMemoryPool_t*       globalAccessMemory)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        i;
 
     TRACE("__DisableIdentityMemory()");
@@ -208,7 +208,7 @@ __DisableIdentityMemory(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 __AllocateIdentity(
         _In_  struct MemoryBootContext* bootContext,
         _In_  size_t                    size,
@@ -232,7 +232,7 @@ __AllocateIdentity(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 MachineAllocateBootMemory(
         _In_  size_t   size,
         _Out_ vaddr_t* virtualBaseOut,
@@ -240,7 +240,7 @@ MachineAllocateBootMemory(
 {
     int        i          = GetMachine()->PhysicalMemory.MaskCount - 1;
     int        blockCount = DIVUP(size, GetMachine()->MemoryGranularity);
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     uintptr_t  blocks[blockCount];
     vaddr_t    virtualBase = 0;
 
@@ -293,13 +293,13 @@ MachineAllocateBootMemory(
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 __InitializePhysicalMemory(
         _In_ struct MemoryBootContext*      bootContext,
         _In_ SystemMemoryAllocator_t*       physicalMemory,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        i;
     TRACE("__InitializePhysicalMemory()");
 
@@ -388,7 +388,7 @@ __FillPhysicalMemory(
     }
 }
 
-static OsStatus_t
+static oscode_t
 __InitializeGlobalAccessMemory(
         _In_ struct MemoryBootContext* bootContext,
         _In_ StaticMemoryPool_t*       globalAccessMemory,
@@ -397,7 +397,7 @@ __InitializeGlobalAccessMemory(
 {
     size_t     gaMemorySize;
     void*      gaMemory;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("__InitializeGlobalAccessMemory()");
 
     gaMemorySize = StaticMemoryPoolCalculateSize(
@@ -469,7 +469,7 @@ __InitializeBootTLS(
     // add any other per-core data here
 }
 
-OsStatus_t
+oscode_t
 MachineMemoryInitialize(
         _In_ SystemMachine_t* machine,
         _In_ SystemCpuCore_t* cpuCore)
@@ -477,7 +477,7 @@ MachineMemoryInitialize(
     struct MemoryBootContext      bootContext;
     PlatformMemoryConfiguration_t configuration;
     size_t                        memorySize;
-    OsStatus_t                    osStatus;
+    oscode_t                    osStatus;
     TRACE("MachineMemoryInitialize()");
 
     if (!machine) {

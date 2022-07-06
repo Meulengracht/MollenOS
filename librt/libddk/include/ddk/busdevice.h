@@ -64,8 +64,8 @@ typedef struct BusDevice {
 /**
  * @brief Allows manipulation of a given device to either disable or enable, or configure the device
  */
-DDKDECL(OsStatus_t,
-IoctlDevice(
+DDKDECL(oscode_t,
+        IoctlDevice(
     _In_ UUId_t       Device,
     _In_ unsigned int Command,
     _In_ unsigned int Flags));
@@ -75,8 +75,8 @@ IoctlDevice(
  *
  * @param Direction [In] 0 (Read), 1 (Write)
  */
-DDKDECL(OsStatus_t,
-IoctlDeviceEx(
+DDKDECL(oscode_t,
+        IoctlDeviceEx(
     _In_    UUId_t       Device,
     _In_    int          Direction,
     _In_    unsigned int Register,

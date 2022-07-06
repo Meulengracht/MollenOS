@@ -54,7 +54,7 @@ static size_t __FunctionReadIoSpace(
 }
 
 // WriteIoSpace
-static OsStatus_t __FunctionWriteIoSpace(
+static oscode_t __FunctionWriteIoSpace(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,
@@ -66,7 +66,7 @@ static OsStatus_t __FunctionWriteIoSpace(
     return OsError;
 }
 
-static OsStatus_t __FunctionWriteStream(
+static oscode_t __FunctionWriteStream(
         _In_ UUId_t      handle,
         _In_ const void* buffer,
         _In_ size_t      length)

@@ -29,14 +29,14 @@
 #include <memoryspace.h>
 #include <threading.h>
 
-OsStatus_t
+oscode_t
 ScInstallSignalHandler(
     _In_ uintptr_t handler)
 {
     return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
 }
 
-OsStatus_t
+oscode_t
 ScCreateHandle(
     _Out_ UUId_t* HandleOut)
 {
@@ -47,7 +47,7 @@ ScCreateHandle(
     return OsOutOfMemory;
 }
 
-OsStatus_t
+oscode_t
 ScSetHandleActivity(
     _In_ UUId_t  Handle,
     _In_ unsigned int Flags)
@@ -55,7 +55,7 @@ ScSetHandleActivity(
     return MarkHandle(Handle, Flags);
 }
 
-OsStatus_t
+oscode_t
 ScRegisterHandlePath(
     _In_ UUId_t      Handle,
     _In_ const char* Path)
@@ -63,7 +63,7 @@ ScRegisterHandlePath(
     return RegisterHandlePath(Handle, Path);
 }
 
-OsStatus_t
+oscode_t
 ScLookupHandle(
     _In_  const char* Path,
     _Out_ UUId_t*     HandleOut)
@@ -71,7 +71,7 @@ ScLookupHandle(
     return LookupHandleByPath(Path, HandleOut);
 }
 
-OsStatus_t
+oscode_t
 ScDestroyHandle(
     _In_ UUId_t Handle)
 {
@@ -81,7 +81,7 @@ ScDestroyHandle(
     return DestroyHandle(Handle);
 }
 
-OsStatus_t
+oscode_t
 ScCreateHandleSet(
     _In_  unsigned int Flags,
     _Out_ UUId_t* HandleOut)
@@ -97,7 +97,7 @@ ScCreateHandleSet(
     return OsOutOfMemory;
 }
 
-OsStatus_t
+oscode_t
 ScControlHandleSet(
     _In_ UUId_t              setHandle,
     _In_ int                 operation,
@@ -107,7 +107,7 @@ ScControlHandleSet(
     return ControlHandleSet(setHandle, operation, handle, event);
 }
 
-OsStatus_t
+oscode_t
 ScListenHandleSet(
     _In_  UUId_t                     handle,
     _In_  HandleSetWaitParameters_t* parameters,

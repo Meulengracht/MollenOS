@@ -32,7 +32,7 @@ typedef void(*EventQueueFunction)(void*);
 
 /* CreateEventQueue
  * Creates a new event queue that can be used to queue up events based on intervals and timeouts. */
-CRTDECL(OsStatus_t, CreateEventQueue(EventQueue_t** eventQueueOut));
+CRTDECL(oscode_t, CreateEventQueue(EventQueue_t * * eventQueueOut));
 
 /* DestroyEventQueue
  * Stops the event queue handler, and cleans up resources. */
@@ -53,6 +53,6 @@ CRTDECL(UUId_t, QueuePeriodicEvent(EventQueue_t * eventQueue, EventQueueFunction
 /* CancelEvent
  * Marks an event to be cancelled, this will cancel the next time the event would fire, and all subsequent occasions of that
  * event. It will not cancel an event in progress. */
-CRTDECL(OsStatus_t, CancelEvent(EventQueue_t * eventQueue, UUId_t eventHandle));
+CRTDECL(oscode_t, CancelEvent(EventQueue_t * eventQueue, UUId_t eventHandle));
 
 #endif //!__OS_EVENTQUEUE_H__

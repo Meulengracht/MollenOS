@@ -129,7 +129,7 @@ struct parser_state {
     struct DriverResource*     resource;
 };
 
-static OsStatus_t
+static oscode_t
 __AddProduct(
         _In_ struct DriverVendor* vendor,
         _In_ uint32_t             productId)
@@ -557,7 +557,7 @@ __CleanupDriverConfiguration(
     list_clear(&driverConfig->Resources, __CleanupResource, NULL);
 }
 
-OsStatus_t
+oscode_t
 DmDriverConfigParseYaml(
         _In_  const uint8_t*              yaml,
         _In_  size_t                      length,

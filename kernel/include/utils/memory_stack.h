@@ -97,7 +97,7 @@ MemoryStackPushMultiple(
  * @param blocks
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 MemoryStackPop(
         _In_ MemoryStack_t* stack,
         _In_ int*           blockCount,

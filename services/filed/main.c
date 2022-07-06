@@ -33,7 +33,7 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-OsStatus_t OnUnload(void)
+oscode_t OnUnload(void)
 {
     return OsOK;
 }
@@ -44,7 +44,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_FILE_PATH;
 }
 
-OsStatus_t OnLoad(void)
+oscode_t OnLoad(void)
 {
     // Initialize subsystems
     VFSScopeInitialize();

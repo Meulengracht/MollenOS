@@ -300,32 +300,32 @@ typedef struct {
 
 /* OhciReset
  * Resets the controller back to usable state, does not restart the controller. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciReset(
     _In_ OhciController_t*  Controller);
 
 /* OhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciQueueInitialize(
     _In_ OhciController_t*  Controller);
     
 /* OhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciQueueReset(
     _In_ OhciController_t*  Controller);
 
 /* OhciQueueDestroy
  * Unschedules any scheduled ed's and frees all resources allocated
  * by the initialize function */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciQueueDestroy(
     _In_ OhciController_t*  Controller);
 
 /* OhciPortsCheck
  * Enumerates all the ports and detects for connection/error events */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciPortsCheck(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn);
@@ -344,7 +344,7 @@ OhciSetMode(
 /* OhciQhInitialize
  * Initializes the queue head data-structure and the associated
  * hcd flags. Afterwards the queue head is ready for use. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 OhciQhInitialize(
     _In_ OhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer,

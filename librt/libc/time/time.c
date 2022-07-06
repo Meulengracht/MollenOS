@@ -24,7 +24,7 @@
 
 time_t time(time_t* tim)
 {
-    LargeInteger_t timeValue;
+    Integer64_t timeValue;
     time_t         converted = 0;
 
 	if (VaGetWallClock(&timeValue) == OsOK) {

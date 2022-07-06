@@ -55,12 +55,12 @@ extern void set_ts(void);
 extern void clear_ts(void);
 extern void _yield(void);
 
-OsStatus_t
+oscode_t
 ArchThreadInitialize(
     _In_ Thread_t* thread)
 {
     PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
-    OsStatus_t             osStatus;
+    oscode_t             osStatus;
 
     if (!threadData) {
         return OsInvalidParameters;
@@ -84,7 +84,7 @@ ArchThreadInitialize(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ArchThreadDestroy(
     _In_ Thread_t* thread)
 {
@@ -99,7 +99,7 @@ ArchThreadDestroy(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ThreadingFpuException(
     _In_ Thread_t* thread)
 {
@@ -132,7 +132,7 @@ ArchThreadYield(void)
     // out of last nesting to ensure we've run all interrupt handlers
     if (InterruptGetActiveStatus()) {
         if (ThreadIsCurrentIdle(ArchGetProcessorCoreId())) {
-            OsStatus_t osStatus = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
+            oscode_t osStatus = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
             if (osStatus != OsOK) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
             }

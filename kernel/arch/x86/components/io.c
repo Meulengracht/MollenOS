@@ -120,7 +120,7 @@ void PciWrite8(
 	outw(X86_PCI_DATA + (Register & 0x03), Value);
 }
 
-OsStatus_t
+oscode_t
 ReadDirectIo(
     _In_  DeviceIoType_t Type,
     _In_  uintptr_t      Address,
@@ -159,7 +159,7 @@ ReadDirectIo(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 WriteDirectIo(
     _In_ DeviceIoType_t Type,
     _In_ uintptr_t      Address,
@@ -196,7 +196,7 @@ WriteDirectIo(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 ReadDirectPci(
     _In_  unsigned Bus,
     _In_  unsigned Slot,
@@ -222,7 +222,7 @@ ReadDirectPci(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 WriteDirectPci(
     _In_ unsigned Bus,
     _In_ unsigned Slot,

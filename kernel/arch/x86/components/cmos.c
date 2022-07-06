@@ -21,26 +21,38 @@
 #define __MODULE "CMOS"
 #define __TRACE
 
-#include <os/mollenos.h>
 #include <acpiinterface.h>
 #include <arch/x86/cmos.h>
 #include <arch/io.h>
-#include <string.h>
+#include <component/timer.h>
 #include <debug.h>
+#include <string.h>
+
+static void __ReadSystemTime(void*, SystemTime_t*);
 
 Cmos_t g_cmos = { 0 };
 
-OsStatus_t
+oscode_t
 CmosInitialize(
     _In_ int initializeRtc)
 {
+    SystemWallClockOperations_t ops;
+    oscode_t                    status;
+    
     TRACE("CmosInitialize(rtc %" PRIiIN ")", initializeRtc);
 
-    // Check out century register
     if (AcpiAvailable() == ACPI_AVAILABLE) {
         g_cmos.AcpiCentury = AcpiGbl_FADT.Century;
     }
     g_cmos.RtcAvailable = initializeRtc;
+    
+    ops.Read = __ReadSystemTime;
+
+    status = SystemWallClockRegister(&ops, &g_cmos);
+    if (status != OsOK) {
+        return status;
+    }
+    
     if (g_cmos.RtcAvailable) {
         return RtcInitialize(&g_cmos);
     }
@@ -51,7 +63,7 @@ CmosInitialize(
 
 uint8_t
 CmosRead(
-    _In_ uint8_t Register)
+    _In_ uint8_t cmosRegister)
 {
     size_t  cmosValue = 0;
     uint8_t temp;
@@ -61,9 +73,9 @@ CmosRead(
     cmosValue &= CMOS_NMI_BIT;
     temp       = cmosValue & 0xFF;
 
-    // Select Register (but do not change NMI)
+    // Select cmosRegister (but do not change NMI)
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, 
-        (temp | (Register & CMOS_ALLBITS_NONMI)));
+        (temp | (cmosRegister & CMOS_ALLBITS_NONMI)));
     ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, &cmosValue);
     temp = cmosValue & 0xFF;
     return temp;
@@ -71,8 +83,8 @@ CmosRead(
 
 void
 CmosWrite(
-    _In_ uint8_t Register,
-    _In_ uint8_t Data)
+    _In_ uint8_t cmosRegister,
+    _In_ uint8_t data)
 {
     size_t  cmosValue = 0;
     uint8_t temp;
@@ -82,10 +94,10 @@ CmosWrite(
     cmosValue &= CMOS_NMI_BIT;
     temp       = cmosValue & 0xFF;
 
-    // Select Register (but do not change NMI)
+    // Select cmosRegister (but do not change NMI)
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1,
-        (temp | (Register & CMOS_ALLBITS_NONMI)));
-    WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, Data);
+        (temp | (cmosRegister & CMOS_ALLBITS_NONMI)));
+    WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, data);
 }
 
 void
@@ -95,8 +107,8 @@ CmosWaitForUpdate(void)
     while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
 }
 
-void
-CmosReadSystemTime(
+static void __ReadSystemTime(
+        _In_ void*         context,
         _In_ SystemTime_t* systemTime)
 {
     uint8_t century = 0;

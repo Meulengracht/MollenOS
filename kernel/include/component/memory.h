@@ -90,7 +90,7 @@ SystemMemoryConstruct(
  * @param pages
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemMemoryAllocate(
         _In_ SystemMemory_t* systemMemory,
         _In_ size_t          memoryMask,
@@ -105,7 +105,7 @@ SystemMemoryAllocate(
  * @param pages
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemMemoryFree(
         _In_ SystemMemory_t* systemMemory,
         _In_ int             pageCount,
@@ -118,7 +118,7 @@ SystemMemoryFree(
  * @param address
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 SystemMemoryContainsAddress(
         _In_ SystemMemory_t* systemMemory,
         _In_ uintptr_t       address);

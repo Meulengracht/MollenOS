@@ -122,7 +122,7 @@ typedef enum MsdProtocolType {
 
 typedef struct MsdDevice MsdDevice_t;
 typedef struct MsdOperations {
-    OsStatus_t          (*Initialize)(MsdDevice_t*);
+    oscode_t          (*Initialize)(MsdDevice_t*);
     UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, UUId_t, size_t, size_t);
     UsbTransferStatus_t (*ReadData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
     UsbTransferStatus_t (*WriteData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
@@ -160,21 +160,21 @@ MsdDeviceCreate(
 /* MsdDeviceDestroy
  * Destroys an existing msd device instance and cleans up
  * any resources related to it */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device);
 
 /* MsdDeviceInitialize 
  * Initializes and validates that the protocol has all neccessary
  * resources/endpoints/prerequisites for operation. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device);
 
 /* MsdDeviceStart
  * Initializes the device by performing one-time setup and reading device
  * capabilities and features. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 MsdDeviceStart(
     _In_ MsdDevice_t *msdDevice);
 

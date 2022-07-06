@@ -30,8 +30,8 @@
 extern uint32_t g_calibrationTick;
 extern void _rdtsc(uint64_t *Value);
 
-static void TscGetCount(void*, LargeUInteger_t*);
-static void TscGetFrequency(void*, LargeUInteger_t*);
+static void TscGetCount(void*, UInteger64_t*);
+static void TscGetFrequency(void*, UInteger64_t*);
 static void TscNoOperation(void*);
 
 /**
@@ -47,7 +47,7 @@ static tick_t g_tscFrequency = 0;
 void
 TscInitialize(void)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     uint64_t   tscStart;
     uint64_t   tscEnd;
     uint32_t   ticker;
@@ -89,7 +89,7 @@ TscInitialize(void)
 static void
 TscGetCount(
         _In_ void*            context,
-        _In_ LargeUInteger_t* tick)
+        _In_ UInteger64_t* tick)
 {
     _CRT_UNUSED(context);
     _rdtsc(&tick->QuadPart);
@@ -98,7 +98,7 @@ TscGetCount(
 static void
 TscGetFrequency(
         _In_ void*            context,
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);
     frequency->QuadPart = g_tscFrequency;

@@ -43,12 +43,12 @@ HubDeviceGet(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oscode_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
 }
 
-OsStatus_t OnLoad(void)
+oscode_t OnLoad(void)
 {
     // Register supported server protocols
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
@@ -68,14 +68,14 @@ DestroyElement(
     HubDeviceDestroy(Element->value);
 }
 
-OsStatus_t
+oscode_t
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-OsStatus_t OnRegister(
+oscode_t OnRegister(
     _In_ Device_t* device)
 {
     HubDevice_t* hubDevice;
@@ -94,7 +94,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
     OnRegister((Device_t*)device);
 }
 
-OsStatus_t OnUnregister(
+oscode_t OnUnregister(
     _In_ Device_t* device)
 {
     HubDevice_t* hubDevice = HubDeviceGet(device->Id);
@@ -162,7 +162,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {
@@ -181,7 +181,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
-    OsStatus_t            osStatus;
+    oscode_t            osStatus;
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {

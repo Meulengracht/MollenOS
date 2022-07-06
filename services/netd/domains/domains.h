@@ -34,16 +34,16 @@ struct sockaddr;
 typedef struct Socket Socket_t;
 typedef struct SocketDomain SocketDomain_t;
 
-typedef OsStatus_t (*DomainAllocateAddressFn)(Socket_t*);
+typedef oscode_t (*DomainAllocateAddressFn)(Socket_t*);
 typedef void       (*DomainFreeAddressFn)(Socket_t*);
-typedef OsStatus_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainConnectFn)(struct gracht_message*, Socket_t*, const struct sockaddr*);
-typedef OsStatus_t (*DomainDisconnectFn)(Socket_t*);
-typedef OsStatus_t (*DomainAcceptFn)(struct gracht_message*, Socket_t*);
-typedef OsStatus_t (*DomainSendFn)(Socket_t*);
-typedef OsStatus_t (*DomainReceiveFn)(Socket_t*);
-typedef OsStatus_t (*DomainPairFn)(Socket_t*, Socket_t*);
-typedef OsStatus_t (*DomainGetAddressFn)(Socket_t*, int, struct sockaddr*);
+typedef oscode_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
+typedef oscode_t (*DomainConnectFn)(struct gracht_message*, Socket_t*, const struct sockaddr*);
+typedef oscode_t (*DomainDisconnectFn)(Socket_t*);
+typedef oscode_t (*DomainAcceptFn)(struct gracht_message*, Socket_t*);
+typedef oscode_t (*DomainSendFn)(Socket_t*);
+typedef oscode_t (*DomainReceiveFn)(Socket_t*);
+typedef oscode_t (*DomainPairFn)(Socket_t*, Socket_t*);
+typedef oscode_t (*DomainGetAddressFn)(Socket_t*, int, struct sockaddr*);
 typedef void       (*DomainDestroyFn)(SocketDomain_t*);
 
 typedef struct SocketDomainOps {
@@ -60,7 +60,7 @@ typedef struct SocketDomainOps {
     DomainDestroyFn          Destroy;
 } SocketDomainOps_t;
 
-OsStatus_t
+oscode_t
 DomainCreate(
     _In_ int              DomainType,
     _In_ SocketDomain_t** DomainOut);
@@ -69,11 +69,11 @@ void
 DomainDestroy(
     _In_ SocketDomain_t* Domain);
 
-OsStatus_t
+oscode_t
 DomainAllocateAddress(
     _In_ Socket_t* Socket);
 
-OsStatus_t
+oscode_t
 DomainUpdateAddress(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address);
@@ -82,35 +82,35 @@ void
 DomainFreeAddress(
     _In_ Socket_t* Socket);
 
-OsStatus_t
+oscode_t
 DomainConnect(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket,
     _In_ const struct sockaddr* address);
 
-OsStatus_t
+oscode_t
 DomainDisconnect(
     _In_ Socket_t* Socket);
 
-OsStatus_t
+oscode_t
 DomainAccept(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket);
 
-OsStatus_t
+oscode_t
 DomainPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2);
 
-OsStatus_t
+oscode_t
 DomainSend(
     _In_ Socket_t* Socket);
 
-OsStatus_t
+oscode_t
 DomainReceive(
     _In_ Socket_t* Socket);
 
-OsStatus_t
+oscode_t
 DomainGetAddress(
     _In_ Socket_t*        Socket,
     _In_ int              Source,

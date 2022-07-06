@@ -89,7 +89,7 @@ GdtInitialize(void)
 	GdtInstall();
 }
 
-OsStatus_t
+oscode_t
 TssInitialize(
         _In_ PlatformCpuCoreBlock_t* coreBlock)
 {

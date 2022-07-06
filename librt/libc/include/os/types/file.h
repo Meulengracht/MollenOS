@@ -34,8 +34,8 @@ typedef struct OsFileSystemDescriptor {
     char            SerialNumber[32];
     unsigned long   BlockSize;
     unsigned long   BlocksPerSegment;
-    LargeUInteger_t SegmentsTotal;
-    LargeUInteger_t SegmentsFree;
+    UInteger64_t SegmentsTotal;
+    UInteger64_t SegmentsFree;
 } OsFileSystemDescriptor_t;
 
 typedef struct OsFileDescriptor {
@@ -43,7 +43,7 @@ typedef struct OsFileDescriptor {
     long            StorageId;
     unsigned int    Flags;
     unsigned int    Permissions;
-    LargeUInteger_t Size;
+    UInteger64_t Size;
     struct timespec CreatedAt;
     struct timespec ModifiedAt;
     struct timespec AccessedAt;

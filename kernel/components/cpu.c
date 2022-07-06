@@ -135,7 +135,7 @@ CpuCoreStart(void)
     SystemDomain_t*  domain;
     SystemCpuCore_t* i;
     SystemCpuCore_t* cpuCore;
-    OsStatus_t       osStatus;
+    oscode_t       osStatus;
     UUId_t           memorySpace;
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
@@ -199,7 +199,7 @@ ProcessorMessageSend(
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = CpuCoreCurrent();
     SystemCpuCore_t* Iter;
-    OsStatus_t       Status;
+    oscode_t       Status;
     int              Executions = 0;
     
     assert(Function != NULL);

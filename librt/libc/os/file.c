@@ -43,12 +43,12 @@ struct file_view {
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
 
-OsStatus_t
+oscode_t
 SetFileSizeFromPath(
         _In_ const char* path,
         _In_ size_t      size)
 {
-    OsStatus_t status;
+    oscode_t status;
     int        fd;
     
     if (!path) {
@@ -57,7 +57,7 @@ SetFileSizeFromPath(
 
     fd = open(path, O_RDWR);
     if (fd == -1) {
-        return OsStatusToErrno(fd);
+        return OsCodeToErrNo(fd);
     }
 
     status = SetFileSizeFromFd(fd, size);
@@ -66,15 +66,15 @@ SetFileSizeFromPath(
     return status;
 }
 
-OsStatus_t
+oscode_t
 SetFileSizeFromFd(
         _In_ int    fileDescriptor,
         _In_ size_t size)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t               status;
-    LargeUInteger_t          value;
+    oscode_t               status;
+    UInteger64_t          value;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
         return OsInvalidParameters;
@@ -95,12 +95,12 @@ SetFileSizeFromFd(
     return status;
 }
 
-OsStatus_t
+oscode_t
 ChangeFilePermissionsFromPath(
         _In_ const char*  path,
         _In_ unsigned int permissions)
 {
-    OsStatus_t status;
+    oscode_t status;
     int        fd;
     
     if (!path) {
@@ -109,7 +109,7 @@ ChangeFilePermissionsFromPath(
 
     fd = open(path, O_RDWR);
     if (fd == -1) {
-        return OsStatusToErrno(fd);
+        return OsCodeToErrNo(fd);
     }
 
     status = ChangeFilePermissionsFromFd(fd, permissions);
@@ -118,50 +118,49 @@ ChangeFilePermissionsFromPath(
     return status;
 }
 
-OsStatus_t
+oscode_t
 ChangeFilePermissionsFromFd(
         _In_ int          fileDescriptor,
         _In_ unsigned int permissions)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t               status;
-    unsigned int             opts, access;
+    oscode_t                 status;
+    unsigned int             access;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
         return OsInvalidParameters;
     }
 
-    sys_file_get_options(
+    sys_file_get_access(
         GetGrachtClient(),
         &msg.base,
         *__crt_processid_ptr(),
         handle->object.handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_get_options_result(GetGrachtClient(), &msg.base, &status, &opts, &access);
+    sys_file_get_access_result(GetGrachtClient(), &msg.base, &status, &access);
     
-    sys_file_set_options(
+    sys_file_set_access(
         GetGrachtClient(),
         &msg.base,
         *__crt_processid_ptr(),
         handle->object.handle,
-        permissions,
         access
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_set_options_result(GetGrachtClient(), &msg.base, &status);
+    sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFileLink(
         _In_ const char* path,
         _In_ char*       linkPathBuffer,
         _In_ size_t      bufferLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    OsStatus_t               status;
+    oscode_t               status;
     
     if (!path || !linkPathBuffer || bufferLength == 0) {
         return OsInvalidParameters;
@@ -173,7 +172,7 @@ GetFileLink(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFilePathFromFd(
     _In_ int    fileDescriptor,
     _In_ char*  buffer,
@@ -181,7 +180,7 @@ GetFilePathFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t               status;
+    oscode_t               status;
 
     if (!handle || !buffer || handle->object.type != STDIO_HANDLE_FILE) {
         return OsInvalidParameters;
@@ -193,23 +192,23 @@ GetFilePathFromFd(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetStorageInformationFromPath(
     _In_ const char*            path,
     _In_ int                    followLinks,
     _In_ OsStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    OsStatus_t                 status;
+    oscode_t                 status;
     struct sys_disk_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
         return OsInvalidParameters;
     }
 
-    sys_storage_get_descriptor_path(GetGrachtClient(), &msg.base, path, followLinks);
+    sys_file_ststat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_storage_get_descriptor_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_ststat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
     if (status == OsOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
@@ -217,24 +216,24 @@ GetStorageInformationFromPath(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetStorageInformationFromFd(
     _In_ int                    fileDescriptor,
     _In_ OsStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t                 status;
+    oscode_t                 status;
     struct sys_disk_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
         return OsInvalidParameters;
     }
-    
-    sys_storage_get_descriptor(GetGrachtClient(), &msg.base, handle->object.handle);
+
+    sys_file_ststat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_storage_get_descriptor_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_ststat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
     if (status == OsOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
@@ -242,14 +241,14 @@ GetStorageInformationFromFd(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFileSystemInformationFromPath(
     _In_ const char*               path,
     _In_ int                       followLinks,
     _In_ OsFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    OsStatus_t                       status;
+    oscode_t                       status;
     struct sys_filesystem_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
@@ -266,14 +265,14 @@ GetFileSystemInformationFromPath(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFileSystemInformationFromFd(
     _In_ int                       fileDescriptor,
     _In_ OsFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*                  handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t                       status;
+    oscode_t                       status;
     struct sys_filesystem_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -291,14 +290,14 @@ GetFileSystemInformationFromFd(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFileInformationFromPath(
     _In_ const char*         path,
     _In_ int                 followLinks,
     _In_ OsFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    OsStatus_t                 status;
+    oscode_t                 status;
     struct sys_file_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
@@ -315,14 +314,14 @@ GetFileInformationFromPath(
     return status;
 }
 
-OsStatus_t
+oscode_t
 GetFileInformationFromFd(
     _In_ int                 fileDescriptor,
     _In_ OsFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
-    OsStatus_t                 status;
+    oscode_t                 status;
     struct sys_file_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -368,7 +367,7 @@ static inline uintptr_t __GetPageSize(void)
     return g_pageSize;
 }
 
-OsStatus_t
+oscode_t
 CreateFileMapping(
     _In_  int      FileDescriptor,
     _In_  int      Flags,
@@ -377,7 +376,7 @@ CreateFileMapping(
     _Out_ void**   MemoryPointer)
 {
     stdio_handle_t*         handle = stdio_handle_get(FileDescriptor);
-    OsStatus_t              osStatus;
+    oscode_t              osStatus;
     struct file_view*       fileView;
     size_t                  fileOffset = Offset & (__GetPageSize() - 1);
     struct dma_buffer_info  bufferInfo;
@@ -421,13 +420,13 @@ CreateFileMapping(
     return osStatus;
 }
 
-OsStatus_t FlushFileMapping(
+oscode_t FlushFileMapping(
         _In_ void*  MemoryPointer,
         _In_ size_t Length)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    LargeUInteger_t   fileOffset;
-    OsStatus_t        osStatus;
+    UInteger64_t   fileOffset;
+    oscode_t        osStatus;
     int               pageCount;
     unsigned int*     attributes;
     if (!fileView) {
@@ -482,12 +481,12 @@ exit:
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 DestroyFileMapping(
         _In_ void* MemoryPointer)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    OsStatus_t        osStatus;
+    oscode_t        osStatus;
     if (!fileView) {
         return OsInvalidParameters;
     }
@@ -512,15 +511,15 @@ DestroyFileMapping(
     return osStatus;
 }
 
-OsStatus_t HandleMemoryMappingEvent(
+oscode_t HandleMemoryMappingEvent(
         _In_ int   signal,
         _In_ void* vaddressPtr)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     struct file_view* fileView       = __GetFileView((uintptr_t)vaddressPtr);
     uintptr_t         virtualAddress = (uintptr_t)vaddressPtr;
-    LargeUInteger_t   fileOffset;
-    OsStatus_t        osStatus;
+    UInteger64_t   fileOffset;
+    oscode_t        osStatus;
     size_t            bytesTransferred;
 
     if (!fileView) {

@@ -47,7 +47,7 @@ static void test_initialize_data(void* dataToUse, size_t dataSize) {
     data  = dataToUse;
 }
 
-static OsStatus_t test_read(stdio_handle_t* handle, void* buffer, size_t len, size_t* lenOut)
+static oscode_t test_read(stdio_handle_t* handle, void* buffer, size_t len, size_t* lenOut)
 {
     unsigned char* dest   = buffer;
     unsigned char* source = data;
@@ -65,7 +65,7 @@ static OsStatus_t test_read(stdio_handle_t* handle, void* buffer, size_t len, si
     return OsSuccess;
 }
 
-static OsStatus_t test_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posOut)
+static oscode_t test_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posOut)
 {
     printf(STR("[test_seek] origin %i, offset %" PRIuIN), origin, offset);
     if ((int)offset > globalTestMaxIndex) {

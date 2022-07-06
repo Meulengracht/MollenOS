@@ -39,7 +39,7 @@ static _Atomic(int)    g_nextGdtIndex                         = ATOMIC_VAR_INIT(
  * @brief Create safe stacks for #NMI, #DF, #DB, #PF and #MCE. These are then
  * used for certain interrupts to support nesting by providing safe-stacks.
  */
-OsStatus_t
+oscode_t
 __CreateTssStacks(
         _In_ TssDescriptor_t* tssDescriptor)
 {
@@ -106,7 +106,7 @@ GdtInitialize(void)
 	GdtInstall();
 }
 
-OsStatus_t
+oscode_t
 TssInitialize(
         _In_ PlatformCpuCoreBlock_t* coreBlock)
 {

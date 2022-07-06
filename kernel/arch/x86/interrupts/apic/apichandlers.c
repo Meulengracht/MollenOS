@@ -24,12 +24,12 @@
 #include <arch/x86/apic.h>
 #include <interrupts.h>
 
-InterruptStatus_t
+irqstatus_t
 ApicErrorHandler(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
 {
     _CRT_UNUSED(Context);
     _CRT_UNUSED(NotUsed);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }

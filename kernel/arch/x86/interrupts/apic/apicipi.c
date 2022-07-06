@@ -39,7 +39,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     SystemTimerStall(wait * NSEC_PER_MSEC);\
                     }
 
-OsStatus_t
+oscode_t
 ApicWaitForIdle(void)
 {
     int Error = 0;
@@ -51,7 +51,7 @@ void
 ApicSynchronizeArbIds(void)
 {
     IntStatus_t interruptStatus;
-    OsStatus_t  osStatus;
+    oscode_t  osStatus;
 
 	// Not needed on AMD and not supported on P4 
 	// So we need a check here in place to do it @todo
@@ -67,7 +67,7 @@ ApicSynchronizeArbIds(void)
     InterruptRestoreState(interruptStatus);
 }
 
-OsStatus_t
+oscode_t
 ApicSendInterrupt(
     _In_ InterruptTarget_t  type,
     _In_ UUId_t             specific,
@@ -77,7 +77,7 @@ ApicSendInterrupt(
 	uint32_t    IpiHigh = 0;
     UUId_t      CoreId  = ArchGetProcessorCoreId();
     IntStatus_t InterruptStatus;
-    OsStatus_t  Status;
+    oscode_t  Status;
 
     if (type == InterruptTarget_SPECIFIC && specific == CoreId) {
         type = InterruptTarget_SELF;
@@ -116,7 +116,7 @@ ApicSendInterrupt(
     return Status;
 }
 
-OsStatus_t
+oscode_t
 ApicPerformIPI(
     _In_ UUId_t coreId,
     _In_ int    assert)
@@ -124,7 +124,7 @@ ApicPerformIPI(
 	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
 	uint32_t    IpiLow  = 0;
     IntStatus_t InterruptStatus;
-    OsStatus_t  Status;
+    oscode_t  Status;
 
     // Determine assert or deassert
     if (assert) {
@@ -147,7 +147,7 @@ ApicPerformIPI(
     return Status;
 }
 
-OsStatus_t
+oscode_t
 ApicPerformSIPI(
     _In_ UUId_t    coreId,
     _In_ uintptr_t Address)
@@ -156,7 +156,7 @@ ApicPerformSIPI(
 	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
     uint8_t     Vector  = 0;
     IntStatus_t InterruptStatus;
-    OsStatus_t  Status;
+    oscode_t  Status;
     
     // Sanitize address given
     assert((Address % 0x1000) == 0);

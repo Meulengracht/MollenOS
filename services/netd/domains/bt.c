@@ -29,7 +29,7 @@ typedef struct SocketDomain {
     SocketDomainOps_t Ops;
 } SocketDomain_t;
 
-OsStatus_t
+oscode_t
 DomainBluetoothCreate(
     _Out_ SocketDomain_t** DomainOut)
 {

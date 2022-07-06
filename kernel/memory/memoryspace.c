@@ -135,7 +135,7 @@ __SyncMemoryRegion(
     }
 }
 
-static OsStatus_t
+static oscode_t
 __CreateContext(
         _In_ MemorySpace_t* memorySpace)
 {
@@ -180,7 +180,7 @@ __DestroyContext(
     kfree(memorySpace->Context);
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -223,13 +223,13 @@ __NewMemorySpace(
     return memorySpace;
 }
 
-OsStatus_t
+oscode_t
 CreateMemorySpace(
     _In_  unsigned int flags,
     _Out_ UUId_t*      handleOut)
 {
     MemorySpace_t* memorySpace;
-    OsStatus_t     osStatus;
+    oscode_t     osStatus;
     TRACE("CreateMemorySpace(flags=0x%x)", flags);
 
     memorySpace = __NewMemorySpace(flags);
@@ -373,7 +373,7 @@ GetDomainMemorySpace(void)
     return (GetCurrentDomain() != NULL) ? &GetCurrentDomain()->SystemSpace : &GetMachine()->SystemSpace;
 }
 
-OsStatus_t
+oscode_t
 AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2)
@@ -381,7 +381,7 @@ AreMemorySpacesRelated(
     return (Space1->Context == Space2->Context) ? OsOK : OsError;
 }
 
-static OsStatus_t
+static oscode_t
 __CreateAllocation(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -389,7 +389,7 @@ __CreateAllocation(
         _In_ unsigned int   flags)
 {
     struct MemorySpaceAllocation* allocation;
-    OsStatus_t                    osStatus = OsOK;
+    oscode_t                    osStatus = OsOK;
 
     TRACE("__CreateAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
           memorySpace, address, length, flags);
@@ -457,7 +457,7 @@ __AllocateVirtualMemory(
                 // We only track user allocations, not kernel allocations. If we wanted to track ALL allocations
                 // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
                 // kmalloc
-                OsStatus_t osStatus = __CreateAllocation(memorySpace, virtualBase, size, memoryFlags);
+                oscode_t osStatus = __CreateAllocation(memorySpace, virtualBase, size, memoryFlags);
                 if (osStatus != OsOK) {
                     ERROR("__AllocateVirtualMemory failed to register allocation");
                     DynamicMemoryPoolFree(&memorySpace->Context->Heap, size);
@@ -499,7 +499,7 @@ __AllocateVirtualMemory(
     return virtualBase;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceMap(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -512,7 +512,7 @@ MemorySpaceMap(
     int        pageCount = DIVUP(length, GetMemorySpacePageSize());
     int        pagesUpdated;
     vaddr_t    virtualBase;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("MemorySpaceMap(len=%" PRIuIN ", attribs=0x%x, placement=0x%x)",
           length, memoryFlags, placementFlags);
     
@@ -564,7 +564,7 @@ MemorySpaceMap(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceMapContiguous(
         _In_    MemorySpace_t* MemorySpace,
         _InOut_ vaddr_t*       Address,
@@ -576,7 +576,7 @@ MemorySpaceMapContiguous(
     int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
     int        PagesUpdated;
     vaddr_t    VirtualBase;
-    OsStatus_t Status;
+    oscode_t Status;
     
     TRACE("[memory_map_contiguous] %u, 0x%x, 0x%x", 
         LODWORD(Length), MemoryFlags, PlacementFlags);
@@ -604,7 +604,7 @@ MemorySpaceMapContiguous(
     return Status;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceMapReserved(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -615,7 +615,7 @@ MemorySpaceMapReserved(
     int        pageCount = DIVUP(size, GetMemorySpacePageSize());
     int        pagesReserved;
     vaddr_t    virtualBase;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     
     TRACE("[memory_map_reserve] %u, 0x%x, 0x%x", LODWORD(size), memoryFlags, placementFlags);
 
@@ -642,7 +642,7 @@ MemorySpaceMapReserved(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceCommit(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -653,7 +653,7 @@ MemorySpaceCommit(
 {
     int        pageCount = DIVUP(size, GetMemorySpacePageSize());
     int        pagesComitted;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     if (!memorySpace || !physicalAddressValues) {
         return OsInvalidParameters;
@@ -678,7 +678,7 @@ MemorySpaceCommit(
     return osStatus;
 }
 
-static OsStatus_t __GetAndVerifyPhysicalMapping(
+static oscode_t __GetAndVerifyPhysicalMapping(
         _In_  MemorySpace_t* sourceSpace,
         _In_  vaddr_t        address,
         _In_  int            pageCount,
@@ -686,7 +686,7 @@ static OsStatus_t __GetAndVerifyPhysicalMapping(
         _Out_ int*           pagesRetrievedOut)
 {
     uintptr_t* physicalAddresses;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        pagesRetrieved;
     int        i;
     TRACE("__GetAndVerifyPhysicalMapping(address=0x%" PRIxIN ", pageCount=%i",
@@ -755,14 +755,14 @@ __AcquireAllocation(
     return allocation;
 }
 
-static OsStatus_t
+static oscode_t
 __ClearPhysicalPages(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         size)
 {
     paddr_t*   addresses;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        pageCount;
     int        pagesCleared = 0;
     int        pagesFreed = 0;
@@ -794,7 +794,7 @@ exit:
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 __ReleaseAllocation(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -802,7 +802,7 @@ __ReleaseAllocation(
 {
     struct MemorySpaceAllocation* allocation = NULL;
     size_t                        storedSize = size;
-    OsStatus_t                    osStatus;
+    oscode_t                    osStatus;
 
     TRACE("__ReleaseAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
@@ -866,7 +866,7 @@ __LinkAllocations(
     MutexUnlock(&memorySpace->Context->SyncObject);
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceCloneMapping(
         _In_        MemorySpace_t* sourceSpace,
         _In_        MemorySpace_t* destinationSpace,
@@ -882,7 +882,7 @@ MemorySpaceCloneMapping(
     int                           pagesRetrieved;
     int                           pagesUpdated;
     uintptr_t*                    physicalAddressValues = NULL;
-    OsStatus_t                    osStatus;
+    oscode_t                    osStatus;
 
     TRACE("MemorySpaceCloneMapping(sourceSpace=0x%" PRIxIN ", destinationSpace=0x%" PRIxIN
           ", sourceAddress=0x%" PRIxIN ", length=0x%" PRIxIN ", memoryFlags=0x%x)",
@@ -950,13 +950,13 @@ exit:
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceUnmap(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         size)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     TRACE("MemorySpaceUnmap(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
 
@@ -985,7 +985,7 @@ exit:
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceChangeProtection(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t        address,
@@ -995,7 +995,7 @@ MemorySpaceChangeProtection(
 {
     int        pageCount = DIVUP((length + (address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
     int        pagesUpdated;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     if (!memorySpace || !length || !previousAttributes) {
         return OsInvalidParameters;
@@ -1011,7 +1011,7 @@ MemorySpaceChangeProtection(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceQuery(
         _In_ MemorySpace_t*      memorySpace,
         _In_ vaddr_t             address,
@@ -1037,14 +1037,14 @@ MemorySpaceQuery(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 GetMemorySpaceMapping(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        address,
         _In_  int            pageCount,
         _Out_ uintptr_t*     dmaVectorOut)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     int        pagesRetrieved;
     
     if (!memorySpace || !dmaVectorOut) {
@@ -1055,7 +1055,7 @@ GetMemorySpaceMapping(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 GetMemorySpaceAttributes(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -1071,12 +1071,12 @@ GetMemorySpaceAttributes(
     return ArchMmuGetPageAttributes(memorySpace, address, pageCount, attributesArray, &pagesRetrieved);
 }
 
-OsStatus_t
+oscode_t
 IsMemorySpacePageDirty(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address)
 {
-    OsStatus_t   osStatus;
+    oscode_t   osStatus;
     unsigned int flags = 0;
     int          pagesRetrieved;
 
@@ -1091,12 +1091,12 @@ IsMemorySpacePageDirty(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 IsMemorySpacePagePresent(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address)
 {
-    OsStatus_t   osStatus;
+    oscode_t   osStatus;
     unsigned int flags = 0;
     int          pagesRetrieved;
 
@@ -1111,7 +1111,7 @@ IsMemorySpacePagePresent(
     return osStatus;
 }
 
-OsStatus_t
+oscode_t
 MemorySpaceSetSignalHandler(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        signalHandlerAddress)

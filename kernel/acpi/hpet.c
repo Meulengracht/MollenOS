@@ -56,12 +56,12 @@ typedef struct HpetController {
     int	            Is64Bit;
     size_t          TickMinimum;
     size_t          Period;
-    LargeUInteger_t Frequency;
+    UInteger64_t Frequency;
     clock_t	        Clock;
 } HpetController_t;
 
-static void HpetGetCount(void*, LargeUInteger_t*);
-static void HpetGetFrequency(void*, LargeUInteger_t*);
+static void HpetGetCount(void*, UInteger64_t*);
+static void HpetGetFrequency(void*, UInteger64_t*);
 static void HpetNoOperation(void*);
 
 /**
@@ -129,7 +129,7 @@ __StartHpet(void)
     HP_WRITE_32(HPET_REGISTER_CONFIG, Config);
 }
 
-OsStatus_t
+oscode_t
 HpetIsEmulatingLegacyController(void)
 {
     if (g_hpet.BaseAddress != 0) {
@@ -144,14 +144,14 @@ HpetIsEmulatingLegacyController(void)
 
 static void
 __ReadFrequency(
-    _Out_ LargeUInteger_t *Value)
+        _Out_ UInteger64_t *Value)
 {
     Value->QuadPart = g_hpet.Frequency.QuadPart;
 }
 
 static void
 __ReadMainCounter(
-    _Out_ LargeUInteger_t* Value)
+        _Out_ UInteger64_t* Value)
 {
 #if __BITS == 64
     if (g_hpet.Is64Bit) {
@@ -178,7 +178,7 @@ __ReadMainCounter(
 #endif
 }
 
-InterruptStatus_t
+irqstatus_t
 HpInterrupt(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     Context)
@@ -196,7 +196,7 @@ HpInterrupt(
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
 
     // Iterate the port-map and check if the interrupt
@@ -215,10 +215,10 @@ HpInterrupt(
 
     // Write clear interrupt register and return
     HP_WRITE_32(HPET_REGISTER_INTSTATUS, InterruptStatus);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-static OsStatus_t
+static oscode_t
 __InitializeComparator(
     _In_ int index,
     _In_ int legacyRoutings)
@@ -319,7 +319,7 @@ __AllocateInterrupt(
     }
 }
 
-OsStatus_t
+oscode_t
 HpetComparatorStart(
     _In_ int      index,
     _In_ uint64_t frequency,
@@ -327,7 +327,7 @@ HpetComparatorStart(
     _In_ int      legacyIrq)
 {
     HpetComparator_t* comparator = &g_hpet.Timers[index];
-    LargeUInteger_t   now;
+    UInteger64_t   now;
     uint64_t          delta;
     size_t            tempValue;
     size_t            tempValue2;
@@ -413,7 +413,7 @@ HpetInitialize(void)
 {
     ACPI_TABLE_HPET* hpetTable;
     int              legacy;
-    OsStatus_t       osStatus;
+    oscode_t       osStatus;
     uintptr_t        updatedAddress;
     size_t           tempValue;
     int              numTimers;
@@ -530,7 +530,7 @@ HpetInitialize(void)
 static void
 HpetGetCount(
         _In_  void*            context,
-        _Out_ LargeUInteger_t* tickOut)
+        _Out_ UInteger64_t* tickOut)
 {
     _CRT_UNUSED(context);
     __ReadMainCounter(tickOut);
@@ -539,7 +539,7 @@ HpetGetCount(
 static void
 HpetGetFrequency(
         _In_  void*            context,
-        _Out_ LargeUInteger_t* frequencyOut)
+        _Out_ UInteger64_t* frequencyOut)
 {
     _CRT_UNUSED(context);
     __ReadFrequency(frequencyOut);

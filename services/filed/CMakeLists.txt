@@ -39,6 +39,7 @@ set (SERVICE_SOURCES
         vfs/handlers/move.c
         vfs/handlers/open.c
         vfs/handlers/read.c
+        vfs/handlers/readlink.c
         vfs/handlers/realpath.c
         vfs/handlers/seek.c
         vfs/handlers/stat.c

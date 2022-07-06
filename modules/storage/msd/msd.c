@@ -231,7 +231,7 @@ Error:
     return NULL;
 }
 
-OsStatus_t
+oscode_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {

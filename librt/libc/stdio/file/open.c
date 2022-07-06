@@ -100,7 +100,7 @@ int open(const char* file, int flags, ...)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     int                      status;
-    OsStatus_t               osStatus;
+    oscode_t               osStatus;
     stdio_handle_t*          object;
     UUId_t                   handle;
     int                      pmode = 0;
@@ -139,7 +139,7 @@ int open(const char* file, int flags, ...)
     }
 
     sys_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
-    if (OsStatusToErrno(osStatus)) {
+    if (OsCodeToErrNo(osStatus)) {
         ERROR("open(path=%s) failed with code: %u", file, osStatus);
         return -1;
     }

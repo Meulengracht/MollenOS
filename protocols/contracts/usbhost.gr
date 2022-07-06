@@ -13,9 +13,9 @@ define UsbTransferStatus_t from "usb/usb.h"
 service usbhost (18) {
     func queue(UUId_t processId, UUId_t deviceId, UUId_t transferId, uint8[] transfer) : (UsbTransferStatus_t result, ulong bytesTransferred) = 1;
     func queue_periodic(UUId_t processId, UUId_t deviceId, UUId_t transferId, uint8[] transfer) : (UsbTransferStatus_t result) = 2;
-    func reset_periodic(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (OsStatus_t result) = 3;
-    func dequeue(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (OsStatus_t result) = 4;
-    func reset_endpoint(UUId_t deviceId, uint8 hub, uint8 port, uint8 device, uint8 endpoint) : (OsStatus_t result) = 5;
+    func reset_periodic(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (oscode_t result) = 3;
+    func dequeue(UUId_t processId, UUId_t deviceId, UUId_t transferId) : (oscode_t result) = 4;
+    func reset_endpoint(UUId_t deviceId, uint8 hub, uint8 port, uint8 device, uint8 endpoint) : (oscode_t result) = 5;
 
     event transfer_status : (UUId_t transferId, UsbTransferStatus_t status, ulong dataIndex) = 6;
 }

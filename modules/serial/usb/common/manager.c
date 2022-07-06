@@ -65,7 +65,7 @@ static int           g_hciCheckupRegistered = 0;
 static uint8_t       g_hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
 static hashtable_t   g_controllers;
 
-OsStatus_t
+oscode_t
 UsbManagerInitialize(void)
 {
     // Create the event queue and wait for usb services, give it
@@ -138,18 +138,18 @@ UsbManagerCreateController(
     return controller;
 }
 
-OsStatus_t
+oscode_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller)
 {
-    OsStatus_t status = UsbControllerRegister(&controller->Device.Base, controller->Type, controller->PortCount);
+    oscode_t status = UsbControllerRegister(&controller->Device.Base, controller->Type, controller->PortCount);
     if (status != OsOK) {
         ERROR("[UsbManagerRegisterController] failed with code %u", status);
     }
     return status;
 }
 
-OsStatus_t
+oscode_t
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller)
 {
@@ -249,7 +249,7 @@ UsbManagerGetToggle(
     return endpoint->toggle;
 }
 
-OsStatus_t
+oscode_t
 UsbManagerSetToggle(
     _In_ UUId_t          deviceId,
     _In_ UsbHcAddress_t* address,
@@ -280,7 +280,7 @@ void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
     UsbHcAddress_t address = { hub, port, device, endpoint };
-    OsStatus_t     status  = UsbManagerSetToggle(deviceId, &address, 0);
+    oscode_t     status  = UsbManagerSetToggle(deviceId, &address, 0);
     ctt_usbhost_reset_endpoint_response(message, status);
 }
 
@@ -303,7 +303,7 @@ UsbManagerQueueWaitingTransfers(
     }
 }
 
-OsStatus_t
+oscode_t
 UsbManagerFinalizeTransfer(UsbManagerTransfer_t* transfer)
 {
     int bytesLeft = 0;
@@ -353,7 +353,7 @@ UsbManagerClearTransfers(
     list_clear(&controller->TransactionList, ClearTransferCallback, controller);
 }
 
-OsStatus_t
+oscode_t
 UsbManagerIsAddressesEqual(
     _In_ UsbHcAddress_t* Address1,
     _In_ UsbHcAddress_t* Address2)
@@ -518,7 +518,7 @@ UsbManagerIterateChain(
     UsbSchedulerObject_t* Object  = NULL;
     UsbSchedulerPool_t*   Pool    = NULL;
     uint8_t*              Element = ElementRoot;
-    OsStatus_t            Result;
+    oscode_t            Result;
     uint16_t              RootIndex;
     uint16_t              LinkIndex;
     int                   Status;

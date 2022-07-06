@@ -91,7 +91,7 @@ LoadObjectsInMap(
 // Header.  00001000 000000dc    16         src/gallium/targets/osmesa/target.o:(.text)
 // Line.    00001000 00000000     0                 osmesa_create_screen
 // Section. 01dc5000 007bad6d  4096 .rdata
-OsStatus_t
+oscode_t
 SymbolParseMapFile(
     _In_ struct symbol_context* symbolContext,
     _In_ void*                  fileBuffer,

@@ -66,7 +66,7 @@ VfsIdentifierFree(
     }
 }
 
-OsStatus_t
+oscode_t
 VfsStorageReadHelper(
         _In_  FileSystemStorage_t* storage,
         _In_  UUId_t               bufferHandle,
@@ -75,7 +75,7 @@ VfsStorageReadHelper(
         _Out_ size_t*              sectorsRead)
 {
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->storage.driver_id);
-    OsStatus_t               status;
+    oscode_t               status;
 
     ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->storage.device_id,
                          __STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector),

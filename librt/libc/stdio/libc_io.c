@@ -30,7 +30,7 @@
 spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP(spinlock_plain);
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
-OsStatus_t
+oscode_t
 _lock_stream(
     _In_ FILE *file)
 {
@@ -44,7 +44,7 @@ _lock_stream(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 _unlock_stream(
     _In_ FILE *file)
 {
@@ -115,12 +115,12 @@ static FILE         g_stderr = { 0 };
  * Returns whether or not the handle should be inheritted by sub-processes based on the requested
  * startup information and the handle settings.
  */
-static OsStatus_t
+static oscode_t
 StdioIsHandleInheritable(
     _In_ ProcessConfiguration_t* configuration,
     _In_ stdio_handle_t*         handle)
 {
-    OsStatus_t osSuccess = OsOK;
+    oscode_t osSuccess = OsOK;
 
     if (handle->wxflag & WX_DONTINHERIT) {
         osSuccess = OsError;
@@ -170,7 +170,7 @@ StdioGetNumberOfInheritableHandles(
     return numberOfFiles;
 }
 
-OsStatus_t
+oscode_t
 StdioCreateInheritanceBlock(
     _In_  ProcessConfiguration_t* configuration,
     _Out_ void**                  inheritationBlockOut,
@@ -483,9 +483,9 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
-    OsStatus_t status = handle_post_notification(handle->object.handle, activity);
+    oscode_t status = handle_post_notification(handle->object.handle, activity);
     if (status != OsOK) {
-        OsStatusToErrno(status);
+        OsCodeToErrNo(status);
         return -1;
     }
     return 0;

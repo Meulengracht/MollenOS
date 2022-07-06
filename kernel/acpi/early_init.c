@@ -35,7 +35,7 @@
 static int g_acpiStatus       = ACPI_NOT_AVAILABLE;
 AcpiEcdt_t EmbeddedController = { 0 };
 
-static OsStatus_t
+static oscode_t
 __RegisterDomainCore(
     _In_ SystemDomain_t* Domain,
     _In_ UUId_t          CoreId,
@@ -392,7 +392,7 @@ __ParseECDT(
     memcpy(&EmbeddedController.NsPath[0], &ecdtTable->Id[0], strlen((const char*)&(ecdtTable->Id[0])));
 }
 
-static OsStatus_t
+static oscode_t
 __ParseMADT(
         _In_ ACPI_TABLE_HEADER* header)
 {
@@ -473,11 +473,11 @@ __ParseMADT(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 AcpiInitializeEarly(void)
 {
     ACPI_TABLE_HEADER* header;
-    OsStatus_t         osStatus = OsOK;
+    oscode_t         osStatus = OsOK;
     ACPI_STATUS        acpiStatus;
     TRACE("AcpiInitializeEarly()");
 

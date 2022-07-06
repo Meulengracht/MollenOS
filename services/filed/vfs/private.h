@@ -172,7 +172,7 @@ struct VFSNodeHandle {
  * @param node
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VFSNodeHandleAdd(
         _In_ UUId_t          handleId,
         _In_ struct VFSNode* node,
@@ -187,7 +187,7 @@ VFSNodeHandleAdd(
  * @param handleOut
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VFSNodeHandleGet(
         _In_  UUId_t                 handleId,
         _Out_ struct VFSNodeHandle** handleOut);
@@ -198,7 +198,7 @@ VFSNodeHandleGet(
  * @param handle
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VFSNodeHandlePut(
         _In_ struct VFSNodeHandle* handle);
 
@@ -210,7 +210,7 @@ VFSNodeHandlePut(
  * @param handleId
  * @return
  */
-extern OsStatus_t
+extern oscode_t
 VFSNodeHandleRemove(
         _In_ UUId_t handleId);
 
@@ -223,7 +223,7 @@ extern MString_t* VFSNodeMakePath(struct VFSNode* node, int local);
  * @param node
  * @return
  */
-extern OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node);
+extern oscode_t VFSNodeEnsureLoaded(struct VFSNode* node);
 
 /**
  * @brief VFSNodeFind locates a named entry in a node. If the node is unloaded the node
@@ -233,12 +233,12 @@ extern OsStatus_t VFSNodeEnsureLoaded(struct VFSNode* node);
  * @param nodeOut
  * @return
  */
-extern OsStatus_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
+extern oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
 
 
 
-extern OsStatus_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
-extern OsStatus_t VFSNodePut(struct VFSNode* node);
+extern oscode_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
+extern oscode_t VFSNodePut(struct VFSNode* node);
 
 /**
  * @brief Creates a new child in the node. This will create the node on the filesystem as well. A reader lock on the
@@ -250,7 +250,7 @@ extern OsStatus_t VFSNodePut(struct VFSNode* node);
  * @param nodeOut
  * @return
  */
-extern OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
+extern oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
 
 /**
  * @brief
@@ -261,7 +261,7 @@ extern OsStatus_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint
  * @param nodeOut
  * @return
  */
-extern OsStatus_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
+extern oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
 
 /**
  * @brief
@@ -270,6 +270,6 @@ extern OsStatus_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, 
  * @param handleOut
  * @return
  */
-extern OsStatus_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut);
+extern oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut);
 
 #endif //!__VFS_PRIVATE_H__

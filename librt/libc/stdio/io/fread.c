@@ -48,7 +48,7 @@ __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
 {
     char*      pointer = buf;
     size_t     bytesRead;
-    OsStatus_t status;
+    oscode_t status;
 
     status = handle->ops.read(handle, pointer, count, &bytesRead);
     if (status == OsOK) {

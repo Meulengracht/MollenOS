@@ -33,7 +33,7 @@ int unlink(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     int                      status;
-    OsStatus_t               osStatus;
+    oscode_t               osStatus;
         
     if (path == NULL) {
     	_set_errno(EINVAL);
@@ -43,7 +43,7 @@ int unlink(
     status = sys_file_delete(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, 0);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_delete_result(GetGrachtClient(), &msg.base, &osStatus);
-    if (status || OsStatusToErrno(osStatus)) {
+    if (status || OsCodeToErrNo(osStatus)) {
     	return -1;
     }
     return 0;

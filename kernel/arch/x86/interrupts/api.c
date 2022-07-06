@@ -56,7 +56,7 @@ static inline UUId_t __GetBspCoreId(void)
 static uint64_t __GetApicConfiguration(
     _In_ SystemInterrupt_t* systemInterrupt)
 {
-    LargeUInteger_t flags;
+    UInteger64_t flags;
 
     TRACE("__GetApicConfiguration(%i:%i)",
           systemInterrupt->Line, systemInterrupt->Pin);
@@ -172,7 +172,7 @@ static UUId_t __AllocateSoftwareVector(
     return result;
 }
 
-OsStatus_t
+oscode_t
 InterruptResolve(
     _In_  DeviceInterrupt_t* deviceInterrupt,
     _In_  unsigned int       flags,
@@ -251,7 +251,7 @@ void InterruptSetMode(
     _CRT_UNUSED(mode);
 }
 
-OsStatus_t
+oscode_t
 InterruptConfigure(
     _In_ SystemInterrupt_t* systemInterrupt,
     _In_ int                enable)

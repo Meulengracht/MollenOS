@@ -63,13 +63,13 @@ UserEventDestroy(
     kfree(event);
 }
 
-static OsStatus_t
+static oscode_t
 AllocateSyncAddress(
     _In_ UserEvent_t* event)
 {
     uintptr_t   offsetInPage;
     uintptr_t   dmaAddress;
-    OsStatus_t  status;
+    oscode_t  status;
     uintptr_t   userAddress;
     void*       kernelAddress = MemoryCacheAllocate(syncAddressCache);
     if (!kernelAddress) {
@@ -104,7 +104,7 @@ AllocateSyncAddress(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UserEventCreate(
     _In_  unsigned int initialValue,
     _In_  unsigned int flags,
@@ -113,7 +113,7 @@ UserEventCreate(
 {
     UserEvent_t* event;
     UUId_t       handle;
-    OsStatus_t   status;
+    oscode_t   status;
 
     if (!handleOut || !syncAddressOut) {
         return OsInvalidParameters;
@@ -149,12 +149,12 @@ UserEventCreate(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UserEventSignal(
     _In_ UUId_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
-    OsStatus_t   status = OsIncomplete;
+    oscode_t   status = OsIncomplete;
     int          currentValue;
     int          i;
     int          result;

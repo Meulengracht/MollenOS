@@ -31,7 +31,7 @@
  * IpcContextCreate
  * * 
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 IpcContextCreate(
     _In_  size_t  Size,
     _Out_ UUId_t* HandleOut,
@@ -41,7 +41,7 @@ IpcContextCreate(
  * IpcContextSendMultiple
  * * 
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oscode_t KERNELABI
 IpcContextSendMultiple(
     _In_ struct ipmsg** messages,
     _In_ int            messageCount,

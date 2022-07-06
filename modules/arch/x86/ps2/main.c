@@ -43,7 +43,7 @@ PS2ReadStatus(void)
     return (uint8_t)ReadDeviceIo(Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
 }
 
-OsStatus_t
+oscode_t
 WaitForPs2StatusFlagsSet(
     _In_ uint8_t Flags)
 {
@@ -58,7 +58,7 @@ WaitForPs2StatusFlagsSet(
     return OsError; // If we reach here - it never set
 }
 
-OsStatus_t
+oscode_t
 WaitForPs2StatusFlagsClear(
     _In_ uint8_t Flags)
 {
@@ -86,7 +86,7 @@ PS2ReadData(
     return (uint8_t)ReadDeviceIo(Ps2Controller->Data, PS2_REGISTER_DATA, 1);
 }
 
-OsStatus_t
+oscode_t
 PS2WriteData(
     _In_ uint8_t Value)
 {
@@ -108,7 +108,7 @@ PS2SendCommand(
     WriteDeviceIo(Ps2Controller->Command, PS2_REGISTER_COMMAND, Command, 1);
 }
 
-OsStatus_t
+oscode_t
 PS2SetScanning(
     _In_ int     Index,
     _In_ uint8_t Status)
@@ -125,7 +125,7 @@ PS2SetScanning(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 PS2SelfTest(void)
 {
     uint8_t Temp = 0;
@@ -142,11 +142,11 @@ PS2SelfTest(void)
     return (i == 5) ? OsError : OsOK;
 }
 
-OsStatus_t
+oscode_t
 PS2Initialize(
     _In_ Device_t* Device)
 {
-    OsStatus_t Status;
+    oscode_t Status;
     uint8_t    Temp;
     int        i;
 
@@ -206,7 +206,7 @@ PS2Initialize(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 OnLoad(void)
 {
     // Install supported protocols
@@ -229,7 +229,7 @@ OnLoad(void)
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 OnUnload(void)
 {
     // Destroy the io-spaces we created
@@ -244,7 +244,7 @@ OnUnload(void)
     return OsOK;
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oscode_t OnEvent(struct ioset_event* event)
 {
     if (event->events & IOSETSYN) {
         PS2Port_t*   port = event->data.context;
@@ -265,11 +265,11 @@ OsStatus_t OnEvent(struct ioset_event* event)
     return OsNotExists;
 }
 
-OsStatus_t
+oscode_t
 OnRegister(
     _In_ Device_t* Device)
 {
-    OsStatus_t Result = OsOK;
+    oscode_t Result = OsOK;
     PS2Port_t *Port;
 
     // First register call is the ps2-controller and all sequent calls here is ps2-devices
@@ -352,11 +352,11 @@ void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t devi
     }
 }
 
-OsStatus_t
+oscode_t
 OnUnregister(
     _In_ Device_t* Device)
 {
-    OsStatus_t Result = OsError;
+    oscode_t Result = OsError;
     PS2Port_t *Port;
 
     // Select port from device-id

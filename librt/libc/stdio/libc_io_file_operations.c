@@ -32,13 +32,13 @@
 #include <string.h>
 #include "../threads/tls.h"
 
-static inline OsStatus_t
+static inline oscode_t
 perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction, 
     size_t chunkSize, off_t offset, size_t length, size_t* bytesTransferreOut)
 {
     struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
     size_t                   bytesLeft = length;
-    OsStatus_t               status;
+    oscode_t               status;
     TRACE("[libc] [file-io] [perform_transfer] length %" PRIuIN, length);
     
     // Keep reading chunks untill we've read all requested
@@ -67,12 +67,12 @@ perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction,
     return status;
 }
 
-OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
+oscode_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
     UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
     size_t     builtinLength = tls_current()->transfer_buffer.length;
     size_t     bytesRead;
-    OsStatus_t status;
+    oscode_t status;
     TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
@@ -128,12 +128,12 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     return status;
 }
 
-OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
-    size_t length, size_t* bytesWrittenOut)
+oscode_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
+                             size_t length, size_t* bytesWrittenOut)
 {
     UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
     size_t     builtinLength = tls_current()->transfer_buffer.length;
-    OsStatus_t status;
+    oscode_t status;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
@@ -183,16 +183,16 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
     return status;
 }
 
-OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oscode_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    OsStatus_t               status;
-    LargeInteger_t           seekFinal;
+    oscode_t               status;
+    Integer64_t           seekFinal;
     TRACE("stdio_file_op_seek(origin=%i, offset=%" PRIiIN ")", origin, offset);
 
     // If we search from SEEK_SET, just build offset directly
     if (origin != SEEK_SET) {
-        LargeInteger_t currentOffset;
+        Integer64_t currentOffset;
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
@@ -246,15 +246,15 @@ OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset
     return status;
 }
 
-OsStatus_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
+oscode_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
+oscode_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-	OsStatus_t               status = OsOK;
+	oscode_t               status = OsOK;
 	
 	if (options & STDIO_CLOSE_FULL) {
         sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
@@ -264,12 +264,12 @@ OsStatus_t stdio_file_op_close(stdio_handle_t* handle, int options)
     return status;
 }
 
-OsStatus_t stdio_file_op_inherit(stdio_handle_t* handle)
+oscode_t stdio_file_op_inherit(stdio_handle_t* handle)
 {
     return OsOK;
 }
 
-OsStatus_t stdio_file_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+oscode_t stdio_file_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
 {
     return OsNotSupported;
 }

@@ -48,8 +48,8 @@ ProcessConfigurationInitialize(
  * @param handleOut
  * @return
  */
-CRTDECL(OsStatus_t,
-ProcessSpawn(
+CRTDECL(oscode_t,
+        ProcessSpawn(
 	_In_     const char* path,
 	_In_Opt_ const char* arguments,
     _Out_    UUId_t*     handleOut));
@@ -64,8 +64,8 @@ ProcessSpawn(
  * @param handleOut
  * @return
  */
-CRTDECL(OsStatus_t,
-ProcessSpawnEx(
+CRTDECL(oscode_t,
+        ProcessSpawnEx(
     _In_     const char*             path,
     _In_Opt_ const char*             arguments,
     _In_Opt_ const char* const*      environment,
@@ -82,8 +82,8 @@ ProcessSpawnEx(
  *         OsOK if the process has terminated within the given timeout or at the time at the call
  *         OsError in any other case.
  */
-CRTDECL(OsStatus_t,
-ProcessJoin(
+CRTDECL(oscode_t,
+        ProcessJoin(
 	_In_  UUId_t handle,
     _In_  size_t timeout,
     _Out_ int*   exitCodeOut));
@@ -97,8 +97,8 @@ ProcessJoin(
  * @param signal The signal that should be sent to the process
  * @return       The status of the operation
  */
-CRTDECL(OsStatus_t,
-ProcessSignal(
+CRTDECL(oscode_t,
+        ProcessSignal(
     _In_ UUId_t handle,
     _In_ int    signal));
 
@@ -117,8 +117,8 @@ ProcessGetCurrentId(void));
  * @param tickOut
  * @return
  */
-CRTDECL(OsStatus_t, 
-ProcessGetTickBase(
+CRTDECL(oscode_t,
+        ProcessGetTickBase(
     _Out_ clock_t* tickOut));
 
 /**
@@ -130,8 +130,8 @@ ProcessGetTickBase(
  *               to the actual length of data stored into the buffer.
  * @return OsInvalidParameters if both parameters are invalid.
  */
-CRTDECL(OsStatus_t,
-GetProcessCommandLine(
+CRTDECL(oscode_t,
+        GetProcessCommandLine(
         _In_    char*   buffer,
         _InOut_ size_t* length));
 
@@ -142,8 +142,8 @@ GetProcessCommandLine(
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
  * @return OsInvalidParameters if either of the inputs are nil.
  */
-CRTDECL(OsStatus_t, 
-ProcessGetCurrentName(
+CRTDECL(oscode_t,
+        ProcessGetCurrentName(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -157,8 +157,8 @@ ProcessGetCurrentName(
  * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
-CRTDECL(OsStatus_t, 
-ProcessGetAssemblyDirectory(
+CRTDECL(oscode_t,
+        ProcessGetAssemblyDirectory(
         _In_ UUId_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
@@ -173,8 +173,8 @@ ProcessGetAssemblyDirectory(
  * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
-CRTDECL(OsStatus_t, 
-ProcessGetWorkingDirectory(
+CRTDECL(oscode_t,
+        ProcessGetWorkingDirectory(
         _In_ UUId_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
@@ -185,8 +185,8 @@ ProcessGetWorkingDirectory(
  * @param path
  * @return
  */
-CRTDECL(OsStatus_t, 
-ProcessSetWorkingDirectory(
+CRTDECL(oscode_t,
+        ProcessSetWorkingDirectory(
     _In_ const char* path));
 
 _CODE_END

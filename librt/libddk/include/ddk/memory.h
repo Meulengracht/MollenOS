@@ -34,16 +34,16 @@ struct MemoryMappingParameters {
 /**
  * @brief Creates a new memory space that can be used to create new mappings, and manipulate existing mappings.
  */
-DDKDECL(OsStatus_t,
-CreateMemorySpace(
+DDKDECL(oscode_t,
+        CreateMemorySpace(
     _In_  unsigned int Flags,
     _Out_ UUId_t*      Handle));
 
 /**
  * @brief Retrieves the memory space that is currently running for the thread handle.
  */
-DDKDECL(OsStatus_t,
-GetMemorySpaceForThread(
+DDKDECL(oscode_t,
+        GetMemorySpaceForThread(
     _In_  UUId_t  Thread,
     _Out_ UUId_t* Handle));
 
@@ -52,8 +52,8 @@ GetMemorySpaceForThread(
  * Creates a new memory mapping in the memory space, if it was successful in creating a mapping,
  * a new access buffer for that piece of memory will be returned.
  */
-DDKDECL(OsStatus_t,
-CreateMemoryMapping(
+DDKDECL(oscode_t,
+        CreateMemoryMapping(
     _In_  UUId_t                          Handle,
     _In_  struct MemoryMappingParameters* Parameters,
     _Out_ void**                          AddressOut));

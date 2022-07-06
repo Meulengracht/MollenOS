@@ -368,7 +368,7 @@ AhciControllerCreate(
 /* AhciControllerDestroy
  * Destroys an existing controller instance and cleans up
  * any resources related to it */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 AhciControllerDestroy(
     _In_ AhciController_t*  controller);
 
@@ -396,7 +396,7 @@ AhciPortInitiateSetup(
 
 /* AhciPortFinishSetup
  * Finishes setup of port by completing a reset sequence. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 AhciPortFinishSetup(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port);
@@ -404,19 +404,19 @@ AhciPortFinishSetup(
 /* AhciPortRebase
  * Rebases the port by setting up allocated memory tables and command memory. This can only be done
  * when the port is in a disabled state. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 AhciPortRebase(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port);
 
 /* AhciPortStart
  * Starts the port, the port must have been in a disabled state and must have been rebased at-least once. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 AhciPortStart(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port);
 
-OsStatus_t
+oscode_t
 AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* port,
     _Out_ int*        slotOut);

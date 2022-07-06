@@ -39,7 +39,7 @@ mkdir(
         return -1;
     }
 
-    fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_RECURS | O_DIR, 0);
+    fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_DIR, 0);
     if (fd != -1) {
         close(fd);
         fd = 0;

@@ -34,6 +34,7 @@ struct VFSOperations {
     FsClose_t           Close;
     FsLink_t            Link;
     FsUnlink_t          Unlink;
+    FsReadLink_t        ReadLink;
     FsCreate_t          Create;
     FsMove_t            Move;
 

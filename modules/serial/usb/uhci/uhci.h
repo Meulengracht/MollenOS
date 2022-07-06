@@ -238,44 +238,44 @@ UhciGetStatusCode(
 
 /* UhciStart
  * Boots the controller, if it succeeds OsOK is returned. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciStart(
     _In_ UhciController_t*          Controller,
     _In_ int                        Wait);
 
 /* UhciStop
  * Stops the controller, if it succeeds OsOK is returned. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciStop(
     _In_ UhciController_t*          Controller);
 
 /* UhciReset
  * Resets the controller back to usable state, does not restart the controller. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciReset(
     _In_ UhciController_t*          Controller);
 
 /* UhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciQueueInitialize(
     _In_ UhciController_t*          Controller);
 
 /* UhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciQueueReset(
     _In_ UhciController_t*          Controller);
 
 /* UhciQueueDestroy
  * Cleans up any resources allocated by QueueInitialize */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciQueueDestroy(
     _In_ UhciController_t*          Controller);
 
 /* UhciPortPrepare
  * Resets the port and also clears out any event on the port line. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciPortPrepare(
     _In_ UhciController_t*          Controller, 
     _In_ int                        Index);
@@ -283,7 +283,7 @@ UhciPortPrepare(
 /* UhciPortsCheck
  * Enumerates ports and checks for any pending events. This also
  * notifies the usb-service if any connection changes appear */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciPortsCheck(
     _In_ UhciController_t*          Controller);
 
@@ -307,7 +307,7 @@ UhciConditionCodeToIndex(
 /* UhciQhInitialize
  * Initializes the queue head data-structure and the associated
  * hcd flags. Afterwards the queue head is ready for use. */
-__EXTERN OsStatus_t
+__EXTERN oscode_t
 UhciQhInitialize(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer);

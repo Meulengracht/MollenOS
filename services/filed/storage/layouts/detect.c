@@ -31,7 +31,7 @@
 
 static guid_t g_emptyGuid = GUID_EMPTY;
 
-OsStatus_t
+oscode_t
 VfsStorageDetectFileSystem(
 	_In_ FileSystemStorage_t* storage,
 	_In_ UUId_t               bufferHandle,
@@ -42,7 +42,7 @@ VfsStorageDetectFileSystem(
     enum FileSystemType type = FileSystemType_UNKNOWN;
 	MasterBootRecord_t* mbr;
 	size_t              sectorsRead;
-	OsStatus_t          status;
+	oscode_t          status;
 
 	TRACE("VfsStorageDetectFileSystem(Sector %u, Count %u)",
 		LODWORD(sector), LODWORD(sectorCount));
@@ -94,11 +94,11 @@ VfsStorageDetectFileSystem(
     );
 }
 
-OsStatus_t
+oscode_t
 VfsStorageParse(
 	_In_ FileSystemStorage_t* storage)
 {
-	OsStatus_t osStatus;
+	oscode_t osStatus;
 	
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;

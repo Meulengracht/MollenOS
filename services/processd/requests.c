@@ -132,8 +132,7 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_startup_information_response(message, OsOutOfMemory, UUID_INVALID,
-                                                     0, 0, 0);
+        sys_process_get_startup_information_response(message, OsOutOfMemory, UUID_INVALID);
         return;
     }
 
@@ -181,17 +180,17 @@ void sys_process_terminate_invocation(struct gracht_message* message, const UUId
 void sys_process_signal_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle, const int signal)
 {
     Request_t* request;
-    TRACE("sys_process_kill_invocation()");
+    TRACE("sys_process_signal_invocation()");
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_kill_response(message, OsOutOfMemory);
+        sys_process_signal_response(message, OsOutOfMemory);
         return;
     }
 
     // initialize parameters
-    request->parameters.kill.killer_handle = processId;
-    request->parameters.kill.victim_handle = handle;
+    request->parameters.signal.killer_handle = processId;
+    request->parameters.signal.victim_handle = handle;
     usched_task_queue((usched_task_fn)PmSignalProcess, request);
 }
 

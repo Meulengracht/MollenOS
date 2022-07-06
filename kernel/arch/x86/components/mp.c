@@ -37,7 +37,7 @@
                                             memcpy((void*)&MpHeader, (void*)i, sizeof(MpHeader_t)); \
                                             i = (uintptr_t*)(uintptr_t)MpHeader.ConfigurationTableAddress; \
                                             memcpy((void*)&MpConfigurationTable, (void*)i, sizeof(MpConfigurationTable_t)); \
-                                            return OsSuccess; \
+                                            return OsOK; \
                                         } \
                                     } \
 
@@ -46,7 +46,7 @@
 static MpHeader_t MpHeader                          = { 0 };
 static MpConfigurationTable_t MpConfigurationTable  = { 0 };
 
-OsStatus_t
+oscode_t
 MpInitialize(void)
 {
    uintptr_t *i = NULL;
@@ -57,7 +57,7 @@ MpInitialize(void)
    return OsError;
 }
 
-OsStatus_t
+oscode_t
 MpGetLocalApicAddress(
     _Out_ uintptr_t*    Address)
 {

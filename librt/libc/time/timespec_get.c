@@ -40,7 +40,7 @@ __get_va_type(
 
 static clock_t
 __calculate_timestamp(
-        _In_ LargeUInteger_t* tick)
+        _In_ UInteger64_t* tick)
 {
     clock_t freq = CLOCKS_PER_SEC;
 
@@ -60,7 +60,7 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     if (!ts) {
         _set_errno(EINVAL);
@@ -71,11 +71,11 @@ timespec_get(
     switch (base) {
         case TIME_TAI:
         case TIME_UTC: {
-            LargeInteger_t timeValue;
+            Integer64_t timeValue;
 
             osStatus = VaGetWallClock(&timeValue);
             if (osStatus != OsOK) {
-                return OsStatusToErrno(osStatus);
+                return OsCodeToErrNo(osStatus);
             }
 
             // Both UTC and TAI uses an epic of 1970 (January 1), so we need to add
@@ -91,12 +91,12 @@ timespec_get(
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            LargeUInteger_t tick;
+            UInteger64_t tick;
             clock_t         timestamp;
 
             osStatus = VaGetClockTick(__get_va_type(base), &tick);
             if (osStatus != OsOK) {
-                return OsStatusToErrno(osStatus);
+                return OsCodeToErrNo(osStatus);
             }
 
             timestamp = __calculate_timestamp(&tick);

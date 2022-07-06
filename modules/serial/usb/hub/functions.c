@@ -26,7 +26,7 @@
 #include <ddk/utils.h>
 #include "hub.h"
 
-OsStatus_t
+oscode_t
 HubGetStatus(
         _In_ HubDevice_t* hubDevice,
         _In_ HubStatus_t* status)
@@ -43,7 +43,7 @@ HubGetStatus(
     }
 }
 
-OsStatus_t
+oscode_t
 HubGetPortStatus(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -61,7 +61,7 @@ HubGetPortStatus(
     }
 }
 
-OsStatus_t
+oscode_t
 HubClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       change)
@@ -78,7 +78,7 @@ HubClearChange(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 HubPortClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -98,7 +98,7 @@ HubPortClearChange(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 HubPowerOnPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)
@@ -116,7 +116,7 @@ HubPowerOnPort(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 HubResetPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)

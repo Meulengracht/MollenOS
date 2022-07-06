@@ -26,8 +26,21 @@
 
 #include <os/osdefs.h>
 
-#define S_IREAD         0x0001 
-#define S_IWRITE        0x0002
+#define S_IXOTH         0x0001
+#define S_IWOTH         0x0002
+#define S_IROTH         0x0004
+#define S_IRWXO         (S_IROTH | S_IWOTH | S_IXOTH)
+#define S_IXGRP         0x0010
+#define S_IWGRP         0x0020
+#define S_IRGRP         0x0040
+#define S_IRWXG         (S_IRGRP | S_IWGRP | S_IXGRP)
+#define S_IEXEC         0x0100
+#define S_IWRITE        0x0200
+#define S_IREAD         0x0400
+#define S_IRWXU         (S_IREAD | S_IWRITE | S_IEXEC)
+#define S_IFREG         0x1000
+#define S_IFDIR         0x2000
+#define S_IFLNK         0x4000
 
 #define O_RDONLY        0x0000  /* open for reading only */
 #define O_WRONLY        0x0001  /* open for writing only */
@@ -37,8 +50,7 @@
 #define O_CREAT         0x0100  /* create and open */
 #define O_TRUNC         0x0200  /* open and truncate */
 #define O_EXCL          0x0400  /* open only if doesn't already exist */
-#define O_RECURS        0x0800  /* create missing path compononents */
-#define O_DIR           0x1000  /* create as a directory */
+#define O_DIR           0x0800  /* create as a directory */
 
 /* O_TEXT files have <cr><lf> sequences translated to <lf> on read()'s,
  ** and <lf> sequences translated to <cr><lf> on write()'s

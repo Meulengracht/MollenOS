@@ -195,7 +195,7 @@ MmBootPrepareKernel(void)
     size_t             bytesToMap;
     paddr_t            physicalBase;
     vaddr_t            virtualBase;
-    OsStatus_t         osStatus;
+    oscode_t         osStatus;
     unsigned int       kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
 	TRACE("MmBootPrepareKernel()");
 

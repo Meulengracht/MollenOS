@@ -37,7 +37,7 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t controllers = LIST_INIT;
 
-InterruptStatus_t
+irqstatus_t
 OnFastInterrupt(
     _In_ InterruptFunctionTable_t* interruptTable,
     _In_ InterruptResourceTable_t* resourceTable)
@@ -50,7 +50,7 @@ OnFastInterrupt(
     // Skip processing immediately if the interrupt was not for us
     interruptStatus = registers->InterruptStatus;
     if (!interruptStatus) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
 
     // Save the status to port that made it and clear
@@ -66,7 +66,7 @@ OnFastInterrupt(
     registers->InterruptStatus = interruptStatus;
     atomic_fetch_or(&resource->ControllerInterruptStatus, interruptStatus);
     interruptTable->EventSignal(resourceTable->HandleResource);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void
@@ -92,7 +92,7 @@ handler_loop:
     }
 }
 
-OsStatus_t
+oscode_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -112,7 +112,7 @@ ClearControllerCallback(
     AhciControllerDestroy((AhciController_t*)element->value);
 }
 
-OsStatus_t
+oscode_t
 OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
@@ -120,7 +120,7 @@ OnUnload(void)
     return OsOK;
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oscode_t OnEvent(struct ioset_event* event)
 {
     TRACE("OnEvent(event->events=0x%x)", event->events);
     if (event->events & IOSETSYN) {
@@ -137,7 +137,7 @@ OsStatus_t OnEvent(struct ioset_event* event)
     return OsNotExists;
 }
 
-OsStatus_t
+oscode_t
 OnRegister(
     _In_ Device_t* device)
 {
@@ -156,7 +156,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message,
     OnRegister((Device_t*)device);
 }
 
-OsStatus_t
+oscode_t
 OnUnregister(
     _In_ Device_t* device)
 {

@@ -105,7 +105,7 @@ VfsFileSystemMount(
  * @param fileSystem A pointer to the filesystem that should be unmounted.
  * @param flags      The type of unmount that is occuring.
  */
-extern OsStatus_t
+extern oscode_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
@@ -161,9 +161,9 @@ VfsFileSystemUnregisterOpenEntry(
  *
  * @param fileHandle  A file handle to query filesystem information from.
  * @param fileSystem  A pointer to where the filesystem pointer will be stored.
- * @return OsStatus_t Status of the lookup operation
+ * @return oscode_t Status of the lookup operation
  */
-extern OsStatus_t
+extern oscode_t
 VfsFileSystemGetByFileHandle(
         _In_  UUId_t         fileHandle,
         _Out_ FileSystem_t** fileSystem);

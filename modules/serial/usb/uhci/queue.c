@@ -115,7 +115,7 @@ UhciGetStatusCode(
     }
 }
 
-OsStatus_t
+oscode_t
 UhciQueueResetInternalData(
     _In_ UhciController_t* Controller)
 {
@@ -190,7 +190,7 @@ UhciQueueResetInternalData(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 UhciQueueInitialize(
     _In_ UhciController_t* Controller)
 {
@@ -216,7 +216,7 @@ UhciQueueInitialize(
     return UhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oscode_t
 UhciQueueReset(
     _In_ UhciController_t* Controller)
 {
@@ -231,7 +231,7 @@ UhciQueueReset(
     return UhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oscode_t
 UhciQueueDestroy(
     _In_ UhciController_t* Controller)
 {

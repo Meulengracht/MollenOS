@@ -85,7 +85,7 @@ __DestroyDriver(
     free(driver);
 }
 
-OsStatus_t
+oscode_t
 DmDiscoverAddDriver(
         _In_ MString_t*                  driverPath,
         _In_ struct DriverConfiguration* driverConfig)
@@ -120,11 +120,11 @@ DmDiscoverAddDriver(
     return OsOK;
 }
 
-OsStatus_t
+oscode_t
 DmDiscoverRemoveDriver(
         _In_ MString_t* driverPath)
 {
-    OsStatus_t osStatus = OsNotExists;
+    oscode_t osStatus = OsNotExists;
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
@@ -144,12 +144,12 @@ DmDiscoverRemoveDriver(
     return osStatus;
 }
 
-static OsStatus_t
+static oscode_t
 __SpawnDriver(
         _In_ struct DmDriver* driver)
 {
     UUId_t     handle;
-    OsStatus_t osStatus;
+    oscode_t osStatus;
     char       args[32];
 
     sprintf(&args[0], "--id %u", driver->id);
@@ -212,12 +212,12 @@ __IsDriverMatch(
     return 0;
 }
 
-OsStatus_t
+oscode_t
 DmDiscoverFindDriver(
         _In_ UUId_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification)
 {
-    OsStatus_t osStatus = OsNotExists;
+    oscode_t osStatus = OsNotExists;
     TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
           deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
@@ -275,7 +275,7 @@ __NotifyDevices(
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
         struct DmDevice* device   = i->value;
-        OsStatus_t       osStatus = DmDevicesRegister(driver->handle, device->id);
+        oscode_t       osStatus = DmDevicesRegister(driver->handle, device->id);
         if (osStatus != OsOK) {
             WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
         }

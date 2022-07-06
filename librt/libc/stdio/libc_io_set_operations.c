@@ -25,27 +25,27 @@
 #include <internal/_io.h>
 #include <ddk/handle.h>
 
-OsStatus_t stdio_set_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+oscode_t stdio_set_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_set_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+oscode_t stdio_set_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_set_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oscode_t stdio_set_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_set_op_resize(stdio_handle_t* handle, long long resize_by)
+oscode_t stdio_set_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_set_op_close(stdio_handle_t* handle, int options)
+oscode_t stdio_set_op_close(stdio_handle_t* handle, int options)
 {
     if (handle->object.handle != UUID_INVALID) {
         return handle_destroy(handle->object.handle);
@@ -53,12 +53,12 @@ OsStatus_t stdio_set_op_close(stdio_handle_t* handle, int options)
     return OsNotSupported;
 }
 
-OsStatus_t stdio_set_op_inherit(stdio_handle_t* handle)
+oscode_t stdio_set_op_inherit(stdio_handle_t* handle)
 {
     return OsOK;
 }
 
-OsStatus_t stdio_set_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
+oscode_t stdio_set_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
 {
     return OsNotSupported;
 }

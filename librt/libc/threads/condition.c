@@ -56,7 +56,7 @@ cnd_signal(
     _In_ cnd_t* cond)
 {
     FutexParameters_t parameters;
-    OsStatus_t        status;
+    oscode_t        status;
     
 	if (cond == NULL) {
 		return thrd_error;
@@ -95,7 +95,7 @@ cnd_wait(
     _In_ mtx_t* mutex)
 {
     FutexParameters_t parameters;
-    OsStatus_t        status;
+    oscode_t        status;
 	if (!cond || !mutex) {
 		return thrd_error;
 	}
@@ -123,7 +123,7 @@ cnd_timedwait(
     _In_ const struct timespec* restrict time_point)
 {
     FutexParameters_t parameters;
-	OsStatus_t        status;
+	oscode_t        status;
     time_t            msec;
 	struct timespec   now, result;
 

@@ -108,8 +108,8 @@ SystemDebug(
  * @param[Out] bufferLengthOut Size of the ramdisk buffer
  * @return     Status of the operation.
  */
-DDKDECL(OsStatus_t,
-DdkUtilsMapRamdisk(
+DDKDECL(oscode_t,
+        DdkUtilsMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* bufferLengthOut));
 

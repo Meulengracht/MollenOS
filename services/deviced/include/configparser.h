@@ -37,7 +37,7 @@ DmRamdiskDiscover(void);
  * @param[Out] driverConfig The driver configuration instance to store the parsed data.
  * @return     Returns OsOK if the yaml configuration was valid, otherwise OsError
  */
-extern OsStatus_t
+extern oscode_t
 DmDriverConfigParseYaml(
         _In_  const uint8_t*              yaml,
         _In_  size_t                      length,

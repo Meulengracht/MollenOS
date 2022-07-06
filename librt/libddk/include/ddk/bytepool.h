@@ -413,7 +413,7 @@ typedef struct bytepool bytepool_t;
  * Add a region of memory to the buffer pool. If the pointer to the bytepool is passed as
  * null, it is treated as a new memory region and thus initialized. Otherwise memory is
  * added to the existing pool. */
-DDKDECL(OsStatus_t, bpool(void *buf, long len, bytepool_t **out));
+DDKDECL(oscode_t, bpool(void *buf, long len, bytepool_t **out));
 
 /* bget
  * Used for buffer allocation with the given pool. Returns NULL if there
@@ -470,6 +470,6 @@ DDKDECL(void, bpoold(bytepool_t *pool, void *buf, int dumpalloc, int dumpfree));
 /* bpoolv
  * Validate a buffer pool. If NDEBUG isn't defined,
  * any error generates an assertion failure. */
-DDKDECL(OsStatus_t, bpoolv(bytepool_t *pool, void *buf));
+DDKDECL(oscode_t, bpoolv(bytepool_t * pool, void *buf));
 
 #endif //!__BYTEPOOL_INTERFACE_H__

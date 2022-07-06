@@ -21,9 +21,9 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static OsStatus_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachment)
+static oscode_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachment)
 {
-    OsStatus_t osStatus;
+    oscode_t osStatus;
 
     osStatus = dma_attach(handle, attachment);
     if (osStatus != OsOK) {
@@ -38,11 +38,11 @@ static OsStatus_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachme
     return OsOK;
 }
 
-OsStatus_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
+oscode_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t            osStatus, osStatus2;
     struct dma_attachment attachment;
 
     osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
@@ -83,13 +83,13 @@ cleanup:
     return osStatus;
 }
 
-OsStatus_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
+oscode_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    OsStatus_t            osStatus, osStatus2;
+    oscode_t            osStatus, osStatus2;
     struct dma_attachment attachment;
-    LargeUInteger_t       position, result;
+    UInteger64_t       position, result;
 
     position.u.LowPart  = request->parameters.transfer_absolute.position_low;
     position.u.HighPart = request->parameters.transfer_absolute.position_high;
