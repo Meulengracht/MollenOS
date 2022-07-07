@@ -131,7 +131,7 @@ ApicTimerGetCount(
     // we will return the same value each time a thread calls this function, which we do
     // not want. However, what we should do here to avoid any data-races with switches
     // we should disable irqs while reading this
-    IntStatus_t intStatus   = InterruptDisable();
+    irqstate_t intStatus   = InterruptDisable();
     uint32_t    tick        = ApicReadLocal(APIC_CURRENT_COUNT);
     uint32_t    ticksPassed = ApicReadLocal(APIC_INITIAL_COUNT) - tick;
     _CRT_UNUSED(context);

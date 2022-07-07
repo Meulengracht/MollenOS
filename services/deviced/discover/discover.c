@@ -46,8 +46,8 @@ enum DmDriverState {
 
 struct DmDriver {
     element_t                    list_header;
-    UUId_t                       id;
-    UUId_t                       handle;
+    uuid_t                       id;
+    uuid_t                       handle;
     enum DmDriverState           state;
     MString_t*                   path;
     struct DriverConfiguration*  configuration;
@@ -57,12 +57,12 @@ struct DmDriver {
 
 struct DmDevice {
     element_t list_header;
-    UUId_t    id;
+    uuid_t    id;
 };
 
 static struct usched_mtx g_driversLock;
 static list_t            g_drivers  = LIST_INIT;
-static UUId_t            g_driverId = 1;
+static uuid_t            g_driverId = 1;
 
 void
 DmDiscoverInitialize(void)
@@ -148,7 +148,7 @@ static oscode_t
 __SpawnDriver(
         _In_ struct DmDriver* driver)
 {
-    UUId_t     handle;
+    uuid_t     handle;
     oscode_t osStatus;
     char       args[32];
 
@@ -168,7 +168,7 @@ __SpawnDriver(
 static void
 __RegisterDeviceForDriver(
         _In_ struct DmDriver* driver,
-        _In_ UUId_t         deviceId)
+        _In_ uuid_t         deviceId)
 {
     struct DmDevice* device;
 
@@ -214,7 +214,7 @@ __IsDriverMatch(
 
 oscode_t
 DmDiscoverFindDriver(
-        _In_ UUId_t                       deviceId,
+        _In_ uuid_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification)
 {
     oscode_t osStatus = OsNotExists;
@@ -244,7 +244,7 @@ DmDiscoverFindDriver(
 
 static struct DmDriver*
 __GetDriver(
-        _In_ UUId_t id)
+        _In_ uuid_t id)
 {
     struct DmDriver* result = NULL;
 

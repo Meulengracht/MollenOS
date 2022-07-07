@@ -57,7 +57,7 @@ typedef struct SchedulerObject {
     element_t               Header;
     _Atomic(int)            State;
     unsigned int            Flags;
-    UUId_t                  CoreId;
+    uuid_t                  CoreId;
     clock_t                 TimeSlice;
     clock_t                 TimeSliceLeft;
     int                     Queue;
@@ -149,14 +149,14 @@ TryAgain:
 
 static Scheduler_t*
 SchedulerGetFromCore(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     return CpuCoreScheduler(GetProcessorCore(coreId));
 }
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     Thread_t* thread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!thread) {
@@ -291,7 +291,7 @@ __AllocateScheduler(
     SystemCpu_t*     coreGroup = &GetMachine()->Processor;
     SystemCpuCore_t* iter;
     Scheduler_t*     scheduler;
-    UUId_t           coreId;
+    uuid_t           coreId;
     
     // Select the default core range
     if (domain != NULL) {
@@ -505,7 +505,7 @@ SchedulerObjectGetQueue(
     return object->Queue;
 }
 
-UUId_t
+uuid_t
 SchedulerObjectGetAffinity(
     _In_ SchedulerObject_t* object)
 {
@@ -531,7 +531,7 @@ void SchedulerDisable(void)
 
 void SchedulerEnable(void)
 {
-    UUId_t       coreId    = ArchGetProcessorCoreId();
+    uuid_t       coreId    = ArchGetProcessorCoreId();
     Scheduler_t* scheduler = SchedulerGetFromCore(coreId);
     if (scheduler->Enabled) {
         return;

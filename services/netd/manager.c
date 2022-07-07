@@ -41,7 +41,7 @@
 // This socket tree contains all the local system sockets that were created by
 // this machine. All remote sockets are maintained by the domains
 static rb_tree_t Sockets;
-static UUId_t    SocketSet;
+static uuid_t    SocketSet;
 static thrd_t    SocketMonitorHandle;
 
 /////////////////////////////////////////////////////
@@ -191,12 +191,12 @@ NetworkManagerInitialize(void)
 
 oscode_t
 NetworkManagerSocketCreate(
-    _In_  int     Domain,
-    _In_  int     Type,
-    _In_  int     Protocol,
-    _Out_ UUId_t* HandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut,
-    _Out_ UUId_t* SendBufferHandleOut)
+        _In_  int     Domain,
+        _In_  int     Type,
+        _In_  int     Protocol,
+        _Out_ uuid_t* HandleOut,
+        _Out_ uuid_t* RecvBufferHandleOut,
+        _Out_ uuid_t* SendBufferHandleOut)
 {
     Socket_t*          Socket;
     oscode_t         Status;
@@ -217,16 +217,16 @@ NetworkManagerSocketCreate(
     
     // Add it to the handle set
     event.events = IOSETOUT;
-    event.data.handle = (UUId_t)(uintptr_t)Socket->Header.key;
+    event.data.handle = (uuid_t)(uintptr_t)Socket->Header.key;
     Status = notification_queue_ctrl(SocketSet, IOSET_ADD,
-                                     (UUId_t)(uintptr_t)Socket->Header.key, &event);
+                                     (uuid_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OsOK) {
         // what the fuck TODO
         assert(0);
     }
     
     rb_tree_append(&Sockets, &Socket->Header);
-    *HandleOut           = (UUId_t)(uintptr_t)Socket->Header.key;
+    *HandleOut           = (uuid_t)(uintptr_t)Socket->Header.key;
     *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
     *RecvBufferHandleOut = Socket->Receive.DmaAttachment.handle;
     TRACE("[net_manager] [create] => %u", *HandleOut);
@@ -235,7 +235,7 @@ NetworkManagerSocketCreate(
 
 void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
 {
-    UUId_t     handle, recv_handle, send_handle;
+    uuid_t     handle, recv_handle, send_handle;
     oscode_t status = NetworkManagerSocketCreate(domain, type, protocol,
                                                  &handle, &recv_handle, &send_handle);
     sys_socket_create_response(message, status, handle, recv_handle, send_handle);
@@ -243,8 +243,8 @@ void sys_socket_create_invocation(struct gracht_message* message, const int doma
 
 oscode_t
 NetworkManagerSocketShutdown(
-    _In_ UUId_t Handle,
-    _In_ int    Options)
+        _In_ uuid_t Handle,
+        _In_ int    Options)
 {
     Socket_t*  Socket;
     oscode_t Status;
@@ -273,7 +273,7 @@ NetworkManagerSocketShutdown(
     return SocketShutdownImpl(Socket, Options);
 }
 
-void sys_socket_close_invocation(struct gracht_message* message, const UUId_t handle, const enum sys_close_options options)
+void sys_socket_close_invocation(struct gracht_message* message, const uuid_t handle, const enum sys_close_options options)
 {
     oscode_t status = NetworkManagerSocketShutdown(handle, options);
     sys_socket_close_response(message, status);
@@ -281,8 +281,8 @@ void sys_socket_close_invocation(struct gracht_message* message, const UUId_t ha
 
 oscode_t
 NetworkManagerSocketBind(
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address)
+        _In_ uuid_t                 Handle,
+        _In_ const struct sockaddr* Address)
 {
     Socket_t*  Socket;
     oscode_t Status;
@@ -306,7 +306,7 @@ NetworkManagerSocketBind(
     return Status;
 }
 
-void sys_socket_bind_invocation(struct gracht_message* message, const UUId_t handle,
+void sys_socket_bind_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
     oscode_t status = NetworkManagerSocketBind(handle, (const struct sockaddr*)address);
@@ -317,9 +317,9 @@ void sys_socket_bind_invocation(struct gracht_message* message, const UUId_t han
 // be sent by Domain 
 oscode_t
 NetworkManagerSocketConnect(
-    _In_ struct gracht_message* message,
-    _In_ UUId_t                 handle,
-    _In_ const struct sockaddr* address)
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle,
+        _In_ const struct sockaddr* address)
 {
     Socket_t*  socket;
     oscode_t status;
@@ -363,7 +363,7 @@ NetworkManagerSocketConnect(
     return status;
 }
 
-void sys_socket_connect_invocation(struct gracht_message* message, const UUId_t handle,
+void sys_socket_connect_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
     oscode_t status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
@@ -376,8 +376,8 @@ void sys_socket_connect_invocation(struct gracht_message* message, const UUId_t 
 // be sent by Domain. 
 oscode_t
 NetworkManagerSocketAccept(
-    _In_ struct gracht_message* message,
-    _In_ UUId_t                 handle)
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle)
 {
     Socket_t* socket;
     
@@ -395,7 +395,7 @@ NetworkManagerSocketAccept(
     return DomainAccept(message, socket);
 }
 
-void sys_socket_accept_invocation(struct gracht_message* message, const UUId_t handle)
+void sys_socket_accept_invocation(struct gracht_message* message, const uuid_t handle)
 {
     oscode_t status = NetworkManagerSocketAccept(message, handle);
     if (status != OsOK) {
@@ -405,8 +405,8 @@ void sys_socket_accept_invocation(struct gracht_message* message, const UUId_t h
 
 oscode_t
 NetworkManagerSocketListen(
-    _In_ UUId_t Handle,
-    _In_ int    ConnectionCount)
+        _In_ uuid_t Handle,
+        _In_ int    ConnectionCount)
 {
     Socket_t* Socket;
     
@@ -424,7 +424,7 @@ NetworkManagerSocketListen(
     return SocketListenImpl(Socket, ConnectionCount);
 }
 
-void sys_socket_listen_invocation(struct gracht_message* message, const UUId_t handle, const int backlog)
+void sys_socket_listen_invocation(struct gracht_message* message, const uuid_t handle, const int backlog)
 {
     oscode_t status = NetworkManagerSocketListen(handle, backlog);
     sys_socket_listen_response(message, status);
@@ -432,8 +432,8 @@ void sys_socket_listen_invocation(struct gracht_message* message, const UUId_t h
 
 oscode_t
 NetworkManagerSocketPair(
-    _In_ UUId_t Handle1,
-    _In_ UUId_t Handle2)
+        _In_ uuid_t Handle1,
+        _In_ uuid_t Handle2)
 {
     Socket_t*  Socket1;
     Socket_t*  Socket2;
@@ -477,7 +477,7 @@ NetworkManagerSocketPair(
     return Status;
 }
 
-void sys_socket_pair_invocation(struct gracht_message* message, const UUId_t handle1, const UUId_t handle2)
+void sys_socket_pair_invocation(struct gracht_message* message, const uuid_t handle1, const uuid_t handle2)
 {
     oscode_t status = NetworkManagerSocketPair(handle1, handle2);
     sys_socket_pair_response(message, status);
@@ -485,11 +485,11 @@ void sys_socket_pair_invocation(struct gracht_message* message, const UUId_t han
 
 oscode_t
 NetworkManagerSocketSetOption(
-    _In_ UUId_t           Handle,
-    _In_ int              Protocol,
-    _In_ unsigned int     Option,
-    _In_ const void*      Data,
-    _In_ socklen_t        DataLength)
+        _In_ uuid_t           Handle,
+        _In_ int              Protocol,
+        _In_ unsigned int     Option,
+        _In_ const void*      Data,
+        _In_ socklen_t        DataLength)
 {
     Socket_t* Socket;
     
@@ -500,8 +500,8 @@ NetworkManagerSocketSetOption(
     return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
 }
 
-void sys_socket_set_option_invocation(struct gracht_message* message, const UUId_t handle, const int protocol,
-        const unsigned int option, const uint8_t* data, const uint32_t data_count, const int length)
+void sys_socket_set_option_invocation(struct gracht_message* message, const uuid_t handle, const int protocol,
+                                      const unsigned int option, const uint8_t* data, const uint32_t data_count, const int length)
 {
     oscode_t status = NetworkManagerSocketSetOption(handle, protocol, option, data, length);
     sys_socket_set_option_response(message, status);
@@ -509,11 +509,11 @@ void sys_socket_set_option_invocation(struct gracht_message* message, const UUId
 
 oscode_t
 NetworkManagerSocketGetOption(
-    _In_  UUId_t           Handle,
-    _In_  int              Protocol,
-    _In_  unsigned int     Option,
-    _In_  void*            Data,
-    _Out_ socklen_t*       DataLengthOut)
+        _In_  uuid_t           Handle,
+        _In_  int              Protocol,
+        _In_  unsigned int     Option,
+        _In_  void*            Data,
+        _Out_ socklen_t*       DataLengthOut)
 {
     Socket_t* Socket;
     
@@ -524,7 +524,7 @@ NetworkManagerSocketGetOption(
     return GetSocketOptionImpl(Socket, Protocol, Option, Data, DataLengthOut);
 }
 
-void sys_socket_get_option_invocation(struct gracht_message* message, const UUId_t handle,
+void sys_socket_get_option_invocation(struct gracht_message* message, const uuid_t handle,
         const int protocol, const unsigned int option)
 {
     char       buffer[32];
@@ -535,9 +535,9 @@ void sys_socket_get_option_invocation(struct gracht_message* message, const UUId
 
 oscode_t
 NetworkManagerSocketGetAddress(
-    _In_ UUId_t           Handle,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address)
+        _In_ uuid_t           Handle,
+        _In_ int              Source,
+        _In_ struct sockaddr* Address)
 {
     Socket_t* Socket;
     
@@ -549,7 +549,7 @@ NetworkManagerSocketGetAddress(
 }
 
 void sys_socket_get_address_invocation(struct gracht_message* message,
-        const UUId_t handle, const enum sys_address_type type)
+                                       const uuid_t handle, const enum sys_address_type type)
 {
     struct sockaddr_storage address;
     oscode_t              status = NetworkManagerSocketGetAddress(handle, type, (struct sockaddr*)&address);
@@ -558,7 +558,7 @@ void sys_socket_get_address_invocation(struct gracht_message* message,
 
 Socket_t*
 NetworkManagerSocketGet(
-    _In_ UUId_t Handle)
+        _In_ uuid_t Handle)
 {
     return (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)(uintptr_t)Handle);
 }

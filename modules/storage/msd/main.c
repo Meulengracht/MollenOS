@@ -38,7 +38,7 @@ static list_t g_devices = LIST_INIT;
 
 MsdDevice_t*
 MsdDeviceGet(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
@@ -105,7 +105,7 @@ OnUnregister(
     return MsdDeviceDestroy(MsdDevice);
 }
 
-void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     oscode_t                 status     = OsNotExists;
@@ -124,7 +124,7 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t de
 }
 
 // lazyness
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId) { }
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }
 void ctt_usbhost_event_transfer_status_invocation(void) { }

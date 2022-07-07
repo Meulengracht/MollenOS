@@ -33,7 +33,7 @@
 #include <threading.h>
 
 struct resource_handle {
-    UUId_t             id;
+    uuid_t             id;
     HandleType_t       type;
     unsigned int       flags;
     MString_t*         path;
@@ -44,7 +44,7 @@ struct resource_handle {
 
 struct handle_mapping {
     MString_t* path;
-    UUId_t     handle;
+    uuid_t     handle;
 };
 
 struct handle_cleanup {
@@ -63,10 +63,10 @@ static int      handle_cmp(const void* element1, const void* element2);
 static hashtable_t     g_handlemappings;
 static hashtable_t     g_handles;
 static IrqSpinlock_t   g_handlesLock; // use irq lock as we use the handles from interrupts
-static _Atomic(UUId_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
+static _Atomic(uuid_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
 static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
 static queue_t         g_cleanQueue    = QUEUE_INIT;
-static UUId_t          g_janitorHandle = UUID_INVALID;
+static uuid_t          g_janitorHandle = UUID_INVALID;
 
 oscode_t
 InitializeHandles(void)
@@ -93,7 +93,7 @@ InitializeHandleJanitor(void)
 
 static inline struct resource_handle*
 LookupSafeHandleInstance(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     if (!atomic_load(&g_nextHandleId)) {
@@ -108,7 +108,7 @@ LookupSafeHandleInstance(
 
 static struct resource_handle*
 AcquireHandleInstance(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     if (!atomic_load(&g_nextHandleId)) {
@@ -124,7 +124,7 @@ AcquireHandleInstance(
     return handle;
 }
 
-UUId_t
+uuid_t
 CreateHandle(
     _In_ HandleType_t       handleType,
     _In_ HandleDestructorFn destructor,
@@ -148,8 +148,8 @@ CreateHandle(
 
 oscode_t
 AcquireHandle(
-    _In_  UUId_t handleId,
-    _Out_ void** resourceOut)
+        _In_  uuid_t handleId,
+        _Out_ void** resourceOut)
 {
     struct resource_handle* handle = AcquireHandleInstance(handleId);
     if (!handle) {
@@ -164,8 +164,8 @@ AcquireHandle(
 
 oscode_t
 RegisterHandlePath(
-    _In_ UUId_t      handleId,
-    _In_ const char* path)
+        _In_ uuid_t      handleId,
+        _In_ const char* path)
 {
     struct resource_handle* handle;
     struct handle_mapping*  mapping;
@@ -208,8 +208,8 @@ RegisterHandlePath(
 
 oscode_t
 LookupHandleByPath(
-    _In_  const char* path,
-    _Out_ UUId_t*     handleOut)
+        _In_  const char* path,
+        _Out_ uuid_t*     handleOut)
 {
     struct handle_mapping* mapping;
     MString_t*             internalPath;
@@ -232,8 +232,8 @@ LookupHandleByPath(
 
 void*
 LookupHandleOfType(
-    _In_ UUId_t       handleId,
-    _In_ HandleType_t handleType)
+        _In_ uuid_t       handleId,
+        _In_ HandleType_t handleType)
 {
     struct resource_handle* handle = LookupSafeHandleInstance(handleId);
     if (!handle || handle->type != handleType) {
@@ -263,7 +263,7 @@ static void AddHandleToCleanup(
 
 oscode_t
 DestroyHandle(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     void*                   resource;

@@ -36,7 +36,7 @@
 
 typedef struct Mutex {
     _Atomic(unsigned int) flags;
-    _Atomic(UUId_t)       owner;
+    _Atomic(uuid_t)       owner;
     int                   referenceCount;
     list_t                blockQueue;
     spinlock_t            syncObject;

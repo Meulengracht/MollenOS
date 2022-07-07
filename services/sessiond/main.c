@@ -31,7 +31,7 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-static UUId_t WindowingSystemId = UUID_INVALID;
+static uuid_t WindowingSystemId = UUID_INVALID;
 
 oscode_t OnUnload(void)
 {

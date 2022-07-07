@@ -59,10 +59,10 @@ extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
 extern void RealPath(FileSystemRequest_t* request, void*);
 
-static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
+static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
 
 static FileSystemRequest_t*
-CreateRequest(struct gracht_message* message, UUId_t processId)
+CreateRequest(struct gracht_message* message, uuid_t processId)
 {
     FileSystemRequest_t* request;
 
@@ -96,7 +96,7 @@ void VfsRequestSetState(FileSystemRequest_t* request, enum FileSystemRequestStat
 }
 
 void sys_file_open_invocation(struct gracht_message* message,
-                              const UUId_t processId, const char* path,
+                              const uuid_t processId, const char* path,
                               const unsigned int options, const unsigned int access)
 {
     FileSystemRequest_t* request;
@@ -125,7 +125,7 @@ void sys_file_open_invocation(struct gracht_message* message,
     usched_task_queue((usched_task_fn)OpenFile, request);
 }
 
-void sys_file_close_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_close_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -141,7 +141,7 @@ void sys_file_close_invocation(struct gracht_message* message, const UUId_t proc
 }
 
 void sys_file_delete_invocation(struct gracht_message* message,
-                                const UUId_t processId, const char* path, const unsigned int flags)
+                                const uuid_t processId, const char* path, const unsigned int flags)
 {
     FileSystemRequest_t* request;
 
@@ -157,8 +157,8 @@ void sys_file_delete_invocation(struct gracht_message* message,
     usched_task_queue((usched_task_fn)DeletePath, request);
 }
 
-void sys_file_transfer_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle,
-                                  const enum sys_transfer_direction direction, const UUId_t bufferHandle,
+void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle,
+                                  const enum sys_transfer_direction direction, const uuid_t bufferHandle,
                                   const size_t offset, const size_t length)
 {
     FileSystemRequest_t* request;
@@ -189,8 +189,8 @@ void sys_file_transfer_invocation(struct gracht_message* message, const UUId_t p
     }
 }
 
-void sys_file_seek_invocation(struct gracht_message* message, const UUId_t processId,
-                              const UUId_t handle, const unsigned int seekLow, const unsigned int seekHigh)
+void sys_file_seek_invocation(struct gracht_message* message, const uuid_t processId,
+                              const uuid_t handle, const unsigned int seekLow, const unsigned int seekHigh)
 {
     FileSystemRequest_t* request;
 
@@ -207,10 +207,10 @@ void sys_file_seek_invocation(struct gracht_message* message, const UUId_t proce
     usched_task_queue((usched_task_fn)Seek, request);
 }
 
-void sys_file_transfer_absolute_invocation(struct gracht_message* message, const UUId_t processId,
-                                           const UUId_t handle, const enum sys_transfer_direction direction,
+void sys_file_transfer_absolute_invocation(struct gracht_message* message, const uuid_t processId,
+                                           const uuid_t handle, const enum sys_transfer_direction direction,
                                            const unsigned int seekLow, const unsigned int seekHigh,
-                                           const UUId_t bufferHandle, const size_t offset, const size_t length)
+                                           const uuid_t bufferHandle, const size_t offset, const size_t length)
 {
     FileSystemRequest_t* request;
 
@@ -242,7 +242,7 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
     }
 }
 
-void sys_file_flush_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_flush_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -257,7 +257,7 @@ void sys_file_flush_invocation(struct gracht_message* message, const UUId_t proc
     usched_task_queue((usched_task_fn)Flush, request);
 }
 
-void sys_file_move_invocation(struct gracht_message* message, const UUId_t processId,
+void sys_file_move_invocation(struct gracht_message* message, const uuid_t processId,
                               const char* source, const char* destination, const uint8_t copy)
 {
     FileSystemRequest_t* request;
@@ -280,7 +280,7 @@ void sys_file_move_invocation(struct gracht_message* message, const UUId_t proce
     usched_task_queue((usched_task_fn)Move, request);
 }
 
-void sys_file_link_invocation(struct gracht_message* message, const UUId_t processId,
+void sys_file_link_invocation(struct gracht_message* message, const uuid_t processId,
                               const char* source, const char* destination, const uint8_t symbolic)
 {
     FileSystemRequest_t* request;
@@ -303,7 +303,7 @@ void sys_file_link_invocation(struct gracht_message* message, const UUId_t proce
     usched_task_queue((usched_task_fn)Link, request);
 }
 
-void sys_file_get_position_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_get_position_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -318,7 +318,7 @@ void sys_file_get_position_invocation(struct gracht_message* message, const UUId
     usched_task_queue((usched_task_fn)GetPosition, request);
 }
 
-void sys_file_duplicate_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_duplicate_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -333,7 +333,7 @@ void sys_file_duplicate_invocation(struct gracht_message* message, const UUId_t 
     usched_task_queue((usched_task_fn)Duplicate, request);
 }
 
-void sys_file_get_access_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -348,8 +348,8 @@ void sys_file_get_access_invocation(struct gracht_message* message, const UUId_t
     usched_task_queue((usched_task_fn)GetAccess, request);
 }
 
-void sys_file_set_access_invocation(struct gracht_message* message, const UUId_t processId,
-                                     const UUId_t handle, const unsigned int access)
+void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t processId,
+                                    const uuid_t handle, const unsigned int access)
 {
     FileSystemRequest_t* request;
 
@@ -365,7 +365,7 @@ void sys_file_set_access_invocation(struct gracht_message* message, const UUId_t
     usched_task_queue((usched_task_fn)SetAccess, request);
 }
 
-void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -380,8 +380,8 @@ void sys_file_get_size_invocation(struct gracht_message* message, const UUId_t p
     usched_task_queue((usched_task_fn)GetSize, request);
 }
 
-void sys_file_set_size_invocation(struct gracht_message* message, const UUId_t processId,
-                                  const UUId_t handle, const unsigned int sizeLow, const unsigned int sizeHigh)
+void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t processId,
+                                  const uuid_t handle, const unsigned int sizeLow, const unsigned int sizeHigh)
 {
     FileSystemRequest_t* request;
 
@@ -398,7 +398,7 @@ void sys_file_set_size_invocation(struct gracht_message* message, const UUId_t p
     usched_task_queue((usched_task_fn)SetSize, request);
 }
 
-void sys_file_get_path_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     FileSystemRequest_t* request;
 
@@ -414,7 +414,7 @@ void sys_file_get_path_invocation(struct gracht_message* message, const UUId_t p
     usched_task_queue((usched_task_fn)GetFullPathByHandle, request);
 }
 
-void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     struct sys_file_descriptor gdescriptor = { 0 };
     FileSystemRequest_t* request;
@@ -430,7 +430,7 @@ void sys_file_fstat_invocation(struct gracht_message* message, const UUId_t proc
     usched_task_queue((usched_task_fn)StatFromHandle, request);
 }
 
-void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path, const int followLinks)
+void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const int followLinks)
 {
     struct sys_file_descriptor gdescriptor = { 0 };
     FileSystemRequest_t* request;
@@ -452,7 +452,7 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const UUId_t
     usched_task_queue((usched_task_fn)StatFromPath, request);
 }
 
-void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t processId, const char* path)
+void sys_file_fstat_link_invocation(struct gracht_message* message, const uuid_t processId, const char* path)
 {
     FileSystemRequest_t* request;
 
@@ -472,7 +472,7 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const UUId_t
     usched_task_queue((usched_task_fn)StatLinkPathFromPath, request);
 }
 
-void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t handle)
+void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*             request;
@@ -488,7 +488,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const UUId_t pro
     usched_task_queue((usched_task_fn)StatFileSystemByHandle, request);
 }
 
-void sys_file_fsstat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* path, const int followLinks)
+void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const int followLinks)
 {
     struct sys_filesystem_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*             request;
@@ -526,7 +526,7 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
     usched_task_queue((usched_task_fn)RealPath, request);
 }
 
-void sys_file_ststat_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t fileHandle)
+void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t fileHandle)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;
@@ -542,7 +542,7 @@ void sys_file_ststat_invocation(struct gracht_message* message, const UUId_t pro
     usched_task_queue((usched_task_fn)StatStorageByHandle, request);
 }
 
-void sys_file_ststat_path_invocation(struct gracht_message* message, const UUId_t processId, const char* filePath, const int followLinks)
+void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* filePath, const int followLinks)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     FileSystemRequest_t*       request;

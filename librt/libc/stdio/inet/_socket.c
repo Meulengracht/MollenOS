@@ -30,8 +30,8 @@
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 
-int socket_create(int domain, int type, int protocol, UUId_t handle, 
-    UUId_t send_handle, UUId_t recv_handle)
+int socket_create(int domain, int type, int protocol, uuid_t handle,
+                  uuid_t send_handle, uuid_t recv_handle)
 {
     stdio_handle_t* ioObject;
     int             status;

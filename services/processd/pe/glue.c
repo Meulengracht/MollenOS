@@ -57,7 +57,7 @@ __TestFilePath(
 
 static oscode_t
 __GuessBasePath(
-        _In_  UUId_t      processHandle,
+        _In_  uuid_t      processHandle,
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
 {
@@ -131,7 +131,7 @@ __TestRamdiskPath(
 
 static oscode_t
 __ResolveRelativePath(
-        _In_  UUId_t      processId,
+        _In_  uuid_t      processId,
         _In_  MString_t*  parentPath,
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
@@ -172,7 +172,7 @@ __ResolveRelativePath(
 
 oscode_t
 PeImplResolveFilePath(
-        _In_  UUId_t      processId,
+        _In_  uuid_t      processId,
         _In_  MString_t*  parentPath,
         _In_  MString_t*  path,
         _Out_ MString_t** fullPathOut)
@@ -289,7 +289,7 @@ oscode_t
 PeImplCreateImageSpace(
         _Out_ MemorySpaceHandle_t* handleOut)
 {
-    UUId_t     memorySpaceHandle = UUID_INVALID;
+    uuid_t     memorySpaceHandle = UUID_INVALID;
     oscode_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
     if (osStatus != OsOK) {
         return osStatus;
@@ -328,7 +328,7 @@ PeImplAcquireImageMapping(
     Parameters.Length         = length;
     Parameters.Flags          = flags;
 
-    osStatus = CreateMemoryMapping((UUId_t)(uintptr_t)memorySpaceHandle, &Parameters, (void**)&stateObject->Address);
+    osStatus = CreateMemoryMapping((uuid_t)(uintptr_t)memorySpaceHandle, &Parameters, (void**)&stateObject->Address);
     *address = stateObject->Address;
     if (osStatus != OsOK) {
         free(stateObject);

@@ -32,9 +32,9 @@ int socket(int domain, int type, int protocol)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oscode_t               os_status;
-    UUId_t                   handle;
-    UUId_t                   send_handle;
-    UUId_t                   recv_handle;
+    uuid_t                   handle;
+    uuid_t                   send_handle;
+    uuid_t                   recv_handle;
     int                      fd;
     
     // We need to create the socket object at kernel level, as we need

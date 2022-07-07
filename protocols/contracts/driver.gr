@@ -9,8 +9,8 @@
  
  service driver (16) {
     func register_device(uint8[] device) : () = 1;
-    func get_device_protocols(UUId_t deviceId) : () = 2;
+    func get_device_protocols(uuid_t deviceId) : () = 2;
     
-    event device_protocol : (UUId_t deviceId, string protocolName, uint8 protocolId) = 3;
+    event device_protocol : (uuid_t deviceId, string protocolName, uint8 protocolId) = 3;
  }
  

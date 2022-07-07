@@ -307,8 +307,8 @@ ScDmaExport(
 
 oscode_t
 ScDmaAttach(
-    _In_ UUId_t                 handle,
-    _In_ struct dma_attachment* attachment)
+        _In_ uuid_t                 handle,
+        _In_ struct dma_attachment* attachment)
 {
     if (!attachment) {
         ERROR("[sc_dma_attach] null attachment pointer");
@@ -335,31 +335,31 @@ ScDmaDetach(
 
 oscode_t
 ScDmaRead(
-    _In_  UUId_t  Handle,
-    _In_  size_t  Offset,
-    _In_  void*   Buffer,
-    _In_  size_t  Length,
-    _Out_ size_t* BytesRead)
+        _In_  uuid_t  Handle,
+        _In_  size_t  Offset,
+        _In_  void*   Buffer,
+        _In_  size_t  Length,
+        _Out_ size_t* BytesRead)
 {
     return MemoryRegionRead(Handle, Offset, Buffer, Length, BytesRead);
 }
 
 oscode_t
 ScDmaWrite(
-    _In_  UUId_t      Handle,
-    _In_  size_t      Offset,
-    _In_  const void* Buffer,
-    _In_  size_t      Length,
-    _Out_ size_t*     BytesWritten)
+        _In_  uuid_t      Handle,
+        _In_  size_t      Offset,
+        _In_  const void* Buffer,
+        _In_  size_t      Length,
+        _Out_ size_t*     BytesWritten)
 {
     return MemoryRegionWrite(Handle, Offset, Buffer, Length, BytesWritten);
 }
 
 oscode_t
 ScDmaGetMetrics(
-    _In_  UUId_t         Handle,
-    _Out_ int*           SgCountOut,
-    _Out_ struct dma_sg* SgListOut)
+        _In_  uuid_t         Handle,
+        _Out_ int*           SgCountOut,
+        _Out_ struct dma_sg* SgListOut)
 {
     return MemoryRegionGetSg(Handle, SgCountOut, SgListOut);
 }
@@ -426,8 +426,8 @@ ScDmaAttachmentUnmap(
 
 oscode_t
 ScCreateMemorySpace(
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut)
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut)
 {
     if (handleOut == NULL) {
         return OsError;
@@ -437,8 +437,8 @@ ScCreateMemorySpace(
 
 oscode_t
 ScGetThreadMemorySpaceHandle(
-    _In_  UUId_t  threadHandle,
-    _Out_ UUId_t* handleOut)
+        _In_  uuid_t  threadHandle,
+        _Out_ uuid_t* handleOut)
 {
     Thread_t* thread;
     if (handleOut == NULL) {
@@ -455,9 +455,9 @@ ScGetThreadMemorySpaceHandle(
 
 oscode_t
 ScCreateMemorySpaceMapping(
-    _In_  UUId_t                          handle,
-    _In_  struct MemoryMappingParameters* mappingParameters,
-    _Out_ void**                          addressOut)
+        _In_  uuid_t                          handle,
+        _In_  struct MemoryMappingParameters* mappingParameters,
+        _Out_ void**                          addressOut)
 {
     MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
     unsigned int   memoryFlags   = MAPPING_COMMIT | MAPPING_USERSPACE;
@@ -519,10 +519,10 @@ ScCreateMemorySpaceMapping(
 
 oscode_t
 ScMapThreadMemoryRegion(
-    _In_  UUId_t    threadHandle,
-    _In_  uintptr_t stackPointer,
-    _Out_ void**    topOfStack,
-    _Out_ void**    pointerOut)
+        _In_  uuid_t    threadHandle,
+        _In_  uintptr_t stackPointer,
+        _Out_ void**    topOfStack,
+        _Out_ void**    pointerOut)
 {
     Thread_t*  thread;
     uintptr_t  copiedAddress;

@@ -70,9 +70,9 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    UUId_t                   socket_handle;
-    UUId_t                   send_handle;
-    UUId_t                   recv_handle;
+    uuid_t                   socket_handle;
+    uuid_t                   send_handle;
+    uuid_t                   recv_handle;
     oscode_t               status;
     int                      accept_iod;
     

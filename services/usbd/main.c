@@ -53,15 +53,15 @@ OnLoad(void)
 
 // for some reason these are pulled in by libddk and don't really care to fix it,
 // because it happens due to my lazyness in libddk
-void ctt_usbhub_event_port_status_invocation(gracht_client_t* client, const UUId_t id, const oscode_t result, const size_t bytesTransferred) {
+void ctt_usbhub_event_port_status_invocation(gracht_client_t* client, const uuid_t id, const oscode_t result, const size_t bytesTransferred) {
 
 }
-void sys_device_event_protocol_device_invocation(gracht_client_t* client, const UUId_t deviceId, const UUId_t driverId, const uint8_t protocolId) {
+void sys_device_event_protocol_device_invocation(gracht_client_t* client, const uuid_t deviceId, const uuid_t driverId, const uint8_t protocolId) {
 
 }
-void sys_device_event_device_update_invocation(gracht_client_t* client, const UUId_t deviceId, const uint8_t connected) {
+void sys_device_event_device_update_invocation(gracht_client_t* client, const uuid_t deviceId, const uint8_t connected) {
 
 }
-void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const UUId_t transferId, const UsbTransferStatus_t status, const size_t dataIndex) {
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId, const UsbTransferStatus_t status, const size_t dataIndex) {
 
 }

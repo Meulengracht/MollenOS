@@ -170,6 +170,6 @@ OnUnregister(
 }
 
 // Lazyness in ddk that unfortuantely draws in more context than neccessary.
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId) { }
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }

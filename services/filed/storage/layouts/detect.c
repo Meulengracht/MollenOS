@@ -33,11 +33,11 @@ static guid_t g_emptyGuid = GUID_EMPTY;
 
 oscode_t
 VfsStorageDetectFileSystem(
-	_In_ FileSystemStorage_t* storage,
-	_In_ UUId_t               bufferHandle,
-	_In_ void*                buffer,
-	_In_ uint64_t             sector,
-	_In_ uint64_t             sectorCount)
+        _In_ FileSystemStorage_t* storage,
+        _In_ uuid_t               bufferHandle,
+        _In_ void*                buffer,
+        _In_ uint64_t             sector,
+        _In_ uint64_t             sectorCount)
 {
     enum FileSystemType type = FileSystemType_UNKNOWN;
 	MasterBootRecord_t* mbr;
@@ -96,20 +96,19 @@ VfsStorageDetectFileSystem(
 
 oscode_t
 VfsStorageParse(
-	_In_ FileSystemStorage_t* storage)
+	_In_ FileSystemStorage_t* fsStorage)
 {
-	oscode_t osStatus;
-	
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
+    oscode_t               osStatus;
 
-	TRACE("VfsStorageParse(SectorSize %u)", storage->storage.descriptor.SectorSize);
+	TRACE("VfsStorageParse(SectorSize %u)", fsStorage->Storage.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
 	dmaInfo.name     = "disk_temp_buffer";
-	dmaInfo.capacity = storage->storage.descriptor.SectorSize;
-	dmaInfo.length   = storage->storage.descriptor.SectorSize;
+	dmaInfo.capacity = fsStorage->Storage.SectorSize;
+	dmaInfo.length   = fsStorage->Storage.SectorSize;
 	dmaInfo.flags    = 0;
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
@@ -119,9 +118,9 @@ VfsStorageParse(
 	}
 
     // Always check for GPT table first
-    osStatus = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+    osStatus = GptEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
     if (osStatus == OsNotExists) {
-        osStatus = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+        osStatus = MbrEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 
 	dma_attachment_unmap(&dmaAttachment);

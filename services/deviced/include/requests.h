@@ -38,7 +38,7 @@ enum RequestState {
 };
 
 typedef struct Request {
-    UUId_t             id;
+    uuid_t             id;
     enum RequestState  state;
     struct usched_cnd  signal;
     element_t          leaf;
@@ -46,8 +46,8 @@ typedef struct Request {
     // request parameters
     union {
         struct {
-            UUId_t driver_id;
-            UUId_t driver_handle;
+            uuid_t driver_id;
+            uuid_t driver_handle;
         } notify;
         struct {
             uint8_t*     device_buffer;
@@ -55,24 +55,24 @@ typedef struct Request {
             unsigned int flags;
         } create;
         struct {
-            UUId_t device_id;
+            uuid_t device_id;
         } destroy;
         struct {
             uint8_t protocol;
         } get_devices_by_protocol;
         struct {
-            UUId_t      device_id;
+            uuid_t      device_id;
             uint8_t     protocol_id;
             const char* protocol_name;
         } register_protocol;
 
         struct {
-            UUId_t       device_id;
+            uuid_t       device_id;
             unsigned int command;
             unsigned int flags;
         } ioctl;
         struct {
-            UUId_t       device_id;
+            uuid_t       device_id;
             int          direction;
             unsigned int command;
             size_t       value;

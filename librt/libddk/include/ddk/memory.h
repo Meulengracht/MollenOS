@@ -37,15 +37,15 @@ struct MemoryMappingParameters {
 DDKDECL(oscode_t,
         CreateMemorySpace(
     _In_  unsigned int Flags,
-    _Out_ UUId_t*      Handle));
+    _Out_ uuid_t*      Handle));
 
 /**
  * @brief Retrieves the memory space that is currently running for the thread handle.
  */
 DDKDECL(oscode_t,
         GetMemorySpaceForThread(
-    _In_  UUId_t  Thread,
-    _Out_ UUId_t* Handle));
+    _In_  uuid_t  Thread,
+    _Out_ uuid_t* Handle));
 
 /**
  * CreateMemoryMapping
@@ -54,7 +54,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         CreateMemoryMapping(
-    _In_  UUId_t                          Handle,
+    _In_  uuid_t                          Handle,
     _In_  struct MemoryMappingParameters* Parameters,
     _Out_ void**                          AddressOut));
 

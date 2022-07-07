@@ -29,7 +29,7 @@ typedef struct FutexParameters FutexParameters_t;
 typedef struct {
     union {
         int     Integer;
-        UUId_t  Id;
+        uuid_t  Id;
         struct {
             const char* Pointer;
             size_t      Length;

@@ -51,7 +51,7 @@ struct MemorySpaceAllocation {
 
 struct MemorySynchronizationObject {
     _Atomic(int) CallsCompleted;
-    UUId_t       MemorySpaceHandle;
+    uuid_t       MemorySpaceHandle;
     uintptr_t    Address;
     size_t       Length;
 };
@@ -72,7 +72,7 @@ __MemorySyncCallback(
 {
     struct MemorySynchronizationObject* object  = (struct MemorySynchronizationObject*)context;
     MemorySpace_t*                      current = GetCurrentMemorySpace();
-    UUId_t                              currentHandle = GetCurrentMemorySpaceHandle();
+    uuid_t                              currentHandle = GetCurrentMemorySpaceHandle();
 
     // Make sure the current address space is matching
     // If NULL => everyone must update
@@ -225,8 +225,8 @@ __NewMemorySpace(
 
 oscode_t
 CreateMemorySpace(
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut)
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut)
 {
     MemorySpace_t* memorySpace;
     oscode_t     osStatus;
@@ -355,7 +355,7 @@ GetCurrentMemorySpace(void)
     }
 }
 
-UUId_t
+uuid_t
 GetCurrentMemorySpaceHandle(void)
 {
     Thread_t* currentThread = ThreadCurrentForCore(ArchGetProcessorCoreId());

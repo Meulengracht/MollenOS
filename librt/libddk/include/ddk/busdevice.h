@@ -66,7 +66,7 @@ typedef struct BusDevice {
  */
 DDKDECL(oscode_t,
         IoctlDevice(
-    _In_ UUId_t       Device,
+    _In_ uuid_t       Device,
     _In_ unsigned int Command,
     _In_ unsigned int Flags));
 
@@ -77,7 +77,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         IoctlDeviceEx(
-    _In_    UUId_t       Device,
+    _In_    uuid_t       Device,
     _In_    int          Direction,
     _In_    unsigned int Register,
     _InOut_ size_t*      Value,

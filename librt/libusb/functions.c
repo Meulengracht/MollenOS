@@ -35,7 +35,7 @@
 #include <ctt_usbhost_service_client.h>
 #include <ctt_usbhub_service_client.h>
 
-static _Atomic(UUId_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
+static _Atomic(uuid_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
 static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool*      DmaPool                  = NULL;
 static struct dma_attachment DmaAttachment;
@@ -113,13 +113,13 @@ UsbTransferInitialize(
 
 void
 UsbTransferSetup(
-    _In_ UsbTransfer_t* transfer,
-    _In_ UUId_t         setupBufferHandle,
-    _In_ size_t         setupBufferOffset,
-    _In_ UUId_t         dataBufferHandle,
-    _In_ size_t         dataBufferOffset,
-    _In_ size_t         dataLength,
-    _In_ uint8_t        type)
+        _In_ UsbTransfer_t* transfer,
+        _In_ uuid_t         setupBufferHandle,
+        _In_ size_t         setupBufferOffset,
+        _In_ uuid_t         dataBufferHandle,
+        _In_ size_t         dataBufferOffset,
+        _In_ size_t         dataLength,
+        _In_ uint8_t        type)
 {
     uint8_t ackType  = USB_TRANSACTION_IN;
     int     ackIndex = 1;
@@ -153,13 +153,13 @@ UsbTransferSetup(
 
 void
 UsbTransferPeriodic(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-    _In_ size_t         BufferLength,
-    _In_ size_t         DataLength,
-    _In_ uint8_t        DataDirection,
-    _In_ const void*    NotifificationData)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         BufferLength,
+        _In_ size_t         DataLength,
+        _In_ uint8_t        DataDirection,
+        _In_ const void*    NotifificationData)
 {
     // Initialize the data stage
     Transfer->Transactions[0].Type         = DataDirection;
@@ -175,11 +175,11 @@ UsbTransferPeriodic(
 
 oscode_t
 UsbTransferIn(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake)
 {
     usb_transaction_t* Transaction;
 
@@ -203,11 +203,11 @@ UsbTransferIn(
 
 oscode_t
 UsbTransferOut(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake)
 {
     usb_transaction_t* Transaction;
 
@@ -236,7 +236,7 @@ UsbTransferQueue(
 	_Out_ size_t*               bytesTransferred)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    UUId_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
+    uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      transferStatus = TransferInvalid;
 
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
@@ -248,12 +248,12 @@ UsbTransferQueue(
 
 UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-    _In_  usb_device_context_t* deviceContext,
-	_In_  UsbTransfer_t*        transfer,
-	_Out_ UUId_t*               transferIdOut)
+        _In_  usb_device_context_t* deviceContext,
+        _In_  UsbTransfer_t*        transfer,
+        _Out_ uuid_t*               transferIdOut)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
+    uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      status;
     
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
@@ -268,7 +268,7 @@ UsbTransferQueuePeriodic(
 oscode_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
-        _In_ UUId_t                transferId)
+        _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oscode_t               status;
@@ -282,8 +282,8 @@ UsbTransferResetPeriodic(
 
 oscode_t
 UsbTransferDequeuePeriodic(
-    _In_ usb_device_context_t* deviceContext,
-	_In_ UUId_t                transferId)
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oscode_t               status;
@@ -297,10 +297,10 @@ UsbTransferDequeuePeriodic(
 
 oscode_t
 UsbHubResetPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oscode_t               status;
@@ -313,10 +313,10 @@ UsbHubResetPort(
 
 oscode_t
 UsbHubQueryPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oscode_t               status;

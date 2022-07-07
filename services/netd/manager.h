@@ -40,68 +40,68 @@ NetworkManagerInitialize(void);
 
 oscode_t
 NetworkManagerSocketCreate(
-    _In_  int     Domain,
-    _In_  int     Type,
-    _In_  int     Protocol,
-    _Out_ UUId_t* HandleOut,
-    _Out_ UUId_t* SendBufferHandleOut,
-    _Out_ UUId_t* RecvBufferHandleOut);
+        _In_  int     Domain,
+        _In_  int     Type,
+        _In_  int     Protocol,
+        _Out_ uuid_t* HandleOut,
+        _Out_ uuid_t* SendBufferHandleOut,
+        _Out_ uuid_t* RecvBufferHandleOut);
 
 oscode_t
 NetworkManagerSocketShutdown(
-    _In_ UUId_t Handle,
-    _In_ int    Options);
+        _In_ uuid_t Handle,
+        _In_ int    Options);
 
 oscode_t
 NetworkManagerSocketBind(
-    _In_ UUId_t                 Handle,
-    _In_ const struct sockaddr* Address);
+        _In_ uuid_t                 Handle,
+        _In_ const struct sockaddr* Address);
 
 oscode_t
 NetworkManagerSocketConnect(
-    _In_ struct gracht_message* message,
-    _In_ UUId_t                 handle,
-    _In_ const struct sockaddr* address);
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle,
+        _In_ const struct sockaddr* address);
 
 oscode_t
 NetworkManagerSocketAccept(
-    _In_ struct gracht_message* message,
-    _In_ UUId_t                 handle);
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle);
 
 oscode_t
 NetworkManagerSocketPair(
-    _In_ UUId_t Handle1,
-    _In_ UUId_t Handle2);
+        _In_ uuid_t Handle1,
+        _In_ uuid_t Handle2);
 
 oscode_t
 NetworkManagerSocketListen(
-    _In_ UUId_t Handle,
-    _In_ int    ConnectionCount);
+        _In_ uuid_t Handle,
+        _In_ int    ConnectionCount);
 
 oscode_t
 NetworkManagerSocketSetOption(
-    _In_ UUId_t           Handle,
-    _In_ int              Protocol,
-    _In_ unsigned int     Option,
-    _In_ const void*      Data,
-    _In_ socklen_t        DataLength);
+        _In_ uuid_t           Handle,
+        _In_ int              Protocol,
+        _In_ unsigned int     Option,
+        _In_ const void*      Data,
+        _In_ socklen_t        DataLength);
 
 oscode_t
 NetworkManagerSocketGetOption(
-    _In_  UUId_t           Handle,
-    _In_  int              Protocol,
-    _In_  unsigned int     Option,
-    _In_  void*            Data,
-    _Out_ socklen_t*       DataLengthOut);
+        _In_  uuid_t           Handle,
+        _In_  int              Protocol,
+        _In_  unsigned int     Option,
+        _In_  void*            Data,
+        _Out_ socklen_t*       DataLengthOut);
 
 oscode_t
 NetworkManagerSocketGetAddress(
-    _In_ UUId_t           Handle,
-    _In_ int              Source,
-    _In_ struct sockaddr* Address);
+        _In_ uuid_t           Handle,
+        _In_ int              Source,
+        _In_ struct sockaddr* Address);
 
 Socket_t*
 NetworkManagerSocketGet(
-    _In_ UUId_t Handle);
+        _In_ uuid_t Handle);
 
 #endif //!__NET_MANAGER_H__

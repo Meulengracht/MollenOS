@@ -53,7 +53,7 @@ oscode_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     }
 
     osStatus = nodeVfs->Module->Operations.Seek(
-            &nodeVfs->Base, handle->Data,
+            nodeVfs->CommonData, handle->Data,
             position.QuadPart, &result.QuadPart);
     if (osStatus == OsOK) {
         handle->Mode     = MODE_NONE;

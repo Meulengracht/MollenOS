@@ -45,7 +45,7 @@ extern void  __cli(void);
 extern void  __sti(void);
 extern reg_t __getflags(void);
 
-static inline UUId_t __GetBspCoreId(void)
+static inline uuid_t __GetBspCoreId(void)
 {
     if (!GetCurrentDomain() || !GetCurrentDomain()->CoreGroup.Cores) {
         return CpuCoreId(GetMachine()->Processor.Cores);
@@ -70,7 +70,7 @@ static uint64_t __GetApicConfiguration(
     // - ALL ISA interrupts are going directly to the BSP core
     if (systemInterrupt->Line < NUM_ISA_INTERRUPTS && systemInterrupt->Pin == INTERRUPT_NONE) {
         int Enabled, LevelTriggered;
-        UUId_t bspCoreId;
+        uuid_t bspCoreId;
 
         PicGetConfiguration(systemInterrupt->Line, &Enabled, &LevelTriggered);
         bspCoreId        = __GetBspCoreId();
@@ -139,17 +139,17 @@ static uint64_t __GetApicConfiguration(
     return flags.QuadPart;
 }
 
-static UUId_t __AllocateSoftwareVector(
+static uuid_t __AllocateSoftwareVector(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
 {
-    UUId_t result = 0;
+    uuid_t result = 0;
     
     // Is it fixed?
     if ((flags & INTERRUPT_VECTOR) ||
         deviceInterrupt->Line != INTERRUPT_NONE) {
 
-        result = (UUId_t)deviceInterrupt->Line;
+        result = (uuid_t)deviceInterrupt->Line;
 
         // Fixed by vector?
         if (flags & INTERRUPT_VECTOR) {
@@ -174,9 +174,9 @@ static UUId_t __AllocateSoftwareVector(
 
 oscode_t
 InterruptResolve(
-    _In_  DeviceInterrupt_t* deviceInterrupt,
-    _In_  unsigned int       flags,
-    _Out_ UUId_t*            tableIndex)
+        _In_  DeviceInterrupt_t* deviceInterrupt,
+        _In_  unsigned int       flags,
+        _Out_ uuid_t*            tableIndex)
 {
     if (!(flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
         if (flags & INTERRUPT_VECTOR) {
@@ -211,7 +211,7 @@ InterruptResolve(
                 }
             }
         }
-        *tableIndex = INTERRUPT_PHYSICAL_BASE + (UUId_t)deviceInterrupt->Line;
+        *tableIndex = INTERRUPT_PHYSICAL_BASE + (uuid_t)deviceInterrupt->Line;
     }
     else {
         *tableIndex = __AllocateSoftwareVector(deviceInterrupt, flags);
@@ -258,7 +258,7 @@ InterruptConfigure(
 {
     SystemInterruptController_t* ic = NULL;
     uint64_t apicFlags;
-    UUId_t   tableIndex;
+    uuid_t   tableIndex;
     union {
         struct {
             uint32_t Lo;
@@ -315,7 +315,7 @@ UpdateEntry:
                 // Sanity, we can't just override the existing interrupt vector
                 // so if it's already installed, we modify the table-index
                 if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
-                    UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
+                    uuid_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
                     if (ExistingIndex != tableIndex) {
                         FATAL(FATAL_SCOPE_KERNEL, "Table index for already installed interrupt: %" PRIuIN "",
                               tableIndex);
@@ -336,25 +336,25 @@ UpdateEntry:
     return OsOK;
 }
 
-IntStatus_t
+irqstate_t
 InterruptDisable(void)
 {
-    IntStatus_t CurrentState = InterruptSaveState();
+    irqstate_t CurrentState = InterruptSaveState();
     __cli();
     return CurrentState;
 }
 
-IntStatus_t
+irqstate_t
 InterruptEnable(void)
 {
-    IntStatus_t CurrentState = InterruptSaveState();
+    irqstate_t CurrentState = InterruptSaveState();
     __sti();
     return CurrentState;
 }
 
-IntStatus_t
+irqstate_t
 InterruptRestoreState(
-    _In_ IntStatus_t State)
+        _In_ irqstate_t State)
 {
     if (State != 0) {
         return InterruptEnable();
@@ -364,7 +364,7 @@ InterruptRestoreState(
     }
 }
 
-IntStatus_t
+irqstate_t
 InterruptSaveState(void)
 {
     if (__getflags() & EFLAGS_INTERRUPT_FLAG) {

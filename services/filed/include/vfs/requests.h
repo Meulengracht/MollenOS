@@ -36,9 +36,9 @@ enum FileSystemRequestState {
 };
 
 typedef struct VFSRequest {
-    UUId_t                      id;
+    uuid_t                      id;
     enum FileSystemRequestState state;
-    UUId_t                      processId;
+    uuid_t                      processId;
     struct usched_mtx           lock;
     struct usched_cnd           signal;
 
@@ -50,33 +50,33 @@ typedef struct VFSRequest {
             unsigned int access;
         } open;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } close;
         struct {
             const char*  path;
             unsigned int options;
         } delete_path;
         struct {
-            UUId_t fileHandle;
-            UUId_t bufferHandle;
+            uuid_t fileHandle;
+            uuid_t bufferHandle;
             size_t offset;
             size_t length;
         } transfer;
         struct {
-            UUId_t   fileHandle;
+            uuid_t   fileHandle;
             uint32_t position_low;
             uint32_t position_high;
-            UUId_t   bufferHandle;
+            uuid_t   bufferHandle;
             size_t   offset;
             size_t   length;
         } transfer_absolute;
         struct {
-            UUId_t   fileHandle;
+            uuid_t   fileHandle;
             uint32_t position_low;
             uint32_t position_high;
         } seek;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } flush;
         struct {
             const char* from;
@@ -89,28 +89,28 @@ typedef struct VFSRequest {
             int         symbolic;
         } link;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } duplicate;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } get_position;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } get_access;
         struct {
-            UUId_t       fileHandle;
+            uuid_t       fileHandle;
             unsigned int access;
         } set_access;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } get_size;
         struct {
-            UUId_t   fileHandle;
+            uuid_t   fileHandle;
             uint32_t size_low;
             uint32_t size_high;
         } set_size;
         struct {
-            UUId_t fileHandle;
+            uuid_t fileHandle;
         } stat_handle;
         struct {
             const char* path;

@@ -33,7 +33,7 @@
  * The space can then be freed with MemoryFree
  */
 DDKDECL(oscode_t, MapThreadMemoryRegion(
-        _In_  UUId_t threadHandle,
+        _In_  uuid_t threadHandle,
         _In_  uintptr_t address,
         _Out_ void** topOfStack,
         _Out_ void** pointerOut));

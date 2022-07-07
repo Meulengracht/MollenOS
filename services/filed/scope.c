@@ -33,7 +33,7 @@ void VFSScopeInitialize(void)
 
 struct VFS*
 VFSScopeGet(
-        _In_ UUId_t processId)
+        _In_ uuid_t processId)
 {
     return g_rootScope;
 }

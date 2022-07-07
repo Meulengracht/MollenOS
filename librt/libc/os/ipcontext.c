@@ -39,7 +39,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     int             status;
     oscode_t      os_status;
     streambuffer_t* stream;
-    UUId_t          handle;
+    uuid_t          handle;
 
     TRACE("ipcontext(len=%u, addr=0x" PRIxIN ")", len, addr);
     
@@ -109,7 +109,7 @@ int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len,
     return OsCodeToErrNo(status);
 }
 
-int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandle)
+int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     size_t          bytesAvailable;
@@ -118,7 +118,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     streambuffer_t* stream;
     unsigned int    sb_options = 0;
     int             status;
-    UUId_t          sender;
+    uuid_t          sender;
 
     TRACE("iprecv(iod=%i, msg=0x%" PRIxIN ", len=%u, flags=0x%x", iod, buffer, len, flags);
 
@@ -147,8 +147,8 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandl
     }
     
     TRACE("iprecv message, size=%" PRIuIN, bytesAvailable);
-    streambuffer_read_packet_data(stream, &sender, sizeof(UUId_t), &state);
-    streambuffer_read_packet_data(stream, buffer, MIN(len, bytesAvailable - sizeof(UUId_t)), &state);
+    streambuffer_read_packet_data(stream, &sender, sizeof(uuid_t), &state);
+    streambuffer_read_packet_data(stream, buffer, MIN(len, bytesAvailable - sizeof(uuid_t)), &state);
     streambuffer_read_packet_end(stream, base, bytesAvailable);
 
     if (fromHandle) {

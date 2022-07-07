@@ -38,7 +38,7 @@ static list_t g_devices = LIST_INIT;
 
 HubDevice_t*
 HubDeviceGet(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
@@ -107,14 +107,14 @@ oscode_t OnUnregister(
     return OsOK;
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
                                             "usbhub\0\0\0\0\0\0\0\0\0\0",
                                             SERVICE_CTT_USBHUB_ID);
 }
 
-void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const UUId_t transferId,
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
                                                   const UsbTransferStatus_t status, const size_t dataIndex)
 {
     HubDevice_t* hubDevice = NULL;
@@ -157,7 +157,7 @@ static inline void __PortStatusToDescriptor(
     else                                                     { descriptor->Speed = USB_SPEED_FULL; }
 }
 
-void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;
@@ -176,7 +176,7 @@ respond:
     ctt_usbhub_query_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;

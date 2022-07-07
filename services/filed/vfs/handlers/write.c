@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oscode_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachment)
+static oscode_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment)
 {
     oscode_t osStatus;
 

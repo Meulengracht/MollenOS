@@ -48,7 +48,7 @@ static oscode_t     __InitializeDefaultsForThread(Thread_t* thread, const char* 
                                                   unsigned int flags, size_t kernelStackSize,
                                                   size_t userStackSize);
 static size_t         __GetDefaultStackSize(unsigned int threadFlags);
-static UUId_t         __CreateCookie(Thread_t* thread, Thread_t* parent);
+static uuid_t         __CreateCookie(Thread_t* thread, Thread_t* parent);
 static void           __AddChild(Thread_t* parent, Thread_t* child);
 static void           __RemoveChild(Thread_t* parent, Thread_t* child);
 
@@ -87,14 +87,14 @@ ThreadCreate(
         _In_ ThreadEntry_t entry,
         _In_ void*         arguments,
         _In_ unsigned int  flags,
-        _In_ UUId_t        memorySpaceHandle,
+        _In_ uuid_t        memorySpaceHandle,
         _In_ size_t        kernelMaxStackSize,
         _In_ size_t        userMaxStackSize,
-        _In_ UUId_t*       handle)
+        _In_ uuid_t*       handle)
 {
     Thread_t* thread;
     Thread_t* parent;
-    UUId_t    coreId;
+    uuid_t    coreId;
 
     TRACE("ThreadCreate(name=%s, entry=0x%" PRIxIN ", argments=0x%" PRIxIN ", flags=0x%x, memorySpaceHandle=%u"
           "kernelMaxStackSize=%" PRIuIN ", userMaxStackSize=%" PRIuIN ")",
@@ -183,7 +183,7 @@ ThreadCreate(
 
 oscode_t
 ThreadDetach(
-    _In_ UUId_t ThreadId)
+        _In_ uuid_t ThreadId)
 {
     Thread_t*  Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     Thread_t*  Target = THREAD_GET(ThreadId);
@@ -249,9 +249,9 @@ __TerminateWithChildren(
 
 oscode_t
 ThreadTerminate(
-    _In_ UUId_t ThreadId,
-    _In_ int    ExitCode,
-    _In_ int    TerminateChildren)
+        _In_ uuid_t ThreadId,
+        _In_ int    ExitCode,
+        _In_ int    TerminateChildren)
 {
     Thread_t* thread = THREAD_GET(ThreadId);
     int       value;
@@ -310,7 +310,7 @@ ThreadTerminate(
 
 int
 ThreadJoin(
-    _In_ UUId_t ThreadId)
+        _In_ uuid_t ThreadId)
 {
     Thread_t* target = THREAD_GET(ThreadId);
     int       value;
@@ -380,12 +380,12 @@ __EnterUsermode(
 
 Thread_t*
 ThreadCurrentForCore(
-    _In_ UUId_t CoreId)
+        _In_ uuid_t CoreId)
 {
     return CpuCoreCurrentThread(GetProcessorCore(CoreId));
 }
 
-UUId_t
+uuid_t
 ThreadCurrentHandle(void)
 {
     Thread_t* thread = CpuCoreCurrentThread(CpuCoreCurrent());
@@ -398,8 +398,8 @@ ThreadCurrentHandle(void)
 
 oscode_t
 ThreadIsRelated(
-    _In_ UUId_t Thread1,
-    _In_ UUId_t Thread2)
+        _In_ uuid_t Thread1,
+        _In_ uuid_t Thread2)
 {
     Thread_t* First  = THREAD_GET(Thread1);
     Thread_t* Second = THREAD_GET(Thread2);
@@ -411,7 +411,7 @@ ThreadIsRelated(
 
 int
 ThreadIsCurrentIdle(
-    _In_ UUId_t CoreId)
+        _In_ uuid_t CoreId)
 {
     SystemCpuCore_t* core = GetProcessorCore(CoreId);
     return (CpuCoreCurrentThread(core) == CpuCoreIdleThread(core)) ? 1 : 0;
@@ -426,7 +426,7 @@ ThreadCurrentMode(void)
     return ThreadCurrentForCore(ArchGetProcessorCoreId())->Flags & THREADING_MODEMASK;
 }
 
-UUId_t
+uuid_t
 ThreadHandle(
         _In_ Thread_t* Thread)
 {
@@ -446,7 +446,7 @@ ThreadStartTime(
     return &Thread->StartedAt;
 }
 
-UUId_t
+uuid_t
 ThreadCookie(
         _In_ Thread_t* Thread)
 {
@@ -509,7 +509,7 @@ ThreadMemorySpace(
     return Thread->MemorySpace;
 }
 
-UUId_t
+uuid_t
 ThreadMemorySpaceHandle(
         _In_ Thread_t* Thread)
 {
@@ -655,7 +655,7 @@ GetNextThread:
 _Noreturn static void
 __ThreadStart(void)
 {
-    UUId_t    coreId = ArchGetProcessorCoreId();
+    uuid_t    coreId = ArchGetProcessorCoreId();
     Thread_t* thread = ThreadCurrentForCore(coreId);
 
     TRACE("__ThreadStart(void)");
@@ -783,7 +783,7 @@ __InitializeDefaultsForThread(
         _In_ size_t        userStackSize)
 {
     oscode_t osStatus;
-    UUId_t     handle;
+    uuid_t     handle;
     char       buffer[16];
 
     if (!kernelStackSize) {
@@ -840,12 +840,12 @@ __InitializeDefaultsForThread(
     return __CreateThreadContexts(thread);
 }
 
-static UUId_t
+static uuid_t
 __CreateCookie(
         _In_ Thread_t* thread,
         _In_ Thread_t* parent)
 {
-    UUId_t cookie = thread->StartedAt.u.LowPart ^ parent->StartedAt.u.LowPart;
+    uuid_t cookie = thread->StartedAt.u.LowPart ^ parent->StartedAt.u.LowPart;
     for (int i = 0; i < 5; i++) {
         cookie >>= i;
         cookie += thread->StartedAt.u.LowPart;

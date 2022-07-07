@@ -32,9 +32,9 @@
 #define INTERRUPT_KERNEL 0x10000000U
 
 typedef struct SystemInterrupt {
-    UUId_t                   Id;
-    UUId_t                   Owner;
-    UUId_t                   Thread;
+    uuid_t                   Id;
+    uuid_t                   Owner;
+    uuid_t                   Thread;
     InterruptResourceTable_t KernelResources;
     InterruptHandler_t       Handler;
     void*                    Context;
@@ -60,7 +60,7 @@ GetFastInterruptTable(void);
 /* InterruptRegister
  * Tries to allocate the given interrupt source by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it returns UUID_INVALID */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 InterruptRegister(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags);
@@ -70,13 +70,13 @@ InterruptRegister(
  * with that interrupt also masks the interrupt if it was the only user */
 KERNELAPI oscode_t KERNELABI
 InterruptUnregister(
-    _In_ UUId_t Source);
+        _In_ uuid_t Source);
 
 /* InterruptGet
  * Retrieves the given interrupt source information as a SystemInterrupt_t */
 KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
-   _In_ UUId_t Source);
+        _In_ uuid_t Source);
 
 /* InterruptSetActiveStatus
  * Set's the current status for the calling cpu to interrupt-active state */

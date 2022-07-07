@@ -48,9 +48,9 @@ extern oscode_t ScMapBootFramebuffer(void** bufferOut);
 extern oscode_t ScMapRamdisk(void** bufferOut, size_t* lengthOut);
 
 // Module system calls
-extern oscode_t ScCreateMemorySpace(unsigned int flags, UUId_t* handleOut);
-extern oscode_t ScGetThreadMemorySpaceHandle(UUId_t threadHandle, UUId_t* handleOut);
-extern oscode_t ScCreateMemorySpaceMapping(UUId_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
+extern oscode_t ScCreateMemorySpace(unsigned int flags, uuid_t* handleOut);
+extern oscode_t ScGetThreadMemorySpaceHandle(uuid_t threadHandle, uuid_t* handleOut);
+extern oscode_t ScCreateMemorySpaceMapping(uuid_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
 
 // Driver system calls
 extern oscode_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
@@ -61,32 +61,32 @@ extern oscode_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oscode_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oscode_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oscode_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
-extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
-extern oscode_t ScUnregisterInterrupt(UUId_t sourceId);
+extern uuid_t     ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
+extern oscode_t ScUnregisterInterrupt(uuid_t sourceId);
 extern oscode_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
-extern oscode_t ScMapThreadMemoryRegion(UUId_t, uintptr_t, void**, void**);
+extern oscode_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
 
 ///////////////////////////////////////////////
 // Operating System Interface
 // - Unprotected, all
 
 // Threading system calls
-extern oscode_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, UUId_t*);
+extern oscode_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, uuid_t*);
 extern oscode_t ScThreadExit(int ExitCode);
-extern oscode_t ScThreadJoin(UUId_t ThreadId, int* ExitCode);
-extern oscode_t ScThreadDetach(UUId_t ThreadId);
-extern oscode_t ScThreadSignal(UUId_t ThreadId, int SignalCode);
+extern oscode_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
+extern oscode_t ScThreadDetach(uuid_t ThreadId);
+extern oscode_t ScThreadSignal(uuid_t ThreadId, int SignalCode);
 extern oscode_t ScThreadYield(void);
-extern UUId_t     ScThreadGetCurrentId(void);
-extern UUId_t     ScThreadCookie(void);
+extern uuid_t     ScThreadGetCurrentId(void);
+extern uuid_t     ScThreadCookie(void);
 extern oscode_t ScThreadSetCurrentName(const char* ThreadName);
 extern oscode_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 
 // Synchronization system calls
 extern oscode_t ScFutexWait(FutexParameters_t* parameters);
 extern oscode_t ScFutexWake(FutexParameters_t* parameters);
-extern oscode_t ScEventCreate(unsigned int, unsigned int, UUId_t*, atomic_int**);
+extern oscode_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
 
 // Memory system calls
 extern oscode_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
@@ -97,24 +97,24 @@ extern oscode_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oscode_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
 extern oscode_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
-extern oscode_t ScDmaAttach(UUId_t, struct dma_attachment*);
+extern oscode_t ScDmaAttach(uuid_t, struct dma_attachment*);
 extern oscode_t ScDmaAttachmentMap(struct dma_attachment*, unsigned int);
 extern oscode_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
 extern oscode_t ScDmaAttachmentRefresh(struct dma_attachment*);
 extern oscode_t ScDmaAttachmentCommit(struct dma_attachment*, void*, size_t);
 extern oscode_t ScDmaAttachmentUnmap(struct dma_attachment*);
 extern oscode_t ScDmaDetach(struct dma_attachment*);
-extern oscode_t ScDmaGetMetrics(UUId_t, int*, struct dma_sg*);
+extern oscode_t ScDmaGetMetrics(uuid_t, int*, struct dma_sg*);
 
-extern oscode_t ScCreateHandle(UUId_t*);
-extern oscode_t ScDestroyHandle(UUId_t Handle);
-extern oscode_t ScRegisterHandlePath(UUId_t, const char*);
-extern oscode_t ScLookupHandle(const char*, UUId_t*);
-extern oscode_t ScSetHandleActivity(UUId_t, unsigned int);
+extern oscode_t ScCreateHandle(uuid_t*);
+extern oscode_t ScDestroyHandle(uuid_t Handle);
+extern oscode_t ScRegisterHandlePath(uuid_t, const char*);
+extern oscode_t ScLookupHandle(const char*, uuid_t*);
+extern oscode_t ScSetHandleActivity(uuid_t, unsigned int);
 
-extern oscode_t ScCreateHandleSet(unsigned int, UUId_t*);
-extern oscode_t ScControlHandleSet(UUId_t, int, UUId_t, unsigned int, struct ioset_event*);
-extern oscode_t ScListenHandleSet(UUId_t, HandleSetWaitParameters_t*, int*);
+extern oscode_t ScCreateHandleSet(unsigned int, uuid_t*);
+extern oscode_t ScControlHandleSet(uuid_t, int, uuid_t, unsigned int, struct ioset_event*);
+extern oscode_t ScListenHandleSet(uuid_t, HandleSetWaitParameters_t*, int*);
 
 // Misc interface
 extern oscode_t ScInstallSignalHandler(uintptr_t handler);

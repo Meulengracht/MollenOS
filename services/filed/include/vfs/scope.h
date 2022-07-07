@@ -33,6 +33,6 @@ extern void VFSScopeInitialize(void);
  */
 extern struct VFS*
 VFSScopeGet(
-        _In_ UUId_t processId);
+        _In_ uuid_t processId);
 
 #endif //!__SCOPE_H__

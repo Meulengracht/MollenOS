@@ -40,7 +40,7 @@
 // The HandleSet is the set that is created and contains a list of handles registered
 // with the set (HandleItems), and also contains a list of registered events
 struct handle_sets {
-    UUId_t id;
+    uuid_t id;
     list_t sets;
 };
 
@@ -59,7 +59,7 @@ struct handleset_element {
     struct handle_set* set;           // This is a pointer back to the set it belongs
     
     // Event data
-    UUId_t                    Handle;
+    uuid_t                    Handle;
     _Atomic(int)              ActiveEvents;
     struct handleset_element* Link;
     union ioset_data          Context;
@@ -70,7 +70,7 @@ static uint64_t handleset_hash(const void* element);
 static int      handleset_cmp(const void* element1, const void* element2);
 
 static oscode_t DestroySetElement(struct handleset_element*);
-static oscode_t AddHandleToSet(struct handle_set*, UUId_t, struct ioset_event*);
+static oscode_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
 
 static hashtable_t   g_handleSets;
 static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
@@ -105,12 +105,12 @@ DestroyHandleSet(
     kfree(set);
 }
 
-UUId_t
+uuid_t
 CreateHandleSet(
     _In_  unsigned int flags)
 {
     struct handle_set* handleSet;
-    UUId_t             handleId;
+    uuid_t             handleId;
     TRACE("CreateHandleSet(flags=0x%x)", flags);
 
     handleSet = (struct handle_set*)kmalloc(sizeof(struct handle_set));
@@ -135,10 +135,10 @@ CreateHandleSet(
 
 oscode_t
 ControlHandleSet(
-    _In_ UUId_t              setHandle,
-    _In_ int                 operation,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     struct handle_set*        set = LookupHandleOfType(setHandle, HandleTypeSet);
     struct handleset_element* setElement;
@@ -190,12 +190,12 @@ ControlHandleSet(
 
 oscode_t
 WaitForHandleSet(
-    _In_  UUId_t              handle,
-    _In_  struct ioset_event* events,
-    _In_  int                 maxEvents,
-    _In_  int                 pollEvents,
-    _In_  size_t              timeout,
-    _Out_ int*                numEventsOut)
+        _In_  uuid_t              handle,
+        _In_  struct ioset_event* events,
+        _In_  int                 maxEvents,
+        _In_  int                 pollEvents,
+        _In_  size_t              timeout,
+        _Out_ int*                numEventsOut)
 {
     struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
     int                numberOfEvents;
@@ -289,8 +289,8 @@ MarkHandleCallback(
 
 oscode_t
 MarkHandle(
-    _In_ UUId_t       handle,
-    _In_ unsigned int flags)
+        _In_ uuid_t       handle,
+        _In_ unsigned int flags)
 {
     struct handle_sets* element;
     TRACE("MarkHandle(handle=%u, flags=0x%x)", handle, flags);
@@ -334,9 +334,9 @@ DestroySetElement(
 
 static oscode_t
 AddHandleToSet(
-    _In_ struct handle_set*  set,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ struct handle_set*  set,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     struct handle_sets*       element;
     struct handleset_element* setElement;

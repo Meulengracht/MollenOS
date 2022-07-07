@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <internal/_ipc.h>
 
-UUId_t
+uuid_t
 RegisterDevice(
     _In_ Device_t* device,
     _In_ unsigned int   flags)
@@ -35,7 +35,7 @@ RegisterDevice(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     int                      status;
     oscode_t               osStatus;
-    UUId_t                   id;
+    uuid_t                   id;
 
     status = sys_device_register(GetGrachtClient(), &msg.base, (uint8_t*)device, device->Length, flags);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -55,7 +55,7 @@ RegisterDevice(
 
 oscode_t
 UnregisterDevice(
-    _In_ UUId_t DeviceId)
+        _In_ uuid_t DeviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     oscode_t               status;
@@ -68,9 +68,9 @@ UnregisterDevice(
 
 oscode_t
 IoctlDevice(
-    _In_ UUId_t  Device,
-    _In_ unsigned int Command,
-    _In_ unsigned int Flags)
+        _In_ uuid_t  Device,
+        _In_ unsigned int Command,
+        _In_ unsigned int Flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     oscode_t               status;
@@ -83,11 +83,11 @@ IoctlDevice(
 
 oscode_t
 IoctlDeviceEx(
-    _In_    UUId_t  Device,
-    _In_    int     Direction,
-    _In_    unsigned int Register,
-    _InOut_ size_t* Value,
-    _In_    size_t  Width)
+        _In_    uuid_t  Device,
+        _In_    int     Direction,
+        _In_    unsigned int Register,
+        _InOut_ size_t* Value,
+        _In_    size_t  Width)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     oscode_t               status;

@@ -132,12 +132,12 @@ UfiInitialize(
 
 UsbTransferStatus_t 
 UfiSendCommand(
-    _In_ MsdDevice_t* Device,
-    _In_ uint8_t      ScsiCommand,
-    _In_ uint64_t     SectorStart,
-    _In_ UUId_t       BufferHandle,
-    _In_ size_t       BufferOffset,
-    _In_ size_t       DataLength)
+        _In_ MsdDevice_t* Device,
+        _In_ uint8_t      ScsiCommand,
+        _In_ uint64_t     SectorStart,
+        _In_ uuid_t       BufferHandle,
+        _In_ size_t       BufferOffset,
+        _In_ size_t       DataLength)
 {
     MsdCommandBlockUFI_t UfiCommandBlock;
     UsbTransferStatus_t  Result;
@@ -163,11 +163,11 @@ UfiSendCommand(
 
 UsbTransferStatus_t 
 UfiReadData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesRead)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesRead)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       DataStage;
@@ -188,11 +188,11 @@ UfiReadData(
 
 UsbTransferStatus_t 
 UfiWriteData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesWritten)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesWritten)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       DataStage;

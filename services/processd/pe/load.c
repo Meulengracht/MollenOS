@@ -823,7 +823,7 @@ PeParseAndMapImage(
 
 static oscode_t
 __ResolveImagePath(
-        _In_  UUId_t          owner,
+        _In_  uuid_t          owner,
         _In_  PeExecutable_t* parent,
         _In_  MString_t*      path,
         _Out_ uint8_t**       bufferOut,
@@ -860,7 +860,7 @@ __ResolveImagePath(
 
 oscode_t
 PeLoadImage(
-        _In_  UUId_t           owner,
+        _In_  uuid_t           owner,
         _In_  PeExecutable_t*  parent,
         _In_  MString_t*       path,
         _Out_ PeExecutable_t** imageOut)

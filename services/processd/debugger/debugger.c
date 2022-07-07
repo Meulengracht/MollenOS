@@ -76,7 +76,7 @@ GetModuleAndOffset(
 static oscode_t
 HandleProcessCrashReport(
         _In_ Process_t*       process,
-        _In_ UUId_t           threadHandle,
+        _In_ uuid_t           threadHandle,
         _In_ const Context_t* crashContext,
         _In_ int              crashReason)
 {

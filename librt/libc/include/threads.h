@@ -39,7 +39,7 @@ typedef void (*tss_dtor_t)(void*);
 
 // Define default threading types
 typedef unsigned int tss_t;
-typedef UUId_t       thrd_t;
+typedef uuid_t       thrd_t;
 
 // Condition Synchronization Object
 typedef struct cnd {
@@ -49,7 +49,7 @@ typedef struct cnd {
 // Mutex Synchronization Object
 typedef struct mtx {
     int          flags;
-    UUId_t       owner;
+    uuid_t       owner;
     _Atomic(int) references;
     _Atomic(int) value;
 } mtx_t;

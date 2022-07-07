@@ -40,7 +40,7 @@ UsbControllerRegister(
         _In_ int                 portCount)
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
-    UUId_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
+    uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
     
     sys_usb_register_controller(GetGrachtClient(), &msg.base, serverHandle,
                                 (const uint8_t*)device, device->Length, (int)type, (int)portCount);
@@ -49,7 +49,7 @@ UsbControllerRegister(
 
 oscode_t
 UsbControllerUnregister(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
@@ -63,7 +63,7 @@ UsbHubRegister(
         _In_ int          portCount)
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
-    UUId_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
+    uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
 
     sys_usb_register_hub(GetGrachtClient(), &msg.base,
                          usbDevice->DeviceContext.hub_device_id,
@@ -75,7 +75,7 @@ UsbHubRegister(
 
 oscode_t
 UsbHubUnregister(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
 
@@ -85,8 +85,8 @@ UsbHubUnregister(
 
 oscode_t
 UsbEventPort(
-    _In_ UUId_t  DeviceId,
-    _In_ uint8_t PortAddress)
+        _In_ uuid_t  DeviceId,
+        _In_ uint8_t PortAddress)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
@@ -97,7 +97,7 @@ UsbEventPort(
 
 oscode_t
 UsbPortError(
-        _In_ UUId_t  deviceId,
+        _In_ uuid_t  deviceId,
         _In_ uint8_t portAddress)
 {
     int                      status;

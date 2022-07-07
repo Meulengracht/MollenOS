@@ -53,7 +53,7 @@ typedef struct stdio_handle stdio_handle_t;
 // Inheritable handle that is shared with child processes
 // should contain only portable information
 typedef struct stdio_object {
-    UUId_t handle;
+    uuid_t handle;
     int    type;
     union {
         struct socket    socket;
@@ -106,7 +106,7 @@ typedef struct stdio_inheritation_block {
 // io-object interface
 extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
 extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
-extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
+extern int             stdio_handle_set_handle(stdio_handle_t*, uuid_t);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);

@@ -48,7 +48,7 @@ ArchGetPageMaskFromDmaType(
  *
  * @return
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ArchGetProcessorCoreId(void);
 
 /**
@@ -72,8 +72,8 @@ ArchPlatformInitialize(
  */
 KERNELAPI oscode_t KERNELABI
 ArchProcessorSendInterrupt(
-    _In_ UUId_t coreId,
-    _In_ UUId_t interruptId);
+        _In_ uuid_t coreId,
+        _In_ uuid_t interruptId);
 
 /**
  * @brief Enters idle mode for the current processor core.

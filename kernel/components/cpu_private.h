@@ -34,7 +34,7 @@
 #include "../scheduling/threading_private.h"
 
 typedef struct SystemCpuCore {
-    UUId_t           Id;
+    uuid_t           Id;
     SystemCpuState_t State;
     int              External;
 

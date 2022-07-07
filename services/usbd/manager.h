@@ -39,7 +39,7 @@ typedef struct UsbPortDevice {
     uint8_t              Subclass;
     uint8_t              Protocol;
     uint8_t              DefaultConfiguration;
-    UUId_t               DeviceId;
+    uuid_t               DeviceId;
 } UsbPortDevice_t;
 
 typedef struct UsbPort {
@@ -51,9 +51,9 @@ typedef struct UsbPort {
 } UsbPort_t;
 
 typedef struct UsbHub {
-    UUId_t     ControllerDeviceId;
-    UUId_t     DeviceId;
-    UUId_t     DriverId;
+    uuid_t     ControllerDeviceId;
+    uuid_t     DeviceId;
+    uuid_t     DriverId;
     uint8_t    DeviceAddress;  // the usb device address of this hub
     uint8_t    PortAddress;    // the port 'index' this hub is located on
     size_t     PortCount;
@@ -63,7 +63,7 @@ typedef struct UsbHub {
 typedef struct UsbController {
     Device_t            Device;
     element_t           Header;
-    UUId_t              DriverId;
+    uuid_t              DriverId;
     UsbControllerType_t Type;
     uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
 } UsbController_t;
@@ -110,9 +110,9 @@ UsbCoreDevicesDestroy(
  */
 __EXTERN oscode_t
 UsbCoreHubsRegister(
-        _In_ UUId_t  parentHubDeviceId,
-        _In_ UUId_t  hubDeviceId,
-        _In_ UUId_t  hubDriverId,
+        _In_ uuid_t  parentHubDeviceId,
+        _In_ uuid_t  hubDeviceId,
+        _In_ uuid_t  hubDriverId,
         _In_ int     portCount);
 
 /**
@@ -121,7 +121,7 @@ UsbCoreHubsRegister(
  */
 __EXTERN void
 UsbCoreHubsUnregister(
-        _In_ UUId_t hubDeviceId);
+        _In_ uuid_t hubDeviceId);
 
 /**
  *
@@ -141,7 +141,7 @@ UsbCoreHubsGetPort(
  */
 __EXTERN UsbHub_t*
 UsbCoreHubsGet(
-        _In_ UUId_t hubDeviceId);
+        _In_ uuid_t hubDeviceId);
 
 /**
  * Reserves an device address for the specified controller
@@ -171,6 +171,6 @@ UsbCoreControllerReleaseAddress(
  */
 __EXTERN UsbController_t*
 UsbCoreControllerGet(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 
 #endif //!__USBMANAGER_H__

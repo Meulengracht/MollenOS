@@ -32,7 +32,7 @@
 #include <stdlib.h>
 
 typedef struct HpetComparator {
-    UUId_t Interrupt;
+    uuid_t Interrupt;
     int	   Present;
     int	   Enabled;
     int	   SystemTimer;

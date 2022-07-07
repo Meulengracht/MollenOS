@@ -323,12 +323,12 @@ static void __VerifyHandleExclusivityEnum(int index, const void* element, void* 
     }
 }
 
-oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut)
+oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut)
 {
     struct __HandleExcCheckContext context;
     struct VFSNodeHandle*          result;
     oscode_t                     osStatus;
-    UUId_t                         handleId;
+    uuid_t                         handleId;
 
     usched_mtx_lock(&node->HandlesLock);
 

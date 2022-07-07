@@ -102,7 +102,7 @@ int open(const char* file, int flags, ...)
     int                      status;
     oscode_t               osStatus;
     stdio_handle_t*          object;
-    UUId_t                   handle;
+    uuid_t                   handle;
     int                      pmode = 0;
     va_list                  ap;
 

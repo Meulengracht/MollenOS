@@ -27,8 +27,8 @@
 void
 SpawnBootstrapper(void)
 {
-    UUId_t     memorySpaceHandle;
-    UUId_t     threadHandle;
+    uuid_t     memorySpaceHandle;
+    uuid_t     threadHandle;
     oscode_t osStatus;
     vaddr_t    codeAddress;
     TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",

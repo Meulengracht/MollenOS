@@ -27,6 +27,7 @@
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
 #include <vfs/vfs.h>
+#include <vfs/vfs_module.h>
 
 struct mount_point {
     element_t     header;
@@ -40,13 +41,6 @@ struct default_mounts {
     const char*  path;
     unsigned int flags;
 };
-
-extern void
-VfsFileSystemCacheInitialize(
-        _In_ FileSystem_t* fileSystem);
-
-static uint64_t vfs_request_hash(const void* element);
-static int      vfs_request_cmp(const void* element1, const void* element2);
 
 static guid_t g_efiGuid = GUID_EMPTY;
 static guid_t g_fatGuid = GUID_EMPTY;
@@ -96,17 +90,18 @@ void VfsFileSystemInitialize(void)
 }
 
 FileSystem_t*
-VfsFileSystemCreate(
-        _In_ FileSystemDisk_t*   disk,
-        _In_ UUId_t              id,
-        _In_ uint64_t            sector,
-        _In_ uint64_t            sectorCount,
-        _In_ enum FileSystemType type,
-        _In_ guid_t*             typeGuid,
-        _In_ guid_t*             guid)
+FileSystemNew(
+        _In_ StorageDescriptor_t* storage,
+        _In_ uuid_t               id,
+        _In_ uint64_t             sector,
+        _In_ uint64_t             sectorCount,
+        _In_ enum FileSystemType  type,
+        _In_ guid_t*              typeGuid,
+        _In_ guid_t*              guid)
 {
     FileSystem_t*       fileSystem;
     enum FileSystemType fsType = type;
+    oscode_t            osStatus;
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -114,31 +109,41 @@ VfsFileSystemCreate(
     }
     memset(fileSystem, 0, sizeof(FileSystem_t));
 
-    if (!fsType) {
+    if (fsType == FileSystemType_UNKNOWN) {
         // try to deduce from type guid
         fsType = __GetTypeFromGuid(typeGuid);
     }
 
-    ELEMENT_INIT(&fileSystem->header, (uintptr_t)disk->device_id, fileSystem);
-    fileSystem->id               = id;
-    fileSystem->type             = fsType;
-    fileSystem->state            = FileSystemState_CREATED;
-    fileSystem->base.SectorStart = sector;
-    fileSystem->base.SectorCount = sectorCount;
-    memcpy(&fileSystem->base.Disk, disk, sizeof(FileSystemDisk_t));
-    usched_mtx_init(&fileSystem->lock);
+    ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->DeviceID, fileSystem);
+    fileSystem->Type                   = fsType;
+    fileSystem->State                  = FileSystemState_CREATED;
+    fileSystem->CommonData.SectorStart = sector;
+    fileSystem->CommonData.SectorCount = sectorCount;
+    memcpy(&fileSystem->CommonData.Storage, storage, sizeof(StorageDescriptor_t));
+    usched_mtx_init(&fileSystem->Lock);
 
-    hashtable_construct(&fileSystem->requests, 0,
-                        sizeof(FileSystemRequest_t*),
-                        vfs_request_hash, vfs_request_cmp);
-    VfsFileSystemCacheInitialize(fileSystem);
+    osStatus = VfsLoadModule(fsType, &fileSystem->Module);
+    if (osStatus != OsOK) {
+        ERROR("FileSystemNew failed to load filesystem of type %u", fsType);
+        fileSystem->State = FileSystemState_ERROR;
+    }
+
+    osStatus = VFSNew(id, guid, fileSystem->Module, &fileSystem->CommonData, &fileSystem->VFS);
+    if (osStatus != OsOK) {
+        ERROR("FileSystemNew failed to initialize vfs data");
+        fileSystem->State = FileSystemState_ERROR;
+    }
     return fileSystem;
 }
 
 void FileSystemDestroy(FileSystem_t* fileSystem)
 {
-    hashtable_destroy(&fileSystem->requests);
-    hashtable_destroy(&fileSystem->cache);
+    if (fileSystem->VFS != NULL) {
+        VFSDestroy(fileSystem->VFS);
+    }
+    if (fileSystem->Module != NULL) {
+        VfsUnloadModule(fileSystem->Module);
+    }
     free(fileSystem);
 }
 
@@ -147,34 +152,29 @@ __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
-    struct VFSNode* deviceNode;
     struct VFSNode* partitionNode;
-    oscode_t      osStatus;
+    oscode_t        osStatus;
     MString_t*      path;
 
     path = MStringCreate("/storage/", StrUTF8);
     if (path == NULL) {
         return OsOutOfMemory;
     }
-    MStringAppendCharacters(path, &fileSystem->base.Disk.descriptor.Serial[0], StrUTF8);
+    MStringAppendCharacters(path, &fileSystem->CommonData.Storage.Serial[0], StrUTF8);
+    MStringAppendCharacter(path, '/');
+    MStringAppend(path, fileSystem->CommonData.Label);
 
-    // retrieve the device node, this WILL be mounted earlier once the disk is registered with
-    // the file service
-    osStatus = VFSNodeLookup(fsScope, path, &deviceNode);
-    if (osStatus != OsOK) {
-        ERROR("__MountFileSystemAtDefault failed to lookup node %s", MStringRaw(path));
+    osStatus = VFSNodeNewDirectory(fsScope, path, &partitionNode);
+    if (osStatus != OsOK && osStatus != OsExists) {
+        ERROR("__MountFileSystemAtDefault failed to create node %s", MStringRaw(path));
+        MStringDestroy(path);
         return osStatus;
     }
 
-    // now we create the partition node, and we format this for the partition label.
-    // TODO verify the name of the partition label
-    osStatus = VFSNodeChildNew(fsScope, deviceNode, fileSystem->base.Label, VFS_NODE_FILESYSTEM, &partitionNode);
-    if (osStatus) {
-        return osStatus;
-    }
-
-    osStatus = VFSNodeFileSystemDataSet(partitionNode, fileSystem);
+    osStatus = VFSNodeMount(fsScope, partitionNode, NULL);
     if (osStatus != OsOK) {
+        ERROR("__MountFileSystemAtDefault failed to mount filesystem at %s", MStringRaw(path));
+        MStringDestroy(path);
         return osStatus;
     }
 
@@ -190,9 +190,9 @@ __MountFileSystemAt(
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
-    oscode_t      osStatus;
+    oscode_t        osStatus;
 
-    osStatus = VFSNodeNew(fsScope, path, 0, &bindNode);
+    osStatus = VFSNodeNewDirectory(fsScope, path, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAt failed to create node %s", MStringRaw(path));
         return osStatus;
@@ -206,37 +206,30 @@ VfsFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    mountPoint)
 {
-    oscode_t osStatus;
+    oscode_t   osStatus;
+    MString_t* path;
 
-    if (!fileSystem) {
+    if (fileSystem == NULL || fileSystem->Module == NULL) {
         return;
     }
 
-    TRACE("VfsFileSystemMount resolving filesystem module");
-    fileSystem->module = VfsLoadModule(fileSystem->type);
-    if (!fileSystem->module) {
-        ERROR("VfsFileSystemMount failed to load filesystem of type %u", fileSystem->type);
-        fileSystem->state = FileSystemState_ERROR;
-        return;
-    }
-
-    osStatus = fileSystem->module->Initialize(&fileSystem->base);
+    osStatus = fileSystem->Module->Operations.Initialize(&fileSystem->CommonData);
     if (osStatus != OsOK) {
-        ERROR("VfsFileSystemMount failed to initialize filesystem of type %u: %u", fileSystem->type, osStatus);
-        fileSystem->state = FileSystemState_ERROR;
+        ERROR("VfsFileSystemMount failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
+        fileSystem->State = FileSystemState_ERROR;
         return;
     }
 
     // Start out by mounting access to this partition under the device node
     osStatus = __MountFileSystemAtDefault(fileSystem);
     if (osStatus != OsOK) {
-        ERROR("VfsFileSystemMount failed to mount filesystem %s", MStringRaw(fileSystem->base.Label));
-        fileSystem->state = FileSystemState_ERROR;
+        ERROR("VfsFileSystemMount failed to mount filesystem %s", MStringRaw(fileSystem->CommonData.Label));
+        fileSystem->State = FileSystemState_ERROR;
         return;
     }
 
     // set state to loaded at this point, even if the bind mounts fail
-    fileSystem->state = FileSystemState_MOUNTED;
+    fileSystem->State = FileSystemState_MOUNTED;
 
     // If a mount point was supplied then we try to mount the filesystem as well at that point,
     // but otherwise we will be checking the default list
@@ -244,18 +237,18 @@ VfsFileSystemMount(
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
         if (osStatus != OsOK) {
             WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
-                    MStringRaw(mountPoint), MStringRaw(fileSystem->base.Label));
+                    MStringRaw(mountPoint), MStringRaw(fileSystem->CommonData.Label));
         }
     } else {
         // look up default mount points
         for (int i = 0; g_defaultMounts[i].path != NULL; i++) {
             MString_t* label = MStringCreate(g_defaultMounts[i].label, StrUTF8);
-            if (label && MStringCompare(label, fileSystem->base.Label, 0) == MSTRING_FULL_MATCH) {
+            if (label && MStringCompare(label, fileSystem->CommonData.Label, 0) == MSTRING_FULL_MATCH) {
                 MString_t* bindPath = MStringCreate(g_defaultMounts[i].path, StrUTF8);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
                 if (osStatus != OsOK) {
                     WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
-                            MStringRaw(mountPoint), MStringRaw(fileSystem->base.Label));
+                            MStringRaw(mountPoint), MStringRaw(fileSystem->CommonData.Label));
                     MStringDestroy(label);
                 }
                 MStringDestroy(bindPath);
@@ -265,8 +258,16 @@ VfsFileSystemMount(
         }
     }
 
-    TRACE("VfsFileSystemMount notifying session about %s", MStringRaw(VFSNodePath(fileSystem->MountNode)));
-    __NotifySessionManager(VFSNodePath(fileSystem->MountNode));
+    path = VFSNodeMakePath(fileSystem->MountNode, 0);
+    if (path == NULL) {
+        // oh no
+
+        return;
+    }
+
+    TRACE("VfsFileSystemMount notifying session about %s", MStringRaw(path));
+    __NotifySessionManager(path);
+    MStringDestroy(path);
 }
 
 oscode_t
@@ -275,65 +276,12 @@ VfsFileSystemUnmount(
         _In_ unsigned int  flags)
 {
     struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
-    oscode_t  osStatus;
 
-    usched_mtx_lock(&fileSystem->lock);
-    if (fileSystem->state == FileSystemState_MOUNTED) {
-        osStatus = VFSNodeDestroy(fsScope, fileSystem->MountNode);
-        if (osStatus != OsOK) {
-            usched_mtx_unlock(&fileSystem->lock);
-            ERROR("VfsFileSystemUnmount failed to unmount filesystem %s", MStringRaw(fileSystem->base.Label));
-            return osStatus;
-        }
-
-        // destroy all filehandles / requests
-
-        // unload filesystem
-        fileSystem->module->Destroy(&fileSystem->base, flags);
-        VfsUnloadModule(fileSystem->module);
+    usched_mtx_lock(&fileSystem->Lock);
+    if (fileSystem->State == FileSystemState_MOUNTED) {
+        VFSNodeDestroy(fsScope, fileSystem->MountNode);
+        fileSystem->Module->Operations.Destroy(&fileSystem->CommonData, flags);
     }
-    usched_mtx_unlock(&fileSystem->lock);
+    usched_mtx_unlock(&fileSystem->Lock);
     FileSystemDestroy(fileSystem);
-}
-
-void VfsFileSystemRegisterRequest(
-        _In_ FileSystem_t*        fileSystem,
-        _In_ FileSystemRequest_t* request)
-{
-    assert(fileSystem != NULL);
-    assert(request != NULL);
-
-    // when requests are registered, we set their state to INPROGRESS
-    VfsRequestSetState(request, FileSystemRequest_INPROGRESS);
-
-    usched_mtx_lock(&fileSystem->lock);
-    hashtable_set(&fileSystem->requests, request);
-    usched_mtx_unlock(&fileSystem->lock);
-}
-
-void VfsFileSystemUnregisterRequest(
-        _In_ FileSystem_t*        fileSystem,
-        _In_ FileSystemRequest_t* request)
-{
-    assert(fileSystem != NULL);
-    assert(request != NULL);
-
-    usched_mtx_lock(&fileSystem->lock);
-    hashtable_remove(&fileSystem->requests, request);
-    usched_mtx_unlock(&fileSystem->lock);
-
-    VfsRequestSetState(request, FileSystemRequest_DONE);
-}
-
-static uint64_t vfs_request_hash(const void* element)
-{
-    const FileSystemRequest_t* request = element;
-    return request->id;
-}
-
-static int vfs_request_cmp(const void* element1, const void* element2)
-{
-    const FileSystemRequest_t* lh = element1;
-    const FileSystemRequest_t* rh = element2;
-    return lh->id != rh->id;
 }

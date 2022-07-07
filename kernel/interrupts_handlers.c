@@ -42,7 +42,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     SystemTimerStall((wait) * NSEC_PER_MSEC);\
                     }
 
-static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
+static uuid_t         InterruptHandlers[CpuFunctionCount] = {0 };
 static MemoryCache_t* TxuMessageCache                     = NULL;
 static queue_t        TxuReusableBin                      = QUEUE_INIT;
 
@@ -85,11 +85,11 @@ FunctionExecutionInterruptHandler(
 
 oscode_t
 TxuMessageSend(
-    _In_ UUId_t                  CoreId,
-    _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument,
-    _In_ int                     Asynchronous)
+        _In_ uuid_t                  CoreId,
+        _In_ SystemCpuFunctionType_t Type,
+        _In_ TxuFunction_t           Function,
+        _In_ void*                   Argument,
+        _In_ int                     Asynchronous)
 {
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;

@@ -37,7 +37,7 @@
 #include "sys_usb_service_server.h"
 
 void __HandlePortEvent(
-        _In_ UUId_t  hubDeviceId,
+        _In_ uuid_t  hubDeviceId,
         _In_ uint8_t portAddress)
 {
     UsbController_t*      controller = NULL;
@@ -104,7 +104,7 @@ void __HandlePortEvent(
 }
 
 void __HandlePortError(
-        _In_ UUId_t  hubDeviceId,
+        _In_ uuid_t  hubDeviceId,
         _In_ uint8_t portAddress)
 {
     UsbController_t* controller;
@@ -132,12 +132,12 @@ void __HandlePortError(
     }
 }
 
-void sys_usb_port_event_invocation(struct gracht_message* message, const UUId_t hubDeviceId, const uint8_t portAddress)
+void sys_usb_port_event_invocation(struct gracht_message* message, const uuid_t hubDeviceId, const uint8_t portAddress)
 {
     __HandlePortEvent(hubDeviceId, portAddress);
 }
 
-void sys_usb_port_error_invocation(struct gracht_message* message, const UUId_t hubDeviceId, const uint8_t portAddress)
+void sys_usb_port_error_invocation(struct gracht_message* message, const uuid_t hubDeviceId, const uint8_t portAddress)
 {
     __HandlePortError(hubDeviceId, portAddress);
 }

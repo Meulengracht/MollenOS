@@ -31,12 +31,19 @@
 
 #define __FILEMANAGER_MAXDISKS 64
 
-typedef struct FileSystemStorage {
-    element_t         header;
-    FileSystemDisk_t  storage;
+enum StorageState {
+    STORAGE_STATE_INITIALIZING,
+    STORAGE_STATE_FAILED,
+    STORAGE_STATE_DISCONNECTED,
+    STORAGE_STATE_CONNECTED
+};
 
-    struct usched_mtx lock;
-    list_t            filesystems;
+typedef struct FileSystemStorage {
+    element_t           Header;
+    StorageDescriptor_t Storage;
+    enum StorageState   State;
+    struct usched_mtx   Lock;
+    list_t              Filesystems;
 } FileSystemStorage_t;
 
 /**
@@ -66,7 +73,7 @@ VfsStorageRegisterFileSystem(
  */
 extern oscode_t
 VfsStorageParse(
-        _In_ FileSystemStorage_t* storage);
+        _In_ FileSystemStorage_t* fsStorage);
 
 /**
  * @brief Detectes the kind of filesystem at the given absolute sector
@@ -76,7 +83,7 @@ VfsStorageParse(
 extern oscode_t
 VfsStorageDetectFileSystem(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount);
@@ -87,9 +94,9 @@ VfsStorageDetectFileSystem(
  * @param disk [In] The disk that should have an identifier allocated.
  * @return          UUID_INVALID if system is out of identifiers.
  */
-extern UUId_t
+extern uuid_t
 VfsIdentifierAllocate(
-    _In_ FileSystemStorage_t* storage);
+    _In_ FileSystemStorage_t* fsStorage);
 
 /**
  * @brief Frees an existing identifier that has been allocated
@@ -99,8 +106,8 @@ VfsIdentifierAllocate(
  */
 extern void
 VfsIdentifierFree(
-    _In_ FileSystemStorage_t* storage,
-    _In_ UUId_t               id);
+        _In_ FileSystemStorage_t* storage,
+        _In_ uuid_t               id);
 
 /**
  *
@@ -114,7 +121,7 @@ VfsIdentifierFree(
 extern oscode_t
 VfsStorageReadHelper(
         _In_  FileSystemStorage_t* storage,
-        _In_  UUId_t               bufferHandle,
+        _In_  uuid_t               bufferHandle,
         _In_  uint64_t             sector,
         _In_  size_t               sectorCount,
         _Out_ size_t*              sectorsRead);

@@ -86,10 +86,10 @@ ThreadCreate(
         _In_ ThreadEntry_t entry,
         _In_ void*         arguments,
         _In_ unsigned int  flags,
-        _In_ UUId_t        memorySpaceHandle,
+        _In_ uuid_t        memorySpaceHandle,
         _In_ size_t        kernelMaxStackSize,
         _In_ size_t        userMaxStackSize,
-        _In_ UUId_t*       handle);
+        _In_ uuid_t*       handle);
 
 /**
  * @brief Marks the thread with the given id for finished, and it will be cleaned up
@@ -97,9 +97,9 @@ ThreadCreate(
  */
 KERNELAPI oscode_t KERNELABI
 ThreadTerminate(
-    _In_ UUId_t ThreadId,
-    _In_ int    ExitCode,
-    _In_ int    TerminateChildren);
+        _In_ uuid_t ThreadId,
+        _In_ int    ExitCode,
+        _In_ int    TerminateChildren);
 
 /**
  * @brief Can be used to wait for a thread
@@ -109,7 +109,7 @@ ThreadTerminate(
  */
 KERNELAPI int KERNELABI
 ThreadJoin(
-    _In_ UUId_t ThreadId);
+        _In_ uuid_t ThreadId);
 
 /**
  * @brief Detaches a running thread by marking it without parent, this will make
@@ -117,14 +117,14 @@ ThreadJoin(
  */
 KERNELAPI oscode_t KERNELABI
 ThreadDetach(
-    _In_  UUId_t ThreadId);
+        _In_  uuid_t ThreadId);
 
 /**
  * @brief Is the given cpu running it's idle task?
  */
 KERNELAPI int KERNELABI
 ThreadIsCurrentIdle(
-    _In_ UUId_t CoreId);
+        _In_ uuid_t CoreId);
 
 /**
  * @brief Returns the current run-mode for the current thread on the current cpu
@@ -135,7 +135,7 @@ ThreadCurrentMode(void);
 /**
  * @brief Retrives the current thread handle on the current cpu
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadCurrentHandle(void);
 
 /**
@@ -144,22 +144,22 @@ ThreadCurrentHandle(void);
  */
 KERNELAPI Thread_t* KERNELABI
 ThreadCurrentForCore(
-    _In_ UUId_t CoreId);
+        _In_ uuid_t CoreId);
 
 /**
  * @brief Returns whether or not the threads are running in same address space context.
  */
 KERNELAPI oscode_t KERNELABI
 ThreadIsRelated(
-    _In_ UUId_t Thread1,
-    _In_ UUId_t Thread2);
+        _In_ uuid_t Thread1,
+        _In_ uuid_t Thread2);
 
 /**
  * ThreadHandle
  * @param Thread A pointer to a thread structure
  * @return       The handle for the thread structure
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadHandle(
         _In_ Thread_t* Thread);
 
@@ -176,7 +176,7 @@ ThreadStartTime(
  * @param Thread A pointer to a thread structure
  * @return       The cookie for the thread
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadCookie(
         _In_ Thread_t* Thread);
 
@@ -222,7 +222,7 @@ ThreadMemorySpace(
  * @param Thread A pointer to a thread structure
  * @return       The handle for the threads memory space
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadMemorySpaceHandle(
         _In_ Thread_t* Thread);
 
@@ -261,9 +261,9 @@ ThreadContext(
  */
 KERNELAPI oscode_t KERNELABI
 SignalSend(
-    _In_ UUId_t ThreadId,
-    _In_ int    Signal,
-    _In_ void*  Argument);
+        _In_ uuid_t ThreadId,
+        _In_ int    Signal,
+        _In_ void*  Argument);
 
 /**
  * Dispatches a signal to the current thread. This immediately loads the signal

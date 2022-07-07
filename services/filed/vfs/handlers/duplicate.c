@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeDuplicate(struct VFSRequest* request, UUId_t* handleOut)
+oscode_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNodeHandle* handle;
     oscode_t            osStatus, osStatus2;

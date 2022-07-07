@@ -158,7 +158,7 @@ SchedulerObjectGetQueue(
  * @param[In] object The object to read the affinity of.
  * @return    The cpu core id of the object.
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 SchedulerObjectGetAffinity(
     _In_ SchedulerObject_t* object);
 

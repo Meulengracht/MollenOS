@@ -64,7 +64,7 @@ oscode_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSt
 
     // store the return value, so we can return the result of that instead of
     // returning the result of cleanup
-    osStatus = node->FileSystem->Module->Operations.Stat(&node->FileSystem->Base, stat);
+    osStatus = node->FileSystem->Module->Operations.Stat(node->FileSystem->CommonData, stat);
 
     osStatus2 = VFSNodePut(node);
     if (osStatus2 != OsOK) {
@@ -90,7 +90,7 @@ oscode_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, Storage
         return osStatus;
     }
 
-    memcpy(stat, &node->FileSystem->Base.Storage, sizeof(StorageDescriptor_t));
+    memcpy(stat, &node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
     osStatus = VFSNodePut(node);
     if (osStatus != OsOK) {
         WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));

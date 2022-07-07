@@ -48,7 +48,7 @@ typedef struct InterruptTableEntry {
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
 static IrqSpinlock_t   g_interruptTableLock                             = OS_IRQ_SPINLOCK_INIT;
-static _Atomic(UUId_t) g_nextInterruptId                                = ATOMIC_VAR_INIT(0);
+static _Atomic(uuid_t) g_nextInterruptId                                = ATOMIC_VAR_INIT(0);
 
 oscode_t
 InterruptIncreasePenalty(
@@ -337,14 +337,14 @@ InterruptReleaseResources(
     return OsOK;
 }
 
-UUId_t
+uuid_t
 InterruptRegister(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
 {
     SystemInterrupt_t* systemInterrupt;
-    UUId_t             tableIndex;
-    UUId_t             id;
+    uuid_t             tableIndex;
+    uuid_t             id;
 
     if (!deviceInterrupt) {
         return OsInvalidParameters;
@@ -446,7 +446,7 @@ InterruptRegister(
 
 oscode_t
 InterruptUnregister(
-    _In_ UUId_t Source)
+        _In_ uuid_t Source)
 {
     SystemInterrupt_t* Entry;
     SystemInterrupt_t* Previous   = NULL;
@@ -512,7 +512,7 @@ InterruptUnregister(
 
 SystemInterrupt_t*
 InterruptGet(
-    _In_ UUId_t Source)
+        _In_ uuid_t Source)
 {
     SystemInterrupt_t* Iterator;
     uint16_t           TableIndex = LOWORD(Source);

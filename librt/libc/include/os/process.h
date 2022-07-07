@@ -52,7 +52,7 @@ CRTDECL(oscode_t,
         ProcessSpawn(
 	_In_     const char* path,
 	_In_Opt_ const char* arguments,
-    _Out_    UUId_t*     handleOut));
+    _Out_    uuid_t*     handleOut));
 
 /**
  * @brief Spawn a new process with a more detailed configuration. Allows for customization of io
@@ -70,7 +70,7 @@ CRTDECL(oscode_t,
     _In_Opt_ const char*             arguments,
     _In_Opt_ const char* const*      environment,
     _In_     ProcessConfiguration_t* configuration,
-    _Out_    UUId_t*                 handleOut));
+    _Out_    uuid_t*                 handleOut));
 
 /**
  * @brief Wait for a process to terminate, and retrieve the exit code of the process.
@@ -84,7 +84,7 @@ CRTDECL(oscode_t,
  */
 CRTDECL(oscode_t,
         ProcessJoin(
-	_In_  UUId_t handle,
+	_In_  uuid_t handle,
     _In_  size_t timeout,
     _Out_ int*   exitCodeOut));
 
@@ -99,7 +99,7 @@ CRTDECL(oscode_t,
  */
 CRTDECL(oscode_t,
         ProcessSignal(
-    _In_ UUId_t handle,
+    _In_ uuid_t handle,
     _In_ int    signal));
 
 /**
@@ -107,8 +107,8 @@ CRTDECL(oscode_t,
  *
  * @return The ID of the current process.
  */
-CRTDECL(UUId_t, 
-ProcessGetCurrentId(void));
+CRTDECL(uuid_t,
+        ProcessGetCurrentId(void));
 
 /**
  * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
@@ -159,7 +159,7 @@ CRTDECL(oscode_t,
  */
 CRTDECL(oscode_t,
         ProcessGetAssemblyDirectory(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -175,7 +175,7 @@ CRTDECL(oscode_t,
  */
 CRTDECL(oscode_t,
         ProcessGetWorkingDirectory(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
 

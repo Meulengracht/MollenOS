@@ -38,7 +38,7 @@ ScInstallSignalHandler(
 
 oscode_t
 ScCreateHandle(
-    _Out_ UUId_t* HandleOut)
+        _Out_ uuid_t* HandleOut)
 {
     *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
@@ -49,31 +49,31 @@ ScCreateHandle(
 
 oscode_t
 ScSetHandleActivity(
-    _In_ UUId_t  Handle,
-    _In_ unsigned int Flags)
+        _In_ uuid_t  Handle,
+        _In_ unsigned int Flags)
 {
     return MarkHandle(Handle, Flags);
 }
 
 oscode_t
 ScRegisterHandlePath(
-    _In_ UUId_t      Handle,
-    _In_ const char* Path)
+        _In_ uuid_t      Handle,
+        _In_ const char* Path)
 {
     return RegisterHandlePath(Handle, Path);
 }
 
 oscode_t
 ScLookupHandle(
-    _In_  const char* Path,
-    _Out_ UUId_t*     HandleOut)
+        _In_  const char* Path,
+        _Out_ uuid_t*     HandleOut)
 {
     return LookupHandleByPath(Path, HandleOut);
 }
 
 oscode_t
 ScDestroyHandle(
-    _In_ UUId_t Handle)
+        _In_ uuid_t Handle)
 {
     if (Handle == UUID_INVALID) {
         return OsInvalidParameters;
@@ -83,8 +83,8 @@ ScDestroyHandle(
 
 oscode_t
 ScCreateHandleSet(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* HandleOut)
+        _In_  unsigned int Flags,
+        _Out_ uuid_t* HandleOut)
 {
     if (!HandleOut) {
         return OsInvalidParameters;
@@ -99,19 +99,19 @@ ScCreateHandleSet(
 
 oscode_t
 ScControlHandleSet(
-    _In_ UUId_t              setHandle,
-    _In_ int                 operation,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     return ControlHandleSet(setHandle, operation, handle, event);
 }
 
 oscode_t
 ScListenHandleSet(
-    _In_  UUId_t                     handle,
-    _In_  HandleSetWaitParameters_t* parameters,
-    _Out_ int*                       numberOfEventsOut)
+        _In_  uuid_t                     handle,
+        _In_  HandleSetWaitParameters_t* parameters,
+        _Out_ int*                       numberOfEventsOut)
 {
     if (!parameters || !numberOfEventsOut) {
         return OsInvalidParameters;

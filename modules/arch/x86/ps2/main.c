@@ -320,7 +320,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
     OnRegister((Device_t*)device);
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     // announce the protocols we support for the individual devices
     if (deviceId != Ps2Controller->Device.Base.Id) {
@@ -329,7 +329,7 @@ void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, 
     }
 }
 
-void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_input_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     PS2Port_t* port = NULL;
 

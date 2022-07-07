@@ -22,7 +22,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include <vfs/filesystem_module.h>
+#include <vfs/vfs_module.h>
 #include <os/sharedobject.h>
 #include <stdlib.h>
 
@@ -38,15 +38,16 @@ static const char* g_fsModules[] = {
 	"$sys/drivers/filesystems/ext.dll"
 };
 
-static inline FileSystemModule_t* __GetLoadedModule(enum FileSystemType type)
+static inline struct VFSModule* __GetLoadedModule(enum FileSystemType type)
 {
     element_t* header = list_find(&g_modulesLoaded, (void*)(uintptr_t)type);
     return header ? header->value : NULL;
 }
 
-FileSystemModule_t*
+oscode_t
 VfsLoadModule(
-        _In_ enum FileSystemType type)
+        _In_  enum FileSystemType type,
+        _Out_ struct VFSModule**  moduleOut)
 {
 	FileSystemModule_t* module;
 	Handle_t            handle;
@@ -126,7 +127,7 @@ VfsLoadModule(
 
 void
 VfsUnloadModule(
-        _In_ FileSystemModule_t* module)
+        _In_ struct VFSModule* module)
 {
     if (!module) {
         return;

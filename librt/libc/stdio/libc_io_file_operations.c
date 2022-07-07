@@ -33,8 +33,8 @@
 #include "../threads/tls.h"
 
 static inline oscode_t
-perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction, 
-    size_t chunkSize, off_t offset, size_t length, size_t* bytesTransferreOut)
+perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
+                 size_t chunkSize, off_t offset, size_t length, size_t* bytesTransferreOut)
 {
     struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
     size_t                   bytesLeft = length;
@@ -69,7 +69,7 @@ perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction,
 
 oscode_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
-    UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
+    uuid_t     builtinHandle = tls_current()->transfer_buffer.handle;
     size_t     builtinLength = tls_current()->transfer_buffer.length;
     size_t     bytesRead;
     oscode_t status;
@@ -131,7 +131,7 @@ oscode_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length,
 oscode_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
                              size_t length, size_t* bytesWrittenOut)
 {
-    UUId_t     builtinHandle = tls_current()->transfer_buffer.handle;
+    uuid_t     builtinHandle = tls_current()->transfer_buffer.handle;
     size_t     builtinLength = tls_current()->transfer_buffer.length;
     oscode_t status;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);

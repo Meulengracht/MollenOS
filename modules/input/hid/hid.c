@@ -32,7 +32,7 @@
 #include <ctt_usbhost_service_client.h>
 
 static struct {
-    UUId_t driverId;
+    uuid_t driverId;
     int    references;
 } g_Subscriptions[16] = { { 0 } };
 
@@ -47,7 +47,7 @@ memdup(void* mem, size_t size)
     return dup;
 }
 
-static void __SubscribeToController(UUId_t driverId)
+static void __SubscribeToController(uuid_t driverId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
     int    foundIndex = -1;
@@ -66,7 +66,7 @@ static void __SubscribeToController(UUId_t driverId)
     g_Subscriptions[foundIndex].references = 1;
 }
 
-static void __UnsubscribeToController(UUId_t driverId)
+static void __UnsubscribeToController(uuid_t driverId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
 

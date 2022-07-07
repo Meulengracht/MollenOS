@@ -30,7 +30,7 @@
 typedef struct ThreadParameters {
     const char*  Name;
     unsigned int Configuration;
-    UUId_t       MemorySpaceHandle;
+    uuid_t       MemorySpaceHandle;
     size_t       MaximumStackSize;
 } ThreadParameters_t;
 

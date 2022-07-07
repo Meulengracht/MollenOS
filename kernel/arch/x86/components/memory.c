@@ -706,7 +706,7 @@ MmuCloneVirtualSpace(
 
 oscode_t
 SetDirectIoAccess(
-        _In_ UUId_t         coreId,
+        _In_ uuid_t         coreId,
         _In_ MemorySpace_t* memorySpace,
         _In_ uint16_t       port,
         _In_ int            enable)

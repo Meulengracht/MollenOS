@@ -97,7 +97,7 @@ DmDiscoverRemoveDriver(
  */
 oscode_t
 DmDiscoverFindDriver(
-        _In_ UUId_t                       deviceId,
+        _In_ uuid_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification);
 
 #endif //!__DISCOVER_H__

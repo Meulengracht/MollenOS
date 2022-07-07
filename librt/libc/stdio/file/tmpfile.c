@@ -37,7 +37,7 @@ FILE* tmpfile(void)
     int                      status;
     oscode_t               osStatus;
     stdio_handle_t*          object;
-    UUId_t                   handle;
+    uuid_t                   handle;
     char                     path[64];
 
     // generate a new path we can use as a temporary file

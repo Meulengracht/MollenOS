@@ -67,7 +67,7 @@ typedef struct OsFileDescriptor {
 #define FILE_PERMISSION_EXECUTE (FILE_PERMISSION_OWNER_EXECUTE | FILE_PERMISSION_OTHER_EXECUTE)
 
 PACKED_TYPESTRUCT(FileMappingParameters, {
-    UUId_t       MemoryHandle;
+    uuid_t       MemoryHandle;
     unsigned int Flags;
     uint64_t     FileOffset;
     uintptr_t    VirtualAddress;

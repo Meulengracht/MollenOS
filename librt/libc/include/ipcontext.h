@@ -35,13 +35,13 @@
 struct ipmsg_addr {
     int type;
     union {
-        UUId_t      handle;
+        uuid_t      handle;
         const char* path;
     } data;
 };
 
 struct ipmsg {
-    UUId_t             from;
+    uuid_t             from;
     struct ipmsg_addr* addr;
     const void*        payload;
     size_t             length;
@@ -54,7 +54,7 @@ struct ipmsg {
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int len, struct ipmsg_addr* addr));
 CRTDECL(int, ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len, int timeout));
-CRTDECL(int, iprecv(int iod, void* buffer, unsigned int len, int flags, UUId_t* fromHandle));
+CRTDECL(int, iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle));
 _CODE_END
 
 #endif //!__IPCONTEXT_H__

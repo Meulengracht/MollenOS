@@ -39,7 +39,7 @@ enum RequestState {
 };
 
 typedef struct Request {
-    UUId_t             id;
+    uuid_t             id;
     enum RequestState  state;
     struct usched_cnd  signal;
     element_t          leaf;
@@ -53,46 +53,46 @@ typedef struct Request {
             ProcessConfiguration_t conf;
         } spawn;
         struct {
-            UUId_t threadHandle;
-            UUId_t bufferHandle;
+            uuid_t threadHandle;
+            uuid_t bufferHandle;
             size_t bufferOffset;
         } get_initblock;
         struct {
-            UUId_t       handle;
+            uuid_t       handle;
             unsigned int timeout;
         } join;
         struct {
-            UUId_t handle;
+            uuid_t handle;
             int    exit_code;
         } terminate;
         struct {
-            UUId_t killer_handle;
-            UUId_t victim_handle;
+            uuid_t killer_handle;
+            uuid_t victim_handle;
             int    signal;
         } signal;
         struct {
-            UUId_t      handle;
+            uuid_t      handle;
             const char* path;
         } load_library;
         struct {
-            UUId_t   handle;
+            uuid_t   handle;
             Handle_t library_handle;
             const char* name;
         } get_function;
         struct {
-            UUId_t   handle;
+            uuid_t   handle;
             Handle_t library_handle;
         } unload_library;
         struct {
-            UUId_t handle;
+            uuid_t handle;
         } stat_handle;
         struct {
-            UUId_t      handle;
+            uuid_t      handle;
             const char* path;
         } set_cwd;
         struct {
-            UUId_t           thread_handle;
-            UUId_t           process_handle;
+            uuid_t           thread_handle;
+            uuid_t           process_handle;
             const Context_t* context;
             int              reason;
         } crash;

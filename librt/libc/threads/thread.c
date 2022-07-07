@@ -92,7 +92,7 @@ thrd_create(
     Package->Data  = arg;
     InitializeThreadParameters(&Paramaters);
 
-    Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr);
+    Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (uuid_t*)thr);
     if (Status != OsOK) {
         OsCodeToErrNo(Status);
         free(Package);

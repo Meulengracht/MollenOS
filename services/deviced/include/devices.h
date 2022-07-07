@@ -42,8 +42,8 @@ extern void DmDevicesInitialize(void);
  */
 extern oscode_t
 DmDevicesRegister(
-        _In_ UUId_t driverHandle,
-        _In_ UUId_t deviceId);
+        _In_ uuid_t driverHandle,
+        _In_ uuid_t deviceId);
 
 /**
  * @brief Creates a new device in the device manager. This will automatically try to resolve
@@ -57,17 +57,17 @@ DmDevicesRegister(
  */
 extern oscode_t
 DmDeviceCreate(
-	_In_  Device_t*    device,
-	_In_  const char*  name,
-	_In_  unsigned int flags,
-	_Out_ UUId_t*      idOut);
+        _In_  Device_t*    device,
+        _In_  const char*  name,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      idOut);
 
 /**
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
 extern oscode_t
 DmDeviceDestroy(
-	_In_ UUId_t DeviceId);
+        _In_ uuid_t DeviceId);
 
 /* DmIoctlDevice
  * Allows manipulation of a given device to either disable

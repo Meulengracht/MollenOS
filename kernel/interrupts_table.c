@@ -67,7 +67,7 @@ static oscode_t __FunctionWriteIoSpace(
 }
 
 static oscode_t __FunctionWriteStream(
-        _In_ UUId_t      handle,
+        _In_ uuid_t      handle,
         _In_ const void* buffer,
         _In_ size_t      length)
 {

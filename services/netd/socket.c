@@ -93,7 +93,7 @@ SocketCreateImpl(
 {
     Socket_t*  Socket;
     oscode_t Status;
-    UUId_t     Handle;
+    uuid_t     Handle;
     TRACE("[net_manager] [socket_create_impl] %i, %i, %i", 
         Domain, Type, Protocol);
     
@@ -175,7 +175,7 @@ SocketShutdownImpl(
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
         DestroySocketPipe(&Socket->Send);
-        (void)handle_destroy((UUId_t)(uintptr_t)Socket->Header.key);
+        (void)handle_destroy((uuid_t)(uintptr_t)Socket->Header.key);
         free(Socket);
         return OsOK;
     }

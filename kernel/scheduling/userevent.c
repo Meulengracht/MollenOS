@@ -106,13 +106,13 @@ AllocateSyncAddress(
 
 oscode_t
 UserEventCreate(
-    _In_  unsigned int initialValue,
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut,
-    _Out_ atomic_int** syncAddressOut)
+        _In_  unsigned int initialValue,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut,
+        _Out_ atomic_int** syncAddressOut)
 {
     UserEvent_t* event;
-    UUId_t       handle;
+    uuid_t       handle;
     oscode_t   status;
 
     if (!handleOut || !syncAddressOut) {
@@ -151,7 +151,7 @@ UserEventCreate(
 
 oscode_t
 UserEventSignal(
-    _In_ UUId_t handle)
+        _In_ uuid_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
     oscode_t   status = OsIncomplete;

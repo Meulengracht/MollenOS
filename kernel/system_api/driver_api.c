@@ -145,7 +145,7 @@ ScIoSpaceDestroy(
     return OsOK;
 }
 
-UUId_t
+uuid_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
@@ -159,7 +159,7 @@ ScRegisterInterrupt(
 
 oscode_t
 ScUnregisterInterrupt(
-    _In_ UUId_t sourceId)
+        _In_ uuid_t sourceId)
 {
     return InterruptUnregister(sourceId);
 }

@@ -93,7 +93,7 @@ static oscode_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* director
         goto unlock;
     }
 
-    osStatus = ops->Move(&vfs->Base, sourcePath, targetPath, copy);
+    osStatus = ops->Move(vfs->CommonData, sourcePath, targetPath, copy);
     if (osStatus != OsOK) {
         goto unlock;
     }
@@ -137,14 +137,14 @@ static oscode_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct V
     while (1) {
         size_t read, written;
 
-        osStatus = sourceVFS->Module->Operations.Read(&sourceVFS->Base, sourceFile,
+        osStatus = sourceVFS->Module->Operations.Read(sourceVFS->CommonData, sourceFile,
                                                       attachment.handle, attachment.buffer, 0,
                                                       MB(1), &read);
         if (osStatus != OsOK || read == 0) {
             break;
         }
 
-        osStatus = targetVFS->Module->Operations.Write(&targetVFS->Base, targetFile,
+        osStatus = targetVFS->Module->Operations.Write(targetVFS->CommonData, targetFile,
                                                        attachment.handle, attachment.buffer, 0,
                                                        read, &written);
         if (osStatus != OsOK) {
@@ -170,7 +170,7 @@ static oscode_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* director
 
     struct VFSOperations* sourceOps = &sourceNode->FileSystem->Module->Operations;
     void*                 sourceFile;
-    osStatus = sourceOps->Open(&sourceNode->FileSystem->Base, sourceNode->Name, &sourceFile);
+    osStatus = sourceOps->Open(sourceNode->FileSystem->CommonData, sourceNode->Name, &sourceFile);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -185,19 +185,19 @@ static oscode_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* director
 
     struct VFSOperations* targetOps = &directoryNode->FileSystem->Module->Operations;
     void*                 targetDirectory;
-    osStatus = targetOps->Open(&directoryNode->FileSystem->Base, directoryNode->Name, &targetDirectory);
+    osStatus = targetOps->Open(directoryNode->FileSystem->CommonData, directoryNode->Name, &targetDirectory);
     if (osStatus != OsOK) {
         goto unlock;
     }
 
     void* targetFile;
-    osStatus = targetOps->Create(&directoryNode->FileSystem->Base, targetDirectory, targetName, 0,
+    osStatus = targetOps->Create(directoryNode->FileSystem->CommonData, targetDirectory, targetName, 0,
                                  sourceNode->Stats.Flags, sourceNode->Stats.Permissions, &targetFile);
     if (osStatus != OsOK) {
         goto unlock;
     }
 
-    osStatus2 = targetOps->Close(&directoryNode->FileSystem->Base, targetDirectory);
+    osStatus2 = targetOps->Close(directoryNode->FileSystem->CommonData, targetDirectory);
     if (osStatus2 != OsOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }
@@ -216,14 +216,14 @@ static oscode_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* director
 
     osStatus = __TransferFile(sourceNode->FileSystem, sourceFile,
                               directoryNode->FileSystem, targetFile);
-    osStatus2 = targetOps->Close(&directoryNode->FileSystem->Base, targetFile);
+    osStatus2 = targetOps->Close(directoryNode->FileSystem->CommonData, targetFile);
     if (osStatus2 != OsOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }
 
 unlock:
     usched_rwlock_w_demote(&directoryNode->Lock);
-    osStatus2 = sourceOps->Close(&sourceNode->FileSystem->Base, sourceFile);
+    osStatus2 = sourceOps->Close(sourceNode->FileSystem->CommonData, sourceFile);
     if (osStatus2 != OsOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }

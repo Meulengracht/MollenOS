@@ -42,7 +42,7 @@ static SystemCpuCore_t* g_coreTable[__CPU_MAX_COUNT] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     assert(coreId < __CPU_MAX_COUNT);
     return g_coreTable[coreId];
@@ -57,7 +57,7 @@ CpuCoreCurrent(void)
 static void
 __ConstructCpuCore(
         _In_ SystemCpuCore_t* core,
-        _In_ UUId_t           coreId,
+        _In_ uuid_t           coreId,
         _In_ SystemCpuState_t state,
         _In_ int              external)
 {
@@ -92,10 +92,10 @@ CpuInitializePlatform(
 
 void
 CpuCoreRegister(
-    _In_ SystemCpu_t*     cpu,
-    _In_ UUId_t           coreId,
-    _In_ SystemCpuState_t initialState,
-    _In_ int              external)
+        _In_ SystemCpu_t*     cpu,
+        _In_ uuid_t           coreId,
+        _In_ SystemCpuState_t initialState,
+        _In_ int              external)
 {
     SystemCpuCore_t* core;
     SystemCpuCore_t* i;
@@ -136,7 +136,7 @@ CpuCoreStart(void)
     SystemCpuCore_t* i;
     SystemCpuCore_t* cpuCore;
     oscode_t       osStatus;
-    UUId_t           memorySpace;
+    uuid_t           memorySpace;
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
 
@@ -293,7 +293,7 @@ CpuCoreQueueIpc(
     queue_push(&cpuCore->FunctionQueue[functionType], element);
 }
 
-UUId_t
+uuid_t
 CpuCoreId(
         _In_ SystemCpuCore_t* cpuCore)
 {

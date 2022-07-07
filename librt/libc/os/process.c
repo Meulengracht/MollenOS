@@ -48,9 +48,9 @@ ProcessConfigurationInitialize(
 
 oscode_t
 ProcessSpawn(
-    _In_     const char* path,
-    _In_Opt_ const char* arguments,
-    _Out_    UUId_t*     handleOut)
+        _In_     const char* path,
+        _In_Opt_ const char* arguments,
+        _Out_    uuid_t*     handleOut)
 {
     ProcessConfiguration_t configuration;
 
@@ -72,11 +72,11 @@ ProcessSpawn(
 
 oscode_t
 ProcessSpawnEx(
-    _In_     const char*             path,
-    _In_Opt_ const char*             arguments,
-    _In_Opt_ const char* const*      environment,
-    _In_     ProcessConfiguration_t* configuration,
-    _Out_    UUId_t*                 handleOut)
+        _In_     const char*             path,
+        _In_Opt_ const char*             arguments,
+        _In_Opt_ const char* const*      environment,
+        _In_     ProcessConfiguration_t* configuration,
+        _Out_    uuid_t*                 handleOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     void*                            inheritationBlock       = NULL;
@@ -107,9 +107,9 @@ ProcessSpawnEx(
 
 oscode_t
 ProcessJoin(
-	_In_  UUId_t handle,
-    _In_  size_t timeout,
-    _Out_ int*   exitCodeOut)
+        _In_  uuid_t handle,
+        _In_  size_t timeout,
+        _Out_ int*   exitCodeOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     oscode_t               osStatus;
@@ -122,8 +122,8 @@ ProcessJoin(
 
 oscode_t
 ProcessSignal(
-	_In_ UUId_t handle,
-    _In_ int    signal)
+        _In_ uuid_t handle,
+        _In_ int    signal)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     oscode_t               osStatus;
@@ -134,7 +134,7 @@ ProcessSignal(
     return osStatus;
 }
 
-UUId_t
+uuid_t
 ProcessGetCurrentId(void)
 {
     return *__crt_processid_ptr();
@@ -206,7 +206,7 @@ ProcessGetCurrentName(
 
 oscode_t
 ProcessGetAssemblyDirectory(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {
@@ -233,7 +233,7 @@ ProcessGetAssemblyDirectory(
 
 oscode_t
 ProcessGetWorkingDirectory(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {

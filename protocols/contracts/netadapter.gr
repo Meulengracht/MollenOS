@@ -20,7 +20,7 @@ struct netadapter_stats {
 
 struct netadapter_request {
     uint   request_id;
-    UUId_t buffer_handle;
+    uuid_t buffer_handle;
 }
 
 enum netadapter_link_status {
@@ -29,10 +29,10 @@ enum netadapter_link_status {
 }
 
 service netadapter (21) {
-    func stat(UUId_t deviceId) : () = 1;
-    func queue(UUId_t deviceId, netadapter_request request) : () = 2;
+    func stat(uuid_t deviceId) : () = 1;
+    func queue(uuid_t deviceId, netadapter_request request) : () = 2;
 
-    event stats : (UUId_t deviceId, netadapter_stats stats) = 3;
-    event error : (UUId_t deviceId, int error) = 4;
-    event link_status : (UUId_t deviceId, netadapter_link_status status) = 5;
+    event stats : (uuid_t deviceId, netadapter_stats stats) = 3;
+    event error : (uuid_t deviceId, int error) = 4;
+    event link_status : (uuid_t deviceId, netadapter_link_status status) = 5;
 }

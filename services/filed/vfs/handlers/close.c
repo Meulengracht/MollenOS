@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oscode_t __RemoveHandle(struct VFSNode* node, UUId_t handleId)
+static oscode_t __RemoveHandle(struct VFSNode* node, uuid_t handleId)
 {
     struct __VFSHandle* handle;
 

@@ -95,8 +95,8 @@ exit:
 
 static oscode_t
 DebugHaltAllProcessorCores(
-    _In_ UUId_t         ExcludeId,
-    _In_ SystemCpu_t*   Processor)
+        _In_ uuid_t         ExcludeId,
+        _In_ SystemCpu_t*   Processor)
 {
     SystemCpuCore_t* Iter;
     
@@ -124,7 +124,7 @@ DebugPanic(
     Thread_t* currentThread;
     char      messageBuffer[256];
     va_list   arguments;
-    UUId_t    coreId;
+    uuid_t    coreId;
 
     ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 

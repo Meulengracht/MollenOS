@@ -31,18 +31,18 @@
 #include <threads.h>
 #include <assert.h>
 
-static UUId_t SessionServiceId = UUID_INVALID;
-static UUId_t DeviceServiceId  = UUID_INVALID;
-static UUId_t UsbServiceId     = UUID_INVALID;
-static UUId_t ProcessServiceId = UUID_INVALID;
-static UUId_t FileServiceId    = UUID_INVALID;
-static UUId_t NetServiceId     = UUID_INVALID;
+static uuid_t SessionServiceId = UUID_INVALID;
+static uuid_t DeviceServiceId  = UUID_INVALID;
+static uuid_t UsbServiceId     = UUID_INVALID;
+static uuid_t ProcessServiceId = UUID_INVALID;
+static uuid_t FileServiceId    = UUID_INVALID;
+static uuid_t NetServiceId     = UUID_INVALID;
 
-static UUId_t
+static uuid_t
 __GetHandleFromPath(
     _In_ const char* Path)
 {
-    UUId_t Handle;
+    uuid_t Handle;
     if (Syscall_LookupHandle(Path, &Handle) != OsOK) {
         return UUID_INVALID;
     }
@@ -55,7 +55,7 @@ __WaitForService(
     _In_ size_t timeout)
 {
     size_t timeLeft = timeout;
-    UUId_t handle   = getHandleCallback();
+    uuid_t handle   = getHandleCallback();
     if (!timeout) {
         while (handle == UUID_INVALID) {
             thrd_sleepex(10);

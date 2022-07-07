@@ -19,34 +19,36 @@
 #ifndef __VFS_H__
 #define __VFS_H__
 
-#include <os/osdefs.h>
 #include <ddk/storage.h>
+#include <ds/guid.h>
 #include <ds/mstring.h>
+#include <os/osdefs.h>
 
 struct VFS;
-struct VFSOperations;
+struct VFSCommonData;
+struct VFSModule;
 struct VFSNode;
 struct VFSNodeHandle;
 struct VFSRequest;
 struct VFSStat;
 struct VFSStatFS;
 
-extern oscode_t VFSNew(struct VFSOperations*, struct VFS**);
+extern oscode_t VFSNew(uuid_t id, guid_t* guid, struct VFSModule*, struct VFSCommonData*, struct VFS**);
 extern oscode_t VFSChildNew(struct VFS*, struct VFS**);
-extern oscode_t VFSDestroy(struct VFS*);
+extern void     VFSDestroy(struct VFS*);
 
-extern oscode_t VFSNodeMount(struct VFS*, struct VFS*, MString_t* path);
+extern oscode_t VFSNodeMount(struct VFS*, struct VFSNode* at, struct VFS* what);
 extern oscode_t VFSNodeUnmount(struct VFS*, MString_t* path);
 
 extern oscode_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode* to);
 extern oscode_t VFSNodeUnbind(struct VFS*, struct VFSNode*);
 
-extern oscode_t VFSNodeNew(struct VFS*, MString_t* path, enum VFSNodeType, struct VFSNode**);
-extern oscode_t VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*, struct VFSNode**);
+extern oscode_t   VFSNodeNewDirectory(struct VFS*, MString_t* path, struct VFSNode**);
+extern oscode_t   VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*, struct VFSNode**);
 extern void       VFSNodeDestroy(struct VFS*, struct VFSNode*);
-extern oscode_t VFSNodeLookup(struct VFS*, MString_t* path, struct VFSNode**);
+extern MString_t* VFSNodeMakePath(struct VFSNode* node, int local);
 
-extern oscode_t VFSNodeOpen(struct VFS*, struct VFSRequest*, UUId_t* handleOut);
+extern oscode_t VFSNodeOpen(struct VFS*, struct VFSRequest*, uuid_t* handleOut);
 extern oscode_t VFSNodeClose(struct VFS*, struct VFSRequest*);
 extern oscode_t VFSNodeLink(struct VFS*, struct VFSRequest*);
 extern oscode_t VFSNodeUnlink(struct VFS*, struct VFSRequest*);
@@ -57,7 +59,7 @@ extern oscode_t VFSNodeStatStorage(struct VFS*, struct VFSRequest*, StorageDescr
 extern oscode_t VFSNodeReadLink(struct VFS*, struct VFSRequest*, MString_t**);
 extern oscode_t VFSNodeRealPath(struct VFS*, struct VFSRequest*, MString_t**);
 
-extern oscode_t VFSNodeDuplicate(struct VFSRequest*, UUId_t* handleOut);
+extern oscode_t VFSNodeDuplicate(struct VFSRequest*, uuid_t* handleOut);
 extern oscode_t VFSNodeRead(struct VFSRequest*, size_t* readOut);
 extern oscode_t VFSNodeReadAt(struct VFSRequest*, size_t* readOut);
 extern oscode_t VFSNodeWrite(struct VFSRequest*, size_t* writtenOut);

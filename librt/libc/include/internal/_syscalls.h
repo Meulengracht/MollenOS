@@ -38,7 +38,7 @@ _CODE_END
 #define Syscall_IoSpaceAcquire(IoSpace)                                                      (oscode_t)syscall1(13, SCPARAM(IoSpace))
 #define Syscall_IoSpaceRelease(IoSpace)                                                      (oscode_t)syscall1(14, SCPARAM(IoSpace))
 #define Syscall_IoSpaceDestroy(IoSpaceId)                                                    (oscode_t)syscall1(15, SCPARAM(IoSpaceId))
-#define Syscall_InterruptAdd(Descriptor, Flags)                                              (UUId_t)syscall2(16, SCPARAM(Descriptor), SCPARAM(Flags))
+#define Syscall_InterruptAdd(Descriptor, Flags)                                              (uuid_t)syscall2(16, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId)                                                 (oscode_t)syscall1(17, SCPARAM(InterruptId))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                        (oscode_t)syscall1(18, SCPARAM(BaseAddressOut))
 
@@ -52,10 +52,10 @@ _CODE_END
 #define Syscall_ThreadJoin(ThreadId, ExitCode)                             (oscode_t)syscall2(23, SCPARAM(ThreadId), SCPARAM(ExitCode))
 #define Syscall_ThreadDetach(ThreadId)                                     (oscode_t)syscall1(24, SCPARAM(ThreadId))
 #define Syscall_ThreadYield()                                              (oscode_t)syscall0(25)
-#define Syscall_ThreadId()                                                 (UUId_t)syscall0(26)
+#define Syscall_ThreadId()                                                 (uuid_t)syscall0(26)
 #define Syscall_ThreadCookie()                                             (UUId_t)syscall0(27)
-#define Syscall_ThreadSetCurrentName(Name)                                 (UUId_t)syscall1(28, SCPARAM(Name))
-#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (UUId_t)syscall2(29, SCPARAM(NameBuffer), SCPARAM(MaxLength))
+#define Syscall_ThreadSetCurrentName(Name)                                 (uuid_t)syscall1(28, SCPARAM(Name))
+#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (uuid_t)syscall2(29, SCPARAM(NameBuffer), SCPARAM(MaxLength))
 
 #define Syscall_FutexWait(Parameters)                                      (oscode_t)syscall1(30, SCPARAM(Parameters))
 #define Syscall_FutexWake(Parameters)                                      (oscode_t)syscall1(31, SCPARAM(Parameters))

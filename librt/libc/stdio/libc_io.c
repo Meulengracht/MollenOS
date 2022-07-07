@@ -397,7 +397,7 @@ void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source)
     stdio_handle_set_ops_type(target, source->object.type);
 }
 
-int stdio_handle_set_handle(stdio_handle_t* handle, UUId_t io_handle)
+int stdio_handle_set_handle(stdio_handle_t* handle, uuid_t io_handle)
 {
     if (!handle) {
         return EBADF;
@@ -535,7 +535,7 @@ Collection_t* stdio_get_handles(void)
     return &g_stdioObjects;
 }
 
-UUId_t GetNativeHandle(int iod)
+uuid_t GetNativeHandle(int iod)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     if (!handle) {

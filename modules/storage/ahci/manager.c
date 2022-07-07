@@ -41,7 +41,7 @@
 extern int __crt_get_server_iod(void);
 
 static list_t devices        = LIST_INIT;
-static UUId_t g_nextDeviceId = 0;
+static uuid_t g_nextDeviceId = 0;
 static size_t g_frameSize;
 
 static void
@@ -107,7 +107,7 @@ AhciManagerGetFrameSize(void)
 
 AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&devices, (void*)(uintptr_t)deviceId);
 }
@@ -118,7 +118,7 @@ static AhciDevice_t* __CreateInitialDevice(
     _In_ DeviceType_t      deviceType)
 {
     AhciDevice_t* device;
-    UUId_t        deviceId;
+    uuid_t        deviceId;
 
     TRACE("__CreateInitialDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", deviceType=%u)",
           controller, port, deviceType);
@@ -194,9 +194,9 @@ AhciManagerRegisterDevice(
 
 static void
 RegisterStorage(
-    _In_ UUId_t       ProtocolServerId,
-    _In_ UUId_t       DeviceId,
-    _In_ unsigned int Flags)
+        _In_ uuid_t       ProtocolServerId,
+        _In_ uuid_t       DeviceId,
+        _In_ unsigned int Flags)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
@@ -209,8 +209,8 @@ RegisterStorage(
 
 static void
 UnregisterStorage(
-    _In_ UUId_t  deviceId,
-    _In_ uint8_t forced)
+        _In_ uuid_t  deviceId,
+        _In_ uint8_t forced)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
@@ -336,7 +336,7 @@ AhciManagerHandleControlResponse(
     }
 }
 
-void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     oscode_t                 status = OsNotExists;

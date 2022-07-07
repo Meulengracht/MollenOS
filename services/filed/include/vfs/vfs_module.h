@@ -45,11 +45,10 @@ struct VFSOperations {
 };
 
 struct VFSModule {
-    element_t            header;
-    enum FileSystemType  type;
-    int                  references;
-    Handle_t             handle;
-    struct usched_mtx    lock;
+    enum FileSystemType  Type;
+    int                  References;
+    Handle_t             Handle;
+    struct usched_mtx    Lock;
     struct VFSOperations Operations;
 };
 
@@ -59,9 +58,10 @@ struct VFSModule {
  * @param type [In] The type of filesystem to load.
  * @return     A handle for the given filesystem driver.
  */
-extern FileSystemModule_t*
+extern oscode_t
 VfsLoadModule(
-        _In_ enum FileSystemType type);
+        _In_  enum FileSystemType type,
+        _Out_ struct VFSModule**  moduleOut);
 
 /**
  * @brief Unloads the given module if its reference count reaches 0.
@@ -70,6 +70,6 @@ VfsLoadModule(
  */
 extern void
 VfsUnloadModule(
-        _In_ FileSystemModule_t* module);
+        _In_ struct VFSModule* module);
 
 #endif //!__VFS_MODULE_H__

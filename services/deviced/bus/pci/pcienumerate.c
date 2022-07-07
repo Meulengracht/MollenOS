@@ -534,7 +534,7 @@ CreateBusDeviceFromPciDevice(
     _In_ PciDevice_t* PciDevice)
 {
     BusDevice_t Device = { { 0 } };
-    UUId_t      Id;
+    uuid_t      Id;
 
     Device.Base.ParentId = UUID_INVALID;
     Device.Base.Length   = sizeof(BusDevice_t);
@@ -612,7 +612,7 @@ BusInstallFixed(
     _In_ BusDevice_t* Device,
     _In_ const char*  Name)
 {
-    UUId_t Id;
+    uuid_t Id;
     
     Device->Base.ParentId = UUID_INVALID;
     Device->Base.Length   = sizeof(BusDevice_t);

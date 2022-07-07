@@ -34,7 +34,7 @@
 struct file_view {
     element_t             header;
     struct dma_attachment dmaAttachment;
-    UUId_t                file_handle;
+    uuid_t                file_handle;
     unsigned int          flags;
     size_t                offset;
     size_t                length;

@@ -107,7 +107,7 @@ __ParseRamdisk(
         }
 
         if (!__EndsWith(entry.Name, ".dll")) {
-            UUId_t handle;
+            uuid_t handle;
 
             snprintf(pathBuffer, 128-1, "rd:/services/%s", entry.Name);
             TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);

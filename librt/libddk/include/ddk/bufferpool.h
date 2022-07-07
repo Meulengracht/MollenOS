@@ -64,8 +64,8 @@ DDKDECL(oscode_t,
     _In_ struct dma_pool* pool,
     _In_ void*            address));
 
-DDKDECL(UUId_t,
-dma_pool_handle(
+DDKDECL(uuid_t,
+        dma_pool_handle(
     _In_ struct dma_pool* pool));    
 
 DDKDECL(size_t,

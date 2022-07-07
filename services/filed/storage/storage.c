@@ -34,7 +34,7 @@
 #include "sys_storage_service_server.h"
 
 struct VfsRemoveDiskRequest {
-    UUId_t       disk_id;
+    uuid_t       disk_id;
     unsigned int flags;
 };
 
@@ -56,14 +56,14 @@ VfsStorageRegisterFileSystem(
         _In_ guid_t*              guid)
 {
     FileSystem_t* fileSystem;
-    UUId_t        id;
+    uuid_t        id;
 
     TRACE("VfsStorageRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
           LODWORD(sector), LODWORD(sectorCount), type);
 
     id = VfsIdentifierAllocate(storage);
-    fileSystem = VfsFileSystemCreate(
-            &storage->storage, id,
+    fileSystem = FileSystemNew(
+            &storage->Storage, id,
             sector, sectorCount, type,
             typeGuid, guid
     );
@@ -71,110 +71,104 @@ VfsStorageRegisterFileSystem(
         return OsOutOfMemory;
     }
 
-    usched_mtx_lock(&storage->lock);
-    list_append(&storage->filesystems, &fileSystem->header);
-    usched_mtx_unlock(&storage->lock);
+    usched_mtx_lock(&storage->Lock);
+    list_append(&storage->Filesystems, &fileSystem->Header);
+    usched_mtx_unlock(&storage->Lock);
 
     // we must wait for an MFS to be registered before trying to load
     // additional drivers due to the fact that we only come bearing MFS driver in the initrd (for now)
-    if (fileSystem->type == FileSystemType_MFS) {;
+    if (fileSystem->Type == FileSystemType_MFS) {;
         VfsFileSystemMount(fileSystem, NULL);
     }
     return OsOK;
 }
 
 static void
-VfsStorageEnumerate(
-        _In_ FileSystemStorage_t* storage,
+__StorageSetup(
+        _In_ FileSystemStorage_t* fsStorage,
         _In_ void*                cancellationToken)
 {
-    struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(storage->storage.driver_id);
+    struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
     oscode_t                 osStatus;
     struct sys_disk_descriptor gdescriptor;
-    TRACE("VfsStorageEnumerate()");
+    TRACE("__StorageSetup()");
 
     usched_mtx_lock(&g_diskLock);
-    list_append(&g_disks, &storage->header);
+    list_append(&g_disks, &fsStorage->Header);
     usched_mtx_unlock(&g_diskLock);
 
-    ctt_storage_stat(GetGrachtClient(), &msg.base, storage->storage.device_id);
+    ctt_storage_stat(GetGrachtClient(), &msg.base, fsStorage->Storage.DeviceID);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
     if (osStatus != OsOK) {
-        // TODO: disk states
-        // Disk->State = Crashed
+        fsStorage->State = STORAGE_STATE_FAILED;
         return;
     }
-    from_sys_disk_descriptor_dkk(&gdescriptor, &storage->storage.descriptor);
+    from_sys_disk_descriptor_dkk(&gdescriptor, &fsStorage->Storage);
     
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
-    osStatus = VfsStorageParse(storage);
+    osStatus = VfsStorageParse(fsStorage);
     if (osStatus != OsOK) {
-        // TODO: disk states
-        // Disk->State = Unmounted // no filesystems exposed
+        fsStorage->State = STORAGE_STATE_DISCONNECTED;
+    } else {
+        fsStorage->State = STORAGE_STATE_CONNECTED;
     }
 }
 
 static FileSystemStorage_t*
-VfsStorageCreate(
-        _In_ UUId_t       deviceId,
-        _In_ UUId_t       driverId,
+__FileSystemStorageNew(
+        _In_ uuid_t       deviceID,
+        _In_ uuid_t       driverID,
         _In_ unsigned int flags)
 {
-    FileSystemStorage_t* vfsStorage;
+    FileSystemStorage_t* fsStorage;
 
-    TRACE("VfsStorageCreate(driver %u, device %u, flags 0x%x)", driverId, deviceId, flags);
-
-    // Allocate a new instance of a disk descriptor
-    // to store data and store initial data
-    vfsStorage = (FileSystemStorage_t*)malloc(sizeof(FileSystemStorage_t));
-    if (!vfsStorage) {
-        ERROR("VfsStorageCreate ran out of memory");
+    fsStorage = (FileSystemStorage_t*)malloc(sizeof(FileSystemStorage_t));
+    if (!fsStorage) {
         return NULL;
     }
+    memset(fsStorage, 0, sizeof(FileSystemStorage_t));
 
-    ELEMENT_INIT(&vfsStorage->header, (uintptr_t)deviceId, vfsStorage);
-    vfsStorage->storage.driver_id = driverId;
-    vfsStorage->storage.device_id = deviceId;
-    vfsStorage->storage.flags     = flags;
-    usched_mtx_init(&vfsStorage->lock);
-    list_construct(&vfsStorage->filesystems);
-
-    // TODO: disk states
-    //Disk->State = Initializing
-    return vfsStorage;
+    ELEMENT_INIT(&fsStorage->Header, (uintptr_t)deviceID, fsStorage);
+    fsStorage->Storage.DriverID = driverID;
+    fsStorage->Storage.DeviceID = deviceID;
+    fsStorage->Storage.Flags     = flags;
+    fsStorage->State             = STORAGE_STATE_INITIALIZING;
+    list_construct(&fsStorage->Filesystems);
+    usched_mtx_init(&fsStorage->Lock);
+    return fsStorage;
 }
 
 void sys_storage_register_invocation(struct gracht_message* message,
-        const UUId_t driverId, const UUId_t deviceId, const enum sys_storage_flags flags)
+                                     const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
-    FileSystemStorage_t* storage = VfsStorageCreate(deviceId, driverId, (unsigned int)flags);
+    FileSystemStorage_t* storage = __FileSystemStorageNew(deviceId, driverId, (unsigned int)flags);
     if (!storage) {
         // TODO
         ERROR("sys_storage_register_invocation FAILED TO CREATE STORAGE STRUCTURE");
         return;
     }
-    usched_task_queue((usched_task_fn)VfsStorageEnumerate, storage);
+    usched_task_queue((usched_task_fn) __StorageSetup, storage);
 }
 
 static void
-UnmountStorage(
-        _In_ FileSystemStorage_t* storage,
+__StorageUnmount(
+        _In_ FileSystemStorage_t* fsStorage,
         _In_ unsigned int         flags)
 {
     element_t* i;
 
-    usched_mtx_lock(&storage->lock);
-    _foreach(i, &storage->filesystems) {
+    usched_mtx_lock(&fsStorage->Lock);
+    _foreach(i, &fsStorage->Filesystems) {
         FileSystem_t* fileSystem = (FileSystem_t*)i->value;
         VfsFileSystemUnmount(fileSystem, flags);
     }
-    usched_mtx_unlock(&storage->lock);
+    usched_mtx_unlock(&fsStorage->Lock);
 }
 
 static void
-StorageDestroy(
+__StorageDestroy(
         _In_ struct VfsRemoveDiskRequest* request,
         _In_ void*                        cancellationToken)
 {
@@ -188,14 +182,14 @@ StorageDestroy(
     usched_mtx_unlock(&g_diskLock);
 
     if (header) {
-        FileSystemStorage_t* storage = header->value;
-        UnmountStorage(storage, request->flags);
-        free(storage);
+        FileSystemStorage_t* fsStorage = header->value;
+        __StorageUnmount(fsStorage, request->flags);
+        free(fsStorage);
     }
     free(request);
 }
 
-void sys_storage_unregister_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t forced)
+void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
 {
     struct VfsRemoveDiskRequest* request = malloc(sizeof(struct VfsRemoveDiskRequest));
     if (!request) {
@@ -205,41 +199,5 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const UUI
 
     request->disk_id = deviceId;
     request->flags = forced;
-    usched_task_queue((usched_task_fn)StorageDestroy, request);
-}
-
-void
-StatStorageByHandle(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
-{
-    struct sys_disk_descriptor gdescriptor = { 0 };
-    FileSystem_t*              fileSystem;
-    oscode_t                 status;
-
-    status = VfsFileSystemGetByFileHandle(request->parameters.stat_handle.fileHandle, &fileSystem);
-    if (status == OsOK) {
-        to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
-    }
-    sys_storage_get_descriptor_response(request->message, status, &gdescriptor);
-    VfsRequestDestroy(request);
-}
-
-void
-StatStorageByPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
-{
-    struct sys_disk_descriptor gdescriptor = { 0 };
-    FileSystem_t*              fileSystem;
-    oscode_t                 status;
-
-    status = VfsFileSystemGetByPathSafe(request->parameters.stat_path.path, &fileSystem);
-    if (status == OsOK) {
-        to_sys_disk_descriptor_dkk(&fileSystem->base.Disk.descriptor, &gdescriptor);
-    }
-    sys_storage_get_descriptor_path_response(request->message, OsNotSupported, &gdescriptor);
-
-    free((void*)request->parameters.stat_path.path);
-    VfsRequestDestroy(request);
+    usched_task_queue((usched_task_fn) __StorageDestroy, request);
 }

@@ -37,9 +37,9 @@ AcpiEcdt_t EmbeddedController = { 0 };
 
 static oscode_t
 __RegisterDomainCore(
-    _In_ SystemDomain_t* Domain,
-    _In_ UUId_t          CoreId,
-    _In_ int             Override)
+        _In_ SystemDomain_t* Domain,
+        _In_ uuid_t          CoreId,
+        _In_ int             Override)
 {
     TRACE("__RegisterDomainCore()");
     if (CoreId != CpuCoreId(Domain->CoreGroup.Cores)) {
@@ -434,7 +434,7 @@ __ParseMADT(
                 // Validate not empty domain
                 if (NumberOfCores != 0) {
                     // Create the domain, then enumerate the cores for that domain
-                    CreateNumaDomain((UUId_t)i, NumberOfCores, MemoryStart, MemoryLength, &Domain);
+                    CreateNumaDomain((uuid_t)i, NumberOfCores, MemoryStart, MemoryLength, &Domain);
                     __EnumerateSystemCoresForDomainSRAT(SratTableStart, SratTableEnd, Domain);
                 }
             }

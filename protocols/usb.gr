@@ -8,12 +8,12 @@ import "types"
 namespace sys
 
 service usb (9) {
-    func register_controller(UUId_t driverId, uint8[] device, int type, int portCount) : () = 1;
-    func unregister_controller(UUId_t deviceId) : () = 2;
-    func register_hub(UUId_t parentHubDeviceId, UUId_t deviceId, UUId_t driverId, int portCount) : () = 3;
-    func unregister_hub(UUId_t deviceId) : () = 4;
-    func port_event(UUId_t hubDeviceId, uint8 portAddress) : () = 5;
-    func port_error(UUId_t hubDeviceId, uint8 portAddress) : () = 6;
+    func register_controller(uuid_t driverId, uint8[] device, int type, int portCount) : () = 1;
+    func unregister_controller(uuid_t deviceId) : () = 2;
+    func register_hub(uuid_t parentHubDeviceId, uuid_t deviceId, uuid_t driverId, int portCount) : () = 3;
+    func unregister_hub(uuid_t deviceId) : () = 4;
+    func port_event(uuid_t hubDeviceId, uint8 portAddress) : () = 5;
+    func port_error(uuid_t hubDeviceId, uint8 portAddress) : () = 6;
     func get_controller_count() : (int count) = 7;
     func get_controller(int index) : (uint8[] usbController) = 8;
 }

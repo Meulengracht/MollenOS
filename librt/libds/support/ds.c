@@ -68,7 +68,7 @@ void dslock(SafeMemoryLock_t* lock)
     int locked = 1;
 
 #ifdef LIBC_KERNEL
-    IntStatus_t flags = InterruptDisable();
+    irqstate_t flags = InterruptDisable();
 #endif
     while (1) {
         int val = atomic_exchange(&lock->SyncObject, locked);
@@ -84,7 +84,7 @@ void dslock(SafeMemoryLock_t* lock)
 void dsunlock(SafeMemoryLock_t* lock)
 {
 #ifdef LIBC_KERNEL
-    IntStatus_t flags = lock->Flags;
+    irqstate_t flags = lock->Flags;
 #endif
     atomic_store(&lock->SyncObject, 0);
 #ifdef LIBC_KERNEL

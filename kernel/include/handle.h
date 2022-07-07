@@ -45,7 +45,7 @@ KERNELAPI oscode_t KERNELABI InitializeHandleJanitor(void);
 /**
  * @brief Allocates a new handle for a system resource with a reference of 1.
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 CreateHandle(
     _In_ HandleType_t       handleType,
     _In_ HandleDestructorFn destructor,
@@ -60,7 +60,7 @@ CreateHandle(
  */
 KERNELAPI oscode_t KERNELABI
 DestroyHandle(
-    _In_ UUId_t handleId);
+        _In_ uuid_t handleId);
 
 /**
  * @brief Registers a global handle path that can be used to look up the handle.
@@ -70,8 +70,8 @@ DestroyHandle(
  */
 KERNELAPI oscode_t KERNELABI
 RegisterHandlePath(
-    _In_ UUId_t      handleId,
-    _In_ const char* path);
+        _In_ uuid_t      handleId,
+        _In_ const char* path);
 
 /**
  * @brief Tries to resolve a handle from the given path.
@@ -81,8 +81,8 @@ RegisterHandlePath(
  */
 KERNELAPI oscode_t KERNELABI
 LookupHandleByPath(
-    _In_  const char* path,
-    _Out_ UUId_t*     handleOut);
+        _In_  const char* path,
+        _Out_ uuid_t*     handleOut);
 
 /**
  * @brief Acquires the handle given for the calling process. This can fail if the handle
@@ -91,8 +91,8 @@ LookupHandleByPath(
  */
 KERNELAPI oscode_t KERNELABI
 AcquireHandle(
-    _In_  UUId_t handleId,
-    _Out_ void** resourceOut);
+        _In_  uuid_t handleId,
+        _Out_ void** resourceOut);
 
 /**
  * Retrieves the handle given, while also performing type validation of the handle. 
@@ -100,7 +100,7 @@ AcquireHandle(
  */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-    _In_ UUId_t       handleId,
-    _In_ HandleType_t handleType);
+        _In_ uuid_t       handleId,
+        _In_ HandleType_t handleType);
 
 #endif //! __HANDLE_H__

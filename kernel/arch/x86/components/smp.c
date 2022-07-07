@@ -96,7 +96,7 @@ void
 StartApplicationCore(
     _In_ SystemCpuCore_t* core)
 {
-    UUId_t coreId = CpuCoreId(core);
+    uuid_t coreId = CpuCoreId(core);
     int    timeout;
 
     // Initialize jump space

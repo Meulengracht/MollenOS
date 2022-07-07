@@ -197,8 +197,8 @@ SetMachineUmaMode(void)
 
 oscode_t
 ArchProcessorSendInterrupt(
-    _In_ UUId_t coreId,
-    _In_ UUId_t interruptId)
+        _In_ uuid_t coreId,
+        _In_ uuid_t interruptId)
 {
     oscode_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
     if (osStatus != OsOK) {
@@ -266,7 +266,7 @@ CpuHasFeatures(
 	return OsOK;
 }
 
-UUId_t
+uuid_t
 ArchGetProcessorCoreId(void)
 {
     if (ApicIsInitialized() == OsOK) {

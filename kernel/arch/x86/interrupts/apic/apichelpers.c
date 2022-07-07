@@ -62,7 +62,7 @@ int ApicGetMaxLvt(void) {
     return APIC_INTEGRATED((Version & 0xFF)) ? (((Version) >> 16) & 0xFF) : 2;
 }
 
-uint32_t ApicComputeLogicalDestination(UUId_t coreId) {
+uint32_t ApicComputeLogicalDestination(uuid_t coreId) {
     return (1 << ((coreId % 7) + 1)) | (1 << 0);
 }
 

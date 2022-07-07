@@ -36,19 +36,19 @@
 
 typedef struct MString MString_t;
 
-typedef struct FileSystemBase {
+struct VFSCommonData {
     MString_t*          Label;
     StorageDescriptor_t Storage;
     unsigned int        Flags;
     uint64_t            SectorStart;
     uint64_t            SectorCount;
     void*               Data;
-} FileSystemBase_t;
+};
 
 struct VFSStat {
     // These are filled in by the VFS
-    UUId_t ID;
-    UUId_t StorageID;
+    uuid_t ID;
+    uuid_t StorageID;
 
     MString_t* Name;
     MString_t* LinkTarget;
@@ -64,7 +64,7 @@ struct VFSStat {
 
 struct VFSStatFS {
     // These are filled in by the VFS
-    UUId_t     ID;
+    uuid_t     ID;
     MString_t* Label;
     MString_t* Serial;
 
@@ -92,99 +92,99 @@ typedef struct FileSystemHandleBase {
  * and allocates resources for the given descriptor */
 __FSAPI oscode_t
 __FSDECL(FsInitialize)(
-        _In_ FileSystemBase_t* fileSystemBase);
+        _In_ struct VFSCommonData* VFSCommonData);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
 __FSAPI oscode_t
 __FSDECL(FsDestroy)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ unsigned int      unmountFlags);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ unsigned int          unmountFlags);
 
 __FSAPI oscode_t
 __FSDECL(FsStat)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ struct VFSStatFS* stat);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSStatFS*     stat);
 
 __FSAPI oscode_t
 __FSDECL(FsOpen)(
-        _In_      FileSystemBase_t* fileSystemBase,
-        _In_      MString_t*        path,
-        _Out_Opt_ void**            dataOut);
+        _In_      struct VFSCommonData* VFSCommonData,
+        _In_      MString_t*            path,
+        _Out_Opt_ void**                dataOut);
 
 __FSAPI oscode_t
 __FSDECL(FsCreate)(
-        _In_  FileSystemBase_t* fileSystemBase,
-        _In_  void*             data,
-        _In_  MString_t*        name,
-        _In_  uint32_t          owner,
-        _In_  uint32_t          flags,
-        _In_  uint32_t          permissions,
-        _Out_ void**            dataOut);
+        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  void*                 data,
+        _In_  MString_t*            name,
+        _In_  uint32_t              owner,
+        _In_  uint32_t              flags,
+        _In_  uint32_t              permissions,
+        _Out_ void**                dataOut);
 
 __FSAPI oscode_t
 __FSDECL(FsClose)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ void*             data);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ void*                 data);
 
 __FSAPI oscode_t
 __FSDECL(FsLink)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ void*             data,
-        _In_ MString_t*        linkName,
-        _In_ MString_t*        linkTarget,
-        _In_ int               symbolic);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ void*                 data,
+        _In_ MString_t*            linkName,
+        _In_ MString_t*            linkTarget,
+        _In_ int                   symbolic);
 
 __FSAPI oscode_t
 __FSDECL(FsUnlink)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ MString_t*        path);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ MString_t*            path);
 
 __FSAPI oscode_t
 __FSDECL(FsReadLink)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ MString_t*        path,
-        _In_ MString_t*        pathOut);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ MString_t*            path,
+        _In_ MString_t*            pathOut);
 
 __FSAPI oscode_t
 __FSDECL(FsMove)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ MString_t*        from,
-        _In_ MString_t*        to,
-        _In_ int               copy);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ MString_t*            from,
+        _In_ MString_t*            to,
+        _In_ int                   copy);
 
 __FSAPI oscode_t
 __FSDECL(FsRead)(
-        _In_  FileSystemBase_t* fileSystemBase,
-        _In_  void*             data,
-        _In_  UUId_t            bufferHandle,
-        _In_  void*             buffer,
-        _In_  size_t            bufferOffset,
-        _In_  size_t            unitCount,
-        _Out_ size_t*           unitsRead);
+        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  void*                 data,
+        _In_  uuid_t                bufferHandle,
+        _In_  void*                 buffer,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                unitCount,
+        _Out_ size_t*               unitsRead);
 
 __FSAPI oscode_t
 __FSDECL(FsWrite)(
-        _In_  FileSystemBase_t* fileSystemBase,
-        _In_  void*             data,
-        _In_  UUId_t            bufferHandle,
-        _In_  void*             buffer,
-        _In_  size_t            bufferOffset,
-        _In_  size_t            unitCount,
-        _Out_ size_t*           unitsWritten);
+        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  void*                 data,
+        _In_  uuid_t                bufferHandle,
+        _In_  void*                 buffer,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                unitCount,
+        _Out_ size_t*               unitsWritten);
 
 __FSAPI oscode_t
 __FSDECL(FsTruncate)(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ void*             data,
-        _In_ uint64_t          size);
+        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ void*                 data,
+        _In_ uint64_t              size);
 
 __FSAPI oscode_t
 __FSDECL(FsSeek)(
-        _In_  FileSystemBase_t* fileSystemBase,
-        _In_  void*             data,
-        _In_  uint64_t          absolutePosition,
-        _Out_ uint64_t*         absolutePositionOut);
+        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  void*                 data,
+        _In_  uint64_t              absolutePosition,
+        _Out_ uint64_t*             absolutePositionOut);
 
 #endif //!__DDK_FILESYSTEM_H_

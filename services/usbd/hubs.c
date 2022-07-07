@@ -53,13 +53,13 @@ void UsbCoreHubsCleanup(void)
 
 oscode_t
 UsbCoreHubsRegister(
-        _In_ UUId_t  parentHubDeviceId,
-        _In_ UUId_t  hubDeviceId,
-        _In_ UUId_t  hubDriverId,
+        _In_ uuid_t  parentHubDeviceId,
+        _In_ uuid_t  hubDeviceId,
+        _In_ uuid_t  hubDriverId,
         _In_ int     portCount)
 {
     UsbHub_t* parentHub;
-    UUId_t    controllerDeviceId = parentHubDeviceId;
+    uuid_t    controllerDeviceId = parentHubDeviceId;
     uint8_t   portAddress = 0;
     uint8_t   deviceAddress = 0;
     TRACE("UsbCoreHubsRegister(parentHubDeviceId=%u, hubDeviceId=%u, hubDriverId=%u, portCount=%i)",
@@ -98,7 +98,7 @@ UsbCoreHubsRegister(
 
 void
 UsbCoreHubsUnregister(
-        _In_ UUId_t hubDeviceId)
+        _In_ uuid_t hubDeviceId)
 {
     int            i;
     struct UsbHub  hub;
@@ -152,7 +152,7 @@ UsbCoreHubsGetPort(
 
 UsbHub_t*
 UsbCoreHubsGet(
-        _In_ UUId_t hubDeviceId)
+        _In_ uuid_t hubDeviceId)
 {
     return hashtable_get(&g_hubs, &(struct UsbHub) { .DeviceId = hubDeviceId });
 }
@@ -176,8 +176,8 @@ static int hub_cmp(const void* element1, const void* element2)
     return hub1->DeviceId == hub2->DeviceId ? 0 : 1;
 }
 
-void sys_usb_register_hub_invocation(struct gracht_message* message, const UUId_t parentHubDeviceId,
-        const UUId_t deviceId, const UUId_t driverId, const int portCount)
+void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_t parentHubDeviceId,
+                                     const uuid_t deviceId, const uuid_t driverId, const int portCount)
 {
     oscode_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
     if (osStatus != OsOK) {
@@ -185,7 +185,7 @@ void sys_usb_register_hub_invocation(struct gracht_message* message, const UUId_
     }
 }
 
-void sys_usb_unregister_hub_invocation(struct gracht_message* message, const UUId_t deviceId)
+void sys_usb_unregister_hub_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     UsbCoreHubsUnregister(deviceId);
 }

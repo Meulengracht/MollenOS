@@ -426,12 +426,12 @@ MsdSanitizeResponse(
 
 UsbTransferStatus_t 
 BulkSendCommand(
-    _In_ MsdDevice_t *Device,
-    _In_ uint8_t      ScsiCommand,
-    _In_ uint64_t     SectorStart,
-    _In_ UUId_t       BufferHandle,
-    _In_ size_t       BufferOffset,
-    _In_ size_t       DataLength)
+        _In_ MsdDevice_t *Device,
+        _In_ uint8_t      ScsiCommand,
+        _In_ uint64_t     SectorStart,
+        _In_ uuid_t       BufferHandle,
+        _In_ size_t       BufferOffset,
+        _In_ size_t       DataLength)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       CommandStage;
@@ -468,11 +468,11 @@ BulkSendCommand(
  * Tries to read a bulk data response from the device. */
 UsbTransferStatus_t 
 BulkReadData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesRead)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesRead)
 {
     UsbTransferStatus_t transferStatus;
     UsbTransfer_t       dataStage;
@@ -505,11 +505,11 @@ BulkReadData(
 
 UsbTransferStatus_t 
 BulkWriteData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesWritten)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesWritten)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       DataStage;

@@ -40,7 +40,7 @@ extern void DmHandleIoctl(Request_t* request, void*);
 extern void DmHandleIoctl2(Request_t* request, void*);
 extern void DmHandleRegisterProtocol(Request_t* request, void*);
 
-static _Atomic(UUId_t) g_requestId = ATOMIC_VAR_INIT(1);
+static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
 
 static inline const void* memdup(const void* source, size_t count) {
     void* dest;
@@ -94,7 +94,7 @@ void RequestSetState(Request_t* request, enum RequestState state)
 }
 
 void sys_device_notify_invocation(struct gracht_message* message,
-                                  const UUId_t driverId, const UUId_t driverHandle)
+                                  const uuid_t driverId, const uuid_t driverHandle)
 {
     Request_t* request;
     TRACE("sys_device_notify_invocation()");
@@ -130,7 +130,7 @@ void sys_device_register_invocation(struct gracht_message* message,
     usched_task_queue((usched_task_fn)DmHandleDeviceCreate, request);
 }
 
-void sys_device_unregister_invocation(struct gracht_message* message, const UUId_t deviceId)
+void sys_device_unregister_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     Request_t* request;
     TRACE("sys_device_unregister_invocation()");
@@ -147,7 +147,7 @@ void sys_device_unregister_invocation(struct gracht_message* message, const UUId
 }
 
 void sys_device_ioctl_invocation(struct gracht_message* message,
-        const UUId_t deviceId, const unsigned int command, const unsigned int flags)
+                                 const uuid_t deviceId, const unsigned int command, const unsigned int flags)
 {
     Request_t* request;
     TRACE("sys_device_ioctl_invocation()");
@@ -165,7 +165,7 @@ void sys_device_ioctl_invocation(struct gracht_message* message,
     usched_task_queue((usched_task_fn)DmHandleIoctl, request);
 }
 
-void sys_device_ioctlex_invocation(struct gracht_message* message, const UUId_t deviceId,
+void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t deviceId,
                                    const int direction, const unsigned int command,
                                    const size_t value, const unsigned int width)
 {
@@ -204,7 +204,7 @@ void sys_device_get_devices_by_protocol_invocation(struct gracht_message* messag
 }
 
 void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
-                                                 const UUId_t deviceId,
+                                                 const uuid_t deviceId,
                                                  const char* protocolName,
                                                  const uint8_t protocolId)
 {

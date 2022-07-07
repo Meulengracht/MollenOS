@@ -45,10 +45,10 @@ UserEventInitialize(void);
  */
 KERNELAPI oscode_t KERNELABI
 UserEventCreate(
-    _In_  unsigned int initialValue,
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut,
-    _Out_ atomic_int** syncAddressOut);
+        _In_  unsigned int initialValue,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut,
+        _Out_ atomic_int** syncAddressOut);
 
 /**
  * Signals a userevent handle, based on the type of userevent a notification is also raised on the handle.
@@ -57,6 +57,6 @@ UserEventCreate(
  */
 KERNELAPI oscode_t KERNELABI
 UserEventSignal(
-        _In_ UUId_t handle);
+        _In_ uuid_t handle);
 
 #endif //!__VALI_MUTEX_H__

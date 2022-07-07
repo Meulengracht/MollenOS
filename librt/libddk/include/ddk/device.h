@@ -34,8 +34,8 @@
 // Device Information
 // This is used both by the devicemanager and by the driver to match
 typedef struct Device {
-    UUId_t Id;
-    UUId_t ParentId;
+    uuid_t Id;
+    uuid_t ParentId;
     size_t Length;
     char   Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
 
@@ -48,8 +48,8 @@ typedef struct Device {
 /* RegisterDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries for a driver for the new device */
-DDKDECL(UUId_t,
-RegisterDevice(
+DDKDECL(uuid_t,
+        RegisterDevice(
     _In_ Device_t* Device, 
     _In_ unsigned int   Flags));
 
@@ -58,6 +58,6 @@ RegisterDevice(
  * unloads drivers for the removed device */
 DDKDECL(oscode_t,
         UnregisterDevice(
-    _In_ UUId_t DeviceId));
+    _In_ uuid_t DeviceId));
 
 #endif //!__DDK_DEVICE_H__

@@ -86,8 +86,8 @@ typedef reg64_t            reg_t;
  * Operation System Types 
  * these are usually fixed no matter arch and include stuff as threading, processing etc 
  */
-typedef unsigned int IntStatus_t; // TODO move this to kernel.h
-typedef unsigned int UUId_t;
+typedef unsigned int irqstate_t; // TODO move this to kernel.h
+typedef unsigned int uuid_t;
 typedef void*        Handle_t;
 
 #define UUID_INVALID 0

@@ -238,9 +238,9 @@ ApicMaskGsi(
  */
 KERNELAPI oscode_t KERNELABI
 ApicSendInterrupt(
-    _In_ InterruptTarget_t type,
-    _In_ UUId_t            specific,
-    _In_ uint32_t          vector);
+        _In_ InterruptTarget_t type,
+        _In_ uuid_t            specific,
+        _In_ uint32_t          vector);
 
 /**
  * @brief Sends an ipi request for the specified cpu
@@ -250,8 +250,8 @@ ApicSendInterrupt(
  */
 KERNELAPI oscode_t KERNELABI
 ApicPerformIPI(
-    _In_ UUId_t coreId,
-    _In_ int    assert);
+        _In_ uuid_t coreId,
+        _In_ int    assert);
 
 /**
  * @brief Sends an sipi request for the specified cpu, to start executing code at the given vector
@@ -262,8 +262,8 @@ ApicPerformIPI(
  */
 KERNELAPI oscode_t KERNELABI
 ApicPerformSIPI(
-    _In_ UUId_t    coreId,
-    _In_ uintptr_t address);
+        _In_ uuid_t    coreId,
+        _In_ uintptr_t address);
 
 /**
  * @brief On 32-bit processors the local apic might not be integrated onto the chip,
@@ -292,7 +292,7 @@ ApicGetMaxLvt(void);
  */
 KERNELAPI uint32_t KERNELABI
 ApicComputeLogicalDestination(
-        _In_ UUId_t coreId);
+        _In_ uuid_t coreId);
 
 /**
  * @brief Sets the current task priority

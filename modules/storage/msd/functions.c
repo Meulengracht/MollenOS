@@ -116,13 +116,13 @@ MsdGetMaximumLunCount(
 
 UsbTransferStatus_t 
 MsdScsiCommand(
-    _In_ MsdDevice_t* Device,
-    _In_ int          Direction,
-    _In_ uint8_t      ScsiCommand,
-    _In_ uint64_t     SectorStart,
-    _In_ UUId_t       BufferHandle,
-    _In_ size_t       BufferOffset,
-    _In_ size_t       DataLength)
+        _In_ MsdDevice_t* Device,
+        _In_ int          Direction,
+        _In_ uint8_t      ScsiCommand,
+        _In_ uint64_t     SectorStart,
+        _In_ uuid_t       BufferHandle,
+        _In_ size_t       BufferOffset,
+        _In_ size_t       DataLength)
 {
     UsbTransferStatus_t Status;
     size_t              DataToTransfer = DataLength;
@@ -352,13 +352,13 @@ SelectScsiTransferCommand(
 
 oscode_t
 MsdTransferSectors(
-    _In_  MsdDevice_t* device,
-    _In_  int          direction,
-    _In_  uint64_t     sector,
-    _In_  UUId_t       bufferHandle,
-    _In_  unsigned int bufferOffset,
-    _In_  size_t       sectorCount,
-    _Out_ size_t*      sectorsTransferred)
+        _In_  MsdDevice_t* device,
+        _In_  int          direction,
+        _In_  uint64_t     sector,
+        _In_  uuid_t       bufferHandle,
+        _In_  unsigned int bufferOffset,
+        _In_  size_t       sectorCount,
+        _Out_ size_t*      sectorsTransferred)
 {
     UsbTransferStatus_t transferStatus;
     size_t              sectorsToBeTransferred;
@@ -418,9 +418,9 @@ MsdTransferSectors(
     return OsOK;
 }
 
-void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
-        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
-        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,
+                                     const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+                                     const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
     MsdDevice_t*    device = MsdDeviceGet(deviceId);
     oscode_t      status;

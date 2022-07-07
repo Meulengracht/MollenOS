@@ -42,8 +42,8 @@ enum ProcessState {
 };
 
 typedef struct Process {
-    UUId_t                 handle;
-    UUId_t                 primary_thread_id;
+    uuid_t                 handle;
+    uuid_t                 primary_thread_id;
     clock_t                tick_base;
     enum ProcessState      state;
     struct usched_mtx      lock;
@@ -108,7 +108,7 @@ PmBootstrapFindRamdiskFile(
  */
 extern Process_t*
 RegisterProcessRequest(
-        _In_ UUId_t     handle,
+        _In_ uuid_t     handle,
         _In_ Request_t* request);
 
 /**
@@ -142,7 +142,7 @@ PmCreateProcessInternal(
         _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
         _In_  void*                   cancellationToken,
-        _Out_ UUId_t*                 handleOut);
+        _Out_ uuid_t*                 handleOut);
 
 /**
  * @brief Retrieves the process associated by the handle.
@@ -152,6 +152,6 @@ PmCreateProcessInternal(
  */
 extern Process_t*
 PmGetProcessByHandle(
-        _In_ UUId_t handle);
+        _In_ uuid_t handle);
 
 #endif //!__PROCESS_INTERFACE__

@@ -46,14 +46,14 @@ struct DmDeviceProtocol {
 
 struct DmDevice {
     element_t header;
-    UUId_t    driver_id;
+    uuid_t    driver_id;
     Device_t* device;
     list_t    protocols;   // list<struct DmDeviceProtocol>
 };
 
 static struct usched_mtx g_devicesLock;
 static list_t            g_devices      = LIST_INIT;
-static UUId_t            g_nextDeviceId = 1;
+static uuid_t            g_nextDeviceId = 1;
 
 void DmDevicesInitialize(void)
 {
@@ -62,7 +62,7 @@ void DmDevicesInitialize(void)
 
 static struct DmDevice*
 __GetDevice(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     struct DmDevice* result = NULL;
     usched_mtx_lock(&g_devicesLock);
@@ -79,8 +79,8 @@ __GetDevice(
 
 oscode_t
 DmDevicesRegister(
-        _In_ UUId_t driverHandle,
-        _In_ UUId_t deviceId)
+        _In_ uuid_t driverHandle,
+        _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
     struct DmDevice*         device = __GetDevice(deviceId);
@@ -104,7 +104,7 @@ void DmHandleDeviceCreate(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    UUId_t     result = UUID_INVALID;
+    uuid_t     result = UUID_INVALID;
     oscode_t status = DmDeviceCreate(
             (Device_t*)request->parameters.create.device_buffer,
             NULL,
@@ -228,7 +228,7 @@ DmDeviceCreate(
         _In_  Device_t*    device,
         _In_  const char*  name,
         _In_  unsigned int flags,
-        _Out_ UUId_t*      idOut)
+        _Out_ uuid_t*      idOut)
 {
     struct DmDevice* deviceNode;
     Device_t*        deviceCopy;

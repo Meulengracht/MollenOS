@@ -43,13 +43,13 @@ struct dma_sg;
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionCreate(
-    _In_  size_t       length,
-    _In_  size_t       capacity,
-    _In_  unsigned int flags,
-    _In_  size_t       pageMask,
-    _Out_ void**       kernelMapping,
-    _Out_ void**       userMapping,
-    _Out_ UUId_t*      handleOut);
+        _In_  size_t       length,
+        _In_  size_t       capacity,
+        _In_  unsigned int flags,
+        _In_  size_t       pageMask,
+        _Out_ void**       kernelMapping,
+        _Out_ void**       userMapping,
+        _Out_ uuid_t*      handleOut);
 
 /**
  * Exports an existing memory region that stretches over <Length>. Makes sure
@@ -62,10 +62,10 @@ MemoryRegionCreate(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionCreateExisting(
-    _In_  void*   memory,
-    _In_  size_t  size,
-    _In_  unsigned int flags,
-    _Out_ UUId_t* handleOut);
+        _In_  void*   memory,
+        _In_  size_t  size,
+        _In_  unsigned int flags,
+        _Out_ uuid_t* handleOut);
 
 /**
  *
@@ -75,8 +75,8 @@ MemoryRegionCreateExisting(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionAttach(
-    _In_  UUId_t  Handle,
-    _Out_ size_t* Length);
+        _In_  uuid_t  Handle,
+        _Out_ size_t* Length);
 
 /**
  *
@@ -88,7 +88,7 @@ MemoryRegionAttach(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionInherit(
-        _In_  UUId_t       regionHandle,
+        _In_  uuid_t       regionHandle,
         _Out_ void**       memoryOut,
         _Out_ size_t*      sizeOut,
         _In_  unsigned int accessFlags);
@@ -101,8 +101,8 @@ MemoryRegionInherit(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionUnherit(
-    _In_ UUId_t handle,
-    _In_ void*  memory);
+        _In_ uuid_t handle,
+        _In_ void*  memory);
 
 /**
  * Resizes the committed memory portion of the memory region. This automatically
@@ -114,9 +114,9 @@ MemoryRegionUnherit(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionResize(
-    _In_ UUId_t handle,
-    _In_ void*  memory,
-    _In_ size_t newLength);
+        _In_ uuid_t handle,
+        _In_ void*  memory,
+        _In_ size_t newLength);
 
 /**
  * Refreshes the current memory mapping to align with the memory region.
@@ -129,10 +129,10 @@ MemoryRegionResize(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionRefresh(
-    _In_  UUId_t  handle,
-    _In_  void*   memory,
-    _In_  size_t  currentLength,
-    _Out_ size_t* newLength);
+        _In_  uuid_t  handle,
+        _In_  void*   memory,
+        _In_  size_t  currentLength,
+        _Out_ size_t* newLength);
 
 /**
  * Commits a certain area of a memory region.
@@ -144,7 +144,7 @@ MemoryRegionRefresh(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionCommit(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ void*  memoryBase,
         _In_ void*  memory,
         _In_ size_t length);
@@ -160,11 +160,11 @@ MemoryRegionCommit(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionRead(
-    _In_  UUId_t  Handle,
-    _In_  size_t  Offset,
-    _In_  void*   Buffer,
-    _In_  size_t  Length,
-    _Out_ size_t* BytesRead);
+        _In_  uuid_t  Handle,
+        _In_  size_t  Offset,
+        _In_  void*   Buffer,
+        _In_  size_t  Length,
+        _Out_ size_t* BytesRead);
 
 /**
  * Performs a DMA write to the memory region
@@ -177,11 +177,11 @@ MemoryRegionRead(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionWrite(
-    _In_  UUId_t      Handle,
-    _In_  size_t      Offset,
-    _In_  const void* Buffer,
-    _In_  size_t      Length,
-    _Out_ size_t*     BytesWritten);
+        _In_  uuid_t      Handle,
+        _In_  size_t      Offset,
+        _In_  const void* Buffer,
+        _In_  size_t      Length,
+        _Out_ size_t*     BytesWritten);
 
 /**
  * Retrieves a scatter gather list of the physical memory blocks for the given memory region.
@@ -192,9 +192,9 @@ MemoryRegionWrite(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionGetSg(
-    _In_  UUId_t         handle,
-    _Out_ int*           sgCountOut,
-    _Out_ struct dma_sg* sgListOut);
+        _In_  uuid_t         handle,
+        _Out_ int*           sgCountOut,
+        _Out_ struct dma_sg* sgListOut);
 
 /**
  * Retrieves the kernel memory mapping for a given memory region handle
@@ -204,7 +204,7 @@ MemoryRegionGetSg(
  */
 KERNELAPI oscode_t KERNELABI
 MemoryRegionGetKernelMapping(
-        _In_  UUId_t handle,
+        _In_  uuid_t handle,
         _Out_ void** bufferOut);
 
 #endif //!__MEMORY_REGION_H__

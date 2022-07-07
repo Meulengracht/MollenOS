@@ -35,7 +35,7 @@ void OpenFile(
         return;
     }
 
-    UUId_t     handle   = UUID_INVALID;
+    uuid_t     handle   = UUID_INVALID;
     oscode_t osStatus = VFSNodeOpen(fsScope, request, &handle);
     sys_file_open_response(request->message, osStatus, handle);
 
@@ -219,7 +219,7 @@ void Duplicate(
         return;
     }
 
-    UUId_t     dupHandle;
+    uuid_t     dupHandle;
     oscode_t osStatus = VFSNodeDuplicate(request, &dupHandle);
     sys_file_duplicate_response(request->message, osStatus, dupHandle);
 

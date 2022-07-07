@@ -27,7 +27,7 @@ static hashtable_t g_handles;
 
 oscode_t
 VFSNodeHandleAdd(
-        _In_ UUId_t          handleId,
+        _In_ uuid_t          handleId,
         _In_ struct VFSNode* node)
 {
 
@@ -36,7 +36,7 @@ VFSNodeHandleAdd(
 
 oscode_t
 VFSNodeHandleFind(
-        _In_  UUId_t           handleId,
+        _In_  uuid_t           handleId,
         _Out_ struct VFSNode** nodeOut)
 {
 
@@ -44,7 +44,7 @@ VFSNodeHandleFind(
 
 oscode_t
 VFSNodeHandleRemove(
-        _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     void* found;
 

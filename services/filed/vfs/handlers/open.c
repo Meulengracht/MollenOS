@@ -37,12 +37,12 @@ static bool __NodeIsDirectory(struct VFSNode* node)
     return false;
 }
 
-static oscode_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, UUId_t* handleOut)
+static oscode_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNode* node;
     oscode_t      osStatus;
     MString_t*      path;
-    size_t          pathLength;
+    size_t          pathLength = 0;
     int             startIndex;
 
     path = VFSMakePath(request->parameters.open.path);
@@ -135,7 +135,7 @@ static oscode_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, UUI
     return osStatus;
 }
 
-static oscode_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, UUId_t* handleOut)
+static oscode_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNode* node;
     oscode_t      osStatus;
@@ -233,7 +233,7 @@ static oscode_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, UUId_t* 
     return osStatus;
 }
 
-oscode_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, UUId_t* handleOut)
+oscode_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
     // Split out the logic to keep functions simpler, we don't want to handle to many
     // cases inside one function

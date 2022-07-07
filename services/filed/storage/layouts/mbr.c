@@ -35,13 +35,13 @@ static guid_t g_emptyGuid = GUID_EMPTY;
 
 oscode_t MbrEnumeratePartitions(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer,
         _In_ uint64_t             sector);
 
 static oscode_t ParsePartitionEntry(
         _In_ FileSystemStorage_t*       storage,
-        _In_ UUId_t                     bufferHandle,
+        _In_ uuid_t                     bufferHandle,
         _In_ void*                      buffer,
         _In_ uint64_t                   currentSector,
         _In_ const MasterBootRecord_t*  mbr,
@@ -118,7 +118,7 @@ static oscode_t ParsePartitionEntry(
 oscode_t
 MbrEnumeratePartitions(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer,
         _In_ uint64_t             sector)
 {
@@ -157,7 +157,7 @@ MbrEnumeratePartitions(
 oscode_t
 MbrEnumerate(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer)
 {
     oscode_t osStatus;
@@ -167,7 +167,7 @@ MbrEnumerate(
     // otherwise we treat the entire disk as one partition
     osStatus = MbrEnumeratePartitions(storage, bufferHandle, buffer, 0);
     if (osStatus != OsOK) {
-        return VfsStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->storage.descriptor.SectorCount);
+        return VfsStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->Storage.SectorCount);
     }
     return osStatus;
 }

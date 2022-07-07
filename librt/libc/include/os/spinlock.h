@@ -41,7 +41,7 @@ enum {
 typedef struct spinlock {
     int          value;
     int          type;
-    UUId_t       owner;
+    uuid_t       owner;
     _Atomic(int) references;
 } spinlock_t;
 

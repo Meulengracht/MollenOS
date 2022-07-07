@@ -31,7 +31,7 @@
 oscode_t
 MfsReadSectors(
         _In_ FileSystemBase_t* fileSystemBase,
-        _In_ UUId_t                  BufferHandle,
+        _In_ uuid_t                  BufferHandle,
         _In_ size_t                  BufferOffset,
         _In_ uint64_t                Sector,
         _In_ size_t                  Count,
@@ -54,7 +54,7 @@ MfsReadSectors(
 oscode_t
 MfsWriteSectors(
         _In_ FileSystemBase_t* fileSystemBase,
-        _In_ UUId_t                  BufferHandle,
+        _In_ uuid_t                  BufferHandle,
         _In_ size_t                  BufferOffset,
         _In_ uint64_t                Sector,
         _In_ size_t                  Count,

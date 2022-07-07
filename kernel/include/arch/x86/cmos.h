@@ -118,7 +118,7 @@ typedef struct Cmos {
     int     RtcAvailable;
     int     RtcLine;
     int     CalibrationMode;
-    UUId_t  Irq;
+    uuid_t  Irq;
 } Cmos_t;
 
 /**

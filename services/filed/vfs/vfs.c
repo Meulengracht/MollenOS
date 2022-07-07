@@ -21,7 +21,10 @@
 
 oscode_t
 VFSNew(
-        _In_  struct VFSOperations* ops,
+        _In_  uuid_t                id,
+        _In_  guid_t*               guid,
+        _In_  struct VFSCommonData* commonData,
+        _In_  struct VFSModule*     module,
         _Out_ struct VFS**          vfsOut)
 {
 

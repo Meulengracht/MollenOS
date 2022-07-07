@@ -51,8 +51,8 @@ dma_export(
 
 oscode_t
 dma_attach(
-    _In_ UUId_t                 handle,
-    _In_ struct dma_attachment* attachment)
+        _In_ uuid_t                 handle,
+        _In_ struct dma_attachment* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;

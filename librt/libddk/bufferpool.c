@@ -111,7 +111,7 @@ dma_pool_free(
     return OsOK;
 }
 
-UUId_t
+uuid_t
 dma_pool_handle(
     _In_ struct dma_pool* pool)
 {

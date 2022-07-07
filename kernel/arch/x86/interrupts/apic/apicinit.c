@@ -310,7 +310,7 @@ __ClearApic(void)
 
 static void
 __PrepareApic(
-        _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     uint32_t temp;
     int      i, j;
@@ -397,7 +397,7 @@ ApicInitialize(void)
     ACPI_TABLE_HEADER*           header = NULL;
     uintptr_t originalApAddress = 0;
     uintptr_t remappedApAddress = 0;
-    UUId_t    bspApicId;
+    uuid_t    bspApicId;
     uint32_t  temporaryValue;
     TRACE("ApicInitialize()");
 

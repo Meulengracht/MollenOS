@@ -71,7 +71,7 @@ struct dma_buffer_info {
 };
 
 struct dma_attachment {
-    UUId_t handle;
+    uuid_t handle;
     void*  buffer;
     size_t length;
 };
@@ -102,7 +102,7 @@ CRTDECL(oscode_t, dma_export(void* buffer, struct dma_buffer_info* info, struct 
  * @param attachment [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attach(UUId_t handle, struct dma_attachment* attachment));
+CRTDECL(oscode_t, dma_attach(uuid_t handle, struct dma_attachment* attachment));
 
 /**
  * Map the dma buffer into current memory space and get the metrics of the buffer

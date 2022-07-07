@@ -34,7 +34,7 @@ oscode_t
 GptEnumeratePartitionTable(
         _In_ FileSystemStorage_t* storage,
         _In_ GptHeader_t*         gptHeader,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer)
 {
     size_t     partitionTableSectorCount;
@@ -50,7 +50,7 @@ GptEnumeratePartitionTable(
 
     // Calculate the number of sectors we need to parse
     partitionTableSectorCount = (gptHeader->PartitionCount * gptHeader->PartitionEntrySize);
-    partitionTableSectorCount /= storage->storage.descriptor.SectorSize;
+    partitionTableSectorCount /= storage->Storage.SectorSize;
     partitionTableSectorCount++;
     TRACE("GptEnumeratePartitionTable table sector size=%u", partitionTableSectorCount);
 
@@ -66,7 +66,7 @@ GptEnumeratePartitionTable(
         }
 
         entry = (GptPartitionEntry_t*)buffer;
-        for (size_t i = 0; i < storage->storage.descriptor.SectorSize; i += gptHeader->PartitionEntrySize, entry++) {
+        for (size_t i = 0; i < storage->Storage.SectorSize; i += gptHeader->PartitionEntrySize, entry++) {
             guid_t   typeGuid;
             guid_t   uniqueId;
             uint64_t sectorCount;
@@ -123,7 +123,7 @@ GptValidateHeader(
 oscode_t
 GptEnumerate(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer)
 {
     GptHeader_t* gpt;

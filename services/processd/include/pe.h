@@ -51,7 +51,7 @@ typedef struct PeExportedFunction {
 } PeExportedFunction_t;
 
 typedef struct PeExecutable {
-    UUId_t                Owner;
+    uuid_t                Owner;
     MString_t*            Name;
     MString_t*            FullPath;
     atomic_int            References;
@@ -79,7 +79,7 @@ typedef struct PeExecutable {
 __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
-__EXTERN oscode_t PeImplResolveFilePath(UUId_t, MString_t*, MString_t*, MString_t**);
+__EXTERN oscode_t PeImplResolveFilePath(uuid_t, MString_t*, MString_t*, MString_t**);
 __EXTERN oscode_t PeImplLoadFile(MString_t*, void**, size_t*);
 __EXTERN void       PeImplUnloadFile(void*);
 __EXTERN oscode_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
@@ -116,10 +116,10 @@ PeValidateImageBuffer(
  */
 extern oscode_t
 PeLoadImage(
-    _In_  UUId_t           owner,
-    _In_  PeExecutable_t*  parent,
-    _In_  MString_t*       path,
-    _Out_ PeExecutable_t** imageOut);
+        _In_  uuid_t           owner,
+        _In_  PeExecutable_t*  parent,
+        _In_  MString_t*       path,
+        _Out_ PeExecutable_t** imageOut);
 
 /**
  * @brief Unload executables, all it's dependancies and free it's resources

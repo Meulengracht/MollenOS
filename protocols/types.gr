@@ -5,7 +5,7 @@
  
 namespace sys
 
-define UUId_t from "os/osdefs.h"
+define uuid_t from "os/osdefs.h"
 define oscode_t from "os/osdefs.h"
 define size_t from "stddef.h"
 define uintptr_t from "stdint.h"
@@ -28,8 +28,8 @@ struct disk_geometry {
 }
 
 struct disk_descriptor {
-    UUId_t         device_id;
-    UUId_t         driver_id;
+    uuid_t         device_id;
+    uuid_t         driver_id;
     string         model;
     string         serial;
     storage_flags  flags;

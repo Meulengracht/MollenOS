@@ -56,7 +56,7 @@ oscode_t
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
-        _In_ UUId_t                    interrupt,
+        _In_ uuid_t                    interrupt,
         _In_ void*                     context)
 {
     SystemTimer_t*  systemTimer;

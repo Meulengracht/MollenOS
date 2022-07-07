@@ -41,7 +41,7 @@ int ioset(int flags)
 {
     stdio_handle_t* ioObject;
     oscode_t      osStatus;
-    UUId_t          handle;
+    uuid_t          handle;
     int             status;
     
     status = stdio_handle_create(-1, WX_OPEN | WX_DONTINHERIT, &ioObject);

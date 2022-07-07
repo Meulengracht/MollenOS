@@ -29,13 +29,9 @@
 #include <os/usched/usched.h>
 #include <ddk/filesystem.h>
 #include "filesystem_types.h"
-#include "filesystem_module.h"
 #include "requests.h"
 #include "vfs.h"
-
-#define __FILE_OPERATION_NONE  0x00000000
-#define __FILE_OPERATION_READ  0x00000001
-#define __FILE_OPERATION_WRITE 0x00000002
+#include "vfs_module.h"
 
 enum FileSystemState {
     FileSystemState_CREATED,
@@ -45,20 +41,14 @@ enum FileSystemState {
 };
 
 typedef struct FileSystem {
-    FileSystemBase_t base;
-    element_t        header;
-
-    UUId_t                 id;
-    guid_t                 guid;
-    enum FileSystemType    type;
-    enum FileSystemState   state;
-
-    struct VFSNode*        MountNode;
-    FileSystemModule_t*    module;
-
-    struct usched_mtx      lock;
-    hashtable_t            requests;
-    hashtable_t            cache;
+    element_t             Header;
+    struct VFSCommonData  CommonData;
+    enum FileSystemType   Type;
+    enum FileSystemState  State;
+    struct VFS*           VFS;
+    struct VFSModule*     Module;
+    struct VFSNode*       MountNode;
+    struct usched_mtx     Lock;
 } FileSystem_t;
 
 /**
@@ -78,14 +68,14 @@ extern void VfsFileSystemInitialize(void);
  * @return
  */
 extern FileSystem_t*
-VfsFileSystemCreate(
-        _In_ FileSystemDisk_t*   disk,
-        _In_ UUId_t              id,
-        _In_ uint64_t            sector,
-        _In_ uint64_t            sectorCount,
-        _In_ enum FileSystemType type,
-        _In_ guid_t*             typeGuid,
-        _In_ guid_t*             guid);
+FileSystemNew(
+        _In_ StorageDescriptor_t* storage,
+        _In_ uuid_t               id,
+        _In_ uint64_t             sector,
+        _In_ uint64_t             sectorCount,
+        _In_ enum FileSystemType  type,
+        _In_ guid_t*              typeGuid,
+        _In_ guid_t*              guid);
 
 /**
  * @brief Mounts a previously registered filesystem at the provided mount point. If no mount point is provided
@@ -109,63 +99,5 @@ extern oscode_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
-
-/**
- * @brief Registers a new filesystem request with the filesystem, so in case a filesystem becomes
- * unavailable it will automatically be cancelled.
- *
- * @param fileSystem The filesystem that the request is bound to.
- * @param request    The request that should be registered.
- */
-extern void
-VfsFileSystemRegisterRequest(
-        _In_ FileSystem_t*        fileSystem,
-        _In_ FileSystemRequest_t* request);
-
-/**
- * @brief Unregisters a filesystem request.
- *
- * @param fileSystem The filesystem that the request is bound to.
- * @param request    The request that should be unregistered.
- */
-extern void
-VfsFileSystemUnregisterRequest(
-        _In_ FileSystem_t*        fileSystem,
-        _In_ FileSystemRequest_t* request);
-
-/**
- * @brief Registers a new filesystem entry with the filesystem, so in case a filesystem becomes
- * unavailable it will automatically be cleaned.
- *
- * @param fileSystem The filesystem that the request is bound to.
- * @param handle     The file handle that should be registered.
- */
-extern void
-VfsFileSystemRegisterOpenEntry(
-        _In_ FileSystem_t*          fileSystem,
-        _In_ FileSystemEntryBase_t* entryBase);
-
-/**
- * @brief Unregisters a filesystem file entry.
- *
- * @param fileSystem The filesystem that the request is bound to.
- * @param handle     The file handle that should be unregistered.
- */
-extern void
-VfsFileSystemUnregisterOpenEntry(
-        _In_ FileSystem_t*          fileSystem,
-        _In_ FileSystemEntryBase_t* entryBase);
-
-/**
- * @brief Retrieves filesystem information about a currently open file handle.
- *
- * @param fileHandle  A file handle to query filesystem information from.
- * @param fileSystem  A pointer to where the filesystem pointer will be stored.
- * @return oscode_t Status of the lookup operation
- */
-extern oscode_t
-VfsFileSystemGetByFileHandle(
-        _In_  UUId_t         fileHandle,
-        _Out_ FileSystem_t** fileSystem);
 
 #endif //!__VFS_FILESYSTEM_H__

@@ -33,9 +33,9 @@
  */
 KERNELAPI oscode_t KERNELABI
 IpcContextCreate(
-    _In_  size_t  Size,
-    _Out_ UUId_t* HandleOut,
-    _Out_ void**  UserContextOut);
+        _In_  size_t  Size,
+        _Out_ uuid_t* HandleOut,
+        _Out_ void**  UserContextOut);
 
 /**
  * IpcContextSendMultiple

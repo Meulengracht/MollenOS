@@ -107,7 +107,7 @@ RegisterInterruptDescriptor(
     interrupt->ResourceTable.HandleResource = GetNativeHandle(descriptor);
 }
 
-UUId_t
+uuid_t
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ unsigned int       flags)
@@ -117,7 +117,7 @@ RegisterInterruptSource(
 
 oscode_t
 UnregisterInterruptSource(
-    _In_ UUId_t interruptHandle)
+        _In_ uuid_t interruptHandle)
 {
 	return Syscall_InterruptRemove(interruptHandle);
 }

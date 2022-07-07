@@ -56,10 +56,10 @@ static inline void __SetFlags(Mutex_t* mutex, unsigned int flags)
 static oscode_t
 __TryQuickLock(
         _In_  Mutex_t* mutex,
-        _Out_ UUId_t*  ownerOut)
+        _Out_ uuid_t*  ownerOut)
 {
-    UUId_t currentThread = ThreadCurrentHandle();
-    UUId_t free          = UUID_INVALID;
+    uuid_t currentThread = ThreadCurrentHandle();
+    uuid_t free          = UUID_INVALID;
     int    status        = atomic_compare_exchange_strong(&mutex->owner, &free, currentThread);
     if (!status) {
         if (free == currentThread) {
@@ -78,9 +78,9 @@ __TryQuickLock(
 // On multicore systems the lock might be released rather quickly
 // so we perform a number of initial spins before going to sleep,
 // and only in the case that there are no sleepers && locked
-static oscode_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
+static oscode_t __TrySpinOnOwner(Mutex_t* mutex, uuid_t owner)
 {
-    UUId_t currentOwner = owner;
+    uuid_t currentOwner = owner;
 
     if (atomic_load(&GetMachine()->NumberOfActiveCores) > 1) {
         // they must be on seperate cores, otherwise it makes no sense
@@ -98,8 +98,8 @@ static oscode_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
 
 static oscode_t __SlowLock(Mutex_t* mutex, size_t timeout)
 {
-    IntStatus_t intStatus;
-    UUId_t      owner;
+    irqstate_t intStatus;
+    uuid_t      owner;
 
     // Disable interrupts and try to acquire the lock or wait for the lock
     // to unlock if its held on another CPU - however we only wait for a brief period
@@ -192,7 +192,7 @@ oscode_t
 MutexTryLock(
     _In_ Mutex_t* mutex)
 {
-    UUId_t owner;
+    uuid_t owner;
 
     if (!mutex) {
         return OsInvalidParameters;
@@ -226,7 +226,7 @@ MutexUnlock(
     _In_ Mutex_t* mutex)
 {
     element_t* waiter;
-    UUId_t     owner;
+    uuid_t     owner;
 
     if (!mutex) {
         return;

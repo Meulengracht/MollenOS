@@ -75,7 +75,7 @@ GetIntegerHash(
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-        _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     Thread_t* currentThread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!currentThread) {
@@ -254,7 +254,7 @@ FutexWait(
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
     uintptr_t             FutexAddress;
-    IntStatus_t           CpuState;
+    irqstate_t           CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -324,7 +324,7 @@ FutexWaitOperation(
     FutexBucket_t        *              Bucket;
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
-    IntStatus_t                 CpuState;
+    irqstate_t                 CpuState;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {

@@ -44,17 +44,17 @@
 #include "requests.h"
 
 struct thread_mapping {
-    UUId_t     process_id;
-    UUId_t     thread_id;
+    uuid_t     process_id;
+    uuid_t     thread_id;
 };
 
 struct process_entry {
-    UUId_t     process_id;
+    uuid_t     process_id;
     Process_t* process;
 };
 
 struct process_history_entry {
-    UUId_t process_id;
+    uuid_t process_id;
     int    exit_code;
 };
 
@@ -118,7 +118,7 @@ UnregisterProcessRequest(
 
 Process_t*
 RegisterProcessRequest(
-        _In_ UUId_t     handle,
+        _In_ uuid_t     handle,
         _In_ Request_t* request)
 {
     struct process_entry* entry;
@@ -141,7 +141,7 @@ RegisterProcessRequest(
 
 Process_t*
 PmGetProcessByHandle(
-        _In_ UUId_t handle)
+        _In_ uuid_t handle)
 {
     struct process_entry* entry;
     usched_mtx_lock(&g_processesLock);
@@ -152,7 +152,7 @@ PmGetProcessByHandle(
 
 static inline Process_t*
 GetProcessByThread(
-        _In_ UUId_t handle)
+        _In_ uuid_t handle)
 {
     struct thread_mapping* mapping;
     struct process_entry*  entry = NULL;
@@ -263,7 +263,7 @@ __LoadProcessImage(
 static oscode_t
 __ProcessNew(
         _In_  ProcessConfiguration_t* config,
-        _In_  UUId_t                  handle,
+        _In_  uuid_t                  handle,
         _In_  PeExecutable_t*         image,
         _Out_ Process_t**             processOut)
 {
@@ -318,7 +318,7 @@ __StartProcess(
     // Initialize threading paramaters for the new thread
     InitializeThreadParameters(&threadParameters);
     threadParameters.Name              = MStringRaw(process->name);
-    threadParameters.MemorySpaceHandle = (UUId_t)(uintptr_t)process->image->MemorySpace;
+    threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->image->MemorySpace;
 
     osStatus = Syscall_ThreadCreate(
             process->image->EntryAddress,
@@ -338,11 +338,11 @@ PmCreateProcessInternal(
         _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
         _In_  void*                   cancellationToken,
-        _Out_ UUId_t*                 handleOut)
+        _Out_ uuid_t*                 handleOut)
 {
     PeExecutable_t* image;
     Process_t*      process;
-    UUId_t          handle;
+    uuid_t          handle;
     oscode_t      osStatus;
     ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
 
@@ -409,7 +409,7 @@ void PmCreateProcess(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    UUId_t     handle;
+    uuid_t     handle;
     oscode_t osStatus;
     ENTRY("PmCreateProcess(path=%s, args=%s)",
           request->parameters.spawn.path,
@@ -443,7 +443,7 @@ void PmGetProcessStartupInformation(
 {
     Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
     oscode_t   osStatus      = OsNotExists;
-    UUId_t     processHandle = UUID_INVALID;
+    uuid_t     processHandle = UUID_INVALID;
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
 

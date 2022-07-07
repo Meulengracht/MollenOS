@@ -109,10 +109,10 @@ typedef struct usb_device_configuration {
 } usb_device_configuration_t;
 
 typedef struct usb_device_context {
-	UUId_t   controller_device_id;
-	UUId_t   controller_driver_id;
-	UUId_t   hub_device_id;
-	UUId_t   hub_driver_id;
+	uuid_t   controller_device_id;
+	uuid_t   controller_driver_id;
+	uuid_t   hub_device_id;
+	uuid_t   hub_driver_id;
     uint8_t  hub_address;
     uint8_t  port_address;
     uint8_t  device_address;
@@ -124,7 +124,7 @@ typedef struct usb_device_context {
 typedef struct usb_transaction {
 	uint8_t Type;
 	uint8_t Flags;
-	UUId_t  BufferHandle;
+	uuid_t  BufferHandle;
 	size_t  BufferOffset;
 	size_t  Length;
 } usb_transaction_t;
@@ -200,13 +200,13 @@ UsbTransferInitialize(
  */
 __EXTERN void
 UsbTransferSetup(
-    _In_ UsbTransfer_t* transfer,
-    _In_ UUId_t         setupBufferHandle,
-    _In_ size_t         setupBufferOffset,
-    _In_ UUId_t         dataBufferHandle,
-    _In_ size_t         dataBufferOffset,
-    _In_ size_t         dataLength,
-    _In_ uint8_t        type);
+        _In_ UsbTransfer_t* transfer,
+        _In_ uuid_t         setupBufferHandle,
+        _In_ size_t         setupBufferOffset,
+        _In_ uuid_t         dataBufferHandle,
+        _In_ size_t         dataBufferOffset,
+        _In_ size_t         dataLength,
+        _In_ uint8_t        type);
 
 /**
  * Initializes a transfer for a periodic-transaction.
@@ -220,13 +220,13 @@ UsbTransferSetup(
  */
 __EXTERN void
 UsbTransferPeriodic(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-    _In_ size_t         BufferLength,
-    _In_ size_t         DataLength,
-    _In_ uint8_t        DataDirection,
-    _In_ const void*    NotifificationData);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         BufferLength,
+        _In_ size_t         DataLength,
+        _In_ uint8_t        DataDirection,
+        _In_ const void*    NotifificationData);
 
 /**
  * Creates an In-transaction in the given usb-transfer. Both buffer and length
@@ -240,11 +240,11 @@ UsbTransferPeriodic(
  */
 __EXTERN oscode_t
 UsbTransferIn(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake);
 
 /**
  * Creates an Out-transaction in the given usb-transfer. Both buffer and length
@@ -258,11 +258,11 @@ UsbTransferIn(
  */
 __EXTERN oscode_t
 UsbTransferOut(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake);
 
 /**
  * Queues a new Control or Bulk transfer for the given driver
@@ -290,9 +290,9 @@ UsbTransferQueue(
  */
 __EXTERN UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-    _In_  usb_device_context_t* deviceContext,
-	_In_  UsbTransfer_t*        transfer,
-	_Out_ UUId_t*               transferIdOut);
+        _In_  usb_device_context_t* deviceContext,
+        _In_  UsbTransfer_t*        transfer,
+        _Out_ uuid_t*               transferIdOut);
 
 /**
  * Can be used to reset an interrupt or isochronous transfer after a stall condition has occurred and been cleared.
@@ -303,7 +303,7 @@ UsbTransferQueuePeriodic(
 __EXTERN oscode_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
-        _In_ UUId_t                transferId);
+        _In_ uuid_t                transferId);
 
 /**
  * Dequeues an existing periodic transfer from the given controller. The transfer
@@ -314,8 +314,8 @@ UsbTransferResetPeriodic(
  */
 __EXTERN oscode_t
 UsbTransferDequeuePeriodic(
-    _In_ usb_device_context_t* deviceContext,
-	_In_ UUId_t                transferId);
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uuid_t                transferId);
 
 /**
  * Resets the given port on the given hub and queries it's
@@ -329,10 +329,10 @@ UsbTransferDequeuePeriodic(
  */
 __EXTERN oscode_t
 UsbHubResetPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor);
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor);
 
 /**
  * Queries the port-descriptor of host-controller port.
@@ -344,10 +344,10 @@ UsbHubResetPort(
  */
 __EXTERN oscode_t
 UsbHubQueryPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor);
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor);
 
 /**
  * UsbSetAddress
@@ -472,7 +472,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         UsbControllerUnregister(
-    _In_ UUId_t deviceId));
+    _In_ uuid_t deviceId));
 
 /**
  *
@@ -492,7 +492,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         UsbHubUnregister(
-        _In_ UUId_t deviceId));
+        _In_ uuid_t deviceId));
 
 /**
  * Call this event when any port status update needs action taken by the usb stack
@@ -502,7 +502,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         UsbEventPort(
-    _In_ UUId_t  DeviceId,
+    _In_ uuid_t  DeviceId,
     _In_ uint8_t PortAddress));
 
 /**
@@ -513,7 +513,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         UsbPortError(
-        _In_ UUId_t  deviceId,
+        _In_ uuid_t  deviceId,
         _In_ uint8_t portAddress));
 
 /* UsbQueryControllerCount

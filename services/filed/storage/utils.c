@@ -27,9 +27,9 @@
 
 static int g_diskTable[__FILEMANAGER_MAXDISKS] = { 0 };
 
-UUId_t
+uuid_t
 VfsIdentifierAllocate(
-        _In_ FileSystemStorage_t* storage)
+        _In_ FileSystemStorage_t* fsStorage)
 {
     int indexBegin = 0;
     int indexEnd;
@@ -37,7 +37,7 @@ VfsIdentifierAllocate(
 
     // Start out by determing start index
     indexEnd = __FILEMANAGER_MAXDISKS / 2;
-    if (storage->storage.flags & SYS_STORAGE_FLAGS_REMOVABLE) {
+    if (fsStorage->Storage.Flags & SYS_STORAGE_FLAGS_REMOVABLE) {
         indexBegin = __FILEMANAGER_MAXDISKS / 2;
         indexEnd   = __FILEMANAGER_MAXDISKS;
     }
@@ -46,7 +46,7 @@ VfsIdentifierAllocate(
     for (i = indexBegin; i < indexEnd; i++) {
         if (g_diskTable[i] == 0) {
             g_diskTable[i] = 1;
-            return (UUId_t)(i - indexBegin);
+            return (uuid_t)(i - indexBegin);
         }
     }
     return UUID_INVALID;
@@ -55,10 +55,10 @@ VfsIdentifierAllocate(
 void
 VfsIdentifierFree(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               id)
+        _In_ uuid_t               id)
 {
     int index = (int)id;
-    if (storage->storage.flags & SYS_STORAGE_FLAGS_REMOVABLE) {
+    if (storage->Storage.Flags & SYS_STORAGE_FLAGS_REMOVABLE) {
         index += __FILEMANAGER_MAXDISKS / 2;
     }
     if (index < __FILEMANAGER_MAXDISKS) {
@@ -69,15 +69,15 @@ VfsIdentifierFree(
 oscode_t
 VfsStorageReadHelper(
         _In_  FileSystemStorage_t* storage,
-        _In_  UUId_t               bufferHandle,
+        _In_  uuid_t               bufferHandle,
         _In_  uint64_t             sector,
         _In_  size_t               sectorCount,
         _Out_ size_t*              sectorsRead)
 {
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->storage.driver_id);
+    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Storage.DriverID);
     oscode_t               status;
 
-    ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->storage.device_id,
+    ctt_storage_transfer(GetGrachtClient(), &msg.base, storage->Storage.DeviceID,
                          __STORAGE_OPERATION_READ, LODWORD(sector), HIDWORD(sector),
                          bufferHandle, 0, sectorCount);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);

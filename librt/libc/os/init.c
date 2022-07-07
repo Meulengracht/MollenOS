@@ -49,7 +49,7 @@ static uint8_t*   g_inheritBlock   = NULL;
 static uintptr_t* g_baseLibraries  = NULL;
 static char**     g_environment    = NULL;
 static int        g_isPhoenix      = 0;
-static UUId_t     g_processId      = UUID_INVALID;
+static uuid_t     g_processId      = UUID_INVALID;
 
 static void
 __mark_iod_priority(int iod)
@@ -277,7 +277,7 @@ int __crt_is_phoenix(void)
     return g_isPhoenix;
 }
 
-UUId_t* __crt_processid_ptr(void)
+uuid_t* __crt_processid_ptr(void)
 {
     return &g_processId;
 }

@@ -99,7 +99,7 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
@@ -112,7 +112,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId
     ctt_usbhub_query_port_response(message, OsOK, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
     oscode_t              status;
@@ -127,7 +127,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
     ctt_usbhub_reset_port_response(message, status, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     //
 }

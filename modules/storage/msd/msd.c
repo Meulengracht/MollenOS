@@ -46,9 +46,9 @@ static const char* g_deviceProtocolNames[ProtocolCount] = {
 
 static inline void
 RegisterStorage(
-    _In_ UUId_t       protocolServerId,
-    _In_ UUId_t       deviceId,
-    _In_ unsigned int flags)
+        _In_ uuid_t       protocolServerId,
+        _In_ uuid_t       deviceId,
+        _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     (void)sys_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
@@ -56,8 +56,8 @@ RegisterStorage(
 
 static inline void
 UnregisterStorage(
-    _In_ UUId_t  deviceId,
-    _In_ uint8_t forced)
+        _In_ uuid_t  deviceId,
+        _In_ uint8_t forced)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     (void)sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);

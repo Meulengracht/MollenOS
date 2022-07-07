@@ -20,6 +20,7 @@
 #define __VFS_PRIVATE_H__
 
 #include <ddk/filesystem.h>
+#include <ds/guid.h>
 #include <ds/hashtable.h>
 #include <os/dmabuf.h>
 #include <os/usched/mutex.h>
@@ -85,11 +86,13 @@ static void usched_rwlock_w_unlock(struct usched_rwlock* lock)
 }
 
 struct VFS {
-    FileSystemBase_t      Base;
-    struct VFSModule*     Module;
-    struct VFSNode*       Root;
-    struct usched_rwlock  Lock;
-    struct dma_attachment Buffer;
+    uuid_t                 ID;
+    guid_t                 Guid;
+    struct VFSCommonData*  CommonData;
+    struct VFSModule*      Module;
+    struct VFSNode*        Root;
+    struct usched_rwlock   Lock;
+    struct dma_attachment  Buffer;
 };
 
 enum VFSNodeType {
@@ -147,7 +150,7 @@ struct __VFSChild {
 };
 
 struct __VFSHandle {
-    UUId_t   Id;
+    uuid_t   Id;
     uint32_t AccessKind;
 };
 
@@ -158,7 +161,7 @@ enum VFSNodeMode {
 };
 
 struct VFSNodeHandle {
-    UUId_t           Id;
+    uuid_t           Id;
     struct VFSNode*  Node;
     enum VFSNodeMode Mode;
     uint32_t         AccessKind;
@@ -174,7 +177,7 @@ struct VFSNodeHandle {
  */
 extern oscode_t
 VFSNodeHandleAdd(
-        _In_ UUId_t          handleId,
+        _In_ uuid_t          handleId,
         _In_ struct VFSNode* node,
         _In_ void*           data,
         _In_ uint32_t        accessKind);
@@ -189,7 +192,7 @@ VFSNodeHandleAdd(
  */
 extern oscode_t
 VFSNodeHandleGet(
-        _In_  UUId_t                 handleId,
+        _In_  uuid_t                 handleId,
         _Out_ struct VFSNodeHandle** handleOut);
 
 /**
@@ -212,10 +215,11 @@ VFSNodeHandlePut(
  */
 extern oscode_t
 VFSNodeHandleRemove(
-        _In_ UUId_t handleId);
+        _In_ uuid_t handleId);
 
 extern MString_t* VFSMakePath(const char* path);
-extern MString_t* VFSNodeMakePath(struct VFSNode* node, int local);
+extern oscode_t   VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
+extern oscode_t   VFSNodePut(struct VFSNode* node);
 
 /**
  * @brief Ensures a node is loaded if the node is a directory node. A reader lock
@@ -236,9 +240,6 @@ extern oscode_t VFSNodeEnsureLoaded(struct VFSNode* node);
 extern oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
 
 
-
-extern oscode_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
-extern oscode_t VFSNodePut(struct VFSNode* node);
 
 /**
  * @brief Creates a new child in the node. This will create the node on the filesystem as well. A reader lock on the
@@ -270,6 +271,6 @@ extern oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MS
  * @param handleOut
  * @return
  */
-extern oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, UUId_t* handleOut);
+extern oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
 
 #endif //!__VFS_PRIVATE_H__

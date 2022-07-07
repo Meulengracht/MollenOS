@@ -13,7 +13,6 @@ include_directories (
 
 set (SERVICE_HEADERS
         include/vfs/filesystem.h
-        include/vfs/filesystem_module.h
         include/vfs/filesystem_types.h
         include/vfs/gpt.h
         include/vfs/mbr.h
@@ -51,7 +50,6 @@ set (SERVICE_SOURCES
         vfs/vfs.c
 
         filesystem.c
-        handle.c
         modules.c
         main.c
         requests.c

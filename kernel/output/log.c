@@ -37,8 +37,8 @@
 
 typedef struct SystemLogLine {
     int     level;
-    UUId_t  coreId;
-    UUId_t  threadHandle;
+    uuid_t  coreId;
+    uuid_t  threadHandle;
     clock_t timeStamp;
     char    data[128]; // Message
 } SystemLogLine_t;
@@ -196,7 +196,7 @@ LogAppendMessage(
 {
     SystemLogLine_t* logLine;
 	va_list          arguments;
-	UUId_t           coreId = ArchGetProcessorCoreId();
+	uuid_t           coreId = ArchGetProcessorCoreId();
     int              written;
 
 	if (!format) {

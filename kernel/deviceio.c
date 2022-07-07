@@ -41,7 +41,7 @@
 typedef struct SystemDeviceIo {
     element_t  Header;
     DeviceIo_t Io;
-    UUId_t     Owner;
+    uuid_t     Owner;
     uintptr_t  MappedAddress;
 } SystemDeviceIo_t;
 
@@ -163,7 +163,7 @@ AcquireSystemDeviceIo(
 {
     SystemDeviceIo_t *    SystemIo;
     MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    UUId_t               CoreId = ArchGetProcessorCoreId();
+    uuid_t               CoreId = ArchGetProcessorCoreId();
     assert(IoSpace != NULL);
 
     TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
@@ -222,7 +222,7 @@ ReleaseSystemDeviceIo(
 {
     SystemDeviceIo_t *    SystemIo;
     MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    UUId_t               CoreId = ArchGetProcessorCoreId();
+    uuid_t               CoreId = ArchGetProcessorCoreId();
     
     assert(IoSpace != NULL);
     TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);

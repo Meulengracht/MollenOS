@@ -37,7 +37,7 @@ static list_t g_controllers = LIST_INIT;
 
 oscode_t
 UsbCoreControllerRegister(
-        _In_ UUId_t              driverId,
+        _In_ uuid_t              driverId,
         _In_ Device_t*           device,
         _In_ UsbControllerType_t controllerType,
         _In_ int                 rootPorts)
@@ -75,7 +75,7 @@ UsbCoreControllerRegister(
 
 oscode_t
 UsbCoreControllerUnregister(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     UsbController_t* controller;
     TRACE("UsbCoreControllerUnregister(deviceId=%u)", deviceId);
@@ -93,7 +93,7 @@ UsbCoreControllerUnregister(
 
 UsbController_t*
 UsbCoreControllerGet(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     foreach(element, &g_controllers) {
         UsbController_t* controller = (UsbController_t*)element->value;
@@ -171,13 +171,13 @@ static UsbController_t* __GetControllerIndex(
     return NULL;
 }
 
-void sys_usb_register_controller_invocation(struct gracht_message* message, const UUId_t driverId,
+void sys_usb_register_controller_invocation(struct gracht_message* message, const uuid_t driverId,
         const uint8_t* device, const uint32_t device_count, const int type, const int portCount)
 {
     UsbCoreControllerRegister(driverId, (Device_t*)device, (UsbControllerType_t)type, portCount);
 }
 
-void sys_usb_unregister_controller_invocation(struct gracht_message* message, const UUId_t deviceId)
+void sys_usb_unregister_controller_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     UsbCoreControllerUnregister(deviceId);
 }

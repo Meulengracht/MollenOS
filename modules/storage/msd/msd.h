@@ -123,9 +123,9 @@ typedef enum MsdProtocolType {
 typedef struct MsdDevice MsdDevice_t;
 typedef struct MsdOperations {
     oscode_t          (*Initialize)(MsdDevice_t*);
-    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, UUId_t, size_t, size_t);
-    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
-    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
+    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, uuid_t, size_t, size_t);
+    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, uuid_t, size_t, size_t, size_t*);
+    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, uuid_t, size_t, size_t, size_t*);
     UsbTransferStatus_t (*GetStatus)(MsdDevice_t*);
 } MsdOperations_t;
 
@@ -180,5 +180,5 @@ MsdDeviceStart(
 
 __EXTERN MsdDevice_t*
 MsdDeviceGet(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 #endif // !_USB_MSD_H_

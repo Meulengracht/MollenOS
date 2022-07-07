@@ -35,7 +35,7 @@
 #include "ctt_driver_service_server.h"
 #include "ctt_storage_service_server.h"
 
-static UUId_t g_nextTransactionId = 0;
+static uuid_t g_nextTransactionId = 0;
 
 static struct __AhciCommandTableEntry {
     int          Direction;
@@ -151,7 +151,7 @@ static AhciTransaction_t* __CreateTransaction(
         _In_ struct dma_attachment* dmaAttachment,
         _In_ unsigned int           bufferOffset)
 {
-    UUId_t             transactionId;
+    uuid_t             transactionId;
     AhciTransaction_t* transaction;
     size_t             transactionSize = message ?
             sizeof(AhciTransaction_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message) :
@@ -262,13 +262,13 @@ static inline struct __AhciCommandTableEntry* __GetCommand(
 
 oscode_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*          device,
-    _In_ struct gracht_message* message,
-    _In_ int                    direction,
-    _In_ uint64_t               sector,
-    _In_ UUId_t                 bufferHandle,
-    _In_ unsigned int           bufferOffset,
-    _In_ size_t                 sectorCount)
+        _In_ AhciDevice_t*          device,
+        _In_ struct gracht_message* message,
+        _In_ int                    direction,
+        _In_ uint64_t               sector,
+        _In_ uuid_t                 bufferHandle,
+        _In_ unsigned int           bufferOffset,
+        _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
     struct dma_attachment           dmaAttachment;
@@ -323,9 +323,9 @@ exit:
     return status;
 }
 
-void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
-        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
-        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,
+                                     const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+                                     const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
     AhciDevice_t*   device = AhciManagerGetDevice(deviceId);
     oscode_t      status;

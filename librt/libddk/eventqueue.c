@@ -46,14 +46,14 @@ struct EventQueueEvent {
 
 typedef struct EventQueue {
     int    IsRunning;
-    UUId_t NextEventId;
+    uuid_t NextEventId;
     thrd_t EventThread;
     mtx_t  EventLock;
     cnd_t  EventCondition;
     list_t Events;
 } EventQueue_t;
 
-static UUId_t __AddToEventQueue(EventQueue_t* eventQueue, EventQueueFunction function, void* context, size_t timeoutMs, size_t intervalMs);
+static uuid_t __AddToEventQueue(EventQueue_t* eventQueue, EventQueueFunction function, void* context, size_t timeoutMs, size_t intervalMs);
 static int    EventQueueWorker(void* context);
 
 oscode_t CreateEventQueue(EventQueue_t** EventQueueOut)
@@ -106,12 +106,12 @@ void QueueEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* con
     __AddToEventQueue(eventQueue, callback, context, 0, 0);
 }
 
-UUId_t QueueDelayedEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t delayMs)
+uuid_t QueueDelayedEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t delayMs)
 {
     return __AddToEventQueue(eventQueue, callback, context, delayMs, 0);
 }
 
-UUId_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t intervalMs)
+uuid_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback, void* context, size_t intervalMs)
 {
     if (intervalMs == 0) {
         return UUID_INVALID;
@@ -119,7 +119,7 @@ UUId_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback,
     return __AddToEventQueue(eventQueue, callback, context, intervalMs, intervalMs);
 }
 
-oscode_t CancelEvent(EventQueue_t* eventQueue, UUId_t eventHandle)
+oscode_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
 {
     element_t* element;
     oscode_t osStatus = OsNotExists;
@@ -137,7 +137,7 @@ oscode_t CancelEvent(EventQueue_t* eventQueue, UUId_t eventHandle)
     return osStatus;
 }
 
-static UUId_t __AddToEventQueue(
+static uuid_t __AddToEventQueue(
         _In_ EventQueue_t*      eventQueue,
         _In_ EventQueueFunction function,
         _In_ void*              context,
@@ -145,7 +145,7 @@ static UUId_t __AddToEventQueue(
         _In_ size_t             intervalMs)
 {
     struct EventQueueEvent* event;
-    UUId_t                  eventId = UUID_INVALID;
+    uuid_t                  eventId = UUID_INVALID;
     TRACE("__AddToEventQueue(eventQueue=0x%" PRIxIN ", timeoutMs=%" PRIuIN ", intervalMs=%" PRIuIN,
           eventQueue, timeoutMs, intervalMs);
 

@@ -28,7 +28,7 @@
 
 oscode_t
 handle_create(
-    _Out_ UUId_t* handleOut)
+        _Out_ uuid_t* handleOut)
 {
     if (!handleOut) {
         return OsInvalidParameters;
@@ -38,15 +38,15 @@ handle_create(
 
 oscode_t
 handle_destroy(
-    _In_ UUId_t handle)
+        _In_ uuid_t handle)
 {
     return Syscall_DestroyHandle(handle);
 }
 
 oscode_t
 handle_set_path(
-    _In_ UUId_t      handle,
-    _In_ const char* path)
+        _In_ uuid_t      handle,
+        _In_ const char* path)
 {
     if (!path) {
         return OsInvalidParameters;
@@ -56,16 +56,16 @@ handle_set_path(
 
 oscode_t
 handle_post_notification(
-    _In_ UUId_t       handle,
-    _In_ unsigned int flags)
+        _In_ uuid_t       handle,
+        _In_ unsigned int flags)
 {
     return Syscall_HandleSetActivity(handle, flags);
 }
 
 oscode_t
 notification_queue_create(
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut)
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut)
 {
     if (!handleOut) {
         return OsInvalidParameters;
@@ -75,22 +75,22 @@ notification_queue_create(
 
 oscode_t
 notification_queue_ctrl(
-    _In_ UUId_t              setHandle,
-    _In_ int                 operation,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     return Syscall_ControlHandleSet(setHandle, operation, handle, event);
 }
 
 oscode_t
 notification_queue_wait(
-    _In_  UUId_t              handle,
-    _In_  struct ioset_event* events,
-    _In_  int                 maxEvents,
-    _In_  int                 pollEvents,
-    _In_  size_t              timeout,
-    _Out_ int*                numEventsOut)
+        _In_  uuid_t              handle,
+        _In_  struct ioset_event* events,
+        _In_  int                 maxEvents,
+        _In_  int                 pollEvents,
+        _In_  size_t              timeout,
+        _Out_ int*                numEventsOut)
 {
     HandleSetWaitParameters_t parameters = {
         .events = events,

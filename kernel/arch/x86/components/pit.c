@@ -109,7 +109,7 @@ PitInitialize(
         _In_ int rtcAvailable)
 {
 	DeviceInterrupt_t deviceInterrupt = {{0 } };
-    UUId_t            irq;
+    uuid_t            irq;
     oscode_t        osStatus;
 
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);

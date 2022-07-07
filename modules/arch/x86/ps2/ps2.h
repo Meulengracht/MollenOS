@@ -116,9 +116,9 @@ typedef enum PS2PortState {
 
 typedef struct PS2Port {
     int               Index;
-    UUId_t            DeviceId;
+    uuid_t            DeviceId;
     DeviceInterrupt_t Interrupt;
-    UUId_t            InterruptId;
+    uuid_t            InterruptId;
     PS2Command_t      ActiveCommand;
     PS2PortState_t    State;
     unsigned int      Signature;

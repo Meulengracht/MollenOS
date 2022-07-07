@@ -47,13 +47,13 @@ typedef struct AddressRecord {
 
 typedef struct SocketDomain {
     SocketDomainOps_t Ops;
-    UUId_t            ConnectedSocket;
+    uuid_t            ConnectedSocket;
     AddressRecord_t*  Record;
 } SocketDomain_t;
 
 typedef struct ConnectionRequest {
     element_t             Header;
-    UUId_t                SourceSocketHandle;
+    uuid_t                SourceSocketHandle;
     struct gracht_message Response[];
 } ConnectionRequest_t;
 
@@ -186,7 +186,7 @@ HandleSocketStreamData(
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
-                handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+                handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
                 return OsOutOfMemory;
             }
             
@@ -199,7 +199,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+    handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
     return OsOK;
 }
 
@@ -302,7 +302,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            handle_post_notification((UUId_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+            handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -333,8 +333,8 @@ DomainLocalPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2)
 {
-    Socket1->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket2->Header.key;
-    Socket2->Domain->ConnectedSocket = (UUId_t)(uintptr_t)Socket1->Header.key;
+    Socket1->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket2->Header.key;
+    Socket2->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket1->Header.key;
     return OsOK;
 }
 
@@ -345,7 +345,7 @@ DomainLocalAllocateAddress(
     AddressRecord_t* Record;
     char             AddressBuffer[16];
     TRACE("[socket] [local] allocate address 0x%" PRIxIN " [%u]", 
-        Socket, (UUId_t)(uintptr_t)Socket->Header.key);
+        Socket, (uuid_t)(uintptr_t)Socket->Header.key);
     
     if (Socket->Domain->Record) {
         ERROR("[socket] [local] domain address 0x%" PRIxIN " already registered",
@@ -359,7 +359,7 @@ DomainLocalAllocateAddress(
     }
     
     // Create a new address of the form /lc/{id}
-    sprintf(&AddressBuffer[0], "/lc/%u", (UUId_t)(uintptr_t)Socket->Header.key);
+    sprintf(&AddressBuffer[0], "/lc/%u", (uuid_t)(uintptr_t)Socket->Header.key);
     TRACE("[socket] [local] address created %s", &AddressBuffer[0]);
     if (list_find(&AddressRegister, &AddressBuffer[0]) != NULL) {
         ERROR("[socket] [local] address %s exists in register", &AddressBuffer[0]);
@@ -422,8 +422,8 @@ DomainLocalBind(
 
 static ConnectionRequest_t*
 CreateConnectionRequest(
-    _In_ UUId_t                 sourceSocketHandle,
-    _In_ struct gracht_message* message)
+        _In_ uuid_t                 sourceSocketHandle,
+        _In_ struct gracht_message* message)
 {
     ConnectionRequest_t* request = malloc(sizeof(ConnectionRequest_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
     if (!request) {
@@ -456,7 +456,7 @@ AcceptConnectionRequest(
     _In_ Socket_t*              connectSocket,
     _In_ struct gracht_message* connectMessage)
 {
-    UUId_t                  handle, recv_handle, send_handle;
+    uuid_t                  handle, recv_handle, send_handle;
     struct sockaddr_storage address;
     oscode_t              status;
     
@@ -471,7 +471,7 @@ AcceptConnectionRequest(
         connectSocket->Type, connectSocket->Protocol, &handle,
         &recv_handle, &send_handle);
     if (status == OsOK) {
-        NetworkManagerSocketPair(handle, (UUId_t)(uintptr_t)connectSocket->Header.key);
+        NetworkManagerSocketPair(handle, (uuid_t)(uintptr_t)connectSocket->Header.key);
     }
     
     // Reply to the connector (the thread that called connect())
@@ -501,7 +501,7 @@ HandleLocalConnectionRequest(
     element = queue_pop(&targetSocket->AcceptRequests);
     if (!element) {
         TRACE("[domain] [local] [handle_connect] creating request");
-        connectionRequest = CreateConnectionRequest((UUId_t)(uintptr_t)sourceSocket->Header.key, message);
+        connectionRequest = CreateConnectionRequest((uuid_t)(uintptr_t)sourceSocket->Header.key, message);
         if (!connectionRequest) {
             mtx_unlock(&targetSocket->SyncObject);
             ERROR("[domain] [local] [handle_connect] failed to allocate memory for connection request");
@@ -511,7 +511,7 @@ HandleLocalConnectionRequest(
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
         queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
-        handle_post_notification((UUId_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
+        handle_post_notification((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
     }
     mtx_unlock(&targetSocket->SyncObject);
     

@@ -34,12 +34,12 @@
 #include "transfer.h"
 
 typedef struct UsbManagerController {
-    UUId_t              Id;
+    uuid_t              Id;
     UsbControllerType_t Type;
     BusDevice_t         Device;
 
     int                 event_descriptor;
-    UUId_t              Interrupt;
+    uuid_t              Interrupt;
     _Atomic(reg32_t)    InterruptStatus;
     size_t              PortCount;
     
@@ -168,7 +168,7 @@ UsbManagerDumpChain(
  */
 __EXTERN UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 
 /**
  * Gets the current toggle status of an endpoint address for the controller.
@@ -178,8 +178,8 @@ UsbManagerGetController(
  */
 __EXTERN int
 UsbManagerGetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address);
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address);
 
 /**
  * Updates the current toggle status of an endpoint address for the controller.
@@ -189,9 +189,9 @@ UsbManagerGetToggle(
  */
 __EXTERN oscode_t
 UsbManagerSetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address,
-    _In_ int             toggle);
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address,
+        _In_ int             toggle);
 
 /* UsbManagerProcessTransfers
  * Processes all the associated transfers with the given usb controller.

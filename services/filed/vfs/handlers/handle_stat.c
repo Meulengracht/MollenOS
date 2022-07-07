@@ -119,7 +119,7 @@ oscode_t VFSNodeSetSize(struct VFSRequest* request)
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Module->Operations.Truncate(
-            &handle->Node->FileSystem->Base, handle->Data, size.QuadPart);
+            handle->Node->FileSystem->CommonData, handle->Data, size.QuadPart);
     if (osStatus == OsOK) {
         handle->Node->Stats.Size = size.QuadPart;
     }
@@ -165,7 +165,7 @@ oscode_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
 
     usched_rwlock_r_unlock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Module->Operations.Stat(
-            &handle->Node->FileSystem->Base, stat);
+            handle->Node->FileSystem->CommonData, stat);
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     osStatus2 = VFSNodeHandlePut(handle);
@@ -186,7 +186,7 @@ oscode_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_
     }
 
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    memcpy(stat, &handle->Node->FileSystem->Base.Storage, sizeof(StorageDescriptor_t));
+    memcpy(stat, &handle->Node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     osStatus = VFSNodeHandlePut(handle);

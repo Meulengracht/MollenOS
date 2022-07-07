@@ -251,7 +251,7 @@ typedef struct FileSystemMFS {
 extern oscode_t
 MfsReadSectors(
         _In_  FileSystemBase_t* fileSystemBase,
-        _In_  UUId_t            bufferHandle,
+        _In_  uuid_t            bufferHandle,
         _In_  size_t            bufferOffset,
         _In_  uint64_t          sector,
         _In_  size_t            count,
@@ -263,7 +263,7 @@ MfsReadSectors(
 extern oscode_t
 MfsWriteSectors(
         _In_  FileSystemBase_t* fileSystemBase,
-        _In_  UUId_t            bufferHandle,
+        _In_  uuid_t            bufferHandle,
         _In_  size_t            bufferOffset,
         _In_  uint64_t          sector,
         _In_  size_t            count,

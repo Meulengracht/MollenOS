@@ -35,7 +35,7 @@
  */
 DDKDECL(oscode_t,
         handle_create(
-    _Out_ UUId_t* handleOut));
+    _Out_ uuid_t* handleOut));
 
 /**
  * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
@@ -44,7 +44,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         handle_destroy(
-    _In_ UUId_t handle));
+    _In_ uuid_t handle));
 
 /**
  * Registers a unique system wide path for the handle, so the handle can be accessed across the system
@@ -55,7 +55,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         handle_set_path(
-    _In_ UUId_t      handle,
+    _In_ uuid_t      handle,
     _In_ const char* path));
 
 /**
@@ -67,7 +67,7 @@ DDKDECL(oscode_t,
 DDKDECL(oscode_t,
         notification_queue_create(
     _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut));
+    _Out_ uuid_t*      handleOut));
 
 /**
  * notification_queue_ctrl
@@ -79,9 +79,9 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         notification_queue_ctrl(
-    _In_ UUId_t              setHandle,
+    _In_ uuid_t              setHandle,
     _In_ int                 operation,
-    _In_ UUId_t              handle,
+    _In_ uuid_t              handle,
     _In_ struct ioset_event* event));
 
 /**
@@ -95,7 +95,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         notification_queue_wait(
-    _In_  UUId_t              handle,
+    _In_  uuid_t              handle,
     _In_  struct ioset_event * events,
     _In_  int                 maxEvents,
     _In_  int                 pollEvents,
@@ -111,7 +111,7 @@ DDKDECL(oscode_t,
  */
 DDKDECL(oscode_t,
         handle_post_notification(
-    _In_ UUId_t       handle,
+    _In_ uuid_t       handle,
     _In_ unsigned int flags));
 
 #endif //!__DDK_HANDLE_H__

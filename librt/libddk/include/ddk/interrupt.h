@@ -59,7 +59,7 @@ typedef struct FastInterruptMemoryResource {
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
 typedef struct InterruptResourceTable {
     InterruptHandler_t            Handler;
-    UUId_t                        HandleResource;
+    uuid_t                        HandleResource;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
 } InterruptResourceTable_t;
@@ -71,8 +71,8 @@ typedef struct InterruptResourceTable {
 typedef struct InterruptFunctionTable {
     size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
     oscode_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
-    oscode_t (*EventSignal)(UUId_t handle);
-    oscode_t (*WriteStream)(UUId_t handle, const void* buffer, size_t length);
+    oscode_t (*EventSignal)(uuid_t handle);
+    oscode_t (*WriteStream)(uuid_t handle, const void* buffer, size_t length);
     void       (*Trace)(const char* format, ...);
 } InterruptFunctionTable_t;
 
@@ -164,8 +164,8 @@ RegisterInterruptDescriptor(
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, SIGINT can be invoked by the event-system */
-DDKDECL(UUId_t,
-RegisterInterruptSource(
+DDKDECL(uuid_t,
+        RegisterInterruptSource(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ unsigned int       flags));
 
@@ -173,6 +173,6 @@ RegisterInterruptSource(
  * Unallocates the given interrupt source and disables all events of SIGINT */
 DDKDECL(oscode_t,
         UnregisterInterruptSource(
-    _In_ UUId_t interruptHandle));
+    _In_ uuid_t interruptHandle));
 
 #endif //!_INTERRUPT_INTERFACE_H_

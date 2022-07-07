@@ -31,8 +31,8 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-oscode_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
-oscode_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, UUId_t, void*, size_t, size_t, size_t*);
+oscode_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
+oscode_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
 oscode_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
 
 // Directory specific operation handlers
@@ -164,7 +164,7 @@ FsReadEntry(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  FileSystemEntryBase_t*  entryBase,
         _In_  FileSystemHandleBase_t* handleBase,
-        _In_  UUId_t                  bufferHandle,
+        _In_  uuid_t                  bufferHandle,
         _In_  void*                   buffer,
         _In_  size_t                  bufferOffset,
         _In_  size_t                  unitCount,
@@ -187,7 +187,7 @@ FsWriteEntry(
         _In_  FileSystemBase_t*       fileSystemBase,
         _In_  FileSystemEntryBase_t*  entryBase,
         _In_  FileSystemHandleBase_t* handleBase,
-        _In_  UUId_t                  bufferHandle,
+        _In_  uuid_t                  bufferHandle,
         _In_  void*                   buffer,
         _In_  size_t                  bufferOffset,
         _In_  size_t                  unitCount,

@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oscode_t __MapUserBuffer(UUId_t handle, struct dma_attachment* attachment)
+static oscode_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment)
 {
     oscode_t osStatus;
 
@@ -116,7 +116,7 @@ oscode_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
     handle->Position = result.QuadPart;
 
     osStatus = nodeVfs->Module->Operations.Read(
-            &nodeVfs->Base, handle->Data,
+            nodeVfs->CommonData, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,

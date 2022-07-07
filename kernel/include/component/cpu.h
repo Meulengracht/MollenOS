@@ -102,10 +102,10 @@ CpuEnableMultiProcessorMode(void);
  */
 KERNELAPI void KERNELABI
 CpuCoreRegister(
-    _In_ SystemCpu_t*     cpu,
-    _In_ UUId_t           coreId,
-    _In_ SystemCpuState_t initialState,
-    _In_ int              external);
+        _In_ SystemCpu_t*     cpu,
+        _In_ uuid_t           coreId,
+        _In_ SystemCpuState_t initialState,
+        _In_ int              external);
 
 /**
  * @brief Activates the given core and prepares it for usage. This sets up a new
@@ -129,11 +129,11 @@ StartApplicationCore(
  */
 KERNELAPI oscode_t KERNELABI
 TxuMessageSend(
-    _In_ UUId_t                  CoreId,
-    _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument,
-    _In_ int                     Asynchronous);
+        _In_ uuid_t                  CoreId,
+        _In_ SystemCpuFunctionType_t Type,
+        _In_ TxuFunction_t           Function,
+        _In_ void*                   Argument,
+        _In_ int                     Asynchronous);
 
 /**
  * ProcessorMessageSend 
@@ -157,7 +157,7 @@ ProcessorMessageSend(
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetProcessorCore(
-    _In_ UUId_t coreId);
+        _In_ uuid_t coreId);
 
 /**
  * CpuCoreCurrent
@@ -212,7 +212,7 @@ CpuCoreQueueIpc(
  * @param cpuCore A pointer to a cpu core structure
  * @return        The id of the cpu core instance
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 CpuCoreId(
         _In_ SystemCpuCore_t* cpuCore);
 

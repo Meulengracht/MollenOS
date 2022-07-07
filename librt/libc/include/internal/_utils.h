@@ -23,12 +23,12 @@ typedef struct HandleSetWaitParameters {
 } HandleSetWaitParameters_t;
 
 extern int                __crt_is_phoenix(void);
-extern UUId_t*            __crt_processid_ptr(void);
+extern uuid_t*            __crt_processid_ptr(void);
 extern const char*        __crt_cmdline(void);
 extern const char* const* __crt_environment(void);
 CRTDECL(const uintptr_t*, __crt_base_libraries(void));
 
 CRTDECL(gracht_client_t*, GetGrachtClient(void));
-CRTDECL(UUId_t,           GetNativeHandle(int));
+CRTDECL(uuid_t, GetNativeHandle(int));
 
 #endif

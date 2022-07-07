@@ -79,7 +79,7 @@ typedef struct MemorySpaceContext MemorySpaceContext_t;
 
 // one per thread
 typedef struct MemorySpace {
-    UUId_t                ParentHandle;
+    uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;
     MemorySpaceContext_t* Context;
@@ -109,8 +109,8 @@ MemorySpaceInitialize(
  */
 KERNELAPI oscode_t KERNELABI
 CreateMemorySpace(
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut);
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided
@@ -122,7 +122,7 @@ KERNELAPI void KERNELABI
 MemorySpaceSwitch(
         _In_ MemorySpace_t* memorySpace);
 
-KERNELAPI UUId_t KERNELABI         GetCurrentMemorySpaceHandle(void);
+KERNELAPI uuid_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
 KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);

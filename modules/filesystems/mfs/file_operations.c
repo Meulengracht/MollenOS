@@ -31,7 +31,7 @@ FsReadFromFile(
         _In_  FileSystemBase_t*      fileSystemBase,
         _In_  FileSystemEntryMFS_t*  entry,
         _In_  FileSystemHandleMFS_t* handle,
-        _In_  UUId_t                 bufferHandle,
+        _In_  uuid_t                 bufferHandle,
         _In_  void*                  buffer,
         _In_  size_t                 bufferOffset,
         _In_  size_t                 unitCount,
@@ -88,7 +88,7 @@ FsReadFromFile(
         size_t   ByteCount;
         
         // The buffer handle + offset that was selected for reading 
-        UUId_t SelectedHandle = Mfs->TransferBuffer.handle;
+        uuid_t SelectedHandle = Mfs->TransferBuffer.handle;
         size_t SelectedOffset = 0;
         
         // Calculate the sector index into bucket
@@ -195,7 +195,7 @@ FsWriteToFile(
         _In_  FileSystemBase_t*      fileSystemBase,
         _In_  FileSystemEntryMFS_t*  entry,
         _In_  FileSystemHandleMFS_t* handle,
-        _In_  UUId_t                 bufferHandle,
+        _In_  uuid_t                 bufferHandle,
         _In_  void*                  buffer,
         _In_  size_t                 bufferOffset,
         _In_  size_t                 unitCount,
@@ -240,7 +240,7 @@ FsWriteToFile(
         size_t   ByteCount;
         
         // The buffer handle + offset that was selected for writing 
-        UUId_t SelectedHandle = mfs->TransferBuffer.handle;
+        uuid_t SelectedHandle = mfs->TransferBuffer.handle;
         size_t SelectedOffset = 0;
 
         // Calculate the sector index into bucket

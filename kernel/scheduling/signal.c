@@ -91,12 +91,12 @@ ExecuteSignalOnCoreFunction(
 
 oscode_t
 SignalSend(
-    _In_ UUId_t ThreadId,
-    _In_ int    Signal,
-    _In_ void*  Argument)
+        _In_ uuid_t ThreadId,
+        _In_ int    Signal,
+        _In_ void*  Argument)
 {
     Thread_t*      target = THREAD_GET(ThreadId);
-    UUId_t         targetCore;
+    uuid_t         targetCore;
     ThreadSignal_t signalInfo = {
         .Signal   = Signal,
         .Argument = Argument,

@@ -21,6 +21,6 @@ struct packethdr {
     intmax_t payloadlen;
 };
 
-extern int socket_create(int, int, int, UUId_t, UUId_t, UUId_t);
+extern int socket_create(int, int, int, uuid_t, uuid_t, uuid_t);
 
 #endif //!__INTERNAL_SOCKET_H__

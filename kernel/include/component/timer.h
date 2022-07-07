@@ -57,7 +57,7 @@ typedef struct SystemTimer {
     element_t                 ListHeader;
     SystemTimerOperations_t   Operations;
     enum SystemTimeAttributes Attributes;
-    UUId_t                    Interrupt;
+    uuid_t                    Interrupt;
     tick_t                    Resolution;
     UInteger64_t           InitialTick;
     void*                     Context;
@@ -94,7 +94,7 @@ KERNELAPI oscode_t KERNELABI
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
-        _In_ UUId_t                    interrupt,
+        _In_ uuid_t                    interrupt,
         _In_ void*                     context);
 
 /**

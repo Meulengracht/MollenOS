@@ -50,7 +50,7 @@ ApicWaitForIdle(void)
 void
 ApicSynchronizeArbIds(void)
 {
-    IntStatus_t interruptStatus;
+    irqstate_t interruptStatus;
     oscode_t  osStatus;
 
 	// Not needed on AMD and not supported on P4 
@@ -69,14 +69,14 @@ ApicSynchronizeArbIds(void)
 
 oscode_t
 ApicSendInterrupt(
-    _In_ InterruptTarget_t  type,
-    _In_ UUId_t             specific,
-    _In_ uint32_t           vector)
+        _In_ InterruptTarget_t  type,
+        _In_ uuid_t             specific,
+        _In_ uint32_t           vector)
 {
 	uint32_t    IpiLow  = 0;
 	uint32_t    IpiHigh = 0;
-    UUId_t      CoreId  = ArchGetProcessorCoreId();
-    IntStatus_t InterruptStatus;
+    uuid_t      CoreId  = ArchGetProcessorCoreId();
+    irqstate_t InterruptStatus;
     oscode_t  Status;
 
     if (type == InterruptTarget_SPECIFIC && specific == CoreId) {
@@ -118,12 +118,12 @@ ApicSendInterrupt(
 
 oscode_t
 ApicPerformIPI(
-    _In_ UUId_t coreId,
-    _In_ int    assert)
+        _In_ uuid_t coreId,
+        _In_ int    assert)
 {
 	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
 	uint32_t    IpiLow  = 0;
-    IntStatus_t InterruptStatus;
+    irqstate_t InterruptStatus;
     oscode_t  Status;
 
     // Determine assert or deassert
@@ -149,13 +149,13 @@ ApicPerformIPI(
 
 oscode_t
 ApicPerformSIPI(
-    _In_ UUId_t    coreId,
-    _In_ uintptr_t Address)
+        _In_ uuid_t    coreId,
+        _In_ uintptr_t Address)
 {
 	uint32_t    IpiLow  = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
 	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
     uint8_t     Vector  = 0;
-    IntStatus_t InterruptStatus;
+    irqstate_t InterruptStatus;
     oscode_t  Status;
     
     // Sanitize address given

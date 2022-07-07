@@ -51,7 +51,7 @@ gracht_server_t* __crt_get_module_server(void)
 }
 
 void __crt_module_load(
-        _In_ UUId_t moduleId)
+        _In_ uuid_t moduleId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
 
@@ -97,13 +97,13 @@ static oscode_t
 __ParseModuleOptions(
         _In_  char**  argv,
         _In_  int     argc,
-        _Out_ UUId_t* moduleIdOut)
+        _Out_ uuid_t* moduleIdOut)
 {
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
             long moduleId = strtol(argv[i + 1], NULL, 10);
             if (moduleId != 0) {
-                *moduleIdOut = (UUId_t)moduleId;
+                *moduleIdOut = (uuid_t)moduleId;
                 return OsOK;
             }
         }
@@ -117,7 +117,7 @@ void __CrtModuleEntry(void)
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
     oscode_t                    osStatus;
-    UUId_t                        moduleId;
+    uuid_t                        moduleId;
     int                           status;
     char**                        argv;
     int                           argc;

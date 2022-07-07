@@ -27,8 +27,8 @@
 typedef struct IrqSpinlock {
     int         value;
     int         references;
-    IntStatus_t original_flags;
-    UUId_t      owner;
+    irqstate_t original_flags;
+    uuid_t      owner;
 } IrqSpinlock_t;
 
 #define OS_IRQ_SPINLOCK_INIT { 0, 0, 0, 0xFFFFFFFF }

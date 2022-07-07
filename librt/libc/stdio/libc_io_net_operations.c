@@ -84,8 +84,8 @@ oscode_t stdio_net_op_close(stdio_handle_t* handle, int options)
 oscode_t stdio_net_op_inherit(stdio_handle_t* handle)
 {
     oscode_t status1, status2;
-    UUId_t     send_buffer_handle = handle->object.data.socket.send_buffer.handle;
-    UUId_t     recv_buffer_handle = handle->object.data.socket.recv_buffer.handle;
+    uuid_t     send_buffer_handle = handle->object.data.socket.send_buffer.handle;
+    uuid_t     recv_buffer_handle = handle->object.data.socket.recv_buffer.handle;
     
     // When we inherit a socket from another application, we must reattach
     // the handle that is stored in dma_attachment.

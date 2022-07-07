@@ -52,7 +52,7 @@ typedef enum DeviceIoType {
 // Represents a device io communcation space
 // that can be used by a driver to communcate with its physical device.
 typedef struct DeviceIo {
-    UUId_t              Id;
+    uuid_t              Id;
     DeviceIoType_t      Type;
     union {
         struct {

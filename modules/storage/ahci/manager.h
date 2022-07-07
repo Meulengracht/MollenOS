@@ -77,7 +77,7 @@ typedef struct AhciDevice {
 
 typedef struct AhciTransation {
     element_t             Header;
-    UUId_t                Id;
+    uuid_t                Id;
     int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
@@ -126,7 +126,7 @@ __EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransactio
  */
 __EXTERN AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 
 /**
  * AhciTransactionControlCreate

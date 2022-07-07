@@ -43,12 +43,12 @@
 extern gracht_server_t* __crt_get_module_server(void);
 
 struct usb_controller_device_index {
-    UUId_t                  deviceId;
+    uuid_t                  deviceId;
     UsbManagerController_t* pointer;
 };
 
 struct usb_controller_endpoint {
-    UUId_t address;
+    uuid_t address;
     int    toggle;
 };
 
@@ -215,7 +215,7 @@ UsbManagerIterateTransfers(
 
 UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     struct usb_controller_device_index* index = hashtable_get(&g_controllers,
             &(struct usb_controller_device_index) { .deviceId = deviceId });
@@ -227,13 +227,13 @@ UsbManagerGetController(
 
 int
 UsbManagerGetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address)
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address)
 {
     // Create an unique id for this endpoint
     UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
-    UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
+    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
     if (!controller) {
         return 0;
@@ -251,14 +251,14 @@ UsbManagerGetToggle(
 
 oscode_t
 UsbManagerSetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address,
-    _In_ int             toggle)
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address,
+        _In_ int             toggle)
 {
     // Create an unique id for this endpoint
     UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
-    UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
+    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
     if (!controller) {
         return OsNotExists;
@@ -276,7 +276,7 @@ UsbManagerSetToggle(
     return OsOK;
 }
 
-void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const UUId_t deviceId,
+void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
     UsbHcAddress_t address = { hub, port, device, endpoint };
@@ -609,7 +609,7 @@ UsbManagerDumpSchedule(
 static uint64_t default_dev_hash(const void* deviceIndex)
 {
     const struct usb_controller_device_index* index = deviceIndex;
-    return siphash_64((const uint8_t*)&index->deviceId, sizeof(UUId_t), &g_hashKey[0]);
+    return siphash_64((const uint8_t*)&index->deviceId, sizeof(uuid_t), &g_hashKey[0]);
 }
 
 static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
@@ -622,7 +622,7 @@ static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
 static uint64_t endpoint_hash(const void* element)
 {
     const struct usb_controller_endpoint* endpoint = element;
-    return siphash_64((const uint8_t*)&endpoint->address, sizeof(UUId_t), &g_hashKey[0]);
+    return siphash_64((const uint8_t*)&endpoint->address, sizeof(uuid_t), &g_hashKey[0]);
 }
 
 static int endpoint_cmp(const void* element1, const void* element2)

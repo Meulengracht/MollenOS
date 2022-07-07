@@ -140,13 +140,13 @@ MemoryRegionDestroy(
 
 oscode_t
 MemoryRegionCreate(
-    _In_  size_t       length,
-    _In_  size_t       capacity,
-    _In_  unsigned int flags,
-    _In_  size_t       pageMask,
-    _Out_ void**       kernelMapping,
-    _Out_ void**       userMapping,
-    _Out_ UUId_t*      handleOut)
+        _In_  size_t       length,
+        _In_  size_t       capacity,
+        _In_  unsigned int flags,
+        _In_  size_t       pageMask,
+        _Out_ void**       kernelMapping,
+        _Out_ void**       userMapping,
+        _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* memoryRegion;
     oscode_t      osStatus;
@@ -193,10 +193,10 @@ ErrorHandler:
 
 oscode_t
 MemoryRegionCreateExisting(
-    _In_  void*        memory,
-    _In_  size_t       size,
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut)
+        _In_  void*        memory,
+        _In_  size_t       size,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* region;
     oscode_t      osStatus;
@@ -243,8 +243,8 @@ ErrorHandler:
 
 oscode_t
 MemoryRegionAttach(
-    _In_  UUId_t  Handle,
-    _Out_ size_t* Length)
+        _In_  uuid_t  Handle,
+        _Out_ size_t* Length)
 {
     MemoryRegion_t* Region;
     
@@ -259,7 +259,7 @@ MemoryRegionAttach(
 
 oscode_t
 MemoryRegionInherit(
-        _In_  UUId_t       regionHandle,
+        _In_  uuid_t       regionHandle,
         _Out_ void**       memoryOut,
         _Out_ size_t*      sizeOut,
         _In_  unsigned int accessFlags)
@@ -301,8 +301,8 @@ MemoryRegionInherit(
 
 oscode_t
 MemoryRegionUnherit(
-    _In_ UUId_t handle,
-    _In_ void*  memory)
+        _In_ uuid_t handle,
+        _In_ void*  memory)
 {
     MemoryRegion_t* memoryRegion;
     uintptr_t       address;
@@ -416,9 +416,9 @@ static oscode_t __ExpandMemoryRegion(
 
 oscode_t
 MemoryRegionResize(
-    _In_ UUId_t handle,
-    _In_ void*  memory,
-    _In_ size_t newLength)
+        _In_ uuid_t handle,
+        _In_ void*  memory,
+        _In_ size_t newLength)
 {
     MemoryRegion_t* memoryRegion;
     int             currentPages;
@@ -489,10 +489,10 @@ static oscode_t __RefreshMemoryRegion(
 
 oscode_t
 MemoryRegionRefresh(
-    _In_  UUId_t  handle,
-    _In_  void*   memory,
-    _In_  size_t  currentLength,
-    _Out_ size_t* newLength)
+        _In_  uuid_t  handle,
+        _In_  void*   memory,
+        _In_  size_t  currentLength,
+        _Out_ size_t* newLength)
 {
     MemoryRegion_t* memoryRegion;
     int             currentPages;
@@ -550,7 +550,7 @@ exit:
 
 oscode_t
 MemoryRegionCommit(
-        _In_ UUId_t handle,
+        _In_ uuid_t handle,
         _In_ void*  memoryBase,
         _In_ void*  memory,
         _In_ size_t length)
@@ -611,11 +611,11 @@ MemoryRegionCommit(
 
 oscode_t
 MemoryRegionRead(
-    _In_  UUId_t  Handle,
-    _In_  size_t  Offset,
-    _In_  void*   Buffer,
-    _In_  size_t  Length,
-    _Out_ size_t* BytesRead)
+        _In_  uuid_t  Handle,
+        _In_  size_t  Offset,
+        _In_  void*   Buffer,
+        _In_  size_t  Length,
+        _Out_ size_t* BytesRead)
 {
     MemoryRegion_t* Region;
     size_t          ClampedLength;
@@ -643,11 +643,11 @@ MemoryRegionRead(
 
 oscode_t
 MemoryRegionWrite(
-    _In_  UUId_t      Handle,
-    _In_  size_t      Offset,
-    _In_  const void* Buffer,
-    _In_  size_t      Length,
-    _Out_ size_t*     BytesWritten)
+        _In_  uuid_t      Handle,
+        _In_  size_t      Offset,
+        _In_  const void* Buffer,
+        _In_  size_t      Length,
+        _Out_ size_t*     BytesWritten)
 {
     MemoryRegion_t* Region;
     size_t          ClampedLength;
@@ -679,9 +679,9 @@ MemoryRegionWrite(
 
 oscode_t
 MemoryRegionGetSg(
-    _In_  UUId_t         handle,
-    _Out_ int*           sgCountOut,
-    _Out_ struct dma_sg* sgListOut)
+        _In_  uuid_t         handle,
+        _Out_ int*           sgCountOut,
+        _Out_ struct dma_sg* sgListOut)
 {
     MemoryRegion_t* memoryRegion;
     size_t          pageSize = GetMemorySpacePageSize();
@@ -732,7 +732,7 @@ MemoryRegionGetSg(
 
 oscode_t
 MemoryRegionGetKernelMapping(
-        _In_  UUId_t handle,
+        _In_  uuid_t handle,
         _Out_ void** bufferOut)
 {
     MemoryRegion_t* region;

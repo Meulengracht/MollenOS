@@ -76,7 +76,7 @@ PACKED_TYPESTRUCT(MasterBootRecord, {
 extern oscode_t
 MbrEnumerate(
         _In_ FileSystemStorage_t* storage,
-        _In_ UUId_t               bufferHandle,
+        _In_ uuid_t               bufferHandle,
         _In_ void*                buffer);
 
 #endif //!_DISK_LAYOUT_MBR_H_

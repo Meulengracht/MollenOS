@@ -168,7 +168,7 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
     int32_t                         UnitExponent;
     
     uint32_t                        ReportSize;
-    UUId_t                          ReportId;
+    uuid_t                          ReportId;
     uint32_t                        ReportCount;
 });
 
@@ -243,7 +243,7 @@ typedef struct HidDevice {
     UsbDevice_t   Base;
     element_t     Header;
     UsbTransfer_t Transfer;
-    UUId_t        TransferId;
+    uuid_t        TransferId;
 
     UsbHidReportCollection_t*  Collection;
     uintptr_t*                 Buffer;
